@@ -2,11 +2,11 @@
 import { CampaignNav } from "@/app/components/CampaignNav";
 
 type CampaignPageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
-export default function CampaignPage({ params }: CampaignPageProps) {
-  const { id } = params;
+export default async function CampaignPage({ params }: CampaignPageProps) {
+  const { id } = await params;
 
   return (
     <main style={{ padding: "2rem" }}>
@@ -25,9 +25,15 @@ export default function CampaignPage({ params }: CampaignPageProps) {
         </p>
 
         <ul style={{ marginTop: "1rem" }}>
-          <li><strong>The Forge</strong> — item crafting & equipment.</li>
-          <li><strong>The Summoning Circle</strong> — monsters & encounters.</li>
-          <li><strong>Character Creator</strong> — players & NPCs.</li>
+          <li>
+            <strong>The Forge</strong> — item crafting & equipment.
+          </li>
+          <li>
+            <strong>The Summoning Circle</strong> — monsters & encounters.
+          </li>
+          <li>
+            <strong>Character Creator</strong> — players & NPCs.
+          </li>
         </ul>
       </section>
     </main>
