@@ -1,29 +1,26 @@
 // app/campaign/[id]/forge/page.tsx
 import { CampaignNav } from "@/app/components/CampaignNav";
+import { ForgeCreate } from "@/app/forge/components/ForgeCreate";
 
 type ForgePageProps = {
   params: { id: string };
 };
 
-export default function ForgePage({ params }: ForgePageProps) {
-  const { id } = params;
+export default async function ForgePage({ params }: ForgePageProps) {
+const { id } = await Promise.resolve(params);
 
   return (
-    <main style={{ padding: "2rem" }}>
-      <CampaignNav campaignId={id} />
+    <main className="min-h-screen bg-black text-zinc-100">
+      <div className="max-w-6xl mx-auto p-6 space-y-6">
+        <CampaignNav campaignId={id} />
 
-      <section>
-        <h1>The Forge</h1>
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold">The Forge</h1>
+        </header>
 
-        <p style={{ marginTop: "0.75rem" }}>
-          Placeholder for The Forge UI for campaign <strong>{id}</strong>.
-        </p>
-
-        <p style={{ marginTop: "0.5rem" }}>
-          This is where weapon, shield, armor, and item creation will live —
-          all the crunchy crafting you dragged out of Google Apps Script.
-        </p>
-      </section>
+        <ForgeCreate campaignId={id} />
+      </div>
     </main>
   );
 }
+

@@ -1,0 +1,505 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model ItemTemplate {
+  id                       String                           @id @map("ItemID")
+  itemUrl                  String?                          @map("ItemUrl")
+  createdAt                DateTime                         @map("Timestamp")
+  name                     String                           @map("ItemName")
+  rarity                   ItemRarity                       @map("ItemRarity")
+  level                    Int                              @map("ItemLevel")
+  generalDescription       String                           @map("GeneralDescription")
+  type                     ItemType                         @map("ItemType")
+  size                     WeaponSize?                      @map("Size")
+  meleeTargets             Int?                             @map("MeleeTargets")
+  rangedTargets            Int?                             @map("RangedTargets")
+  rangedDistanceFeet       Int?                             @map("RangedDistance")
+  aoeCenterRangeFeet       Int?                             @map("AoECenterRange")
+  aoeCount                 Int?                             @map("AoECount")
+  aoeShape                 AoEShape?                        @map("AoEShape")
+  aoeSphereRadiusFeet      Int?                             @map("AoESphereSize")
+  aoeConeLengthFeet        Int?                             @map("AoEConeLength")
+  aoeLineWidthFeet         Int?                             @map("AoELineWidth")
+  aoeLineLengthFeet        Int?                             @map("AoELineLength")
+  customWeaponAttributes   String?                          @map("CustomWeaponAttributes")
+  armorLocation            ArmorLocation?                   @map("ArmorLocation")
+  ppv                      Int?                             @map("PPV")
+  mpv                      Int?                             @map("MPV")
+  auraPhysical             Int?                             @map("Aura_Physical")
+  auraMental               Int?                             @map("Aura_Mental")
+  customArmorAttributes    String?                          @map("CustomArmorAttributes")
+  shieldHasAttack          Boolean?                         @map("ShieldHasAttack")
+  customShieldAttributes   String?                          @map("CustomShieldAttributes")
+  itemLocation             ItemLocation?                    @map("ItemLocation")
+  customItemAttributes     String?                          @map("CustomItemAttributes")
+  globalAttributeModifiers Json?                            @default("[]") @map("GlobalAttributeModifiers")
+  campaignId               String                           @map("CampaignID")
+  meleeDamageTypeIds       Int[]
+  rangedDamageTypeIds      Int[]
+  aoeDamageTypeIds         Int[]
+  physicalStrength         Int?                             @map("PhysicalStrength")
+  mentalStrength           Int?                             @map("MentalStrength")
+  meleePhysicalStrength    Int?                             @map("meleePhysicalStrength")
+  meleeMentalStrength      Int?                             @map("meleeMentalStrength")
+  rangedPhysicalStrength   Int?                             @map("rangedPhysicalStrength")
+  rangedMentalStrength     Int?                             @map("rangedMentalStrength")
+  aoePhysicalStrength      Int?                             @map("aoePhysicalStrength")
+  aoeMentalStrength        Int?                             @map("aoeMentalStrength")
+  Campaign                 Campaign                         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  aoeDamageTypes           ItemTemplateAoEDamageType[]
+  armorAttributes          ItemTemplateArmorAttribute[]
+  attackEffectsAoE         ItemTemplateAttackEffectAoE[]
+  attackEffectsMelee       ItemTemplateAttackEffectMelee[]
+  attackEffectsRanged      ItemTemplateAttackEffectRanged[]
+  defEffects               ItemTemplateDefEffect[]
+  meleeDamageTypes         ItemTemplateMeleeDamageType[]
+  rangeCategories          ItemTemplateRangeCategory[]
+  rangedDamageTypes        ItemTemplateRangedDamageType[]
+  sanctifiedOptions        ItemTemplateSanctifiedOption[]
+  shieldAttributes         ItemTemplateShieldAttribute[]
+  vrpEntries               ItemTemplateVRPEntry[]
+  wardingOptions           ItemTemplateWardingOption[]
+  weaponAttributes         ItemTemplateWeaponAttribute[]
+
+  @@index([campaignId])
+  @@map("ItemTemplate")
+}
+
+model DamageType {
+  id              Int                            @id @default(autoincrement())
+  name            String                         @unique
+  attackMode      String                         @default("PHYSICAL")
+  aoeTemplates    ItemTemplateAoEDamageType[]
+  meleeTemplates  ItemTemplateMeleeDamageType[]
+  rangedTemplates ItemTemplateRangedDamageType[]
+  vrpEntries      ItemTemplateVRPEntry[]
+
+  @@map("DamageType")
+}
+
+model AttackEffect {
+  id              Int                              @id @default(autoincrement())
+  name            String                           @unique
+  aoeTemplates    ItemTemplateAttackEffectAoE[]
+  meleeTemplates  ItemTemplateAttackEffectMelee[]
+  rangedTemplates ItemTemplateAttackEffectRanged[]
+
+  @@map("AttackEffect")
+}
+
+model DefEffect {
+  id        Int                     @id @default(autoincrement())
+  name      String                  @unique
+  templates ItemTemplateDefEffect[]
+
+  @@map("DefEffect")
+}
+
+model WeaponAttribute {
+  id                     Int                           @id @default(autoincrement())
+  name                   String                        @unique
+  descriptorTemplate     String?                       @db.Text
+  descriptorNotes        String?                       @db.Text
+
+  // Requirements (Admin-editable gating)
+  requiresRange          RangeCategory?
+  requiresAoeShape       AoEShape?
+
+  // Parameterisation
+  requiresStrengthSource   Boolean                     @default(false)
+
+  // Simple parameterisation (choose a range, expose [ChosenRange])
+  requiresRangeSelection   Boolean                     @default(false)
+
+  // Requirements (Strength family must exist on the item)
+  // null = no requirement
+  requiresStrengthKind     StrengthKind?
+
+  templates              ItemTemplateWeaponAttribute[]
+
+  @@map("WeaponAttribute")
+}
+
+model ArmorAttribute {
+  id                 Int                          @id @default(autoincrement())
+  name               String                       @unique
+  descriptorTemplate String?                      @db.Text
+  descriptorNotes    String?                      @db.Text
+
+  // Requirement (admin-driven): PHYSICAL = requires PPV > 0, MENTAL = requires MPV > 0
+  // null = no requirement
+  requiresPvKind     StrengthKind?
+
+  templates          ItemTemplateArmorAttribute[]
+
+  @@map("ArmorAttribute")
+}
+
+model ShieldAttribute {
+  id                 Int                           @id @default(autoincrement())
+  name               String                        @unique
+
+  // Authored in Admin UI (templated like Armor/Weapon)
+  descriptorTemplate String?                       @db.Text
+  descriptorNotes    String?                       @db.Text
+
+  templates          ItemTemplateShieldAttribute[]
+
+  @@map("ShieldAttribute")
+}
+
+model WardingOption {
+  id        Int                         @id @default(autoincrement())
+  name      String                      @unique
+  templates ItemTemplateWardingOption[]
+
+  @@map("WardingOption")
+}
+
+model SanctifiedOption {
+  id        Int                            @id @default(autoincrement())
+  name      String                         @unique
+  templates ItemTemplateSanctifiedOption[]
+
+  @@map("SanctifiedOption")
+}
+
+model ItemTemplateRangeCategory {
+  itemTemplateId String
+  rangeCategory  RangeCategory
+  itemTemplate   ItemTemplate  @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+
+  @@id([itemTemplateId, rangeCategory])
+  @@map("ItemTemplateRangeCategory")
+}
+
+model ItemTemplateMeleeDamageType {
+  itemTemplateId String
+  damageTypeId   Int
+  damageType     DamageType   @relation(fields: [damageTypeId], references: [id])
+  itemTemplate   ItemTemplate @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+
+  @@id([itemTemplateId, damageTypeId])
+  @@map("ItemTemplateMeleeDamageType")
+}
+
+model ItemTemplateRangedDamageType {
+  itemTemplateId String
+  damageTypeId   Int
+  damageType     DamageType   @relation(fields: [damageTypeId], references: [id])
+  itemTemplate   ItemTemplate @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+
+  @@id([itemTemplateId, damageTypeId])
+  @@map("ItemTemplateRangedDamageType")
+}
+
+model ItemTemplateAoEDamageType {
+  itemTemplateId String
+  damageTypeId   Int
+  damageType     DamageType   @relation(fields: [damageTypeId], references: [id])
+  itemTemplate   ItemTemplate @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+
+  @@id([itemTemplateId, damageTypeId])
+  @@map("ItemTemplateAoEDamageType")
+}
+
+model ItemTemplateAttackEffectMelee {
+  itemTemplateId String
+  attackEffectId Int
+  attackEffect   AttackEffect @relation(fields: [attackEffectId], references: [id])
+  itemTemplate   ItemTemplate @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+
+  @@id([itemTemplateId, attackEffectId])
+  @@map("ItemTemplateAttackEffectMelee")
+}
+
+model ItemTemplateAttackEffectRanged {
+  itemTemplateId String
+  attackEffectId Int
+  attackEffect   AttackEffect @relation(fields: [attackEffectId], references: [id])
+  itemTemplate   ItemTemplate @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+
+  @@id([itemTemplateId, attackEffectId])
+  @@map("ItemTemplateAttackEffectRanged")
+}
+
+model ItemTemplateAttackEffectAoE {
+  itemTemplateId String
+  attackEffectId Int
+  attackEffect   AttackEffect @relation(fields: [attackEffectId], references: [id])
+  itemTemplate   ItemTemplate @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+
+  @@id([itemTemplateId, attackEffectId])
+  @@map("ItemTemplateAttackEffectAoE")
+}
+
+model ItemTemplateWeaponAttribute {
+  itemTemplateId    String
+  weaponAttributeId Int
+
+  // Parameter values (per item, per attribute)
+  strengthSource    RangeCategory?
+
+  // Chosen range token source (per item, per attribute)
+  rangeSource       RangeCategory?
+
+  itemTemplate      ItemTemplate    @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+  weaponAttribute   WeaponAttribute @relation(fields: [weaponAttributeId], references: [id])
+
+  @@id([itemTemplateId, weaponAttributeId])
+  @@map("ItemTemplateWeaponAttribute")
+}
+
+model ItemTemplateArmorAttribute {
+  itemTemplateId   String
+  armorAttributeId Int
+  armorAttribute   ArmorAttribute @relation(fields: [armorAttributeId], references: [id])
+  itemTemplate     ItemTemplate   @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+
+  @@id([itemTemplateId, armorAttributeId])
+  @@map("ItemTemplateArmorAttribute")
+}
+
+model ItemTemplateShieldAttribute {
+  itemTemplateId    String
+  shieldAttributeId Int
+  itemTemplate      ItemTemplate    @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+  shieldAttribute   ShieldAttribute @relation(fields: [shieldAttributeId], references: [id])
+
+  @@id([itemTemplateId, shieldAttributeId])
+  @@map("ItemTemplateShieldAttribute")
+}
+
+model ItemTemplateDefEffect {
+  itemTemplateId String
+  defEffectId    Int
+  defEffect      DefEffect    @relation(fields: [defEffectId], references: [id])
+  itemTemplate   ItemTemplate @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+
+  @@id([itemTemplateId, defEffectId])
+  @@map("ItemTemplateDefEffect")
+}
+
+model ItemTemplateWardingOption {
+  itemTemplateId  String
+  wardingOptionId Int
+  itemTemplate    ItemTemplate  @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+  wardingOption   WardingOption @relation(fields: [wardingOptionId], references: [id])
+
+  @@id([itemTemplateId, wardingOptionId])
+  @@map("ItemTemplateWardingOption")
+}
+
+model ItemTemplateSanctifiedOption {
+  itemTemplateId     String
+  sanctifiedOptionId Int
+  itemTemplate       ItemTemplate     @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+  sanctifiedOption   SanctifiedOption @relation(fields: [sanctifiedOptionId], references: [id])
+
+  @@id([itemTemplateId, sanctifiedOptionId])
+  @@map("ItemTemplateSanctifiedOption")
+}
+
+model ItemTemplateVRPEntry {
+  id             Int           @id @default(autoincrement())
+  itemTemplateId String
+  effectKind     VRPEffectKind
+  magnitude      Int
+  damageTypeId   Int
+  damageType     DamageType    @relation(fields: [damageTypeId], references: [id])
+  itemTemplate   ItemTemplate  @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+
+  @@index([itemTemplateId])
+  @@map("ItemTemplateVRPEntry")
+}
+
+model ForgeConfigEntry {
+  id        Int                 @id @default(autoincrement())
+  category  ForgeConfigCategory
+  selector1 String
+  selector2 String?
+  value     Float
+
+  @@index([category, selector1, selector2])
+  @@map("ForgeConfigEntry")
+}
+
+model ForgeCostEntry {
+  id        Int               @id @default(autoincrement())
+  category  ForgeCostCategory
+  selector1 String
+  selector2 String?
+  selector3 String?
+  value     Float
+  notes     String?
+
+  @@index([category, selector1, selector2, selector3])
+  @@map("ForgeCostEntry")
+}
+
+model UserProfile {
+  userId          String          @id
+  entitlementTier EntitlementTier @default(FREE)
+  createdAt       DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  isAdmin         Boolean         @default(false)
+
+  @@map("UserProfile")
+}
+
+model Campaign {
+  id                   String         @id @default(dbgenerated("(gen_random_uuid())::text"))
+  createdAt            DateTime       @default(now())
+  name                 String
+  ownerUserId          String
+  descriptorVersionTag String         @default("v0")
+  members              CampaignUser[]
+  ItemTemplate         ItemTemplate[]
+
+  @@index([ownerUserId])
+  @@map("Campaign")
+}
+
+model CampaignUser {
+  campaignId String
+  userId     String
+  role       CampaignRole @default(PLAYER)
+  createdAt  DateTime     @default(now())
+  campaign   Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, userId])
+  @@index([userId])
+  @@map("CampaignUser")
+}
+
+model DescriptorRule {
+  id             Int             @id @default(autoincrement())
+  versionTag     String
+  scope          DescriptorScope @default(ANY)
+  priority       Int             @default(0)
+  isEnabled      Boolean         @default(true)
+  conditionsJson Json            @default("{}")
+  template       String
+  notes          String?
+
+  @@index([versionTag, scope, priority])
+  @@map("DescriptorRule")
+}
+
+enum EntitlementTier {
+  FREE
+  PAID
+}
+
+enum ItemRarity {
+  COMMON
+  UNCOMMON
+  RARE
+  LEGENDARY
+  MYTHIC
+}
+
+enum ItemType {
+  WEAPON
+  ARMOR
+  SHIELD
+  ITEM
+  CONSUMABLE
+}
+
+enum WeaponSize {
+  SMALL
+  ONE_HANDED
+  TWO_HANDED
+}
+
+enum RangeCategory {
+  MELEE
+  RANGED
+  AOE
+}
+enum StrengthKind {
+  PHYSICAL
+  MENTAL
+}
+
+enum AoEShape {
+  SPHERE
+  CONE
+  LINE
+}
+
+enum ArmorLocation {
+  HEAD
+  SHOULDERS
+  TORSO
+  LEGS
+  FEET
+}
+
+enum ItemLocation {
+  HEAD
+  NECK
+  ARMS
+  BELT
+}
+
+enum VRPEffectKind {
+  VULNERABILITY
+  RESISTANCE
+  PROTECTION
+}
+
+enum CampaignRole {
+  GAME_DIRECTOR
+  PLAYER
+}
+
+enum DescriptorScope {
+  ANY
+  WEAPON
+  ARMOR
+  SHIELD
+  ITEM
+}
+
+enum ForgeConfigCategory {
+  RARITY
+  SIZE
+  ARMOR_LOCATION
+  ITEM_LOCATION
+  CONSUMABLES
+}
+
+enum ForgeCostCategory {
+  AoECenterRangeFt
+  AoECount
+  ArmorAttributes
+  Attribute
+  Aura_Mental
+  Aura_Physical
+  ConeLengthFt
+  DmgType_Count
+  GS_AttackEffects
+  GS_DefEffects
+  ItemType
+  LineLengthFt
+  LineWidthFt
+  MeleeTargets
+  RangeCategory
+  RangedDistanceFt
+  RangedTargets
+  SanctifiedOptions
+  ShieldAttributes
+  ShieldHasAttack
+  SphereSizeFt
+  Stat
+  VRPOptions
+  WardingOptions
+  WeaponAttributes
+}

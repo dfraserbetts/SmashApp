@@ -1,0 +1,21 @@
+Category,Selector 1,Selector 2,Value
+Rarity,common,,5
+Rarity,uncommon,,6
+Rarity,rare,,8
+Rarity,legendary,,10
+Rarity,mythic,,12
+Size,Weapon,Small,1.25
+Size,Weapon,One Handed,1
+Size,Weapon,Two Handed,0.75
+Size,Shield,Small,1.25
+Size,Shield,One Handed,1.1
+Size,Shield,Two Handed,0.95
+ArmorLocation,Head,,1.1
+ArmorLocation,Shoulders,,1.05
+ArmorLocation,Torso,,1.25
+ArmorLocation,Legs,,1.1
+ArmorLocation,Feet,,1
+ItemLocation,Head,,2
+ItemLocation,Neck,,2.5
+ItemLocation,Arms,,2.25
+ItemLocation,Belt,,2
