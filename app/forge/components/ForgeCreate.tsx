@@ -4179,7 +4179,7 @@ useEffect(() => {
 
       {/* FORM COLUMN */}
       <div
-        className={`relative w-full md:w-1/2 p-6 md:p-8 border-b md:border-b-0 md:border-r border-zinc-800 md:overflow-y-auto ${editorMobileVisibility} md:block`}
+        className={`relative w-full md:w-1/2 p-3 md:p-8 border-b md:border-b-0 md:border-r border-zinc-800 md:overflow-y-auto ${editorMobileVisibility} md:block`}
       >
         <h1 className="text-2xl font-bold mb-4">Forge Item Creator</h1>
 
@@ -4993,11 +4993,11 @@ useEffect(() => {
 
           {/* PREVIEW COLUMN */}
       <div
-        className={`w-full md:w-1/2 p-6 md:p-8 md:overflow-y-auto ${previewMobileVisibility} md:block`}
+        className={`w-full md:w-1/2 p-3 md:p-8 md:overflow-y-auto ${previewMobileVisibility} md:block`}
       >
         <h2 className="text-xl font-semibold mb-4">Preview</h2>
 
-        <div className="rounded-xl border border-zinc-800 p-4 text-sm space-y-4">
+        <div className="w-full rounded-xl border border-zinc-800 p-4 text-sm space-y-4">
           {loading && <p className="text-zinc-500">Waiting for picklists…</p>}
           {error && (
             <p className="text-red-400">

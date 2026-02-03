@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabaseClient } from "@/lib/supabaseClient";
+import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 type CampaignRow = {
   id: string;
@@ -36,6 +36,7 @@ export default function DashboardPage() {
       setErr(null);
       setLoading(true);
 
+      const supabaseClient = getSupabaseBrowserClient();
       const { data: sessionData } = await supabaseClient.auth.getSession();
       const u = sessionData.session?.user;
       if (!u) {
@@ -76,6 +77,7 @@ export default function DashboardPage() {
     setErr(null);
 
     try {
+      const supabaseClient = getSupabaseBrowserClient();
       // Always derive the acting user from Supabase at the moment of action
       const {
         data: { user },
@@ -120,6 +122,7 @@ export default function DashboardPage() {
   }
 
   async function signOut() {
+    const supabaseClient = getSupabaseBrowserClient();
     await supabaseClient.auth.signOut();
     router.replace("/login");
   }

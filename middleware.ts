@@ -8,10 +8,15 @@ export async function middleware(req: NextRequest) {
     },
   });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  const url = process.env.SUPABASE_URL;
+  const anon = process.env.SUPABASE_ANON_KEY;
+
+  if (!url || !anon) {
+    // Edge env not present — allow request through rather than 500-ing the whole app
+    return res;
+  }
+
+  const supabase = createServerClient(url, anon, {
       cookies: {
         get(name: string) {
           return req.cookies.get(name)?.value;

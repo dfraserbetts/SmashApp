@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { supabaseClient } from "@/lib/supabaseClient";
 
 type CampaignRole = "PLAYER" | "GAME_DIRECTOR";
@@ -17,6 +17,8 @@ type CampaignRow = {
 
 export default function CampaignHomePage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const isForge = pathname.endsWith('/forge');
   const params = useParams<{ id: string }>();
   const campaignId = Array.isArray(params?.id) ? params.id[0] : params?.id;
 
@@ -149,7 +151,13 @@ export default function CampaignHomePage() {
   if (err) {
     return (
       <main className="min-h-screen bg-black text-zinc-100 p-6">
-        <div className="max-w-2xl mx-auto space-y-4">
+        <div
+          className={
+            isForge
+              ? 'w-full space-y-4'
+              : 'max-w-2xl mx-auto space-y-4'
+          }
+        >
           <h1 className="text-xl font-semibold">Campaign</h1>
           <p className="text-red-400">{err}</p>
           <button
@@ -165,7 +173,13 @@ export default function CampaignHomePage() {
 
   return (
     <main className="min-h-screen bg-black text-zinc-100 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div
+        className={
+          isForge
+            ? 'w-full space-y-6'
+            : 'max-w-4xl mx-auto space-y-6'
+        }
+      >
         <header className="space-y-1">
           <div className="text-sm text-zinc-400">
             Descriptor set: <span className="text-zinc-200">{descriptorTag}</span>
