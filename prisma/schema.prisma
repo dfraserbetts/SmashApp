@@ -101,54 +101,54 @@ model DefEffect {
 }
 
 model WeaponAttribute {
-  id                     Int                           @id @default(autoincrement())
-  name                   String                        @unique
-  descriptorTemplate     String?                       @db.Text
-  descriptorNotes        String?                       @db.Text
+  id                 Int     @id @default(autoincrement())
+  name               String  @unique
+  descriptorTemplate String? @db.Text
+  descriptorNotes    String? @db.Text
 
   // Requirements (Admin-editable gating)
-  requiresRange          RangeCategory?
-  requiresAoeShape       AoEShape?
+  requiresRange    RangeCategory?
+  requiresAoeShape AoEShape?
 
   // Parameterisation
-  requiresStrengthSource   Boolean                     @default(false)
+  requiresStrengthSource Boolean @default(false)
 
   // Simple parameterisation (choose a range, expose [ChosenRange])
-  requiresRangeSelection   Boolean                     @default(false)
+  requiresRangeSelection Boolean @default(false)
 
   // Requirements (Strength family must exist on the item)
   // null = no requirement
-  requiresStrengthKind     StrengthKind?
+  requiresStrengthKind StrengthKind?
 
-  templates              ItemTemplateWeaponAttribute[]
+  templates ItemTemplateWeaponAttribute[]
 
   @@map("WeaponAttribute")
 }
 
 model ArmorAttribute {
-  id                 Int                          @id @default(autoincrement())
-  name               String                       @unique
-  descriptorTemplate String?                      @db.Text
-  descriptorNotes    String?                      @db.Text
+  id                 Int     @id @default(autoincrement())
+  name               String  @unique
+  descriptorTemplate String? @db.Text
+  descriptorNotes    String? @db.Text
 
   // Requirement (admin-driven): PHYSICAL = requires PPV > 0, MENTAL = requires MPV > 0
   // null = no requirement
-  requiresPvKind     StrengthKind?
+  requiresPvKind StrengthKind?
 
-  templates          ItemTemplateArmorAttribute[]
+  templates ItemTemplateArmorAttribute[]
 
   @@map("ArmorAttribute")
 }
 
 model ShieldAttribute {
-  id                 Int                           @id @default(autoincrement())
-  name               String                        @unique
+  id   Int    @id @default(autoincrement())
+  name String @unique
 
   // Authored in Admin UI (templated like Armor/Weapon)
-  descriptorTemplate String?                       @db.Text
-  descriptorNotes    String?                       @db.Text
+  descriptorTemplate String? @db.Text
+  descriptorNotes    String? @db.Text
 
-  templates          ItemTemplateShieldAttribute[]
+  templates ItemTemplateShieldAttribute[]
 
   @@map("ShieldAttribute")
 }
@@ -243,13 +243,13 @@ model ItemTemplateWeaponAttribute {
   weaponAttributeId Int
 
   // Parameter values (per item, per attribute)
-  strengthSource    RangeCategory?
+  strengthSource RangeCategory?
 
   // Chosen range token source (per item, per attribute)
-  rangeSource       RangeCategory?
+  rangeSource RangeCategory?
 
-  itemTemplate      ItemTemplate    @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
-  weaponAttribute   WeaponAttribute @relation(fields: [weaponAttributeId], references: [id])
+  itemTemplate    ItemTemplate    @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+  weaponAttribute WeaponAttribute @relation(fields: [weaponAttributeId], references: [id])
 
   @@id([itemTemplateId, weaponAttributeId])
   @@map("ItemTemplateWeaponAttribute")
@@ -391,9 +391,121 @@ model DescriptorRule {
   @@map("DescriptorRule")
 }
 
+model Ability {
+  id                 String                   @id @default(cuid())
+  name               String
+  sourceType         AbilitySourceType
+  intention          IntentionType
+  diceCount          Int
+  potency            Int
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @default(now()) @updatedAt
+  limitBreakProfiles LimitBreakProfile[]
+  limitBreakUsages   AbilityLimitBreakUsage[]
+
+  @@index([sourceType])
+  @@index([intention])
+  @@map("Ability")
+}
+
+model LimitBreakEffect {
+  id                  String              @id @default(cuid())
+  key                 String              @unique
+  intentionGate       IntentionType?
+  params              Json                @default("{}")
+  rulesText           String?             @db.Text
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @default(now()) @updatedAt
+  successProfiles     LimitBreakProfile[] @relation("LimitBreakProfileSuccessEffect")
+  failForwardProfiles LimitBreakProfile[] @relation("LimitBreakProfileFailForwardEffect")
+
+  @@map("LimitBreakEffect")
+}
+
+model LimitBreakConsequence {
+  id                       String              @id @default(cuid())
+  key                      String              @unique
+  params                   Json                @default("{}")
+  rulesText                String?             @db.Text
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @default(now()) @updatedAt
+  baseConsequenceProfiles  LimitBreakProfile[] @relation("LimitBreakProfileBaseConsequence")
+  failForwardCostAProfiles LimitBreakProfile[] @relation("LimitBreakProfileFailForwardCostA")
+  failForwardCostBProfiles LimitBreakProfile[] @relation("LimitBreakProfileFailForwardCostB")
+
+  @@map("LimitBreakConsequence")
+}
+
+model LimitBreakProfile {
+  id                  String                 @id @default(cuid())
+  abilityId           String
+  tier                LimitBreakTier
+  name                String
+  thresholdPercent    Int
+  baseConsequenceId   String
+  successEffectId     String
+  failForwardEffectId String?
+  failForwardCostAId  String?
+  failForwardCostBId  String?
+  isEnabled           Boolean                @default(true)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @default(now()) @updatedAt
+  ability             Ability                @relation(fields: [abilityId], references: [id], onDelete: Cascade)
+  baseConsequence     LimitBreakConsequence  @relation("LimitBreakProfileBaseConsequence", fields: [baseConsequenceId], references: [id])
+  successEffect       LimitBreakEffect       @relation("LimitBreakProfileSuccessEffect", fields: [successEffectId], references: [id])
+  failForwardEffect   LimitBreakEffect?      @relation("LimitBreakProfileFailForwardEffect", fields: [failForwardEffectId], references: [id])
+  failForwardCostA    LimitBreakConsequence? @relation("LimitBreakProfileFailForwardCostA", fields: [failForwardCostAId], references: [id])
+  failForwardCostB    LimitBreakConsequence? @relation("LimitBreakProfileFailForwardCostB", fields: [failForwardCostBId], references: [id])
+
+  @@unique([abilityId, tier])
+  @@index([tier])
+  @@map("LimitBreakProfile")
+}
+
+model AbilityLimitBreakUsage {
+  id          String              @id @default(cuid())
+  actorType   LimitBreakActorType
+  actorId     String
+  abilityId   String
+  usedAtLevel Int
+  createdAt   DateTime            @default(now())
+  ability     Ability             @relation(fields: [abilityId], references: [id], onDelete: Cascade)
+
+  @@unique([actorType, actorId, abilityId, usedAtLevel])
+  @@index([actorType, actorId])
+  @@index([abilityId])
+  @@map("AbilityLimitBreakUsage")
+}
+
 enum EntitlementTier {
   FREE
   PAID
+}
+
+enum AbilitySourceType {
+  CHARACTER_POWER
+  MYTHIC_ITEM_ABILITY
+  MONSTER_ABILITY
+}
+
+enum IntentionType {
+  ATTACK
+  CONTROL
+  MOVEMENT
+  SUPPORT
+  AUGMENT
+  DEBUFF
+}
+
+enum LimitBreakTier {
+  PUSH
+  BREAK
+  TRANSCEND
+}
+
+enum LimitBreakActorType {
+  CHARACTER
+  MONSTER
 }
 
 enum ItemRarity {
@@ -423,6 +535,7 @@ enum RangeCategory {
   RANGED
   AOE
 }
+
 enum StrengthKind {
   PHYSICAL
   MENTAL

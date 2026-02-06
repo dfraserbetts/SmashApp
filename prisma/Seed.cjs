@@ -202,10 +202,44 @@ async function seedCosts() {
   }
 }
 
+// ----------------------------------------
+// Limit Break reference data
+// ----------------------------------------
+async function seedLimitBreakReferenceData() {
+  const effectKeys = [
+    'LB_EFFECT_DAMAGE_SPIKE',
+    'LB_EFFECT_FORCED_MOVEMENT',
+    'LB_EFFECT_TEAM_UTILITY',
+  ];
+
+  const consequenceKeys = [
+    'LB_COST_SELF_EXPOSED',
+    'LB_COST_RESOURCE_DRAIN',
+    'LB_COST_POSITIONAL_LOCK',
+  ];
+
+  for (const key of effectKeys) {
+    await prisma.limitBreakEffect.upsert({
+      where: { key },
+      update: {},
+      create: { key },
+    });
+  }
+
+  for (const key of consequenceKeys) {
+    await prisma.limitBreakConsequence.upsert({
+      where: { key },
+      update: {},
+      create: { key },
+    });
+  }
+}
+
 async function main() {
   await seedPicklists();
   await seedConfig();
   await seedCosts();
+  await seedLimitBreakReferenceData();
 }
 
 main()

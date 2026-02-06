@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:limit-break": "node scripts/limitBreak.smoke.mjs",
     "postinstall": "prisma generate",
     "clean:all": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true});require('fs').rmSync('node_modules',{recursive:true,force:true});require('fs').rmSync('package-lock.json',{force:true});\""
   },
