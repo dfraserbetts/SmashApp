@@ -387,6 +387,38 @@ model Ability {
   @@map("Ability")
 }
 
+model LimitBreakTemplate {
+  id                      String                 @id @default(cuid())
+  name                    String
+  templateType            LimitBreakTemplateType
+  tier                    LimitBreakTier
+  thresholdPercent        Int
+  description             String?                @db.Text
+  intention               IntentionType?
+  itemType                String?
+  monsterCategory         String?
+  baseCostKey             String?
+  baseCostParams          Json                   @default("{}")
+  successEffectKey        String?
+  successEffectParams     Json                   @default("{}")
+  isPersistent            Boolean                @default(false)
+  persistentStateText     String?                @db.Text
+  endConditionText        String?                @db.Text
+  endCostText             String?                @db.Text
+  failForwardEnabled      Boolean                @default(false)
+  failForwardEffectKey    String?
+  failForwardEffectParams Json                   @default("{}")
+  failForwardCostAKey     String?
+  failForwardCostBKey     String?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @default(now()) @updatedAt
+
+  @@index([templateType, tier])
+  @@index([intention])
+  @@index([itemType])
+  @@map("LimitBreakTemplate")
+}
+
 model LimitBreakEffect {
   id                  String              @id @default(cuid())
   key                 String              @unique
@@ -457,19 +489,19 @@ model AbilityLimitBreakUsage {
 }
 
 model Monster {
-  id                        String                       @id @default(cuid())
-  createdAt                 DateTime                     @default(now())
-  updatedAt                 DateTime                     @default(now()) @updatedAt
+  id                        String                @id @default(cuid())
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @default(now()) @updatedAt
   name                      String
   level                     Int
   tier                      MonsterTier
-  legendary                 Boolean                      @default(false)
-  source                    MonsterSource                @default(CAMPAIGN)
-  isReadOnly                Boolean                      @default(false)
+  legendary                 Boolean               @default(false)
+  source                    MonsterSource         @default(CAMPAIGN)
+  isReadOnly                Boolean               @default(false)
   campaignId                String?
-  attackMode                MonsterAttackMode            @default(NATURAL_WEAPON)
+  attackMode                MonsterAttackMode     @default(NATURAL_WEAPON)
   equippedWeaponId          String?
-  customNotes               String?                      @db.Text
+  customNotes               String?               @db.Text
   physicalResilienceCurrent Int
   physicalResilienceMax     Int
   mentalPerseveranceCurrent Int
@@ -477,30 +509,31 @@ model Monster {
   physicalProtection        Int
   mentalProtection          Int
   attackDie                 DiceSize
-  attackResistDie           Int                          @default(0)
-  attackModifier            Int                          @default(0)
+  attackResistDie           Int                   @default(0)
+  attackModifier            Int                   @default(0)
   defenceDie                DiceSize
-  defenceResistDie          Int                          @default(0)
-  defenceModifier           Int                          @default(0)
+  defenceResistDie          Int                   @default(0)
+  defenceModifier           Int                   @default(0)
   fortitudeDie              DiceSize
-  fortitudeResistDie        Int                          @default(0)
-  fortitudeModifier         Int                          @default(0)
+  fortitudeResistDie        Int                   @default(0)
+  fortitudeModifier         Int                   @default(0)
   intellectDie              DiceSize
-  intellectResistDie        Int                          @default(0)
-  intellectModifier         Int                          @default(0)
+  intellectResistDie        Int                   @default(0)
+  intellectModifier         Int                   @default(0)
   supportDie                DiceSize
-  supportResistDie          Int                          @default(0)
-  supportModifier           Int                          @default(0)
+  supportResistDie          Int                   @default(0)
+  supportModifier           Int                   @default(0)
   braveryDie                DiceSize
-  braveryResistDie          Int                          @default(0)
-  braveryModifier           Int                          @default(0)
+  braveryResistDie          Int                   @default(0)
+  braveryModifier           Int                   @default(0)
   weaponSkillValue          Int
-  weaponSkillModifier       Int                          @default(0)
+  weaponSkillModifier       Int                   @default(0)
   armorSkillValue           Int
-  armorSkillModifier        Int                          @default(0)
-  Campaign                  Campaign?                    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  armorSkillModifier        Int                   @default(0)
+  Campaign                  Campaign?             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   tags                      MonsterTag[]
   traits                    MonsterTrait[]
+  attacks                   MonsterAttack[]
   naturalAttack             MonsterNaturalAttack?
   powers                    MonsterPower[]
 
@@ -532,31 +565,46 @@ model MonsterTrait {
 }
 
 model MonsterNaturalAttack {
-  id             String  @id @default(cuid())
-  monsterId      String  @unique
-  attackName     String
-  attackConfig   Json    @default("{}")
-  monster        Monster @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+  id           String  @id @default(cuid())
+  monsterId    String  @unique
+  attackName   String
+  attackConfig Json    @default("{}")
+  monster      Monster @relation(fields: [monsterId], references: [id], onDelete: Cascade)
 
   @@map("MonsterNaturalAttack")
 }
 
+model MonsterAttack {
+  id               String                 @id @default(cuid())
+  monsterId        String
+  sortOrder        Int                    @default(0)
+  attackMode       MonsterAttackEntryMode
+  attackName       String?
+  attackConfig     Json?
+  equippedWeaponId String?
+  monster          Monster                @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+
+  @@unique([monsterId, sortOrder])
+  @@index([monsterId, sortOrder])
+  @@map("MonsterAttack")
+}
+
 model MonsterPower {
-  id                  String                         @id @default(cuid())
-  monsterId           String
-  sortOrder           Int                            @default(0)
-  name                String
-  description         String?                        @db.Text
-  diceCount           Int
-  potency             Int
-  durationType        MonsterPowerDurationType
-  durationTurns       Int?
-  defenceRequirement  MonsterPowerDefenceRequirement @default(NONE)
-  cooldownTurns       Int
-  cooldownReduction   Int                            @default(0)
-  responseRequired    Boolean                        @default(false)
-  monster             Monster                        @relation(fields: [monsterId], references: [id], onDelete: Cascade)
-  intentions          MonsterPowerIntention[]
+  id                 String                         @id @default(cuid())
+  monsterId          String
+  sortOrder          Int                            @default(0)
+  name               String
+  description        String?                        @db.Text
+  diceCount          Int
+  potency            Int
+  durationType       MonsterPowerDurationType
+  durationTurns      Int?
+  defenceRequirement MonsterPowerDefenceRequirement @default(NONE)
+  cooldownTurns      Int
+  cooldownReduction  Int                            @default(0)
+  responseRequired   Boolean                        @default(false)
+  monster            Monster                        @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+  intentions         MonsterPowerIntention[]
 
   @@index([monsterId, sortOrder])
   @@map("MonsterPower")
@@ -587,11 +635,16 @@ enum AbilitySourceType {
 
 enum IntentionType {
   ATTACK
+  DEFENCE
+  HEALING
+  CLEANSE
   CONTROL
   MOVEMENT
   SUPPORT
   AUGMENT
   DEBUFF
+  SUMMONING
+  TRANSFORMATION
 }
 
 enum LimitBreakTier {
@@ -602,6 +655,12 @@ enum LimitBreakTier {
 
 enum LimitBreakActorType {
   CHARACTER
+  MONSTER
+}
+
+enum LimitBreakTemplateType {
+  PLAYER
+  MYTHIC_ITEM
   MONSTER
 }
 
@@ -620,6 +679,11 @@ enum MonsterSource {
 enum MonsterAttackMode {
   EQUIPPED_WEAPON
   NATURAL_WEAPON
+}
+
+enum MonsterAttackEntryMode {
+  NATURAL
+  EQUIPPED
 }
 
 enum DiceSize {

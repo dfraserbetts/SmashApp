@@ -20,6 +20,11 @@ export default function AdminHomePage() {
               Weapon Attributes (legacy page)
             </a>
           </li>
+          <li>
+            <a className="underline" href="/admin/limit-break-templates">
+              Limit Break Templates
+            </a>
+          </li>
           <li>Descriptor Rules editor (draft/publish)</li>
         </ul>
       </div>
