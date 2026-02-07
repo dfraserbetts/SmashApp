@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { supabaseClient } from "@/lib/supabaseClient";
 
-type CampaignRole = "PLAYER" | "GAME_DIRECTOR";
-
 type CampaignRoleRow = {
   role: string;
 };
@@ -90,8 +88,11 @@ export default function CampaignHomePage() {
 
       if (!cancelled) setCampaign(camp);
 
-    } catch (e: any) {
-      if (!cancelled) setErr(e?.message ?? "Failed to load campaign.");
+    } catch (e: unknown) {
+      if (!cancelled) {
+        const message = e instanceof Error ? e.message : "Failed to load campaign.";
+        setErr(message);
+      }
     } finally {
       if (!cancelled) setLoading(false);
     }
@@ -127,7 +128,7 @@ export default function CampaignHomePage() {
       },
       {
         label: 'Summoning Circle',
-        href: `/campaign/${campaignId}/summoning`,
+        href: `/campaign/${campaignId}/summoning-circle`,
         allowed: role === 'GAME_DIRECTOR',
       },
       {

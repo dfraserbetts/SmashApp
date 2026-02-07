@@ -101,54 +101,37 @@ model DefEffect {
 }
 
 model WeaponAttribute {
-  id                 Int     @id @default(autoincrement())
-  name               String  @unique
-  descriptorTemplate String? @db.Text
-  descriptorNotes    String? @db.Text
-
-  // Requirements (Admin-editable gating)
-  requiresRange    RangeCategory?
-  requiresAoeShape AoEShape?
-
-  // Parameterisation
-  requiresStrengthSource Boolean @default(false)
-
-  // Simple parameterisation (choose a range, expose [ChosenRange])
-  requiresRangeSelection Boolean @default(false)
-
-  // Requirements (Strength family must exist on the item)
-  // null = no requirement
-  requiresStrengthKind StrengthKind?
-
-  templates ItemTemplateWeaponAttribute[]
+  id                     Int                           @id @default(autoincrement())
+  name                   String                        @unique
+  descriptorNotes        String?
+  descriptorTemplate     String?
+  requiresAoeShape       AoEShape?
+  requiresRange          RangeCategory?
+  requiresStrengthSource Boolean                       @default(false)
+  requiresStrengthKind   StrengthKind?
+  requiresRangeSelection Boolean                       @default(false)
+  templates              ItemTemplateWeaponAttribute[]
 
   @@map("WeaponAttribute")
 }
 
 model ArmorAttribute {
-  id                 Int     @id @default(autoincrement())
-  name               String  @unique
-  descriptorTemplate String? @db.Text
-  descriptorNotes    String? @db.Text
-
-  // Requirement (admin-driven): PHYSICAL = requires PPV > 0, MENTAL = requires MPV > 0
-  // null = no requirement
-  requiresPvKind StrengthKind?
-
-  templates ItemTemplateArmorAttribute[]
+  id                 Int                          @id @default(autoincrement())
+  name               String                       @unique
+  descriptorNotes    String?
+  descriptorTemplate String?
+  requiresPvKind     StrengthKind?
+  templates          ItemTemplateArmorAttribute[]
 
   @@map("ArmorAttribute")
 }
 
 model ShieldAttribute {
-  id   Int    @id @default(autoincrement())
-  name String @unique
-
-  // Authored in Admin UI (templated like Armor/Weapon)
-  descriptorTemplate String? @db.Text
-  descriptorNotes    String? @db.Text
-
-  templates ItemTemplateShieldAttribute[]
+  id                 Int                           @id @default(autoincrement())
+  name               String                        @unique
+  descriptorNotes    String?
+  descriptorTemplate String?
+  templates          ItemTemplateShieldAttribute[]
 
   @@map("ShieldAttribute")
 }
@@ -241,15 +224,10 @@ model ItemTemplateAttackEffectAoE {
 model ItemTemplateWeaponAttribute {
   itemTemplateId    String
   weaponAttributeId Int
-
-  // Parameter values (per item, per attribute)
-  strengthSource RangeCategory?
-
-  // Chosen range token source (per item, per attribute)
-  rangeSource RangeCategory?
-
-  itemTemplate    ItemTemplate    @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
-  weaponAttribute WeaponAttribute @relation(fields: [weaponAttributeId], references: [id])
+  strengthSource    RangeCategory?
+  rangeSource       RangeCategory?
+  itemTemplate      ItemTemplate    @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+  weaponAttribute   WeaponAttribute @relation(fields: [weaponAttributeId], references: [id])
 
   @@id([itemTemplateId, weaponAttributeId])
   @@map("ItemTemplateWeaponAttribute")
@@ -343,7 +321,7 @@ model ForgeCostEntry {
 }
 
 model UserProfile {
-  userId          String          @id
+  userId          String          @id @db.Uuid
   entitlementTier EntitlementTier @default(FREE)
   createdAt       DateTime        @default(now()) @db.Timestamptz(6)
   updatedAt       DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
@@ -360,6 +338,7 @@ model Campaign {
   descriptorVersionTag String         @default("v0")
   members              CampaignUser[]
   ItemTemplate         ItemTemplate[]
+  monsters             Monster[]
 
   @@index([ownerUserId])
   @@map("Campaign")
@@ -400,8 +379,8 @@ model Ability {
   potency            Int
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @default(now()) @updatedAt
-  limitBreakProfiles LimitBreakProfile[]
   limitBreakUsages   AbilityLimitBreakUsage[]
+  limitBreakProfiles LimitBreakProfile[]
 
   @@index([sourceType])
   @@index([intention])
@@ -413,11 +392,11 @@ model LimitBreakEffect {
   key                 String              @unique
   intentionGate       IntentionType?
   params              Json                @default("{}")
-  rulesText           String?             @db.Text
+  rulesText           String?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @default(now()) @updatedAt
-  successProfiles     LimitBreakProfile[] @relation("LimitBreakProfileSuccessEffect")
   failForwardProfiles LimitBreakProfile[] @relation("LimitBreakProfileFailForwardEffect")
+  successProfiles     LimitBreakProfile[] @relation("LimitBreakProfileSuccessEffect")
 
   @@map("LimitBreakEffect")
 }
@@ -426,7 +405,7 @@ model LimitBreakConsequence {
   id                       String              @id @default(cuid())
   key                      String              @unique
   params                   Json                @default("{}")
-  rulesText                String?             @db.Text
+  rulesText                String?
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @default(now()) @updatedAt
   baseConsequenceProfiles  LimitBreakProfile[] @relation("LimitBreakProfileBaseConsequence")
@@ -452,10 +431,10 @@ model LimitBreakProfile {
   updatedAt           DateTime               @default(now()) @updatedAt
   ability             Ability                @relation(fields: [abilityId], references: [id], onDelete: Cascade)
   baseConsequence     LimitBreakConsequence  @relation("LimitBreakProfileBaseConsequence", fields: [baseConsequenceId], references: [id])
-  successEffect       LimitBreakEffect       @relation("LimitBreakProfileSuccessEffect", fields: [successEffectId], references: [id])
-  failForwardEffect   LimitBreakEffect?      @relation("LimitBreakProfileFailForwardEffect", fields: [failForwardEffectId], references: [id])
   failForwardCostA    LimitBreakConsequence? @relation("LimitBreakProfileFailForwardCostA", fields: [failForwardCostAId], references: [id])
   failForwardCostB    LimitBreakConsequence? @relation("LimitBreakProfileFailForwardCostB", fields: [failForwardCostBId], references: [id])
+  failForwardEffect   LimitBreakEffect?      @relation("LimitBreakProfileFailForwardEffect", fields: [failForwardEffectId], references: [id])
+  successEffect       LimitBreakEffect       @relation("LimitBreakProfileSuccessEffect", fields: [successEffectId], references: [id])
 
   @@unique([abilityId, tier])
   @@index([tier])
@@ -475,6 +454,124 @@ model AbilityLimitBreakUsage {
   @@index([actorType, actorId])
   @@index([abilityId])
   @@map("AbilityLimitBreakUsage")
+}
+
+model Monster {
+  id                        String                       @id @default(cuid())
+  createdAt                 DateTime                     @default(now())
+  updatedAt                 DateTime                     @default(now()) @updatedAt
+  name                      String
+  level                     Int
+  tier                      MonsterTier
+  legendary                 Boolean                      @default(false)
+  source                    MonsterSource                @default(CAMPAIGN)
+  isReadOnly                Boolean                      @default(false)
+  campaignId                String?
+  attackMode                MonsterAttackMode            @default(NATURAL_WEAPON)
+  equippedWeaponId          String?
+  customNotes               String?                      @db.Text
+  physicalResilienceCurrent Int
+  physicalResilienceMax     Int
+  mentalPerseveranceCurrent Int
+  mentalPerseveranceMax     Int
+  physicalProtection        Int
+  mentalProtection          Int
+  attackDie                 DiceSize
+  attackResistDie           Int                          @default(0)
+  attackModifier            Int                          @default(0)
+  defenceDie                DiceSize
+  defenceResistDie          Int                          @default(0)
+  defenceModifier           Int                          @default(0)
+  fortitudeDie              DiceSize
+  fortitudeResistDie        Int                          @default(0)
+  fortitudeModifier         Int                          @default(0)
+  intellectDie              DiceSize
+  intellectResistDie        Int                          @default(0)
+  intellectModifier         Int                          @default(0)
+  supportDie                DiceSize
+  supportResistDie          Int                          @default(0)
+  supportModifier           Int                          @default(0)
+  braveryDie                DiceSize
+  braveryResistDie          Int                          @default(0)
+  braveryModifier           Int                          @default(0)
+  weaponSkillValue          Int
+  weaponSkillModifier       Int                          @default(0)
+  armorSkillValue           Int
+  armorSkillModifier        Int                          @default(0)
+  Campaign                  Campaign?                    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  tags                      MonsterTag[]
+  traits                    MonsterTrait[]
+  naturalAttack             MonsterNaturalAttack?
+  powers                    MonsterPower[]
+
+  @@index([campaignId])
+  @@index([source])
+  @@map("Monster")
+}
+
+model MonsterTag {
+  id        String  @id @default(cuid())
+  monsterId String
+  tag       String
+  monster   Monster @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+
+  @@unique([monsterId, tag])
+  @@index([tag])
+  @@map("MonsterTag")
+}
+
+model MonsterTrait {
+  id        String  @id @default(cuid())
+  monsterId String
+  sortOrder Int     @default(0)
+  text      String  @db.Text
+  monster   Monster @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+
+  @@index([monsterId, sortOrder])
+  @@map("MonsterTrait")
+}
+
+model MonsterNaturalAttack {
+  id             String  @id @default(cuid())
+  monsterId      String  @unique
+  attackName     String
+  attackConfig   Json    @default("{}")
+  monster        Monster @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+
+  @@map("MonsterNaturalAttack")
+}
+
+model MonsterPower {
+  id                  String                         @id @default(cuid())
+  monsterId           String
+  sortOrder           Int                            @default(0)
+  name                String
+  description         String?                        @db.Text
+  diceCount           Int
+  potency             Int
+  durationType        MonsterPowerDurationType
+  durationTurns       Int?
+  defenceRequirement  MonsterPowerDefenceRequirement @default(NONE)
+  cooldownTurns       Int
+  cooldownReduction   Int                            @default(0)
+  responseRequired    Boolean                        @default(false)
+  monster             Monster                        @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+  intentions          MonsterPowerIntention[]
+
+  @@index([monsterId, sortOrder])
+  @@map("MonsterPower")
+}
+
+model MonsterPowerIntention {
+  id          String                    @id @default(cuid())
+  powerId     String
+  sortOrder   Int                       @default(0)
+  type        MonsterPowerIntentionType
+  detailsJson Json                      @default("{}")
+  power       MonsterPower              @relation(fields: [powerId], references: [id], onDelete: Cascade)
+
+  @@index([powerId, sortOrder])
+  @@map("MonsterPowerIntention")
 }
 
 enum EntitlementTier {
@@ -506,6 +603,56 @@ enum LimitBreakTier {
 enum LimitBreakActorType {
   CHARACTER
   MONSTER
+}
+
+enum MonsterTier {
+  MINION
+  SOLDIER
+  ELITE
+  BOSS
+}
+
+enum MonsterSource {
+  CORE
+  CAMPAIGN
+}
+
+enum MonsterAttackMode {
+  EQUIPPED_WEAPON
+  NATURAL_WEAPON
+}
+
+enum DiceSize {
+  D4
+  D6
+  D8
+  D10
+  D12
+}
+
+enum MonsterPowerDurationType {
+  INSTANT
+  TURNS
+  PASSIVE
+}
+
+enum MonsterPowerDefenceRequirement {
+  PROTECTION
+  RESIST
+  NONE
+}
+
+enum MonsterPowerIntentionType {
+  ATTACK
+  DEFENCE
+  HEALING
+  CLEANSE
+  CONTROL
+  MOVEMENT
+  AUGMENT
+  DEBUFF
+  SUMMON
+  TRANSFORMATION
 }
 
 enum ItemRarity {

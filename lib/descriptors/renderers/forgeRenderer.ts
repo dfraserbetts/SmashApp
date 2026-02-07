@@ -1,6 +1,10 @@
 // lib/descriptors/renderers/forgeRenderer.ts
 import type { AttackRangeSpec, DescriptorLine, DescriptorResult, DescriptorSection } from "../types";
 
+export type ForgeRenderOptions = {
+  weaponSkillDiceOverride?: number;
+};
+
 function formatSigned(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
 }
@@ -47,7 +51,10 @@ const getRangeHeader = (ranges: AttackRangeSpec[]): string => {
   return '';
 };
 
-export function renderForgeLine(line: DescriptorLine): string {
+export function renderForgeLine(
+  line: DescriptorLine,
+  options?: ForgeRenderOptions,
+): string {
   switch (line.kind) {
     case "TEXT": {
       return String((line as any).text ?? "");
@@ -95,7 +102,12 @@ export function renderForgeLine(line: DescriptorLine): string {
 
     case "ATTACK_ACTION": {
       // Skill text is generic in Forge; resolved later when equipped
-      const skillText = "weapon skill dice";
+      const skillText =
+        typeof options?.weaponSkillDiceOverride === "number" &&
+        Number.isFinite(options.weaponSkillDiceOverride) &&
+        options.weaponSkillDiceOverride > 0
+          ? `${Math.trunc(options.weaponSkillDiceOverride)} dice`
+          : "weapon skill dice";
 
        const parts = (line.ranges ?? []).map((r) => {
         if (r.kind === "MELEE") {
@@ -204,13 +216,21 @@ export function renderForgeLine(line: DescriptorLine): string {
   }
 }
 
-export function renderForgeSection(section: DescriptorSection): { title: string; lines: string[] } {
+export function renderForgeSection(
+  section: DescriptorSection,
+  options?: ForgeRenderOptions,
+): { title: string; lines: string[] } {
   return {
     title: section.title,
-    lines: section.lines.map(renderForgeLine).filter(Boolean),
+    lines: section.lines.map((line) => renderForgeLine(line, options)).filter(Boolean),
   };
 }
 
-export function renderForgeResult(result: DescriptorResult): Array<{ title: string; lines: string[] }> {
-  return result.sections.map(renderForgeSection).filter((s) => s.lines.length > 0);
+export function renderForgeResult(
+  result: DescriptorResult,
+  options?: ForgeRenderOptions,
+): Array<{ title: string; lines: string[] }> {
+  return result.sections
+    .map((section) => renderForgeSection(section, options))
+    .filter((s) => s.lines.length > 0);
 }
