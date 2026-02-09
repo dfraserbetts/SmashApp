@@ -1,6 +1,6 @@
 import type {
   DiceSize,
-  MonsterAttackMode,
+  MonsterAttack,
   MonsterNaturalAttackConfig,
   MonsterPower,
   MonsterPowerDefenceRequirement,
@@ -13,10 +13,6 @@ import type {
 
 const DICE_SET = new Set<DiceSize>(["D4", "D6", "D8", "D10", "D12"]);
 const TIER_SET = new Set<MonsterTier>(["MINION", "SOLDIER", "ELITE", "BOSS"]);
-const ATTACK_MODE_SET = new Set<MonsterAttackMode>([
-  "EQUIPPED_WEAPON",
-  "NATURAL_WEAPON",
-]);
 const DURATION_SET = new Set<MonsterPowerDurationType>([
   "INSTANT",
   "TURNS",
@@ -56,6 +52,11 @@ function asBool(value: unknown, fallback = false): boolean {
 
 function asString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value.trim() : fallback;
+}
+
+function asNullableString(value: unknown): string | null {
+  const normalized = asString(value, "");
+  return normalized.length > 0 ? normalized : null;
 }
 
 function asDice(value: unknown, fallback: DiceSize = "D6"): DiceSize {
@@ -119,6 +120,21 @@ function normalizeAttackConfig(value: unknown): MonsterNaturalAttackConfig {
   return value as MonsterNaturalAttackConfig;
 }
 
+function normalizeAttack(
+  value: unknown,
+  sortOrder: number,
+): MonsterAttack {
+  const raw = (value ?? {}) as Record<string, unknown>;
+  const attackName = asString(raw.attackName, "");
+
+  return {
+    sortOrder,
+    attackMode: "NATURAL",
+    attackName: attackName || "Natural Weapon",
+    attackConfig: normalizeAttackConfig(raw.attackConfig),
+  };
+}
+
 function dedupeTags(tags: string[]): string[] {
   const seen = new Set<string>();
   const ordered: string[] = [];
@@ -152,11 +168,6 @@ export function normalizeMonsterUpsertInput(body: unknown): {
     return { ok: false, error: "tier must be one of MINION, SOLDIER, ELITE, BOSS" };
   }
 
-  const attackMode = asString(raw.attackMode, "") as MonsterAttackMode;
-  if (!ATTACK_MODE_SET.has(attackMode)) {
-    return { ok: false, error: "attackMode must be EQUIPPED_WEAPON or NATURAL_WEAPON" };
-  }
-
   const powersRaw = Array.isArray(raw.powers) ? raw.powers : [];
   const normalizedPowers = powersRaw.map((entry, index) => normalizePower(entry, index));
 
@@ -173,19 +184,46 @@ export function normalizeMonsterUpsertInput(body: unknown): {
   const tagsRaw = Array.isArray(raw.tags) ? raw.tags : [];
   const traitsRaw = Array.isArray(raw.traits) ? raw.traits : [];
 
-  const naturalAttackRaw =
-    raw.naturalAttack && typeof raw.naturalAttack === "object"
-      ? (raw.naturalAttack as Record<string, unknown>)
-      : null;
+  let attacks: MonsterAttack[] = [];
+  if (raw.attacks != null) {
+    if (!Array.isArray(raw.attacks)) {
+      return { ok: false, error: "attacks must be an array" };
+    }
+    if (raw.attacks.length > 3) {
+      return { ok: false, error: "A monster can have at most 3 attacks" };
+    }
+    attacks = raw.attacks.map((entry, idx) => normalizeAttack(entry, idx));
+  }
+
+  for (const attack of attacks) {
+    if (attack.attackMode !== "NATURAL") {
+      return {
+        ok: false,
+        error:
+          "Equipped attacks are not supported in payload; weapon attacks are derived from equipped hand items",
+      };
+    }
+    if (!attack.attackName?.trim()) {
+      return { ok: false, error: "Each natural attack requires a name" };
+    }
+    if (!attack.attackConfig || typeof attack.attackConfig !== "object") {
+      return { ok: false, error: "Each natural attack requires attackConfig" };
+    }
+  }
 
   const data: MonsterUpsertInput = {
     name,
     level: Math.max(1, asInt(raw.level, 1)),
     tier,
     legendary: asBool(raw.legendary, false),
-    attackMode,
-    equippedWeaponId:
-      asString(raw.equippedWeaponId, "") || null,
+    mainHandItemId: asNullableString(raw.mainHandItemId),
+    offHandItemId: asNullableString(raw.offHandItemId),
+    smallItemId: asNullableString(raw.smallItemId),
+    headItemId: asNullableString(raw.headItemId),
+    shoulderItemId: asNullableString(raw.shoulderItemId),
+    torsoItemId: asNullableString(raw.torsoItemId),
+    legsItemId: asNullableString(raw.legsItemId),
+    feetItemId: asNullableString(raw.feetItemId),
     customNotes: asString(raw.customNotes, "") || null,
     physicalResilienceCurrent: Math.max(0, asInt(raw.physicalResilienceCurrent, 0)),
     physicalResilienceMax: Math.max(0, asInt(raw.physicalResilienceMax, 0)),
@@ -227,12 +265,13 @@ export function normalizeMonsterUpsertInput(body: unknown): {
       })
       .filter((trait) => trait.text.length > 0),
     naturalAttack:
-      naturalAttackRaw && asString(naturalAttackRaw.attackName, "")
+      attacks.length > 0
         ? {
-            attackName: asString(naturalAttackRaw.attackName, ""),
-            attackConfig: normalizeAttackConfig(naturalAttackRaw.attackConfig),
+            attackName: attacks[0].attackName ?? "Natural Weapon",
+            attackConfig: attacks[0].attackConfig ?? {},
           }
         : null,
+    attacks,
     powers: normalizedPowers,
   };
 

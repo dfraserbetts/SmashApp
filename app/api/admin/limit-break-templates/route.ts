@@ -7,7 +7,7 @@ import {
   normalizeAndValidateTemplate,
 } from "@/lib/limitBreakTemplates";
 
-async function getUserIdFromSupabaseSSR(): Promise<string | null> {
+async function getSupabaseServer() {
   const cookieStore = await cookies();
 
   const supabase = createServerClient(
@@ -28,14 +28,18 @@ async function getUserIdFromSupabaseSSR(): Promise<string | null> {
     },
   );
 
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data?.user?.id) return null;
-  return data.user.id;
+  return supabase;
 }
 
 async function requireAdminUserId(): Promise<string> {
-  const userId = await getUserIdFromSupabaseSSR();
-  if (!userId) throw new Error("UNAUTHENTICATED");
+  const supabase = await getSupabaseServer();
+  const { data, error } = await supabase.auth.getUser();
+
+  if (error || !data?.user?.id) {
+    throw new Error("UNAUTHENTICATED");
+  }
+
+  const userId = data.user.id;
 
   const profile = await prisma.userProfile.findUnique({
     where: { userId },
@@ -48,6 +52,13 @@ async function requireAdminUserId(): Promise<string> {
 
 function handleError(error: unknown) {
   const msg = error instanceof Error ? error.message : "Server error";
+  const stack = error instanceof Error ? error.stack : undefined;
+
+  console.error("[ADMIN_LIMIT_BREAK_TEMPLATES]", {
+    message: msg,
+    stack,
+    error,
+  });
 
   if (msg === "UNAUTHENTICATED") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -62,6 +73,10 @@ function handleError(error: unknown) {
   const prismaCode = (error as any)?.code;
   if (prismaCode === "P2025") {
     return NextResponse.json({ error: "Template not found" }, { status: 404 });
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return NextResponse.json({ error: "Server error", detail: msg }, { status: 500 });
   }
 
   return NextResponse.json({ error: "Server error" }, { status: 500 });

@@ -245,11 +245,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
                     {monster ? (
                       <MonsterBlockCard
                         monster={monster}
-                        selectedWeapon={
-                          monster.attackMode === "EQUIPPED_WEAPON" && monster.equippedWeaponId
-                            ? (weaponById[monster.equippedWeaponId] ?? null)
-                            : null
-                        }
+                        weaponById={weaponById}
                         className="h-full"
                       />
                     ) : (

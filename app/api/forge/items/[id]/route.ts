@@ -95,6 +95,9 @@ type ItemTemplateInput = {
   aoeLineLengthFeet?: number | null;
 
   customWeaponAttributes?: string | null;
+  mythicLbPushTemplateId?: string | null;
+  mythicLbBreakTemplateId?: string | null;
+  mythicLbTranscendTemplateId?: string | null;
 
   armorLocation?: ArmorLocation | null;
   ppv?: number | null;
@@ -292,6 +295,15 @@ export async function PUT(
 
           ...(body.customWeaponAttributes !== undefined
             ? { customWeaponAttributes: body.customWeaponAttributes }
+            : {}),
+          ...(body.mythicLbPushTemplateId !== undefined
+            ? { mythicLbPushTemplateId: body.mythicLbPushTemplateId }
+            : {}),
+          ...(body.mythicLbBreakTemplateId !== undefined
+            ? { mythicLbBreakTemplateId: body.mythicLbBreakTemplateId }
+            : {}),
+          ...(body.mythicLbTranscendTemplateId !== undefined
+            ? { mythicLbTranscendTemplateId: body.mythicLbTranscendTemplateId }
             : {}),
 
           ...(body.armorLocation !== undefined

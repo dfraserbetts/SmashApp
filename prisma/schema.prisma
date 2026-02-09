@@ -7,64 +7,70 @@ datasource db {
 }
 
 model ItemTemplate {
-  id                       String                           @id @map("ItemID")
-  itemUrl                  String?                          @map("ItemUrl")
-  createdAt                DateTime                         @map("Timestamp")
-  name                     String                           @map("ItemName")
-  rarity                   ItemRarity                       @map("ItemRarity")
-  level                    Int                              @map("ItemLevel")
-  generalDescription       String                           @map("GeneralDescription")
-  type                     ItemType                         @map("ItemType")
-  size                     WeaponSize?                      @map("Size")
-  meleeTargets             Int?                             @map("MeleeTargets")
-  rangedTargets            Int?                             @map("RangedTargets")
-  rangedDistanceFeet       Int?                             @map("RangedDistance")
-  aoeCenterRangeFeet       Int?                             @map("AoECenterRange")
-  aoeCount                 Int?                             @map("AoECount")
-  aoeShape                 AoEShape?                        @map("AoEShape")
-  aoeSphereRadiusFeet      Int?                             @map("AoESphereSize")
-  aoeConeLengthFeet        Int?                             @map("AoEConeLength")
-  aoeLineWidthFeet         Int?                             @map("AoELineWidth")
-  aoeLineLengthFeet        Int?                             @map("AoELineLength")
-  customWeaponAttributes   String?                          @map("CustomWeaponAttributes")
-  armorLocation            ArmorLocation?                   @map("ArmorLocation")
-  ppv                      Int?                             @map("PPV")
-  mpv                      Int?                             @map("MPV")
-  auraPhysical             Int?                             @map("Aura_Physical")
-  auraMental               Int?                             @map("Aura_Mental")
-  customArmorAttributes    String?                          @map("CustomArmorAttributes")
-  shieldHasAttack          Boolean?                         @map("ShieldHasAttack")
-  customShieldAttributes   String?                          @map("CustomShieldAttributes")
-  itemLocation             ItemLocation?                    @map("ItemLocation")
-  customItemAttributes     String?                          @map("CustomItemAttributes")
-  globalAttributeModifiers Json?                            @default("[]") @map("GlobalAttributeModifiers")
-  campaignId               String                           @map("CampaignID")
-  meleeDamageTypeIds       Int[]
-  rangedDamageTypeIds      Int[]
-  aoeDamageTypeIds         Int[]
-  physicalStrength         Int?                             @map("PhysicalStrength")
-  mentalStrength           Int?                             @map("MentalStrength")
-  meleePhysicalStrength    Int?                             @map("meleePhysicalStrength")
-  meleeMentalStrength      Int?                             @map("meleeMentalStrength")
-  rangedPhysicalStrength   Int?                             @map("rangedPhysicalStrength")
-  rangedMentalStrength     Int?                             @map("rangedMentalStrength")
-  aoePhysicalStrength      Int?                             @map("aoePhysicalStrength")
-  aoeMentalStrength        Int?                             @map("aoeMentalStrength")
-  Campaign                 Campaign                         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  aoeDamageTypes           ItemTemplateAoEDamageType[]
-  armorAttributes          ItemTemplateArmorAttribute[]
-  attackEffectsAoE         ItemTemplateAttackEffectAoE[]
-  attackEffectsMelee       ItemTemplateAttackEffectMelee[]
-  attackEffectsRanged      ItemTemplateAttackEffectRanged[]
-  defEffects               ItemTemplateDefEffect[]
-  meleeDamageTypes         ItemTemplateMeleeDamageType[]
-  rangeCategories          ItemTemplateRangeCategory[]
-  rangedDamageTypes        ItemTemplateRangedDamageType[]
-  sanctifiedOptions        ItemTemplateSanctifiedOption[]
-  shieldAttributes         ItemTemplateShieldAttribute[]
-  vrpEntries               ItemTemplateVRPEntry[]
-  wardingOptions           ItemTemplateWardingOption[]
-  weaponAttributes         ItemTemplateWeaponAttribute[]
+  id                          String                           @id @map("ItemID")
+  itemUrl                     String?                          @map("ItemUrl")
+  createdAt                   DateTime                         @map("Timestamp")
+  name                        String                           @map("ItemName")
+  rarity                      ItemRarity                       @map("ItemRarity")
+  level                       Int                              @map("ItemLevel")
+  generalDescription          String                           @map("GeneralDescription")
+  type                        ItemType                         @map("ItemType")
+  size                        WeaponSize?                      @map("Size")
+  meleeTargets                Int?                             @map("MeleeTargets")
+  rangedTargets               Int?                             @map("RangedTargets")
+  rangedDistanceFeet          Int?                             @map("RangedDistance")
+  aoeCenterRangeFeet          Int?                             @map("AoECenterRange")
+  aoeCount                    Int?                             @map("AoECount")
+  aoeShape                    AoEShape?                        @map("AoEShape")
+  aoeSphereRadiusFeet         Int?                             @map("AoESphereSize")
+  aoeConeLengthFeet           Int?                             @map("AoEConeLength")
+  aoeLineWidthFeet            Int?                             @map("AoELineWidth")
+  aoeLineLengthFeet           Int?                             @map("AoELineLength")
+  customWeaponAttributes      String?                          @map("CustomWeaponAttributes")
+  armorLocation               ArmorLocation?                   @map("ArmorLocation")
+  ppv                         Int?                             @map("PPV")
+  mpv                         Int?                             @map("MPV")
+  auraPhysical                Int?                             @map("Aura_Physical")
+  auraMental                  Int?                             @map("Aura_Mental")
+  customArmorAttributes       String?                          @map("CustomArmorAttributes")
+  shieldHasAttack             Boolean?                         @map("ShieldHasAttack")
+  customShieldAttributes      String?                          @map("CustomShieldAttributes")
+  itemLocation                ItemLocation?                    @map("ItemLocation")
+  customItemAttributes        String?                          @map("CustomItemAttributes")
+  globalAttributeModifiers    Json?                            @default("[]") @map("GlobalAttributeModifiers")
+  campaignId                  String                           @map("CampaignID")
+  meleeDamageTypeIds          Int[]
+  rangedDamageTypeIds         Int[]
+  aoeDamageTypeIds            Int[]
+  physicalStrength            Int?                             @map("PhysicalStrength")
+  mentalStrength              Int?                             @map("MentalStrength")
+  meleePhysicalStrength       Int?                             @map("meleePhysicalStrength")
+  meleeMentalStrength         Int?                             @map("meleeMentalStrength")
+  rangedPhysicalStrength      Int?                             @map("rangedPhysicalStrength")
+  rangedMentalStrength        Int?                             @map("rangedMentalStrength")
+  aoePhysicalStrength         Int?                             @map("aoePhysicalStrength")
+  aoeMentalStrength           Int?                             @map("aoeMentalStrength")
+  mythicLbPushTemplateId      String?                          @map("MythicLbPushTemplateID")
+  mythicLbBreakTemplateId     String?                          @map("MythicLbBreakTemplateID")
+  mythicLbTranscendTemplateId String?                          @map("MythicLbTranscendTemplateID")
+  Campaign                    Campaign                         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  mythicLbPushTemplate        LimitBreakTemplate?              @relation("ItemTemplateMythicLbPushTemplate", fields: [mythicLbPushTemplateId], references: [id])
+  mythicLbBreakTemplate       LimitBreakTemplate?              @relation("ItemTemplateMythicLbBreakTemplate", fields: [mythicLbBreakTemplateId], references: [id])
+  mythicLbTranscendTemplate   LimitBreakTemplate?              @relation("ItemTemplateMythicLbTranscendTemplate", fields: [mythicLbTranscendTemplateId], references: [id])
+  aoeDamageTypes              ItemTemplateAoEDamageType[]
+  armorAttributes             ItemTemplateArmorAttribute[]
+  attackEffectsAoE            ItemTemplateAttackEffectAoE[]
+  attackEffectsMelee          ItemTemplateAttackEffectMelee[]
+  attackEffectsRanged         ItemTemplateAttackEffectRanged[]
+  defEffects                  ItemTemplateDefEffect[]
+  meleeDamageTypes            ItemTemplateMeleeDamageType[]
+  rangeCategories             ItemTemplateRangeCategory[]
+  rangedDamageTypes           ItemTemplateRangedDamageType[]
+  sanctifiedOptions           ItemTemplateSanctifiedOption[]
+  shieldAttributes            ItemTemplateShieldAttribute[]
+  vrpEntries                  ItemTemplateVRPEntry[]
+  wardingOptions              ItemTemplateWardingOption[]
+  weaponAttributes            ItemTemplateWeaponAttribute[]
 
   @@index([campaignId])
   @@map("ItemTemplate")
@@ -412,6 +418,9 @@ model LimitBreakTemplate {
   failForwardCostBKey     String?
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @default(now()) @updatedAt
+  mythicLbPushItems       ItemTemplate[]         @relation("ItemTemplateMythicLbPushTemplate")
+  mythicLbBreakItems      ItemTemplate[]         @relation("ItemTemplateMythicLbBreakTemplate")
+  mythicLbTranscendItems  ItemTemplate[]         @relation("ItemTemplateMythicLbTranscendTemplate")
 
   @@index([templateType, tier])
   @@index([intention])
@@ -501,6 +510,14 @@ model Monster {
   campaignId                String?
   attackMode                MonsterAttackMode     @default(NATURAL_WEAPON)
   equippedWeaponId          String?
+  mainHandItemId            String?
+  offHandItemId             String?
+  smallItemId               String?
+  headItemId                String?
+  shoulderItemId            String?
+  torsoItemId               String?
+  legsItemId                String?
+  feetItemId                String?
   customNotes               String?               @db.Text
   physicalResilienceCurrent Int
   physicalResilienceMax     Int

@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     const rows = await prisma.itemTemplate.findMany({
       where: {
         campaignId,
-        type: { in: ["WEAPON", "SHIELD"] },
+        type: { in: ["WEAPON", "SHIELD", "ARMOR"] },
       },
       orderBy: { name: "asc" },
       include: {
@@ -35,6 +35,13 @@ export async function GET(req: Request) {
       id: row.id,
       name: row.name,
       type: row.type,
+      size: row.size,
+      armorLocation: row.armorLocation,
+      ppv: row.ppv,
+      mpv: row.mpv,
+      globalAttributeModifiers: Array.isArray(row.globalAttributeModifiers)
+        ? (row.globalAttributeModifiers as Array<{ attribute?: string; amount?: number }>)
+        : [],
       melee: {
         enabled: row.rangeCategories.some((r) => r.rangeCategory === "MELEE"),
         targets: row.meleeTargets ?? 1,

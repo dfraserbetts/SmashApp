@@ -45,6 +45,31 @@ type LoadedItem = {
     magnitude: number;
     damageTypeId: number;
   }>;
+  mythicLbPushTemplateId?: string | null;
+  mythicLbBreakTemplateId?: string | null;
+  mythicLbTranscendTemplateId?: string | null;
+};
+
+type LimitBreakTier = 'PUSH' | 'BREAK' | 'TRANSCEND';
+type MythicItemType = 'WEAPON' | 'ARMOR' | 'SHIELD' | 'ITEM';
+
+type MythicLimitBreakTemplateRow = {
+  id: string;
+  name: string;
+  tier: LimitBreakTier;
+  itemType: string | null;
+  thresholdPercent: number;
+  description: string | null;
+  baseCostKey: string | null;
+  successEffectKey: string | null;
+  failForwardEnabled: boolean;
+  failForwardEffectKey: string | null;
+  failForwardCostAKey: string | null;
+  failForwardCostBKey: string | null;
+  isPersistent: boolean;
+  persistentStateText: string | null;
+  endConditionText: string | null;
+  endCostText: string | null;
 };
 // DamageType.name → allowed AttackEffect.name[]
 const DAMAGE_TYPE_TO_EFFECT_NAMES: Record<string, string[]> = {
@@ -212,6 +237,9 @@ type ForgeFormValues = {
   customArmorAttributes?: string | null;
   customShieldAttributes?: string | null;
   customItemAttributes?: string | null;
+  mythicLbPushTemplateId?: string | null;
+  mythicLbBreakTemplateId?: string | null;
+  mythicLbTranscendTemplateId?: string | null;
 };
 
 type ForgeCostBreakdown = {
@@ -1298,6 +1326,13 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     useState<string>('Attack');
   const [globalAttributeAmount, setGlobalAttributeAmount] =
     useState<number>(1);
+  const [mythicLbTemplates, setMythicLbTemplates] = useState<
+    MythicLimitBreakTemplateRow[]
+  >([]);
+  const [mythicLbTemplatesLoading, setMythicLbTemplatesLoading] =
+    useState(false);
+  const [mythicLbTemplatesError, setMythicLbTemplatesError] =
+    useState<string | null>(null);
 
   const armorAttrsFromPicklist = data?.armorAttributes ?? [];
   const shieldAttrsFromPicklist = data?.shieldAttributes ?? [];
@@ -1377,6 +1412,9 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   customArmorAttributes: '',
   customShieldAttributes: '',
   customItemAttributes: '',
+  mythicLbPushTemplateId: null,
+  mythicLbBreakTemplateId: null,
+  mythicLbTranscendTemplateId: null,
 };
 
   const {
@@ -1566,6 +1604,10 @@ function handleResetForge() {
           customArmorAttributes: ((item as any).customArmorAttributes ?? '') as any,
           customShieldAttributes: ((item as any).customShieldAttributes ?? '') as any,
           customItemAttributes: ((item as any).customItemAttributes ?? '') as any,
+          mythicLbPushTemplateId: ((item as any).mythicLbPushTemplateId ?? null) as any,
+          mythicLbBreakTemplateId: ((item as any).mythicLbBreakTemplateId ?? null) as any,
+          mythicLbTranscendTemplateId:
+            ((item as any).mythicLbTranscendTemplateId ?? null) as any,
         });
 
         
@@ -1600,11 +1642,22 @@ function handleResetForge() {
   }, [selectedItemId, reset, campaignId]);
 
   const selectedType = watch('type');
+  const selectedRarity = watch('rarity');
   const isWeapon = selectedType === 'WEAPON';
   const isArmor = selectedType === 'ARMOR';
   const isShield = selectedType === 'SHIELD';
   const isItem = selectedType === 'ITEM';
   const isConsumable = selectedType === 'CONSUMABLE';
+  const isMythic = selectedRarity === 'MYTHIC';
+  const mythicTemplateItemType: MythicItemType | null =
+    selectedType === 'WEAPON' ||
+    selectedType === 'ARMOR' ||
+    selectedType === 'SHIELD' ||
+    selectedType === 'ITEM'
+      ? selectedType
+      : null;
+  const showMythicLimitBreakSection =
+    isMythic && mythicTemplateItemType !== null;
 
   // Live calculator values
   const watchedValues = watch();
@@ -1729,7 +1782,19 @@ function handleResetForge() {
 
     setValue('size', null, { shouldDirty: true });
     setValue('shieldHasAttack', false, { shouldDirty: true });
+    setValue('mythicLbPushTemplateId', null, { shouldDirty: true });
+    setValue('mythicLbBreakTemplateId', null, { shouldDirty: true });
+    setValue('mythicLbTranscendTemplateId', null, { shouldDirty: true });
   }, [selectedType, setValue]);
+
+  useEffect(() => {
+    if (isHydratingRef.current) return;
+    if (selectedRarity === 'MYTHIC') return;
+
+    setValue('mythicLbPushTemplateId', null, { shouldDirty: true });
+    setValue('mythicLbBreakTemplateId', null, { shouldDirty: true });
+    setValue('mythicLbTranscendTemplateId', null, { shouldDirty: true });
+  }, [selectedRarity, setValue]);
 
 
   // If shield loses size, force HasAttack = false
@@ -1745,6 +1810,9 @@ function handleResetForge() {
   const wardingOptionIds = watch('wardingOptionIds') ?? [];
   const sanctifiedOptionIds = watch('sanctifiedOptionIds') ?? [];
   const shieldAttributeIds = watch('shieldAttributeIds') ?? [];
+  const mythicLbPushTemplateId = watch('mythicLbPushTemplateId') ?? null;
+  const mythicLbBreakTemplateId = watch('mythicLbBreakTemplateId') ?? null;
+  const mythicLbTranscendTemplateId = watch('mythicLbTranscendTemplateId') ?? null;
 
   const armorLocation = watch('armorLocation');
   const hasArmorLocation = !!armorLocation;
@@ -1759,6 +1827,85 @@ function handleResetForge() {
         typeof entry.category === 'string' &&
         entry.category.toLowerCase() === 'item_location',
     );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMythicLimitBreakTemplates() {
+      if (!showMythicLimitBreakSection || !mythicTemplateItemType) {
+        setMythicLbTemplates([]);
+        setMythicLbTemplatesError(null);
+        setMythicLbTemplatesLoading(false);
+        return;
+      }
+
+      setMythicLbTemplatesLoading(true);
+      setMythicLbTemplatesError(null);
+
+      try {
+        const res = await fetch(
+          `/api/forge/limit-break-templates?campaignId=${encodeURIComponent(
+            campaignId,
+          )}&itemType=${encodeURIComponent(mythicTemplateItemType)}`,
+          { cache: 'no-store' },
+        );
+
+        const payload = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(payload?.error ?? `Failed to load templates (${res.status})`);
+        }
+
+        if (cancelled) return;
+
+        const rows = Array.isArray(payload?.rows)
+          ? (payload.rows as MythicLimitBreakTemplateRow[])
+          : [];
+
+        const tierOrder: Record<LimitBreakTier, number> = {
+          PUSH: 0,
+          BREAK: 1,
+          TRANSCEND: 2,
+        };
+
+        rows.sort((a, b) => {
+          const tierDelta = tierOrder[a.tier] - tierOrder[b.tier];
+          if (tierDelta !== 0) return tierDelta;
+          return a.name.localeCompare(b.name);
+        });
+
+        setMythicLbTemplates(rows);
+      } catch (err) {
+        if (cancelled) return;
+        const message =
+          err instanceof Error ? err.message : 'Failed to load mythic limit break templates';
+        setMythicLbTemplates([]);
+        setMythicLbTemplatesError(message);
+      } finally {
+        if (!cancelled) {
+          setMythicLbTemplatesLoading(false);
+        }
+      }
+    }
+
+    void loadMythicLimitBreakTemplates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId, showMythicLimitBreakSection, mythicTemplateItemType]);
+
+  const mythicPushTemplates = mythicLbTemplates.filter((t) => t.tier === 'PUSH');
+  const mythicBreakTemplates = mythicLbTemplates.filter((t) => t.tier === 'BREAK');
+  const mythicTranscendTemplates = mythicLbTemplates.filter(
+    (t) => t.tier === 'TRANSCEND',
+  );
+
+  const selectedMythicPushTemplate =
+    mythicPushTemplates.find((t) => t.id === mythicLbPushTemplateId) ?? null;
+  const selectedMythicBreakTemplate =
+    mythicBreakTemplates.find((t) => t.id === mythicLbBreakTemplateId) ?? null;
+  const selectedMythicTranscendTemplate =
+    mythicTranscendTemplates.find((t) => t.id === mythicLbTranscendTemplateId) ?? null;
 
   const attributeCostEntries = (data?.costs ?? []) as any[];
   const attributeNames = Array.from(
@@ -2472,6 +2619,36 @@ useEffect(() => {
           values.customItemAttributes &&
           values.customItemAttributes.trim()
             ? values.customItemAttributes.trim()
+            : null,
+        mythicLbPushTemplateId:
+          values.rarity === 'MYTHIC' &&
+          (values.type === 'WEAPON' ||
+            values.type === 'ARMOR' ||
+            values.type === 'SHIELD' ||
+            values.type === 'ITEM') &&
+          values.mythicLbPushTemplateId &&
+          values.mythicLbPushTemplateId.trim()
+            ? values.mythicLbPushTemplateId.trim()
+            : null,
+        mythicLbBreakTemplateId:
+          values.rarity === 'MYTHIC' &&
+          (values.type === 'WEAPON' ||
+            values.type === 'ARMOR' ||
+            values.type === 'SHIELD' ||
+            values.type === 'ITEM') &&
+          values.mythicLbBreakTemplateId &&
+          values.mythicLbBreakTemplateId.trim()
+            ? values.mythicLbBreakTemplateId.trim()
+            : null,
+        mythicLbTranscendTemplateId:
+          values.rarity === 'MYTHIC' &&
+          (values.type === 'WEAPON' ||
+            values.type === 'ARMOR' ||
+            values.type === 'SHIELD' ||
+            values.type === 'ITEM') &&
+          values.mythicLbTranscendTemplateId &&
+          values.mythicLbTranscendTemplateId.trim()
+            ? values.mythicLbTranscendTemplateId.trim()
             : null,
 
         globalAttributeModifiers: values.globalAttributeModifiers ?? [],
@@ -4140,6 +4317,139 @@ useEffect(() => {
     );
   }
 
+  function renderMythicLimitBreakSection() {
+    if (!showMythicLimitBreakSection) return null;
+
+    const selectedTemplates = [
+      selectedMythicPushTemplate,
+      selectedMythicBreakTemplate,
+      selectedMythicTranscendTemplate,
+    ].filter((t): t is MythicLimitBreakTemplateRow => Boolean(t));
+
+    return (
+      <div className="mt-4 space-y-3 border-t border-zinc-800 pt-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Limit Break</h2>
+          <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+            Mythic only
+          </span>
+        </div>
+
+        {mythicLbTemplatesLoading && (
+          <p className="text-xs text-zinc-500">Loading mythic templates...</p>
+        )}
+        {mythicLbTemplatesError && (
+          <p className="text-xs text-red-400">
+            Failed to load mythic templates: {mythicLbTemplatesError}
+          </p>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <label className="block text-xs font-medium">Push template</label>
+            <select
+              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              {...register('mythicLbPushTemplateId', {
+                setValueAs: (value) =>
+                  typeof value === 'string' && value.trim().length > 0
+                    ? value.trim()
+                    : null,
+              })}
+            >
+              <option value="">None</option>
+              {mythicPushTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-xs font-medium">Break template</label>
+            <select
+              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              {...register('mythicLbBreakTemplateId', {
+                setValueAs: (value) =>
+                  typeof value === 'string' && value.trim().length > 0
+                    ? value.trim()
+                    : null,
+              })}
+            >
+              <option value="">None</option>
+              {mythicBreakTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-xs font-medium">Transcend template</label>
+            <select
+              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              {...register('mythicLbTranscendTemplateId', {
+                setValueAs: (value) =>
+                  typeof value === 'string' && value.trim().length > 0
+                    ? value.trim()
+                    : null,
+              })}
+            >
+              <option value="">None</option>
+              {mythicTranscendTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {!mythicLbTemplatesLoading && mythicLbTemplates.length === 0 && (
+          <p className="text-xs text-zinc-500">
+            No Mythic item limit break templates for {mythicTemplateItemType}.
+          </p>
+        )}
+
+        {selectedTemplates.length > 0 && (
+          <div className="space-y-2">
+            {selectedTemplates.map((template) => (
+              <div
+                key={`mythic-lb-preview-${template.id}`}
+                className="rounded-md border border-zinc-800 bg-zinc-900/40 p-2 text-xs space-y-1"
+              >
+                <div className="font-medium">
+                  {template.name} ({template.tier} - {template.thresholdPercent}%)
+                </div>
+                {template.description && (
+                  <div className="text-zinc-300">{template.description}</div>
+                )}
+                <div>Base cost key: {template.baseCostKey ?? 'None'}</div>
+                <div>Success effect key: {template.successEffectKey ?? 'None'}</div>
+                <div>
+                  Fail-forward:{' '}
+                  {template.failForwardEnabled
+                    ? `${template.failForwardEffectKey ?? 'None'} / ${
+                        template.failForwardCostAKey ?? 'None'
+                      } / ${template.failForwardCostBKey ?? 'None'}`
+                    : 'Disabled'}
+                </div>
+                {template.isPersistent && (
+                  <div className="space-y-1 text-zinc-300">
+                    <div>Persistent state: {template.persistentStateText ?? 'None'}</div>
+                    <div>End condition: {template.endConditionText ?? 'None'}</div>
+                    <div>End cost: {template.endCostText ?? 'None'}</div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const editorMobileVisibility = mobileView === 'editor' ? 'block' : 'hidden';
   const previewMobileVisibility = mobileView === 'preview' ? 'block' : 'hidden';
 
@@ -4490,7 +4800,8 @@ useEffect(() => {
             </div>
 
         {/* ATTACK SECTION – WEAPON ONLY (shield uses same helper inside its card) */}
-        {isWeapon && renderAttackSection(true)} 
+        {isWeapon && renderAttackSection(true)}
+        {isWeapon && showMythicLimitBreakSection && renderMythicLimitBreakSection()}
 
                 {/* ARMOR SECTION */}
         {isArmor && (
@@ -4619,6 +4930,7 @@ useEffect(() => {
                     {renderDefEffectChips(defEffectsFromPicklist, defEffectIds)}
                   </div>
                 )}
+                {showMythicLimitBreakSection && renderMythicLimitBreakSection()}
 
                 {/* Armor attributes */}
                 {data && (
@@ -4874,6 +5186,7 @@ useEffect(() => {
                     )}
                   </div>
                 </div>
+                {showMythicLimitBreakSection && renderMythicLimitBreakSection()}
 
                 {/* VRP builder – shields share the same engine as armor */}
                 {renderVrpBuilder()}
@@ -4952,16 +5265,19 @@ useEffect(() => {
 
             {/* Custom item attributes */}
             {hasItemLocation && (
-              <div className="space-y-1">
-                <label className="block text-xs font-medium">
-                  Custom Item Attributes (no cost)
-                </label>
-                <textarea
-                  rows={2}
-                  className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="Custom item attribute notes (optional)."
-                  {...register('customItemAttributes')}
-                />
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium">
+                    Custom Item Attributes (no cost)
+                  </label>
+                  <textarea
+                    rows={2}
+                    className="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="Custom item attribute notes (optional)."
+                    {...register('customItemAttributes')}
+                  />
+                </div>
+                {showMythicLimitBreakSection && renderMythicLimitBreakSection()}
               </div>
             )}
           </div>

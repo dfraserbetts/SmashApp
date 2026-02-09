@@ -1,6 +1,6 @@
 export type MonsterTier = "MINION" | "SOLDIER" | "ELITE" | "BOSS";
 export type MonsterSource = "CORE" | "CAMPAIGN";
-export type MonsterAttackMode = "EQUIPPED_WEAPON" | "NATURAL_WEAPON";
+export type MonsterAttackMode = "NATURAL";
 export type DiceSize = "D4" | "D6" | "D8" | "D10" | "D12";
 
 export type MonsterPowerDurationType = "INSTANT" | "TURNS" | "PASSIVE";
@@ -74,6 +74,14 @@ export type MonsterNaturalAttackConfig = {
   };
 };
 
+export type MonsterAttack = {
+  id?: string;
+  sortOrder: number;
+  attackMode: MonsterAttackMode;
+  attackName: string | null;
+  attackConfig: MonsterNaturalAttackConfig | null;
+};
+
 export type MonsterRecord = {
   id: string;
   createdAt: string;
@@ -85,8 +93,15 @@ export type MonsterRecord = {
   source: MonsterSource;
   isReadOnly: boolean;
   campaignId: string | null;
-  attackMode: MonsterAttackMode;
-  equippedWeaponId: string | null;
+  attacks: MonsterAttack[];
+  mainHandItemId: string | null;
+  offHandItemId: string | null;
+  smallItemId: string | null;
+  headItemId: string | null;
+  shoulderItemId: string | null;
+  torsoItemId: string | null;
+  legsItemId: string | null;
+  feetItemId: string | null;
   customNotes: string | null;
   physicalResilienceCurrent: number;
   physicalResilienceMax: number;
@@ -118,7 +133,7 @@ export type MonsterRecord = {
   armorSkillModifier: number;
   tags: Array<{ id: string; tag: string }>;
   traits: Array<{ id: string; sortOrder: number; text: string }>;
-  naturalAttack: {
+  naturalAttack?: {
     id: string;
     attackName: string;
     attackConfig: MonsterNaturalAttackConfig;
@@ -137,10 +152,12 @@ export type MonsterUpsertInput = Omit<
   | "tags"
   | "traits"
   | "powers"
+  | "attacks"
   | "naturalAttack"
 > & {
   tags: string[];
   traits: Array<{ sortOrder: number; text: string }>;
+  attacks: MonsterAttack[];
   naturalAttack: {
     attackName: string;
     attackConfig: MonsterNaturalAttackConfig;

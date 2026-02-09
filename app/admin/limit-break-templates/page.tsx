@@ -150,9 +150,29 @@ function rowToEditor(row: Row): EditorState {
 }
 
 function gatingLabel(row: Row): string {
-  if (row.templateType === "PLAYER") return row.intention ?? "—";
-  if (row.templateType === "MYTHIC_ITEM") return row.itemType ?? "—";
-  return row.monsterCategory ?? "—";
+  if (row.templateType === "PLAYER") return row.intention ?? "-";
+  if (row.templateType === "MYTHIC_ITEM") return row.itemType ?? "-";
+  return row.monsterCategory ?? "-";
+}
+
+function getApiErrorMessage(
+  status: number,
+  payload: { error?: unknown; detail?: unknown } | null | undefined,
+  fallback: string,
+): string {
+  if (status === 401) return "Unauthorized: please sign in again.";
+  if (status === 403) return "Forbidden: admin access required.";
+
+  const base =
+    typeof payload?.error === "string" && payload.error.trim().length > 0
+      ? payload.error
+      : fallback;
+  const detail =
+    typeof payload?.detail === "string" && payload.detail.trim().length > 0
+      ? payload.detail
+      : null;
+
+  return detail ? `${base}: ${detail}` : base;
 }
 
 export default function AdminLimitBreakTemplatesPage() {
@@ -187,7 +207,15 @@ export default function AdminLimitBreakTemplatesPage() {
         cache: "no-store",
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Failed to load templates");
+      if (!res.ok) {
+        throw new Error(
+          getApiErrorMessage(
+            res.status,
+            data as { error?: unknown; detail?: unknown },
+            "Failed to load templates",
+          ),
+        );
+      }
 
       const nextRows = (data.rows ?? []) as Row[];
       setRows(nextRows);
@@ -269,7 +297,15 @@ export default function AdminLimitBreakTemplatesPage() {
         body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Save failed");
+      if (!res.ok) {
+        throw new Error(
+          getApiErrorMessage(
+            res.status,
+            data as { error?: unknown; detail?: unknown },
+            "Save failed",
+          ),
+        );
+      }
 
       const row = data.row as Row;
       setEditor(rowToEditor(row));
@@ -294,7 +330,15 @@ export default function AdminLimitBreakTemplatesPage() {
         body: JSON.stringify({ ids: selectedIds }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Delete failed");
+      if (!res.ok) {
+        throw new Error(
+          getApiErrorMessage(
+            res.status,
+            data as { error?: unknown; detail?: unknown },
+            "Delete failed",
+          ),
+        );
+      }
 
       const deletedSet = new Set(selectedIds);
       setRows((prev) => prev.filter((r) => !deletedSet.has(r.id)));
@@ -601,3 +645,4 @@ export default function AdminLimitBreakTemplatesPage() {
     </div>
   );
 }
+

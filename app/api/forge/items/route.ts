@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import type { RangeCategory } from '@prisma/client';
 import { prisma } from '../../../../prisma/client';
 import type { VRPEntryInput } from './vrp-utils';
 import { normalizeVRPEntries } from './vrp-utils';
@@ -90,6 +91,9 @@ type ItemTemplateInput = {
   aoeLineLengthFeet?: number | null;
 
   customWeaponAttributes?: string | null;
+  mythicLbPushTemplateId?: string | null;
+  mythicLbBreakTemplateId?: string | null;
+  mythicLbTranscendTemplateId?: string | null;
 
   armorLocation?: string | null;
   ppv?: number | null;
@@ -104,7 +108,7 @@ type ItemTemplateInput = {
   itemLocation?: string | null;
   customItemAttributes?: string | null;
 
-  rangeCategories?: string[];
+  rangeCategories?: RangeCategory[];
 
   meleeDamageTypeIds?: number[];
   rangedDamageTypeIds?: number[];
@@ -249,6 +253,9 @@ export async function POST(req: Request) {
         aoeLineLengthFeet: body.aoeLineLengthFeet ?? null,
 
         customWeaponAttributes: body.customWeaponAttributes ?? null,
+        mythicLbPushTemplateId: body.mythicLbPushTemplateId ?? null,
+        mythicLbBreakTemplateId: body.mythicLbBreakTemplateId ?? null,
+        mythicLbTranscendTemplateId: body.mythicLbTranscendTemplateId ?? null,
 
         armorLocation: body.armorLocation ?? null,
         ppv: body.ppv ?? null,
@@ -288,16 +295,17 @@ export async function POST(req: Request) {
 
       // 2) Join tables – we create only if arrays have length
 
-      const rangeCategories = body.rangeCategories ?? [];
-      if (rangeCategories.length) {
-      if (Array.isArray(body.rangeCategories) && body.rangeCategories.length > 0) {
+      const rangeCategories = Array.isArray(body.rangeCategories)
+        ? body.rangeCategories
+        : [];
+
+      if (rangeCategories.length > 0) {
         await tx.itemTemplateRangeCategory.createMany({
-          data: body.rangeCategories.map((rc) => ({
-            itemTemplateId: id,
-            rangeCategory: rc,
-          })) as any,
+          data: rangeCategories.map((rangeCategory) => ({
+            itemTemplateId: item.id,
+            rangeCategory
+          }))
         });
-      }
       }
 
       const meleeDamageTypeIds = body.meleeDamageTypeIds ?? [];

@@ -1,6 +1,7 @@
 // app/campaign/[id]/forge/page.tsx
 import { CampaignNav } from "@/app/components/CampaignNav";
 import { ForgeCreate } from "@/app/forge/components/ForgeCreate";
+import Link from "next/link";
 
 type ForgePageProps = {
   params: { id: string };
@@ -17,6 +18,14 @@ const { id } = await Promise.resolve(params);
 
           <header className="space-y-1">
             <h1 className="text-2xl font-semibold">The Forge</h1>
+            <div className="mt-2">
+              <Link
+                href={`/campaign/${id}/forge/print`}
+                className="rounded border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-800"
+              >
+                Open Print Mode
+              </Link>
+            </div>
           </header>
         </div>
 
