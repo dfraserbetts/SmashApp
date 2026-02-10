@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 export type LimitBreakTemplateTypeValue = "PLAYER" | "MYTHIC_ITEM" | "MONSTER";
 export type LimitBreakTierValue = "PUSH" | "BREAK" | "TRANSCEND";
+export type PersistentCostTimingValue = "BEGIN" | "END";
 export type IntentionTypeValue =
   | "ATTACK"
   | "DEFENCE"
@@ -44,8 +45,11 @@ type LimitBreakTemplateInput = {
   successEffectKey?: unknown;
   successEffectParams?: unknown;
   isPersistent?: unknown;
+  persistentCostTiming?: unknown;
   persistentStateText?: unknown;
   endConditionText?: unknown;
+  endCostKey?: unknown;
+  endCostParams?: unknown;
   endCostText?: unknown;
   failForwardEnabled?: unknown;
   failForwardEffectKey?: unknown;
@@ -68,8 +72,11 @@ export type NormalizedLimitBreakTemplate = {
   successEffectKey: string | null;
   successEffectParams: Prisma.InputJsonValue;
   isPersistent: boolean;
+  persistentCostTiming: PersistentCostTimingValue | null;
   persistentStateText: string | null;
   endConditionText: string | null;
+  endCostKey: string | null;
+  endCostParams: Prisma.InputJsonValue;
   endCostText: string | null;
   failForwardEnabled: boolean;
   failForwardEffectKey: string | null;
@@ -85,6 +92,7 @@ const TEMPLATE_TYPES = new Set<LimitBreakTemplateTypeValue>([
 ]);
 
 const TIERS = new Set<LimitBreakTierValue>(["PUSH", "BREAK", "TRANSCEND"]);
+const PERSISTENT_COST_TIMINGS = new Set<PersistentCostTimingValue>(["BEGIN", "END"]);
 
 const INTENTIONS = new Set<IntentionTypeValue>([
   "ATTACK",
@@ -132,6 +140,30 @@ function parseJsonValue(value: unknown, fieldName: string): Prisma.InputJsonValu
   }
 
   throw new LimitBreakTemplateValidationError(`${fieldName} must be valid JSON`);
+}
+
+function inferDefaultPersistentCostTiming(
+  successEffectParams: Prisma.InputJsonValue,
+): PersistentCostTimingValue {
+  if (
+    successEffectParams &&
+    typeof successEffectParams === "object" &&
+    !Array.isArray(successEffectParams)
+  ) {
+    const endRule = (successEffectParams as Record<string, unknown>).endRule;
+    if (typeof endRule === "string") {
+      const normalized = endRule.trim().toLowerCase();
+      if (
+        normalized === "until_destroyed" ||
+        normalized === "until-destroyed" ||
+        normalized === "until destroyed"
+      ) {
+        return "BEGIN";
+      }
+    }
+  }
+
+  return "END";
 }
 
 export function tierToThresholdPercent(tier: LimitBreakTierValue): 60 | 85 | 125 {
@@ -202,9 +234,29 @@ export function normalizeAndValidateTemplate(
     monsterCategory = null;
   }
 
+  let baseCostKey = cleanString(input.baseCostKey);
+  let baseCostParams = parseJsonValue(input.baseCostParams, "Base Cost Params");
+  const successEffectParams = parseJsonValue(
+    input.successEffectParams,
+    "Success Effect Params",
+  );
+
   let isPersistent = parseBoolean(input.isPersistent, false);
+  const rawPersistentCostTiming = cleanString(input.persistentCostTiming);
+  let persistentCostTiming =
+    rawPersistentCostTiming &&
+    PERSISTENT_COST_TIMINGS.has(rawPersistentCostTiming.toUpperCase() as PersistentCostTimingValue)
+      ? (rawPersistentCostTiming.toUpperCase() as PersistentCostTimingValue)
+      : null;
+  if (rawPersistentCostTiming && !persistentCostTiming) {
+    throw new LimitBreakTemplateValidationError(
+      "Persistent Cost Timing must be BEGIN or END",
+    );
+  }
   let persistentStateText = cleanString(input.persistentStateText);
   let endConditionText = cleanString(input.endConditionText);
+  let endCostKey = cleanString(input.endCostKey);
+  let endCostParams = parseJsonValue(input.endCostParams, "End Cost Params");
   let endCostText = cleanString(input.endCostText);
 
   const persistenceAllowed =
@@ -213,23 +265,43 @@ export function normalizeAndValidateTemplate(
 
   if (!persistenceAllowed) {
     isPersistent = false;
+    persistentCostTiming = null;
     persistentStateText = null;
     endConditionText = null;
+    endCostKey = null;
+    endCostParams = {};
     endCostText = null;
   } else if (isPersistent) {
+    if (!persistentCostTiming) {
+      persistentCostTiming = inferDefaultPersistentCostTiming(successEffectParams);
+    }
+
     if (!endConditionText) {
       throw new LimitBreakTemplateValidationError(
         "End Condition is required when persistence is enabled",
       );
     }
-    if (!endCostText) {
-      throw new LimitBreakTemplateValidationError(
-        "End Cost is required when persistence is enabled",
-      );
+
+    if (persistentCostTiming === "BEGIN") {
+      endCostKey = null;
+      endCostParams = {};
+      endCostText = null;
+    } else {
+      baseCostKey = null;
+      baseCostParams = {};
+
+      if (!endCostText) {
+        throw new LimitBreakTemplateValidationError(
+          "End Cost text is required when persistence cost timing is END",
+        );
+      }
     }
   } else {
+    persistentCostTiming = null;
     persistentStateText = null;
     endConditionText = null;
+    endCostKey = null;
+    endCostParams = {};
     endCostText = null;
   }
 
@@ -270,16 +342,16 @@ export function normalizeAndValidateTemplate(
     intention,
     itemType,
     monsterCategory,
-    baseCostKey: cleanString(input.baseCostKey),
-    baseCostParams: parseJsonValue(input.baseCostParams, "Base Cost Params"),
+    baseCostKey,
+    baseCostParams,
     successEffectKey: cleanString(input.successEffectKey),
-    successEffectParams: parseJsonValue(
-      input.successEffectParams,
-      "Success Effect Params",
-    ),
+    successEffectParams,
     isPersistent,
+    persistentCostTiming,
     persistentStateText,
     endConditionText,
+    endCostKey,
+    endCostParams,
     endCostText,
     failForwardEnabled,
     failForwardEffectKey,

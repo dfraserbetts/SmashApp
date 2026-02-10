@@ -14,7 +14,10 @@ import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
-  traits: { orderBy: { sortOrder: "asc" as const } },
+  traits: {
+    orderBy: { sortOrder: "asc" as const },
+    include: { trait: { select: { id: true, name: true, effectText: true } } },
+  },
   attacks: { orderBy: { sortOrder: "asc" as const } },
   naturalAttack: true,
   powers: {
@@ -29,6 +32,25 @@ const WEAPON_SOURCE_CAP_ERROR =
   "A monster can have at most 3 weapon sources total (equipped + natural). Unequip a weapon source or remove a natural weapon.";
 
 type EquipmentItemsById = Map<string, SummoningEquipmentItem>;
+
+async function validateCoreTraitDefinitions(
+  traits: MonsterUpsertInput["traits"],
+): Promise<string | null> {
+  if (traits.length === 0) return null;
+  const ids = Array.from(new Set(traits.map((trait) => trait.traitDefinitionId)));
+  const rows = await prisma.monsterTraitDefinition.findMany({
+    where: {
+      id: { in: ids },
+      source: "CORE",
+      isEnabled: true,
+    },
+    select: { id: true },
+  });
+  if (rows.length !== ids.length) {
+    return "One or more selected traits are invalid or disabled";
+  }
+  return null;
+}
 
 async function loadEquipmentItemsById(
   campaignId: string,
@@ -371,6 +393,10 @@ export async function PUT(
     }
 
     const data = parsed.data;
+    const traitError = await validateCoreTraitDefinitions(data.traits);
+    if (traitError) {
+      return NextResponse.json({ error: traitError }, { status: 400 });
+    }
 
     if (data.attacks.length > 3) {
       return NextResponse.json({ error: "A monster can have at most 3 attacks" }, { status: 400 });
@@ -391,6 +417,7 @@ export async function PUT(
         where: { id },
         data: {
           name: data.name,
+          imageUrl: data.imageUrl,
           level: data.level,
           tier: data.tier,
           legendary: data.legendary,
@@ -450,10 +477,10 @@ export async function PUT(
 
       if (data.traits.length > 0) {
         await tx.monsterTrait.createMany({
-          data: data.traits.map((trait) => ({
+          data: data.traits.map((trait, index) => ({
             monsterId: id,
-            sortOrder: trait.sortOrder,
-            text: trait.text,
+            sortOrder: index,
+            traitDefinitionId: trait.traitDefinitionId,
           })),
         });
       }

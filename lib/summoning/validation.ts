@@ -211,8 +211,55 @@ export function normalizeMonsterUpsertInput(body: unknown): {
     }
   }
 
+  const seenTraitDefinitionIds = new Set<string>();
+  const normalizedTraits = traitsRaw
+    .map((entry, index) => {
+      if (typeof entry === "string") {
+        const traitDefinitionId = asString(entry, "");
+        return {
+          sortOrder: index,
+          traitDefinitionId,
+          name: null as string | null,
+          effectText: null as string | null,
+        };
+      }
+      const row = (entry ?? {}) as Record<string, unknown>;
+      const traitDefinitionId = asString(row.traitDefinitionId, "");
+      const nestedTrait =
+        row.trait && typeof row.trait === "object"
+          ? (row.trait as Record<string, unknown>)
+          : null;
+      const name = asString(
+        nestedTrait?.name ?? row.name ?? row.text,
+        "",
+      );
+      const effectText = asString(
+        nestedTrait?.effectText ?? row.effectText,
+        "",
+      );
+      return {
+        sortOrder: asInt(row.sortOrder, index),
+        traitDefinitionId,
+        name: name || null,
+        effectText: effectText || null,
+      };
+    })
+    .filter((trait) => trait.traitDefinitionId.length > 0)
+    .filter((trait) => {
+      if (seenTraitDefinitionIds.has(trait.traitDefinitionId)) return false;
+      seenTraitDefinitionIds.add(trait.traitDefinitionId);
+      return true;
+    })
+    .map((trait, index) => ({
+      sortOrder: index,
+      traitDefinitionId: trait.traitDefinitionId,
+      name: trait.name ?? null,
+      effectText: trait.effectText ?? null,
+    }));
+
   const data: MonsterUpsertInput = {
     name,
+    imageUrl: asNullableString(raw.imageUrl),
     level: Math.max(1, asInt(raw.level, 1)),
     tier,
     legendary: asBool(raw.legendary, false),
@@ -254,16 +301,7 @@ export function normalizeMonsterUpsertInput(body: unknown): {
     armorSkillValue: Math.max(1, asInt(raw.armorSkillValue, 1)),
     armorSkillModifier: asInt(raw.armorSkillModifier, 0),
     tags: dedupeTags(tagsRaw.map((tag) => asString(tag, ""))),
-    traits: traitsRaw
-      .map((entry, index) => {
-        const row = (entry ?? {}) as Record<string, unknown>;
-        const text = asString(row.text, "");
-        return {
-          sortOrder: asInt(row.sortOrder, index),
-          text,
-        };
-      })
-      .filter((trait) => trait.text.length > 0),
+    traits: normalizedTraits,
     naturalAttack:
       attacks.length > 0
         ? {

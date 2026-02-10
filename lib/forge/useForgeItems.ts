@@ -8,6 +8,7 @@ export type ForgeItemSummary = {
   type: string | null;
   rarity: string | null;
   level: number | null;
+  tags: string[];
 };
 
 type ForgeItemsState = {
@@ -18,12 +19,25 @@ type ForgeItemsState = {
 };
 
 function toSummary(row: any): ForgeItemSummary {
+  const rawTags = Array.isArray(row?.tags) ? row.tags : [];
+  const tags = rawTags
+    .map((entry: unknown) =>
+      typeof entry === 'string'
+        ? entry
+        : typeof (entry as { tag?: unknown })?.tag === 'string'
+          ? String((entry as { tag: string }).tag)
+          : '',
+    )
+    .map((entry: string) => entry.trim())
+    .filter((entry: string) => entry.length > 0);
+
   return {
     id: String(row?.id ?? ''),
     name: row?.name ?? null,
     type: row?.type ?? null,
     rarity: row?.rarity ?? null,
     level: typeof row?.level === 'number' ? row.level : row?.level ?? null,
+    tags,
   };
 }
 

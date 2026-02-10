@@ -14,7 +14,10 @@ import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
-  traits: { orderBy: { sortOrder: "asc" as const } },
+  traits: {
+    orderBy: { sortOrder: "asc" as const },
+    include: { trait: { select: { id: true, name: true, effectText: true } } },
+  },
   attacks: { orderBy: { sortOrder: "asc" as const } },
   naturalAttack: true,
   powers: {
@@ -29,6 +32,25 @@ const WEAPON_SOURCE_CAP_ERROR =
   "A monster can have at most 3 weapon sources total (equipped + natural). Unequip a weapon source or remove a natural weapon.";
 
 type EquipmentItemsById = Map<string, SummoningEquipmentItem>;
+
+async function validateCoreTraitDefinitions(
+  traits: MonsterUpsertInput["traits"],
+): Promise<string | null> {
+  if (traits.length === 0) return null;
+  const ids = Array.from(new Set(traits.map((trait) => trait.traitDefinitionId)));
+  const rows = await prisma.monsterTraitDefinition.findMany({
+    where: {
+      id: { in: ids },
+      source: "CORE",
+      isEnabled: true,
+    },
+    select: { id: true },
+  });
+  if (rows.length !== ids.length) {
+    return "One or more selected traits are invalid or disabled";
+  }
+  return null;
+}
 
 async function loadEquipmentItemsById(
   campaignId: string,
@@ -301,11 +323,20 @@ export async function GET(req: Request) {
         isReadOnly: true,
         campaignId: true,
         updatedAt: true,
+        tags: {
+          select: { tag: true },
+          orderBy: { tag: "asc" },
+        },
       },
       orderBy: [{ source: "asc" }, { name: "asc" }],
     });
 
-    return NextResponse.json({ monsters });
+    return NextResponse.json({
+      monsters: monsters.map((monster) => ({
+        ...monster,
+        tags: Array.isArray(monster.tags) ? monster.tags.map((tag) => tag.tag) : [],
+      })),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load monsters";
     if (message === "UNAUTHORIZED") {
@@ -347,6 +378,10 @@ export async function POST(req: Request) {
     }
 
     const data = parsed.data;
+    const traitError = await validateCoreTraitDefinitions(data.traits);
+    if (traitError) {
+      return NextResponse.json({ error: traitError }, { status: 400 });
+    }
 
     if (data.attacks.length > 3) {
       return NextResponse.json({ error: "A monster can have at most 3 attacks" }, { status: 400 });
@@ -365,6 +400,7 @@ export async function POST(req: Request) {
     const monster = await prisma.monster.create({
       data: {
         name: data.name,
+        imageUrl: data.imageUrl,
         level: data.level,
         tier: data.tier,
         legendary: data.legendary,
@@ -416,7 +452,10 @@ export async function POST(req: Request) {
           create: data.tags.map((tag) => ({ tag })),
         },
         traits: {
-          create: data.traits,
+          create: data.traits.map((trait, index) => ({
+            sortOrder: index,
+            traitDefinitionId: trait.traitDefinitionId,
+          })),
         },
         attacks: {
           create: data.attacks.map((attack) => ({

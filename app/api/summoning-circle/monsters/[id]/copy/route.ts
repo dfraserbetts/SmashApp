@@ -8,7 +8,10 @@ import { requireCampaignMember, requireUserId } from "../../../_shared";
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
-  traits: { orderBy: { sortOrder: "asc" as const } },
+  traits: {
+    orderBy: { sortOrder: "asc" as const },
+    include: { trait: { select: { id: true, name: true, effectText: true } } },
+  },
   attacks: { orderBy: { sortOrder: "asc" as const } },
   naturalAttack: true,
   powers: {
@@ -273,6 +276,7 @@ export async function POST(
     const created = await prisma.monster.create({
       data: {
         name: `${source.name} (Copy)`,
+        imageUrl: source.imageUrl,
         level: source.level,
         tier: source.tier,
         legendary: source.legendary,
@@ -326,7 +330,7 @@ export async function POST(
         traits: {
           create: source.traits.map((trait) => ({
             sortOrder: trait.sortOrder,
-            text: trait.text,
+            traitDefinitionId: trait.traitDefinitionId,
           })),
         },
         attacks: {

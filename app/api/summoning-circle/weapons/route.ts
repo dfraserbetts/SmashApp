@@ -34,6 +34,7 @@ export async function GET(req: Request) {
     const weapons = rows.map((row) => ({
       id: row.id,
       name: row.name,
+      imageUrl: row.itemUrl ?? null,
       type: row.type,
       size: row.size,
       armorLocation: row.armorLocation,

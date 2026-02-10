@@ -21,6 +21,11 @@ export default function AdminHomePage() {
             </a>
           </li>
           <li>
+            <a className="underline" href="/admin/monster-traits">
+              Monster Traits
+            </a>
+          </li>
+          <li>
             <a className="underline" href="/admin/limit-break-templates">
               Limit Break Templates
             </a>

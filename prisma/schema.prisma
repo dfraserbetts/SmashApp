@@ -68,12 +68,25 @@ model ItemTemplate {
   rangedDamageTypes           ItemTemplateRangedDamageType[]
   sanctifiedOptions           ItemTemplateSanctifiedOption[]
   shieldAttributes            ItemTemplateShieldAttribute[]
+  tags                        ItemTag[]
   vrpEntries                  ItemTemplateVRPEntry[]
   wardingOptions              ItemTemplateWardingOption[]
   weaponAttributes            ItemTemplateWeaponAttribute[]
 
   @@index([campaignId])
   @@map("ItemTemplate")
+}
+
+model ItemTag {
+  id             String       @id @default(cuid())
+  itemTemplateId String
+  tag            String
+  createdAt      DateTime     @default(now())
+  itemTemplate   ItemTemplate @relation(fields: [itemTemplateId], references: [id], onDelete: Cascade)
+
+  @@unique([itemTemplateId, tag])
+  @@index([tag])
+  @@map("ItemTag")
 }
 
 model DamageType {
@@ -408,8 +421,11 @@ model LimitBreakTemplate {
   successEffectKey        String?
   successEffectParams     Json                   @default("{}")
   isPersistent            Boolean                @default(false)
+  persistentCostTiming    String?
   persistentStateText     String?                @db.Text
   endConditionText        String?                @db.Text
+  endCostKey              String?
+  endCostParams           Json                   @default("{}")
   endCostText             String?                @db.Text
   failForwardEnabled      Boolean                @default(false)
   failForwardEffectKey    String?
@@ -502,6 +518,7 @@ model Monster {
   createdAt                 DateTime              @default(now())
   updatedAt                 DateTime              @default(now()) @updatedAt
   name                      String
+  imageUrl                  String?
   level                     Int
   tier                      MonsterTier
   legendary                 Boolean               @default(false)
@@ -559,6 +576,21 @@ model Monster {
   @@map("Monster")
 }
 
+model MonsterTraitDefinition {
+  id         String         @id @default(cuid())
+  name       String         @unique
+  effectText String?        @db.Text
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @default(now()) @updatedAt
+  isEnabled  Boolean        @default(true)
+  source     MonsterSource  @default(CORE)
+  isReadOnly Boolean        @default(true)
+  traits     MonsterTrait[]
+
+  @@index([source, isEnabled])
+  @@map("MonsterTraitDefinition")
+}
+
 model MonsterTag {
   id        String  @id @default(cuid())
   monsterId String
@@ -571,12 +603,14 @@ model MonsterTag {
 }
 
 model MonsterTrait {
-  id        String  @id @default(cuid())
-  monsterId String
-  sortOrder Int     @default(0)
-  text      String  @db.Text
-  monster   Monster @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+  id                String                 @id @default(cuid())
+  monsterId         String
+  sortOrder         Int                    @default(0)
+  traitDefinitionId String
+  monster           Monster                @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+  trait             MonsterTraitDefinition @relation(fields: [traitDefinitionId], references: [id], onDelete: Restrict)
 
+  @@unique([monsterId, traitDefinitionId])
   @@index([monsterId, sortOrder])
   @@map("MonsterTrait")
 }

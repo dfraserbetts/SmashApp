@@ -5,6 +5,7 @@ import { prisma } from '../../../../../prisma/client';
 
 import { normalizeVRPEntries } from '../vrp-utils';
 import type { VRPEntryInput } from '../vrp-utils';
+import { hasItemTagClient, isUnknownTagsIncludeError } from '../route';
 
 // Local enum replacements.
 // Your generated Prisma Client does not export these as TS enums in this project,
@@ -60,6 +61,34 @@ async function requireCampaignMember(campaignId: string, userId: string) {
   }
 
   return membership.role;
+}
+
+function normalizeTagsInput(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    if (typeof raw !== 'string') continue;
+    const tag = raw.trim();
+    if (!tag) continue;
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(tag);
+  }
+
+  return out;
+}
+
+function withTagStrings<T extends { tags?: Array<{ tag: string }> }>(
+  row: T,
+): Omit<T, 'tags'> & { tags: string[] } {
+  const tags = Array.isArray(row.tags) ? row.tags.map((entry) => entry.tag) : [];
+  return {
+    ...(row as Omit<T, 'tags'>),
+    tags,
+  };
 }
 
 type ItemTemplateInput = {
@@ -134,6 +163,7 @@ type ItemTemplateInput = {
   wardingOptionIds?: number[];
   sanctifiedOptionIds?: number[];
 
+  tags?: string[];
   vrpEntries?: VRPEntryInput[];
 };
 
@@ -157,35 +187,63 @@ export async function GET(
   try {
     const userId = await requireUserId();
     await requireCampaignMember(campaignId, userId);
-    const item = await prisma.itemTemplate.findFirst({
-      where: { id, campaignId },
-      include: {
-        rangeCategories: true,
-        meleeDamageTypes: { include: { damageType: true } },
-        rangedDamageTypes: { include: { damageType: true } },
-        aoeDamageTypes: { include: { damageType: true } },
+    const includeNoTags = {
+      rangeCategories: true,
+      meleeDamageTypes: { include: { damageType: true } },
+      rangedDamageTypes: { include: { damageType: true } },
+      aoeDamageTypes: { include: { damageType: true } },
 
-        attackEffectsMelee: { include: { attackEffect: true } },
-        attackEffectsRanged: { include: { attackEffect: true } },
-        attackEffectsAoE: { include: { attackEffect: true } },
+      attackEffectsMelee: { include: { attackEffect: true } },
+      attackEffectsRanged: { include: { attackEffect: true } },
+      attackEffectsAoE: { include: { attackEffect: true } },
 
-        weaponAttributes: { include: { weaponAttribute: true },},
-        armorAttributes: { include: { armorAttribute: true } },
-        shieldAttributes: { include: { shieldAttribute: true } },
+      weaponAttributes: { include: { weaponAttribute: true } },
+      armorAttributes: { include: { armorAttribute: true } },
+      shieldAttributes: { include: { shieldAttribute: true } },
 
-        defEffects: { include: { defEffect: true } },
-        wardingOptions: { include: { wardingOption: true } },
-        sanctifiedOptions: { include: { sanctifiedOption: true } },
+      defEffects: { include: { defEffect: true } },
+      wardingOptions: { include: { wardingOption: true } },
+      sanctifiedOptions: { include: { sanctifiedOption: true } },
 
-        vrpEntries: { include: { damageType: true } },
+      vrpEntries: { include: { damageType: true } },
+    };
+    const includeWithTags = {
+      ...includeNoTags,
+      tags: {
+        select: { tag: true },
+        orderBy: { tag: 'asc' as const },
       },
-    });
+    };
 
-    if (!item) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    try {
+      const item = await prisma.itemTemplate.findFirst({
+        where: { id, campaignId },
+        include: includeWithTags,
+      });
+
+      if (!item) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+
+      return NextResponse.json(withTagStrings(item));
+    } catch (error) {
+      if (!isUnknownTagsIncludeError(error)) {
+        throw error;
+      }
+
+      console.warn(`[FORGE_ITEM_GET] tags fallback: ${String(error)}`);
+
+      const item = await prisma.itemTemplate.findFirst({
+        where: { id, campaignId },
+        include: includeNoTags,
+      });
+
+      if (!item) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+
+      return NextResponse.json(withTagStrings({ ...item, tags: [] }));
     }
-
-    return NextResponse.json(item);
   } catch (error) {
     console.error('[FORGE_ITEM_GET]', error);
     return NextResponse.json(
@@ -221,6 +279,7 @@ export async function PUT(
     }
 
     const body = (await req.json()) as ItemTemplateInput;
+    const normalizedTags = normalizeTagsInput(body.tags);
       const updated = await prisma.$transaction(async (tx) => {
       // 1) core update (scoped to campaign)
       const updatedCount = await tx.itemTemplate.updateMany({
@@ -343,6 +402,7 @@ export async function PUT(
 
       const item = await tx.itemTemplate.findFirst({
         where: { id, campaignId },
+        select: { id: true },
       });
 
       if (!item) {
@@ -552,7 +612,73 @@ export async function PUT(
         }
       }
 
-      return item;
+      const tagsSupported = hasItemTagClient(tx);
+      if (body.tags !== undefined) {
+        if (tagsSupported) {
+          if (normalizedTags.length === 0) {
+            await tx.itemTag.deleteMany({
+              where: { itemTemplateId: id },
+            });
+          } else {
+            await tx.itemTag.deleteMany({
+              where: { itemTemplateId: id },
+            });
+            await tx.itemTag.createMany({
+              data: normalizedTags.map((tag) => ({
+                itemTemplateId: id,
+                tag,
+              })),
+            });
+          }
+        } else {
+          console.warn("[FORGE_ITEMS_PUT] itemTag model unavailable; skipping tag persistence");
+        }
+      }
+
+      let updatedItem:
+        | (Record<string, unknown> & { tags?: Array<{ tag: string }> })
+        | null;
+      if (tagsSupported) {
+        try {
+          const withTags = await tx.itemTemplate.findFirst({
+            where: { id, campaignId },
+            include: {
+              tags: {
+                select: { tag: true },
+                orderBy: { tag: 'asc' },
+              },
+            },
+          });
+          updatedItem = withTags as
+            | (Record<string, unknown> & { tags?: Array<{ tag: string }> })
+            | null;
+        } catch (error) {
+          if (!isUnknownTagsIncludeError(error)) {
+            throw error;
+          }
+          console.warn("[FORGE_ITEMS_PUT] itemTag model unavailable; skipping tag persistence");
+          updatedItem = (await tx.itemTemplate.findFirst({
+            where: { id, campaignId },
+          })) as (Record<string, unknown> & { tags?: Array<{ tag: string }> }) | null;
+        }
+      } else {
+        updatedItem = (await tx.itemTemplate.findFirst({
+          where: { id, campaignId },
+        })) as (Record<string, unknown> & { tags?: Array<{ tag: string }> }) | null;
+      }
+
+      if (!updatedItem) {
+        throw new Error("Not found");
+      }
+
+      const persistedTags = Array.isArray(updatedItem.tags)
+        ? updatedItem.tags.map((entry) => entry.tag)
+        : [];
+      const responseTags = body.tags !== undefined ? normalizedTags : persistedTags;
+      return {
+        ...updatedItem,
+        tags: responseTags,
+      };
     });
 
     return NextResponse.json(updated);

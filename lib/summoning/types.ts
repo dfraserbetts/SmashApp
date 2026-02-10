@@ -40,6 +40,20 @@ export type MonsterPower = {
   intentions: MonsterPowerIntention[];
 };
 
+export type MonsterTraitSelection = {
+  id?: string;
+  sortOrder: number;
+  traitDefinitionId: string;
+  name?: string | null;
+  effectText?: string | null;
+};
+
+export type MonsterTraitDefinitionSummary = {
+  id: string;
+  name: string;
+  effectText: string | null;
+};
+
 export type MonsterNaturalAttackConfig = {
   melee?: {
     enabled: boolean;
@@ -87,6 +101,7 @@ export type MonsterRecord = {
   createdAt: string;
   updatedAt: string;
   name: string;
+  imageUrl: string | null;
   level: number;
   tier: MonsterTier;
   legendary: boolean;
@@ -132,7 +147,7 @@ export type MonsterRecord = {
   armorSkillValue: number;
   armorSkillModifier: number;
   tags: Array<{ id: string; tag: string }>;
-  traits: Array<{ id: string; sortOrder: number; text: string }>;
+  traits: MonsterTraitSelection[];
   naturalAttack?: {
     id: string;
     attackName: string;
@@ -156,7 +171,7 @@ export type MonsterUpsertInput = Omit<
   | "naturalAttack"
 > & {
   tags: string[];
-  traits: Array<{ sortOrder: number; text: string }>;
+  traits: MonsterTraitSelection[];
   attacks: MonsterAttack[];
   naturalAttack: {
     attackName: string;

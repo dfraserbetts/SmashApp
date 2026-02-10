@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type TemplateType = "PLAYER" | "MYTHIC_ITEM" | "MONSTER";
 type Tier = "PUSH" | "BREAK" | "TRANSCEND";
+type PersistentCostTiming = "BEGIN" | "END";
 type Intention =
   | "ATTACK"
   | "DEFENCE"
@@ -32,8 +33,11 @@ type Row = {
   successEffectKey: string | null;
   successEffectParams: unknown;
   isPersistent: boolean;
+  persistentCostTiming: PersistentCostTiming | null;
   persistentStateText: string | null;
   endConditionText: string | null;
+  endCostKey: string | null;
+  endCostParams: unknown;
   endCostText: string | null;
   failForwardEnabled: boolean;
   failForwardEffectKey: string | null;
@@ -58,14 +62,31 @@ type EditorState = {
   successEffectKey: string;
   successEffectParams: string;
   isPersistent: boolean;
+  persistentCostTiming: PersistentCostTiming | "";
   persistentStateText: string;
   endConditionText: string;
+  endCostKey: string;
+  endCostParams: string;
   endCostText: string;
   failForwardEnabled: boolean;
   failForwardEffectKey: string;
   failForwardEffectParams: string;
   failForwardCostAKey: string;
   failForwardCostBKey: string;
+};
+
+type KeyFieldName =
+  | "baseCostKey"
+  | "successEffectKey"
+  | "failForwardEffectKey"
+  | "failForwardCostAKey"
+  | "failForwardCostBKey"
+  | "endCostKey";
+
+type Vocabulary = {
+  successEffectKeys: string[];
+  failForwardEffectKeys: string[];
+  costKeys: string[];
 };
 
 const THRESHOLD_BY_TIER: Record<Tier, number> = {
@@ -89,12 +110,119 @@ const INTENTIONS: Intention[] = [
   "SUPPORT",
 ];
 
+const CUSTOM_KEY = "__CUSTOM__";
+
+const PLAYER_SUMMONING_VOCAB: Vocabulary = {
+  successEffectKeys: [
+    "lb-summon-horde",
+    "lb-summon-elite",
+    "lb-summon-instant-arrival",
+    "lb-summon-endless",
+    "lb-summon-autonomous",
+    "lb-summon-territory",
+  ],
+  failForwardEffectKeys: [
+    "ff-summon-partial",
+    "ff-summon-weaker",
+    "ff-summon-short-lived",
+  ],
+  costKeys: [
+    "cost-lockout-until-rest",
+    "cost-lockout-until-ritual",
+    "cost-lockout-until-levelup",
+    "cost-exhaustion-major",
+    "cost-injury-attribute-offline",
+    "cost-backlash-wounds",
+  ],
+};
+
+const PLAYER_TRANSFORMATION_VOCAB: Vocabulary = {
+  successEffectKeys: [
+    "lb-transform-overdrive",
+    "lb-transform-adaptive-form",
+    "lb-transform-primal-ascent",
+  ],
+  failForwardEffectKeys: [
+    "ff-transform-unstable",
+    "ff-transform-short-window",
+  ],
+  costKeys: [
+    "cost-lockout-until-rest",
+    "cost-exhaustion-major",
+    "cost-backlash-wounds",
+  ],
+};
+
+const MYTHIC_ITEM_VOCAB: Vocabulary = {
+  successEffectKeys: [
+    "lb-mythic-surge",
+    "lb-mythic-overcharge",
+    "lb-mythic-reality-cut",
+  ],
+  failForwardEffectKeys: [
+    "ff-mythic-backfire",
+    "ff-mythic-dampened",
+  ],
+  costKeys: [
+    "cost-lockout-until-rest",
+    "cost-lockout-until-levelup",
+    "cost-backlash-wounds",
+  ],
+};
+
+const EMPTY_VOCAB: Vocabulary = {
+  successEffectKeys: [],
+  failForwardEffectKeys: [],
+  costKeys: [],
+};
+
+function getVocabulary(
+  templateType: TemplateType,
+  intention: Intention | "",
+): Vocabulary {
+  if (templateType === "PLAYER" && intention === "SUMMONING") {
+    return PLAYER_SUMMONING_VOCAB;
+  }
+  if (templateType === "PLAYER" && intention === "TRANSFORMATION") {
+    return PLAYER_TRANSFORMATION_VOCAB;
+  }
+  if (templateType === "MYTHIC_ITEM") {
+    return MYTHIC_ITEM_VOCAB;
+  }
+  return EMPTY_VOCAB;
+}
+
 function toJsonText(value: unknown): string {
   try {
     return JSON.stringify(value ?? {}, null, 2);
   } catch {
     return "{}";
   }
+}
+
+function inferPersistentCostTimingFromSuccessParamsText(
+  successEffectParams: string,
+): PersistentCostTiming {
+  try {
+    const parsed = JSON.parse(successEffectParams || "{}");
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const endRule = (parsed as { endRule?: unknown }).endRule;
+      if (typeof endRule === "string") {
+        const normalized = endRule.trim().toLowerCase();
+        if (
+          normalized === "until_destroyed" ||
+          normalized === "until-destroyed" ||
+          normalized === "until destroyed"
+        ) {
+          return "BEGIN";
+        }
+      }
+    }
+  } catch {
+    // Ignore parse failures in UI inference.
+  }
+
+  return "END";
 }
 
 function emptyEditor(): EditorState {
@@ -112,8 +240,11 @@ function emptyEditor(): EditorState {
     successEffectKey: "",
     successEffectParams: "{}",
     isPersistent: false,
+    persistentCostTiming: "",
     persistentStateText: "",
     endConditionText: "",
+    endCostKey: "",
+    endCostParams: "{}",
     endCostText: "",
     failForwardEnabled: false,
     failForwardEffectKey: "",
@@ -138,8 +269,11 @@ function rowToEditor(row: Row): EditorState {
     successEffectKey: row.successEffectKey ?? "",
     successEffectParams: toJsonText(row.successEffectParams),
     isPersistent: row.isPersistent,
+    persistentCostTiming: row.persistentCostTiming ?? "",
     persistentStateText: row.persistentStateText ?? "",
     endConditionText: row.endConditionText ?? "",
+    endCostKey: row.endCostKey ?? "",
+    endCostParams: toJsonText(row.endCostParams),
     endCostText: row.endCostText ?? "",
     failForwardEnabled: row.failForwardEnabled,
     failForwardEffectKey: row.failForwardEffectKey ?? "",
@@ -184,11 +318,40 @@ export default function AdminLimitBreakTemplatesPage() {
   const [deleting, setDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editor, setEditor] = useState<EditorState>(emptyEditor());
+  const [customMode, setCustomMode] = useState<Record<KeyFieldName, boolean>>({
+    baseCostKey: false,
+    successEffectKey: false,
+    failForwardEffectKey: false,
+    failForwardCostAKey: false,
+    failForwardCostBKey: false,
+    endCostKey: false,
+  });
+  const [customValues, setCustomValues] = useState<Record<KeyFieldName, string>>({
+    baseCostKey: "",
+    successEffectKey: "",
+    failForwardEffectKey: "",
+    failForwardCostAKey: "",
+    failForwardCostBKey: "",
+    endCostKey: "",
+  });
 
   const thresholdPercent = THRESHOLD_BY_TIER[editor.tier];
   const showPersistence =
     editor.templateType === "PLAYER" &&
     (editor.intention === "SUMMONING" || editor.intention === "TRANSFORMATION");
+  const vocabulary = useMemo(
+    () => getVocabulary(editor.templateType, editor.intention),
+    [editor.templateType, editor.intention],
+  );
+
+  const showBaseCostFields =
+    !showPersistence ||
+    !editor.isPersistent ||
+    editor.persistentCostTiming === "BEGIN" ||
+    editor.persistentCostTiming === "";
+
+  const showEndCostFields =
+    showPersistence && editor.isPersistent && editor.persistentCostTiming === "END";
 
   const sortedRows = useMemo(
     () =>
@@ -224,11 +387,27 @@ export default function AdminLimitBreakTemplatesPage() {
         const found = nextRows.find((r) => r.id === selectId);
         if (found) {
           setEditor(rowToEditor(found));
+          setCustomMode({
+            baseCostKey: false,
+            successEffectKey: false,
+            failForwardEffectKey: false,
+            failForwardCostAKey: false,
+            failForwardCostBKey: false,
+            endCostKey: false,
+          });
         }
       } else if (editor.id) {
         const found = nextRows.find((r) => r.id === editor.id);
         if (found) {
           setEditor(rowToEditor(found));
+          setCustomMode({
+            baseCostKey: false,
+            successEffectKey: false,
+            failForwardEffectKey: false,
+            failForwardCostAKey: false,
+            failForwardCostBKey: false,
+            endCostKey: false,
+          });
         } else {
           setEditor(emptyEditor());
         }
@@ -259,6 +438,89 @@ export default function AdminLimitBreakTemplatesPage() {
   function createNew() {
     setSaveError(null);
     setEditor(emptyEditor());
+    setCustomMode({
+      baseCostKey: false,
+      successEffectKey: false,
+      failForwardEffectKey: false,
+      failForwardCostAKey: false,
+      failForwardCostBKey: false,
+      endCostKey: false,
+    });
+    setCustomValues({
+      baseCostKey: "",
+      successEffectKey: "",
+      failForwardEffectKey: "",
+      failForwardCostAKey: "",
+      failForwardCostBKey: "",
+      endCostKey: "",
+    });
+  }
+
+  function getFieldValue(field: KeyFieldName): string {
+    return (editor[field] ?? "").trim();
+  }
+
+  function isCustomValue(field: KeyFieldName, options: string[]): boolean {
+    const value = getFieldValue(field);
+    return value.length > 0 && !options.includes(value);
+  }
+
+  function setFieldAsCustom(field: KeyFieldName, next: string) {
+    setCustomMode((prev) => ({ ...prev, [field]: true }));
+    setCustomValues((prev) => ({ ...prev, [field]: next }));
+    setField(field, next as EditorState[KeyFieldName]);
+  }
+
+  function handleKeySelect(field: KeyFieldName, options: string[], value: string) {
+    if (value === CUSTOM_KEY) {
+      const current = getFieldValue(field);
+      const seed = isCustomValue(field, options) ? current : customValues[field] || "";
+      setFieldAsCustom(field, seed);
+      return;
+    }
+
+    if (value === "") {
+      setCustomMode((prev) => ({ ...prev, [field]: false }));
+      setField(field, "" as EditorState[KeyFieldName]);
+      return;
+    }
+
+    setCustomMode((prev) => ({ ...prev, [field]: false }));
+    setField(field, value as EditorState[KeyFieldName]);
+  }
+
+  function renderKeyField(label: string, field: KeyFieldName, options: string[]) {
+    const current = getFieldValue(field);
+    const currentIsCustom = isCustomValue(field, options);
+    const showCustomInput = customMode[field] || currentIsCustom;
+    const selectValue = showCustomInput ? CUSTOM_KEY : current;
+
+    return (
+      <div className="space-y-2">
+        <label className="text-xs opacity-80">{label}</label>
+        <select
+          className="w-full rounded border bg-transparent p-2 text-sm"
+          value={selectValue}
+          onChange={(e) => handleKeySelect(field, options, e.target.value)}
+        >
+          <option value="">None</option>
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+          <option value={CUSTOM_KEY}>CUSTOM...</option>
+        </select>
+        {showCustomInput && (
+          <input
+            className="w-full rounded border bg-transparent p-2 text-sm"
+            placeholder={`Custom ${label}`}
+            value={currentIsCustom ? current : customValues[field]}
+            onChange={(e) => setFieldAsCustom(field, e.target.value)}
+          />
+        )}
+      </div>
+    );
   }
 
   async function saveTemplate() {
@@ -280,8 +542,11 @@ export default function AdminLimitBreakTemplatesPage() {
         successEffectKey: editor.successEffectKey || null,
         successEffectParams: editor.successEffectParams,
         isPersistent: editor.isPersistent,
+        persistentCostTiming: editor.persistentCostTiming || null,
         persistentStateText: editor.persistentStateText || null,
         endConditionText: editor.endConditionText || null,
+        endCostKey: editor.endCostKey || null,
+        endCostParams: editor.endCostParams,
         endCostText: editor.endCostText || null,
         failForwardEnabled: editor.failForwardEnabled,
         failForwardEffectKey: editor.failForwardEffectKey || null,
@@ -309,6 +574,14 @@ export default function AdminLimitBreakTemplatesPage() {
 
       const row = data.row as Row;
       setEditor(rowToEditor(row));
+      setCustomMode({
+        baseCostKey: false,
+        successEffectKey: false,
+        failForwardEffectKey: false,
+        failForwardCostAKey: false,
+        failForwardCostBKey: false,
+        endCostKey: false,
+      });
       await loadRows(row.id);
     } catch (e: any) {
       setSaveError(String(e?.message ?? "Save failed"));
@@ -372,9 +645,7 @@ export default function AdminLimitBreakTemplatesPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="rounded border">
-          <div className="border-b p-3 text-sm font-medium">
-            Templates ({rows.length})
-          </div>
+          <div className="border-b p-3 text-sm font-medium">Templates ({rows.length})</div>
           {loading ? (
             <div className="p-3 text-sm opacity-70">Loading...</div>
           ) : sortedRows.length === 0 ? (
@@ -401,6 +672,14 @@ export default function AdminLimitBreakTemplatesPage() {
                       onClick={() => {
                         setSaveError(null);
                         setEditor(rowToEditor(row));
+                        setCustomMode({
+                          baseCostKey: false,
+                          successEffectKey: false,
+                          failForwardEffectKey: false,
+                          failForwardCostAKey: false,
+                          failForwardCostBKey: false,
+                          endCostKey: false,
+                        });
                       }}
                     >
                       <td className="p-2" onClick={(e) => e.stopPropagation()}>
@@ -451,9 +730,7 @@ export default function AdminLimitBreakTemplatesPage() {
               <select
                 className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
                 value={editor.templateType}
-                onChange={(e) =>
-                  setField("templateType", e.target.value as TemplateType)
-                }
+                onChange={(e) => setField("templateType", e.target.value as TemplateType)}
               >
                 <option value="PLAYER">PLAYER</option>
                 <option value="MYTHIC_ITEM">MYTHIC_ITEM</option>
@@ -498,9 +775,7 @@ export default function AdminLimitBreakTemplatesPage() {
               <select
                 className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
                 value={editor.intention}
-                onChange={(e) =>
-                  setField("intention", e.target.value as Intention | "")
-                }
+                onChange={(e) => setField("intention", e.target.value as Intention | "")}
               >
                 <option value="">Select intention</option>
                 {INTENTIONS.map((i) => (
@@ -541,70 +816,114 @@ export default function AdminLimitBreakTemplatesPage() {
             </div>
           )}
 
-          <div className="rounded border p-2">
-            <div className="mb-2 text-sm font-medium">Base/Success Keys + Params</div>
-            <div className="space-y-2">
-              <input
-                className="w-full rounded border bg-transparent p-2 text-sm"
-                placeholder="baseCostKey"
-                value={editor.baseCostKey}
-                onChange={(e) => setField("baseCostKey", e.target.value)}
-              />
-              <textarea
-                className="min-h-20 w-full rounded border bg-transparent p-2 font-mono text-xs"
-                placeholder="baseCostParams JSON"
-                value={editor.baseCostParams}
-                onChange={(e) => setField("baseCostParams", e.target.value)}
-              />
-              <input
-                className="w-full rounded border bg-transparent p-2 text-sm"
-                placeholder="successEffectKey"
-                value={editor.successEffectKey}
-                onChange={(e) => setField("successEffectKey", e.target.value)}
-              />
-              <textarea
-                className="min-h-20 w-full rounded border bg-transparent p-2 font-mono text-xs"
-                placeholder="successEffectParams JSON"
-                value={editor.successEffectParams}
-                onChange={(e) => setField("successEffectParams", e.target.value)}
-              />
-            </div>
+          <div className="rounded border p-2 space-y-2">
+            <div className="text-sm font-medium">Primary Effects</div>
+            {showBaseCostFields && (
+              <>
+                {renderKeyField("Base Cost Key", "baseCostKey", vocabulary.costKeys)}
+                <textarea
+                  className="min-h-20 w-full rounded border bg-transparent p-2 font-mono text-xs"
+                  placeholder="baseCostParams JSON"
+                  value={editor.baseCostParams}
+                  onChange={(e) => setField("baseCostParams", e.target.value)}
+                />
+              </>
+            )}
+            {renderKeyField(
+              "Success Effect Key",
+              "successEffectKey",
+              vocabulary.successEffectKeys,
+            )}
+            <textarea
+              className="min-h-20 w-full rounded border bg-transparent p-2 font-mono text-xs"
+              placeholder="successEffectParams JSON"
+              value={editor.successEffectParams}
+              onChange={(e) => setField("successEffectParams", e.target.value)}
+            />
           </div>
 
           {showPersistence && (
-            <div className="rounded border p-2">
-              <div className="mb-2 text-sm font-medium">Persistence</div>
+            <div className="rounded border p-2 space-y-2">
+              <div className="text-sm font-medium">Persistence</div>
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={editor.isPersistent}
-                  onChange={(e) => setField("isPersistent", e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setField("isPersistent", checked);
+                    if (checked && !editor.persistentCostTiming) {
+                      setField(
+                        "persistentCostTiming",
+                        inferPersistentCostTimingFromSuccessParamsText(
+                          editor.successEffectParams,
+                        ),
+                      );
+                    }
+                    if (!checked) {
+                      setField("persistentCostTiming", "");
+                    }
+                  }}
                 />
                 isPersistent
               </label>
-              <textarea
-                className="mt-2 min-h-16 w-full rounded border bg-transparent p-2 text-sm"
-                placeholder="persistentStateText"
-                value={editor.persistentStateText}
-                onChange={(e) => setField("persistentStateText", e.target.value)}
-              />
-              <textarea
-                className="mt-2 min-h-16 w-full rounded border bg-transparent p-2 text-sm"
-                placeholder="endConditionText"
-                value={editor.endConditionText}
-                onChange={(e) => setField("endConditionText", e.target.value)}
-              />
-              <textarea
-                className="mt-2 min-h-16 w-full rounded border bg-transparent p-2 text-sm"
-                placeholder="endCostText"
-                value={editor.endCostText}
-                onChange={(e) => setField("endCostText", e.target.value)}
-              />
+
+              {editor.isPersistent && (
+                <>
+                  <div>
+                    <label className="text-xs opacity-80">Cost Timing</label>
+                    <select
+                      className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
+                      value={editor.persistentCostTiming || "END"}
+                      onChange={(e) =>
+                        setField(
+                          "persistentCostTiming",
+                          e.target.value as PersistentCostTiming,
+                        )
+                      }
+                    >
+                      <option value="BEGIN">BEGIN</option>
+                      <option value="END">END</option>
+                    </select>
+                  </div>
+
+                  <textarea
+                    className="min-h-16 w-full rounded border bg-transparent p-2 text-sm"
+                    placeholder="persistentStateText"
+                    value={editor.persistentStateText}
+                    onChange={(e) => setField("persistentStateText", e.target.value)}
+                  />
+                  <textarea
+                    className="min-h-16 w-full rounded border bg-transparent p-2 text-sm"
+                    placeholder="endConditionText"
+                    value={editor.endConditionText}
+                    onChange={(e) => setField("endConditionText", e.target.value)}
+                  />
+
+                  {showEndCostFields && (
+                    <>
+                      <textarea
+                        className="min-h-16 w-full rounded border bg-transparent p-2 text-sm"
+                        placeholder="endCostText"
+                        value={editor.endCostText}
+                        onChange={(e) => setField("endCostText", e.target.value)}
+                      />
+                      {renderKeyField("End Cost Key", "endCostKey", vocabulary.costKeys)}
+                      <textarea
+                        className="min-h-20 w-full rounded border bg-transparent p-2 font-mono text-xs"
+                        placeholder="endCostParams JSON"
+                        value={editor.endCostParams}
+                        onChange={(e) => setField("endCostParams", e.target.value)}
+                      />
+                    </>
+                  )}
+                </>
+              )}
             </div>
           )}
 
-          <div className="rounded border p-2">
-            <div className="mb-2 text-sm font-medium">Fail-forward</div>
+          <div className="rounded border p-2 space-y-2">
+            <div className="text-sm font-medium">Fail-forward</div>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -613,36 +932,22 @@ export default function AdminLimitBreakTemplatesPage() {
               />
               failForwardEnabled
             </label>
-            <input
-              className="mt-2 w-full rounded border bg-transparent p-2 text-sm"
-              placeholder="failForwardEffectKey"
-              value={editor.failForwardEffectKey}
-              onChange={(e) => setField("failForwardEffectKey", e.target.value)}
-            />
+            {renderKeyField(
+              "Fail-forward Effect Key",
+              "failForwardEffectKey",
+              vocabulary.failForwardEffectKeys,
+            )}
             <textarea
-              className="mt-2 min-h-20 w-full rounded border bg-transparent p-2 font-mono text-xs"
+              className="min-h-20 w-full rounded border bg-transparent p-2 font-mono text-xs"
               placeholder="failForwardEffectParams JSON"
               value={editor.failForwardEffectParams}
-              onChange={(e) =>
-                setField("failForwardEffectParams", e.target.value)
-              }
+              onChange={(e) => setField("failForwardEffectParams", e.target.value)}
             />
-            <input
-              className="mt-2 w-full rounded border bg-transparent p-2 text-sm"
-              placeholder="failForwardCostAKey"
-              value={editor.failForwardCostAKey}
-              onChange={(e) => setField("failForwardCostAKey", e.target.value)}
-            />
-            <input
-              className="mt-2 w-full rounded border bg-transparent p-2 text-sm"
-              placeholder="failForwardCostBKey"
-              value={editor.failForwardCostBKey}
-              onChange={(e) => setField("failForwardCostBKey", e.target.value)}
-            />
+            {renderKeyField("Fail-forward Cost A Key", "failForwardCostAKey", vocabulary.costKeys)}
+            {renderKeyField("Fail-forward Cost B Key", "failForwardCostBKey", vocabulary.costKeys)}
           </div>
         </div>
       </div>
     </div>
   );
 }
-

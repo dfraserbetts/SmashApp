@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, type ChangeEvent } from 'react';
+import { useState, useEffect, useMemo, useRef, type ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 
 import type {
@@ -27,7 +27,7 @@ import type {
   ForgeConfigEntry,
 } from '../../../lib/forge/useForgePicklists';
 
-import { useForgeItems } from '../../../lib/forge/useForgeItems';
+import { useForgeItems, type ForgeItemSummary } from '../../../lib/forge/useForgeItems';
 import { buildDescriptorResult } from '@/lib/descriptors/descriptorEngine';
 import { renderForgeResult } from '@/lib/descriptors/renderers/forgeRenderer';
 
@@ -38,6 +38,7 @@ type LoadedItem = {
   rarity: string | null;
   level: number | null;
   generalDescription: string | null;
+  tags?: string[];
 
   // VRP stored in ItemTemplateVRPEntry table
   vrpEntries?: Array<{
@@ -71,6 +72,86 @@ type MythicLimitBreakTemplateRow = {
   endConditionText: string | null;
   endCostText: string | null;
 };
+
+type TagSuggestion = {
+  value: string;
+  source: 'global' | 'campaign';
+};
+const PICKER_LEVEL_OPTIONS = Array.from({ length: 20 }, (_, idx) => idx + 1);
+const MAX_RECENT_PICKER_ITEMS = 5;
+
+function listFromCsv(value: string): string[] {
+  return value
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function normalizeSearch(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function formatNumberRanges(values: number[]): string {
+  if (values.length === 0) return '';
+  const sorted = [...values].sort((a, b) => a - b);
+  const ranges: Array<{ start: number; end: number }> = [];
+  let start = sorted[0];
+  let end = sorted[0];
+
+  for (let i = 1; i < sorted.length; i += 1) {
+    const current = sorted[i];
+    if (current === end + 1) {
+      end = current;
+      continue;
+    }
+    ranges.push({ start, end });
+    start = current;
+    end = current;
+  }
+  ranges.push({ start, end });
+
+  return ranges
+    .map((range) => (range.start === range.end ? String(range.start) : `${range.start}-${range.end}`))
+    .join(', ');
+}
+
+function tokenFromTagInput(value: string): string {
+  const parts = value.split(',');
+  return parts[parts.length - 1]?.trim() ?? '';
+}
+
+function canonicalizeTag(
+  raw: string,
+  universe: TagSuggestion[],
+  existing: string[],
+): string | null {
+  const tag = raw.trim();
+  if (!tag) return null;
+
+  const key = tag.toLowerCase();
+  if (existing.some((entry) => entry.toLowerCase() === key)) {
+    return null;
+  }
+
+  const canonical = universe.find((entry) => entry.value.toLowerCase() === key);
+  if (canonical) return canonical.value;
+
+  return tag;
+}
+
+function itemMatches(row: ForgeItemSummary, q: string): boolean {
+  const query = normalizeSearch(q);
+  if (!query) return true;
+
+  const name = String(row.name ?? '').toLowerCase();
+  if (name.includes(query)) return true;
+
+  return row.tags.some((tag) => String(tag).toLowerCase().includes(query));
+}
+
+function isLegendaryItem(row: ForgeItemSummary): boolean {
+  return String(row.rarity ?? '').trim().toLowerCase() === 'legendary';
+}
 // DamageType.name → allowed AttackEffect.name[]
 const DAMAGE_TYPE_TO_EFFECT_NAMES: Record<string, string[]> = {
   blunt: ['Impact'],
@@ -204,6 +285,7 @@ type ForgeFormValues = {
   itemLocation?: ItemLocation | null;
 
   // Tags
+  tags: string[];
   rangeCategories: RangeCategory[];
 
   meleeDamageTypeIds: number[];
@@ -1236,6 +1318,14 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   } = useForgeItems(campaignId);
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState('');
+  const [pickerFiltersOpen, setPickerFiltersOpen] = useState(false);
+  const [pickerLevelSelected, setPickerLevelSelected] = useState<number[]>([]);
+  const [pickerExcludeLegendary, setPickerExcludeLegendary] = useState(false);
+  const [recentForgeItemIds, setRecentForgeItemIds] = useState<string[]>([]);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+  const pickerFiltersRef = useRef<HTMLDivElement | null>(null);
 
   // Used by preview + "last forged" banner
   const [createdItem, setCreatedItem] = useState<LoadedItem | null>(null);
@@ -1285,6 +1375,37 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     setMobileView(nextView);
   };
 
+  useEffect(() => {
+    function handleDocumentMouseDown(event: MouseEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (pickerRef.current && !pickerRef.current.contains(target)) {
+        setPickerOpen(false);
+      }
+      if (pickerFiltersRef.current && !pickerFiltersRef.current.contains(target)) {
+        setPickerFiltersOpen(false);
+      }
+    }
+
+    function handleDocumentKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      if (pickerFiltersOpen) {
+        setPickerFiltersOpen(false);
+        return;
+      }
+      if (pickerOpen) {
+        setPickerOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+    document.addEventListener('keydown', handleDocumentKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentMouseDown);
+      document.removeEventListener('keydown', handleDocumentKeyDown);
+    };
+  }, [pickerFiltersOpen, pickerOpen]);
+
   function isHttpUrl(value: unknown): value is string {
     if (typeof value !== 'string') return false;
     const v = value.trim();
@@ -1306,6 +1427,11 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [tagInput, setTagInput] = useState('');
+  const [tagSuggestions, setTagSuggestions] = useState<TagSuggestion[]>([]);
+  const [activeTagIndex, setActiveTagIndex] = useState<number>(-1);
+  const [tagsFocused, setTagsFocused] = useState(false);
+  const [tagsLoading, setTagsLoading] = useState(false);
   const isHydratingRef = useRef(false);
 
     type VRPEntryForm = {
@@ -1333,6 +1459,130 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     useState(false);
   const [mythicLbTemplatesError, setMythicLbTemplatesError] =
     useState<string | null>(null);
+  const forgePickerSupportsLevel = useMemo(
+    () => (forgeItems ?? []).every((row) => Object.prototype.hasOwnProperty.call(row, 'level')),
+    [forgeItems],
+  );
+  const queryFilteredForgeItems = useMemo(
+    () => (forgeItems ?? []).filter((row) => itemMatches(row, pickerQuery)),
+    [forgeItems, pickerQuery],
+  );
+  const filteredForgeItems = useMemo(
+    () =>
+      queryFilteredForgeItems.filter((row) => {
+        if (
+          forgePickerSupportsLevel &&
+          pickerLevelSelected.length > 0 &&
+          (typeof row.level !== 'number' || !pickerLevelSelected.includes(row.level))
+        ) {
+          return false;
+        }
+        if (pickerExcludeLegendary && isLegendaryItem(row)) {
+          return false;
+        }
+        return true;
+      }),
+    [
+      forgePickerSupportsLevel,
+      pickerExcludeLegendary,
+      pickerLevelSelected,
+      queryFilteredForgeItems,
+    ],
+  );
+  const recentForgeStorageKey = useMemo(
+    () => `forge.recentItems.${campaignId}`,
+    [campaignId],
+  );
+  const forgeItemsById = useMemo(() => {
+    const map: Record<string, ForgeItemSummary> = {};
+    for (const row of forgeItems ?? []) {
+      map[row.id] = row;
+    }
+    return map;
+  }, [forgeItems]);
+  const hasPickerQuery = pickerQuery.trim().length > 0;
+  const hasPickerFilters =
+    (forgePickerSupportsLevel && pickerLevelSelected.length > 0) ||
+    pickerExcludeLegendary;
+  const pickerTotalCount = (forgeItems ?? []).length;
+  const pickerFilteredCount = filteredForgeItems.length;
+  const activePickerFilterPills = useMemo(() => {
+    const pills: Array<{ id: 'level' | 'noLegendary'; label: string }> = [];
+    if (forgePickerSupportsLevel && pickerLevelSelected.length > 0) {
+      pills.push({
+        id: 'level',
+        label: `Level: ${formatNumberRanges(pickerLevelSelected)}`,
+      });
+    }
+    if (pickerExcludeLegendary) {
+      pills.push({ id: 'noLegendary', label: 'No Legendary' });
+    }
+    return pills;
+  }, [forgePickerSupportsLevel, pickerExcludeLegendary, pickerLevelSelected]);
+  const recentForgeItems = useMemo(() => {
+    if (hasPickerQuery) return [] as ForgeItemSummary[];
+    const allowedIds = new Set(filteredForgeItems.map((row) => row.id));
+    const rows: ForgeItemSummary[] = [];
+    for (const id of recentForgeItemIds) {
+      const row = forgeItemsById[id];
+      if (!row) continue;
+      if (!allowedIds.has(row.id)) continue;
+      rows.push(row);
+    }
+    return rows;
+  }, [filteredForgeItems, forgeItemsById, hasPickerQuery, recentForgeItemIds]);
+  const recentForgeIdSet = useMemo(
+    () => new Set(recentForgeItems.map((row) => row.id)),
+    [recentForgeItems],
+  );
+  const filteredForgeItemsWithoutRecent = useMemo(
+    () => filteredForgeItems.filter((row) => !recentForgeIdSet.has(row.id)),
+    [filteredForgeItems, recentForgeIdSet],
+  );
+  const selectedItemSummary = (forgeItems ?? []).find((row) => row.id === selectedItemId) ?? null;
+  const togglePickerLevel = (level: number) => {
+    setPickerLevelSelected((prev) =>
+      prev.includes(level)
+        ? prev.filter((entry) => entry !== level)
+        : [...prev, level].sort((a, b) => a - b),
+    );
+  };
+  const setPickerLevelRange = (min: number, max: number) => {
+    setPickerLevelSelected(
+      PICKER_LEVEL_OPTIONS.filter((level) => level >= min && level <= max),
+    );
+  };
+  const clearPickerFilters = () => {
+    setPickerLevelSelected([]);
+    setPickerExcludeLegendary(false);
+  };
+  const removePickerFilterPill = (pillId: 'level' | 'noLegendary') => {
+    if (pillId === 'level') {
+      setPickerLevelSelected([]);
+      return;
+    }
+    setPickerExcludeLegendary(false);
+  };
+
+  const persistRecentForgeItemIds = (ids: string[]) => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(
+        recentForgeStorageKey,
+        JSON.stringify(ids.slice(0, MAX_RECENT_PICKER_ITEMS)),
+      );
+    } catch {
+      // no-op: localStorage unavailable
+    }
+  };
+
+  const markForgeItemAsRecent = (itemId: string) => {
+    setRecentForgeItemIds((prev) => {
+      const next = [itemId, ...prev.filter((id) => id !== itemId)].slice(0, MAX_RECENT_PICKER_ITEMS);
+      persistRecentForgeItemIds(next);
+      return next;
+    });
+  };
 
   const armorAttrsFromPicklist = data?.armorAttributes ?? [];
   const shieldAttrsFromPicklist = data?.shieldAttributes ?? [];
@@ -1386,6 +1636,7 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   itemLocation: null as any,
 
   // Tags / relations (id arrays)
+  tags: [],
   rangeCategories: [],
   meleeDamageTypeIds: [],
   rangedDamageTypeIds: [],
@@ -1432,6 +1683,10 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   defaultValues: defaultForgeValues,
 });
 
+  useEffect(() => {
+    register('tags');
+  }, [register]);
+
 function handleResetForge() {
   const ok = window.confirm(
     'Reset the Forge?\n\nThis will clear all fields and start a new item. Unsaved changes will be lost.',
@@ -1453,6 +1708,10 @@ function handleResetForge() {
   setVrpMagnitude(1);
   setVrpDamageTypeId(null);
   setVrpMagnitudeError(null);
+  setTagInput('');
+  setTagSuggestions([]);
+  setActiveTagIndex(-1);
+  setTagsFocused(false);
 
   // Clear created/loaded item context
   setCreatedItem(null);
@@ -1537,6 +1796,11 @@ function handleResetForge() {
           itemLocation: ((item as any).itemLocation ?? null) as any,
 
           // Tags / relations (API returns join rows; we map to id arrays)
+          tags: Array.isArray((item as any).tags)
+            ? (item as any).tags
+                .map((entry: any) => String(entry ?? '').trim())
+                .filter((entry: string) => entry.length > 0)
+            : [],
           rangeCategories: Array.isArray((item as any).rangeCategories)
             ? (item as any).rangeCategories.map((rc: any) => rc.rangeCategory)
             : [],
@@ -1641,6 +1905,58 @@ function handleResetForge() {
     };
   }, [selectedItemId, reset, campaignId]);
 
+  useEffect(() => {
+    setTagInput('');
+    setTagSuggestions([]);
+    setActiveTagIndex(-1);
+    setTagsFocused(false);
+    setPickerOpen(false);
+    setPickerQuery('');
+  }, [selectedItemId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      setRecentForgeItemIds([]);
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(recentForgeStorageKey);
+      if (!raw) {
+        setRecentForgeItemIds([]);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        setRecentForgeItemIds([]);
+        return;
+      }
+      const sanitized = parsed
+        .map((value) => String(value))
+        .filter((value) => value.trim().length > 0)
+        .slice(0, MAX_RECENT_PICKER_ITEMS);
+      setRecentForgeItemIds(sanitized);
+    } catch {
+      setRecentForgeItemIds([]);
+    }
+  }, [recentForgeStorageKey]);
+
+  useEffect(() => {
+    const availableIds = new Set((forgeItems ?? []).map((row) => row.id));
+    setRecentForgeItemIds((prev) => {
+      const next = prev.filter((id) => availableIds.has(id));
+      if (next.length !== prev.length) {
+        persistRecentForgeItemIds(next);
+      }
+      return next;
+    });
+  }, [forgeItems]);
+
+  useEffect(() => {
+    setPickerFiltersOpen(false);
+    setPickerLevelSelected([]);
+    setPickerExcludeLegendary(false);
+  }, [campaignId]);
+
   const selectedType = watch('type');
   const selectedRarity = watch('rarity');
   const isWeapon = selectedType === 'WEAPON';
@@ -1673,6 +1989,78 @@ function handleResetForge() {
     sanctifiedOptions: data?.sanctifiedOptions ?? [],
     vrpEntries,
   };
+
+  const currentTags = Array.isArray(watchedValues.tags) ? watchedValues.tags : [];
+  const currentTagToken = tokenFromTagInput(tagInput);
+  const filteredTagSuggestions = tagSuggestions.filter(
+    (suggestion) => !currentTags.some((tag) => tag.toLowerCase() === suggestion.value.toLowerCase()),
+  );
+  const isTagDropdownOpen = tagsFocused && currentTagToken.length >= 2;
+
+  useEffect(() => {
+    if (currentTagToken.length < 2) {
+      setTagSuggestions([]);
+      setActiveTagIndex(-1);
+      setTagsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setTagsLoading(true);
+      try {
+        const res = await fetch(
+          `/api/forge/tags?campaignId=${encodeURIComponent(campaignId)}&s=${encodeURIComponent(currentTagToken)}`,
+          {
+            cache: 'no-store',
+            signal: controller.signal,
+          },
+        );
+        if (!res.ok) throw new Error('Failed to load tag suggestions');
+        const json = (await res.json()) as { suggestions?: TagSuggestion[] };
+        setTagSuggestions(Array.isArray(json.suggestions) ? json.suggestions : []);
+      } catch (err) {
+        if ((err as { name?: string }).name !== 'AbortError') {
+          setTagSuggestions([]);
+          setActiveTagIndex(-1);
+        }
+      } finally {
+        setTagsLoading(false);
+      }
+    }, 180);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [campaignId, currentTagToken]);
+
+  useEffect(() => {
+    if (!isTagDropdownOpen || filteredTagSuggestions.length === 0) {
+      setActiveTagIndex(-1);
+      return;
+    }
+    setActiveTagIndex(-1);
+  }, [filteredTagSuggestions, isTagDropdownOpen]);
+
+  function commitTagInput(rawValue?: string) {
+    const valueToCommit = rawValue ?? tagInput;
+    const parsed = listFromCsv(valueToCommit);
+
+    if (parsed.length > 0) {
+      const nextTags = [...(getValues('tags') ?? [])];
+      for (const part of parsed) {
+        const canonical = canonicalizeTag(part, tagSuggestions, nextTags);
+        if (!canonical) continue;
+        nextTags.push(canonical);
+      }
+      setValue('tags', nextTags, { shouldDirty: true, shouldValidate: false });
+    }
+
+    setTagInput('');
+    setTagSuggestions([]);
+    setActiveTagIndex(-1);
+  }
 
 
   const safeCustomWeaponAttributes =
@@ -2505,6 +2893,16 @@ useEffect(() => {
     try {
       const isEdit = Boolean(selectedItemId);
       const id = isEdit ? selectedItemId! : `ITEM-${Date.now()}`;
+      const normalizedTags = [...(values.tags ?? [])];
+      for (const part of listFromCsv(tagInput)) {
+        const canonical = canonicalizeTag(part, tagSuggestions, normalizedTags);
+        if (!canonical) continue;
+        normalizedTags.push(canonical);
+      }
+      setValue('tags', normalizedTags, { shouldDirty: true, shouldValidate: false });
+      setTagInput('');
+      setTagSuggestions([]);
+      setActiveTagIndex(-1);
 
       const basePayload = {
         itemUrl:
@@ -2563,6 +2961,7 @@ useEffect(() => {
             : null,
 
         // Tags and relations
+        tags: normalizedTags,
         rangeCategories: values.rangeCategories,
 
         meleeDamageTypeIds: values.meleeDamageTypeIds,
@@ -4493,31 +4892,285 @@ useEffect(() => {
       >
         <h1 className="text-2xl font-bold mb-4">Forge Item Creator</h1>
 
-        <div className="mb-6 space-y-1">
+        <div className="mb-6 space-y-2">
           <label className="block text-sm font-medium">
             Edit existing item (optional)
           </label>
 
-          <select
-            className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            value={selectedItemId ?? ''}
-            onChange={(e) => {
-              const v = e.target.value;
-              setSelectedItemId(v ? v : null);
-            }}
-          >
-            <option value="">— New item —</option>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-1 items-start gap-2">
+              <div ref={pickerRef} className="relative flex-1 space-y-2">
+                <div className="relative">
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+                  >
+                    <path
+                      d="M10.5 3a7.5 7.5 0 1 0 4.73 13.32l4.22 4.21 1.06-1.06-4.21-4.22A7.5 7.5 0 0 0 10.5 3Zm0 1.5a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  <input
+                    value={pickerQuery}
+                    onFocus={() => setPickerOpen(true)}
+                    onClick={() => setPickerOpen(true)}
+                    onChange={(e) => {
+                      setPickerQuery(e.target.value);
+                      setPickerOpen(true);
+                    }}
+                    placeholder="Click to search campaign items"
+                    className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-wrap gap-1">
+                    {activePickerFilterPills.map((pill) => (
+                      <button
+                        key={pill.id}
+                        type="button"
+                        onClick={() => removePickerFilterPill(pill.id)}
+                        className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                      >
+                        <span>{pill.label}</span>
+                        <span aria-hidden="true">x</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="pt-1 text-right text-[11px] text-zinc-500">
+                    {hasPickerQuery || hasPickerFilters
+                      ? `Showing ${pickerFilteredCount} of ${pickerTotalCount}`
+                      : `Showing ${pickerTotalCount}`}
+                  </p>
+                </div>
 
-            {(forgeItems ?? []).map((it) => (
-              <option key={it.id} value={it.id}>
-                {it.name ?? '(Unnamed)'} — {it.rarity ?? '?'} L{it.level ?? '?'} —{' '}
-                {it.type ?? '?'}
-              </option>
-            ))}
-          </select>
+                {pickerOpen && (
+                  <div className="absolute z-30 mt-1 w-full rounded border border-zinc-800 bg-zinc-950/95 p-2 shadow-lg">
+                    <div className="max-h-80 overflow-auto space-y-1">
+                      {recentForgeItems.length === 0 &&
+                      filteredForgeItemsWithoutRecent.length === 0 ? (
+                        <p className="px-2 py-2 text-sm text-zinc-500">No matches.</p>
+                      ) : (
+                        <>
+                          {!hasPickerQuery && recentForgeItems.length > 0 && (
+                            <>
+                              <p className="px-2 pt-1 text-[11px] uppercase tracking-wide text-zinc-500">
+                                Recently used
+                              </p>
+                              {recentForgeItems.map((row) => (
+                                <button
+                                  key={`recent-${row.id}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setSubmitSuccess(null);
+                                    setSelectedItemId(row.id);
+                                    markForgeItemAsRecent(row.id);
+                                    setPickerOpen(false);
+                                    setPickerQuery('');
+                                  }}
+                                  className={`w-full rounded border px-2 py-2 text-left ${
+                                    selectedItemId === row.id
+                                      ? 'border-emerald-500 bg-emerald-950/20'
+                                      : 'border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <p className="text-sm font-medium">{row.name ?? '(Unnamed)'}</p>
+                                      <p className="text-xs text-zinc-500">
+                                        {row.rarity ?? '?'} L{row.level ?? '?'} - {row.type ?? '?'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {row.tags.length > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-1">
+                                      {row.tags.slice(0, 6).map((tag) => (
+                                        <span
+                                          key={`recent-${row.id}-${tag}`}
+                                          className="rounded border border-zinc-700 bg-zinc-900 px-2 py-[2px] text-[10px] text-zinc-300"
+                                        >
+                                          {tag}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </button>
+                              ))}
+                              <div className="my-1 border-t border-zinc-800" />
+                            </>
+                          )}
+                          {filteredForgeItemsWithoutRecent.map((row) => (
+                            <button
+                              key={row.id}
+                              type="button"
+                              onClick={() => {
+                                setSubmitSuccess(null);
+                                setSelectedItemId(row.id);
+                                markForgeItemAsRecent(row.id);
+                                setPickerOpen(false);
+                                setPickerQuery('');
+                              }}
+                              className={`w-full rounded border px-2 py-2 text-left ${
+                                selectedItemId === row.id
+                                  ? 'border-emerald-500 bg-emerald-950/20'
+                                  : 'border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-medium">{row.name ?? '(Unnamed)'}</p>
+                                  <p className="text-xs text-zinc-500">
+                                    {row.rarity ?? '?'} L{row.level ?? '?'} - {row.type ?? '?'}
+                                  </p>
+                                </div>
+                              </div>
+                              {row.tags.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {row.tags.slice(0, 6).map((tag) => (
+                                    <span
+                                      key={`${row.id}-${tag}`}
+                                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-[2px] text-[10px] text-zinc-300"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div ref={pickerFiltersRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setPickerFiltersOpen((prev) => !prev)}
+                  className={`rounded border px-3 py-2 text-sm ${
+                    pickerFiltersOpen
+                      ? 'border-emerald-600 bg-emerald-950/20 text-emerald-100'
+                      : 'border-zinc-700 hover:bg-zinc-800'
+                  }`}
+                >
+                  Filters
+                </button>
+
+                {pickerFiltersOpen && (
+                  <div className="absolute right-0 z-40 mt-1 w-80 max-w-[90vw] rounded border border-zinc-800 bg-zinc-950/95 p-3 shadow-lg space-y-3">
+                    {forgePickerSupportsLevel && (
+                      <div className="space-y-2">
+                        <p className="text-xs uppercase tracking-wide text-zinc-500">Item Level</p>
+                        <div className="flex flex-wrap gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setPickerLevelSelected([])}
+                            className={`rounded border px-2 py-1 text-xs ${
+                              pickerLevelSelected.length === 0
+                                ? 'border-emerald-600 bg-emerald-950/20 text-emerald-100'
+                                : 'border-zinc-700 bg-zinc-900 hover:bg-zinc-800'
+                            }`}
+                          >
+                            All
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPickerLevelRange(1, 5)}
+                            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800"
+                          >
+                            1-5
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPickerLevelRange(6, 10)}
+                            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800"
+                          >
+                            6-10
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPickerLevelRange(11, 15)}
+                            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800"
+                          >
+                            11-15
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPickerLevelRange(16, 20)}
+                            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800"
+                          >
+                            16-20
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-5 gap-1">
+                          {PICKER_LEVEL_OPTIONS.map((level) => {
+                            const active = pickerLevelSelected.includes(level);
+                            return (
+                              <button
+                                key={level}
+                                type="button"
+                                onClick={() => togglePickerLevel(level)}
+                                className={`rounded border px-2 py-1 text-xs ${
+                                  active
+                                    ? 'border-emerald-600 bg-emerald-950/20 text-emerald-100'
+                                    : 'border-zinc-700 bg-zinc-900 hover:bg-zinc-800'
+                                }`}
+                              >
+                                {level}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={pickerExcludeLegendary}
+                        onChange={(e) => setPickerExcludeLegendary(e.target.checked)}
+                        className="h-4 w-4"
+                      />
+                      Exclude Legendary
+                    </label>
+
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={clearPickerFilters}
+                        className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedItemId(null);
+                setPickerOpen(false);
+                setPickerQuery('');
+              }}
+              className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800"
+            >
+              New item
+            </button>
+          </div>
+
+          {selectedItemSummary && (
+            <p className="text-xs text-zinc-500">
+              Editing: {selectedItemSummary.name ?? '(Unnamed)'} ({selectedItemSummary.id})
+            </p>
+          )}
 
           {itemsLoading && (
-            <p className="text-xs text-zinc-500">Loading campaign items…</p>
+            <p className="text-xs text-zinc-500">Loading campaign items...</p>
           )}
 
           {itemsError && (
@@ -4526,6 +5179,20 @@ useEffect(() => {
             </p>
           )}
         </div>
+        {/* Manual test checklist:
+            - Click input: dropdown opens, shows all results
+            - Click Filters: panel opens, selecting level chips reduces list
+            - Exclude Legendary hides Legendary rarity items
+            - Clear resets and list returns
+            - Closing/opening dropdown does not reset selections
+            - Switching campaignId resets filters
+            - Applying filters shows pills immediately
+            - Clicking x on a pill removes only that filter
+            - Result count updates live with search/filters
+            - Recently used appears only when query is empty
+            - Recently used selection behaves like normal selection
+            - localStorage failures do not crash the picker
+        */}
 
         {loading && (
           <p className="text-sm text-zinc-500 mb-2">Loading picklists…</p>
@@ -4566,6 +5233,138 @@ useEffect(() => {
               {errors.name && (
                 <p className="text-xs text-red-400">{errors.name.message}</p>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">Tags</label>
+              <div className="flex flex-wrap items-center gap-2">
+                {currentTags.map((tag, index) => (
+                  <span
+                    key={`${tag}-${index}`}
+                    className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setValue(
+                          'tags',
+                          currentTags.filter((_tag, idx) => idx !== index),
+                          { shouldDirty: true, shouldValidate: false },
+                        )
+                      }
+                      className="text-zinc-400 hover:text-zinc-200"
+                      aria-label={`Remove tag ${tag}`}
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="relative">
+                <input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onFocus={() => setTagsFocused(true)}
+                  onBlur={() => {
+                    setTagsFocused(false);
+                    commitTagInput();
+                  }}
+                  onKeyDown={(e) => {
+                    if (isTagDropdownOpen && filteredTagSuggestions.length > 0) {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setActiveTagIndex((prev) =>
+                          Math.min(
+                            filteredTagSuggestions.length - 1,
+                            prev < 0 ? 0 : prev + 1,
+                          ),
+                        );
+                        return;
+                      }
+                      if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setActiveTagIndex((prev) => Math.max(0, prev <= 0 ? 0 : prev - 1));
+                        return;
+                      }
+                      if (e.key === 'Enter') {
+                        if (activeTagIndex >= 0) {
+                          e.preventDefault();
+                          const pick = filteredTagSuggestions[activeTagIndex];
+                          if (pick) {
+                            commitTagInput(pick.value);
+                          }
+                          return;
+                        }
+                        e.preventDefault();
+                        commitTagInput();
+                        return;
+                      }
+                      if (e.key === 'Tab') {
+                        const pickIndex = activeTagIndex >= 0 ? activeTagIndex : 0;
+                        const pick = filteredTagSuggestions[pickIndex];
+                        if (pick) {
+                          e.preventDefault();
+                          commitTagInput(pick.value);
+                        }
+                        return;
+                      }
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setTagSuggestions([]);
+                        setActiveTagIndex(-1);
+                        return;
+                      }
+                    }
+
+                    if (e.key === 'Enter' || e.key === ',') {
+                      e.preventDefault();
+                      commitTagInput();
+                      return;
+                    }
+                    if (e.key === 'Backspace' && tagInput.trim().length === 0) {
+                      setValue('tags', currentTags.slice(0, -1), {
+                        shouldDirty: true,
+                        shouldValidate: false,
+                      });
+                    }
+                  }}
+                  placeholder="Add tag (Enter or comma)"
+                  className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                {isTagDropdownOpen && (
+                  <div className="absolute z-20 mt-1 w-full rounded border border-zinc-700 bg-zinc-950 shadow-lg">
+                    {tagsLoading ? (
+                      <p className="px-2 py-1 text-xs text-zinc-400">Loading...</p>
+                    ) : filteredTagSuggestions.length === 0 ? (
+                      <p className="px-2 py-1 text-xs text-zinc-500">No suggestions</p>
+                    ) : (
+                      <ul className="max-h-56 overflow-auto py-1">
+                        {filteredTagSuggestions.map((suggestion, idx) => (
+                          <li key={`${suggestion.source}-${suggestion.value}`}>
+                            <button
+                              type="button"
+                              onMouseEnter={() => setActiveTagIndex(idx)}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                commitTagInput(suggestion.value);
+                              }}
+                              className={`flex w-full items-center justify-between px-2 py-1 text-left text-sm hover:bg-zinc-800 ${
+                                idx === activeTagIndex ? 'bg-zinc-800' : ''
+                              }`}
+                            >
+                              <span>{suggestion.value}</span>
+                              <span className="text-[11px] uppercase tracking-wide text-zinc-500">
+                                {suggestion.source}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
                         {/* Item Image URL */}
@@ -6083,3 +6882,5 @@ function ForgeCalculatorPanel({ totals }: { totals: ForgeCalculatorTotals }) {
     </div>
   );
 }
+
+

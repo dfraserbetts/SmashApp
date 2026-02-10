@@ -56,14 +56,11 @@ export function getDodgeValue(
   );
 }
 
-export function getWillpowerValue(
+export function getWillpowerDiceCountFromAttributes(
   supportDie: DiceSize | null | undefined,
   braveryDie: DiceSize | null | undefined,
-  level: number,
 ): number {
-  return (
-    getAttributeNumericValue(supportDie) +
-    getAttributeNumericValue(braveryDie) +
-    level
-  );
+  const supportValue = getAttributeSkillDiceContribution(supportDie);
+  const braveryValue = getAttributeSkillDiceContribution(braveryDie);
+  return Math.max(1, Math.ceil((supportValue + braveryValue) / 2));
 }

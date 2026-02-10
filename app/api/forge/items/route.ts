@@ -52,6 +52,70 @@ async function requireCampaignMember(campaignId: string, userId: string) {
   return membership.role;
 }
 
+function normalizeTagsInput(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    if (typeof raw !== 'string') continue;
+    const tag = raw.trim();
+    if (!tag) continue;
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(tag);
+  }
+  return out;
+}
+
+function withTagStrings<T extends { tags?: Array<{ tag: string }> }>(
+  row: T,
+): Omit<T, 'tags'> & { tags: string[] } {
+  const tags = Array.isArray(row.tags) ? row.tags.map((entry) => entry.tag) : [];
+  return {
+    ...(row as Omit<T, 'tags'>),
+    tags,
+  };
+}
+
+export function hasItemTagClient(client: unknown): boolean {
+  const candidate = client as
+    | {
+        itemTag?: {
+          findMany?: unknown;
+          deleteMany?: unknown;
+        };
+      }
+    | null
+    | undefined;
+
+  return (
+    !!candidate &&
+    typeof candidate.itemTag?.findMany === 'function' &&
+    typeof candidate.itemTag?.deleteMany === 'function'
+  );
+}
+
+export function isUnknownTagsDataArgError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes('Unknown arg `tags`') ||
+    msg.includes('Unknown argument `tags`') ||
+    msg.includes('Unknown field `tags`')
+  );
+}
+
+export function isUnknownTagsIncludeError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  const lowerMessage = message.toLowerCase();
+  return (
+    message.includes('Unknown field') &&
+    lowerMessage.includes('tags') &&
+    message.includes('ItemTemplate')
+  );
+}
+
 type GlobalAttributeModifierInput = {
   attribute: string;
   amount: number;
@@ -131,6 +195,7 @@ type ItemTemplateInput = {
   sanctifiedOptionIds?: number[];
 
   globalAttributeModifiers?: { attribute: string; amount: number }[];
+  tags?: string[];
 
   vrpEntries?: VRPEntryInput[];
 };
@@ -150,9 +215,9 @@ export async function GET(req: Request) {
   try {
     const userId = await requireUserId();
     await requireCampaignMember(campaignId, userId);
-    const items = await prisma.itemTemplate.findMany({
+    const baseQuery = {
       where: { campaignId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' as const },
       include: {
         rangeCategories: true,
         meleeDamageTypes: { include: { damageType: true } },
@@ -173,9 +238,33 @@ export async function GET(req: Request) {
 
         vrpEntries: { include: { damageType: true } },
       },
-    });
+    };
 
-    return NextResponse.json(items);
+    try {
+      const items = await prisma.itemTemplate.findMany({
+        ...baseQuery,
+        include: {
+          ...baseQuery.include,
+          tags: {
+            select: { tag: true },
+            orderBy: { tag: 'asc' },
+          },
+        },
+      });
+
+      return NextResponse.json(items.map((item) => withTagStrings(item)));
+    } catch (error) {
+      if (!isUnknownTagsIncludeError(error)) {
+        throw error;
+      }
+
+      console.warn('[FORGE_ITEMS_GET] tags fallback: unknown ItemTemplate.tags include; returning tags: []');
+
+      const items = await prisma.itemTemplate.findMany(baseQuery);
+      return NextResponse.json(
+        items.map((item) => withTagStrings({ ...item, tags: [] })),
+      );
+    }
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Failed to load item templates';
 
@@ -196,6 +285,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as ItemTemplateInput;
+    const normalizedTags = normalizeTagsInput(body.tags);
 
     const userId = await requireUserId();
     const role = await requireCampaignMember(body.campaignId, userId);
@@ -214,6 +304,11 @@ export async function POST(req: Request) {
     const now = new Date();
 
       const items = await prisma.$transaction(async (tx) => {
+      const tagsSupported = hasItemTagClient(tx);
+      if (!tagsSupported && normalizedTags.length > 0) {
+        console.warn("[FORGE_ITEMS_POST] itemTag model unavailable; skipping tag persistence");
+      }
+
       // 1) Core item row
       const coreData: any = {
         id: body.id,
@@ -272,11 +367,35 @@ export async function POST(req: Request) {
 
         itemLocation: body.itemLocation ?? null,
         customItemAttributes: body.customItemAttributes ?? null,
+        ...(tagsSupported && normalizedTags.length > 0
+          ? {
+              tags: {
+                create: normalizedTags.map((tag) => ({ tag })),
+              },
+            }
+          : {}),
       };
 
-      const item = await tx.itemTemplate.create({
-        data: coreData,
-      });
+      let item;
+      try {
+        item = await tx.itemTemplate.create({
+          data: coreData,
+        });
+      } catch (error) {
+        if (
+          tagsSupported &&
+          normalizedTags.length > 0 &&
+          isUnknownTagsDataArgError(error)
+        ) {
+          console.warn("[FORGE_ITEMS_POST] itemTag model unavailable; skipping tag persistence");
+          const { tags: _ignoredTags, ...coreDataWithoutTags } = coreData;
+          item = await tx.itemTemplate.create({
+            data: coreDataWithoutTags,
+          });
+        } else {
+          throw error;
+        }
+      }
 
       const id = item.id;
 
@@ -430,7 +549,7 @@ export async function POST(req: Request) {
         });
       }
 
-      return item;
+      return { ...item, tags: normalizedTags };
     });
 
   return NextResponse.json(items, { status: 201 });
