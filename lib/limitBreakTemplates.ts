@@ -309,28 +309,38 @@ export function normalizeAndValidateTemplate(
   let failForwardEffectKey = cleanString(input.failForwardEffectKey);
   let failForwardCostAKey = cleanString(input.failForwardCostAKey);
   let failForwardCostBKey = cleanString(input.failForwardCostBKey);
-  let failForwardEffectParams = parseJsonValue(
-    input.failForwardEffectParams,
-    "Fail-forward Effect Params",
-  );
+  let failForwardEffectParams: Prisma.InputJsonValue = {};
 
-  if (failForwardEnabled) {
-    if (!failForwardEffectKey) {
-      throw new LimitBreakTemplateValidationError(
-        "Fail-forward Effect Key is required when fail-forward is enabled",
-      );
-    }
-    if (!failForwardCostAKey && !failForwardCostBKey) {
-      throw new LimitBreakTemplateValidationError(
-        "At least one fail-forward cost key is required when fail-forward is enabled",
-      );
-    }
-  } else {
+  if (tier !== "TRANSCEND") {
     failForwardEnabled = false;
     failForwardEffectKey = null;
     failForwardCostAKey = null;
     failForwardCostBKey = null;
     failForwardEffectParams = {};
+  } else {
+    failForwardEffectParams = parseJsonValue(
+      input.failForwardEffectParams,
+      "Fail-forward Effect Params",
+    );
+
+    if (failForwardEnabled) {
+      if (!failForwardEffectKey) {
+        throw new LimitBreakTemplateValidationError(
+          "Fail-forward Effect Key is required when fail-forward is enabled",
+        );
+      }
+      if (!failForwardCostAKey && !failForwardCostBKey) {
+        throw new LimitBreakTemplateValidationError(
+          "At least one fail-forward cost key is required when fail-forward is enabled",
+        );
+      }
+    } else {
+      failForwardEnabled = false;
+      failForwardEffectKey = null;
+      failForwardCostAKey = null;
+      failForwardCostBKey = null;
+      failForwardEffectParams = {};
+    }
   }
 
   return {

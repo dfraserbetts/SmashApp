@@ -90,6 +90,25 @@ const INTENTIONS: MonsterPowerIntentionType[] = [
   "SUMMON",
   "TRANSFORMATION",
 ];
+type PowerRangeCategory = "MELEE" | "RANGED" | "AOE";
+type PowerRangeAoeShape = "SPHERE" | "CONE" | "LINE";
+type PowerRangeState = {
+  category: PowerRangeCategory | null;
+  rangeValue: number | null;
+  rangeExtra: Record<string, unknown>;
+  meleeTargets: number;
+  rangedDistanceFeet: number;
+  rangedTargets: number;
+  aoeCenterRangeFeet: number;
+  aoeCount: number;
+  aoeShape: PowerRangeAoeShape;
+};
+
+const POWER_RANGE_CATEGORIES: PowerRangeCategory[] = ["MELEE", "RANGED", "AOE"];
+const POWER_RANGE_TARGET_OPTIONS = [1, 2, 3, 4, 5] as const;
+const POWER_RANGE_RANGED_DISTANCE_OPTIONS = [30, 60, 120, 200] as const;
+const POWER_RANGE_AOE_CENTER_RANGE_OPTIONS = [0, 30, 60, 120, 200] as const;
+const POWER_RANGE_AOE_SHAPES: PowerRangeAoeShape[] = ["SPHERE", "CONE", "LINE"];
 const ATTACK_MODES = ["PHYSICAL", "MENTAL"] as const;
 
 const CONTROL_MODES = [
@@ -140,6 +159,97 @@ function getDetailsStringArray(details: Record<string, unknown>, key: string): s
   return Array.isArray(value) ? value.map((entry) => String(entry)) : [];
 }
 
+function getDetailsRecord(details: Record<string, unknown>, key: string): Record<string, unknown> {
+  const value = details[key];
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function getDetailsNullableNumber(details: Record<string, unknown>, key: string): number | null {
+  const value = details[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function deriveDefenceCheckLabel(
+  intentionType: MonsterPowerIntentionType,
+  details: Record<string, unknown>,
+): string | null {
+  // Attacks use DEFEND, effects use RESIST, others none.
+  if (intentionType === "ATTACK") {
+    const mode = String(details.attackMode ?? "PHYSICAL").toUpperCase();
+    return mode === "MENTAL" ? "Defend (Mental)" : "Defend (Physical)";
+  }
+
+  if (intentionType === "CONTROL") return "Resist (GD Choice)";
+  if (intentionType === "MOVEMENT") return "Resist Fortitude";
+
+  if (intentionType === "DEBUFF") {
+    const statTarget = String(details.statTarget ?? "").trim();
+    return `Resist ${statTarget || "?"}`;
+  }
+
+  // No defence check for HEALING, CLEANSE, AUGMENT, DEFENCE, SUMMON, TRANSFORMATION, etc.
+  return null;
+}
+
+function clampToOptions(value: number | null, options: readonly number[], fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return options.includes(value) ? value : fallback;
+}
+
+function toPowerRangeState(power: MonsterPower): PowerRangeState {
+  const canonicalDetails = (power.intentions[0]?.detailsJson ?? {}) as Record<string, unknown>;
+  const rawCategory = getDetailsString(canonicalDetails, "rangeCategory").trim().toUpperCase();
+  const category = POWER_RANGE_CATEGORIES.includes(rawCategory as PowerRangeCategory)
+    ? (rawCategory as PowerRangeCategory)
+    : null;
+
+  const rangeValue = getDetailsNullableNumber(canonicalDetails, "rangeValue");
+  const rangeExtra = getDetailsRecord(canonicalDetails, "rangeExtra");
+  const rangedTargetsRaw =
+    typeof rangeExtra.targets === "number"
+      ? rangeExtra.targets
+      : typeof rangeExtra.targets === "string"
+        ? Number(rangeExtra.targets)
+        : null;
+  const aoeCountRaw =
+    typeof rangeExtra.count === "number"
+      ? rangeExtra.count
+      : typeof rangeExtra.count === "string"
+        ? Number(rangeExtra.count)
+        : null;
+  const aoeShapeRaw = String(rangeExtra.shape ?? "SPHERE").toUpperCase();
+  const aoeShape = POWER_RANGE_AOE_SHAPES.includes(aoeShapeRaw as PowerRangeAoeShape)
+    ? (aoeShapeRaw as PowerRangeAoeShape)
+    : "SPHERE";
+
+  return {
+    category,
+    rangeValue,
+    rangeExtra,
+    meleeTargets: clampToOptions(rangeValue, POWER_RANGE_TARGET_OPTIONS, 1),
+    rangedDistanceFeet: clampToOptions(rangeValue, POWER_RANGE_RANGED_DISTANCE_OPTIONS, 30),
+    rangedTargets: clampToOptions(
+      Number.isFinite(rangedTargetsRaw as number) ? Number(rangedTargetsRaw) : null,
+      POWER_RANGE_TARGET_OPTIONS,
+      1,
+    ),
+    aoeCenterRangeFeet: clampToOptions(rangeValue, POWER_RANGE_AOE_CENTER_RANGE_OPTIONS, 0),
+    aoeCount: clampToOptions(
+      Number.isFinite(aoeCountRaw as number) ? Number(aoeCountRaw) : null,
+      POWER_RANGE_TARGET_OPTIONS,
+      1,
+    ),
+    aoeShape,
+  };
+}
+
 function setPowerIntentionDetails(
   setEditor: Dispatch<SetStateAction<EditableMonster | null>>,
   powerIndex: number,
@@ -156,6 +266,31 @@ function setPowerIntentionDetails(
         return { ...intention, detailsJson: { ...current, ...patch } };
       });
       return { ...power, intentions };
+    });
+    return { ...prev, powers };
+  });
+}
+
+function setPowerCanonicalIntentionDetails(
+  setEditor: Dispatch<SetStateAction<EditableMonster | null>>,
+  powerIndex: number,
+  patch: Record<string, unknown>,
+) {
+  setEditor((prev) => {
+    if (!prev) return prev;
+    const powers = prev.powers.map((power, pi) => {
+      if (pi !== powerIndex) return power;
+      const intentions =
+        power.intentions.length > 0
+          ? [...power.intentions]
+          : [{ sortOrder: 0, type: "ATTACK" as MonsterPowerIntentionType, detailsJson: {} }];
+      const first = intentions[0];
+      const current = (first.detailsJson ?? {}) as Record<string, unknown>;
+      intentions[0] = { ...first, detailsJson: { ...current, ...patch } };
+      return {
+        ...power,
+        intentions: intentions.map((intention, idx) => ({ ...intention, sortOrder: idx })),
+      };
     });
     return { ...prev, powers };
   });
@@ -2641,7 +2776,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             <p className="text-[11px] text-zinc-500">Derived from Gear & Attributes</p>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
               <label className="space-y-1">
-                <span className="text-[11px] text-zinc-500">Physical Protection and Weight</span>
+                <span
+                  title="Physical Protection and Weight"
+                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                >
+                  Physical Prot. & Weight
+                </span>
                 <input
                   readOnly
                   type="number"
@@ -2650,7 +2790,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-[11px] text-zinc-500">
+                <span
+                  title="Armor Skill"
+                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                >
                   <HoverTooltipLabel
                     label="Armor Skill"
                     tooltip={DERIVED_STAT_TOOLTIPS.armorSkill}
@@ -2665,7 +2808,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-[11px] text-zinc-500">
+                <span
+                  title="Dodge"
+                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                >
                   <HoverTooltipLabel
                     label="Dodge"
                     tooltip={DERIVED_STAT_TOOLTIPS.dodge}
@@ -2680,7 +2826,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-[11px] text-zinc-500">Mental Protection</span>
+                <span
+                  title="Mental Protection"
+                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                >
+                  Mental Protection
+                </span>
                 <input
                   readOnly
                   type="number"
@@ -2689,7 +2840,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 />
               </label>
               <label className="space-y-1">
-                <span className="text-[11px] text-zinc-500">
+                <span
+                  title="Willpower"
+                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                >
                   <HoverTooltipLabel
                     label="Willpower"
                     tooltip={DERIVED_STAT_TOOLTIPS.willpower}
@@ -3038,7 +3192,9 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           </div>
 
           <div className="space-y-3">
-            {editor.powers.map((power, i) => (
+            {editor.powers.map((power, i) => {
+              const powerRangeState = toPowerRangeState(power);
+              return (
                 <div key={i} className="rounded border border-zinc-800 p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">Power {i + 1}</p>
@@ -3103,188 +3259,6 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                     className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                   />
                   </label>
-                  </div>
-                  <div className="order-3 space-y-2 pt-2">
-                    <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Timing</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
-                      <label className="space-y-1">
-                        <span className="text-[11px] text-zinc-500">Duration</span>
-                        <select
-                          disabled={readOnly}
-                          value={power.durationType}
-                          onChange={(e) =>
-                            setEditor((p) =>
-                              p
-                                ? {
-                                    ...p,
-                                    powers: p.powers.map((x, idx) =>
-                                      idx === i
-                                        ? {
-                                            ...x,
-                                            durationType: e.target.value as MonsterPower["durationType"],
-                                            durationTurns: e.target.value === "TURNS" ? x.durationTurns ?? 1 : null,
-                                          }
-                                        : x,
-                                    ),
-                                  }
-                                : p,
-                            )
-                          }
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                        >
-                          <option value="INSTANT">Instant</option>
-                          <option value="TURNS">Turns</option>
-                          <option value="UNTIL_TARGET_NEXT_TURN">Until target starts next turn</option>
-                          <option value="PASSIVE">Passive</option>
-                        </select>
-                      </label>
-
-                      <label className="space-y-1">
-                        <span className="text-[11px] text-zinc-500">Duration (Turns)</span>
-                        <input
-                          disabled={readOnly || power.durationType !== "TURNS"}
-                          type="number"
-                          min={1}
-                          max={4}
-                          value={Number(power.durationTurns ?? 1)}
-                          onChange={(e) =>
-                            setEditor((p) =>
-                              p
-                                ? {
-                                    ...p,
-                                    powers: p.powers.map((x, idx) =>
-                                      idx === i
-                                        ? { ...x, durationTurns: Math.max(1, Math.min(4, Number(e.target.value || 1))) }
-                                        : x,
-                                    ),
-                                  }
-                                : p,
-                            )
-                          }
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-50"
-                        />
-                      </label>
-
-                      <label className="flex items-center gap-2 text-sm text-zinc-300 pt-5">
-                        <input
-                          disabled={readOnly}
-                          type="checkbox"
-                          checked={power.responseRequired}
-                          onChange={(e) =>
-                            setEditor((p) =>
-                              p
-                                ? {
-                                    ...p,
-                                    powers: p.powers.map((x, idx) =>
-                                      idx === i ? { ...x, responseRequired: e.target.checked } : x,
-                                    ),
-                                  }
-                                : p,
-                            )
-                          }
-                        />
-                        Response
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="order-4 space-y-2 pt-2">
-                    <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Tuning</p>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                      <label className="space-y-1">
-                        <span className="text-[11px] text-zinc-500">Dice Count</span>
-                        <input
-                          disabled={readOnly}
-                          type="number"
-                          min={1}
-                          max={20}
-                          value={power.diceCount}
-                          onChange={(e) =>
-                            setEditor((p) =>
-                              p
-                                ? {
-                                    ...p,
-                                    powers: p.powers.map((x, idx) =>
-                                      idx === i
-                                        ? {
-                                            ...x,
-                                            diceCount: Math.max(1, Math.min(20, Number(e.target.value || 1))),
-                                          }
-                                        : x,
-                                    ),
-                                  }
-                                : p,
-                            )
-                          }
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                        />
-                      </label>
-
-                      <label className="space-y-1">
-                        <span className="text-[11px] text-zinc-500">Potency</span>
-                        <input
-                          disabled={readOnly}
-                          type="number"
-                          min={1}
-                          max={5}
-                          value={power.potency}
-                          onChange={(e) =>
-                            setEditor((p) =>
-                              p
-                                ? {
-                                    ...p,
-                                    powers: p.powers.map((x, idx) =>
-                                      idx === i
-                                        ? { ...x, potency: Math.max(1, Math.min(5, Number(e.target.value || 1))) }
-                                        : x,
-                                    ),
-                                  }
-                                : p,
-                            )
-                          }
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                        />
-                      </label>
-
-                      <label className="space-y-1">
-                        <span className="text-[11px] text-zinc-500">Cooldown (Turns)</span>
-                        <input
-                          disabled={readOnly}
-                          type="number"
-                          min={1}
-                          value={power.cooldownTurns}
-                          onChange={(e) =>
-                            setEditor((p) =>
-                              p
-                                ? {
-                                    ...p,
-                                    powers: p.powers.map((x, idx) => {
-                                      if (idx !== i) return x;
-                                      const cd = Math.max(1, Number(e.target.value || 1));
-                                      return {
-                                        ...x,
-                                        cooldownTurns: cd,
-                                        cooldownReduction: Math.min(x.cooldownReduction, cd - 1),
-                                      };
-                                    }),
-                                  }
-                                : p,
-                            )
-                          }
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                        />
-                      </label>
-
-                      <label className="space-y-1">
-                        <span className="text-[11px] text-zinc-500">Cooldown Reduction (Coming soon)</span>
-                        <input
-                          disabled
-                          type="number"
-                          value={power.cooldownReduction}
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-60 cursor-not-allowed"
-                        />
-                      </label>
-                    </div>
                   </div>
                   <div className="order-2 space-y-2 pt-2">
                     <div className="flex items-center justify-between">
@@ -3377,23 +3351,24 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                 </select>
                               </label>
 
-                              <label className="space-y-1">
-                                <span className="text-[11px] text-zinc-500">Defence Requirement</span>
-                                <select
-                                  disabled={readOnly}
-                                  value={getDetailsString(details, "defenceRequirement") || "NONE"}
-                                  onChange={(e) =>
-                                    setPowerIntentionDetails(setEditor, i, j, {
-                                      defenceRequirement: e.target.value,
-                                    })
-                                  }
-                                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                                >
-                                  <option value="NONE">None</option>
-                                  <option value="PHYSICAL">Physical</option>
-                                  <option value="MENTAL">Mental</option>
-                                </select>
-                              </label>
+                              {(() => {
+                                const derived = deriveDefenceCheckLabel(it.type, details);
+                                return (
+                                  <div className="space-y-1">
+                                    <span className="text-[11px] text-zinc-500">Defence Check</span>
+                                    <div
+                                      className={[
+                                        "w-full rounded border px-2 py-1 text-sm",
+                                        derived
+                                          ? "border-zinc-700 bg-zinc-900 text-zinc-200"
+                                          : "border-zinc-800 bg-zinc-950/30 text-zinc-500",
+                                      ].join(" ")}
+                                    >
+                                      {derived ?? "None"}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             <div className="rounded border border-zinc-800 bg-zinc-950/30 p-3 space-y-2">
@@ -3592,8 +3567,401 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       </div>
                     )}
                   </div>
+                  <div className="order-3 space-y-2 pt-2">
+                    <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Range</p>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {POWER_RANGE_CATEGORIES.map((category) => {
+                        const selected = powerRangeState.category === category;
+                        return (
+                          <button
+                            key={category}
+                            type="button"
+                            disabled={readOnly}
+                            onClick={() => {
+                              const patchByCategory: Record<PowerRangeCategory, Record<string, unknown>> = {
+                                MELEE: {
+                                  rangeCategory: "MELEE",
+                                  rangeValue: powerRangeState.meleeTargets,
+                                  rangeExtra: {},
+                                },
+                                RANGED: {
+                                  rangeCategory: "RANGED",
+                                  rangeValue: powerRangeState.rangedDistanceFeet,
+                                  rangeExtra: { targets: powerRangeState.rangedTargets },
+                                },
+                                AOE: {
+                                  rangeCategory: "AOE",
+                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                  rangeExtra: {
+                                    count: powerRangeState.aoeCount,
+                                    shape: powerRangeState.aoeShape,
+                                  },
+                                },
+                              };
+                              setPowerCanonicalIntentionDetails(setEditor, i, patchByCategory[category]);
+                            }}
+                            className={[
+                              "px-2 py-1 rounded-full border",
+                              selected
+                                ? "border-emerald-500 bg-emerald-600/20 text-emerald-200"
+                                : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500",
+                              readOnly ? "opacity-60 cursor-not-allowed hover:border-zinc-700" : "",
+                            ].join(" ")}
+                          >
+                            {category}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {powerRangeState.category === "MELEE" && (
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-zinc-500">Melee Targets</label>
+                        <select
+                          disabled={readOnly}
+                          value={powerRangeState.meleeTargets}
+                          onChange={(e) =>
+                            setPowerCanonicalIntentionDetails(setEditor, i, {
+                              rangeCategory: "MELEE",
+                              rangeValue: Number(e.target.value),
+                              rangeExtra: {},
+                            })
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                        >
+                          {POWER_RANGE_TARGET_OPTIONS.map((n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {powerRangeState.category === "RANGED" && (
+                      <div className="space-y-2">
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-zinc-500">Ranged Distance (ft)</label>
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            {POWER_RANGE_RANGED_DISTANCE_OPTIONS.map((distance) => (
+                              <label key={distance} className="inline-flex items-center gap-1">
+                                <input
+                                  disabled={readOnly}
+                                  type="radio"
+                                  className="h-3 w-3 rounded border-zinc-600 bg-zinc-900"
+                                  value={distance}
+                                  checked={powerRangeState.rangedDistanceFeet === distance}
+                                  onChange={() =>
+                                    setPowerCanonicalIntentionDetails(setEditor, i, {
+                                      rangeCategory: "RANGED",
+                                      rangeValue: distance,
+                                      rangeExtra: { ...powerRangeState.rangeExtra, targets: powerRangeState.rangedTargets },
+                                    })
+                                  }
+                                />
+                                <span>{distance}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-zinc-500">Ranged Targets</label>
+                          <select
+                            disabled={readOnly}
+                            value={powerRangeState.rangedTargets}
+                            onChange={(e) =>
+                              setPowerCanonicalIntentionDetails(setEditor, i, {
+                                rangeCategory: "RANGED",
+                                rangeValue: powerRangeState.rangedDistanceFeet,
+                                rangeExtra: { ...powerRangeState.rangeExtra, targets: Number(e.target.value) },
+                              })
+                            }
+                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                          >
+                            {POWER_RANGE_TARGET_OPTIONS.map((n) => (
+                              <option key={n} value={n}>
+                                {n}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {powerRangeState.category === "AOE" && (
+                      <div className="space-y-2">
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-zinc-500">AoE Center Range (ft)</label>
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            {POWER_RANGE_AOE_CENTER_RANGE_OPTIONS.map((distance) => (
+                              <label key={distance} className="inline-flex items-center gap-1">
+                                <input
+                                  disabled={readOnly}
+                                  type="radio"
+                                  className="h-3 w-3 rounded border-zinc-600 bg-zinc-900"
+                                  value={distance}
+                                  checked={powerRangeState.aoeCenterRangeFeet === distance}
+                                  onChange={() =>
+                                    setPowerCanonicalIntentionDetails(setEditor, i, {
+                                      rangeCategory: "AOE",
+                                      rangeValue: distance,
+                                      rangeExtra: {
+                                        ...powerRangeState.rangeExtra,
+                                        count: powerRangeState.aoeCount,
+                                        shape: powerRangeState.aoeShape,
+                                      },
+                                    })
+                                  }
+                                />
+                                <span>{distance}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <label className="space-y-1">
+                            <span className="block text-[11px] text-zinc-500">AoE Count</span>
+                            <select
+                              disabled={readOnly}
+                              value={powerRangeState.aoeCount}
+                              onChange={(e) =>
+                                setPowerCanonicalIntentionDetails(setEditor, i, {
+                                  rangeCategory: "AOE",
+                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                  rangeExtra: {
+                                    ...powerRangeState.rangeExtra,
+                                    count: Number(e.target.value),
+                                    shape: powerRangeState.aoeShape,
+                                  },
+                                })
+                              }
+                              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                            >
+                              {POWER_RANGE_TARGET_OPTIONS.map((n) => (
+                                <option key={n} value={n}>
+                                  {n}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-1">
+                            <span className="block text-[11px] text-zinc-500">AoE Shape</span>
+                            <select
+                              disabled={readOnly}
+                              value={powerRangeState.aoeShape}
+                              onChange={(e) =>
+                                setPowerCanonicalIntentionDetails(setEditor, i, {
+                                  rangeCategory: "AOE",
+                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                  rangeExtra: {
+                                    ...powerRangeState.rangeExtra,
+                                    count: powerRangeState.aoeCount,
+                                    shape: e.target.value,
+                                  },
+                                })
+                              }
+                              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                            >
+                              {POWER_RANGE_AOE_SHAPES.map((shape) => (
+                                <option key={shape} value={shape}>
+                                  {shape}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      </div>
+                    )}
+
+                    {!powerRangeState.category && (
+                      <p className="text-sm text-zinc-500">Select a range category.</p>
+                    )}
+                  </div>
+                  <div className="order-4 space-y-2 pt-2">
+                    <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Timing</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+                      <label className="space-y-1">
+                        <span className="text-[11px] text-zinc-500">Duration</span>
+                        <select
+                          disabled={readOnly}
+                          value={power.durationType}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p
+                                ? {
+                                    ...p,
+                                    powers: p.powers.map((x, idx) =>
+                                      idx === i
+                                        ? {
+                                            ...x,
+                                            durationType: e.target.value as MonsterPower["durationType"],
+                                            durationTurns: e.target.value === "TURNS" ? x.durationTurns ?? 1 : null,
+                                          }
+                                        : x,
+                                    ),
+                                  }
+                                : p,
+                            )
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                        >
+                          <option value="INSTANT">Instant</option>
+                          <option value="TURNS">Turns</option>
+                          <option value="UNTIL_TARGET_NEXT_TURN">Until target starts next turn</option>
+                          <option value="PASSIVE">Passive</option>
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-[11px] text-zinc-500">Duration (Turns)</span>
+                        <input
+                          disabled={readOnly || power.durationType !== "TURNS"}
+                          type="number"
+                          min={1}
+                          max={4}
+                          value={Number(power.durationTurns ?? 1)}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p
+                                ? {
+                                    ...p,
+                                    powers: p.powers.map((x, idx) =>
+                                      idx === i
+                                        ? { ...x, durationTurns: Math.max(1, Math.min(4, Number(e.target.value || 1))) }
+                                        : x,
+                                    ),
+                                  }
+                                : p,
+                            )
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-50"
+                        />
+                      </label>
+
+                      <label className="flex items-center gap-2 text-sm text-zinc-300 pt-5">
+                        <input
+                          disabled={readOnly}
+                          type="checkbox"
+                          checked={power.responseRequired}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p
+                                ? {
+                                    ...p,
+                                    powers: p.powers.map((x, idx) =>
+                                      idx === i ? { ...x, responseRequired: e.target.checked } : x,
+                                    ),
+                                  }
+                                : p,
+                            )
+                          }
+                        />
+                        Response
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="order-5 space-y-2 pt-2">
+                    <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Tuning</p>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                      <label className="space-y-1">
+                        <span className="text-[11px] text-zinc-500">Dice Count</span>
+                        <input
+                          disabled={readOnly}
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={power.diceCount}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p
+                                ? {
+                                    ...p,
+                                    powers: p.powers.map((x, idx) =>
+                                      idx === i
+                                        ? {
+                                            ...x,
+                                            diceCount: Math.max(1, Math.min(20, Number(e.target.value || 1))),
+                                          }
+                                        : x,
+                                    ),
+                                  }
+                                : p,
+                            )
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                        />
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-[11px] text-zinc-500">Potency</span>
+                        <input
+                          disabled={readOnly}
+                          type="number"
+                          min={1}
+                          max={5}
+                          value={power.potency}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p
+                                ? {
+                                    ...p,
+                                    powers: p.powers.map((x, idx) =>
+                                      idx === i
+                                        ? { ...x, potency: Math.max(1, Math.min(5, Number(e.target.value || 1))) }
+                                        : x,
+                                    ),
+                                  }
+                                : p,
+                            )
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                        />
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-[11px] text-zinc-500">Cooldown (Turns)</span>
+                        <input
+                          disabled={readOnly}
+                          type="number"
+                          min={1}
+                          value={power.cooldownTurns}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p
+                                ? {
+                                    ...p,
+                                    powers: p.powers.map((x, idx) => {
+                                      if (idx !== i) return x;
+                                      const cd = Math.max(1, Number(e.target.value || 1));
+                                      return {
+                                        ...x,
+                                        cooldownTurns: cd,
+                                        cooldownReduction: Math.min(x.cooldownReduction, cd - 1),
+                                      };
+                                    }),
+                                  }
+                                : p,
+                            )
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                        />
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-[11px] text-zinc-500">Cooldown Reduction (Coming soon)</span>
+                        <input
+                          disabled
+                          type="number"
+                          value={power.cooldownReduction}
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-60 cursor-not-allowed"
+                        />
+                      </label>
+                    </div>
+                  </div>
                 </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 

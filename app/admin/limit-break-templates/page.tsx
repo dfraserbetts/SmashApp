@@ -225,6 +225,27 @@ function inferPersistentCostTimingFromSuccessParamsText(
   return "END";
 }
 
+function isOverrideEndRule(paramsJson: string): boolean {
+  try {
+    const parsed = JSON.parse(paramsJson || "{}");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return false;
+    }
+
+    const endRule = (parsed as { endRule?: unknown }).endRule;
+    if (typeof endRule !== "string") return false;
+
+    const normalized = endRule.trim().toLowerCase();
+    return (
+      normalized === "until_destroyed" ||
+      normalized === "until_destroyed_or_dismissed" ||
+      normalized === "until_destroyed_style"
+    );
+  } catch {
+    return false;
+  }
+}
+
 function emptyEditor(): EditorState {
   return {
     id: null,
@@ -318,6 +339,7 @@ export default function AdminLimitBreakTemplatesPage() {
   const [deleting, setDeleting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editor, setEditor] = useState<EditorState>(emptyEditor());
+  const [costTimingManuallySet, setCostTimingManuallySet] = useState(false);
   const [customMode, setCustomMode] = useState<Record<KeyFieldName, boolean>>({
     baseCostKey: false,
     successEffectKey: false,
@@ -352,6 +374,7 @@ export default function AdminLimitBreakTemplatesPage() {
 
   const showEndCostFields =
     showPersistence && editor.isPersistent && editor.persistentCostTiming === "END";
+  const showFailForward = editor.tier === "TRANSCEND";
 
   const sortedRows = useMemo(
     () =>
@@ -387,6 +410,7 @@ export default function AdminLimitBreakTemplatesPage() {
         const found = nextRows.find((r) => r.id === selectId);
         if (found) {
           setEditor(rowToEditor(found));
+          setCostTimingManuallySet(false);
           setCustomMode({
             baseCostKey: false,
             successEffectKey: false,
@@ -400,6 +424,7 @@ export default function AdminLimitBreakTemplatesPage() {
         const found = nextRows.find((r) => r.id === editor.id);
         if (found) {
           setEditor(rowToEditor(found));
+          setCostTimingManuallySet(false);
           setCustomMode({
             baseCostKey: false,
             successEffectKey: false,
@@ -438,6 +463,7 @@ export default function AdminLimitBreakTemplatesPage() {
   function createNew() {
     setSaveError(null);
     setEditor(emptyEditor());
+    setCostTimingManuallySet(false);
     setCustomMode({
       baseCostKey: false,
       successEffectKey: false,
@@ -574,6 +600,7 @@ export default function AdminLimitBreakTemplatesPage() {
 
       const row = data.row as Row;
       setEditor(rowToEditor(row));
+      setCostTimingManuallySet(false);
       setCustomMode({
         baseCostKey: false,
         successEffectKey: false,
@@ -589,6 +616,71 @@ export default function AdminLimitBreakTemplatesPage() {
       setSaving(false);
     }
   }
+
+  useEffect(() => {
+    if (!editor.isPersistent) return;
+    if (costTimingManuallySet) return;
+    if (!isOverrideEndRule(editor.successEffectParams)) return;
+
+    if (
+      editor.persistentCostTiming === "" ||
+      editor.persistentCostTiming === "END"
+    ) {
+      setEditor((prev) =>
+        prev ? { ...prev, persistentCostTiming: "BEGIN" } : prev,
+      );
+    }
+  }, [
+    editor.isPersistent,
+    editor.successEffectParams,
+    editor.persistentCostTiming,
+    costTimingManuallySet,
+  ]);
+
+  useEffect(() => {
+    if (editor.tier === "TRANSCEND") return;
+
+    const alreadyCleared =
+      !editor.failForwardEnabled &&
+      editor.failForwardEffectKey.trim() === "" &&
+      editor.failForwardEffectParams.trim() === "{}" &&
+      editor.failForwardCostAKey.trim() === "" &&
+      editor.failForwardCostBKey.trim() === "";
+
+    if (alreadyCleared) return;
+
+    setEditor((prev) =>
+      prev
+        ? {
+            ...prev,
+            failForwardEnabled: false,
+            failForwardEffectKey: "",
+            failForwardEffectParams: "{}",
+            failForwardCostAKey: "",
+            failForwardCostBKey: "",
+          }
+        : prev,
+    );
+    setCustomMode((prev) => ({
+      ...prev,
+      failForwardEffectKey: false,
+      failForwardCostAKey: false,
+      failForwardCostBKey: false,
+    }));
+    setCustomValues((prev) => ({
+      ...prev,
+      failForwardEffectKey: "",
+      failForwardCostAKey: "",
+      failForwardCostBKey: "",
+    }));
+  }, [
+    editor.tier,
+    editor.failForwardEnabled,
+    editor.failForwardEffectKey,
+    editor.failForwardEffectParams,
+    editor.failForwardCostAKey,
+    editor.failForwardCostBKey,
+  ]);
 
   async function deleteSelected() {
     if (selectedIds.length === 0) return;
@@ -672,6 +764,7 @@ export default function AdminLimitBreakTemplatesPage() {
                       onClick={() => {
                         setSaveError(null);
                         setEditor(rowToEditor(row));
+                        setCostTimingManuallySet(false);
                         setCustomMode({
                           baseCostKey: false,
                           successEffectKey: false,
@@ -742,7 +835,39 @@ export default function AdminLimitBreakTemplatesPage() {
               <select
                 className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
                 value={editor.tier}
-                onChange={(e) => setField("tier", e.target.value as Tier)}
+                onChange={(e) => {
+                  const nextTier = e.target.value as Tier;
+                  if (nextTier === "TRANSCEND") {
+                    setField("tier", nextTier);
+                    return;
+                  }
+
+                  setEditor((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          tier: nextTier,
+                          failForwardEnabled: false,
+                          failForwardEffectKey: "",
+                          failForwardEffectParams: "{}",
+                          failForwardCostAKey: "",
+                          failForwardCostBKey: "",
+                        }
+                      : prev,
+                  );
+                  setCustomMode((prev) => ({
+                    ...prev,
+                    failForwardEffectKey: false,
+                    failForwardCostAKey: false,
+                    failForwardCostBKey: false,
+                  }));
+                  setCustomValues((prev) => ({
+                    ...prev,
+                    failForwardEffectKey: "",
+                    failForwardCostAKey: "",
+                    failForwardCostBKey: "",
+                  }));
+                }}
               >
                 <option value="PUSH">PUSH</option>
                 <option value="BREAK">BREAK</option>
@@ -875,12 +1000,13 @@ export default function AdminLimitBreakTemplatesPage() {
                     <select
                       className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
                       value={editor.persistentCostTiming || "END"}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        setCostTimingManuallySet(true);
                         setField(
                           "persistentCostTiming",
                           e.target.value as PersistentCostTiming,
-                        )
-                      }
+                        );
+                      }}
                     >
                       <option value="BEGIN">BEGIN</option>
                       <option value="END">END</option>
@@ -922,30 +1048,32 @@ export default function AdminLimitBreakTemplatesPage() {
             </div>
           )}
 
-          <div className="rounded border p-2 space-y-2">
-            <div className="text-sm font-medium">Fail-forward</div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={editor.failForwardEnabled}
-                onChange={(e) => setField("failForwardEnabled", e.target.checked)}
+          {showFailForward && (
+            <div className="rounded border p-2 space-y-2">
+              <div className="text-sm font-medium">Fail-forward</div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={editor.failForwardEnabled}
+                  onChange={(e) => setField("failForwardEnabled", e.target.checked)}
+                />
+                failForwardEnabled
+              </label>
+              {renderKeyField(
+                "Fail-forward Effect Key",
+                "failForwardEffectKey",
+                vocabulary.failForwardEffectKeys,
+              )}
+              <textarea
+                className="min-h-20 w-full rounded border bg-transparent p-2 font-mono text-xs"
+                placeholder="failForwardEffectParams JSON"
+                value={editor.failForwardEffectParams}
+                onChange={(e) => setField("failForwardEffectParams", e.target.value)}
               />
-              failForwardEnabled
-            </label>
-            {renderKeyField(
-              "Fail-forward Effect Key",
-              "failForwardEffectKey",
-              vocabulary.failForwardEffectKeys,
-            )}
-            <textarea
-              className="min-h-20 w-full rounded border bg-transparent p-2 font-mono text-xs"
-              placeholder="failForwardEffectParams JSON"
-              value={editor.failForwardEffectParams}
-              onChange={(e) => setField("failForwardEffectParams", e.target.value)}
-            />
-            {renderKeyField("Fail-forward Cost A Key", "failForwardCostAKey", vocabulary.costKeys)}
-            {renderKeyField("Fail-forward Cost B Key", "failForwardCostBKey", vocabulary.costKeys)}
-          </div>
+              {renderKeyField("Fail-forward Cost A Key", "failForwardCostAKey", vocabulary.costKeys)}
+              {renderKeyField("Fail-forward Cost B Key", "failForwardCostBKey", vocabulary.costKeys)}
+            </div>
+          )}
         </div>
       </div>
     </div>

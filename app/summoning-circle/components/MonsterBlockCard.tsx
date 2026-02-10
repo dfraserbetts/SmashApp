@@ -55,10 +55,21 @@ const ATTR_ROWS = [
   ["Support", "supportDie", "supportResistDie", "supportModifier"],
   ["Bravery", "braveryDie", "braveryResistDie", "braveryModifier"],
 ] as const;
+const POWER_RANGE_CATEGORIES = ["MELEE", "RANGED", "AOE"] as const;
+const POWER_RANGE_AOE_SHAPES = ["SPHERE", "CONE", "LINE"] as const;
+type PowerRangeCategory = (typeof POWER_RANGE_CATEGORIES)[number];
+type PowerRangeAoeShape = (typeof POWER_RANGE_AOE_SHAPES)[number];
 
 function dieLabel(value: DiceSize | null | undefined): string {
   if (!value) return "-";
   return `d${value.replace("D", "")}`;
+}
+
+function formatDieDisplay(die: string): string {
+  const s = String(die || "").trim();
+  if (!s) return "D?";
+  if (s[0].toLowerCase() === "d") return `D${s.slice(1)}`;
+  return `D${s}`;
 }
 
 function dieNumeric(value: DiceSize | null | undefined): number | null {
@@ -257,10 +268,86 @@ function parseHeaderLine(line: string): { header: string; text: string } {
   return { header: parts[0].trim(), text: parts.slice(1).join("||").trim() };
 }
 
-function formatTierLabel(value: string): string {
-  if (!value) return value;
-  const lower = value.toLowerCase();
-  return lower.charAt(0).toUpperCase() + lower.slice(1);
+function asNullableNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function formatPowerRange(power: MonsterUpsertInput["powers"][number]): string {
+  const details = (power.intentions[0]?.detailsJson ?? {}) as Record<string, unknown>;
+  const rawCategory = String(details.rangeCategory ?? "").trim().toUpperCase();
+  const category = POWER_RANGE_CATEGORIES.includes(rawCategory as PowerRangeCategory)
+    ? (rawCategory as PowerRangeCategory)
+    : null;
+  if (!category) return "-";
+
+  const value = asNullableNumber(details.rangeValue);
+  const rangeExtra =
+    details.rangeExtra && typeof details.rangeExtra === "object" && !Array.isArray(details.rangeExtra)
+      ? (details.rangeExtra as Record<string, unknown>)
+      : {};
+
+  if (category === "MELEE") {
+    const targets = value ?? 1;
+    return `Melee (${targets} target${targets === 1 ? "" : "s"})`;
+  }
+
+  if (category === "RANGED") {
+    const distance = value ?? 30;
+    const targets = asNullableNumber(rangeExtra.targets);
+    return `Ranged (${distance} ft${targets ? `, ${targets} target${targets === 1 ? "" : "s"}` : ""})`;
+  }
+
+  const centerRange = value ?? 0;
+  const count = asNullableNumber(rangeExtra.count) ?? 1;
+  const rawShape = String(rangeExtra.shape ?? "SPHERE").trim().toUpperCase();
+  const shape = POWER_RANGE_AOE_SHAPES.includes(rawShape as PowerRangeAoeShape)
+    ? (rawShape as PowerRangeAoeShape)
+    : "SPHERE";
+  const shapeLabel = shape.charAt(0) + shape.slice(1).toLowerCase();
+  return `AoE (${centerRange} ft center, ${count} area${count === 1 ? "" : "s"}, ${shapeLabel})`;
+}
+
+function derivePowerDefenceCheck(
+  power: MonsterUpsertInput["powers"][number],
+): string | null {
+  const details = (power.intentions[0]?.detailsJson ?? {}) as Record<string, unknown>;
+  const type = String(power.intentions[0]?.type ?? "").toUpperCase();
+
+  if (type === "ATTACK") {
+    const mode = String(details.attackMode ?? "PHYSICAL").toUpperCase();
+    return mode === "MENTAL" ? "Defend (Mental)" : "Defend (Physical)";
+  }
+
+  if (type === "CONTROL") return "Resist (GD Choice)";
+  if (type === "MOVEMENT") return "Resist Fortitude";
+
+  if (type === "DEBUFF") {
+    const statTarget = String(details.statTarget ?? "").trim();
+    return `Resist ${statTarget || "?"}`;
+  }
+
+  return null;
+}
+
+function patchPowerSuccessClauseForStat(
+  clause: string,
+  power: MonsterUpsertInput["powers"][number],
+): string {
+  const details = (power.intentions[0]?.detailsJson ?? {}) as Record<string, unknown>;
+  const type = String(power.intentions[0]?.type ?? "").toUpperCase();
+  if (type !== "DEBUFF" && type !== "AUGMENT") return clause;
+
+  const statTarget = String(details.statTarget ?? "").trim();
+  if (!statTarget) return clause;
+
+  // Only do a minimal, safe replacement.
+  // Replace standalone "Stat" or "stat" tokens.
+  return clause.replace(/\bStat\b/g, statTarget).replace(/\bstat\b/g, statTarget);
 }
 
 function isHttpUrl(value: unknown): value is string {
@@ -366,7 +453,7 @@ function buildEquipmentWeaponAttacks(
 
 export function MonsterBlockCard({ monster, weaponById, className }: MonsterBlockCardProps) {
   const imageUrl = isHttpUrl(monster.imageUrl) ? monster.imageUrl.trim() : null;
-  const tierLabel = formatTierLabel(monster.tier);
+  const monsterMeta = monster as MonsterUpsertInput & { rarity?: string | null; tier?: string | null };
   const computedWeaponSkillValue = useMemo(
     () => getWeaponSkillDiceCountFromAttributes(monster.attackDie, monster.braveryDie),
     [monster.attackDie, monster.braveryDie],
@@ -418,62 +505,156 @@ export function MonsterBlockCard({ monster, weaponById, className }: MonsterBloc
 
   return (
     <div className={["sc-monster-block rounded border border-zinc-800 bg-zinc-950 p-4 space-y-3 text-sm", className ?? ""].join(" ").trim()}>
-      <div>
-        <p className="text-lg font-semibold">{monster.name}</p>
-        <p className="text-zinc-300">
-          Level {monster.level} {monster.legendary ? "Legendary " : ""}
-          {tierLabel}
-        </p>
-        {monster.tags.length > 0 && <p className="text-xs text-zinc-500">{monster.tags.join(" ")}</p>}
-      </div>
-      {imageUrl && (
-        <div className="mt-3 rounded border border-zinc-800 bg-zinc-900/40 max-h-56 sm:max-h-64 lg:max-h-[500px] overflow-hidden flex items-center justify-center p-1">
-          <img
-            src={imageUrl}
-            alt={monster.name?.trim() ? monster.name : "Monster image"}
-            className="w-full h-auto max-h-56 sm:max-h-64 lg:max-h-[500px] object-contain mx-auto bg-zinc-950/20"
-            loading="lazy"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-      )}
+      <div className="rounded border border-zinc-800 bg-zinc-950/40 p-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+          {/* Left - Mental */}
+          <div className="flex md:block items-center justify-between md:justify-start gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-zinc-500">Mental Perseverance</p>
+              <p className="text-sm font-semibold">
+                MP {monster.mentalPerseveranceCurrent}/{monster.mentalPerseveranceMax}
+              </p>
+            </div>
+            <div className="text-right md:text-left">
+              <p className="text-[11px] uppercase tracking-wide text-zinc-500">Mental Protection</p>
+              <p className="text-sm font-semibold">{protectionValues.mentalProtection}</p>
+            </div>
+          </div>
 
-      <div>
-        <p className="text-xs uppercase tracking-wide text-zinc-500">Survivability & Defence</p>
-        <p>PR {monster.physicalResilienceCurrent}/{monster.physicalResilienceMax}</p>
-        <p>MP {monster.mentalPerseveranceCurrent}/{monster.mentalPerseveranceMax}</p>
-        <p>Physical Protection {protectionValues.physicalProtection}</p>
-        <p>Mental Protection {protectionValues.mentalProtection}</p>
-      </div>
-
-      <div>
-        <p className="text-xs uppercase tracking-wide text-zinc-500">Attributes, Resists & Modifiers</p>
-        {ATTR_ROWS.map(([label, dieKey, resistKey, modKey]) => {
-          const itemModifier = itemDerived.itemModifiers[MOD_KEY_TO_ITEM_FIELD[modKey]];
-          const modifierValue = useItemDerivedValues ? itemModifier : Number(monster[modKey]);
-          return (
-            <p key={label}>
-              {label}: {dieLabel(monster[dieKey])}
-              {Number(monster[resistKey]) > 0 ? ` | Resist ${Number(monster[resistKey])} dice` : ""}
-              {" | Mod "}
-              {formatModifierWithEffective(modifierValue)}
+          {/* Center - Identity */}
+          <div className="text-left md:text-center">
+            <p className="text-lg font-semibold leading-tight">
+              {monster.name?.trim() ? monster.name : "Unnamed Monster"}
             </p>
-          );
-        })}
-        <p>
-          Weapon Skill: {computedWeaponSkillValue} dice | Mod{" "}
-          {formatModifierWithEffective(
-            useItemDerivedValues ? itemDerived.itemModifiers.weaponSkillModifier : monster.weaponSkillModifier,
-          )}
-        </p>
-        <p>
-          Armor Skill: {computedArmorSkillValue} dice | Mod{" "}
-          {formatModifierWithEffective(
-            useItemDerivedValues ? itemDerived.itemModifiers.armorSkillModifier : monster.armorSkillModifier,
-          )}
-        </p>
+            <p className="text-xs text-zinc-400">
+              {[
+                typeof monster.level === "number" ? `Level ${monster.level}` : null,
+                monsterMeta.rarity ? String(monsterMeta.rarity) : null,
+                monsterMeta.tier ? String(monsterMeta.tier) : null,
+              ]
+                .filter((token): token is string => Boolean(token))
+                .join(" | ")}
+            </p>
+          </div>
+
+          {/* Right - Physical */}
+          <div className="flex md:block items-center justify-between md:justify-start gap-3 md:text-right">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-zinc-500">Physical Resilience</p>
+              <p className="text-sm font-semibold">
+                PR {monster.physicalResilienceCurrent}/{monster.physicalResilienceMax}
+              </p>
+            </div>
+            <div className="text-right md:text-right">
+              <p className="text-[11px] uppercase tracking-wide text-zinc-500">Physical Protection</p>
+              <p className="text-sm font-semibold">{protectionValues.physicalProtection}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
+      <div className="rounded border border-zinc-800 bg-zinc-900/10 p-3">
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(140px,12%)_1fr_minmax(140px,12%)] gap-3 items-stretch min-w-0">
+          {/* LEFT: Mental */}
+          <div className="space-y-1 md:col-start-1">
+            <p className="text-xs uppercase tracking-wide text-zinc-500">Mental</p>
+            <div className="mt-1 space-y-2.5">
+              {(["Intellect", "Support", "Bravery"] as const).map((label) => {
+                const row = ATTR_ROWS.find((r) => r[0] === label);
+                if (!row) return null;
+                const [, dieKey, resistKey, modKey] = row;
+
+                const itemModifier = itemDerived.itemModifiers[MOD_KEY_TO_ITEM_FIELD[modKey]];
+                const modifierValue = useItemDerivedValues ? itemModifier : Number(monster[modKey]);
+
+                return (
+                  <div
+                    key={label}
+                    className="pl-2 border-l border-zinc-800 py-2"
+                  >
+                    <div className="grid grid-cols-[1fr_auto] items-center gap-x-3">
+                      <div>
+                        <p className="font-medium text-sm">{label}</p>
+                        <p className="text-[11px] leading-tight text-zinc-300">
+                          Mod: {formatModifierWithEffective(modifierValue)}
+                        </p>
+                        <p className="text-[11px] leading-tight text-zinc-400">
+                          Resist: {Number(monster[resistKey])} Dice
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-2xl font-semibold leading-none">
+                          {formatDieDisplay(dieLabel(monster[dieKey]))}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* CENTER: Image */}
+          <div className="w-full min-w-0 justify-self-stretch md:col-start-2">
+            {imageUrl ? (
+              <div className="w-full min-w-0 aspect-[3/4] rounded border border-zinc-800 bg-zinc-900/40 overflow-hidden p-2 flex items-center justify-center">
+                <img
+                  src={imageUrl}
+                  alt={monster.name?.trim() ? monster.name : "Monster image"}
+                  className="w-full h-full object-cover mx-auto bg-zinc-950/20"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            ) : (
+              <div className="w-full min-w-0 aspect-[3/4] rounded border border-zinc-800 bg-zinc-950/30 p-3 text-center text-xs text-zinc-500 flex items-center justify-center">
+                No image
+              </div>
+            )}
+          </div>
+
+          {/* RIGHT: Physical */}
+          <div className="space-y-1 text-right md:col-start-3">
+            <p className="text-xs uppercase tracking-wide text-zinc-500">Physical</p>
+            <div className="mt-1 space-y-2.5">
+              {(["Attack", "Defence", "Fortitude"] as const).map((label) => {
+                const row = ATTR_ROWS.find((r) => r[0] === label);
+                if (!row) return null;
+                const [, dieKey, resistKey, modKey] = row;
+
+                const itemModifier = itemDerived.itemModifiers[MOD_KEY_TO_ITEM_FIELD[modKey]];
+                const modifierValue = useItemDerivedValues ? itemModifier : Number(monster[modKey]);
+
+                return (
+                  <div
+                    key={label}
+                    className="pr-2 border-r border-zinc-800 py-2 text-right"
+                  >
+                    <div className="grid grid-cols-[auto_1fr] items-center gap-x-3">
+                      <div className="text-left">
+                        <p className="text-2xl font-semibold leading-none">
+                          {formatDieDisplay(dieLabel(monster[dieKey]))}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="font-medium text-sm">{label}</p>
+                        <p className="text-[11px] leading-tight text-zinc-300">
+                          Mod: {formatModifierWithEffective(modifierValue)}
+                        </p>
+                        <p className="text-[11px] leading-tight text-zinc-400">
+                          Resist: {Number(monster[resistKey])} Dice
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
       <div>
         <p className="text-xs uppercase tracking-wide text-zinc-500">Traits</p>
         {monster.traits.length === 0 && <p className="text-zinc-500">None</p>}
@@ -540,14 +721,23 @@ export function MonsterBlockCard({ monster, weaponById, className }: MonsterBloc
             <p className="font-medium">{power.name}</p>
             {power.description && <p className="text-zinc-300">{power.description}</p>}
             <p>Dice Count: {power.diceCount} | Potency: {power.potency}</p>
+            <p>Range: {formatPowerRange(power)}</p>
             <p>Cooldown: {effectiveCooldownTurns(power)}</p>
+            {(() => {
+              const defenceCheck = derivePowerDefenceCheck(power);
+              return defenceCheck ? <p>Defence: {defenceCheck}</p> : null;
+            })()}
             <p>Response: {power.responseRequired ? "Yes" : "No"}</p>
             {power.intentions.length > 1 && (
               <p>
                 Multi-Intention: roll once vs primary ({power.intentions[0].type}); net successes apply to all.
               </p>
             )}
-            <p>{renderPowerSuccessClause(power)}</p>
+            {(() => {
+              const raw = renderPowerSuccessClause(power);
+              const patched = patchPowerSuccessClauseForStat(raw, power);
+              return <p>{patched}</p>;
+            })()}
             {renderPowerDurationText(power) && <p>{renderPowerDurationText(power)}</p>}
             {renderPowerStackCleanupText(power) && <p>{renderPowerStackCleanupText(power)}</p>}
           </div>
@@ -561,3 +751,5 @@ export function MonsterBlockCard({ monster, weaponById, className }: MonsterBloc
     </div>
   );
 }
+
+

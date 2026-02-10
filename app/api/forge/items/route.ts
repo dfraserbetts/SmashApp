@@ -69,6 +69,25 @@ function normalizeTagsInput(value: unknown): string[] {
   return out;
 }
 
+function normalizeOptionalId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function countSelectedMythicLimitBreaks(value: {
+  mythicLbPushTemplateId?: string | null;
+  mythicLbBreakTemplateId?: string | null;
+  mythicLbTranscendTemplateId?: string | null;
+}): number {
+  const ids = [
+    normalizeOptionalId(value.mythicLbPushTemplateId),
+    normalizeOptionalId(value.mythicLbBreakTemplateId),
+    normalizeOptionalId(value.mythicLbTranscendTemplateId),
+  ];
+  return ids.filter((id) => id !== null).length;
+}
+
 function withTagStrings<T extends { tags?: Array<{ tag: string }> }>(
   row: T,
 ): Omit<T, 'tags'> & { tags: string[] } {
@@ -297,6 +316,13 @@ export async function POST(req: Request) {
     if (!body.id || !body.campaignId || !body.name || !body.rarity || !body.type) {
       return NextResponse.json(
         { error: 'id, campaignId, name, rarity, type are required' },
+        { status: 400 },
+      );
+    }
+
+    if (countSelectedMythicLimitBreaks(body) > 1) {
+      return NextResponse.json(
+        { error: 'A Mythic item may only have one Limit Break.' },
         { status: 400 },
       );
     }

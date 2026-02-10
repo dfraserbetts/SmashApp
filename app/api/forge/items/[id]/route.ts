@@ -81,6 +81,25 @@ function normalizeTagsInput(value: unknown): string[] {
   return out;
 }
 
+function normalizeOptionalId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function countSelectedMythicLimitBreaks(value: {
+  mythicLbPushTemplateId?: string | null;
+  mythicLbBreakTemplateId?: string | null;
+  mythicLbTranscendTemplateId?: string | null;
+}): number {
+  const ids = [
+    normalizeOptionalId(value.mythicLbPushTemplateId),
+    normalizeOptionalId(value.mythicLbBreakTemplateId),
+    normalizeOptionalId(value.mythicLbTranscendTemplateId),
+  ];
+  return ids.filter((id) => id !== null).length;
+}
+
 function withTagStrings<T extends { tags?: Array<{ tag: string }> }>(
   row: T,
 ): Omit<T, 'tags'> & { tags: string[] } {
@@ -280,6 +299,40 @@ export async function PUT(
 
     const body = (await req.json()) as ItemTemplateInput;
     const normalizedTags = normalizeTagsInput(body.tags);
+    const existingMythicSelection = await prisma.itemTemplate.findFirst({
+      where: { id, campaignId },
+      select: {
+        mythicLbPushTemplateId: true,
+        mythicLbBreakTemplateId: true,
+        mythicLbTranscendTemplateId: true,
+      },
+    });
+
+    if (!existingMythicSelection) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    const nextMythicSelection = {
+      mythicLbPushTemplateId:
+        body.mythicLbPushTemplateId !== undefined
+          ? body.mythicLbPushTemplateId
+          : existingMythicSelection.mythicLbPushTemplateId,
+      mythicLbBreakTemplateId:
+        body.mythicLbBreakTemplateId !== undefined
+          ? body.mythicLbBreakTemplateId
+          : existingMythicSelection.mythicLbBreakTemplateId,
+      mythicLbTranscendTemplateId:
+        body.mythicLbTranscendTemplateId !== undefined
+          ? body.mythicLbTranscendTemplateId
+          : existingMythicSelection.mythicLbTranscendTemplateId,
+    };
+
+    if (countSelectedMythicLimitBreaks(nextMythicSelection) > 1) {
+      return NextResponse.json(
+        { error: 'A Mythic item may only have one Limit Break.' },
+        { status: 400 },
+      );
+    }
       const updated = await prisma.$transaction(async (tx) => {
       // 1) core update (scoped to campaign)
       const updatedCount = await tx.itemTemplate.updateMany({
@@ -685,7 +738,12 @@ export async function PUT(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to update item template";
-    const status = message === "Not found" ? 404 : 500;
+    const status =
+      message === "Not found"
+        ? 404
+        : message === 'A Mythic item may only have one Limit Break.'
+          ? 400
+          : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

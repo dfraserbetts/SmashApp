@@ -26,12 +26,30 @@ assert.equal(tierToThresholdPercent("PUSH"), 60);
 assert.equal(tierToThresholdPercent("BREAK"), 85);
 assert.equal(tierToThresholdPercent("TRANSCEND"), 125);
 
+const nonTranscendClearsFailForward = normalizeAndValidateTemplate({
+  name: "FF Cleared Outside Transcend",
+  templateType: "PLAYER",
+  tier: "PUSH",
+  intention: "ATTACK",
+  failForwardEnabled: true,
+  failForwardEffectKey: "EFFECT_X",
+  failForwardEffectParams: { any: "value" },
+  failForwardCostAKey: "COST_A",
+  failForwardCostBKey: "COST_B",
+});
+
+assert.equal(nonTranscendClearsFailForward.failForwardEnabled, false);
+assert.equal(nonTranscendClearsFailForward.failForwardEffectKey, null);
+assert.deepEqual(nonTranscendClearsFailForward.failForwardEffectParams, {});
+assert.equal(nonTranscendClearsFailForward.failForwardCostAKey, null);
+assert.equal(nonTranscendClearsFailForward.failForwardCostBKey, null);
+
 shouldThrowValidation(
   () =>
     normalizeAndValidateTemplate({
-      name: "FF No Cost",
+      name: "FF No Cost On Transcend",
       templateType: "PLAYER",
-      tier: "PUSH",
+      tier: "TRANSCEND",
       intention: "ATTACK",
       failForwardEnabled: true,
       failForwardEffectKey: "EFFECT_X",
@@ -40,6 +58,24 @@ shouldThrowValidation(
     }),
   "At least one fail-forward cost key",
 );
+
+const transcendDisabledClearsFailForward = normalizeAndValidateTemplate({
+  name: "FF Disabled Clears On Transcend",
+  templateType: "PLAYER",
+  tier: "TRANSCEND",
+  intention: "ATTACK",
+  failForwardEnabled: false,
+  failForwardEffectKey: "EFFECT_X",
+  failForwardEffectParams: { any: "value" },
+  failForwardCostAKey: "COST_A",
+  failForwardCostBKey: "COST_B",
+});
+
+assert.equal(transcendDisabledClearsFailForward.failForwardEnabled, false);
+assert.equal(transcendDisabledClearsFailForward.failForwardEffectKey, null);
+assert.deepEqual(transcendDisabledClearsFailForward.failForwardEffectParams, {});
+assert.equal(transcendDisabledClearsFailForward.failForwardCostAKey, null);
+assert.equal(transcendDisabledClearsFailForward.failForwardCostBKey, null);
 
 const normalized = normalizeAndValidateTemplate({
   name: "No Persistence Outside Summon/Transform",

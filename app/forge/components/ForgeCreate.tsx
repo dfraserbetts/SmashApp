@@ -73,6 +73,26 @@ type MythicLimitBreakTemplateRow = {
   endCostText: string | null;
 };
 
+function normalizeOptionalId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function deriveSelectedMythicLimitBreakId(value: {
+  mythicLbPushTemplateId?: string | null;
+  mythicLbBreakTemplateId?: string | null;
+  mythicLbTranscendTemplateId?: string | null;
+}): string | null {
+  // Legacy bad states can have multiple set. Prefer highest tier.
+  return (
+    normalizeOptionalId(value.mythicLbTranscendTemplateId) ??
+    normalizeOptionalId(value.mythicLbBreakTemplateId) ??
+    normalizeOptionalId(value.mythicLbPushTemplateId) ??
+    null
+  );
+}
+
 type TagSuggestion = {
   value: string;
   source: 'global' | 'campaign';
@@ -319,6 +339,7 @@ type ForgeFormValues = {
   customArmorAttributes?: string | null;
   customShieldAttributes?: string | null;
   customItemAttributes?: string | null;
+  selectedMythicLimitBreakId?: string | null;
   mythicLbPushTemplateId?: string | null;
   mythicLbBreakTemplateId?: string | null;
   mythicLbTranscendTemplateId?: string | null;
@@ -1663,6 +1684,7 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   customArmorAttributes: '',
   customShieldAttributes: '',
   customItemAttributes: '',
+  selectedMythicLimitBreakId: null,
   mythicLbPushTemplateId: null,
   mythicLbBreakTemplateId: null,
   mythicLbTranscendTemplateId: null,
@@ -1687,14 +1709,13 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     register('tags');
   }, [register]);
 
-function handleResetForge() {
-  const ok = window.confirm(
-    'Reset the Forge?\n\nThis will clear all fields and start a new item. Unsaved changes will be lost.',
-  );
-  if (!ok) return;
-
+function resetForgeToNewItemMode() {
   // Switch to "New Item" mode
   setSelectedItemId(null);
+  setPickerOpen(false);
+  setPickerQuery('');
+  setPickerFiltersOpen(false);
+  clearPickerFilters();
 
   // Prevent cleanup effects from fighting reset()
   isHydratingRef.current = true;
@@ -1720,6 +1741,15 @@ function handleResetForge() {
   setTimeout(() => {
     isHydratingRef.current = false;
   }, 50);
+}
+
+function handleResetForge() {
+  const ok = window.confirm(
+    'Reset the Forge?\n\nThis will clear all fields and start a new item. Unsaved changes will be lost.',
+  );
+  if (!ok) return;
+
+  resetForgeToNewItemMode();
 }
 
     // Load selected item into the form (edit mode)
@@ -1868,10 +1898,10 @@ function handleResetForge() {
           customArmorAttributes: ((item as any).customArmorAttributes ?? '') as any,
           customShieldAttributes: ((item as any).customShieldAttributes ?? '') as any,
           customItemAttributes: ((item as any).customItemAttributes ?? '') as any,
-          mythicLbPushTemplateId: ((item as any).mythicLbPushTemplateId ?? null) as any,
-          mythicLbBreakTemplateId: ((item as any).mythicLbBreakTemplateId ?? null) as any,
-          mythicLbTranscendTemplateId:
-            ((item as any).mythicLbTranscendTemplateId ?? null) as any,
+          selectedMythicLimitBreakId: deriveSelectedMythicLimitBreakId(item),
+          mythicLbPushTemplateId: null,
+          mythicLbBreakTemplateId: null,
+          mythicLbTranscendTemplateId: null,
         });
 
         
@@ -2170,6 +2200,7 @@ function handleResetForge() {
 
     setValue('size', null, { shouldDirty: true });
     setValue('shieldHasAttack', false, { shouldDirty: true });
+    setValue('selectedMythicLimitBreakId', null, { shouldDirty: true });
     setValue('mythicLbPushTemplateId', null, { shouldDirty: true });
     setValue('mythicLbBreakTemplateId', null, { shouldDirty: true });
     setValue('mythicLbTranscendTemplateId', null, { shouldDirty: true });
@@ -2179,6 +2210,7 @@ function handleResetForge() {
     if (isHydratingRef.current) return;
     if (selectedRarity === 'MYTHIC') return;
 
+    setValue('selectedMythicLimitBreakId', null, { shouldDirty: true });
     setValue('mythicLbPushTemplateId', null, { shouldDirty: true });
     setValue('mythicLbBreakTemplateId', null, { shouldDirty: true });
     setValue('mythicLbTranscendTemplateId', null, { shouldDirty: true });
@@ -2198,9 +2230,7 @@ function handleResetForge() {
   const wardingOptionIds = watch('wardingOptionIds') ?? [];
   const sanctifiedOptionIds = watch('sanctifiedOptionIds') ?? [];
   const shieldAttributeIds = watch('shieldAttributeIds') ?? [];
-  const mythicLbPushTemplateId = watch('mythicLbPushTemplateId') ?? null;
-  const mythicLbBreakTemplateId = watch('mythicLbBreakTemplateId') ?? null;
-  const mythicLbTranscendTemplateId = watch('mythicLbTranscendTemplateId') ?? null;
+  const selectedMythicLimitBreakId = watch('selectedMythicLimitBreakId') ?? null;
 
   const armorLocation = watch('armorLocation');
   const hasArmorLocation = !!armorLocation;
@@ -2288,12 +2318,8 @@ function handleResetForge() {
     (t) => t.tier === 'TRANSCEND',
   );
 
-  const selectedMythicPushTemplate =
-    mythicPushTemplates.find((t) => t.id === mythicLbPushTemplateId) ?? null;
-  const selectedMythicBreakTemplate =
-    mythicBreakTemplates.find((t) => t.id === mythicLbBreakTemplateId) ?? null;
-  const selectedMythicTranscendTemplate =
-    mythicTranscendTemplates.find((t) => t.id === mythicLbTranscendTemplateId) ?? null;
+  const selectedMythicTemplate =
+    mythicLbTemplates.find((t) => t.id === selectedMythicLimitBreakId) ?? null;
 
   const attributeCostEntries = (data?.costs ?? []) as any[];
   const attributeNames = Array.from(
@@ -2904,6 +2930,37 @@ useEffect(() => {
       setTagSuggestions([]);
       setActiveTagIndex(-1);
 
+      const normalizedSelectedMythicLimitBreakId = normalizeOptionalId(
+        values.selectedMythicLimitBreakId,
+      );
+      const canAttachMythicLimitBreak =
+        values.rarity === 'MYTHIC' &&
+        (values.type === 'WEAPON' ||
+          values.type === 'ARMOR' ||
+          values.type === 'SHIELD' ||
+          values.type === 'ITEM');
+
+      let mythicLbPushTemplateId: string | null = null;
+      let mythicLbBreakTemplateId: string | null = null;
+      let mythicLbTranscendTemplateId: string | null = null;
+
+      if (canAttachMythicLimitBreak && normalizedSelectedMythicLimitBreakId) {
+        const selectedTemplate =
+          mythicLbTemplates.find(
+            (template) => template.id === normalizedSelectedMythicLimitBreakId,
+          ) ?? null;
+
+        if (selectedTemplate) {
+          if (selectedTemplate.tier === 'PUSH') {
+            mythicLbPushTemplateId = selectedTemplate.id;
+          } else if (selectedTemplate.tier === 'BREAK') {
+            mythicLbBreakTemplateId = selectedTemplate.id;
+          } else {
+            mythicLbTranscendTemplateId = selectedTemplate.id;
+          }
+        }
+      }
+
       const basePayload = {
         itemUrl:
         values.itemUrl && values.itemUrl.trim()
@@ -3019,36 +3076,9 @@ useEffect(() => {
           values.customItemAttributes.trim()
             ? values.customItemAttributes.trim()
             : null,
-        mythicLbPushTemplateId:
-          values.rarity === 'MYTHIC' &&
-          (values.type === 'WEAPON' ||
-            values.type === 'ARMOR' ||
-            values.type === 'SHIELD' ||
-            values.type === 'ITEM') &&
-          values.mythicLbPushTemplateId &&
-          values.mythicLbPushTemplateId.trim()
-            ? values.mythicLbPushTemplateId.trim()
-            : null,
-        mythicLbBreakTemplateId:
-          values.rarity === 'MYTHIC' &&
-          (values.type === 'WEAPON' ||
-            values.type === 'ARMOR' ||
-            values.type === 'SHIELD' ||
-            values.type === 'ITEM') &&
-          values.mythicLbBreakTemplateId &&
-          values.mythicLbBreakTemplateId.trim()
-            ? values.mythicLbBreakTemplateId.trim()
-            : null,
-        mythicLbTranscendTemplateId:
-          values.rarity === 'MYTHIC' &&
-          (values.type === 'WEAPON' ||
-            values.type === 'ARMOR' ||
-            values.type === 'SHIELD' ||
-            values.type === 'ITEM') &&
-          values.mythicLbTranscendTemplateId &&
-          values.mythicLbTranscendTemplateId.trim()
-            ? values.mythicLbTranscendTemplateId.trim()
-            : null,
+        mythicLbPushTemplateId,
+        mythicLbBreakTemplateId,
+        mythicLbTranscendTemplateId,
 
         globalAttributeModifiers: values.globalAttributeModifiers ?? [],
 
@@ -4719,12 +4749,6 @@ useEffect(() => {
   function renderMythicLimitBreakSection() {
     if (!showMythicLimitBreakSection) return null;
 
-    const selectedTemplates = [
-      selectedMythicPushTemplate,
-      selectedMythicBreakTemplate,
-      selectedMythicTranscendTemplate,
-    ].filter((t): t is MythicLimitBreakTemplateRow => Boolean(t));
-
     return (
       <div className="mt-4 space-y-3 border-t border-zinc-800 pt-4">
         <div className="flex items-center justify-between">
@@ -4743,12 +4767,12 @@ useEffect(() => {
           </p>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <div className="space-y-1">
-            <label className="block text-xs font-medium">Push template</label>
+            <label className="block text-xs font-medium">Limit Break</label>
             <select
               className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              {...register('mythicLbPushTemplateId', {
+              {...register('selectedMythicLimitBreakId', {
                 setValueAs: (value) =>
                   typeof value === 'string' && value.trim().length > 0
                     ? value.trim()
@@ -4756,51 +4780,33 @@ useEffect(() => {
               })}
             >
               <option value="">None</option>
-              {mythicPushTemplates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-xs font-medium">Break template</label>
-            <select
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              {...register('mythicLbBreakTemplateId', {
-                setValueAs: (value) =>
-                  typeof value === 'string' && value.trim().length > 0
-                    ? value.trim()
-                    : null,
-              })}
-            >
-              <option value="">None</option>
-              {mythicBreakTemplates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label className="block text-xs font-medium">Transcend template</label>
-            <select
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              {...register('mythicLbTranscendTemplateId', {
-                setValueAs: (value) =>
-                  typeof value === 'string' && value.trim().length > 0
-                    ? value.trim()
-                    : null,
-              })}
-            >
-              <option value="">None</option>
-              {mythicTranscendTemplates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name}
-                </option>
-              ))}
+              {mythicPushTemplates.length > 0 && (
+                <optgroup label="PUSH">
+                  {mythicPushTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {`PUSH – ${template.name}`}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {mythicBreakTemplates.length > 0 && (
+                <optgroup label="BREAK">
+                  {mythicBreakTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {`BREAK – ${template.name}`}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {mythicTranscendTemplates.length > 0 && (
+                <optgroup label="TRANSCEND">
+                  {mythicTranscendTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {`TRANSCEND – ${template.name}`}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
         </div>
@@ -4811,38 +4817,21 @@ useEffect(() => {
           </p>
         )}
 
-        {selectedTemplates.length > 0 && (
-          <div className="space-y-2">
-            {selectedTemplates.map((template) => (
-              <div
-                key={`mythic-lb-preview-${template.id}`}
-                className="rounded-md border border-zinc-800 bg-zinc-900/40 p-2 text-xs space-y-1"
-              >
-                <div className="font-medium">
-                  {template.name} ({template.tier} - {template.thresholdPercent}%)
-                </div>
-                {template.description && (
-                  <div className="text-zinc-300">{template.description}</div>
-                )}
-                <div>Base cost key: {template.baseCostKey ?? 'None'}</div>
-                <div>Success effect key: {template.successEffectKey ?? 'None'}</div>
-                <div>
-                  Fail-forward:{' '}
-                  {template.failForwardEnabled
-                    ? `${template.failForwardEffectKey ?? 'None'} / ${
-                        template.failForwardCostAKey ?? 'None'
-                      } / ${template.failForwardCostBKey ?? 'None'}`
-                    : 'Disabled'}
-                </div>
-                {template.isPersistent && (
-                  <div className="space-y-1 text-zinc-300">
-                    <div>Persistent state: {template.persistentStateText ?? 'None'}</div>
-                    <div>End condition: {template.endConditionText ?? 'None'}</div>
-                    <div>End cost: {template.endCostText ?? 'None'}</div>
-                  </div>
-                )}
+        {selectedMythicTemplate && (
+          <div className="rounded-md border border-zinc-800 bg-zinc-900/40 p-2 text-xs space-y-1">
+            <div className="font-medium">
+              {selectedMythicTemplate.name} ({selectedMythicTemplate.tier} –{' '}
+              {selectedMythicTemplate.thresholdPercent}%)
+            </div>
+            {selectedMythicTemplate.description && (
+              <div className="text-zinc-300">{selectedMythicTemplate.description}</div>
+            )}
+            <div>Cost: {selectedMythicTemplate.endCostText ?? 'Not specified'}</div>
+            {selectedMythicTemplate.failForwardEnabled && (
+              <div>
+                Fail-forward: Enabled
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>
@@ -4897,10 +4886,10 @@ useEffect(() => {
             Edit existing item (optional)
           </label>
 
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="flex flex-1 items-start gap-2">
-              <div ref={pickerRef} className="relative flex-1 space-y-2">
-                <div className="relative">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div ref={pickerRef} className="relative min-w-0 flex-1">
+                <div className="relative h-10 flex items-center">
                   <svg
                     viewBox="0 0 24 24"
                     aria-hidden="true"
@@ -4920,28 +4909,8 @@ useEffect(() => {
                       setPickerOpen(true);
                     }}
                     placeholder="Click to search campaign items"
-                    className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="h-10 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 pl-9 text-sm leading-tight focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
-                </div>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex flex-wrap gap-1">
-                    {activePickerFilterPills.map((pill) => (
-                      <button
-                        key={pill.id}
-                        type="button"
-                        onClick={() => removePickerFilterPill(pill.id)}
-                        className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
-                      >
-                        <span>{pill.label}</span>
-                        <span aria-hidden="true">x</span>
-                      </button>
-                    ))}
-                  </div>
-                  <p className="pt-1 text-right text-[11px] text-zinc-500">
-                    {hasPickerQuery || hasPickerFilters
-                      ? `Showing ${pickerFilteredCount} of ${pickerTotalCount}`
-                      : `Showing ${pickerTotalCount}`}
-                  </p>
                 </div>
 
                 {pickerOpen && (
@@ -5049,7 +5018,7 @@ useEffect(() => {
                 <button
                   type="button"
                   onClick={() => setPickerFiltersOpen((prev) => !prev)}
-                  className={`rounded border px-3 py-2 text-sm ${
+                  className={`inline-flex h-10 items-center shrink-0 rounded border px-3 text-sm ${
                     pickerFiltersOpen
                       ? 'border-emerald-600 bg-emerald-950/20 text-emerald-100'
                       : 'border-zinc-700 hover:bg-zinc-800'
@@ -5148,19 +5117,36 @@ useEffect(() => {
                   </div>
                 )}
               </div>
+
+              <button
+                type="button"
+                onClick={resetForgeToNewItemMode}
+                className="inline-flex h-10 items-center shrink-0 rounded border border-emerald-600 bg-emerald-600 px-3 text-sm text-emerald-50 hover:border-emerald-500 hover:bg-emerald-500"
+              >
+                New item
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedItemId(null);
-                setPickerOpen(false);
-                setPickerQuery('');
-              }}
-              className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800"
-            >
-              New item
-            </button>
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-wrap gap-1">
+                {activePickerFilterPills.map((pill) => (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={() => removePickerFilterPill(pill.id)}
+                    className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                  >
+                    <span>{pill.label}</span>
+                    <span aria-hidden="true">x</span>
+                  </button>
+                ))}
+              </div>
+              <p className="pt-1 text-right text-[11px] text-zinc-500">
+                {hasPickerQuery || hasPickerFilters
+                  ? `Showing ${pickerFilteredCount} of ${pickerTotalCount}`
+                  : `Showing ${pickerTotalCount}`}
+              </p>
+            </div>
           </div>
 
           {selectedItemSummary && (
