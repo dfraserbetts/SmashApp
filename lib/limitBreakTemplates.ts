@@ -42,6 +42,7 @@ type LimitBreakTemplateInput = {
   monsterCategory?: unknown;
   baseCostKey?: unknown;
   baseCostParams?: unknown;
+  baseCostText?: unknown;
   successEffectKey?: unknown;
   successEffectParams?: unknown;
   isPersistent?: unknown;
@@ -69,6 +70,7 @@ export type NormalizedLimitBreakTemplate = {
   monsterCategory: string | null;
   baseCostKey: string | null;
   baseCostParams: Prisma.InputJsonValue;
+  baseCostText: string | null;
   successEffectKey: string | null;
   successEffectParams: Prisma.InputJsonValue;
   isPersistent: boolean;
@@ -236,6 +238,7 @@ export function normalizeAndValidateTemplate(
 
   let baseCostKey = cleanString(input.baseCostKey);
   let baseCostParams = parseJsonValue(input.baseCostParams, "Base Cost Params");
+  let baseCostText = cleanString(input.baseCostText);
   const successEffectParams = parseJsonValue(
     input.successEffectParams,
     "Success Effect Params",
@@ -289,6 +292,7 @@ export function normalizeAndValidateTemplate(
     } else {
       baseCostKey = null;
       baseCostParams = {};
+      baseCostText = null;
 
       if (!endCostText) {
         throw new LimitBreakTemplateValidationError(
@@ -303,6 +307,10 @@ export function normalizeAndValidateTemplate(
     endCostKey = null;
     endCostParams = {};
     endCostText = null;
+  }
+
+  if (!isPersistent && !baseCostKey) {
+    baseCostText = null;
   }
 
   let failForwardEnabled = parseBoolean(input.failForwardEnabled, false);
@@ -354,6 +362,7 @@ export function normalizeAndValidateTemplate(
     monsterCategory,
     baseCostKey,
     baseCostParams,
+    baseCostText,
     successEffectKey: cleanString(input.successEffectKey),
     successEffectParams,
     isPersistent,

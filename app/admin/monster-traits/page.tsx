@@ -352,6 +352,9 @@ export default function AdminMonsterTraitsPage() {
 
   return (
     <div className="space-y-6">
+      <a className="text-sm underline" href="/admin">
+        ← Back to Admin Dashboard
+      </a>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
         <div className="md:col-span-1">
           <label className="text-sm">Trait name</label>

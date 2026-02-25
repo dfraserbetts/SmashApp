@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
+import type { AttributePlacement } from "@/lib/summoning/types";
+
+function normalizePlacement(value: unknown): AttributePlacement {
+  if (value === "ATTACK" || value === "DEFENCE" || value === "TRAITS" || value === "GENERAL") {
+    return value;
+  }
+  return "TRAITS";
+}
 
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -54,7 +62,8 @@ export async function GET() {
         descriptorTemplate: true,
         descriptorNotes: true,
         requiresPvKind: true,
-      },
+        placement: true,
+      } as any,
     });
 
     return NextResponse.json({ rows });
@@ -73,7 +82,12 @@ export async function POST(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | { name?: unknown; descriptorTemplate?: unknown; descriptorNotes?: unknown }
+      | {
+          name?: unknown;
+          descriptorTemplate?: unknown;
+          descriptorNotes?: unknown;
+          placement?: unknown;
+        }
       | null;
 
     const name = typeof body?.name === "string" ? body.name.trim() : "";
@@ -94,16 +108,18 @@ export async function POST(req: Request) {
       (body as any)?.requiresPvKind === "PHYSICAL" || (body as any)?.requiresPvKind === "MENTAL"
         ? ((body as any).requiresPvKind as "PHYSICAL" | "MENTAL")
         : null;
+    const placement = normalizePlacement((body as { placement?: unknown } | null)?.placement);
 
     const created = await prisma.armorAttribute.create({
-      data: { name, descriptorTemplate, descriptorNotes, requiresPvKind },
+      data: { name, descriptorTemplate, descriptorNotes, requiresPvKind, placement } as any,
       select: {
         id: true,
         name: true,
         descriptorTemplate: true,
         descriptorNotes: true,
         requiresPvKind: true,
-      },
+        placement: true,
+      } as any,
     });
 
     return NextResponse.json({ row: created }, { status: 201 });
@@ -135,6 +151,7 @@ export async function PATCH(req: Request) {
           descriptorTemplate?: unknown;
           descriptorNotes?: unknown;
           requiresPvKind?: unknown;
+          placement?: unknown;
         }
       | null;
 
@@ -157,6 +174,7 @@ export async function PATCH(req: Request) {
       typeof (body as any)?.descriptorNotes === "string"
         ? String((body as any).descriptorNotes).trim()
         : "";
+    const placement = normalizePlacement((body as { placement?: unknown } | null)?.placement);
 
     if (!Number.isFinite(id)) {
       return NextResponse.json({ error: "id must be a number" }, { status: 400 });
@@ -183,6 +201,9 @@ export async function PATCH(req: Request) {
       const v = (body as any)?.requiresPvKind;
       data.requiresPvKind = v === "PHYSICAL" || v === "MENTAL" ? v : null;
     }
+    if ("placement" in (body ?? {})) {
+      data.placement = placement;
+    }
 
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });
@@ -197,7 +218,8 @@ export async function PATCH(req: Request) {
         descriptorTemplate: true,
         descriptorNotes: true,
         requiresPvKind: true,
-      },
+        placement: true,
+      } as any,
     });
 
     return NextResponse.json({ row: updated });

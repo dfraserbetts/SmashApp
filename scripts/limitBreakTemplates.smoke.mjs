@@ -108,6 +108,7 @@ const persistentEnd = normalizeAndValidateTemplate({
   endCostText: "Lose your next turn",
   baseCostKey: "cost-lockout-until-rest",
   baseCostParams: { turns: 1 },
+  baseCostText: "Should clear on END timing",
   endCostKey: "cost-backlash-wounds",
   endCostParams: { amount: 3 },
 });
@@ -115,6 +116,7 @@ const persistentEnd = normalizeAndValidateTemplate({
 assert.equal(persistentEnd.persistentCostTiming, "END");
 assert.equal(persistentEnd.baseCostKey, null);
 assert.deepEqual(persistentEnd.baseCostParams, {});
+assert.equal(persistentEnd.baseCostText, null);
 assert.equal(persistentEnd.endCostText, "Lose your next turn");
 assert.equal(persistentEnd.endCostKey, "cost-backlash-wounds");
 
@@ -128,6 +130,7 @@ const persistentBegin = normalizeAndValidateTemplate({
   endConditionText: "Ends when summoned creature dies",
   baseCostKey: "cost-lockout-until-rest",
   baseCostParams: { turns: 1 },
+  baseCostText: "Pay {{wounds}} wounds",
   endCostText: "Should clear",
   endCostKey: "cost-backlash-wounds",
   endCostParams: { amount: 5 },
@@ -135,6 +138,7 @@ const persistentBegin = normalizeAndValidateTemplate({
 
 assert.equal(persistentBegin.persistentCostTiming, "BEGIN");
 assert.equal(persistentBegin.baseCostKey, "cost-lockout-until-rest");
+assert.equal(persistentBegin.baseCostText, "Pay {{wounds}} wounds");
 assert.equal(persistentBegin.endCostText, null);
 assert.equal(persistentBegin.endCostKey, null);
 assert.deepEqual(persistentBegin.endCostParams, {});
@@ -148,6 +152,7 @@ const nonPersistentClearsAll = normalizeAndValidateTemplate({
   persistentCostTiming: "BEGIN",
   persistentStateText: "state",
   endConditionText: "end condition",
+  baseCostText: "Should clear when no base cost key",
   endCostText: "end cost text",
   endCostKey: "end-cost-key",
   endCostParams: { x: 1 },
@@ -157,6 +162,7 @@ assert.equal(nonPersistentClearsAll.isPersistent, false);
 assert.equal(nonPersistentClearsAll.persistentCostTiming, null);
 assert.equal(nonPersistentClearsAll.persistentStateText, null);
 assert.equal(nonPersistentClearsAll.endConditionText, null);
+assert.equal(nonPersistentClearsAll.baseCostText, null);
 assert.equal(nonPersistentClearsAll.endCostText, null);
 assert.equal(nonPersistentClearsAll.endCostKey, null);
 assert.deepEqual(nonPersistentClearsAll.endCostParams, {});

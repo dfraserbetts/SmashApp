@@ -30,6 +30,7 @@ import type {
 import { useForgeItems, type ForgeItemSummary } from '../../../lib/forge/useForgeItems';
 import { buildDescriptorResult } from '@/lib/descriptors/descriptorEngine';
 import { renderForgeResult } from '@/lib/descriptors/renderers/forgeRenderer';
+import { interpolateText, safeParseJson } from '@/lib/textInterpolation';
 
 type LoadedItem = {
   id: string;
@@ -62,14 +63,21 @@ type MythicLimitBreakTemplateRow = {
   thresholdPercent: number;
   description: string | null;
   baseCostKey: string | null;
+  baseCostParams: unknown;
+  baseCostText: string | null;
   successEffectKey: string | null;
+  successEffectParams: unknown;
   failForwardEnabled: boolean;
   failForwardEffectKey: string | null;
+  failForwardEffectParams: unknown;
   failForwardCostAKey: string | null;
   failForwardCostBKey: string | null;
   isPersistent: boolean;
+  persistentCostTiming: 'BEGIN' | 'END' | null;
   persistentStateText: string | null;
   endConditionText: string | null;
+  endCostKey: string | null;
+  endCostParams: unknown;
   endCostText: string | null;
 };
 
@@ -4784,7 +4792,7 @@ useEffect(() => {
                 <optgroup label="PUSH">
                   {mythicPushTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
-                      {`PUSH – ${template.name}`}
+                      {`PUSH - ${template.name}`}
                     </option>
                   ))}
                 </optgroup>
@@ -4793,7 +4801,7 @@ useEffect(() => {
                 <optgroup label="BREAK">
                   {mythicBreakTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
-                      {`BREAK – ${template.name}`}
+                      {`BREAK - ${template.name}`}
                     </option>
                   ))}
                 </optgroup>
@@ -4802,7 +4810,7 @@ useEffect(() => {
                 <optgroup label="TRANSCEND">
                   {mythicTranscendTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
-                      {`TRANSCEND – ${template.name}`}
+                      {`TRANSCEND - ${template.name}`}
                     </option>
                   ))}
                 </optgroup>
@@ -4817,23 +4825,91 @@ useEffect(() => {
           </p>
         )}
 
-        {selectedMythicTemplate && (
-          <div className="rounded-md border border-zinc-800 bg-zinc-900/40 p-2 text-xs space-y-1">
-            <div className="font-medium">
-              {selectedMythicTemplate.name} ({selectedMythicTemplate.tier} –{' '}
-              {selectedMythicTemplate.thresholdPercent}%)
-            </div>
-            {selectedMythicTemplate.description && (
-              <div className="text-zinc-300">{selectedMythicTemplate.description}</div>
-            )}
-            <div>Cost: {selectedMythicTemplate.endCostText ?? 'Not specified'}</div>
-            {selectedMythicTemplate.failForwardEnabled && (
-              <div>
-                Fail-forward: Enabled
+        {selectedMythicTemplate && (() => {
+          const baseCostParams = safeParseJson(selectedMythicTemplate.baseCostParams);
+          const successParams = safeParseJson(selectedMythicTemplate.successEffectParams);
+          const endCostParams = safeParseJson(selectedMythicTemplate.endCostParams);
+          const hasEndCostParams =
+            typeof selectedMythicTemplate.endCostParams === 'string'
+              ? selectedMythicTemplate.endCostParams.trim().length > 0
+              : selectedMythicTemplate.endCostParams !== null &&
+                selectedMythicTemplate.endCostParams !== undefined;
+          const endCostInterpolationParams = hasEndCostParams ? endCostParams : successParams;
+
+          const effectText = interpolateText(
+            selectedMythicTemplate.description ?? '',
+            successParams,
+          ).trim();
+          const whileActiveText = interpolateText(
+            selectedMythicTemplate.persistentStateText ?? '',
+            successParams,
+          ).trim();
+          const endsWhenText = interpolateText(
+            selectedMythicTemplate.endConditionText ?? '',
+            successParams,
+          ).trim();
+          const baseCostText = interpolateText(
+            selectedMythicTemplate.baseCostText ?? '',
+            baseCostParams,
+          ).trim();
+          const afterEndsText = interpolateText(
+            selectedMythicTemplate.endCostText ?? '',
+            endCostInterpolationParams,
+          ).trim();
+
+          const showsBaseCost =
+            !selectedMythicTemplate.isPersistent ||
+            selectedMythicTemplate.persistentCostTiming === 'BEGIN';
+          const showCost = showsBaseCost && baseCostText.length > 0;
+          const showAfterItEnds =
+            selectedMythicTemplate.isPersistent &&
+            selectedMythicTemplate.persistentCostTiming === 'END' &&
+            afterEndsText.length > 0;
+
+          return (
+            <div className="rounded-md border border-zinc-800 bg-zinc-900/40 p-2 text-xs space-y-2">
+              <div className="font-medium">
+                {selectedMythicTemplate.name} ({selectedMythicTemplate.tier} -{' '}
+                {selectedMythicTemplate.thresholdPercent}%)
               </div>
-            )}
-          </div>
-        )}
+
+              {effectText.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500">Effect</div>
+                  <div className="text-zinc-300">{effectText}</div>
+                </div>
+              )}
+
+              {whileActiveText.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500">While Active</div>
+                  <div className="text-zinc-300">{whileActiveText}</div>
+                </div>
+              )}
+
+              {endsWhenText.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500">Ends When</div>
+                  <div className="text-zinc-300">{endsWhenText}</div>
+                </div>
+              )}
+
+              {showAfterItEnds && (
+                <div className="space-y-1">
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500">After It Ends</div>
+                  <div className="text-zinc-300">{afterEndsText}</div>
+                </div>
+              )}
+
+              {showCost && (
+                <div className="space-y-1">
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500">Cost</div>
+                  <div className="text-zinc-300">{baseCostText}</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     );
   }
@@ -6514,7 +6590,12 @@ useEffect(() => {
                   !showDefence &&
                   !showGreaterDefence &&
                   !showArmorAttributes &&
+                  !showShieldAttributes &&
                   !showVrp &&
+                  !showCustomWeapon &&
+                  !showCustomArmor &&
+                  !showCustomShield &&
+                  !showCustomItem &&
                   !DEBUG_DESCRIPTORS
                 ) {
                   // Still show the image even if there are no descriptor lines yet.
@@ -6605,6 +6686,7 @@ useEffect(() => {
                       showArmorAttributes ||
                       showShieldAttributes ||
                       showVrp ||
+                      showCustomWeapon ||
                       showCustomArmor ||
                       showCustomShield ||
                       showCustomItem;

@@ -10,6 +10,8 @@ type Props = {
   campaignId: string;
 };
 
+type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
+
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) {
@@ -26,6 +28,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingDetailIds, setLoadingDetailIds] = useState<Record<string, boolean>>({});
+  const [printLayout, setPrintLayout] = useState<PrintLayoutMode>("COMPACT_1P");
 
   const loadedIdsRef = useRef<Set<string>>(new Set());
   const inFlightIdsRef = useRef<Set<string>>(new Set());
@@ -139,8 +142,26 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
       .map((monster) => detailsById[monster.id])
       .filter((monster): monster is MonsterUpsertInput => !!monster);
   }, [detailsById, monsters, selectedIds]);
+  const compactOverflowWarnings = useMemo(() => {
+    if (printLayout !== "COMPACT_1P") return [];
+    return selectedMonsters
+      .map((m) => {
+        const traitCount = Array.isArray(m.traits) ? m.traits.length : 0;
+        const powerCount = Array.isArray(m.powers) ? m.powers.length : 0;
+        const hasMythicItemLb =
+          Boolean((m as any).legendary) &&
+          Boolean((m as any).mainHandItemId || (m as any).offHandItemId || (m as any).smallItemId);
+        const likelyOverflow =
+          powerCount > 6 ||
+          traitCount > 6 ||
+          Boolean((m as any).limitBreakName?.trim()) ||
+          hasMythicItemLb;
+        return likelyOverflow ? `${m.name || "Unnamed Monster"} may overflow in 1-page layout.` : null;
+      })
+      .filter((x): x is string => Boolean(x));
+  }, [printLayout, selectedMonsters]);
 
-  const pages = useMemo(() => chunk(selectedMonsters, 4), [selectedMonsters]);
+  const pages = useMemo(() => chunk(selectedMonsters, 1), [selectedMonsters]);
 
   const onToggle = useCallback(
     (monsterId: string, checked: boolean) => {
@@ -170,9 +191,20 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Print Mode</h2>
-            <p className="text-sm text-zinc-400">Select monsters and print a 2x2 A4 block sheet.</p>
+            <p className="text-sm text-zinc-400">Select monsters and print one monster per A4 page.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-zinc-400">Layout</span>
+              <select
+                value={printLayout}
+                onChange={(e) => setPrintLayout(e.target.value as PrintLayoutMode)}
+                className="rounded border border-zinc-700 bg-zinc-950/40 px-2 py-2 text-sm"
+              >
+                <option value="COMPACT_1P">1 Page - Compact</option>
+                <option value="LEGENDARY_2P">2 Page - Legendary Layout</option>
+              </select>
+            </label>
             <Link
               href={`/campaign/${campaignId}/summoning-circle`}
               className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800"
@@ -191,6 +223,16 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
         </div>
 
         {error && <p className="text-sm text-red-300">{error}</p>}
+        {compactOverflowWarnings.length > 0 && (
+          <div className="rounded border border-amber-700 bg-amber-950/30 p-3 text-sm text-amber-200">
+            <p className="font-medium">Heads up</p>
+            <p className="text-amber-200/90">
+              One or more selected monsters may overflow in{" "}
+              <span className="font-semibold">1 Page - Compact</span>. Consider switching to{" "}
+              <span className="font-semibold">2 Page - Legendary Layout</span>.
+            </p>
+          </div>
+        )}
 
         <div className="rounded border border-zinc-800 bg-zinc-950/60 p-3">
           <p className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Campaign Monsters</p>
@@ -228,39 +270,89 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
         </div>
       </section>
 
-      <section className="space-y-6">
+      <section className="space-y-6 sc-print">
         {selectedIds.length === 0 && (
           <div className="sc-print-controls rounded border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">
             Select at least one monster to preview printable pages.
           </div>
         )}
 
-        {pages.map((page, pageIndex) => (
-          <article key={pageIndex} className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl">
-            <div className="sc-print-grid grid grid-cols-2 grid-rows-2 gap-3 h-full">
-              {Array.from({ length: 4 }).map((_, slotIndex) => {
-                const monster = page[slotIndex];
-                return (
-                  <div key={slotIndex} className="sc-print-card-wrap min-h-0">
-                    {monster ? (
-                      <MonsterBlockCard
-                        monster={monster}
-                        weaponById={weaponById}
-                        className="h-full"
-                      />
-                    ) : (
-                      <div className="h-full rounded border border-dashed border-zinc-300 bg-zinc-50" />
-                    )}
+        <div className="sc-print-preview">
+          {selectedMonsters.map((monster, idx) => {
+            if (printLayout === "COMPACT_1P") {
+              return (
+                <article
+                  key={`${monster.name ?? "monster"}-${idx}`}
+                  className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl"
+                >
+                <div className="sc-print-card-wrap">
+                  <MonsterBlockCard
+                    monster={monster}
+                    weaponById={weaponById}
+                    isPrint
+                    printLayout={printLayout}
+                    printPage="COMPACT"
+                  />
+                </div>
+              </article>
+            );
+          }
+
+            const basePage = idx * 2 + 1;
+            return (
+              <div key={`${monster.name ?? "monster"}-${idx}`} className="space-y-6">
+                <article className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl">
+                  <div className="sc-print-card-wrap">
+                    <MonsterBlockCard
+                      monster={monster}
+                      weaponById={weaponById}
+                      isPrint
+                      printLayout={printLayout}
+                      printPage="PAGE1_MAIN"
+                    />
                   </div>
-                );
-              })}
-            </div>
-            <p className="sc-print-controls mt-2 text-center text-xs text-zinc-500">A4 Page {pageIndex + 1}</p>
-          </article>
-        ))}
+                </article>
+
+                <article className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl">
+                  <div className="sc-print-card-wrap">
+                    <MonsterBlockCard
+                      monster={monster}
+                      weaponById={weaponById}
+                      isPrint
+                      printLayout={printLayout}
+                      printPage="PAGE2_POWER"
+                    />
+                  </div>
+                </article>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       <style jsx global>{`
+        @media screen {
+          /* A4 canvas for on-screen print preview */
+          .sc-print-preview .sc-print-page {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            box-sizing: border-box;
+            background: white;
+          }
+          .sc-print-preview {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            padding: 12px;
+          }
+          .sc-print-preview .sc-print-page {
+            transform-origin: top center;
+          }
+        }
+
         .sc-print-page {
           width: 210mm;
           min-height: 297mm;
@@ -288,24 +380,30 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
           }
 
           .sc-print-page {
-            width: auto !important;
-            min-height: auto !important;
-            padding: 0 !important;
-            margin: 0 auto !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: flex-start !important;
+            width: 100% !important;
+            min-height: 297mm !important;
+            padding: 0mm !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
             border: 0 !important;
             box-shadow: none !important;
-            background: transparent !important;
+            background: #ffffff !important;
             break-after: page;
             page-break-after: always;
+          }
+
+          .sc-print-page .sc-monster-card {
+            width: 100% !important;
+            max-width: 190mm !important;
+            margin: 0 auto !important;
           }
 
           .sc-print-page:last-child {
             break-after: auto;
             page-break-after: auto;
-          }
-
-          .sc-print-grid {
-            gap: 5mm !important;
           }
 
           .sc-print-card-wrap {

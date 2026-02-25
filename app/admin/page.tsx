@@ -16,11 +16,6 @@ export default function AdminHomePage() {
             </a>
           </li>
           <li>
-            <a className="underline" href="/admin/weapon-attributes">
-              Weapon Attributes (legacy page)
-            </a>
-          </li>
-          <li>
             <a className="underline" href="/admin/monster-traits">
               Monster Traits
             </a>
@@ -30,7 +25,6 @@ export default function AdminHomePage() {
               Limit Break Templates
             </a>
           </li>
-          <li>Descriptor Rules editor (draft/publish)</li>
         </ul>
       </div>
     </div>

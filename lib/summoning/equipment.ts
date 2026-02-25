@@ -1,4 +1,4 @@
-import type { MonsterNaturalAttackConfig } from "@/lib/summoning/types";
+import type { AttributePlacement, MonsterNaturalAttackConfig } from "@/lib/summoning/types";
 
 export type EquipmentItemType = "WEAPON" | "SHIELD" | "ARMOR" | "ITEM" | "CONSUMABLE";
 export type EquipmentItemSize = "SMALL" | "ONE_HANDED" | "TWO_HANDED";
@@ -13,6 +13,10 @@ export type SummoningEquipmentItem = {
   ppv: number | null;
   mpv: number | null;
   globalAttributeModifiers?: Array<{ attribute?: string; amount?: number }> | null;
+  attributeLines?: Array<{ text: string; placement: AttributePlacement }> | null;
+  itemAttributeLines?: Array<{ text: string; placement: AttributePlacement }> | null;
+  customItemAttributeLines?: Array<{ text: string; placement: AttributePlacement }> | null;
+  allAttributeLines?: Array<{ text: string; placement: AttributePlacement }> | null;
   melee?: MonsterNaturalAttackConfig["melee"];
   ranged?: MonsterNaturalAttackConfig["ranged"];
   aoe?: MonsterNaturalAttackConfig["aoe"];

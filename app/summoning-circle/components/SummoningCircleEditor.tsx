@@ -1,12 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type PointerEvent as ReactPointerEvent,
+  type SetStateAction,
+} from "react";
 import type {
+  CoreAttribute,
   DiceSize,
+  LimitBreakTier,
   MonsterAttack,
   MonsterTraitDefinitionSummary,
   MonsterNaturalAttackConfig,
   MonsterPower,
+  MonsterPowerIntentionApplyTo,
   MonsterPowerIntentionType,
   MonsterSource,
   MonsterSummary,
@@ -30,8 +42,21 @@ import {
 } from "@/lib/summoning/equipment";
 import { renderAttackActionLines } from "@/lib/summoning/render";
 import { MonsterBlockCard, type WeaponProjection } from "@/app/summoning-circle/components/MonsterBlockCard";
+import {
+  getAttributeLimitBreakCeiling,
+  getLimitBreakRequiredSuccesses,
+  getLimitBreakThresholdPercent,
+} from "@/lib/limitBreakThreshold";
+import {
+  computeMonsterOutcomes,
+  type MonsterCalculatorArchetype,
+  type WeaponAttackSource,
+} from "@/lib/calculators/monsterOutcomeCalculator";
+import { calculatorConfig } from "@/lib/calculators/calculatorConfig";
+import { MonsterCalculatorPanel } from "@/app/summoning-circle/components/MonsterCalculatorPanel";
 
 type Props = { campaignId: string };
+type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
 
 type EditableMonster = MonsterUpsertInput & {
   id?: string;
@@ -42,6 +67,19 @@ type EditableMonster = MonsterUpsertInput & {
 type Picklists = {
   damageTypes: Array<{ id: number; name: string; attackMode?: "PHYSICAL" | "MENTAL" }>;
   attackEffects: Array<{ id: number; name: string }>;
+};
+
+type NaturalAttackDamageField = "meleeDamageTypeIds" | "rangedDamageTypeIds" | "aoeDamageTypeIds";
+type NaturalAttackEffectField = "attackEffectMeleeIds" | "attackEffectRangedIds" | "attackEffectAoEIds";
+const NATURAL_DAMAGE_FIELD_TO_RANGE: Record<NaturalAttackDamageField, "melee" | "ranged" | "aoe"> = {
+  meleeDamageTypeIds: "melee",
+  rangedDamageTypeIds: "ranged",
+  aoeDamageTypeIds: "aoe",
+};
+const NATURAL_EFFECT_FIELD_TO_RANGE: Record<NaturalAttackEffectField, "melee" | "ranged" | "aoe"> = {
+  attackEffectMeleeIds: "melee",
+  attackEffectRangedIds: "ranged",
+  attackEffectAoEIds: "aoe",
 };
 
 type TagSuggestion = {
@@ -75,7 +113,26 @@ const MONSTER_TIER_LABELS: Record<MonsterTier, string> = {
   ELITE: "Elite",
   BOSS: "Boss",
 };
+const LIMIT_BREAK_TIER_OPTIONS: LimitBreakTier[] = ["PUSH", "BREAK", "TRANSCEND"];
+const CORE_ATTRIBUTE_OPTIONS: CoreAttribute[] = [
+  "ATTACK",
+  "DEFENCE",
+  "FORTITUDE",
+  "INTELLECT",
+  "SUPPORT",
+  "BRAVERY",
+];
+const CORE_ATTRIBUTE_LABELS: Record<CoreAttribute, string> = {
+  ATTACK: "Attack",
+  DEFENCE: "Defence",
+  FORTITUDE: "Fortitude",
+  INTELLECT: "Intellect",
+  SUPPORT: "Support",
+  BRAVERY: "Bravery",
+};
 const MAX_RECENT_PICKER_ITEMS = 5;
+const DEFAULT_IMAGE_POS_X = 50;
+const DEFAULT_IMAGE_POS_Y = 35;
 
 const DICE: DiceSize[] = ["D4", "D6", "D8", "D10", "D12"];
 const INTENTIONS: MonsterPowerIntentionType[] = [
@@ -102,12 +159,29 @@ type PowerRangeState = {
   aoeCenterRangeFeet: number;
   aoeCount: number;
   aoeShape: PowerRangeAoeShape;
+  aoeSphereRadiusFeet: number;
+  aoeConeLengthFeet: number;
+  aoeLineWidthFeet: number;
+  aoeLineLengthFeet: number;
+};
+type ImageDragState = {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  startPosX: number;
+  startPosY: number;
+  frameWidth: number;
+  frameHeight: number;
 };
 
 const POWER_RANGE_CATEGORIES: PowerRangeCategory[] = ["MELEE", "RANGED", "AOE"];
 const POWER_RANGE_TARGET_OPTIONS = [1, 2, 3, 4, 5] as const;
 const POWER_RANGE_RANGED_DISTANCE_OPTIONS = [30, 60, 120, 200] as const;
 const POWER_RANGE_AOE_CENTER_RANGE_OPTIONS = [0, 30, 60, 120, 200] as const;
+const POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS = [10, 20, 30] as const;
+const POWER_RANGE_AOE_CONE_LENGTH_OPTIONS = [15, 30, 60] as const;
+const POWER_RANGE_AOE_LINE_WIDTH_OPTIONS = [5, 10, 15, 20] as const;
+const POWER_RANGE_AOE_LINE_LENGTH_OPTIONS = [30, 60, 90, 120] as const;
 const POWER_RANGE_AOE_SHAPES: PowerRangeAoeShape[] = ["SPHERE", "CONE", "LINE"];
 const ATTACK_MODES = ["PHYSICAL", "MENTAL"] as const;
 
@@ -176,25 +250,77 @@ function getDetailsNullableNumber(details: Record<string, unknown>, key: string)
   return null;
 }
 
+function getDetailsStatTarget(details: Record<string, unknown>): string {
+  const value = details.statTarget ?? details.statChoice;
+  return typeof value === "string" ? value : "";
+}
+
+function getDetailsApplyTo(details: Record<string, unknown>): MonsterPowerIntentionApplyTo {
+  return details.applyTo === "SELF" ? "SELF" : "PRIMARY_TARGET";
+}
+
+function defaultDetailsForIntentionType(type: MonsterPowerIntentionType): Record<string, unknown> {
+  switch (type) {
+    case "ATTACK":
+      return { applyTo: "PRIMARY_TARGET", attackMode: "PHYSICAL", damageTypes: [] };
+    case "DEFENCE":
+      return { applyTo: "PRIMARY_TARGET", attackMode: "PHYSICAL" };
+    case "CONTROL":
+      return { applyTo: "PRIMARY_TARGET", controlMode: "Force move" };
+    case "CLEANSE":
+      return { applyTo: "PRIMARY_TARGET", cleanseEffectType: "Active Power" };
+    case "MOVEMENT":
+      return { applyTo: "PRIMARY_TARGET", movementMode: "Force Push" };
+    case "AUGMENT":
+    case "DEBUFF":
+      return { applyTo: "PRIMARY_TARGET", statTarget: "Attack" };
+    case "HEALING":
+      return { applyTo: "PRIMARY_TARGET", healingMode: "PHYSICAL" };
+    case "SUMMON":
+    case "TRANSFORMATION":
+      return { applyTo: "PRIMARY_TARGET" };
+    default:
+      return { applyTo: "PRIMARY_TARGET" };
+  }
+}
+
 function deriveDefenceCheckLabel(
   intentionType: MonsterPowerIntentionType,
   details: Record<string, unknown>,
 ): string | null {
-  // Attacks use DEFEND, effects use RESIST, others none.
+  const normalizeCoreStat = (statTarget: string): string | null => {
+    const normalized = statTarget.trim().toLowerCase();
+    if (normalized === "attack") return "Attack";
+    if (normalized === "defence") return "Defence";
+    if (normalized === "fortitude") return "Fortitude";
+    if (normalized === "intellect") return "Intellect";
+    if (normalized === "support") return "Support";
+    if (normalized === "bravery") return "Bravery";
+    return null;
+  };
+
   if (intentionType === "ATTACK") {
     const mode = String(details.attackMode ?? "PHYSICAL").toUpperCase();
-    return mode === "MENTAL" ? "Defend (Mental)" : "Defend (Physical)";
+    return mode === "MENTAL" ? "Mental Defence" : "Physical Defence";
   }
 
   if (intentionType === "CONTROL") return "Resist (GD Choice)";
-  if (intentionType === "MOVEMENT") return "Resist Fortitude";
+  if (intentionType === "MOVEMENT") return "Resist (GD Choice)";
 
   if (intentionType === "DEBUFF") {
-    const statTarget = String(details.statTarget ?? "").trim();
-    return `Resist ${statTarget || "?"}`;
+    const statTarget = normalizeCoreStat(getDetailsStatTarget(details));
+    return statTarget ? `${statTarget} Resist` : "Resist (GD Choice)";
   }
 
-  // No defence check for HEALING, CLEANSE, AUGMENT, DEFENCE, SUMMON, TRANSFORMATION, etc.
+  if (intentionType === "CLEANSE") {
+    const cleanseEffectType = getDetailsString(details, "cleanseEffectType");
+    if (cleanseEffectType === "Effect over time" || cleanseEffectType === "Damage over time") {
+      return "Resist Fortitude";
+    }
+    return "Resist (GD Choice)";
+  }
+
+  // No defence check for HEALING, AUGMENT, DEFENCE, SUMMON, TRANSFORMATION, etc.
   return null;
 }
 
@@ -224,6 +350,30 @@ function toPowerRangeState(power: MonsterPower): PowerRangeState {
       : typeof rangeExtra.count === "string"
         ? Number(rangeExtra.count)
         : null;
+  const aoeSphereRadiusRaw =
+    typeof rangeExtra.sphereRadiusFeet === "number"
+      ? rangeExtra.sphereRadiusFeet
+      : typeof rangeExtra.sphereRadiusFeet === "string"
+        ? Number(rangeExtra.sphereRadiusFeet)
+        : null;
+  const aoeConeLengthRaw =
+    typeof rangeExtra.coneLengthFeet === "number"
+      ? rangeExtra.coneLengthFeet
+      : typeof rangeExtra.coneLengthFeet === "string"
+        ? Number(rangeExtra.coneLengthFeet)
+        : null;
+  const aoeLineWidthRaw =
+    typeof rangeExtra.lineWidthFeet === "number"
+      ? rangeExtra.lineWidthFeet
+      : typeof rangeExtra.lineWidthFeet === "string"
+        ? Number(rangeExtra.lineWidthFeet)
+        : null;
+  const aoeLineLengthRaw =
+    typeof rangeExtra.lineLengthFeet === "number"
+      ? rangeExtra.lineLengthFeet
+      : typeof rangeExtra.lineLengthFeet === "string"
+        ? Number(rangeExtra.lineLengthFeet)
+        : null;
   const aoeShapeRaw = String(rangeExtra.shape ?? "SPHERE").toUpperCase();
   const aoeShape = POWER_RANGE_AOE_SHAPES.includes(aoeShapeRaw as PowerRangeAoeShape)
     ? (aoeShapeRaw as PowerRangeAoeShape)
@@ -247,6 +397,26 @@ function toPowerRangeState(power: MonsterPower): PowerRangeState {
       1,
     ),
     aoeShape,
+    aoeSphereRadiusFeet: clampToOptions(
+      Number.isFinite(aoeSphereRadiusRaw as number) ? Number(aoeSphereRadiusRaw) : null,
+      POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS,
+      10,
+    ),
+    aoeConeLengthFeet: clampToOptions(
+      Number.isFinite(aoeConeLengthRaw as number) ? Number(aoeConeLengthRaw) : null,
+      POWER_RANGE_AOE_CONE_LENGTH_OPTIONS,
+      15,
+    ),
+    aoeLineWidthFeet: clampToOptions(
+      Number.isFinite(aoeLineWidthRaw as number) ? Number(aoeLineWidthRaw) : null,
+      POWER_RANGE_AOE_LINE_WIDTH_OPTIONS,
+      5,
+    ),
+    aoeLineLengthFeet: clampToOptions(
+      Number.isFinite(aoeLineLengthRaw as number) ? Number(aoeLineLengthRaw) : null,
+      POWER_RANGE_AOE_LINE_LENGTH_OPTIONS,
+      30,
+    ),
   };
 }
 
@@ -283,7 +453,13 @@ function setPowerCanonicalIntentionDetails(
       const intentions =
         power.intentions.length > 0
           ? [...power.intentions]
-          : [{ sortOrder: 0, type: "ATTACK" as MonsterPowerIntentionType, detailsJson: {} }];
+          : [
+              {
+                sortOrder: 0,
+                type: "ATTACK" as MonsterPowerIntentionType,
+                detailsJson: defaultDetailsForIntentionType("ATTACK"),
+              },
+            ];
       const first = intentions[0];
       const current = (first.detailsJson ?? {}) as Record<string, unknown>;
       intentions[0] = { ...first, detailsJson: { ...current, ...patch } };
@@ -296,12 +472,83 @@ function setPowerCanonicalIntentionDetails(
   });
 }
 
+function clearLimitBreak2(
+  setEditor: Dispatch<SetStateAction<EditableMonster | null>>,
+) {
+  setEditor((prev) => {
+    if (!prev) return prev;
+    return {
+      ...prev,
+      limitBreak2Name: null,
+      limitBreak2Tier: null,
+      limitBreak2TriggerText: null,
+      limitBreak2Attribute: null,
+      limitBreak2ThresholdSuccesses: null,
+      limitBreak2CostText: null,
+      limitBreak2EffectText: null,
+    };
+  });
+}
+
 function toggleStringInArray(arr: string[], value: string): string[] {
   const key = value.toLowerCase();
   const exists = arr.some((entry) => String(entry).toLowerCase() === key);
   return exists
     ? arr.filter((entry) => String(entry).toLowerCase() !== key)
     : [...arr, value];
+}
+
+const DAMAGE_TYPE_TO_EFFECT_NAMES: Record<string, string[]> = {
+  blunt: ["Impact"],
+  slashing: ["Laceration"],
+  fire: ["Immolate"],
+  holy: ["Smite"],
+  ice: ["Freeze"],
+  lightning: ["Surge"],
+  necrotic: ["Disease"],
+  poison: ["Poisoned"],
+  psychic: ["Overwhelmed"],
+  piercing: ["Penetrate"],
+  fear: ["Horrified"],
+};
+
+function getDamageTypeMode(dt: unknown): "PHYSICAL" | "MENTAL" {
+  const raw = (dt as { attackMode?: unknown; damageMode?: unknown })?.attackMode ??
+    (dt as { attackMode?: unknown; damageMode?: unknown })?.damageMode;
+  const normalized = String(raw ?? "").trim().toUpperCase();
+  return normalized === "MENTAL" ? "MENTAL" : "PHYSICAL";
+}
+
+function normaliseName(name: string | null | undefined): string {
+  return (name ?? "").trim().toLowerCase();
+}
+
+function filterAttackEffectsForDamageTypes(
+  allEffects: Picklists["attackEffects"],
+  allDamageTypes: Picklists["damageTypes"],
+  selectedDamageTypeIds: number[],
+): Picklists["attackEffects"] {
+  if (!selectedDamageTypeIds.length) return [];
+
+  const damageTypeNameById = new Map<number, string>();
+  for (const dt of allDamageTypes) {
+    damageTypeNameById.set(dt.id, dt.name);
+  }
+
+  const allowedEffectNames = new Set<string>();
+  for (const dtId of selectedDamageTypeIds) {
+    const dtName = damageTypeNameById.get(dtId);
+    if (!dtName) continue;
+    const key = normaliseName(dtName);
+    const effectNames = DAMAGE_TYPE_TO_EFFECT_NAMES[key] ?? [];
+    for (const effectName of effectNames) {
+      allowedEffectNames.add(normaliseName(effectName));
+    }
+  }
+
+  if (!allowedEffectNames.size) return [];
+
+  return allEffects.filter((fx) => allowedEffectNames.has(normaliseName(fx.name)));
 }
 
 const ATTR_ROWS = [
@@ -447,6 +694,8 @@ function defaultMonster(): EditableMonster {
   return {
     name: "New Monster",
     imageUrl: null,
+    imagePosX: DEFAULT_IMAGE_POS_X,
+    imagePosY: DEFAULT_IMAGE_POS_Y,
     level: 1,
     tier: "MINION",
     legendary: false,
@@ -489,6 +738,20 @@ function defaultMonster(): EditableMonster {
     feetItemId: null,
     tags: [],
     traits: [],
+    limitBreakName: null,
+    limitBreakTier: null,
+    limitBreakTriggerText: null,
+    limitBreakAttribute: null,
+    limitBreakThresholdSuccesses: null,
+    limitBreakCostText: null,
+    limitBreakEffectText: null,
+    limitBreak2Name: null,
+    limitBreak2Tier: null,
+    limitBreak2TriggerText: null,
+    limitBreak2Attribute: null,
+    limitBreak2ThresholdSuccesses: null,
+    limitBreak2CostText: null,
+    limitBreak2EffectText: null,
     attacks: [defaultNaturalAttackEntry(0)],
     naturalAttack: { attackName: "Natural Weapon", attackConfig: defaultNaturalConfig() },
     powers: [],
@@ -627,6 +890,8 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
       typeof raw.imageUrl === "string" && raw.imageUrl.trim().length > 0
         ? raw.imageUrl.trim()
         : null,
+    imagePosX: clampImagePosition(raw.imagePosX, DEFAULT_IMAGE_POS_X),
+    imagePosY: clampImagePosition(raw.imagePosY, DEFAULT_IMAGE_POS_Y),
     mainHandItemId,
     offHandItemId:
       typeof raw.offHandItemId === "string" && raw.offHandItemId.trim().length > 0
@@ -655,6 +920,90 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
     feetItemId:
       typeof raw.feetItemId === "string" && raw.feetItemId.trim().length > 0
         ? raw.feetItemId.trim()
+        : null,
+    limitBreakName:
+      typeof raw.limitBreakName === "string" && raw.limitBreakName.trim().length > 0
+        ? raw.limitBreakName.trim()
+        : null,
+    limitBreakTier:
+      raw.limitBreakTier === "PUSH" ||
+      raw.limitBreakTier === "BREAK" ||
+      raw.limitBreakTier === "TRANSCEND"
+        ? (raw.limitBreakTier as LimitBreakTier)
+        : null,
+    limitBreakTriggerText:
+      typeof raw.limitBreakTriggerText === "string" && raw.limitBreakTriggerText.trim().length > 0
+        ? raw.limitBreakTriggerText
+        : null,
+    limitBreakAttribute:
+      raw.limitBreakAttribute === "ATTACK" ||
+      raw.limitBreakAttribute === "DEFENCE" ||
+      raw.limitBreakAttribute === "FORTITUDE" ||
+      raw.limitBreakAttribute === "INTELLECT" ||
+      raw.limitBreakAttribute === "SUPPORT" ||
+      raw.limitBreakAttribute === "BRAVERY"
+        ? (raw.limitBreakAttribute as CoreAttribute)
+        : null,
+    limitBreakThresholdSuccesses: (() => {
+      if (
+        raw.limitBreakThresholdSuccesses === null ||
+        raw.limitBreakThresholdSuccesses === undefined
+      ) {
+        return null;
+      }
+      const parsed = Number(raw.limitBreakThresholdSuccesses);
+      if (!Number.isFinite(parsed)) return null;
+      return Math.max(1, Math.trunc(parsed));
+    })(),
+    limitBreakCostText:
+      typeof raw.limitBreakCostText === "string" && raw.limitBreakCostText.trim().length > 0
+        ? raw.limitBreakCostText
+        : null,
+    limitBreakEffectText:
+      typeof raw.limitBreakEffectText === "string" && raw.limitBreakEffectText.trim().length > 0
+        ? raw.limitBreakEffectText
+        : null,
+    limitBreak2Name:
+      typeof raw.limitBreak2Name === "string" && raw.limitBreak2Name.trim().length > 0
+        ? raw.limitBreak2Name.trim()
+        : null,
+    limitBreak2Tier:
+      raw.limitBreak2Tier === "PUSH" ||
+      raw.limitBreak2Tier === "BREAK" ||
+      raw.limitBreak2Tier === "TRANSCEND"
+        ? (raw.limitBreak2Tier as LimitBreakTier)
+        : null,
+    limitBreak2TriggerText:
+      typeof raw.limitBreak2TriggerText === "string" && raw.limitBreak2TriggerText.trim().length > 0
+        ? raw.limitBreak2TriggerText.trim()
+        : null,
+    limitBreak2Attribute:
+      raw.limitBreak2Attribute === "ATTACK" ||
+      raw.limitBreak2Attribute === "DEFENCE" ||
+      raw.limitBreak2Attribute === "FORTITUDE" ||
+      raw.limitBreak2Attribute === "INTELLECT" ||
+      raw.limitBreak2Attribute === "SUPPORT" ||
+      raw.limitBreak2Attribute === "BRAVERY"
+        ? (raw.limitBreak2Attribute as CoreAttribute)
+        : null,
+    limitBreak2ThresholdSuccesses: (() => {
+      if (
+        raw.limitBreak2ThresholdSuccesses === null ||
+        raw.limitBreak2ThresholdSuccesses === undefined
+      ) {
+        return null;
+      }
+      const parsed = Number(raw.limitBreak2ThresholdSuccesses);
+      if (!Number.isFinite(parsed)) return null;
+      return Math.max(1, Math.trunc(parsed));
+    })(),
+    limitBreak2CostText:
+      typeof raw.limitBreak2CostText === "string" && raw.limitBreak2CostText.trim().length > 0
+        ? raw.limitBreak2CostText.trim()
+        : null,
+    limitBreak2EffectText:
+      typeof raw.limitBreak2EffectText === "string" && raw.limitBreak2EffectText.trim().length > 0
+        ? raw.limitBreak2EffectText.trim()
         : null,
     tags,
     traits,
@@ -717,7 +1066,13 @@ function defaultPower(): MonsterPower {
     cooldownTurns: 1,
     cooldownReduction: 0,
     responseRequired: false,
-    intentions: [{ sortOrder: 0, type: "ATTACK", detailsJson: {} }],
+    intentions: [
+      {
+        sortOrder: 0,
+        type: "ATTACK",
+        detailsJson: defaultDetailsForIntentionType("ATTACK"),
+      },
+    ],
   };
 }
 
@@ -817,6 +1172,24 @@ function asNullableText(value: string | null | undefined): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function asNullableDraftText(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  return value.length > 0 ? value : null;
+}
+
+function clampImagePosition(value: unknown, fallback: number): number {
+  const parsed =
+    typeof value === "number" && Number.isFinite(value)
+      ? value
+      : typeof value === "string" && value.trim().length > 0
+        ? Number(value)
+        : Number.NaN;
+  if (!Number.isFinite(parsed)) return fallback;
+  if (parsed < 0) return 0;
+  if (parsed > 100) return 100;
+  return parsed;
+}
+
 function isHttpUrl(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const normalized = value.trim();
@@ -827,20 +1200,6 @@ function isHttpUrl(value: unknown): value is string {
   } catch {
     return false;
   }
-}
-
-function damageTypesFromCsv(
-  value: string,
-  picklists: Picklists,
-): Array<{ name: string; mode: "PHYSICAL" | "MENTAL" }> {
-  const names = listFromCsv(value);
-  return names.map((name) => {
-    const match = picklists.damageTypes.find((row) => row.name.toLowerCase() === name.toLowerCase());
-    return {
-      name,
-      mode: match?.attackMode ?? "PHYSICAL",
-    };
-  });
 }
 
 function getWeaponSourceAttackLines(
@@ -907,8 +1266,58 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [equipmentCapHint, setEquipmentCapHint] = useState<string | null>(null);
+  const [previewPrintLayout, setPreviewPrintLayout] = useState<PrintLayoutMode>("COMPACT_1P");
+  const [calculatorArchetype, setCalculatorArchetype] =
+    useState<MonsterCalculatorArchetype>("BALANCED");
   const [mobileView, setMobileView] = useState<"editor" | "preview">("editor");
   const [monsterPickerOpen, setMonsterPickerOpen] = useState(false);
+  const [collapsedPowerIds, setCollapsedPowerIds] = useState<Record<string, boolean>>({});
+  const [collapsedNaturalAttacks, setCollapsedNaturalAttacks] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [collapsedLimitBreaks, setCollapsedLimitBreaks] = useState<Record<"LB1" | "LB2", boolean>>({
+    LB1: true,
+    LB2: true,
+  });
+  const [equippedGearCollapsed, setEquippedGearCollapsed] = useState(false);
+
+  const togglePowerCollapsed = useCallback((powerId: string) => {
+    setCollapsedPowerIds((prev) => {
+      if (prev[powerId]) {
+        const next = { ...prev };
+        delete next[powerId];
+        return next;
+      }
+      return { ...prev, [powerId]: true };
+    });
+  }, []);
+  const getNaturalAttackCollapseKey = useCallback(
+    (attack: MonsterAttack, attackIndex: number) => {
+      const candidate = (attack as { id?: unknown }).id;
+      if (typeof candidate === "string" && candidate.trim().length > 0) return candidate;
+      return String(attackIndex);
+    },
+    [],
+  );
+  const toggleNaturalAttackCollapsed = useCallback((key: string) => {
+    setCollapsedNaturalAttacks((prev) => {
+      if (prev[key]) {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return { ...prev, [key]: true };
+    });
+  }, []);
+  const getPowerCollapseKey = useCallback((power: MonsterPower, powerIndex: number) => {
+    const candidate = (power as { id?: unknown }).id;
+    if (typeof candidate === "string" && candidate.trim().length > 0) return candidate;
+    return String(powerIndex);
+  }, []);
+  const toggleLimitBreakCollapsed = useCallback((key: "LB1" | "LB2") => {
+    setCollapsedLimitBreaks((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
   const [monsterPickerQuery, setMonsterPickerQuery] = useState("");
   const [monsterFiltersOpen, setMonsterFiltersOpen] = useState(false);
   const [monsterLevelSelected, setMonsterLevelSelected] = useState<number[]>([]);
@@ -916,10 +1325,18 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   const [monsterExcludeLegendary, setMonsterExcludeLegendary] = useState(false);
   const [recentMonsterIds, setRecentMonsterIds] = useState<string[]>([]);
   const hasDraftRef = useRef(false);
+  const collapseSeedKeyRef = useRef<string | null>(null);
   const monsterPickerRef = useRef<HTMLDivElement | null>(null);
   const monsterFiltersRef = useRef<HTMLDivElement | null>(null);
+  const imageCropFrameRef = useRef<HTMLDivElement | null>(null);
+  const imageDragStateRef = useRef<ImageDragState | null>(null);
+  const [imageRepositionMode, setImageRepositionMode] = useState(false);
+  const [imageDragging, setImageDragging] = useState(false);
 
   const readOnly = !!editor && (editor.source === "CORE" || editor.isReadOnly);
+  const editorImagePosX = clampImagePosition(editor?.imagePosX, DEFAULT_IMAGE_POS_X);
+  const editorImagePosY = clampImagePosition(editor?.imagePosY, DEFAULT_IMAGE_POS_Y);
+  const editorHasValidImageUrl = isHttpUrl(editor?.imageUrl);
   const resilienceValues = useMemo(
     () =>
       editor
@@ -941,6 +1358,97 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         : 1,
     [editor?.defenceDie, editor?.fortitudeDie],
   );
+  const customLimitBreakAttributeValue = useMemo(() => {
+    if (!editor?.limitBreakAttribute) return null;
+    switch (editor.limitBreakAttribute) {
+      case "ATTACK":
+        return getAttributeNumericValue(editor.attackDie);
+      case "DEFENCE":
+        return getAttributeNumericValue(editor.defenceDie);
+      case "FORTITUDE":
+        return getAttributeNumericValue(editor.fortitudeDie);
+      case "INTELLECT":
+        return getAttributeNumericValue(editor.intellectDie);
+      case "SUPPORT":
+        return getAttributeNumericValue(editor.supportDie);
+      case "BRAVERY":
+        return getAttributeNumericValue(editor.braveryDie);
+      default:
+        return null;
+    }
+  }, [
+    editor?.attackDie,
+    editor?.braveryDie,
+    editor?.defenceDie,
+    editor?.fortitudeDie,
+    editor?.intellectDie,
+    editor?.limitBreakAttribute,
+    editor?.supportDie,
+  ]);
+  const customLimitBreakThresholdRequired = useMemo(() => {
+    if (!editor?.limitBreakTier || customLimitBreakAttributeValue === null) return null;
+    const thresholdPercent = getLimitBreakThresholdPercent(editor.limitBreakTier);
+    if (thresholdPercent === null) return null;
+    return getLimitBreakRequiredSuccesses(
+      getAttributeLimitBreakCeiling(customLimitBreakAttributeValue),
+      thresholdPercent,
+    );
+  }, [customLimitBreakAttributeValue, editor?.limitBreakTier]);
+  const customLimitBreak2AttributeValue = useMemo(() => {
+    if (!editor?.limitBreak2Attribute) return null;
+    switch (editor.limitBreak2Attribute) {
+      case "ATTACK":
+        return getAttributeNumericValue(editor.attackDie);
+      case "DEFENCE":
+        return getAttributeNumericValue(editor.defenceDie);
+      case "FORTITUDE":
+        return getAttributeNumericValue(editor.fortitudeDie);
+      case "INTELLECT":
+        return getAttributeNumericValue(editor.intellectDie);
+      case "SUPPORT":
+        return getAttributeNumericValue(editor.supportDie);
+      case "BRAVERY":
+        return getAttributeNumericValue(editor.braveryDie);
+      default:
+        return null;
+    }
+  }, [
+    editor?.attackDie,
+    editor?.braveryDie,
+    editor?.defenceDie,
+    editor?.fortitudeDie,
+    editor?.intellectDie,
+    editor?.limitBreak2Attribute,
+    editor?.supportDie,
+  ]);
+  const customLimitBreak2ThresholdRequired = useMemo(() => {
+    if (!editor?.limitBreak2Tier || customLimitBreak2AttributeValue === null) return null;
+    const thresholdPercent = getLimitBreakThresholdPercent(editor.limitBreak2Tier);
+    if (thresholdPercent === null) return null;
+    return getLimitBreakRequiredSuccesses(
+      getAttributeLimitBreakCeiling(customLimitBreak2AttributeValue),
+      thresholdPercent,
+    );
+  }, [customLimitBreak2AttributeValue, editor?.limitBreak2Tier]);
+  const hasLimitBreak1 = Boolean(
+    editor?.limitBreakName ||
+      editor?.limitBreakTier ||
+      editor?.limitBreakTriggerText ||
+      editor?.limitBreakCostText ||
+      editor?.limitBreakEffectText ||
+      editor?.limitBreakAttribute ||
+      editor?.limitBreakThresholdSuccesses,
+  );
+  const hasLimitBreak2 = Boolean(
+    editor?.limitBreak2Name ||
+      editor?.limitBreak2Tier ||
+      editor?.limitBreak2TriggerText ||
+      editor?.limitBreak2CostText ||
+      editor?.limitBreak2EffectText ||
+      editor?.limitBreak2Attribute ||
+      editor?.limitBreak2ThresholdSuccesses,
+  );
+  const limitBreak2Enabled = hasLimitBreak2;
   const queryFilteredSummaries = useMemo(
     () => summaries.filter((summary) => monsterMatches(summary, monsterPickerQuery)),
     [summaries, monsterPickerQuery],
@@ -1135,13 +1643,64 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       setTagSuggestions([]);
       setActiveTagIndex(-1);
       setEquipmentCapHint(null);
+      setImageRepositionMode(false);
+      setImageDragging(false);
+      imageDragStateRef.current = null;
       return;
     }
     setTagInput("");
     setTagSuggestions([]);
     setActiveTagIndex(-1);
     setEquipmentCapHint(null);
+    setImageRepositionMode(false);
+    setImageDragging(false);
+    imageDragStateRef.current = null;
   }, [editor?.id, selectedId]);
+
+  useEffect(() => {
+    if (imageRepositionMode) return;
+    imageDragStateRef.current = null;
+    setImageDragging(false);
+  }, [imageRepositionMode]);
+
+  useEffect(() => {
+    if (!editor) {
+      collapseSeedKeyRef.current = null;
+      return;
+    }
+
+    const normalizedId =
+      typeof editor.id === "string" && editor.id.trim().length > 0
+        ? editor.id.trim()
+        : null;
+    const collapseSeedKey = normalizedId
+      ? `existing:${normalizedId}`
+      : `draft:${selectedId ?? "new"}`;
+
+    if (collapseSeedKeyRef.current === collapseSeedKey) {
+      return;
+    }
+    collapseSeedKeyRef.current = collapseSeedKey;
+
+    const isExistingMonster = normalizedId !== null;
+
+    const nextCollapsedPowerIds: Record<string, boolean> = {};
+    for (let idx = 0; idx < editor.powers.length; idx += 1) {
+      const key = getPowerCollapseKey(editor.powers[idx], idx);
+      nextCollapsedPowerIds[key] = true;
+    }
+
+    const nextCollapsedNaturalAttackIds: Record<string, boolean> = {};
+    for (let idx = 0; idx < editor.attacks.length; idx += 1) {
+      const key = getNaturalAttackCollapseKey(editor.attacks[idx], idx);
+      nextCollapsedNaturalAttackIds[key] = true;
+    }
+
+    setEquippedGearCollapsed(isExistingMonster);
+    setCollapsedPowerIds(nextCollapsedPowerIds);
+    setCollapsedNaturalAttacks(nextCollapsedNaturalAttackIds);
+    setCollapsedLimitBreaks({ LB1: true, LB2: true });
+  }, [editor, selectedId, getPowerCollapseKey, getNaturalAttackCollapseKey]);
 
   useEffect(() => {
     setMonsterPickerOpen(false);
@@ -1473,8 +2032,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   );
   const defenceStrings = useMemo(
     () => [
-      `Physical Protection: Roll ${computedArmorSkillValue} dice, block ${physicalBlockPerSuccess} wounds per success.`,
       `Dodge: Roll ${dodgeDice} dice. If successes exceed the attacker's successes, take 0 damage. Otherwise take full damage.`,
+      `Physical Protection: Roll ${computedArmorSkillValue} dice, block ${physicalBlockPerSuccess} wounds per success.`,
       `Mental Protection: Roll ${willpowerDice} dice, block ${mentalBlockPerSuccess} wounds per success.`,
     ],
     [
@@ -1518,7 +2077,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       renderAttackActionLines(
         (attack.attackConfig ?? defaultNaturalConfig()) as MonsterNaturalAttackConfig,
         computedWeaponSkillValue,
-        { applyWeaponSkillOverride: true },
+        { applyWeaponSkillOverride: true, strengthMultiplier: 2 },
       ),
     );
   }, [editor?.attacks, computedWeaponSkillValue]);
@@ -1565,29 +2124,36 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     }
   }, [totalWeaponSources]);
   const previewMonster = useMemo(
-    () =>
-      editor
-        ? {
-            ...editor,
-            physicalResilienceMax: resilienceValues.physicalResilienceMax,
-            physicalResilienceCurrent: resilienceValues.physicalResilienceMax,
-            mentalPerseveranceMax: resilienceValues.mentalPerseveranceMax,
-            mentalPerseveranceCurrent: resilienceValues.mentalPerseveranceMax,
-            physicalProtection: itemProtectionValues.physicalProtection,
-            mentalProtection: itemProtectionValues.mentalProtection,
-            attackModifier: itemModifierValues.attackModifier,
-            defenceModifier: itemModifierValues.defenceModifier,
-            fortitudeModifier: itemModifierValues.fortitudeModifier,
-            intellectModifier: itemModifierValues.intellectModifier,
-            supportModifier: itemModifierValues.supportModifier,
-            braveryModifier: itemModifierValues.braveryModifier,
-            weaponSkillModifier: 0,
-            armorSkillModifier: 0,
-            weaponSkillValue: computedWeaponSkillValue,
-            armorSkillValue: computedArmorSkillValue,
-            attacks: editor.attacks,
-          }
-        : null,
+    () => {
+      if (!editor) return null;
+      const primaryAttack = editor.attacks[0] ?? null;
+      return {
+        ...editor,
+        physicalResilienceMax: resilienceValues.physicalResilienceMax,
+        physicalResilienceCurrent: resilienceValues.physicalResilienceMax,
+        mentalPerseveranceMax: resilienceValues.mentalPerseveranceMax,
+        mentalPerseveranceCurrent: resilienceValues.mentalPerseveranceMax,
+        physicalProtection: itemProtectionValues.physicalProtection,
+        mentalProtection: itemProtectionValues.mentalProtection,
+        attackModifier: itemModifierValues.attackModifier,
+        defenceModifier: itemModifierValues.defenceModifier,
+        fortitudeModifier: itemModifierValues.fortitudeModifier,
+        intellectModifier: itemModifierValues.intellectModifier,
+        supportModifier: itemModifierValues.supportModifier,
+        braveryModifier: itemModifierValues.braveryModifier,
+        weaponSkillModifier: 0,
+        armorSkillModifier: 0,
+        weaponSkillValue: computedWeaponSkillValue,
+        armorSkillValue: computedArmorSkillValue,
+        attacks: editor.attacks,
+        naturalAttack: primaryAttack
+          ? {
+              attackName: primaryAttack.attackName ?? "Natural Weapon",
+              attackConfig: primaryAttack.attackConfig ?? defaultNaturalConfig(),
+            }
+          : null,
+      };
+    },
     [
       computedArmorSkillValue,
       computedWeaponSkillValue,
@@ -1596,6 +2162,45 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       itemProtectionValues,
       resilienceValues,
     ],
+  );
+  const equippedWeaponSources = useMemo(() => {
+    if (!previewMonster) return [] as WeaponAttackSource[];
+    const slotIds = [
+      { slot: "Main Hand", id: previewMonster.mainHandItemId ?? null },
+      { slot: "Off Hand", id: previewMonster.offHandItemId ?? null },
+      { slot: "Small Slot", id: previewMonster.smallItemId ?? null },
+    ];
+
+    const out: WeaponAttackSource[] = [];
+    for (const slot of slotIds) {
+      if (!slot.id) continue;
+      const item = weaponById[slot.id];
+      if (!item) continue;
+      if (item.type !== "WEAPON" && item.type !== "SHIELD") continue;
+
+      out.push({
+        id: item.id,
+        label: `${slot.slot}: ${item.name}`,
+        attackConfig: {
+          melee: item.melee,
+          ranged: item.ranged,
+          aoe: item.aoe,
+        },
+      });
+    }
+    return out;
+  }, [
+    previewMonster?.mainHandItemId,
+    previewMonster?.offHandItemId,
+    previewMonster?.smallItemId,
+    weaponById,
+  ]);
+  const outcomeProfile = useMemo(
+    () =>
+      previewMonster
+        ? computeMonsterOutcomes(previewMonster, calculatorConfig, { equippedWeaponSources })
+        : null,
+    [calculatorConfig, equippedWeaponSources, previewMonster],
   );
 
   const saveMonster = useCallback(async () => {
@@ -1613,6 +2218,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       const normalizedEditor: EditableMonster = {
         ...editor,
         imageUrl: asNullableText(editor.imageUrl),
+        imagePosX: clampImagePosition(editor.imagePosX, DEFAULT_IMAGE_POS_X),
+        imagePosY: clampImagePosition(editor.imagePosY, DEFAULT_IMAGE_POS_Y),
         tags: normalizedTags,
         physicalResilienceMax: resilienceValues.physicalResilienceMax,
         physicalResilienceCurrent: resilienceValues.physicalResilienceMax,
@@ -1779,6 +2386,319 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     [],
   );
 
+  const getSelectedDamageTypeIds = useCallback(
+    (
+      cfg: { damageTypes?: Array<{ name: string; mode: "PHYSICAL" | "MENTAL" }> } | undefined,
+    ): number[] => {
+      if (!cfg?.damageTypes || cfg.damageTypes.length === 0) return [];
+      const idByName = new Map(
+        picklists.damageTypes.map((dt) => [dt.name.trim().toLowerCase(), dt.id] as const),
+      );
+      const ids: number[] = [];
+      for (const row of cfg.damageTypes) {
+        const id = idByName.get(String(row?.name ?? "").trim().toLowerCase());
+        if (typeof id === "number" && !ids.includes(id)) ids.push(id);
+      }
+      return ids;
+    },
+    [picklists.damageTypes],
+  );
+
+  const getSelectedAttackEffectIds = useCallback(
+    (cfg: { attackEffects?: string[] } | undefined): number[] => {
+      if (!cfg?.attackEffects || cfg.attackEffects.length === 0) return [];
+      const idByName = new Map(
+        picklists.attackEffects.map((fx) => [fx.name.trim().toLowerCase(), fx.id] as const),
+      );
+      const ids: number[] = [];
+      for (const name of cfg.attackEffects) {
+        const id = idByName.get(String(name ?? "").trim().toLowerCase());
+        if (typeof id === "number" && !ids.includes(id)) ids.push(id);
+      }
+      return ids;
+    },
+    [picklists.attackEffects],
+  );
+
+  const setAttackDamageTypeIds = useCallback(
+    (attackIndex: number, range: "melee" | "ranged" | "aoe", selectedIds: number[]) => {
+      const selected = selectedIds
+        .map((id) => picklists.damageTypes.find((dt) => dt.id === id))
+        .filter((dt): dt is Picklists["damageTypes"][number] => Boolean(dt));
+      updateAttackRange(attackIndex, range, {
+        damageTypes: selected.map((dt) => ({
+          name: dt.name,
+          mode: (dt.attackMode ?? "PHYSICAL") as "PHYSICAL" | "MENTAL",
+        })),
+      });
+    },
+    [picklists.damageTypes, updateAttackRange],
+  );
+
+  const setAttackEffectIds = useCallback(
+    (attackIndex: number, range: "melee" | "ranged" | "aoe", selectedIds: number[]) => {
+      const selected = selectedIds
+        .map((id) => picklists.attackEffects.find((fx) => fx.id === id))
+        .filter((fx): fx is Picklists["attackEffects"][number] => Boolean(fx));
+      updateAttackRange(attackIndex, range, {
+        attackEffects: selected.map((fx) => fx.name),
+      });
+    },
+    [picklists.attackEffects, updateAttackRange],
+  );
+
+  const toggleNumberArrayField = useCallback(
+    (
+      attackIndex: number,
+      fieldName: NaturalAttackDamageField | NaturalAttackEffectField,
+      id: number,
+      selectedIds: number[],
+    ) => {
+      const nextIds = selectedIds.includes(id)
+        ? selectedIds.filter((entry) => entry !== id)
+        : [...selectedIds, id];
+
+      if (fieldName in NATURAL_DAMAGE_FIELD_TO_RANGE) {
+        const range = NATURAL_DAMAGE_FIELD_TO_RANGE[fieldName as NaturalAttackDamageField];
+        setAttackDamageTypeIds(attackIndex, range, nextIds);
+        return;
+      }
+
+      const range = NATURAL_EFFECT_FIELD_TO_RANGE[fieldName as NaturalAttackEffectField];
+      setAttackEffectIds(attackIndex, range, nextIds);
+    },
+    [setAttackDamageTypeIds, setAttackEffectIds],
+  );
+
+  const renderDamageTypeChips = useCallback(
+    (
+      attackIndex: number,
+      types: Picklists["damageTypes"],
+      selectedIds: number[],
+      fieldName: NaturalAttackDamageField,
+      allowedModes: Set<"PHYSICAL" | "MENTAL">,
+    ) => {
+      return (
+        <div className="flex flex-wrap gap-2">
+          {types.map((dt) => {
+            const mode = (dt.attackMode ?? "PHYSICAL") as "PHYSICAL" | "MENTAL";
+            const isAllowed = allowedModes.has(mode);
+            return (
+              <button
+                key={dt.id}
+                type="button"
+                disabled={readOnly || !isAllowed}
+                onClick={() => toggleNumberArrayField(attackIndex, fieldName, dt.id, selectedIds)}
+                className={[
+                  "px-2 py-1 rounded-full border text-xs",
+                  selectedIds.includes(dt.id)
+                    ? "border-emerald-500 bg-emerald-600/20 text-emerald-200"
+                    : "border-zinc-700 bg-zinc-900 text-zinc-200",
+                  isAllowed ? "hover:border-zinc-500" : "opacity-40 cursor-not-allowed",
+                ].join(" ")}
+              >
+                {dt.name}
+              </button>
+            );
+          })}
+        </div>
+      );
+    },
+    [readOnly, toggleNumberArrayField],
+  );
+
+  const renderAttackEffectChips = useCallback(
+    (
+      attackIndex: number,
+      effects: Picklists["attackEffects"],
+      selectedIds: number[],
+      fieldName: NaturalAttackEffectField,
+    ) => {
+      return (
+        <div className="flex flex-wrap gap-2">
+          {effects.map((fx) => (
+            <button
+              key={fx.id}
+              type="button"
+              disabled={readOnly}
+              onClick={() => toggleNumberArrayField(attackIndex, fieldName, fx.id, selectedIds)}
+              className={`px-2 py-1 rounded-full border text-xs ${
+                selectedIds.includes(fx.id)
+                  ? "border-emerald-500 bg-emerald-600/20 text-emerald-200"
+                  : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
+              }`}
+            >
+              {fx.name}
+            </button>
+          ))}
+        </div>
+      );
+    },
+    [readOnly, toggleNumberArrayField],
+  );
+
+  const renderRangePills = useCallback(
+    (
+      label: string,
+      values: number[],
+      value: number | null | undefined,
+      onChange: (v: number) => void,
+    ) => (
+      <div className="space-y-2">
+        <div className="text-[11px] text-zinc-400">{label}</div>
+        <div className="flex flex-wrap gap-2">
+          {values.map((v) => (
+            <button
+              key={v}
+              type="button"
+              disabled={readOnly}
+              onClick={() => onChange(v)}
+              className={[
+                "px-3 py-1 rounded-full border text-xs",
+                value === v
+                  ? "border-emerald-500 bg-emerald-600/20 text-emerald-200"
+                  : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500",
+              ].join(" ")}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
+    ),
+    [readOnly],
+  );
+
+  useEffect(() => {
+    setEditor((prev) => {
+      if (!prev) return prev;
+      let changedAny = false;
+
+      const nextAttacks = prev.attacks.map((attack) => {
+        const config = attack.attackConfig ?? defaultNaturalConfig();
+        const defaults = defaultNaturalConfig();
+        const defaultMelee = defaults.melee!;
+        const defaultRanged = defaults.ranged!;
+        const defaultAoe = defaults.aoe!;
+        let changedAttack = false;
+        const nextConfig: MonsterNaturalAttackConfig = {
+          ...defaults,
+          ...config,
+          melee: {
+            enabled: config.melee?.enabled ?? defaultMelee.enabled,
+            targets: config.melee?.targets ?? defaultMelee.targets,
+            physicalStrength:
+              config.melee?.physicalStrength ?? defaultMelee.physicalStrength,
+            mentalStrength:
+              config.melee?.mentalStrength ?? defaultMelee.mentalStrength,
+            damageTypes: config.melee?.damageTypes ?? defaultMelee.damageTypes,
+            attackEffects: config.melee?.attackEffects ?? defaultMelee.attackEffects,
+          },
+          ranged: {
+            enabled: config.ranged?.enabled ?? defaultRanged.enabled,
+            targets: config.ranged?.targets ?? defaultRanged.targets,
+            distance: config.ranged?.distance ?? defaultRanged.distance,
+            physicalStrength:
+              config.ranged?.physicalStrength ?? defaultRanged.physicalStrength,
+            mentalStrength:
+              config.ranged?.mentalStrength ?? defaultRanged.mentalStrength,
+            damageTypes: config.ranged?.damageTypes ?? defaultRanged.damageTypes,
+            attackEffects: config.ranged?.attackEffects ?? defaultRanged.attackEffects,
+          },
+          aoe: {
+            enabled: config.aoe?.enabled ?? defaultAoe.enabled,
+            count: config.aoe?.count ?? defaultAoe.count,
+            centerRange: config.aoe?.centerRange ?? defaultAoe.centerRange,
+            shape: config.aoe?.shape ?? defaultAoe.shape,
+            sphereRadiusFeet:
+              config.aoe?.sphereRadiusFeet ?? defaultAoe.sphereRadiusFeet,
+            coneLengthFeet: config.aoe?.coneLengthFeet ?? defaultAoe.coneLengthFeet,
+            lineWidthFeet: config.aoe?.lineWidthFeet ?? defaultAoe.lineWidthFeet,
+            lineLengthFeet: config.aoe?.lineLengthFeet ?? defaultAoe.lineLengthFeet,
+            physicalStrength:
+              config.aoe?.physicalStrength ?? defaultAoe.physicalStrength,
+            mentalStrength:
+              config.aoe?.mentalStrength ?? defaultAoe.mentalStrength,
+            damageTypes: config.aoe?.damageTypes ?? defaultAoe.damageTypes,
+            attackEffects: config.aoe?.attackEffects ?? defaultAoe.attackEffects,
+          },
+        };
+
+        (["melee", "ranged", "aoe"] as const).forEach((range) => {
+          const rangeCfg = (nextConfig[range] ?? {}) as {
+            physicalStrength?: unknown;
+            mentalStrength?: unknown;
+            damageTypes?: Array<{ name: string; mode: "PHYSICAL" | "MENTAL" }>;
+            attackEffects?: string[];
+          };
+          const ps = Number(rangeCfg.physicalStrength ?? 0);
+          const ms = Number(rangeCfg.mentalStrength ?? 0);
+          const allowPhysical = ps > 0;
+          const allowMental = ms > 0;
+          const currentDamageTypes = Array.isArray(rangeCfg.damageTypes) ? rangeCfg.damageTypes : [];
+          const filteredDamageTypes = currentDamageTypes.filter((dt) => {
+            const mode = String((dt as { mode?: unknown }).mode ?? "PHYSICAL").toUpperCase();
+            if (mode === "MENTAL") return allowMental;
+            return allowPhysical;
+          });
+          if (filteredDamageTypes.length !== currentDamageTypes.length) {
+            changedAttack = true;
+            (nextConfig[range] as Record<string, unknown>).damageTypes = filteredDamageTypes;
+          }
+          const selectedDamageTypeIds = getSelectedDamageTypeIds({
+            ...rangeCfg,
+            damageTypes: filteredDamageTypes,
+          });
+          const selectedAttackEffectIds = getSelectedAttackEffectIds(rangeCfg);
+          const allowedEffects = filterAttackEffectsForDamageTypes(
+            picklists.attackEffects,
+            picklists.damageTypes,
+            selectedDamageTypeIds,
+          );
+          const allowedIds = new Set(allowedEffects.map((fx) => fx.id));
+          const filteredSelectedIds = selectedAttackEffectIds.filter((id) => allowedIds.has(id));
+
+          if (filteredSelectedIds.length !== selectedAttackEffectIds.length) {
+            changedAttack = true;
+            (nextConfig[range] as Record<string, unknown>).attackEffects = filteredSelectedIds
+              .map((id) => picklists.attackEffects.find((fx) => fx.id === id)?.name)
+              .filter((name): name is string => Boolean(name));
+          }
+        });
+
+        if (!changedAttack) return attack;
+        changedAny = true;
+        return { ...attack, attackConfig: nextConfig };
+      });
+
+      const primaryAttack = nextAttacks[0] ?? null;
+      const nextNaturalAttack = primaryAttack
+        ? {
+            attackName: primaryAttack.attackName ?? "Natural Weapon",
+            attackConfig: primaryAttack.attackConfig ?? defaultNaturalConfig(),
+          }
+        : null;
+      const naturalAttackChanged = (() => {
+        const prevNaturalAttack = prev.naturalAttack;
+        if (!prevNaturalAttack && !nextNaturalAttack) return false;
+        if (!prevNaturalAttack || !nextNaturalAttack) return true;
+        if (
+          (prevNaturalAttack.attackName ?? "Natural Weapon") !==
+          nextNaturalAttack.attackName
+        ) {
+          return true;
+        }
+        return (
+          JSON.stringify(prevNaturalAttack.attackConfig ?? {}) !==
+          JSON.stringify(nextNaturalAttack.attackConfig ?? {})
+        );
+      })();
+
+      if (!changedAny && !naturalAttackChanged) return prev;
+      return { ...prev, attacks: nextAttacks, naturalAttack: nextNaturalAttack };
+    });
+  }, [editor?.attacks, getSelectedAttackEffectIds, getSelectedDamageTypeIds, picklists.attackEffects, picklists.damageTypes]);
+
   if (loading) return <p className="text-sm text-zinc-400">Loading Summoning Circle...</p>;
 
   if (!editor) {
@@ -1796,6 +2716,58 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       </div>
     );
   }
+
+  const handleImagePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (readOnly || !imageRepositionMode || !editorHasValidImageUrl) return;
+    const frame = imageCropFrameRef.current;
+    if (!frame) return;
+
+    const rect = frame.getBoundingClientRect();
+    imageDragStateRef.current = {
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startPosX: editorImagePosX,
+      startPosY: editorImagePosY,
+      frameWidth: Math.max(1, rect.width),
+      frameHeight: Math.max(1, rect.height),
+    };
+    setImageDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleImagePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = imageDragStateRef.current;
+    if (!drag) return;
+    if (event.pointerId !== drag.pointerId) return;
+
+    const deltaXPercent = ((event.clientX - drag.startClientX) / drag.frameWidth) * 100;
+    const deltaYPercent = ((event.clientY - drag.startClientY) / drag.frameHeight) * 100;
+    const nextPosX = clampImagePosition(drag.startPosX + deltaXPercent, DEFAULT_IMAGE_POS_X);
+    const nextPosY = clampImagePosition(drag.startPosY + deltaYPercent, DEFAULT_IMAGE_POS_Y);
+
+    setEditor((prev) =>
+      prev
+        ? {
+            ...prev,
+            imagePosX: nextPosX,
+            imagePosY: nextPosY,
+          }
+        : prev,
+    );
+  };
+
+  const handleImagePointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = imageDragStateRef.current;
+    if (!drag) return;
+    if (event.pointerId !== drag.pointerId) return;
+
+    imageDragStateRef.current = null;
+    setImageDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
 
   const editorMobileVisibility = mobileView === "editor" ? "block" : "hidden";
   const previewMobileVisibility = mobileView === "preview" ? "block" : "hidden";
@@ -2521,7 +3493,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             )}
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-2">
             <label className="block text-sm font-medium">Monster Image URL</label>
             <input
               disabled={readOnly}
@@ -2542,6 +3514,70 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             <p className="text-[11px] text-zinc-500">
               Must be a direct URL. Hotlinks can break if the host blocks them.
             </p>
+            {!readOnly && (
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex items-center gap-2 text-xs text-zinc-300">
+                  <input
+                    type="checkbox"
+                    checked={imageRepositionMode}
+                    onChange={(e) => setImageRepositionMode(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Reposition
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditor((p) =>
+                      p
+                        ? {
+                            ...p,
+                            imagePosX: DEFAULT_IMAGE_POS_X,
+                            imagePosY: DEFAULT_IMAGE_POS_Y,
+                          }
+                        : p,
+                    )
+                  }
+                  className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800"
+                >
+                  Reset
+                </button>
+                <p className="ml-auto text-[11px] text-zinc-500">
+                  Crop: {Math.round(editorImagePosX)}% / {Math.round(editorImagePosY)}%
+                </p>
+              </div>
+            )}
+            <div
+              ref={imageCropFrameRef}
+              onPointerDown={handleImagePointerDown}
+              onPointerMove={handleImagePointerMove}
+              onPointerUp={handleImagePointerEnd}
+              onPointerCancel={handleImagePointerEnd}
+              className={[
+                "relative h-56 w-full rounded border border-zinc-800 bg-zinc-900/40 overflow-hidden select-none",
+                imageRepositionMode && !readOnly
+                  ? imageDragging
+                    ? "cursor-grabbing touch-none"
+                    : "cursor-grab touch-none"
+                  : "",
+              ].join(" ")}
+            >
+              {editorHasValidImageUrl ? (
+                <img
+                  src={editor.imageUrl!.trim()}
+                  alt="Monster image preview"
+                  className="w-full h-full object-cover"
+                  style={{ objectPosition: `${editorImagePosX}% ${editorImagePosY}%` }}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  draggable={false}
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center text-xs text-zinc-500">
+                  Enter a valid image URL to preview crop.
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
@@ -2730,150 +3766,164 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         </section>
 
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
-          <h3 className="text-xs uppercase tracking-wide text-zinc-400">Equipped Gear</h3>
+          <button
+            type="button"
+            onClick={() => setEquippedGearCollapsed((prev) => !prev)}
+            className="w-full flex items-center justify-between rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 hover:bg-zinc-900/40 cursor-pointer select-none"
+            aria-expanded={!equippedGearCollapsed}
+          >
+            <span className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-400">
+              <span aria-hidden="true">{equippedGearCollapsed ? "▶" : "▼"}</span>
+              Equipped Gear
+            </span>
+          </button>
 
-          <div className="space-y-2">
-            <p className="text-[11px] text-zinc-500">Hands</p>
-            <div className="space-y-3">
-              {offHandDisabled ? (
-                <>
-                  {renderHandSlot(HAND_SLOTS[0])}
-                  {renderHandSlot(HAND_SLOTS[2])}
-                </>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {renderHandSlot(HAND_SLOTS[0])}
-                    {renderHandSlot(HAND_SLOTS[1])}
-                  </div>
-                  {renderHandSlot(HAND_SLOTS[2])}
-                </>
-              )}
-            </div>
-            {offHandDisabled && (
-              <p className="text-xs text-zinc-500">
-                Off Hand is disabled while Main Hand has a two-handed item.
-              </p>
-            )}
-            {equipmentCapHint && <p className="text-xs text-zinc-500">{equipmentCapHint}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-[11px] text-zinc-500">Body</p>
-            <div className="space-y-3">
-              {BODY_SLOT_ROWS.map((row, rowIndex) => (
-                <div
-                  key={rowIndex}
-                  className={row.length === 1 ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}
-                >
-                  {row.map((slot) => renderBodySlot(slot))}
+          {!equippedGearCollapsed && (
+            <>
+              <div className="space-y-2">
+                <p className="text-[11px] text-zinc-500">Hands</p>
+                <div className="space-y-3">
+                  {offHandDisabled ? (
+                    <>
+                      {renderHandSlot(HAND_SLOTS[0])}
+                      {renderHandSlot(HAND_SLOTS[2])}
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {renderHandSlot(HAND_SLOTS[0])}
+                        {renderHandSlot(HAND_SLOTS[1])}
+                      </div>
+                      {renderHandSlot(HAND_SLOTS[2])}
+                    </>
+                  )}
                 </div>
-              ))}
-            </div>
-          </div>
+                {offHandDisabled && (
+                  <p className="text-xs text-zinc-500">
+                    Off Hand is disabled while Main Hand has a two-handed item.
+                  </p>
+                )}
+                {equipmentCapHint && <p className="text-xs text-zinc-500">{equipmentCapHint}</p>}
+              </div>
 
-          <div className="space-y-2">
-            <p className="text-[11px] text-zinc-500">Derived from Gear & Attributes</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
-              <label className="space-y-1">
-                <span
-                  title="Physical Protection and Weight"
-                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                >
-                  Physical Prot. & Weight
-                </span>
-                <input
-                  readOnly
-                  type="number"
-                  value={itemProtectionValues.physicalProtection}
-                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-                />
-              </label>
-              <label className="space-y-1">
-                <span
-                  title="Armor Skill"
-                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                >
-                  <HoverTooltipLabel
-                    label="Armor Skill"
-                    tooltip={DERIVED_STAT_TOOLTIPS.armorSkill}
-                    className="text-[11px]"
-                  />
-                </span>
-                <input
-                  readOnly
-                  type="number"
-                  value={computedArmorSkillValue}
-                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-                />
-              </label>
-              <label className="space-y-1">
-                <span
-                  title="Dodge"
-                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                >
-                  <HoverTooltipLabel
-                    label="Dodge"
-                    tooltip={DERIVED_STAT_TOOLTIPS.dodge}
-                    className="text-[11px]"
-                  />
-                </span>
-                <input
-                  readOnly
-                  type="number"
-                  value={dodgeValue}
-                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-                />
-              </label>
-              <label className="space-y-1">
-                <span
-                  title="Mental Protection"
-                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                >
-                  Mental Protection
-                </span>
-                <input
-                  readOnly
-                  type="number"
-                  value={itemProtectionValues.mentalProtection}
-                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-                />
-              </label>
-              <label className="space-y-1">
-                <span
-                  title="Willpower"
-                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                >
-                  <HoverTooltipLabel
-                    label="Willpower"
-                    tooltip={DERIVED_STAT_TOOLTIPS.willpower}
-                    className="text-[11px]"
-                  />
-                </span>
-                <input
-                  readOnly
-                  type="number"
-                  value={willpowerValue}
-                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-                />
-              </label>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <p className="text-[11px] text-zinc-500">Defence Strings</p>
-            <div className="rounded border border-zinc-800 bg-zinc-900 p-2 space-y-1">
-              {defenceStrings.map((line, index) => (
-                <p key={index} className="text-xs text-zinc-300 whitespace-pre-wrap">
-                  {line}
-                </p>
-              ))}
-            </div>
-          </div>
+              <div className="space-y-2">
+                <p className="text-[11px] text-zinc-500">Body</p>
+                <div className="space-y-3">
+                  {BODY_SLOT_ROWS.map((row, rowIndex) => (
+                    <div
+                      key={rowIndex}
+                      className={row.length === 1 ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}
+                    >
+                      {row.map((slot) => renderBodySlot(slot))}
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-          <p className="text-xs text-zinc-500">
-            Weapon sources: {totalWeaponSources}/3 (equipped {equippedWeaponSourceCount}, natural{" "}
-            {naturalWeaponSourceCount}) - Attack strings: {weaponAttackStringCount}
-          </p>
+              <div className="space-y-2">
+                <p className="text-[11px] text-zinc-500">Derived from Gear & Attributes</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
+                  <label className="space-y-1">
+                    <span
+                      title="Physical Protection and Weight"
+                      className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                    >
+                      Physical Prot. & Weight
+                    </span>
+                    <input
+                      readOnly
+                      type="number"
+                      value={itemProtectionValues.physicalProtection}
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span
+                      title="Armor Skill"
+                      className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                    >
+                      <HoverTooltipLabel
+                        label="Armor Skill"
+                        tooltip={DERIVED_STAT_TOOLTIPS.armorSkill}
+                        className="text-[11px]"
+                      />
+                    </span>
+                    <input
+                      readOnly
+                      type="number"
+                      value={computedArmorSkillValue}
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span
+                      title="Dodge"
+                      className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                    >
+                      <HoverTooltipLabel
+                        label="Dodge"
+                        tooltip={DERIVED_STAT_TOOLTIPS.dodge}
+                        className="text-[11px]"
+                      />
+                    </span>
+                    <input
+                      readOnly
+                      type="number"
+                      value={dodgeValue}
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span
+                      title="Mental Protection"
+                      className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                    >
+                      Mental Protection
+                    </span>
+                    <input
+                      readOnly
+                      type="number"
+                      value={itemProtectionValues.mentalProtection}
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span
+                      title="Willpower"
+                      className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                    >
+                      <HoverTooltipLabel
+                        label="Willpower"
+                        tooltip={DERIVED_STAT_TOOLTIPS.willpower}
+                        className="text-[11px]"
+                      />
+                    </span>
+                    <input
+                      readOnly
+                      type="number"
+                      value={willpowerValue}
+                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                    />
+                  </label>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <p className="text-[11px] text-zinc-500">Defence Strings</p>
+                <div className="rounded border border-zinc-800 bg-zinc-900 p-2 space-y-1">
+                  {defenceStrings.map((line, index) => (
+                    <p key={index} className="text-xs text-zinc-300 whitespace-pre-wrap">
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              </div>
+
+              <p className="text-xs text-zinc-500">
+                Weapon sources: {totalWeaponSources}/3 (equipped {equippedWeaponSourceCount}, natural{" "}
+                {naturalWeaponSourceCount}) - Attack strings: {weaponAttackStringCount}
+              </p>
+            </>
+          )}
         </section>
 
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
@@ -2881,20 +3931,32 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             <h3 className="text-xs uppercase tracking-wide text-zinc-400">Attacks</h3>
             {!readOnly && (
               <button
-                onClick={() =>
+                onClick={() => {
+                  const nextAttackIndex = editor.attacks.length;
+                  const nextAttack = defaultNaturalAttackEntry(nextAttackIndex);
+                  const nextAttackKey = getNaturalAttackCollapseKey(nextAttack, nextAttackIndex);
+
                   setEditor((p) =>
                     p && p.attacks.length < 3
                       ? {
                           ...p,
-                          attacks: [...p.attacks, defaultNaturalAttackEntry(p.attacks.length)],
+                          attacks: [...p.attacks, nextAttack],
                         }
                       : p,
-                  )
-                }
+                  );
+
+                  setCollapsedNaturalAttacks((prev) => {
+                    const next = { ...prev };
+                    delete next[nextAttackKey];
+                    return next;
+                  });
+                }}
+                type="button"
+                onClickCapture={undefined}
                 disabled={editor.attacks.length >= 3 || naturalAttacksLocked}
                 className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
               >
-                Add attack
+                Add Natural Attack
               </button>
             )}
           </div>
@@ -2946,13 +4008,30 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           )}
 
           <div className="space-y-3">
-            {editor.attacks.map((attack, attackIndex) => (
-              <div key={`${attackIndex}-${attack.attackMode}`} className="space-y-2 rounded border border-zinc-800 p-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Attack #{attackIndex + 1}</p>
+            {editor.attacks.map((attack, attackIndex) => {
+              const naturalAttackKey = getNaturalAttackCollapseKey(attack, attackIndex);
+              const collapsed = !!collapsedNaturalAttacks[naturalAttackKey];
+              const naturalAttackName = attack.attackName?.trim() ?? "";
+              return (
+              <div key={naturalAttackKey} className="space-y-2 rounded border border-zinc-800 p-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleNaturalAttackCollapsed(naturalAttackKey)}
+                    className="w-full flex items-center justify-between rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 hover:bg-zinc-900/40 cursor-pointer select-none text-left"
+                    aria-expanded={!collapsed}
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium">
+                      <span className="mr-2" aria-hidden="true">
+                        {collapsed ? "▶" : "▼"}
+                      </span>
+                      {naturalAttackName || "Unnamed"}
+                    </span>
+                  </button>
                   {!readOnly && (
                     <div className="flex items-center gap-1">
                       <button
+                        type="button"
                         onClick={() => moveAttack(attackIndex, attackIndex - 1)}
                         disabled={attackIndex === 0}
                         className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
@@ -2961,6 +4040,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         ↑
                       </button>
                       <button
+                        type="button"
                         onClick={() => moveAttack(attackIndex, attackIndex + 1)}
                         disabled={attackIndex === editor.attacks.length - 1}
                         className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
@@ -2969,6 +4049,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         ↓
                       </button>
                       <button
+                        type="button"
                         onClick={() =>
                           setEditor((p) =>
                             p
@@ -2989,7 +4070,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                   )}
                 </div>
 
-                <>
+                {!collapsed && (
+                  <>
                     <input
                       disabled={readOnly}
                       value={attack.attackName ?? "Natural Weapon"}
@@ -3019,11 +4101,50 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         count?: number;
                         centerRange?: number;
                         shape?: "SPHERE" | "CONE" | "LINE";
+                        sphereRadiusFeet?: number;
+                        coneLengthFeet?: number;
+                        lineWidthFeet?: number;
+                        lineLengthFeet?: number;
                         physicalStrength?: number;
                         mentalStrength?: number;
                         damageTypes?: Array<{ name: string; mode: "PHYSICAL" | "MENTAL" }>;
                         attackEffects?: string[];
                       };
+
+                      const damageField: NaturalAttackDamageField =
+                        range === "melee"
+                          ? "meleeDamageTypeIds"
+                          : range === "ranged"
+                            ? "rangedDamageTypeIds"
+                            : "aoeDamageTypeIds";
+                      const effectField: NaturalAttackEffectField =
+                        range === "melee"
+                          ? "attackEffectMeleeIds"
+                          : range === "ranged"
+                            ? "attackEffectRangedIds"
+                            : "attackEffectAoEIds";
+                      const selectedDamageTypeIds = getSelectedDamageTypeIds(cfg);
+                      const physicalStrength = Number(cfg.physicalStrength ?? 0);
+                      const mentalStrength = Number(cfg.mentalStrength ?? 0);
+                      const allowedModes = new Set<"PHYSICAL" | "MENTAL">();
+                      if (physicalStrength > 0) allowedModes.add("PHYSICAL");
+                      if (mentalStrength > 0) allowedModes.add("MENTAL");
+                      const selectedModes = new Set<"PHYSICAL" | "MENTAL">();
+                      for (const id of selectedDamageTypeIds) {
+                        const dt = picklists.damageTypes.find((x) => x.id === id);
+                        const mode = (dt?.attackMode ?? "PHYSICAL") as "PHYSICAL" | "MENTAL";
+                        selectedModes.add(mode);
+                      }
+                      const needsPhysical = physicalStrength > 0;
+                      const needsMental = mentalStrength > 0;
+                      const missingPhysical = needsPhysical && !selectedModes.has("PHYSICAL");
+                      const missingMental = needsMental && !selectedModes.has("MENTAL");
+                      const selectedAttackEffectIds = getSelectedAttackEffectIds(cfg);
+                      const allowedAttackEffects = filterAttackEffectsForDamageTypes(
+                        picklists.attackEffects,
+                        picklists.damageTypes,
+                        selectedDamageTypeIds,
+                      );
 
                       return (
                         <div key={range} className="rounded border border-zinc-800 p-2 space-y-2">
@@ -3036,127 +4157,301 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                             />
                             {range.toUpperCase()} enabled
                           </label>
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                            {range !== "aoe" && (
-                              <input
-                                disabled={readOnly}
-                                type="number"
-                                min={1}
-                                value={Number(cfg.targets ?? 1)}
-                                onChange={(e) =>
-                                  updateAttackRange(attackIndex, range, { targets: Number(e.target.value || 1) })
-                                }
-                                placeholder="Targets"
-                                className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                              />
-                            )}
-                            {range === "ranged" && (
-                              <input
-                                disabled={readOnly}
-                                type="number"
-                                min={0}
-                                value={Number(cfg.distance ?? 0)}
-                                onChange={(e) =>
-                                  updateAttackRange(attackIndex, "ranged", { distance: Number(e.target.value || 0) })
-                                }
-                                placeholder="Distance ft"
-                                className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                              />
-                            )}
-                            {range === "aoe" && (
-                              <>
-                                <input
-                                  disabled={readOnly}
-                                  type="number"
-                                  min={1}
-                                  value={Number(cfg.count ?? 1)}
-                                  onChange={(e) =>
-                                    updateAttackRange(attackIndex, "aoe", { count: Number(e.target.value || 1) })
-                                  }
-                                  placeholder="Count"
-                                  className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                />
-                                <input
-                                  disabled={readOnly}
-                                  type="number"
-                                  min={0}
-                                  value={Number(cfg.centerRange ?? 0)}
-                                  onChange={(e) =>
-                                    updateAttackRange(attackIndex, "aoe", {
-                                      centerRange: Number(e.target.value || 0),
-                                    })
-                                  }
-                                  placeholder="Center ft"
-                                  className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                />
-                                <select
-                                  disabled={readOnly}
-                                  value={String(cfg.shape ?? "SPHERE")}
-                                  onChange={(e) =>
-                                    updateAttackRange(attackIndex, "aoe", { shape: e.target.value })
-                                  }
-                                  className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                >
-                                  <option value="SPHERE">Sphere</option>
-                                  <option value="CONE">Cone</option>
-                                  <option value="LINE">Line</option>
-                                </select>
-                              </>
-                            )}
-                            <input
-                              disabled={readOnly}
-                              type="number"
-                              min={0}
-                              value={Number(cfg.physicalStrength ?? 0)}
-                              onChange={(e) =>
-                                updateAttackRange(attackIndex, range, {
-                                  physicalStrength: Number(e.target.value || 0),
-                                })
-                              }
-                              placeholder="Physical"
-                              className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                            />
-                            <input
-                              disabled={readOnly}
-                              type="number"
-                              min={0}
-                              value={Number(cfg.mentalStrength ?? 0)}
-                              onChange={(e) =>
-                                updateAttackRange(attackIndex, range, {
-                                  mentalStrength: Number(e.target.value || 0),
-                                })
-                              }
-                              placeholder="Mental"
-                              className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                            />
-                          </div>
 
-                          <input
-                            disabled={readOnly}
-                            value={
-                              Array.isArray(cfg.damageTypes)
-                                ? cfg.damageTypes.map((x) => x.name).join(", ")
-                                : ""
-                            }
-                            onChange={(e) =>
-                              updateAttackRange(attackIndex, range, {
-                                damageTypes: damageTypesFromCsv(e.target.value, picklists),
-                              })
-                            }
-                            placeholder="Damage types (comma-separated)"
-                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                          />
-                          <input
-                            disabled={readOnly}
-                            value={Array.isArray(cfg.attackEffects) ? cfg.attackEffects.join(", ") : ""}
-                            onChange={(e) =>
-                              updateAttackRange(attackIndex, range, {
-                                attackEffects: listFromCsv(e.target.value),
-                              })
-                            }
-                            placeholder="Attack effects (comma-separated)"
-                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                          />
+                          {!!cfg.enabled && (
+                            <div className="space-y-3">
+                              <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                                {range.toUpperCase()}
+                              </p>
+
+                              {range === "melee" && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <div>
+                                    <label className="block text-[11px] text-zinc-400 mb-1">
+                                      Physical Strength
+                                    </label>
+                                    <input
+                                      disabled={readOnly}
+                                      type="number"
+                                      min={0}
+                                      value={Number(cfg.physicalStrength ?? 0)}
+                                      onChange={(e) =>
+                                        updateAttackRange(attackIndex, "melee", {
+                                          physicalStrength: Number(e.target.value || 0),
+                                        })
+                                      }
+                                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] text-zinc-400 mb-1">
+                                      Mental Strength
+                                    </label>
+                                    <input
+                                      disabled={readOnly}
+                                      type="number"
+                                      min={0}
+                                      value={Number(cfg.mentalStrength ?? 0)}
+                                      onChange={(e) =>
+                                        updateAttackRange(attackIndex, "melee", {
+                                          mentalStrength: Number(e.target.value || 0),
+                                        })
+                                      }
+                                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] text-zinc-400 mb-1">
+                                      Targets
+                                    </label>
+                                    <input
+                                      disabled={readOnly}
+                                      type="number"
+                                      min={1}
+                                      value={Number(cfg.targets ?? 1)}
+                                      onChange={(e) =>
+                                        updateAttackRange(attackIndex, "melee", {
+                                          targets: Number(e.target.value || 1),
+                                        })
+                                      }
+                                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {range === "ranged" && (
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                  <div>
+                                    <label className="block text-[11px] text-zinc-400 mb-1">
+                                      Physical Strength
+                                    </label>
+                                    <input
+                                      disabled={readOnly}
+                                      type="number"
+                                      min={0}
+                                      value={Number(cfg.physicalStrength ?? 0)}
+                                      onChange={(e) =>
+                                        updateAttackRange(attackIndex, "ranged", {
+                                          physicalStrength: Number(e.target.value || 0),
+                                        })
+                                      }
+                                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] text-zinc-400 mb-1">
+                                      Mental Strength
+                                    </label>
+                                    <input
+                                      disabled={readOnly}
+                                      type="number"
+                                      min={0}
+                                      value={Number(cfg.mentalStrength ?? 0)}
+                                      onChange={(e) =>
+                                        updateAttackRange(attackIndex, "ranged", {
+                                          mentalStrength: Number(e.target.value || 0),
+                                        })
+                                      }
+                                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[11px] text-zinc-400 mb-1">
+                                      Targets
+                                    </label>
+                                    <input
+                                      disabled={readOnly}
+                                      type="number"
+                                      min={1}
+                                      value={Number(cfg.targets ?? 1)}
+                                      onChange={(e) =>
+                                        updateAttackRange(attackIndex, "ranged", {
+                                          targets: Number(e.target.value || 1),
+                                        })
+                                      }
+                                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    {renderRangePills(
+                                      "Ranged Distance (ft)",
+                                      [30, 60, 120, 200],
+                                      Number(cfg.distance ?? 0),
+                                      (v) => updateAttackRange(attackIndex, "ranged", { distance: v }),
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {range === "aoe" && (
+                                <>
+                                  <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                                    <div>
+                                      <label className="block text-[11px] text-zinc-400 mb-1">
+                                        Physical Strength
+                                      </label>
+                                      <input
+                                        disabled={readOnly}
+                                        type="number"
+                                        min={0}
+                                        value={Number(cfg.physicalStrength ?? 0)}
+                                        onChange={(e) =>
+                                          updateAttackRange(attackIndex, "aoe", {
+                                            physicalStrength: Number(e.target.value || 0),
+                                          })
+                                        }
+                                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] text-zinc-400 mb-1">
+                                        Mental Strength
+                                      </label>
+                                      <input
+                                        disabled={readOnly}
+                                        type="number"
+                                        min={0}
+                                        value={Number(cfg.mentalStrength ?? 0)}
+                                        onChange={(e) =>
+                                          updateAttackRange(attackIndex, "aoe", {
+                                            mentalStrength: Number(e.target.value || 0),
+                                          })
+                                        }
+                                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] text-zinc-400 mb-1">
+                                        Count
+                                      </label>
+                                      <input
+                                        disabled={readOnly}
+                                        type="number"
+                                        min={1}
+                                        value={Number(cfg.count ?? 1)}
+                                        onChange={(e) =>
+                                          updateAttackRange(attackIndex, "aoe", {
+                                            count: Number(e.target.value || 1),
+                                          })
+                                        }
+                                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                                      />
+                                    </div>
+                                    <div>
+                                      {renderRangePills(
+                                        "AoE Cast Range (ft)",
+                                        [0, 30, 60, 120, 200],
+                                        Number(cfg.centerRange ?? 0),
+                                        (v) => updateAttackRange(attackIndex, "aoe", { centerRange: v }),
+                                      )}
+                                    </div>
+                                    <div>
+                                      <label className="block text-[11px] text-zinc-400 mb-1">
+                                        Shape
+                                      </label>
+                                      <select
+                                        disabled={readOnly}
+                                        value={String(cfg.shape ?? "SPHERE")}
+                                        onChange={(e) =>
+                                          updateAttackRange(attackIndex, "aoe", {
+                                            shape: e.target.value as "SPHERE" | "CONE" | "LINE",
+                                          })
+                                        }
+                                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                                      >
+                                        <option value="SPHERE">Sphere</option>
+                                        <option value="CONE">Cone</option>
+                                        <option value="LINE">Line</option>
+                                      </select>
+                                    </div>
+                                  </div>
+
+                                  {String(cfg.shape ?? "SPHERE") === "SPHERE" && (
+                                    <div>
+                                      {renderRangePills(
+                                        "AoE Sphere Radius (ft)",
+                                        [10, 20, 30],
+                                        Number(cfg.sphereRadiusFeet ?? 0),
+                                        (v) => updateAttackRange(attackIndex, "aoe", { sphereRadiusFeet: v }),
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {String(cfg.shape ?? "SPHERE") === "CONE" && (
+                                    <div>
+                                      {renderRangePills(
+                                        "AoE Cone Length (ft)",
+                                        [15, 30, 60],
+                                        Number(cfg.coneLengthFeet ?? 0),
+                                        (v) => updateAttackRange(attackIndex, "aoe", { coneLengthFeet: v }),
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {String(cfg.shape ?? "SPHERE") === "LINE" && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      <div>
+                                        {renderRangePills(
+                                          "AoE Line Width (ft)",
+                                          [5, 10, 15, 20],
+                                          Number(cfg.lineWidthFeet ?? 0),
+                                          (v) => updateAttackRange(attackIndex, "aoe", { lineWidthFeet: v }),
+                                        )}
+                                      </div>
+                                      <div>
+                                        {renderRangePills(
+                                          "AoE Line Length (ft)",
+                                          [30, 60, 90, 120],
+                                          Number(cfg.lineLengthFeet ?? 0),
+                                          (v) => updateAttackRange(attackIndex, "aoe", { lineLengthFeet: v }),
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+
+                              <div className="space-y-1">
+                                <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                                  Damage Types
+                                </p>
+                                {renderDamageTypeChips(
+                                  attackIndex,
+                                  picklists.damageTypes,
+                                  selectedDamageTypeIds,
+                                  damageField,
+                                  allowedModes,
+                                )}
+                                {(missingPhysical || missingMental) && (
+                                  <p className="text-xs text-amber-400">
+                                    {missingPhysical &&
+                                      "Select at least 1 PHYSICAL damage type (Physical Strength > 0). "}
+                                    {missingMental &&
+                                      "Select at least 1 MENTAL damage type (Mental Strength > 0)."}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="space-y-1">
+                                <p className="text-[11px] uppercase tracking-wide text-zinc-500">
+                                  Greater Success Attack Effects
+                                </p>
+                                {selectedDamageTypeIds.length === 0 ? (
+                                  <p className="text-xs text-zinc-500">
+                                    Select Damage Types to unlock Attack Effects.
+                                  </p>
+                                ) : (
+                                  renderAttackEffectChips(
+                                    attackIndex,
+                                    allowedAttackEffects,
+                                    selectedAttackEffectIds,
+                                    effectField,
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -3173,8 +4468,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       )}
                     </div>
                   </>
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -3183,7 +4480,19 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             <h3 className="text-xs uppercase tracking-wide text-zinc-400">Powers</h3>
             {!readOnly && (
               <button
-                onClick={() => setEditor((p) => (p ? { ...p, powers: [...p.powers, defaultPower()] } : p))}
+                type="button"
+                onClick={() => {
+                  const nextPowerIndex = editor.powers.length;
+                  const nextPower = defaultPower();
+                  const nextPowerKey = getPowerCollapseKey(nextPower, nextPowerIndex);
+
+                  setEditor((p) => (p ? { ...p, powers: [...p.powers, nextPower] } : p));
+                  setCollapsedPowerIds((prev) => {
+                    const next = { ...prev };
+                    delete next[nextPowerKey];
+                    return next;
+                  });
+                }}
                 className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800"
               >
                 Add Power
@@ -3194,25 +4503,51 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           <div className="space-y-3">
             {editor.powers.map((power, i) => {
               const powerRangeState = toPowerRangeState(power);
+              const powerKey = getPowerCollapseKey(power, i);
+              const collapsed = !!collapsedPowerIds[powerKey];
+              const powerName = power.name?.trim() || `Power ${i + 1}`;
               return (
-                <div key={i} className="rounded border border-zinc-800 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium">Power {i + 1}</p>
+                <div key={powerKey} className="rounded border border-zinc-800 p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => togglePowerCollapsed(powerKey)}
+                      className="w-full flex items-center justify-between rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 hover:bg-zinc-900/40 cursor-pointer select-none text-left"
+                      aria-expanded={!collapsed}
+                    >
+                      <span className="min-w-0 truncate text-sm font-medium">
+                        <span className="mr-2" aria-hidden="true">
+                          {collapsed ? "▶" : "▼"}
+                        </span>
+                        {powerName}
+                      </span>
+                      {collapsed && (
+                        <span className="text-[11px] text-zinc-600">
+                          Intentions: {power.intentions?.length ?? 0}
+                        </span>
+                      )}
+                    </button>
+
                     {!readOnly && (
                       <button
-                        onClick={() =>
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!window.confirm("Remove this power? This cannot be undone.")) return;
                           setEditor((p) =>
                             p ? { ...p, powers: p.powers.filter((_x, idx) => idx !== i) } : p,
-                          )
-                        }
-                        className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800"
+                          );
+                        }}
+                        className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 shrink-0"
                       >
                         Remove
                       </button>
                     )}
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Power Identity</p>
+                  {!collapsed && (
+                    <>
+                      <div className="flex flex-col gap-2">
                     <div className="grid grid-cols-1 gap-2">
                       <label className="space-y-1">
                         <span className="text-[11px] text-zinc-500">Power Name</span>
@@ -3274,7 +4609,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         const controlMode = getDetailsString(details, "controlMode");
                         const cleanseEffectType = getDetailsString(details, "cleanseEffectType");
                         const movementMode = getDetailsString(details, "movementMode");
-                        const statTarget = getDetailsString(details, "statTarget");
+                        const statTarget = getDetailsStatTarget(details);
+                        const applyTo = getDetailsApplyTo(details);
 
                         const availableDamageTypes =
                           attackMode === "MENTAL"
@@ -3320,27 +4656,23 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                 <select
                                   disabled={readOnly}
                                   value={it.type}
-                                  onChange={(e) =>
-                                    setEditor((p) =>
-                                      p
-                                        ? {
-                                            ...p,
-                                            powers: p.powers.map((x, idx) =>
-                                              idx === i
-                                                ? {
-                                                    ...x,
-                                                    intentions: x.intentions.map((row, k) =>
-                                                      k === j
-                                                        ? { ...row, type: e.target.value as MonsterPowerIntentionType }
-                                                        : row,
-                                                    ),
-                                                  }
-                                                : x,
-                                            ),
-                                          }
-                                        : p,
-                                    )
-                                  }
+                                  onChange={(e) => {
+                                    const nextType = e.target.value as MonsterPowerIntentionType;
+
+                                    setEditor((prev) => {
+                                      if (!prev) return prev;
+                                      const next = structuredClone(prev);
+                                      const power = next.powers[i];
+                                      if (!power) return prev;
+                                      const intention = power.intentions[j];
+                                      if (!intention) return prev;
+
+                                      intention.type = nextType;
+                                      intention.detailsJson = defaultDetailsForIntentionType(nextType);
+
+                                      return next;
+                                    });
+                                  }}
                                   className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                                 >
                                   {INTENTIONS.map((option) => (
@@ -3351,28 +4683,40 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                 </select>
                               </label>
 
-                              {(() => {
-                                const derived = deriveDefenceCheckLabel(it.type, details);
-                                return (
-                                  <div className="space-y-1">
-                                    <span className="text-[11px] text-zinc-500">Defence Check</span>
-                                    <div
-                                      className={[
-                                        "w-full rounded border px-2 py-1 text-sm",
-                                        derived
-                                          ? "border-zinc-700 bg-zinc-900 text-zinc-200"
-                                          : "border-zinc-800 bg-zinc-950/30 text-zinc-500",
-                                      ].join(" ")}
-                                    >
-                                      {derived ?? "None"}
-                                    </div>
-                                  </div>
-                                );
-                              })()}
+                              {j === 0 && (
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-zinc-500">Defence Check</span>
+                                  <input
+                                    value={deriveDefenceCheckLabel(it.type, details) ?? "None"}
+                                    disabled
+                                    readOnly
+                                    className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-zinc-200 disabled:opacity-100"
+                                  />
+                                </div>
+                              )}
                             </div>
 
                             <div className="rounded border border-zinc-800 bg-zinc-950/30 p-3 space-y-2">
                               <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Specifics</p>
+
+                              {power.intentions.length > 1 && j > 0 && (
+                                <label className="space-y-1 block">
+                                  <span className="text-[11px] text-zinc-500">Applies To</span>
+                                  <select
+                                    disabled={readOnly}
+                                    value={applyTo}
+                                    onChange={(e) =>
+                                      setPowerIntentionDetails(setEditor, i, j, {
+                                        applyTo: e.target.value as MonsterPowerIntentionApplyTo,
+                                      })
+                                    }
+                                    className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                                  >
+                                    <option value="PRIMARY_TARGET">Primary Target(s)</option>
+                                    <option value="SELF">Self</option>
+                                  </select>
+                                </label>
+                              )}
 
                               {(it.type === "ATTACK" || it.type === "DEFENCE") && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -3525,7 +4869,24 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                 </label>
                               )}
 
-                              {(it.type === "HEALING" || it.type === "SUMMON" || it.type === "TRANSFORMATION") && (
+                              {it.type === "HEALING" && (
+                                <label className="space-y-1 block">
+                                  <span className="text-[11px] text-zinc-500">Healing Mode</span>
+                                  <select
+                                    disabled={readOnly}
+                                    value={String((it.detailsJson ?? {}).healingMode ?? "PHYSICAL")}
+                                    onChange={(e) =>
+                                      setPowerIntentionDetails(setEditor, i, j, { healingMode: e.target.value })
+                                    }
+                                    className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                                  >
+                                    <option value="PHYSICAL">Physical</option>
+                                    <option value="MENTAL">Mental</option>
+                                  </select>
+                                </label>
+                              )}
+
+                              {(it.type === "SUMMON" || it.type === "TRANSFORMATION") && (
                                 <p className="text-sm text-zinc-500">
                                   No specifics yet for {it.type}. (UI scaffold only.)
                                 </p>
@@ -3551,7 +4912,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                             ...x,
                                             intentions: [
                                               ...x.intentions,
-                                              { sortOrder: x.intentions.length, type: "ATTACK", detailsJson: {} },
+                                              {
+                                                sortOrder: x.intentions.length,
+                                                type: "ATTACK",
+                                                detailsJson: defaultDetailsForIntentionType("ATTACK"),
+                                              },
                                             ],
                                           }
                                         : x,
@@ -3595,6 +4960,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                   rangeExtra: {
                                     count: powerRangeState.aoeCount,
                                     shape: powerRangeState.aoeShape,
+                                    sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                    coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                    lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                    lineLengthFeet: powerRangeState.aoeLineLengthFeet,
                                   },
                                 },
                               };
@@ -3691,7 +5060,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                     {powerRangeState.category === "AOE" && (
                       <div className="space-y-2">
                         <div className="space-y-1">
-                          <label className="block text-[11px] text-zinc-500">AoE Center Range (ft)</label>
+                          <label className="block text-[11px] text-zinc-500">AoE Cast Range (ft)</label>
                           <div className="flex flex-wrap gap-2 text-xs">
                             {POWER_RANGE_AOE_CENTER_RANGE_OPTIONS.map((distance) => (
                               <label key={distance} className="inline-flex items-center gap-1">
@@ -3709,6 +5078,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                         ...powerRangeState.rangeExtra,
                                         count: powerRangeState.aoeCount,
                                         shape: powerRangeState.aoeShape,
+                                        sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                        coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                        lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                        lineLengthFeet: powerRangeState.aoeLineLengthFeet,
                                       },
                                     })
                                   }
@@ -3732,6 +5105,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                     ...powerRangeState.rangeExtra,
                                     count: Number(e.target.value),
                                     shape: powerRangeState.aoeShape,
+                                    sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                    coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                    lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                    lineLengthFeet: powerRangeState.aoeLineLengthFeet,
                                   },
                                 })
                               }
@@ -3749,17 +5126,43 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                             <select
                               disabled={readOnly}
                               value={powerRangeState.aoeShape}
-                              onChange={(e) =>
+                              onChange={(e) => {
+                                const nextShape = e.target.value as PowerRangeAoeShape;
+                                const nextSphereRadiusFeet = clampToOptions(
+                                  powerRangeState.aoeSphereRadiusFeet,
+                                  POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS,
+                                  10,
+                                );
+                                const nextConeLengthFeet = clampToOptions(
+                                  powerRangeState.aoeConeLengthFeet,
+                                  POWER_RANGE_AOE_CONE_LENGTH_OPTIONS,
+                                  15,
+                                );
+                                const nextLineWidthFeet = clampToOptions(
+                                  powerRangeState.aoeLineWidthFeet,
+                                  POWER_RANGE_AOE_LINE_WIDTH_OPTIONS,
+                                  5,
+                                );
+                                const nextLineLengthFeet = clampToOptions(
+                                  powerRangeState.aoeLineLengthFeet,
+                                  POWER_RANGE_AOE_LINE_LENGTH_OPTIONS,
+                                  30,
+                                );
+
                                 setPowerCanonicalIntentionDetails(setEditor, i, {
                                   rangeCategory: "AOE",
                                   rangeValue: powerRangeState.aoeCenterRangeFeet,
                                   rangeExtra: {
                                     ...powerRangeState.rangeExtra,
                                     count: powerRangeState.aoeCount,
-                                    shape: e.target.value,
+                                    shape: nextShape,
+                                    sphereRadiusFeet: nextSphereRadiusFeet,
+                                    coneLengthFeet: nextConeLengthFeet,
+                                    lineWidthFeet: nextLineWidthFeet,
+                                    lineLengthFeet: nextLineLengthFeet,
                                   },
-                                })
-                              }
+                                });
+                              }}
                               className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
                             >
                               {POWER_RANGE_AOE_SHAPES.map((shape) => (
@@ -3770,6 +5173,130 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                             </select>
                           </label>
                         </div>
+                        {powerRangeState.aoeShape === "SPHERE" && (
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-zinc-500">Sphere Radius (ft)</label>
+                            <select
+                              disabled={readOnly}
+                              value={powerRangeState.aoeSphereRadiusFeet}
+                              onChange={(e) =>
+                                setPowerCanonicalIntentionDetails(setEditor, i, {
+                                  rangeCategory: "AOE",
+                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                  rangeExtra: {
+                                    ...powerRangeState.rangeExtra,
+                                    count: powerRangeState.aoeCount,
+                                    shape: powerRangeState.aoeShape,
+                                    sphereRadiusFeet: Number(e.target.value),
+                                    coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                    lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                    lineLengthFeet: powerRangeState.aoeLineLengthFeet,
+                                  },
+                                })
+                              }
+                              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                            >
+                              {POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS.map((n) => (
+                                <option key={n} value={n}>
+                                  {n}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        {powerRangeState.aoeShape === "CONE" && (
+                          <div className="space-y-1">
+                            <label className="block text-[11px] text-zinc-500">Cone Length (ft)</label>
+                            <select
+                              disabled={readOnly}
+                              value={powerRangeState.aoeConeLengthFeet}
+                              onChange={(e) =>
+                                setPowerCanonicalIntentionDetails(setEditor, i, {
+                                  rangeCategory: "AOE",
+                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                  rangeExtra: {
+                                    ...powerRangeState.rangeExtra,
+                                    count: powerRangeState.aoeCount,
+                                    shape: powerRangeState.aoeShape,
+                                    sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                    coneLengthFeet: Number(e.target.value),
+                                    lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                    lineLengthFeet: powerRangeState.aoeLineLengthFeet,
+                                  },
+                                })
+                              }
+                              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                            >
+                              {POWER_RANGE_AOE_CONE_LENGTH_OPTIONS.map((n) => (
+                                <option key={n} value={n}>
+                                  {n}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        {powerRangeState.aoeShape === "LINE" && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <label className="space-y-1">
+                              <span className="block text-[11px] text-zinc-500">Line Width (ft)</span>
+                              <select
+                                disabled={readOnly}
+                                value={powerRangeState.aoeLineWidthFeet}
+                                onChange={(e) =>
+                                  setPowerCanonicalIntentionDetails(setEditor, i, {
+                                    rangeCategory: "AOE",
+                                    rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                    rangeExtra: {
+                                      ...powerRangeState.rangeExtra,
+                                      count: powerRangeState.aoeCount,
+                                      shape: powerRangeState.aoeShape,
+                                      sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                      coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                      lineWidthFeet: Number(e.target.value),
+                                      lineLengthFeet: powerRangeState.aoeLineLengthFeet,
+                                    },
+                                  })
+                                }
+                                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                              >
+                                {POWER_RANGE_AOE_LINE_WIDTH_OPTIONS.map((n) => (
+                                  <option key={n} value={n}>
+                                    {n}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="space-y-1">
+                              <span className="block text-[11px] text-zinc-500">Line Length (ft)</span>
+                              <select
+                                disabled={readOnly}
+                                value={powerRangeState.aoeLineLengthFeet}
+                                onChange={(e) =>
+                                  setPowerCanonicalIntentionDetails(setEditor, i, {
+                                    rangeCategory: "AOE",
+                                    rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                    rangeExtra: {
+                                      ...powerRangeState.rangeExtra,
+                                      count: powerRangeState.aoeCount,
+                                      shape: powerRangeState.aoeShape,
+                                      sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                      coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                      lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                      lineLengthFeet: Number(e.target.value),
+                                    },
+                                  })
+                                }
+                                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                              >
+                                {POWER_RANGE_AOE_LINE_LENGTH_OPTIONS.map((n) => (
+                                  <option key={n} value={n}>
+                                    {n}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -3806,8 +5333,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                           className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                         >
                           <option value="INSTANT">Instant</option>
+                          <option value="UNTIL_TARGET_NEXT_TURN">Until target&apos;s next turn</option>
                           <option value="TURNS">Turns</option>
-                          <option value="UNTIL_TARGET_NEXT_TURN">Until target starts next turn</option>
                           <option value="PASSIVE">Passive</option>
                         </select>
                       </label>
@@ -3959,14 +5486,377 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       </label>
                     </div>
                   </div>
+                    </>
+                  )}
                 </div>
               );
             })}
           </div>
         </section>
 
+        {editor.legendary && (
+          <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs uppercase tracking-wide text-zinc-400">Custom Limit Breaks</h3>
+              {!readOnly && !limitBreak2Enabled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditor((p) =>
+                      p
+                        ? {
+                            ...p,
+                            limitBreak2Name: p.limitBreak2Name ?? "New Limit Break",
+                          }
+                        : p,
+                    );
+                    setCollapsedLimitBreaks((prev) => ({ ...prev, LB2: false }));
+                  }}
+                  className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800"
+                >
+                  Add Limit Break
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div className="rounded border border-zinc-800 p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleLimitBreakCollapsed("LB1")}
+                    className="w-full flex items-center justify-between rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 hover:bg-zinc-900/40 cursor-pointer select-none text-left"
+                    aria-expanded={!collapsedLimitBreaks.LB1}
+                  >
+                    <span className="min-w-0 truncate text-sm font-medium">
+                      <span className="mr-2" aria-hidden="true">
+                        {collapsedLimitBreaks.LB1 ? "▶" : "▼"}
+                      </span>
+                      {(editor.limitBreakName ?? "").trim() || "Unnamed"}
+                    </span>
+                    {collapsedLimitBreaks.LB1 && (
+                      <span className="text-[11px] text-zinc-600">
+                        {hasLimitBreak1 ? "Configured" : "Not configured"}
+                      </span>
+                    )}
+                  </button>
+                </div>
+
+                {!collapsedLimitBreaks.LB1 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <label className="space-y-1 md:col-span-2">
+                <span className="text-[11px] text-zinc-500">Name</span>
+                <input
+                  disabled={readOnly}
+                  value={editor.limitBreakName ?? ""}
+                  onChange={(e) =>
+                    setEditor((p) =>
+                      p ? { ...p, limitBreakName: asNullableDraftText(e.target.value) } : p,
+                    )
+                  }
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-[11px] text-zinc-500">Tier</span>
+                <select
+                  disabled={readOnly}
+                  value={editor.limitBreakTier ?? ""}
+                  onChange={(e) =>
+                    setEditor((p) =>
+                      p
+                        ? {
+                            ...p,
+                            limitBreakTier:
+                              e.target.value === "PUSH" ||
+                              e.target.value === "BREAK" ||
+                              e.target.value === "TRANSCEND"
+                                ? (e.target.value as LimitBreakTier)
+                                : null,
+                          }
+                        : p,
+                    )
+                  }
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                >
+                  <option value="">None</option>
+                  {LIMIT_BREAK_TIER_OPTIONS.map((tier) => (
+                    <option key={tier} value={tier}>
+                      {tier}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-[11px] text-zinc-500">Attribute</span>
+                <select
+                  disabled={readOnly}
+                  value={editor.limitBreakAttribute ?? ""}
+                  onChange={(e) =>
+                    setEditor((p) =>
+                      p
+                        ? {
+                            ...p,
+                            limitBreakAttribute:
+                              e.target.value === "ATTACK" ||
+                              e.target.value === "DEFENCE" ||
+                              e.target.value === "FORTITUDE" ||
+                              e.target.value === "INTELLECT" ||
+                              e.target.value === "SUPPORT" ||
+                              e.target.value === "BRAVERY"
+                                ? (e.target.value as CoreAttribute)
+                                : null,
+                          }
+                        : p,
+                    )
+                  }
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                >
+                  <option value="">None</option>
+                  {CORE_ATTRIBUTE_OPTIONS.map((attribute) => (
+                    <option key={attribute} value={attribute}>
+                      {CORE_ATTRIBUTE_LABELS[attribute]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <p className="md:col-span-2 text-sm text-zinc-300">
+                Threshold: {customLimitBreakThresholdRequired === null ? "--" : `${customLimitBreakThresholdRequired} successes`}
+              </p>
+
+              <label className="space-y-1 md:col-span-2">
+                <span className="text-[11px] text-zinc-500">Trigger</span>
+                <textarea
+                  disabled={readOnly}
+                  rows={2}
+                  value={editor.limitBreakTriggerText ?? ""}
+                  onChange={(e) =>
+                    setEditor((p) =>
+                      p
+                        ? { ...p, limitBreakTriggerText: asNullableDraftText(e.target.value) }
+                        : p,
+                    )
+                  }
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                />
+              </label>
+
+              <label className="space-y-1 md:col-span-2">
+                <span className="text-[11px] text-zinc-500">Cost</span>
+                <textarea
+                  disabled={readOnly}
+                  rows={2}
+                  value={editor.limitBreakCostText ?? ""}
+                  onChange={(e) =>
+                    setEditor((p) =>
+                      p
+                        ? { ...p, limitBreakCostText: asNullableDraftText(e.target.value) }
+                        : p,
+                    )
+                  }
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                />
+              </label>
+
+              <label className="space-y-1 md:col-span-2">
+                <span className="text-[11px] text-zinc-500">Effect</span>
+                <textarea
+                  disabled={readOnly}
+                  rows={3}
+                  value={editor.limitBreakEffectText ?? ""}
+                  onChange={(e) =>
+                    setEditor((p) =>
+                      p
+                        ? { ...p, limitBreakEffectText: asNullableDraftText(e.target.value) }
+                        : p,
+                    )
+                  }
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                />
+              </label>
+                  </div>
+                )}
+              </div>
+
+              {limitBreak2Enabled && (
+                <div className="rounded border border-zinc-800 p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleLimitBreakCollapsed("LB2")}
+                      className="w-full flex items-center justify-between rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 hover:bg-zinc-900/40 cursor-pointer select-none text-left"
+                      aria-expanded={!collapsedLimitBreaks.LB2}
+                    >
+                      <span className="min-w-0 truncate text-sm font-medium">
+                        <span className="mr-2" aria-hidden="true">
+                          {collapsedLimitBreaks.LB2 ? "▶" : "▼"}
+                        </span>
+                        {(editor.limitBreak2Name ?? "").trim() || "Unnamed"}
+                      </span>
+                      {collapsedLimitBreaks.LB2 && (
+                        <span className="text-[11px] text-zinc-600">Configured</span>
+                      )}
+                    </button>
+
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!window.confirm("Remove limit break 2? This cannot be undone.")) return;
+                          clearLimitBreak2(setEditor);
+                          setCollapsedLimitBreaks((prev) => ({ ...prev, LB2: true }));
+                        }}
+                        className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 shrink-0"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  {!collapsedLimitBreaks.LB2 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <label className="space-y-1 md:col-span-2">
+                        <span className="text-[11px] text-zinc-500">Name</span>
+                        <input
+                          disabled={readOnly}
+                          value={editor.limitBreak2Name ?? ""}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p ? { ...p, limitBreak2Name: asNullableDraftText(e.target.value) } : p,
+                            )
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                        />
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-[11px] text-zinc-500">Tier</span>
+                        <select
+                          disabled={readOnly}
+                          value={editor.limitBreak2Tier ?? ""}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p
+                                ? {
+                                    ...p,
+                                    limitBreak2Tier:
+                                      e.target.value === "PUSH" ||
+                                      e.target.value === "BREAK" ||
+                                      e.target.value === "TRANSCEND"
+                                        ? (e.target.value as LimitBreakTier)
+                                        : null,
+                                  }
+                                : p,
+                            )
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                        >
+                          <option value="">None</option>
+                          {LIMIT_BREAK_TIER_OPTIONS.map((tier) => (
+                            <option key={tier} value={tier}>
+                              {tier}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-[11px] text-zinc-500">Attribute</span>
+                        <select
+                          disabled={readOnly}
+                          value={editor.limitBreak2Attribute ?? ""}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p
+                                ? {
+                                    ...p,
+                                    limitBreak2Attribute:
+                                      e.target.value === "ATTACK" ||
+                                      e.target.value === "DEFENCE" ||
+                                      e.target.value === "FORTITUDE" ||
+                                      e.target.value === "INTELLECT" ||
+                                      e.target.value === "SUPPORT" ||
+                                      e.target.value === "BRAVERY"
+                                        ? (e.target.value as CoreAttribute)
+                                        : null,
+                                  }
+                                : p,
+                            )
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                        >
+                          <option value="">None</option>
+                          {CORE_ATTRIBUTE_OPTIONS.map((attribute) => (
+                            <option key={attribute} value={attribute}>
+                              {CORE_ATTRIBUTE_LABELS[attribute]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <p className="md:col-span-2 text-sm text-zinc-300">
+                        Threshold: {customLimitBreak2ThresholdRequired === null ? "--" : `${customLimitBreak2ThresholdRequired} successes`}
+                      </p>
+
+                      <label className="space-y-1 md:col-span-2">
+                        <span className="text-[11px] text-zinc-500">Trigger</span>
+                        <textarea
+                          disabled={readOnly}
+                          rows={2}
+                          value={editor.limitBreak2TriggerText ?? ""}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p ? { ...p, limitBreak2TriggerText: asNullableDraftText(e.target.value) } : p,
+                            )
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                        />
+                      </label>
+
+                      <label className="space-y-1 md:col-span-2">
+                        <span className="text-[11px] text-zinc-500">Cost</span>
+                        <textarea
+                          disabled={readOnly}
+                          rows={2}
+                          value={editor.limitBreak2CostText ?? ""}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p ? { ...p, limitBreak2CostText: asNullableDraftText(e.target.value) } : p,
+                            )
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                        />
+                      </label>
+
+                      <label className="space-y-1 md:col-span-2">
+                        <span className="text-[11px] text-zinc-500">Effect</span>
+                        <textarea
+                          disabled={readOnly}
+                          rows={3}
+                          value={editor.limitBreak2EffectText ?? ""}
+                          onChange={(e) =>
+                            setEditor((p) =>
+                              p ? { ...p, limitBreak2EffectText: asNullableDraftText(e.target.value) } : p,
+                            )
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-2">
-          <h3 className="text-xs uppercase tracking-wide text-zinc-400">Custom Notes</h3>
+          <h3 className="text-xs uppercase tracking-wide text-zinc-400">Custom Attributes</h3>
           <textarea
             disabled={readOnly}
             rows={3}
@@ -3977,10 +5867,62 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         </section>
           </div>
 
-          <div className={`${previewMobileVisibility} lg:block lg:sticky lg:top-4 self-start`}>
-            <section className="rounded border border-zinc-800 bg-zinc-900/30 p-4 space-y-3">
-              <h3 className="font-semibold">Monster Block Preview</h3>
-              {previewMonster && <MonsterBlockCard monster={previewMonster} weaponById={weaponById} />}
+          <div className={`${previewMobileVisibility} lg:block lg:sticky lg:top-4 self-start space-y-3`}>
+            <MonsterCalculatorPanel
+              profile={outcomeProfile}
+              archetype={calculatorArchetype}
+              onArchetypeChangeAction={setCalculatorArchetype}
+            />
+            <section className="sc-print rounded border border-zinc-800 bg-zinc-900/30 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-semibold">Monster Block Preview</h3>
+                <label className="flex items-center gap-2 text-xs">
+                  <span className="text-zinc-400">Layout</span>
+                  <select
+                    value={previewPrintLayout}
+                    onChange={(e) => setPreviewPrintLayout(e.target.value as PrintLayoutMode)}
+                    className="rounded border border-zinc-700 bg-zinc-950/40 px-2 py-1 text-xs"
+                  >
+                    <option value="COMPACT_1P">1 Page - Compact</option>
+                    <option value="LEGENDARY_2P">2 Page - Legendary Layout</option>
+                  </select>
+                </label>
+              </div>
+
+              {previewMonster && previewPrintLayout === "COMPACT_1P" && (
+                <MonsterBlockCard
+                  monster={previewMonster}
+                  weaponById={weaponById}
+                  isPrint
+                  printLayout={previewPrintLayout}
+                  printPage="COMPACT"
+                />
+              )}
+
+              {previewMonster && previewPrintLayout === "LEGENDARY_2P" && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-zinc-500">Page 1 - Main Action</p>
+                    <MonsterBlockCard
+                      monster={previewMonster}
+                      weaponById={weaponById}
+                      isPrint
+                      printLayout={previewPrintLayout}
+                      printPage="PAGE1_MAIN"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs uppercase tracking-wide text-zinc-500">Page 2 - Power Action</p>
+                    <MonsterBlockCard
+                      monster={previewMonster}
+                      weaponById={weaponById}
+                      isPrint
+                      printLayout={previewPrintLayout}
+                      printPage="PAGE2_POWER"
+                    />
+                  </div>
+                </div>
+              )}
             </section>
           </div>
         </div>

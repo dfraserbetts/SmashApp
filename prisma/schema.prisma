@@ -124,6 +124,7 @@ model WeaponAttribute {
   name                   String                        @unique
   descriptorNotes        String?
   descriptorTemplate     String?
+  placement              AttributePlacement            @default(TRAITS)
   requiresAoeShape       AoEShape?
   requiresRange          RangeCategory?
   requiresStrengthSource Boolean                       @default(false)
@@ -139,6 +140,7 @@ model ArmorAttribute {
   name               String                       @unique
   descriptorNotes    String?
   descriptorTemplate String?
+  placement          AttributePlacement           @default(TRAITS)
   requiresPvKind     StrengthKind?
   templates          ItemTemplateArmorAttribute[]
 
@@ -150,6 +152,7 @@ model ShieldAttribute {
   name               String                        @unique
   descriptorNotes    String?
   descriptorTemplate String?
+  placement          AttributePlacement            @default(TRAITS)
   templates          ItemTemplateShieldAttribute[]
 
   @@map("ShieldAttribute")
@@ -418,6 +421,7 @@ model LimitBreakTemplate {
   monsterCategory         String?
   baseCostKey             String?
   baseCostParams          Json                   @default("{}")
+  baseCostText            String?                @db.Text
   successEffectKey        String?
   successEffectParams     Json                   @default("{}")
   isPersistent            Boolean                @default(false)
@@ -514,62 +518,78 @@ model AbilityLimitBreakUsage {
 }
 
 model Monster {
-  id                        String                @id @default(cuid())
-  createdAt                 DateTime              @default(now())
-  updatedAt                 DateTime              @default(now()) @updatedAt
-  name                      String
-  imageUrl                  String?
-  level                     Int
-  tier                      MonsterTier
-  legendary                 Boolean               @default(false)
-  source                    MonsterSource         @default(CAMPAIGN)
-  isReadOnly                Boolean               @default(false)
-  campaignId                String?
-  attackMode                MonsterAttackMode     @default(NATURAL_WEAPON)
-  equippedWeaponId          String?
-  mainHandItemId            String?
-  offHandItemId             String?
-  smallItemId               String?
-  headItemId                String?
-  shoulderItemId            String?
-  torsoItemId               String?
-  legsItemId                String?
-  feetItemId                String?
-  customNotes               String?               @db.Text
-  physicalResilienceCurrent Int
-  physicalResilienceMax     Int
-  mentalPerseveranceCurrent Int
-  mentalPerseveranceMax     Int
-  physicalProtection        Int
-  mentalProtection          Int
-  attackDie                 DiceSize
-  attackResistDie           Int                   @default(0)
-  attackModifier            Int                   @default(0)
-  defenceDie                DiceSize
-  defenceResistDie          Int                   @default(0)
-  defenceModifier           Int                   @default(0)
-  fortitudeDie              DiceSize
-  fortitudeResistDie        Int                   @default(0)
-  fortitudeModifier         Int                   @default(0)
-  intellectDie              DiceSize
-  intellectResistDie        Int                   @default(0)
-  intellectModifier         Int                   @default(0)
-  supportDie                DiceSize
-  supportResistDie          Int                   @default(0)
-  supportModifier           Int                   @default(0)
-  braveryDie                DiceSize
-  braveryResistDie          Int                   @default(0)
-  braveryModifier           Int                   @default(0)
-  weaponSkillValue          Int
-  weaponSkillModifier       Int                   @default(0)
-  armorSkillValue           Int
-  armorSkillModifier        Int                   @default(0)
-  Campaign                  Campaign?             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  tags                      MonsterTag[]
-  traits                    MonsterTrait[]
-  attacks                   MonsterAttack[]
-  naturalAttack             MonsterNaturalAttack?
-  powers                    MonsterPower[]
+  id                            String                @id @default(cuid())
+  createdAt                     DateTime              @default(now())
+  updatedAt                     DateTime              @default(now()) @updatedAt
+  name                          String
+  imageUrl                      String?
+  imagePosX                     Float                 @default(50)
+  imagePosY                     Float                 @default(35)
+  level                         Int
+  tier                          MonsterTier
+  legendary                     Boolean               @default(false)
+  source                        MonsterSource         @default(CAMPAIGN)
+  isReadOnly                    Boolean               @default(false)
+  campaignId                    String?
+  attackMode                    MonsterAttackMode     @default(NATURAL_WEAPON)
+  equippedWeaponId              String?
+  mainHandItemId                String?
+  offHandItemId                 String?
+  smallItemId                   String?
+  headItemId                    String?
+  shoulderItemId                String?
+  torsoItemId                   String?
+  legsItemId                    String?
+  feetItemId                    String?
+  customNotes                   String?               @db.Text
+  limitBreakName                String?               @db.Text
+  limitBreakTier                LimitBreakTier?
+  limitBreakTriggerText         String?               @db.Text
+  limitBreakAttribute           CoreAttribute?
+  limitBreakThresholdSuccesses  Int?
+  limitBreakCostText            String?               @db.Text
+  limitBreakEffectText          String?               @db.Text
+  limitBreak2Name               String?               @db.Text
+  limitBreak2Tier               LimitBreakTier?
+  limitBreak2TriggerText        String?               @db.Text
+  limitBreak2Attribute          CoreAttribute?
+  limitBreak2ThresholdSuccesses Int?
+  limitBreak2CostText           String?               @db.Text
+  limitBreak2EffectText         String?               @db.Text
+  physicalResilienceCurrent     Int
+  physicalResilienceMax         Int
+  mentalPerseveranceCurrent     Int
+  mentalPerseveranceMax         Int
+  physicalProtection            Int
+  mentalProtection              Int
+  attackDie                     DiceSize
+  attackResistDie               Int                   @default(0)
+  attackModifier                Int                   @default(0)
+  defenceDie                    DiceSize
+  defenceResistDie              Int                   @default(0)
+  defenceModifier               Int                   @default(0)
+  fortitudeDie                  DiceSize
+  fortitudeResistDie            Int                   @default(0)
+  fortitudeModifier             Int                   @default(0)
+  intellectDie                  DiceSize
+  intellectResistDie            Int                   @default(0)
+  intellectModifier             Int                   @default(0)
+  supportDie                    DiceSize
+  supportResistDie              Int                   @default(0)
+  supportModifier               Int                   @default(0)
+  braveryDie                    DiceSize
+  braveryResistDie              Int                   @default(0)
+  braveryModifier               Int                   @default(0)
+  weaponSkillValue              Int
+  weaponSkillModifier           Int                   @default(0)
+  armorSkillValue               Int
+  armorSkillModifier            Int                   @default(0)
+  Campaign                      Campaign?             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  tags                          MonsterTag[]
+  traits                        MonsterTrait[]
+  attacks                       MonsterAttack[]
+  naturalAttack                 MonsterNaturalAttack?
+  powers                        MonsterPower[]
 
   @@index([campaignId])
   @@index([source])
@@ -704,6 +724,15 @@ enum LimitBreakTier {
   TRANSCEND
 }
 
+enum CoreAttribute {
+  ATTACK
+  DEFENCE
+  FORTITUDE
+  INTELLECT
+  SUPPORT
+  BRAVERY
+}
+
 enum LimitBreakActorType {
   CHARACTER
   MONSTER
@@ -801,6 +830,13 @@ enum RangeCategory {
 enum StrengthKind {
   PHYSICAL
   MENTAL
+}
+
+enum AttributePlacement {
+  ATTACK
+  DEFENCE
+  TRAITS
+  GENERAL
 }
 
 enum AoEShape {

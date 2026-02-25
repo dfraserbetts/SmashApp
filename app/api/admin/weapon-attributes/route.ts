@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
+import type { AttributePlacement } from "@/lib/summoning/types";
 
 const WEAPON_ATTRIBUTE_TOKEN_WHITELIST = new Set<string>([
+  "[ItemName]",
   "[MeleePhysicalStrength]",
   "[MeleeMentalStrength]",
   "[RangedPhysicalStrength]",
@@ -35,6 +37,13 @@ const WEAPON_ATTRIBUTE_TOKEN_WHITELIST = new Set<string>([
   "[AoeLineWidthFeet]",
   "[AoeLineLengthFeet]",
 ]);
+
+function normalizePlacement(value: unknown): AttributePlacement {
+  if (value === "ATTACK" || value === "DEFENCE" || value === "TRAITS" || value === "GENERAL") {
+    return value;
+  }
+  return "TRAITS";
+}
 
 function extractTokens(s: string): string[] {
   const matches = s.match(/\[[^\]]+\]/g) ?? [];
@@ -112,6 +121,7 @@ export async function GET() {
         requiresStrengthSource: true,
         requiresRangeSelection: true,
         requiresStrengthKind: true,
+        placement: true,
       } as any,
     });
 
@@ -141,6 +151,7 @@ export async function POST(req: Request) {
           requiresStrengthSource?: unknown;
           requiresRangeSelection?: unknown;
           requiresStrengthKind?: unknown;
+          placement?: unknown;
         }
       | null;
       
@@ -183,6 +194,7 @@ export async function POST(req: Request) {
       requiresStrengthKindRaw === "PHYSICAL" || requiresStrengthKindRaw === "MENTAL"
         ? requiresStrengthKindRaw
         : null;
+    const placement = normalizePlacement((body as { placement?: unknown } | null)?.placement);
         
     if (descriptorTemplate) {
       validateDescriptorTemplateOrThrow(descriptorTemplate);
@@ -197,6 +209,7 @@ export async function POST(req: Request) {
         requiresAoeShape,
         requiresStrengthSource,
         requiresStrengthKind,
+        placement,
       } as any,
       select: {
         id: true,
@@ -208,6 +221,7 @@ export async function POST(req: Request) {
         requiresStrengthSource: true,
         requiresRangeSelection: true,
         requiresStrengthKind: true,
+        placement: true,
       } as any,
     });
 
@@ -253,6 +267,7 @@ export async function PATCH(req: Request) {
           requiresStrengthSource?: unknown;
           requiresRangeSelection?: unknown;
           requiresStrengthKind?: unknown;
+          placement?: unknown;
         }
       | null;
 
@@ -303,6 +318,7 @@ export async function PATCH(req: Request) {
     requiresStrengthKindRaw === "PHYSICAL" || requiresStrengthKindRaw === "MENTAL"
       ? requiresStrengthKindRaw
       : null;
+    const placement = normalizePlacement((body as { placement?: unknown } | null)?.placement);
 
     if (!Number.isFinite(id)) {
       return NextResponse.json({ error: "id must be a number" }, { status: 400 });
@@ -343,6 +359,10 @@ export async function PATCH(req: Request) {
       data.requiresStrengthKind = requiresStrengthKind;
     }
 
+    if ("placement" in (body ?? {})) {
+      data.placement = placement;
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json(
         { error: "No fields to update" },
@@ -363,6 +383,7 @@ export async function PATCH(req: Request) {
         requiresStrengthSource: true,
         requiresRangeSelection: true,
         requiresStrengthKind: true,
+        placement: true,
       } as any,
     });
 

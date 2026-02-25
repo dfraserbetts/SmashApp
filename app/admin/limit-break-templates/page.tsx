@@ -30,6 +30,7 @@ type Row = {
   monsterCategory: string | null;
   baseCostKey: string | null;
   baseCostParams: unknown;
+  baseCostText: string | null;
   successEffectKey: string | null;
   successEffectParams: unknown;
   isPersistent: boolean;
@@ -59,6 +60,7 @@ type EditorState = {
   monsterCategory: string;
   baseCostKey: string;
   baseCostParams: string;
+  baseCostText: string;
   successEffectKey: string;
   successEffectParams: string;
   isPersistent: boolean;
@@ -167,6 +169,12 @@ const MYTHIC_ITEM_VOCAB: Vocabulary = {
     "cost-lockout-until-rest",
     "cost-lockout-until-levelup",
     "cost-backlash-wounds",
+    "cost-item-lockout-until-rest",
+    "cost-item-lockout-until-ritual",
+    "cost-item-dormant-until-repair",
+    "cost-item-shatters-on-use",
+    "cost-bearer-backlash-wounds",
+    "cost-bearer-exhaustion-major",
   ],
 };
 
@@ -258,6 +266,7 @@ function emptyEditor(): EditorState {
     monsterCategory: "",
     baseCostKey: "",
     baseCostParams: "{}",
+    baseCostText: "",
     successEffectKey: "",
     successEffectParams: "{}",
     isPersistent: false,
@@ -287,6 +296,7 @@ function rowToEditor(row: Row): EditorState {
     monsterCategory: row.monsterCategory ?? "",
     baseCostKey: row.baseCostKey ?? "",
     baseCostParams: toJsonText(row.baseCostParams),
+    baseCostText: row.baseCostText ?? "",
     successEffectKey: row.successEffectKey ?? "",
     successEffectParams: toJsonText(row.successEffectParams),
     isPersistent: row.isPersistent,
@@ -565,6 +575,7 @@ export default function AdminLimitBreakTemplatesPage() {
         monsterCategory: editor.monsterCategory || null,
         baseCostKey: editor.baseCostKey || null,
         baseCostParams: editor.baseCostParams,
+        baseCostText: editor.baseCostText || null,
         successEffectKey: editor.successEffectKey || null,
         successEffectParams: editor.successEffectParams,
         isPersistent: editor.isPersistent,
@@ -720,6 +731,9 @@ export default function AdminLimitBreakTemplatesPage() {
 
   return (
     <div className="space-y-4">
+      <a className="text-sm underline" href="/admin">
+        ← Back to Admin Dashboard
+      </a>
       <div className="flex gap-2">
         <button className="rounded border px-3 py-2 text-sm" onClick={createNew}>
           Create New
@@ -952,6 +966,18 @@ export default function AdminLimitBreakTemplatesPage() {
                   value={editor.baseCostParams}
                   onChange={(e) => setField("baseCostParams", e.target.value)}
                 />
+                <div className="space-y-1">
+                  <label className="text-xs opacity-80">Base Cost Text</label>
+                  <textarea
+                    className="min-h-16 w-full rounded border bg-transparent p-2 text-sm"
+                    placeholder="baseCostText"
+                    value={editor.baseCostText}
+                    onChange={(e) => setField("baseCostText", e.target.value)}
+                  />
+                  <p className="text-[11px] text-zinc-500">
+                    You can use tokens like {"{{wounds}}"}; values come from Base Cost Params.
+                  </p>
+                </div>
               </>
             )}
             {renderKeyField(

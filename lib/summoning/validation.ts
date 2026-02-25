@@ -1,5 +1,7 @@
 import type {
+  CoreAttribute,
   DiceSize,
+  LimitBreakTier,
   MonsterAttack,
   MonsterNaturalAttackConfig,
   MonsterPower,
@@ -13,10 +15,20 @@ import type {
 
 const DICE_SET = new Set<DiceSize>(["D4", "D6", "D8", "D10", "D12"]);
 const TIER_SET = new Set<MonsterTier>(["MINION", "SOLDIER", "ELITE", "BOSS"]);
+const LIMIT_BREAK_TIER_SET = new Set<LimitBreakTier>(["PUSH", "BREAK", "TRANSCEND"]);
+const CORE_ATTRIBUTE_SET = new Set<CoreAttribute>([
+  "ATTACK",
+  "DEFENCE",
+  "FORTITUDE",
+  "INTELLECT",
+  "SUPPORT",
+  "BRAVERY",
+]);
 const DURATION_SET = new Set<MonsterPowerDurationType>([
   "INSTANT",
   "TURNS",
   "PASSIVE",
+  "UNTIL_TARGET_NEXT_TURN",
 ]);
 const DEFENCE_REQ_SET = new Set<MonsterPowerDefenceRequirement>([
   "PROTECTION",
@@ -41,6 +53,15 @@ function asInt(value: unknown, fallback = 0): number {
   if (typeof value === "string" && value.trim() !== "") {
     const parsed = Number(value);
     if (Number.isFinite(parsed)) return Math.trunc(parsed);
+  }
+  return fallback;
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
   }
   return fallback;
 }
@@ -148,6 +169,14 @@ function dedupeTags(tags: string[]): string[] {
   return ordered;
 }
 
+function clampImagePosition(value: unknown, fallback: number): number {
+  const n = asNumber(value, fallback);
+  if (!Number.isFinite(n)) return fallback;
+  if (n < 0) return 0;
+  if (n > 100) return 100;
+  return n;
+}
+
 export function normalizeMonsterUpsertInput(body: unknown): {
   ok: true;
   data: MonsterUpsertInput;
@@ -166,6 +195,74 @@ export function normalizeMonsterUpsertInput(body: unknown): {
   const tier = asString(raw.tier, "") as MonsterTier;
   if (!TIER_SET.has(tier)) {
     return { ok: false, error: "tier must be one of MINION, SOLDIER, ELITE, BOSS" };
+  }
+
+  const limitBreakTierRaw = asNullableString(raw.limitBreakTier);
+  if (
+    limitBreakTierRaw &&
+    !LIMIT_BREAK_TIER_SET.has(limitBreakTierRaw as LimitBreakTier)
+  ) {
+    return { ok: false, error: "limitBreakTier must be one of PUSH, BREAK, TRANSCEND" };
+  }
+  const limitBreakTier = limitBreakTierRaw as LimitBreakTier | null;
+  const limitBreakAttributeRaw = asNullableString(raw.limitBreakAttribute);
+  if (
+    limitBreakAttributeRaw &&
+    !CORE_ATTRIBUTE_SET.has(limitBreakAttributeRaw as CoreAttribute)
+  ) {
+    return {
+      ok: false,
+      error: "limitBreakAttribute must be one of ATTACK, DEFENCE, FORTITUDE, INTELLECT, SUPPORT, BRAVERY",
+    };
+  }
+  const limitBreakAttribute = limitBreakAttributeRaw as CoreAttribute | null;
+
+  let limitBreakThresholdSuccesses: number | null = null;
+  const thresholdRaw = raw.limitBreakThresholdSuccesses;
+  if (
+    thresholdRaw !== null &&
+    thresholdRaw !== undefined &&
+    !(typeof thresholdRaw === "string" && thresholdRaw.trim().length === 0)
+  ) {
+    const parsedThreshold = asInt(thresholdRaw, Number.NaN);
+    if (!Number.isFinite(parsedThreshold) || parsedThreshold < 1) {
+      return { ok: false, error: "limitBreakThresholdSuccesses must be an integer >= 1" };
+    }
+    limitBreakThresholdSuccesses = parsedThreshold;
+  }
+
+  const limitBreak2TierRaw = asNullableString(raw.limitBreak2Tier);
+  if (
+    limitBreak2TierRaw &&
+    !LIMIT_BREAK_TIER_SET.has(limitBreak2TierRaw as LimitBreakTier)
+  ) {
+    return { ok: false, error: "limitBreak2Tier must be one of PUSH, BREAK, TRANSCEND" };
+  }
+  const limitBreak2Tier = limitBreak2TierRaw as LimitBreakTier | null;
+  const limitBreak2AttributeRaw = asNullableString(raw.limitBreak2Attribute);
+  if (
+    limitBreak2AttributeRaw &&
+    !CORE_ATTRIBUTE_SET.has(limitBreak2AttributeRaw as CoreAttribute)
+  ) {
+    return {
+      ok: false,
+      error: "limitBreak2Attribute must be one of ATTACK, DEFENCE, FORTITUDE, INTELLECT, SUPPORT, BRAVERY",
+    };
+  }
+  const limitBreak2Attribute = limitBreak2AttributeRaw as CoreAttribute | null;
+
+  let limitBreak2ThresholdSuccesses: number | null = null;
+  const threshold2Raw = raw.limitBreak2ThresholdSuccesses;
+  if (
+    threshold2Raw !== null &&
+    threshold2Raw !== undefined &&
+    !(typeof threshold2Raw === "string" && threshold2Raw.trim().length === 0)
+  ) {
+    const parsedThreshold = asInt(threshold2Raw, Number.NaN);
+    if (!Number.isFinite(parsedThreshold) || parsedThreshold < 1) {
+      return { ok: false, error: "limitBreak2ThresholdSuccesses must be an integer >= 1" };
+    }
+    limitBreak2ThresholdSuccesses = parsedThreshold;
   }
 
   const powersRaw = Array.isArray(raw.powers) ? raw.powers : [];
@@ -260,6 +357,8 @@ export function normalizeMonsterUpsertInput(body: unknown): {
   const data: MonsterUpsertInput = {
     name,
     imageUrl: asNullableString(raw.imageUrl),
+    imagePosX: clampImagePosition(raw.imagePosX, 50),
+    imagePosY: clampImagePosition(raw.imagePosY, 35),
     level: Math.max(1, asInt(raw.level, 1)),
     tier,
     legendary: asBool(raw.legendary, false),
@@ -272,6 +371,20 @@ export function normalizeMonsterUpsertInput(body: unknown): {
     legsItemId: asNullableString(raw.legsItemId),
     feetItemId: asNullableString(raw.feetItemId),
     customNotes: asString(raw.customNotes, "") || null,
+    limitBreakName: asNullableString(raw.limitBreakName),
+    limitBreakTier,
+    limitBreakTriggerText: asNullableString(raw.limitBreakTriggerText),
+    limitBreakAttribute,
+    limitBreakThresholdSuccesses,
+    limitBreakCostText: asNullableString(raw.limitBreakCostText),
+    limitBreakEffectText: asNullableString(raw.limitBreakEffectText),
+    limitBreak2Name: asNullableString(raw.limitBreak2Name),
+    limitBreak2Tier,
+    limitBreak2TriggerText: asNullableString(raw.limitBreak2TriggerText),
+    limitBreak2Attribute,
+    limitBreak2ThresholdSuccesses,
+    limitBreak2CostText: asNullableString(raw.limitBreak2CostText),
+    limitBreak2EffectText: asNullableString(raw.limitBreak2EffectText),
     physicalResilienceCurrent: Math.max(0, asInt(raw.physicalResilienceCurrent, 0)),
     physicalResilienceMax: Math.max(0, asInt(raw.physicalResilienceMax, 0)),
     mentalPerseveranceCurrent: Math.max(0, asInt(raw.mentalPerseveranceCurrent, 0)),

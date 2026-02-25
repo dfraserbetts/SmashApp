@@ -12,6 +12,8 @@ type ForgeValueCategory =
   | "DEF_EFFECTS"
   | "DAMAGE_TYPES";
 
+type AttributePlacement = "ATTACK" | "DEFENCE" | "TRAITS" | "GENERAL";
+
 type ValueRow = {
   id: number;
   name: string;
@@ -19,6 +21,7 @@ type ValueRow = {
   descriptorNotes?: string | null;
   requiresRange?: "MELEE" | "RANGED" | "AOE" | null;
   requiresAoeShape?: "SPHERE" | "CONE" | "LINE" | null;
+  placement?: AttributePlacement | null;
 };
 
 type ForgeCostEntry = {
@@ -35,6 +38,44 @@ function parseTieredName(name: string): { base: string; tier: number | null } {
   const m = name.trim().match(/^(.*)\s(\d+)$/);
   if (!m) return { base: name.trim(), tier: null };
   return { base: (m[1] ?? "").trim(), tier: Number.parseInt(m[2] ?? "", 10) };
+}
+
+const AURA_PHYSICAL_REROLL_TEMPLATE =
+  "Aura (Physical) [AuraPhysical]: Allies within 10ft may reroll up to [AuraPhysical] failed Physical Defence dice per defence roll.";
+const AURA_MENTAL_REROLL_TEMPLATE =
+  "Aura (Mental) [AuraMental]: Allies within 10ft may reroll up to [AuraMental] failed Mental Defence dice per defence roll.";
+
+function convertAuraProtectionTemplateToReroll(template: string): string | null {
+  const raw = String(template ?? "");
+  const normalized = raw.toLowerCase();
+  const hasPhysicalToken = raw.includes("[AuraPhysical]");
+  const hasMentalToken = raw.includes("[AuraMental]");
+
+  const alreadyPhysicalReroll =
+    hasPhysicalToken &&
+    normalized.includes(
+      "aura (physical) [auraphysical]: allies within 10ft may reroll up to [auraphysical] failed physical defence dice per defence roll.",
+    );
+  const alreadyMentalReroll =
+    hasMentalToken &&
+    normalized.includes(
+      "aura (mental) [auramental]: allies within 10ft may reroll up to [auramental] failed mental defence dice per defence roll.",
+    );
+
+  const mentionsPhysicalProtection =
+    /physical\s+protection/i.test(raw) || /\+\s*\[AuraPhysical\]/i.test(raw);
+  const mentionsMentalProtection =
+    /mental\s+protection/i.test(raw) || /\+\s*\[AuraMental\]/i.test(raw);
+
+  const convertPhysical = hasPhysicalToken && mentionsPhysicalProtection && !alreadyPhysicalReroll;
+  const convertMental = hasMentalToken && mentionsMentalProtection && !alreadyMentalReroll;
+
+  if (convertPhysical && convertMental) {
+    return `${AURA_PHYSICAL_REROLL_TEMPLATE}\n${AURA_MENTAL_REROLL_TEMPLATE}`;
+  }
+  if (convertPhysical) return AURA_PHYSICAL_REROLL_TEMPLATE;
+  if (convertMental) return AURA_MENTAL_REROLL_TEMPLATE;
+  return null;
 }
 
 export default function AdminForgeValuesPage() {
@@ -90,6 +131,7 @@ export default function AdminForgeValuesPage() {
 
   const [requiresStrengthKind, setRequiresStrengthKind] = 
     useState<string>("");
+  const [placement, setPlacement] = useState<AttributePlacement>("TRAITS");
 
   const [savingDescriptor, setSavingDescriptor] = useState(false);
 
@@ -101,6 +143,7 @@ export default function AdminForgeValuesPage() {
     // Weapon Attribute tokens
     if (isWeaponAttributes) {
       return new Set([
+        "[ItemName]",
         "[MeleePhysicalStrength]",
         "[MeleeMentalStrength]",
         "[RangedPhysicalStrength]",
@@ -136,6 +179,7 @@ export default function AdminForgeValuesPage() {
     // Armor Attribute tokens (start minimal; expand when needed)
     if (isArmorAttributes || isShieldAttributes) {
       return new Set([
+        "[ItemName]",
         "[AttributeValue]",
         "[PPV]",
         "[MPV]",
@@ -186,6 +230,7 @@ function renderTemplatePreview(
 
   const sample: Record<string, string> = {
     // Common
+    "[ItemName]": "Sample Item",
     "[AttributeValue]": attributeValueSample,
 
     // Weapon-ish samples
@@ -456,6 +501,7 @@ function renderTemplatePreview(
       setRequiresAoeShape("");
       setRequiresRangeSelection(false);
       setRequiresStrengthKind("");
+      setPlacement("TRAITS");
       return;
     }
 
@@ -466,6 +512,14 @@ function renderTemplatePreview(
     setRequiresStrengthSource(!!(selected as any).requiresStrengthSource);
     setRequiresRangeSelection(!!(selected as any).requiresRangeSelection);
     setRequiresStrengthKind((selected as any).requiresStrengthKind ?? "");
+    setPlacement(
+      selected.placement === "ATTACK" ||
+        selected.placement === "DEFENCE" ||
+        selected.placement === "TRAITS" ||
+        selected.placement === "GENERAL"
+        ? selected.placement
+        : "TRAITS",
+    );
   }, [selected]);
 
   const selectedParsed = useMemo(() => {
@@ -591,6 +645,9 @@ function renderTemplatePreview(
 
   return (
     <div className="space-y-6">
+      <a className="text-sm underline" href="/admin">
+        ← Back to Admin Dashboard
+      </a>
       <div className="flex items-end gap-3">
         <div>
           <label className="text-sm">Category</label>
@@ -759,78 +816,101 @@ function renderTemplatePreview(
                       <div className="text-sm font-medium">Descriptor Template</div>
                     </div>
 
-                    <button
-                      className="rounded border px-3 py-2 text-sm"
-                      disabled={savingDescriptor || !selected}
-                      onClick={async () => {
-                        if (!selected) return;
-
-                        setErr(null);
-
-                        const tokens = extractTokens(descriptorTemplate);
-                        const unknown = tokens.filter((t) => !TOKEN_WHITELIST.has(t));
-                        if (unknown.length) {
-                          setErr(
-                            `Unknown token(s): ${unknown.join(", ")}. Use the token buttons.`,
-                          );
-                          return;
-                        }
-
-                        try {
-                          setSavingDescriptor(true);
-
-                          const endpoint = isWeaponAttributes 
-                            ? "/api/admin/weapon-attributes"
-                            : isArmorAttributes
-                              ? "/api/admin/armor-attributes"
-                              : "/api/admin/shield-attributes";
-
-                          const payload: any = {
-                            id: selected.id,
-                            descriptorTemplate,
-                            descriptorNotes,
-                          };
-
-                          // Only weapon attributes support these gating/parameter flags
-                          if (isWeaponAttributes) {
-                            payload.requiresRange = requiresRange || null;
-                            payload.requiresAoeShape = requiresAoeShape || null;
-                            payload.requiresStrengthSource = requiresStrengthSource;
-                            payload.requiresRangeSelection = requiresRangeSelection;
-                            payload.requiresStrengthKind = requiresStrengthKind || null;
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="rounded border px-3 py-2 text-sm"
+                        type="button"
+                        disabled={savingDescriptor || !selected}
+                        onClick={() => {
+                          if (!selected) return;
+                          const converted = convertAuraProtectionTemplateToReroll(descriptorTemplate);
+                          if (!converted) {
+                            setFlash("No Aura Protection pattern found.");
+                            setTimeout(() => setFlash(null), 2000);
+                            return;
                           }
-
-                          const res = await fetch(endpoint, {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify(payload),
-                          });
-
-                          const data = await res.json().catch(() => ({}));
-                          if (!res.ok) throw new Error(data?.error ?? "Save failed");
-
-                          // Update local rows (prefer API-returned row)
-                          if (data?.row?.id) {
-                            setRows((prev) =>
-                              prev.map((r) => (r.id === data.row.id ? data.row : r)),
-                            );
-                          } else {
-                            await loadAll();
-                            setSelectedId(selected.id);
-                          }
-
-                          setFlash("Saved descriptor.");
+                          setDescriptorTemplate(converted);
+                          setFlash("Converted Aura template to reroll format.");
                           setTimeout(() => setFlash(null), 2000);
-                        } catch (e: any) {
-                          setErr(String(e?.message ?? "Save failed"));
-                        } finally {
-                          setSavingDescriptor(false);
-                        }
-                      }}
-                      title="Save descriptor"
-                    >
-                      {savingDescriptor ? "Saving…" : "Save"}
-                    </button>
+                        }}
+                        title="Convert aura protection descriptors to reroll format"
+                      >
+                        Convert Aura to Reroll
+                      </button>
+                      <button
+                        className="rounded border px-3 py-2 text-sm"
+                        disabled={savingDescriptor || !selected}
+                        onClick={async () => {
+                          if (!selected) return;
+
+                          setErr(null);
+
+                          const tokens = extractTokens(descriptorTemplate);
+                          const unknown = tokens.filter((t) => !TOKEN_WHITELIST.has(t));
+                          if (unknown.length) {
+                            setErr(
+                              `Unknown token(s): ${unknown.join(", ")}. Use the token buttons.`,
+                            );
+                            return;
+                          }
+
+                          try {
+                            setSavingDescriptor(true);
+
+                            const endpoint = isWeaponAttributes 
+                              ? "/api/admin/weapon-attributes"
+                              : isArmorAttributes
+                                ? "/api/admin/armor-attributes"
+                                : "/api/admin/shield-attributes";
+
+                            const payload: any = {
+                              id: selected.id,
+                              descriptorTemplate,
+                              descriptorNotes,
+                              placement,
+                            };
+
+                            // Only weapon attributes support these gating/parameter flags
+                            if (isWeaponAttributes) {
+                              payload.requiresRange = requiresRange || null;
+                              payload.requiresAoeShape = requiresAoeShape || null;
+                              payload.requiresStrengthSource = requiresStrengthSource;
+                              payload.requiresRangeSelection = requiresRangeSelection;
+                              payload.requiresStrengthKind = requiresStrengthKind || null;
+                            }
+
+                            const res = await fetch(endpoint, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(payload),
+                            });
+
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok) throw new Error(data?.error ?? "Save failed");
+
+                            // Update local rows (prefer API-returned row)
+                            if (data?.row?.id) {
+                              setRows((prev) =>
+                                prev.map((r) => (r.id === data.row.id ? data.row : r)),
+                              );
+                            } else {
+                              await loadAll();
+                              setSelectedId(selected.id);
+                            }
+
+                            setFlash("Saved descriptor.");
+                            setTimeout(() => setFlash(null), 2000);
+                          } catch (e: any) {
+                            setErr(String(e?.message ?? "Save failed"));
+                          } finally {
+                            setSavingDescriptor(false);
+                          }
+                        }}
+                        title="Save descriptor"
+                      >
+                        {savingDescriptor ? "Saving…" : "Save"}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -922,6 +1002,20 @@ function renderTemplatePreview(
                           </div>
                         </div>
                       )}
+
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium opacity-80">Placement</div>
+                        <select
+                          className="w-full rounded border bg-transparent p-2 text-sm"
+                          value={placement}
+                          onChange={(e) => setPlacement(e.target.value as AttributePlacement)}
+                        >
+                          <option value="ATTACK">Attack</option>
+                          <option value="DEFENCE">Defence</option>
+                          <option value="TRAITS">Traits</option>
+                          <option value="GENERAL">General</option>
+                        </select>
+                      </div>
 
                       <div className="space-y-1">
                         <div className="text-xs font-medium opacity-80">Notes (internal)</div>

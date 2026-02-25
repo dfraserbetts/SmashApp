@@ -1,9 +1,18 @@
 export type MonsterTier = "MINION" | "SOLDIER" | "ELITE" | "BOSS";
 export type MonsterSource = "CORE" | "CAMPAIGN";
 export type MonsterAttackMode = "NATURAL";
+export type LimitBreakTier = "PUSH" | "BREAK" | "TRANSCEND";
+export type CoreAttribute =
+  | "ATTACK"
+  | "DEFENCE"
+  | "FORTITUDE"
+  | "INTELLECT"
+  | "SUPPORT"
+  | "BRAVERY";
 export type DiceSize = "D4" | "D6" | "D8" | "D10" | "D12";
+export type AttributePlacement = "ATTACK" | "DEFENCE" | "TRAITS" | "GENERAL";
 
-export type MonsterPowerDurationType = "INSTANT" | "TURNS" | "PASSIVE";
+export type MonsterPowerDurationType = "INSTANT" | "TURNS" | "PASSIVE" | "UNTIL_TARGET_NEXT_TURN";
 export type MonsterPowerDefenceRequirement = "PROTECTION" | "RESIST" | "NONE";
 export type MonsterPowerIntentionType =
   | "ATTACK"
@@ -16,12 +25,17 @@ export type MonsterPowerIntentionType =
   | "DEBUFF"
   | "SUMMON"
   | "TRANSFORMATION";
+export type MonsterPowerIntentionApplyTo = "PRIMARY_TARGET" | "SELF";
+
+export type MonsterPowerIntentionDetails = Record<string, unknown> & {
+  applyTo?: MonsterPowerIntentionApplyTo;
+};
 
 export type MonsterPowerIntention = {
   id?: string;
   sortOrder: number;
   type: MonsterPowerIntentionType;
-  detailsJson: Record<string, unknown>;
+  detailsJson: MonsterPowerIntentionDetails;
 };
 
 export type MonsterPower = {
@@ -102,6 +116,8 @@ export type MonsterRecord = {
   updatedAt: string;
   name: string;
   imageUrl: string | null;
+  imagePosX: number;
+  imagePosY: number;
   level: number;
   tier: MonsterTier;
   legendary: boolean;
@@ -118,6 +134,20 @@ export type MonsterRecord = {
   legsItemId: string | null;
   feetItemId: string | null;
   customNotes: string | null;
+  limitBreakName: string | null;
+  limitBreakTier: LimitBreakTier | null;
+  limitBreakTriggerText: string | null;
+  limitBreakAttribute: CoreAttribute | null;
+  limitBreakThresholdSuccesses: number | null;
+  limitBreakCostText: string | null;
+  limitBreakEffectText: string | null;
+  limitBreak2Name: string | null;
+  limitBreak2Tier: LimitBreakTier | null;
+  limitBreak2TriggerText: string | null;
+  limitBreak2Attribute: CoreAttribute | null;
+  limitBreak2ThresholdSuccesses: number | null;
+  limitBreak2CostText: string | null;
+  limitBreak2EffectText: string | null;
   physicalResilienceCurrent: number;
   physicalResilienceMax: number;
   mentalPerseveranceCurrent: number;

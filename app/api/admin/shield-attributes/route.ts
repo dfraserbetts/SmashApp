@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
+import type { AttributePlacement } from "@/lib/summoning/types";
+
+function normalizePlacement(value: unknown): AttributePlacement {
+  if (value === "ATTACK" || value === "DEFENCE" || value === "TRAITS" || value === "GENERAL") {
+    return value;
+  }
+  return "TRAITS";
+}
 
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -48,7 +56,13 @@ export async function GET() {
 
     const rows = await prisma.shieldAttribute.findMany({
       orderBy: { name: "asc" },
-      select: { id: true, name: true, descriptorTemplate: true, descriptorNotes: true },
+      select: {
+        id: true,
+        name: true,
+        descriptorTemplate: true,
+        descriptorNotes: true,
+        placement: true,
+      } as any,
     });
 
     return NextResponse.json({ rows });
@@ -67,7 +81,12 @@ export async function POST(req: Request) {
     await requireAdminUserId();
 
 const body = (await req.json().catch(() => null)) as
-      | { name?: unknown; descriptorTemplate?: unknown; descriptorNotes?: unknown }
+      | {
+          name?: unknown;
+          descriptorTemplate?: unknown;
+          descriptorNotes?: unknown;
+          placement?: unknown;
+        }
       | null;
 
     const name = typeof body?.name === "string" ? body.name.trim() : "";
@@ -79,10 +98,17 @@ const body = (await req.json().catch(() => null)) as
 
     const descriptorNotes =
       typeof body?.descriptorNotes === "string" ? body.descriptorNotes : null;
+    const placement = normalizePlacement((body as { placement?: unknown } | null)?.placement);
 
     const created = await prisma.shieldAttribute.create({
-      data: { name, descriptorTemplate, descriptorNotes },
-      select: { id: true, name: true, descriptorTemplate: true, descriptorNotes: true },
+      data: { name, descriptorTemplate, descriptorNotes, placement } as any,
+      select: {
+        id: true,
+        name: true,
+        descriptorTemplate: true,
+        descriptorNotes: true,
+        placement: true,
+      } as any,
     });
 
     return NextResponse.json({ row: created }, { status: 201 });
@@ -108,7 +134,13 @@ export async function PATCH(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | { id?: unknown; name?: unknown; descriptorTemplate?: unknown; descriptorNotes?: unknown }
+      | {
+          id?: unknown;
+          name?: unknown;
+          descriptorTemplate?: unknown;
+          descriptorNotes?: unknown;
+          placement?: unknown;
+        }
       | null;
 
     const idRaw = body?.id;
@@ -134,6 +166,7 @@ export async function PATCH(req: Request) {
       typeof body?.descriptorNotes === "string"
         ? String(body.descriptorNotes).trim()
         : "";
+    const placement = normalizePlacement((body as { placement?: unknown } | null)?.placement);
 
     // Backwards compatible: name is only required if the caller is actually updating it.
     if ("name" in (body ?? {}) && !name) {
@@ -151,11 +184,20 @@ export async function PATCH(req: Request) {
     if ("descriptorNotes" in (body ?? {})) {
       data.descriptorNotes = descriptorNotes || null;
     }
+    if ("placement" in (body ?? {})) {
+      data.placement = placement;
+    }
 
     const updated = await prisma.shieldAttribute.update({
       where: { id },
       data,
-      select: { id: true, name: true, descriptorTemplate: true, descriptorNotes: true },
+      select: {
+        id: true,
+        name: true,
+        descriptorTemplate: true,
+        descriptorNotes: true,
+        placement: true,
+      } as any,
     });
 
     return NextResponse.json({ row: updated });
