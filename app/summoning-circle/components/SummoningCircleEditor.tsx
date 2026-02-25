@@ -105,6 +105,11 @@ const BODY_SLOT_ROWS = [
   [BODY_SLOTS[1], BODY_SLOTS[2]],
   [BODY_SLOTS[3], BODY_SLOTS[4]],
 ] as const;
+const LEVEL_OPTIONS = Array.from({ length: 20 }, (_, i) => i + 1);
+const STRENGTH_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
+const TARGET_OPTIONS = [1, 2, 3, 4, 5] as const;
+const DICE_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+const POTENCY_OPTIONS = [1, 2, 3, 4, 5] as const;
 const PICKER_LEVEL_OPTIONS = Array.from({ length: 20 }, (_, idx) => idx + 1);
 const MONSTER_TIER_OPTIONS: MonsterTier[] = ["MINION", "SOLDIER", "ELITE", "BOSS"];
 const MONSTER_TIER_LABELS: Record<MonsterTier, string> = {
@@ -3322,17 +3327,20 @@ export function SummoningCircleEditor({ campaignId }: Props) {
               placeholder="Name"
               className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
             />
-            <input
+            <select
               disabled={readOnly}
-              type="number"
-              min={1}
-              value={editor.level}
+              value={String(editor.level)}
               onChange={(e) =>
-                setEditor((p) => (p ? { ...p, level: Number(e.target.value || 1) } : p))
+                setEditor((p) => (p ? { ...p, level: Number(e.target.value) } : p))
               }
-              placeholder="Level"
               className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-            />
+            >
+              {LEVEL_OPTIONS.map((lvl) => (
+                <option key={lvl} value={String(lvl)}>
+                  {lvl}
+                </option>
+              ))}
+            </select>
             <select
               disabled={readOnly}
               value={editor.tier}
@@ -4170,52 +4178,64 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                     <label className="block text-[11px] text-zinc-400 mb-1">
                                       Physical Strength
                                     </label>
-                                    <input
+                                    <select
                                       disabled={readOnly}
-                                      type="number"
-                                      min={0}
-                                      value={Number(cfg.physicalStrength ?? 0)}
+                                      value={String(clampToOptions(Number(cfg.physicalStrength ?? 0), STRENGTH_OPTIONS, 0))}
                                       onChange={(e) =>
                                         updateAttackRange(attackIndex, "melee", {
-                                          physicalStrength: Number(e.target.value || 0),
+                                          physicalStrength: Number(e.target.value),
                                         })
                                       }
                                       className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                    />
+                                    >
+                                      {STRENGTH_OPTIONS.map((v) => (
+                                        <option key={v} value={String(v)}>
+                                          {v}
+                                        </option>
+                                      ))}
+                                    </select>
                                   </div>
                                   <div>
                                     <label className="block text-[11px] text-zinc-400 mb-1">
                                       Mental Strength
                                     </label>
-                                    <input
+                                    <select
                                       disabled={readOnly}
-                                      type="number"
-                                      min={0}
-                                      value={Number(cfg.mentalStrength ?? 0)}
+                                      value={String(clampToOptions(Number(cfg.mentalStrength ?? 0), STRENGTH_OPTIONS, 0))}
                                       onChange={(e) =>
                                         updateAttackRange(attackIndex, "melee", {
-                                          mentalStrength: Number(e.target.value || 0),
+                                          mentalStrength: Number(e.target.value),
                                         })
                                       }
                                       className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                    />
+                                    >
+                                      {STRENGTH_OPTIONS.map((v) => (
+                                        <option key={v} value={String(v)}>
+                                          {v}
+                                        </option>
+                                      ))}
+                                    </select>
                                   </div>
                                   <div>
                                     <label className="block text-[11px] text-zinc-400 mb-1">
                                       Targets
                                     </label>
-                                    <input
+                                    <select
                                       disabled={readOnly}
-                                      type="number"
-                                      min={1}
-                                      value={Number(cfg.targets ?? 1)}
+                                      value={String(clampToOptions(Number(cfg.targets ?? 1), TARGET_OPTIONS, 1))}
                                       onChange={(e) =>
                                         updateAttackRange(attackIndex, "melee", {
-                                          targets: Number(e.target.value || 1),
+                                          targets: Number(e.target.value),
                                         })
                                       }
                                       className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                    />
+                                    >
+                                      {TARGET_OPTIONS.map((v) => (
+                                        <option key={v} value={String(v)}>
+                                          {v}
+                                        </option>
+                                      ))}
+                                    </select>
                                   </div>
                                 </div>
                               )}
@@ -4226,52 +4246,64 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                     <label className="block text-[11px] text-zinc-400 mb-1">
                                       Physical Strength
                                     </label>
-                                    <input
+                                    <select
                                       disabled={readOnly}
-                                      type="number"
-                                      min={0}
-                                      value={Number(cfg.physicalStrength ?? 0)}
+                                      value={String(clampToOptions(Number(cfg.physicalStrength ?? 0), STRENGTH_OPTIONS, 0))}
                                       onChange={(e) =>
                                         updateAttackRange(attackIndex, "ranged", {
-                                          physicalStrength: Number(e.target.value || 0),
+                                          physicalStrength: Number(e.target.value),
                                         })
                                       }
                                       className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                    />
+                                    >
+                                      {STRENGTH_OPTIONS.map((v) => (
+                                        <option key={v} value={String(v)}>
+                                          {v}
+                                        </option>
+                                      ))}
+                                    </select>
                                   </div>
                                   <div>
                                     <label className="block text-[11px] text-zinc-400 mb-1">
                                       Mental Strength
                                     </label>
-                                    <input
+                                    <select
                                       disabled={readOnly}
-                                      type="number"
-                                      min={0}
-                                      value={Number(cfg.mentalStrength ?? 0)}
+                                      value={String(clampToOptions(Number(cfg.mentalStrength ?? 0), STRENGTH_OPTIONS, 0))}
                                       onChange={(e) =>
                                         updateAttackRange(attackIndex, "ranged", {
-                                          mentalStrength: Number(e.target.value || 0),
+                                          mentalStrength: Number(e.target.value),
                                         })
                                       }
                                       className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                    />
+                                    >
+                                      {STRENGTH_OPTIONS.map((v) => (
+                                        <option key={v} value={String(v)}>
+                                          {v}
+                                        </option>
+                                      ))}
+                                    </select>
                                   </div>
                                   <div>
                                     <label className="block text-[11px] text-zinc-400 mb-1">
                                       Targets
                                     </label>
-                                    <input
+                                    <select
                                       disabled={readOnly}
-                                      type="number"
-                                      min={1}
-                                      value={Number(cfg.targets ?? 1)}
+                                      value={String(clampToOptions(Number(cfg.targets ?? 1), TARGET_OPTIONS, 1))}
                                       onChange={(e) =>
                                         updateAttackRange(attackIndex, "ranged", {
-                                          targets: Number(e.target.value || 1),
+                                          targets: Number(e.target.value),
                                         })
                                       }
                                       className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                    />
+                                    >
+                                      {TARGET_OPTIONS.map((v) => (
+                                        <option key={v} value={String(v)}>
+                                          {v}
+                                        </option>
+                                      ))}
+                                    </select>
                                   </div>
                                   <div>
                                     {renderRangePills(
@@ -4291,52 +4323,64 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                       <label className="block text-[11px] text-zinc-400 mb-1">
                                         Physical Strength
                                       </label>
-                                      <input
+                                      <select
                                         disabled={readOnly}
-                                        type="number"
-                                        min={0}
-                                        value={Number(cfg.physicalStrength ?? 0)}
+                                        value={String(clampToOptions(Number(cfg.physicalStrength ?? 0), STRENGTH_OPTIONS, 0))}
                                         onChange={(e) =>
                                           updateAttackRange(attackIndex, "aoe", {
-                                            physicalStrength: Number(e.target.value || 0),
+                                            physicalStrength: Number(e.target.value),
                                           })
                                         }
                                         className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                      />
+                                      >
+                                        {STRENGTH_OPTIONS.map((v) => (
+                                          <option key={v} value={String(v)}>
+                                            {v}
+                                          </option>
+                                        ))}
+                                      </select>
                                     </div>
                                     <div>
                                       <label className="block text-[11px] text-zinc-400 mb-1">
                                         Mental Strength
                                       </label>
-                                      <input
+                                      <select
                                         disabled={readOnly}
-                                        type="number"
-                                        min={0}
-                                        value={Number(cfg.mentalStrength ?? 0)}
+                                        value={String(clampToOptions(Number(cfg.mentalStrength ?? 0), STRENGTH_OPTIONS, 0))}
                                         onChange={(e) =>
                                           updateAttackRange(attackIndex, "aoe", {
-                                            mentalStrength: Number(e.target.value || 0),
+                                            mentalStrength: Number(e.target.value),
                                           })
                                         }
                                         className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                      />
+                                      >
+                                        {STRENGTH_OPTIONS.map((v) => (
+                                          <option key={v} value={String(v)}>
+                                            {v}
+                                          </option>
+                                        ))}
+                                      </select>
                                     </div>
                                     <div>
                                       <label className="block text-[11px] text-zinc-400 mb-1">
                                         Count
                                       </label>
-                                      <input
+                                      <select
                                         disabled={readOnly}
-                                        type="number"
-                                        min={1}
-                                        value={Number(cfg.count ?? 1)}
+                                        value={String(clampToOptions(Number(cfg.count ?? 1), TARGET_OPTIONS, 1))}
                                         onChange={(e) =>
                                           updateAttackRange(attackIndex, "aoe", {
-                                            count: Number(e.target.value || 1),
+                                            count: Number(e.target.value),
                                           })
                                         }
                                         className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                                      />
+                                      >
+                                        {TARGET_OPTIONS.map((v) => (
+                                          <option key={v} value={String(v)}>
+                                            {v}
+                                          </option>
+                                        ))}
+                                      </select>
                                     </div>
                                     <div>
                                       {renderRangePills(
@@ -5393,12 +5437,9 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                       <label className="space-y-1">
                         <span className="text-[11px] text-zinc-500">Dice Count</span>
-                        <input
+                        <select
                           disabled={readOnly}
-                          type="number"
-                          min={1}
-                          max={20}
-                          value={power.diceCount}
+                          value={String(clampToOptions(Number(power.diceCount), DICE_COUNT_OPTIONS, 1))}
                           onChange={(e) =>
                             setEditor((p) =>
                               p
@@ -5408,7 +5449,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                       idx === i
                                         ? {
                                             ...x,
-                                            diceCount: Math.max(1, Math.min(20, Number(e.target.value || 1))),
+                                            diceCount: Number(e.target.value),
                                           }
                                         : x,
                                     ),
@@ -5417,17 +5458,20 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                             )
                           }
                           className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                        />
+                        >
+                          {DICE_COUNT_OPTIONS.map((v) => (
+                            <option key={v} value={String(v)}>
+                              {v}
+                            </option>
+                          ))}
+                        </select>
                       </label>
 
                       <label className="space-y-1">
                         <span className="text-[11px] text-zinc-500">Potency</span>
-                        <input
+                        <select
                           disabled={readOnly}
-                          type="number"
-                          min={1}
-                          max={5}
-                          value={power.potency}
+                          value={String(clampToOptions(Number(power.potency), POTENCY_OPTIONS, 1))}
                           onChange={(e) =>
                             setEditor((p) =>
                               p
@@ -5435,7 +5479,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                     ...p,
                                     powers: p.powers.map((x, idx) =>
                                       idx === i
-                                        ? { ...x, potency: Math.max(1, Math.min(5, Number(e.target.value || 1))) }
+                                        ? { ...x, potency: Number(e.target.value) }
                                         : x,
                                     ),
                                   }
@@ -5443,7 +5487,13 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                             )
                           }
                           className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                        />
+                        >
+                          {POTENCY_OPTIONS.map((v) => (
+                            <option key={v} value={String(v)}>
+                              {v}
+                            </option>
+                          ))}
+                        </select>
                       </label>
 
                       <label className="space-y-1">

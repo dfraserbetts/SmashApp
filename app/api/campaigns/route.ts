@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { randomUUID } from "node:crypto";
 
 async function getSupabaseServer() {
   const cookieStore = await cookies();
@@ -43,19 +44,19 @@ export async function POST(req: Request) {
   }
 
   const ownerUserId = auth.user.id;
+  const campaignId = randomUUID();
 
   // 1) Create campaign
-  const { data: created, error: cErr } = await supabase
+  const { error: cErr } = await supabase
     .from("Campaign")
     .insert({
+      id: campaignId,
       name,
       ownerUserId,
       descriptorVersionTag: "v0",
-    })
-    .select("id")
-    .single();
+    });
 
-  if (cErr || !created?.id) {
+  if (cErr) {
     return NextResponse.json(
       { error: cErr?.message ?? "Failed to create campaign" },
       { status: 500 }
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
 
   // 2) Create membership
   const { error: mErr } = await supabase.from("CampaignUser").insert({
-    campaignId: created.id,
+    campaignId,
     userId: ownerUserId,
     role: "GAME_DIRECTOR",
   });
@@ -76,5 +77,5 @@ export async function POST(req: Request) {
     );
   }
 
-  return NextResponse.json({ id: created.id });
+  return NextResponse.json({ id: campaignId });
 }
