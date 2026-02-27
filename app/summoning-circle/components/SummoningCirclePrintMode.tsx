@@ -5,20 +5,13 @@ import Link from "next/link";
 import type { MonsterSummary, MonsterUpsertInput } from "@/lib/summoning/types";
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
 import { MonsterBlockCard, type WeaponProjection } from "@/app/summoning-circle/components/MonsterBlockCard";
+import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
 
 type Props = {
   campaignId: string;
 };
 
 type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    out.push(items.slice(i, i + size));
-  }
-  return out;
-}
 
 export function SummoningCirclePrintMode({ campaignId }: Props) {
   const [monsters, setMonsters] = useState<MonsterSummary[]>([]);
@@ -29,6 +22,8 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [loadingDetailIds, setLoadingDetailIds] = useState<Record<string, boolean>>({});
   const [printLayout, setPrintLayout] = useState<PrintLayoutMode>("COMPACT_1P");
+  const [isPrinting, setIsPrinting] = useState(false);
+  const printOnlyRef = useRef<HTMLDivElement | null>(null);
 
   const loadedIdsRef = useRef<Set<string>>(new Set());
   const inFlightIdsRef = useRef<Set<string>>(new Set());
@@ -160,8 +155,43 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
       })
       .filter((x): x is string => Boolean(x));
   }, [printLayout, selectedMonsters]);
+  const {
+    wrapRef: previewWrapRef,
+    innerRef: previewInnerRef,
+    scale: previewScale,
+    scaledHeight: previewHeight,
+  } = useScaledPreview({
+    enabled: !isPrinting && selectedMonsters.length > 0,
+    contentKey: `${selectedMonsters.length}-${printLayout}`,
+  });
 
-  const pages = useMemo(() => chunk(selectedMonsters, 1), [selectedMonsters]);
+  // SC_PRINT_FREEZE_PREVIEW: keep the on-screen preview stable while the print dialog is open
+  const frozenPreviewScaleRef = useRef(1);
+  const frozenPreviewHeightRef = useRef<number | undefined>(undefined);
+
+  if (!isPrinting) {
+    frozenPreviewScaleRef.current = previewScale;
+    frozenPreviewHeightRef.current = previewHeight ? Number(previewHeight) : undefined;
+  }
+
+  const displayPreviewScale = isPrinting ? frozenPreviewScaleRef.current : previewScale;
+  const displayPreviewHeight = isPrinting ? frozenPreviewHeightRef.current : previewHeight;
+
+
+  useEffect(() => {
+    const handleBeforePrint = () => {
+      setIsPrinting(true);
+    };
+    const handleAfterPrint = () => {
+      setIsPrinting(false);
+    };
+    window.addEventListener("beforeprint", handleBeforePrint);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", handleBeforePrint);
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
 
   const onToggle = useCallback(
     (monsterId: string, checked: boolean) => {
@@ -181,154 +211,197 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
   );
 
   const triggerPrint = useCallback(() => {
-    // Keep print trigger isolated so we can swap this for server-side PDF generation later.
-    window.print();
+    window.setTimeout(() => {
+      const node = printOnlyRef.current;
+      if (node) void node.getBoundingClientRect();
+      window.print();
+    }, 0);
   }, []);
+
+  const printablePages = useMemo(
+    () =>
+      selectedMonsters.map((monster, idx) => {
+        if (printLayout === "COMPACT_1P") {
+          return (
+            <article
+              key={`${monster.name ?? "monster"}-${idx}`}
+              className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl"
+              style={
+                idx === selectedMonsters.length - 1
+                  ? { breakAfter: "auto", pageBreakAfter: "auto" as any }
+                  : { breakAfter: "page", pageBreakAfter: "always" as any }
+              }
+            >
+              <div className="sc-print-card-wrap">
+                <MonsterBlockCard
+                  monster={monster}
+                  weaponById={weaponById}
+                  isPrint
+                  printLayout={printLayout}
+                  printPage="COMPACT"
+                />
+              </div>
+            </article>
+          );
+        }
+
+        return (
+          <div key={`${monster.name ?? "monster"}-${idx}`} className="space-y-6">
+            <article className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl">
+              <div className="sc-print-card-wrap">
+                <MonsterBlockCard
+                  monster={monster}
+                  weaponById={weaponById}
+                  isPrint
+                  printLayout={printLayout}
+                  printPage="PAGE1_MAIN"
+                />
+              </div>
+            </article>
+
+            <article className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl">
+              <div className="sc-print-card-wrap">
+                <MonsterBlockCard
+                  monster={monster}
+                  weaponById={weaponById}
+                  isPrint
+                  printLayout={printLayout}
+                  printPage="PAGE2_POWER"
+                />
+              </div>
+            </article>
+          </div>
+        );
+      }),
+    [printLayout, selectedMonsters, weaponById],
+  );
 
   return (
     <div className="sc-print-root space-y-6">
-      <section className="sc-print-controls rounded border border-zinc-800 bg-zinc-900/30 p-4 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Print Mode</h2>
-            <p className="text-sm text-zinc-400">Select monsters and print one monster per A4 page.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2 text-sm">
-              <span className="text-zinc-400">Layout</span>
-              <select
-                value={printLayout}
-                onChange={(e) => setPrintLayout(e.target.value as PrintLayoutMode)}
-                className="rounded border border-zinc-700 bg-zinc-950/40 px-2 py-2 text-sm"
+      <div className="sc-screen-only">
+        <section className="sc-print-controls rounded border border-zinc-800 bg-zinc-900/30 p-4 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Print Mode</h2>
+              <p className="text-sm text-zinc-400">Select monsters and print one monster per A4 page.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-zinc-400">Layout</span>
+                <select
+                  value={printLayout}
+                  onChange={(e) => setPrintLayout(e.target.value as PrintLayoutMode)}
+                  className="rounded border border-zinc-700 bg-zinc-950/40 px-2 py-2 text-sm"
+                >
+                  <option value="COMPACT_1P">1 Page - Compact</option>
+                  <option value="LEGENDARY_2P">2 Page - Legendary Layout</option>
+                </select>
+              </label>
+              <Link
+                href={`/campaign/${campaignId}/summoning-circle`}
+                className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800"
               >
-                <option value="COMPACT_1P">1 Page - Compact</option>
-                <option value="LEGENDARY_2P">2 Page - Legendary Layout</option>
-              </select>
-            </label>
-            <Link
-              href={`/campaign/${campaignId}/summoning-circle`}
-              className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800"
-            >
-              Back To Editor
-            </Link>
-            <button
-              type="button"
-              onClick={triggerPrint}
-              disabled={selectedIds.length === 0 || selectedMonsters.length !== selectedIds.length}
-              className="rounded border border-zinc-700 bg-zinc-100 px-3 py-2 text-sm text-zinc-900 disabled:opacity-50"
-            >
-              Print
-            </button>
+                Back To Editor
+              </Link>
+              <button
+                type="button"
+                onClick={triggerPrint}
+                disabled={selectedIds.length === 0 || selectedMonsters.length !== selectedIds.length}
+                className="rounded border border-zinc-700 bg-zinc-100 px-3 py-2 text-sm text-zinc-900 disabled:opacity-50"
+              >
+                Print
+              </button>
+            </div>
           </div>
-        </div>
 
-        {error && <p className="text-sm text-red-300">{error}</p>}
-        {compactOverflowWarnings.length > 0 && (
-          <div className="rounded border border-amber-700 bg-amber-950/30 p-3 text-sm text-amber-200">
-            <p className="font-medium">Heads up</p>
-            <p className="text-amber-200/90">
-              One or more selected monsters may overflow in{" "}
-              <span className="font-semibold">1 Page - Compact</span>. Consider switching to{" "}
-              <span className="font-semibold">2 Page - Legendary Layout</span>.
-            </p>
-          </div>
-        )}
-
-        <div className="rounded border border-zinc-800 bg-zinc-950/60 p-3">
-          <p className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Campaign Monsters</p>
-          {loading && <p className="text-sm text-zinc-400">Loading monsters...</p>}
-          {!loading && monsters.length === 0 && (
-            <p className="text-sm text-zinc-400">No campaign monsters available.</p>
-          )}
-          {!loading && monsters.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {monsters.map((monster) => {
-                const checked = selectedIds.includes(monster.id);
-                const detailLoading = !!loadingDetailIds[monster.id];
-                return (
-                  <label key={monster.id} className="flex items-start gap-2 rounded border border-zinc-800 p-2">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => onToggle(monster.id, e.target.checked)}
-                      className="mt-1"
-                    />
-                    <span className="text-sm">
-                      <span className="block font-medium">{monster.name}</span>
-                      <span className="text-zinc-400">
-                        Level {monster.level} {monster.tier}
-                      </span>
-                      {checked && detailLoading && (
-                        <span className="block text-xs text-zinc-500">Loading block...</span>
-                      )}
-                    </span>
-                  </label>
-                );
-              })}
+          {error && <p className="text-sm text-red-300">{error}</p>}
+          {compactOverflowWarnings.length > 0 && (
+            <div className="rounded border border-amber-700 bg-amber-950/30 p-3 text-sm text-amber-200">
+              <p className="font-medium">Heads up</p>
+              <p className="text-amber-200/90">
+                One or more selected monsters may overflow in{" "}
+                <span className="font-semibold">1 Page - Compact</span>. Consider switching to{" "}
+                <span className="font-semibold">2 Page - Legendary Layout</span>.
+              </p>
             </div>
           )}
-        </div>
-      </section>
 
-      <section className="space-y-6 sc-print">
-        {selectedIds.length === 0 && (
-          <div className="sc-print-controls rounded border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">
-            Select at least one monster to preview printable pages.
-          </div>
-        )}
-
-        <div className="sc-print-preview">
-          {selectedMonsters.map((monster, idx) => {
-            if (printLayout === "COMPACT_1P") {
-              return (
-                <article
-                  key={`${monster.name ?? "monster"}-${idx}`}
-                  className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl"
-                >
-                <div className="sc-print-card-wrap">
-                  <MonsterBlockCard
-                    monster={monster}
-                    weaponById={weaponById}
-                    isPrint
-                    printLayout={printLayout}
-                    printPage="COMPACT"
-                  />
-                </div>
-              </article>
-            );
-          }
-
-            const basePage = idx * 2 + 1;
-            return (
-              <div key={`${monster.name ?? "monster"}-${idx}`} className="space-y-6">
-                <article className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl">
-                  <div className="sc-print-card-wrap">
-                    <MonsterBlockCard
-                      monster={monster}
-                      weaponById={weaponById}
-                      isPrint
-                      printLayout={printLayout}
-                      printPage="PAGE1_MAIN"
-                    />
-                  </div>
-                </article>
-
-                <article className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl">
-                  <div className="sc-print-card-wrap">
-                    <MonsterBlockCard
-                      monster={monster}
-                      weaponById={weaponById}
-                      isPrint
-                      printLayout={printLayout}
-                      printPage="PAGE2_POWER"
-                    />
-                  </div>
-                </article>
+          <div className="rounded border border-zinc-800 bg-zinc-950/60 p-3">
+            <p className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Campaign Monsters</p>
+            {loading && <p className="text-sm text-zinc-400">Loading monsters...</p>}
+            {!loading && monsters.length === 0 && (
+              <p className="text-sm text-zinc-400">No campaign monsters available.</p>
+            )}
+            {!loading && monsters.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {monsters.map((monster) => {
+                  const checked = selectedIds.includes(monster.id);
+                  const detailLoading = !!loadingDetailIds[monster.id];
+                  return (
+                    <label key={monster.id} className="flex items-start gap-2 rounded border border-zinc-800 p-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => onToggle(monster.id, e.target.checked)}
+                        className="mt-1"
+                      />
+                      <span className="text-sm">
+                        <span className="block font-medium">{monster.name}</span>
+                        <span className="text-zinc-400">
+                          Level {monster.level} {monster.tier}
+                        </span>
+                        {checked && detailLoading && (
+                          <span className="block text-xs text-zinc-500">Loading block...</span>
+                        )}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
-            );
-          })}
+            )}
+          </div>
+        </section>
+
+        <section className="space-y-6 sc-print min-w-0">
+          {selectedIds.length === 0 && (
+            <div className="sc-print-controls rounded border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">
+              Select at least one monster to preview printable pages.
+            </div>
+          )}
+
+          <div className="sc-preview-live flex justify-center w-full">
+            <div
+              ref={previewWrapRef}
+              className="sc-screen-preview sc-print-preview-wrap inline-block"
+              style={{
+                width: "fit-content",
+                overflowX: "hidden",
+                maxWidth: "100%",
+                height: displayPreviewHeight ? `${displayPreviewHeight}px` : undefined,
+              }}
+            >
+              <div
+                ref={previewInnerRef}
+                className="sc-print-preview"
+                style={{
+                  display: "inline-block",
+                  width: "max-content",
+                  maxWidth: "100%",
+                  transformOrigin: "top left",
+                  transform: `scale(${displayPreviewScale})`,
+                }}
+              >
+                {printablePages}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div className="sc-print-only">
+        <div ref={printOnlyRef} className="sc-print-preview">
+          {printablePages}
         </div>
-      </section>
+      </div>
 
       <style jsx global>{`
         @media screen {
@@ -344,19 +417,37 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            overflow: auto;
+            justify-content: flex-start;
             padding: 12px;
           }
           .sc-print-preview .sc-print-page {
             transform-origin: top center;
           }
+          .sc-print-preview-wrap {
+            background: #0b0b0c;
+            padding-bottom: 12px;
+          }
+          .sc-preview-live {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+          }
+          .sc-print-page {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 10mm;
+          }
         }
 
-        .sc-print-page {
-          width: 210mm;
-          min-height: 297mm;
-          padding: 10mm;
+        .sc-print-only {
+          position: fixed;
+          left: -99999px;
+          top: 0;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          opacity: 0;
+          pointer-events: none;
         }
 
         .sc-monster-block {
@@ -365,11 +456,40 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
         }
 
         @page {
-          size: A4 portrait;
-          margin: 10mm;
+          size: auto;
+          margin: 0mm;
         }
 
         @media print {
+          /* Hide the on-screen preview behind the print dialog (prevents “stretching” reflow showing through) */
+          .sc-screen-preview {
+            visibility: hidden !important;
+          }
+
+          html,
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          .sc-screen-only {
+            display: none !important;
+          }
+
+          .sc-print-only {
+            display: block !important;
+            position: static !important;
+            left: auto !important;
+            top: auto !important;
+            width: auto !important;
+            height: auto !important;
+            opacity: 1 !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+          }
+
           .sc-print-controls {
             display: none !important;
           }
@@ -378,37 +498,92 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
             padding: 0 !important;
             margin: 0 !important;
           }
+          .sc-print,
+          .sc-print-preview {
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .sc-print-root > :not([hidden]) ~ :not([hidden]),
+          .sc-print > :not([hidden]) ~ :not([hidden]),
+          .sc-print-preview > :not([hidden]) ~ :not([hidden]) {
+            margin-top: 0 !important;
+          }
+
+          .sc-print-preview {
+            display: block !important;
+            overflow: visible !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            transform: none !important;
+            width: auto !important;
+          }
+          .sc-print-only .sc-print-preview {
+            width: 100% !important;
+            transform: none !important;
+          }
+          .sc-print-preview-wrap {
+            height: auto !important;
+            overflow: visible !important;
+            background: transparent !important;
+            padding-bottom: 0 !important;
+          }
 
           .sc-print-page {
-            display: flex !important;
-            justify-content: center !important;
-            align-items: flex-start !important;
+            display: block !important;
             width: 100% !important;
-            min-height: 297mm !important;
-            padding: 0mm !important;
+            height: auto !important;
+            min-height: 0 !important;
             margin: 0 !important;
+            padding: 0 !important;
             box-sizing: border-box !important;
             border: 0 !important;
+            border-radius: 0 !important;
             box-shadow: none !important;
             background: #ffffff !important;
-            break-after: page;
-            page-break-after: always;
+            overflow: visible !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .sc-is-print {
+            margin: 0 !important;
           }
 
           .sc-print-page .sc-monster-card {
             width: 100% !important;
-            max-width: 190mm !important;
-            margin: 0 auto !important;
+            height: auto !important;
+            max-width: none !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
           }
-
-          .sc-print-page:last-child {
-            break-after: auto;
-            page-break-after: auto;
+          .sc-print-preview > .sc-print-page:last-child {
+            break-after: auto !important;
+            page-break-after: auto !important;
           }
 
           .sc-print-card-wrap {
             break-inside: avoid;
             page-break-inside: avoid;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+
+          .sc-is-print.sc-monster-card {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+
+          .sc-is-print.sc-print-layout-COMPACT_1P {
+            break-after: auto !important;
+            page-break-after: auto !important;
+          }
+
+          .sc-is-print.sc-print-layout-LEGENDARY_2P.sc-print-page-PAGE1_MAIN {
+            break-after: page !important;
+            page-break-after: always !important;
+          }
+          .sc-is-print.sc-print-layout-LEGENDARY_2P.sc-print-page-PAGE2_POWER {
+            break-after: auto !important;
+            page-break-after: auto !important;
           }
 
           .sc-monster-block {

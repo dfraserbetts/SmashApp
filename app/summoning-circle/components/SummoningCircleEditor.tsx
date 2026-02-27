@@ -42,6 +42,7 @@ import {
 } from "@/lib/summoning/equipment";
 import { renderAttackActionLines } from "@/lib/summoning/render";
 import { MonsterBlockCard, type WeaponProjection } from "@/app/summoning-circle/components/MonsterBlockCard";
+import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
 import {
   getAttributeLimitBreakCeiling,
   getLimitBreakRequiredSuccesses,
@@ -2704,6 +2705,20 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     });
   }, [editor?.attacks, getSelectedAttackEffectIds, getSelectedDamageTypeIds, picklists.attackEffects, picklists.damageTypes]);
 
+  const editorMobileVisibility = mobileView === "editor" ? "block" : "hidden";
+  const previewMobileVisibility = mobileView === "preview" ? "block" : "hidden";
+  const previewMonsterName = previewMonster?.name ?? "none";
+  const previewScaleEnabled = mobileView === "preview" && Boolean(previewMonster);
+  const {
+    wrapRef: previewScaleWrapRef,
+    innerRef: previewScaleInnerRef,
+    scale: previewScale,
+    scaledHeight: previewHeight,
+  } = useScaledPreview({
+    enabled: previewScaleEnabled,
+    contentKey: `${previewPrintLayout}-${previewMonsterName}-${mobileView}`,
+  });
+
   if (loading) return <p className="text-sm text-zinc-400">Loading Summoning Circle...</p>;
 
   if (!editor) {
@@ -2774,8 +2789,6 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     }
   };
 
-  const editorMobileVisibility = mobileView === "editor" ? "block" : "hidden";
-  const previewMobileVisibility = mobileView === "preview" ? "block" : "hidden";
   const renderSlotImagePreview = (
     slotLabel: string,
     selectedItemId: string | null | undefined,
@@ -5917,13 +5930,13 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         </section>
           </div>
 
-          <div className={`${previewMobileVisibility} lg:block lg:sticky lg:top-4 self-start space-y-3`}>
+          <div className={`${previewMobileVisibility} lg:block lg:sticky lg:top-4 self-start space-y-3 min-w-0 w-full`}>
             <MonsterCalculatorPanel
               profile={outcomeProfile}
               archetype={calculatorArchetype}
               onArchetypeChangeAction={setCalculatorArchetype}
             />
-            <section className="sc-print rounded border border-zinc-800 bg-zinc-900/30 p-4 space-y-3">
+            <section className="sc-print rounded border border-zinc-800 bg-zinc-900/30 p-4 space-y-3 min-w-0 w-full">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="font-semibold">Monster Block Preview</h3>
                 <label className="flex items-center gap-2 text-xs">
@@ -5939,40 +5952,62 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 </label>
               </div>
 
-              {previewMonster && previewPrintLayout === "COMPACT_1P" && (
-                <MonsterBlockCard
-                  monster={previewMonster}
-                  weaponById={weaponById}
-                  isPrint
-                  printLayout={previewPrintLayout}
-                  printPage="COMPACT"
-                />
-              )}
+              <div
+                ref={previewScaleWrapRef}
+                className="sc-print-preview-wrap w-full max-w-full"
+                style={{
+                  width: "100%",
+                  overflowX: "hidden",
+                  maxWidth: "100%",
+                  height: previewHeight ? `${previewHeight}px` : undefined,
+                }}
+              >
+                <div
+                  ref={previewScaleInnerRef}
+                  style={{
+                    display: "inline-block",
+                    width: "max-content",
+                    maxWidth: "100%",
+                    transformOrigin: "top left",
+                    transform: `scale(${previewScale})`,
+                  }}
+                >
+                  {previewMonster && previewPrintLayout === "COMPACT_1P" && (
+                    <MonsterBlockCard
+                      monster={previewMonster}
+                      weaponById={weaponById}
+                      isPrint
+                      printLayout={previewPrintLayout}
+                      printPage="COMPACT"
+                    />
+                  )}
 
-              {previewMonster && previewPrintLayout === "LEGENDARY_2P" && (
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-zinc-500">Page 1 - Main Action</p>
-                    <MonsterBlockCard
-                      monster={previewMonster}
-                      weaponById={weaponById}
-                      isPrint
-                      printLayout={previewPrintLayout}
-                      printPage="PAGE1_MAIN"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-xs uppercase tracking-wide text-zinc-500">Page 2 - Power Action</p>
-                    <MonsterBlockCard
-                      monster={previewMonster}
-                      weaponById={weaponById}
-                      isPrint
-                      printLayout={previewPrintLayout}
-                      printPage="PAGE2_POWER"
-                    />
-                  </div>
+                  {previewMonster && previewPrintLayout === "LEGENDARY_2P" && (
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-wide text-zinc-500">Page 1 - Main Action</p>
+                        <MonsterBlockCard
+                          monster={previewMonster}
+                          weaponById={weaponById}
+                          isPrint
+                          printLayout={previewPrintLayout}
+                          printPage="PAGE1_MAIN"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs uppercase tracking-wide text-zinc-500">Page 2 - Power Action</p>
+                        <MonsterBlockCard
+                          monster={previewMonster}
+                          weaponById={weaponById}
+                          isPrint
+                          printLayout={previewPrintLayout}
+                          printPage="PAGE2_POWER"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </section>
           </div>
         </div>

@@ -596,6 +596,25 @@ export function MonsterBlockCard({
   printLayout = "COMPACT_1P",
   printPage = "COMPACT",
 }: MonsterBlockCardProps) {
+  // 🔎 DEBUG: log computed wrapper sizing for the hero image (no hooks)
+  if (typeof window !== "undefined") {
+    queueMicrotask(() => {
+      const el = document.querySelector('[data-sc="hero-image-wrap"]') as HTMLElement | null;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const cs = window.getComputedStyle(el);
+      // eslint-disable-next-line no-console
+      console.log("[SC hero-image-wrap]", {
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+        aspectRatio: cs.aspectRatio,
+        height: cs.height,
+        width: cs.width,
+        maxWidth: cs.maxWidth,
+      });
+    });
+  }
+
   const inPrint = Boolean(isPrint);
   const is2Page = inPrint && printLayout === "LEGENDARY_2P";
   const isMainPage = inPrint && printPage === "PAGE1_MAIN";
@@ -1165,6 +1184,8 @@ export function MonsterBlockCard({
   const traitGridClass = traitCount <= 1 ? "mt-2 grid grid-cols-1 gap-2" : "mt-2 grid grid-cols-2 gap-2";
   const powerCount = Array.isArray(monster.powers) ? monster.powers.length : 0;
   const powerGridClass = powerCount <= 1 ? "sc-print-power-grid sc-grid-1" : "sc-print-power-grid";
+  const nonPrintAttrGapClass =
+    printLayout === "LEGENDARY_2P" ? "flex-1 gap-[14px] lg:gap-[75px]" : "flex-1 gap-1 lg:gap-[65px]";
 
   return (
     <div
@@ -1224,8 +1245,8 @@ export function MonsterBlockCard({
 
         <div
           className={[
-            "grid grid-cols-1 md:grid-cols-[minmax(160px,18%)_1fr_minmax(160px,18%)] gap-3 items-stretch min-w-0 sc-hero-row",
-            !inPrint ? "md:min-h-[360px] lg:min-h-[420px]" : "",
+            "grid grid-cols-1 lg:grid-cols-[2.2fr_1.6fr_2.2fr] gap-4 items-start min-w-0 sc-hero-row",
+            !inPrint ? "lg:min-h-[360px] xl:min-h-[420px]" : "",
           ].join(" ")}
         >
           {/* LEFT: Mental */}
@@ -1234,7 +1255,7 @@ export function MonsterBlockCard({
             <div
               className={[
                 "mt-2 flex flex-col sc-attr-stack",
-                inPrint ? "gap-1" : "flex-1 gap-[65px]",
+                inPrint ? "gap-1" : nonPrintAttrGapClass,
               ].join(" ")}
             >
               {(["Intellect", "Support", "Bravery"] as const).map((label) => {
@@ -1248,14 +1269,14 @@ export function MonsterBlockCard({
                 const die = monster[dieKey];
 
                 return (
-                  <div key={label} className="rounded border border-zinc-800 bg-zinc-950/20 px-2 py-2">
-                    <p className="font-semibold text-base md:text-lg lg:text-xl leading-tight text-center">{label}</p>
-                    <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-3">
-                      <div className="text-xs text-zinc-400 leading-snug">
+                  <div key={label} className="rounded border border-zinc-800 bg-zinc-950/20 px-0.5 py-0.5 sm:px-0.5 sm:py-0.5 lg:px-1 lg:py-1">
+                    <p className="font-semibold text-[10px] sm:text-[11px] lg:text-xs xl:text-sm leading-tight text-center">{label}</p>
+                    <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-1">
+                      <div className="text-[8px] sm:text-[9px] text-zinc-400 leading-snug">
                         <p className="whitespace-nowrap">Mod: {formatModifierWithEffective(modifierValue)}</p>
                         <p className="whitespace-nowrap">Resist: {resistDice} Dice</p>
                       </div>
-                      <p className="text-[clamp(1.5rem,4vw,2.25rem)] font-semibold leading-none">
+                      <p className="text-[clamp(0.9rem,2.4vw,1.6rem)] font-semibold leading-none">
                         {formatAttributeDieDisplay(dieLabel(die))}
                       </p>
                     </div>
@@ -1266,9 +1287,16 @@ export function MonsterBlockCard({
           </div>
 
           {/* CENTER: Image */}
-          <div className="w-full min-w-0 justify-self-stretch md:col-start-2 h-full flex sc-hero-mid">
+          <div className="w-full min-w-0 justify-self-start lg:col-start-2 flex sc-hero-mid items-start">
             {imageUrl ? (
-              <div className="w-full min-w-0 h-full min-h-[260px] md:min-h-0 max-h-[420px] sc-image-wrap rounded border border-zinc-800 bg-zinc-900/40 overflow-hidden p-2 flex items-center justify-center">
+              <div
+                data-sc="hero-image-wrap"
+                className={[
+                  "w-full min-w-0 sc-image-wrap rounded border border-zinc-800 bg-zinc-900/40 overflow-hidden p-2 flex items-center justify-center",
+                  "mx-auto max-w-[240px] sm:max-w-[280px]",
+                  "lg:mx-auto lg:max-w-[320px] xl:max-w-[360px]",
+                ].join(" ")}
+              >
                 <img
                   src={imageUrl}
                   alt={monster.name?.trim() ? monster.name : "Monster image"}
@@ -1279,7 +1307,14 @@ export function MonsterBlockCard({
                 />
               </div>
             ) : (
-              <div className="w-full min-w-0 h-full min-h-[260px] md:min-h-0 rounded border border-zinc-800 bg-zinc-950/30 p-3 text-center text-xs text-zinc-500 flex items-center justify-center">
+              <div
+                data-sc="hero-image-wrap"
+                className={[
+                  "w-full min-w-0 rounded border border-zinc-800 bg-zinc-950/30 p-3 text-center text-xs text-zinc-500 flex items-center justify-center overflow-hidden",
+                  "mx-auto max-w-[240px] sm:max-w-[280px]",
+                  "lg:mx-auto lg:max-w-[320px] xl:max-w-[360px]",
+                ].join(" ")}
+              >
                 No image
               </div>
             )}
@@ -1291,7 +1326,7 @@ export function MonsterBlockCard({
             <div
               className={[
                 "mt-2 flex flex-col sc-attr-stack",
-                inPrint ? "gap-1" : "flex-1 gap-[65px]",
+                inPrint ? "gap-1" : nonPrintAttrGapClass,
               ].join(" ")}
             >
               {(["Attack", "Defence", "Fortitude"] as const).map((label) => {
@@ -1305,13 +1340,13 @@ export function MonsterBlockCard({
                 const die = monster[dieKey];
 
                 return (
-                  <div key={label} className="rounded border border-zinc-800 bg-zinc-950/20 px-2 py-2 text-right">
-                    <p className="font-semibold text-base md:text-lg lg:text-xl leading-tight text-center">{label}</p>
-                    <div className="mt-1 grid grid-cols-[auto_1fr] items-start gap-3">
-                      <p className="text-[clamp(1.5rem,4vw,2.25rem)] font-semibold leading-none">
+                  <div key={label} className="rounded border border-zinc-800 bg-zinc-950/20 px-0.5 py-0.5 sm:px-0.5 sm:py-0.5 lg:px-1 lg:py-1 text-right">
+                    <p className="font-semibold text-[10px] sm:text-[11px] lg:text-xs xl:text-sm leading-tight text-center">{label}</p>
+                    <div className="mt-1 grid grid-cols-[auto_1fr] items-start gap-1">
+                      <p className="text-[clamp(0.9rem,2.4vw,1.6rem)] font-semibold leading-none">
                         {formatAttributeDieDisplay(dieLabel(die))}
                       </p>
-                      <div className="text-xs text-zinc-400 leading-snug text-right">
+                      <div className="text-[8px] sm:text-[9px] text-zinc-400 leading-snug text-right">
                         <p className="whitespace-nowrap">{formatModifierWithEffective(modifierValue)} :Mod</p>
                         <p className="whitespace-nowrap">{resistDice} Dice :Resist</p>
                       </div>
@@ -1398,12 +1433,12 @@ export function MonsterBlockCard({
       <div>
         <p className="text-xs uppercase tracking-wide text-zinc-500">DEFENCE</p>
         <div className="rounded border border-zinc-800 p-2 space-y-2">
-          {/* Core defence lines: 3-up grid on md+, stacked on mobile */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          {/* Core defence lines: always 3-up, wrappers scale this block on small screens */}
+          <div className="grid grid-cols-3 gap-2 sc-defence-grid">
             {renderedDefenceStrings.map((line, i) => (
               <div
                 key={i}
-                className="rounded border border-zinc-800 bg-zinc-950/20 px-2 py-0 text-xs leading-snug text-center h-full min-h-[70px] flex items-center justify-center sc-defence-chip"
+                className="rounded border border-zinc-800 bg-zinc-950/20 px-2 py-0 text-xs leading-snug text-center h-full min-h-[70px] min-w-0 w-full flex items-center justify-center sc-defence-chip"
               >
                 {line}
               </div>
@@ -1657,24 +1692,41 @@ export function MonsterBlockCard({
       )}
 
       <style jsx global>{`
-        /* Robust print image sizing (does not rely on .sc-print wrapper) */
+        /* NOTE:
+           Do not set height/max-height/aspect-ratio for .sc-image-wrap anywhere else.
+           All image size changes must be done by editing SC_IMAGE_SIZING_TOKENS.
+        */
+        /* ===========================
+           SC_IMAGE_SIZING_TOKENS
+           Single source of truth
+           =========================== */
+        .sc-monster-card {
+          --sc-image-aspect: 3 / 4;
+          --sc-image-max-h: 60mm;
+          --sc-image-max-h-compact-1p: 60mm;
+          --sc-image-max-h-legendary-p1: 70mm;
+          --sc-image-max-h-legendary-p2: 60mm;
+        }
+
+        /* SC_IMAGE_SIZING_APPLY */
+        .sc-monster-card .sc-image-wrap {
+          aspect-ratio: var(--sc-image-aspect);
+          max-height: var(--sc-image-max-h);
+          height: auto;
+        }
+
+        /* SC_IMAGE_SIZING_LAYOUTS */
+        .sc-print-layout-COMPACT_1P.sc-monster-card {
+          --sc-image-max-h: var(--sc-image-max-h-compact-1p);
+        }
+        .sc-print-layout-LEGENDARY_2P.sc-print-page-PAGE1_MAIN.sc-monster-card {
+          --sc-image-max-h: var(--sc-image-max-h-legendary-p1);
+        }
+        .sc-print-layout-LEGENDARY_2P.sc-print-page-PAGE2_POWER.sc-monster-card {
+          --sc-image-max-h: var(--sc-image-max-h-legendary-p2);
+        }
+
         .sc-is-print .sc-image-wrap {
-          flex: 0 0 auto !important;
-          height: auto !important;
-          max-height: none !important;
-        }
-
-        .sc-print-layout-COMPACT_1P .sc-image-wrap {
-          min-height: 0 !important;
-          height: 80mm !important;
-          max-height: 80mm !important;
-          flex: 0 0 auto !important;
-        }
-
-        .sc-print-layout-LEGENDARY_2P.sc-print-page-PAGE1_MAIN .sc-image-wrap {
-          min-height: 0 !important;
-          height: 92mm !important;
-          max-height: 92mm !important;
           flex: 0 0 auto !important;
         }
 
@@ -1802,11 +1854,11 @@ export function MonsterBlockCard({
         .sc-is-print.sc-monster-card .sc-attr-stack {
           gap: 4px !important;
         }
-        .sc-is-print.sc-monster-card .sc-image-wrap {
-          min-height: 0 !important;
-          max-height: none !important;
-          padding: 3px !important;
-          width: 100% !important;
+        .sc-is-print.sc-print-layout-LEGENDARY_2P .sc-hero-left .sc-attr-stack,
+        .sc-is-print.sc-print-layout-LEGENDARY_2P .sc-hero-right .sc-attr-stack {
+          flex: 1 1 auto !important;
+          justify-content: space-between !important;
+          gap: 14px !important;
         }
         .sc-is-print.sc-monster-card .sc-defence-chip {
           min-height: 0 !important;
