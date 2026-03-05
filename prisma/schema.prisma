@@ -93,6 +93,7 @@ model DamageType {
   id              Int                            @id @default(autoincrement())
   name            String                         @unique
   attackMode      String                         @default("PHYSICAL")
+  attackEffectLinks AttackEffectDamageType[]
   aoeTemplates    ItemTemplateAoEDamageType[]
   meleeTemplates  ItemTemplateMeleeDamageType[]
   rangedTemplates ItemTemplateRangedDamageType[]
@@ -104,11 +105,23 @@ model DamageType {
 model AttackEffect {
   id              Int                              @id @default(autoincrement())
   name            String                           @unique
+  damageTypeLinks AttackEffectDamageType[]
   aoeTemplates    ItemTemplateAttackEffectAoE[]
   meleeTemplates  ItemTemplateAttackEffectMelee[]
   rangedTemplates ItemTemplateAttackEffectRanged[]
 
   @@map("AttackEffect")
+}
+
+model AttackEffectDamageType {
+  attackEffectId Int
+  damageTypeId   Int
+  attackEffect   AttackEffect @relation(fields: [attackEffectId], references: [id], onDelete: Cascade)
+  damageType     DamageType   @relation(fields: [damageTypeId], references: [id], onDelete: Cascade)
+
+  @@id([attackEffectId, damageTypeId])
+  @@index([damageTypeId])
+  @@map("AttackEffectDamageType")
 }
 
 model DefEffect {

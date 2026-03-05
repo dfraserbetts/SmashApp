@@ -9,7 +9,7 @@ import {
 } from "@/lib/summoning/equipment";
 import { renderAttackActionLines } from "@/lib/summoning/render";
 import type { MonsterNaturalAttackConfig, MonsterUpsertInput } from "@/lib/summoning/types";
-import { requireCampaignMember, requireUserId } from "../_shared";
+import { requireCampaignAccess, requireCampaignDirectorOrAdmin, requireUserId } from "../_shared";
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
 
 const MONSTER_INCLUDE = {
@@ -307,7 +307,7 @@ export async function GET(req: Request) {
 
   try {
     const userId = await requireUserId();
-    await requireCampaignMember(campaignId, userId);
+    await requireCampaignAccess(campaignId, userId);
 
     const monsters = await prisma.monster.findMany({
       where: {
@@ -340,7 +340,7 @@ export async function GET(req: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load monsters";
     if (message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
     if (message === "FORBIDDEN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -372,10 +372,7 @@ export async function POST(req: Request) {
 
   try {
     const userId = await requireUserId();
-    const role = await requireCampaignMember(campaignId, userId);
-    if (role !== "GAME_DIRECTOR") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    await requireCampaignDirectorOrAdmin(campaignId, userId);
 
     const data = parsed.data;
     const traitError = await validateCoreTraitDefinitions(data.traits);
@@ -519,7 +516,7 @@ export async function POST(req: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to create monster";
     if (message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
     if (message === "FORBIDDEN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

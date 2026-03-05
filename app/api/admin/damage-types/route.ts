@@ -3,6 +3,17 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
 
+type AttackMode = "PHYSICAL" | "MENTAL";
+
+function parseAttackMode(value: unknown): AttackMode | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase();
+  if (normalized === "PHYSICAL" || normalized === "MENTAL") {
+    return normalized as AttackMode;
+  }
+  return null;
+}
+
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
   const cookieStore = await cookies();
 
@@ -48,7 +59,7 @@ export async function GET() {
 
     const rows = await prisma.damageType.findMany({
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, attackMode: true },
     });
 
     return NextResponse.json({ rows });
@@ -67,16 +78,25 @@ export async function POST(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | { name?: unknown }
+      | { name?: unknown; attackMode?: unknown }
       | null;
 
     const name = typeof body?.name === "string" ? body.name.trim() : "";
     if (!name)
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
+    const parsedAttackMode = parseAttackMode(body?.attackMode);
+    if (body?.attackMode !== undefined && !parsedAttackMode) {
+      return NextResponse.json(
+        { error: "attackMode must be PHYSICAL or MENTAL" },
+        { status: 400 },
+      );
+    }
+    const attackMode: AttackMode = parsedAttackMode ?? "PHYSICAL";
+
     const created = await prisma.damageType.create({
-      data: { name },
-      select: { id: true, name: true },
+      data: { name, attackMode },
+      select: { id: true, name: true, attackMode: true },
     });
 
     return NextResponse.json({ row: created }, { status: 201 });
@@ -98,7 +118,7 @@ export async function PATCH(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | { id?: unknown; name?: unknown }
+      | { id?: unknown; name?: unknown; attackMode?: unknown }
       | null;
 
     const idRaw = body?.id;
@@ -110,6 +130,7 @@ export async function PATCH(req: Request) {
           : NaN;
 
     const name = typeof body?.name === "string" ? body.name.trim() : "";
+    const parsedAttackMode = parseAttackMode(body?.attackMode);
 
     if (!Number.isFinite(id)) {
       return NextResponse.json({ error: "id must be a number" }, { status: 400 });
@@ -117,11 +138,20 @@ export async function PATCH(req: Request) {
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
+    if (body?.attackMode !== undefined && !parsedAttackMode) {
+      return NextResponse.json(
+        { error: "attackMode must be PHYSICAL or MENTAL" },
+        { status: 400 },
+      );
+    }
 
     const updated = await prisma.damageType.update({
       where: { id },
-      data: { name },
-      select: { id: true, name: true },
+      data: {
+        name,
+        ...(parsedAttackMode ? { attackMode: parsedAttackMode } : {}),
+      },
+      select: { id: true, name: true, attackMode: true },
     });
 
     return NextResponse.json({ row: updated });

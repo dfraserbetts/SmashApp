@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { renderAttackActionLines } from "@/lib/summoning/render";
 import type { MonsterNaturalAttackConfig } from "@/lib/summoning/types";
 import type { SummoningEquipmentItem } from "@/lib/summoning/equipment";
-import { requireCampaignMember, requireUserId } from "../../../_shared";
+import { requireCampaignDirectorOrAdmin, requireUserId } from "../../../_shared";
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
@@ -230,10 +230,7 @@ export async function POST(
 
   try {
     const userId = await requireUserId();
-    const role = await requireCampaignMember(campaignId, userId);
-    if (role !== "GAME_DIRECTOR") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    await requireCampaignDirectorOrAdmin(campaignId, userId);
 
     const source = await prisma.monster.findFirst({
       where: {
@@ -389,7 +386,7 @@ export async function POST(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to copy monster";
     if (message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
     if (message === "FORBIDDEN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

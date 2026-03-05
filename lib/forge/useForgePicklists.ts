@@ -14,6 +14,7 @@ export type DamageType = {
 export type AttackEffect = {
   id: number;
   name: string;
+  damageTypeIds?: number[];
 };
 
 export type DefEffect = {

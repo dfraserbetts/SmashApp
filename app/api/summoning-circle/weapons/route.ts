@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
-import { requireCampaignMember, requireUserId } from "../_shared";
+import { requireCampaignAccess, requireUserId } from "../_shared";
 import type { AttributePlacement } from "@/lib/summoning/types";
 
 type AttributeLine = { text: string; placement: AttributePlacement };
@@ -316,7 +316,7 @@ export async function GET(req: Request) {
 
   try {
     const userId = await requireUserId();
-    await requireCampaignMember(campaignId, userId);
+    await requireCampaignAccess(campaignId, userId);
 
     const rows = await prisma.itemTemplate.findMany({
       where: {
@@ -500,7 +500,7 @@ export async function GET(req: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load weapons";
     if (message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
     if (message === "FORBIDDEN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

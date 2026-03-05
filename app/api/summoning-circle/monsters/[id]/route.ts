@@ -9,7 +9,7 @@ import {
 } from "@/lib/summoning/equipment";
 import { renderAttackActionLines } from "@/lib/summoning/render";
 import type { MonsterNaturalAttackConfig, MonsterUpsertInput } from "@/lib/summoning/types";
-import { requireCampaignMember, requireUserId } from "../../_shared";
+import { requireCampaignAccess, requireCampaignDirectorOrAdmin, requireUserId } from "../../_shared";
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
 
 const MONSTER_INCLUDE = {
@@ -311,7 +311,7 @@ export async function GET(
 
   try {
     const userId = await requireUserId();
-    await requireCampaignMember(campaignId, userId);
+    await requireCampaignAccess(campaignId, userId);
 
     const monster = await prisma.monster.findFirst({
       where: {
@@ -329,7 +329,7 @@ export async function GET(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load monster";
     if (message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
     if (message === "FORBIDDEN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -365,10 +365,7 @@ export async function PUT(
 
   try {
     const userId = await requireUserId();
-    const role = await requireCampaignMember(campaignId, userId);
-    if (role !== "GAME_DIRECTOR") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    await requireCampaignDirectorOrAdmin(campaignId, userId);
 
     const existing = await prisma.monster.findUnique({
       where: { id },
@@ -563,7 +560,7 @@ export async function PUT(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to update monster";
     if (message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
     if (message === "FORBIDDEN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -590,10 +587,7 @@ export async function DELETE(
 
   try {
     const userId = await requireUserId();
-    const role = await requireCampaignMember(campaignId, userId);
-    if (role !== "GAME_DIRECTOR") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    await requireCampaignDirectorOrAdmin(campaignId, userId);
 
     const existing = await prisma.monster.findUnique({
       where: { id },
@@ -615,7 +609,7 @@ export async function DELETE(
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to delete monster";
     if (message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
     if (message === "FORBIDDEN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

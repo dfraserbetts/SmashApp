@@ -2,6 +2,11 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
 
+type CampaignAccess = {
+  isAdmin: boolean;
+  role: string | null;
+};
+
 export async function getSupabaseServer() {
   const cookieStore = await cookies();
 
@@ -35,19 +40,6 @@ export async function requireUserId() {
   return data.user.id;
 }
 
-export async function requireCampaignMember(campaignId: string, userId: string) {
-  const membership = await prisma.campaignUser.findUnique({
-    where: { campaignId_userId: { campaignId, userId } },
-    select: { role: true },
-  });
-
-  if (!membership) {
-    throw new Error("FORBIDDEN");
-  }
-
-  return membership.role;
-}
-
 async function getCampaignMemberRole(campaignId: string, userId: string): Promise<string | null> {
   const membership = await prisma.campaignUser.findUnique({
     where: { campaignId_userId: { campaignId, userId } },
@@ -64,11 +56,19 @@ async function getIsAdmin(userId: string): Promise<boolean> {
   return Boolean(profile?.isAdmin);
 }
 
-export async function requireCampaignAccess(campaignId: string, userId: string) {
-  // SUMMONING_ADMIN_OVERRIDE_AUTH
+export async function requireCampaignMember(campaignId: string, userId: string) {
+  const role = await getCampaignMemberRole(campaignId, userId);
+  if (!role) {
+    throw new Error("FORBIDDEN");
+  }
+  return role;
+}
+
+export async function requireCampaignAccess(campaignId: string, userId: string): Promise<CampaignAccess> {
+  // FORGE_ADMIN_OVERRIDE_AUTH
   // Admin override: GM has True Seeing.
   if (await getIsAdmin(userId)) {
-    return { isAdmin: true, role: null as string | null };
+    return { isAdmin: true, role: null };
   }
 
   const role = await getCampaignMemberRole(campaignId, userId);
@@ -86,10 +86,3 @@ export async function requireCampaignDirectorOrAdmin(campaignId: string, userId:
   }
   return access;
 }
-
-/*
-Manual verification:
-1) As admin not in campaign, load forge/summoning deep links under /campaign/[campaignId]/...
-2) Confirm reads succeed (no 403) and save/update/delete actions still work.
-3) Confirm non-admin non-member still receives 403.
-*/

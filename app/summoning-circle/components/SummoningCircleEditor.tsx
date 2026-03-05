@@ -10,6 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type SetStateAction,
 } from "react";
+import { useSearchParams } from "next/navigation";
 import type {
   CoreAttribute,
   DiceSize,
@@ -67,7 +68,7 @@ type EditableMonster = MonsterUpsertInput & {
 
 type Picklists = {
   damageTypes: Array<{ id: number; name: string; attackMode?: "PHYSICAL" | "MENTAL" }>;
-  attackEffects: Array<{ id: number; name: string }>;
+  attackEffects: Array<{ id: number; name: string; damageTypeIds?: number[] }>;
 };
 
 type NaturalAttackDamageField = "meleeDamageTypeIds" | "rangedDamageTypeIds" | "aoeDamageTypeIds";
@@ -504,57 +505,19 @@ function toggleStringInArray(arr: string[], value: string): string[] {
     : [...arr, value];
 }
 
-const DAMAGE_TYPE_TO_EFFECT_NAMES: Record<string, string[]> = {
-  blunt: ["Impact"],
-  slashing: ["Laceration"],
-  fire: ["Immolate"],
-  holy: ["Smite"],
-  ice: ["Freeze"],
-  lightning: ["Surge"],
-  necrotic: ["Disease"],
-  poison: ["Poisoned"],
-  psychic: ["Overwhelmed"],
-  piercing: ["Penetrate"],
-  fear: ["Horrified"],
-};
-
-function getDamageTypeMode(dt: unknown): "PHYSICAL" | "MENTAL" {
-  const raw = (dt as { attackMode?: unknown; damageMode?: unknown })?.attackMode ??
-    (dt as { attackMode?: unknown; damageMode?: unknown })?.damageMode;
-  const normalized = String(raw ?? "").trim().toUpperCase();
-  return normalized === "MENTAL" ? "MENTAL" : "PHYSICAL";
-}
-
-function normaliseName(name: string | null | undefined): string {
-  return (name ?? "").trim().toLowerCase();
-}
-
 function filterAttackEffectsForDamageTypes(
   allEffects: Picklists["attackEffects"],
-  allDamageTypes: Picklists["damageTypes"],
+  _allDamageTypes: Picklists["damageTypes"],
   selectedDamageTypeIds: number[],
 ): Picklists["attackEffects"] {
   if (!selectedDamageTypeIds.length) return [];
 
-  const damageTypeNameById = new Map<number, string>();
-  for (const dt of allDamageTypes) {
-    damageTypeNameById.set(dt.id, dt.name);
-  }
-
-  const allowedEffectNames = new Set<string>();
-  for (const dtId of selectedDamageTypeIds) {
-    const dtName = damageTypeNameById.get(dtId);
-    if (!dtName) continue;
-    const key = normaliseName(dtName);
-    const effectNames = DAMAGE_TYPE_TO_EFFECT_NAMES[key] ?? [];
-    for (const effectName of effectNames) {
-      allowedEffectNames.add(normaliseName(effectName));
-    }
-  }
-
-  if (!allowedEffectNames.size) return [];
-
-  return allEffects.filter((fx) => allowedEffectNames.has(normaliseName(fx.name)));
+  const selectedIds = new Set(selectedDamageTypeIds);
+  return allEffects.filter(
+    (fx) =>
+      Array.isArray(fx.damageTypeIds) &&
+      fx.damageTypeIds.some((damageTypeId) => selectedIds.has(damageTypeId)),
+  );
 }
 
 const ATTR_ROWS = [
@@ -575,13 +538,13 @@ const ATTRIBUTE_TOOLTIPS: Record<(typeof ATTR_ROWS)[number][0], string> = {
 };
 const DERIVED_STAT_TOOLTIPS = {
   weaponSkill:
-    "Derived from Attack + Bravery. Sets attack dice count for weapon/natural attacks.",
+    "Derived from Bravery (weighted) + Attack (weighted). Attributes are halved before weighting.",
   armorSkill:
-    "Derived from Defence + Fortitude. Sets dice count for Physical Protection defence.",
+    "Derived from Fortitude (weighted) + Defence (weighted). Attributes are halved before weighting.",
   dodge:
-    "Derived from Defence + Intellect + Level − Weight. Sets dice count for Dodge defence.",
+    "Derived from Intellect (weighted) + Defence (weighted). Attributes are halved before weighting.",
   willpower:
-    "Derived from Support + Bravery. Sets dice count for Mental Protection defence.",
+    "Derived from Support (weighted) + Bravery (weighted). Attributes are halved before weighting.",
 } as const;
 
 const TIER_MULTIPLIER: Record<MonsterTier, number> = {
@@ -1234,10 +1197,82 @@ function HoverTooltipLabel({
   tooltip: string;
   className?: string;
 }) {
+  const triggerRef = useRef<HTMLSpanElement | null>(null);
+  const tooltipRef = useRef<HTMLSpanElement | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [tooltipPos, setTooltipPos] = useState({ left: -9999, top: -9999, maxWidth: 320 });
+
+  const updateTooltipPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    const tooltipEl = tooltipRef.current;
+    if (!trigger || !tooltipEl) return;
+
+    const viewportPadding = 12;
+    const tooltipGap = 6;
+    const maxWidth = Math.max(180, Math.min(320, window.innerWidth - viewportPadding * 2));
+    tooltipEl.style.maxWidth = `${maxWidth}px`;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const tooltipRect = tooltipEl.getBoundingClientRect();
+
+    let left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2;
+    left = Math.max(viewportPadding, Math.min(left, window.innerWidth - viewportPadding - tooltipRect.width));
+
+    let top = triggerRect.top - tooltipRect.height - tooltipGap;
+    if (top < viewportPadding) {
+      top = Math.min(
+        window.innerHeight - viewportPadding - tooltipRect.height,
+        triggerRect.bottom + tooltipGap,
+      );
+    }
+
+    setTooltipPos({ left, top, maxWidth });
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updateTooltipPosition();
+    const onViewportChange = () => updateTooltipPosition();
+
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("scroll", onViewportChange, true);
+    return () => {
+      window.removeEventListener("resize", onViewportChange);
+      window.removeEventListener("scroll", onViewportChange, true);
+    };
+  }, [isOpen, updateTooltipPosition]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && triggerRef.current?.contains(target)) return;
+      setIsOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [isOpen]);
+
   return (
-    <span className="group relative inline-flex items-center">
+    <span className="relative inline-flex items-center">
       <span
+        ref={triggerRef}
         tabIndex={0}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setIsOpen(false)}
+        onPointerDown={(event: ReactPointerEvent<HTMLSpanElement>) => {
+          if (event.pointerType !== "touch") return;
+          event.preventDefault();
+          setIsOpen((prev) => !prev);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setIsOpen(false);
+          }
+        }}
         className={[
           "cursor-help rounded-sm border-b border-dotted border-zinc-500 outline-none focus-visible:ring-1 focus-visible:ring-zinc-500",
           className ?? "text-sm",
@@ -1246,8 +1281,18 @@ function HoverTooltipLabel({
         {label}
       </span>
       <span
+        ref={tooltipRef}
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1 w-64 -translate-x-1/2 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-200 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+        aria-hidden={!isOpen}
+        className={[
+          "pointer-events-none fixed z-30 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-center text-xs leading-snug text-zinc-200 whitespace-normal break-words shadow-lg transition-opacity",
+          isOpen ? "opacity-100" : "opacity-0",
+        ].join(" ")}
+        style={{
+          left: `${tooltipPos.left}px`,
+          top: `${tooltipPos.top}px`,
+          maxWidth: `${tooltipPos.maxWidth}px`,
+        }}
       >
         {tooltip}
       </span>
@@ -1256,6 +1301,8 @@ function HoverTooltipLabel({
 }
 
 export function SummoningCircleEditor({ campaignId }: Props) {
+  const searchParams = useSearchParams();
+  const monsterIdFromUrl = searchParams.get("monsterId");
   const [summaries, setSummaries] = useState<MonsterSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditableMonster | null>(null);
@@ -1331,6 +1378,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   const [monsterExcludeLegendary, setMonsterExcludeLegendary] = useState(false);
   const [recentMonsterIds, setRecentMonsterIds] = useState<string[]>([]);
   const hasDraftRef = useRef(false);
+  const hasHydratedMonsterIdFromUrlRef = useRef(false);
   const collapseSeedKeyRef = useRef<string | null>(null);
   const monsterPickerRef = useRef<HTMLDivElement | null>(null);
   const monsterFiltersRef = useRef<HTMLDivElement | null>(null);
@@ -1532,6 +1580,22 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     () => filteredSummaries.filter((row) => !recentMonsterIdSet.has(row.id)),
     [filteredSummaries, recentMonsterIdSet],
   );
+
+  const selectedMonsterId = selectedId;
+  const setSelectedMonsterId = setSelectedId;
+
+  useEffect(() => {
+    // SUMMONING_CIRCLE_URL_MONSTER_HYDRATION
+    if (hasHydratedMonsterIdFromUrlRef.current) return;
+    hasHydratedMonsterIdFromUrlRef.current = true;
+
+    if (!monsterIdFromUrl) return;
+
+    // prevents overwriting existing editing state
+    if (selectedMonsterId) return;
+
+    setSelectedMonsterId(monsterIdFromUrl);
+  }, [monsterIdFromUrl, selectedMonsterId, setSelectedMonsterId]);
 
   const refreshSummaries = useCallback(async () => {
     const res = await fetch(
@@ -3626,7 +3690,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           </div>
         </section>
 
-        <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3 overflow-x-hidden">
+        <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3 overflow-visible">
           <h3 className="text-xs uppercase tracking-wide text-zinc-400">Attributes</h3>
           <div className="space-y-2 min-w-0">
             <div className="mb-2 grid grid-cols-4 gap-2 items-center min-w-0 text-xs text-zinc-400 uppercase tracking-wide">
@@ -3640,7 +3704,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 key={label}
                 className="grid grid-cols-4 gap-2 items-center min-w-0"
               >
-                <p className="self-center min-w-0 truncate text-center">
+                <p className="self-center min-w-0 text-center">
                   <HoverTooltipLabel label={label} tooltip={ATTRIBUTE_TOOLTIPS[label]} />
                 </p>
                 <select
@@ -6029,3 +6093,4 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     </div>
   );
 }
+

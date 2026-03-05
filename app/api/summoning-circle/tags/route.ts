@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
-import { requireCampaignMember, requireUserId } from "../_shared";
+import { requireCampaignAccess, requireUserId } from "../_shared";
 
 const MAX_SUGGESTIONS = 20;
 
@@ -15,7 +15,7 @@ export async function GET(req: Request) {
 
   try {
     const userId = await requireUserId();
-    await requireCampaignMember(campaignId, userId);
+    await requireCampaignAccess(campaignId, userId);
 
     if (s.length < 2) {
       return NextResponse.json({ suggestions: [] });
@@ -73,7 +73,7 @@ export async function GET(req: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load tags";
     if (message === "UNAUTHORIZED") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
     if (message === "FORBIDDEN") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

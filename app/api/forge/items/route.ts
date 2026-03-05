@@ -1,56 +1,14 @@
 // app/api/forge/items/route.ts
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
 import type { RangeCategory } from '@prisma/client';
 import { prisma } from '../../../../prisma/client';
+import {
+  requireCampaignAccess,
+  requireCampaignDirectorOrAdmin,
+  requireUserId,
+} from '../_shared';
 import type { VRPEntryInput } from './vrp-utils';
 import { normalizeVRPEntries } from './vrp-utils';
-
-async function getSupabaseServer() {
-  const cookieStore = await cookies();
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: any) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    },
-  );
-}
-
-async function requireUserId() {
-  const supabase = await getSupabaseServer();
-  const { data, error } = await supabase.auth.getUser();
-
-  if (error || !data?.user?.id) {
-    throw new Error('UNAUTHORIZED');
-  }
-  return data.user.id;
-}
-
-async function requireCampaignMember(campaignId: string, userId: string) {
-  const membership = await prisma.campaignUser.findUnique({
-    where: { campaignId_userId: { campaignId, userId } },
-    select: { role: true },
-  });
-
-  if (!membership) {
-    throw new Error('FORBIDDEN');
-  }
-
-  return membership.role;
-}
 
 function normalizeTagsInput(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -233,7 +191,7 @@ export async function GET(req: Request) {
   }
   try {
     const userId = await requireUserId();
-    await requireCampaignMember(campaignId, userId);
+    await requireCampaignAccess(campaignId, userId);
     const baseQuery = {
       where: { campaignId },
       orderBy: { createdAt: 'desc' as const },
@@ -288,7 +246,7 @@ export async function GET(req: Request) {
     const msg = error instanceof Error ? error.message : 'Failed to load item templates';
 
     if (msg === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
     }
     if (msg === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -306,19 +264,14 @@ export async function POST(req: Request) {
     const body = (await req.json()) as ItemTemplateInput;
     const normalizedTags = normalizeTagsInput(body.tags);
 
-    const userId = await requireUserId();
-    const role = await requireCampaignMember(body.campaignId, userId);
-
-    if (role !== 'GAME_DIRECTOR') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     if (!body.id || !body.campaignId || !body.name || !body.rarity || !body.type) {
       return NextResponse.json(
         { error: 'id, campaignId, name, rarity, type are required' },
         { status: 400 },
       );
     }
+    const userId = await requireUserId();
+    await requireCampaignDirectorOrAdmin(body.campaignId, userId);
 
     if (countSelectedMythicLimitBreaks(body) > 1) {
       return NextResponse.json(
@@ -588,7 +541,7 @@ export async function POST(req: Request) {
           : 'Failed to create item template';
 
     if (msg === 'UNAUTHORIZED') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
     }
     if (msg === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

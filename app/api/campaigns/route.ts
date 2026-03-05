@@ -25,6 +25,67 @@ async function getSupabaseServer() {
   );
 }
 
+// SC_API_CAMPAIGNS_LIST
+export async function GET() {
+  const supabase = await getSupabaseServer();
+
+  // Get authenticated user
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const userId = user.id;
+
+  // Get campaign IDs where user is owner OR member
+  const { data: membershipRows, error: membershipError } = await supabase
+    .from("CampaignUser")
+    .select("campaignId")
+    .eq("userId", userId);
+
+  if (membershipError) {
+    return NextResponse.json({ error: membershipError.message }, { status: 500 });
+  }
+
+  const memberCampaignIds = (membershipRows ?? []).map((r) => r.campaignId);
+
+  // Also include campaigns they own directly
+  const { data: ownedRows, error: ownedError } = await supabase
+    .from("Campaign")
+    .select("id")
+    .eq("ownerUserId", userId);
+
+  if (ownedError) {
+    return NextResponse.json({ error: ownedError.message }, { status: 500 });
+  }
+
+  const ownedCampaignIds = (ownedRows ?? []).map((r) => r.id);
+
+  const allCampaignIds = Array.from(new Set([...memberCampaignIds, ...ownedCampaignIds]));
+
+  if (allCampaignIds.length === 0) {
+    return NextResponse.json({ campaigns: [] });
+  }
+
+  const { data: campaigns, error: campaignsError } = await supabase
+    .from("Campaign")
+    .select("id, name")
+    .in("id", allCampaignIds)
+    .order("createdAt", { ascending: true });
+
+  if (campaignsError) {
+    return NextResponse.json({ error: campaignsError.message }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    campaigns: campaigns ?? [],
+  });
+}
+
 export async function POST(req: Request) {
   const supabase = await getSupabaseServer();
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, type ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
+import { useSearchParams } from 'next/navigation';
 
 import type {
   ItemRarity,
@@ -180,64 +181,24 @@ function itemMatches(row: ForgeItemSummary, q: string): boolean {
 function isLegendaryItem(row: ForgeItemSummary): boolean {
   return String(row.rarity ?? '').trim().toLowerCase() === 'legendary';
 }
-// DamageType.name → allowed AttackEffect.name[]
-const DAMAGE_TYPE_TO_EFFECT_NAMES: Record<string, string[]> = {
-  blunt: ['Impact'],
-  slashing: ['Laceration'],
-  fire: ['Immolate'],
-  holy: ['Smite'],
-  ice: ['Freeze'],
-  lightning: ['Surge'],
-  necrotic: ['Disease'],
-  poison: ['Poisoned'],
-  psychic: ['Overwhelmed'],
-  piercing: ['Penetrate'],
-  fear: ['Horrified'],
-};
-
 function getDamageTypeMode(dt: any): 'PHYSICAL' | 'MENTAL' {
   const raw = (dt?.attackMode ?? dt?.damageMode ?? '').toString().trim().toUpperCase();
   return raw === 'MENTAL' ? 'MENTAL' : 'PHYSICAL'; // default PHYSICAL for backwards compat
 }
 
-function normaliseName(name: string | null | undefined): string {
-  return (name ?? '').trim().toLowerCase();
-}
-
 function filterAttackEffectsForDamageTypes(
   allEffects: AttackEffect[],
-  allDamageTypes: DamageType[],
+  _allDamageTypes: DamageType[],
   selectedDamageTypeIds: number[],
 ): AttackEffect[] {
   if (!selectedDamageTypeIds.length) return [];
 
-  // Map damageTypeId → name
-  const damageTypeNameById = new Map<number, string>();
-  for (const dt of allDamageTypes) {
-    damageTypeNameById.set(dt.id, dt.name);
-  }
-
-  // Collect allowed effect names based on selected damage types
-  const allowedEffectNames = new Set<string>();
-  for (const dtId of selectedDamageTypeIds) {
-    const dtName = damageTypeNameById.get(dtId);
-    if (!dtName) continue;
-
-    const key = normaliseName(dtName);
-    const effectNames = DAMAGE_TYPE_TO_EFFECT_NAMES[key] ?? [];
-    for (const effName of effectNames) {
-      allowedEffectNames.add(normaliseName(effName));
-    }
-  }
-
-  if (!allowedEffectNames.size) return [];
-
-  // Only return attack effects whose names match one of the allowed names
+  const selectedIds = new Set(selectedDamageTypeIds);
   return allEffects.filter((fx) =>
-    allowedEffectNames.has(normaliseName(fx.name)),
+    Array.isArray(fx.damageTypeIds) &&
+    fx.damageTypeIds.some((damageTypeId) => selectedIds.has(damageTypeId)),
   );
 }
-
 const ITEM_TYPES: ItemType[] = [
   'WEAPON',
   'ARMOR',
@@ -1301,7 +1262,14 @@ function calculateRawSpentFp(
     ? attackLinesCost
     : legacyAttackStringCost;
 
-  const grandTotal = attackStringCost + otherCost;
+  // Per-range pricing already includes attack potency/type/GS for each line.
+  // But shared defence costs (e.g. Shield PPV/MPV, defensive GS) are tracked
+  // in the legacy buckets and still need to be added explicitly.
+  const sharedNonAttackCost = usedPerRangeAttackPricing
+    ? potencyCost + typeCost + gsCost
+    : 0;
+
+  const grandTotal = attackStringCost + sharedNonAttackCost + otherCost;
   return grandTotal;
 }
 
@@ -1336,6 +1304,8 @@ function calculateForgeTotals(
 }
 
 export function ForgeCreate({ campaignId }: { campaignId: string }) {
+  const searchParams = useSearchParams();
+  const itemIdFromUrl = searchParams.get('itemId');
   const { data, loading, error } = useForgePicklists();
 
   // Campaign items (for edit selection)
@@ -1347,6 +1317,7 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   } = useForgeItems(campaignId);
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const hasHydratedItemIdFromUrlRef = useRef(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
   const [pickerFiltersOpen, setPickerFiltersOpen] = useState(false);
@@ -1363,6 +1334,19 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   const editorScrollYRef = useRef(0);
   const previewScrollYRef = useRef(0);
   const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    // FORGE_URL_ITEM_HYDRATION
+    if (hasHydratedItemIdFromUrlRef.current) return;
+    hasHydratedItemIdFromUrlRef.current = true;
+
+    if (!itemIdFromUrl) return;
+
+    // prevents overwriting existing editing state
+    if (selectedItemId) return;
+
+    setSelectedItemId(itemIdFromUrl);
+  }, [itemIdFromUrl, selectedItemId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -2643,6 +2627,26 @@ useEffect(() => {
       setValue('sanctifiedOptionIds', [], { shouldDirty: true });
     }
   }, [hasSanctifiedAttr, sanctifiedOptionIds, setValue]);
+
+  // Keep selected warding options aligned with mode-derived picklist values.
+  useEffect(() => {
+    if (!hasWardingAttr || !data) return;
+    const allowedIds = new Set(wardingOptionsFromPicklist.map((opt) => opt.id));
+    const filtered = wardingOptionIds.filter((id) => allowedIds.has(id));
+    if (filtered.length !== wardingOptionIds.length) {
+      setValue('wardingOptionIds', filtered, { shouldDirty: true });
+    }
+  }, [data, hasWardingAttr, wardingOptionsFromPicklist, wardingOptionIds, setValue]);
+
+  // Keep selected sanctified options aligned with mode-derived picklist values.
+  useEffect(() => {
+    if (!hasSanctifiedAttr || !data) return;
+    const allowedIds = new Set(sanctifiedOptionsFromPicklist.map((opt) => opt.id));
+    const filtered = sanctifiedOptionIds.filter((id) => allowedIds.has(id));
+    if (filtered.length !== sanctifiedOptionIds.length) {
+      setValue('sanctifiedOptionIds', filtered, { shouldDirty: true });
+    }
+  }, [data, hasSanctifiedAttr, sanctifiedOptionsFromPicklist, sanctifiedOptionIds, setValue]);
 
   // NOTE: Damage types are no longer gated by strength, so we do not prune selections here.
   // Strength is enforced by selected damage types in the invariant effect above.
@@ -6950,5 +6954,4 @@ function ForgeCalculatorPanel({ totals }: { totals: ForgeCalculatorTotals }) {
     </div>
   );
 }
-
 

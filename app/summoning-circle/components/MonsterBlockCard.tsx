@@ -596,25 +596,6 @@ export function MonsterBlockCard({
   printLayout = "COMPACT_1P",
   printPage = "COMPACT",
 }: MonsterBlockCardProps) {
-  // 🔎 DEBUG: log computed wrapper sizing for the hero image (no hooks)
-  if (typeof window !== "undefined") {
-    queueMicrotask(() => {
-      const el = document.querySelector('[data-sc="hero-image-wrap"]') as HTMLElement | null;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const cs = window.getComputedStyle(el);
-      // eslint-disable-next-line no-console
-      console.log("[SC hero-image-wrap]", {
-        w: Math.round(r.width),
-        h: Math.round(r.height),
-        aspectRatio: cs.aspectRatio,
-        height: cs.height,
-        width: cs.width,
-        maxWidth: cs.maxWidth,
-      });
-    });
-  }
-
   const inPrint = Boolean(isPrint);
   const is2Page = inPrint && printLayout === "LEGENDARY_2P";
   const isMainPage = inPrint && printPage === "PAGE1_MAIN";
@@ -1692,9 +1673,9 @@ export function MonsterBlockCard({
       )}
 
       <style jsx global>{`
-        /* NOTE:
-           Do not set height/max-height/aspect-ratio for .sc-image-wrap anywhere else.
-           All image size changes must be done by editing SC_IMAGE_SIZING_TOKENS.
+        /* IMPORTANT:
+           Monster hero image sizing must ONLY be changed via the SC_IMAGE_SIZING_TOKENS variables below.
+           Do NOT add aspect/max-height/height rules anywhere else (JSX Tailwind or other print rules).
         */
         /* ===========================
            SC_IMAGE_SIZING_TOKENS

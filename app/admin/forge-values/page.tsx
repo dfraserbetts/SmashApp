@@ -10,13 +10,20 @@ type ForgeValueCategory =
   | "SANCTIFIED_OPTIONS"
   | "ATTACK_EFFECTS"
   | "DEF_EFFECTS"
-  | "DAMAGE_TYPES";
+  | "DAMAGE_TYPES"
+  | "PPV_COSTS"
+  | "MPV_COSTS";
 
 type AttributePlacement = "ATTACK" | "DEFENCE" | "TRAITS" | "GENERAL";
+type AttackMode = "PHYSICAL" | "MENTAL";
+type StatCostType = "PPV" | "MPV";
+type StatCostTarget = "Armor" | "Shield";
 
 type ValueRow = {
   id: number;
   name: string;
+  attackMode?: AttackMode | null;
+  damageTypeIds?: number[] | null;
   descriptorTemplate?: string | null;
   descriptorNotes?: string | null;
   requiresRange?: "MELEE" | "RANGED" | "AOE" | null;
@@ -33,6 +40,7 @@ type ForgeCostEntry = {
   value: number;
   notes: string | null;
 };
+const STAT_COST_LEVELS = Array.from({ length: 10 }, (_unused, index) => index + 1);
 
 function parseTieredName(name: string): { base: string; tier: number | null } {
   const m = name.trim().match(/^(.*)\s(\d+)$/);
@@ -83,6 +91,9 @@ export default function AdminForgeValuesPage() {
 
   const [rows, setRows] = useState<ValueRow[]>([]);
   const [costs, setCosts] = useState<ForgeCostEntry[]>([]);
+  const [damageTypeOptions, setDamageTypeOptions] = useState<Array<{ id: number; name: string }>>(
+    [],
+  );
 
   // Admin-backed cost editing (Option B: full context matrix)
   const [costContexts, setCostContexts] = useState<string[]>([]);
@@ -96,6 +107,12 @@ export default function AdminForgeValuesPage() {
   const [bootstrapValue, setBootstrapValue] = useState("");
   const [bootstrapNotes, setBootstrapNotes] = useState("");
   const [bootstrapping, setBootstrapping] = useState(false);
+  const [statCostType, setStatCostType] = useState<StatCostType>("PPV");
+  const [statCostTarget, setStatCostTarget] = useState<StatCostTarget>("Armor");
+  const [statCostEdits, setStatCostEdits] = useState<
+    Record<number, { value: string; notes: string }>
+  >({});
+  const [savingStatLevel, setSavingStatLevel] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -105,6 +122,7 @@ export default function AdminForgeValuesPage() {
 
   // Create
   const [newValueName, setNewValueName] = useState("");
+  const [newDamageTypeAttackMode, setNewDamageTypeAttackMode] = useState<AttackMode>("PHYSICAL");
   const [creatingValue, setCreatingValue] = useState(false);
 
   // Rename
@@ -114,6 +132,13 @@ export default function AdminForgeValuesPage() {
   const [savingRename, setSavingRename] = useState(false);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedDamageTypeAttackMode, setSelectedDamageTypeAttackMode] =
+    useState<AttackMode>("PHYSICAL");
+  const [savingDamageTypeAttackMode, setSavingDamageTypeAttackMode] = useState(false);
+  const [selectedAttackEffectDamageTypeIds, setSelectedAttackEffectDamageTypeIds] = useState<
+    number[]
+  >([]);
+  const [savingAttackEffectLinks, setSavingAttackEffectLinks] = useState(false);
 
   // Weapon Attribute descriptor editing (v1)
   const [descriptorTemplate, setDescriptorTemplate] = useState("");
@@ -138,6 +163,29 @@ export default function AdminForgeValuesPage() {
   const isWeaponAttributes = category === "WEAPON_ATTRIBUTES";
   const isArmorAttributes = category === "ARMOR_ATTRIBUTES";
   const isShieldAttributes = category === "SHIELD_ATTRIBUTES";
+  const isDamageTypes = category === "DAMAGE_TYPES";
+  const isAttackEffects = category === "ATTACK_EFFECTS";
+  const isPpvCosts = category === "PPV_COSTS";
+  const isMpvCosts = category === "MPV_COSTS";
+  const isStatCostCategory = isPpvCosts || isMpvCosts;
+
+  useEffect(() => {
+    if (isPpvCosts) {
+      setStatCostType("PPV");
+      return;
+    }
+    if (isMpvCosts) {
+      setStatCostType("MPV");
+      return;
+    }
+    if (isShieldAttributes) {
+      setStatCostTarget("Shield");
+      return;
+    }
+    if (isArmorAttributes) {
+      setStatCostTarget("Armor");
+    }
+  }, [isArmorAttributes, isMpvCosts, isPpvCosts, isShieldAttributes]);
 
   const TOKEN_WHITELIST = useMemo(() => {
     // Weapon Attribute tokens
@@ -280,7 +328,9 @@ function renderTemplatePreview(
     setErr(null);
     try {
       // 1) Forge values (admin-gated)
-      const valuesEndpoint =
+      const valuesEndpoint = isStatCostCategory
+        ? null
+        : (
         category === "WEAPON_ATTRIBUTES"
           ? "/api/admin/weapon-attributes"
           : category === "ARMOR_ATTRIBUTES"
@@ -291,18 +341,21 @@ function renderTemplatePreview(
                 ? "/api/admin/warding-options"
                 : category === "SANCTIFIED_OPTIONS"
                   ? "/api/admin/sanctified-options"
-                  : category === "ATTACK_EFFECTS"
-                    ? "/api/admin/attack-effects"
-                    : category === "DEF_EFFECTS"
-                      ? "/api/admin/def-effects"
-                      : "/api/admin/damage-types";
+                : category === "ATTACK_EFFECTS"
+                  ? "/api/admin/attack-effects"
+                  : category === "DEF_EFFECTS"
+                    ? "/api/admin/def-effects"
+                      : "/api/admin/damage-types"
+        );
 
-
-      const valuesRes = await fetch(valuesEndpoint, { cache: "no-store" });
-
-      const valuesJson = await valuesRes.json();
-      if (!valuesRes.ok) {
-        throw new Error(valuesJson?.error ?? "Failed to load forge values");
+      let valueRows: ValueRow[] = [];
+      if (valuesEndpoint) {
+        const valuesRes = await fetch(valuesEndpoint, { cache: "no-store" });
+        const valuesJson = await valuesRes.json();
+        if (!valuesRes.ok) {
+          throw new Error(valuesJson?.error ?? "Failed to load forge values");
+        }
+        valueRows = (valuesJson?.rows ?? []) as ValueRow[];
       }
 
       // 2) Costs (read-only via picklists for now)
@@ -313,12 +366,27 @@ function renderTemplatePreview(
       }
 
       const allCosts = (pickJson?.costs ?? []) as ForgeCostEntry[];
-      setRows((valuesJson?.rows ?? []) as ValueRow[]);
+      const allDamageTypeOptions = Array.isArray(pickJson?.damageTypes)
+        ? (pickJson.damageTypes as Array<{ id?: unknown; name?: unknown }>)
+            .map((row) => ({
+              id:
+                typeof row.id === "number"
+                  ? row.id
+                  : typeof row.id === "string"
+                    ? Number.parseInt(row.id, 10)
+                    : NaN,
+              name: typeof row.name === "string" ? row.name : "",
+            }))
+            .filter((row) => Number.isFinite(row.id) && row.name.trim().length > 0)
+        : [];
+      setRows(valueRows);
       setCosts(allCosts);
+      setDamageTypeOptions(allDamageTypeOptions);
     } catch (e: any) {
       setErr(String(e?.message ?? "Failed to load"));
       setRows([]);
       setCosts([]);
+      setDamageTypeOptions([]);
       setSelectedId(null);
     } finally {
       setLoading(false);
@@ -330,12 +398,16 @@ function renderTemplatePreview(
     setSelectedId(null);
     setQ("");
     setNewValueName("");
+    setNewDamageTypeAttackMode("PHYSICAL");
+    setSelectedAttackEffectDamageTypeIds([]);
     cancelRename();
     setErr(null);
     setFlash(null);
     setBootstrapContext("");
     setBootstrapValue("");
     setBootstrapNotes("");
+    setStatCostType(category === "MPV_COSTS" ? "MPV" : "PPV");
+    setSavingStatLevel(null);
 
     void loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -345,10 +417,13 @@ function renderTemplatePreview(
     setErr(null);
     const name = newValueName.trim();
     if (!name) return;
+    if (isStatCostCategory) return;
 
     try {
       setCreatingValue(true);
-      const valuesEndpoint =
+      const valuesEndpoint = isStatCostCategory
+        ? null
+        : (
         category === "WEAPON_ATTRIBUTES"
           ? "/api/admin/weapon-attributes"
           : category === "ARMOR_ATTRIBUTES"
@@ -359,16 +434,22 @@ function renderTemplatePreview(
                 ? "/api/admin/warding-options"
                 : category === "SANCTIFIED_OPTIONS"
                   ? "/api/admin/sanctified-options"
-                  : category === "ATTACK_EFFECTS"
-                    ? "/api/admin/attack-effects"
-                    : category === "DEF_EFFECTS"
-                      ? "/api/admin/def-effects"
-                      : "/api/admin/damage-types";
+                : category === "ATTACK_EFFECTS"
+                  ? "/api/admin/attack-effects"
+                  : category === "DEF_EFFECTS"
+                    ? "/api/admin/def-effects"
+                      : "/api/admin/damage-types"
+        );
+      if (!valuesEndpoint) return;
+
+      const payload = isDamageTypes
+        ? { name, attackMode: newDamageTypeAttackMode }
+        : { name };
 
       const res = await fetch(valuesEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "Create failed");
@@ -380,6 +461,7 @@ function renderTemplatePreview(
         setSelectedId(row.id);
         setQ("");
         setNewValueName("");
+        setNewDamageTypeAttackMode("PHYSICAL");
       } else {
         // Fallback if shape changes
         await loadAll();
@@ -477,6 +559,84 @@ function renderTemplatePreview(
     }
   }
 
+  async function saveDamageTypeAttackMode() {
+    if (!selected || !isDamageTypes) return;
+
+    setErr(null);
+    try {
+      setSavingDamageTypeAttackMode(true);
+
+      const res = await fetch("/api/admin/damage-types", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selected.id,
+          name: selected.name,
+          attackMode: selectedDamageTypeAttackMode,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Save failed");
+
+      if (data?.row?.id) {
+        setRows((prev) => prev.map((r) => (r.id === data.row.id ? data.row : r)));
+      } else {
+        await loadAll();
+        setSelectedId(selected.id);
+      }
+
+      setFlash("Saved damage type mode.");
+      setTimeout(() => setFlash(null), 2000);
+    } catch (e: any) {
+      setErr(String(e?.message ?? "Save failed"));
+    } finally {
+      setSavingDamageTypeAttackMode(false);
+    }
+  }
+
+  function toggleSelectedAttackEffectDamageType(damageTypeId: number) {
+    setSelectedAttackEffectDamageTypeIds((prev) =>
+      prev.includes(damageTypeId)
+        ? prev.filter((id) => id !== damageTypeId)
+        : [...prev, damageTypeId],
+    );
+  }
+
+  async function saveAttackEffectLinks() {
+    if (!selected || !isAttackEffects) return;
+
+    setErr(null);
+    try {
+      setSavingAttackEffectLinks(true);
+
+      const res = await fetch("/api/admin/attack-effects", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selected.id,
+          name: selected.name,
+          damageTypeIds: selectedAttackEffectDamageTypeIds,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Save failed");
+
+      if (data?.row?.id) {
+        setRows((prev) => prev.map((r) => (r.id === data.row.id ? data.row : r)));
+      } else {
+        await loadAll();
+        setSelectedId(selected.id);
+      }
+
+      setFlash("Saved attack effect links.");
+      setTimeout(() => setFlash(null), 2000);
+    } catch (e: any) {
+      setErr(String(e?.message ?? "Save failed"));
+    } finally {
+      setSavingAttackEffectLinks(false);
+    }
+  }
+
   const filteredRows = useMemo(() => {
     const query = q.trim().toLowerCase();
     const base = rows
@@ -497,6 +657,8 @@ function renderTemplatePreview(
     if (!selected) {
       setDescriptorTemplate("");
       setDescriptorNotes("");
+      setSelectedDamageTypeAttackMode("PHYSICAL");
+      setSelectedAttackEffectDamageTypeIds([]);
       setRequiresRange("");
       setRequiresAoeShape("");
       setRequiresRangeSelection(false);
@@ -507,6 +669,20 @@ function renderTemplatePreview(
 
     setDescriptorTemplate(String(selected.descriptorTemplate ?? ""));
     setDescriptorNotes(String(selected.descriptorNotes ?? ""));
+    setSelectedDamageTypeAttackMode(selected.attackMode === "MENTAL" ? "MENTAL" : "PHYSICAL");
+    setSelectedAttackEffectDamageTypeIds(
+      Array.isArray(selected.damageTypeIds)
+        ? selected.damageTypeIds
+            .map((id) =>
+              typeof id === "number"
+                ? id
+                : typeof id === "string"
+                  ? Number.parseInt(id, 10)
+                  : NaN,
+            )
+            .filter((id) => Number.isFinite(id))
+        : [],
+    );
     setRequiresRange((selected.requiresRange as any) ?? "");
     setRequiresAoeShape((selected.requiresAoeShape as any) ?? "");
     setRequiresStrengthSource(!!(selected as any).requiresStrengthSource);
@@ -641,6 +817,98 @@ function renderTemplatePreview(
       return { context: ctx, existing };
     });
   }, [costContexts, costRowsLive, selectedParsed]);
+  const statCostEntryByLevel = useMemo(() => {
+    const out = new Map<number, ForgeCostEntry>();
+    for (const row of costs) {
+      if (String(row.category ?? "").trim().toLowerCase() !== "stat") continue;
+      if (String(row.selector1 ?? "").trim().toUpperCase() !== statCostType) continue;
+      if (String(row.selector2 ?? "").trim().toLowerCase() !== statCostTarget.toLowerCase()) continue;
+
+      const level = Number.parseInt(String(row.selector3 ?? ""), 10);
+      if (!Number.isFinite(level) || level < 1 || level > 10) continue;
+      out.set(level, row);
+    }
+    return out;
+  }, [costs, statCostTarget, statCostType]);
+
+  useEffect(() => {
+    const next: Record<number, { value: string; notes: string }> = {};
+    for (const level of STAT_COST_LEVELS) {
+      const existing = statCostEntryByLevel.get(level) ?? null;
+      next[level] = {
+        value: existing ? String(existing.value) : "",
+        notes: existing?.notes ?? "",
+      };
+    }
+    setStatCostEdits(next);
+  }, [statCostEntryByLevel]);
+
+  async function saveStatCost(level: number) {
+    const edit = statCostEdits[level] ?? { value: "", notes: "" };
+    const parsedValue = Number.parseFloat(edit.value);
+    if (!Number.isFinite(parsedValue)) {
+      setErr("Cost must be a number.");
+      return;
+    }
+
+    setErr(null);
+    setSavingStatLevel(level);
+
+    try {
+      const existing = statCostEntryByLevel.get(level) ?? null;
+
+      if (existing) {
+        const res = await fetch("/api/admin/forge-costs", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: existing.id,
+            value: parsedValue,
+            notes: edit.notes.trim() || null,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error ?? "Update failed");
+
+        const savedRow = data?.row as ForgeCostEntry | undefined;
+        if (savedRow?.id) {
+          setCosts((prev) => prev.map((row) => (row.id === savedRow.id ? savedRow : row)));
+        }
+      } else {
+        const res = await fetch("/api/admin/forge-costs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            category: "Stat",
+            selector1: statCostType,
+            selector2: statCostTarget,
+            selector3: String(level),
+            value: parsedValue,
+            notes: edit.notes.trim() || null,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error ?? "Create failed");
+
+        const savedRow = data?.row as ForgeCostEntry | undefined;
+        if (savedRow?.id) {
+          setCosts((prev) => {
+            if (prev.some((row) => row.id === savedRow.id)) {
+              return prev.map((row) => (row.id === savedRow.id ? savedRow : row));
+            }
+            return [savedRow, ...prev];
+          });
+        }
+      }
+
+      setFlash(`Saved ${statCostType} ${statCostTarget} value ${level}.`);
+      setTimeout(() => setFlash(null), 2000);
+    } catch (e: any) {
+      setErr(String(e?.message ?? "Save failed"));
+    } finally {
+      setSavingStatLevel(null);
+    }
+  }
 
 
   return (
@@ -664,6 +932,8 @@ function renderTemplatePreview(
           <option value="ATTACK_EFFECTS">Greater Success — Attack Effects</option>
           <option value="DEF_EFFECTS">Greater Success — Defence Effects</option>
           <option value="DAMAGE_TYPES">Damage Types</option>
+          <option value="PPV_COSTS">PPV Costs</option>
+          <option value="MPV_COSTS">MPV Costs</option>
           </select>
         </div>
 
@@ -683,15 +953,29 @@ function renderTemplatePreview(
           className="mt-1 w-full rounded border bg-transparent p-2"
           value={newValueName}
           onChange={(e) => setNewValueName(e.target.value)}
-          placeholder="e.g. Brutal 1"
+          placeholder={isStatCostCategory ? "Not used for stat costs" : "e.g. Brutal 1"}
+          disabled={isStatCostCategory}
         />
       </div>
+      {isDamageTypes && (
+        <div className="w-[180px]">
+          <label className="text-sm">Attack Mode</label>
+          <select
+            className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
+            value={newDamageTypeAttackMode}
+            onChange={(e) => setNewDamageTypeAttackMode(e.target.value as AttackMode)}
+          >
+            <option value="PHYSICAL">Physical</option>
+            <option value="MENTAL">Mental</option>
+          </select>
+        </div>
+      )}
 
       <button
         className="rounded border px-4 py-2 text-sm"
         onClick={createValue}
-        disabled={!newValueName.trim() || creatingValue}
-        title={!newValueName.trim() ? "Enter a name" : "Create"}
+        disabled={isStatCostCategory || !newValueName.trim() || creatingValue}
+        title={isStatCostCategory ? "Use the stat cost editor" : !newValueName.trim() ? "Enter a name" : "Create"}
       >
         {creatingValue ? "Adding…" : "Add"}
       </button>
@@ -725,7 +1009,14 @@ function renderTemplatePreview(
                     }`}
                     onClick={() => setSelectedId(r.id)}
                   >
-                    {r.name}
+                    <div className="flex items-center justify-between gap-2">
+                      <span>{r.name}</span>
+                      {isDamageTypes && (
+                        <span className="rounded border px-2 py-0.5 text-[10px] uppercase opacity-80">
+                          {r.attackMode === "MENTAL" ? "mental" : "physical"}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 </li>
               ))}
@@ -739,7 +1030,9 @@ function renderTemplatePreview(
 
           {!selected ? (
             <div className="p-3 text-sm opacity-80">
-              Select a value on the left.
+              {isStatCostCategory
+                ? "PPV/MPV stat costs are edited below."
+                : "Select a value on the left."}
             </div>
           ) : (
             <div className="space-y-4 p-3">
@@ -808,6 +1101,78 @@ function renderTemplatePreview(
             </div>
           )}
         </div>
+
+              {isDamageTypes && (
+                <div className="rounded border p-3 space-y-2">
+                  <div className="text-sm font-medium">Damage Type Mode</div>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="w-[220px]">
+                      <label className="text-xs opacity-80">Attack Mode</label>
+                      <select
+                        className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
+                        value={selectedDamageTypeAttackMode}
+                        onChange={(e) =>
+                          setSelectedDamageTypeAttackMode(e.target.value as AttackMode)
+                        }
+                        disabled={savingDamageTypeAttackMode}
+                      >
+                        <option value="PHYSICAL">Physical</option>
+                        <option value="MENTAL">Mental</option>
+                      </select>
+                    </div>
+                    <button
+                      className="rounded border px-3 py-2 text-sm"
+                      onClick={saveDamageTypeAttackMode}
+                      disabled={savingDamageTypeAttackMode}
+                    >
+                      {savingDamageTypeAttackMode ? "Saving..." : "Save Mode"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {isAttackEffects && (
+                <div className="rounded border p-3 space-y-3">
+                  <div>
+                    <div className="text-sm font-medium">Linked Damage Types</div>
+                    <div className="text-xs opacity-70">
+                      Only linked effects appear when those damage types are selected.
+                    </div>
+                  </div>
+
+                  {damageTypeOptions.length === 0 ? (
+                    <div className="text-sm opacity-80">No damage types available.</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {damageTypeOptions.map((dt) => {
+                        const linked = selectedAttackEffectDamageTypeIds.includes(dt.id);
+                        return (
+                          <button
+                            key={dt.id}
+                            type="button"
+                            className={`rounded-full border px-3 py-1 text-xs ${
+                              linked ? "bg-zinc-800" : ""
+                            }`}
+                            onClick={() => toggleSelectedAttackEffectDamageType(dt.id)}
+                            disabled={savingAttackEffectLinks}
+                            title={linked ? "Unlink" : "Link"}
+                          >
+                            {dt.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <button
+                    className="rounded border px-3 py-2 text-sm"
+                    onClick={saveAttackEffectLinks}
+                    disabled={savingAttackEffectLinks}
+                  >
+                    {savingAttackEffectLinks ? "Saving..." : "Save Links"}
+                  </button>
+                </div>
+              )}
 
               {(isWeaponAttributes || isArmorAttributes || isShieldAttributes) && (
                 <div className="rounded border p-3 space-y-3">
@@ -1344,10 +1709,203 @@ function renderTemplatePreview(
                   </div>
                 </div>
               )}
+
+              {(isArmorAttributes || isShieldAttributes) && (
+                <div className="rounded border">
+                  <div className="border-b p-2 text-xs font-medium opacity-80">
+                    Stat Costs (PPV / MPV)
+                  </div>
+
+                  <div className="space-y-3 p-3">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div>
+                        <label className="text-xs opacity-70">Stat (selector1)</label>
+                        <select
+                          className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
+                          value={statCostType}
+                          onChange={(e) => setStatCostType(e.target.value as StatCostType)}
+                        >
+                          <option value="PPV">PPV</option>
+                          <option value="MPV">MPV</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-xs opacity-70">Item Type (selector2)</label>
+                        <select
+                          className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
+                          value={statCostTarget}
+                          onChange={(e) => setStatCostTarget(e.target.value as StatCostTarget)}
+                        >
+                          <option value="Armor">Armor</option>
+                          <option value="Shield">Shield</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <table className="w-full text-sm">
+                      <thead className="text-xs opacity-70">
+                        <tr>
+                          <th className="p-2 text-left">Value (selector3)</th>
+                          <th className="p-2 text-left">Cost</th>
+                          <th className="p-2 text-left">Notes</th>
+                          <th className="p-2 text-left"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {STAT_COST_LEVELS.map((level) => {
+                          const existing = statCostEntryByLevel.get(level) ?? null;
+                          const edit = statCostEdits[level] ?? { value: "", notes: "" };
+                          const isSaving = savingStatLevel === level;
+
+                          return (
+                            <tr key={`${statCostType}-${statCostTarget}-${level}`}>
+                              <td className="p-2">{level}</td>
+                              <td className="p-2">
+                                <input
+                                  className="w-28 rounded border bg-transparent p-2 text-sm"
+                                  value={edit.value}
+                                  onChange={(e) =>
+                                    setStatCostEdits((prev) => ({
+                                      ...prev,
+                                      [level]: { ...edit, value: e.target.value },
+                                    }))
+                                  }
+                                  placeholder={existing ? String(existing.value) : ""}
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  className="w-full rounded border bg-transparent p-2 text-sm"
+                                  value={edit.notes}
+                                  onChange={(e) =>
+                                    setStatCostEdits((prev) => ({
+                                      ...prev,
+                                      [level]: { ...edit, notes: e.target.value },
+                                    }))
+                                  }
+                                  placeholder="optional"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <button
+                                  className="rounded border px-3 py-2 text-sm"
+                                  disabled={isSaving || edit.value.trim() === ""}
+                                  onClick={() => void saveStatCost(level)}
+                                  title={edit.value.trim() === "" ? "Enter a cost to save" : "Save"}
+                                >
+                                  {isSaving ? "Saving..." : existing ? "Save" : "Create"}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
+
+        {isStatCostCategory && (
+          <div className="rounded-lg border lg:col-span-2">
+            <div className="border-b p-3 text-sm font-medium">
+              {statCostType} Costs
+            </div>
+
+            <div className="space-y-3 p-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <label className="text-xs opacity-70">Stat (selector1)</label>
+                  <select
+                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
+                    value={statCostType}
+                    onChange={(e) => setStatCostType(e.target.value as StatCostType)}
+                  >
+                    <option value="PPV">PPV</option>
+                    <option value="MPV">MPV</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs opacity-70">Item Type (selector2)</label>
+                  <select
+                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
+                    value={statCostTarget}
+                    onChange={(e) => setStatCostTarget(e.target.value as StatCostTarget)}
+                  >
+                    <option value="Armor">Armor</option>
+                    <option value="Shield">Shield</option>
+                  </select>
+                </div>
+              </div>
+
+              <table className="w-full text-sm">
+                <thead className="text-xs opacity-70">
+                  <tr>
+                    <th className="p-2 text-left">Value (selector3)</th>
+                    <th className="p-2 text-left">Cost</th>
+                    <th className="p-2 text-left">Notes</th>
+                    <th className="p-2 text-left"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {STAT_COST_LEVELS.map((level) => {
+                    const existing = statCostEntryByLevel.get(level) ?? null;
+                    const edit = statCostEdits[level] ?? { value: "", notes: "" };
+                    const isSaving = savingStatLevel === level;
+
+                    return (
+                      <tr key={`${statCostType}-${statCostTarget}-${level}-standalone`}>
+                        <td className="p-2">{level}</td>
+                        <td className="p-2">
+                          <input
+                            className="w-28 rounded border bg-transparent p-2 text-sm"
+                            value={edit.value}
+                            onChange={(e) =>
+                              setStatCostEdits((prev) => ({
+                                ...prev,
+                                [level]: { ...edit, value: e.target.value },
+                              }))
+                            }
+                            placeholder={existing ? String(existing.value) : ""}
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            className="w-full rounded border bg-transparent p-2 text-sm"
+                            value={edit.notes}
+                            onChange={(e) =>
+                              setStatCostEdits((prev) => ({
+                                ...prev,
+                                [level]: { ...edit, notes: e.target.value },
+                              }))
+                            }
+                            placeholder="optional"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <button
+                            className="rounded border px-3 py-2 text-sm"
+                            disabled={isSaving || edit.value.trim() === ""}
+                            onClick={() => void saveStatCost(level)}
+                            title={edit.value.trim() === "" ? "Enter a cost to save" : "Save"}
+                          >
+                            {isSaving ? "Saving..." : existing ? "Save" : "Create"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+

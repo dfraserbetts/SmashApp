@@ -2,6 +2,7 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import Link from "next/link";
 import { prisma } from ".././../prisma/client";
 
 async function getSupabaseServer() {
@@ -15,11 +16,11 @@ async function getSupabaseServer() {
         get(name: string) {
           return cookieStore.get(name)?.value;
         },
-        set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
+        set(name: string, value: string, options: unknown) {
+          cookieStore.set({ name, value, ...(options as Record<string, unknown>) });
         },
-        remove(name: string, options: any) {
-          cookieStore.set({ name, value: "", ...options });
+        remove(name: string, options: unknown) {
+          cookieStore.set({ name, value: "", ...(options as Record<string, unknown>) });
         },
       },
     },
@@ -54,10 +55,38 @@ export default async function AdminLayout({
       <div className="mx-auto max-w-5xl">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Admin</h1>
-          <a className="text-sm underline" href="/dashboard">
+          <Link className="text-sm underline" href="/dashboard">
             Back to Dashboard
-          </a>
+          </Link>
         </div>
+
+        <nav className="mb-6 rounded-lg border p-3 text-sm">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <p className="text-[11px] uppercase tracking-wide opacity-70">Core Ops</p>
+              <div className="mt-1 flex flex-wrap gap-3">
+                <Link className="underline" href="/admin/forge-values">
+                  Forge Values
+                </Link>
+                <Link className="underline" href="/admin/monster-traits">
+                  Monster Traits
+                </Link>
+                <Link className="underline" href="/admin/limit-break-templates">
+                  Limit Break Templates
+                </Link>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[11px] uppercase tracking-wide opacity-70">Game Ops</p>
+              <div className="mt-1 flex flex-wrap gap-3">
+                <Link className="underline" href="/admin/campaigns">
+                  Campaign Inspector
+                </Link>
+              </div>
+            </div>
+          </div>
+        </nav>
 
         {children}
       </div>

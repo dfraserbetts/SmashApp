@@ -24,43 +24,67 @@ export function getAttributeSkillDiceContribution(die: DiceSize | null | undefin
   return Math.round(numeric / 2);
 }
 
+function round0(n: number): number {
+  return Math.round(n);
+}
+
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+/**
+ * Spreadsheet-equivalent:
+ * MAX(1, CEILING( ROUND( (ROUND(secondary/2,0) + 2*ROUND(primary/2,0)) / 3, 1), 1))
+ */
+export function weightedSkillFromAttributes(primary: number, secondary: number): number {
+  const primaryHalf = round0(primary / 2);
+  const secondaryHalf = round0(secondary / 2);
+
+  const raw = (secondaryHalf + 2 * primaryHalf) / 3;
+  const r1 = round1(raw);
+
+  const ceiled = Math.ceil(r1); // CEILING(..., 1)
+  return Math.max(1, ceiled);
+}
+
 export function getWeaponSkillDiceCountFromAttributes(
   attackDie: DiceSize | null | undefined,
   braveryDie: DiceSize | null | undefined,
 ): number {
-  const attackValue = getAttributeSkillDiceContribution(attackDie);
-  const braveryValue = getAttributeSkillDiceContribution(braveryDie);
-  return Math.max(1, Math.ceil((attackValue + braveryValue) / 2));
+  const attackValue = getAttributeNumericValue(attackDie);
+  const braveryValue = getAttributeNumericValue(braveryDie);
+  // Weapon Skill: primary Bravery, secondary Attack
+  return weightedSkillFromAttributes(braveryValue, attackValue);
 }
 
 export function getArmorSkillDiceCountFromAttributes(
   defenceDie: DiceSize | null | undefined,
   fortitudeDie: DiceSize | null | undefined,
 ): number {
-  const defenceValue = getAttributeSkillDiceContribution(defenceDie);
-  const fortitudeValue = getAttributeSkillDiceContribution(fortitudeDie);
-  return Math.max(1, Math.ceil((defenceValue + fortitudeValue) / 2));
+  const defenceValue = getAttributeNumericValue(defenceDie);
+  const fortitudeValue = getAttributeNumericValue(fortitudeDie);
+  // Armor Skill: primary Fortitude, secondary Defence
+  return weightedSkillFromAttributes(fortitudeValue, defenceValue);
 }
 
 export function getDodgeValue(
   defenceDie: DiceSize | null | undefined,
   intellectDie: DiceSize | null | undefined,
-  level: number,
-  physicalWeight: number,
+  _level: number,
+  _physicalProtection: number,
 ): number {
-  return (
-    getAttributeNumericValue(defenceDie) +
-    getAttributeNumericValue(intellectDie) +
-    level -
-    physicalWeight
-  );
+  const defenceValue = getAttributeNumericValue(defenceDie);
+  const intellectValue = getAttributeNumericValue(intellectDie);
+  // Dodge: primary Intellect, secondary Defence
+  return weightedSkillFromAttributes(intellectValue, defenceValue);
 }
 
 export function getWillpowerDiceCountFromAttributes(
   supportDie: DiceSize | null | undefined,
   braveryDie: DiceSize | null | undefined,
 ): number {
-  const supportValue = getAttributeSkillDiceContribution(supportDie);
-  const braveryValue = getAttributeSkillDiceContribution(braveryDie);
-  return Math.max(1, Math.ceil((supportValue + braveryValue) / 2));
+  const supportValue = getAttributeNumericValue(supportDie);
+  const braveryValue = getAttributeNumericValue(braveryDie);
+  // Willpower: primary Support, secondary Bravery
+  return weightedSkillFromAttributes(supportValue, braveryValue);
 }

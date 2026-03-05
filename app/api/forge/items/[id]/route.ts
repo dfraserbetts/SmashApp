@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
 import { prisma } from '../../../../../prisma/client';
+import {
+  requireCampaignAccess,
+  requireCampaignDirectorOrAdmin,
+  requireUserId,
+} from '../../_shared';
 
 import { normalizeVRPEntries } from '../vrp-utils';
 import type { VRPEntryInput } from '../vrp-utils';
@@ -17,51 +20,6 @@ type AoEShape = string;
 type ArmorLocation = string;
 type ItemLocation = string;
 type RangeCategory = string;
-
-async function getSupabaseServer() {
-  const cookieStore = await cookies();
-
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: any) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    },
-  );
-}
-
-async function requireUserId() {
-  const supabase = await getSupabaseServer();
-  const { data, error } = await supabase.auth.getUser();
-
-  if (error || !data?.user?.id) {
-    throw new Error('UNAUTHORIZED');
-  }
-  return data.user.id;
-}
-
-async function requireCampaignMember(campaignId: string, userId: string) {
-  const membership = await prisma.campaignUser.findUnique({
-    where: { campaignId_userId: { campaignId, userId } },
-    select: { role: true },
-  });
-
-  if (!membership) {
-    throw new Error('FORBIDDEN');
-  }
-
-  return membership.role;
-}
 
 function normalizeTagsInput(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -205,7 +163,7 @@ export async function GET(
 
   try {
     const userId = await requireUserId();
-    await requireCampaignMember(campaignId, userId);
+    await requireCampaignAccess(campaignId, userId);
     const includeNoTags = {
       rangeCategories: true,
       meleeDamageTypes: { include: { damageType: true } },
@@ -264,6 +222,13 @@ export async function GET(
       return NextResponse.json(withTagStrings({ ...item, tags: [] }));
     }
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load item template';
+    if (message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
+    }
+    if (message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     console.error('[FORGE_ITEM_GET]', error);
     return NextResponse.json(
       { error: 'Failed to load item template' },
@@ -291,11 +256,7 @@ export async function PUT(
 
   try {
     const userId = await requireUserId();
-    const role = await requireCampaignMember(campaignId, userId);
-
-    if (role !== 'GAME_DIRECTOR') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    await requireCampaignDirectorOrAdmin(campaignId, userId);
 
     const body = (await req.json()) as ItemTemplateInput;
     const normalizedTags = normalizeTagsInput(body.tags);
@@ -739,12 +700,22 @@ export async function PUT(
     const message =
       error instanceof Error ? error.message : "Failed to update item template";
     const status =
-      message === "Not found"
-        ? 404
-        : message === 'A Mythic item may only have one Limit Break.'
-          ? 400
-          : 500;
-    return NextResponse.json({ error: message }, { status });
+      message === "UNAUTHORIZED"
+        ? 401
+        : message === "FORBIDDEN"
+          ? 403
+          : message === "Not found"
+            ? 404
+            : message === 'A Mythic item may only have one Limit Break.'
+              ? 400
+              : 500;
+    const payloadMessage =
+      message === "UNAUTHORIZED"
+        ? "Unauthenticated"
+        : message === "FORBIDDEN"
+          ? "Forbidden"
+          : message;
+    return NextResponse.json({ error: payloadMessage }, { status });
   }
 }
 
@@ -767,11 +738,7 @@ export async function DELETE(
 
   try {
     const userId = await requireUserId();
-    const role = await requireCampaignMember(campaignId, userId);
-
-    if (role !== 'GAME_DIRECTOR') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    await requireCampaignDirectorOrAdmin(campaignId, userId);
 
     const deleted = await prisma.itemTemplate.deleteMany({
       where: { id, campaignId },
@@ -782,6 +749,13 @@ export async function DELETE(
     }
     return NextResponse.json({ ok: true });
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete item template';
+    if (message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
+    }
+    if (message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     console.error('[FORGE_ITEM_DELETE]', error);
     return NextResponse.json(
       { error: 'Failed to delete item template' },
