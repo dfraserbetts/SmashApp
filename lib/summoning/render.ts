@@ -443,17 +443,27 @@ export function renderPowerStackCleanupText(
   return null;
 }
 
+// SC_LEVEL_WOUND_SCALER_V1
+function getLevelWoundBonus(level?: number): number {
+  const parsed = typeof level === "number" ? level : Number(level ?? 0);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.floor(parsed / 3));
+}
+
 export function renderAttackActionLines(
   attackConfig: MonsterNaturalAttackConfig,
   weaponSkillValue: number,
-  options?: { applyWeaponSkillOverride?: boolean; strengthMultiplier?: number },
+  options?: { applyWeaponSkillOverride?: boolean; strengthMultiplier?: number; level?: number },
 ): string[] {
   const strengthMultiplier =
     typeof options?.strengthMultiplier === "number" && Number.isFinite(options.strengthMultiplier)
       ? options.strengthMultiplier
       : 1;
-  const scaleStrength = (value: unknown): number =>
-    Number(value ?? 0) * strengthMultiplier;
+  const scaleStrength = (value: unknown): number => {
+    const baseAmount = Number(value ?? 0) * strengthMultiplier;
+    if (!(baseAmount > 0)) return baseAmount;
+    return baseAmount + getLevelWoundBonus(options?.level);
+  };
 
   const descriptorInput = {
     itemType: "WEAPON",

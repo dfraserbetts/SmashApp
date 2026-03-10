@@ -6,6 +6,7 @@ import type { MonsterSummary, MonsterUpsertInput } from "@/lib/summoning/types";
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
 import { MonsterBlockCard, type WeaponProjection } from "@/app/summoning-circle/components/MonsterBlockCard";
 import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
+import { useProtectionTuning } from "@/app/summoning-circle/components/useProtectionTuning";
 
 type Props = {
   campaignId: string;
@@ -24,6 +25,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
   const [printLayout, setPrintLayout] = useState<PrintLayoutMode>("COMPACT_1P");
   const [isPrinting, setIsPrinting] = useState(false);
   const printOnlyRef = useRef<HTMLDivElement | null>(null);
+  const protectionTuning = useProtectionTuning();
 
   const loadedIdsRef = useRef<Set<string>>(new Set());
   const inFlightIdsRef = useRef<Set<string>>(new Set());
@@ -239,6 +241,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
                   isPrint
                   printLayout={printLayout}
                   printPage="COMPACT"
+                  protectionTuning={protectionTuning}
                 />
               </div>
             </article>
@@ -255,6 +258,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
                   isPrint
                   printLayout={printLayout}
                   printPage="PAGE1_MAIN"
+                  protectionTuning={protectionTuning}
                 />
               </div>
             </article>
@@ -267,6 +271,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
                   isPrint
                   printLayout={printLayout}
                   printPage="PAGE2_POWER"
+                  protectionTuning={protectionTuning}
                 />
               </div>
             </article>

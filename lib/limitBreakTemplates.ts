@@ -33,6 +33,7 @@ export class LimitBreakTemplateValidationError extends Error {
 
 type LimitBreakTemplateInput = {
   name?: unknown;
+  tooltip?: unknown;
   templateType?: unknown;
   tier?: unknown;
   thresholdPercent?: unknown;
@@ -61,6 +62,7 @@ type LimitBreakTemplateInput = {
 
 export type NormalizedLimitBreakTemplate = {
   name: string;
+  tooltip: string | null;
   templateType: LimitBreakTemplateTypeValue;
   tier: LimitBreakTierValue;
   thresholdPercent: 60 | 85 | 125;
@@ -213,6 +215,8 @@ export function normalizeAndValidateTemplate(
     throw new LimitBreakTemplateValidationError("Invalid intention value");
   }
 
+  const tooltip = cleanString(input.tooltip);
+
   let itemType = cleanString(input.itemType);
   let monsterCategory = cleanString(input.monsterCategory);
 
@@ -353,6 +357,7 @@ export function normalizeAndValidateTemplate(
 
   return {
     name,
+    tooltip,
     templateType,
     tier,
     thresholdPercent,

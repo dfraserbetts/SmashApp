@@ -114,6 +114,7 @@ export async function GET() {
       select: {
         id: true,
         name: true,
+        tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
         requiresRange: true,
@@ -144,6 +145,7 @@ export async function POST(req: Request) {
         {
           id?: unknown;
           name?: unknown;
+          tooltip?: unknown;
           descriptorTemplate?: unknown;
           descriptorNotes?: unknown;
           requiresRange?: unknown;
@@ -163,6 +165,8 @@ export async function POST(req: Request) {
       typeof body?.descriptorTemplate === "string"
         ? body.descriptorTemplate.trim()
         : "";
+    const tooltip =
+      typeof body?.tooltip === "string" ? body.tooltip.trim() : "";
 
     const descriptorNotes =
       typeof body?.descriptorNotes === "string" ? body.descriptorNotes.trim() : "";
@@ -203,6 +207,7 @@ export async function POST(req: Request) {
     const created = await prisma.weaponAttribute.create({
       data: {
         name,
+        tooltip: tooltip || null,
         descriptorTemplate: descriptorTemplate || null,
         descriptorNotes: descriptorNotes || null,
         requiresRange,
@@ -214,6 +219,7 @@ export async function POST(req: Request) {
       select: {
         id: true,
         name: true,
+        tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
         requiresRange: true,
@@ -260,6 +266,7 @@ export async function PATCH(req: Request) {
         {
           id?: unknown;
           name?: unknown;
+          tooltip?: unknown;
           descriptorTemplate?: unknown;
           descriptorNotes?: unknown;
           requiresRange?: unknown;
@@ -285,6 +292,8 @@ export async function PATCH(req: Request) {
       typeof body?.descriptorTemplate === "string"
         ? body.descriptorTemplate.trim()
         : null;
+    const tooltip =
+      typeof body?.tooltip === "string" ? body.tooltip.trim() : null;
 
     const descriptorNotes =
       typeof body?.descriptorNotes === "string"
@@ -340,6 +349,10 @@ export async function PATCH(req: Request) {
       data.descriptorTemplate = descriptorTemplate || null;
     }
 
+    if ("tooltip" in (body ?? {})) {
+      data.tooltip = tooltip || null;
+    }
+
     if ("descriptorNotes" in (body ?? {}))
       data.descriptorNotes = descriptorNotes || null;
 
@@ -376,6 +389,7 @@ export async function PATCH(req: Request) {
       select: {
         id: true,
         name: true,
+        tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
         requiresRange: true,

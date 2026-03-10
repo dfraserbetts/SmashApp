@@ -22,12 +22,15 @@ type StatCostTarget = "Armor" | "Shield";
 type ValueRow = {
   id: number;
   name: string;
+  tooltip?: string | null;
   attackMode?: AttackMode | null;
   damageTypeIds?: number[] | null;
   descriptorTemplate?: string | null;
   descriptorNotes?: string | null;
   requiresRange?: "MELEE" | "RANGED" | "AOE" | null;
   requiresAoeShape?: "SPHERE" | "CONE" | "LINE" | null;
+  requiresPpv?: boolean;
+  requiresMpv?: boolean;
   placement?: AttributePlacement | null;
 };
 
@@ -40,7 +43,7 @@ type ForgeCostEntry = {
   value: number;
   notes: string | null;
 };
-const STAT_COST_LEVELS = Array.from({ length: 10 }, (_unused, index) => index + 1);
+const STAT_COST_LEVELS = Array.from({ length: 5 }, (_unused, index) => index + 1);
 
 function parseTieredName(name: string): { base: string; tier: number | null } {
   const m = name.trim().match(/^(.*)\s(\d+)$/);
@@ -143,6 +146,7 @@ export default function AdminForgeValuesPage() {
   // Weapon Attribute descriptor editing (v1)
   const [descriptorTemplate, setDescriptorTemplate] = useState("");
   const [descriptorNotes, setDescriptorNotes] = useState("");
+  const [tooltipText, setTooltipText] = useState("");
 
   const [requiresRange, setRequiresRange] =
     useState<"MELEE" | "RANGED" | "AOE" | "">( "");
@@ -156,6 +160,8 @@ export default function AdminForgeValuesPage() {
 
   const [requiresStrengthKind, setRequiresStrengthKind] = 
     useState<string>("");
+  const [requiresPpv, setRequiresPpv] = useState<boolean>(false);
+  const [requiresMpv, setRequiresMpv] = useState<boolean>(false);
   const [placement, setPlacement] = useState<AttributePlacement>("TRAITS");
 
   const [savingDescriptor, setSavingDescriptor] = useState(false);
@@ -165,6 +171,7 @@ export default function AdminForgeValuesPage() {
   const isShieldAttributes = category === "SHIELD_ATTRIBUTES";
   const isDamageTypes = category === "DAMAGE_TYPES";
   const isAttackEffects = category === "ATTACK_EFFECTS";
+  const isDefEffects = category === "DEF_EFFECTS";
   const isPpvCosts = category === "PPV_COSTS";
   const isMpvCosts = category === "MPV_COSTS";
   const isStatCostCategory = isPpvCosts || isMpvCosts;
@@ -615,6 +622,7 @@ function renderTemplatePreview(
         body: JSON.stringify({
           id: selected.id,
           name: selected.name,
+          tooltip: tooltipText.trim() || null,
           damageTypeIds: selectedAttackEffectDamageTypeIds,
         }),
       });
@@ -634,6 +642,37 @@ function renderTemplatePreview(
       setErr(String(e?.message ?? "Save failed"));
     } finally {
       setSavingAttackEffectLinks(false);
+    }
+  }
+
+  async function saveDefEffectTooltip() {
+    if (!selected || !isDefEffects) return;
+
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin/def-effects", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selected.id,
+          name: selected.name,
+          tooltip: tooltipText.trim() || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Save failed");
+
+      if (data?.row?.id) {
+        setRows((prev) => prev.map((r) => (r.id === data.row.id ? data.row : r)));
+      } else {
+        await loadAll();
+        setSelectedId(selected.id);
+      }
+
+      setFlash("Saved tooltip.");
+      setTimeout(() => setFlash(null), 2000);
+    } catch (e: any) {
+      setErr(String(e?.message ?? "Save failed"));
     }
   }
 
@@ -657,18 +696,22 @@ function renderTemplatePreview(
     if (!selected) {
       setDescriptorTemplate("");
       setDescriptorNotes("");
+      setTooltipText("");
       setSelectedDamageTypeAttackMode("PHYSICAL");
       setSelectedAttackEffectDamageTypeIds([]);
       setRequiresRange("");
       setRequiresAoeShape("");
       setRequiresRangeSelection(false);
       setRequiresStrengthKind("");
+      setRequiresPpv(false);
+      setRequiresMpv(false);
       setPlacement("TRAITS");
       return;
     }
 
     setDescriptorTemplate(String(selected.descriptorTemplate ?? ""));
     setDescriptorNotes(String(selected.descriptorNotes ?? ""));
+    setTooltipText(String(selected.tooltip ?? ""));
     setSelectedDamageTypeAttackMode(selected.attackMode === "MENTAL" ? "MENTAL" : "PHYSICAL");
     setSelectedAttackEffectDamageTypeIds(
       Array.isArray(selected.damageTypeIds)
@@ -688,6 +731,8 @@ function renderTemplatePreview(
     setRequiresStrengthSource(!!(selected as any).requiresStrengthSource);
     setRequiresRangeSelection(!!(selected as any).requiresRangeSelection);
     setRequiresStrengthKind((selected as any).requiresStrengthKind ?? "");
+    setRequiresPpv(Boolean((selected as any).requiresPpv));
+    setRequiresMpv(Boolean((selected as any).requiresMpv));
     setPlacement(
       selected.placement === "ATTACK" ||
         selected.placement === "DEFENCE" ||
@@ -1010,7 +1055,14 @@ function renderTemplatePreview(
                     onClick={() => setSelectedId(r.id)}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span>{r.name}</span>
+                      <div className="min-w-0">
+                        <div>{r.name}</div>
+                        {r.tooltip ? (
+                          <div className="truncate text-[11px] opacity-60">
+                            {r.tooltip}
+                          </div>
+                        ) : null}
+                      </div>
                       {isDamageTypes && (
                         <span className="rounded border px-2 py-0.5 text-[10px] uppercase opacity-80">
                           {r.attackMode === "MENTAL" ? "mental" : "physical"}
@@ -1169,7 +1221,35 @@ function renderTemplatePreview(
                     onClick={saveAttackEffectLinks}
                     disabled={savingAttackEffectLinks}
                   >
-                    {savingAttackEffectLinks ? "Saving..." : "Save Links"}
+                    {savingAttackEffectLinks ? "Saving..." : "Save"}
+                  </button>
+
+                  <div className="space-y-1">
+                    <label className="text-xs opacity-80">Tooltip</label>
+                    <textarea
+                      className="min-h-20 w-full rounded border bg-transparent p-2 text-sm"
+                      value={tooltipText}
+                      onChange={(e) => setTooltipText(e.target.value)}
+                      placeholder="Short hover tooltip for this Greater Success effect."
+                    />
+                  </div>
+                </div>
+              )}
+
+              {isDefEffects && (
+                <div className="rounded border p-3 space-y-3">
+                  <div className="text-sm font-medium">Tooltip</div>
+                  <textarea
+                    className="min-h-20 w-full rounded border bg-transparent p-2 text-sm"
+                    value={tooltipText}
+                    onChange={(e) => setTooltipText(e.target.value)}
+                    placeholder="Short hover tooltip for this Greater Success effect."
+                  />
+                  <button
+                    className="rounded border px-3 py-2 text-sm"
+                    onClick={saveDefEffectTooltip}
+                  >
+                    Save Tooltip
                   </button>
                 </div>
               )}
@@ -1230,18 +1310,24 @@ function renderTemplatePreview(
 
                             const payload: any = {
                               id: selected.id,
+                              tooltip: tooltipText.trim() || null,
                               descriptorTemplate,
                               descriptorNotes,
                               placement,
                             };
 
-                            // Only weapon attributes support these gating/parameter flags
+                            // Weapon attributes support range/shape/source gating.
                             if (isWeaponAttributes) {
                               payload.requiresRange = requiresRange || null;
                               payload.requiresAoeShape = requiresAoeShape || null;
                               payload.requiresStrengthSource = requiresStrengthSource;
                               payload.requiresRangeSelection = requiresRangeSelection;
                               payload.requiresStrengthKind = requiresStrengthKind || null;
+                            }
+                            // Armor attributes support PV gating.
+                            if (isArmorAttributes) {
+                              payload.requiresPpv = requiresPpv;
+                              payload.requiresMpv = requiresMpv;
                             }
 
                             const res = await fetch(endpoint, {
@@ -1368,6 +1454,27 @@ function renderTemplatePreview(
                         </div>
                       )}
 
+                      {isArmorAttributes && (
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={requiresPpv}
+                              onChange={(e) => setRequiresPpv(e.target.checked)}
+                            />
+                            Requires PPV
+                          </label>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={requiresMpv}
+                              onChange={(e) => setRequiresMpv(e.target.checked)}
+                            />
+                            Requires MPV
+                          </label>
+                        </div>
+                      )}
+
                       <div className="space-y-1">
                         <div className="text-xs font-medium opacity-80">Placement</div>
                         <select
@@ -1380,6 +1487,16 @@ function renderTemplatePreview(
                           <option value="TRAITS">Traits</option>
                           <option value="GENERAL">General</option>
                         </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium opacity-80">Tooltip</div>
+                        <textarea
+                          className="h-20 w-full rounded border bg-transparent p-2 text-sm"
+                          value={tooltipText}
+                          onChange={(e) => setTooltipText(e.target.value)}
+                          placeholder="Short hover tooltip shown in Forge."
+                        />
                       </div>
 
                       <div className="space-y-1">
@@ -1710,101 +1827,6 @@ function renderTemplatePreview(
                 </div>
               )}
 
-              {(isArmorAttributes || isShieldAttributes) && (
-                <div className="rounded border">
-                  <div className="border-b p-2 text-xs font-medium opacity-80">
-                    Stat Costs (PPV / MPV)
-                  </div>
-
-                  <div className="space-y-3 p-3">
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <div>
-                        <label className="text-xs opacity-70">Stat (selector1)</label>
-                        <select
-                          className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                          value={statCostType}
-                          onChange={(e) => setStatCostType(e.target.value as StatCostType)}
-                        >
-                          <option value="PPV">PPV</option>
-                          <option value="MPV">MPV</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-xs opacity-70">Item Type (selector2)</label>
-                        <select
-                          className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                          value={statCostTarget}
-                          onChange={(e) => setStatCostTarget(e.target.value as StatCostTarget)}
-                        >
-                          <option value="Armor">Armor</option>
-                          <option value="Shield">Shield</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <table className="w-full text-sm">
-                      <thead className="text-xs opacity-70">
-                        <tr>
-                          <th className="p-2 text-left">Value (selector3)</th>
-                          <th className="p-2 text-left">Cost</th>
-                          <th className="p-2 text-left">Notes</th>
-                          <th className="p-2 text-left"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {STAT_COST_LEVELS.map((level) => {
-                          const existing = statCostEntryByLevel.get(level) ?? null;
-                          const edit = statCostEdits[level] ?? { value: "", notes: "" };
-                          const isSaving = savingStatLevel === level;
-
-                          return (
-                            <tr key={`${statCostType}-${statCostTarget}-${level}`}>
-                              <td className="p-2">{level}</td>
-                              <td className="p-2">
-                                <input
-                                  className="w-28 rounded border bg-transparent p-2 text-sm"
-                                  value={edit.value}
-                                  onChange={(e) =>
-                                    setStatCostEdits((prev) => ({
-                                      ...prev,
-                                      [level]: { ...edit, value: e.target.value },
-                                    }))
-                                  }
-                                  placeholder={existing ? String(existing.value) : ""}
-                                />
-                              </td>
-                              <td className="p-2">
-                                <input
-                                  className="w-full rounded border bg-transparent p-2 text-sm"
-                                  value={edit.notes}
-                                  onChange={(e) =>
-                                    setStatCostEdits((prev) => ({
-                                      ...prev,
-                                      [level]: { ...edit, notes: e.target.value },
-                                    }))
-                                  }
-                                  placeholder="optional"
-                                />
-                              </td>
-                              <td className="p-2">
-                                <button
-                                  className="rounded border px-3 py-2 text-sm"
-                                  disabled={isSaving || edit.value.trim() === ""}
-                                  onClick={() => void saveStatCost(level)}
-                                  title={edit.value.trim() === "" ? "Enter a cost to save" : "Save"}
-                                >
-                                  {isSaving ? "Saving..." : existing ? "Save" : "Create"}
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>

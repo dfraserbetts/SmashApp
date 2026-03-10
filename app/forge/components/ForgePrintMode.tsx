@@ -257,6 +257,7 @@ function ForgeItemPrintCard({ item }: { item: ForgeApiItem }) {
 
   const engineInput = {
     itemType: type,
+    itemName: String(item.name ?? ""),
     globalAttributeModifiers: Array.isArray(item.globalAttributeModifiers)
       ? item.globalAttributeModifiers
       : [],
@@ -582,9 +583,9 @@ function ForgeItemPrintCard({ item }: { item: ForgeApiItem }) {
               const text = (hasHeader ? parts.slice(1).join('||') : parts[0]).trim();
 
               return (
-                <div key={`atk-${idx}`} className="grid grid-cols-[58px_1fr] gap-x-2">
-                  <div className="text-zinc-200 font-semibold">{header}</div>
-                  <div className="text-zinc-200">{text}</div>
+                <div key={`atk-${idx}`} className="forge-attack-line grid grid-cols-[72px_1fr] gap-x-2">
+                  <div className="forge-attack-line-label text-zinc-200 font-semibold">{header}</div>
+                  <div className="forge-attack-line-text text-zinc-200">{text}</div>
                 </div>
               );
             })}
@@ -740,7 +741,7 @@ export function ForgePrintMode({ campaignId }: Props) {
         </div>
       </section>
 
-      <section className="space-y-6 overflow-x-auto">
+      <section className="forge-print-pages space-y-6 overflow-x-auto">
         {selectedIds.length === 0 && (
           <div className="forge-print-controls rounded border border-dashed border-zinc-700 p-6 text-sm text-zinc-400">
             Select at least one item to preview printable pages.
@@ -748,7 +749,7 @@ export function ForgePrintMode({ campaignId }: Props) {
         )}
 
         {pages.map((page, pageIndex) => (
-          <div key={pageIndex} className="space-y-2">
+          <div key={pageIndex} className="forge-print-page-block space-y-2">
             <article
               className={`forge-print-page layout-${layoutPreset} mx-auto rounded border border-zinc-700 bg-white shadow-xl`}
             >
@@ -812,7 +813,6 @@ export function ForgePrintMode({ campaignId }: Props) {
           height: 100%;
           min-height: 0;
         }
-
         .forge-item-card {
           display: grid;
           grid-template-rows: auto minmax(0, 1fr) auto;
@@ -909,7 +909,6 @@ export function ForgePrintMode({ campaignId }: Props) {
           min-height: 0;
           align-self: start;
         }
-
         .forge-print-page.layout-verbose .forge-item-card {
           grid-template-rows: auto auto auto;
           align-content: start;
@@ -934,6 +933,11 @@ export function ForgePrintMode({ campaignId }: Props) {
         }
 
         @media print {
+          html,
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+          }
           .forge-print-controls {
             display: none !important;
           }
@@ -943,36 +947,68 @@ export function ForgePrintMode({ campaignId }: Props) {
             margin: 0 !important;
           }
 
-          .forge-print-page {
-            width: 210mm !important;
-            height: 297mm !important;
+          .forge-print-root > :not([hidden]) ~ :not([hidden]) {
+            margin-top: 0 !important;
+          }
+
+          .forge-print-pages {
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+          }
+
+          .forge-print-pages > :not([hidden]) ~ :not([hidden]),
+          .forge-print-page-block > :not([hidden]) ~ :not([hidden]) {
+            margin-top: 0 !important;
+          }
+
+          .forge-print-page-block {
+            width: 100% !important;
             max-width: 210mm !important;
-            aspect-ratio: auto !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            break-after: page !important;
+            page-break-after: always !important;
+          }
+
+          .forge-print-page-block:last-child {
+            break-after: auto !important;
+            page-break-after: auto !important;
+          }
+
+          .forge-print-page {
+            width: 100% !important;
+            height: auto !important;
+            max-width: 210mm !important;
+            min-height: 0 !important;
+            aspect-ratio: 210 / 297 !important;
             box-sizing: border-box !important;
             padding: 10mm !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             border: 0 !important;
             box-shadow: none !important;
             background: transparent !important;
-            overflow: visible !important;
-            break-after: page;
-            page-break-after: always;
+            overflow: hidden !important;
+            break-after: auto !important;
+            page-break-after: auto !important;
           }
-
-          .forge-print-page:last-child {
-            break-after: auto;
-            page-break-after: auto;
-          }
-
           .forge-print-grid {
             height: 100% !important;
             min-height: 0 !important;
             gap: 4mm !important;
           }
 
+          .forge-print-page.layout-standard {
+            padding: 10mm 8mm !important;
+          }
+
           .forge-print-page.layout-standard .forge-print-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+            column-gap: 3mm !important;
+            row-gap: 4mm !important;
           }
 
           .forge-print-page.layout-verbose .forge-print-grid {
@@ -988,6 +1024,10 @@ export function ForgePrintMode({ campaignId }: Props) {
           .forge-print-page.layout-standard .forge-item-card {
             overflow: hidden !important;
             height: 100% !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
 
           .forge-print-page.layout-standard .forge-print-card-wrap {
@@ -1002,7 +1042,6 @@ export function ForgePrintMode({ campaignId }: Props) {
             min-height: 0 !important;
             align-self: start !important;
           }
-
           .forge-item-card {
             display: grid !important;
             gap: 3mm !important;
@@ -1010,9 +1049,8 @@ export function ForgePrintMode({ campaignId }: Props) {
           }
 
           .forge-print-page.layout-standard .forge-item-card {
-            grid-template-rows: auto minmax(55mm, 85mm) minmax(0, 1fr) !important;
+            grid-template-rows: auto minmax(0, 1fr) auto !important;
           }
-
           .forge-print-page.layout-verbose .forge-item-card {
             grid-template-rows: 34px auto auto !important;
             align-content: start !important;
@@ -1095,11 +1133,6 @@ export function ForgePrintMode({ campaignId }: Props) {
             max-height: none !important;
             min-height: 0 !important;
           }
-
-          .forge-print-page.layout-standard .forge-item-image {
-            object-fit: contain !important;
-          }
-
           .forge-print-page.layout-verbose .forge-item-image {
             object-fit: contain !important;
           }
@@ -1121,13 +1154,11 @@ export function ForgePrintMode({ campaignId }: Props) {
             overflow: hidden !important;
             min-height: 0 !important;
           }
-
           .forge-item-section-attributes,
           .forge-item-section-attack,
           .forge-item-section-defence {
             overflow: hidden !important;
           }
-
           .forge-item-section-attributes > p:first-child,
           .forge-item-section-attack > p:first-child,
           .forge-item-section-defence > p:first-child {
@@ -1204,25 +1235,183 @@ export function ForgePrintMode({ campaignId }: Props) {
             -webkit-line-clamp: 18;
             overflow: hidden;
           }
-
           .forge-print-page.layout-verbose .forge-item-section-custom {
             display: -webkit-box;
             -webkit-box-orient: vertical;
             -webkit-line-clamp: 14;
             overflow: hidden;
           }
-
-          .forge-item-card {
-            background: #ffffff !important;
-            color: #111111 !important;
-            border-color: #222222 !important;
+          /* Match Standard print card internals to on-screen preview behavior */
+          .forge-print-page.layout-standard .forge-item-card {
+            grid-template-rows: auto minmax(0, 1fr) auto !important;
+            gap: 0.4rem !important;
+            padding: 0.75rem !important;
+            font-size: 0.75rem !important;
+            line-height: 1rem !important;
           }
 
-          .forge-item-card * {
-            color: inherit !important;
+          .forge-print-page.layout-standard .forge-item-header {
+            max-height: 58px !important;
+            margin: 0 !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-header-line1 {
+            font-size: 0.625rem !important;
+            line-height: 0.875rem !important;
+            margin: 0 !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-image-wrap {
+            height: 100% !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: hidden !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-image {
+            width: 100% !important;
+            height: 100% !important;
+            max-height: none !important;
+            object-fit: contain !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-header-line2 {
+            font-size: 0.75rem !important;
+            line-height: 1rem !important;
+            font-weight: 600 !important;
+            margin: 0 !important;
+            display: -webkit-box !important;
+            -webkit-box-orient: vertical !important;
+            -webkit-line-clamp: 2 !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+            overflow: hidden !important;
+          }
+
+          .forge-print-page.layout-standard,
+          .forge-print-page.layout-standard .forge-item-card,
+          .forge-print-page.layout-standard .forge-item-image-wrap,
+          .forge-print-page.layout-standard .forge-item-section-attributes,
+          .forge-print-page.layout-standard .forge-item-section-attack,
+          .forge-print-page.layout-standard .forge-item-section-defence {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-card {
+            background: rgb(9 9 11) !important;
+            color: rgb(244 244 245) !important;
+            border-color: rgb(39 39 42) !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-image-wrap,
+          .forge-print-page.layout-standard .forge-item-section-attributes {
+            background: rgb(24 24 27) !important;
+            border-color: rgb(39 39 42) !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-section-attack,
+          .forge-print-page.layout-standard .forge-item-section-defence {
+            background: rgb(9 9 11) !important;
+            border-color: rgb(39 39 42) !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-header-line1,
+          .forge-print-page.layout-standard .forge-item-section-attributes > p:first-child,
+          .forge-print-page.layout-standard .forge-item-section-attack > p:first-child,
+          .forge-print-page.layout-standard .forge-item-section-defence > p:first-child {
+            color: rgb(113 113 122) !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-header-line2,
+          .forge-print-page.layout-standard .forge-attack-line-label,
+          .forge-print-page.layout-standard .forge-attack-line-text,
+          .forge-print-page.layout-standard .forge-item-section-attributes p,
+          .forge-print-page.layout-standard .forge-item-section-attributes li,
+          .forge-print-page.layout-standard .forge-item-section-defence p,
+          .forge-print-page.layout-standard .forge-item-section-defence li,
+          .forge-print-page.layout-standard .forge-item-section-custom {
+            color: rgb(244 244 245) !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-body {
+            overflow: visible !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-section-attributes,
+          .forge-print-page.layout-standard .forge-item-section-attack,
+          .forge-print-page.layout-standard .forge-item-section-defence {
+            overflow: visible !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-section-attributes > p:first-child,
+          .forge-print-page.layout-standard .forge-item-section-attack > p:first-child,
+          .forge-print-page.layout-standard .forge-item-section-defence > p:first-child {
+            font-size: 0.625rem !important;
+            line-height: 0.875rem !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-section-attributes p,
+          .forge-print-page.layout-standard .forge-item-section-attributes li,
+          .forge-print-page.layout-standard .forge-item-section-attack p,
+          .forge-print-page.layout-standard .forge-item-section-attack li,
+          .forge-print-page.layout-standard .forge-item-section-defence p,
+          .forge-print-page.layout-standard .forge-item-section-defence li,
+          .forge-print-page.layout-standard .forge-item-section-custom {
+            font-size: 0.75rem !important;
+            line-height: 1rem !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-section-attributes > p,
+          .forge-print-page.layout-standard .forge-item-section-attributes > ul,
+          .forge-print-page.layout-standard .forge-item-section-defence > p,
+          .forge-print-page.layout-standard .forge-item-section-defence > ul,
+          .forge-print-page.layout-standard .forge-item-section-custom {
+            display: block !important;
+            -webkit-line-clamp: unset !important;
+            overflow: visible !important;
+          }
+
+          .forge-print-page.layout-standard .forge-item-section-attack > p {
+            display: block !important;
+            -webkit-line-clamp: unset !important;
+            overflow: visible !important;
+          }
+
+          .forge-print-page.layout-standard .forge-attack-line {
+            display: grid !important;
+            grid-template-columns: 72px minmax(0, 1fr) !important;
+            column-gap: 0.5rem !important;
+            align-items: start !important;
+          }
+
+          .forge-print-page.layout-standard .forge-attack-line-label,
+          .forge-print-page.layout-standard .forge-attack-line-text {
+            display: block !important;
+            min-width: 0 !important;
+            font-size: 0.75rem !important;
+            line-height: 1rem !important;
+            -webkit-line-clamp: unset !important;
+            overflow: visible !important;
           }
         }
       `}</style>
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -367,12 +367,19 @@ function readMultiplier(value: unknown, fallback = 1): number {
   return Math.max(0, parsed);
 }
 
+// SC_LEVEL_WOUND_SCALER_OUTCOME
+function getLevelWoundBonus(level: number): number {
+  if (!Number.isFinite(level)) return 0;
+  return Math.max(0, Math.floor(level / 3));
+}
+
 function computeAtWillFromAttackConfig(
   attackConfig: AttackConfigLike,
   successChance: number,
   aoeMultiplier: number,
   netSuccessMultiplier: number,
   strengthMultiplier: number,
+  level: number,
 ): AtWillContribution {
   if (!attackConfig) {
     return {
@@ -389,6 +396,7 @@ function computeAtWillFromAttackConfig(
   let hasRanged = false;
   let hasAoe = false;
   const strengthScalar = clampNonNegative(Number(strengthMultiplier || 0));
+  const levelBonus = getLevelWoundBonus(level);
 
   const applyContribution = (
     physicalStrength: unknown,
@@ -409,9 +417,15 @@ function computeAtWillFromAttackConfig(
       mentalValue = 0;
     }
 
+    const toWoundsPerSuccess = (strength: number): number => {
+      const base = strength * strengthScalar;
+      if (!(base > 0)) return base;
+      return base + levelBonus;
+    };
+
     const scalar = successChance * netSuccessMultiplier * Math.max(0, multiplier);
-    physical += physicalValue * strengthScalar * scalar;
-    mental += mentalValue * strengthScalar * scalar;
+    physical += toWoundsPerSuccess(physicalValue) * scalar;
+    mental += toWoundsPerSuccess(mentalValue) * scalar;
   };
 
   if (attackConfig.melee?.enabled) {
@@ -545,6 +559,7 @@ export function computeMonsterOutcomes(
         cfg.baselineParty.aoeMultiplier,
         netSuccessMultiplier,
         2,
+        monster.level,
       ),
     );
   }
@@ -556,6 +571,7 @@ export function computeMonsterOutcomes(
         cfg.baselineParty.aoeMultiplier,
         netSuccessMultiplier,
         2,
+        monster.level,
       ),
     );
   }
@@ -567,6 +583,7 @@ export function computeMonsterOutcomes(
         cfg.baselineParty.aoeMultiplier,
         netSuccessMultiplier,
         1,
+        monster.level,
       ),
     );
   }

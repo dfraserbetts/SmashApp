@@ -25,13 +25,13 @@ import type {
   ShieldAttribute,
   WardingOption,
   SanctifiedOption,
-  ForgeConfigEntry,
 } from '../../../lib/forge/useForgePicklists';
 
 import { useForgeItems, type ForgeItemSummary } from '../../../lib/forge/useForgeItems';
 import { buildDescriptorResult } from '@/lib/descriptors/descriptorEngine';
 import { renderForgeResult } from '@/lib/descriptors/renderers/forgeRenderer';
 import { interpolateText, safeParseJson } from '@/lib/textInterpolation';
+import { InfoTooltip, TooltipLabel } from '@/app/components/HoverTooltip';
 
 type LoadedItem = {
   id: string;
@@ -59,6 +59,7 @@ type MythicItemType = 'WEAPON' | 'ARMOR' | 'SHIELD' | 'ITEM';
 type MythicLimitBreakTemplateRow = {
   id: string;
   name: string;
+  tooltip: string | null;
   tier: LimitBreakTier;
   itemType: string | null;
   thresholdPercent: number;
@@ -181,6 +182,19 @@ function itemMatches(row: ForgeItemSummary, q: string): boolean {
 function isLegendaryItem(row: ForgeItemSummary): boolean {
   return String(row.rarity ?? '').trim().toLowerCase() === 'legendary';
 }
+
+function isMythicItem(row: ForgeItemSummary): boolean {
+  return String(row.rarity ?? '').trim().toLowerCase() === 'mythic';
+}
+
+function normalizePickerItemType(value: string | null | undefined): ItemType | null {
+  const normalized = String(value ?? '').trim().toUpperCase();
+  if (ITEM_TYPES.includes(normalized as ItemType)) {
+    return normalized as ItemType;
+  }
+  return null;
+}
+
 function getDamageTypeMode(dt: any): 'PHYSICAL' | 'MENTAL' {
   const raw = (dt?.attackMode ?? dt?.damageMode ?? '').toString().trim().toUpperCase();
   return raw === 'MENTAL' ? 'MENTAL' : 'PHYSICAL'; // default PHYSICAL for backwards compat
@@ -206,6 +220,17 @@ const ITEM_TYPES: ItemType[] = [
   'ITEM',
   'CONSUMABLE',
 ];
+const PICKER_ITEM_TYPE_LABELS: Record<ItemType, string> = {
+  WEAPON: 'Weapon',
+  ARMOR: 'Armor',
+  SHIELD: 'Shield',
+  ITEM: 'Item',
+  CONSUMABLE: 'Consumable',
+};
+const PICKER_ITEM_TYPE_OPTIONS = ITEM_TYPES.map((value) => ({
+  value,
+  label: PICKER_ITEM_TYPE_LABELS[value],
+}));
 const ITEM_RARITIES: ItemRarity[] = [
   'COMMON',
   'UNCOMMON',
@@ -213,6 +238,13 @@ const ITEM_RARITIES: ItemRarity[] = [
   'LEGENDARY',
   'MYTHIC',
 ];
+const ITEM_RARITY_LABELS: Record<ItemRarity, string> = {
+  COMMON: 'Common',
+  UNCOMMON: 'Uncommon',
+  RARE: 'Rare',
+  LEGENDARY: 'Legendary',
+  MYTHIC: 'Mythic',
+};
 
 const WEAPON_SIZES: WeaponSize[] = ['SMALL', 'ONE_HANDED', 'TWO_HANDED'];
 const SIZE_LABELS: Record<WeaponSize, string> = {
@@ -221,7 +253,174 @@ const SIZE_LABELS: Record<WeaponSize, string> = {
   TWO_HANDED: 'Two Handed',
 };
 const RANGE_CATEGORIES: RangeCategory[] = ['MELEE', 'RANGED', 'AOE'];
+const RANGE_CATEGORY_LABELS: Record<RangeCategory, string> = {
+  MELEE: 'Melee',
+  RANGED: 'Ranged',
+  AOE: 'AoE',
+};
 const AOE_SHAPES: AoEShape[] = ['SPHERE', 'CONE', 'LINE'];
+const AOE_SHAPE_LABELS: Record<AoEShape, string> = {
+  SPHERE: 'Sphere',
+  CONE: 'Cone',
+  LINE: 'Line',
+};
+const ARMOR_LOCATION_LABELS: Record<ArmorLocation, string> = {
+  HEAD: 'Head',
+  SHOULDERS: 'Shoulders',
+  TORSO: 'Torso',
+  LEGS: 'Legs',
+  FEET: 'Feet',
+};
+const ITEM_LOCATION_LABELS: Record<ItemLocation, string> = {
+  HEAD: 'Head',
+  NECK: 'Neck',
+  ARMS: 'Arms',
+  BELT: 'Belt',
+  HANDS: 'Hands',
+  FINGER: 'Finger',
+  CHEST: 'Chest',
+  BACK: 'Back',
+  FEET: 'Feet',
+  OTHER: 'Other',
+};
+const LIMIT_BREAK_TIER_LABELS: Record<LimitBreakTier, string> = {
+  PUSH: 'Push',
+  BREAK: 'Break',
+  TRANSCEND: 'Transcend',
+};
+const FORGE_LABEL_TOOLTIPS = {
+  itemType:
+    'Defines the kind of item you are creating, such as a weapon, armor piece, shield, or utility item. Item Type determines which customisation options become available.',
+  itemRarity:
+    'Shows how exceptional, unusual, or powerful an item is intended to be. Rarity helps set expectations for the item’s overall strength, complexity, and value, and grants access to additional options when Mythic.',
+  size:
+    'Defines how much space an item occupies when equipped. Size determines the cost of each customisation.',
+  rangeCategory:
+    'Defines how the attack is delivered, such as Melee, Ranged, or AoE. Range Category shapes how the item behaves in play and which supporting options become relevant.',
+  greaterSuccess:
+    'Defines the bonus effect triggered when a successful roll is 10+. Greater Success gives attacks and defences more identity, payoff, and tactical impact.',
+  physicalProtection:
+    'Increases the number of wounds blocked on successful physical defence rolls. Higher values make the item more effective against physical threats.',
+  mentalProtection:
+    'Increases the number of wounds blocked on successful mental defence rolls. Higher values make the item more effective against mental threats.',
+  vrp:
+    'Defines whether the item makes its wearer weaker against something, more resilient against it, or directly protective against it. This choice strongly affects the item’s strengths, weaknesses, and trade-offs.',
+  weaponAttributes:
+    'Special properties that change how a weapon behaves beyond its basic values. Weapon Attributes help define the weapon’s role, strengths, and tactical identity.',
+  armorAttributes:
+    'Special properties that change how armor behaves beyond its base protection values. Armor Attributes help shape how the armor supports survivability, utility, and build style.',
+  shieldAttributes:
+    'Special properties that change how a shield behaves beyond its base defensive values. Shield Attributes help define whether the shield is purely protective or offers additional tactical value.',
+  warding:
+    'A specialised protective quality that helps the wearer recover more quickly from a chosen physical affliction.',
+  sanctified:
+    'A consecrated protective quality that helps the wearer recover more quickly from a chosen mental affliction.',
+  auraPhysical: 'Amplifies the Physical Protection of allies within range.',
+  auraMental: 'Amplifies the Mental Protection of allies within range.',
+  armorLocation:
+    'Defines which part of the body this armor piece is designed to occupy. Armor Location determines the cost of each customisation.',
+  itemLocation:
+    'Defines which body slot this item is designed to occupy when equipped. Item Location determines the cost of each customisation.',
+  mythicLimitBreak:
+    'Defines the item’s highest-tier breakthrough effect or awakened state. Mythic Limit Break gives the item an exceptional payoff that represents its most dramatic potential, usually for a severe cost.',
+} as const;
+const ITEM_TYPE_OPTION_TOOLTIPS: Record<ItemType, string> = {
+  WEAPON:
+    'Creates an item intended to make attacks. Weapons unlock attack-building options such as Range Category, Greater Success, and Weapon Attributes.',
+  ARMOR:
+    'Creates an item intended to protect the wearer through armor-slot equipment. Armor unlocks protection values, armor location, defensive attributes, and related defensive options.',
+  SHIELD:
+    'Creates a defensive item designed to be carried in-hand. Shields focus on protection and defensive customisation, and may optionally gain attack capability.',
+  ITEM:
+    'Creates a utility or accessory item that is worn or equipped outside the main weapon and armor paths. Items focus on modifiers and non-weapon effects.',
+  CONSUMABLE:
+    'Creates a one-use or limited-use item. This type is reserved for future expansion and will gain fuller support once consumable functionality is implemented.',
+};
+const SIZE_OPTION_TOOLTIPS: Record<WeaponSize, string> = {
+  SMALL:
+    'Occupies the smallest equipment slot. Small weapons and shields are quick to use in combat alongside other equipment, but are naturally weaker than their larger counterparts.',
+  ONE_HANDED:
+    'Occupies one hand when equipped. One Handed items offer a balance between flexibility and investment and can be paired with another compatible item.',
+  TWO_HANDED:
+    'Occupies both hands when equipped. Two Handed items usually commit more of the build into a single item in exchange for stronger or broader payoff.',
+};
+const RANGE_CATEGORY_OPTION_TOOLTIPS: Record<RangeCategory, string> = {
+  MELEE:
+    'Delivered at close range through direct engagement. Melee attacks increase risk to the wielder for greater pressure against their targets.',
+  RANGED:
+    'Delivered at a distance toward a chosen target or targets. Ranged attacks trade direct proximity for reach and positional flexibility.',
+  AOE:
+    'Delivered across an area rather than only a single point of contact. AoE attacks focus on coverage, shaping space, or affecting multiple targets at once.',
+};
+const VRP_EFFECT_OPTION_TOOLTIPS: Record<VRPEffectKind, string> = {
+  VULNERABILITY:
+    'Makes the wearer more exposed to the chosen damage type. Vulnerability is a drawback that can be used to offset or enable power elsewhere in the item.',
+  RESISTANCE:
+    'Makes the wearer more resilient against the chosen damage type. Resistance helps reduce the threat posed by that type without being as direct as full protection.',
+  PROTECTION:
+    'Grants direct protective value against the chosen damage type. Protection is the strongest of the three defensive stances, but usually comes at a higher cost.',
+};
+const ARMOR_LOCATION_OPTION_TOOLTIPS: Record<ArmorLocation, string> = {
+  HEAD: 'Occupies the head armor slot.',
+  SHOULDERS: 'Occupies the shoulder armor slot.',
+  TORSO: 'Occupies the torso armor slot.',
+  LEGS: 'Occupies the legs armor slot.',
+  FEET: 'Occupies the feet armor slot.',
+};
+const ITEM_LOCATION_OPTION_TOOLTIPS: Partial<Record<ItemLocation, string>> = {
+  HEAD: 'Occupies the head item slot.',
+  NECK: 'Occupies the neck item slot.',
+  ARMS: 'Occupies the arms item slot.',
+  BELT: 'Occupies the belt item slot.',
+};
+
+function withTooltipAriaLabel(label: string, tooltip: string | null | undefined) {
+  return tooltip ? `${label}. ${tooltip}` : undefined;
+}
+
+function formatItemRarityLabel(value: string | null | undefined): string {
+  const normalized = String(value ?? '').trim().toUpperCase() as ItemRarity;
+  return ITEM_RARITY_LABELS[normalized] ?? String(value ?? '').trim();
+}
+
+function formatItemTypeLabel(value: string | null | undefined): string {
+  const normalized = normalizePickerItemType(value);
+  return normalized ? PICKER_ITEM_TYPE_LABELS[normalized] : String(value ?? '').trim();
+}
+
+function formatArmorLocationLabel(value: string | null | undefined): string {
+  const normalized = String(value ?? '').trim().toUpperCase() as ArmorLocation;
+  return ARMOR_LOCATION_LABELS[normalized] ?? String(value ?? '').trim();
+}
+
+function formatItemLocationLabel(value: string | null | undefined): string {
+  const normalized = String(value ?? '').trim().toUpperCase() as ItemLocation;
+  return ITEM_LOCATION_LABELS[normalized] ?? String(value ?? '').trim();
+}
+
+function getWardingOptionTooltip(name: string): string {
+  return `Whenever you would remove a stack of ${name}, you may remove 2 stacks instead.`;
+}
+
+function getSanctifiedOptionTooltip(name: string): string {
+  return `Whenever you would remove a stack of ${name}, you may remove 2 stacks instead.`;
+}
+
+function getInlineTooltipProps(
+  label: string,
+  tooltip: string | null | undefined,
+): {
+  title?: string;
+  'aria-label'?: string;
+} {
+  const resolved = typeof tooltip === 'string' ? tooltip.trim() : '';
+  if (!resolved) return {};
+
+  return {
+    title: resolved,
+    'aria-label': withTooltipAriaLabel(label, resolved),
+  };
+}
 
 type GlobalAttributeModifierForm = {
   attribute: string;
@@ -312,23 +511,6 @@ type ForgeFormValues = {
   mythicLbPushTemplateId?: string | null;
   mythicLbBreakTemplateId?: string | null;
   mythicLbTranscendTemplateId?: string | null;
-};
-
-type ForgeCostBreakdown = {
-  targetCost: number;
-  choiceCost: number;
-  potencyCost: number;
-  typeCost: number;
-  gsCost: number;
-  otherCost: number;
-
-  // Derived for visual tuning (does not change spend math)
-  attackBaseFactor: number;
-  effectBase: number;
-  attackStringCost: number;
-
-  // What the calculator actually used as raw-spent
-  rawSpent: number;
 };
 
 type ForgeCalculatorTotals = {
@@ -580,10 +762,10 @@ function calculateRawSpentFp(
   costRows: ForgeCostRow[],
   context: ForgeCalculatorContext,
   ): number {
-  let targetCost = 0;
-  let choiceCost = 0;
+  const targetCost = 0;
+  const choiceCost = 0;
   let potencyCost = 0;
-  let typeCost = 0;
+  const typeCost = 0;
   let gsCost = 0;
   let otherCost = 0;
   let attackLinesCost = 0;
@@ -1322,13 +1504,15 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   const [pickerQuery, setPickerQuery] = useState('');
   const [pickerFiltersOpen, setPickerFiltersOpen] = useState(false);
   const [pickerLevelSelected, setPickerLevelSelected] = useState<number[]>([]);
+  const [pickerItemTypesSelected, setPickerItemTypesSelected] = useState<ItemType[]>([]);
   const [pickerExcludeLegendary, setPickerExcludeLegendary] = useState(false);
+  const [pickerExcludeMythic, setPickerExcludeMythic] = useState(false);
   const [recentForgeItemIds, setRecentForgeItemIds] = useState<string[]>([]);
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const pickerFiltersRef = useRef<HTMLDivElement | null>(null);
 
   // Used by preview + "last forged" banner
-  const [createdItem, setCreatedItem] = useState<LoadedItem | null>(null);
+  const [, setCreatedItem] = useState<LoadedItem | null>(null);
 
   const [mobileView, setMobileView] = useState<'editor' | 'preview'>('editor');
   const editorScrollYRef = useRef(0);
@@ -1434,10 +1618,6 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     return ids.map((id) => map.get(id) ?? `#${id}`);
   }
 
-  function formatSigned(n: number): string {
-    return n >= 0 ? `+${n}` : `${n}`;
-  }
-
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState('');
@@ -1490,7 +1670,16 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
         ) {
           return false;
         }
+        if (pickerItemTypesSelected.length > 0) {
+          const itemType = normalizePickerItemType(row.type);
+          if (!itemType || !pickerItemTypesSelected.includes(itemType)) {
+            return false;
+          }
+        }
         if (pickerExcludeLegendary && isLegendaryItem(row)) {
+          return false;
+        }
+        if (pickerExcludeMythic && isMythicItem(row)) {
           return false;
         }
         return true;
@@ -1498,6 +1687,8 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     [
       forgePickerSupportsLevel,
       pickerExcludeLegendary,
+      pickerExcludeMythic,
+      pickerItemTypesSelected,
       pickerLevelSelected,
       queryFilteredForgeItems,
     ],
@@ -1516,22 +1707,41 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   const hasPickerQuery = pickerQuery.trim().length > 0;
   const hasPickerFilters =
     (forgePickerSupportsLevel && pickerLevelSelected.length > 0) ||
-    pickerExcludeLegendary;
+    pickerItemTypesSelected.length > 0 ||
+    pickerExcludeLegendary ||
+    pickerExcludeMythic;
   const pickerTotalCount = (forgeItems ?? []).length;
   const pickerFilteredCount = filteredForgeItems.length;
   const activePickerFilterPills = useMemo(() => {
-    const pills: Array<{ id: 'level' | 'noLegendary'; label: string }> = [];
+    const pills: Array<{ id: 'level' | 'itemType' | 'noLegendary' | 'noMythic'; label: string }> = [];
     if (forgePickerSupportsLevel && pickerLevelSelected.length > 0) {
       pills.push({
         id: 'level',
         label: `Level: ${formatNumberRanges(pickerLevelSelected)}`,
       });
     }
+    if (pickerItemTypesSelected.length > 0) {
+      pills.push({
+        id: 'itemType',
+        label: `Item Type: ${pickerItemTypesSelected
+          .map((itemType) => PICKER_ITEM_TYPE_LABELS[itemType])
+          .join(', ')}`,
+      });
+    }
     if (pickerExcludeLegendary) {
       pills.push({ id: 'noLegendary', label: 'No Legendary' });
     }
+    if (pickerExcludeMythic) {
+      pills.push({ id: 'noMythic', label: 'No Mythic' });
+    }
     return pills;
-  }, [forgePickerSupportsLevel, pickerExcludeLegendary, pickerLevelSelected]);
+  }, [
+    forgePickerSupportsLevel,
+    pickerExcludeLegendary,
+    pickerExcludeMythic,
+    pickerItemTypesSelected,
+    pickerLevelSelected,
+  ]);
   const recentForgeItems = useMemo(() => {
     if (hasPickerQuery) return [] as ForgeItemSummary[];
     const allowedIds = new Set(filteredForgeItems.map((row) => row.id));
@@ -1565,16 +1775,36 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
       PICKER_LEVEL_OPTIONS.filter((level) => level >= min && level <= max),
     );
   };
+  const togglePickerItemType = (itemType: ItemType) => {
+    setPickerItemTypesSelected((prev) =>
+      prev.includes(itemType)
+        ? prev.filter((entry) => entry !== itemType)
+        : ITEM_TYPES.filter((entry) => entry === itemType || prev.includes(entry)),
+    );
+  };
   const clearPickerFilters = () => {
     setPickerLevelSelected([]);
+    setPickerItemTypesSelected([]);
     setPickerExcludeLegendary(false);
+    setPickerExcludeMythic(false);
   };
-  const removePickerFilterPill = (pillId: 'level' | 'noLegendary') => {
+  const removePickerFilterPill = (pillId: 'level' | 'itemType' | 'noLegendary' | 'noMythic') => {
     if (pillId === 'level') {
       setPickerLevelSelected([]);
       return;
     }
-    setPickerExcludeLegendary(false);
+    if (pillId === 'itemType') {
+      setPickerItemTypesSelected([]);
+      return;
+    }
+    if (pillId === 'noLegendary') {
+      setPickerExcludeLegendary(false);
+      return;
+    }
+    if (pillId === 'noMythic') {
+      setPickerExcludeMythic(false);
+      return;
+    }
   };
 
   const persistRecentForgeItemIds = (ids: string[]) => {
@@ -1597,11 +1827,26 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     });
   };
 
-  const armorAttrsFromPicklist = data?.armorAttributes ?? [];
-  const shieldAttrsFromPicklist = data?.shieldAttributes ?? [];
-  const defEffectsFromPicklist = data?.defEffects ?? [];
-  const wardingOptionsFromPicklist = data?.wardingOptions ?? [];
-  const sanctifiedOptionsFromPicklist = data?.sanctifiedOptions ?? [];
+  const armorAttrsFromPicklist = useMemo(
+    () => data?.armorAttributes ?? [],
+    [data?.armorAttributes],
+  );
+  const shieldAttrsFromPicklist = useMemo(
+    () => data?.shieldAttributes ?? [],
+    [data?.shieldAttributes],
+  );
+  const defEffectsFromPicklist = useMemo(
+    () => data?.defEffects ?? [],
+    [data?.defEffects],
+  );
+  const wardingOptionsFromPicklist = useMemo(
+    () => data?.wardingOptions ?? [],
+    [data?.wardingOptions],
+  );
+  const sanctifiedOptionsFromPicklist = useMemo(
+    () => data?.sanctifiedOptions ?? [],
+    [data?.sanctifiedOptions],
+  );
 
   const defaultForgeValues: ForgeFormValues = {
   // Core
@@ -1976,7 +2221,9 @@ function handleResetForge() {
   useEffect(() => {
     setPickerFiltersOpen(false);
     setPickerLevelSelected([]);
+    setPickerItemTypesSelected([]);
     setPickerExcludeLegendary(false);
+    setPickerExcludeMythic(false);
   }, [campaignId]);
 
   const selectedType = watch('type');
@@ -2218,6 +2465,8 @@ function handleResetForge() {
   }, [isShield, hasSize, shieldHasAttack, setValue]);
 
   const armorAttributeIds = watch('armorAttributeIds') ?? [];
+  const currentPpv = watch('ppv');
+  const currentMpv = watch('mpv');
   const defEffectIds = watch('defEffectIds') ?? [];
   const wardingOptionIds = watch('wardingOptionIds') ?? [];
   const sanctifiedOptionIds = watch('sanctifiedOptionIds') ?? [];
@@ -2230,6 +2479,22 @@ function handleResetForge() {
   const itemLocation = watch('itemLocation') ?? '';
   const hasItemLocation =
     typeof itemLocation === 'string' && itemLocation.trim().length > 0;
+  const selectedItemTypeTooltip =
+    selectedType && selectedType in ITEM_TYPE_OPTION_TOOLTIPS
+      ? ITEM_TYPE_OPTION_TOOLTIPS[selectedType as ItemType]
+      : undefined;
+  const selectedSizeTooltip =
+    size && size in SIZE_OPTION_TOOLTIPS
+      ? SIZE_OPTION_TOOLTIPS[size as WeaponSize]
+      : undefined;
+  const selectedArmorLocationTooltip =
+    armorLocation && armorLocation in ARMOR_LOCATION_OPTION_TOOLTIPS
+      ? ARMOR_LOCATION_OPTION_TOOLTIPS[armorLocation as ArmorLocation]
+      : undefined;
+  const selectedItemLocationTooltip =
+    itemLocation && itemLocation in ITEM_LOCATION_OPTION_TOOLTIPS
+      ? ITEM_LOCATION_OPTION_TOOLTIPS[itemLocation as ItemLocation]
+      : undefined;
 
     const itemLocationOptions =
     (data?.config ?? []).filter(
@@ -3193,36 +3458,6 @@ useEffect(() => {
     }
   }
 
-  function renderDamageTypeChips(
-    types: DamageType[],
-    selectedIds: number[],
-    field:
-      | 'meleeDamageTypeIds'
-      | 'rangedDamageTypeIds'
-      | 'aoeDamageTypeIds',
-  ) {
-    if (!types.length) return null;
-
-    return (
-      <div className="flex flex-wrap gap-2 text-[11px] max-h-40 overflow-y-auto pr-1">
-        {types.map((dt) => (
-          <button
-            key={dt.id}
-            type="button"
-            onClick={() => toggleNumberArrayField(field, dt.id)}
-            className={`px-2 py-1 rounded-full border text-[11px] ${
-              selectedIds.includes(dt.id)
-                ? 'border-emerald-500 bg-emerald-600/20 text-emerald-200'
-                : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500'
-            }`}
-          >
-            {dt.name}
-          </button>
-        ))}
-      </div>
-    );
-  }
-
     function renderGroupedDamageTypeChips(
     types: DamageType[],
     selectedIds: number[],
@@ -3289,6 +3524,7 @@ useEffect(() => {
             key={fx.id}
             type="button"
             onClick={() => toggleNumberArrayField(field, fx.id)}
+            {...getInlineTooltipProps(fx.name, fx.tooltip)}
             className={`px-2 py-1 rounded-full border text-[11px] ${
               selectedIds.includes(fx.id)
                 ? 'border-emerald-500 bg-emerald-600/20 text-emerald-200'
@@ -3346,16 +3582,16 @@ useEffect(() => {
           // If it's already selected, never disable it (so the user can always remove it).
           const isDisabled = !isSelected && !isAvailable;
 
-          const title = isDisabled
-            ? `Unavailable: ${reasons.join(' + ')}`
-            : '';
+          const detailTitle = [attr.tooltip?.trim(), isDisabled ? `Unavailable: ${reasons.join(' + ')}` : null]
+            .filter(Boolean)
+            .join(' ');
 
           return (
             <button
               key={attr.id}
               type="button"
               disabled={isDisabled}
-              title={title}
+              {...getInlineTooltipProps(attr.name, detailTitle)}
               onClick={() => {
                 if (isDisabled) return;
                 toggleWeaponAttributeIdExclusive(attr.id, attr.name, attrs);
@@ -3379,25 +3615,63 @@ useEffect(() => {
     function renderArmorAttributeChips(
     attrs: ArmorAttribute[],
     selectedIds: number[],
+    ppvValue: unknown,
+    mpvValue: unknown,
   ) {
     if (!attrs.length) return null;
 
+    const ppvNum = toNullableNumber(ppvValue);
+    const mpvNum = toNullableNumber(mpvValue);
+    const hasPpv = typeof ppvNum === 'number' && ppvNum > 0;
+    const hasMpv = typeof mpvNum === 'number' && mpvNum > 0;
+
     return (
       <div className="flex flex-wrap gap-2 text-[11px] max-h-40 overflow-y-auto pr-1">
-        {attrs.map((attr) => (
-          <button
-            key={attr.id}
-            type="button"
-            onClick={() => toggleNumberArrayField('armorAttributeIds', attr.id)}
-            className={`px-2 py-1 rounded-full border text-[11px] ${
-              selectedIds.includes(attr.id)
-                ? 'border-emerald-500 bg-emerald-600/20 text-emerald-200'
-                : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500'
-            }`}
-          >
-            {attr.name}
-          </button>
-        ))}
+        {attrs.map((attr) => {
+          const isSelected = selectedIds.includes(attr.id);
+          const requiresPpv = Boolean((attr as any).requiresPpv);
+          const requiresMpv = Boolean((attr as any).requiresMpv);
+
+          let isAvailable = true;
+          const reasons: string[] = [];
+
+          if (requiresPpv && !hasPpv) {
+            isAvailable = false;
+            reasons.push('Requires PPV > 0');
+          }
+          if (requiresMpv && !hasMpv) {
+            isAvailable = false;
+            reasons.push('Requires MPV > 0');
+          }
+
+          // Keep selected entries removable even if requirements are no longer met.
+          const isDisabled = !isSelected && !isAvailable;
+          const detailTitle = [attr.tooltip?.trim(), isDisabled ? `Unavailable: ${reasons.join(' + ')}` : null]
+            .filter(Boolean)
+            .join(' ');
+
+          return (
+            <button
+              key={attr.id}
+              type="button"
+              disabled={isDisabled}
+              {...getInlineTooltipProps(attr.name, detailTitle)}
+              onClick={() => {
+                if (isDisabled) return;
+                toggleNumberArrayField('armorAttributeIds', attr.id);
+              }}
+              className={`px-2 py-1 rounded-full border text-[11px] ${
+                isSelected
+                  ? 'border-emerald-500 bg-emerald-600/20 text-emerald-200'
+                  : isDisabled
+                    ? 'border-zinc-800 bg-zinc-950 text-zinc-500 opacity-60 cursor-not-allowed'
+                    : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500'
+              }`}
+            >
+              {attr.name}
+            </button>
+          );
+        })}
       </div>
     );
   }
@@ -3417,6 +3691,7 @@ useEffect(() => {
             onClick={() =>
               toggleNumberArrayField('shieldAttributeIds', attr.id)
             }
+            {...getInlineTooltipProps(attr.name, attr.tooltip)}
             className={`px-2 py-1 rounded-full border text-[11px] ${
               selectedIds.includes(attr.id)
                 ? 'border-emerald-500 bg-emerald-600/20 text-emerald-200'
@@ -3440,6 +3715,7 @@ useEffect(() => {
             key={fx.id}
             type="button"
             onClick={() => toggleNumberArrayField('defEffectIds', fx.id)}
+            {...getInlineTooltipProps(fx.name, fx.tooltip)}
             className={`px-2 py-1 rounded-full border text-[11px] ${
               selectedIds.includes(fx.id)
                 ? 'border-emerald-500 bg-emerald-600/20 text-emerald-200'
@@ -3466,6 +3742,7 @@ useEffect(() => {
             key={opt.id}
             type="button"
             onClick={() => toggleNumberArrayField('wardingOptionIds', opt.id)}
+            {...getInlineTooltipProps(opt.name, getWardingOptionTooltip(opt.name))}
             className={`px-2 py-1 rounded-full border text-[11px] ${
               selectedIds.includes(opt.id)
                 ? 'border-emerald-500 bg-emerald-600/20 text-emerald-200'
@@ -3494,6 +3771,7 @@ useEffect(() => {
             onClick={() =>
               toggleNumberArrayField('sanctifiedOptionIds', opt.id)
             }
+            {...getInlineTooltipProps(opt.name, getSanctifiedOptionTooltip(opt.name))}
             className={`px-2 py-1 rounded-full border text-[11px] ${
               selectedIds.includes(opt.id)
                 ? 'border-emerald-500 bg-emerald-600/20 text-emerald-200'
@@ -3512,9 +3790,12 @@ useEffect(() => {
 
     return (
       <div className="space-y-2">
-        <label className="block text-xs font-medium">
-          Vulnerability / Resistance / Protection (VRP)
-        </label>
+        <TooltipLabel
+          label="Vulnerability / Resistance / Protection (VRP)"
+          tooltip={FORGE_LABEL_TOOLTIPS.vrp}
+          className="block"
+          textClassName="text-xs font-medium"
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
           {/* Effect kind */}
@@ -3524,6 +3805,10 @@ useEffect(() => {
             onChange={(e) =>
               setVrpEffectKind(e.target.value as VRPEffectKind)
             }
+            {...getInlineTooltipProps(
+              'VRP effect kind',
+              VRP_EFFECT_OPTION_TOOLTIPS[vrpEffectKind],
+            )}
           >
             <option value="VULNERABILITY">Vulnerability</option>
             <option value="RESISTANCE">Resistance</option>
@@ -3663,6 +3948,10 @@ useEffect(() => {
                       prev.filter((_, i) => i !== idx),
                     )
                   }
+                  {...getInlineTooltipProps(
+                    `${label} ${entry.magnitude} ${dtName}`,
+                    VRP_EFFECT_OPTION_TOOLTIPS[entry.effectKind],
+                  )}
                   className="px-2 py-1 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-red-400 hover:text-red-300"
                 >
                   {label} {entry.magnitude} {dtName}
@@ -3688,11 +3977,15 @@ useEffect(() => {
         {/* Size (always visible when type = WEAPON) */}
           {includeSizePickerForWeapon && isWeapon && (
           <div className="space-y-1">
-            <label className="block text-xs font-medium">
-              Size
-            </label>
+            <TooltipLabel
+              label="Size"
+              tooltip={FORGE_LABEL_TOOLTIPS.size}
+              className="block"
+              textClassName="text-xs font-medium"
+            />
             <select
               className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              {...getInlineTooltipProps('Size', selectedSizeTooltip)}
               {...register('size', {
                 validate: (value) => {
                   // Only enforce for weapons / shields
@@ -3720,15 +4013,22 @@ useEffect(() => {
         {/* Range categories */}
         {hasSize && (
           <div className="space-y-1">
-            <label className="block text-xs font-medium">
-              Range Categories
-            </label>
+            <TooltipLabel
+              label="Range Categories"
+              tooltip={FORGE_LABEL_TOOLTIPS.rangeCategory}
+              className="block"
+              textClassName="text-xs font-medium"
+            />
             <div className="flex flex-wrap gap-3 text-xs">
               {RANGE_CATEGORIES.map((rc) => (
                 <button
                   key={rc}
                   type="button"
                   onClick={() => toggleRangeCategory(rc)}
+                  {...getInlineTooltipProps(
+                    RANGE_CATEGORY_LABELS[rc],
+                    RANGE_CATEGORY_OPTION_TOOLTIPS[rc],
+                  )}
                   className={`px-2 py-1 rounded-full border ${
                     isRangeCategorySelected(rc)
                       ? 'border-emerald-500 bg-emerald-600/20 text-emerald-200'
@@ -3834,9 +4134,12 @@ useEffect(() => {
             {/* Greater Success – Melee */}
             {meleeAvailableAttackEffects.length > 0 && (
               <div className="space-y-1">
-                <label className="block text-xs font-medium">
-                  Greater Success – Melee
-                </label>
+                <TooltipLabel
+                  label="Greater Success – Melee"
+                  tooltip={FORGE_LABEL_TOOLTIPS.greaterSuccess}
+                  className="block"
+                  textClassName="text-xs font-medium"
+                />
                 {renderAttackEffectChips(
                   meleeAvailableAttackEffects,
                   attackEffectMeleeIds,
@@ -4047,9 +4350,12 @@ useEffect(() => {
             {/* Greater Success – Ranged */}
             {rangedAvailableAttackEffects.length > 0 && (
               <div className="space-y-1">
-                <label className="block text-xs font-medium">
-                  Greater Success – Ranged
-                </label>
+                <TooltipLabel
+                  label="Greater Success – Ranged"
+                  tooltip={FORGE_LABEL_TOOLTIPS.greaterSuccess}
+                  className="block"
+                  textClassName="text-xs font-medium"
+                />
                 {renderAttackEffectChips(
                   rangedAvailableAttackEffects,
                   attackEffectRangedIds,
@@ -4500,9 +4806,12 @@ useEffect(() => {
             {/* Greater Success – AoE */}
             {aoeAvailableAttackEffects.length > 0 && (
               <div className="space-y-1">
-                <label className="block text-xs font-medium">
-                  Greater Success – AoE
-                </label>
+                <TooltipLabel
+                  label="Greater Success – AoE"
+                  tooltip={FORGE_LABEL_TOOLTIPS.greaterSuccess}
+                  className="block"
+                  textClassName="text-xs font-medium"
+                />
                 {renderAttackEffectChips(
                   aoeAvailableAttackEffects,
                   attackEffectAoEIds,
@@ -4593,9 +4902,12 @@ useEffect(() => {
 {/* Weapon attributes (weapons only) */}
         {isWeapon && data && hasSize && (
           <div className="space-y-1">
-            <label className="block text-xs font-medium">
-              Weapon Attributes
-            </label>
+            <TooltipLabel
+              label="Weapon Attributes"
+              tooltip={FORGE_LABEL_TOOLTIPS.weaponAttributes}
+              className="block"
+              textClassName="text-xs font-medium"
+            />
 
             {/* Chips (this was missing, so nothing could be selected) */}
             {renderWeaponAttributeChips(
@@ -4781,7 +5093,12 @@ useEffect(() => {
 
         <div className="grid grid-cols-1 gap-3">
           <div className="space-y-1">
-            <label className="block text-xs font-medium">Limit Break</label>
+            <TooltipLabel
+              label="Limit Break"
+              tooltip={FORGE_LABEL_TOOLTIPS.mythicLimitBreak}
+              className="block"
+              textClassName="text-xs font-medium"
+            />
             <select
               className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
               {...register('selectedMythicLimitBreakId', {
@@ -4873,8 +5190,18 @@ useEffect(() => {
           return (
             <div className="rounded-md border border-zinc-800 bg-zinc-900/40 p-2 text-xs space-y-2">
               <div className="font-medium">
-                {selectedMythicTemplate.name} ({selectedMythicTemplate.tier} -{' '}
-                {selectedMythicTemplate.thresholdPercent}%)
+                <span className="inline-flex items-center gap-1.5">
+                  <span>
+                    {selectedMythicTemplate.name} ({LIMIT_BREAK_TIER_LABELS[selectedMythicTemplate.tier]} -{' '}
+                    {selectedMythicTemplate.thresholdPercent}%)
+                  </span>
+                  {selectedMythicTemplate.tooltip ? (
+                    <InfoTooltip
+                      label={`${selectedMythicTemplate.name} information`}
+                      tooltip={selectedMythicTemplate.tooltip}
+                    />
+                  ) : null}
+                </span>
               </div>
 
               {effectText.length > 0 && (
@@ -5175,6 +5502,40 @@ useEffect(() => {
                       </div>
                     )}
 
+                    <div className="space-y-2">
+                      <p className="text-xs uppercase tracking-wide text-zinc-500">Item Type</p>
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setPickerItemTypesSelected([])}
+                          className={`rounded border px-2 py-1 text-xs ${
+                            pickerItemTypesSelected.length === 0
+                              ? 'border-emerald-600 bg-emerald-950/20 text-emerald-100'
+                              : 'border-zinc-700 bg-zinc-900 hover:bg-zinc-800'
+                          }`}
+                        >
+                          All
+                        </button>
+                        {PICKER_ITEM_TYPE_OPTIONS.map((option) => {
+                          const active = pickerItemTypesSelected.includes(option.value);
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => togglePickerItemType(option.value)}
+                              className={`rounded border px-2 py-1 text-xs ${
+                                active
+                                  ? 'border-emerald-600 bg-emerald-950/20 text-emerald-100'
+                                  : 'border-zinc-700 bg-zinc-900 hover:bg-zinc-800'
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
@@ -5183,6 +5544,16 @@ useEffect(() => {
                         className="h-4 w-4"
                       />
                       Exclude Legendary
+                    </label>
+
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={pickerExcludeMythic}
+                        onChange={(e) => setPickerExcludeMythic(e.target.checked)}
+                        className="h-4 w-4"
+                      />
+                      Exclude Mythic
                     </label>
 
                     <div className="flex justify-end">
@@ -5469,7 +5840,12 @@ useEffect(() => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Rarity */}
               <div className="space-y-1">
-                <label className="block text-sm font-medium">Rarity</label>
+                <TooltipLabel
+                  label="Rarity"
+                  tooltip={FORGE_LABEL_TOOLTIPS.itemRarity}
+                  className="block"
+                  textClassName="text-sm font-medium"
+                />
                 <select
                   className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   {...register('rarity', {
@@ -5535,13 +5911,11 @@ useEffect(() => {
 
             {/* Global Attribute Modifiers */}
             <div className="space-y-1">
-              <label className="block text-sm font-medium">
-                Global Attribute Modifiers
-              </label>
-              <p className="text-[11px] text-zinc-500">
-                Applies to all item types. Each attribute can be set once; adding
-                a new value replaces the old one.
-              </p>
+              <TooltipLabel
+                label="Global Attribute Modifiers"
+                tooltip="Applies to all item types and provides a modifier to the wearers chosen Attribute. Each attribute can be set once; adding a new value replaces the old one."
+                textClassName="text-sm font-medium"
+              />
 
               {attributeNames.length > 0 ? (
                 <>
@@ -5644,9 +6018,15 @@ useEffect(() => {
 
             {/* Item Type */}
             <div className="space-y-1">
-              <label className="block text-sm font-medium">Item Type</label>
+              <TooltipLabel
+                label="Item Type"
+                tooltip={FORGE_LABEL_TOOLTIPS.itemType}
+                className="block"
+                textClassName="text-sm font-medium"
+              />
               <select
                 className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                {...getInlineTooltipProps('Item Type', selectedItemTypeTooltip)}
                 {...register('type', {
                   required: 'Item Type is required',
                 })}
@@ -5680,11 +6060,15 @@ useEffect(() => {
 
             {/* Armor Location */}
             <div className="space-y-1">
-              <label className="block text-xs font-medium">
-                Armor Location
-              </label>
+              <TooltipLabel
+                label="Armor Location"
+                tooltip={FORGE_LABEL_TOOLTIPS.armorLocation}
+                className="block"
+                textClassName="text-xs font-medium"
+              />
               <select
                 className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                {...getInlineTooltipProps('Armor Location', selectedArmorLocationTooltip)}
                 {...register('armorLocation', {
                   validate: (value) => {
                     if (!isArmor) return true;
@@ -5712,20 +6096,23 @@ useEffect(() => {
                 {/* PPV / MPV */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium">
-                      Physical Protection Value (PPV)
-                    </label>
+                    <TooltipLabel
+                      label="Physical Protection Value (PPV)"
+                      tooltip={FORGE_LABEL_TOOLTIPS.physicalProtection}
+                      className="block"
+                      textClassName="text-xs font-medium"
+                    />
                       <input
                       type="number"
                       min={0}
-                      max={10}
+                      max={5}
                       step={1}
                       className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       {...register('ppv', {
                         valueAsNumber: true,
                         validate: {
                           inRange: (v) =>
-                            validateOptionalInRange(v, 0, 10, 'PPV'),
+                            validateOptionalInRange(v, 0, 5, 'PPV'),
                           ppvOrMpvRequiredArmor: (v) => {
                             if (!isArmor) return true;
                             const values = getValues();
@@ -5749,20 +6136,23 @@ useEffect(() => {
                     )}
                   </div>
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium">
-                      Mental Protection Value (MPV)
-                    </label>
+                    <TooltipLabel
+                      label="Mental Protection Value (MPV)"
+                      tooltip={FORGE_LABEL_TOOLTIPS.mentalProtection}
+                      className="block"
+                      textClassName="text-xs font-medium"
+                    />
                       <input
                       type="number"
                       min={0}
-                      max={10}
+                      max={5}
                       step={1}
                       className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       {...register('mpv', {
                         valueAsNumber: true,
                         validate: {
                           inRange: (v) =>
-                            validateOptionalInRange(v, 0, 10, 'MPV'),
+                            validateOptionalInRange(v, 0, 5, 'MPV'),
                           ppvOrMpvRequiredArmor: (v) => {
                             if (!isArmor) return true;
                             const values = getValues();
@@ -5789,9 +6179,12 @@ useEffect(() => {
                 {/* Def effects */}
                 {data && (
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium">
-                      Greater Success – Defence
-                    </label>
+                    <TooltipLabel
+                      label="Greater Success – Defence"
+                      tooltip={FORGE_LABEL_TOOLTIPS.greaterSuccess}
+                      className="block"
+                      textClassName="text-xs font-medium"
+                    />
                     {renderDefEffectChips(defEffectsFromPicklist, defEffectIds)}
                   </div>
                 )}
@@ -5800,12 +6193,17 @@ useEffect(() => {
                 {/* Armor attributes */}
                 {data && (
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium">
-                      Armor Attributes
-                    </label>
+                    <TooltipLabel
+                      label="Armor Attributes"
+                      tooltip={FORGE_LABEL_TOOLTIPS.armorAttributes}
+                      className="block"
+                      textClassName="text-xs font-medium"
+                    />
                     {renderArmorAttributeChips(
                       armorAttrsFromPicklist,
                       armorAttributeIds,
+                      currentPpv,
+                      currentMpv,
                     )}
                   </div>
                 )}
@@ -5813,9 +6211,12 @@ useEffect(() => {
                 {/* Aura fields */}
                 {hasAuraPhysicalAttr && (
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium">
-                      Aura (Physical)
-                    </label>
+                    <TooltipLabel
+                      label="Aura (Physical)"
+                      tooltip={FORGE_LABEL_TOOLTIPS.auraPhysical}
+                      className="block"
+                      textClassName="text-xs font-medium"
+                    />
                     <input
                       type="number"
                       min={1}
@@ -5843,9 +6244,12 @@ useEffect(() => {
 
                 {hasAuraMentalAttr && (
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium">
-                      Aura (Mental)
-                    </label>
+                    <TooltipLabel
+                      label="Aura (Mental)"
+                      tooltip={FORGE_LABEL_TOOLTIPS.auraMental}
+                      className="block"
+                      textClassName="text-xs font-medium"
+                    />
                     <input
                       type="number"
                       min={1}
@@ -5874,9 +6278,12 @@ useEffect(() => {
                 {/* Warding options */}
                 {data && hasWardingAttr && (
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium">
-                      Warding
-                    </label>
+                    <TooltipLabel
+                      label="Warding"
+                      tooltip={FORGE_LABEL_TOOLTIPS.warding}
+                      className="block"
+                      textClassName="text-xs font-medium"
+                    />
                     {renderWardingOptionChips(
                       wardingOptionsFromPicklist,
                       wardingOptionIds,
@@ -5887,9 +6294,12 @@ useEffect(() => {
                 {/* Sanctified options */}
                 {data && hasSanctifiedAttr && (
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium">
-                      Sanctified
-                    </label>
+                    <TooltipLabel
+                      label="Sanctified"
+                      tooltip={FORGE_LABEL_TOOLTIPS.sanctified}
+                      className="block"
+                      textClassName="text-xs font-medium"
+                    />
                     {renderSanctifiedOptionChips(
                       sanctifiedOptionsFromPicklist,
                       sanctifiedOptionIds,
@@ -5929,9 +6339,15 @@ useEffect(() => {
 
             {/* Size (shared with weapons) */}
             <div className="space-y-1">
-              <label className="block text-xs font-medium">Size</label>
+              <TooltipLabel
+                label="Size"
+                tooltip={FORGE_LABEL_TOOLTIPS.size}
+                className="block"
+                textClassName="text-xs font-medium"
+              />
               <select
                 className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                {...getInlineTooltipProps('Size', selectedSizeTooltip)}
                 {...register('size', {
                   validate: (value) => {
                     if (!isWeapon && !isShield) return true;
@@ -5976,20 +6392,23 @@ useEffect(() => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium">
-                      Physical Protection Value (PPV)
-                    </label>
+                    <TooltipLabel
+                      label="Physical Protection Value (PPV)"
+                      tooltip={FORGE_LABEL_TOOLTIPS.physicalProtection}
+                      className="block"
+                      textClassName="text-xs font-medium"
+                    />
                     <input
                       type="number"
                       min={0}
-                      max={10}
+                      max={5}
                       step={1}
                       className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       {...register('ppv', {
                         valueAsNumber: true,
                         validate: {
                           inRange: (v) =>
-                            validateOptionalInRange(v, 0, 10, 'PPV'),
+                            validateOptionalInRange(v, 0, 5, 'PPV'),
                           ppvOrMpvRequiredShield: (v) => {
                             if (!isShield) return true;
                             const values = getValues();
@@ -6014,20 +6433,23 @@ useEffect(() => {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium">
-                      Mental Protection Value (MPV)
-                    </label>
+                    <TooltipLabel
+                      label="Mental Protection Value (MPV)"
+                      tooltip={FORGE_LABEL_TOOLTIPS.mentalProtection}
+                      className="block"
+                      textClassName="text-xs font-medium"
+                    />
                     <input
                       type="number"
                       min={0}
-                      max={10}
+                      max={5}
                       step={1}
                       className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       {...register('mpv', {
                         valueAsNumber: true,
                         validate: {
                           inRange: (v) =>
-                            validateOptionalInRange(v, 0, 10, 'MPV'),
+                            validateOptionalInRange(v, 0, 5, 'MPV'),
                           ppvOrMpvRequiredShield: (v) => {
                             if (!isShield) return true;
                             const values = getValues();
@@ -6059,9 +6481,12 @@ useEffect(() => {
                 {/* Shield attributes */}
                 {data && (
                   <div className="space-y-1">
-                    <label className="block text-xs font-medium">
-                      Shield Attributes
-                    </label>
+                    <TooltipLabel
+                      label="Shield Attributes"
+                      tooltip={FORGE_LABEL_TOOLTIPS.shieldAttributes}
+                      className="block"
+                      textClassName="text-xs font-medium"
+                    />
                     {renderShieldAttributeChips(
                       shieldAttrsFromPicklist,
                       shieldAttributeIds,
@@ -6098,11 +6523,15 @@ useEffect(() => {
 
             {/* Item Location */}
             <div className="space-y-1">
-              <label className="block text-xs font-medium">
-                Item Location
-              </label>
+              <TooltipLabel
+                label="Item Location"
+                tooltip={FORGE_LABEL_TOOLTIPS.itemLocation}
+                className="block"
+                textClassName="text-xs font-medium"
+              />
                <select
                 className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                {...getInlineTooltipProps('Item Location', selectedItemLocationTooltip)}
                 {...register('itemLocation', {
                   validate: (value) => {
                     if (!isItem) return true;
@@ -6393,6 +6822,7 @@ useEffect(() => {
 
                 const engineInput = {
                   itemType: watchedValues.type,
+                  itemName: String(watchedValues.name ?? ""),
                   globalAttributeModifiers: watchedValues.globalAttributeModifiers ?? [],
 
                   // Weapon-only (engine ignores these for ARMOR anyway)

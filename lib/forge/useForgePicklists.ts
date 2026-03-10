@@ -14,17 +14,20 @@ export type DamageType = {
 export type AttackEffect = {
   id: number;
   name: string;
+  tooltip?: string | null;
   damageTypeIds?: number[];
 };
 
 export type DefEffect = {
   id: number;
   name: string;
+  tooltip?: string | null;
 };
 
 export type WeaponAttribute = {
   id: number;
   name: string;
+  tooltip?: string | null;
 
   // Authored in Admin UI
   descriptorTemplate?: string | null;
@@ -42,15 +45,20 @@ export type WeaponAttribute = {
 export type ArmorAttribute = {
   id: number;
   name: string;
+  tooltip?: string | null;
 
   // Authored in Admin UI
   descriptorTemplate?: string | null;
   descriptorNotes?: string | null;
+  requiresPvKind?: 'PHYSICAL' | 'MENTAL' | null;
+  requiresPpv?: boolean;
+  requiresMpv?: boolean;
 };
 
 export type ShieldAttribute = {
   id: number;
   name: string;
+  tooltip?: string | null;
 
   // Authored in Admin UI
   descriptorTemplate?: string | null;

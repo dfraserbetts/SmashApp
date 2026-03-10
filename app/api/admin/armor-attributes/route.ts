@@ -59,9 +59,12 @@ export async function GET() {
       select: {
         id: true,
         name: true,
+        tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
         requiresPvKind: true,
+        requiresPpv: true,
+        requiresMpv: true,
         placement: true,
       } as any,
     });
@@ -82,10 +85,13 @@ export async function POST(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | {
+        | {
           name?: unknown;
+          tooltip?: unknown;
           descriptorTemplate?: unknown;
           descriptorNotes?: unknown;
+          requiresPpv?: unknown;
+          requiresMpv?: unknown;
           placement?: unknown;
         }
       | null;
@@ -98,6 +104,8 @@ export async function POST(req: Request) {
       typeof (body as any)?.descriptorTemplate === "string"
         ? (body as any).descriptorTemplate
         : null;
+    const tooltip =
+      typeof body?.tooltip === "string" ? body.tooltip.trim() : null;
 
     const descriptorNotes =
       typeof (body as any)?.descriptorNotes === "string"
@@ -108,16 +116,21 @@ export async function POST(req: Request) {
       (body as any)?.requiresPvKind === "PHYSICAL" || (body as any)?.requiresPvKind === "MENTAL"
         ? ((body as any).requiresPvKind as "PHYSICAL" | "MENTAL")
         : null;
+    const requiresPpv = typeof (body as any)?.requiresPpv === "boolean" ? (body as any).requiresPpv : false;
+    const requiresMpv = typeof (body as any)?.requiresMpv === "boolean" ? (body as any).requiresMpv : false;
     const placement = normalizePlacement((body as { placement?: unknown } | null)?.placement);
 
     const created = await prisma.armorAttribute.create({
-      data: { name, descriptorTemplate, descriptorNotes, requiresPvKind, placement } as any,
+      data: { name, tooltip, descriptorTemplate, descriptorNotes, requiresPvKind, requiresPpv, requiresMpv, placement } as any,
       select: {
         id: true,
         name: true,
+        tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
         requiresPvKind: true,
+        requiresPpv: true,
+        requiresMpv: true,
         placement: true,
       } as any,
     });
@@ -145,12 +158,15 @@ export async function PATCH(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | {
+        | {
           id?: unknown;
           name?: unknown;
+          tooltip?: unknown;
           descriptorTemplate?: unknown;
           descriptorNotes?: unknown;
           requiresPvKind?: unknown;
+          requiresPpv?: unknown;
+          requiresMpv?: unknown;
           placement?: unknown;
         }
       | null;
@@ -169,6 +185,8 @@ export async function PATCH(req: Request) {
       typeof (body as any)?.descriptorTemplate === "string"
         ? String((body as any).descriptorTemplate).trim()
         : "";
+    const tooltip =
+      typeof body?.tooltip === "string" ? body.tooltip.trim() : "";
 
     const descriptorNotes =
       typeof (body as any)?.descriptorNotes === "string"
@@ -193,6 +211,10 @@ export async function PATCH(req: Request) {
       data.descriptorTemplate = descriptorTemplate || null;
     }
 
+    if ("tooltip" in (body ?? {})) {
+      data.tooltip = tooltip || null;
+    }
+
     if ("descriptorNotes" in (body ?? {})) {
       data.descriptorNotes = descriptorNotes || null;
     }
@@ -200,6 +222,12 @@ export async function PATCH(req: Request) {
     if ("requiresPvKind" in (body ?? {})) {
       const v = (body as any)?.requiresPvKind;
       data.requiresPvKind = v === "PHYSICAL" || v === "MENTAL" ? v : null;
+    }
+    if ("requiresPpv" in (body ?? {})) {
+      data.requiresPpv = Boolean((body as any)?.requiresPpv);
+    }
+    if ("requiresMpv" in (body ?? {})) {
+      data.requiresMpv = Boolean((body as any)?.requiresMpv);
     }
     if ("placement" in (body ?? {})) {
       data.placement = placement;
@@ -215,9 +243,12 @@ export async function PATCH(req: Request) {
       select: {
         id: true,
         name: true,
+        tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
         requiresPvKind: true,
+        requiresPpv: true,
+        requiresMpv: true,
         placement: true,
       } as any,
     });

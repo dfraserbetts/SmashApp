@@ -3,6 +3,7 @@ import type { AttributePlacement, MonsterNaturalAttackConfig } from "@/lib/summo
 export type EquipmentItemType = "WEAPON" | "SHIELD" | "ARMOR" | "ITEM" | "CONSUMABLE";
 export type EquipmentItemSize = "SMALL" | "ONE_HANDED" | "TWO_HANDED";
 export type EquipmentArmorLocation = "HEAD" | "SHOULDERS" | "TORSO" | "LEGS" | "FEET";
+export type EquipmentItemLocation = "HEAD" | "NECK" | "ARMS" | "BELT";
 
 export type SummoningEquipmentItem = {
   id: string;
@@ -10,6 +11,7 @@ export type SummoningEquipmentItem = {
   type: EquipmentItemType;
   size: EquipmentItemSize | null;
   armorLocation: EquipmentArmorLocation | null;
+  itemLocation?: EquipmentItemLocation | null;
   ppv: number | null;
   mpv: number | null;
   globalAttributeModifiers?: Array<{ attribute?: string; amount?: number }> | null;
@@ -26,11 +28,15 @@ export type EquipmentSlotKey =
   | "mainHandItemId"
   | "offHandItemId"
   | "smallItemId"
+  | "headArmorItemId"
+  | "shoulderArmorItemId"
+  | "torsoArmorItemId"
+  | "legsArmorItemId"
+  | "feetArmorItemId"
   | "headItemId"
-  | "shoulderItemId"
-  | "torsoItemId"
-  | "legsItemId"
-  | "feetItemId";
+  | "neckItemId"
+  | "armsItemId"
+  | "beltItemId";
 
 export type MonsterModifierField =
   | "attackModifier"
@@ -139,23 +145,29 @@ export function isValidHandItemForSlot(
   return item.size === "SMALL";
 }
 
-export function isValidBodyItemForSlot(
-  slot: "headItemId" | "shoulderItemId" | "torsoItemId" | "legsItemId" | "feetItemId",
+export function isValidArmorItemForSlot(
+  slot: "headArmorItemId" | "shoulderArmorItemId" | "torsoArmorItemId" | "legsArmorItemId" | "feetArmorItemId",
   item: SummoningEquipmentItem | null | undefined,
 ): boolean {
   if (!item) return false;
+  // SC_SEPARATE_ARMOR_SLOT_VALIDATION_V2
   if (item.type !== "ARMOR") return false;
+  if (slot === "headArmorItemId") return item.armorLocation === "HEAD";
+  if (slot === "shoulderArmorItemId") return item.armorLocation === "SHOULDERS";
+  if (slot === "torsoArmorItemId") return item.armorLocation === "TORSO";
+  if (slot === "legsArmorItemId") return item.armorLocation === "LEGS";
+  return item.armorLocation === "FEET";
+}
 
-  const expectedLocation: EquipmentArmorLocation =
-    slot === "headItemId"
-      ? "HEAD"
-      : slot === "shoulderItemId"
-        ? "SHOULDERS"
-        : slot === "torsoItemId"
-          ? "TORSO"
-          : slot === "legsItemId"
-            ? "LEGS"
-            : "FEET";
-
-  return item.armorLocation === expectedLocation;
+export function isValidItemAccessorySlot(
+  slot: "headItemId" | "neckItemId" | "armsItemId" | "beltItemId",
+  item: SummoningEquipmentItem | null | undefined,
+): boolean {
+  if (!item) return false;
+  // SC_SEPARATE_ITEM_SLOT_VALIDATION_V2
+  if (item.type !== "ITEM") return false;
+  if (slot === "headItemId") return item.itemLocation === "HEAD";
+  if (slot === "neckItemId") return item.itemLocation === "NECK";
+  if (slot === "armsItemId") return item.itemLocation === "ARMS";
+  return item.itemLocation === "BELT";
 }

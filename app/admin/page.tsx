@@ -39,6 +39,11 @@ export default function AdminHomePage() {
                 Campaign Inspector
               </Link>
             </li>
+            <li>
+              <Link className="underline" href="/admin/combat-tuning">
+                Combat Tuning
+              </Link>
+            </li>
           </ul>
         </div>
       </div>

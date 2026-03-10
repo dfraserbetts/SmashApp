@@ -37,13 +37,15 @@ import {
   getHighestItemModifiers,
   getProtectionTotalsFromItems,
   isTwoHanded,
-  isValidBodyItemForSlot,
+  isValidArmorItemForSlot,
   isValidHandItemForSlot,
+  isValidItemAccessorySlot,
   type SummoningEquipmentItem,
 } from "@/lib/summoning/equipment";
 import { renderAttackActionLines } from "@/lib/summoning/render";
 import { MonsterBlockCard, type WeaponProjection } from "@/app/summoning-circle/components/MonsterBlockCard";
 import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
+import { useProtectionTuning } from "@/app/summoning-circle/components/useProtectionTuning";
 import {
   getAttributeLimitBreakCeiling,
   getLimitBreakRequiredSuccesses,
@@ -95,17 +97,28 @@ const HAND_SLOTS = [
   { key: "smallItemId", label: "Small Slot" },
 ] as const;
 
-const BODY_SLOTS = [
-  { key: "headItemId", label: "Head" },
-  { key: "shoulderItemId", label: "Shoulder" },
-  { key: "torsoItemId", label: "Torso" },
-  { key: "legsItemId", label: "Legs" },
-  { key: "feetItemId", label: "Feet" },
+// SC_SEPARATE_ARMOR_AND_ITEM_EDITOR_SLOTS_V2
+const ARMOR_SLOTS = [
+  { key: "headArmorItemId", label: "Head Armor" },
+  { key: "shoulderArmorItemId", label: "Shoulder Armor" },
+  { key: "torsoArmorItemId", label: "Torso Armor" },
+  { key: "legsArmorItemId", label: "Legs Armor" },
+  { key: "feetArmorItemId", label: "Feet Armor" },
 ] as const;
-const BODY_SLOT_ROWS = [
-  [BODY_SLOTS[0]],
-  [BODY_SLOTS[1], BODY_SLOTS[2]],
-  [BODY_SLOTS[3], BODY_SLOTS[4]],
+const ITEM_SLOTS = [
+  { key: "headItemId", label: "Head Item" },
+  { key: "neckItemId", label: "Neck Item" },
+  { key: "armsItemId", label: "Arms Item" },
+  { key: "beltItemId", label: "Belt Item" },
+] as const;
+const ARMOR_SLOT_ROWS = [
+  [ARMOR_SLOTS[0], ARMOR_SLOTS[1]],
+  [ARMOR_SLOTS[2], ARMOR_SLOTS[3]],
+  [ARMOR_SLOTS[4]],
+] as const;
+const ITEM_SLOT_ROWS = [
+  [ITEM_SLOTS[0], ITEM_SLOTS[1]],
+  [ITEM_SLOTS[2], ITEM_SLOTS[3]],
 ] as const;
 const LEVEL_OPTIONS = Array.from({ length: 20 }, (_, i) => i + 1);
 const STRENGTH_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
@@ -700,11 +713,15 @@ function defaultMonster(): EditableMonster {
     mainHandItemId: null,
     offHandItemId: null,
     smallItemId: null,
+    headArmorItemId: null,
+    shoulderArmorItemId: null,
+    torsoArmorItemId: null,
+    legsArmorItemId: null,
+    feetArmorItemId: null,
     headItemId: null,
-    shoulderItemId: null,
-    torsoItemId: null,
-    legsItemId: null,
-    feetItemId: null,
+    neckItemId: null,
+    armsItemId: null,
+    beltItemId: null,
     tags: [],
     traits: [],
     limitBreakName: null,
@@ -870,25 +887,41 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
       typeof raw.smallItemId === "string" && raw.smallItemId.trim().length > 0
         ? raw.smallItemId.trim()
         : null,
+    headArmorItemId:
+      typeof raw.headArmorItemId === "string" && raw.headArmorItemId.trim().length > 0
+        ? raw.headArmorItemId.trim()
+        : null,
+    shoulderArmorItemId:
+      typeof raw.shoulderArmorItemId === "string" && raw.shoulderArmorItemId.trim().length > 0
+        ? raw.shoulderArmorItemId.trim()
+        : null,
+    torsoArmorItemId:
+      typeof raw.torsoArmorItemId === "string" && raw.torsoArmorItemId.trim().length > 0
+        ? raw.torsoArmorItemId.trim()
+        : null,
+    legsArmorItemId:
+      typeof raw.legsArmorItemId === "string" && raw.legsArmorItemId.trim().length > 0
+        ? raw.legsArmorItemId.trim()
+        : null,
+    feetArmorItemId:
+      typeof raw.feetArmorItemId === "string" && raw.feetArmorItemId.trim().length > 0
+        ? raw.feetArmorItemId.trim()
+        : null,
     headItemId:
       typeof raw.headItemId === "string" && raw.headItemId.trim().length > 0
         ? raw.headItemId.trim()
         : null,
-    shoulderItemId:
-      typeof raw.shoulderItemId === "string" && raw.shoulderItemId.trim().length > 0
-        ? raw.shoulderItemId.trim()
+    neckItemId:
+      typeof raw.neckItemId === "string" && raw.neckItemId.trim().length > 0
+        ? raw.neckItemId.trim()
         : null,
-    torsoItemId:
-      typeof raw.torsoItemId === "string" && raw.torsoItemId.trim().length > 0
-        ? raw.torsoItemId.trim()
+    armsItemId:
+      typeof raw.armsItemId === "string" && raw.armsItemId.trim().length > 0
+        ? raw.armsItemId.trim()
         : null,
-    legsItemId:
-      typeof raw.legsItemId === "string" && raw.legsItemId.trim().length > 0
-        ? raw.legsItemId.trim()
-        : null,
-    feetItemId:
-      typeof raw.feetItemId === "string" && raw.feetItemId.trim().length > 0
-        ? raw.feetItemId.trim()
+    beltItemId:
+      typeof raw.beltItemId === "string" && raw.beltItemId.trim().length > 0
+        ? raw.beltItemId.trim()
         : null,
     limitBreakName:
       typeof raw.limitBreakName === "string" && raw.limitBreakName.trim().length > 0
@@ -1174,6 +1207,7 @@ function isHttpUrl(value: unknown): value is string {
 function getWeaponSourceAttackLines(
   item: Pick<WeaponProjection, "type" | "melee" | "ranged" | "aoe"> | null | undefined,
   weaponSkillValue: number,
+  level?: number,
 ): string[] {
   if (!item) return [];
   if (item.type !== "WEAPON" && item.type !== "SHIELD") return [];
@@ -1184,7 +1218,7 @@ function getWeaponSourceAttackLines(
       aoe: item.aoe,
     } as MonsterNaturalAttackConfig,
     weaponSkillValue,
-    { applyWeaponSkillOverride: true },
+    { applyWeaponSkillOverride: true, strengthMultiplier: 2, level },
   );
 }
 
@@ -1318,7 +1352,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  // SC_INLINE_HAND_EQUIP_CAP_WARNING_V1
   const [equipmentCapHint, setEquipmentCapHint] = useState<string | null>(null);
+  const [equipmentCapHintSlot, setEquipmentCapHintSlot] = useState<
+    null | "mainHandItemId" | "offHandItemId" | "smallItemId"
+  >(null);
   const [previewPrintLayout, setPreviewPrintLayout] = useState<PrintLayoutMode>("COMPACT_1P");
   const [calculatorArchetype, setCalculatorArchetype] =
     useState<MonsterCalculatorArchetype>("BALANCED");
@@ -1713,6 +1751,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       setTagSuggestions([]);
       setActiveTagIndex(-1);
       setEquipmentCapHint(null);
+      setEquipmentCapHintSlot(null);
       setImageRepositionMode(false);
       setImageDragging(false);
       imageDragStateRef.current = null;
@@ -1722,6 +1761,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     setTagSuggestions([]);
     setActiveTagIndex(-1);
     setEquipmentCapHint(null);
+    setEquipmentCapHintSlot(null);
     setImageRepositionMode(false);
     setImageDragging(false);
     imageDragStateRef.current = null;
@@ -2010,18 +2050,36 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         }
       }
 
-      const bodySlots: Array<"headItemId" | "shoulderItemId" | "torsoItemId" | "legsItemId" | "feetItemId"> = [
-        "headItemId",
-        "shoulderItemId",
-        "torsoItemId",
-        "legsItemId",
-        "feetItemId",
+      const armorSlots: Array<
+        "headArmorItemId" | "shoulderArmorItemId" | "torsoArmorItemId" | "legsArmorItemId" | "feetArmorItemId"
+      > = [
+        "headArmorItemId",
+        "shoulderArmorItemId",
+        "torsoArmorItemId",
+        "legsArmorItemId",
+        "feetArmorItemId",
       ];
-      for (const slot of bodySlots) {
+      for (const slot of armorSlots) {
         const itemId = next[slot];
         if (!itemId) continue;
         const item = weaponById[itemId] ?? null;
-        if (!item || !isValidBodyItemForSlot(slot, item)) {
+        if (!item || !isValidArmorItemForSlot(slot, item)) {
+          next[slot] = null;
+          changed = true;
+        }
+      }
+
+      const itemSlots: Array<"headItemId" | "neckItemId" | "armsItemId" | "beltItemId"> = [
+        "headItemId",
+        "neckItemId",
+        "armsItemId",
+        "beltItemId",
+      ];
+      for (const slot of itemSlots) {
+        const itemId = next[slot];
+        if (!itemId) continue;
+        const item = weaponById[itemId] ?? null;
+        if (!item || !isValidItemAccessorySlot(slot, item)) {
           next[slot] = null;
           changed = true;
         }
@@ -2037,11 +2095,15 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       editor.mainHandItemId ? weaponById[editor.mainHandItemId] ?? null : null,
       editor.offHandItemId ? weaponById[editor.offHandItemId] ?? null : null,
       editor.smallItemId ? weaponById[editor.smallItemId] ?? null : null,
+      editor.headArmorItemId ? weaponById[editor.headArmorItemId] ?? null : null,
+      editor.shoulderArmorItemId ? weaponById[editor.shoulderArmorItemId] ?? null : null,
+      editor.torsoArmorItemId ? weaponById[editor.torsoArmorItemId] ?? null : null,
+      editor.legsArmorItemId ? weaponById[editor.legsArmorItemId] ?? null : null,
+      editor.feetArmorItemId ? weaponById[editor.feetArmorItemId] ?? null : null,
       editor.headItemId ? weaponById[editor.headItemId] ?? null : null,
-      editor.shoulderItemId ? weaponById[editor.shoulderItemId] ?? null : null,
-      editor.torsoItemId ? weaponById[editor.torsoItemId] ?? null : null,
-      editor.legsItemId ? weaponById[editor.legsItemId] ?? null : null,
-      editor.feetItemId ? weaponById[editor.feetItemId] ?? null : null,
+      editor.neckItemId ? weaponById[editor.neckItemId] ?? null : null,
+      editor.armsItemId ? weaponById[editor.armsItemId] ?? null : null,
+      editor.beltItemId ? weaponById[editor.beltItemId] ?? null : null,
     ];
   }, [editor, weaponById]);
 
@@ -2050,6 +2112,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     () => getProtectionTotalsFromItems(equippedItems),
     [equippedItems],
   );
+  const protectionTuning = useProtectionTuning();
   const dodgeValue = useMemo(
     () =>
       Math.max(
@@ -2083,22 +2146,37 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   );
   const armorSkillForDefenceCalc = Math.max(1, computedArmorSkillValue);
   const physicalBlockPerSuccess = useMemo(
-    () =>
-      Math.ceil(
-        itemProtectionValues.physicalProtection / armorSkillForDefenceCalc +
-          armorSkillForDefenceCalc,
-      ),
-    [itemProtectionValues.physicalProtection, armorSkillForDefenceCalc],
+    () => {
+      // PROTECTION_BLOCK_FORMULA_V2
+      if (itemProtectionValues.physicalProtection <= 0) return 0;
+      return Math.ceil(
+        (itemProtectionValues.physicalProtection / protectionTuning.protectionK) *
+          (1 + armorSkillForDefenceCalc / protectionTuning.protectionS),
+      );
+    },
+    [
+      itemProtectionValues.physicalProtection,
+      armorSkillForDefenceCalc,
+      protectionTuning.protectionK,
+      protectionTuning.protectionS,
+    ],
   );
   const willpowerDice = Math.max(0, willpowerValue);
   const willpowerForDefenceCalc = Math.max(1, willpowerValue);
   const mentalBlockPerSuccess = useMemo(
-    () =>
-      Math.ceil(
-        itemProtectionValues.mentalProtection / willpowerForDefenceCalc +
-          willpowerForDefenceCalc,
-      ),
-    [itemProtectionValues.mentalProtection, willpowerForDefenceCalc],
+    () => {
+      if (itemProtectionValues.mentalProtection <= 0) return 0;
+      return Math.ceil(
+        (itemProtectionValues.mentalProtection / protectionTuning.protectionK) *
+          (1 + willpowerForDefenceCalc / protectionTuning.protectionS),
+      );
+    },
+    [
+      itemProtectionValues.mentalProtection,
+      willpowerForDefenceCalc,
+      protectionTuning.protectionK,
+      protectionTuning.protectionS,
+    ],
   );
   const defenceStrings = useMemo(
     () => [
@@ -2128,7 +2206,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     for (const slot of slotItems) {
       if (!slot.id) continue;
       const item = weaponById[slot.id];
-      const lines = getWeaponSourceAttackLines(item, computedWeaponSkillValue);
+      // SC_LEVEL_WOUND_SCALER_WIRING
+      const lines = getWeaponSourceAttackLines(item, computedWeaponSkillValue, editor.level);
       if (lines.length === 0) continue;
       rows.push({ label: `${slot.label}: ${item?.name ?? "(Referenced item missing)"}`, lines });
     }
@@ -2138,6 +2217,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     editor?.mainHandItemId,
     editor?.offHandItemId,
     editor?.smallItemId,
+    editor?.level,
     computedWeaponSkillValue,
     weaponById,
   ]);
@@ -2147,10 +2227,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       renderAttackActionLines(
         (attack.attackConfig ?? defaultNaturalConfig()) as MonsterNaturalAttackConfig,
         computedWeaponSkillValue,
-        { applyWeaponSkillOverride: true, strengthMultiplier: 2 },
+        { applyWeaponSkillOverride: true, strengthMultiplier: 2, level: editor.level },
       ),
     );
-  }, [editor?.attacks, computedWeaponSkillValue]);
+  }, [editor?.attacks, editor?.level, computedWeaponSkillValue]);
 
   const weaponAttackStringCount = equippedWeaponAttackPreview.reduce(
     (total, row) => total + row.lines.length,
@@ -2170,7 +2250,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     (
       state: Pick<
         EditableMonster,
-        "mainHandItemId" | "offHandItemId" | "smallItemId" | "attackDie" | "braveryDie"
+        "mainHandItemId" | "offHandItemId" | "smallItemId" | "attackDie" | "braveryDie" | "level"
       >,
     ) => {
       const slotIds = [state.mainHandItemId, state.offHandItemId, state.smallItemId];
@@ -2181,7 +2261,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       let count = 0;
       for (const itemId of slotIds) {
         if (!itemId) continue;
-        const lines = getWeaponSourceAttackLines(weaponById[itemId] ?? null, weaponSkillValue);
+        const lines = getWeaponSourceAttackLines(weaponById[itemId] ?? null, weaponSkillValue, state.level);
         if (lines.length > 0) count += 1;
       }
       return count;
@@ -2191,6 +2271,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   useEffect(() => {
     if (totalWeaponSources < 3) {
       setEquipmentCapHint(null);
+      setEquipmentCapHintSlot(null);
     }
   }, [totalWeaponSources]);
   const previewMonster = useMemo(
@@ -2310,11 +2391,15 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         mainHandItemId: asNullableId(editor.mainHandItemId),
         offHandItemId: asNullableId(editor.offHandItemId),
         smallItemId: asNullableId(editor.smallItemId),
+        headArmorItemId: asNullableId(editor.headArmorItemId),
+        shoulderArmorItemId: asNullableId(editor.shoulderArmorItemId),
+        torsoArmorItemId: asNullableId(editor.torsoArmorItemId),
+        legsArmorItemId: asNullableId(editor.legsArmorItemId),
+        feetArmorItemId: asNullableId(editor.feetArmorItemId),
         headItemId: asNullableId(editor.headItemId),
-        shoulderItemId: asNullableId(editor.shoulderItemId),
-        torsoItemId: asNullableId(editor.torsoItemId),
-        legsItemId: asNullableId(editor.legsItemId),
-        feetItemId: asNullableId(editor.feetItemId),
+        neckItemId: asNullableId(editor.neckItemId),
+        armsItemId: asNullableId(editor.armsItemId),
+        beltItemId: asNullableId(editor.beltItemId),
         attacks: editor.attacks.map((attack, index) => ({ ...attack, sortOrder: index })),
       };
       const isUpdate = !!editor.id;
@@ -2337,6 +2422,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       await refreshSummaries();
       setSelectedId(String(json.id));
       await refreshSelected(String(json.id));
+      setSuccess("Monster saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save");
     } finally {
@@ -2882,6 +2968,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     });
     const offHandLocked = slot.key === "offHandItemId" && offHandDisabled;
     const disabled = readOnly || offHandLocked;
+    const showInlineEquipmentCapHint = equipmentCapHint && equipmentCapHintSlot === slot.key;
 
     return (
       <label
@@ -2915,7 +3002,13 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 }
                 return next;
               });
-              setEquipmentCapHint(blockedBySourceCap ? equipBlockedHint : null);
+              if (blockedBySourceCap) {
+                setEquipmentCapHint(equipBlockedHint);
+                setEquipmentCapHintSlot(slot.key);
+              } else {
+                setEquipmentCapHint(null);
+                setEquipmentCapHintSlot(null);
+              }
             }}
             className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -2931,6 +3024,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             disabled={disabled || !selectedValue}
             onClick={() => {
               setEquipmentCapHint(null);
+              setEquipmentCapHintSlot(null);
               setEditor((prev) => (prev ? { ...prev, [slot.key]: null } : prev));
             }}
             className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2938,12 +3032,57 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             Clear
           </button>
         </div>
+        {showInlineEquipmentCapHint && <p className="text-xs text-zinc-500">{equipmentCapHint}</p>}
       </label>
     );
   };
-  const renderBodySlot = (slot: (typeof BODY_SLOTS)[number]) => {
+  const renderArmorSlot = (slot: (typeof ARMOR_SLOTS)[number]) => {
     const selectedValue = editor[slot.key] ?? "";
-    const options = weapons.filter((item) => isValidBodyItemForSlot(slot.key, item));
+    const options = weapons.filter(
+      (item) => item.type === "ARMOR" && isValidArmorItemForSlot(slot.key, item),
+    );
+
+    return (
+      <label key={slot.key} className="space-y-1">
+        <span className="text-[11px] text-zinc-500">{slot.label}</span>
+        {renderSlotImagePreview(slot.label, selectedValue)}
+        <div className="flex gap-2">
+          <select
+            disabled={readOnly}
+            value={selectedValue}
+            onChange={(e) =>
+              setEditor((prev) =>
+                prev ? { ...prev, [slot.key]: asNullableId(e.target.value) } : prev,
+              )
+            }
+            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+          >
+            <option value="">None</option>
+            {options.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={readOnly || !selectedValue}
+            onClick={() =>
+              setEditor((prev) => (prev ? { ...prev, [slot.key]: null } : prev))
+            }
+            className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
+          >
+            Clear
+          </button>
+        </div>
+      </label>
+    );
+  };
+  const renderItemSlot = (slot: (typeof ITEM_SLOTS)[number]) => {
+    const selectedValue = editor[slot.key] ?? "";
+    const options = weapons.filter(
+      (item) => item.type === "ITEM" && isValidItemAccessorySlot(slot.key, item),
+    );
 
     return (
       <label key={slot.key} className="space-y-1">
@@ -3865,43 +4004,47 @@ export function SummoningCircleEditor({ campaignId }: Props) {
 
           {!equippedGearCollapsed && (
             <>
+              {/* SC_EQUIP_LAYOUT_BODY_ORDER_V1 */}
               <div className="space-y-2">
-                <p className="text-[11px] text-zinc-500">Hands</p>
+                <p className="text-[11px] text-zinc-500">Loadout</p>
                 <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {renderArmorSlot(ARMOR_SLOTS[0])}
+                    {renderItemSlot(ITEM_SLOTS[0])}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {renderItemSlot(ITEM_SLOTS[1])}
+                    {renderArmorSlot(ARMOR_SLOTS[1])}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {renderItemSlot(ITEM_SLOTS[2])}
+                    {renderArmorSlot(ARMOR_SLOTS[2])}
+                  </div>
                   {offHandDisabled ? (
-                    <>
+                    <div className="grid grid-cols-1 gap-3">
                       {renderHandSlot(HAND_SLOTS[0])}
-                      {renderHandSlot(HAND_SLOTS[2])}
-                    </>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {renderHandSlot(HAND_SLOTS[0])}
-                        {renderHandSlot(HAND_SLOTS[1])}
-                      </div>
-                      {renderHandSlot(HAND_SLOTS[2])}
-                    </>
-                  )}
-                </div>
-                {offHandDisabled && (
-                  <p className="text-xs text-zinc-500">
-                    Off Hand is disabled while Main Hand has a two-handed item.
-                  </p>
-                )}
-                {equipmentCapHint && <p className="text-xs text-zinc-500">{equipmentCapHint}</p>}
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-[11px] text-zinc-500">Body</p>
-                <div className="space-y-3">
-                  {BODY_SLOT_ROWS.map((row, rowIndex) => (
-                    <div
-                      key={rowIndex}
-                      className={row.length === 1 ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}
-                    >
-                      {row.map((slot) => renderBodySlot(slot))}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {renderHandSlot(HAND_SLOTS[0])}
+                      {renderHandSlot(HAND_SLOTS[1])}
+                    </div>
+                  )}
+                  {offHandDisabled && (
+                    <p className="text-xs text-zinc-500">
+                      Off Hand is disabled while Main Hand has a two-handed item.
+                    </p>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {renderItemSlot(ITEM_SLOTS[3])}
+                    {renderHandSlot(HAND_SLOTS[2])}
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {renderArmorSlot(ARMOR_SLOTS[3])}
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    {renderArmorSlot(ARMOR_SLOTS[4])}
+                  </div>
                 </div>
               </div>
 
@@ -6043,6 +6186,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       isPrint
                       printLayout={previewPrintLayout}
                       printPage="COMPACT"
+                      protectionTuning={protectionTuning}
                     />
                   )}
 
@@ -6056,6 +6200,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                           isPrint
                           printLayout={previewPrintLayout}
                           printPage="PAGE1_MAIN"
+                          protectionTuning={protectionTuning}
                         />
                       </div>
                       <div className="space-y-1">
@@ -6066,6 +6211,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                           isPrint
                           printLayout={previewPrintLayout}
                           printPage="PAGE2_POWER"
+                          protectionTuning={protectionTuning}
                         />
                       </div>
                     </div>

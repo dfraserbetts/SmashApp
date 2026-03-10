@@ -105,6 +105,7 @@ model DamageType {
 model AttackEffect {
   id              Int                              @id @default(autoincrement())
   name            String                           @unique
+  tooltip         String?
   damageTypeLinks AttackEffectDamageType[]
   aoeTemplates    ItemTemplateAttackEffectAoE[]
   meleeTemplates  ItemTemplateAttackEffectMelee[]
@@ -127,6 +128,7 @@ model AttackEffectDamageType {
 model DefEffect {
   id        Int                     @id @default(autoincrement())
   name      String                  @unique
+  tooltip   String?
   templates ItemTemplateDefEffect[]
 
   @@map("DefEffect")
@@ -135,6 +137,7 @@ model DefEffect {
 model WeaponAttribute {
   id                     Int                           @id @default(autoincrement())
   name                   String                        @unique
+  tooltip                String?
   descriptorNotes        String?
   descriptorTemplate     String?
   placement              AttributePlacement            @default(TRAITS)
@@ -151,10 +154,13 @@ model WeaponAttribute {
 model ArmorAttribute {
   id                 Int                          @id @default(autoincrement())
   name               String                       @unique
+  tooltip            String?
   descriptorNotes    String?
   descriptorTemplate String?
   placement          AttributePlacement           @default(TRAITS)
   requiresPvKind     StrengthKind?
+  requiresPpv        Boolean                      @default(false)
+  requiresMpv        Boolean                      @default(false)
   templates          ItemTemplateArmorAttribute[]
 
   @@map("ArmorAttribute")
@@ -163,6 +169,7 @@ model ArmorAttribute {
 model ShieldAttribute {
   id                 Int                           @id @default(autoincrement())
   name               String                        @unique
+  tooltip            String?
   descriptorNotes    String?
   descriptorTemplate String?
   placement          AttributePlacement            @default(TRAITS)
@@ -355,6 +362,16 @@ model ForgeCostEntry {
   @@map("ForgeCostEntry")
 }
 
+model CombatTuning {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  protectionK Int      @default(2)
+  protectionS Int      @default(6)
+
+  @@map("CombatTuning")
+}
+
 model UserProfile {
   userId          String          @id @db.Uuid
   entitlementTier EntitlementTier @default(FREE)
@@ -425,6 +442,7 @@ model Ability {
 model LimitBreakTemplate {
   id                      String                 @id @default(cuid())
   name                    String
+  tooltip                 String?
   templateType            LimitBreakTemplateType
   tier                    LimitBreakTier
   thresholdPercent        Int
@@ -549,11 +567,16 @@ model Monster {
   mainHandItemId                String?
   offHandItemId                 String?
   smallItemId                   String?
+  // SC_SEPARATE_ARMOR_AND_ITEM_SLOTS_V2
+  headArmorItemId               String?
+  shoulderArmorItemId           String?
+  torsoArmorItemId              String?
+  legsArmorItemId               String?
+  feetArmorItemId               String?
   headItemId                    String?
-  shoulderItemId                String?
-  torsoItemId                   String?
-  legsItemId                    String?
-  feetItemId                    String?
+  neckItemId                    String?
+  armsItemId                    String?
+  beltItemId                    String?
   customNotes                   String?               @db.Text
   limitBreakName                String?               @db.Text
   limitBreakTier                LimitBreakTier?

@@ -46,6 +46,12 @@ function countSelectedMythicLimitBreaks(value: {
   return ids.filter((id) => id !== null).length;
 }
 
+function isValidProtectionStatValue(value: unknown): boolean {
+  if (value === null || value === undefined) return true;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+  return Number.isInteger(value) && value >= 0 && value <= 5;
+}
+
 function withTagStrings<T extends { tags?: Array<{ tag: string }> }>(
   row: T,
 ): Omit<T, 'tags'> & { tags: string[] } {
@@ -276,6 +282,18 @@ export async function POST(req: Request) {
     if (countSelectedMythicLimitBreaks(body) > 1) {
       return NextResponse.json(
         { error: 'A Mythic item may only have one Limit Break.' },
+        { status: 400 },
+      );
+    }
+    if (!isValidProtectionStatValue(body.ppv)) {
+      return NextResponse.json(
+        { error: 'PPV must be an integer between 0 and 5.' },
+        { status: 400 },
+      );
+    }
+    if (!isValidProtectionStatValue(body.mpv)) {
+      return NextResponse.json(
+        { error: 'MPV must be an integer between 0 and 5.' },
         { status: 400 },
       );
     }

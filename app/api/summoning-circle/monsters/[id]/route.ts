@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import {
   isTwoHanded,
-  isValidBodyItemForSlot,
+  isValidArmorItemForSlot,
   isValidHandItemForSlot,
+  isValidItemAccessorySlot,
   type SummoningEquipmentItem,
 } from "@/lib/summoning/equipment";
 import { renderAttackActionLines } from "@/lib/summoning/render";
@@ -30,6 +31,20 @@ const MONSTER_INCLUDE = {
 const WEAPON_SOURCE_CAP = 3;
 const WEAPON_SOURCE_CAP_ERROR =
   "A monster can have at most 3 weapon sources total (equipped + natural). Unequip a weapon source or remove a natural weapon.";
+
+function getInternalErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    const meta = error.meta ? ` ${JSON.stringify(error.meta)}` : "";
+    return `${fallback} (${error.code})${meta}`;
+  }
+  if (error instanceof Prisma.PrismaClientUnknownRequestError) {
+    return `${fallback}: ${error.message}`;
+  }
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return `${fallback}: ${error.message}`;
+  }
+  return fallback;
+}
 
 type EquipmentItemsById = Map<string, SummoningEquipmentItem>;
 
@@ -59,11 +74,15 @@ async function loadEquipmentItemsById(
     | "mainHandItemId"
     | "offHandItemId"
     | "smallItemId"
+    | "headArmorItemId"
+    | "shoulderArmorItemId"
+    | "torsoArmorItemId"
+    | "legsArmorItemId"
+    | "feetArmorItemId"
     | "headItemId"
-    | "shoulderItemId"
-    | "torsoItemId"
-    | "legsItemId"
-    | "feetItemId"
+    | "neckItemId"
+    | "armsItemId"
+    | "beltItemId"
   >,
 ): Promise<EquipmentItemsById> {
   const ids = Array.from(
@@ -72,11 +91,15 @@ async function loadEquipmentItemsById(
         data.mainHandItemId,
         data.offHandItemId,
         data.smallItemId,
+        data.headArmorItemId,
+        data.shoulderArmorItemId,
+        data.torsoArmorItemId,
+        data.legsArmorItemId,
+        data.feetArmorItemId,
         data.headItemId,
-        data.shoulderItemId,
-        data.torsoItemId,
-        data.legsItemId,
-        data.feetItemId,
+        data.neckItemId,
+        data.armsItemId,
+        data.beltItemId,
       ].filter(Boolean) as string[],
     ),
   );
@@ -87,7 +110,7 @@ async function loadEquipmentItemsById(
     where: {
       campaignId,
       id: { in: ids },
-      type: { in: ["WEAPON", "SHIELD", "ARMOR"] },
+      type: { in: ["WEAPON", "SHIELD", "ARMOR", "ITEM"] },
     },
     select: {
       id: true,
@@ -95,6 +118,7 @@ async function loadEquipmentItemsById(
       type: true,
       size: true,
       armorLocation: true,
+      itemLocation: true,
       ppv: true,
       mpv: true,
       globalAttributeModifiers: true,
@@ -133,6 +157,7 @@ async function loadEquipmentItemsById(
         type: row.type,
         size: row.size,
         armorLocation: row.armorLocation,
+        itemLocation: row.itemLocation,
         ppv: row.ppv,
         mpv: row.mpv,
         globalAttributeModifiers: Array.isArray(row.globalAttributeModifiers)
@@ -229,31 +254,43 @@ function validateEquipmentSlots(
     | "mainHandItemId"
     | "offHandItemId"
     | "smallItemId"
+    | "headArmorItemId"
+    | "shoulderArmorItemId"
+    | "torsoArmorItemId"
+    | "legsArmorItemId"
+    | "feetArmorItemId"
     | "headItemId"
-    | "shoulderItemId"
-    | "torsoItemId"
-    | "legsItemId"
-    | "feetItemId"
+    | "neckItemId"
+    | "armsItemId"
+    | "beltItemId"
   >,
   itemsById: EquipmentItemsById,
 ): string | null {
   const main = data.mainHandItemId ? itemsById.get(data.mainHandItemId) ?? null : null;
   const off = data.offHandItemId ? itemsById.get(data.offHandItemId) ?? null : null;
   const small = data.smallItemId ? itemsById.get(data.smallItemId) ?? null : null;
+  const headArmor = data.headArmorItemId ? itemsById.get(data.headArmorItemId) ?? null : null;
+  const shoulderArmor = data.shoulderArmorItemId ? itemsById.get(data.shoulderArmorItemId) ?? null : null;
+  const torsoArmor = data.torsoArmorItemId ? itemsById.get(data.torsoArmorItemId) ?? null : null;
+  const legsArmor = data.legsArmorItemId ? itemsById.get(data.legsArmorItemId) ?? null : null;
+  const feetArmor = data.feetArmorItemId ? itemsById.get(data.feetArmorItemId) ?? null : null;
   const head = data.headItemId ? itemsById.get(data.headItemId) ?? null : null;
-  const shoulder = data.shoulderItemId ? itemsById.get(data.shoulderItemId) ?? null : null;
-  const torso = data.torsoItemId ? itemsById.get(data.torsoItemId) ?? null : null;
-  const legs = data.legsItemId ? itemsById.get(data.legsItemId) ?? null : null;
-  const feet = data.feetItemId ? itemsById.get(data.feetItemId) ?? null : null;
+  const neck = data.neckItemId ? itemsById.get(data.neckItemId) ?? null : null;
+  const arms = data.armsItemId ? itemsById.get(data.armsItemId) ?? null : null;
+  const belt = data.beltItemId ? itemsById.get(data.beltItemId) ?? null : null;
 
   if (data.mainHandItemId && !main) return "Invalid mainHandItemId for campaign";
   if (data.offHandItemId && !off) return "Invalid offHandItemId for campaign";
   if (data.smallItemId && !small) return "Invalid smallItemId for campaign";
+  if (data.headArmorItemId && !headArmor) return "Invalid headArmorItemId for campaign";
+  if (data.shoulderArmorItemId && !shoulderArmor) return "Invalid shoulderArmorItemId for campaign";
+  if (data.torsoArmorItemId && !torsoArmor) return "Invalid torsoArmorItemId for campaign";
+  if (data.legsArmorItemId && !legsArmor) return "Invalid legsArmorItemId for campaign";
+  if (data.feetArmorItemId && !feetArmor) return "Invalid feetArmorItemId for campaign";
   if (data.headItemId && !head) return "Invalid headItemId for campaign";
-  if (data.shoulderItemId && !shoulder) return "Invalid shoulderItemId for campaign";
-  if (data.torsoItemId && !torso) return "Invalid torsoItemId for campaign";
-  if (data.legsItemId && !legs) return "Invalid legsItemId for campaign";
-  if (data.feetItemId && !feet) return "Invalid feetItemId for campaign";
+  if (data.neckItemId && !neck) return "Invalid neckItemId for campaign";
+  if (data.armsItemId && !arms) return "Invalid armsItemId for campaign";
+  if (data.beltItemId && !belt) return "Invalid beltItemId for campaign";
 
   if (main && !isValidHandItemForSlot("mainHandItemId", main)) {
     return "Main Hand item must be one-handed or two-handed weapon/shield";
@@ -268,13 +305,33 @@ function validateEquipmentSlots(
     return "Off Hand cannot be equipped while Main Hand has a two-handed item";
   }
 
-  if (head && !isValidBodyItemForSlot("headItemId", head)) return "Head slot item must have HEAD location";
-  if (shoulder && !isValidBodyItemForSlot("shoulderItemId", shoulder)) {
-    return "Shoulder slot item must have SHOULDERS location";
+  if (headArmor && !isValidArmorItemForSlot("headArmorItemId", headArmor)) {
+    return "Head Armor slot item must have HEAD armor location";
   }
-  if (torso && !isValidBodyItemForSlot("torsoItemId", torso)) return "Torso slot item must have TORSO location";
-  if (legs && !isValidBodyItemForSlot("legsItemId", legs)) return "Legs slot item must have LEGS location";
-  if (feet && !isValidBodyItemForSlot("feetItemId", feet)) return "Feet slot item must have FEET location";
+  if (shoulderArmor && !isValidArmorItemForSlot("shoulderArmorItemId", shoulderArmor)) {
+    return "Shoulder Armor slot item must have SHOULDERS armor location";
+  }
+  if (torsoArmor && !isValidArmorItemForSlot("torsoArmorItemId", torsoArmor)) {
+    return "Torso Armor slot item must have TORSO armor location";
+  }
+  if (legsArmor && !isValidArmorItemForSlot("legsArmorItemId", legsArmor)) {
+    return "Legs Armor slot item must have LEGS armor location";
+  }
+  if (feetArmor && !isValidArmorItemForSlot("feetArmorItemId", feetArmor)) {
+    return "Feet Armor slot item must have FEET armor location";
+  }
+  if (head && !isValidItemAccessorySlot("headItemId", head)) {
+    return "Head Item slot item must have HEAD item location";
+  }
+  if (neck && !isValidItemAccessorySlot("neckItemId", neck)) {
+    return "Neck Item slot item must have NECK item location";
+  }
+  if (arms && !isValidItemAccessorySlot("armsItemId", arms)) {
+    return "Arms Item slot item must have ARMS item location";
+  }
+  if (belt && !isValidItemAccessorySlot("beltItemId", belt)) {
+    return "Belt Item slot item must have BELT item location";
+  }
 
   return null;
 }
@@ -422,14 +479,19 @@ export async function PUT(
           legendary: data.legendary,
           attackMode: "NATURAL_WEAPON",
           equippedWeaponId: null,
+          // SC_SEPARATE_ARMOR_AND_ITEM_PERSIST_V2
           mainHandItemId: data.mainHandItemId,
           offHandItemId: data.offHandItemId,
           smallItemId: data.smallItemId,
+          headArmorItemId: data.headArmorItemId,
+          shoulderArmorItemId: data.shoulderArmorItemId,
+          torsoArmorItemId: data.torsoArmorItemId,
+          legsArmorItemId: data.legsArmorItemId,
+          feetArmorItemId: data.feetArmorItemId,
           headItemId: data.headItemId,
-          shoulderItemId: data.shoulderItemId,
-          torsoItemId: data.torsoItemId,
-          legsItemId: data.legsItemId,
-          feetItemId: data.feetItemId,
+          neckItemId: data.neckItemId,
+          armsItemId: data.armsItemId,
+          beltItemId: data.beltItemId,
           customNotes: data.customNotes,
           limitBreakName: data.limitBreakName,
           limitBreakTier: data.limitBreakTier,
@@ -569,7 +631,11 @@ export async function PUT(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     console.error("[SUMMONING_MONSTER_PUT]", error);
-    return NextResponse.json({ error: "Failed to update monster" }, { status: 500 });
+    const debugMessage = getInternalErrorMessage(error, "Failed to update monster");
+    return NextResponse.json(
+      { error: process.env.NODE_ENV === "production" ? "Failed to update monster" : debugMessage },
+      { status: 500 },
+    );
   }
 }
 

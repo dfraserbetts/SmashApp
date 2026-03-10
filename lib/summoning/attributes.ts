@@ -70,13 +70,16 @@ export function getArmorSkillDiceCountFromAttributes(
 export function getDodgeValue(
   defenceDie: DiceSize | null | undefined,
   intellectDie: DiceSize | null | undefined,
-  _level: number,
-  _physicalProtection: number,
+  level: number,
+  physicalProtection: number,
 ): number {
   const defenceValue = getAttributeNumericValue(defenceDie);
   const intellectValue = getAttributeNumericValue(intellectDie);
-  // Dodge: primary Intellect, secondary Defence
-  return weightedSkillFromAttributes(intellectValue, defenceValue);
+  // DODGE_VALUE_FORMULA_V2
+  // Rogues dodge, knights tank. Choose your class fantasy... even in a classless system.
+  const base = Math.ceil((2 * intellectValue + defenceValue) / 2);
+  const raw = base + level - physicalProtection;
+  return Math.max(1, raw);
 }
 
 export function getWillpowerDiceCountFromAttributes(

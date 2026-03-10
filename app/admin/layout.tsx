@@ -83,6 +83,9 @@ export default async function AdminLayout({
                 <Link className="underline" href="/admin/campaigns">
                   Campaign Inspector
                 </Link>
+                <Link className="underline" href="/admin/combat-tuning">
+                  Combat Tuning
+                </Link>
               </div>
             </div>
           </div>

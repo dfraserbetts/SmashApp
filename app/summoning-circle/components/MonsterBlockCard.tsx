@@ -35,6 +35,10 @@ import {
   getLimitBreakThresholdPercent,
   getWeaponLimitBreakCeiling,
 } from "@/lib/limitBreakThreshold";
+import {
+  normalizeProtectionTuning,
+  type ProtectionTuningValues,
+} from "@/lib/config/combatTuningShared";
 
 export type WeaponProjection = {
   id: string;
@@ -43,6 +47,7 @@ export type WeaponProjection = {
   type: "WEAPON" | "SHIELD" | "ARMOR" | "ITEM" | "CONSUMABLE";
   size: "SMALL" | "ONE_HANDED" | "TWO_HANDED" | null;
   armorLocation: "HEAD" | "SHOULDERS" | "TORSO" | "LEGS" | "FEET" | null;
+  itemLocation?: "HEAD" | "NECK" | "ARMS" | "BELT" | null;
   ppv: number | null;
   mpv: number | null;
   globalAttributeModifiers?: Array<{ attribute?: string; amount?: number }>;
@@ -76,6 +81,7 @@ type MonsterBlockCardProps = {
   isPrint?: boolean;
   printLayout?: PrintLayoutMode;
   printPage?: PrintPageMode;
+  protectionTuning?: ProtectionTuningValues;
 };
 type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
 type PrintPageMode = "COMPACT" | "PAGE1_MAIN" | "PAGE2_POWER";
@@ -389,11 +395,15 @@ function hasItemSlots(monster: MonsterUpsertInput): boolean {
     monster.mainHandItemId ||
       monster.offHandItemId ||
       monster.smallItemId ||
+      monster.headArmorItemId ||
+      monster.shoulderArmorItemId ||
+      monster.torsoArmorItemId ||
+      monster.legsArmorItemId ||
+      monster.feetArmorItemId ||
       monster.headItemId ||
-      monster.shoulderItemId ||
-      monster.torsoItemId ||
-      monster.legsItemId ||
-      monster.feetItemId,
+      monster.neckItemId ||
+      monster.armsItemId ||
+      monster.beltItemId,
   );
 }
 
@@ -402,15 +412,20 @@ function getEquippedItems(
   weaponById?: Record<string, WeaponProjection>,
 ): Array<SummoningEquipmentItem | null> {
   if (!weaponById) return [];
+  // SC_SEPARATE_ARMOR_AND_ITEM_RENDER_SLOTS_V2
   const slotIds = [
     monster.mainHandItemId ?? null,
     monster.offHandItemId ?? null,
     monster.smallItemId ?? null,
+    monster.headArmorItemId ?? null,
+    monster.shoulderArmorItemId ?? null,
+    monster.torsoArmorItemId ?? null,
+    monster.legsArmorItemId ?? null,
+    monster.feetArmorItemId ?? null,
     monster.headItemId ?? null,
-    monster.shoulderItemId ?? null,
-    monster.torsoItemId ?? null,
-    monster.legsItemId ?? null,
-    monster.feetItemId ?? null,
+    monster.neckItemId ?? null,
+    monster.armsItemId ?? null,
+    monster.beltItemId ?? null,
   ];
   return slotIds.map((id) => (id ? (weaponById[id] ?? null) : null));
 }
@@ -418,6 +433,7 @@ function getEquippedItems(
 function buildEquipmentWeaponAttacks(
   monster: MonsterUpsertInput,
   weaponSkillValue: number,
+  level: number,
   weaponById?: Record<string, WeaponProjection>,
 ): Array<{ label: string; lines: string[]; attackPlacementLines: string[] }> {
   if (!weaponById) return [];
@@ -462,7 +478,7 @@ function buildEquipmentWeaponAttacks(
         aoe: item.aoe,
       } as MonsterNaturalAttackConfig,
       weaponSkillValue,
-      { applyWeaponSkillOverride: true },
+      { applyWeaponSkillOverride: true, strengthMultiplier: 2, level },
     );
 
     if (lines.length === 0) continue;
@@ -494,11 +510,15 @@ function getEquippedMythicLimitBreakTemplate(
     monster.mainHandItemId,
     monster.offHandItemId,
     monster.smallItemId,
+    monster.headArmorItemId,
+    monster.shoulderArmorItemId,
+    monster.torsoArmorItemId,
+    monster.legsArmorItemId,
+    monster.feetArmorItemId,
     monster.headItemId,
-    monster.shoulderItemId,
-    monster.torsoItemId,
-    monster.legsItemId,
-    monster.feetItemId,
+    monster.neckItemId,
+    monster.armsItemId,
+    monster.beltItemId,
   ];
   for (const slotId of slotIds) {
     if (!slotId) continue;
@@ -595,6 +615,7 @@ export function MonsterBlockCard({
   isPrint,
   printLayout = "COMPACT_1P",
   printPage = "COMPACT",
+  protectionTuning,
 }: MonsterBlockCardProps) {
   const inPrint = Boolean(isPrint);
   const is2Page = inPrint && printLayout === "LEGENDARY_2P";
@@ -629,9 +650,11 @@ export function MonsterBlockCard({
   }, [equippedItems]);
 
   const renderedAttacks = useMemo(() => {
+    // SC_LEVEL_WOUND_SCALER_WIRING
     const slotBasedAttacks = buildEquipmentWeaponAttacks(
       monster,
       computedWeaponSkillValue,
+      monster.level,
       weaponById,
     );
     const naturalMapped = getRenderableNaturalAttacks(monster).map((attack) => ({
@@ -640,7 +663,7 @@ export function MonsterBlockCard({
       lines: renderAttackActionLines(
         (attack.attackConfig ?? {}) as MonsterNaturalAttackConfig,
         computedWeaponSkillValue,
-        { applyWeaponSkillOverride: true, strengthMultiplier: 2 },
+        { applyWeaponSkillOverride: true, strengthMultiplier: 2, level: monster.level },
       ),
     }));
     return [...slotBasedAttacks, ...naturalMapped];
@@ -698,6 +721,10 @@ export function MonsterBlockCard({
   const isTwoColumnAttackGrid = inPrint && attackWrapClass.includes("sc-grid-2");
   const hasOddAttackGroups = attackGroupsForRender.length % 2 === 1;
   const allowOddTailFullSpan = !wideAttackGroup;
+  const resolvedProtectionTuning = useMemo(
+    () => normalizeProtectionTuning(protectionTuning?.protectionK, protectionTuning?.protectionS),
+    [protectionTuning?.protectionK, protectionTuning?.protectionS],
+  );
 
   const useItemDerivedValues = hasItemSlots(monster);
   const protectionValues = useItemDerivedValues
@@ -731,16 +758,23 @@ export function MonsterBlockCard({
   const renderedDefenceStrings = useMemo(() => {
     const dodgeDice = Math.max(0, Math.ceil(dodgeValue / 6));
     const armorSkillForDefenceCalc = Math.max(1, computedArmorSkillValue);
-    const physicalBlockPerSuccess = Math.ceil(
-      protectionValues.physicalProtection / armorSkillForDefenceCalc +
-        armorSkillForDefenceCalc,
-    );
+    // PROTECTION_BLOCK_FORMULA_V2
+    const physicalBlockPerSuccess =
+      protectionValues.physicalProtection <= 0
+        ? 0
+        : Math.ceil(
+            (protectionValues.physicalProtection / resolvedProtectionTuning.protectionK) *
+              (1 + armorSkillForDefenceCalc / resolvedProtectionTuning.protectionS),
+          );
     const willpowerDice = Math.max(0, willpowerValue);
     const willpowerForDefenceCalc = Math.max(1, willpowerValue);
-    const mentalBlockPerSuccess = Math.ceil(
-      protectionValues.mentalProtection / willpowerForDefenceCalc +
-        willpowerForDefenceCalc,
-    );
+    const mentalBlockPerSuccess =
+      protectionValues.mentalProtection <= 0
+        ? 0
+        : Math.ceil(
+            (protectionValues.mentalProtection / resolvedProtectionTuning.protectionK) *
+              (1 + willpowerForDefenceCalc / resolvedProtectionTuning.protectionS),
+          );
 
     return [
       `Dodge: Roll ${dodgeDice} dice. If successes exceed the attacker's successes, take 0 damage. Otherwise take full damage.`,
@@ -752,6 +786,8 @@ export function MonsterBlockCard({
     dodgeValue,
     protectionValues.physicalProtection,
     protectionValues.mentalProtection,
+    resolvedProtectionTuning.protectionK,
+    resolvedProtectionTuning.protectionS,
     willpowerValue,
   ]);
   const equippedAttributeLinesByPlacement = useMemo(() => {
@@ -773,11 +809,15 @@ export function MonsterBlockCard({
       monster.mainHandItemId,
       monster.offHandItemId,
       monster.smallItemId,
+      monster.headArmorItemId,
+      monster.shoulderArmorItemId,
+      monster.torsoArmorItemId,
+      monster.legsArmorItemId,
+      monster.feetArmorItemId,
       monster.headItemId,
-      monster.shoulderItemId,
-      monster.torsoItemId,
-      monster.legsItemId,
-      monster.feetItemId,
+      monster.neckItemId,
+      monster.armsItemId,
+      monster.beltItemId,
     ];
 
     for (const slotId of slotIds) {
@@ -820,11 +860,15 @@ export function MonsterBlockCard({
       monster.mainHandItemId,
       monster.offHandItemId,
       monster.smallItemId,
+      monster.headArmorItemId,
+      monster.shoulderArmorItemId,
+      monster.torsoArmorItemId,
+      monster.legsArmorItemId,
+      monster.feetArmorItemId,
       monster.headItemId,
-      monster.shoulderItemId,
-      monster.torsoItemId,
-      monster.legsItemId,
-      monster.feetItemId,
+      monster.neckItemId,
+      monster.armsItemId,
+      monster.beltItemId,
     ];
 
     for (const slotId of slotIds) {
@@ -877,11 +921,15 @@ export function MonsterBlockCard({
       monster.mainHandItemId,
       monster.offHandItemId,
       monster.smallItemId,
+      monster.headArmorItemId,
+      monster.shoulderArmorItemId,
+      monster.torsoArmorItemId,
+      monster.legsArmorItemId,
+      monster.feetArmorItemId,
       monster.headItemId,
-      monster.shoulderItemId,
-      monster.torsoItemId,
-      monster.legsItemId,
-      monster.feetItemId,
+      monster.neckItemId,
+      monster.armsItemId,
+      monster.beltItemId,
     ];
 
     for (const slotId of slotIds) {

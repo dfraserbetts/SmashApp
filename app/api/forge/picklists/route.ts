@@ -20,10 +20,14 @@ export async function GET() {
         select: {
           id: true,
           name: true,
+          tooltip: true,
           damageTypeLinks: { select: { damageTypeId: true } },
         },
       }),
-      prisma.defEffect.findMany({ orderBy: { name: 'asc' } }),
+      prisma.defEffect.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, tooltip: true },
+      }),
       prisma.weaponAttribute.findMany({ orderBy: { name: 'asc' } }),
       prisma.armorAttribute.findMany({ orderBy: { name: 'asc' } }),
       prisma.shieldAttribute.findMany({ orderBy: { name: 'asc' } }),
@@ -54,6 +58,7 @@ export async function GET() {
       return {
         id: row.id,
         name: row.name,
+        tooltip: row.tooltip,
         damageTypeIds,
       };
     });

@@ -21,6 +21,7 @@ type Intention =
 type Row = {
   id: string;
   name: string;
+  tooltip: string | null;
   templateType: TemplateType;
   tier: Tier;
   thresholdPercent: number;
@@ -52,6 +53,7 @@ type Row = {
 type EditorState = {
   id: string | null;
   name: string;
+  tooltip: string;
   templateType: TemplateType;
   tier: Tier;
   description: string;
@@ -258,6 +260,7 @@ function emptyEditor(): EditorState {
   return {
     id: null,
     name: "",
+    tooltip: "",
     templateType: "PLAYER",
     tier: "PUSH",
     description: "",
@@ -288,6 +291,7 @@ function rowToEditor(row: Row): EditorState {
   return {
     id: row.id,
     name: row.name,
+    tooltip: row.tooltip ?? "",
     templateType: row.templateType,
     tier: row.tier,
     description: row.description ?? "",
@@ -566,6 +570,7 @@ export default function AdminLimitBreakTemplatesPage() {
       const payload = {
         id: editor.id,
         name: editor.name,
+        tooltip: editor.tooltip || null,
         templateType: editor.templateType,
         tier: editor.tier,
         thresholdPercent,
@@ -796,7 +801,14 @@ export default function AdminLimitBreakTemplatesPage() {
                           onChange={(e) => toggleSelected(row.id, e.target.checked)}
                         />
                       </td>
-                      <td className="p-2">{row.name}</td>
+                      <td className="p-2">
+                        <div>{row.name}</div>
+                        {row.tooltip ? (
+                          <div className="max-w-xs truncate text-[11px] opacity-60">
+                            {row.tooltip}
+                          </div>
+                        ) : null}
+                      </td>
                       <td className="p-2">{row.templateType}</td>
                       <td className="p-2">{row.tier}</td>
                       <td className="p-2">{gatingLabel(row)}</td>
@@ -828,6 +840,16 @@ export default function AdminLimitBreakTemplatesPage() {
               className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
               value={editor.name}
               onChange={(e) => setField("name", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs opacity-80">Tooltip</label>
+            <textarea
+              className="mt-1 min-h-16 w-full rounded border bg-transparent p-2 text-sm"
+              value={editor.tooltip}
+              onChange={(e) => setField("tooltip", e.target.value)}
+              placeholder="Short hover tooltip shown when selecting this limit break in Forge."
             />
           </div>
 

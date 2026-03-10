@@ -59,6 +59,7 @@ export async function GET() {
       select: {
         id: true,
         name: true,
+        tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
         placement: true,
@@ -83,6 +84,7 @@ export async function POST(req: Request) {
 const body = (await req.json().catch(() => null)) as
       | {
           name?: unknown;
+          tooltip?: unknown;
           descriptorTemplate?: unknown;
           descriptorNotes?: unknown;
           placement?: unknown;
@@ -95,16 +97,19 @@ const body = (await req.json().catch(() => null)) as
 
     const descriptorTemplate =
       typeof body?.descriptorTemplate === "string" ? body.descriptorTemplate : null;
+    const tooltip =
+      typeof body?.tooltip === "string" ? body.tooltip.trim() : null;
 
     const descriptorNotes =
       typeof body?.descriptorNotes === "string" ? body.descriptorNotes : null;
     const placement = normalizePlacement((body as { placement?: unknown } | null)?.placement);
 
     const created = await prisma.shieldAttribute.create({
-      data: { name, descriptorTemplate, descriptorNotes, placement } as any,
+      data: { name, tooltip, descriptorTemplate, descriptorNotes, placement } as any,
       select: {
         id: true,
         name: true,
+        tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
         placement: true,
@@ -137,6 +142,7 @@ export async function PATCH(req: Request) {
       | {
           id?: unknown;
           name?: unknown;
+          tooltip?: unknown;
           descriptorTemplate?: unknown;
           descriptorNotes?: unknown;
           placement?: unknown;
@@ -161,6 +167,8 @@ export async function PATCH(req: Request) {
       typeof body?.descriptorTemplate === "string"
         ? String(body.descriptorTemplate).trim()
         : "";
+    const tooltip =
+      typeof body?.tooltip === "string" ? body.tooltip.trim() : "";
 
     const descriptorNotes =
       typeof body?.descriptorNotes === "string"
@@ -181,6 +189,10 @@ export async function PATCH(req: Request) {
       data.descriptorTemplate = descriptorTemplate || null;
     }
 
+    if ("tooltip" in (body ?? {})) {
+      data.tooltip = tooltip || null;
+    }
+
     if ("descriptorNotes" in (body ?? {})) {
       data.descriptorNotes = descriptorNotes || null;
     }
@@ -194,6 +206,7 @@ export async function PATCH(req: Request) {
       select: {
         id: true,
         name: true,
+        tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
         placement: true,

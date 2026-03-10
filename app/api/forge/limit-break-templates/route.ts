@@ -45,6 +45,7 @@ export async function GET(req: Request) {
     let rows: Array<{
       id: string;
       name: string;
+      tooltip: string | null;
       tier: LimitBreakTier;
       itemType: string | null;
       thresholdPercent: number;
@@ -74,6 +75,7 @@ export async function GET(req: Request) {
         select: {
           id: true,
           name: true,
+          tooltip: true,
           tier: true,
           itemType: true,
           thresholdPercent: true,
@@ -111,6 +113,7 @@ export async function GET(req: Request) {
         select: {
           id: true,
           name: true,
+          tooltip: true,
           tier: true,
           itemType: true,
           thresholdPercent: true,
@@ -135,7 +138,11 @@ export async function GET(req: Request) {
         orderBy: [{ name: "asc" }],
       });
 
-      rows = legacyRows.map((row) => ({ ...row, baseCostText: null }));
+      rows = legacyRows.map((row) => ({
+        ...row,
+        tooltip: null,
+        baseCostText: null,
+      }));
     }
 
     return NextResponse.json({ rows });

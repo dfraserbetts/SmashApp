@@ -6,6 +6,7 @@ import { prisma } from "@/prisma/client";
 type AttackEffectRow = {
   id: number;
   name: string;
+  tooltip: string | null;
   damageTypeLinks: Array<{ damageTypeId: number }>;
 };
 
@@ -40,6 +41,7 @@ function rowToResponse(row: AttackEffectRow) {
   return {
     id: row.id,
     name: row.name,
+    tooltip: row.tooltip,
     damageTypeIds: row.damageTypeLinks.map((link) => link.damageTypeId),
   };
 }
@@ -165,6 +167,7 @@ export async function GET() {
       select: {
         id: true,
         name: true,
+        tooltip: true,
         damageTypeLinks: { select: { damageTypeId: true } },
       },
     });
@@ -185,7 +188,7 @@ export async function POST(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | { name?: unknown; damageTypeIds?: unknown }
+      | { name?: unknown; tooltip?: unknown; damageTypeIds?: unknown }
       | null;
 
     const name = typeof body?.name === "string" ? body.name.trim() : "";
@@ -193,6 +196,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
     const damageTypeIds = parseDamageTypeIds(body?.damageTypeIds);
+    const tooltip =
+      typeof body?.tooltip === "string" ? body.tooltip.trim() : null;
     if (damageTypeIds === null) {
       return NextResponse.json(
         { error: "damageTypeIds must be an array of numeric ids" },
@@ -216,6 +221,7 @@ export async function POST(req: Request) {
     const created = await prisma.attackEffect.create({
       data: {
         name,
+        tooltip,
         damageTypeLinks: damageTypeIds.length
           ? {
               create: damageTypeIds.map((damageTypeId) => ({ damageTypeId })),
@@ -225,6 +231,7 @@ export async function POST(req: Request) {
       select: {
         id: true,
         name: true,
+        tooltip: true,
         damageTypeLinks: { select: { damageTypeId: true } },
       },
     });
@@ -256,13 +263,15 @@ export async function PATCH(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | { id?: unknown; name?: unknown; damageTypeIds?: unknown }
+      | { id?: unknown; name?: unknown; tooltip?: unknown; damageTypeIds?: unknown }
       | null;
 
     const idRaw = body?.id;
     const id = parseNumericId(idRaw);
 
     const name = typeof body?.name === "string" ? body.name.trim() : "";
+    const tooltip =
+      typeof body?.tooltip === "string" ? body.tooltip.trim() : null;
     const hasDamageTypeIds = body?.damageTypeIds !== undefined;
     const damageTypeIds = hasDamageTypeIds ? parseDamageTypeIds(body?.damageTypeIds) : [];
 
@@ -299,7 +308,7 @@ export async function PATCH(req: Request) {
 
       await tx.attackEffect.update({
         where: { id },
-        data: { name },
+        data: { name, tooltip },
       });
 
       if (hasDamageTypeIds) {
@@ -323,6 +332,7 @@ export async function PATCH(req: Request) {
         select: {
           id: true,
           name: true,
+          tooltip: true,
           damageTypeLinks: { select: { damageTypeId: true } },
         },
       });

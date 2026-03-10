@@ -51,6 +51,7 @@ export type DescriptorResult = {
 
 export type DescriptorInput = {
   itemType: ItemType;
+  itemName?: string;
   globalAttributeModifiers?: Array<{
     attribute: string;
     amount: number;

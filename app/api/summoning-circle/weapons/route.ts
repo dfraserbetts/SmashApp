@@ -321,7 +321,7 @@ export async function GET(req: Request) {
     const rows = await prisma.itemTemplate.findMany({
       where: {
         campaignId,
-        type: { in: ["WEAPON", "SHIELD", "ARMOR"] },
+        type: { in: ["WEAPON", "SHIELD", "ARMOR", "ITEM"] },
       },
       orderBy: { name: "asc" },
       include: {
@@ -448,6 +448,7 @@ export async function GET(req: Request) {
         type: row.type,
         size: row.size,
         armorLocation: row.armorLocation,
+        itemLocation: row.itemLocation,
         ppv: row.ppv,
         mpv: row.mpv,
         globalAttributeModifiers: Array.isArray(row.globalAttributeModifiers)

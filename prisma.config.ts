@@ -11,5 +11,6 @@ export default defineConfig({
   datasource: {
     // Use DIRECT_URL for migrations (5432 direct connection)
     url: env('DIRECT_URL'),
+    shadowDatabaseUrl: env('SHADOW_DATABASE_URL'),
   },
 });

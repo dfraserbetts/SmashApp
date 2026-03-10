@@ -48,7 +48,7 @@ export async function GET() {
 
     const rows = await prisma.defEffect.findMany({
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: { id: true, name: true, tooltip: true },
     });
 
     return NextResponse.json({ rows });
@@ -67,16 +67,18 @@ export async function POST(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | { name?: unknown }
+      | { name?: unknown; tooltip?: unknown }
       | null;
 
     const name = typeof body?.name === "string" ? body.name.trim() : "";
+    const tooltip =
+      typeof body?.tooltip === "string" ? body.tooltip.trim() : null;
     if (!name)
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
     const created = await prisma.defEffect.create({
-      data: { name },
-      select: { id: true, name: true },
+      data: { name, tooltip },
+      select: { id: true, name: true, tooltip: true },
     });
 
     return NextResponse.json({ row: created }, { status: 201 });
@@ -102,7 +104,7 @@ export async function PATCH(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | { id?: unknown; name?: unknown }
+      | { id?: unknown; name?: unknown; tooltip?: unknown }
       | null;
 
     const idRaw = body?.id;
@@ -114,6 +116,8 @@ export async function PATCH(req: Request) {
         : NaN;
 
     const name = typeof body?.name === "string" ? body.name.trim() : "";
+    const tooltip =
+      typeof body?.tooltip === "string" ? body.tooltip.trim() : null;
 
     if (!Number.isFinite(id)) {
     return NextResponse.json({ error: "id must be a number" }, { status: 400 });
@@ -124,8 +128,8 @@ export async function PATCH(req: Request) {
 
     const updated = await prisma.defEffect.update({
       where: { id },
-      data: { name },
-      select: { id: true, name: true },
+      data: { name, tooltip },
+      select: { id: true, name: true, tooltip: true },
     });
 
     return NextResponse.json({ row: updated });

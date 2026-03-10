@@ -62,6 +62,7 @@ function applyWeaponAttributeTokens(
     // Parameterized attribute context
     strengthSource?: "MELEE" | "RANGED" | "AOE" | null;
     rangeSource?: "MELEE" | "RANGED" | "AOE" | null;
+    itemName?: string;
 
     // Weapon context (selected on this weapon; aggregated across ranges)
     damageTypes?: string;
@@ -92,6 +93,7 @@ function applyWeaponAttributeTokens(
   const warnings: string[] = [];
 
   const replacements: Record<string, string> = {
+    "[ItemName]": String(ctx.itemName ?? ""),
     "[AttributeValue]": ctx.attributeValue === null ? "?" : String(ctx.attributeValue),
 
     // Weapon context (selected on this weapon)
@@ -172,6 +174,7 @@ function applyArmorAttributeTokens(
   template: string,
   ctx: {
     attributeValue: string | null;
+    itemName?: string;
 
     // Chosen PV helper
     chosenPv?: number;
@@ -202,6 +205,7 @@ function applyArmorAttributeTokens(
     auraPhysical !== null ? auraPhysical : auraMental !== null ? auraMental : 0;
 
   const replacements: Record<string, string> = {
+    "[ItemName]": String(ctx.itemName ?? ""),
     "[AttributeValue]": ctx.attributeValue === null ? "?" : String(ctx.attributeValue),
     "[ChosenPV]":
       typeof ctx.chosenPv === "number" && Number.isFinite(ctx.chosenPv)
@@ -337,6 +341,7 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
       }
 
       const applied = applyWeaponAttributeTokens(tplRaw, {
+        itemName: String(input.itemName ?? ""),
         attributeValue: wa.value,
         strengthSource: (wa as any).strengthSource ?? null,
         rangeSource: (wa as any).rangeSource ?? null,
@@ -531,6 +536,7 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
               : 0;
 
         const rendered = applyArmorAttributeTokens(tplRaw, {
+          itemName: String(input.itemName ?? ""),
           attributeValue: derivedAttributeValue,
           chosenPv,
           ppv,
