@@ -1,0 +1,34 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  next-build:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: example-anon-key
+      SUPABASE_URL: https://example.supabase.co
+      SUPABASE_ANON_KEY: example-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: example-service-role-key
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/smashapp
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/smashapp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build

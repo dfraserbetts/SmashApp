@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:vercel": "prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "prisma:migrate:dev:safe": "node scripts/prisma-migrate-dev-shadow-safe.mjs",
