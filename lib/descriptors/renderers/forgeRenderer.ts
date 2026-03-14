@@ -175,8 +175,7 @@ export function renderForgeLine(
         entries.length > 0
           ? entries.map((e) => {
               // FORGE_STRENGTH_TO_WOUNDS_V1
-              const baseAmt = Number(e.amount ?? 0);
-              const displayedAmt = baseAmt > 0 ? baseAmt * 2 : 0;
+              const displayedAmt = Number(e.amount ?? 0);
               const woundWord = displayedAmt === 1 ? "wound" : "wounds";
               const modeWord = e.mode === "MENTAL" ? "mental" : "physical";
               const dt = String(e.damageType ?? "damage");

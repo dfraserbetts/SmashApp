@@ -3,6 +3,25 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
 
+const MONSTER_TRAIT_BANDS = ["MINOR", "STANDARD", "MAJOR", "BOSS"] as const;
+
+const monsterTraitDefinitionSelect = {
+  id: true,
+  name: true,
+  effectText: true,
+  isEnabled: true,
+  source: true,
+  isReadOnly: true,
+  band: true,
+  physicalThreatWeight: true,
+  mentalThreatWeight: true,
+  survivabilityWeight: true,
+  manipulationWeight: true,
+  synergyWeight: true,
+  mobilityWeight: true,
+  presenceWeight: true,
+} as const;
+
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
   const cookieStore = await cookies();
 
@@ -58,20 +77,27 @@ function normalizeId(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normalizeBand(value: unknown): (typeof MONSTER_TRAIT_BANDS)[number] {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return MONSTER_TRAIT_BANDS.includes(normalized as (typeof MONSTER_TRAIT_BANDS)[number])
+    ? (normalized as (typeof MONSTER_TRAIT_BANDS)[number])
+    : "STANDARD";
+}
+
+function normalizeAxisWeight(value: unknown): number {
+  const parsed =
+    typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(3, Math.trunc(parsed)));
+}
+
 export async function GET() {
   try {
     await requireAdminUserId();
 
     const rows = await prisma.monsterTraitDefinition.findMany({
       orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        effectText: true,
-        isEnabled: true,
-        source: true,
-        isReadOnly: true,
-      },
+      select: monsterTraitDefinitionSelect,
     });
 
     return NextResponse.json({ rows });
@@ -92,13 +118,34 @@ export async function POST(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | { id?: unknown; name?: unknown; effectText?: unknown; isEnabled?: unknown }
+      | {
+          id?: unknown;
+          name?: unknown;
+          effectText?: unknown;
+          isEnabled?: unknown;
+          band?: unknown;
+          physicalThreatWeight?: unknown;
+          mentalThreatWeight?: unknown;
+          survivabilityWeight?: unknown;
+          manipulationWeight?: unknown;
+          synergyWeight?: unknown;
+          mobilityWeight?: unknown;
+          presenceWeight?: unknown;
+        }
       | null;
 
     const id = normalizeId(body?.id);
     const name = normalizeName(body?.name);
     const effectText = normalizeEffectText(body?.effectText);
     const isEnabled = typeof body?.isEnabled === "boolean" ? body.isEnabled : true;
+    const band = normalizeBand(body?.band);
+    const physicalThreatWeight = normalizeAxisWeight(body?.physicalThreatWeight);
+    const mentalThreatWeight = normalizeAxisWeight(body?.mentalThreatWeight);
+    const survivabilityWeight = normalizeAxisWeight(body?.survivabilityWeight);
+    const manipulationWeight = normalizeAxisWeight(body?.manipulationWeight);
+    const synergyWeight = normalizeAxisWeight(body?.synergyWeight);
+    const mobilityWeight = normalizeAxisWeight(body?.mobilityWeight);
+    const presenceWeight = normalizeAxisWeight(body?.presenceWeight);
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -107,15 +154,20 @@ export async function POST(req: Request) {
     const row = id
       ? await prisma.monsterTraitDefinition.update({
           where: { id },
-          data: { name, effectText, isEnabled },
-          select: {
-            id: true,
-            name: true,
-            effectText: true,
-            isEnabled: true,
-            source: true,
-            isReadOnly: true,
+          data: {
+            name,
+            effectText,
+            isEnabled,
+            band,
+            physicalThreatWeight,
+            mentalThreatWeight,
+            survivabilityWeight,
+            manipulationWeight,
+            synergyWeight,
+            mobilityWeight,
+            presenceWeight,
           },
+          select: monsterTraitDefinitionSelect,
         })
       : await prisma.monsterTraitDefinition.create({
           data: {
@@ -124,15 +176,16 @@ export async function POST(req: Request) {
             isEnabled,
             source: "CORE",
             isReadOnly: true,
+            band,
+            physicalThreatWeight,
+            mentalThreatWeight,
+            survivabilityWeight,
+            manipulationWeight,
+            synergyWeight,
+            mobilityWeight,
+            presenceWeight,
           },
-          select: {
-            id: true,
-            name: true,
-            effectText: true,
-            isEnabled: true,
-            source: true,
-            isReadOnly: true,
-          },
+          select: monsterTraitDefinitionSelect,
         });
 
     return NextResponse.json({ row }, { status: id ? 200 : 201 });
@@ -157,13 +210,34 @@ export async function PUT(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | { id?: unknown; name?: unknown; effectText?: unknown; isEnabled?: unknown }
+      | {
+          id?: unknown;
+          name?: unknown;
+          effectText?: unknown;
+          isEnabled?: unknown;
+          band?: unknown;
+          physicalThreatWeight?: unknown;
+          mentalThreatWeight?: unknown;
+          survivabilityWeight?: unknown;
+          manipulationWeight?: unknown;
+          synergyWeight?: unknown;
+          mobilityWeight?: unknown;
+          presenceWeight?: unknown;
+        }
       | null;
 
     const id = normalizeId(body?.id);
     const name = normalizeName(body?.name);
     const effectText = normalizeEffectText(body?.effectText);
     const isEnabled = typeof body?.isEnabled === "boolean" ? body.isEnabled : undefined;
+    const band = normalizeBand(body?.band);
+    const physicalThreatWeight = normalizeAxisWeight(body?.physicalThreatWeight);
+    const mentalThreatWeight = normalizeAxisWeight(body?.mentalThreatWeight);
+    const survivabilityWeight = normalizeAxisWeight(body?.survivabilityWeight);
+    const manipulationWeight = normalizeAxisWeight(body?.manipulationWeight);
+    const synergyWeight = normalizeAxisWeight(body?.synergyWeight);
+    const mobilityWeight = normalizeAxisWeight(body?.mobilityWeight);
+    const presenceWeight = normalizeAxisWeight(body?.presenceWeight);
 
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
@@ -177,16 +251,17 @@ export async function PUT(req: Request) {
       data: {
         name,
         effectText,
+        band,
+        physicalThreatWeight,
+        mentalThreatWeight,
+        survivabilityWeight,
+        manipulationWeight,
+        synergyWeight,
+        mobilityWeight,
+        presenceWeight,
         ...(isEnabled === undefined ? {} : { isEnabled }),
       },
-      select: {
-        id: true,
-        name: true,
-        effectText: true,
-        isEnabled: true,
-        source: true,
-        isReadOnly: true,
-      },
+      select: monsterTraitDefinitionSelect,
     });
 
     return NextResponse.json({ row });
@@ -237,4 +312,3 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
-

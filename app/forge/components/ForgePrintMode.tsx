@@ -212,7 +212,13 @@ function formatGreaterDefenceLine(lines: string[]): string {
   return `Greater successes on defence rolls grant you 1 stack of ${head} or ${tail}.`;
 }
 
-function ForgeItemPrintCard({ item }: { item: ForgeApiItem }) {
+function ForgeItemPrintCard({
+  item,
+  printFriendly = false,
+}: {
+  item: ForgeApiItem;
+  printFriendly?: boolean;
+}) {
   const type = String(item.type ?? 'ITEM').toUpperCase();
   const rangeCategories = new Set(
     (item.rangeCategories ?? [])
@@ -403,7 +409,13 @@ function ForgeItemPrintCard({ item }: { item: ForgeApiItem }) {
   const headerLineText = tagline ? `${displayName} | ${tagline}` : displayName;
 
   return (
-    <div className="forge-item-card h-full rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-100 p-3 text-sm">
+    <div
+      className={`forge-item-card h-full rounded-lg border p-3 text-sm ${
+        printFriendly
+          ? 'forge-item-card--print-friendly border-zinc-300 bg-white text-zinc-950'
+          : 'border-zinc-800 bg-zinc-950 text-zinc-100'
+      }`}
+    >
       <div className="forge-item-header space-y-1">
         <p className="forge-item-header-line1 text-xs uppercase tracking-wide text-zinc-400">
           {item.rarity ?? 'COMMON'} {type} - {locationLabel}
@@ -600,6 +612,7 @@ export function ForgePrintMode({ campaignId }: Props) {
   const [items, setItems] = useState<ForgeApiItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [layoutPreset, setLayoutPreset] = useState<LayoutPreset>('standard');
+  const [printFriendly, setPrintFriendly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -705,6 +718,15 @@ export function ForgePrintMode({ campaignId }: Props) {
               ? 'Verbose mode: 2 cards per page for dense Mythic-style content.'
               : 'Standard mode: 4 cards per page with trading-card readability clamps.'}
           </p>
+          <label className="inline-flex items-center gap-2 text-sm text-zinc-300">
+            <input
+              type="checkbox"
+              checked={printFriendly}
+              onChange={(e) => setPrintFriendly(e.target.checked)}
+              className="rounded border-zinc-700 bg-zinc-950"
+            />
+            <span>Print-friendly cards</span>
+          </label>
         </div>
 
         {error && <p className="text-sm text-red-300">{error}</p>}
@@ -759,7 +781,7 @@ export function ForgePrintMode({ campaignId }: Props) {
                 return (
                   <div key={slotIndex} className="forge-print-card-wrap min-h-0 h-full overflow-hidden">
                     {item ? (
-                      <ForgeItemPrintCard item={item} />
+                      <ForgeItemPrintCard item={item} printFriendly={printFriendly} />
                     ) : (
                       <div className="h-full rounded border border-dashed border-zinc-300 bg-zinc-50" />
                     )}
@@ -820,6 +842,42 @@ export function ForgePrintMode({ campaignId }: Props) {
           overflow: hidden;
           min-height: 0;
           height: 100%;
+        }
+
+        .forge-item-card--print-friendly {
+          background: rgb(255 255 255);
+          color: rgb(9 9 11);
+          border-color: rgb(212 212 216);
+        }
+
+        .forge-item-card--print-friendly .forge-item-header-line1,
+        .forge-item-card--print-friendly .forge-item-section-attributes > p:first-child,
+        .forge-item-card--print-friendly .forge-item-section-attack > p:first-child,
+        .forge-item-card--print-friendly .forge-item-section-defence > p:first-child {
+          color: rgb(82 82 91);
+        }
+
+        .forge-item-card--print-friendly .forge-item-header-line2,
+        .forge-item-card--print-friendly .forge-attack-line-label,
+        .forge-item-card--print-friendly .forge-attack-line-text,
+        .forge-item-card--print-friendly .forge-item-section-attributes p,
+        .forge-item-card--print-friendly .forge-item-section-attributes li,
+        .forge-item-card--print-friendly .forge-item-section-defence p,
+        .forge-item-card--print-friendly .forge-item-section-defence li,
+        .forge-item-card--print-friendly .forge-item-section-custom {
+          color: rgb(9 9 11);
+        }
+
+        .forge-item-card--print-friendly .forge-item-image-wrap,
+        .forge-item-card--print-friendly .forge-item-section-attributes,
+        .forge-item-card--print-friendly .forge-item-section-attack,
+        .forge-item-card--print-friendly .forge-item-section-defence {
+          background: rgb(250 250 250);
+          border-color: rgb(212 212 216);
+        }
+
+        .forge-item-card--print-friendly .forge-item-image {
+          background: rgb(250 250 250);
         }
 
         .forge-item-header {
@@ -1394,6 +1452,51 @@ export function ForgePrintMode({ campaignId }: Props) {
             line-height: 1rem !important;
             -webkit-line-clamp: unset !important;
             overflow: visible !important;
+          }
+
+          .forge-item-card.forge-item-card--print-friendly,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-image-wrap,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-attributes,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-attack,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-defence {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          .forge-item-card.forge-item-card--print-friendly {
+            background: rgb(255 255 255) !important;
+            color: rgb(9 9 11) !important;
+            border-color: rgb(212 212 216) !important;
+          }
+
+          .forge-item-card.forge-item-card--print-friendly .forge-item-image-wrap,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-attributes,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-attack,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-defence {
+            background: rgb(250 250 250) !important;
+            border-color: rgb(212 212 216) !important;
+          }
+
+          .forge-item-card.forge-item-card--print-friendly .forge-item-image {
+            background: rgb(250 250 250) !important;
+          }
+
+          .forge-item-card.forge-item-card--print-friendly .forge-item-header-line1,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-attributes > p:first-child,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-attack > p:first-child,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-defence > p:first-child {
+            color: rgb(82 82 91) !important;
+          }
+
+          .forge-item-card.forge-item-card--print-friendly .forge-item-header-line2,
+          .forge-item-card.forge-item-card--print-friendly .forge-attack-line-label,
+          .forge-item-card.forge-item-card--print-friendly .forge-attack-line-text,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-attributes p,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-attributes li,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-defence p,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-defence li,
+          .forge-item-card.forge-item-card--print-friendly .forge-item-section-custom {
+            color: rgb(9 9 11) !important;
           }
         }
       `}</style>

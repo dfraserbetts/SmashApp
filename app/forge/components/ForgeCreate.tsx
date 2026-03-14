@@ -427,6 +427,13 @@ type GlobalAttributeModifierForm = {
   amount: number;
 };
 
+const ITEM_MODIFIER_STAT_OPTIONS = [
+  'Armor Skill',
+  'Weapon Skill',
+  'Willpower',
+  'Dodge',
+] as const;
+
 type ForgeFormValues = {
   // Core
   name: string;
@@ -834,6 +841,74 @@ function calculateRawSpentFp(
     return 0;
   }
 
+  function findItemModifierCost(
+    rows: ForgeCostRow[],
+    attributeName: string,
+    magnitude: number,
+  ): number {
+    const baseExact = findCostValue(
+      rows,
+      'ItemModifiers',
+      attributeName,
+      undefined,
+      magnitude,
+      0,
+    );
+    if (baseExact) return baseExact;
+
+    const basePerPoint = findCostValue(
+      rows,
+      'ItemModifiers',
+      attributeName,
+      undefined,
+      0,
+    );
+    if (basePerPoint) return basePerPoint * magnitude;
+
+    // Backward-compatible fallback for any rows saved before item-location costs were flattened.
+    const legacyExactA = findCostValue(
+      rows,
+      'ItemModifiers',
+      attributeName,
+      String(values.itemLocation ?? '').trim(),
+      magnitude,
+      0,
+    );
+    if (legacyExactA) return legacyExactA;
+
+    const legacyExactB = findCostValue(
+      rows,
+      'ItemModifiers',
+      String(values.itemLocation ?? '').trim(),
+      attributeName,
+      magnitude,
+      0,
+    );
+    if (legacyExactB) return legacyExactB;
+
+    const legacyPerPointA = findCostValue(
+      rows,
+      'ItemModifiers',
+      attributeName,
+      String(values.itemLocation ?? '').trim(),
+      undefined,
+      0,
+    );
+    if (legacyPerPointA) return legacyPerPointA * magnitude;
+
+    const legacyPerPointB = findCostValue(
+      rows,
+      'ItemModifiers',
+      String(values.itemLocation ?? '').trim(),
+      attributeName,
+      undefined,
+      0,
+    );
+    if (legacyPerPointB) return legacyPerPointB * magnitude;
+
+    return 0;
+  }
+
   // Global attribute modifiers apply to all types
   if (typeLabel && Array.isArray(values.globalAttributeModifiers)) {
     for (const mod of values.globalAttributeModifiers) {
@@ -859,10 +934,27 @@ function calculateRawSpentFp(
         continue;
       }
 
+      const normalizedAttributeName = String(attributeName).trim();
+      const itemLocation = String(values.itemLocation ?? '').trim();
+      if (
+        type === 'ITEM' &&
+        itemLocation &&
+        ITEM_MODIFIER_STAT_OPTIONS.includes(
+          normalizedAttributeName as (typeof ITEM_MODIFIER_STAT_OPTIONS)[number],
+        )
+      ) {
+        otherCost += findItemModifierCost(
+          costRows,
+          normalizedAttributeName,
+          magnitude,
+        );
+        continue;
+      }
+
       otherCost += findGlobalAttributeCost(
         costRows,
         typeLabel,
-        String(attributeName),
+        normalizedAttributeName,
         magnitude,
       );
     }
@@ -1645,6 +1737,10 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     useState<string>('Attack');
   const [globalAttributeAmount, setGlobalAttributeAmount] =
     useState<number>(1);
+  const [itemModifierSelection, setItemModifierSelection] =
+    useState<string>(ITEM_MODIFIER_STAT_OPTIONS[0]);
+  const [itemModifierAmount, setItemModifierAmount] =
+    useState<number>(1);
   const [mythicLbTemplates, setMythicLbTemplates] = useState<
     MythicLimitBreakTemplateRow[]
   >([]);
@@ -2228,6 +2324,7 @@ function handleResetForge() {
 
   const selectedType = watch('type');
   const selectedRarity = watch('rarity');
+  const hasSelectedRarity = ITEM_RARITIES.includes(selectedRarity as ItemRarity);
   const isWeapon = selectedType === 'WEAPON';
   const isArmor = selectedType === 'ARMOR';
   const isShield = selectedType === 'SHIELD';
@@ -2376,6 +2473,9 @@ function handleResetForge() {
   const globalAttributeModifiers =
     (watch('globalAttributeModifiers') as GlobalAttributeModifierForm[] | undefined) ??
     [];
+  const itemModifierEntries = globalAttributeModifiers.filter((entry) =>
+    ITEM_MODIFIER_STAT_OPTIONS.includes(entry.attribute as (typeof ITEM_MODIFIER_STAT_OPTIONS)[number]),
+  );
 
   // AoE shape change cleanup — prevent stale geometry from sticking around
   useEffect(() => {
@@ -2611,6 +2711,20 @@ function handleResetForge() {
       return 1;
     });
   }, [attributeNames]);
+
+  useEffect(() => {
+    setItemModifierSelection((current) => {
+      if (ITEM_MODIFIER_STAT_OPTIONS.includes(current as (typeof ITEM_MODIFIER_STAT_OPTIONS)[number])) {
+        return current;
+      }
+      return ITEM_MODIFIER_STAT_OPTIONS[0];
+    });
+
+    setItemModifierAmount((current) => {
+      if (current >= 1 && current <= 3) return current;
+      return 1;
+    });
+  }, []);
 
   const auraPhysicalAttrId = armorAttrsFromPicklist.find(
     (a) => a.name === 'Aura (Physical)',
@@ -3791,7 +3905,7 @@ useEffect(() => {
     return (
       <div className="space-y-2">
         <TooltipLabel
-          label="Vulnerability / Resistance / Protection (VRP)"
+          label="Vulnerability, Resistance and Protection"
           tooltip={FORGE_LABEL_TOOLTIPS.vrp}
           className="block"
           textClassName="text-xs font-medium"
@@ -3969,9 +4083,11 @@ useEffect(() => {
       <div className="mt-4 space-y-4 border-t border-zinc-800 pt-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">Attack Details</h2>
-          <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-            Select a size to unlock the rest.
-          </span>
+          {!hasSize && (
+            <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+              Select a size to unlock the rest.
+            </span>
+          )}
         </div>
 
         {/* Size (always visible when type = WEAPON) */}
@@ -5909,140 +6025,144 @@ useEffect(() => {
               )}
             </div>
 
-            {/* Global Attribute Modifiers */}
-            <div className="space-y-1">
-              <TooltipLabel
-                label="Global Attribute Modifiers"
-                tooltip="Applies to all item types and provides a modifier to the wearers chosen Attribute. Each attribute can be set once; adding a new value replaces the old one."
-                textClassName="text-sm font-medium"
-              />
+            {hasSelectedRarity && (
+              <>
+                {/* Global Attribute Modifiers */}
+                <div className="space-y-1">
+                  <TooltipLabel
+                    label="Global Attribute Modifiers"
+                    tooltip="Applies to all item types and provides a modifier to the wearers chosen Attribute. Each attribute can be set once; adding a new value replaces the old one."
+                    textClassName="text-sm font-medium"
+                  />
 
-              {attributeNames.length > 0 ? (
-                <>
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
-                    <select
-                      className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={globalAttributeSelection}
-                      onChange={(e) =>
-                        setGlobalAttributeSelection(e.target.value)
-                      }
-                    >
-                      {attributeNames.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
+                  {attributeNames.length > 0 ? (
+                    <>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                        <select
+                          className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          value={globalAttributeSelection}
+                          onChange={(e) =>
+                            setGlobalAttributeSelection(e.target.value)
+                          }
+                        >
+                          {attributeNames.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
 
-                    <select
-                      className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      value={globalAttributeAmount}
-                      onChange={(e) =>
-                        setGlobalAttributeAmount(
-                          Number(e.target.value) || 1,
-                        )
-                      }
-                    >
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <option key={n} value={n}>
-                          +{n}
-                        </option>
-                      ))}
-                    </select>
+                        <select
+                          className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          value={globalAttributeAmount}
+                          onChange={(e) =>
+                            setGlobalAttributeAmount(
+                              Number(e.target.value) || 1,
+                            )
+                          }
+                        >
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <option key={n} value={n}>
+                              +{n}
+                            </option>
+                          ))}
+                        </select>
 
-                    <button
-                      type="button"
-                      className="inline-flex items-center rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-700"
-                      onClick={() => {
-                        if (!globalAttributeSelection) return;
-                        if (
-                          globalAttributeAmount < 1 ||
-                          globalAttributeAmount > 5
-                        ) {
-                          return;
-                        }
-
-                        const next: GlobalAttributeModifierForm[] = [
-                          ...globalAttributeModifiers.filter(
-                            (entry) =>
-                              entry.attribute !== globalAttributeSelection,
-                          ),
-                          {
-                            attribute: globalAttributeSelection,
-                            amount: globalAttributeAmount,
-                          },
-                        ];
-
-                        setValue(
-                          'globalAttributeModifiers',
-                          next as any,
-                          { shouldDirty: true },
-                        );
-                      }}
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  {globalAttributeModifiers.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-                      {globalAttributeModifiers.map((entry, idx) => (
                         <button
-                          key={`${entry.attribute}-${idx}`}
                           type="button"
+                          className="inline-flex items-center rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-700"
                           onClick={() => {
-                            const next =
-                              globalAttributeModifiers.filter(
-                                (_, i) => i !== idx,
-                              );
+                            if (!globalAttributeSelection) return;
+                            if (
+                              globalAttributeAmount < 1 ||
+                              globalAttributeAmount > 5
+                            ) {
+                              return;
+                            }
+
+                            const next: GlobalAttributeModifierForm[] = [
+                              ...globalAttributeModifiers.filter(
+                                (entry) =>
+                                  entry.attribute !== globalAttributeSelection,
+                              ),
+                              {
+                                attribute: globalAttributeSelection,
+                                amount: globalAttributeAmount,
+                              },
+                            ];
+
                             setValue(
                               'globalAttributeModifiers',
                               next as any,
                               { shouldDirty: true },
                             );
                           }}
-                          className="px-2 py-1 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-red-400 hover:text-red-300"
                         >
-                          {entry.attribute} +{entry.amount}
+                          Add
                         </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-[11px] text-zinc-500">
-                  No attribute cost entries available.
-                </p>
-              )}
-            </div>
+                      </div>
 
-            {/* Item Type */}
-            <div className="space-y-1">
-              <TooltipLabel
-                label="Item Type"
-                tooltip={FORGE_LABEL_TOOLTIPS.itemType}
-                className="block"
-                textClassName="text-sm font-medium"
-              />
-              <select
-                className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                {...getInlineTooltipProps('Item Type', selectedItemTypeTooltip)}
-                {...register('type', {
-                  required: 'Item Type is required',
-                })}
-              >
-                {ITEM_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-              {errors.type && (
-                <p className="text-xs text-red-400">
-                  {errors.type.message as string}
-                </p>
-              )}
-            </div>
+                      {globalAttributeModifiers.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                          {globalAttributeModifiers.map((entry, idx) => (
+                            <button
+                              key={`${entry.attribute}-${idx}`}
+                              type="button"
+                              onClick={() => {
+                                const next =
+                                  globalAttributeModifiers.filter(
+                                    (_, i) => i !== idx,
+                                  );
+                                setValue(
+                                  'globalAttributeModifiers',
+                                  next as any,
+                                  { shouldDirty: true },
+                                );
+                              }}
+                              className="px-2 py-1 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-red-400 hover:text-red-300"
+                            >
+                              {entry.attribute} +{entry.amount}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-zinc-500">
+                      No attribute cost entries available.
+                    </p>
+                  )}
+                </div>
+
+                {/* Item Type */}
+                <div className="space-y-1">
+                  <TooltipLabel
+                    label="Item Type"
+                    tooltip={FORGE_LABEL_TOOLTIPS.itemType}
+                    className="block"
+                    textClassName="text-sm font-medium"
+                  />
+                  <select
+                    className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    {...getInlineTooltipProps('Item Type', selectedItemTypeTooltip)}
+                    {...register('type', {
+                      required: 'Item Type is required',
+                    })}
+                  >
+                    {ITEM_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.type && (
+                    <p className="text-xs text-red-400">
+                      {errors.type.message as string}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
 
         {/* ATTACK SECTION – WEAPON ONLY (shield uses same helper inside its card) */}
         {isWeapon && renderAttackSection(true)}
@@ -6053,9 +6173,11 @@ useEffect(() => {
           <div className="mt-4 space-y-4 border-t border-zinc-800 pt-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">Armor Details</h2>
-              <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-                Choose a location to unlock armor stats.
-              </span>
+              {!hasArmorLocation && (
+                <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+                  Choose a location to unlock armor stats.
+                </span>
+              )}
             </div>
 
             {/* Armor Location */}
@@ -6097,7 +6219,7 @@ useEffect(() => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <TooltipLabel
-                      label="Physical Protection Value (PPV)"
+                      label="Physical Protection"
                       tooltip={FORGE_LABEL_TOOLTIPS.physicalProtection}
                       className="block"
                       textClassName="text-xs font-medium"
@@ -6137,7 +6259,7 @@ useEffect(() => {
                   </div>
                   <div className="space-y-1">
                     <TooltipLabel
-                      label="Mental Protection Value (MPV)"
+                      label="Mental Protection"
                       tooltip={FORGE_LABEL_TOOLTIPS.mentalProtection}
                       className="block"
                       textClassName="text-xs font-medium"
@@ -6313,7 +6435,7 @@ useEffect(() => {
                 {/* Custom armor attributes */}
                 <div className="space-y-1">
                   <label className="block text-xs font-medium">
-                    Custom Armor Attributes (no cost)
+                    Custom Armor Attributes
                   </label>
                   <textarea
                     rows={2}
@@ -6332,9 +6454,11 @@ useEffect(() => {
           <div className="mt-4 space-y-4 border-t border-zinc-800 pt-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">Shield Details</h2>
-              <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-                Set defence and optional VRP.
-              </span>
+              {!hasSize && (
+                <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+                  Select a size to unlock the rest.
+                </span>
+              )}
             </div>
 
             {/* Size (shared with weapons) */}
@@ -6393,7 +6517,7 @@ useEffect(() => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <TooltipLabel
-                      label="Physical Protection Value (PPV)"
+                      label="Physical Protection"
                       tooltip={FORGE_LABEL_TOOLTIPS.physicalProtection}
                       className="block"
                       textClassName="text-xs font-medium"
@@ -6434,7 +6558,7 @@ useEffect(() => {
 
                   <div className="space-y-1">
                     <TooltipLabel
-                      label="Mental Protection Value (MPV)"
+                      label="Mental Protection"
                       tooltip={FORGE_LABEL_TOOLTIPS.mentalProtection}
                       className="block"
                       textClassName="text-xs font-medium"
@@ -6497,7 +6621,7 @@ useEffect(() => {
                 {/* Custom shield attributes */}
                 <div className="space-y-1">
                   <label className="block text-xs font-medium">
-                    Custom Shield Attributes (no cost)
+                    Custom Shield Attributes
                   </label>
                   <textarea
                     rows={2}
@@ -6516,9 +6640,11 @@ useEffect(() => {
           <div className="mt-4 space-y-4 border-t border-zinc-800 pt-4">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">Item Details</h2>
-              <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-                Set location and optional attributes.
-              </span>
+              {!hasItemLocation && (
+                <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+                  Set location to unlock the rest.
+                </span>
+              )}
             </div>
 
             {/* Item Location */}
@@ -6561,8 +6687,93 @@ useEffect(() => {
             {hasItemLocation && (
               <div className="space-y-4">
                 <div className="space-y-1">
+                  <TooltipLabel
+                    label="Modifiers"
+                    tooltip="Item-only combat modifiers. These save into the same modifier format as Global Attribute Modifiers."
+                    className="block"
+                    textClassName="text-xs font-medium"
+                  />
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                    <select
+                      className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={itemModifierSelection}
+                      onChange={(e) => setItemModifierSelection(e.target.value)}
+                    >
+                      {ITEM_MODIFIER_STAT_OPTIONS.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      value={itemModifierAmount}
+                      onChange={(e) =>
+                        setItemModifierAmount(Number(e.target.value) || 1)
+                      }
+                    >
+                      {[1, 2, 3].map((n) => (
+                        <option key={n} value={n}>
+                          +{n}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      className="inline-flex items-center rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-700"
+                      onClick={() => {
+                        if (!itemModifierSelection) return;
+                        if (itemModifierAmount < 1 || itemModifierAmount > 3) {
+                          return;
+                        }
+
+                        const next: GlobalAttributeModifierForm[] = [
+                          ...globalAttributeModifiers.filter(
+                            (entry) => entry.attribute !== itemModifierSelection,
+                          ),
+                          {
+                            attribute: itemModifierSelection,
+                            amount: itemModifierAmount,
+                          },
+                        ];
+
+                        setValue('globalAttributeModifiers', next as any, {
+                          shouldDirty: true,
+                        });
+                      }}
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {itemModifierEntries.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                      {itemModifierEntries.map((entry, idx) => (
+                        <button
+                          key={`${entry.attribute}-${idx}`}
+                          type="button"
+                          onClick={() => {
+                            const next = globalAttributeModifiers.filter(
+                              (modifier) => modifier.attribute !== entry.attribute,
+                            );
+                            setValue('globalAttributeModifiers', next as any, {
+                              shouldDirty: true,
+                            });
+                          }}
+                          className="px-2 py-1 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-red-400 hover:text-red-300"
+                        >
+                          {entry.attribute} +{entry.amount}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1">
                   <label className="block text-xs font-medium">
-                    Custom Item Attributes (no cost)
+                    Custom Item Attributes
                   </label>
                   <textarea
                     rows={2}

@@ -2,13 +2,90 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
 import { requireUserId } from "../_shared";
 
-const CORE_TRAIT_SEED: Array<{ name: string; effectText: string }> = [
-  { name: "Tough", effectText: "Gain a +1 to defence" },
-  { name: "Dangerous", effectText: "Gain a +1 to attack" },
-  { name: "Smart", effectText: "Gain a +1 to intellect" },
-  { name: "Resilient", effectText: "Gain a +1 to Fortitude" },
-  { name: "Courageous", effectText: "Gain a +1 to bravery" },
-  { name: "Reliable", effectText: "Gain a +1 to support" },
+const CORE_TRAIT_SEED: Array<{
+  name: string;
+  effectText: string;
+  band: "MINOR";
+  physicalThreatWeight: number;
+  mentalThreatWeight: number;
+  survivabilityWeight: number;
+  manipulationWeight: number;
+  synergyWeight: number;
+  mobilityWeight: number;
+  presenceWeight: number;
+}> = [
+  {
+    name: "Tough",
+    effectText: "Gain a +1 to defence",
+    band: "MINOR",
+    physicalThreatWeight: 0,
+    mentalThreatWeight: 0,
+    survivabilityWeight: 0,
+    manipulationWeight: 0,
+    synergyWeight: 0,
+    mobilityWeight: 0,
+    presenceWeight: 0,
+  },
+  {
+    name: "Dangerous",
+    effectText: "Gain a +1 to attack",
+    band: "MINOR",
+    physicalThreatWeight: 0,
+    mentalThreatWeight: 0,
+    survivabilityWeight: 0,
+    manipulationWeight: 0,
+    synergyWeight: 0,
+    mobilityWeight: 0,
+    presenceWeight: 0,
+  },
+  {
+    name: "Smart",
+    effectText: "Gain a +1 to intellect",
+    band: "MINOR",
+    physicalThreatWeight: 0,
+    mentalThreatWeight: 0,
+    survivabilityWeight: 0,
+    manipulationWeight: 0,
+    synergyWeight: 0,
+    mobilityWeight: 0,
+    presenceWeight: 0,
+  },
+  {
+    name: "Resilient",
+    effectText: "Gain a +1 to Fortitude",
+    band: "MINOR",
+    physicalThreatWeight: 0,
+    mentalThreatWeight: 0,
+    survivabilityWeight: 0,
+    manipulationWeight: 0,
+    synergyWeight: 0,
+    mobilityWeight: 0,
+    presenceWeight: 0,
+  },
+  {
+    name: "Courageous",
+    effectText: "Gain a +1 to bravery",
+    band: "MINOR",
+    physicalThreatWeight: 0,
+    mentalThreatWeight: 0,
+    survivabilityWeight: 0,
+    manipulationWeight: 0,
+    synergyWeight: 0,
+    mobilityWeight: 0,
+    presenceWeight: 0,
+  },
+  {
+    name: "Reliable",
+    effectText: "Gain a +1 to support",
+    band: "MINOR",
+    physicalThreatWeight: 0,
+    mentalThreatWeight: 0,
+    survivabilityWeight: 0,
+    manipulationWeight: 0,
+    synergyWeight: 0,
+    mobilityWeight: 0,
+    presenceWeight: 0,
+  },
 ];
 
 async function ensureCoreTraitsSeeded() {
@@ -17,8 +94,7 @@ async function ensureCoreTraitsSeeded() {
 
   await prisma.monsterTraitDefinition.createMany({
     data: CORE_TRAIT_SEED.map((trait) => ({
-      name: trait.name,
-      effectText: trait.effectText,
+      ...trait,
       source: "CORE",
       isReadOnly: true,
       isEnabled: true,
@@ -42,6 +118,14 @@ export async function GET() {
         id: true,
         name: true,
         effectText: true,
+        band: true,
+        physicalThreatWeight: true,
+        mentalThreatWeight: true,
+        survivabilityWeight: true,
+        manipulationWeight: true,
+        synergyWeight: true,
+        mobilityWeight: true,
+        presenceWeight: true,
       },
     });
 
@@ -55,4 +139,3 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to load traits" }, { status: 500 });
   }
 }
-

@@ -12,12 +12,23 @@ type ForgeValueCategory =
   | "DEF_EFFECTS"
   | "DAMAGE_TYPES"
   | "PPV_COSTS"
-  | "MPV_COSTS";
+  | "MPV_COSTS"
+  | "ITEM_MODIFIER_COSTS"
+  | "GLOBAL_ATTRIBUTE_MODIFIER_COSTS";
 
 type AttributePlacement = "ATTACK" | "DEFENCE" | "TRAITS" | "GENERAL";
 type AttackMode = "PHYSICAL" | "MENTAL";
 type StatCostType = "PPV" | "MPV";
 type StatCostTarget = "Armor" | "Shield";
+type ItemModifierCostStat = "Armor Skill" | "Weapon Skill" | "Willpower" | "Dodge";
+type GlobalAttributeCostItemType = "Weapon" | "Armor" | "Shield" | "Item";
+type GlobalAttributeCostStat =
+  | "Attack"
+  | "Defence"
+  | "Fortitude"
+  | "Intellect"
+  | "Support"
+  | "Bravery";
 
 type ValueRow = {
   id: number;
@@ -44,6 +55,28 @@ type ForgeCostEntry = {
   notes: string | null;
 };
 const STAT_COST_LEVELS = Array.from({ length: 5 }, (_unused, index) => index + 1);
+const ITEM_MODIFIER_COST_LEVELS = [1, 2, 3];
+const GLOBAL_ATTRIBUTE_COST_LEVELS = [1, 2, 3, 4, 5];
+const GLOBAL_ATTRIBUTE_COST_ITEM_TYPES: GlobalAttributeCostItemType[] = [
+  "Weapon",
+  "Armor",
+  "Shield",
+  "Item",
+];
+const GLOBAL_ATTRIBUTE_COST_STATS_FALLBACK: GlobalAttributeCostStat[] = [
+  "Attack",
+  "Defence",
+  "Fortitude",
+  "Intellect",
+  "Support",
+  "Bravery",
+];
+const ITEM_MODIFIER_COST_STATS: ItemModifierCostStat[] = [
+  "Armor Skill",
+  "Weapon Skill",
+  "Willpower",
+  "Dodge",
+];
 
 function parseTieredName(name: string): { base: string; tier: number | null } {
   const m = name.trim().match(/^(.*)\s(\d+)$/);
@@ -116,6 +149,18 @@ export default function AdminForgeValuesPage() {
     Record<number, { value: string; notes: string }>
   >({});
   const [savingStatLevel, setSavingStatLevel] = useState<number | null>(null);
+  const [itemModifierCostStat, setItemModifierCostStat] =
+    useState<ItemModifierCostStat>("Armor Skill");
+  const [itemModifierCostEdits, setItemModifierCostEdits] = useState<
+    Record<number, { value: string; notes: string }>
+  >({});
+  const [savingItemModifierLevel, setSavingItemModifierLevel] = useState<number | null>(null);
+  const [globalAttributeCostItemType, setGlobalAttributeCostItemType] =
+    useState<GlobalAttributeCostItemType>("Weapon");
+  const [globalAttributeCostEdits, setGlobalAttributeCostEdits] = useState<
+    Record<number, { value: string; notes: string }>
+  >({});
+  const [savingGlobalAttributeLevel, setSavingGlobalAttributeLevel] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -174,7 +219,11 @@ export default function AdminForgeValuesPage() {
   const isDefEffects = category === "DEF_EFFECTS";
   const isPpvCosts = category === "PPV_COSTS";
   const isMpvCosts = category === "MPV_COSTS";
+  const isItemModifierCosts = category === "ITEM_MODIFIER_COSTS";
+  const isGlobalAttributeModifierCosts = category === "GLOBAL_ATTRIBUTE_MODIFIER_COSTS";
   const isStatCostCategory = isPpvCosts || isMpvCosts;
+  const isStandaloneCostCategory =
+    isStatCostCategory || isItemModifierCosts || isGlobalAttributeModifierCosts;
 
   useEffect(() => {
     if (isPpvCosts) {
@@ -335,7 +384,7 @@ function renderTemplatePreview(
     setErr(null);
     try {
       // 1) Forge values (admin-gated)
-      const valuesEndpoint = isStatCostCategory
+      const valuesEndpoint = isStandaloneCostCategory
         ? null
         : (
         category === "WEAPON_ATTRIBUTES"
@@ -785,9 +834,9 @@ function renderTemplatePreview(
               ? "SanctifiedOptions"
               : category === "ATTACK_EFFECTS"
                 ? "GS_AttackEffects"
-                : category === "DEF_EFFECTS"
-                  ? "GS_DefEffects"
-                  : null;
+              : category === "DEF_EFFECTS"
+                ? "GS_DefEffects"
+                : null;
   }, [category]);
 
   async function loadCostsLive() {
@@ -875,6 +924,34 @@ function renderTemplatePreview(
     }
     return out;
   }, [costs, statCostTarget, statCostType]);
+  const itemModifierCostEntryByLevel = useMemo(() => {
+    const out = new Map<number, ForgeCostEntry>();
+    for (const row of costs) {
+      if (String(row.category ?? "").trim().toLowerCase() !== "itemmodifiers") continue;
+      if (String(row.selector1 ?? "").trim() !== itemModifierCostStat) continue;
+      if (String(row.selector2 ?? "").trim().length > 0) continue;
+
+      const level = Number.parseInt(String(row.selector3 ?? ""), 10);
+      if (!Number.isFinite(level) || level < 1 || level > 3) continue;
+      out.set(level, row);
+    }
+    return out;
+  }, [costs, itemModifierCostStat]);
+  const globalAttributeCostEntryByLevel = useMemo(() => {
+    const out = new Map<number, ForgeCostEntry>();
+    for (const row of costs) {
+      if (String(row.category ?? "").trim().toLowerCase() !== "attribute") continue;
+      if (String(row.selector1 ?? "").trim() !== globalAttributeCostItemType) continue;
+      const stat = String(row.selector2 ?? "").trim();
+      if (!GLOBAL_ATTRIBUTE_COST_STATS_FALLBACK.includes(stat as GlobalAttributeCostStat)) continue;
+      const level = Number.parseInt(String(row.selector3 ?? ""), 10);
+      if (!Number.isFinite(level) || level < 1 || level > 5) continue;
+      if (!out.has(level)) {
+        out.set(level, row);
+      }
+    }
+    return out;
+  }, [costs, globalAttributeCostItemType]);
 
   useEffect(() => {
     const next: Record<number, { value: string; notes: string }> = {};
@@ -887,6 +964,28 @@ function renderTemplatePreview(
     }
     setStatCostEdits(next);
   }, [statCostEntryByLevel]);
+  useEffect(() => {
+    const next: Record<number, { value: string; notes: string }> = {};
+    for (const level of ITEM_MODIFIER_COST_LEVELS) {
+      const existing = itemModifierCostEntryByLevel.get(level) ?? null;
+      next[level] = {
+        value: existing ? String(existing.value) : "",
+        notes: existing?.notes ?? "",
+      };
+    }
+    setItemModifierCostEdits(next);
+  }, [itemModifierCostEntryByLevel]);
+  useEffect(() => {
+    const next: Record<number, { value: string; notes: string }> = {};
+    for (const level of GLOBAL_ATTRIBUTE_COST_LEVELS) {
+      const existing = globalAttributeCostEntryByLevel.get(level) ?? null;
+      next[level] = {
+        value: existing ? String(existing.value) : "",
+        notes: existing?.notes ?? "",
+      };
+    }
+    setGlobalAttributeCostEdits(next);
+  }, [globalAttributeCostEntryByLevel]);
 
   async function saveStatCost(level: number) {
     const edit = statCostEdits[level] ?? { value: "", notes: "" };
@@ -955,6 +1054,147 @@ function renderTemplatePreview(
     }
   }
 
+  async function saveItemModifierCost(level: number) {
+    const edit = itemModifierCostEdits[level] ?? { value: "", notes: "" };
+    const parsedValue = Number.parseFloat(edit.value);
+    if (!Number.isFinite(parsedValue)) {
+      setErr("Cost must be a number.");
+      return;
+    }
+
+    setErr(null);
+    setSavingItemModifierLevel(level);
+
+    try {
+      const existing = itemModifierCostEntryByLevel.get(level) ?? null;
+
+      if (existing) {
+        const res = await fetch("/api/admin/forge-costs", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: existing.id,
+            value: parsedValue,
+            notes: edit.notes.trim() || null,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error ?? "Update failed");
+
+        const savedRow = data?.row as ForgeCostEntry | undefined;
+        if (savedRow?.id) {
+          setCosts((prev) => prev.map((row) => (row.id === savedRow.id ? savedRow : row)));
+        }
+      } else {
+        const res = await fetch("/api/admin/forge-costs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            category: "ItemModifiers",
+            selector1: itemModifierCostStat,
+            selector3: String(level),
+            value: parsedValue,
+            notes: edit.notes.trim() || null,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error ?? "Create failed");
+
+        const savedRow = data?.row as ForgeCostEntry | undefined;
+        if (savedRow?.id) {
+          setCosts((prev) => {
+            if (prev.some((row) => row.id === savedRow.id)) {
+              return prev.map((row) => (row.id === savedRow.id ? savedRow : row));
+            }
+            return [savedRow, ...prev];
+          });
+        }
+      }
+
+      setFlash(`Saved ${itemModifierCostStat} value ${level}.`);
+      setTimeout(() => setFlash(null), 2000);
+    } catch (e: any) {
+      setErr(String(e?.message ?? "Save failed"));
+    } finally {
+      setSavingItemModifierLevel(null);
+    }
+  }
+
+  async function saveGlobalAttributeCost(level: number) {
+    const edit = globalAttributeCostEdits[level] ?? { value: "", notes: "" };
+    const parsedValue = Number.parseFloat(edit.value);
+    if (!Number.isFinite(parsedValue)) {
+      setErr("Cost must be a number.");
+      return;
+    }
+
+    setErr(null);
+    setSavingGlobalAttributeLevel(level);
+
+    try {
+      const nextCosts = [...costs];
+
+      for (const stat of GLOBAL_ATTRIBUTE_COST_STATS_FALLBACK) {
+        const existing =
+          costs.find(
+            (row) =>
+              String(row.category ?? "").trim().toLowerCase() === "attribute" &&
+              String(row.selector1 ?? "").trim() === globalAttributeCostItemType &&
+              String(row.selector2 ?? "").trim() === stat &&
+              String(row.selector3 ?? "").trim() === String(level),
+          ) ?? null;
+
+        if (existing) {
+          const res = await fetch("/api/admin/forge-costs", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: existing.id,
+              value: parsedValue,
+              notes: edit.notes.trim() || null,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.error ?? "Update failed");
+
+          const savedRow = data?.row as ForgeCostEntry | undefined;
+          if (savedRow?.id) {
+            const idx = nextCosts.findIndex((row) => row.id === savedRow.id);
+            if (idx >= 0) nextCosts[idx] = savedRow;
+          }
+        } else {
+          const res = await fetch("/api/admin/forge-costs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              category: "Attribute",
+              selector1: globalAttributeCostItemType,
+              selector2: stat,
+              selector3: String(level),
+              value: parsedValue,
+              notes: edit.notes.trim() || null,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data?.error ?? "Create failed");
+
+          const savedRow = data?.row as ForgeCostEntry | undefined;
+          if (savedRow?.id) {
+            nextCosts.unshift(savedRow);
+          }
+        }
+      }
+
+      setCosts(nextCosts);
+      setFlash(`Saved ${globalAttributeCostItemType} global attribute cost for magnitude ${level}.`);
+      setTimeout(() => setFlash(null), 2000);
+    } catch (e: any) {
+      setErr(String(e?.message ?? "Save failed"));
+    } finally {
+      setSavingGlobalAttributeLevel(null);
+    }
+  }
+
 
   return (
     <div className="space-y-6">
@@ -965,7 +1205,8 @@ function renderTemplatePreview(
         <div>
           <label className="text-sm">Category</label>
           <select
-            className="mt-1 rounded border bg-transparent p-2 text-sm"
+            className="mt-1 rounded border border-zinc-700 bg-zinc-950 p-2 text-sm text-zinc-100"
+            style={{ colorScheme: "dark" }}
             value={category}
             onChange={(e) => setCategory(e.target.value as ForgeValueCategory)}
           >
@@ -979,6 +1220,8 @@ function renderTemplatePreview(
           <option value="DAMAGE_TYPES">Damage Types</option>
           <option value="PPV_COSTS">PPV Costs</option>
           <option value="MPV_COSTS">MPV Costs</option>
+          <option value="ITEM_MODIFIER_COSTS">Item Modifiers</option>
+          <option value="GLOBAL_ATTRIBUTE_MODIFIER_COSTS">Global Attribute Modifiers</option>
           </select>
         </div>
 
@@ -998,8 +1241,8 @@ function renderTemplatePreview(
           className="mt-1 w-full rounded border bg-transparent p-2"
           value={newValueName}
           onChange={(e) => setNewValueName(e.target.value)}
-          placeholder={isStatCostCategory ? "Not used for stat costs" : "e.g. Brutal 1"}
-          disabled={isStatCostCategory}
+          placeholder={isStandaloneCostCategory ? "Not used for standalone costs" : "e.g. Brutal 1"}
+          disabled={isStandaloneCostCategory}
         />
       </div>
       {isDamageTypes && (
@@ -1019,8 +1262,8 @@ function renderTemplatePreview(
       <button
         className="rounded border px-4 py-2 text-sm"
         onClick={createValue}
-        disabled={isStatCostCategory || !newValueName.trim() || creatingValue}
-        title={isStatCostCategory ? "Use the stat cost editor" : !newValueName.trim() ? "Enter a name" : "Create"}
+        disabled={isStandaloneCostCategory || !newValueName.trim() || creatingValue}
+        title={isStandaloneCostCategory ? "Use the cost editor below" : !newValueName.trim() ? "Enter a name" : "Create"}
       >
         {creatingValue ? "Adding…" : "Add"}
       </button>
@@ -1914,6 +2157,188 @@ function renderTemplatePreview(
                             disabled={isSaving || edit.value.trim() === ""}
                             onClick={() => void saveStatCost(level)}
                             title={edit.value.trim() === "" ? "Enter a cost to save" : "Save"}
+                          >
+                            {isSaving ? "Saving..." : existing ? "Save" : "Create"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        {isItemModifierCosts && (
+          <div className="rounded-lg border lg:col-span-2">
+            <div className="border-b p-3 text-sm font-medium">
+              Item Modifier Costs
+            </div>
+
+            <div className="space-y-3 p-3">
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className="text-xs opacity-70">Modifier (selector1)</label>
+                  <select
+                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
+                    value={itemModifierCostStat}
+                    onChange={(e) => setItemModifierCostStat(e.target.value as ItemModifierCostStat)}
+                  >
+                    {ITEM_MODIFIER_COST_STATS.map((stat) => (
+                      <option key={stat} value={stat}>
+                        {stat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="text-xs opacity-70">
+                These are base modifier costs. Item location is applied later through the Forge item
+                location multiplier, not stored as a separate cost row here.
+              </div>
+
+              <table className="w-full text-sm">
+                <thead className="text-xs opacity-70">
+                  <tr>
+                    <th className="p-2 text-left">Value (selector3)</th>
+                    <th className="p-2 text-left">Cost</th>
+                    <th className="p-2 text-left">Notes</th>
+                    <th className="p-2 text-left"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {ITEM_MODIFIER_COST_LEVELS.map((level) => {
+                    const existing = itemModifierCostEntryByLevel.get(level) ?? null;
+                    const edit = itemModifierCostEdits[level] ?? { value: "", notes: "" };
+                    const isSaving = savingItemModifierLevel === level;
+
+                    return (
+                      <tr key={`${itemModifierCostStat}-${level}-standalone`}>
+                        <td className="p-2">{level}</td>
+                        <td className="p-2">
+                          <input
+                            className="w-28 rounded border bg-transparent p-2 text-sm"
+                            value={edit.value}
+                            onChange={(e) =>
+                              setItemModifierCostEdits((prev) => ({
+                                ...prev,
+                                [level]: { ...edit, value: e.target.value },
+                              }))
+                            }
+                            placeholder={existing ? String(existing.value) : ""}
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            className="w-full rounded border bg-transparent p-2 text-sm"
+                            value={edit.notes}
+                            onChange={(e) =>
+                              setItemModifierCostEdits((prev) => ({
+                                ...prev,
+                                [level]: { ...edit, notes: e.target.value },
+                              }))
+                            }
+                            placeholder="optional"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <button
+                            className="rounded border px-3 py-2 text-sm"
+                            disabled={isSaving || edit.value.trim() === ""}
+                            onClick={() => void saveItemModifierCost(level)}
+                          >
+                            {existing ? "Save" : "Create"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        {isGlobalAttributeModifierCosts && (
+          <div className="rounded-lg border lg:col-span-2">
+            <div className="border-b p-3 text-sm font-medium">
+              Global Attribute Modifier Costs
+            </div>
+
+            <div className="space-y-3 p-3">
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className="text-xs opacity-70">Item Type (selector1)</label>
+                  <select
+                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
+                    value={globalAttributeCostItemType}
+                    onChange={(e) =>
+                      setGlobalAttributeCostItemType(e.target.value as GlobalAttributeCostItemType)
+                    }
+                  >
+                    {GLOBAL_ATTRIBUTE_COST_ITEM_TYPES.map((itemType) => (
+                      <option key={itemType} value={itemType}>
+                        {itemType}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="text-xs opacity-70">
+                Saving a magnitude here applies the same exact cost to all six matching attributes
+                for the selected item type.
+              </div>
+
+              <table className="w-full text-sm">
+                <thead className="text-xs opacity-70">
+                  <tr>
+                    <th className="p-2 text-left">Magnitude (selector3)</th>
+                    <th className="p-2 text-left">Cost</th>
+                    <th className="p-2 text-left">Notes</th>
+                    <th className="p-2 text-left"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {GLOBAL_ATTRIBUTE_COST_LEVELS.map((level) => {
+                    const existing = globalAttributeCostEntryByLevel.get(level) ?? null;
+                    const edit = globalAttributeCostEdits[level] ?? { value: "", notes: "" };
+                    const isSaving = savingGlobalAttributeLevel === level;
+
+                    return (
+                      <tr key={`${globalAttributeCostItemType}-${level}`}>
+                        <td className="p-2">{level}</td>
+                        <td className="p-2">
+                          <input
+                            className="w-28 rounded border bg-transparent p-2 text-sm"
+                            value={edit.value}
+                            onChange={(e) =>
+                              setGlobalAttributeCostEdits((prev) => ({
+                                ...prev,
+                                [level]: { ...edit, value: e.target.value },
+                              }))
+                            }
+                            placeholder={existing ? String(existing.value) : ""}
+                          />
+                        </td>
+                        <td className="p-2">
+                          <input
+                            className="w-full rounded border bg-transparent p-2 text-sm"
+                            value={edit.notes}
+                            onChange={(e) =>
+                              setGlobalAttributeCostEdits((prev) => ({
+                                ...prev,
+                                [level]: { ...edit, notes: e.target.value },
+                              }))
+                            }
+                            placeholder="optional"
+                          />
+                        </td>
+                        <td className="p-2">
+                          <button
+                            className="rounded border px-3 py-2 text-sm"
+                            disabled={isSaving || edit.value.trim() === ""}
+                            onClick={() => void saveGlobalAttributeCost(level)}
                           >
                             {isSaving ? "Saving..." : existing ? "Save" : "Create"}
                           </button>

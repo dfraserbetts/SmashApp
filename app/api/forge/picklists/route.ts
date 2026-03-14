@@ -2,6 +2,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../prisma/client'; // adjust path if you move client.ts
 
+type ForgeCostPicklistRow = {
+  id: number;
+  category: string;
+  selector1: string;
+  selector2: string | null;
+  selector3: string | null;
+  value: number;
+  notes: string | null;
+};
+
 export async function GET() {
   try {
     const [
@@ -32,7 +42,17 @@ export async function GET() {
       prisma.armorAttribute.findMany({ orderBy: { name: 'asc' } }),
       prisma.shieldAttribute.findMany({ orderBy: { name: 'asc' } }),
       prisma.forgeConfigEntry.findMany(),
-      prisma.forgeCostEntry.findMany(),
+      prisma.$queryRaw<ForgeCostPicklistRow[]>`
+        SELECT
+          "id",
+          "category"::text AS "category",
+          "selector1",
+          "selector2",
+          "selector3",
+          "value",
+          "notes"
+        FROM "ForgeCostEntry"
+      `,
     ]);
 
     const damageTypeModeById = new Map<number, 'PHYSICAL' | 'MENTAL'>();

@@ -35,6 +35,7 @@ import {
 } from "@/lib/summoning/attributes";
 import {
   getHighestItemModifiers,
+  getItemLinePlacementCounts,
   getProtectionTotalsFromItems,
   isTwoHanded,
   isValidArmorItemForSlot,
@@ -43,7 +44,12 @@ import {
   type SummoningEquipmentItem,
 } from "@/lib/summoning/equipment";
 import { renderAttackActionLines } from "@/lib/summoning/render";
-import { MonsterBlockCard, type WeaponProjection } from "@/app/summoning-circle/components/MonsterBlockCard";
+import {
+  MonsterBlockCard,
+  buildMonsterTraitRenderContext,
+  renderTraitTemplate,
+  type WeaponProjection,
+} from "@/app/summoning-circle/components/MonsterBlockCard";
 import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
 import { useProtectionTuning } from "@/app/summoning-circle/components/useProtectionTuning";
 import {
@@ -52,11 +58,16 @@ import {
   getLimitBreakThresholdPercent,
 } from "@/lib/limitBreakThreshold";
 import {
+  computeTraitAxisBonuses,
   computeMonsterOutcomes,
+  getEquipmentModifierBudgetShare,
+  getEquipmentModifierPressureMultiplier,
   type MonsterCalculatorArchetype,
+  type RadarAxes,
+  type TraitAxisWeightDefinition,
   type WeaponAttackSource,
 } from "@/lib/calculators/monsterOutcomeCalculator";
-import { calculatorConfig } from "@/lib/calculators/calculatorConfig";
+import { calculatorConfig, type LevelCurvePoint } from "@/lib/calculators/calculatorConfig";
 import { MonsterCalculatorPanel } from "@/app/summoning-circle/components/MonsterCalculatorPanel";
 
 type Props = { campaignId: string };
@@ -70,7 +81,7 @@ type EditableMonster = MonsterUpsertInput & {
 
 type Picklists = {
   damageTypes: Array<{ id: number; name: string; attackMode?: "PHYSICAL" | "MENTAL" }>;
-  attackEffects: Array<{ id: number; name: string; damageTypeIds?: number[] }>;
+  attackEffects: Array<{ id: number; name: string; tooltip?: string | null; damageTypeIds?: number[] }>;
 };
 
 type NaturalAttackDamageField = "meleeDamageTypeIds" | "rangedDamageTypeIds" | "aoeDamageTypeIds";
@@ -167,7 +178,7 @@ const INTENTIONS: MonsterPowerIntentionType[] = [
   "SUMMON",
   "TRANSFORMATION",
 ];
-type PowerRangeCategory = "MELEE" | "RANGED" | "AOE";
+type PowerRangeCategory = "SELF" | "MELEE" | "RANGED" | "AOE";
 type PowerRangeAoeShape = "SPHERE" | "CONE" | "LINE";
 type PowerRangeState = {
   category: PowerRangeCategory | null;
@@ -194,7 +205,7 @@ type ImageDragState = {
   frameHeight: number;
 };
 
-const POWER_RANGE_CATEGORIES: PowerRangeCategory[] = ["MELEE", "RANGED", "AOE"];
+const POWER_RANGE_CATEGORIES: PowerRangeCategory[] = ["SELF", "MELEE", "RANGED", "AOE"];
 const POWER_RANGE_TARGET_OPTIONS = [1, 2, 3, 4, 5] as const;
 const POWER_RANGE_RANGED_DISTANCE_OPTIONS = [30, 60, 120, 200] as const;
 const POWER_RANGE_AOE_CENTER_RANGE_OPTIONS = [0, 30, 60, 120, 200] as const;
@@ -204,6 +215,101 @@ const POWER_RANGE_AOE_LINE_WIDTH_OPTIONS = [5, 10, 15, 20] as const;
 const POWER_RANGE_AOE_LINE_LENGTH_OPTIONS = [30, 60, 90, 120] as const;
 const POWER_RANGE_AOE_SHAPES: PowerRangeAoeShape[] = ["SPHERE", "CONE", "LINE"];
 const ATTACK_MODES = ["PHYSICAL", "MENTAL"] as const;
+const ATTACK_MODE_LABELS: Record<(typeof ATTACK_MODES)[number], string> = {
+  PHYSICAL: "Physical",
+  MENTAL: "Mental",
+};
+const ATTACK_MODE_TOOLTIPS: Record<(typeof ATTACK_MODES)[number], string> = {
+  PHYSICAL:
+    "Focuses the physical attributes of the target. Physical effects usually connect to bodily threat, physical damage types, and physical defence responses.",
+  MENTAL:
+    "Focuses the mental attributes of the target. Mental effects usually connect to mental damage types, mental pressure, and mental defence responses.",
+};
+const LIMIT_BREAK_TIER_LABELS: Record<LimitBreakTier, string> = {
+  PUSH: "Push",
+  BREAK: "Break",
+  TRANSCEND: "Transcend",
+};
+const LIMIT_BREAK_TIER_TOOLTIPS: Record<LimitBreakTier, string> = {
+  PUSH:
+    "The lightest custom limit break tier. Push represents an early breakthrough with a notable cost, but a lower cost than the higher tiers.",
+  BREAK:
+    "A stronger custom limit break tier. Break represents a more dramatic breakthrough with a steeper cost and a stronger payoff than Push.",
+  TRANSCEND:
+    "The highest custom limit break tier. Transcend represents the most extreme breakthrough state, with exceptional payoff at a brutal cost that will often badly injure the user to perform.",
+};
+const CORE_ATTRIBUTE_OPTION_TOOLTIPS: Record<CoreAttribute, string> = {
+  ATTACK: "Uses Attack as the attribute for this custom limit break.",
+  DEFENCE: "Uses Defence as the attribute for this custom limit break.",
+  FORTITUDE: "Uses Fortitude as the attribute for this custom limit break.",
+  INTELLECT: "Uses Intellect as the attribute for this custom limit break.",
+  SUPPORT: "Uses Support as the attribute for this custom limit break.",
+  BRAVERY: "Uses Bravery as the attribute for this custom limit break.",
+};
+const NATURAL_ATTACK_GS_ATTRITION_PRIMARY_SHARE = 0.08;
+const NATURAL_ATTACK_GS_ATTRITION_PRESENCE_SHARE = 0.03;
+const NATURAL_ATTACK_GS_PRESSURE_PRIMARY_SHARE = 0.12;
+const NATURAL_ATTACK_GS_PRESSURE_PRESENCE_SHARE = 0.05;
+const NATURAL_ATTACK_GS_CONTROL_PRIMARY_SHARE = 0.18;
+const NATURAL_ATTACK_GS_CONTROL_PRESENCE_SHARE = 0.08;
+const NATURAL_ATTACK_GS_CONTROL_EXTRA_THREAT_SHARE = 0.06;
+const NATURAL_ATTACK_GS_MENTAL_ATTRITION_EFFECTS = new Set(["horrified"]);
+const NATURAL_ATTACK_GS_PHYSICAL_ATTRITION_EFFECTS = new Set([
+  "immolate",
+  "poisoned",
+  "laceration",
+]);
+const NATURAL_ATTACK_GS_PRESSURE_EFFECTS = new Set([
+  "shaken",
+  "overwhelmed",
+  "disease",
+  "smite",
+]);
+const NATURAL_ATTACK_GS_CONTROL_EFFECTS = new Set([
+  "freeze",
+  "surge",
+  "penetrate",
+  "sundered",
+]);
+const NATURAL_ATTACK_GS_CONTROL_PHYSICAL_THREAT_EFFECTS = new Set([
+  "surge",
+  "penetrate",
+  "sundered",
+]);
+const NATURAL_ATTACK_RANGE_SCALAR_BY_DISTANCE: Record<number, number> = {
+  0: 1,
+  30: 1.05,
+  60: 1.1,
+  120: 1.18,
+  200: 1.26,
+};
+const NATURAL_ATTACK_RANGE_MOBILITY_BONUS_BY_DISTANCE: Record<number, number> = {
+  0: 0,
+  30: 0.01,
+  60: 0.02,
+  120: 0.03,
+  200: 0.04,
+};
+const NATURAL_ATTACK_RANGED_THREAT_SHARE_BY_DISTANCE: Record<number, number> = {
+  30: 0.03,
+  60: 0.05,
+  120: 0.07,
+  200: 0.09,
+};
+const NATURAL_ATTACK_RANGED_PRESENCE_SHARE_BY_DISTANCE: Record<number, number> = {
+  30: 0.02,
+  60: 0.04,
+  120: 0.06,
+  200: 0.08,
+};
+const NATURAL_ATTACK_RANGE_MOBILITY_CAP_SHARE = 0.2;
+const NATURAL_ATTACK_RANGE_PRESENCE_CAP_SHARE = 0.5;
+const NATURAL_ATTACK_RANGE_PHYSICAL_THREAT_CAP_SHARE = 0.7;
+const NATURAL_ATTACK_RANGE_MENTAL_THREAT_CAP_SHARE = 0.7;
+
+function getAttackModeKey(value: unknown): (typeof ATTACK_MODES)[number] {
+  return String(value ?? "").toUpperCase() === "MENTAL" ? "MENTAL" : "PHYSICAL";
+}
 
 const CONTROL_MODES = [
   "Force move",
@@ -688,6 +794,8 @@ function defaultMonster(): EditableMonster {
     mentalPerseveranceMax: 10,
     physicalProtection: 0,
     mentalProtection: 0,
+    naturalPhysicalProtection: 0,
+    naturalMentalProtection: 0,
     attackDie: "D6",
     attackResistDie: 0,
     attackModifier: 0,
@@ -866,6 +974,14 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
     intellectResistDie: Number(raw.intellectResistDie ?? 0),
     supportResistDie: Number(raw.supportResistDie ?? 0),
     braveryResistDie: Number(raw.braveryResistDie ?? 0),
+    naturalPhysicalProtection: Math.max(
+      0,
+      Math.min(30, Number(raw.naturalPhysicalProtection ?? 0) || 0),
+    ),
+    naturalMentalProtection: Math.max(
+      0,
+      Math.min(30, Number(raw.naturalMentalProtection ?? 0) || 0),
+    ),
     id: typeof raw.id === "string" ? raw.id : undefined,
     source:
       raw.source === "CORE" || raw.source === "CAMPAIGN"
@@ -1192,6 +1308,319 @@ function clampImagePosition(value: unknown, fallback: number): number {
   return parsed;
 }
 
+function createEmptyAxisBonuses(): RadarAxes {
+  return {
+    physicalThreat: 0,
+    mentalThreat: 0,
+    survivability: 0,
+    manipulation: 0,
+    synergy: 0,
+    mobility: 0,
+    presence: 0,
+  };
+}
+
+function getCurvePointForLevel(curve: LevelCurvePoint[], level: number): LevelCurvePoint {
+  if (curve.length === 0) return { level: 1, min: 0, max: 1 };
+  const sorted = [...curve].sort((a, b) => a.level - b.level);
+  const minLevel = sorted[0].level;
+  const maxLevel = sorted[sorted.length - 1].level;
+  const normalizedLevel = Math.max(minLevel, Math.min(maxLevel, Math.trunc(level || minLevel)));
+  const exact = sorted.find((point) => point.level === normalizedLevel);
+  if (exact) return exact;
+  if (normalizedLevel < minLevel) return sorted[0];
+  return sorted[sorted.length - 1];
+}
+
+function getTierAdjustedAxisBudgetTarget(curvePoint: LevelCurvePoint, tierMultiplier: number): number {
+  return curvePoint.max * Math.max(0, tierMultiplier);
+}
+
+function getCalculatorTierMultiplier(
+  monster: Pick<EditableMonster, "tier" | "legendary">,
+): number {
+  const tierKey = monster.legendary ? "LEGENDARY" : monster.tier;
+  return calculatorConfig.tierMultipliers[tierKey] ?? calculatorConfig.tierMultipliers.ELITE;
+}
+
+const EQUIPMENT_MODIFIER_AXIS_FIELDS = [
+  { field: "attackModifier", axis: "physicalThreat" },
+  { field: "defenceModifier", axis: "survivability" },
+  { field: "fortitudeModifier", axis: "survivability" },
+  { field: "intellectModifier", axis: "mentalThreat" },
+  { field: "supportModifier", axis: "synergy" },
+  { field: "braveryModifier", axis: "manipulation" },
+  { field: "weaponSkillModifier", axis: "physicalThreat" },
+  { field: "armorSkillModifier", axis: "survivability" },
+] as const;
+
+const EQUIPMENT_LINE_ATTACK_THREAT_SHARE_PER_LINE = 0.05;
+const EQUIPMENT_LINE_ATTACK_PRESENCE_SHARE_PER_LINE = 0.015;
+const EQUIPMENT_LINE_DEFENCE_SURVIVABILITY_SHARE_PER_LINE = 0.06;
+const EQUIPMENT_LINE_TRAITS_SYNERGY_SHARE_PER_LINE = 0.04;
+const EQUIPMENT_LINE_TRAITS_PRESENCE_SHARE_PER_LINE = 0.02;
+const EQUIPMENT_LINE_GENERAL_SYNERGY_SHARE_PER_LINE = 0.03;
+const EQUIPMENT_LINE_GENERAL_PRESENCE_SHARE_PER_LINE = 0.015;
+
+const EQUIPMENT_LINE_ATTACK_THREAT_CAP_SHARE = 0.3;
+const EQUIPMENT_LINE_ATTACK_PRESENCE_CAP_SHARE = 0.12;
+const EQUIPMENT_LINE_DEFENCE_SURVIVABILITY_CAP_SHARE = 0.32;
+const EQUIPMENT_LINE_TRAITS_SYNERGY_CAP_SHARE = 0.24;
+const EQUIPMENT_LINE_TRAITS_PRESENCE_CAP_SHARE = 0.12;
+const EQUIPMENT_LINE_GENERAL_SYNERGY_CAP_SHARE = 0.18;
+const EQUIPMENT_LINE_GENERAL_PRESENCE_CAP_SHARE = 0.1;
+
+// SC_DEFENCE_STRING_SURVIVABILITY_V3
+const DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE = 1.0;
+const DEFENCE_STRING_PROTECTION_OUTPUT_SCALE = 8;
+
+// SC_DODGE_BENCHMARK_V2
+const DODGE_BASELINE_MAX_SHARE = 0.2;
+const DODGE_BASELINE_SCALE = 1.25;
+
+const DODGE_PARITY_MAX_SHARE = 0.5;
+const DODGE_PARITY_SCALE = 0.3;
+
+const DODGE_ABOVE_EXPECTED_MAX_SHARE = 0.35;
+const DODGE_ABOVE_EXPECTED_SCALE = 1.2;
+
+const DODGE_TOTAL_MAX_SHARE = 0.95;
+
+type DodgeExpectedAttackCurveRow = {
+  minLevel: number;
+  maxLevel: number;
+  typical: number;
+};
+
+const DODGE_EXPECTED_INCOMING_ATTACK_DICE_BY_TIER: Record<
+  MonsterTier,
+  DodgeExpectedAttackCurveRow[]
+> = {
+  MINION: [
+    { minLevel: 1, maxLevel: 8, typical: 2 },
+    { minLevel: 9, maxLevel: 15, typical: 3 },
+    { minLevel: 16, maxLevel: 20, typical: 4 },
+  ],
+  SOLDIER: [
+    { minLevel: 1, maxLevel: 4, typical: 2 },
+    { minLevel: 5, maxLevel: 11, typical: 3 },
+    { minLevel: 12, maxLevel: 15, typical: 4 },
+    { minLevel: 16, maxLevel: 20, typical: 5 },
+  ],
+  ELITE: [
+    { minLevel: 1, maxLevel: 4, typical: 3 },
+    { minLevel: 5, maxLevel: 11, typical: 4 },
+    { minLevel: 12, maxLevel: 15, typical: 5 },
+    { minLevel: 16, maxLevel: 20, typical: 6 },
+  ],
+  BOSS: [
+    { minLevel: 1, maxLevel: 4, typical: 4 },
+    { minLevel: 5, maxLevel: 11, typical: 5 },
+    { minLevel: 12, maxLevel: 15, typical: 6 },
+    { minLevel: 16, maxLevel: 20, typical: 7 },
+  ],
+};
+
+function getExpectedIncomingAttackDiceForDodge(
+  level: number,
+  tier: MonsterTier | null | undefined,
+): number {
+  const normalizedLevel = Math.max(1, Math.trunc(level || 1));
+  const normalizedTier = tier ?? "ELITE";
+  const rows =
+    DODGE_EXPECTED_INCOMING_ATTACK_DICE_BY_TIER[normalizedTier] ??
+    DODGE_EXPECTED_INCOMING_ATTACK_DICE_BY_TIER.ELITE;
+
+  const match = rows.find(
+    (row) => normalizedLevel >= row.minLevel && normalizedLevel <= row.maxLevel,
+  );
+
+  if (match) return match.typical;
+  if (normalizedLevel < rows[0].minLevel) return rows[0].typical;
+  return rows[rows.length - 1].typical;
+}
+
+function getSmoothDodgeShare(
+  rawValue: number,
+  scale: number,
+  maxShare: number,
+): number {
+  const normalized = Math.max(0, Number.isFinite(rawValue) ? rawValue : 0);
+  const safeScale = Math.max(0.001, scale);
+  const safeMax = Math.max(0, maxShare);
+  return safeMax * (1 - Math.exp(-normalized / safeScale));
+}
+
+function getDodgeParityProgress(
+  currentDodgeDice: number,
+  expectedIncomingAttackDice: number,
+): number {
+  const current = Math.max(0, Number.isFinite(currentDodgeDice) ? currentDodgeDice : 0);
+  const expected = Math.max(
+    1,
+    Number.isFinite(expectedIncomingAttackDice) ? expectedIncomingAttackDice : 1,
+  );
+  return Math.min(1, current / expected);
+}
+
+function getCappedEquipmentLineShare(
+  lineCount: number,
+  perLineShare: number,
+  capShare: number,
+): number {
+  const normalizedCount = Math.max(0, Math.trunc(lineCount || 0));
+  return Math.min(capShare, normalizedCount * perLineShare);
+}
+
+function getSmoothDefenceShare(
+  rawPotential: number,
+  scale: number,
+  maxShare: number,
+): number {
+  const normalized = Math.max(0, Number.isFinite(rawPotential) ? rawPotential : 0);
+  const safeScale = Math.max(0.001, scale);
+  const safeMax = Math.max(0, maxShare);
+  return safeMax * (1 - Math.exp(-normalized / safeScale));
+}
+
+function addNaturalAttackGsEffectAxisBonus(
+  bonuses: RadarAxes,
+  effectName: string,
+  axisBudgetTargets: RadarAxes,
+) {
+  const normalized = effectName.trim().toLowerCase();
+  if (!normalized) return;
+
+  if (NATURAL_ATTACK_GS_MENTAL_ATTRITION_EFFECTS.has(normalized)) {
+    bonuses.mentalThreat +=
+      axisBudgetTargets.mentalThreat * NATURAL_ATTACK_GS_ATTRITION_PRIMARY_SHARE;
+    bonuses.presence += axisBudgetTargets.presence * NATURAL_ATTACK_GS_ATTRITION_PRESENCE_SHARE;
+    return;
+  }
+
+  if (NATURAL_ATTACK_GS_PHYSICAL_ATTRITION_EFFECTS.has(normalized)) {
+    bonuses.physicalThreat +=
+      axisBudgetTargets.physicalThreat * NATURAL_ATTACK_GS_ATTRITION_PRIMARY_SHARE;
+    bonuses.presence += axisBudgetTargets.presence * NATURAL_ATTACK_GS_ATTRITION_PRESENCE_SHARE;
+    return;
+  }
+
+  if (NATURAL_ATTACK_GS_PRESSURE_EFFECTS.has(normalized)) {
+    bonuses.manipulation +=
+      axisBudgetTargets.manipulation * NATURAL_ATTACK_GS_PRESSURE_PRIMARY_SHARE;
+    bonuses.presence += axisBudgetTargets.presence * NATURAL_ATTACK_GS_PRESSURE_PRESENCE_SHARE;
+    return;
+  }
+
+  if (NATURAL_ATTACK_GS_CONTROL_EFFECTS.has(normalized)) {
+    bonuses.manipulation +=
+      axisBudgetTargets.manipulation * NATURAL_ATTACK_GS_CONTROL_PRIMARY_SHARE;
+    bonuses.presence += axisBudgetTargets.presence * NATURAL_ATTACK_GS_CONTROL_PRESENCE_SHARE;
+    if (NATURAL_ATTACK_GS_CONTROL_PHYSICAL_THREAT_EFFECTS.has(normalized)) {
+      bonuses.physicalThreat +=
+        axisBudgetTargets.physicalThreat * NATURAL_ATTACK_GS_CONTROL_EXTRA_THREAT_SHARE;
+    }
+  }
+}
+
+function addNaturalAttackRangeAxisBonus(
+  bonuses: RadarAxes,
+  attackConfig: MonsterNaturalAttackConfig,
+  axisBudgetTargets: RadarAxes,
+) {
+  const resolveThreatChannels = (rangeConfig: unknown) => {
+    const config = (rangeConfig ?? {}) as {
+      physicalStrength?: unknown;
+      mentalStrength?: unknown;
+      damageTypes?: Array<{ mode?: unknown; attackMode?: unknown }>;
+    };
+    let physicalValue = Math.max(0, Number(config.physicalStrength ?? 0));
+    let mentalValue = Math.max(0, Number(config.mentalStrength ?? 0));
+    const modes = new Set<"PHYSICAL" | "MENTAL">();
+    for (const row of config.damageTypes ?? []) {
+      const mode = String(row?.mode ?? row?.attackMode ?? "").toUpperCase();
+      if (mode === "PHYSICAL" || mode === "MENTAL") modes.add(mode);
+    }
+
+    if (modes.has("MENTAL") && !modes.has("PHYSICAL") && mentalValue === 0 && physicalValue > 0) {
+      mentalValue = physicalValue;
+      physicalValue = 0;
+    }
+    if (modes.has("PHYSICAL") && !modes.has("MENTAL") && physicalValue === 0 && mentalValue > 0) {
+      physicalValue = mentalValue;
+      mentalValue = 0;
+    }
+
+    return {
+      hasPhysical: physicalValue > 0,
+      hasMental: mentalValue > 0,
+    };
+  };
+
+  const addRelevantThreat = (share: number, rangeConfig: unknown) => {
+    const channels = resolveThreatChannels(rangeConfig);
+    if (channels.hasPhysical) {
+      bonuses.physicalThreat += axisBudgetTargets.physicalThreat * share;
+    }
+    if (channels.hasMental) {
+      bonuses.mentalThreat += axisBudgetTargets.mentalThreat * share;
+    }
+  };
+
+  const getRangeScalar = (distanceFeet: number): number | null =>
+    NATURAL_ATTACK_RANGE_SCALAR_BY_DISTANCE[distanceFeet] ?? null;
+  const getRangeMobilityBonus = (distanceFeet: number): number =>
+    NATURAL_ATTACK_RANGE_MOBILITY_BONUS_BY_DISTANCE[distanceFeet] ?? 0;
+  const getExpectedNaturalAoeTargetsFromGeometry = (
+    aoeConfig: NonNullable<MonsterNaturalAttackConfig["aoe"]>,
+  ): number => {
+    const shape = String(aoeConfig.shape ?? "SPHERE").toUpperCase();
+    if (shape === "SPHERE") {
+      const sphereTargets: Record<number, number> = { 10: 3, 20: 6, 30: 9 };
+      return sphereTargets[Math.max(0, Number(aoeConfig.sphereRadiusFeet ?? 0))] ?? 1;
+    }
+    if (shape === "CONE") {
+      const coneTargets: Record<number, number> = { 15: 3, 30: 8, 60: 14 };
+      return coneTargets[Math.max(0, Number(aoeConfig.coneLengthFeet ?? 0))] ?? 1;
+    }
+
+    const lineTargetTable: Record<number, Record<number, number>> = {
+      5: { 30: 3, 60: 6, 90: 9, 120: 12 },
+      10: { 30: 4, 60: 8, 90: 12, 120: 16 },
+      15: { 30: 5, 60: 10, 90: 15, 120: 20 },
+      20: { 30: 6, 60: 12, 90: 18, 120: 24 },
+    };
+    const width = Math.max(0, Number(aoeConfig.lineWidthFeet ?? 0));
+    const length = Math.max(0, Number(aoeConfig.lineLengthFeet ?? 0));
+    return lineTargetTable[width]?.[length] ?? 1;
+  };
+
+  const rangedConfig = attackConfig.ranged;
+  if (rangedConfig?.enabled) {
+    const distance = Number(rangedConfig.distance ?? 0);
+    const rangeScalar = getRangeScalar(distance);
+    const threatShare = NATURAL_ATTACK_RANGED_THREAT_SHARE_BY_DISTANCE[distance];
+    const presenceShare = NATURAL_ATTACK_RANGED_PRESENCE_SHARE_BY_DISTANCE[distance];
+    if (rangeScalar !== null && threatShare !== undefined && presenceShare !== undefined) {
+      bonuses.mobility += axisBudgetTargets.mobility * getRangeMobilityBonus(distance);
+      bonuses.presence += axisBudgetTargets.presence * presenceShare;
+      addRelevantThreat(threatShare, rangedConfig);
+    }
+  }
+
+  const aoeConfig = attackConfig.aoe;
+  if (!aoeConfig?.enabled) return;
+  const castRange = Number(aoeConfig.centerRange ?? 0);
+  const rangeScalar = getRangeScalar(castRange);
+  if (rangeScalar === null) return;
+
+  bonuses.mobility += axisBudgetTargets.mobility * getRangeMobilityBonus(castRange);
+  const expectedTargets = getExpectedNaturalAoeTargetsFromGeometry(aoeConfig);
+  const extraTargets = Math.max(0, expectedTargets - 1);
+  const additionalPresenceShare = extraTargets * 0.035 * rangeScalar;
+  bonuses.presence += axisBudgetTargets.presence * additionalPresenceShare;
+}
+
 function isHttpUrl(value: unknown): value is string {
   if (typeof value !== "string") return false;
   const normalized = value.trim();
@@ -1436,14 +1865,14 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         : { physicalResilienceMax: 0, mentalPerseveranceMax: 0 },
     [editor],
   );
-  const computedWeaponSkillValue = useMemo(
+  const baseWeaponSkillValue = useMemo(
     () =>
       editor
         ? getWeaponSkillDiceCountFromAttributes(editor.attackDie, editor.braveryDie)
         : 1,
     [editor?.attackDie, editor?.braveryDie],
   );
-  const computedArmorSkillValue = useMemo(
+  const baseArmorSkillValue = useMemo(
     () =>
       editor
         ? getArmorSkillDiceCountFromAttributes(editor.defenceDie, editor.fortitudeDie)
@@ -1668,7 +2097,23 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     if (pickRes.ok) {
       const json = await pickRes.json();
       setPicklists({
-        damageTypes: Array.isArray(json.damageTypes) ? json.damageTypes : [],
+        damageTypes: Array.isArray(json.damageTypes)
+          ? json.damageTypes.map((row: { id?: unknown; name?: unknown; attackMode?: unknown }) => ({
+              id:
+                typeof row.id === "number"
+                  ? row.id
+                  : typeof row.id === "string"
+                    ? Number.parseInt(row.id, 10)
+                    : NaN,
+              name: typeof row.name === "string" ? row.name : "",
+              attackMode: getAttackModeKey(row.attackMode),
+            })).filter(
+              (
+                row: { id: number; name: string; attackMode: "PHYSICAL" | "MENTAL" },
+              ): row is { id: number; name: string; attackMode: "PHYSICAL" | "MENTAL" } =>
+                Number.isFinite(row.id) && row.name.trim().length > 0,
+            )
+          : [],
         attackEffects: Array.isArray(json.attackEffects) ? json.attackEffects : [],
       });
     }
@@ -1681,6 +2126,14 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 id?: unknown;
                 name?: unknown;
                 effectText?: unknown;
+                band?: unknown;
+                physicalThreatWeight?: unknown;
+                mentalThreatWeight?: unknown;
+                survivabilityWeight?: unknown;
+                manipulationWeight?: unknown;
+                synergyWeight?: unknown;
+                mobilityWeight?: unknown;
+                presenceWeight?: unknown;
               };
               return {
                 id: String(candidate.id ?? ""),
@@ -1689,6 +2142,20 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                   typeof candidate.effectText === "string"
                     ? candidate.effectText
                     : null,
+                band:
+                  candidate.band === "MINOR" ||
+                  candidate.band === "STANDARD" ||
+                  candidate.band === "MAJOR" ||
+                  candidate.band === "BOSS"
+                    ? candidate.band
+                    : "STANDARD",
+                physicalThreatWeight: Number(candidate.physicalThreatWeight ?? 0) || 0,
+                mentalThreatWeight: Number(candidate.mentalThreatWeight ?? 0) || 0,
+                survivabilityWeight: Number(candidate.survivabilityWeight ?? 0) || 0,
+                manipulationWeight: Number(candidate.manipulationWeight ?? 0) || 0,
+                synergyWeight: Number(candidate.synergyWeight ?? 0) || 0,
+                mobilityWeight: Number(candidate.mobilityWeight ?? 0) || 0,
+                presenceWeight: Number(candidate.presenceWeight ?? 0) || 0,
               };
             })
           : [],
@@ -2021,6 +2488,28 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     }
     return map;
   }, [traitDefinitions]);
+  const selectedTraitAxisBonuses = useMemo(
+    () =>
+      computeTraitAxisBonuses(
+        (editor?.traits ?? [])
+          .map((trait) => traitById[trait.traitDefinitionId])
+          .filter((trait): trait is MonsterTraitDefinitionSummary => Boolean(trait))
+          .map(
+            (trait): TraitAxisWeightDefinition => ({
+              band: trait.band,
+              physicalThreatWeight: trait.physicalThreatWeight,
+              mentalThreatWeight: trait.mentalThreatWeight,
+              survivabilityWeight: trait.survivabilityWeight,
+              manipulationWeight: trait.manipulationWeight,
+              synergyWeight: trait.synergyWeight,
+              mobilityWeight: trait.mobilityWeight,
+              presenceWeight: trait.presenceWeight,
+            }),
+          ),
+        editor?.level ?? 1,
+      ),
+    [editor?.level, editor?.traits, traitById],
+  );
 
   useEffect(() => {
     setEditor((prev) => {
@@ -2112,6 +2601,40 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     () => getProtectionTotalsFromItems(equippedItems),
     [equippedItems],
   );
+  const naturalPhysicalProtectionValue = useMemo(
+    () => Math.max(0, Math.min(30, Number(editor?.naturalPhysicalProtection ?? 0) || 0)),
+    [editor?.naturalPhysicalProtection],
+  );
+  const naturalMentalProtectionValue = useMemo(
+    () => Math.max(0, Math.min(30, Number(editor?.naturalMentalProtection ?? 0) || 0)),
+    [editor?.naturalMentalProtection],
+  );
+  const totalPhysicalProtection = useMemo(
+    () => naturalPhysicalProtectionValue + itemProtectionValues.physicalProtection,
+    [naturalPhysicalProtectionValue, itemProtectionValues.physicalProtection],
+  );
+  const totalMentalProtection = useMemo(
+    () => naturalMentalProtectionValue + itemProtectionValues.mentalProtection,
+    [naturalMentalProtectionValue, itemProtectionValues.mentalProtection],
+  );
+  const computedWeaponSkillValue = useMemo(
+    () =>
+      Math.max(
+        1,
+        baseWeaponSkillValue +
+          Math.max(0, Math.trunc(itemModifierValues.weaponSkillModifier ?? 0)),
+      ),
+    [baseWeaponSkillValue, itemModifierValues.weaponSkillModifier],
+  );
+  const computedArmorSkillValue = useMemo(
+    () =>
+      Math.max(
+        1,
+        baseArmorSkillValue +
+          Math.max(0, Math.trunc(itemModifierValues.armorSkillModifier ?? 0)),
+      ),
+    [baseArmorSkillValue, itemModifierValues.armorSkillModifier],
+  );
   const protectionTuning = useProtectionTuning();
   const dodgeValue = useMemo(
     () =>
@@ -2122,7 +2645,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
               editor.defenceDie,
               editor.intellectDie,
               editor.level,
-              itemProtectionValues.physicalProtection,
+              totalPhysicalProtection,
             )
           : 0,
       ),
@@ -2130,32 +2653,40 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       editor?.defenceDie,
       editor?.intellectDie,
       editor?.level,
-      itemProtectionValues.physicalProtection,
+      totalPhysicalProtection,
     ],
   );
   const willpowerValue = useMemo(
     () =>
       editor
-        ? getWillpowerDiceCountFromAttributes(editor.supportDie, editor.braveryDie)
+        ? Math.max(
+            1,
+            getWillpowerDiceCountFromAttributes(editor.supportDie, editor.braveryDie) +
+              Math.max(0, Math.trunc(itemModifierValues.willpowerModifier ?? 0)),
+          )
         : 0,
-    [editor?.supportDie, editor?.braveryDie],
+    [editor?.supportDie, editor?.braveryDie, itemModifierValues.willpowerModifier],
   );
   const dodgeDice = useMemo(
-    () => Math.max(0, Math.ceil(dodgeValue / 6)),
-    [dodgeValue],
+    () =>
+      Math.max(
+        0,
+        Math.ceil(dodgeValue / 6) + Math.max(0, Math.trunc(itemModifierValues.dodgeModifier ?? 0)),
+      ),
+    [dodgeValue, itemModifierValues.dodgeModifier],
   );
   const armorSkillForDefenceCalc = Math.max(1, computedArmorSkillValue);
   const physicalBlockPerSuccess = useMemo(
     () => {
       // PROTECTION_BLOCK_FORMULA_V2
-      if (itemProtectionValues.physicalProtection <= 0) return 0;
+      if (totalPhysicalProtection <= 0) return 0;
       return Math.ceil(
-        (itemProtectionValues.physicalProtection / protectionTuning.protectionK) *
+        (totalPhysicalProtection / protectionTuning.protectionK) *
           (1 + armorSkillForDefenceCalc / protectionTuning.protectionS),
       );
     },
     [
-      itemProtectionValues.physicalProtection,
+      totalPhysicalProtection,
       armorSkillForDefenceCalc,
       protectionTuning.protectionK,
       protectionTuning.protectionS,
@@ -2165,18 +2696,40 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   const willpowerForDefenceCalc = Math.max(1, willpowerValue);
   const mentalBlockPerSuccess = useMemo(
     () => {
-      if (itemProtectionValues.mentalProtection <= 0) return 0;
+      if (totalMentalProtection <= 0) return 0;
       return Math.ceil(
-        (itemProtectionValues.mentalProtection / protectionTuning.protectionK) *
+        (totalMentalProtection / protectionTuning.protectionK) *
           (1 + willpowerForDefenceCalc / protectionTuning.protectionS),
       );
     },
     [
-      itemProtectionValues.mentalProtection,
+      totalMentalProtection,
       willpowerForDefenceCalc,
       protectionTuning.protectionK,
       protectionTuning.protectionS,
     ],
+  );
+  const traitRenderContext = useMemo(
+    () =>
+      buildMonsterTraitRenderContext({
+        monster: editor,
+        weaponSkillValue: computedWeaponSkillValue,
+        armorSkillValue: computedArmorSkillValue,
+        willpowerValue,
+        dodgeValue,
+      }),
+    [
+      editor,
+      computedWeaponSkillValue,
+      computedArmorSkillValue,
+      willpowerValue,
+      dodgeValue,
+    ],
+  );
+  const renderTraitEffectText = useCallback(
+    (rawEffect: string | null | undefined) =>
+      renderTraitTemplate(rawEffect?.trim() || "No description", traitRenderContext),
+    [traitRenderContext],
   );
   const defenceStrings = useMemo(
     () => [
@@ -2284,16 +2837,18 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         physicalResilienceCurrent: resilienceValues.physicalResilienceMax,
         mentalPerseveranceMax: resilienceValues.mentalPerseveranceMax,
         mentalPerseveranceCurrent: resilienceValues.mentalPerseveranceMax,
-        physicalProtection: itemProtectionValues.physicalProtection,
-        mentalProtection: itemProtectionValues.mentalProtection,
+        physicalProtection: totalPhysicalProtection,
+        mentalProtection: totalMentalProtection,
+        naturalPhysicalProtection: naturalPhysicalProtectionValue,
+        naturalMentalProtection: naturalMentalProtectionValue,
         attackModifier: itemModifierValues.attackModifier,
         defenceModifier: itemModifierValues.defenceModifier,
         fortitudeModifier: itemModifierValues.fortitudeModifier,
         intellectModifier: itemModifierValues.intellectModifier,
         supportModifier: itemModifierValues.supportModifier,
         braveryModifier: itemModifierValues.braveryModifier,
-        weaponSkillModifier: 0,
-        armorSkillModifier: 0,
+        weaponSkillModifier: itemModifierValues.weaponSkillModifier,
+        armorSkillModifier: itemModifierValues.armorSkillModifier,
         weaponSkillValue: computedWeaponSkillValue,
         armorSkillValue: computedArmorSkillValue,
         attacks: editor.attacks,
@@ -2310,8 +2865,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       computedWeaponSkillValue,
       editor,
       itemModifierValues,
-      itemProtectionValues,
+      naturalMentalProtectionValue,
+      naturalPhysicalProtectionValue,
       resilienceValues,
+      totalMentalProtection,
+      totalPhysicalProtection,
     ],
   );
   const equippedWeaponSources = useMemo(() => {
@@ -2346,12 +2904,295 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     previewMonster?.smallItemId,
     weaponById,
   ]);
+  const selectedNaturalAttackGsAxisBonuses = useMemo(() => {
+    if (!previewMonster) return createEmptyAxisBonuses();
+
+    const level = Math.max(1, Math.trunc(previewMonster.level || 1));
+    const tierMultiplier = getCalculatorTierMultiplier(previewMonster);
+    const axisBudgetTargets: RadarAxes = {
+      physicalThreat: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.physicalThreat, level),
+        tierMultiplier,
+      ),
+      mentalThreat: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.mentalThreat, level),
+        tierMultiplier,
+      ),
+      survivability: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.survivability, level),
+        tierMultiplier,
+      ),
+      manipulation: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.manipulation, level),
+        tierMultiplier,
+      ),
+      synergy: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.synergy, level),
+        tierMultiplier,
+      ),
+      mobility: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.mobility, level),
+        tierMultiplier,
+      ),
+      presence: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.presence, level),
+        tierMultiplier,
+      ),
+    };
+    const bonuses = createEmptyAxisBonuses();
+
+    for (const attack of previewMonster.attacks ?? []) {
+      const attackConfig = attack.attackConfig ?? defaultNaturalConfig();
+      for (const range of ["melee", "ranged", "aoe"] as const) {
+        const rangeConfig = attackConfig[range];
+        if (!rangeConfig?.enabled) continue;
+        for (const effectName of rangeConfig.attackEffects ?? []) {
+          addNaturalAttackGsEffectAxisBonus(bonuses, effectName, axisBudgetTargets);
+        }
+      }
+    }
+
+    return bonuses;
+  }, [previewMonster]);
+  const selectedEquipmentModifierAxisBonuses = useMemo(() => {
+    if (!previewMonster) return createEmptyAxisBonuses();
+
+    const level = Math.max(1, Math.trunc(previewMonster.level || 1));
+    const tierMultiplier = getCalculatorTierMultiplier(previewMonster);
+    const axisBudgetTargets: RadarAxes = {
+      physicalThreat: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.physicalThreat, level),
+        tierMultiplier,
+      ),
+      mentalThreat: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.mentalThreat, level),
+        tierMultiplier,
+      ),
+      survivability: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.survivability, level),
+        tierMultiplier,
+      ),
+      manipulation: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.manipulation, level),
+        tierMultiplier,
+      ),
+      synergy: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.synergy, level),
+        tierMultiplier,
+      ),
+      mobility: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.mobility, level),
+        tierMultiplier,
+      ),
+      presence: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.presence, level),
+        tierMultiplier,
+      ),
+    };
+    const pressureMultiplier = getEquipmentModifierPressureMultiplier(level, previewMonster);
+    const bonuses = createEmptyAxisBonuses();
+
+    for (const { field, axis } of EQUIPMENT_MODIFIER_AXIS_FIELDS) {
+      const modifierValue = Math.max(0, Math.trunc(itemModifierValues[field] ?? 0));
+      const budgetShare = getEquipmentModifierBudgetShare(modifierValue);
+      if (!(budgetShare > 0)) continue;
+      bonuses[axis] += axisBudgetTargets[axis] * budgetShare * pressureMultiplier;
+    }
+
+    const lineCounts = getItemLinePlacementCounts(equippedItems);
+
+    const attackThreatShare = getCappedEquipmentLineShare(
+      lineCounts.ATTACK,
+      EQUIPMENT_LINE_ATTACK_THREAT_SHARE_PER_LINE,
+      EQUIPMENT_LINE_ATTACK_THREAT_CAP_SHARE,
+    );
+    const attackPresenceShare = getCappedEquipmentLineShare(
+      lineCounts.ATTACK,
+      EQUIPMENT_LINE_ATTACK_PRESENCE_SHARE_PER_LINE,
+      EQUIPMENT_LINE_ATTACK_PRESENCE_CAP_SHARE,
+    );
+    const defenceSurvivabilityShare = getCappedEquipmentLineShare(
+      lineCounts.DEFENCE,
+      EQUIPMENT_LINE_DEFENCE_SURVIVABILITY_SHARE_PER_LINE,
+      EQUIPMENT_LINE_DEFENCE_SURVIVABILITY_CAP_SHARE,
+    );
+    const traitsSynergyShare = getCappedEquipmentLineShare(
+      lineCounts.TRAITS,
+      EQUIPMENT_LINE_TRAITS_SYNERGY_SHARE_PER_LINE,
+      EQUIPMENT_LINE_TRAITS_SYNERGY_CAP_SHARE,
+    );
+    const traitsPresenceShare = getCappedEquipmentLineShare(
+      lineCounts.TRAITS,
+      EQUIPMENT_LINE_TRAITS_PRESENCE_SHARE_PER_LINE,
+      EQUIPMENT_LINE_TRAITS_PRESENCE_CAP_SHARE,
+    );
+    const generalSynergyShare = getCappedEquipmentLineShare(
+      lineCounts.GENERAL,
+      EQUIPMENT_LINE_GENERAL_SYNERGY_SHARE_PER_LINE,
+      EQUIPMENT_LINE_GENERAL_SYNERGY_CAP_SHARE,
+    );
+    const generalPresenceShare = getCappedEquipmentLineShare(
+      lineCounts.GENERAL,
+      EQUIPMENT_LINE_GENERAL_PRESENCE_SHARE_PER_LINE,
+      EQUIPMENT_LINE_GENERAL_PRESENCE_CAP_SHARE,
+    );
+
+    bonuses.physicalThreat += axisBudgetTargets.physicalThreat * attackThreatShare;
+    bonuses.presence += axisBudgetTargets.presence * attackPresenceShare;
+    bonuses.survivability += axisBudgetTargets.survivability * defenceSurvivabilityShare;
+    bonuses.synergy += axisBudgetTargets.synergy * traitsSynergyShare;
+    bonuses.presence += axisBudgetTargets.presence * traitsPresenceShare;
+    bonuses.synergy += axisBudgetTargets.synergy * generalSynergyShare;
+    bonuses.presence += axisBudgetTargets.presence * generalPresenceShare;
+
+    const expectedIncomingAttackDice = getExpectedIncomingAttackDiceForDodge(
+      previewMonster.level,
+      previewMonster.tier,
+    );
+
+    const baselineDodgeShare = getSmoothDodgeShare(
+      dodgeDice,
+      DODGE_BASELINE_SCALE,
+      DODGE_BASELINE_MAX_SHARE,
+    );
+
+    const dodgeParityProgress = getDodgeParityProgress(
+      dodgeDice,
+      expectedIncomingAttackDice,
+    );
+
+    const parityDodgeShare = getSmoothDodgeShare(
+      dodgeParityProgress,
+      DODGE_PARITY_SCALE,
+      DODGE_PARITY_MAX_SHARE,
+    );
+
+    const dodgeAboveExpectedDice = Math.max(0, dodgeDice - expectedIncomingAttackDice);
+    const aboveExpectedDodgeShare = getSmoothDodgeShare(
+      dodgeAboveExpectedDice,
+      DODGE_ABOVE_EXPECTED_SCALE,
+      DODGE_ABOVE_EXPECTED_MAX_SHARE,
+    );
+
+    const totalDodgeShare = Math.min(
+      DODGE_TOTAL_MAX_SHARE,
+      baselineDodgeShare + parityDodgeShare + aboveExpectedDodgeShare,
+    );
+
+    const physicalDefencePotential = computedArmorSkillValue * physicalBlockPerSuccess;
+    const physicalDefenceSurvivabilityShare = getSmoothDefenceShare(
+      physicalDefencePotential,
+      DEFENCE_STRING_PROTECTION_OUTPUT_SCALE,
+      DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE,
+    );
+
+    const mentalDefencePotential = willpowerDice * mentalBlockPerSuccess;
+    const mentalDefenceSurvivabilityShare = getSmoothDefenceShare(
+      mentalDefencePotential,
+      DEFENCE_STRING_PROTECTION_OUTPUT_SCALE,
+      DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE,
+    );
+
+    bonuses.survivability +=
+      axisBudgetTargets.survivability *
+      (totalDodgeShare +
+        physicalDefenceSurvivabilityShare +
+        mentalDefenceSurvivabilityShare);
+
+    return bonuses;
+  }, [
+    equippedItems,
+    itemModifierValues,
+    previewMonster,
+    dodgeDice,
+    computedArmorSkillValue,
+    physicalBlockPerSuccess,
+    willpowerDice,
+    mentalBlockPerSuccess,
+  ]);
+  const selectedNaturalAttackRangeAxisBonuses = useMemo(() => {
+    if (!previewMonster) return createEmptyAxisBonuses();
+
+    const level = Math.max(1, Math.trunc(previewMonster.level || 1));
+    const tierMultiplier = getCalculatorTierMultiplier(previewMonster);
+    const axisBudgetTargets: RadarAxes = {
+      physicalThreat: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.physicalThreat, level),
+        tierMultiplier,
+      ),
+      mentalThreat: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.mentalThreat, level),
+        tierMultiplier,
+      ),
+      survivability: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.survivability, level),
+        tierMultiplier,
+      ),
+      manipulation: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.manipulation, level),
+        tierMultiplier,
+      ),
+      synergy: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.synergy, level),
+        tierMultiplier,
+      ),
+      mobility: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.mobility, level),
+        tierMultiplier,
+      ),
+      presence: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(calculatorConfig.scoringCurves.presence, level),
+        tierMultiplier,
+      ),
+    };
+    const bonuses = createEmptyAxisBonuses();
+
+    for (const attack of previewMonster.attacks ?? []) {
+      addNaturalAttackRangeAxisBonus(
+        bonuses,
+        (attack.attackConfig ?? defaultNaturalConfig()) as MonsterNaturalAttackConfig,
+        axisBudgetTargets,
+      );
+    }
+
+    bonuses.mobility = Math.min(
+      bonuses.mobility,
+      axisBudgetTargets.mobility * NATURAL_ATTACK_RANGE_MOBILITY_CAP_SHARE,
+    );
+    bonuses.presence = Math.min(
+      bonuses.presence,
+      axisBudgetTargets.presence * NATURAL_ATTACK_RANGE_PRESENCE_CAP_SHARE,
+    );
+    bonuses.physicalThreat = Math.min(
+      bonuses.physicalThreat,
+      axisBudgetTargets.physicalThreat * NATURAL_ATTACK_RANGE_PHYSICAL_THREAT_CAP_SHARE,
+    );
+    bonuses.mentalThreat = Math.min(
+      bonuses.mentalThreat,
+      axisBudgetTargets.mentalThreat * NATURAL_ATTACK_RANGE_MENTAL_THREAT_CAP_SHARE,
+    );
+
+    return bonuses;
+  }, [previewMonster]);
   const outcomeProfile = useMemo(
     () =>
       previewMonster
-        ? computeMonsterOutcomes(previewMonster, calculatorConfig, { equippedWeaponSources })
+        ? computeMonsterOutcomes(previewMonster, calculatorConfig, {
+            equippedWeaponSources,
+            equipmentModifierAxisBonuses: selectedEquipmentModifierAxisBonuses,
+            naturalAttackGsAxisBonuses: selectedNaturalAttackGsAxisBonuses,
+            naturalAttackRangeAxisBonuses: selectedNaturalAttackRangeAxisBonuses,
+            traitAxisBonuses: selectedTraitAxisBonuses,
+          })
         : null,
-    [calculatorConfig, equippedWeaponSources, previewMonster],
+    [
+      equippedWeaponSources,
+      previewMonster,
+      selectedEquipmentModifierAxisBonuses,
+      selectedNaturalAttackGsAxisBonuses,
+      selectedNaturalAttackRangeAxisBonuses,
+      selectedTraitAxisBonuses,
+    ],
   );
 
   const saveMonster = useCallback(async () => {
@@ -2376,16 +3217,18 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         physicalResilienceCurrent: resilienceValues.physicalResilienceMax,
         mentalPerseveranceMax: resilienceValues.mentalPerseveranceMax,
         mentalPerseveranceCurrent: resilienceValues.mentalPerseveranceMax,
-        physicalProtection: itemProtectionValues.physicalProtection,
-        mentalProtection: itemProtectionValues.mentalProtection,
+        physicalProtection: totalPhysicalProtection,
+        mentalProtection: totalMentalProtection,
+        naturalPhysicalProtection: naturalPhysicalProtectionValue,
+        naturalMentalProtection: naturalMentalProtectionValue,
         attackModifier: itemModifierValues.attackModifier,
         defenceModifier: itemModifierValues.defenceModifier,
         fortitudeModifier: itemModifierValues.fortitudeModifier,
         intellectModifier: itemModifierValues.intellectModifier,
         supportModifier: itemModifierValues.supportModifier,
         braveryModifier: itemModifierValues.braveryModifier,
-        weaponSkillModifier: 0,
-        armorSkillModifier: 0,
+        weaponSkillModifier: itemModifierValues.weaponSkillModifier,
+        armorSkillModifier: itemModifierValues.armorSkillModifier,
         weaponSkillValue: computedWeaponSkillValue,
         armorSkillValue: computedArmorSkillValue,
         mainHandItemId: asNullableId(editor.mainHandItemId),
@@ -2435,7 +3278,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     refreshSelected,
     refreshSummaries,
     resilienceValues,
-    itemProtectionValues,
+    naturalMentalProtectionValue,
+    naturalPhysicalProtectionValue,
+    totalMentalProtection,
+    totalPhysicalProtection,
     itemModifierValues,
     computedWeaponSkillValue,
     computedArmorSkillValue,
@@ -2584,7 +3430,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       updateAttackRange(attackIndex, range, {
         damageTypes: selected.map((dt) => ({
           name: dt.name,
-          mode: (dt.attackMode ?? "PHYSICAL") as "PHYSICAL" | "MENTAL",
+          mode: getAttackModeKey(dt.attackMode),
         })),
       });
     },
@@ -2637,7 +3483,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       return (
         <div className="flex flex-wrap gap-2">
           {types.map((dt) => {
-            const mode = (dt.attackMode ?? "PHYSICAL") as "PHYSICAL" | "MENTAL";
+            const mode = getAttackModeKey(dt.attackMode);
             const isAllowed = allowedModes.has(mode);
             return (
               <button
@@ -2677,6 +3523,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
               key={fx.id}
               type="button"
               disabled={readOnly}
+              title={fx.tooltip?.trim() || fx.name}
               onClick={() => toggleNumberArrayField(attackIndex, fieldName, fx.id, selectedIds)}
               className={`px-2 py-1 rounded-full border text-xs ${
                 selectedIds.includes(fx.id)
@@ -3906,10 +4753,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                   const resolved = traitById[trait.traitDefinitionId];
                   const label = trait.name ?? resolved?.name ?? trait.traitDefinitionId;
                   const effect = trait.effectText ?? resolved?.effectText ?? "No description";
+                  const renderedEffect = renderTraitEffectText(effect);
                   return (
                     <span
                       key={`${trait.traitDefinitionId}-${index}`}
-                      title={effect}
+                      title={renderedEffect}
                       className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
                     >
                       {label}
@@ -3949,39 +4797,44 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                   (trait) =>
                     !editor.traits.some((selected) => selected.traitDefinitionId === trait.id),
                 )
-                .map((trait) => (
-                  <button
-                    key={trait.id}
-                    type="button"
-                    title={trait.effectText ?? "No description"}
-                    disabled={readOnly}
-                    onClick={() =>
-                      setEditor((p) =>
-                        p
-                          ? {
-                              ...p,
-                              traits: p.traits.some(
-                                (selected) => selected.traitDefinitionId === trait.id,
-                              )
-                                ? p.traits
-                                : [
-                                    ...p.traits,
-                                    {
-                                      sortOrder: p.traits.length,
-                                      traitDefinitionId: trait.id,
-                                      name: trait.name,
-                                      effectText: trait.effectText,
-                                    },
-                                  ],
-                            }
-                          : p,
-                      )
-                    }
-                    className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-60"
-                  >
-                    {trait.name}
-                  </button>
-                ))}
+                .map((trait) => {
+                  const renderedEffect = renderTraitEffectText(
+                    trait.effectText ?? "No description",
+                  );
+                  return (
+                    <button
+                      key={trait.id}
+                      type="button"
+                      title={renderedEffect}
+                      disabled={readOnly}
+                      onClick={() =>
+                        setEditor((p) =>
+                          p
+                            ? {
+                                ...p,
+                                traits: p.traits.some(
+                                  (selected) => selected.traitDefinitionId === trait.id,
+                                )
+                                  ? p.traits
+                                  : [
+                                      ...p.traits,
+                                      {
+                                        sortOrder: p.traits.length,
+                                        traitDefinitionId: trait.id,
+                                        name: trait.name,
+                                        effectText: trait.effectText,
+                                      },
+                                    ],
+                              }
+                            : p,
+                        )
+                      }
+                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-60"
+                    >
+                      {trait.name}
+                    </button>
+                  );
+                })}
               {traitDefinitions.length === 0 && (
                 <p className="text-sm text-zinc-500">No CORE traits available.</p>
               )}
@@ -4048,110 +4901,171 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <p className="text-[11px] text-zinc-500">Derived from Gear & Attributes</p>
-                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
-                  <label className="space-y-1">
-                    <span
-                      title="Physical Protection and Weight"
-                      className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                    >
-                      Physical Prot. & Weight
-                    </span>
-                    <input
-                      readOnly
-                      type="number"
-                      value={itemProtectionValues.physicalProtection}
-                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span
-                      title="Armor Skill"
-                      className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                    >
-                      <HoverTooltipLabel
-                        label="Armor Skill"
-                        tooltip={DERIVED_STAT_TOOLTIPS.armorSkill}
-                        className="text-[11px]"
-                      />
-                    </span>
-                    <input
-                      readOnly
-                      type="number"
-                      value={computedArmorSkillValue}
-                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span
-                      title="Dodge"
-                      className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                    >
-                      <HoverTooltipLabel
-                        label="Dodge"
-                        tooltip={DERIVED_STAT_TOOLTIPS.dodge}
-                        className="text-[11px]"
-                      />
-                    </span>
-                    <input
-                      readOnly
-                      type="number"
-                      value={dodgeValue}
-                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span
-                      title="Mental Protection"
-                      className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                    >
-                      Mental Protection
-                    </span>
-                    <input
-                      readOnly
-                      type="number"
-                      value={itemProtectionValues.mentalProtection}
-                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span
-                      title="Willpower"
-                      className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                    >
-                      <HoverTooltipLabel
-                        label="Willpower"
-                        tooltip={DERIVED_STAT_TOOLTIPS.willpower}
-                        className="text-[11px]"
-                      />
-                    </span>
-                    <input
-                      readOnly
-                      type="number"
-                      value={willpowerValue}
-                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-                    />
-                  </label>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <p className="text-[11px] text-zinc-500">Defence Strings</p>
-                <div className="rounded border border-zinc-800 bg-zinc-900 p-2 space-y-1">
-                  {defenceStrings.map((line, index) => (
-                    <p key={index} className="text-xs text-zinc-300 whitespace-pre-wrap">
-                      {line}
-                    </p>
-                  ))}
-                </div>
-              </div>
-
               <p className="text-xs text-zinc-500">
                 Weapon sources: {totalWeaponSources}/3 (equipped {equippedWeaponSourceCount}, natural{" "}
                 {naturalWeaponSourceCount}) - Attack strings: {weaponAttackStringCount}
               </p>
             </>
           )}
+        </section>
+
+        <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
+          <h3 className="text-xs uppercase tracking-wide text-zinc-400">Defence</h3>
+
+          <div className="space-y-2">
+            <p className="text-[11px] text-zinc-500">Derived from Gear & Attributes</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="space-y-1">
+                <span className="text-[11px] text-zinc-500">Natural Physical Protection</span>
+                <select
+                  value={editor.naturalPhysicalProtection}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    setEditor((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            naturalPhysicalProtection: Math.max(
+                              0,
+                              Math.min(30, Number(e.target.value) || 0),
+                            ),
+                          }
+                        : prev,
+                    )
+                  }
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm"
+                >
+                  {Array.from({ length: 31 }, (_, value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] text-zinc-500">Natural Mental Protection</span>
+                <select
+                  value={editor.naturalMentalProtection}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    setEditor((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            naturalMentalProtection: Math.max(
+                              0,
+                              Math.min(30, Number(e.target.value) || 0),
+                            ),
+                          }
+                        : prev,
+                    )
+                  }
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm"
+                >
+                  {Array.from({ length: 31 }, (_, value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
+              <label className="space-y-1">
+                <span
+                  title="Physical Protection"
+                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                >
+                  Physical Protection
+                </span>
+                <input
+                  readOnly
+                  type="number"
+                  value={totalPhysicalProtection}
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                />
+              </label>
+              <label className="space-y-1">
+                <span
+                  title="Armor Skill"
+                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                >
+                  <HoverTooltipLabel
+                    label="Armor Skill"
+                    tooltip={DERIVED_STAT_TOOLTIPS.armorSkill}
+                    className="text-[11px]"
+                  />
+                </span>
+                <input
+                  readOnly
+                  type="number"
+                  value={computedArmorSkillValue}
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                />
+              </label>
+              <label className="space-y-1">
+                <span
+                  title="Dodge"
+                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                >
+                  <HoverTooltipLabel
+                    label="Dodge"
+                    tooltip={DERIVED_STAT_TOOLTIPS.dodge}
+                    className="text-[11px]"
+                  />
+                </span>
+                <input
+                  readOnly
+                  type="number"
+                  value={dodgeValue}
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                />
+              </label>
+              <label className="space-y-1">
+                <span
+                  title="Mental Protection"
+                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                >
+                  Mental Protection
+                </span>
+                <input
+                  readOnly
+                  type="number"
+                  value={totalMentalProtection}
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                />
+              </label>
+              <label className="space-y-1">
+                <span
+                  title="Willpower"
+                  className="text-[11px] text-zinc-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                >
+                  <HoverTooltipLabel
+                    label="Willpower"
+                    tooltip={DERIVED_STAT_TOOLTIPS.willpower}
+                    className="text-[11px]"
+                  />
+                </span>
+                <input
+                  readOnly
+                  type="number"
+                  value={willpowerValue}
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-[11px] text-zinc-500">Defence Strings</p>
+            <div className="rounded border border-zinc-800 bg-zinc-900 p-2 space-y-1">
+              {defenceStrings.map((line, index) => (
+                <p key={index} className="text-xs text-zinc-300 whitespace-pre-wrap">
+                  {line}
+                </p>
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
@@ -4360,7 +5274,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       const selectedModes = new Set<"PHYSICAL" | "MENTAL">();
                       for (const id of selectedDamageTypeIds) {
                         const dt = picklists.damageTypes.find((x) => x.id === id);
-                        const mode = (dt?.attackMode ?? "PHYSICAL") as "PHYSICAL" | "MENTAL";
+                        const mode = getAttackModeKey(dt?.attackMode);
                         selectedModes.add(mode);
                       }
                       const needsPhysical = physicalStrength > 0;
@@ -4878,8 +5792,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
 
                         const availableDamageTypes =
                           attackMode === "MENTAL"
-                            ? picklists.damageTypes.filter((d) => (d.attackMode ?? "PHYSICAL") === "MENTAL")
-                            : picklists.damageTypes.filter((d) => (d.attackMode ?? "PHYSICAL") === "PHYSICAL");
+                            ? picklists.damageTypes.filter((d) => getAttackModeKey(d.attackMode) === "MENTAL")
+                            : picklists.damageTypes.filter((d) => getAttackModeKey(d.attackMode) === "PHYSICAL");
 
                         return (
                           <div key={j} className="rounded border border-zinc-800 bg-zinc-900/20 p-3 space-y-2">
@@ -4989,6 +5903,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                     <select
                                       disabled={readOnly}
                                       value={attackMode || "PHYSICAL"}
+                                      title={ATTACK_MODE_TOOLTIPS[getAttackModeKey(attackMode || "PHYSICAL")]}
                                       onChange={(e) =>
                                         setPowerIntentionDetails(setEditor, i, j, {
                                           attackMode: e.target.value,
@@ -4998,8 +5913,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                       className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                                     >
                                       {ATTACK_MODES.map((mode) => (
-                                        <option key={mode} value={mode}>
-                                          {mode}
+                                        <option
+                                          key={mode}
+                                          value={mode}
+                                          title={ATTACK_MODE_TOOLTIPS[mode]}
+                                        >
+                                          {ATTACK_MODE_LABELS[mode]}
                                         </option>
                                       ))}
                                     </select>
@@ -5208,6 +6127,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                             disabled={readOnly}
                             onClick={() => {
                               const patchByCategory: Record<PowerRangeCategory, Record<string, unknown>> = {
+                                SELF: {
+                                  rangeCategory: "SELF",
+                                  rangeValue: 0,
+                                  rangeExtra: {},
+                                },
                                 MELEE: {
                                   rangeCategory: "MELEE",
                                   rangeValue: powerRangeState.meleeTargets,
@@ -5246,6 +6170,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         );
                       })}
                     </div>
+
+                    {powerRangeState.category === "SELF" && (
+                      <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-400">
+                        Self range. This power is expected to affect only the user.
+                      </div>
+                    )}
 
                     {powerRangeState.category === "MELEE" && (
                       <div className="space-y-1">
@@ -5833,6 +6763,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 <select
                   disabled={readOnly}
                   value={editor.limitBreakTier ?? ""}
+                  title={
+                    editor.limitBreakTier
+                      ? LIMIT_BREAK_TIER_TOOLTIPS[editor.limitBreakTier]
+                      : ""
+                  }
                   onChange={(e) =>
                     setEditor((p) =>
                       p
@@ -5852,8 +6787,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 >
                   <option value="">None</option>
                   {LIMIT_BREAK_TIER_OPTIONS.map((tier) => (
-                    <option key={tier} value={tier}>
-                      {tier}
+                    <option
+                      key={tier}
+                      value={tier}
+                      title={LIMIT_BREAK_TIER_TOOLTIPS[tier]}
+                    >
+                      {LIMIT_BREAK_TIER_LABELS[tier]}
                     </option>
                   ))}
                 </select>
@@ -5864,6 +6803,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 <select
                   disabled={readOnly}
                   value={editor.limitBreakAttribute ?? ""}
+                  title={
+                    editor.limitBreakAttribute
+                      ? CORE_ATTRIBUTE_OPTION_TOOLTIPS[editor.limitBreakAttribute]
+                      : ""
+                  }
                   onChange={(e) =>
                     setEditor((p) =>
                       p
@@ -5886,7 +6830,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 >
                   <option value="">None</option>
                   {CORE_ATTRIBUTE_OPTIONS.map((attribute) => (
-                    <option key={attribute} value={attribute}>
+                    <option
+                      key={attribute}
+                      value={attribute}
+                      title={CORE_ATTRIBUTE_OPTION_TOOLTIPS[attribute]}
+                    >
                       {CORE_ATTRIBUTE_LABELS[attribute]}
                     </option>
                   ))}
@@ -6009,6 +6957,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         <select
                           disabled={readOnly}
                           value={editor.limitBreak2Tier ?? ""}
+                          title={
+                            editor.limitBreak2Tier
+                              ? LIMIT_BREAK_TIER_TOOLTIPS[editor.limitBreak2Tier]
+                              : ""
+                          }
                           onChange={(e) =>
                             setEditor((p) =>
                               p
@@ -6028,8 +6981,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         >
                           <option value="">None</option>
                           {LIMIT_BREAK_TIER_OPTIONS.map((tier) => (
-                            <option key={tier} value={tier}>
-                              {tier}
+                            <option
+                              key={tier}
+                              value={tier}
+                              title={LIMIT_BREAK_TIER_TOOLTIPS[tier]}
+                            >
+                              {LIMIT_BREAK_TIER_LABELS[tier]}
                             </option>
                           ))}
                         </select>
@@ -6040,6 +6997,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         <select
                           disabled={readOnly}
                           value={editor.limitBreak2Attribute ?? ""}
+                          title={
+                            editor.limitBreak2Attribute
+                              ? CORE_ATTRIBUTE_OPTION_TOOLTIPS[editor.limitBreak2Attribute]
+                              : ""
+                          }
                           onChange={(e) =>
                             setEditor((p) =>
                               p
@@ -6062,7 +7024,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         >
                           <option value="">None</option>
                           {CORE_ATTRIBUTE_OPTIONS.map((attribute) => (
-                            <option key={attribute} value={attribute}>
+                            <option
+                              key={attribute}
+                              value={attribute}
+                              title={CORE_ATTRIBUTE_OPTION_TOOLTIPS[attribute]}
+                            >
                               {CORE_ATTRIBUTE_LABELS[attribute]}
                             </option>
                           ))}
@@ -6239,4 +7205,3 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     </div>
   );
 }
-

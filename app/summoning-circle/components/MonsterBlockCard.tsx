@@ -235,7 +235,7 @@ function safeEvalArithmetic(expr: string): number | null {
   return stack[0];
 }
 
-function renderTraitTemplate(
+export function renderTraitTemplate(
   template: string,
   ctx: Record<string, unknown>,
 ): string {
@@ -309,10 +309,67 @@ function renderTraitTemplate(
   return out;
 }
 
+export function buildMonsterTraitRenderContext(params: {
+  monster:
+    | Pick<
+        MonsterUpsertInput,
+        | "name"
+        | "level"
+        | "attackDie"
+        | "defenceDie"
+        | "fortitudeDie"
+        | "intellectDie"
+        | "supportDie"
+        | "braveryDie"
+      >
+    | null
+    | undefined;
+  weaponSkillValue: number | null;
+  armorSkillValue: number | null;
+  willpowerValue: number | null;
+  dodgeValue: number | null;
+}): Record<string, unknown> {
+  const {
+    monster,
+    weaponSkillValue,
+    armorSkillValue,
+    willpowerValue,
+    dodgeValue,
+  } = params;
+
+  return {
+    MonsterName: monster?.name ?? null,
+    MonsterLevel: typeof monster?.level === "number" ? monster.level : null,
+
+    MonsterAttack: monster?.attackDie ?? null,
+    MonsterDefence: monster?.defenceDie ?? null,
+    MonsterFortitude: monster?.fortitudeDie ?? null,
+    MonsterIntellect: monster?.intellectDie ?? null,
+    MonsterSupport: monster?.supportDie ?? null,
+    MonsterBravery: monster?.braveryDie ?? null,
+
+    MonsterWeaponSkill: weaponSkillValue,
+    MonsterArmorSkill: armorSkillValue,
+
+    MonsterWillpower: willpowerValue,
+    MonsterDodge: dodgeValue,
+  };
+}
+
 function parseHeaderLine(line: string): { header: string; text: string } {
   const parts = String(line).split("||");
   if (parts.length < 2) return { header: "", text: line };
   return { header: parts[0].trim(), text: parts.slice(1).join("||").trim() };
+}
+
+function formatNaturalAttackLines(
+  attackName: string | null | undefined,
+  lines: string[],
+): string[] {
+  const resolvedName = String(attackName ?? "").trim() || "Natural Weapon";
+  return lines.map((line) =>
+    line.replace(/This weapon inflicts/g, `${resolvedName} inflicts`),
+  );
 }
 
 const MECHANICS_HIGHLIGHT_RE =
@@ -631,11 +688,11 @@ export function MonsterBlockCard({
     DEFAULT_IMAGE_POS_Y,
   );
   const monsterMeta = monster as MonsterUpsertInput & { rarity?: string | null; tier?: string | null };
-  const computedWeaponSkillValue = useMemo(
+  const baseWeaponSkillValue = useMemo(
     () => getWeaponSkillDiceCountFromAttributes(monster.attackDie, monster.braveryDie),
     [monster.attackDie, monster.braveryDie],
   );
-  const computedArmorSkillValue = useMemo(
+  const baseArmorSkillValue = useMemo(
     () => getArmorSkillDiceCountFromAttributes(monster.defenceDie, monster.fortitudeDie),
     [monster.defenceDie, monster.fortitudeDie],
   );
@@ -648,6 +705,24 @@ export function MonsterBlockCard({
     const itemProtection = getProtectionTotalsFromItems(equippedItems);
     return { itemModifiers, itemProtection };
   }, [equippedItems]);
+  const computedWeaponSkillValue = useMemo(
+    () =>
+      Math.max(
+        1,
+        baseWeaponSkillValue +
+          Math.max(0, Math.trunc(itemDerived.itemModifiers.weaponSkillModifier ?? 0)),
+      ),
+    [baseWeaponSkillValue, itemDerived.itemModifiers.weaponSkillModifier],
+  );
+  const computedArmorSkillValue = useMemo(
+    () =>
+      Math.max(
+        1,
+        baseArmorSkillValue +
+          Math.max(0, Math.trunc(itemDerived.itemModifiers.armorSkillModifier ?? 0)),
+      ),
+    [baseArmorSkillValue, itemDerived.itemModifiers.armorSkillModifier],
+  );
 
   const renderedAttacks = useMemo(() => {
     // SC_LEVEL_WOUND_SCALER_WIRING
@@ -660,10 +735,13 @@ export function MonsterBlockCard({
     const naturalMapped = getRenderableNaturalAttacks(monster).map((attack) => ({
       label: `Natural Weapon: ${attack.attackName ?? "Natural Weapon"}`,
       attackPlacementLines: [] as string[],
-      lines: renderAttackActionLines(
-        (attack.attackConfig ?? {}) as MonsterNaturalAttackConfig,
-        computedWeaponSkillValue,
-        { applyWeaponSkillOverride: true, strengthMultiplier: 2, level: monster.level },
+      lines: formatNaturalAttackLines(
+        attack.attackName,
+        renderAttackActionLines(
+          (attack.attackConfig ?? {}) as MonsterNaturalAttackConfig,
+          computedWeaponSkillValue,
+          { applyWeaponSkillOverride: true, strengthMultiplier: 2, level: monster.level },
+        ),
       ),
     }));
     return [...slotBasedAttacks, ...naturalMapped];
@@ -727,12 +805,45 @@ export function MonsterBlockCard({
   );
 
   const useItemDerivedValues = hasItemSlots(monster);
-  const protectionValues = useItemDerivedValues
-    ? itemDerived.itemProtection
-    : {
-        physicalProtection: monster.physicalProtection,
-        mentalProtection: monster.mentalProtection,
-      };
+  const naturalPhysicalProtectionValue =
+    typeof (monster as { naturalPhysicalProtection?: unknown }).naturalPhysicalProtection ===
+      "number" &&
+    Number.isFinite(
+      (monster as { naturalPhysicalProtection?: unknown }).naturalPhysicalProtection as number,
+    )
+      ? Math.max(
+          0,
+          Math.min(
+            30,
+            Math.trunc(
+              (monster as { naturalPhysicalProtection?: unknown })
+                .naturalPhysicalProtection as number,
+            ),
+          ),
+        )
+      : 0;
+  const naturalMentalProtectionValue =
+    typeof (monster as { naturalMentalProtection?: unknown }).naturalMentalProtection ===
+      "number" &&
+    Number.isFinite(
+      (monster as { naturalMentalProtection?: unknown }).naturalMentalProtection as number,
+    )
+      ? Math.max(
+          0,
+          Math.min(
+            30,
+            Math.trunc(
+              (monster as { naturalMentalProtection?: unknown }).naturalMentalProtection as number,
+            ),
+          ),
+        )
+      : 0;
+  const protectionValues = {
+    physicalProtection:
+      naturalPhysicalProtectionValue + itemDerived.itemProtection.physicalProtection,
+    mentalProtection:
+      naturalMentalProtectionValue + itemDerived.itemProtection.mentalProtection,
+  };
   const dodgeValue = useMemo(
     () =>
       Math.max(
@@ -752,11 +863,20 @@ export function MonsterBlockCard({
     ],
   );
   const willpowerValue = useMemo(
-    () => getWillpowerDiceCountFromAttributes(monster.supportDie, monster.braveryDie),
-    [monster.supportDie, monster.braveryDie],
+    () =>
+      Math.max(
+        1,
+        getWillpowerDiceCountFromAttributes(monster.supportDie, monster.braveryDie) +
+          Math.max(0, Math.trunc(itemDerived.itemModifiers.willpowerModifier ?? 0)),
+      ),
+    [monster.supportDie, monster.braveryDie, itemDerived.itemModifiers.willpowerModifier],
   );
   const renderedDefenceStrings = useMemo(() => {
-    const dodgeDice = Math.max(0, Math.ceil(dodgeValue / 6));
+    const dodgeDice = Math.max(
+      0,
+      Math.ceil(dodgeValue / 6) +
+        Math.max(0, Math.trunc(itemDerived.itemModifiers.dodgeModifier ?? 0)),
+    );
     const armorSkillForDefenceCalc = Math.max(1, computedArmorSkillValue);
     // PROTECTION_BLOCK_FORMULA_V2
     const physicalBlockPerSuccess =
@@ -784,6 +904,7 @@ export function MonsterBlockCard({
   }, [
     computedArmorSkillValue,
     dodgeValue,
+    itemDerived.itemModifiers.dodgeModifier,
     protectionValues.physicalProtection,
     protectionValues.mentalProtection,
     resolvedProtectionTuning.protectionK,
@@ -1149,23 +1270,13 @@ export function MonsterBlockCard({
       const traitName = trait.name?.trim() || "Trait";
       const rawEffect = trait.effectText?.trim() || "No description";
 
-      const tokenCtx: Record<string, unknown> = {
-        MonsterName: monster.name ?? null,
-        MonsterLevel: typeof monster.level === "number" ? monster.level : null,
-
-        MonsterAttack: monster.attackDie ?? null,
-        MonsterDefence: monster.defenceDie ?? null,
-        MonsterFortitude: monster.fortitudeDie ?? null,
-        MonsterIntellect: monster.intellectDie ?? null,
-        MonsterSupport: monster.supportDie ?? null,
-        MonsterBravery: monster.braveryDie ?? null,
-
-        MonsterWeaponSkill: computedWeaponSkillValue,
-        MonsterArmorSkill: computedArmorSkillValue,
-
-        MonsterWillpower: null,
-        MonsterDodge: null,
-      };
+      const tokenCtx = buildMonsterTraitRenderContext({
+        monster,
+        weaponSkillValue: computedWeaponSkillValue,
+        armorSkillValue: computedArmorSkillValue,
+        willpowerValue,
+        dodgeValue,
+      });
 
       const effect = renderTraitTemplate(rawEffect, tokenCtx);
       out.push({
@@ -1187,17 +1298,11 @@ export function MonsterBlockCard({
 
     return out;
   }, [
-    monster.traits,
-    monster.name,
-    monster.level,
-    monster.attackDie,
-    monster.defenceDie,
-    monster.fortitudeDie,
-    monster.intellectDie,
-    monster.supportDie,
-    monster.braveryDie,
+    monster,
     computedWeaponSkillValue,
     computedArmorSkillValue,
+    willpowerValue,
+    dodgeValue,
     equippedTraitLinesWithSource,
   ]);
 

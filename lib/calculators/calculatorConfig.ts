@@ -3,6 +3,7 @@ export type LevelCurvePoint = { level: number; min: number; max: number };
 export type CalculatorConfig = {
   tierMultipliers: {
     MINION: number;
+    SOLDIER: number;
     ELITE: number;
     BOSS: number;
     LEGENDARY: number;
@@ -17,6 +18,7 @@ export type CalculatorConfig = {
   };
   manipulationTuning: {
     rangeCategoryMultiplier: {
+      SELF: number;
       MELEE: number;
       RANGED: number;
       AOE: number;
@@ -76,6 +78,7 @@ function makeLinearCurve(opts: {
 export const calculatorConfig: CalculatorConfig = {
   tierMultipliers: {
     MINION: 0.6,
+    SOLDIER: 0.8,
     ELITE: 1.0,
     BOSS: 1.5,
     LEGENDARY: 2.0,
@@ -90,6 +93,7 @@ export const calculatorConfig: CalculatorConfig = {
   },
   manipulationTuning: {
     rangeCategoryMultiplier: {
+      SELF: 0.6,
       MELEE: 0.85,
       RANGED: 1.0,
       AOE: 1.15,
@@ -170,6 +174,7 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
   return {
     tierMultipliers: {
       MINION: overrides.tierMultipliers?.MINION ?? calculatorConfig.tierMultipliers.MINION,
+      SOLDIER: overrides.tierMultipliers?.SOLDIER ?? calculatorConfig.tierMultipliers.SOLDIER,
       ELITE: overrides.tierMultipliers?.ELITE ?? calculatorConfig.tierMultipliers.ELITE,
       BOSS: overrides.tierMultipliers?.BOSS ?? calculatorConfig.tierMultipliers.BOSS,
       LEGENDARY:
@@ -192,6 +197,9 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
     },
     manipulationTuning: {
       rangeCategoryMultiplier: {
+        SELF:
+          overrides.manipulationTuning?.rangeCategoryMultiplier?.SELF ??
+          calculatorConfig.manipulationTuning.rangeCategoryMultiplier.SELF,
         MELEE:
           overrides.manipulationTuning?.rangeCategoryMultiplier?.MELEE ??
           calculatorConfig.manipulationTuning.rangeCategoryMultiplier.MELEE,

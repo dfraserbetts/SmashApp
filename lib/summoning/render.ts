@@ -277,7 +277,9 @@ export function renderPowerDescriptorLines(
   const aoeShape = getDetailsString(rangeExtra, "shape").trim().toUpperCase() || "SPHERE";
 
   let targetingLine = "Choose 1 target and";
-  if (rangeCategory === "MELEE") {
+  if (rangeCategory === "SELF") {
+    targetingLine = "Target self and";
+  } else if (rangeCategory === "MELEE") {
     targetingLine = `Choose ${meleeTargets} adjacent ${plural(meleeTargets, "target")} and`;
   } else if (rangeCategory === "RANGED") {
     targetingLine = `Choose ${rangedTargets} ${plural(rangedTargets, "target")} and`;
@@ -443,11 +445,10 @@ export function renderPowerStackCleanupText(
   return null;
 }
 
-// SC_LEVEL_WOUND_SCALER_V1
 function getLevelWoundBonus(level?: number): number {
   const parsed = typeof level === "number" ? level : Number(level ?? 0);
-  if (!Number.isFinite(parsed)) return 0;
-  return Math.max(0, Math.floor(parsed / 3));
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.floor(parsed / 3);
 }
 
 export function renderAttackActionLines(

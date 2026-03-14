@@ -1,7 +1,10 @@
 import type {
+  CoreAttribute,
+  LimitBreakTier,
   MonsterNaturalAttackConfig,
   MonsterPower,
   MonsterPowerIntention,
+  MonsterTraitBand,
   MonsterTier,
   MonsterUpsertInput,
 } from "@/lib/summoning/types";
@@ -18,6 +21,29 @@ export type RadarAxes = {
   mobility: number;
   presence: number;
 };
+
+export type TraitAxisBonuses = {
+  physicalThreat: number;
+  mentalThreat: number;
+  survivability: number;
+  manipulation: number;
+  synergy: number;
+  mobility: number;
+  presence: number;
+};
+
+export type TraitAxisWeightDefinition = {
+  band?: MonsterTraitBand | null;
+  physicalThreatWeight?: number | null;
+  mentalThreatWeight?: number | null;
+  survivabilityWeight?: number | null;
+  manipulationWeight?: number | null;
+  synergyWeight?: number | null;
+  mobilityWeight?: number | null;
+  presenceWeight?: number | null;
+};
+
+export const TRAIT_AXIS_UNIT = 0.5;
 
 export type WeaponAttackSource = {
   id: string;
@@ -56,13 +82,23 @@ type MonsterOutcomeInput = Pick<
   | "tier"
   | "legendary"
   | "attackDie"
+  | "attackResistDie"
   | "attacks"
+  | "braveryResistDie"
+  | "defenceResistDie"
+  | "fortitudeResistDie"
+  | "intellectResistDie"
+  | "limitBreakAttribute"
+  | "limitBreakTier"
+  | "limitBreak2Attribute"
+  | "limitBreak2Tier"
   | "naturalAttack"
   | "powers"
   | "physicalResilienceMax"
   | "mentalPerseveranceMax"
   | "physicalProtection"
   | "mentalProtection"
+  | "supportResistDie"
 >;
 
 type TierBudgetKey = keyof CalculatorConfig["tierMultipliers"];
@@ -85,6 +121,12 @@ type AttackConfigLike = {
   aoe?: {
     enabled?: boolean;
     count?: number;
+    centerRange?: number;
+    shape?: string;
+    sphereRadiusFeet?: number;
+    coneLengthFeet?: number;
+    lineWidthFeet?: number;
+    lineLengthFeet?: number;
     physicalStrength?: number;
     mentalStrength?: number;
     damageTypes?: unknown;
@@ -99,7 +141,25 @@ type AtWillContribution = {
   hasAoe: boolean;
 };
 
+type AtWillSummary = {
+  bestPhysical: number;
+  bestMental: number;
+  bestTotal: number;
+  hasRanged: boolean;
+  hasAoe: boolean;
+};
+
 type Mode = "PHYSICAL" | "MENTAL";
+
+const EMPTY_TRAIT_AXIS_BONUSES: TraitAxisBonuses = {
+  physicalThreat: 0,
+  mentalThreat: 0,
+  survivability: 0,
+  manipulation: 0,
+  synergy: 0,
+  mobility: 0,
+  presence: 0,
+};
 
 function clampNonNegative(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -111,6 +171,12 @@ function clampRadarScore(value: number): number {
   if (value < 0) return 0;
   if (value > 10) return 10;
   return value;
+}
+
+function clampTraitAxisWeight(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(3, Math.trunc(parsed)));
 }
 
 function readPositiveNumber(value: unknown): number | null {
@@ -170,6 +236,111 @@ function safeNum(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function createEmptyAxisBonuses(): RadarAxes {
+  return {
+    physicalThreat: 0,
+    mentalThreat: 0,
+    survivability: 0,
+    manipulation: 0,
+    synergy: 0,
+    mobility: 0,
+    presence: 0,
+  };
+}
+
+export function createEmptyTraitAxisBonuses(): TraitAxisBonuses {
+  return { ...EMPTY_TRAIT_AXIS_BONUSES };
+}
+
+export function getTraitLevelBand(level: number): 0 | 1 | 2 | 3 {
+  const normalizedLevel = Math.max(1, Math.min(20, Math.trunc(level || 1)));
+  if (normalizedLevel <= 5) return 0;
+  if (normalizedLevel <= 10) return 1;
+  if (normalizedLevel <= 15) return 2;
+  return 3;
+}
+
+export function getTraitBandPressureMultiplier(
+  band: MonsterTraitBand | null | undefined,
+  monsterLevel: number,
+): number {
+  const levelBand = getTraitLevelBand(monsterLevel);
+  const multipliers: Record<MonsterTraitBand, [number, number, number, number]> = {
+    MINOR: [1.0, 0.6, 0.3, 0.1],
+    STANDARD: [1.5, 1.0, 0.6, 0.3],
+    MAJOR: [2.0, 1.5, 1.0, 0.6],
+    BOSS: [3.0, 2.0, 1.4, 1.0],
+  };
+  const resolvedBand = band ?? "STANDARD";
+  return multipliers[resolvedBand][levelBand];
+}
+
+export function computeTraitAxisBonuses(
+  traits: TraitAxisWeightDefinition[],
+  monsterLevel: number,
+): TraitAxisBonuses {
+  const bonuses = createEmptyTraitAxisBonuses();
+
+  for (const trait of traits) {
+    const pressureMultiplier = getTraitBandPressureMultiplier(trait.band, monsterLevel);
+    bonuses.physicalThreat +=
+      clampTraitAxisWeight(trait.physicalThreatWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
+    bonuses.mentalThreat +=
+      clampTraitAxisWeight(trait.mentalThreatWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
+    bonuses.survivability +=
+      clampTraitAxisWeight(trait.survivabilityWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
+    bonuses.manipulation +=
+      clampTraitAxisWeight(trait.manipulationWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
+    bonuses.synergy +=
+      clampTraitAxisWeight(trait.synergyWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
+    bonuses.mobility +=
+      clampTraitAxisWeight(trait.mobilityWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
+    bonuses.presence +=
+      clampTraitAxisWeight(trait.presenceWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
+  }
+
+  return bonuses;
+}
+
+export function getEquipmentModifierBudgetShare(modifierValue: number): number {
+  const points = Math.max(0, Math.trunc(modifierValue || 0));
+  if (points <= 0) return 0;
+  if (points === 1) return 0.2;
+  if (points === 2) return 0.35;
+  if (points === 3) return 0.45;
+  return 0.45 + (points - 3) * 0.05;
+}
+
+function normalizeTraitAxisBonuses(
+  bonuses: Partial<TraitAxisBonuses> | null | undefined,
+): TraitAxisBonuses {
+  if (!bonuses) return createEmptyTraitAxisBonuses();
+  return {
+    physicalThreat: clampNonNegative(bonuses.physicalThreat ?? 0),
+    mentalThreat: clampNonNegative(bonuses.mentalThreat ?? 0),
+    survivability: clampNonNegative(bonuses.survivability ?? 0),
+    manipulation: clampNonNegative(bonuses.manipulation ?? 0),
+    synergy: clampNonNegative(bonuses.synergy ?? 0),
+    mobility: clampNonNegative(bonuses.mobility ?? 0),
+    presence: clampNonNegative(bonuses.presence ?? 0),
+  };
+}
+
+function normalizeRawAxisBonuses(
+  bonuses: Partial<RadarAxes> | null | undefined,
+): RadarAxes {
+  if (!bonuses) return createEmptyAxisBonuses();
+  return {
+    physicalThreat: clampNonNegative(bonuses.physicalThreat ?? 0),
+    mentalThreat: clampNonNegative(bonuses.mentalThreat ?? 0),
+    survivability: clampNonNegative(bonuses.survivability ?? 0),
+    manipulation: clampNonNegative(bonuses.manipulation ?? 0),
+    synergy: clampNonNegative(bonuses.synergy ?? 0),
+    mobility: clampNonNegative(bonuses.mobility ?? 0),
+    presence: clampNonNegative(bonuses.presence ?? 0),
+  };
+}
+
 function getDurationTicks(
   power: Pick<MonsterPower, "durationType" | "durationTurns">,
   horizon: number,
@@ -187,8 +358,9 @@ function getDurationTicks(
   return 1;
 }
 
-function getRangeCategory(details: Record<string, unknown>): "MELEE" | "RANGED" | "AOE" {
+function getRangeCategory(details: Record<string, unknown>): "SELF" | "MELEE" | "RANGED" | "AOE" {
   const rc = String(details.rangeCategory ?? "").trim().toUpperCase();
+  if (rc === "SELF") return "SELF";
   if (rc === "AOE") return "AOE";
   if (rc === "RANGED") return "RANGED";
   return "MELEE";
@@ -237,6 +409,10 @@ function computeDistanceScalar(
 ): number {
   const rc = getRangeCategory(details);
 
+  if (rc === "SELF") {
+    return 1;
+  }
+
   if (rc === "RANGED") {
     const dist = safeNum(details.rangeValue ?? details.distance ?? 0);
     const rawBonus = (dist / 30) * tuning.rangedDistanceScalarPer30ft;
@@ -261,6 +437,10 @@ function computeTargetScalar(details: Record<string, unknown>, cfg: CalculatorCo
   const tuning = cfg.manipulationTuning;
   const rc = getRangeCategory(details);
   const extra = getRangeExtra(details);
+
+  if (rc === "SELF") {
+    return 1;
+  }
 
   if (rc === "MELEE") {
     const targets = Math.max(1, Math.floor(safeNum(details.targets ?? details.rangeValue ?? 1)));
@@ -333,7 +513,7 @@ function normalizeByLevelCurve(
   curvePoint: LevelCurvePoint,
   tierMultiplier: number,
 ): number {
-  const tierAdjustedMax = curvePoint.max * Math.max(0, tierMultiplier);
+  const tierAdjustedMax = getTierAdjustedAxisBudgetTarget(curvePoint, tierMultiplier);
   const span = tierAdjustedMax - curvePoint.min;
   if (!Number.isFinite(span) || span <= 0) {
     return value >= tierAdjustedMax ? 10 : 0;
@@ -342,10 +522,185 @@ function normalizeByLevelCurve(
   return clampRadarScore(normalized);
 }
 
+function getTierAdjustedAxisBudgetTarget(
+  curvePoint: LevelCurvePoint,
+  tierMultiplier: number,
+): number {
+  return curvePoint.max * Math.max(0, tierMultiplier);
+}
+
+function getResistBudgetShare(resistDice: unknown): number {
+  const dice = Math.max(0, Math.trunc(safeNum(resistDice)));
+  if (dice <= 0) return 0;
+
+  let share = 0;
+  if (dice >= 1) share += 0.35;
+  if (dice >= 2) share += 0.25;
+  if (dice >= 3) share += 0.2;
+  if (dice >= 4) share += 0.15;
+  if (dice >= 5) share += (dice - 4) * 0.1;
+  return share;
+}
+
+function getResistLevelPressureMultiplier(level: number): number {
+  const normalizedLevel = Math.max(1, Math.min(20, Math.trunc(level || 1)));
+  if (normalizedLevel <= 5) return 1.6;
+  if (normalizedLevel <= 10) return 1.2;
+  if (normalizedLevel <= 15) return 0.9;
+  return 0.7;
+}
+
+function getResistTierPressureMultiplier(tierKey: TierBudgetKey): number {
+  if (tierKey === "MINION") return 1.25;
+  if (tierKey === "SOLDIER") return 1.0;
+  if (tierKey === "ELITE") return 0.85;
+  return 0.7;
+}
+
+function getResistPressureMultiplier(level: number, tierKey: TierBudgetKey): number {
+  return getResistLevelPressureMultiplier(level) * getResistTierPressureMultiplier(tierKey);
+}
+
+function getEquipmentModifierLevelPressureMultiplier(level: number): number {
+  const normalizedLevel = Math.max(1, Math.min(20, Math.trunc(level || 1)));
+  if (normalizedLevel <= 5) return 1.5;
+  if (normalizedLevel <= 10) return 1.2;
+  if (normalizedLevel <= 15) return 1.0;
+  return 0.85;
+}
+
+function getEquipmentModifierTierPressureMultiplier(tierKey: TierBudgetKey): number {
+  if (tierKey === "MINION") return 1.25;
+  if (tierKey === "SOLDIER") return 1.0;
+  if (tierKey === "ELITE") return 0.9;
+  return 0.8;
+}
+
+export function getEquipmentModifierPressureMultiplier(
+  level: number,
+  monster: Pick<MonsterUpsertInput, "tier" | "legendary">,
+): number {
+  const tierKey = toTierBudgetKey(monster);
+  return (
+    getEquipmentModifierLevelPressureMultiplier(level) *
+    getEquipmentModifierTierPressureMultiplier(tierKey)
+  );
+}
+
+function getRawAxisContributionFromBudgetShare(
+  budgetShare: number,
+  curvePoint: LevelCurvePoint,
+  tierMultiplier: number,
+  resistPressureMultiplier = 1,
+): number {
+  return (
+    clampNonNegative(budgetShare) *
+    clampNonNegative(resistPressureMultiplier) *
+    getTierAdjustedAxisBudgetTarget(curvePoint, tierMultiplier)
+  );
+}
+
+function getLimitBreakTierMagnitude(tier: LimitBreakTier | null | undefined): number {
+  if (tier === "PUSH") return 1;
+  if (tier === "BREAK") return 2;
+  if (tier === "TRANSCEND") return 3;
+  return 0;
+}
+
+function getLimitBreakPrimaryAxis(attribute: CoreAttribute | null | undefined): keyof RadarAxes | null {
+  if (attribute === "ATTACK") return "physicalThreat";
+  if (attribute === "DEFENCE" || attribute === "FORTITUDE") return "survivability";
+  if (attribute === "INTELLECT") return "mentalThreat";
+  if (attribute === "SUPPORT") return "synergy";
+  if (attribute === "BRAVERY") return "manipulation";
+  return null;
+}
+
+function getLimitBreakLevelPressureMultiplier(level: number): number {
+  const normalizedLevel = Math.max(1, Math.min(20, Math.trunc(level || 1)));
+  if (normalizedLevel <= 5) return 1.8;
+  if (normalizedLevel <= 10) return 1.35;
+  if (normalizedLevel <= 15) return 1.0;
+  return 0.8;
+}
+
+function getLimitBreakBaseTierPressureMultiplier(baseTier: MonsterTier | null | undefined): number {
+  if (baseTier === "MINION") return 3.0;
+  if (baseTier === "SOLDIER") return 2.0;
+  if (baseTier === "ELITE") return 1.35;
+  return 1.0;
+}
+
+function getLimitBreakPressureMultiplier(level: number, baseTier: MonsterTier | null | undefined): number {
+  return (
+    getLimitBreakLevelPressureMultiplier(level) *
+    getLimitBreakBaseTierPressureMultiplier(baseTier)
+  );
+}
+
+function computeSingleCustomLimitBreakAxisBonus(
+  limitBreak: {
+    tier: LimitBreakTier | null | undefined;
+    attribute: CoreAttribute | null | undefined;
+  },
+  axisBudgetTargets: RadarAxes,
+  pressureMultiplier: number,
+): RadarAxes {
+  const bonuses = createEmptyAxisBonuses();
+  const tierMagnitude = getLimitBreakTierMagnitude(limitBreak.tier);
+  const primaryAxis = getLimitBreakPrimaryAxis(limitBreak.attribute);
+  if (!(tierMagnitude > 0) || !primaryAxis) return bonuses;
+
+  const primaryShare = tierMagnitude * 0.25;
+  const presenceShare = tierMagnitude * 0.12;
+
+  bonuses[primaryAxis] +=
+    axisBudgetTargets[primaryAxis] * primaryShare * clampNonNegative(pressureMultiplier);
+  bonuses.presence +=
+    axisBudgetTargets.presence * presenceShare * clampNonNegative(pressureMultiplier);
+
+  return bonuses;
+}
+
+function computeCustomLimitBreakAxisBonuses(
+  limitBreaks: Array<{
+    tier: LimitBreakTier | null | undefined;
+    attribute: CoreAttribute | null | undefined;
+  }>,
+  isLegendary: boolean,
+  level: number,
+  baseTier: MonsterTier | null | undefined,
+  axisBudgetTargets: RadarAxes,
+): RadarAxes {
+  const bonuses = createEmptyAxisBonuses();
+  if (!isLegendary) return bonuses;
+
+  const pressureMultiplier = getLimitBreakPressureMultiplier(level, baseTier);
+
+  for (const limitBreak of limitBreaks) {
+    const slotBonus = computeSingleCustomLimitBreakAxisBonus(
+      limitBreak,
+      axisBudgetTargets,
+      pressureMultiplier,
+    );
+    bonuses.physicalThreat += slotBonus.physicalThreat;
+    bonuses.mentalThreat += slotBonus.mentalThreat;
+    bonuses.survivability += slotBonus.survivability;
+    bonuses.manipulation += slotBonus.manipulation;
+    bonuses.synergy += slotBonus.synergy;
+    bonuses.mobility += slotBonus.mobility;
+    bonuses.presence += slotBonus.presence;
+  }
+
+  return bonuses;
+}
+
 function toTierBudgetKey(monster: Pick<MonsterOutcomeInput, "tier" | "legendary">): TierBudgetKey {
   if (monster.legendary) return "LEGENDARY";
   const tier = String(monster.tier ?? "MINION").toUpperCase() as MonsterTier | "LEGENDARY";
-  if (tier === "MINION" || tier === "ELITE" || tier === "BOSS") return tier;
+  if (tier === "MINION" || tier === "SOLDIER" || tier === "ELITE" || tier === "BOSS") {
+    return tier;
+  }
   return "ELITE";
 }
 
@@ -367,10 +722,55 @@ function readMultiplier(value: unknown, fallback = 1): number {
   return Math.max(0, parsed);
 }
 
-// SC_LEVEL_WOUND_SCALER_OUTCOME
-function getLevelWoundBonus(level: number): number {
-  if (!Number.isFinite(level)) return 0;
-  return Math.max(0, Math.floor(level / 3));
+function getExpectedNaturalAoeTargetsFromGeometry(
+  aoeConfig: NonNullable<AttackConfigLike>["aoe"],
+): number {
+  if (!aoeConfig?.enabled) return 1;
+
+  const shape = String((aoeConfig as { shape?: unknown }).shape ?? "SPHERE").toUpperCase();
+  if (shape === "SPHERE") {
+    const sphereTargets: Record<number, number> = { 10: 3, 20: 6, 30: 9 };
+    return sphereTargets[Math.max(0, Math.trunc(safeNum(aoeConfig.sphereRadiusFeet ?? 0)))] ?? 1;
+  }
+  if (shape === "CONE") {
+    const coneTargets: Record<number, number> = { 15: 3, 30: 8, 60: 14 };
+    return coneTargets[Math.max(0, Math.trunc(safeNum(aoeConfig.coneLengthFeet ?? 0)))] ?? 1;
+  }
+
+  const lineTargetTable: Record<number, Record<number, number>> = {
+    5: { 30: 3, 60: 6, 90: 9, 120: 12 },
+    10: { 30: 4, 60: 8, 90: 12, 120: 16 },
+    15: { 30: 5, 60: 10, 90: 15, 120: 20 },
+    20: { 30: 6, 60: 12, 90: 18, 120: 24 },
+  };
+  const width = Math.max(0, Math.trunc(safeNum(aoeConfig.lineWidthFeet ?? 0)));
+  const length = Math.max(0, Math.trunc(safeNum(aoeConfig.lineLengthFeet ?? 0)));
+  return lineTargetTable[width]?.[length] ?? 1;
+}
+
+function getEffectiveNaturalAoeTargetCount(
+  aoeConfig: NonNullable<AttackConfigLike>["aoe"],
+): number {
+  const selectedCount = readMultiplier(aoeConfig?.count, 1);
+  const expectedTargetsFromGeometry = getExpectedNaturalAoeTargetsFromGeometry(aoeConfig);
+  return Math.max(selectedCount, expectedTargetsFromGeometry);
+}
+
+function withEffectiveNaturalAoeTargetCount(attackConfig: AttackConfigLike): AttackConfigLike {
+  if (!attackConfig?.aoe?.enabled) return attackConfig;
+  return {
+    ...attackConfig,
+    aoe: {
+      ...attackConfig.aoe,
+      count: getEffectiveNaturalAoeTargetCount(attackConfig.aoe),
+    },
+  };
+}
+
+function getLevelWoundBonus(level?: number): number {
+  const parsed = typeof level === "number" ? level : Number(level ?? 0);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.floor(parsed / 3);
 }
 
 function computeAtWillFromAttackConfig(
@@ -396,7 +796,6 @@ function computeAtWillFromAttackConfig(
   let hasRanged = false;
   let hasAoe = false;
   const strengthScalar = clampNonNegative(Number(strengthMultiplier || 0));
-  const levelBonus = getLevelWoundBonus(level);
 
   const applyContribution = (
     physicalStrength: unknown,
@@ -406,6 +805,7 @@ function computeAtWillFromAttackConfig(
   ) => {
     let physicalValue = clampNonNegative(Number(physicalStrength ?? 0));
     let mentalValue = clampNonNegative(Number(mentalStrength ?? 0));
+    const damageTypeCount = Math.max(1, readStringArray(damageTypes).length);
     const modes = readDamageModes(damageTypes);
 
     if (modes.has("MENTAL") && !modes.has("PHYSICAL") && mentalValue === 0 && physicalValue > 0) {
@@ -420,12 +820,12 @@ function computeAtWillFromAttackConfig(
     const toWoundsPerSuccess = (strength: number): number => {
       const base = strength * strengthScalar;
       if (!(base > 0)) return base;
-      return base + levelBonus;
+      return base + getLevelWoundBonus(level);
     };
 
     const scalar = successChance * netSuccessMultiplier * Math.max(0, multiplier);
-    physical += toWoundsPerSuccess(physicalValue) * scalar;
-    mental += toWoundsPerSuccess(mentalValue) * scalar;
+    physical += toWoundsPerSuccess(physicalValue) * scalar * damageTypeCount;
+    mental += toWoundsPerSuccess(mentalValue) * scalar * damageTypeCount;
   };
 
   if (attackConfig.melee?.enabled) {
@@ -469,18 +869,23 @@ function computeAtWillFromAttackConfig(
   };
 }
 
-function pickBestAtWillSource(candidates: AtWillContribution[]): AtWillContribution {
-  let best: AtWillContribution = {
-    physical: 0,
-    mental: 0,
-    total: 0,
+function summarizeAtWillCandidates(candidates: AtWillContribution[]): AtWillSummary {
+  const summary: AtWillSummary = {
+    bestPhysical: 0,
+    bestMental: 0,
+    bestTotal: 0,
     hasRanged: false,
     hasAoe: false,
   };
+
   for (const candidate of candidates) {
-    if (candidate.total > best.total) best = candidate;
+    summary.bestPhysical = Math.max(summary.bestPhysical, candidate.physical);
+    summary.bestMental = Math.max(summary.bestMental, candidate.mental);
+    summary.bestTotal = Math.max(summary.bestTotal, candidate.total);
+    summary.hasRanged = summary.hasRanged || candidate.hasRanged;
+    summary.hasAoe = summary.hasAoe || candidate.hasAoe;
   }
-  return best;
+  return summary;
 }
 
 export function dieSidesFromDieString(die: string): number {
@@ -543,7 +948,13 @@ export function computeSEUFromIntention(
 export function computeMonsterOutcomes(
   monster: MonsterOutcomeInput,
   config: CalculatorConfig,
-  opts?: { equippedWeaponSources?: WeaponAttackSource[] },
+  opts?: {
+    equippedWeaponSources?: WeaponAttackSource[];
+    equipmentModifierAxisBonuses?: Partial<RadarAxes>;
+    naturalAttackGsAxisBonuses?: Partial<RadarAxes>;
+    naturalAttackRangeAxisBonuses?: Partial<RadarAxes>;
+    traitAxisBonuses?: Partial<TraitAxisBonuses>;
+  },
 ): MonsterOutcomeProfile {
   const cfg = config;
   const netSuccessMultiplier = cfg.baselineParty.netSuccessMultiplier;
@@ -554,7 +965,7 @@ export function computeMonsterOutcomes(
     if (attack.attackMode !== "NATURAL") continue;
     atWillCandidates.push(
       computeAtWillFromAttackConfig(
-        attack.attackConfig as AttackConfigLike,
+        withEffectiveNaturalAoeTargetCount(attack.attackConfig as AttackConfigLike),
         successChance,
         cfg.baselineParty.aoeMultiplier,
         netSuccessMultiplier,
@@ -566,7 +977,7 @@ export function computeMonsterOutcomes(
   if (monster.naturalAttack?.attackConfig) {
     atWillCandidates.push(
       computeAtWillFromAttackConfig(
-        monster.naturalAttack.attackConfig as AttackConfigLike,
+        withEffectiveNaturalAoeTargetCount(monster.naturalAttack.attackConfig as AttackConfigLike),
         successChance,
         cfg.baselineParty.aoeMultiplier,
         netSuccessMultiplier,
@@ -587,11 +998,11 @@ export function computeMonsterOutcomes(
       ),
     );
   }
-  const bestAtWill = pickBestAtWillSource(atWillCandidates);
+  const atWillSummary = summarizeAtWillCandidates(atWillCandidates);
 
-  let sustainedPhysical = bestAtWill.physical;
-  let sustainedMental = bestAtWill.mental;
-  let spike = bestAtWill.total;
+  let sustainedPhysical = atWillSummary.bestPhysical;
+  let sustainedMental = atWillSummary.bestMental;
+  let spike = atWillSummary.bestTotal;
   let seuPerRound = 0;
   let tsuPerRound = 0;
   const intentionCounts: Record<MonsterPowerIntention["type"], number> = {
@@ -606,8 +1017,8 @@ export function computeMonsterOutcomes(
     SUMMON: 0,
     TRANSFORMATION: 0,
   };
-  let hasRangedPressure = atWillCandidates.some((candidate) => candidate.hasRanged);
-  let hasAoePressure = atWillCandidates.some((candidate) => candidate.hasAoe);
+  let hasRangedPressure = atWillSummary.hasRanged;
+  let hasAoePressure = atWillSummary.hasAoe;
   let movementPotencyTotal = 0;
 
   const horizon = Math.max(1, Math.floor(safeNum(cfg.baselineParty.combatHorizonRounds ?? 5)));
@@ -685,17 +1096,14 @@ export function computeMonsterOutcomes(
     clampNonNegative(cfg.baselineParty.focusedWPR) +
     clampNonNegative(cfg.baselineParty.typicalWPR) * (Math.max(1, cfg.baselineParty.size) - 1);
 
-  const netPhysicalIncoming = Math.max(
-    1,
-    partyWPR - clampNonNegative(monster.physicalProtection),
-  );
-  const netMentalIncoming = Math.max(
-    1,
-    partyWPR - clampNonNegative(monster.mentalProtection),
-  );
+  // SC_DEFENCE_STRING_SURVIVABILITY_V1
+  // Raw PP/MP should not directly reduce incoming WPR here.
+  // Protection is already represented through the editor-side defence-string
+  // survivability bonus built from Dodge + Physical Protection output + Mental Protection output.
+  const netIncoming = Math.max(1, partyWPR);
 
-  const roundsToPRZero = clampNonNegative(monster.physicalResilienceMax) / netPhysicalIncoming;
-  const roundsToMPZero = clampNonNegative(monster.mentalPerseveranceMax) / netMentalIncoming;
+  const roundsToPRZero = clampNonNegative(monster.physicalResilienceMax) / netIncoming;
+  const roundsToMPZero = clampNonNegative(monster.mentalPerseveranceMax) / netIncoming;
   const survivabilityRounds = Math.min(roundsToPRZero, roundsToMPZero);
   const manipulationBudget = clampNonNegative(tsuPerRound);
   const synergyBudget =
@@ -713,40 +1121,178 @@ export function computeMonsterOutcomes(
   const level = Math.max(1, Math.trunc(monster.level || 1));
   const tierKey = toTierBudgetKey(monster);
   const tierMultiplier = cfg.tierMultipliers[tierKey] ?? 1;
+  const resistPressureMultiplier = getResistPressureMultiplier(level, tierKey);
+  const physicalThreatCurvePoint = getCurvePointForLevel(cfg.scoringCurves.physicalThreat, level);
+  const mentalThreatCurvePoint = getCurvePointForLevel(cfg.scoringCurves.mentalThreat, level);
+  const survivabilityCurvePoint = getCurvePointForLevel(cfg.scoringCurves.survivability, level);
+  const manipulationCurvePoint = getCurvePointForLevel(cfg.scoringCurves.manipulation, level);
+  const synergyCurvePoint = getCurvePointForLevel(cfg.scoringCurves.synergy, level);
+  const mobilityCurvePoint = getCurvePointForLevel(cfg.scoringCurves.mobility, level);
+  const presenceCurvePoint = getCurvePointForLevel(cfg.scoringCurves.presence, level);
+  const axisBudgetTargets: RadarAxes = {
+    physicalThreat: getTierAdjustedAxisBudgetTarget(physicalThreatCurvePoint, tierMultiplier),
+    mentalThreat: getTierAdjustedAxisBudgetTarget(mentalThreatCurvePoint, tierMultiplier),
+    survivability: getTierAdjustedAxisBudgetTarget(survivabilityCurvePoint, tierMultiplier),
+    manipulation: getTierAdjustedAxisBudgetTarget(manipulationCurvePoint, tierMultiplier),
+    synergy: getTierAdjustedAxisBudgetTarget(synergyCurvePoint, tierMultiplier),
+    mobility: getTierAdjustedAxisBudgetTarget(mobilityCurvePoint, tierMultiplier),
+    presence: getTierAdjustedAxisBudgetTarget(presenceCurvePoint, tierMultiplier),
+  };
+  const customLimitBreakAxisBonuses = computeCustomLimitBreakAxisBonuses(
+    [
+      {
+        tier: monster.limitBreakTier,
+        attribute: monster.limitBreakAttribute,
+      },
+      {
+        tier: monster.limitBreak2Tier,
+        attribute: monster.limitBreak2Attribute,
+      },
+    ],
+    Boolean(monster.legendary),
+    level,
+    monster.tier ?? null,
+    axisBudgetTargets,
+  );
+
+  const attackResistContribution = getRawAxisContributionFromBudgetShare(
+    getResistBudgetShare(monster.attackResistDie),
+    physicalThreatCurvePoint,
+    tierMultiplier,
+    resistPressureMultiplier,
+  );
+  const intellectResistContribution = getRawAxisContributionFromBudgetShare(
+    getResistBudgetShare(monster.intellectResistDie),
+    mentalThreatCurvePoint,
+    tierMultiplier,
+    resistPressureMultiplier,
+  );
+  const defenceResistContribution = getRawAxisContributionFromBudgetShare(
+    getResistBudgetShare(monster.defenceResistDie),
+    survivabilityCurvePoint,
+    tierMultiplier,
+    resistPressureMultiplier,
+  );
+  const fortitudeResistContribution = getRawAxisContributionFromBudgetShare(
+    getResistBudgetShare(monster.fortitudeResistDie),
+    survivabilityCurvePoint,
+    tierMultiplier,
+    resistPressureMultiplier,
+  );
+  const supportResistContribution = getRawAxisContributionFromBudgetShare(
+    getResistBudgetShare(monster.supportResistDie),
+    synergyCurvePoint,
+    tierMultiplier,
+    resistPressureMultiplier,
+  );
+  const braveryResistContribution = getRawAxisContributionFromBudgetShare(
+    getResistBudgetShare(monster.braveryResistDie),
+    manipulationCurvePoint,
+    tierMultiplier,
+    resistPressureMultiplier,
+  );
+  const naturalAttackGsAxisBonuses = normalizeRawAxisBonuses(opts?.naturalAttackGsAxisBonuses);
+  const naturalAttackRangeAxisBonuses = normalizeRawAxisBonuses(
+    opts?.naturalAttackRangeAxisBonuses,
+  );
+  const traitAxisBonuses = normalizeTraitAxisBonuses(opts?.traitAxisBonuses);
+  const equipmentModifierAxisBonuses = normalizeRawAxisBonuses(
+    opts?.equipmentModifierAxisBonuses,
+  );
+  const hasPhysicalThreat = sustainedPhysical > 0;
+  const hasMentalThreat = sustainedMental > 0;
+  const equipmentAttackThreatBonus = equipmentModifierAxisBonuses.physicalThreat;
+  const routedEquipmentPhysicalThreatBonus = hasPhysicalThreat
+    ? equipmentAttackThreatBonus
+    : 0;
+  const routedEquipmentMentalThreatBonus = hasMentalThreat
+    ? equipmentAttackThreatBonus
+    : 0;
+  const physicalThreatBudget =
+    sustainedPhysical +
+    attackResistContribution +
+    routedEquipmentPhysicalThreatBonus +
+    naturalAttackGsAxisBonuses.physicalThreat +
+    naturalAttackRangeAxisBonuses.physicalThreat +
+    customLimitBreakAxisBonuses.physicalThreat +
+    traitAxisBonuses.physicalThreat;
+  const mentalThreatBudget =
+    sustainedMental +
+    intellectResistContribution +
+    routedEquipmentMentalThreatBonus +
+    equipmentModifierAxisBonuses.mentalThreat +
+    naturalAttackGsAxisBonuses.mentalThreat +
+    naturalAttackRangeAxisBonuses.mentalThreat +
+    customLimitBreakAxisBonuses.mentalThreat +
+    traitAxisBonuses.mentalThreat;
+  const survivabilityBudget =
+    survivabilityRounds +
+    defenceResistContribution +
+    fortitudeResistContribution +
+    equipmentModifierAxisBonuses.survivability +
+    naturalAttackGsAxisBonuses.survivability +
+    customLimitBreakAxisBonuses.survivability +
+    traitAxisBonuses.survivability;
+  const manipulationAxisBudget =
+    manipulationBudget +
+    braveryResistContribution +
+    equipmentModifierAxisBonuses.manipulation +
+    naturalAttackGsAxisBonuses.manipulation +
+    customLimitBreakAxisBonuses.manipulation +
+    traitAxisBonuses.manipulation;
+  const synergyAxisBudget =
+    synergyBudget +
+    supportResistContribution +
+    equipmentModifierAxisBonuses.synergy +
+    naturalAttackGsAxisBonuses.synergy +
+    customLimitBreakAxisBonuses.synergy +
+    traitAxisBonuses.synergy;
+  const mobilityAxisBudget =
+    mobilityBudget +
+    naturalAttackGsAxisBonuses.mobility +
+    naturalAttackRangeAxisBonuses.mobility +
+    customLimitBreakAxisBonuses.mobility +
+    traitAxisBonuses.mobility;
+  const presenceAxisBudget =
+    presenceBudget +
+    naturalAttackGsAxisBonuses.presence +
+    naturalAttackRangeAxisBonuses.presence +
+    customLimitBreakAxisBonuses.presence +
+    traitAxisBonuses.presence;
   const radarAxes: RadarAxes = {
     physicalThreat: normalizeByLevelCurve(
-      sustainedPhysical,
-      getCurvePointForLevel(cfg.scoringCurves.physicalThreat, level),
+      physicalThreatBudget,
+      physicalThreatCurvePoint,
       tierMultiplier,
     ),
     mentalThreat: normalizeByLevelCurve(
-      sustainedMental,
-      getCurvePointForLevel(cfg.scoringCurves.mentalThreat, level),
+      mentalThreatBudget,
+      mentalThreatCurvePoint,
       tierMultiplier,
     ),
     survivability: normalizeByLevelCurve(
-      survivabilityRounds,
-      getCurvePointForLevel(cfg.scoringCurves.survivability, level),
+      survivabilityBudget,
+      survivabilityCurvePoint,
       tierMultiplier,
     ),
     manipulation: normalizeByLevelCurve(
-      manipulationBudget,
-      getCurvePointForLevel(cfg.scoringCurves.manipulation, level),
+      manipulationAxisBudget,
+      manipulationCurvePoint,
       tierMultiplier,
     ),
     synergy: normalizeByLevelCurve(
-      synergyBudget,
-      getCurvePointForLevel(cfg.scoringCurves.synergy, level),
+      synergyAxisBudget,
+      synergyCurvePoint,
       tierMultiplier,
     ),
     mobility: normalizeByLevelCurve(
-      mobilityBudget,
-      getCurvePointForLevel(cfg.scoringCurves.mobility, level),
+      mobilityAxisBudget,
+      mobilityCurvePoint,
       tierMultiplier,
     ),
     presence: normalizeByLevelCurve(
-      presenceBudget,
-      getCurvePointForLevel(cfg.scoringCurves.presence, level),
+      presenceAxisBudget,
+      presenceCurvePoint,
       tierMultiplier,
     ),
   };

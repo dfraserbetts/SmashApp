@@ -395,6 +395,14 @@ export function normalizeMonsterUpsertInput(body: unknown): {
     mentalPerseveranceMax: Math.max(0, asInt(raw.mentalPerseveranceMax, 0)),
     physicalProtection: Math.max(0, asInt(raw.physicalProtection, 0)),
     mentalProtection: Math.max(0, asInt(raw.mentalProtection, 0)),
+    naturalPhysicalProtection: Math.max(
+      0,
+      Math.min(30, asInt(raw.naturalPhysicalProtection, 0)),
+    ),
+    naturalMentalProtection: Math.max(
+      0,
+      Math.min(30, asInt(raw.naturalMentalProtection, 0)),
+    ),
     attackDie: asDice(raw.attackDie, "D6"),
     attackResistDie: Math.max(0, asInt(raw.attackResistDie, 0)),
     attackModifier: asInt(raw.attackModifier, 0),

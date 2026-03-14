@@ -19,6 +19,22 @@ const ARCHETYPE_OPTIONS: MonsterCalculatorArchetype[] = [
   "TANK",
   "CONTROLLER",
 ];
+const ARCHETYPE_LABELS: Record<MonsterCalculatorArchetype, string> = {
+  BALANCED: "Balanced",
+  GLASS_CANNON: "Glass Cannon",
+  TANK: "Tank",
+  CONTROLLER: "Controller",
+};
+const ARCHETYPE_TOOLTIPS: Record<MonsterCalculatorArchetype, string> = {
+  BALANCED:
+    "Aims for an even spread across offence, survivability, control, mobility, and presence.",
+  GLASS_CANNON:
+    "Aims for high threat and burst pressure with intentionally low survivability.",
+  TANK:
+    "Aims for very high survivability and battlefield staying power over raw offensive output.",
+  CONTROLLER:
+    "Aims for disruption, manipulation, and encounter-shaping value over direct damage.",
+};
 
 const ARCHETYPE_TARGETS: Record<
   MonsterCalculatorArchetype,
@@ -76,14 +92,15 @@ export function MonsterCalculatorPanel({ profile, archetype, onArchetypeChangeAc
           <span className="text-zinc-400">Archetype</span>
           <select
             value={archetype}
+            title={ARCHETYPE_TOOLTIPS[archetype]}
             onChange={(event) =>
               onArchetypeChangeAction(event.target.value as MonsterCalculatorArchetype)
             }
             className="rounded border border-zinc-700 bg-zinc-950/40 px-2 py-1 text-xs"
           >
             {ARCHETYPE_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
+              <option key={option} value={option} title={ARCHETYPE_TOOLTIPS[option]}>
+                {ARCHETYPE_LABELS[option]}
               </option>
             ))}
           </select>

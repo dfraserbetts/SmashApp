@@ -496,6 +496,8 @@ export async function POST(req: Request) {
         mentalPerseveranceMax: data.mentalPerseveranceMax,
         physicalProtection: data.physicalProtection,
         mentalProtection: data.mentalProtection,
+        naturalPhysicalProtection: data.naturalPhysicalProtection,
+        naturalMentalProtection: data.naturalMentalProtection,
         attackDie: data.attackDie,
         attackResistDie: data.attackResistDie,
         attackModifier: data.attackModifier,

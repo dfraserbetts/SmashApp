@@ -46,7 +46,9 @@ export type MonsterModifierField =
   | "supportModifier"
   | "braveryModifier"
   | "weaponSkillModifier"
-  | "armorSkillModifier";
+  | "armorSkillModifier"
+  | "willpowerModifier"
+  | "dodgeModifier";
 
 const MODIFIER_ALIASES: Record<string, MonsterModifierField> = {
   attack: "attackModifier",
@@ -62,6 +64,8 @@ const MODIFIER_ALIASES: Record<string, MonsterModifierField> = {
   "armour skill": "armorSkillModifier",
   armorskill: "armorSkillModifier",
   armourskill: "armorSkillModifier",
+  willpower: "willpowerModifier",
+  dodge: "dodgeModifier",
 };
 
 export const MONSTER_MODIFIER_FIELDS: MonsterModifierField[] = [
@@ -73,7 +77,61 @@ export const MONSTER_MODIFIER_FIELDS: MonsterModifierField[] = [
   "braveryModifier",
   "weaponSkillModifier",
   "armorSkillModifier",
+  "willpowerModifier",
+  "dodgeModifier",
 ];
+
+const EQUIPMENT_LINE_PLACEMENTS = ["ATTACK", "DEFENCE", "TRAITS", "GENERAL"] as const;
+
+export type EquipmentLinePlacementKey = (typeof EQUIPMENT_LINE_PLACEMENTS)[number];
+
+function toEquipmentLinePlacementKey(value: unknown): EquipmentLinePlacementKey | null {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return EQUIPMENT_LINE_PLACEMENTS.find((placement) => placement === normalized) ?? null;
+}
+
+function getMergedItemAttributeLines(
+  item: SummoningEquipmentItem,
+): Array<{ text: string; placement: AttributePlacement }> {
+  if (Array.isArray(item.allAttributeLines) && item.allAttributeLines.length > 0) {
+    return item.allAttributeLines;
+  }
+
+  return [
+    ...(Array.isArray(item.attributeLines) ? item.attributeLines : []),
+    ...(Array.isArray(item.itemAttributeLines) ? item.itemAttributeLines : []),
+    ...(Array.isArray(item.customItemAttributeLines) ? item.customItemAttributeLines : []),
+  ];
+}
+
+export function getItemLinePlacementCounts(
+  items: Array<SummoningEquipmentItem | null | undefined>,
+): Record<EquipmentLinePlacementKey, number> {
+  const counts: Record<EquipmentLinePlacementKey, number> = {
+    ATTACK: 0,
+    DEFENCE: 0,
+    TRAITS: 0,
+    GENERAL: 0,
+  };
+
+  for (const item of items) {
+    if (!item) continue;
+
+    const seenLineKeys = new Set<string>();
+    for (const line of getMergedItemAttributeLines(item)) {
+      const placement = toEquipmentLinePlacementKey(line.placement);
+      const normalizedText = String(line.text ?? "").trim().toLowerCase();
+      if (!placement || !normalizedText) continue;
+
+      const dedupeKey = `${placement}:${normalizedText}`;
+      if (seenLineKeys.has(dedupeKey)) continue;
+      seenLineKeys.add(dedupeKey);
+      counts[placement] += 1;
+    }
+  }
+
+  return counts;
+}
 
 export function mapModifierKeyToMonsterField(attribute: string): MonsterModifierField | null {
   const key = attribute.trim().toLowerCase();

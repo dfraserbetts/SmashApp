@@ -1,5 +1,6 @@
 export type MonsterTier = "MINION" | "SOLDIER" | "ELITE" | "BOSS";
 export type MonsterSource = "CORE" | "CAMPAIGN";
+export type MonsterTraitBand = "MINOR" | "STANDARD" | "MAJOR" | "BOSS";
 export type MonsterAttackMode = "NATURAL";
 export type LimitBreakTier = "PUSH" | "BREAK" | "TRANSCEND";
 export type CoreAttribute =
@@ -66,6 +67,14 @@ export type MonsterTraitDefinitionSummary = {
   id: string;
   name: string;
   effectText: string | null;
+  band: MonsterTraitBand;
+  physicalThreatWeight: number;
+  mentalThreatWeight: number;
+  survivabilityWeight: number;
+  manipulationWeight: number;
+  synergyWeight: number;
+  mobilityWeight: number;
+  presenceWeight: number;
 };
 
 export type MonsterNaturalAttackConfig = {
@@ -158,6 +167,8 @@ export type MonsterRecord = {
   mentalPerseveranceMax: number;
   physicalProtection: number;
   mentalProtection: number;
+  naturalPhysicalProtection: number;
+  naturalMentalProtection: number;
   attackDie: DiceSize;
   attackResistDie: number;
   attackModifier: number;
