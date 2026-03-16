@@ -1,4 +1,5 @@
-import type { DiceSize } from "@/lib/summoning/types";
+import type { DiceSize, MonsterTier } from "@/lib/summoning/types";
+import type { ProtectionTuningValues } from "@/lib/config/combatTuningShared";
 
 const DICE_SIZE_NUMERIC_VALUE: Record<DiceSize, number> = {
   D4: 4,
@@ -90,4 +91,68 @@ export function getWillpowerDiceCountFromAttributes(
   const braveryValue = getAttributeNumericValue(braveryDie);
   // Willpower: primary Support, secondary Bravery
   return weightedSkillFromAttributes(supportValue, braveryValue);
+}
+
+const LEGENDARY_BONUS_BY_TIER: Record<MonsterTier, number> = {
+  MINION: 0.25,
+  SOLDIER: 0.5,
+  ELITE: 0.75,
+  BOSS: 1,
+};
+
+export function calculateMonsterResilienceValues(
+  monster: {
+    level: number;
+    tier: MonsterTier;
+    legendary: boolean;
+    attackDie: DiceSize | null | undefined;
+    defenceDie: DiceSize | null | undefined;
+    fortitudeDie: DiceSize | null | undefined;
+    intellectDie: DiceSize | null | undefined;
+    supportDie: DiceSize | null | undefined;
+    braveryDie: DiceSize | null | undefined;
+  },
+  tuning: Pick<
+    ProtectionTuningValues,
+    | "attackWeight"
+    | "defenceWeight"
+    | "fortitudeWeight"
+    | "intellectWeight"
+    | "supportWeight"
+    | "braveryWeight"
+    | "minionTierMultiplier"
+    | "soldierTierMultiplier"
+    | "eliteTierMultiplier"
+    | "bossTierMultiplier"
+  >,
+): {
+  physicalResilienceMax: number;
+  mentalPerseveranceMax: number;
+} {
+  const tierMultiplierByTier: Record<MonsterTier, number> = {
+    MINION: tuning.minionTierMultiplier,
+    SOLDIER: tuning.soldierTierMultiplier,
+    ELITE: tuning.eliteTierMultiplier,
+    BOSS: tuning.bossTierMultiplier,
+  };
+
+  const tierMultiplier = tierMultiplierByTier[monster.tier];
+  const legendaryBonus = monster.legendary ? LEGENDARY_BONUS_BY_TIER[monster.tier] : 0;
+
+  const prBase =
+    monster.level +
+    getAttributeNumericValue(monster.attackDie) * tuning.attackWeight +
+    getAttributeNumericValue(monster.defenceDie) * tuning.defenceWeight +
+    getAttributeNumericValue(monster.fortitudeDie) * tuning.fortitudeWeight;
+
+  const mpBase =
+    monster.level +
+    getAttributeNumericValue(monster.intellectDie) * tuning.intellectWeight +
+    getAttributeNumericValue(monster.supportDie) * tuning.supportWeight +
+    getAttributeNumericValue(monster.braveryDie) * tuning.braveryWeight;
+
+  const physicalResilienceMax = Math.round(prBase * tierMultiplier + prBase * legendaryBonus);
+  const mentalPerseveranceMax = Math.round(mpBase * tierMultiplier + mpBase * legendaryBonus);
+
+  return { physicalResilienceMax, mentalPerseveranceMax };
 }

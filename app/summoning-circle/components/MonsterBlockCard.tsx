@@ -11,6 +11,7 @@ import type {
   MonsterUpsertInput,
 } from "@/lib/summoning/types";
 import {
+  calculateMonsterResilienceValues,
   getArmorSkillDiceCountFromAttributes,
   getDodgeValue,
   getWeaponSkillDiceCountFromAttributes,
@@ -36,6 +37,7 @@ import {
   getWeaponLimitBreakCeiling,
 } from "@/lib/limitBreakThreshold";
 import {
+  normalizeCombatTuning,
   normalizeProtectionTuning,
   type ProtectionTuningValues,
 } from "@/lib/config/combatTuningShared";
@@ -705,6 +707,14 @@ export function MonsterBlockCard({
     const itemProtection = getProtectionTotalsFromItems(equippedItems);
     return { itemModifiers, itemProtection };
   }, [equippedItems]);
+  const resolvedCombatTuning = useMemo(
+    () => normalizeCombatTuning(protectionTuning),
+    [protectionTuning],
+  );
+  const resilienceValues = useMemo(
+    () => calculateMonsterResilienceValues(monster, resolvedCombatTuning),
+    [monster, resolvedCombatTuning],
+  );
   const computedWeaponSkillValue = useMemo(
     () =>
       Math.max(
@@ -1357,7 +1367,7 @@ export function MonsterBlockCard({
           <div className="grid grid-cols-3 items-center gap-2">
             <div className="text-left">
               <p className="text-[11px] uppercase tracking-wide text-zinc-500">Mental Perseverance</p>
-              <p className="text-lg font-semibold leading-none">{monster.mentalPerseveranceMax}</p>
+              <p className="text-lg font-semibold leading-none">{resilienceValues.mentalPerseveranceMax}</p>
             </div>
 
             <div className="text-center">
@@ -1372,7 +1382,7 @@ export function MonsterBlockCard({
 
             <div className="text-right">
               <p className="text-[11px] uppercase tracking-wide text-zinc-500">Physical Resilience</p>
-              <p className="text-lg font-semibold leading-none">{monster.physicalResilienceMax}</p>
+              <p className="text-lg font-semibold leading-none">{resilienceValues.physicalResilienceMax}</p>
             </div>
           </div>
         </div>

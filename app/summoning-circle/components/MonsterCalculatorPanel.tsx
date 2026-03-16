@@ -128,6 +128,7 @@ export function MonsterCalculatorPanel({ profile, archetype, onArchetypeChangeAc
                   seuPerRound: profile.seuPerRound,
                   tsuPerRound: profile.tsuPerRound,
                   radarAxes: profile.radarAxes,
+                  debug: profile.debug ?? null,
                 },
                 null,
                 2,
