@@ -74,6 +74,7 @@ export type MonsterOutcomeProfile = {
   tsuPerRound: number;
   netSuccessMultiplier: number;
   radarAxes: RadarAxes;
+  debug?: Record<string, unknown>;
 };
 
 type MonsterOutcomeInput = Pick<
@@ -177,6 +178,40 @@ function clampTraitAxisWeight(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) return 0;
   return Math.max(0, Math.min(3, Math.trunc(parsed)));
+}
+
+function getExpectedPoolValue(
+  at1: number,
+  perLevel: number,
+  level: number,
+  tierMultiplier: number,
+): number {
+  const normalizedLevel = Math.max(1, Math.trunc(level || 1));
+  return Math.max(1, (at1 + (normalizedLevel - 1) * perLevel) * Math.max(0.001, tierMultiplier));
+}
+
+function getSignedExpectedPoolShare(
+  ratio: number,
+  cfg: CalculatorConfig["healthPoolTuning"],
+): number {
+  const safeRatio = Math.max(0, Number.isFinite(ratio) ? ratio : 0);
+  const delta = safeRatio - 1;
+
+  if (delta < 0) {
+    return (
+      -cfg.belowExpectedMaxPenaltyShare *
+      (1 - Math.exp(-Math.abs(delta) / Math.max(0.001, cfg.belowExpectedScale)))
+    );
+  }
+
+  if (delta > 0) {
+    return (
+      cfg.aboveExpectedMaxBonusShare *
+      (1 - Math.exp(-delta / Math.max(0.001, cfg.aboveExpectedScale)))
+    );
+  }
+
+  return 0;
 }
 
 function readPositiveNumber(value: unknown): number | null {
@@ -1129,6 +1164,38 @@ export function computeMonsterOutcomes(
   const synergyCurvePoint = getCurvePointForLevel(cfg.scoringCurves.synergy, level);
   const mobilityCurvePoint = getCurvePointForLevel(cfg.scoringCurves.mobility, level);
   const presenceCurvePoint = getCurvePointForLevel(cfg.scoringCurves.presence, level);
+  const poolTierMultiplier =
+    cfg.healthPoolTuning.expectedPoolTierMultipliers[monster.tier] ??
+    cfg.healthPoolTuning.expectedPoolTierMultipliers.ELITE;
+  const expectedPhysicalResilience = getExpectedPoolValue(
+    cfg.healthPoolTuning.expectedPhysicalResilienceAt1,
+    cfg.healthPoolTuning.expectedPhysicalResiliencePerLevel,
+    level,
+    poolTierMultiplier,
+  );
+  const expectedMentalPerseverance = getExpectedPoolValue(
+    cfg.healthPoolTuning.expectedMentalPerseveranceAt1,
+    cfg.healthPoolTuning.expectedMentalPerseverancePerLevel,
+    level,
+    poolTierMultiplier,
+  );
+  const physicalPoolRatio =
+    clampNonNegative(monster.physicalResilienceMax) / Math.max(1, expectedPhysicalResilience);
+  const mentalPoolRatio =
+    clampNonNegative(monster.mentalPerseveranceMax) / Math.max(1, expectedMentalPerseverance);
+  const weakerPoolRatio = Math.min(physicalPoolRatio, mentalPoolRatio);
+  const averagePoolRatio = (physicalPoolRatio + mentalPoolRatio) / 2;
+  const poolWeightTotal = Math.max(
+    0.0001,
+    cfg.healthPoolTuning.weakerSideWeight + cfg.healthPoolTuning.averageWeight,
+  );
+  const combinedPoolRatio =
+    (weakerPoolRatio * cfg.healthPoolTuning.weakerSideWeight +
+      averagePoolRatio * cfg.healthPoolTuning.averageWeight) /
+    poolWeightTotal;
+  const poolHealthShare = getSignedExpectedPoolShare(combinedPoolRatio, cfg.healthPoolTuning);
+  const poolHealthRawBonus =
+    getTierAdjustedAxisBudgetTarget(survivabilityCurvePoint, tierMultiplier) * poolHealthShare;
   const axisBudgetTargets: RadarAxes = {
     physicalThreat: getTierAdjustedAxisBudgetTarget(physicalThreatCurvePoint, tierMultiplier),
     mentalThreat: getTierAdjustedAxisBudgetTarget(mentalThreatCurvePoint, tierMultiplier),
@@ -1226,7 +1293,7 @@ export function computeMonsterOutcomes(
     customLimitBreakAxisBonuses.mentalThreat +
     traitAxisBonuses.mentalThreat;
   const survivabilityBudget =
-    survivabilityRounds +
+    poolHealthRawBonus +
     defenceResistContribution +
     fortitudeResistContribution +
     equipmentModifierAxisBonuses.survivability +
@@ -1316,5 +1383,21 @@ export function computeMonsterOutcomes(
     tsuPerRound,
     netSuccessMultiplier,
     radarAxes,
+    debug: {
+      poolHealthBreakdown: {
+        expectedPhysicalResilience,
+        expectedMentalPerseverance,
+        physicalPoolRatio,
+        mentalPoolRatio,
+        weakerPoolRatio,
+        averagePoolRatio,
+        combinedPoolRatio,
+        signedPoolShare: poolHealthShare,
+        rawBonus: poolHealthRawBonus,
+        legacyRoundsToPRZero: roundsToPRZero,
+        legacyRoundsToMPZero: roundsToMPZero,
+        legacySurvivabilityRounds: survivabilityRounds,
+      },
+    },
   };
 }

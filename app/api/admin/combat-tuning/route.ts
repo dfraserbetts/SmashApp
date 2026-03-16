@@ -4,10 +4,10 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
 import {
-  DEFAULT_PROTECTION_K,
-  DEFAULT_PROTECTION_S,
-  normalizeProtectionTuning,
+  normalizeCombatTuning,
+  type ProtectionTuningValues,
 } from "@/lib/config/combatTuningShared";
+import { ensureCombatTuningRow, saveCombatTuning } from "@/lib/config/combatTuning";
 
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -56,55 +56,18 @@ function errorResponse(e: unknown) {
   if (msg === "FORBIDDEN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  return NextResponse.json({ error: "Server error" }, { status: 500 });
-}
-
-async function getOrCreateTuningRow() {
-  const existing = await prisma.combatTuning.findFirst({
-    orderBy: [{ updatedAt: "desc" }],
-    select: {
-      id: true,
-      protectionK: true,
-      protectionS: true,
-      updatedAt: true,
-    },
-  });
-
-  if (existing) {
-    const normalized = normalizeProtectionTuning(existing.protectionK, existing.protectionS);
-    if (
-      normalized.protectionK !== existing.protectionK ||
-      normalized.protectionS !== existing.protectionS
-    ) {
-      return prisma.combatTuning.update({
-        where: { id: existing.id },
-        data: {
-          protectionK: normalized.protectionK,
-          protectionS: normalized.protectionS,
+  console.error("[ADMIN_COMBAT_TUNING]", e);
+  return NextResponse.json(
+    process.env.NODE_ENV === "production"
+      ? { error: "Server error" }
+      : {
+          error: "Server error",
+          debug: {
+            message: msg || "Unknown error",
+          },
         },
-        select: {
-          id: true,
-          protectionK: true,
-          protectionS: true,
-          updatedAt: true,
-        },
-      });
-    }
-    return existing;
-  }
-
-  return prisma.combatTuning.create({
-    data: {
-      protectionK: DEFAULT_PROTECTION_K,
-      protectionS: DEFAULT_PROTECTION_S,
-    },
-    select: {
-      id: true,
-      protectionK: true,
-      protectionS: true,
-      updatedAt: true,
-    },
-  });
+    { status: 500 },
+  );
 }
 
 function parsePositiveInt(input: unknown): number | null {
@@ -118,10 +81,21 @@ function parsePositiveInt(input: unknown): number | null {
   return Math.trunc(value);
 }
 
+function parsePositiveNumber(input: unknown): number | null {
+  const value =
+    typeof input === "number"
+      ? input
+      : typeof input === "string" && input.trim().length > 0
+        ? Number(input)
+        : Number.NaN;
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value;
+}
+
 export async function GET() {
   try {
     await requireAdminUserId();
-    const row = await getOrCreateTuningRow();
+    const row = await ensureCombatTuningRow();
     return NextResponse.json({ row });
   } catch (e: unknown) {
     return errorResponse(e);
@@ -133,11 +107,78 @@ export async function PUT(req: Request) {
     await requireAdminUserId();
 
     const body = (await req.json().catch(() => null)) as
-      | { protectionK?: unknown; protectionS?: unknown }
+      | {
+          protectionK?: unknown;
+          protectionS?: unknown;
+          attackWeight?: unknown;
+          defenceWeight?: unknown;
+          fortitudeWeight?: unknown;
+          intellectWeight?: unknown;
+          supportWeight?: unknown;
+          braveryWeight?: unknown;
+          minionTierMultiplier?: unknown;
+          soldierTierMultiplier?: unknown;
+          eliteTierMultiplier?: unknown;
+          bossTierMultiplier?: unknown;
+          expectedPhysicalResilienceAt1?: unknown;
+          expectedPhysicalResiliencePerLevel?: unknown;
+          expectedMentalPerseveranceAt1?: unknown;
+          expectedMentalPerseverancePerLevel?: unknown;
+          expectedPoolMinionMultiplier?: unknown;
+          expectedPoolSoldierMultiplier?: unknown;
+          expectedPoolEliteMultiplier?: unknown;
+          expectedPoolBossMultiplier?: unknown;
+          poolWeakerSideWeight?: unknown;
+          poolAverageWeight?: unknown;
+          poolBelowExpectedMaxPenaltyShare?: unknown;
+          poolBelowExpectedScale?: unknown;
+          poolAboveExpectedMaxBonusShare?: unknown;
+          poolAboveExpectedScale?: unknown;
+        }
       | null;
 
     const protectionK = parsePositiveInt(body?.protectionK);
     const protectionS = parsePositiveInt(body?.protectionS);
+    const attackWeight = parsePositiveNumber(body?.attackWeight);
+    const defenceWeight = parsePositiveNumber(body?.defenceWeight);
+    const fortitudeWeight = parsePositiveNumber(body?.fortitudeWeight);
+    const intellectWeight = parsePositiveNumber(body?.intellectWeight);
+    const supportWeight = parsePositiveNumber(body?.supportWeight);
+    const braveryWeight = parsePositiveNumber(body?.braveryWeight);
+    const minionTierMultiplier = parsePositiveNumber(body?.minionTierMultiplier);
+    const soldierTierMultiplier = parsePositiveNumber(body?.soldierTierMultiplier);
+    const eliteTierMultiplier = parsePositiveNumber(body?.eliteTierMultiplier);
+    const bossTierMultiplier = parsePositiveNumber(body?.bossTierMultiplier);
+    const expectedPhysicalResilienceAt1 = parsePositiveNumber(
+      body?.expectedPhysicalResilienceAt1,
+    );
+    const expectedPhysicalResiliencePerLevel = parsePositiveNumber(
+      body?.expectedPhysicalResiliencePerLevel,
+    );
+    const expectedMentalPerseveranceAt1 = parsePositiveNumber(
+      body?.expectedMentalPerseveranceAt1,
+    );
+    const expectedMentalPerseverancePerLevel = parsePositiveNumber(
+      body?.expectedMentalPerseverancePerLevel,
+    );
+    const expectedPoolMinionMultiplier = parsePositiveNumber(
+      body?.expectedPoolMinionMultiplier,
+    );
+    const expectedPoolSoldierMultiplier = parsePositiveNumber(
+      body?.expectedPoolSoldierMultiplier,
+    );
+    const expectedPoolEliteMultiplier = parsePositiveNumber(body?.expectedPoolEliteMultiplier);
+    const expectedPoolBossMultiplier = parsePositiveNumber(body?.expectedPoolBossMultiplier);
+    const poolWeakerSideWeight = parsePositiveNumber(body?.poolWeakerSideWeight);
+    const poolAverageWeight = parsePositiveNumber(body?.poolAverageWeight);
+    const poolBelowExpectedMaxPenaltyShare = parsePositiveNumber(
+      body?.poolBelowExpectedMaxPenaltyShare,
+    );
+    const poolBelowExpectedScale = parsePositiveNumber(body?.poolBelowExpectedScale);
+    const poolAboveExpectedMaxBonusShare = parsePositiveNumber(
+      body?.poolAboveExpectedMaxBonusShare,
+    );
+    const poolAboveExpectedScale = parsePositiveNumber(body?.poolAboveExpectedScale);
 
     if (protectionK === null) {
       return NextResponse.json({ error: "protectionK must be >= 1" }, { status: 400 });
@@ -145,32 +186,145 @@ export async function PUT(req: Request) {
     if (protectionS === null) {
       return NextResponse.json({ error: "protectionS must be >= 1" }, { status: 400 });
     }
+    if (attackWeight === null) {
+      return NextResponse.json({ error: "attackWeight must be > 0" }, { status: 400 });
+    }
+    if (defenceWeight === null) {
+      return NextResponse.json({ error: "defenceWeight must be > 0" }, { status: 400 });
+    }
+    if (fortitudeWeight === null) {
+      return NextResponse.json({ error: "fortitudeWeight must be > 0" }, { status: 400 });
+    }
+    if (intellectWeight === null) {
+      return NextResponse.json({ error: "intellectWeight must be > 0" }, { status: 400 });
+    }
+    if (supportWeight === null) {
+      return NextResponse.json({ error: "supportWeight must be > 0" }, { status: 400 });
+    }
+    if (braveryWeight === null) {
+      return NextResponse.json({ error: "braveryWeight must be > 0" }, { status: 400 });
+    }
+    if (minionTierMultiplier === null) {
+      return NextResponse.json({ error: "minionTierMultiplier must be > 0" }, { status: 400 });
+    }
+    if (soldierTierMultiplier === null) {
+      return NextResponse.json({ error: "soldierTierMultiplier must be > 0" }, { status: 400 });
+    }
+    if (eliteTierMultiplier === null) {
+      return NextResponse.json({ error: "eliteTierMultiplier must be > 0" }, { status: 400 });
+    }
+    if (bossTierMultiplier === null) {
+      return NextResponse.json({ error: "bossTierMultiplier must be > 0" }, { status: 400 });
+    }
+    if (expectedPhysicalResilienceAt1 === null) {
+      return NextResponse.json(
+        { error: "expectedPhysicalResilienceAt1 must be > 0" },
+        { status: 400 },
+      );
+    }
+    if (expectedPhysicalResiliencePerLevel === null) {
+      return NextResponse.json(
+        { error: "expectedPhysicalResiliencePerLevel must be > 0" },
+        { status: 400 },
+      );
+    }
+    if (expectedMentalPerseveranceAt1 === null) {
+      return NextResponse.json(
+        { error: "expectedMentalPerseveranceAt1 must be > 0" },
+        { status: 400 },
+      );
+    }
+    if (expectedMentalPerseverancePerLevel === null) {
+      return NextResponse.json(
+        { error: "expectedMentalPerseverancePerLevel must be > 0" },
+        { status: 400 },
+      );
+    }
+    if (expectedPoolMinionMultiplier === null) {
+      return NextResponse.json(
+        { error: "expectedPoolMinionMultiplier must be > 0" },
+        { status: 400 },
+      );
+    }
+    if (expectedPoolSoldierMultiplier === null) {
+      return NextResponse.json(
+        { error: "expectedPoolSoldierMultiplier must be > 0" },
+        { status: 400 },
+      );
+    }
+    if (expectedPoolEliteMultiplier === null) {
+      return NextResponse.json(
+        { error: "expectedPoolEliteMultiplier must be > 0" },
+        { status: 400 },
+      );
+    }
+    if (expectedPoolBossMultiplier === null) {
+      return NextResponse.json(
+        { error: "expectedPoolBossMultiplier must be > 0" },
+        { status: 400 },
+      );
+    }
+    if (poolWeakerSideWeight === null) {
+      return NextResponse.json({ error: "poolWeakerSideWeight must be > 0" }, { status: 400 });
+    }
+    if (poolAverageWeight === null) {
+      return NextResponse.json({ error: "poolAverageWeight must be > 0" }, { status: 400 });
+    }
+    if (poolBelowExpectedMaxPenaltyShare === null) {
+      return NextResponse.json(
+        { error: "poolBelowExpectedMaxPenaltyShare must be > 0" },
+        { status: 400 },
+      );
+    }
+    if (poolBelowExpectedScale === null) {
+      return NextResponse.json(
+        { error: "poolBelowExpectedScale must be > 0" },
+        { status: 400 },
+      );
+    }
+    if (poolAboveExpectedMaxBonusShare === null) {
+      return NextResponse.json(
+        { error: "poolAboveExpectedMaxBonusShare must be > 0" },
+        { status: 400 },
+      );
+    }
+    if (poolAboveExpectedScale === null) {
+      return NextResponse.json(
+        { error: "poolAboveExpectedScale must be > 0" },
+        { status: 400 },
+      );
+    }
 
-    const existing = await prisma.combatTuning.findFirst({
-      orderBy: [{ updatedAt: "desc" }],
-      select: { id: true },
-    });
-
-    const row = existing
-      ? await prisma.combatTuning.update({
-          where: { id: existing.id },
-          data: { protectionK, protectionS },
-          select: {
-            id: true,
-            protectionK: true,
-            protectionS: true,
-            updatedAt: true,
-          },
-        })
-      : await prisma.combatTuning.create({
-          data: { protectionK, protectionS },
-          select: {
-            id: true,
-            protectionK: true,
-            protectionS: true,
-            updatedAt: true,
-          },
-        });
+    const row = await saveCombatTuning(
+      normalizeCombatTuning({
+        protectionK,
+        protectionS,
+        attackWeight,
+        defenceWeight,
+        fortitudeWeight,
+        intellectWeight,
+        supportWeight,
+        braveryWeight,
+        minionTierMultiplier,
+        soldierTierMultiplier,
+        eliteTierMultiplier,
+        bossTierMultiplier,
+        expectedPhysicalResilienceAt1,
+        expectedPhysicalResiliencePerLevel,
+        expectedMentalPerseveranceAt1,
+        expectedMentalPerseverancePerLevel,
+        expectedPoolMinionMultiplier,
+        expectedPoolSoldierMultiplier,
+        expectedPoolEliteMultiplier,
+        expectedPoolBossMultiplier,
+        poolWeakerSideWeight,
+        poolAverageWeight,
+        poolBelowExpectedMaxPenaltyShare,
+        poolBelowExpectedScale,
+        poolAboveExpectedMaxBonusShare,
+        poolAboveExpectedScale,
+      }) satisfies ProtectionTuningValues,
+    );
 
     return NextResponse.json({ row });
   } catch (e: unknown) {

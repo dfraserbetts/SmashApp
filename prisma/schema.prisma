@@ -363,11 +363,38 @@ model ForgeCostEntry {
 }
 
 model CombatTuning {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  protectionK Int      @default(2)
-  protectionS Int      @default(6)
+  id                    String   @id @default(cuid())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  protectionK           Int      @default(2)
+  protectionS           Int      @default(6)
+  attackWeight          Float    @default(1)
+  defenceWeight         Float    @default(1)
+  fortitudeWeight       Float    @default(1)
+  intellectWeight       Float    @default(1)
+  supportWeight         Float    @default(1)
+  braveryWeight         Float    @default(1)
+  minionTierMultiplier  Float    @default(1)
+  soldierTierMultiplier Float    @default(1.5)
+  eliteTierMultiplier   Float    @default(2)
+  bossTierMultiplier    Float    @default(3)
+  expectedPhysicalResilienceAt1      Float @default(19)
+  expectedPhysicalResiliencePerLevel Float @default(1.5)
+  expectedMentalPerseveranceAt1      Float @default(19)
+  expectedMentalPerseverancePerLevel Float @default(1.5)
+
+  expectedPoolMinionMultiplier Float @default(1)
+  expectedPoolSoldierMultiplier Float @default(1.5)
+  expectedPoolEliteMultiplier Float @default(2)
+  expectedPoolBossMultiplier Float @default(3)
+
+  poolWeakerSideWeight Float @default(0.75)
+  poolAverageWeight    Float @default(0.25)
+
+  poolBelowExpectedMaxPenaltyShare Float @default(0.35)
+  poolBelowExpectedScale           Float @default(0.25)
+  poolAboveExpectedMaxBonusShare   Float @default(0.25)
+  poolAboveExpectedScale           Float @default(0.4)
 
   @@map("CombatTuning")
 }

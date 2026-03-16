@@ -45,6 +45,27 @@ export type CalculatorConfig = {
     cleanseSeuPerSuccess: number;
     cleanseSeuPerStack: number;
   };
+  healthPoolTuning: {
+    expectedPhysicalResilienceAt1: number;
+    expectedPhysicalResiliencePerLevel: number;
+    expectedMentalPerseveranceAt1: number;
+    expectedMentalPerseverancePerLevel: number;
+
+    expectedPoolTierMultipliers: {
+      MINION: number;
+      SOLDIER: number;
+      ELITE: number;
+      BOSS: number;
+    };
+
+    weakerSideWeight: number;
+    averageWeight: number;
+
+    belowExpectedMaxPenaltyShare: number;
+    belowExpectedScale: number;
+    aboveExpectedMaxBonusShare: number;
+    aboveExpectedScale: number;
+  };
   scoringCurves: {
     physicalThreat: LevelCurvePoint[];
     mentalThreat: LevelCurvePoint[];
@@ -119,6 +140,24 @@ export const calculatorConfig: CalculatorConfig = {
     debuffSeuPerStack: 0.15,
     cleanseSeuPerSuccess: 0.25,
     cleanseSeuPerStack: 0.15,
+  },
+  healthPoolTuning: {
+    expectedPhysicalResilienceAt1: 19,
+    expectedPhysicalResiliencePerLevel: 1.5,
+    expectedMentalPerseveranceAt1: 19,
+    expectedMentalPerseverancePerLevel: 1.5,
+    expectedPoolTierMultipliers: {
+      MINION: 1,
+      SOLDIER: 1.5,
+      ELITE: 2,
+      BOSS: 3,
+    },
+    weakerSideWeight: 0.75,
+    averageWeight: 0.25,
+    belowExpectedMaxPenaltyShare: 0.35,
+    belowExpectedScale: 0.25,
+    aboveExpectedMaxBonusShare: 0.25,
+    aboveExpectedScale: 0.4,
   },
   scoringCurves: {
     physicalThreat: makeLinearCurve({
@@ -269,6 +308,52 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
       cleanseSeuPerStack:
         overrides.seuFallbacks?.cleanseSeuPerStack ??
         calculatorConfig.seuFallbacks.cleanseSeuPerStack,
+    },
+    healthPoolTuning: {
+      expectedPhysicalResilienceAt1:
+        overrides.healthPoolTuning?.expectedPhysicalResilienceAt1 ??
+        calculatorConfig.healthPoolTuning.expectedPhysicalResilienceAt1,
+      expectedPhysicalResiliencePerLevel:
+        overrides.healthPoolTuning?.expectedPhysicalResiliencePerLevel ??
+        calculatorConfig.healthPoolTuning.expectedPhysicalResiliencePerLevel,
+      expectedMentalPerseveranceAt1:
+        overrides.healthPoolTuning?.expectedMentalPerseveranceAt1 ??
+        calculatorConfig.healthPoolTuning.expectedMentalPerseveranceAt1,
+      expectedMentalPerseverancePerLevel:
+        overrides.healthPoolTuning?.expectedMentalPerseverancePerLevel ??
+        calculatorConfig.healthPoolTuning.expectedMentalPerseverancePerLevel,
+      expectedPoolTierMultipliers: {
+        MINION:
+          overrides.healthPoolTuning?.expectedPoolTierMultipliers?.MINION ??
+          calculatorConfig.healthPoolTuning.expectedPoolTierMultipliers.MINION,
+        SOLDIER:
+          overrides.healthPoolTuning?.expectedPoolTierMultipliers?.SOLDIER ??
+          calculatorConfig.healthPoolTuning.expectedPoolTierMultipliers.SOLDIER,
+        ELITE:
+          overrides.healthPoolTuning?.expectedPoolTierMultipliers?.ELITE ??
+          calculatorConfig.healthPoolTuning.expectedPoolTierMultipliers.ELITE,
+        BOSS:
+          overrides.healthPoolTuning?.expectedPoolTierMultipliers?.BOSS ??
+          calculatorConfig.healthPoolTuning.expectedPoolTierMultipliers.BOSS,
+      },
+      weakerSideWeight:
+        overrides.healthPoolTuning?.weakerSideWeight ??
+        calculatorConfig.healthPoolTuning.weakerSideWeight,
+      averageWeight:
+        overrides.healthPoolTuning?.averageWeight ??
+        calculatorConfig.healthPoolTuning.averageWeight,
+      belowExpectedMaxPenaltyShare:
+        overrides.healthPoolTuning?.belowExpectedMaxPenaltyShare ??
+        calculatorConfig.healthPoolTuning.belowExpectedMaxPenaltyShare,
+      belowExpectedScale:
+        overrides.healthPoolTuning?.belowExpectedScale ??
+        calculatorConfig.healthPoolTuning.belowExpectedScale,
+      aboveExpectedMaxBonusShare:
+        overrides.healthPoolTuning?.aboveExpectedMaxBonusShare ??
+        calculatorConfig.healthPoolTuning.aboveExpectedMaxBonusShare,
+      aboveExpectedScale:
+        overrides.healthPoolTuning?.aboveExpectedScale ??
+        calculatorConfig.healthPoolTuning.aboveExpectedScale,
     },
     scoringCurves: {
       physicalThreat:

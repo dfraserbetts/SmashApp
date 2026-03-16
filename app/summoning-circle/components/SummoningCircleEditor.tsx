@@ -27,6 +27,7 @@ import type {
   MonsterUpsertInput,
 } from "@/lib/summoning/types";
 import {
+  calculateMonsterResilienceValues,
   getArmorSkillDiceCountFromAttributes,
   getDodgeValue,
   getAttributeNumericValue,
@@ -67,8 +68,13 @@ import {
   type TraitAxisWeightDefinition,
   type WeaponAttackSource,
 } from "@/lib/calculators/monsterOutcomeCalculator";
-import { calculatorConfig, type LevelCurvePoint } from "@/lib/calculators/calculatorConfig";
+import {
+  calculatorConfig,
+  resolveCalculatorConfig,
+  type LevelCurvePoint,
+} from "@/lib/calculators/calculatorConfig";
 import { MonsterCalculatorPanel } from "@/app/summoning-circle/components/MonsterCalculatorPanel";
+import type { ProtectionTuningValues } from "@/lib/config/combatTuningShared";
 
 type Props = { campaignId: string };
 type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
@@ -666,19 +672,6 @@ const DERIVED_STAT_TOOLTIPS = {
     "Derived from Support (weighted) + Bravery (weighted). Attributes are halved before weighting.",
 } as const;
 
-const TIER_MULTIPLIER: Record<MonsterTier, number> = {
-  MINION: 1,
-  SOLDIER: 1.5,
-  ELITE: 2,
-  BOSS: 3,
-};
-
-const LEGENDARY_BONUS_BY_TIER: Record<MonsterTier, number> = {
-  MINION: 0.25,
-  SOLDIER: 0.5,
-  ELITE: 0.75,
-  BOSS: 1,
-};
 const TRAIT_POINTS_PLACEHOLDER = 5;
 
 function dieLabel(value: DiceSize | null | undefined): string {
@@ -699,28 +692,12 @@ function calculateResilienceValues(
     | "supportDie"
     | "braveryDie"
   >,
+  tuning: ProtectionTuningValues,
 ): {
   physicalResilienceMax: number;
   mentalPerseveranceMax: number;
 } {
-  const tierMultiplier = TIER_MULTIPLIER[monster.tier];
-  const legendaryBonus = monster.legendary ? LEGENDARY_BONUS_BY_TIER[monster.tier] : 0;
-
-  const prBase =
-    monster.level +
-    (getAttributeNumericValue(monster.attackDie) +
-      getAttributeNumericValue(monster.defenceDie) +
-      getAttributeNumericValue(monster.fortitudeDie));
-  const mpBase =
-    monster.level +
-    (getAttributeNumericValue(monster.intellectDie) +
-      getAttributeNumericValue(monster.supportDie) +
-      getAttributeNumericValue(monster.braveryDie));
-
-  const physicalResilienceMax = Math.round(prBase * tierMultiplier + prBase * legendaryBonus);
-  const mentalPerseveranceMax = Math.round(mpBase * tierMultiplier + mpBase * legendaryBonus);
-
-  return { physicalResilienceMax, mentalPerseveranceMax };
+  return calculateMonsterResilienceValues(monster, tuning);
 }
 
 function defaultNaturalConfig(): MonsterNaturalAttackConfig {
@@ -1371,20 +1348,23 @@ const EQUIPMENT_LINE_GENERAL_SYNERGY_CAP_SHARE = 0.18;
 const EQUIPMENT_LINE_GENERAL_PRESENCE_CAP_SHARE = 0.1;
 
 // SC_DEFENCE_STRING_SURVIVABILITY_V3
-const DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE = 1.0;
-const DEFENCE_STRING_PROTECTION_OUTPUT_SCALE = 8;
+const DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE = 0.4;
+const DEFENCE_STRING_PROTECTION_OUTPUT_SCALE = 12;
 
 // SC_DODGE_BENCHMARK_V2
 const DODGE_BASELINE_MAX_SHARE = 0.2;
 const DODGE_BASELINE_SCALE = 1.25;
 
-const DODGE_PARITY_MAX_SHARE = 0.5;
-const DODGE_PARITY_SCALE = 0.3;
+const DODGE_PARITY_MAX_SHARE = 0.32;
+const DODGE_PARITY_SCALE = 0.38;
 
-const DODGE_ABOVE_EXPECTED_MAX_SHARE = 0.35;
-const DODGE_ABOVE_EXPECTED_SCALE = 1.2;
+const DODGE_ABOVE_EXPECTED_MAX_SHARE = 0.2;
+const DODGE_ABOVE_EXPECTED_SCALE = 0.85;
 
-const DODGE_TOTAL_MAX_SHARE = 0.95;
+const DODGE_EXTREME_ABOVE_EXPECTED_MAX_SHARE = 0.28;
+const DODGE_EXTREME_ABOVE_EXPECTED_SCALE = 0.6;
+
+const DODGE_TOTAL_MAX_SHARE = 1.02;
 
 type DodgeExpectedAttackCurveRow = {
   minLevel: number;
@@ -1858,12 +1838,41 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   const editorImagePosX = clampImagePosition(editor?.imagePosX, DEFAULT_IMAGE_POS_X);
   const editorImagePosY = clampImagePosition(editor?.imagePosY, DEFAULT_IMAGE_POS_Y);
   const editorHasValidImageUrl = isHttpUrl(editor?.imageUrl);
+  const protectionTuning = useProtectionTuning();
+  const runtimeCalculatorConfig = useMemo(
+    () =>
+      resolveCalculatorConfig({
+        healthPoolTuning: {
+          expectedPhysicalResilienceAt1: protectionTuning.expectedPhysicalResilienceAt1,
+          expectedPhysicalResiliencePerLevel:
+            protectionTuning.expectedPhysicalResiliencePerLevel,
+          expectedMentalPerseveranceAt1: protectionTuning.expectedMentalPerseveranceAt1,
+          expectedMentalPerseverancePerLevel:
+            protectionTuning.expectedMentalPerseverancePerLevel,
+          expectedPoolTierMultipliers: {
+            MINION: protectionTuning.expectedPoolMinionMultiplier,
+            SOLDIER: protectionTuning.expectedPoolSoldierMultiplier,
+            ELITE: protectionTuning.expectedPoolEliteMultiplier,
+            BOSS: protectionTuning.expectedPoolBossMultiplier,
+          },
+          weakerSideWeight: protectionTuning.poolWeakerSideWeight,
+          averageWeight: protectionTuning.poolAverageWeight,
+          belowExpectedMaxPenaltyShare:
+            protectionTuning.poolBelowExpectedMaxPenaltyShare,
+          belowExpectedScale: protectionTuning.poolBelowExpectedScale,
+          aboveExpectedMaxBonusShare:
+            protectionTuning.poolAboveExpectedMaxBonusShare,
+          aboveExpectedScale: protectionTuning.poolAboveExpectedScale,
+        },
+      }),
+    [protectionTuning],
+  );
   const resilienceValues = useMemo(
     () =>
       editor
-        ? calculateResilienceValues(editor)
+        ? calculateResilienceValues(editor, protectionTuning)
         : { physicalResilienceMax: 0, mentalPerseveranceMax: 0 },
-    [editor],
+    [editor, protectionTuning],
   );
   const baseWeaponSkillValue = useMemo(
     () =>
@@ -2635,7 +2644,6 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       ),
     [baseArmorSkillValue, itemModifierValues.armorSkillModifier],
   );
-  const protectionTuning = useProtectionTuning();
   const dodgeValue = useMemo(
     () =>
       Math.max(
@@ -3069,14 +3077,24 @@ export function SummoningCircleEditor({ campaignId }: Props) {
 
     const dodgeAboveExpectedDice = Math.max(0, dodgeDice - expectedIncomingAttackDice);
     const aboveExpectedDodgeShare = getSmoothDodgeShare(
-      dodgeAboveExpectedDice,
+      Math.min(1, dodgeAboveExpectedDice),
       DODGE_ABOVE_EXPECTED_SCALE,
       DODGE_ABOVE_EXPECTED_MAX_SHARE,
     );
 
+    const extremeAboveExpectedDice = Math.max(0, dodgeAboveExpectedDice - 1);
+    const extremeAboveExpectedDodgeShare = getSmoothDodgeShare(
+      extremeAboveExpectedDice,
+      DODGE_EXTREME_ABOVE_EXPECTED_SCALE,
+      DODGE_EXTREME_ABOVE_EXPECTED_MAX_SHARE,
+    );
+
     const totalDodgeShare = Math.min(
       DODGE_TOTAL_MAX_SHARE,
-      baselineDodgeShare + parityDodgeShare + aboveExpectedDodgeShare,
+      baselineDodgeShare +
+        parityDodgeShare +
+        aboveExpectedDodgeShare +
+        extremeAboveExpectedDodgeShare,
     );
 
     const physicalDefencePotential = computedArmorSkillValue * physicalBlockPerSuccess;
@@ -3174,26 +3192,168 @@ export function SummoningCircleEditor({ campaignId }: Props) {
 
     return bonuses;
   }, [previewMonster]);
-  const outcomeProfile = useMemo(
-    () =>
-      previewMonster
-        ? computeMonsterOutcomes(previewMonster, calculatorConfig, {
-            equippedWeaponSources,
-            equipmentModifierAxisBonuses: selectedEquipmentModifierAxisBonuses,
-            naturalAttackGsAxisBonuses: selectedNaturalAttackGsAxisBonuses,
-            naturalAttackRangeAxisBonuses: selectedNaturalAttackRangeAxisBonuses,
-            traitAxisBonuses: selectedTraitAxisBonuses,
-          })
-        : null,
-    [
+  const survivabilityDebugBreakdown = useMemo(() => {
+    if (!previewMonster) return null;
+
+    const level = Math.max(1, Math.trunc(previewMonster.level || 1));
+    const tierMultiplier = getCalculatorTierMultiplier(previewMonster);
+    const survivabilityAxisBudgetTarget = getTierAdjustedAxisBudgetTarget(
+      getCurvePointForLevel(calculatorConfig.scoringCurves.survivability, level),
+      tierMultiplier,
+    );
+
+    const expectedIncomingAttackDice = getExpectedIncomingAttackDiceForDodge(
+      previewMonster.level,
+      previewMonster.tier,
+    );
+
+    const baselineDodgeShare = getSmoothDodgeShare(
+      dodgeDice,
+      DODGE_BASELINE_SCALE,
+      DODGE_BASELINE_MAX_SHARE,
+    );
+
+    const dodgeParityProgress = getDodgeParityProgress(
+      dodgeDice,
+      expectedIncomingAttackDice,
+    );
+
+    const parityDodgeShare = getSmoothDodgeShare(
+      dodgeParityProgress,
+      DODGE_PARITY_SCALE,
+      DODGE_PARITY_MAX_SHARE,
+    );
+
+    const dodgeAboveExpectedDice = Math.max(0, dodgeDice - expectedIncomingAttackDice);
+    const aboveExpectedDodgeShare = getSmoothDodgeShare(
+      Math.min(1, dodgeAboveExpectedDice),
+      DODGE_ABOVE_EXPECTED_SCALE,
+      DODGE_ABOVE_EXPECTED_MAX_SHARE,
+    );
+
+    const extremeAboveExpectedDice = Math.max(0, dodgeAboveExpectedDice - 1);
+    const extremeAboveExpectedDodgeShare = getSmoothDodgeShare(
+      extremeAboveExpectedDice,
+      DODGE_EXTREME_ABOVE_EXPECTED_SCALE,
+      DODGE_EXTREME_ABOVE_EXPECTED_MAX_SHARE,
+    );
+
+    const totalDodgeShare = Math.min(
+      DODGE_TOTAL_MAX_SHARE,
+      baselineDodgeShare +
+        parityDodgeShare +
+        aboveExpectedDodgeShare +
+        extremeAboveExpectedDodgeShare,
+    );
+
+    const physicalDefencePotential = computedArmorSkillValue * physicalBlockPerSuccess;
+    const physicalDefenceSurvivabilityShare = getSmoothDefenceShare(
+      physicalDefencePotential,
+      DEFENCE_STRING_PROTECTION_OUTPUT_SCALE,
+      DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE,
+    );
+
+    const mentalDefencePotential = willpowerDice * mentalBlockPerSuccess;
+    const mentalDefenceSurvivabilityShare = getSmoothDefenceShare(
+      mentalDefencePotential,
+      DEFENCE_STRING_PROTECTION_OUTPUT_SCALE,
+      DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE,
+    );
+
+    const defencePackageShareTotal =
+      totalDodgeShare +
+      physicalDefenceSurvivabilityShare +
+      mentalDefenceSurvivabilityShare;
+
+    const defencePackageRawBonus =
+      survivabilityAxisBudgetTarget * defencePackageShareTotal;
+
+    const selectedEquipmentSurvivabilityRawBonusTotal =
+      Math.max(0, selectedEquipmentModifierAxisBonuses.survivability ?? 0);
+
+    const selectedEquipmentSurvivabilityRawBonusOther = Math.max(
+      0,
+      selectedEquipmentSurvivabilityRawBonusTotal - defencePackageRawBonus,
+    );
+
+    return {
+      survivabilityAxisBudgetTarget,
+      selectedEquipmentSurvivabilityRawBonusTotal,
+      selectedEquipmentSurvivabilityRawBonusOther,
+      dodge: {
+        currentDodgeDice: dodgeDice,
+        expectedIncomingAttackDice,
+        baselineShare: baselineDodgeShare,
+        parityProgress: dodgeParityProgress,
+        parityShare: parityDodgeShare,
+        aboveExpectedDice: dodgeAboveExpectedDice,
+        aboveExpectedShare: aboveExpectedDodgeShare,
+        extremeAboveExpectedDice,
+        extremeAboveExpectedShare: extremeAboveExpectedDodgeShare,
+        totalShare: totalDodgeShare,
+        rawBonus: survivabilityAxisBudgetTarget * totalDodgeShare,
+      },
+      physicalDefence: {
+        armorSkillDice: computedArmorSkillValue,
+        blockPerSuccess: physicalBlockPerSuccess,
+        potential: physicalDefencePotential,
+        share: physicalDefenceSurvivabilityShare,
+        rawBonus: survivabilityAxisBudgetTarget * physicalDefenceSurvivabilityShare,
+        totalPhysicalProtection,
+      },
+      mentalDefence: {
+        willpowerDice,
+        blockPerSuccess: mentalBlockPerSuccess,
+        potential: mentalDefencePotential,
+        share: mentalDefenceSurvivabilityShare,
+        rawBonus: survivabilityAxisBudgetTarget * mentalDefenceSurvivabilityShare,
+        totalMentalProtection,
+      },
+      defencePackage: {
+        totalShare: defencePackageShareTotal,
+        rawBonus: defencePackageRawBonus,
+      },
+    };
+  }, [
+    previewMonster,
+    dodgeDice,
+    computedArmorSkillValue,
+    physicalBlockPerSuccess,
+    willpowerDice,
+    mentalBlockPerSuccess,
+    totalPhysicalProtection,
+    totalMentalProtection,
+    selectedEquipmentModifierAxisBonuses,
+  ]);
+
+  const outcomeProfile = useMemo(() => {
+    if (!previewMonster) return null;
+
+    const baseProfile = computeMonsterOutcomes(previewMonster, runtimeCalculatorConfig, {
       equippedWeaponSources,
-      previewMonster,
-      selectedEquipmentModifierAxisBonuses,
-      selectedNaturalAttackGsAxisBonuses,
-      selectedNaturalAttackRangeAxisBonuses,
-      selectedTraitAxisBonuses,
-    ],
-  );
+      equipmentModifierAxisBonuses: selectedEquipmentModifierAxisBonuses,
+      naturalAttackGsAxisBonuses: selectedNaturalAttackGsAxisBonuses,
+      naturalAttackRangeAxisBonuses: selectedNaturalAttackRangeAxisBonuses,
+      traitAxisBonuses: selectedTraitAxisBonuses,
+    });
+
+    return {
+      ...baseProfile,
+      debug: {
+        ...(baseProfile.debug ?? {}),
+        survivabilityBreakdown: survivabilityDebugBreakdown,
+      },
+    };
+  }, [
+    equippedWeaponSources,
+    previewMonster,
+    runtimeCalculatorConfig,
+    selectedEquipmentModifierAxisBonuses,
+    selectedNaturalAttackGsAxisBonuses,
+    selectedNaturalAttackRangeAxisBonuses,
+    selectedTraitAxisBonuses,
+    survivabilityDebugBreakdown,
+  ]);
 
   const saveMonster = useCallback(async () => {
     if (!editor || readOnly) return;
