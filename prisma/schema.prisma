@@ -449,21 +449,50 @@ model DescriptorRule {
   @@map("DescriptorRule")
 }
 
-model Ability {
-  id                 String                   @id @default(cuid())
-  name               String
-  sourceType         AbilitySourceType
-  intention          IntentionType
-  diceCount          Int
-  potency            Int
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @default(now()) @updatedAt
-  limitBreakUsages   AbilityLimitBreakUsage[]
-  limitBreakProfiles LimitBreakProfile[]
+model Power {
+  id                     String                 @id @default(cuid())
+  monsterId              String?
+  sourceType             PowerSourceType        @default(MONSTER_POWER)
+  sortOrder              Int                    @default(0)
+  name                   String
+  description            String?                @db.Text
+  schemaVersion          Int                    @default(1)
+  rulesVersion           String                 @default("v1")
+  contentRevision        Int                    @default(1)
+  previewRendererVersion Int                    @default(1)
+  status                 PowerStatus            @default(ACTIVE)
+  descriptorChassis      DescriptorChassisType  @default(IMMEDIATE)
+  descriptorChassisConfig Json                  @default("{}")
+  counterMode            CounterMode            @default(NO)
+  commitmentModifier     CommitmentModifier     @default(STANDARD)
+  cooldownTurns          Int
+  cooldownReduction      Int                    @default(0)
+  lifespanType           PowerLifespanType      @default(NONE)
+  lifespanTurns          Int?
+  previewSummaryOverride String?                @db.Text
+  meleeTargets           Int?
+  rangedTargets          Int?
+  rangedDistanceFeet     Int?
+  aoeCenterRangeFeet     Int?
+  aoeCount               Int?
+  aoeShape               AoEShape?
+  aoeSphereRadiusFeet    Int?
+  aoeConeLengthFeet      Int?
+  aoeLineWidthFeet       Int?
+  aoeLineLengthFeet      Int?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @default(now()) @updatedAt
+  monster                Monster?               @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+  effectPackets          EffectPacket[]
+  primaryDefenceGate     PrimaryDefenceGate?
+  rangeCategories        PowerRangeCategory[]
+  tags                   PowerTag[]
+  limitBreakUsages       PowerLimitBreakUsage[]
+  limitBreakProfiles     LimitBreakProfile[]
 
+  @@index([monsterId, sortOrder])
   @@index([sourceType])
-  @@index([intention])
-  @@map("Ability")
+  @@map("Power")
 }
 
 model LimitBreakTemplate {
@@ -474,7 +503,7 @@ model LimitBreakTemplate {
   tier                    LimitBreakTier
   thresholdPercent        Int
   description             String?                @db.Text
-  intention               IntentionType?
+  intention               PowerIntention?
   itemType                String?
   monsterCategory         String?
   baseCostKey             String?
@@ -509,7 +538,7 @@ model LimitBreakTemplate {
 model LimitBreakEffect {
   id                  String              @id @default(cuid())
   key                 String              @unique
-  intentionGate       IntentionType?
+  intentionGate       PowerIntention?
   params              Json                @default("{}")
   rulesText           String?
   createdAt           DateTime            @default(now())
@@ -536,7 +565,7 @@ model LimitBreakConsequence {
 
 model LimitBreakProfile {
   id                  String                 @id @default(cuid())
-  abilityId           String
+  powerId             String
   tier                LimitBreakTier
   name                String
   thresholdPercent    Int
@@ -548,31 +577,31 @@ model LimitBreakProfile {
   isEnabled           Boolean                @default(true)
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @default(now()) @updatedAt
-  ability             Ability                @relation(fields: [abilityId], references: [id], onDelete: Cascade)
+  power               Power                  @relation(fields: [powerId], references: [id], onDelete: Cascade)
   baseConsequence     LimitBreakConsequence  @relation("LimitBreakProfileBaseConsequence", fields: [baseConsequenceId], references: [id])
   failForwardCostA    LimitBreakConsequence? @relation("LimitBreakProfileFailForwardCostA", fields: [failForwardCostAId], references: [id])
   failForwardCostB    LimitBreakConsequence? @relation("LimitBreakProfileFailForwardCostB", fields: [failForwardCostBId], references: [id])
   failForwardEffect   LimitBreakEffect?      @relation("LimitBreakProfileFailForwardEffect", fields: [failForwardEffectId], references: [id])
   successEffect       LimitBreakEffect       @relation("LimitBreakProfileSuccessEffect", fields: [successEffectId], references: [id])
 
-  @@unique([abilityId, tier])
+  @@unique([powerId, tier])
   @@index([tier])
   @@map("LimitBreakProfile")
 }
 
-model AbilityLimitBreakUsage {
+model PowerLimitBreakUsage {
   id          String              @id @default(cuid())
   actorType   LimitBreakActorType
   actorId     String
-  abilityId   String
+  powerId     String
   usedAtLevel Int
   createdAt   DateTime            @default(now())
-  ability     Ability             @relation(fields: [abilityId], references: [id], onDelete: Cascade)
+  power       Power               @relation(fields: [powerId], references: [id], onDelete: Cascade)
 
-  @@unique([actorType, actorId, abilityId, usedAtLevel])
+  @@unique([actorType, actorId, powerId, usedAtLevel])
   @@index([actorType, actorId])
-  @@index([abilityId])
-  @@map("AbilityLimitBreakUsage")
+  @@index([powerId])
+  @@map("PowerLimitBreakUsage")
 }
 
 model Monster {
@@ -654,7 +683,7 @@ model Monster {
   traits                        MonsterTrait[]
   attacks                       MonsterAttack[]
   naturalAttack                 MonsterNaturalAttack?
-  powers                        MonsterPower[]
+  powers                        Power[]
 
   @@index([campaignId])
   @@index([source])
@@ -733,37 +762,81 @@ model MonsterAttack {
   @@map("MonsterAttack")
 }
 
-model MonsterPower {
-  id                 String                         @id @default(cuid())
-  monsterId          String
-  sortOrder          Int                            @default(0)
-  name               String
-  description        String?                        @db.Text
-  diceCount          Int
-  potency            Int
-  durationType       MonsterPowerDurationType
-  durationTurns      Int?
-  defenceRequirement MonsterPowerDefenceRequirement @default(NONE)
-  cooldownTurns      Int
-  cooldownReduction  Int                            @default(0)
-  responseRequired   Boolean                        @default(false)
-  monster            Monster                        @relation(fields: [monsterId], references: [id], onDelete: Cascade)
-  intentions         MonsterPowerIntention[]
+model PowerRangeCategory {
+  powerId        String
+  rangeCategory  RangeCategory
+  power          Power         @relation(fields: [powerId], references: [id], onDelete: Cascade)
 
-  @@index([monsterId, sortOrder])
-  @@map("MonsterPower")
+  @@id([powerId, rangeCategory])
+  @@map("PowerRangeCategory")
 }
 
-model MonsterPowerIntention {
-  id          String                    @id @default(cuid())
-  powerId     String
-  sortOrder   Int                       @default(0)
-  type        MonsterPowerIntentionType
-  detailsJson Json                      @default("{}")
-  power       MonsterPower              @relation(fields: [powerId], references: [id], onDelete: Cascade)
+model EffectPacket {
+  id                    String                              @id @default(cuid())
+  powerId               String
+  packetIndex           Int                                 @default(0)
+  hostility             PacketHostility
+  intention             PowerIntention
+  specific              String?
+  diceCount             Int
+  potency               Int
+  effectTimingType      EffectTimingType
+  effectTimingTurns     Int?
+  effectDurationType    EffectDurationType
+  effectDurationTurns   Int?
+  dealsWounds           Boolean                             @default(false)
+  woundChannel          WoundChannel?
+  targetedAttribute     CoreAttribute?
+  applicationModeKey    String?
+  resolutionOrigin      ResolutionOrigin                    @default(CASTER)
+  detailsJson           Json                                @default("{}")
+  power                 Power                               @relation(fields: [powerId], references: [id], onDelete: Cascade)
+  localTargetingOverride EffectPacketLocalTargetingOverride?
 
-  @@index([powerId, sortOrder])
-  @@map("MonsterPowerIntention")
+  @@index([powerId, packetIndex])
+  @@map("EffectPacket")
+}
+
+model EffectPacketLocalTargetingOverride {
+  packetId             String      @id
+  meleeTargets         Int?
+  rangedTargets        Int?
+  rangedDistanceFeet   Int?
+  aoeCenterRangeFeet   Int?
+  aoeCount             Int?
+  aoeShape             AoEShape?
+  aoeSphereRadiusFeet  Int?
+  aoeConeLengthFeet    Int?
+  aoeLineWidthFeet     Int?
+  aoeLineLengthFeet    Int?
+  packet               EffectPacket @relation(fields: [packetId], references: [id], onDelete: Cascade)
+
+  @@map("EffectPacketLocalTargetingOverride")
+}
+
+model PrimaryDefenceGate {
+  powerId              String                    @id
+  sourcePacketIndex    Int                       @default(0)
+  gateResult           PrimaryDefenceGateResult
+  protectionChannel    ProtectionChannel?
+  resistAttribute      CoreAttribute?
+  hostileEntryPattern  HostileEntryPattern?
+  resolutionSource     GateResolutionSource      @default(INFERRED)
+  power                Power                     @relation(fields: [powerId], references: [id], onDelete: Cascade)
+
+  @@map("PrimaryDefenceGate")
+}
+
+model PowerTag {
+  id        String   @id @default(cuid())
+  powerId   String
+  tag       String
+  createdAt DateTime @default(now())
+  power     Power    @relation(fields: [powerId], references: [id], onDelete: Cascade)
+
+  @@unique([powerId, tag])
+  @@index([tag])
+  @@map("PowerTag")
 }
 
 enum EntitlementTier {
@@ -771,13 +844,13 @@ enum EntitlementTier {
   PAID
 }
 
-enum AbilitySourceType {
+enum PowerSourceType {
   CHARACTER_POWER
-  MYTHIC_ITEM_ABILITY
-  MONSTER_ABILITY
+  MYTHIC_ITEM_POWER
+  MONSTER_POWER
 }
 
-enum IntentionType {
+enum PowerIntention {
   ATTACK
   DEFENCE
   HEALING
@@ -789,6 +862,12 @@ enum IntentionType {
   DEBUFF
   SUMMONING
   TRANSFORMATION
+}
+
+enum PowerStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
 }
 
 enum LimitBreakTier {
@@ -854,29 +933,91 @@ enum DiceSize {
   D12
 }
 
-enum MonsterPowerDurationType {
-  INSTANT
+enum DescriptorChassisType {
+  IMMEDIATE
+  FIELD
+  ATTACHED
+  TRIGGER
+  RESERVE
+}
+
+enum CounterMode {
+  NO
+  YES
+}
+
+enum CommitmentModifier {
+  STANDARD
+  CHANNEL
+  CHARGE
+}
+
+enum PacketHostility {
+  NON_HOSTILE
+  HOSTILE
+}
+
+enum PrimaryDefenceGateResult {
+  NONE
+  DODGE
+  PROTECTION
+  DODGE_OR_PROTECTION
+  RESIST
+}
+
+enum ProtectionChannel {
+  PHYSICAL
+  MENTAL
+}
+
+enum ResolutionOrigin {
+  CASTER
+  PRIMARY_TARGET
+  ATTACHED_HOST
+  FIELD_ORIGIN
+  PACKET_LOCAL
+}
+
+enum HostileEntryPattern {
+  DIRECT
+  ON_ATTACH
+  ON_PAYLOAD
+}
+
+enum GateResolutionSource {
+  INFERRED
+  EXPLICIT
+}
+
+enum PowerLifespanType {
+  NONE
   TURNS
   PASSIVE
 }
 
-enum MonsterPowerDefenceRequirement {
-  PROTECTION
-  RESIST
-  NONE
+enum EffectTimingType {
+  ON_CAST
+  ON_HIT
+  ON_TRIGGER
+  ON_ATTACH
+  START_OF_TURN
+  END_OF_TURN
+  START_OF_TURN_WHILST_CHANNELLED
+  END_OF_TURN_WHILST_CHANNELLED
+  ON_RELEASE
+  ON_EXPIRY
 }
 
-enum MonsterPowerIntentionType {
-  ATTACK
-  DEFENCE
-  HEALING
-  CLEANSE
-  CONTROL
-  MOVEMENT
-  AUGMENT
-  DEBUFF
-  SUMMON
-  TRANSFORMATION
+enum EffectDurationType {
+  INSTANT
+  UNTIL_TARGET_NEXT_TURN
+  TURNS
+  PASSIVE
+}
+
+enum WoundChannel {
+  PHYSICAL
+  MENTAL
 }
 
 enum ItemRarity {

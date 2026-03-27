@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "../../../prisma/client";
 
+type CookieOptions = Record<string, unknown>;
+
 async function getSupabaseServer() {
   const cookieStore = await cookies();
 
@@ -14,11 +16,11 @@ async function getSupabaseServer() {
         get(name: string) {
           return cookieStore.get(name)?.value;
         },
-        set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
+        set(name: string, value: string, options: unknown) {
+          cookieStore.set({ name, value, ...(options as CookieOptions) });
         },
-        remove(name: string, options: any) {
-          cookieStore.set({ name, value: "", ...options });
+        remove(name: string, options: unknown) {
+          cookieStore.set({ name, value: "", ...(options as CookieOptions) });
         },
       },
     }

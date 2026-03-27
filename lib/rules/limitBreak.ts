@@ -7,7 +7,7 @@ type PrismaUsageClient = PrismaClient | Prisma.TransactionClient;
 export type LimitBreakUsageParams = {
   actorType: LimitBreakActorType;
   actorId: string;
-  abilityId: string;
+  powerId: string;
   usedAtLevel: number;
   client: PrismaUsageClient;
 };
@@ -55,11 +55,11 @@ export function getTierThresholds(powerCeiling: number): {
 }
 
 export async function canUseLimitBreak(params: LimitBreakUsageParams): Promise<boolean> {
-  const existing = await params.client.abilityLimitBreakUsage.findFirst({
+  const existing = await params.client.powerLimitBreakUsage.findFirst({
     where: {
       actorType: params.actorType,
       actorId: params.actorId,
-      abilityId: params.abilityId,
+      powerId: params.powerId,
       usedAtLevel: params.usedAtLevel,
     },
     select: { id: true },
@@ -69,11 +69,11 @@ export async function canUseLimitBreak(params: LimitBreakUsageParams): Promise<b
 }
 
 export async function recordLimitBreakUse(params: LimitBreakUsageParams) {
-  return params.client.abilityLimitBreakUsage.create({
+  return params.client.powerLimitBreakUsage.create({
     data: {
       actorType: params.actorType,
       actorId: params.actorId,
-      abilityId: params.abilityId,
+      powerId: params.powerId,
       usedAtLevel: params.usedAtLevel,
     },
   });

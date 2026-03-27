@@ -3,6 +3,19 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
 
+type CookieOptions = Record<string, unknown>;
+
+function getErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return null;
+  }
+  return typeof error.code === "string" ? error.code : null;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error ?? "");
+}
+
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
   const cookieStore = await cookies();
 
@@ -14,11 +27,11 @@ async function getUserIdFromSupabaseSSR(): Promise<string | null> {
         get(name: string) {
           return cookieStore.get(name)?.value;
         },
-        set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
+        set(name: string, value: string, options: unknown) {
+          cookieStore.set({ name, value, ...(options as CookieOptions) });
         },
-        remove(name: string, options: any) {
-          cookieStore.set({ name, value: "", ...options });
+        remove(name: string, options: unknown) {
+          cookieStore.set({ name, value: "", ...(options as CookieOptions) });
         },
       },
     },
@@ -52,8 +65,8 @@ export async function GET() {
     });
 
     return NextResponse.json({ rows });
-  } catch (e: any) {
-    const msg = String(e?.message ?? "");
+  } catch (error) {
+    const msg = getErrorMessage(error);
     if (msg === "UNAUTHENTICATED")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (msg === "FORBIDDEN")
@@ -80,15 +93,15 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ row: created }, { status: 201 });
-  } catch (e: any) {
+  } catch (error) {
     // Prisma unique constraint violation
-    if (e?.code === "P2002") {
+    if (getErrorCode(error) === "P2002") {
       return NextResponse.json(
         { error: "Name already exists" },
         { status: 409 },
       );
     }
-    const msg = String(e?.message ?? "");
+    const msg = getErrorMessage(error);
     if (msg === "UNAUTHENTICATED")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (msg === "FORBIDDEN")
@@ -129,14 +142,14 @@ export async function PATCH(req: Request) {
     });
 
     return NextResponse.json({ row: updated });
-  } catch (e: any) {
-    if (e?.code === "P2002") {
+  } catch (error) {
+    if (getErrorCode(error) === "P2002") {
       return NextResponse.json(
         { error: "Name already exists" },
         { status: 409 },
       );
     }
-    const msg = String(e?.message ?? "");
+    const msg = getErrorMessage(error);
     if (msg === "UNAUTHENTICATED")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (msg === "FORBIDDEN")
@@ -169,15 +182,15 @@ export async function DELETE(req: Request) {
 
     return NextResponse.json({ ok: true });
 
-  } catch (e: any) {
+  } catch (error) {
     // FK constraint violation (if referenced somewhere)
-    if (e?.code === "P2003") {
+    if (getErrorCode(error) === "P2003") {
       return NextResponse.json(
         { error: "Cannot delete: value is in use" },
         { status: 409 },
       );
     }
-    const msg = String(e?.message ?? "");
+    const msg = getErrorMessage(error);
     if (msg === "UNAUTHENTICATED")
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (msg === "FORBIDDEN")

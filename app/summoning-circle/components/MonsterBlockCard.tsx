@@ -1731,13 +1731,13 @@ export function MonsterBlockCard({
             key={idx}
             className={["sc-print-power-card rounded border border-zinc-800 p-2 space-y-1", spanFull ? "col-span-2" : ""].join(" ").trim()}
           >
-            <div className="mb-2 rounded border border-zinc-800 bg-zinc-950/40 p-2 text-center">
-              <div className="text-sm font-semibold leading-tight">
+            <div className="sc-power-header mb-2 rounded border border-zinc-800 bg-zinc-950/40 p-2 text-center">
+              <div className="sc-power-header-name text-sm font-semibold leading-tight">
                 {power.name}
               </div>
 
               {power.description && (
-                <div className="mt-1 text-xs font-normal leading-snug">
+                <div className="sc-power-header-description mt-1 text-xs font-normal leading-snug">
                   {highlightMechanics(power.description)}
                 </div>
               )}
@@ -1747,7 +1747,15 @@ export function MonsterBlockCard({
             ))}
             <p>
               {highlightMechanics(
-                `Cooldown: ${effectiveCooldownTurns(power)} | Response: ${power.responseRequired ? "Yes" : "No"}`,
+                `Cooldown: ${effectiveCooldownTurns(power)} | Counter: ${
+                  power.counterMode === "YES"
+                    ? "Yes"
+                    : "No"
+                }${
+                  power.commitmentModifier && power.commitmentModifier !== "STANDARD"
+                    ? ` | Commitment: ${power.commitmentModifier === "CHANNEL" ? "Channel" : "Charge"}`
+                    : ""
+                }`,
               )}
             </p>
           </div>
@@ -1961,6 +1969,19 @@ export function MonsterBlockCard({
         .sc-print-power-grid.sc-grid-1 {
           grid-template-columns: 1fr;
         }
+        .sc-power-header {
+          padding: 6px 7px;
+          margin-bottom: 6px;
+        }
+        .sc-power-header-name {
+          font-size: 0.82rem;
+          line-height: 1.1;
+        }
+        .sc-power-header-description {
+          margin-top: 3px;
+          font-size: 0.7rem;
+          line-height: 1.2;
+        }
         .sc-is-print .sc-print-power-card {
           break-inside: avoid;
           page-break-inside: avoid;
@@ -2020,6 +2041,19 @@ export function MonsterBlockCard({
         }
         .sc-is-print.sc-monster-card .sc-print-power-card {
           padding: 6px !important;
+        }
+        .sc-is-print.sc-monster-card .sc-power-header {
+          padding: 3px 6px !important;
+          margin-bottom: 4px !important;
+        }
+        .sc-is-print.sc-monster-card .sc-power-header-name {
+          font-size: 10.5px !important;
+          line-height: 1.1 !important;
+        }
+        .sc-is-print.sc-monster-card .sc-power-header-description {
+          margin-top: 2px !important;
+          font-size: 9px !important;
+          line-height: 1.15 !important;
         }
         .sc-is-print.sc-monster-card .text-xs.uppercase.tracking-wide {
           font-size: 8.5px !important;

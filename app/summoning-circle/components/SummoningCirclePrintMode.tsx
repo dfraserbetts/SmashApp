@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import type { MonsterSummary, MonsterUpsertInput } from "@/lib/summoning/types";
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
@@ -13,6 +13,16 @@ type Props = {
 };
 
 type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
+
+const LAST_PRINT_PAGE_STYLE: CSSProperties = {
+  breakAfter: "auto",
+  pageBreakAfter: "auto",
+};
+
+const PAGE_BREAK_STYLE: CSSProperties = {
+  breakAfter: "page",
+  pageBreakAfter: "always",
+};
 
 export function SummoningCirclePrintMode({ campaignId }: Props) {
   const [monsters, setMonsters] = useState<MonsterSummary[]>([]);
@@ -146,12 +156,12 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
         const traitCount = Array.isArray(m.traits) ? m.traits.length : 0;
         const powerCount = Array.isArray(m.powers) ? m.powers.length : 0;
         const hasMythicItemLb =
-          Boolean((m as any).legendary) &&
-          Boolean((m as any).mainHandItemId || (m as any).offHandItemId || (m as any).smallItemId);
+          Boolean(m.legendary) &&
+          Boolean(m.mainHandItemId || m.offHandItemId || m.smallItemId);
         const likelyOverflow =
           powerCount > 6 ||
           traitCount > 6 ||
-          Boolean((m as any).limitBreakName?.trim()) ||
+          Boolean(m.limitBreakName?.trim()) ||
           hasMythicItemLb;
         return likelyOverflow ? `${m.name || "Unnamed Monster"} may overflow in 1-page layout.` : null;
       })
@@ -228,11 +238,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
             <article
               key={`${monster.name ?? "monster"}-${idx}`}
               className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl"
-              style={
-                idx === selectedMonsters.length - 1
-                  ? { breakAfter: "auto", pageBreakAfter: "auto" as any }
-                  : { breakAfter: "page", pageBreakAfter: "always" as any }
-              }
+              style={idx === selectedMonsters.length - 1 ? LAST_PRINT_PAGE_STYLE : PAGE_BREAK_STYLE}
             >
               <div className="sc-print-card-wrap">
                 <MonsterBlockCard
@@ -278,7 +284,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
           </div>
         );
       }),
-    [printLayout, selectedMonsters, weaponById],
+    [printLayout, protectionTuning, selectedMonsters, weaponById],
   );
 
   return (

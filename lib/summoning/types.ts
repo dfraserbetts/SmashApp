@@ -12,48 +12,159 @@ export type CoreAttribute =
   | "BRAVERY";
 export type DiceSize = "D4" | "D6" | "D8" | "D10" | "D12";
 export type AttributePlacement = "ATTACK" | "DEFENCE" | "TRAITS" | "GENERAL";
+export type RangeCategory = "MELEE" | "RANGED" | "AOE";
 
-export type MonsterPowerDurationType = "INSTANT" | "TURNS" | "PASSIVE" | "UNTIL_TARGET_NEXT_TURN";
-export type MonsterPowerDefenceRequirement = "PROTECTION" | "RESIST" | "NONE";
-export type MonsterPowerIntentionType =
+export type PowerStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+export type DescriptorChassisType =
+  | "IMMEDIATE"
+  | "FIELD"
+  | "ATTACHED"
+  | "TRIGGER"
+  | "RESERVE";
+export type PacketHostility = "NON_HOSTILE" | "HOSTILE";
+export type PowerIntention =
   | "ATTACK"
   | "DEFENCE"
   | "HEALING"
   | "CLEANSE"
   | "CONTROL"
   | "MOVEMENT"
+  | "SUPPORT"
   | "AUGMENT"
   | "DEBUFF"
-  | "SUMMON"
+  | "SUMMONING"
   | "TRANSFORMATION";
-export type MonsterPowerIntentionApplyTo = "PRIMARY_TARGET" | "SELF";
+export type PrimaryDefenceGateResult =
+  | "NONE"
+  | "DODGE"
+  | "PROTECTION"
+  | "DODGE_OR_PROTECTION"
+  | "RESIST";
+export type ProtectionChannel = "PHYSICAL" | "MENTAL";
+export type ResolutionOrigin =
+  | "CASTER"
+  | "PRIMARY_TARGET"
+  | "ATTACHED_HOST"
+  | "FIELD_ORIGIN"
+  | "PACKET_LOCAL";
+export type HostileEntryPattern = "DIRECT" | "ON_ATTACH" | "ON_PAYLOAD";
+export type GateResolutionSource = "INFERRED" | "EXPLICIT";
+export type PowerLifespanType = "NONE" | "TURNS" | "PASSIVE";
+export type EffectTimingType =
+  | "ON_CAST"
+  | "ON_HIT"
+  | "ON_TRIGGER"
+  | "ON_ATTACH"
+  | "START_OF_TURN"
+  | "END_OF_TURN"
+  | "START_OF_TURN_WHILST_CHANNELLED"
+  | "END_OF_TURN_WHILST_CHANNELLED"
+  | "ON_RELEASE"
+  | "ON_EXPIRY";
+export type EffectDurationType = "INSTANT" | "TURNS" | "PASSIVE" | "UNTIL_TARGET_NEXT_TURN";
+export type WoundChannel = "PHYSICAL" | "MENTAL";
+export type EffectPacketApplyTo = "PRIMARY_TARGET" | "SELF";
 
-export type MonsterPowerIntentionDetails = Record<string, unknown> & {
-  applyTo?: MonsterPowerIntentionApplyTo;
+export type EffectPacketDetails = Record<string, unknown> & {
+  applyTo?: EffectPacketApplyTo;
 };
 
-export type MonsterPowerIntention = {
+export type EffectPacketLocalTargetingOverride = {
+  meleeTargets: number | null;
+  rangedTargets: number | null;
+  rangedDistanceFeet: number | null;
+  aoeCenterRangeFeet: number | null;
+  aoeCount: number | null;
+  aoeShape: "SPHERE" | "CONE" | "LINE" | null;
+  aoeSphereRadiusFeet: number | null;
+  aoeConeLengthFeet: number | null;
+  aoeLineWidthFeet: number | null;
+  aoeLineLengthFeet: number | null;
+};
+
+export type EffectPacket = {
   id?: string;
+  packetIndex?: number;
   sortOrder: number;
-  type: MonsterPowerIntentionType;
-  detailsJson: MonsterPowerIntentionDetails;
+  hostility?: PacketHostility;
+  intention: PowerIntention;
+  type: PowerIntention;
+  specific?: string | null;
+  diceCount?: number;
+  potency?: number;
+  effectTimingType?: EffectTimingType;
+  effectTimingTurns: number | null;
+  effectDurationType?: EffectDurationType;
+  effectDurationTurns: number | null;
+  dealsWounds?: boolean;
+  woundChannel?: WoundChannel | null;
+  targetedAttribute?: CoreAttribute | null;
+  applicationModeKey?: string | null;
+  resolutionOrigin?: ResolutionOrigin;
+  detailsJson: EffectPacketDetails;
+  localTargetingOverride?: EffectPacketLocalTargetingOverride | null;
 };
 
-export type MonsterPower = {
+export type PrimaryDefenceGate = {
+  sourcePacketIndex: number;
+  gateResult: PrimaryDefenceGateResult;
+  protectionChannel: ProtectionChannel | null;
+  resistAttribute: CoreAttribute | null;
+  hostileEntryPattern: HostileEntryPattern | null;
+  resolutionSource: GateResolutionSource;
+};
+
+export type Power = {
   id?: string;
   sortOrder: number;
   name: string;
   description: string | null;
-  diceCount: number;
-  potency: number;
-  durationType: MonsterPowerDurationType;
-  durationTurns: number | null;
-  defenceRequirement: MonsterPowerDefenceRequirement;
+  schemaVersion?: number;
+  rulesVersion?: string;
+  contentRevision?: number;
+  previewRendererVersion?: number;
+  status?: PowerStatus;
+  descriptorChassis?: DescriptorChassisType;
+  descriptorChassisConfig?: Record<string, unknown>;
   cooldownTurns: number;
   cooldownReduction: number;
-  responseRequired: boolean;
-  intentions: MonsterPowerIntention[];
+  counterMode?: "NO" | "YES";
+  commitmentModifier?: "STANDARD" | "CHANNEL" | "CHARGE";
+  lifespanType?: PowerLifespanType;
+  lifespanTurns?: number | null;
+  previewSummaryOverride?: string | null;
+  rangeCategories?: RangeCategory[];
+  meleeTargets?: number | null;
+  rangedTargets?: number | null;
+  rangedDistanceFeet?: number | null;
+  aoeCenterRangeFeet?: number | null;
+  aoeCount?: number | null;
+  aoeShape?: "SPHERE" | "CONE" | "LINE" | null;
+  aoeSphereRadiusFeet?: number | null;
+  aoeConeLengthFeet?: number | null;
+  aoeLineWidthFeet?: number | null;
+  aoeLineLengthFeet?: number | null;
+  primaryDefenceGate?: PrimaryDefenceGate | null;
+  effectPackets: EffectPacket[];
+  intentions: EffectPacket[];
+  // Summoning Circle keeps these convenience fields while the first implementation
+  // surface still authors mostly single-pattern powers.
+  diceCount: number;
+  potency: number;
+  effectDurationType?: EffectDurationType;
+  effectDurationTurns?: number | null;
+  durationType?: EffectDurationType;
+  durationTurns?: number | null;
+  defenceRequirement?: PrimaryDefenceGateResult;
 };
+
+export type MonsterPowerDurationType = EffectDurationType;
+export type MonsterPowerDefenceRequirement = PrimaryDefenceGateResult;
+export type MonsterPowerIntentionType = PowerIntention;
+export type MonsterPowerIntentionApplyTo = EffectPacketApplyTo;
+export type MonsterPowerIntentionDetails = EffectPacketDetails;
+export type MonsterPowerIntention = EffectPacket;
+export type MonsterPower = Power;
 
 export type MonsterTraitSelection = {
   id?: string;
@@ -198,7 +309,7 @@ export type MonsterRecord = {
     attackName: string;
     attackConfig: MonsterNaturalAttackConfig;
   } | null;
-  powers: MonsterPower[];
+  powers: Power[];
 };
 
 export type MonsterUpsertInput = Omit<
@@ -222,7 +333,7 @@ export type MonsterUpsertInput = Omit<
     attackName: string;
     attackConfig: MonsterNaturalAttackConfig;
   } | null;
-  powers: MonsterPower[];
+  powers: Power[];
 };
 
 export type MonsterSummary = Pick<

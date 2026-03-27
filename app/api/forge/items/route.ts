@@ -99,11 +99,6 @@ export function isUnknownTagsIncludeError(error: unknown): boolean {
   );
 }
 
-type GlobalAttributeModifierInput = {
-  attribute: string;
-  amount: number;
-};
-
 type ItemTemplateInput = {
   id: string;
   campaignId: string;
@@ -307,7 +302,7 @@ export async function POST(req: Request) {
       }
 
       // 1) Core item row
-      const coreData: any = {
+      const coreData = {
         id: body.id,
         campaignId: body.campaignId,
         itemUrl: body.itemUrl ?? null,
@@ -376,7 +371,7 @@ export async function POST(req: Request) {
       let item;
       try {
         item = await tx.itemTemplate.create({
-          data: coreData,
+          data: coreData as unknown as Parameters<typeof tx.itemTemplate.create>[0]['data'],
         });
       } catch (error) {
         if (
@@ -385,9 +380,10 @@ export async function POST(req: Request) {
           isUnknownTagsDataArgError(error)
         ) {
           console.warn("[FORGE_ITEMS_POST] itemTag model unavailable; skipping tag persistence");
-          const { tags: _ignoredTags, ...coreDataWithoutTags } = coreData;
+          const { tags, ...coreDataWithoutTags } = coreData;
+          void tags;
           item = await tx.itemTemplate.create({
-            data: coreDataWithoutTags,
+            data: coreDataWithoutTags as unknown as Parameters<typeof tx.itemTemplate.create>[0]['data'],
           });
         } else {
           throw error;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
-import { Prisma } from "@prisma/client";
+import { Prisma, type EffectDurationType } from "@prisma/client";
 import {
   isTwoHanded,
   isValidArmorItemForSlot,
@@ -9,7 +9,7 @@ import {
   type SummoningEquipmentItem,
 } from "@/lib/summoning/equipment";
 import { renderAttackActionLines } from "@/lib/summoning/render";
-import type { MonsterNaturalAttackConfig, MonsterUpsertInput } from "@/lib/summoning/types";
+import type { MonsterNaturalAttackConfig, MonsterUpsertInput, Power } from "@/lib/summoning/types";
 import { requireCampaignAccess, requireCampaignDirectorOrAdmin, requireUserId } from "../../_shared";
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
 
@@ -24,7 +24,15 @@ const MONSTER_INCLUDE = {
   powers: {
     orderBy: { sortOrder: "asc" as const },
     include: {
-      intentions: { orderBy: { sortOrder: "asc" as const } },
+      rangeCategories: { orderBy: { rangeCategory: "asc" as const } },
+      primaryDefenceGate: true,
+      tags: { orderBy: { tag: "asc" as const } },
+      effectPackets: {
+        orderBy: { packetIndex: "asc" as const },
+        include: {
+          localTargetingOverride: true,
+        },
+      },
     },
   },
 };
@@ -354,6 +362,387 @@ function toNaturalAttackField(
   };
 }
 
+type MonsterWithPowers = Prisma.MonsterGetPayload<{
+  include: typeof MONSTER_INCLUDE;
+}>;
+
+function getPowerRangeCategory(power: Pick<
+  Power,
+  | "rangeCategories"
+  | "meleeTargets"
+  | "rangedTargets"
+  | "rangedDistanceFeet"
+  | "aoeCenterRangeFeet"
+  | "aoeCount"
+  | "aoeShape"
+  | "aoeSphereRadiusFeet"
+  | "aoeConeLengthFeet"
+  | "aoeLineWidthFeet"
+  | "aoeLineLengthFeet"
+>): "SELF" | "MELEE" | "RANGED" | "AOE" {
+  if (power.rangeCategories?.includes("AOE")) return "AOE";
+  if (power.rangeCategories?.includes("RANGED")) return "RANGED";
+  if (power.rangeCategories?.includes("MELEE")) return "MELEE";
+  return "SELF";
+}
+
+function buildPrimaryPacketRangeDetails(power: Pick<
+  Power,
+  | "rangeCategories"
+  | "meleeTargets"
+  | "rangedTargets"
+  | "rangedDistanceFeet"
+  | "aoeCenterRangeFeet"
+  | "aoeCount"
+  | "aoeShape"
+  | "aoeSphereRadiusFeet"
+  | "aoeConeLengthFeet"
+  | "aoeLineWidthFeet"
+  | "aoeLineLengthFeet"
+>): Record<string, unknown> {
+  const rangeCategory = getPowerRangeCategory(power);
+  if (rangeCategory === "SELF") {
+    return {
+      rangeCategory: "SELF",
+      rangeValue: null,
+      rangeExtra: {},
+    };
+  }
+  if (rangeCategory === "MELEE") {
+    return {
+      rangeCategory: "MELEE",
+      rangeValue: power.meleeTargets ?? 1,
+      rangeExtra: {},
+    };
+  }
+  if (rangeCategory === "RANGED") {
+    return {
+      rangeCategory: "RANGED",
+      rangeValue: power.rangedDistanceFeet ?? 30,
+      rangeExtra: {
+        targets: power.rangedTargets ?? 1,
+      },
+    };
+  }
+  return {
+    rangeCategory: "AOE",
+    rangeValue: power.aoeCenterRangeFeet ?? 0,
+    rangeExtra: {
+      count: power.aoeCount ?? 1,
+      shape: power.aoeShape ?? "SPHERE",
+      sphereRadiusFeet: power.aoeSphereRadiusFeet ?? undefined,
+      coneLengthFeet: power.aoeConeLengthFeet ?? undefined,
+      lineWidthFeet: power.aoeLineWidthFeet ?? undefined,
+      lineLengthFeet: power.aoeLineLengthFeet ?? undefined,
+    },
+  };
+}
+
+function buildPowerRangeCategories(power: Power): Array<"MELEE" | "RANGED" | "AOE"> {
+  const effectPackets = Array.isArray(power.effectPackets)
+    ? power.effectPackets
+    : Array.isArray(power.intentions)
+      ? power.intentions
+      : [];
+  const explicit = (power.rangeCategories ?? []).filter(
+    (category): category is "MELEE" | "RANGED" | "AOE" =>
+      category === "MELEE" || category === "RANGED" || category === "AOE",
+  );
+  if (explicit.length > 0) return explicit;
+
+  const primaryDetails = (effectPackets[0]?.detailsJson ?? {}) as Record<string, unknown>;
+  const rangeCategory = String(primaryDetails.rangeCategory ?? "").trim().toUpperCase();
+  if (rangeCategory === "MELEE" || rangeCategory === "RANGED" || rangeCategory === "AOE") {
+    return [rangeCategory];
+  }
+  return [];
+}
+
+function normalizeDescriptorChassis(
+  value: unknown,
+): Power["descriptorChassis"] {
+  return value === "IMMEDIATE" ||
+    value === "FIELD" ||
+    value === "ATTACHED" ||
+    value === "TRIGGER" ||
+    value === "RESERVE"
+    ? value
+    : "IMMEDIATE";
+}
+
+function readCounterMode(
+  power: Record<string, unknown>,
+): NonNullable<Power["counterMode"]> {
+  return power.counterMode === "YES" || power.counterMode === "NO"
+    ? power.counterMode
+    : power.responseRequired === true
+      ? "YES"
+      : "NO";
+}
+
+function readCommitmentModifier(
+  power: Record<string, unknown>,
+): NonNullable<Power["commitmentModifier"]> {
+  return power.commitmentModifier === "CHANNEL" ||
+    power.commitmentModifier === "CHARGE" ||
+    power.commitmentModifier === "STANDARD"
+    ? power.commitmentModifier
+    : "STANDARD";
+}
+
+function buildPowerCreateData(power: Power) {
+  const effectPackets = Array.isArray(power.effectPackets)
+    ? power.effectPackets
+    : Array.isArray(power.intentions)
+      ? power.intentions
+      : [];
+  const effectDurationType = power.effectDurationType ?? power.durationType ?? "INSTANT";
+  return {
+    sortOrder: power.sortOrder,
+    sourceType: "MONSTER_POWER" as const,
+    name: power.name,
+    description: power.description,
+    schemaVersion: power.schemaVersion ?? 1,
+    rulesVersion: power.rulesVersion ?? "v1",
+    contentRevision: power.contentRevision ?? 1,
+    previewRendererVersion: power.previewRendererVersion ?? 1,
+    status: power.status ?? "ACTIVE",
+    descriptorChassis: normalizeDescriptorChassis(power.descriptorChassis),
+    descriptorChassisConfig: (power.descriptorChassisConfig ?? {}) as Prisma.InputJsonValue,
+    counterMode: power.counterMode ?? "NO",
+    commitmentModifier: power.commitmentModifier ?? "STANDARD",
+    cooldownTurns: power.cooldownTurns,
+    cooldownReduction: power.cooldownReduction,
+    lifespanType: power.lifespanType ?? "NONE",
+    lifespanTurns: power.lifespanTurns ?? null,
+    previewSummaryOverride: power.previewSummaryOverride ?? null,
+    meleeTargets: power.meleeTargets ?? null,
+    rangedTargets: power.rangedTargets ?? null,
+    rangedDistanceFeet: power.rangedDistanceFeet ?? null,
+    aoeCenterRangeFeet: power.aoeCenterRangeFeet ?? null,
+    aoeCount: power.aoeCount ?? null,
+    aoeShape: power.aoeShape ?? null,
+    aoeSphereRadiusFeet: power.aoeSphereRadiusFeet ?? null,
+    aoeConeLengthFeet: power.aoeConeLengthFeet ?? null,
+    aoeLineWidthFeet: power.aoeLineWidthFeet ?? null,
+    aoeLineLengthFeet: power.aoeLineLengthFeet ?? null,
+    rangeCategories: {
+      create: buildPowerRangeCategories(power).map((rangeCategory) => ({ rangeCategory })),
+    },
+    primaryDefenceGate: power.primaryDefenceGate
+      ? {
+          create: {
+            // Keep sourcePacketIndex 0-based for now to match packetIndex and the
+            // current editor bridge until a dedicated UI pass can safely move it.
+            sourcePacketIndex: power.primaryDefenceGate.sourcePacketIndex,
+            gateResult: power.primaryDefenceGate.gateResult,
+            protectionChannel: power.primaryDefenceGate.protectionChannel,
+            resistAttribute: power.primaryDefenceGate.resistAttribute,
+            hostileEntryPattern: power.primaryDefenceGate.hostileEntryPattern,
+            resolutionSource: power.primaryDefenceGate.resolutionSource,
+          },
+        }
+      : undefined,
+    effectPackets: {
+      create: effectPackets.map((effectPacket, packetIndex) => ({
+        packetIndex: effectPacket.packetIndex ?? effectPacket.sortOrder ?? packetIndex,
+        hostility: effectPacket.hostility ?? "NON_HOSTILE",
+        intention: effectPacket.intention ?? effectPacket.type ?? "ATTACK",
+        specific: effectPacket.specific ?? null,
+        diceCount: effectPacket.diceCount ?? power.diceCount,
+        potency: effectPacket.potency ?? power.potency,
+        effectTimingType: effectPacket.effectTimingType ?? "ON_CAST",
+        effectTimingTurns: effectPacket.effectTimingTurns ?? null,
+        effectDurationType: (effectPacket.effectDurationType ?? effectDurationType) as EffectDurationType,
+        effectDurationTurns:
+          (effectPacket.effectDurationType ?? effectDurationType) === "TURNS"
+            ? (effectPacket.effectDurationTurns ?? power.effectDurationTurns ?? power.durationTurns ?? null)
+            : null,
+        dealsWounds: effectPacket.dealsWounds ?? false,
+        woundChannel: effectPacket.woundChannel ?? null,
+        targetedAttribute: effectPacket.targetedAttribute ?? null,
+        applicationModeKey: effectPacket.applicationModeKey ?? null,
+        resolutionOrigin: effectPacket.resolutionOrigin ?? "CASTER",
+        detailsJson: effectPacket.detailsJson as Prisma.InputJsonValue,
+        localTargetingOverride: effectPacket.localTargetingOverride
+          ? {
+              create: {
+                meleeTargets: effectPacket.localTargetingOverride.meleeTargets,
+                rangedTargets: effectPacket.localTargetingOverride.rangedTargets,
+                rangedDistanceFeet: effectPacket.localTargetingOverride.rangedDistanceFeet,
+                aoeCenterRangeFeet: effectPacket.localTargetingOverride.aoeCenterRangeFeet,
+                aoeCount: effectPacket.localTargetingOverride.aoeCount,
+                aoeShape: effectPacket.localTargetingOverride.aoeShape,
+                aoeSphereRadiusFeet: effectPacket.localTargetingOverride.aoeSphereRadiusFeet,
+                aoeConeLengthFeet: effectPacket.localTargetingOverride.aoeConeLengthFeet,
+                aoeLineWidthFeet: effectPacket.localTargetingOverride.aoeLineWidthFeet,
+                aoeLineLengthFeet: effectPacket.localTargetingOverride.aoeLineLengthFeet,
+              },
+            }
+          : undefined,
+      })),
+    },
+  };
+}
+
+function serializePower(
+  power: MonsterWithPowers["powers"][number],
+): Power {
+  const rawPower = power as unknown as Record<string, unknown>;
+  const primaryPacket = power.effectPackets[0];
+  const effectDurationType = (primaryPacket?.effectDurationType ?? "INSTANT") as Power["effectDurationType"];
+  const effectDurationTurns =
+    effectDurationType === "TURNS" ? (primaryPacket?.effectDurationTurns ?? 1) : null;
+  const baseRangeDetails = buildPrimaryPacketRangeDetails({
+    rangeCategories: power.rangeCategories.map((row) => row.rangeCategory),
+    meleeTargets: power.meleeTargets,
+    rangedTargets: power.rangedTargets,
+    rangedDistanceFeet: power.rangedDistanceFeet,
+    aoeCenterRangeFeet: power.aoeCenterRangeFeet,
+    aoeCount: power.aoeCount,
+    aoeShape: power.aoeShape,
+    aoeSphereRadiusFeet: power.aoeSphereRadiusFeet,
+    aoeConeLengthFeet: power.aoeConeLengthFeet,
+    aoeLineWidthFeet: power.aoeLineWidthFeet,
+    aoeLineLengthFeet: power.aoeLineLengthFeet,
+  });
+
+  return {
+    id: power.id,
+    sortOrder: power.sortOrder,
+    name: power.name,
+    description: power.description,
+    schemaVersion: power.schemaVersion,
+    rulesVersion: power.rulesVersion,
+    contentRevision: power.contentRevision,
+    previewRendererVersion: power.previewRendererVersion,
+    status: power.status,
+    descriptorChassis: normalizeDescriptorChassis(power.descriptorChassis),
+    descriptorChassisConfig:
+      power.descriptorChassisConfig && typeof power.descriptorChassisConfig === "object"
+        ? (power.descriptorChassisConfig as Record<string, unknown>)
+        : {},
+    cooldownTurns: power.cooldownTurns,
+    cooldownReduction: power.cooldownReduction,
+    counterMode: readCounterMode(rawPower),
+    commitmentModifier: readCommitmentModifier(rawPower),
+    lifespanType: power.lifespanType,
+    lifespanTurns: power.lifespanTurns,
+    previewSummaryOverride: power.previewSummaryOverride,
+    rangeCategories: power.rangeCategories.map((row) => row.rangeCategory),
+    meleeTargets: power.meleeTargets,
+    rangedTargets: power.rangedTargets,
+    rangedDistanceFeet: power.rangedDistanceFeet,
+    aoeCenterRangeFeet: power.aoeCenterRangeFeet,
+    aoeCount: power.aoeCount,
+    aoeShape: power.aoeShape,
+    aoeSphereRadiusFeet: power.aoeSphereRadiusFeet,
+    aoeConeLengthFeet: power.aoeConeLengthFeet,
+    aoeLineWidthFeet: power.aoeLineWidthFeet,
+    aoeLineLengthFeet: power.aoeLineLengthFeet,
+    primaryDefenceGate: power.primaryDefenceGate
+      ? {
+          sourcePacketIndex: power.primaryDefenceGate.sourcePacketIndex,
+          gateResult: power.primaryDefenceGate.gateResult,
+          protectionChannel: power.primaryDefenceGate.protectionChannel,
+          resistAttribute: power.primaryDefenceGate.resistAttribute,
+          hostileEntryPattern: power.primaryDefenceGate.hostileEntryPattern,
+          resolutionSource: power.primaryDefenceGate.resolutionSource,
+        }
+      : null,
+    effectPackets: power.effectPackets.map((effectPacket) => ({
+      id: effectPacket.id,
+      packetIndex: effectPacket.packetIndex,
+      sortOrder: effectPacket.packetIndex,
+      hostility: effectPacket.hostility,
+      intention: effectPacket.intention,
+      type: effectPacket.intention,
+      specific: effectPacket.specific,
+      diceCount: effectPacket.diceCount,
+      potency: effectPacket.potency,
+      effectTimingType: effectPacket.effectTimingType,
+      effectTimingTurns: effectPacket.effectTimingTurns,
+      effectDurationType: effectPacket.effectDurationType,
+      effectDurationTurns: effectPacket.effectDurationTurns,
+      dealsWounds: effectPacket.dealsWounds,
+      woundChannel: effectPacket.woundChannel,
+      targetedAttribute: effectPacket.targetedAttribute,
+      applicationModeKey: effectPacket.applicationModeKey,
+      resolutionOrigin: effectPacket.resolutionOrigin,
+      detailsJson:
+        effectPacket.packetIndex === 0
+          ? { ...(effectPacket.detailsJson as Record<string, unknown>), ...baseRangeDetails }
+          : ((effectPacket.detailsJson as Record<string, unknown>) ?? {}),
+      localTargetingOverride: effectPacket.localTargetingOverride
+        ? {
+            meleeTargets: effectPacket.localTargetingOverride.meleeTargets,
+            rangedTargets: effectPacket.localTargetingOverride.rangedTargets,
+            rangedDistanceFeet: effectPacket.localTargetingOverride.rangedDistanceFeet,
+            aoeCenterRangeFeet: effectPacket.localTargetingOverride.aoeCenterRangeFeet,
+            aoeCount: effectPacket.localTargetingOverride.aoeCount,
+            aoeShape: effectPacket.localTargetingOverride.aoeShape,
+            aoeSphereRadiusFeet: effectPacket.localTargetingOverride.aoeSphereRadiusFeet,
+            aoeConeLengthFeet: effectPacket.localTargetingOverride.aoeConeLengthFeet,
+            aoeLineWidthFeet: effectPacket.localTargetingOverride.aoeLineWidthFeet,
+            aoeLineLengthFeet: effectPacket.localTargetingOverride.aoeLineLengthFeet,
+          }
+        : null,
+    })),
+    intentions: power.effectPackets.map((effectPacket) => ({
+      id: effectPacket.id,
+      packetIndex: effectPacket.packetIndex,
+      sortOrder: effectPacket.packetIndex,
+      hostility: effectPacket.hostility,
+      intention: effectPacket.intention,
+      type: effectPacket.intention,
+      specific: effectPacket.specific,
+      diceCount: effectPacket.diceCount,
+      potency: effectPacket.potency,
+      effectTimingType: effectPacket.effectTimingType,
+      effectTimingTurns: effectPacket.effectTimingTurns,
+      effectDurationType: effectPacket.effectDurationType,
+      effectDurationTurns: effectPacket.effectDurationTurns,
+      dealsWounds: effectPacket.dealsWounds,
+      woundChannel: effectPacket.woundChannel,
+      targetedAttribute: effectPacket.targetedAttribute,
+      applicationModeKey: effectPacket.applicationModeKey,
+      resolutionOrigin: effectPacket.resolutionOrigin,
+      detailsJson:
+        effectPacket.packetIndex === 0
+          ? { ...(effectPacket.detailsJson as Record<string, unknown>), ...baseRangeDetails }
+          : ((effectPacket.detailsJson as Record<string, unknown>) ?? {}),
+      localTargetingOverride: effectPacket.localTargetingOverride
+        ? {
+            meleeTargets: effectPacket.localTargetingOverride.meleeTargets,
+            rangedTargets: effectPacket.localTargetingOverride.rangedTargets,
+            rangedDistanceFeet: effectPacket.localTargetingOverride.rangedDistanceFeet,
+            aoeCenterRangeFeet: effectPacket.localTargetingOverride.aoeCenterRangeFeet,
+            aoeCount: effectPacket.localTargetingOverride.aoeCount,
+            aoeShape: effectPacket.localTargetingOverride.aoeShape,
+            aoeSphereRadiusFeet: effectPacket.localTargetingOverride.aoeSphereRadiusFeet,
+            aoeConeLengthFeet: effectPacket.localTargetingOverride.aoeConeLengthFeet,
+            aoeLineWidthFeet: effectPacket.localTargetingOverride.aoeLineWidthFeet,
+            aoeLineLengthFeet: effectPacket.localTargetingOverride.aoeLineLengthFeet,
+          }
+        : null,
+    })),
+    diceCount: primaryPacket?.diceCount ?? 1,
+    potency: primaryPacket?.potency ?? 1,
+    effectDurationType,
+    effectDurationTurns,
+    durationType: effectDurationType,
+    durationTurns: effectDurationTurns,
+    defenceRequirement: power.primaryDefenceGate?.gateResult ?? "NONE",
+  };
+}
+
+function serializeMonster(monster: MonsterWithPowers) {
+  return {
+    ...monster,
+    powers: monster.powers.map(serializePower),
+  };
+}
+
 export async function GET(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
@@ -382,7 +771,7 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    return NextResponse.json(monster);
+    return NextResponse.json(serializeMonster(monster));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load monster";
     if (message === "UNAUTHORIZED") {
@@ -392,7 +781,11 @@ export async function GET(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     console.error("[SUMMONING_MONSTER_GET]", error);
-    return NextResponse.json({ error: "Failed to load monster" }, { status: 500 });
+    const debugMessage = getInternalErrorMessage(error, "Failed to load monster");
+    return NextResponse.json(
+      { error: process.env.NODE_ENV === "production" ? "Failed to load monster" : debugMessage },
+      { status: 500 },
+    );
   }
 }
 
@@ -542,7 +935,7 @@ export async function PUT(
 
       await tx.monsterTag.deleteMany({ where: { monsterId: id } });
       await tx.monsterTrait.deleteMany({ where: { monsterId: id } });
-      await tx.monsterPower.deleteMany({ where: { monsterId: id } });
+      await tx.power.deleteMany({ where: { monsterId: id } });
       await tx.monsterAttack.deleteMany({ where: { monsterId: id } });
       await tx.monsterNaturalAttack.deleteMany({ where: { monsterId: id } });
 
@@ -586,27 +979,10 @@ export async function PUT(
       }
 
       for (const power of data.powers) {
-        await tx.monsterPower.create({
+        await tx.power.create({
           data: {
             monsterId: id,
-            sortOrder: power.sortOrder,
-            name: power.name,
-            description: power.description,
-            diceCount: power.diceCount,
-            potency: power.potency,
-            durationType: power.durationType as any,
-            durationTurns: power.durationTurns,
-            defenceRequirement: power.defenceRequirement,
-            cooldownTurns: power.cooldownTurns,
-            cooldownReduction: power.cooldownReduction,
-            responseRequired: power.responseRequired,
-            intentions: {
-              create: power.intentions.map((intention) => ({
-                sortOrder: intention.sortOrder,
-                type: intention.type,
-                detailsJson: intention.detailsJson as Prisma.InputJsonValue,
-              })),
-            },
+            ...buildPowerCreateData(power),
           },
         });
       }
@@ -617,7 +993,7 @@ export async function PUT(
       });
 
       if (!fresh) throw new Error("Not found");
-      return fresh;
+      return serializeMonster(fresh);
     });
 
     return NextResponse.json(updated);

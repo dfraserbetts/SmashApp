@@ -1,0 +1,395 @@
+Purpose
+
+
+This document records decisions that are considered locked unless explicitly reopened. Its purpose is to prevent drift, repeated debate, and accidental contradiction across future chats.
+
+
+A locked decision should be treated as binding design truth unless a direct contradiction, severe playtest failure, or clearly superior lower-drift alternative forces a reopen.
+
+
+Locked Decisions
+
+
+1. The shared power core uses one consistent three-layer model
+
+
+A power is built from:
+
+
+Power-Level Fields
+
+
+one Descriptor Chassis
+
+
+one or more Effect Packets
+
+
+This is the shared conceptual model for the power system.
+
+
+2. Delivery Method is not a replacement for shared rules grammar
+
+
+Delivery Method is a structural identity layer. It does not replace Range, Targeting, Dice, Counter, or other common rules grammar. Responses remain the player-facing resource and are not the authored power field. Its job is to define the privileged structure through which the power exists and resolves.
+
+
+3. Delivery Method will be implemented through descriptor chassis
+
+
+Each Delivery Method must justify itself by changing descriptor structure, field requirements, and/or mechanical resolution pattern. If it does not do that, it is not earning its place.
+
+
+4. Packet 1 is always the Primary Packet
+
+
+The first packet is always the Primary Packet. Packet order is mechanically meaningful, not just presentational.
+
+
+5. Only the Primary Packet is defended against
+
+
+A power has one defended entry point. Only Packet 1 sets the defence gate.
+
+
+6. Secondary packets only land if the Primary Packet lands
+
+
+If the Primary Packet is defended, Secondary Packets do not resolve. This is a global simplification rule for speed, clarity, and cleaner authored powers.
+
+
+7. Secondary packets never create separate defended entry points
+
+
+Secondary Packets are contingent follow-through effects. They do not set their own separate defence rolls or independent defence gates.
+
+
+8. Defence selection is gated, not fully freeform
+
+
+The builder must not offer nonsense defence combinations. Defence options are filtered based on the Primary Packet’s nature. Physical attack effects should not casually fish for irrelevant weak defences.
+
+
+9. Some packets will need an application-mode concept
+
+
+For effects such as Control or Debuff, Intention plus Specific is not always enough to determine a sensible defence gate. A restrained application-mode layer will likely be used where required.
+
+
+10. Lifespan is distinct from Effect Duration
+
+
+Lifespan refers to how long a chassis-level structure remains active, armed, attached, deployed, sustained, or available to resolve. It is not the same thing as Effect Duration.
+
+
+11. Lifespan, Effect Timing, and Effect Duration are separate concepts
+
+
+The system must distinguish between:
+
+
+how long the chassis exists
+
+
+when an effect packet applies
+
+
+how long the result remains after application
+
+
+These concepts are not interchangeable and must not be collapsed into one fuzzy timing field.
+
+
+12. Delivery Method must be selected early in the workflow
+
+
+Delivery Method cannot be left until the end because it shapes required fields, descriptor structure, and the broad resolution pattern.
+
+
+13. Simple powers should remain simple
+
+
+The redesign must not force all powers into a bloated advanced workflow. Straightforward powers should remain fast to build and easy to understand.
+
+
+14. Complexity increases cost
+
+
+More intentions, longer structural presence, richer behaviour, and stronger action commitment should all increase cost in a rising fashion. Complexity is not free.
+
+
+15. Trigger powers can use a soft-commit model
+
+
+If a triggered power is prepared and never fires, it may return to ready state rather than being fully wasted, because the user already paid a tempo cost by spending the Power Action. However, higher-complexity or broader powers may later use stricter cooldown handling.
+
+
+16. The shared power core will be implemented in Summoning Circle first
+
+
+Summoning Circle is the first proving ground for the shared power core, but not as a monster-only dead end. The implementation must remain reusable for the Character Builder.
+
+
+17. Standard monsters do not get the full player Spark / Restriction layer
+
+
+Standard monsters will use the shared power architecture but not the full player-facing Spark / Restriction system. Legendary monsters may later use a curated variant.
+
+
+18. Live preview is mandatory
+
+
+The power builder must support real-time preview rendering. This is foundational, not optional polish.
+
+
+19. Future runtime support should mirror the same power structure
+
+
+Printable effect slips and later digital runtime tracking should be based on the same underlying power model rather than inventing a second unrelated state language.
+
+
+20. The hardened Descriptor Chassis matrix currently uses five core chassis
+
+
+The current practical chassis matrix is:
+
+
+Immediate
+
+
+Field
+
+
+Attached
+
+
+Trigger
+
+
+Reserve
+
+
+These survive because they materially change descriptor structure, required supporting fields, or broad resolution pattern.
+
+
+21. Counter is not a separate chassis
+
+
+Counter is not retained as its own Descriptor Chassis.
+
+
+Counter is a shared Power-Level Field permission that determines whether a power may be used as a Counter when the user spends a Response on self-defence.
+
+
+22. Assist is universal and not authored per power
+
+
+Assist is assumed to be universally available by system rule.
+
+
+It is not a per-power authored field.
+
+
+Any power may be used as an Assist where the core response rules allow it.
+
+
+23. Responses are the player-facing resource, not the authored power field
+
+
+Responses are a player-facing resource tracked on the character sheet.
+
+
+They may be spent on Assists or Counters.
+
+
+The power builder does not author broad Response access per power.
+
+
+Instead, it authors whether a power is Counter-enabled.
+
+
+24. Counter and Trigger are separate concepts
+
+
+Counter is a shared Power-Level Field permission that determines whether the power may be used as a Counter.
+
+
+Trigger is a structural chassis in which a power is armed and later resolves automatically if its trigger condition is met.
+
+
+They must not be collapsed into one field or treated as synonyms.
+
+
+25. Counter is a Power-Level Field
+
+
+The power builder should expose an always-visible Counter selector with the options:
+
+
+No
+
+
+Yes
+
+
+No is the default unless later costing rules say otherwise.
+
+
+Counter answers whether the power may be used as a Counter when the user spends a Response on self-defence.
+
+
+26. Charge and Channel are not Descriptor Chassis
+
+
+Charge and Channel materially affect authoring, action economy, and cost, but they do not replace base delivery structure.
+
+
+They are advanced Power-Level Field modifiers, not chassis.
+
+
+27. Commitment Modifier is a Power-Level Field layer
+
+
+The power builder should expose an always-visible Commitment Modifier selector with the options:
+
+
+Standard
+
+
+Channel
+
+
+Charge
+
+
+Standard is the default.
+
+
+Channel means the power may or must continue consuming later Power Actions to maintain, reapply, or sustain its operation.
+
+
+Charge means the power must or may consume one or more Power Actions building power before resolution, or may grow in strength while held before release.
+
+
+28. Commitment Modifier does not replace Lifespan, Effect Timing, or Effect Duration
+
+
+Commitment Modifier answers a different question:
+
+
+how the user must continue spending turns to operate the power
+
+
+It must not be collapsed into Lifespan, Effect Timing, or Effect Duration.
+
+
+29. Immediate does not force instant Effect Duration
+
+
+Immediate means the chassis itself has no meaningful ongoing structural presence and the Primary Packet resolves now.
+
+
+It does not mean the applied result of Packet 1 must have instant Effect Duration.
+
+
+30. Packet 1 lands when it applies at least one operative result unit
+
+Packet 1 lands if, after its required Trial or Clash resolution, it applies at least one operative result unit.
+
+For wound-dealing packets, operative result is measured in net wounds inflicted.
+
+For non-wound packets, operative result is measured in net applied successes, stacks, heals, or other effect units.
+
+31. Secondary Packets survive on landing and may scale from applied result value
+
+If Packet 1 does not land, all contingent Secondary Packets are discarded.
+
+If Packet 1 lands, contingent Secondary Packets may resolve immediately or later according to their own Effect Timing.
+
+Where a Secondary Packet scales from Packet 1’s result:
+
+use net applied successes for non-wound primaries
+
+use Applied Success Bands = CEILING(Net Wounds / Wounds Per Success) for wound-dealing primaries
+
+32. Mixed-intention legality is constrained by hostile-primary ordering
+
+Hostile-primary into hostile-secondary is legal.
+
+Hostile-primary into beneficial-secondary is legal.
+
+Non-hostile-primary into non-hostile-secondary is legal.
+
+Non-hostile-primary into hostile-secondary is illegal.
+
+Mixed intention never creates additional defence gates.
+
+33. Packet timing legality must not smuggle in a different chassis
+
+Immediate Packet 1 timings are on cast / on use now and, where needed, on hit.
+
+Field Packet 1 timings may use on create, on enter, start of turn, end of turn, and on expiry while the field exists.
+
+Attached Packet 1 timings may use gate on attach or later attached-state payload timings such as start of turn, end of turn, movement, action, or expiry.
+
+Trigger Packet 1 resolves on trigger.
+
+Reserve Packet 1 resolves on release, or on reserve expiry only if the authored release behaviour explicitly says so.
+
+34. Commitment Modifier may constrain legal resolution windows without replacing the timing triad
+
+Charge and Channel do not create new packet timing categories.
+
+However, they may constrain when Packet 1 is allowed to resolve and how long a structure may remain operational in a usable pre-resolution or maintained state.
+
+This interaction does not replace the separate meanings of Lifespan, Effect Timing, or Effect Duration.
+
+35. Channel uses one first-pass behaviour model only
+
+In first implementation, Channel means the user may or must spend subsequent Power Actions to keep the power operating after initial use.
+
+Channel is an action-commitment modifier only. It does not automatically reroll Packet 1 or create repeated packet resolution by itself.
+
+Authored Effect Timing determines when each Effect Packet resolves.
+
+Do not offer alternate channel modes in first implementation.
+
+36. First-pass Channel legality is limited to supported chassis pairings
+
+Immediate + Channel is supported.
+
+Field + Channel is supported.
+
+Attached + Channel is supported.
+
+Trigger + Channel is not supported in first implementation.
+
+Reserve + Channel is not supported in first implementation.
+
+37. Channel does not override packet timing
+
+Each authored Effect Packet resolves only at its own Effect Timing.
+
+If a power is intended to apply effects repeatedly while maintained, those repeated effects must be authored through packet timing such as START_OF_TURN, END_OF_TURN, or other legal timings for the selected chassis rather than assumed from Channel alone.
+
+Delayed Secondary Packets remain scheduled for their own later timing and do not automatically re-resolve unless their authored timing says they do.
+
+38. Channel ends when upkeep ends or the sustaining anchor is broken
+
+A Channelled power ends when the user stops maintaining it, can no longer maintain it, its Lifespan ends, or its sustaining anchor is broken.
+
+Target-anchored channels end when all sustaining anchors are broken.
+
+Source-projected or area-anchored channels do not end merely because individual targets fully defend that turn.
+
+39. Reapplying live stacks from the same power/source refreshes them
+
+Where a power reapplies live stacks from the same power/source, those live stacks are refreshed on application rather than requiring separate expiry tracking for each stack instance.
+
+40. Attached powers use initial legal range for attachment, with separate rules for later host-bound persistence and Channelled reinforcement
+
+Targets of Attached powers must be in legal range for the initial application.
+
+Once attached, the attached state may continue and later attached effects may resolve for its Lifespan even if later range changes.
+
+For first implementation, a Channelled Attached power may only add new applications, refreshes, or maintained re-resolution while the attached target remains within the power’s legal cast range from the source. Existing attached effects already on the host continue until their own duration, attachment end, or expiry rules say otherwise.

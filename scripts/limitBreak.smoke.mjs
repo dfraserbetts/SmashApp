@@ -9,26 +9,24 @@ async function run() {
   assert.equal(computeThreshold(8, 85), 7);
   assert.equal(computeThreshold(8, 125), 10);
 
-  let abilityId = null;
+  let powerId = null;
 
   try {
-    const createdAbility = await prisma.ability.create({
+    const createdPower = await prisma.power.create({
       data: {
         name: `LB Smoke ${Date.now()}`,
-        sourceType: "CHARACTER_POWER",
-        intention: "ATTACK",
-        diceCount: 6,
-        potency: 2,
+        sourceType: "MONSTER_POWER",
+        cooldownTurns: 0,
       },
       select: { id: true },
     });
 
-    abilityId = createdAbility.id;
+    powerId = createdPower.id;
 
     const usage = {
       actorType: "CHARACTER",
       actorId: `smoke-actor-${Date.now()}`,
-      abilityId,
+      powerId,
       usedAtLevel: 10,
       client: prisma,
     };
@@ -57,10 +55,10 @@ async function run() {
 
     assert.equal(blockedByUnique, true);
   } finally {
-    if (abilityId) {
-      await prisma.abilityLimitBreakUsage.deleteMany({ where: { abilityId } });
-      await prisma.limitBreakProfile.deleteMany({ where: { abilityId } });
-      await prisma.ability.deleteMany({ where: { id: abilityId } });
+    if (powerId) {
+      await prisma.powerLimitBreakUsage.deleteMany({ where: { powerId } });
+      await prisma.limitBreakProfile.deleteMany({ where: { powerId } });
+      await prisma.power.deleteMany({ where: { id: powerId } });
     }
   }
 }

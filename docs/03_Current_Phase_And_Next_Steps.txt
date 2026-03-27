@@ -1,0 +1,217 @@
+03_Current_Phase_And_Next_Steps.txt
+
+Purpose
+
+This document records where the project currently stands, what has already been solved conceptually, and what should happen next.
+
+It should be updated as design and implementation progress.
+
+
+Current State
+
+Phase 1 — Lock the power foundation — is complete.
+
+Phase 2 — Defence Gating and Packet Resolution Refinement — is complete.
+
+Phase 3 — Descriptor Chassis Matrix and Builder Workflow Hardening — is complete enough to close as a design phase.
+
+Phase 4 — Packet Resolution Rules Consolidation and Hardening — is complete enough to close as a design phase.
+
+Phase 5 — Implementation-Facing Translation of the Hardened Power Model — is now materially clarified at the design-language level, but still contains a small number of explicit unresolved hard-rule questions.
+
+The architecture is no longer the main uncertainty.
+
+The project now has a hardened conceptual model for powers built from:
+
+Power-Level Fields
+
+one Descriptor Chassis
+
+one or more Effect Packets
+
+
+What Is Now Locked
+
+The following points should now be treated as stable design truth:
+
+- the shared power core uses one three-layer model
+- Delivery Method is structural and does not replace shared rules grammar
+- Delivery Method is implemented through Descriptor Chassis
+- Packet 1 is always the Primary Packet
+- only the Primary Packet is defended against
+- Secondary Packets only resolve if the Primary Packet lands
+- Secondary Packets do not create separate defended entry points
+- Packet 1 lands if it applies at least one operative result unit
+- wound-based Secondary scaling uses Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
+- Lifespan, Effect Timing, and Effect Duration are separate concepts
+- Summoning Circle is the first implementation surface for the shared core
+- Character Builder is expected to reuse the same foundation later
+- live preview is mandatory
+- the practical Descriptor Chassis matrix is Immediate, Field, Attached, Trigger, and Reserve
+- Counter is an authored Power-Level Field permission with No / Yes
+- Assist is universal by system rule and is not authored per power
+- Responses remain the player-facing resource
+- Trigger is structural and is not the same thing as Counter
+- Commitment Modifier is an authored Power-Level Field with Standard, Channel, and Charge
+- the builder should expose Counter as an always-visible selector with No / Yes
+- the builder should expose Commitment Modifier as an always-visible selector with Standard, Channel, and Charge
+- Application Mode is a restrained disambiguation layer and should remain hidden unless inference fails
+- Channel uses one first-pass behaviour only as an action-commitment modifier
+- first-pass Channel support is limited to Immediate, Field, and Attached
+- authored Effect Timing determines when each packet resolves while maintained
+- recurring maintained effects must be authored through packet timing rather than assumed from Channel alone
+- delayed Secondary Packets stay scheduled for their own later timing
+- reapplying live stacks from the same power/source refreshes them
+- Channelled powers end when upkeep ends, the structure expires, or the sustaining anchor is broken
+- Attached powers require legal initial range, but host-bound persistence may continue after later range changes
+- Channelled Attached reinforcement requires the target to remain within legal cast range from the source
+- hostile delayed-entry Attached powers must explicitly distinguish gate on attach from gate on payload
+- simple powers must stay simple
+- complexity increases cost
+
+
+What Phase 3 Solved
+
+Phase 3 hardened the following areas:
+
+- the practical Descriptor Chassis matrix
+- descriptor sentence direction for each surviving chassis
+- builder-facing field ownership direction
+- Counter replacing Response as the authored power permission field
+- Charge / Channel living in Power-Level Fields as Commitment Modifiers
+- live preview as a mandatory continuous readout
+
+
+What Phase 4 Solved
+
+Phase 4 hardened the following areas:
+
+- the universal packet-resolution sequence
+- Packet 1 landing as the only requirement for contingent Secondary survival
+- wound-based Secondary scaling through Applied Success Bands
+- mixed-intention legality through hostile-primary ordering
+- packet timing legality by chassis
+- first-pass Channel behaviour boundaries
+- Attached initial range versus later host-bound persistence
+- Channelled Attached reinforcement requiring continued legal cast range
+
+
+What Phase 5 Has Now Clarified
+
+Phase 5 has now materially clarified the implementation-facing translation layer.
+
+The following implementation-facing direction is now strong enough to carry forward:
+
+- shared cast context should remain centered in Power-Level Fields
+- structural state should be represented through the selected chassis
+- packet outcomes should be represented through Effect Packets
+- resolved gates, legality warnings, and preview wording should be treated as derived metadata rather than competing authored truth
+- the builder should choose Descriptor Chassis early
+- the builder should author Packet 1 early
+- the builder should infer the Defence Gate from Packet 1
+- the builder should reveal Application Mode only when inference fails
+- the builder should reveal only the chassis-local controls required by the selected chassis
+- local origin and local targeting overrides should stay behind advanced controls
+- the builder field matrix is now clear enough for Immediate, Field, Attached, Trigger, and Reserve
+- the live preview contract is now clear enough to distinguish chassis behaviour, contingent Secondary behaviour, maintained-turn resolution, and delayed packet timing
+- Attached preview wording must keep gate on attach and gate on payload explicit for hostile delayed-entry structures
+
+
+What Still Needs Refinement
+
+The next unresolved work is no longer broad architecture.
+
+The next unresolved work is the small set of implementation-facing hard rules that still need to be settled before or during schema and builder execution.
+
+The biggest remaining open questions are:
+
+- the exact first-pass implementation-facing behaviour boundary for Charge
+- the final schema ownership boundary for Lifespan
+- the final schema boundary between Power-Level Fields, chassis-local fields, packet-local fields, and derived metadata
+- the exact locked preview wording for maintained-turn resolution and delayed packet timing
+- how costing maps onto the hardened chassis matrix plus Commitment Modifier
+- how trigger cooldown handling scales by complexity
+- full transformation and summoning treatment once their linked builders are ready
+
+
+Recommended Immediate Next Step
+
+The next work should focus on implementation planning and execution against current Summoning Circle files, not more broad theory.
+
+That work should focus on:
+
+- mapping the surviving chassis matrix into actual schema shape
+- defining the concrete builder field groups for Immediate, Field, Attached, Trigger, and Reserve
+- defining how Counter, Standard, Channel, and Charge alter builder behaviour without bloating simple powers
+- implementing the live preview contract so it stays mechanically honest
+- preserving attached hostile-entry distinction in both builder and preview
+- keeping local origin / targeting override behind advanced controls only
+- adapting costing against chassis complexity, structural presence, action commitment, and applied-result scaling
+
+If implementation work hits one of the still-unresolved boundary questions, resolve only the smallest hard rule needed to unblock honest implementation.
+
+Do not reopen solved architecture just because implementation has finally become uncomfortable.
+
+
+Near-Term Implementation Path
+
+The likely implementation order is now:
+
+- convert the Phase 5 translation into an implementation blueprint against current Summoning Circle files
+- lock the minimum remaining hard rules for Charge and Lifespan ownership only if they materially block implementation
+- implement the shared power core behind Summoning Circle
+- ship a minimal but real monster power builder pass
+- validate the builder with real authored monster powers across the surviving chassis
+- adapt costing to the hardened architecture including Commitment Modifier
+- later reuse the same core in Character Builder
+
+
+Things Intentionally Postponed
+
+The following are acknowledged but not immediate design or implementation targets:
+
+- alternate Channel behaviour modes
+- advanced Charge variants beyond the first-pass rules
+- Trigger + Channel and Reserve + Channel
+- printable effect slips
+- digital encounter runtime tracking
+- active effect instance lifecycle
+- full player builder integration
+- player-exclusive layers like Spark / Restriction on top of the shared core
+- legendary monster curated exception systems
+- full transformation-builder integration
+- full summoning-builder integration
+- propagation or replication subsystems
+
+
+Current Warning
+
+The project is still vulnerable to several stupid failure modes:
+
+- endless taxonomy refinement without mechanical closure
+- premature UI or schema work before the field matrix is clear
+- accidentally reintroducing multiple defence rolls through delayed or Attached powers
+- allowing hostile / non-hostile packet ordering exploits
+- letting flavour language justify weak-stat fishing in Resist assignment
+- pretending Counter and Trigger are the same thing
+- collapsing Commitment Modifier into Lifespan or other timing fields
+- quietly promoting implementation recommendations into fake canon
+- quietly softening Attached gate on attach versus gate on payload into mushy timing language
+- letting Channel create hidden alternate behaviour models before playtest earns them
+
+All of these are traps.
+
+The correct path is to refine only what directly affects schema shape, descriptor logic, builder workflow, preview trust, and future reuse.
+
+
+Practical Rule Going Forward
+
+When implementation begins, keep three layers distinct:
+
+authored data
+
+derived resolver logic
+
+rendered preview wording
+
+If those layers blur together, the builder will lie and the future runtime layer will inherit that lie.

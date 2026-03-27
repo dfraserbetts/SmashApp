@@ -18,8 +18,6 @@ export function useScaledPreview(options: UseScaledPreviewOptions = {}) {
 
   useLayoutEffect(() => {
     if (!isEnabled) {
-      setScale((prev) => (prev === 1 ? prev : 1));
-      setScaledHeight((prev) => (prev === null ? prev : null));
       return;
     }
 
@@ -84,7 +82,7 @@ export function useScaledPreview(options: UseScaledPreviewOptions = {}) {
   return {
     wrapRef,
     innerRef,
-    scale,
-    scaledHeight,
+    scale: isEnabled ? scale : 1,
+    scaledHeight: isEnabled ? scaledHeight : null,
   };
 }

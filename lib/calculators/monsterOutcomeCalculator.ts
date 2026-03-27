@@ -1,12 +1,11 @@
 import type {
   CoreAttribute,
+  EffectPacket,
   LimitBreakTier,
-  MonsterNaturalAttackConfig,
-  MonsterPower,
-  MonsterPowerIntention,
   MonsterTraitBand,
   MonsterTier,
   MonsterUpsertInput,
+  Power,
 } from "@/lib/summoning/types";
 import type { CalculatorConfig, LevelCurvePoint } from "@/lib/calculators/calculatorConfig";
 
@@ -165,6 +164,135 @@ const EMPTY_TRAIT_AXIS_BONUSES: TraitAxisBonuses = {
 function clampNonNegative(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, value);
+}
+
+function getEffectPackets(
+  power: Pick<Power, "effectPackets" | "intentions">,
+): EffectPacket[] {
+  const rawPackets = Array.isArray(power.effectPackets)
+    ? power.effectPackets
+    : Array.isArray(power.intentions)
+      ? power.intentions
+      : [];
+  return rawPackets.map((packet, index) => ({
+    ...packet,
+    packetIndex: packet.packetIndex ?? packet.sortOrder ?? index,
+    intention: packet.intention ?? packet.type ?? "ATTACK",
+  }));
+}
+
+function getPacketDiceCount(
+  effectPacket: Pick<EffectPacket, "diceCount"> | undefined,
+  power: Pick<Power, "diceCount">,
+): number {
+  return clampNonNegative(effectPacket?.diceCount ?? power.diceCount);
+}
+
+function getPacketPotency(
+  effectPacket: Pick<EffectPacket, "potency"> | undefined,
+  power: Pick<Power, "potency">,
+): number {
+  return clampNonNegative(effectPacket?.potency ?? power.potency);
+}
+
+function getCanonicalPrimaryRangeDetails(
+  power: Pick<
+    Power,
+    | "rangeCategories"
+    | "meleeTargets"
+    | "rangedTargets"
+    | "rangedDistanceFeet"
+    | "aoeCenterRangeFeet"
+    | "aoeCount"
+    | "aoeShape"
+    | "aoeSphereRadiusFeet"
+    | "aoeConeLengthFeet"
+    | "aoeLineWidthFeet"
+    | "aoeLineLengthFeet"
+  >,
+  fallbackDetails: Record<string, unknown>,
+): Record<string, unknown> {
+  if ((power.rangeCategories ?? []).includes("AOE")) {
+    return {
+      rangeCategory: "AOE",
+      rangeValue: power.aoeCenterRangeFeet ?? 0,
+      rangeExtra: {
+        count: power.aoeCount ?? 1,
+        shape: power.aoeShape ?? "SPHERE",
+        sphereRadiusFeet: power.aoeSphereRadiusFeet ?? undefined,
+        coneLengthFeet: power.aoeConeLengthFeet ?? undefined,
+        lineWidthFeet: power.aoeLineWidthFeet ?? undefined,
+        lineLengthFeet: power.aoeLineLengthFeet ?? undefined,
+      },
+    };
+  }
+  if ((power.rangeCategories ?? []).includes("RANGED")) {
+    return {
+      rangeCategory: "RANGED",
+      rangeValue: power.rangedDistanceFeet ?? 0,
+      rangeExtra: {
+        targets: power.rangedTargets ?? 1,
+      },
+    };
+  }
+  if ((power.rangeCategories ?? []).includes("MELEE")) {
+    return {
+      rangeCategory: "MELEE",
+      rangeValue: power.meleeTargets ?? 1,
+      rangeExtra: {},
+    };
+  }
+  return fallbackDetails;
+}
+
+function getCanonicalPacketRangeDetails(
+  effectPacket: EffectPacket,
+  primaryRangeDetails: Record<string, unknown>,
+): Record<string, unknown> {
+  if (effectPacket.localTargetingOverride) {
+    const local = effectPacket.localTargetingOverride;
+    if (local.aoeShape || local.aoeCount || local.aoeCenterRangeFeet !== null) {
+      return {
+        rangeCategory: "AOE",
+        rangeValue: local.aoeCenterRangeFeet ?? 0,
+        rangeExtra: {
+          count: local.aoeCount ?? 1,
+          shape: local.aoeShape ?? "SPHERE",
+          sphereRadiusFeet: local.aoeSphereRadiusFeet ?? undefined,
+          coneLengthFeet: local.aoeConeLengthFeet ?? undefined,
+          lineWidthFeet: local.aoeLineWidthFeet ?? undefined,
+          lineLengthFeet: local.aoeLineLengthFeet ?? undefined,
+        },
+      };
+    }
+    if (local.rangedDistanceFeet !== null || local.rangedTargets !== null) {
+      return {
+        rangeCategory: "RANGED",
+        rangeValue: local.rangedDistanceFeet ?? 0,
+        rangeExtra: {
+          targets: local.rangedTargets ?? 1,
+        },
+      };
+    }
+    if (local.meleeTargets !== null) {
+      return {
+        rangeCategory: "MELEE",
+        rangeValue: local.meleeTargets,
+        rangeExtra: {},
+      };
+    }
+  }
+
+  const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
+  const hasOwnRangeDetails =
+    details.rangeCategory !== undefined ||
+    details.rangeValue !== undefined ||
+    details.rangeExtra !== undefined ||
+    details.targets !== undefined ||
+    details.count !== undefined ||
+    details.distance !== undefined ||
+    details.shape !== undefined;
+  return hasOwnRangeDetails ? details : primaryRangeDetails;
 }
 
 function clampRadarScore(value: number): number {
@@ -377,14 +505,14 @@ function normalizeRawAxisBonuses(
 }
 
 function getDurationTicks(
-  power: Pick<MonsterPower, "durationType" | "durationTurns">,
+  power: Pick<Power, "effectDurationType" | "effectDurationTurns" | "durationType" | "durationTurns">,
   horizon: number,
 ): number {
-  const t = String(power.durationType ?? "").toUpperCase();
+  const t = String(power.effectDurationType ?? power.durationType ?? "").toUpperCase();
   if (t === "INSTANT") return 1;
   if (t === "UNTIL_TARGET_NEXT_TURN") return 1;
   if (t === "TURNS") {
-    const turns = Math.max(1, Math.floor(safeNum(power.durationTurns ?? 1)));
+    const turns = Math.max(1, Math.floor(safeNum(power.effectDurationTurns ?? power.durationTurns ?? 1)));
     return Math.min(turns, Math.max(1, horizon - 1));
   }
   if (t === "PASSIVE") {
@@ -539,7 +667,7 @@ function movementTSUPerSuccess(details: Record<string, unknown>): number {
   return 0;
 }
 
-function getPowerCooldown(power: Pick<MonsterPower, "cooldownTurns" | "cooldownReduction">): number {
+function getPowerCooldown(power: Pick<Power, "cooldownTurns" | "cooldownReduction">): number {
   return Math.max(1, power.cooldownTurns - power.cooldownReduction);
 }
 
@@ -942,31 +1070,31 @@ export function successChanceFromDieSides(sides: number): number {
 }
 
 export function computeSEUFromIntention(
-  intention: MonsterPowerIntention,
-  power: Pick<MonsterPower, "diceCount">,
+  effectPacket: EffectPacket,
+  power: Pick<Power, "diceCount">,
   attackDie: string,
   cfg: CalculatorConfig,
 ): number {
   if (
-    intention.type !== "AUGMENT" &&
-    intention.type !== "DEBUFF" &&
-    intention.type !== "CLEANSE"
+    effectPacket.intention !== "AUGMENT" &&
+    effectPacket.intention !== "DEBUFF" &&
+    effectPacket.intention !== "CLEANSE"
   ) {
     return 0;
   }
 
-  const details = (intention.detailsJson ?? {}) as Record<string, unknown>;
+  const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
   const expectedSuccesses =
-    clampNonNegative(power.diceCount) * successChanceFromDieSides(dieSidesFromDieString(attackDie));
+    getPacketDiceCount(effectPacket, power) * successChanceFromDieSides(dieSidesFromDieString(attackDie));
   const expectedStacksApplied = expectedSuccesses;
 
   let fallbackSeuPerSuccess = 0;
   let fallbackSeuPerStack = 0;
 
-  if (intention.type === "AUGMENT") {
+  if (effectPacket.intention === "AUGMENT") {
     fallbackSeuPerSuccess = cfg.seuFallbacks.augmentSeuPerSuccess;
     fallbackSeuPerStack = cfg.seuFallbacks.augmentSeuPerStack;
-  } else if (intention.type === "DEBUFF") {
+  } else if (effectPacket.intention === "DEBUFF") {
     fallbackSeuPerSuccess = cfg.seuFallbacks.debuffSeuPerSuccess;
     fallbackSeuPerStack = cfg.seuFallbacks.debuffSeuPerStack;
   } else {
@@ -1040,16 +1168,17 @@ export function computeMonsterOutcomes(
   let spike = atWillSummary.bestTotal;
   let seuPerRound = 0;
   let tsuPerRound = 0;
-  const intentionCounts: Record<MonsterPowerIntention["type"], number> = {
+  const intentionCounts: Record<EffectPacket["intention"], number> = {
     ATTACK: 0,
     DEFENCE: 0,
     HEALING: 0,
     CLEANSE: 0,
     CONTROL: 0,
     MOVEMENT: 0,
+    SUPPORT: 0,
     AUGMENT: 0,
     DEBUFF: 0,
-    SUMMON: 0,
+    SUMMONING: 0,
     TRANSFORMATION: 0,
   };
   let hasRangedPressure = atWillSummary.hasRanged;
@@ -1060,49 +1189,47 @@ export function computeMonsterOutcomes(
 
   for (const power of monster.powers ?? []) {
     const cooldown = getPowerCooldown(power);
-    const powerExpectedSuccesses = clampNonNegative(power.diceCount) * successChance;
     const ticks = getDurationTicks(power, horizon);
-    const primaryRangeDetails = (power.intentions?.[0]?.detailsJson ?? {}) as Record<string, unknown>;
+    const effectPackets = getEffectPackets(power);
+    const primaryRangeDetails = getCanonicalPrimaryRangeDetails(
+      power,
+      (effectPackets[0]?.detailsJson ?? {}) as Record<string, unknown>,
+    );
 
-    for (const intention of power.intentions ?? []) {
-      intentionCounts[intention.type] += 1;
-      const details = (intention.detailsJson ?? {}) as Record<string, unknown>;
-      const hasOwnRangeDetails =
-        details.rangeCategory !== undefined ||
-        details.rangeValue !== undefined ||
-        details.rangeExtra !== undefined ||
-        details.targets !== undefined ||
-        details.count !== undefined ||
-        details.distance !== undefined ||
-        details.shape !== undefined;
-      const impactDetails = hasOwnRangeDetails ? details : primaryRangeDetails;
+    for (const effectPacket of effectPackets) {
+      intentionCounts[effectPacket.intention] += 1;
+      const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
+      const impactDetails = getCanonicalPacketRangeDetails(effectPacket, primaryRangeDetails);
       const impact = computeImpactMultiplier(impactDetails, cfg);
+      const packetDiceCount = getPacketDiceCount(effectPacket, power);
+      const packetPotency = getPacketPotency(effectPacket, power);
+      const packetExpectedSuccesses = packetDiceCount * successChance;
 
-      const seuPerUse = computeSEUFromIntention(intention, power, monster.attackDie, cfg);
+      const seuPerUse = computeSEUFromIntention(effectPacket, power, monster.attackDie, cfg);
       if (seuPerUse > 0) seuPerRound += (seuPerUse * ticks * impact) / cooldown;
 
-      if (intention.type === "CONTROL") {
+      if (effectPacket.intention === "CONTROL") {
         const tsuPerSuccess = controlTSUPerSuccess(details);
-        const tsuPerUse = powerExpectedSuccesses * tsuPerSuccess * ticks * impact;
+        const tsuPerUse = packetExpectedSuccesses * tsuPerSuccess * ticks * impact;
         tsuPerRound += tsuPerUse / cooldown;
       }
 
-      if (intention.type === "DEBUFF") {
-        const tsuPerSuccess = debuffTSUPerSuccess(power.potency);
-        const tsuPerUse = powerExpectedSuccesses * tsuPerSuccess * ticks * impact;
+      if (effectPacket.intention === "DEBUFF") {
+        const tsuPerSuccess = debuffTSUPerSuccess(packetPotency);
+        const tsuPerUse = packetExpectedSuccesses * tsuPerSuccess * ticks * impact;
         tsuPerRound += tsuPerUse / cooldown;
       }
 
-      if (intention.type === "MOVEMENT") {
-        movementPotencyTotal += clampNonNegative(power.potency);
+      if (effectPacket.intention === "MOVEMENT") {
+        movementPotencyTotal += packetPotency;
         const tsuPerSuccess = movementTSUPerSuccess(details);
         if (tsuPerSuccess > 0) {
-          const tsuPerUse = powerExpectedSuccesses * tsuPerSuccess * ticks * impact;
+          const tsuPerUse = packetExpectedSuccesses * tsuPerSuccess * ticks * impact;
           tsuPerRound += tsuPerUse / cooldown;
         }
       }
 
-      if (intention.type !== "ATTACK") continue;
+      if (effectPacket.intention !== "ATTACK") continue;
 
       const attackMode = String(details.attackMode ?? "").trim().toUpperCase();
       const rangeCategory = String(impactDetails.rangeCategory ?? "").trim().toUpperCase();
@@ -1111,9 +1238,9 @@ export function computeMonsterOutcomes(
 
       const damageTypes = readStringArray(details.damageTypes);
       const damageTypeCount = Math.max(1, damageTypes.length);
-      const woundsPerSuccess = power.potency * 2 * damageTypeCount;
+      const woundsPerSuccess = packetPotency * 2 * damageTypeCount;
 
-      let expectedWoundsPerUse = powerExpectedSuccesses * woundsPerSuccess;
+      let expectedWoundsPerUse = packetExpectedSuccesses * woundsPerSuccess;
       if (rangeCategory === "AOE") expectedWoundsPerUse *= cfg.baselineParty.aoeMultiplier;
       expectedWoundsPerUse *= netSuccessMultiplier;
 
@@ -1387,6 +1514,8 @@ export function computeMonsterOutcomes(
       poolHealthBreakdown: {
         expectedPhysicalResilience,
         expectedMentalPerseverance,
+        currentPhysicalResilienceMax: clampNonNegative(monster.physicalResilienceMax),
+        currentMentalPerseveranceMax: clampNonNegative(monster.mentalPerseveranceMax),
         physicalPoolRatio,
         mentalPoolRatio,
         weakerPoolRatio,

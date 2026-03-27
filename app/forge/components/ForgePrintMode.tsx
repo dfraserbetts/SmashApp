@@ -347,7 +347,9 @@ function ForgeItemPrintCard({
     },
   };
 
-  const descriptor = buildDescriptorResult(engineInput as any);
+  const descriptor = buildDescriptorResult(
+    engineInput as unknown as Parameters<typeof buildDescriptorResult>[0],
+  );
   const rendered = renderForgeResult(descriptor);
 
   const modifiers = rendered.find((s) => s.title === 'Modifiers');

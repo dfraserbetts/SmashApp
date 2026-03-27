@@ -5,6 +5,40 @@ export type ForgeRenderOptions = {
   weaponSkillDiceOverride?: number;
 };
 
+type LegacyWeaponAttributeLine = {
+  text?: unknown;
+  name?: unknown;
+  descriptorTemplate?: unknown;
+  meleePhysicalStrength?: unknown;
+  meleeMentalStrength?: unknown;
+  rangedPhysicalStrength?: unknown;
+  rangedMentalStrength?: unknown;
+  aoePhysicalStrength?: unknown;
+  aoeMentalStrength?: unknown;
+  attributeValue?: unknown;
+};
+
+type RangeGeometry = {
+  radius?: number;
+  length?: number;
+  width?: number;
+};
+
+type LegacyAttackActionLine = {
+  damage?: {
+    entries?: Array<{ amount: number; mode: "PHYSICAL" | "MENTAL"; damageType: string }>;
+  };
+  gsAttackEffects?: string[];
+};
+
+function asLegacyWeaponAttributeLine(line: DescriptorLine): LegacyWeaponAttributeLine {
+  return line as DescriptorLine & LegacyWeaponAttributeLine;
+}
+
+function asLegacyAttackActionLine(line: DescriptorLine): LegacyAttackActionLine {
+  return line as DescriptorLine & LegacyAttackActionLine;
+}
+
 function formatSigned(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
 }
@@ -57,7 +91,7 @@ export function renderForgeLine(
 ): string {
   switch (line.kind) {
     case "TEXT": {
-      return String((line as any).text ?? "");
+      return String(line.text ?? "");
     }
     case "GLOBAL_ATTRIBUTE_MODIFIERS": {
       const { verb, noun } = itemWording(line.itemType);
@@ -67,27 +101,27 @@ export function renderForgeLine(
 
     case "WEAPON_ATTRIBUTE": {
       // Current system: engine produces fully-rendered text lines.
-      const asAny = line as any;
+      const legacyLine = asLegacyWeaponAttributeLine(line);
 
-      if (typeof asAny.text === "string" && asAny.text.trim().length > 0) {
-        return asAny.text;
+      if (typeof legacyLine.text === "string" && legacyLine.text.trim().length > 0) {
+        return legacyLine.text;
       }
 
       // Backwards compatibility: older/structured shape (if it still appears anywhere)
-      const name = typeof asAny.name === "string" ? asAny.name : "";
+      const name = typeof legacyLine.name === "string" ? legacyLine.name : "";
       const template =
-        typeof asAny.descriptorTemplate === "string" ? asAny.descriptorTemplate : "";
+        typeof legacyLine.descriptorTemplate === "string" ? legacyLine.descriptorTemplate : "";
 
       if (!name || !template) return "";
 
       const tokenMap: Record<string, string> = {
-        MeleePhysicalStrength: String(asAny.meleePhysicalStrength ?? 0),
-        MeleeMentalStrength: String(asAny.meleeMentalStrength ?? 0),
-        RangedPhysicalStrength: String(asAny.rangedPhysicalStrength ?? 0),
-        RangedMentalStrength: String(asAny.rangedMentalStrength ?? 0),
-        AoEPhysicalStrength: String(asAny.aoePhysicalStrength ?? 0),
-        AoEMentalStrength: String(asAny.aoeMentalStrength ?? 0),
-        AttributeValue: String(asAny.attributeValue ?? 0),
+        MeleePhysicalStrength: String(legacyLine.meleePhysicalStrength ?? 0),
+        MeleeMentalStrength: String(legacyLine.meleeMentalStrength ?? 0),
+        RangedPhysicalStrength: String(legacyLine.rangedPhysicalStrength ?? 0),
+        RangedMentalStrength: String(legacyLine.rangedMentalStrength ?? 0),
+        AoEPhysicalStrength: String(legacyLine.aoePhysicalStrength ?? 0),
+        AoEMentalStrength: String(legacyLine.aoeMentalStrength ?? 0),
+        AttributeValue: String(legacyLine.attributeValue ?? 0),
       };
 
       const rendered = template.replace(
@@ -135,7 +169,7 @@ export function renderForgeLine(
 
         // Geometry is still minimal in the engine right now; include what we can if present.
         // Common keys we might emit later: radius, length, width.
-        const g: any = (r as any).geometry ?? {};
+        const g: RangeGeometry = "geometry" in r ? r.geometry : {};
 
         const lengthFt = typeof g.length === "number" && g.length > 0 ? g.length : null;
         const widthFt = typeof g.width === "number" && g.width > 0 ? g.width : null;
@@ -167,9 +201,8 @@ export function renderForgeLine(
       const itemNoun = line.itemType === "SHIELD" ? "shield" : "weapon";
 
       // Unified mixed-mode wounds: each entry decides its own mode + amount.
-      const entries = Array.isArray((line as any).damage?.entries)
-        ? ((line as any).damage.entries as Array<{ amount: number; mode: "PHYSICAL" | "MENTAL"; damageType: string }>)
-        : [];
+      const legacyLine = asLegacyAttackActionLine(line);
+      const entries = Array.isArray(legacyLine.damage?.entries) ? legacyLine.damage.entries : [];
 
       const dmgClauses =
         entries.length > 0
@@ -192,9 +225,7 @@ export function renderForgeLine(
 
       const baseText = `${rangeText} and roll ${skillText}. This ${itemNoun} inflicts ${dmgText} per success.`;
 
-      const gs = Array.isArray((line as any).gsAttackEffects)
-        ? ((line as any).gsAttackEffects as string[])
-        : [];
+      const gs = Array.isArray(legacyLine.gsAttackEffects) ? legacyLine.gsAttackEffects : [];
 
       const gsNames = Array.from(
         new Set(gs.map((x) => String(x ?? "").trim()).filter(Boolean)),

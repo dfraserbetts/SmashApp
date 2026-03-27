@@ -1,0 +1,236 @@
+04_Implementation_Handoffs.txt
+
+Purpose
+
+This document records durable handoff guidance so future chats can resume work on the shared power system without re-litigating core architecture.
+
+Use this file together with:
+
+- 00_Master_Implementation_Plan
+- 01_Locked_Decisions_Log
+- 02_Power_System_Spec
+- 03_Current_Phase_And_Next_Steps
+
+
+Current Phase Status
+
+Phase 1 is complete.
+
+Phase 2 is complete.
+
+Phase 3 is complete enough to close.
+
+Phase 4 is complete enough to close as a design phase and has hardened the packet-resolution spine.
+
+Phase 5 — Implementation-Facing Translation of the Hardened Power Model — is materially clarified and is the current bridge from design truth into builder/schema execution.
+
+A small number of implementation-facing boundary questions still remain open.
+
+Those questions must not be used as an excuse to reopen solved architecture.
+
+
+Rule for Future Builder Work
+
+All future builder work should assume:
+
+- one shared power core
+- Summoning Circle as the first implementation surface
+- Character Builder later reusing the same foundation
+- standard monsters do not use the full player Spark / Restriction layer
+- live preview is mandatory
+- simple powers must stay simple
+- only Packet 1 is defended against
+- Lifespan, Effect Timing, and Effect Duration are separate concepts
+- Counter is an authored Power-Level Field with No / Yes
+- Assist is universal by system rule and is not authored per power
+- Responses are the player-facing resource and are not the authored power permission field
+- Trigger remains structurally separate from Counter
+- Commitment Modifier uses Standard / Channel / Charge
+- Channel uses one first-pass behaviour only as an action-commitment modifier
+- first-pass Channel support is limited to Immediate, Field, and Attached
+- Application Mode is hidden unless inference fails
+- hostile delayed-entry Attached powers must explicitly distinguish gate on attach from gate on payload
+
+Future builder work should also preserve the following implementation-facing direction:
+
+- shared cast context should remain centered in Power-Level Fields
+- structural state should be represented through the selected chassis
+- packet outcomes should be represented through Effect Packets
+- resolved gates, legality warnings, and preview wording should be treated as derived metadata rather than co-equal authored truth
+- local origin and local targeting overrides should stay behind advanced controls
+
+
+Rule for Future Packet Resolution Work
+
+All future packet-resolution work should assume:
+
+- Packet 1 is always Primary
+- only Packet 1 is defended against
+- Secondary Packets remain contingent
+- Packet 1 lands if it applies at least one operative result unit
+- wound-based Secondary scaling uses Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
+- mixed-intention legality is constrained by hostile-primary ordering
+- packet timing legality must not smuggle in a different chassis
+- Attached powers distinguish initial legal range from later host-bound persistence
+- Channelled Attached reinforcement requires the target to remain within legal cast range from the source
+- hostile delayed-entry Attached structures must keep gate on attach and gate on payload explicit
+
+
+Rule for Future Runtime Work
+
+Runtime and tracking tools are later work.
+
+Do not let future chats accidentally design a second contradictory state model.
+
+Printable effect slips and digital effect tracking should grow from the same power structure as the builder outputs.
+
+Do not let runtime speculation contaminate builder truth before the builder is stable.
+
+
+Rule for Future Implementation Chats
+
+Implementation chats should work from current files only.
+
+Do not reason from memory if a newer file version exists.
+
+Do not produce schema or UI assumptions against unseen code.
+
+If current files are missing, request them.
+
+If a remaining unresolved design boundary does not materially block implementation, do not stop to philosophize about it.
+
+If a remaining unresolved design boundary does materially block implementation, resolve only the smallest hard rule needed to unblock honest execution.
+
+
+Current Open Questions That Are Real
+
+The following questions are still genuinely open and should be treated honestly:
+
+- the exact first-pass implementation-facing behaviour boundary for Charge
+- the final schema ownership boundary for Lifespan
+- the final schema boundary between Power-Level Fields, chassis-local fields, packet-local fields, and derived metadata
+- the exact locked preview wording for maintained-turn resolution and delayed packet timing
+- the exact cost integration model for chassis complexity plus Commitment Modifier
+
+These are real open questions.
+
+They are not permission to pretend the whole architecture is still vague.
+
+
+Rule for Future Save-Back Work
+
+When a future chat changes something meaningful, update the right source file instead of trusting chat memory.
+
+Use this update pattern:
+
+- architecture and authoritative rules language go in 02_Power_System_Spec
+- project progress and priority changes go in 03_Current_Phase_And_Next_Steps
+- reusable continuity guidance and chat-openers go in 04_Implementation_Handoffs
+
+Do not dump temporary argument sludge into the source docs.
+
+Save back only durable truth, durable guidance, or a real implementation-facing blueprint.
+
+
+Standard Phase 5 Design / Implementation Opener
+
+Use the following opener when starting the next chat for continued Phase 5 clarification or implementation planning:
+
+Use the project sources 00_Master_Implementation_Plan, 01_Locked_Decisions_Log, 02_Power_System_Spec, 03_Current_Phase_And_Next_Steps, 04_Implementation_Handoffs, and Power implementation steps as source of truth.
+
+We have completed Phase 1, Phase 2, Phase 3, and Phase 4 as design phases.
+
+The following are treated as locked for this session:
+
+- a power consists of Power-Level Fields, one Descriptor Chassis, and one or more Effect Packets
+- Shared Rules Grammar remains separate from Delivery Method
+- Delivery Method is implemented through Descriptor Chassis
+- the hardened chassis matrix is Immediate, Field, Attached, Trigger, and Reserve
+- Packet 1 is always the Primary Packet
+- only the Primary Packet sets the Defence Gate
+- Secondary Packets never create separate defended entry points and only resolve if the Primary Packet lands
+- Packet 1 lands if it applies at least one operative result unit
+- wound-based Secondary scaling uses Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
+- mixed-intention legality is constrained by hostile-primary ordering
+- Lifespan, Effect Timing, and Effect Duration are separate concepts
+- Counter is an authored Power-Level Field with No / Yes
+- Assist is universal by system rule
+- Responses are the player-facing resource
+- Commitment Modifier is a Power-Level Field with Standard / Channel / Charge
+- Channel is an action-commitment modifier only in first implementation; authored packet timing determines when effects occur
+- first-pass Channel support is limited to Immediate, Field, and Attached
+- Attached powers require legal initial range, but host-bound persistence may continue after later range changes
+- Channelled Attached reinforcement requires the target to remain within legal cast range from the source
+- hostile delayed-entry Attached powers must explicitly distinguish gate on attach from gate on payload
+- simple powers must stay simple
+- complexity increases cost
+- live preview is mandatory
+- Application Mode is hidden unless inference fails
+
+The following are implementation recommendations, not falsely locked canon:
+
+- shared cast context should stay centered in Power-Level Fields
+- structural state should be represented through the selected chassis
+- packet outcomes should be represented through Effect Packets
+- resolved gates, legality warnings, and preview wording should be treated as derived metadata
+- local origin and local targeting overrides should stay advanced-only
+
+The following are still unresolved and should only be hardened if needed to unblock implementation:
+
+- the exact first-pass behaviour boundary for Charge
+- the final schema ownership boundary for Lifespan
+- the final schema boundary between Power-Level Fields, chassis-local fields, packet-local fields, and derived metadata
+- the exact preview wording lock for maintained-turn and delayed packet timing
+
+We are now working on Phase 5 — Implementation-Facing Translation of the Hardened Power Model, or implementation planning / execution against current Summoning Circle files.
+
+Scope for this session:
+
+- translate the surviving chassis matrix into schema and builder structure
+- preserve the distinction between authored data, derived resolver logic, and preview wording
+- keep simple powers fast
+- keep Attached hostile-entry distinction explicit
+- keep Channel singular in first implementation
+- settle only the smallest remaining hard rules required by the work actually in scope
+
+Non-goals:
+
+- do not reopen Phase 1–4 architecture unless a direct contradiction appears
+- do not redesign the whole UI visually
+- do not drift into runtime tracking systems
+- do not solve full Transformation or Summoning payload builders
+- do not invent alternate Channel modes or advanced Charge variants unless a direct implementation contradiction forces it
+
+
+Priority prompts for the next session
+
+If the next chat is still design-facing, focus on:
+
+- the minimum hard rule needed for Charge if implementation requires it
+- the minimum hard rule needed for Lifespan ownership if schema work requires it
+- the exact final wording for maintained-turn and delayed packet preview if preview implementation requires it
+
+If the next chat is implementation-facing, focus on:
+
+- mapping the builder field matrix into actual schema and UI groups
+- implementing always-visible, conditional, advanced-only, derived, and deferred control boundaries
+- implementing live preview so it stays mechanically honest
+- preserving gate on attach versus gate on payload for hostile delayed-entry Attached powers
+- keeping Application Mode narrow and hidden by default
+- adapting costing only where it directly depends on the hardened builder structure
+
+
+Anti-Drift Warning
+
+The most likely failure modes going forward are:
+
+- quietly re-opening solved architecture because implementation feels hard
+- promoting implementation recommendations into fake canon without updating the spec honestly
+- letting UI convenience blur authored data, derived logic, and preview wording into one mess
+- accidentally reintroducing multiple defence rolls through delayed, Attached, or Reserve structures
+- softening gate on attach versus gate on payload into vague timing language
+- turning Channel into multiple hidden behaviour modes before playtest earns them
+- collapsing Commitment Modifier into Lifespan or packet timing
+- overbuilding runtime logic before the builder output is trustworthy
+
+Future chats should watch for these aggressively.

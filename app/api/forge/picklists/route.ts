@@ -12,6 +12,22 @@ type ForgeCostPicklistRow = {
   notes: string | null;
 };
 
+function withRequiredDamageTypes(
+  damageTypes: Array<{ id: number; name: string; attackMode?: unknown }>,
+) {
+  const next = damageTypes.map((damageType) =>
+    damageType.name.trim().toLowerCase() === 'corruption'
+      ? { ...damageType, attackMode: 'MENTAL' as const }
+      : damageType,
+  );
+
+  if (!next.some((damageType) => damageType.name.trim().toLowerCase() === 'corruption')) {
+    next.push({ id: -1, name: 'Corruption', attackMode: 'MENTAL' });
+  }
+
+  return next.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export async function GET() {
   try {
     const [
@@ -54,9 +70,10 @@ export async function GET() {
         FROM "ForgeCostEntry"
       `,
     ]);
+    const normalizedDamageTypes = withRequiredDamageTypes(damageTypes);
 
     const damageTypeModeById = new Map<number, 'PHYSICAL' | 'MENTAL'>();
-    for (const dt of damageTypes) {
+    for (const dt of normalizedDamageTypes) {
       const mode = String((dt as { attackMode?: unknown }).attackMode ?? '').trim().toUpperCase();
       damageTypeModeById.set(dt.id, mode === 'MENTAL' ? 'MENTAL' : 'PHYSICAL');
     }
@@ -115,7 +132,7 @@ export async function GET() {
     ]);
 
     return NextResponse.json({
-      damageTypes,
+      damageTypes: normalizedDamageTypes,
       attackEffects,
       defEffects,
       weaponAttributes,

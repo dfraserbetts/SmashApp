@@ -314,118 +314,120 @@ export async function PUT(
     }
       const updated = await prisma.$transaction(async (tx) => {
       // 1) core update (scoped to campaign)
-      const updatedCount = await tx.itemTemplate.updateMany({
-        where: { id, campaignId },
-        data: {
-          ...(body.itemUrl !== undefined ? { itemUrl: body.itemUrl } : {}),
-          ...(body.name !== undefined ? { name: body.name } : {}),
-          ...(body.rarity !== undefined ? { rarity: body.rarity } : {}),
-          ...(body.level !== undefined ? { level: body.level } : {}),
-          ...(body.generalDescription !== undefined
-            ? { generalDescription: body.generalDescription }
-            : {}),
-          ...(body.type !== undefined ? { type: body.type } : {}),
-          ...(body.globalAttributeModifiers !== undefined
-          ? { globalAttributeModifiers: body.globalAttributeModifiers }
+      const itemTemplateUpdateData = {
+        ...(body.itemUrl !== undefined ? { itemUrl: body.itemUrl } : {}),
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.rarity !== undefined ? { rarity: body.rarity } : {}),
+        ...(body.level !== undefined ? { level: body.level } : {}),
+        ...(body.generalDescription !== undefined
+          ? { generalDescription: body.generalDescription }
+          : {}),
+        ...(body.type !== undefined ? { type: body.type } : {}),
+        ...(body.globalAttributeModifiers !== undefined
+        ? { globalAttributeModifiers: body.globalAttributeModifiers }
+        : {}),
+
+        ...(body.size !== undefined ? { size: body.size } : {}),
+        ...(body.physicalStrength !== undefined
+          ? { physicalStrength: body.physicalStrength }
+          : {}),
+        ...(body.mentalStrength !== undefined
+          ? { mentalStrength: body.mentalStrength }
           : {}),
 
-          ...(body.size !== undefined ? { size: body.size } : {}),
-          ...(body.physicalStrength !== undefined
-            ? { physicalStrength: body.physicalStrength }
-            : {}),
-          ...(body.mentalStrength !== undefined
-            ? { mentalStrength: body.mentalStrength }
-            : {}),
+        ...(body.meleePhysicalStrength !== undefined
+          ? { meleePhysicalStrength: body.meleePhysicalStrength }
+          : {}),
+        ...(body.meleeMentalStrength !== undefined
+          ? { meleeMentalStrength: body.meleeMentalStrength }
+          : {}),
+        ...(body.rangedPhysicalStrength !== undefined
+          ? { rangedPhysicalStrength: body.rangedPhysicalStrength }
+          : {}),
+        ...(body.rangedMentalStrength !== undefined
+          ? { rangedMentalStrength: body.rangedMentalStrength }
+          : {}),
+        ...(body.aoePhysicalStrength !== undefined
+          ? { aoePhysicalStrength: body.aoePhysicalStrength }
+          : {}),
+        ...(body.aoeMentalStrength !== undefined
+          ? { aoeMentalStrength: body.aoeMentalStrength }
+          : {}),
 
-          ...(body.meleePhysicalStrength !== undefined
-            ? { meleePhysicalStrength: body.meleePhysicalStrength }
-            : {}),
-          ...(body.meleeMentalStrength !== undefined
-            ? { meleeMentalStrength: body.meleeMentalStrength }
-            : {}),
-          ...(body.rangedPhysicalStrength !== undefined
-            ? { rangedPhysicalStrength: body.rangedPhysicalStrength }
-            : {}),
-          ...(body.rangedMentalStrength !== undefined
-            ? { rangedMentalStrength: body.rangedMentalStrength }
-            : {}),
-          ...(body.aoePhysicalStrength !== undefined
-            ? { aoePhysicalStrength: body.aoePhysicalStrength }
-            : {}),
-          ...(body.aoeMentalStrength !== undefined
-            ? { aoeMentalStrength: body.aoeMentalStrength }
-            : {}),
+        ...(body.meleeTargets !== undefined
+          ? { meleeTargets: body.meleeTargets }
+          : {}),
+        ...(body.rangedTargets !== undefined
+          ? { rangedTargets: body.rangedTargets }
+          : {}),
 
-          ...(body.meleeTargets !== undefined
-            ? { meleeTargets: body.meleeTargets }
-            : {}),
-          ...(body.rangedTargets !== undefined
-            ? { rangedTargets: body.rangedTargets }
-            : {}),
+        ...(body.rangedDistanceFeet !== undefined
+          ? { rangedDistanceFeet: body.rangedDistanceFeet }
+          : {}),
+        ...(body.aoeCenterRangeFeet !== undefined
+          ? { aoeCenterRangeFeet: body.aoeCenterRangeFeet }
+          : {}),
+        ...(body.aoeCount !== undefined ? { aoeCount: body.aoeCount } : {}),
+        ...(body.aoeShape !== undefined ? { aoeShape: body.aoeShape } : {}),
+        ...(body.aoeSphereRadiusFeet !== undefined
+          ? { aoeSphereRadiusFeet: body.aoeSphereRadiusFeet }
+          : {}),
+        ...(body.aoeConeLengthFeet !== undefined
+          ? { aoeConeLengthFeet: body.aoeConeLengthFeet }
+          : {}),
+        ...(body.aoeLineWidthFeet !== undefined
+          ? { aoeLineWidthFeet: body.aoeLineWidthFeet }
+          : {}),
+        ...(body.aoeLineLengthFeet !== undefined
+          ? { aoeLineLengthFeet: body.aoeLineLengthFeet }
+          : {}),
 
-          ...(body.rangedDistanceFeet !== undefined
-            ? { rangedDistanceFeet: body.rangedDistanceFeet }
-            : {}),
-          ...(body.aoeCenterRangeFeet !== undefined
-            ? { aoeCenterRangeFeet: body.aoeCenterRangeFeet }
-            : {}),
-          ...(body.aoeCount !== undefined ? { aoeCount: body.aoeCount } : {}),
-          ...(body.aoeShape !== undefined ? { aoeShape: body.aoeShape } : {}),
-          ...(body.aoeSphereRadiusFeet !== undefined
-            ? { aoeSphereRadiusFeet: body.aoeSphereRadiusFeet }
-            : {}),
-          ...(body.aoeConeLengthFeet !== undefined
-            ? { aoeConeLengthFeet: body.aoeConeLengthFeet }
-            : {}),
-          ...(body.aoeLineWidthFeet !== undefined
-            ? { aoeLineWidthFeet: body.aoeLineWidthFeet }
-            : {}),
-          ...(body.aoeLineLengthFeet !== undefined
-            ? { aoeLineLengthFeet: body.aoeLineLengthFeet }
-            : {}),
+        ...(body.customWeaponAttributes !== undefined
+          ? { customWeaponAttributes: body.customWeaponAttributes }
+          : {}),
+        ...(body.mythicLbPushTemplateId !== undefined
+          ? { mythicLbPushTemplateId: body.mythicLbPushTemplateId }
+          : {}),
+        ...(body.mythicLbBreakTemplateId !== undefined
+          ? { mythicLbBreakTemplateId: body.mythicLbBreakTemplateId }
+          : {}),
+        ...(body.mythicLbTranscendTemplateId !== undefined
+          ? { mythicLbTranscendTemplateId: body.mythicLbTranscendTemplateId }
+          : {}),
 
-          ...(body.customWeaponAttributes !== undefined
-            ? { customWeaponAttributes: body.customWeaponAttributes }
-            : {}),
-          ...(body.mythicLbPushTemplateId !== undefined
-            ? { mythicLbPushTemplateId: body.mythicLbPushTemplateId }
-            : {}),
-          ...(body.mythicLbBreakTemplateId !== undefined
-            ? { mythicLbBreakTemplateId: body.mythicLbBreakTemplateId }
-            : {}),
-          ...(body.mythicLbTranscendTemplateId !== undefined
-            ? { mythicLbTranscendTemplateId: body.mythicLbTranscendTemplateId }
-            : {}),
+        ...(body.armorLocation !== undefined
+          ? { armorLocation: body.armorLocation }
+          : {}),
+        ...(body.ppv !== undefined ? { ppv: body.ppv } : {}),
+        ...(body.mpv !== undefined ? { mpv: body.mpv } : {}),
+        ...(body.auraPhysical !== undefined
+          ? { auraPhysical: body.auraPhysical }
+          : {}),
+        ...(body.auraMental !== undefined
+          ? { auraMental: body.auraMental }
+          : {}),
+        ...(body.customArmorAttributes !== undefined
+          ? { customArmorAttributes: body.customArmorAttributes }
+          : {}),
 
-          ...(body.armorLocation !== undefined
-            ? { armorLocation: body.armorLocation }
-            : {}),
-          ...(body.ppv !== undefined ? { ppv: body.ppv } : {}),
-          ...(body.mpv !== undefined ? { mpv: body.mpv } : {}),
-          ...(body.auraPhysical !== undefined
-            ? { auraPhysical: body.auraPhysical }
-            : {}),
-          ...(body.auraMental !== undefined
-            ? { auraMental: body.auraMental }
-            : {}),
-          ...(body.customArmorAttributes !== undefined
-            ? { customArmorAttributes: body.customArmorAttributes }
-            : {}),
+        ...(body.shieldHasAttack !== undefined
+          ? { shieldHasAttack: body.shieldHasAttack }
+          : {}),
+        ...(body.customShieldAttributes !== undefined
+          ? { customShieldAttributes: body.customShieldAttributes }
+          : {}),
 
-          ...(body.shieldHasAttack !== undefined
-            ? { shieldHasAttack: body.shieldHasAttack }
-            : {}),
-          ...(body.customShieldAttributes !== undefined
-            ? { customShieldAttributes: body.customShieldAttributes }
-            : {}),
+        ...(body.itemLocation !== undefined
+          ? { itemLocation: body.itemLocation }
+          : {}),
+        ...(body.customItemAttributes !== undefined
+          ? { customItemAttributes: body.customItemAttributes }
+          : {}),
+      };
 
-          ...(body.itemLocation !== undefined
-            ? { itemLocation: body.itemLocation }
-            : {}),
-          ...(body.customItemAttributes !== undefined
-            ? { customItemAttributes: body.customItemAttributes }
-            : {}),
-         } as any,
+      const updatedCount = await tx.itemTemplate.updateMany({
+        where: { id, campaignId },
+        data: itemTemplateUpdateData as unknown as Parameters<typeof tx.itemTemplate.updateMany>[0]['data'],
       });
 
       if (updatedCount.count === 0) {
@@ -451,7 +453,9 @@ export async function PUT(
             data: body.rangeCategories.map((rc) => ({
               itemTemplateId: id,
               rangeCategory: rc,
-            })) as any,
+            })) as unknown as NonNullable<
+              Parameters<typeof tx.itemTemplateRangeCategory.createMany>[0]
+            >['data'],
           });
         }
       }

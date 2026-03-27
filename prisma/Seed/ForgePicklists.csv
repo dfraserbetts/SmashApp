@@ -1,5 +1,6 @@
 ItemType,Rarity,Size,DmgType,RangeCategory,MeleeTargets,RangedTargets,RangedDistanceFt,AoEShapes,AoECount,ArmorLocation,ArmorAttributes,WeaponAttributes,ShieldAttributes,ItemLocation,ItemAttributes,AuraScale,WardingOptions,SanctifiedOptions,AoECenterRangeFt,SphereSizeFt,ConeLengthFt,LineWidthFt,LineLengthFt,GS_DmgTypes,GS_AttackEffects,GS_DefEffects,GS_Def_None,VRPOptions,Disabled List
 Weapon,Common,Small,Blunt,Melee,1,1,30,Sphere,1,Head,Bolstering,Armor Piercing,TBC,Head,TBC,1,Laceration,Overwhelmed,0,10,15,5,15,Blunt,Impact,Hardened,-,Vulnerability 1 Blunt,-
+,,,Corruption
 Armor,Uncommon,One Handed,Fear,Ranged,2,2,60,Cone,2,Shoulders,Stealthy,Close Combat,,Neck,,2,Penetrate,Horrified,30,20,30,10,30,Fear,Horrified,Feedback,,Vulnerability 2 Blunt,
 Shield,Rare,Two Handed,Fire,AoE,3,3,120,Line,3,Torso,Reinforced,Dangerous 1,,Arms,,3,Impact,,60,30,60,15,60,Fire,Immolate,,,Vulnerability 3 Blunt,
 Item,Legendary,,Holy,,4,4,200,,4,Legs,Flexible,Dangerous 2,,Belt,,4,Immolate,,120,,120,20,120,Holy,Smite,,,Vulnerability 4 Blunt,

@@ -39,6 +39,7 @@ function readCsv(name) {
 async function seedPicklists() {
   const rows = readCsv('ForgePicklists.csv');
   const seen = new Set();
+  const MENTAL_DAMAGE_TYPES = new Set(['corruption', 'fear', 'holy', 'necrotic', 'psychic']);
 
   async function addUnique(value, keyPrefix, fn) {
     if (!value) return;
@@ -54,8 +55,13 @@ async function seedPicklists() {
     await addUnique(row.DmgType, 'DamageType', (name) =>
       prisma.damageType.upsert({
         where: { name },
-        update: {},
-        create: { name },
+        update: {
+          attackMode: MENTAL_DAMAGE_TYPES.has(name.toLowerCase()) ? 'MENTAL' : 'PHYSICAL',
+        },
+        create: {
+          name,
+          attackMode: MENTAL_DAMAGE_TYPES.has(name.toLowerCase()) ? 'MENTAL' : 'PHYSICAL',
+        },
       })
     );
 

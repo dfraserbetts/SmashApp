@@ -711,12 +711,14 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
         damageType: string;
       }> = [];
 
+      const toDamageAmount = (strength: number): number => strength * 2;
+
       for (const dmgType of dedupedDamageTypes) {
         const dmgMode = dmgType.mode === "MENTAL" ? "MENTAL" : "PHYSICAL";
 
         if (dmgMode === "PHYSICAL" && physicalStrength > 0) {
           damageEntries.push({
-            amount: physicalStrength,
+            amount: toDamageAmount(physicalStrength),
             mode: "PHYSICAL",
             damageType: dmgType.name,
           });
@@ -724,7 +726,7 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
 
         if (dmgMode === "MENTAL" && mentalStrength > 0) {
           damageEntries.push({
-            amount: mentalStrength,
+            amount: toDamageAmount(mentalStrength),
             mode: "MENTAL",
             damageType: dmgType.name,
           });

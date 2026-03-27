@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
 import { requireCampaignAccess, requireUserId } from "../_shared";
 import type { AttributePlacement } from "@/lib/summoning/types";
+import type { Prisma } from "@prisma/client";
 
 type AttributeLine = { text: string; placement: AttributePlacement };
 type TokenMap = Record<string, string | number>;
@@ -19,6 +20,72 @@ type MythicLimitBreakTemplatePreview = {
   isPersistent: boolean;
   persistentCostTiming: string | null;
 };
+
+const WEAPON_INCLUDE = {
+  rangeCategories: true,
+  meleeDamageTypes: { include: { damageType: true } },
+  rangedDamageTypes: { include: { damageType: true } },
+  aoeDamageTypes: { include: { damageType: true } },
+  attackEffectsMelee: { include: { attackEffect: true } },
+  attackEffectsRanged: { include: { attackEffect: true } },
+  attackEffectsAoE: { include: { attackEffect: true } },
+  vrpEntries: { include: { damageType: true } },
+  weaponAttributes: { include: { weaponAttribute: true } },
+  armorAttributes: { include: { armorAttribute: true } },
+  shieldAttributes: { include: { shieldAttribute: true } },
+  mythicLbPushTemplate: {
+    select: {
+      id: true,
+      name: true,
+      tier: true,
+      thresholdPercent: true,
+      description: true,
+      successEffectParams: true,
+      baseCostText: true,
+      baseCostParams: true,
+      endCostText: true,
+      endCostParams: true,
+      isPersistent: true,
+      persistentCostTiming: true,
+    },
+  },
+  mythicLbBreakTemplate: {
+    select: {
+      id: true,
+      name: true,
+      tier: true,
+      thresholdPercent: true,
+      description: true,
+      successEffectParams: true,
+      baseCostText: true,
+      baseCostParams: true,
+      endCostText: true,
+      endCostParams: true,
+      isPersistent: true,
+      persistentCostTiming: true,
+    },
+  },
+  mythicLbTranscendTemplate: {
+    select: {
+      id: true,
+      name: true,
+      tier: true,
+      thresholdPercent: true,
+      description: true,
+      successEffectParams: true,
+      baseCostText: true,
+      baseCostParams: true,
+      endCostText: true,
+      endCostParams: true,
+      isPersistent: true,
+      persistentCostTiming: true,
+    },
+  },
+} satisfies Prisma.ItemTemplateInclude;
+
+type WeaponRouteRow = Prisma.ItemTemplateGetPayload<{
+  include: typeof WEAPON_INCLUDE;
+}>;
 
 function normalizePlacement(value: unknown): AttributePlacement {
   if (value === "ATTACK" || value === "DEFENCE" || value === "TRAITS" || value === "GENERAL") {
@@ -72,12 +139,12 @@ function dedupeAttributeLines(lines: AttributeLine[]): AttributeLine[] {
   return output;
 }
 
-function buildBaseTokens(row: any): TokenMap {
+function buildBaseTokens(row: WeaponRouteRow): TokenMap {
   const damageTypes = Array.from(
     new Set([
-      ...((row.meleeDamageTypes ?? []) as any[]).map((x) => String(x?.damageType?.name ?? "").trim()),
-      ...((row.rangedDamageTypes ?? []) as any[]).map((x) => String(x?.damageType?.name ?? "").trim()),
-      ...((row.aoeDamageTypes ?? []) as any[]).map((x) => String(x?.damageType?.name ?? "").trim()),
+      ...row.meleeDamageTypes.map((x) => String(x.damageType?.name ?? "").trim()),
+      ...row.rangedDamageTypes.map((x) => String(x.damageType?.name ?? "").trim()),
+      ...row.aoeDamageTypes.map((x) => String(x.damageType?.name ?? "").trim()),
     ].filter((name) => name.length > 0)),
   )
     .sort((a, b) => a.localeCompare(b))
@@ -85,9 +152,9 @@ function buildBaseTokens(row: any): TokenMap {
 
   const attackEffects = Array.from(
     new Set([
-      ...((row.attackEffectsMelee ?? []) as any[]).map((x) => String(x?.attackEffect?.name ?? "").trim()),
-      ...((row.attackEffectsRanged ?? []) as any[]).map((x) => String(x?.attackEffect?.name ?? "").trim()),
-      ...((row.attackEffectsAoE ?? []) as any[]).map((x) => String(x?.attackEffect?.name ?? "").trim()),
+      ...row.attackEffectsMelee.map((x) => String(x.attackEffect?.name ?? "").trim()),
+      ...row.attackEffectsRanged.map((x) => String(x.attackEffect?.name ?? "").trim()),
+      ...row.attackEffectsAoE.map((x) => String(x.attackEffect?.name ?? "").trim()),
     ].filter((name) => name.length > 0)),
   )
     .sort((a, b) => a.localeCompare(b))
@@ -130,7 +197,10 @@ function buildBaseTokens(row: any): TokenMap {
   };
 }
 
-function buildWeaponAttributeTokens(base: TokenMap, entry: any): TokenMap {
+function buildWeaponAttributeTokens(
+  base: TokenMap,
+  entry: WeaponRouteRow["weaponAttributes"][number],
+): TokenMap {
   const strengthSource =
     entry?.strengthSource === "MELEE" || entry?.strengthSource === "RANGED" || entry?.strengthSource === "AOE"
       ? entry.strengthSource
@@ -202,38 +272,9 @@ function toResolvedTraitLines(value: unknown, tokens: TokenMap): AttributeLine[]
   }));
 }
 
-function buildVrpAttributeLines(row: any): AttributeLine[] {
-  const entries = Array.isArray((row as any).vrpEntries) ? (row as any).vrpEntries : [];
+function buildVrpAttributeLines(row: WeaponRouteRow): AttributeLine[] {
+  const entries = row.vrpEntries;
   const out: AttributeLine[] = [];
-
-  const readType = (e: any): string => {
-    const raw =
-      e?.type ??
-      e?.effectKind ??
-      e?.vrpType ??
-      e?.kind ??
-      e?.category ??
-      e?.effectType ??
-      e?.mode ??
-      "";
-    return String(raw).trim().toUpperCase();
-  };
-
-  const readAmount = (e: any): number => {
-    const raw = e?.amount ?? e?.value ?? e?.magnitude ?? e?.level ?? e?.rank ?? 0;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : 0;
-  };
-
-  const readDamageType = (e: any): string => {
-    const raw =
-      e?.damageType?.name ??
-      e?.damageTypeName ??
-      e?.damageType ??
-      e?.typeName ??
-      "";
-    return String(raw).trim();
-  };
 
   const normalizeType = (t: string): "RESISTANCE" | "VULNERABILITY" | "PROTECTION" | null => {
     if (!t) return null;
@@ -247,9 +288,9 @@ function buildVrpAttributeLines(row: any): AttributeLine[] {
   };
 
   for (const entry of entries) {
-    const amount = readAmount(entry);
-    const damageTypeName = readDamageType(entry);
-    const normalized = normalizeType(readType(entry));
+    const amount = Number.isFinite(entry.magnitude) ? entry.magnitude : 0;
+    const damageTypeName = String(entry.damageType?.name ?? "").trim();
+    const normalized = normalizeType(String(entry.effectKind ?? "").trim().toUpperCase());
 
     if (!damageTypeName || !normalized || amount === 0) continue;
 
@@ -274,34 +315,30 @@ function buildVrpAttributeLines(row: any): AttributeLine[] {
   return out;
 }
 
-function pickSelectedMythicLimitBreakTemplate(row: unknown): MythicLimitBreakTemplatePreview | null {
-  const candidate =
-    row && typeof row === "object" ? (row as Record<string, unknown>) : {};
+function pickSelectedMythicLimitBreakTemplate(
+  row: WeaponRouteRow,
+): MythicLimitBreakTemplatePreview | null {
   const selected =
-    candidate.mythicLbTranscendTemplate ??
-    candidate.mythicLbBreakTemplate ??
-    candidate.mythicLbPushTemplate ??
+    row.mythicLbTranscendTemplate ??
+    row.mythicLbBreakTemplate ??
+    row.mythicLbPushTemplate ??
     null;
   if (!selected) return null;
-  const selectedRow =
-    typeof selected === "object" && selected !== null
-      ? (selected as Record<string, unknown>)
-      : {};
   return {
-    id: String(selectedRow.id ?? ""),
-    name: String(selectedRow.name ?? ""),
-    tier: selectedRow.tier as MythicLimitBreakTemplatePreview["tier"],
-    thresholdPercent: Number(selectedRow.thresholdPercent ?? 0),
-    description: typeof selectedRow.description === "string" ? selectedRow.description : null,
-    successEffectParams: selectedRow.successEffectParams ?? {},
-    baseCostText: typeof selectedRow.baseCostText === "string" ? selectedRow.baseCostText : null,
-    baseCostParams: selectedRow.baseCostParams ?? {},
-    endCostText: typeof selectedRow.endCostText === "string" ? selectedRow.endCostText : null,
-    endCostParams: selectedRow.endCostParams ?? {},
-    isPersistent: Boolean(selectedRow.isPersistent),
+    id: String(selected.id ?? ""),
+    name: String(selected.name ?? ""),
+    tier: selected.tier as MythicLimitBreakTemplatePreview["tier"],
+    thresholdPercent: Number(selected.thresholdPercent ?? 0),
+    description: typeof selected.description === "string" ? selected.description : null,
+    successEffectParams: selected.successEffectParams ?? {},
+    baseCostText: typeof selected.baseCostText === "string" ? selected.baseCostText : null,
+    baseCostParams: selected.baseCostParams ?? {},
+    endCostText: typeof selected.endCostText === "string" ? selected.endCostText : null,
+    endCostParams: selected.endCostParams ?? {},
+    isPersistent: Boolean(selected.isPersistent),
     persistentCostTiming:
-      selectedRow.persistentCostTiming === "BEGIN" || selectedRow.persistentCostTiming === "END"
-        ? selectedRow.persistentCostTiming
+      selected.persistentCostTiming === "BEGIN" || selected.persistentCostTiming === "END"
+        ? selected.persistentCostTiming
         : null,
   };
 }
@@ -324,67 +361,7 @@ export async function GET(req: Request) {
         type: { in: ["WEAPON", "SHIELD", "ARMOR", "ITEM"] },
       },
       orderBy: { name: "asc" },
-      include: {
-        rangeCategories: true,
-        meleeDamageTypes: { include: { damageType: true } },
-        rangedDamageTypes: { include: { damageType: true } },
-        aoeDamageTypes: { include: { damageType: true } },
-        attackEffectsMelee: { include: { attackEffect: true } },
-        attackEffectsRanged: { include: { attackEffect: true } },
-        attackEffectsAoE: { include: { attackEffect: true } },
-        vrpEntries: { include: { damageType: true } },
-        weaponAttributes: { include: { weaponAttribute: true } },
-        armorAttributes: { include: { armorAttribute: true } },
-        shieldAttributes: { include: { shieldAttribute: true } },
-        mythicLbPushTemplate: {
-          select: {
-            id: true,
-            name: true,
-            tier: true,
-            thresholdPercent: true,
-            description: true,
-            successEffectParams: true,
-            baseCostText: true,
-            baseCostParams: true,
-            endCostText: true,
-            endCostParams: true,
-            isPersistent: true,
-            persistentCostTiming: true,
-          },
-        },
-        mythicLbBreakTemplate: {
-          select: {
-            id: true,
-            name: true,
-            tier: true,
-            thresholdPercent: true,
-            description: true,
-            successEffectParams: true,
-            baseCostText: true,
-            baseCostParams: true,
-            endCostText: true,
-            endCostParams: true,
-            isPersistent: true,
-            persistentCostTiming: true,
-          },
-        },
-        mythicLbTranscendTemplate: {
-          select: {
-            id: true,
-            name: true,
-            tier: true,
-            thresholdPercent: true,
-            description: true,
-            successEffectParams: true,
-            baseCostText: true,
-            baseCostParams: true,
-            endCostText: true,
-            endCostParams: true,
-            isPersistent: true,
-            persistentCostTiming: true,
-          },
-        },
-      },
+      include: WEAPON_INCLUDE,
     });
 
     const weapons = rows.map((row) => {

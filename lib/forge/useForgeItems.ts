@@ -18,7 +18,16 @@ type ForgeItemsState = {
   refetch: () => Promise<void>;
 };
 
-function toSummary(row: any): ForgeItemSummary {
+type ForgeItemSummaryRow = {
+  id?: unknown;
+  name?: unknown;
+  type?: unknown;
+  rarity?: unknown;
+  level?: unknown;
+  tags?: unknown;
+};
+
+function toSummary(row: ForgeItemSummaryRow): ForgeItemSummary {
   const rawTags = Array.isArray(row?.tags) ? row.tags : [];
   const tags = rawTags
     .map((entry: unknown) =>
@@ -33,10 +42,10 @@ function toSummary(row: any): ForgeItemSummary {
 
   return {
     id: String(row?.id ?? ''),
-    name: row?.name ?? null,
-    type: row?.type ?? null,
-    rarity: row?.rarity ?? null,
-    level: typeof row?.level === 'number' ? row.level : row?.level ?? null,
+    name: typeof row?.name === 'string' ? row.name : null,
+    type: typeof row?.type === 'string' ? row.type : null,
+    rarity: typeof row?.rarity === 'string' ? row.rarity : null,
+    level: typeof row?.level === 'number' ? row.level : null,
     tags,
   };
 }
@@ -67,8 +76,14 @@ export function useForgeItems(campaignId: string): ForgeItemsState {
         throw new Error(text || `Items request failed: ${res.status}`);
       }
 
-      const json = (await res.json()) as any[];
-      const summaries = Array.isArray(json) ? json.map(toSummary) : [];
+      const json = (await res.json()) as unknown;
+      const summaries = Array.isArray(json)
+        ? json.map((row) =>
+            toSummary(
+              typeof row === 'object' && row !== null ? (row as ForgeItemSummaryRow) : {},
+            ),
+          )
+        : [];
 
       setData(summaries);
       setLoading(false);

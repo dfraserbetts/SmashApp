@@ -1,0 +1,1605 @@
+02_Power_System_Spec.txt
+
+Purpose
+
+This document defines the authoritative design-level specification for the new SMASH shared power system.
+
+It is a conceptual model plus the currently hardened implementation-facing translation layer.
+
+It is not final schema code, final UI art direction, runtime tracking design, or a code patch plan.
+
+Its purpose is to freeze the rules language and implementation-safe boundaries that later implementation must obey.
+
+
+Phase Boundary
+
+This specification defines the power foundation plus the hardened outcomes from Phase 2, Phase 3, Phase 4, and the current Phase 5 implementation-facing translation work.
+
+It does define:
+
+the shared power core
+
+power-level fields
+
+descriptor chassis / delivery method as a structural layer
+
+effect packets
+
+Primary vs Secondary packet behaviour
+
+Lifespan
+
+Effect Timing
+
+Effect Duration
+
+the rule that only Packet 1 sets the defence gate
+
+the hardened Descriptor Chassis matrix
+
+the builder-facing role of Counter
+
+the builder-facing role of Commitment Modifier
+
+packet resolution sequence
+
+Packet 1 landing and applied result value
+
+mixed-intention packet resolution
+
+packet timing legality by chassis
+
+first-pass Channel behaviour boundaries
+
+the builder-facing field matrix direction for the surviving chassis
+
+the live preview contract direction
+
+the distinction between locked canon, implementation recommendation, and still unresolved implementation questions
+
+It does not define:
+
+final schema code
+
+final UI art direction
+
+runtime effect tracking tools
+
+full costing formulas
+
+full transformation payload builders
+
+full summoning payload builders
+
+final naming purity for every helper label
+
+final implementation lock for Charge behaviour
+
+final schema lock for Lifespan ownership
+
+
+Core Design Truth
+
+SMASH is imagination-first.
+
+Players should imagine the character and power first, then realize that fantasy in a mechanically viable and balanced form.
+
+The power system must therefore be structurally clear without collapsing into either vague flavour language or rigid taxonomy theatre.
+
+
+Power Structure Overview
+
+A power consists of:
+
+Power-Level Fields
+
+one Descriptor Chassis
+
+one or more Effect Packets
+
+This is the shared conceptual model for powers.
+
+
+1. Shared Power Core
+
+The Shared Power Core is the full cross-system model used to define powers.
+
+It includes:
+
+Power-Level Fields
+
+Descriptor Chassis
+
+Effect Packets
+
+Primary Packet defence gating
+
+the timing model built from Lifespan, Effect Timing, and Effect Duration
+
+This core is intended for Summoning Circle first and later reuse in the Character Builder.
+
+
+2. Power-Level Fields
+
+Power-Level Fields define the overall cast context and common rules grammar of the power. They apply to the power as a whole rather than to an individual packet.
+
+They answer:
+
+what kind of power this is
+
+how it is used
+
+what shared context applies to all packets inside it
+
+Current agreed examples include:
+
+Name
+
+Description
+
+Delivery Method
+
+Range Category
+
+Targeting information
+
+AoE data where relevant
+
+Dice
+
+Counter
+
+Lifespan where relevant
+
+Commitment Modifier
+
+Power-Level Fields define how the power is used. They do not define the full contents of each packet.
+
+
+2.1 Commitment Modifier
+
+Commitment Modifier is a Power-Level Field that defines whether the user must or may continue spending Power Actions to build, sustain, or operate the power beyond the default one-action use pattern.
+
+The builder should present Commitment Modifier as an always-visible selector with the following options:
+
+Standard
+
+Channel
+
+Charge
+
+Standard is the default.
+
+Channel means the user may or must continue consuming later Power Actions to maintain, reapply, or sustain the power after initial use.
+
+Charge means the user must or may consume one or more later Power Actions building power before Packet 1 resolves, or may grow the power’s eventual result while the power remains held before release.
+
+Commitment Modifier is not a Descriptor Chassis.
+
+It is a separate power-level layer that changes action commitment and likely cost, but does not replace the underlying structural form of the power.
+
+Commitment Modifier must not be collapsed into Lifespan, Effect Timing, or Effect Duration. Those fields answer different questions.
+
+Commitment Modifier also does not create new packet timing categories. However, it may constrain legal Packet 1 resolution windows and operational windows.
+
+In first implementation:
+
+Channel uses one behaviour model only as an action-commitment modifier. It does not automatically reroll Packet 1 or create repeated packet resolution by itself.
+
+Authored Effect Timing determines when each Effect Packet resolves.
+
+Charge may constrain when Packet 1 is allowed to resolve and how long a power may remain in a usable pre-resolution state, but it does not replace the meaning of Lifespan or Effect Timing.
+
+First-pass Channel support is limited to Immediate, Field, and Attached powers. Trigger + Channel and Reserve + Channel are deferred.
+
+The exact first-pass implementation-facing boundary for Charge is still unresolved and must not be falsely treated as settled canon.
+
+
+2.2 Counter
+
+Counter is a Power-Level Field that defines whether the power may be used as a Counter when the user spends a Response on self-defence.
+
+The builder should present Counter as an always-visible selector with the following options:
+
+No
+
+Yes
+
+No is the default unless later costing rules say otherwise.
+
+Counter is not a Descriptor Chassis.
+
+Counter is not the same thing as Trigger.
+
+Counter is not the same thing as the player-facing Response resource.
+
+Responses are tracked by the player and may be spent on Assists or Counters.
+
+Assist is universal by system rule and is not authored per power.
+
+
+3. Shared Rules Grammar
+
+Shared Rules Grammar is the common language used across powers for readable mechanical communication.
+
+Examples include:
+
+Range
+
+Targeting
+
+Dice
+
+Counter
+
+Shared grammar provides consistency across powers.
+
+It is not replaced by Delivery Method.
+
+Counter remains shared power grammar.
+
+It answers whether a power may be used as a Counter when the user spends a Response on self-defence.
+
+Counter is not the same thing as Trigger.
+
+Assist is universal by system rule and does not need authored representation in the power builder.
+
+Responses remain the player-facing resource and are not the authored power field.
+
+
+4. Delivery Method and Descriptor Chassis
+
+Delivery Method is the authored structural choice.
+
+Descriptor Chassis is the rules structure created by that choice.
+
+Use the distinction this way:
+
+Delivery Method = the selected structural identity from the authoring side
+
+Descriptor Chassis = the mechanical form that identity creates
+
+A chassis changes:
+
+the mechanical sentence structure
+
+the required supporting fields
+
+the broad resolution pattern
+
+the likely relevance of Lifespan
+
+The current practical Descriptor Chassis matrix is:
+
+Immediate
+
+Field
+
+Attached
+
+Trigger
+
+Reserve
+
+These are the chassis that currently justify themselves by materially changing descriptor structure, required supporting fields, or broad resolution pattern.
+
+Counter is not retained as a separate chassis.
+
+Counter is now a shared Power-Level Field permission used to indicate whether a power may be used as a Counter.
+
+Trigger remains the structural chassis for pre-armed automatic resolution.
+
+Assist is universal by system rule and does not need authored per-power representation.
+
+Conversion is deferred.
+
+Sequence is deferred.
+
+These remain later mechanics only if they eventually justify themselves as real structural forms rather than packet patterns or helper labels.
+
+
+4.1 Chassis Standard
+
+A chassis must change real authored behaviour.
+
+If it does not materially alter descriptor structure, required fields, or broad resolution pattern, it should be revised, merged, or removed.
+
+
+4.2 Chassis Tooltip Guidance
+
+The builder-facing helper meaning of each chassis should read broadly as follows:
+
+Immediate — This power resolves as part of use now. It does not create an ongoing structure of its own.
+
+Field — This power creates a placed area that persists and resolves effects through that area.
+
+Attached — This power attaches to a target, object, or state and resolves through that attachment.
+
+Trigger — This power is armed now and fires automatically later if its trigger condition is met.
+
+Reserve — This power is held now and released later when the user chooses or when its release rule says so.
+
+
+4.3 Chassis Matrix
+
+Immediate
+
+Mechanical role:
+The baseline use-now chassis.
+
+Descriptor meaning:
+The power resolves now through Packet 1 and does not create a meaningful ongoing chassis presence of its own.
+
+Required supporting fields:
+no chassis-local required fields beyond shared Power-Level Fields and Packet 1
+
+Optional supporting fields:
+Secondary Packets
+later packet timing
+shared AoE data where relevant
+
+Advanced-only concerns:
+Application Mode only when Intention plus Specific do not settle the gate
+local origin or local targeting override only in rare edge cases
+
+Timing profile:
+Lifespan is normally not structurally relevant
+Packet 1 usually resolves on cast or equivalent immediate use timing
+Packet 1 may still produce a lingering Effect Duration after successful application
+
+
+Field
+
+Mechanical role:
+A spatially placed or projected structural presence that persists for a Lifespan and resolves effects through that footprint.
+
+Descriptor meaning:
+The power creates a meaningful placed area or ongoing field presence.
+
+Required supporting fields:
+meaningful placement rule through shared range / targeting grammar
+meaningful footprint through shared AoE / area grammar
+Lifespan
+
+Optional supporting fields:
+field interaction timing such as on create, on enter, turn timing, or on expiry
+Secondary Packets
+creation burst plus persistent field behaviour in one power
+
+Advanced-only concerns:
+local resolution origin override
+local targeting override
+multiple field event hooks
+Application Mode only where the defended interaction remains ambiguous
+
+Timing profile:
+Lifespan is usually highly relevant
+Effect Timing is often highly relevant
+
+
+Attached
+
+Mechanical role:
+A hosted structural presence that remains attached to a target, object, weapon, mark, curse, or state.
+
+Descriptor meaning:
+The power resolves through an attachment state rather than as a simple immediate event.
+
+Required supporting fields:
+meaningful attachment host or anchor interpretation through shared targeting / range grammar
+Lifespan
+for hostile delayed-entry cases, clear hostile-entry structure where needed
+
+Optional supporting fields:
+detach or expiry condition
+later timed payloads
+Secondary Packets
+
+Advanced-only concerns:
+local origin override from host
+local targeting override from host
+Application Mode when attach versus payload structure or internal versus external hostility remains ambiguous
+
+Timing profile:
+Lifespan is usually highly relevant
+Effect Timing is often highly relevant
+
+
+Trigger
+
+Mechanical role:
+A pre-armed structural presence that resolves automatically later if its trigger condition is met.
+
+Descriptor meaning:
+The power is prepared now and later fires without further user intervention when the trigger occurs.
+
+Required supporting fields:
+trigger condition
+armed window or Lifespan
+
+Optional supporting fields:
+watch scope
+simple one-shot versus reusable later handling
+Secondary Packets
+
+Advanced-only concerns:
+interrupt / response nuance
+local origin override
+local targeting override
+stricter cooldown handling by complexity
+Application Mode where trigger framing still leaves the gate unclear
+
+Timing profile:
+Lifespan is usually highly relevant
+Effect Timing is usually highly relevant
+
+
+Reserve
+
+Mechanical role:
+A held power state that is stored now and released later.
+
+Descriptor meaning:
+The power is committed now and later released, rather than resolving immediately or waiting for an automatic trigger.
+
+Required supporting fields:
+hold window or Lifespan
+release behaviour
+
+Optional supporting fields:
+stored anchor
+expiry outcome
+Secondary Packets on release
+
+Advanced-only concerns:
+release from stored point instead of caster
+local targeting override on release
+decay or expiry payload
+Application Mode only where release still leaves gate ambiguity
+
+Timing profile:
+Lifespan is usually highly relevant
+Effect Timing is often relevant
+
+
+5. Effect Packets
+
+Each intention inside a power becomes an Effect Packet.
+
+An Effect Packet is the smallest authored mechanical outcome unit inside the power.
+
+Effect Packets are currently expected to contain:
+
+Intention
+
+Specific
+
+Potency
+
+Effect Timing
+
+Effect Duration
+
+any required type or subtype
+
+supporting application details where relevant
+
+Packets describe individual effects, not the shared cast context of the power.
+
+Primary Packet
+
+Packet 1 is always the Primary Packet.
+
+The Primary Packet is the power’s defended entry point.
+
+It sets the defence gate.
+
+Secondary Packets
+
+Any packet after Packet 1 is a Secondary Packet.
+
+Secondary Packets are contingent follow-through effects.
+
+They do not set separate defence gates.
+
+They do not create separate defended entry points.
+
+They only resolve if the Primary Packet lands.
+
+This means the key property of a Secondary Packet is not merely that it is additional.
+
+Its defining property is contingency.
+
+
+6. Timing Model
+
+The timing model uses three separate concepts.
+
+
+6.1 Lifespan
+
+Lifespan is how long the chassis-level structure remains active, armed, attached, deployed, sustained, or otherwise available to resolve.
+
+Examples include:
+
+how long a field exists
+
+how long a trigger remains armed
+
+how long an attached effect remains attached
+
+how long a reserve may be held
+
+Lifespan belongs to the structural presence of the power form.
+
+The exact implementation schema ownership of Lifespan remains unresolved. The current docs preserve both of the following truths:
+
+Lifespan is structurally meaningful
+
+Lifespan still appears in current Power-Level Field examples where relevant
+
+That ownership boundary must not be falsely treated as settled canon yet.
+
+
+6.2 Effect Timing
+
+Effect Timing defines when an Effect Packet resolves relative to the power’s use and lifecycle.
+
+Examples include:
+
+on cast
+
+on hit
+
+on trigger
+
+at start of turn
+
+at end of turn
+
+on expiry
+
+Effect Timing answers:
+
+when does this packet happen
+
+
+6.3 Effect Duration
+
+Effect Duration defines how long the resolved result remains after successful application.
+
+Examples include:
+
+instant
+
+until target’s next turn
+
+X turns
+
+passive until removed
+
+Effect Duration answers:
+
+once this packet has applied, how long does the result persist
+
+
+6.4 Timing Triad Rule
+
+Lifespan, Effect Timing, and Effect Duration are separate concepts.
+
+They answer different questions:
+
+Lifespan = how long the chassis exists
+
+Effect Timing = when the packet resolves
+
+Effect Duration = how long the packet’s result persists
+
+They must not be collapsed into one generic timing field.
+
+
+6.5 Commitment Modifier and the Timing Model
+
+Commitment Modifier is separate from the timing triad.
+
+It answers:
+
+how the user must continue spending turns to operate the power
+
+This is distinct from:
+
+how long the chassis exists
+
+when packets resolve
+
+how long applied results remain
+
+Commitment Modifier does not create new packet timing categories, but it may constrain legal Packet 1 resolution windows and operational windows.
+
+Channel may require continued Power Action spend to keep a structure or effect operating across turns.
+
+Charge may require or allow continued Power Action spend before Packet 1 resolves, and may scale the eventual result during that period.
+
+
+7. Defence Gating
+
+Only the Primary Packet is defended against.
+
+The Primary Packet sets the Defence Gate.
+
+The Defence Gate is the allowed defence choice-set generated by the Primary Packet’s nature.
+
+The defence choices for the Primary Packet are not fully freeform.
+
+They are gated based on packet nature, and may use a supporting Application Mode concept where Intention plus Specific is not enough to produce sensible defence options.
+
+The system must prevent inappropriate combinations by default.
+
+
+8. Mixed-Intention Powers
+
+Multi-intention powers are supported through multiple Effect Packets.
+
+Mixed-intention powers do not share one universal potency, one universal timing, or one universal duration in all cases.
+
+Each packet may have its own potency, timing, and duration where required.
+
+Power-Level Fields define the shared cast context.
+
+Packet-level fields define the individual effects.
+
+
+9. Core Resolution Rules
+
+The following rules are part of the conceptual model:
+
+Packet order is mechanically meaningful
+
+Packet 1 is always Primary
+
+only Packet 1 sets the defence gate
+
+Secondary Packets only resolve if the Primary Packet lands
+
+Power-Level Fields define shared context
+
+Effect Packets define local outcomes
+
+simple powers must remain simple
+
+Counter is shared power grammar, not chassis
+
+Assist is universal system behaviour and not an authored power field
+
+Trigger is structural and not interchangeable with Counter
+
+Responses are the player-facing resource, not the authored power permission field
+
+Commitment Modifier changes action commitment but does not replace chassis
+
+
+10. Descriptor Resolution Rule
+
+The descriptor engine conceptually reads:
+
+Power-Level Fields
+
+Descriptor Chassis
+
+Effect Packet data
+
+Primary defence gate
+
+It then renders mechanically clear text using the correct chassis structure.
+
+This is a design rule, not a code instruction.
+
+
+11. Locked Structure vs Working Terminology
+
+Locked structure:
+
+a power uses Power-Level Fields, one Descriptor Chassis, and one or more Effect Packets
+
+Packet 1 is Primary
+
+only Packet 1 is defended against
+
+Secondary Packets are contingent
+
+Lifespan, Effect Timing, and Effect Duration are separate
+
+Delivery Method is structural, not a replacement for shared grammar
+
+Counter is shared power grammar and Trigger is structural
+
+Assist is universal by system rule and not an authored power field
+
+Responses are the player-facing resource and not the authored power permission field
+
+Commitment Modifier is a Power-Level Field, not a chassis
+
+Application Mode is a restrained disambiguation layer, not a default universal field
+
+The hardened chassis matrix is Immediate, Field, Attached, Trigger, and Reserve
+
+Working terminology:
+
+the final helper wording used for chassis tooltips
+
+the exact name and scope of Application Mode
+
+the exact presentation label for Commitment Modifier in UI
+
+Do not confuse provisional labels with unstable architecture.
+
+
+12. Deferred Refinement
+
+The following items are intentionally deferred to later design or implementation phases:
+
+the final implementation boundary for Charge
+
+the final implementation schema ownership of Lifespan
+
+costing against the new structure
+
+trigger cooldown handling by complexity
+
+advanced Channel / Charge variants beyond the first-pass rules
+
+full transformation payload builders
+
+full summoning payload builders
+
+any propagation or replication subsystems
+
+runtime active-effect tracking
+
+
+13. Builder-Facing Workflow Direction
+
+The builder should conceptually flow as follows:
+
+choose Descriptor Chassis early
+
+fill shared Power-Level Fields
+
+author Packet 1 early
+
+infer the Defence Gate from Packet 1
+
+surface Application Mode only if inference fails
+
+reveal only the chassis-local controls required by the selected chassis
+
+keep local origin and targeting overrides behind conditional or advanced controls
+
+preserve live preview as a constant readout of the resulting descriptor structure
+
+This exists to keep simple powers fast while still allowing more advanced structures to expose deeper control where justified.
+
+
+14. Phase 2 Addendum — Defence Gating, Resist Attributes, and Application Mode
+
+Defence Gating is determined from the Primary Packet only.
+
+Packet 1 is always the Primary Packet.
+
+If a power contains any hostile packet, the Primary Packet must be hostile.
+
+A non-hostile packet may not occupy Packet 1 if any later packet is hostile.
+
+This prevents mixed hostile / beneficial powers from bypassing the single defended entry point by placing a beneficial packet first.
+
+A hostile Primary Packet always resolves to a defence gate.
+
+NONE is reserved for non-hostile Primary Packets only.
+
+The Defence Gate is assigned in the following order:
+
+determine whether the Primary Packet is hostile or non-hostile
+
+if non-hostile, assign NONE
+
+if hostile, determine whether the defended event is external or internal
+
+if external, determine whether the Primary Packet deals wounds as part of its defended result
+
+if external and wound-dealing, determine whether Dodge is sensibly possible, whether Protection is sensibly possible, or whether both are sensible
+
+if internal, assign Resist and determine the correct Resist Attribute
+
+use Application Mode only if Intention plus Specific still do not produce a sensible gate result
+
+A hostile Primary Packet never resolves to NONE under normal power-building rules.
+
+Structural chassis presence may exist before the hostile defended entry point if the power is authored that way.
+
+This means an Attached, Trigger, Field, or Reserve chassis may exist structurally before the Primary Packet resolves, provided that no earlier packet is being treated as a separate defended hostile entry point.
+
+The system still permits only one defended entry point per power use.
+
+Primary Packet defence results currently resolve as follows:
+
+Non-hostile Primary = NONE
+
+Hostile External, no wounds = Dodge
+
+Hostile External, deals wounds, both responses sensible = Dodge or Protection
+
+Hostile External, deals wounds, Dodge not sensible = Protection
+
+Hostile External, deals wounds, Protection not sensible = Dodge
+
+Hostile Internal / take-hold = Resist
+
+Dodge means the target may avoid the hostile packet entirely during the standard response window.
+
+Dodge is only a legal gate option if the target could plausibly avoid the hostile packet’s threatened point, line, path, or area during that response window.
+
+If the packet’s area, spread, persistence, or contact state makes that implausible, Dodge is not a legal gate option.
+
+Protection means the target resolves the hostile packet through a protection-based defence rather than full evasion.
+
+Where the packet is physically harmful, Protection means Physical Defence.
+
+Where the packet is mentally harmful, Protection means Mental Defence.
+
+Protection is appropriate where wounds are being dealt and the hostile packet is being met from the outside rather than resisted as an internal take-hold effect.
+
+Resist is used when the hostile packet’s defended event is an internalizing or take-hold hostile effect rather than an incoming external event.
+
+Resist cancels hostile successes rather than blocking wounds.
+
+Resist Attribute Matrix
+
+A Resist-gated Primary Packet must target one Resist Attribute.
+
+That attribute is chosen by the thing being attacked in the fiction, not by weak-stat fishing.
+
+If the Primary Packet is a debuff whose main result is to reduce or suppress a specific attribute, that same attribute is the Resist Attribute.
+
+This specific-attribute override takes priority over softer thematic interpretation.
+
+Fortitude Resist is used when the hostile force attacks bodily endurance, toxin tolerance, disease resistance, physical shutdown resistance, or raw internal survivability.
+
+Examples include toxins, paralysis onset, suffocation, bodily decay, disease, necrotic withering of the body, and internal burning.
+
+Intellect Resist is used when the hostile force attacks cognition, focus, mental navigation, perception parsing, memory coherence, or illusion disentangling.
+
+Examples include mind mazes, confusion, thought loops, memory scramble, mental puzzles, and sensory deception that must be mentally parsed.
+
+Bravery Resist is used when the hostile force attacks courage, fear threshold, panic resistance, dominance resistance, or aggressive resolve.
+
+Examples include fear, terror, panic, dread, intimidation, supernatural awe, and command-through-dominance.
+
+Support Resist is used when the hostile force attacks relational grounding, belonging, trust, empathy, ally-bonding, or interpersonal anchoring.
+
+Examples include isolation effects, bond-breaking curses, belonging collapse, trust corrosion, and loneliness-based mental assault.
+
+Attack Resist is legal but narrower. It is used when the hostile force attacks offensive output, striking force generation, or the target’s ability to translate aggression into attack execution.
+
+Examples include offensive-force drain, suppression of striking limbs, or direct dampening of attack output.
+
+Defence Resist is legal but narrower. It is used when the hostile force attacks guard posture, evasive readiness, balance, defensive coordination, or internal motor control tied to defensive function.
+
+Examples include vertigo curses, balance collapse, reflex jam, or internal motor desync that primarily damages defensive function.
+
+Priority rules for ambiguous Resist cases are:
+
+specific-attribute debuff override first
+
+then the narrowest truthful fiction lane
+
+do not collapse every physical internal effect into Fortitude
+
+do not collapse every emotional effect into Bravery
+
+do not use Attack or Defence merely to make the matrix look symmetric
+
+one Resist Attribute per Resist-gated Primary Packet
+
+Application Mode is a narrow disambiguation layer, not a general packet layer.
+
+It is required only where Intention plus Specific still leave one or more of the following unclear:
+
+whether the Primary Packet is external or internal
+
+whether the defended result deals wounds
+
+whether Dodge is physically plausible
+
+whether Protection is materially sensible
+
+which Resist Attribute is being attacked
+
+whether the hostile entry point is on attach or on payload
+
+If changing the take-hold method would not change the sensible gate result, Application Mode is unnecessary.
+
+Builder-Facing Application Mode Rule
+
+Application Mode should be hidden by default.
+
+It should only surface in authoring when Intention plus Specific do not already determine the gate cleanly.
+
+Simple powers should not ask the user for Application Mode.
+
+Where Application Mode is required, it should present as a narrow guided choice that answers the unresolved mechanical question rather than as a broad flavour taxonomy.
+
+In practice this means:
+
+use no Application Mode control for obvious cases such as standard strikes, straightforward heals, obvious toxins, obvious fear effects, and direct specific-attribute debuffs
+
+surface a small guided selector only for ambiguous cases such as blind, silence, restrain, poison delivery timing, mark application, or other packets where take-hold method changes the defence result
+
+prefer context-sensitive selection chips for small binary or ternary choices
+
+use a dropdown only when the ambiguous mode list is long enough that chips become clutter
+
+The UI should not ask, what is the flavour of this effect
+
+It should ask the smallest rules question needed to settle the gate.
+
+Examples include:
+
+is the hostile entry on attach or on payload
+
+is this effect external contact or internal take-hold
+
+is this a projected assault or an internal corruption effect
+
+Many awkward hostile powers should resolve through honest packet ordering rather than bloating the gate logic.
+
+The Primary Packet is whichever hostile result the design wants the target to defend against.
+
+This means attack-first is common, but not mandatory.
+
+Control-primary into damage-secondary remains legal.
+
+Debuff-primary into damage-secondary remains legal.
+
+Damage-primary into rider-secondary remains legal.
+
+Secondary Packets may resolve at the same moment as the Primary Packet or later, but never earlier.
+
+Secondary Packets never create a second defence gate.
+
+Secondary Packets only resolve if the Primary Packet lands.
+
+For Attached or delayed-hostility powers, two lawful hostile-entry patterns exist:
+
+gate on attach, where the hostile contact or attachment is the Primary Packet and later consequences are Secondary follow-through
+
+gate on payload, where the chassis attaches or arms structurally and the later hostile payload is the Primary Packet
+
+These are distinct authored packet structures and should not be treated as the same power with cosmetic wording differences.
+
+Transformation and Summoning remain deferred special cases.
+
+They must not break the hostile-primary rule, the single defended entry point rule, or the contingent Secondary Packet rule, but their full packet treatment is postponed until their linked builder systems are ready.
+
+
+15. Phase 4 Addendum — Packet Resolution Consolidation and Hardening
+
+Universal Packet Resolution Sequence
+
+The power-resolution sequence is:
+
+1. declare power use using a Power Action or Response
+2. declare legal targets or areas from the power’s shared cast context
+3. establish the chassis state if the selected chassis creates one
+4. when Packet 1’s timing occurs, roll the power dice
+5. if Packet 1 is hostile, resolve only Packet 1’s legal defence gate
+6. determine whether Packet 1 lands or fails
+7. if Packet 1 lands, apply Packet 1 and start any Effect Duration it creates
+8. if Packet 1 lands, resolve or schedule Secondary Packets at the same moment or later according to their own Effect Timing
+9. if Packet 1 fails, discard all contingent Secondary Packets
+10. track Lifespan separately for any chassis structure that remains active, armed, attached, placed, or held
+
+Packet 1 Lands
+
+Packet 1 lands if, after its required Trial or Clash resolution, it applies at least one operative result unit.
+
+For non-wound packets, operative result is measured in net applied successes, stacks, heals, or other effect units.
+
+For wound-dealing packets, operative result is measured in net wounds inflicted.
+
+Applied Result Value
+
+Secondary Packets survive only if Packet 1 lands.
+
+If Packet 1 lands, contingent Secondary Packets may resolve immediately or later according to their own Effect Timing.
+
+Where a Secondary Packet scales from the magnitude of a non-wound Primary Packet, use the Primary Packet’s net applied successes.
+
+Where a Secondary Packet scales from the magnitude of a wound-dealing Primary Packet, use:
+
+Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
+
+This provides a stable success-equivalent scaling value after wound blocking has been resolved.
+
+Mixed-Intention Packet Resolution
+
+Mixed-intention powers are legal through multiple Effect Packets.
+
+If a power contains any hostile packet, Packet 1 must be hostile.
+
+A non-hostile Packet 1 may not occupy the first slot if any later packet is hostile.
+
+Secondary Packets remain contingent regardless of intention.
+
+If Packet 1 fails, all contingent Secondary Packets are discarded.
+
+If Packet 1 lands, Secondary Packets may resolve immediately or later according to their own Effect Timing, but never earlier.
+
+Mixed intention does not create additional defence gates. Only Packet 1 is defended against.
+
+A Secondary Packet may use a different target class or local targeting pattern only if that targeting is explicitly authored at packet level.
+
+Legal mixed-intention patterns include hostile-primary into hostile-secondary, hostile-primary into beneficial-secondary, and non-hostile-primary into non-hostile-secondary.
+
+Non-hostile-primary into hostile-secondary is illegal.
+
+Packet Timing Legality by Chassis
+
+Immediate
+
+Packet 1 legal timings are on cast / on use now and, where needed, on hit.
+
+Immediate Secondary Packets may resolve at the same moment as Packet 1 or later only if Packet 1’s successful application creates an ongoing result that can carry that later timing.
+
+Immediate Packet 1 may not use start of turn, end of turn, on trigger, on release, or on expiry timings as if it had a hidden persistent chassis.
+
+Field
+
+Field Packet 1 may use on create, on enter, start of turn, end of turn, and on expiry while the field exists.
+
+Field Secondary Packets may resolve at the same moment as Packet 1 or at later legal field interaction timings while the field remains active.
+
+Field may not use on trigger or on release as its chassis-defining Packet 1 timing.
+
+Attached
+
+Attached Packet 1 may use gate on attach or later attached-state payload timings such as start of turn, end of turn, movement, action, or expiry.
+
+Attached powers must explicitly distinguish gate on attach from gate on payload for hostile delayed-entry cases.
+
+Attached Secondary Packets may resolve at the same moment as Packet 1 or at later attached-state timings while the attachment persists.
+
+Trigger
+
+Trigger Packet 1 resolves on trigger.
+
+Trigger Secondary Packets may resolve at the same moment as Packet 1 or later from the moment Packet 1 landed.
+
+Trigger may not use on cast or on release as its Packet 1 timing.
+
+Reserve
+
+Reserve Packet 1 resolves on release, or on reserve expiry only if the authored release behaviour explicitly says so.
+
+Reserve Secondary Packets may resolve at the same moment as Packet 1 release or later from the moment Packet 1 landed.
+
+Reserve may not use on cast or on trigger as its Packet 1 timing.
+
+Channel First-Pass Rules
+
+In first implementation, Channel is an action-commitment modifier only.
+
+Do not offer alternate channel modes in first implementation.
+
+First-pass Channel support is limited to Immediate, Field, and Attached powers.
+
+Authored Effect Timing determines when each Effect Packet resolves while the power is being maintained. Channel does not automatically reroll Packet 1 or create repeated packet resolution by itself.
+
+If a power is intended to apply effects repeatedly while maintained, those repeated effects must be authored through legal packet timings such as start of turn, end of turn, expiry, or other legal timings for the selected chassis.
+
+Reapplying live stacks from the same power/source refreshes them on application rather than creating separate expiry tracks for each stack instance.
+
+A Channelled power ends when the user stops maintaining it, can no longer maintain it, its Lifespan ends, or its sustaining anchor is broken.
+
+Attached Range Rule
+
+An Attached power requires legal range for initial application.
+
+After legal initial application, host-bound persistence may continue even if later range differences arise.
+
+If an Attached power is also Channelled, maintained reinforcement or reapplication requires the target to remain within legal cast range from the source.
+
+
+16. Phase 5 Addendum — Implementation-Facing Translation of the Hardened Power Model
+
+Purpose of this addendum
+
+This addendum translates the hardened power model into builder-facing and schema-facing guidance for Summoning Circle without reopening the underlying architecture.
+
+Its goal is not to make the builder exhaustive on day one.
+
+Its goal is to make the builder structurally honest, implementation-safe, and fast for normal powers while still supporting the hardened chassis and packet rules already locked.
+
+Status labels used in this addendum
+
+Locked canon
+
+Implementation recommendation
+
+Still unresolved / needs hard rule
+
+16.1 Locked canon
+
+The following points are already treated as rules truth for implementation-facing work:
+
+a power consists of Power-Level Fields, one Descriptor Chassis, and one or more Effect Packets
+
+Shared Rules Grammar remains separate from Delivery Method
+
+Delivery Method is implemented through Descriptor Chassis
+
+the hardened chassis matrix is Immediate, Field, Attached, Trigger, and Reserve
+
+Packet 1 is always the Primary Packet
+
+only the Primary Packet sets the Defence Gate
+
+Secondary Packets never create separate defended entry points and only resolve if the Primary Packet lands
+
+Packet 1 lands if it applies at least one operative result unit
+
+wound-based Secondary scaling uses Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
+
+mixed-intention legality is constrained by hostile-primary ordering
+
+Lifespan, Effect Timing, and Effect Duration are separate concepts
+
+Counter is an authored Power-Level Field with No / Yes
+
+Assist is universal by system rule
+
+Responses are the player-facing resource
+
+Commitment Modifier is a Power-Level Field with Standard / Channel / Charge
+
+Channel is an action-commitment modifier only in first implementation; authored packet timing determines when effects occur
+
+first-pass Channel support is limited to Immediate, Field, and Attached
+
+Attached powers require legal initial range, but host-bound persistence may continue after later range changes
+
+Channelled Attached reinforcement requires the target to remain within legal cast range from the source
+
+simple powers must stay simple
+
+live preview is mandatory
+
+Application Mode is hidden by default and should surface only when inference fails
+
+hostile delayed-entry Attached powers must explicitly distinguish gate on attach from gate on payload
+
+16.2 Implementation recommendation
+
+The following are strong implementation-facing recommendations, but are not yet falsely promoted into source-level canon:
+
+shared cast context should be authored from Power-Level Fields
+
+structural state should be represented through chassis-local fields
+
+packet outcomes should be represented through packet-local fields
+
+resolved gates, legality warnings, and preview wording should be treated as derived metadata rather than co-equal authored schema truth
+
+the builder should expose only the minimum chassis-local controls required by the selected chassis
+
+local origin and local targeting overrides should remain advanced-only
+
+for UI clarity, Lifespan may still be rendered near top-level controls even if eventual schema ownership lands chassis-local
+
+16.3 Still unresolved / needs hard rule
+
+The following implementation-facing questions remain open and should not be falsely written as settled canon:
+
+the exact first-pass behaviour boundary for Charge
+
+the final schema ownership boundary for Lifespan
+
+the exact schema boundary between Power-Level Fields, chassis-local fields, packet-local fields, and derived metadata
+
+the exact preview wording lock for maintained-turn and delayed packet timing
+
+the exact cost integration model for chassis complexity plus Commitment Modifier
+
+16.4 Field ownership map
+
+Power-Level Fields
+
+Power-Level Fields own shared cast context.
+
+They include:
+
+Name
+
+Description
+
+Delivery Method
+
+Range Category
+
+Targeting information
+
+AoE data where relevant
+
+Dice
+
+Counter
+
+Commitment Modifier
+
+Lifespan where relevant under the current conceptual spec, pending final implementation ownership lock
+
+Chassis-local fields
+
+Chassis-local fields are the recommended home for structural state created by the selected chassis.
+
+Immediate:
+no required chassis-local fields
+
+Field:
+placement dependencies through shared grammar
+footprint dependencies through shared grammar
+Lifespan
+
+Attached:
+host or anchor interpretation
+attachment persistence support
+Lifespan
+hostile-entry structure where required
+
+Trigger:
+trigger condition
+armed window or Lifespan
+
+Reserve:
+hold window or Lifespan
+release behaviour
+
+Packet-local fields
+
+Packet-local fields own outcome data.
+
+They include:
+
+packet order
+
+Intention
+
+Specific
+
+Potency
+
+Effect Timing
+
+Effect Duration
+
+required subtype or type data
+
+supporting application details where relevant
+
+packet-local targeting override only when explicitly authored
+
+Derived preview metadata
+
+Derived metadata should be computed from authored data rather than competing with it.
+
+Examples include:
+
+resolved Primary Defence Gate
+
+resolved Resist Attribute
+
+legality warnings
+
+primary / secondary labels
+
+contingent-secondary labels
+
+maintained-turn notes
+
+delayed packet timing notes
+
+Attached hostile-entry wording once authored structure is known
+
+16.5 Builder field matrix by chassis
+
+Immediate
+
+Always-visible inputs:
+shared Power-Level Fields
+Packet 1
+
+Conditionally revealed:
+AoE fields where relevant
+Secondary Packets
+Application Mode only if gate inference fails
+
+Advanced-only:
+local origin override
+local targeting override
+
+Derived:
+resolved gate
+packet legality notes
+preview wording that the power resolves now
+
+Deferred:
+advanced Charge variants beyond the eventual first-pass rule
+
+
+Field
+
+Always-visible inputs:
+shared Power-Level Fields
+Packet 1
+
+Conditionally revealed:
+Lifespan
+AoE / footprint
+field interaction timing
+Secondary Packets
+Application Mode only if gate inference fails
+
+Advanced-only:
+local resolution origin override
+local targeting override
+multiple field event hooks
+
+Derived:
+resolved gate
+field persistence notes
+preview wording for create / persist / resolve
+
+Deferred:
+advanced field event ecosystems beyond the first-pass builder
+
+
+Attached
+
+Always-visible inputs:
+shared Power-Level Fields
+Packet 1
+
+Conditionally revealed:
+Lifespan
+host or anchor interpretation
+later attached-state timings
+hostile-entry structure where needed
+Secondary Packets
+Application Mode only if inference fails
+
+Advanced-only:
+local origin from host
+local targeting from host
+
+Derived:
+resolved gate
+Attached persistence notes
+explicit hostile-entry wording for gate on attach versus gate on payload
+channelled range reminder where relevant
+
+Deferred:
+stack-runtime systems and richer host-state tracking
+
+
+Trigger
+
+Always-visible inputs:
+shared Power-Level Fields
+Packet 1
+
+Conditionally revealed:
+trigger condition
+armed window or Lifespan
+Secondary Packets
+Application Mode only if gate inference fails
+
+Advanced-only:
+watch scope
+local origin override
+local targeting override
+reusable trigger complexity
+
+Derived:
+resolved gate
+armed-state notes
+preview wording for arm now / fire later
+
+Deferred:
+trigger cooldown scaling
+Trigger + Channel
+
+
+Reserve
+
+Always-visible inputs:
+shared Power-Level Fields
+Packet 1
+
+Conditionally revealed:
+hold window or Lifespan
+release behaviour
+Secondary Packets
+Application Mode only if gate inference fails
+
+Advanced-only:
+stored anchor
+release from stored point
+local targeting override on release
+expiry payload
+
+Derived:
+resolved gate
+held-state notes
+preview wording for hold now / release later
+
+Deferred:
+Reserve + Channel
+richer stored-point release systems
+
+16.6 Control visibility classes
+
+Always visible
+
+Name
+
+Description
+
+Descriptor Chassis
+
+Range Category
+
+Targeting information
+
+AoE when plainly relevant to the shared cast context
+
+Dice
+
+Counter
+
+Commitment Modifier
+
+Packet 1 card
+
+Conditionally revealed
+
+the chassis-local card required by the selected chassis
+
+Lifespan where the selected chassis meaningfully relies on it
+
+Application Mode only when inference fails
+
+Packet 2 and later cards only when added
+
+Attached hostile-entry guidance only when a hostile delayed-entry Attached structure exists
+
+Advanced-only
+
+local origin override
+
+local targeting override
+
+packet-level target override for unusual Secondary behaviour
+
+multiple event hooks
+
+stored anchor release logic
+
+other rare controls that do not materially help normal powers
+
+Derived
+
+resolved Primary Defence Gate
+
+resolved Resist Attribute
+
+legality warnings
+
+preview phrasing
+
+primary / secondary labels
+
+maintained-turn notes
+
+delayed packet timing notes
+
+Attached hostile-entry explanation once the authored structure is known
+
+Deferred
+
+alternate Channel modes
+
+advanced Charge variants
+
+Trigger + Channel
+
+Reserve + Channel
+
+propagation / replication
+
+full Transformation builder
+
+full Summoning builder
+
+runtime effect tracking
+
+16.7 Live preview contract
+
+The live preview should conceptually read:
+
+Power-Level Fields
+
+Descriptor Chassis
+
+Effect Packet data
+
+derived resolver metadata
+
+The preview should present, in order:
+
+shared cast context
+
+chassis behaviour
+
+packet sequence
+
+commitment-level notes
+
+derived legality / helper notes
+
+The preview must keep the following distinctions explicit:
+
+Immediate resolves now
+
+Field creates a field for its Lifespan and resolves through that field
+
+Attached resolves through an attachment state
+
+Trigger arms now and resolves on trigger
+
+Reserve holds now and resolves on release
+
+Packet 1 is the Primary Packet
+
+Secondary Packets are contingent on Packet 1 landing
+
+Maintained-turn packet occurrence comes from authored Effect Timing, not from Channel itself
+
+Delayed Secondary Packets keep their own timing
+
+For hostile delayed-entry Attached powers, preview must explicitly distinguish:
+
+gate on attach
+
+gate on payload
+
+The preview should remain mechanically explicit and should avoid inventing a second hidden state language.
+
+16.8 Design law for implementation translation
+
+Do not let authored data, inferred rules, and preview prose masquerade as the same thing.
+
+Authored data defines what the power is.
+
+Resolver logic determines what rules follow from that authored data.
+
+Preview text reports those results clearly.
+
+If those layers are blurred, the builder will lie.
+
+That is unacceptable.
+
+
+Design Goal
+
+This architecture exists to preserve the speed and consistency of descriptor-driven authored content while allowing powers to feel mechanically richer, cleaner, and more distinct than the legacy one-template approach.
+
+The model must support expressive fantasy without letting authored powers dissolve into mush.
