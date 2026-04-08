@@ -227,8 +227,24 @@ const COMMITMENT_MODIFIER_OPTIONS = [
 ] as const satisfies ReadonlyArray<NonNullable<MonsterPower["commitmentModifier"]>>;
 const CHARGE_TYPE_OPTIONS = ["DELAYED_RELEASE", "BUILD_POWER"] as const;
 type ChargeTypeOption = (typeof CHARGE_TYPE_OPTIONS)[number];
+const TRIGGER_METHOD_OPTIONS = ["ARM_AND_THEN_TARGET", "TARGET_AND_THEN_ARM"] as const;
+type TriggerMethodOption = (typeof TRIGGER_METHOD_OPTIONS)[number];
+const ATTACHED_HOST_ANCHOR_OPTIONS = [
+  { value: "TARGET", label: "Target", anchorText: "the target" },
+  { value: "OBJECT", label: "Object", anchorText: "the object" },
+  { value: "WEAPON", label: "Weapon", anchorText: "your weapon" },
+  { value: "ARMOR", label: "Armor", anchorText: "your armor" },
+  { value: "SELF", label: "Self", anchorText: "self" },
+  { value: "AREA", label: "Area", anchorText: "the area" },
+] as const;
+type AttachedHostAnchorOption = (typeof ATTACHED_HOST_ANCHOR_OPTIONS)[number];
+type AttachedHostAnchorOptionValue = AttachedHostAnchorOption["value"];
+const TRIGGER_METHOD_LABELS: Record<TriggerMethodOption, string> = {
+  ARM_AND_THEN_TARGET: "Arm and then target",
+  TARGET_AND_THEN_ARM: "Target and then arm",
+};
 const CHARGE_TYPE_LABELS: Record<ChargeTypeOption, string> = {
-  DELAYED_RELEASE: "Delayed Release",
+  DELAYED_RELEASE: "Delayed Cast",
   BUILD_POWER: "Build Power",
 };
 const CHARGE_TURN_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
@@ -237,6 +253,7 @@ const POWER_LIFESPAN_OPTIONS = [
   "TURNS",
   "PASSIVE",
 ] as const satisfies ReadonlyArray<NonNullable<MonsterPower["lifespanType"]>>;
+type PowerLifespanOption = (typeof POWER_LIFESPAN_OPTIONS)[number];
 const EFFECT_TIMING_OPTIONS = [
   "ON_CAST",
   "ON_TRIGGER",
@@ -385,6 +402,7 @@ const CONTROL_THEME_OPTIONS = [
   { value: "DEFENSIVE_COORDINATION", label: "Defensive coordination / balance" },
 ] as const;
 type ControlThemeOption = (typeof CONTROL_THEME_OPTIONS)[number]["value"];
+type CleanseThemeOption = ControlThemeOption;
 const CONTROL_THEME_TO_RESIST_ATTRIBUTE: Record<ControlThemeOption, CoreAttribute> = {
   BODY_ENDURANCE: "FORTITUDE",
   MIND_COGNITION: "INTELLECT",
@@ -458,8 +476,111 @@ function getSecondaryScalingMode(details: Record<string, unknown>): SecondarySca
   return "PER_SUCCESS";
 }
 
-function getPacketEffectTriggerText(details: Record<string, unknown>): string {
-  return getDetailsString(details, "effectTriggerText");
+function doesPacketCreateBeyondTurnCarrier(
+  effectPacket: MonsterPower["effectPackets"][number] | undefined,
+): boolean {
+  if (!effectPacket) return false;
+  const durationType = effectPacket.effectDurationType ?? "INSTANT";
+  return durationType === "TURNS" || durationType === "PASSIVE" || durationType === "UNTIL_TARGET_NEXT_TURN";
+}
+
+function restrictSecondaryTimingOptionsByPrimaryDuration(
+  allowedOptions: SupportedEffectTimingType[],
+  primaryEffectPacket: MonsterPower["effectPackets"][number] | undefined,
+): SupportedEffectTimingType[] {
+  const primaryDurationType = primaryEffectPacket?.effectDurationType ?? "INSTANT";
+  if (primaryDurationType !== "INSTANT" && primaryDurationType !== "UNTIL_TARGET_NEXT_TURN") {
+    return allowedOptions;
+  }
+  const narrowedOptions = allowedOptions.filter((option) =>
+    option === "ON_CAST" ||
+    option === "ON_TRIGGER" ||
+    option === "ON_EXPIRY" ||
+    option === "ON_RELEASE",
+  );
+  return narrowedOptions.length > 0 ? narrowedOptions : allowedOptions;
+}
+
+function deriveSecondaryScalingModeFromPrimaryPacket(
+  primaryEffectPacket: MonsterPower["effectPackets"][number] | undefined,
+): Exclude<SecondaryScalingMode, "PER_SUCCESS"> {
+  if (!primaryEffectPacket) return "PRIMARY_APPLIED_SUCCESSES";
+  const intention = primaryEffectPacket.intention ?? primaryEffectPacket.type ?? "ATTACK";
+  return intention === "ATTACK" && primaryEffectPacket.dealsWounds !== false
+    ? "PRIMARY_WOUND_BANDS"
+    : "PRIMARY_APPLIED_SUCCESSES";
+}
+
+function deriveWoundsPerSuccessFromPrimaryPacket(
+  primaryEffectPacket: MonsterPower["effectPackets"][number] | undefined,
+): number | null {
+  if (!primaryEffectPacket) return null;
+  const intention = primaryEffectPacket.intention ?? primaryEffectPacket.type ?? "ATTACK";
+  if (intention !== "ATTACK" || primaryEffectPacket.dealsWounds === false) return null;
+  const details = (primaryEffectPacket.detailsJson ?? {}) as Record<string, unknown>;
+  const selectedDamageTypeCount = getDetailsStringArray(details, "damageTypes")
+    .map((entry) => entry.trim())
+    .filter(Boolean).length;
+  const potency = Math.max(1, Number(primaryEffectPacket.potency ?? 1));
+  const effectiveDamageTypeCount = Math.max(1, selectedDamageTypeCount);
+  return potency * 2 * effectiveDamageTypeCount;
+}
+
+function applyDerivedSecondaryScalingToPacket(
+  effectPacket: MonsterPower["effectPackets"][number],
+  primaryEffectPacket: MonsterPower["effectPackets"][number] | undefined,
+): MonsterPower["effectPackets"][number] {
+  const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
+  const scalingMode = deriveSecondaryScalingModeFromPrimaryPacket(primaryEffectPacket);
+  const woundsPerSuccess =
+    scalingMode === "PRIMARY_WOUND_BANDS"
+      ? deriveWoundsPerSuccessFromPrimaryPacket(primaryEffectPacket)
+      : null;
+  return {
+    ...effectPacket,
+    detailsJson: {
+      ...details,
+      secondaryScalingMode: scalingMode,
+      ...(scalingMode === "PRIMARY_WOUND_BANDS"
+        ? { woundsPerSuccess }
+        : { woundsPerSuccess: null }),
+    },
+  };
+}
+
+function getRawPrimaryPowerEffectPacket(
+  power: Pick<MonsterPower, "effectPackets" | "intentions"> | undefined,
+): MonsterPower["effectPackets"][number] | undefined {
+  if (!power) return undefined;
+  if (Array.isArray(power.effectPackets) && power.effectPackets.length > 0) {
+    return power.effectPackets[0];
+  }
+  if (Array.isArray(power.intentions) && power.intentions.length > 0) {
+    return power.intentions[0];
+  }
+  return undefined;
+}
+
+function getPacketTriggerConditionText(
+  effectPacket:
+    | Pick<MonsterPower["effectPackets"][number], "triggerConditionText" | "detailsJson">
+    | Record<string, unknown>,
+): string {
+  if ("detailsJson" in effectPacket || "triggerConditionText" in effectPacket) {
+    const details =
+      effectPacket.detailsJson && typeof effectPacket.detailsJson === "object"
+        ? (effectPacket.detailsJson as Record<string, unknown>)
+        : {};
+    return String(
+      effectPacket.triggerConditionText ??
+        getDetailsString(details, "triggerConditionText") ??
+        getDetailsString(details, "effectTriggerText"),
+    );
+  }
+  return (
+    getDetailsString(effectPacket, "triggerConditionText") ||
+    getDetailsString(effectPacket, "effectTriggerText")
+  );
 }
 
 function getPositiveWholeNumber(value: unknown): number | null {
@@ -503,51 +624,171 @@ function getControlThemeResistAttribute(details: Record<string, unknown>): CoreA
   return controlTheme ? CONTROL_THEME_TO_RESIST_ATTRIBUTE[controlTheme] : null;
 }
 
+function cleanseEffectNeedsTheme(cleanseEffectType: string): boolean {
+  return cleanseEffectType === "Active Power" || cleanseEffectType === "Channelled Power";
+}
+
+function normalizeCleanseTheme(value: unknown, cleanseEffectType: string): CleanseThemeOption | null {
+  if (!cleanseEffectNeedsTheme(cleanseEffectType)) return null;
+  const normalized = typeof value === "string" ? value.trim().toUpperCase() : "";
+  return CONTROL_THEME_OPTIONS.some((option) => option.value === normalized)
+    ? (normalized as CleanseThemeOption)
+    : null;
+}
+
+function getCleanseThemeResistAttribute(details: Record<string, unknown>): CoreAttribute | null {
+  const cleanseEffectType = getDetailsString(details, "cleanseEffectType");
+  const cleanseTheme = normalizeCleanseTheme(details.cleanseTheme, cleanseEffectType);
+  return cleanseTheme ? CONTROL_THEME_TO_RESIST_ATTRIBUTE[cleanseTheme] : null;
+}
+
 function normalizePacketDetailsForIntention(
   intention: MonsterPowerIntentionType,
   details: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (intention !== "CONTROL") return details;
-  const controlMode = normalizeControlMode(details.controlMode) || "Force move";
-  const controlTheme = normalizeControlTheme(details.controlTheme, controlMode);
-  const nextDetails: Record<string, unknown> = {
-    ...details,
-    controlMode,
-  };
-  if (controlTheme) {
-    nextDetails.controlTheme = controlTheme;
-  } else {
-    delete nextDetails.controlTheme;
+  if (intention === "CONTROL") {
+    const controlMode = normalizeControlMode(details.controlMode) || "Force move";
+    const controlTheme = normalizeControlTheme(details.controlTheme, controlMode);
+    const nextDetails: Record<string, unknown> = {
+      ...details,
+      controlMode,
+    };
+    if (controlTheme) {
+      nextDetails.controlTheme = controlTheme;
+    } else {
+      delete nextDetails.controlTheme;
+    }
+    return nextDetails;
   }
-  return nextDetails;
+  if (intention === "CLEANSE") {
+    const cleanseEffectType = getDetailsString(details, "cleanseEffectType") || "Active Power";
+    const cleanseTheme = normalizeCleanseTheme(details.cleanseTheme, cleanseEffectType);
+    const nextDetails: Record<string, unknown> = {
+      ...details,
+      cleanseEffectType,
+    };
+    if (cleanseTheme) {
+      nextDetails.cleanseTheme = cleanseTheme;
+    } else {
+      delete nextDetails.cleanseTheme;
+    }
+    return nextDetails;
+  }
+  return details;
 }
 
-function getDetailsApplyTo(details: Record<string, unknown>): MonsterPowerIntentionApplyTo {
-  return details.applyTo === "SELF" ? "SELF" : "PRIMARY_TARGET";
+function getPacketApplyTo(
+  effectPacket:
+    | Pick<MonsterPower["effectPackets"][number], "applyTo" | "detailsJson">
+    | Record<string, unknown>,
+): MonsterPowerIntentionApplyTo {
+  const details =
+    "detailsJson" in effectPacket
+      ? effectPacket.detailsJson && typeof effectPacket.detailsJson === "object"
+        ? (effectPacket.detailsJson as Record<string, unknown>)
+        : {}
+      : effectPacket;
+  const value = "applyTo" in effectPacket ? effectPacket.applyTo ?? details.applyTo : details.applyTo;
+  if (value === "SELF") return "SELF";
+  if (value === "ALLIES") return "ALLIES";
+  return "PRIMARY_TARGET";
+}
+
+function getAllowedPacketApplyToOptions(
+  powerRangeState: Pick<PowerRangeState, "category" | "meleeTargets" | "rangedTargets">,
+  localTargetingOverride: MonsterPower["effectPackets"][number]["localTargetingOverride"] | null | undefined,
+): ReadonlyArray<MonsterPowerIntentionApplyTo> {
+  if (localTargetingOverride) {
+    return ["PRIMARY_TARGET", "ALLIES", "SELF"];
+  }
+  if (powerRangeState.category === "SELF") {
+    return ["SELF"];
+  }
+  if (powerRangeState.category === "MELEE" && powerRangeState.meleeTargets <= 1) {
+    return ["PRIMARY_TARGET", "SELF"];
+  }
+  if (powerRangeState.category === "RANGED" && powerRangeState.rangedTargets <= 1) {
+    return ["PRIMARY_TARGET", "SELF"];
+  }
+  return ["PRIMARY_TARGET", "ALLIES", "SELF"];
+}
+
+function readSharedCastContextForPacketApplyTo(
+  power: Pick<
+    MonsterPower,
+    | "effectPackets"
+    | "intentions"
+    | "rangeCategories"
+    | "meleeTargets"
+    | "rangedTargets"
+    | "rangedDistanceFeet"
+    | "aoeCenterRangeFeet"
+  > | undefined,
+): Pick<PowerRangeState, "category" | "meleeTargets" | "rangedTargets"> {
+  const primaryEffectPacket = getRawPrimaryPowerEffectPacket(power);
+  const primaryDetails =
+    primaryEffectPacket?.detailsJson && typeof primaryEffectPacket.detailsJson === "object"
+      ? (primaryEffectPacket.detailsJson as Record<string, unknown>)
+      : {};
+  const rawCategory =
+    power?.rangeCategories?.[0] ??
+    (power?.aoeCenterRangeFeet !== null && power?.aoeCenterRangeFeet !== undefined
+      ? "AOE"
+      : power?.rangedDistanceFeet !== null && power?.rangedDistanceFeet !== undefined
+        ? "RANGED"
+        : power?.meleeTargets !== null && power?.meleeTargets !== undefined
+          ? "MELEE"
+          : getDetailsString(primaryDetails, "rangeCategory").trim().toUpperCase());
+  const category = POWER_RANGE_CATEGORIES.includes(rawCategory as PowerRangeCategory)
+    ? (rawCategory as PowerRangeCategory)
+    : null;
+  const legacyRangeExtra = getDetailsRecord(primaryDetails, "rangeExtra");
+  return {
+    category,
+    meleeTargets:
+      category === "MELEE"
+        ? Math.max(1, Number(power?.meleeTargets ?? getDetailsNullableNumber(primaryDetails, "rangeValue") ?? 1))
+        : 1,
+    rangedTargets:
+      category === "RANGED"
+        ? Math.max(1, Number(power?.rangedTargets ?? legacyRangeExtra.targets ?? 1))
+        : 1,
+  };
+}
+
+function normalizePacketApplyToForPowerRange(
+  value: MonsterPowerIntentionApplyTo,
+  powerRangeState: Pick<PowerRangeState, "category" | "meleeTargets" | "rangedTargets">,
+  localTargetingOverride: MonsterPower["effectPackets"][number]["localTargetingOverride"] | null | undefined,
+): MonsterPowerIntentionApplyTo {
+  const allowed = getAllowedPacketApplyToOptions(powerRangeState, localTargetingOverride);
+  if (allowed.includes(value)) return value;
+  if (allowed.includes("PRIMARY_TARGET")) return "PRIMARY_TARGET";
+  return allowed[0] ?? "PRIMARY_TARGET";
 }
 
 function defaultDetailsForIntentionType(type: MonsterPowerIntentionType): Record<string, unknown> {
   switch (type) {
     case "ATTACK":
-      return { applyTo: "PRIMARY_TARGET", attackMode: "PHYSICAL", damageTypes: [] };
+      return { attackMode: "PHYSICAL", damageTypes: [] };
     case "DEFENCE":
-      return { applyTo: "PRIMARY_TARGET", attackMode: "PHYSICAL" };
+      return { attackMode: "PHYSICAL" };
     case "CONTROL":
-      return { applyTo: "PRIMARY_TARGET", controlMode: "Force move" };
+      return { controlMode: "Force move" };
     case "CLEANSE":
-      return { applyTo: "PRIMARY_TARGET", cleanseEffectType: "Active Power" };
+      return { cleanseEffectType: "Active Power" };
     case "MOVEMENT":
-      return { applyTo: "PRIMARY_TARGET", movementMode: "Force Push" };
+      return { movementMode: "Force Push" };
     case "AUGMENT":
     case "DEBUFF":
-      return { applyTo: "PRIMARY_TARGET", statTarget: "Attack" };
+      return { statTarget: "Attack" };
     case "HEALING":
-      return { applyTo: "PRIMARY_TARGET", healingMode: "PHYSICAL" };
+      return { healingMode: "PHYSICAL" };
     case "SUMMONING":
     case "TRANSFORMATION":
-      return { applyTo: "PRIMARY_TARGET" };
+      return {};
     default:
-      return { applyTo: "PRIMARY_TARGET" };
+      return {};
   }
 }
 
@@ -586,6 +827,10 @@ function deriveDefenceCheckLabel(
     const cleanseEffectType = getDetailsString(details, "cleanseEffectType");
     if (cleanseEffectType === "Effect over time" || cleanseEffectType === "Damage over time") {
       return "Fortitude Resist";
+    }
+    const resistAttribute = getCleanseThemeResistAttribute(details);
+    if (resistAttribute) {
+      return `${CORE_ATTRIBUTE_LABELS[resistAttribute]} Resist`;
     }
     return "Resist";
   }
@@ -628,15 +873,26 @@ function normalizePowerDescriptorChassis(
 }
 
 function normalizePowerDescriptorChassisConfig(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? { ...(value as Record<string, unknown>) }
-    : {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const config = { ...(value as Record<string, unknown>) };
+  delete config.chargeType;
+  delete config.chargeTurns;
+  delete config.chargeBonusDicePerTurn;
+  delete config.triggerMethod;
+  delete config.anchorText;
+  delete config.payloadTriggerText;
+  delete config.fieldInteractionText;
+  return config;
 }
 
 function normalizeChargeType(value: unknown): ChargeTypeOption {
   return CHARGE_TYPE_OPTIONS.includes(value as ChargeTypeOption)
     ? (value as ChargeTypeOption)
     : "DELAYED_RELEASE";
+}
+
+function getAllowedChargeTypeOptions(): ChargeTypeOption[] {
+  return [...CHARGE_TYPE_OPTIONS];
 }
 
 function normalizeChargeTurns(value: unknown): number {
@@ -660,9 +916,21 @@ function normalizeDefineReleaseBehaviour(
   return String(releaseBehaviourText ?? "").trim().length > 0;
 }
 
+function normalizeTriggerMethod(value: unknown): TriggerMethodOption {
+  return value === "TARGET_AND_THEN_ARM" ? "TARGET_AND_THEN_ARM" : "ARM_AND_THEN_TARGET";
+}
+
+function normalizeAttachedHostAnchorTypeValue(
+  value: unknown,
+): AttachedHostAnchorOptionValue | null {
+  return ATTACHED_HOST_ANCHOR_OPTIONS.some((option) => option.value === value)
+    ? (value as AttachedHostAnchorOptionValue)
+    : null;
+}
+
 function normalizeChargeDescriptorChassisConfig(
   value: unknown,
-  commitmentModifier: NonNullable<MonsterPower["commitmentModifier"]>,
+  _commitmentModifier: NonNullable<MonsterPower["commitmentModifier"]>,
   descriptorChassis?: NonNullable<MonsterPower["descriptorChassis"]>,
 ): Record<string, unknown> {
   const descriptorChassisConfig = normalizePowerDescriptorChassisConfig(value);
@@ -672,28 +940,12 @@ function normalizeChargeDescriptorChassisConfig(
       : {};
 
   delete descriptorChassisConfig.defineReleaseBehaviour;
-  delete descriptorChassisConfig.chargeType;
-  delete descriptorChassisConfig.chargeTurns;
-  delete descriptorChassisConfig.chargeBonusDicePerTurn;
+  delete descriptorChassisConfig.fieldInteractionText;
 
   if (descriptorChassis === "RESERVE") {
     descriptorChassisConfig.defineReleaseBehaviour = normalizeDefineReleaseBehaviour(
       rawConfig.defineReleaseBehaviour,
       rawConfig.releaseBehaviourText,
-    );
-  }
-
-  if (commitmentModifier !== "CHARGE") {
-    return descriptorChassisConfig;
-  }
-
-  const chargeType = normalizeChargeType(rawConfig.chargeType);
-  descriptorChassisConfig.chargeType = chargeType;
-  descriptorChassisConfig.chargeTurns = normalizeChargeTurns(rawConfig.chargeTurns);
-
-  if (chargeType === "BUILD_POWER") {
-    descriptorChassisConfig.chargeBonusDicePerTurn = normalizeChargeBonusDicePerTurn(
-      rawConfig.chargeBonusDicePerTurn,
     );
   }
 
@@ -718,6 +970,7 @@ function getAllowedEffectTimingOptions(
   packetIndex: number,
   hostileEntryPattern: HostileEntryPatternValue,
   commitmentModifier: NonNullable<MonsterPower["commitmentModifier"]>,
+  primaryEffectPacket?: MonsterPower["effectPackets"][number],
 ): SupportedEffectTimingType[] {
   const channelRecurringOptions =
     commitmentModifier === "CHANNEL" && isChannelAllowedForChassis(descriptorChassis)
@@ -726,16 +979,42 @@ function getAllowedEffectTimingOptions(
           "END_OF_TURN_WHILST_CHANNELLED",
         ] as const satisfies SupportedEffectTimingType[])
       : [];
+  const immediateRecurringOptions = [
+    "ON_CAST",
+    "ON_TRIGGER",
+    "START_OF_TURN",
+    "END_OF_TURN",
+    ...channelRecurringOptions,
+    "ON_EXPIRY",
+  ] as const satisfies SupportedEffectTimingType[];
+
   if (packetIndex > 0) {
-    return ["ON_TRIGGER", "START_OF_TURN", "END_OF_TURN", ...channelRecurringOptions, "ON_EXPIRY"];
+    let secondaryTimingOptions: SupportedEffectTimingType[];
+    if (descriptorChassis === "IMMEDIATE") {
+      const primaryTimingType = primaryEffectPacket?.effectTimingType ?? "ON_CAST";
+      if (primaryTimingType === "ON_CAST" && !doesPacketCreateBeyondTurnCarrier(primaryEffectPacket)) {
+        return ["ON_CAST"];
+      }
+      secondaryTimingOptions = [...immediateRecurringOptions];
+    } else if (descriptorChassis === "RESERVE") {
+      secondaryTimingOptions = ["ON_RELEASE"];
+    } else {
+      secondaryTimingOptions = ["ON_TRIGGER", "START_OF_TURN", "END_OF_TURN", ...channelRecurringOptions, "ON_EXPIRY"];
+    }
+    return restrictSecondaryTimingOptionsByPrimaryDuration(secondaryTimingOptions, primaryEffectPacket);
+  }
+  if (descriptorChassis === "IMMEDIATE" && commitmentModifier === "STANDARD") {
+    return ["ON_CAST"];
   }
   if (descriptorChassis === "FIELD") {
     return ["ON_TRIGGER", "START_OF_TURN", "END_OF_TURN", ...channelRecurringOptions, "ON_EXPIRY"];
   }
   if (descriptorChassis === "ATTACHED") {
+    if (packetIndex === 0 && hostileEntryPattern === "ON_ATTACH") {
+      return ["ON_ATTACH"];
+    }
     if (hostileEntryPattern === "ON_PAYLOAD") {
       return [
-        "ON_ATTACH",
         "ON_TRIGGER",
         "START_OF_TURN",
         "END_OF_TURN",
@@ -759,12 +1038,7 @@ function getAllowedEffectTimingOptions(
     return ["ON_RELEASE"];
   }
   return [
-    "ON_CAST",
-    "ON_TRIGGER",
-    "START_OF_TURN",
-    "END_OF_TURN",
-    ...channelRecurringOptions,
-    "ON_EXPIRY",
+    ...immediateRecurringOptions,
   ];
 }
 
@@ -774,6 +1048,7 @@ function normalizeEffectTimingType(
   packetIndex: number,
   hostileEntryPattern: HostileEntryPatternValue,
   commitmentModifier: NonNullable<MonsterPower["commitmentModifier"]>,
+  primaryEffectPacket?: MonsterPower["effectPackets"][number],
 ): MonsterPower["effectPackets"][number]["effectTimingType"] {
   const fallback = getPrimaryTimingForDescriptorChassis(descriptorChassis, hostileEntryPattern);
   const legacyNormalizedValue =
@@ -790,8 +1065,35 @@ function normalizeEffectTimingType(
     packetIndex,
     hostileEntryPattern,
     commitmentModifier,
+    primaryEffectPacket,
   );
   return (allowed.includes(normalized) ? normalized : allowed[0]) as MonsterPower["effectPackets"][number]["effectTimingType"];
+}
+
+function getAllowedEffectDurationTypes(
+  effectTimingType: MonsterPower["effectPackets"][number]["effectTimingType"] | undefined,
+): ReadonlyArray<NonNullable<MonsterPower["effectPackets"][number]["effectDurationType"]>> {
+  const timing = effectTimingType ?? "ON_CAST";
+  if (timing === "START_OF_TURN" || timing === "END_OF_TURN") {
+    return ["INSTANT", "TURNS", "PASSIVE"];
+  }
+  return ["INSTANT", "UNTIL_TARGET_NEXT_TURN", "TURNS", "PASSIVE"];
+}
+
+function normalizeEffectDurationTypeForTiming(
+  value: unknown,
+  effectTimingType: MonsterPower["effectPackets"][number]["effectTimingType"] | undefined,
+): NonNullable<MonsterPower["effectPackets"][number]["effectDurationType"]> {
+  const normalized =
+    value === "TURNS" || value === "PASSIVE" || value === "UNTIL_TARGET_NEXT_TURN"
+      ? value
+      : "INSTANT";
+  const allowed = getAllowedEffectDurationTypes(effectTimingType);
+  return allowed.includes(
+    normalized as NonNullable<MonsterPower["effectPackets"][number]["effectDurationType"]>,
+  )
+    ? (normalized as NonNullable<MonsterPower["effectPackets"][number]["effectDurationType"]>)
+    : "INSTANT";
 }
 
 function isChannelAllowedForChassis(
@@ -818,10 +1120,18 @@ function normalizeCommitmentModifier(
 }
 
 function normalizePowerLifespan(
+  descriptorChassis: NonNullable<MonsterPower["descriptorChassis"]>,
   commitmentModifier: NonNullable<MonsterPower["commitmentModifier"]>,
   lifespanType: MonsterPower["lifespanType"] | null | undefined,
   lifespanTurns: number | null | undefined,
 ): Pick<MonsterPower, "lifespanType" | "lifespanTurns"> {
+  if (descriptorChassis === "IMMEDIATE" && commitmentModifier === "STANDARD") {
+    return {
+      lifespanType: "NONE",
+      lifespanTurns: null,
+    };
+  }
+
   if (commitmentModifier === "CHANNEL") {
     if (lifespanType === "PASSIVE") {
       return {
@@ -833,6 +1143,16 @@ function normalizePowerLifespan(
     return {
       lifespanType: "TURNS",
       lifespanTurns: Math.max(2, getPositiveWholeNumber(lifespanTurns) ?? 2),
+    };
+  }
+
+  if (descriptorChassis !== "IMMEDIATE") {
+    return {
+      lifespanType: lifespanType === "PASSIVE" ? "PASSIVE" : "TURNS",
+      lifespanTurns:
+        lifespanType === "PASSIVE"
+          ? null
+          : Math.max(1, getPositiveWholeNumber(lifespanTurns) ?? 1),
     };
   }
 
@@ -856,11 +1176,32 @@ function normalizePowerLifespan(
   };
 }
 
+function getAllowedPowerLifespanOptions(
+  descriptorChassis: NonNullable<MonsterPower["descriptorChassis"]>,
+  commitmentModifier: NonNullable<MonsterPower["commitmentModifier"]>,
+): ReadonlyArray<PowerLifespanOption> {
+  if (descriptorChassis !== "IMMEDIATE") {
+    return ["TURNS", "PASSIVE"];
+  }
+  if (commitmentModifier === "CHANNEL") {
+    return ["TURNS", "PASSIVE"];
+  }
+  return POWER_LIFESPAN_OPTIONS;
+}
+
 function normalizeCounterModeForChassis(
   value: unknown,
   descriptorChassis: NonNullable<MonsterPower["descriptorChassis"]>,
+  commitmentModifier?: NonNullable<MonsterPower["commitmentModifier"]>,
+  chargeType?: MonsterPower["chargeType"],
 ): NonNullable<MonsterPower["counterMode"]> {
   if (descriptorChassis === "TRIGGER") return "NO";
+  if (
+    commitmentModifier === "CHARGE" &&
+    normalizeChargeType(chargeType) === "DELAYED_RELEASE"
+  ) {
+    return "NO";
+  }
   return value === "YES" ? "YES" : "NO";
 }
 
@@ -915,7 +1256,7 @@ function getChassisHelperText(
     return "Trigger remains structurally separate from Counter. Set the condition below, then author Packet 1 on the trigger timing.";
   }
   if (descriptorChassis === "RESERVE") {
-    return "Reserve powers are held, then released later. In the first pass they may be released with a Main Action, Power Action, or Response, and Lifespan determines how long they can be held.";
+    return "Reserve powers are held, then released later. In this first pass, Delayed Cast becomes primed after its charge turns and may then be released with a Power Action on your turn or a Response before the end of your next turn.";
   }
   return null;
 }
@@ -928,7 +1269,13 @@ function looksLikeAreaOrPluralAnchorText(value: string): boolean {
   if (normalized.includes("all allies")) return true;
   if (normalized.includes("all creatures")) return true;
   if (normalized.includes("multiple targets")) return true;
-  if (normalized.includes("area")) return true;
+  if (
+    normalized !== "area" &&
+    normalized !== "the area" &&
+    normalized.includes("area")
+  ) {
+    return true;
+  }
   if (normalized.includes("within ")) return true;
   if (normalized.includes("radius")) return true;
   if (normalized.includes("sphere")) return true;
@@ -936,6 +1283,48 @@ function looksLikeAreaOrPluralAnchorText(value: string): boolean {
   if (normalized.includes("line")) return true;
   if (/\b\d+\s*ft\b/.test(normalized)) return true;
   return false;
+}
+
+function normalizeAttachedHostAnchorOption(
+  value: unknown,
+): AttachedHostAnchorOptionValue | "" {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return "";
+  if (
+    normalized === "target" ||
+    normalized === "the target" ||
+    normalized === "marked target" ||
+    normalized === "the marked target" ||
+    normalized === "chosen target" ||
+    normalized === "the chosen target" ||
+    normalized === "host" ||
+    normalized === "the host"
+  ) {
+    return "TARGET";
+  }
+  if (normalized === "object" || normalized === "the object") return "OBJECT";
+  if (
+    normalized === "weapon" ||
+    normalized === "the weapon" ||
+    normalized === "your weapon" ||
+    normalized === "bound weapon" ||
+    normalized === "the bound weapon"
+  ) {
+    return "WEAPON";
+  }
+  if (
+    normalized === "armor" ||
+    normalized === "armour" ||
+    normalized === "the armor" ||
+    normalized === "the armour" ||
+    normalized === "your armor" ||
+    normalized === "your armour"
+  ) {
+    return "ARMOR";
+  }
+  if (normalized === "self" || normalized === "yourself") return "SELF";
+  if (normalized === "area" || normalized === "the area") return "AREA";
+  return "";
 }
 
 function isEffectPacketHostile(
@@ -994,9 +1383,8 @@ function analyzePowerIntegrity(power: MonsterPower): {
   );
   const primaryDetails = (primaryEffectPacket?.detailsJson ?? {}) as Record<string, unknown>;
   const payloadTriggerText = String(descriptorChassisConfig.payloadTriggerText ?? "").trim();
-  const primaryPacketTriggerText = getPacketEffectTriggerText(primaryDetails);
-  const attachedPayloadTriggerText = primaryPacketTriggerText || payloadTriggerText;
-  const fieldInteractionText = String(descriptorChassisConfig.fieldInteractionText ?? "").trim();
+  const primaryPacketTriggerConditionText = getPacketTriggerConditionText(primaryEffectPacket ?? primaryDetails);
+  const attachedPayloadTriggerText = primaryPacketTriggerConditionText || payloadTriggerText;
 
   if (laterHostile && !primaryIsHostile) {
     errors.push("Packet 1 must be hostile if any later packet is hostile.");
@@ -1032,7 +1420,7 @@ function analyzePowerIntegrity(power: MonsterPower): {
   }
 
   if (descriptorChassis === "RESERVE") {
-    warnings.push("Reserve uses a minimal release surface here; richer hold and release runtime behavior is still deferred.");
+    warnings.push("Reserve uses a minimal release surface here; delayed-release priming is described in preview, but richer runtime tracking is still deferred.");
   }
 
   if (descriptorChassis === "FIELD") {
@@ -1061,7 +1449,12 @@ function analyzePowerIntegrity(power: MonsterPower): {
     notes.push("Hostile gate resolves on payload.");
   }
 
-  const anchorText = String(descriptorChassisConfig.anchorText ?? "").trim();
+  const anchorText = ATTACHED_HOST_ANCHOR_OPTIONS.find(
+    (option) =>
+      option.value ===
+      (normalizeAttachedHostAnchorTypeValue(power.attachedHostAnchorType) ??
+        normalizeAttachedHostAnchorOption(descriptorChassisConfig.anchorText)),
+  )?.anchorText ?? "";
   if (descriptorChassis === "ATTACHED" && looksLikeAreaOrPluralAnchorText(anchorText)) {
     warnings.push("Attached host/anchor text should name one host or anchor, not an area or plural group.");
   }
@@ -1086,30 +1479,6 @@ function analyzePowerIntegrity(power: MonsterPower): {
     warnings.push("ON_TRIGGER needs authored trigger text here or the descriptor becomes too vague.");
   }
 
-  if (
-    descriptorChassis === "FIELD" &&
-    [
-      "START_OF_TURN",
-      "END_OF_TURN",
-      "START_OF_TURN_WHILST_CHANNELLED",
-      "END_OF_TURN_WHILST_CHANNELLED",
-      "ON_EXPIRY",
-    ].includes(
-      String(primaryEffectPacket?.effectTimingType ?? "ON_CAST"),
-    ) &&
-    !fieldInteractionText
-  ) {
-    warnings.push("Field timing is authored, but field interaction wording is missing, so the descriptor may mislead about who is affected and when.");
-  }
-
-  for (let packetIndex = 1; packetIndex < effectPackets.length; packetIndex += 1) {
-    const details = (effectPackets[packetIndex]?.detailsJson ?? {}) as Record<string, unknown>;
-    const scalingMode = getSecondaryScalingMode(details);
-    if (scalingMode === "PRIMARY_WOUND_BANDS" && !getPositiveWholeNumber(details.woundsPerSuccess)) {
-      warnings.push(`Effect Packet ${packetIndex + 1} uses wound-band scaling but is missing Wounds Per Success.`);
-    }
-  }
-
   return { errors, warnings, notes };
 }
 
@@ -1122,6 +1491,8 @@ function createDefaultPowerPacket(
     packetIndex: sortOrder,
     type,
     intention: type,
+    applyTo: "PRIMARY_TARGET",
+    triggerConditionText: null,
     effectTimingType: "ON_CAST",
     effectTimingTurns: null,
     effectDurationType: "INSTANT",
@@ -1154,31 +1525,45 @@ function normalizePowerEffectPacket(
   const descriptorChassis = normalizePowerDescriptorChassis(power?.descriptorChassis);
   const descriptorChassisConfig = normalizePowerDescriptorChassisConfig(power?.descriptorChassisConfig);
   const hostileEntryPattern = power?.primaryDefenceGate?.hostileEntryPattern;
+  const primaryEffectPacket = sortOrder > 0 ? getRawPrimaryPowerEffectPacket(power) : undefined;
   const effectTimingType = normalizeEffectTimingType(
     packet?.effectTimingType,
     descriptorChassis,
     sortOrder,
     hostileEntryPattern,
     normalizeCommitmentModifier(power?.commitmentModifier, descriptorChassis),
+    primaryEffectPacket,
   );
   const rawDetails =
     packet?.detailsJson && typeof packet.detailsJson === "object"
       ? (packet.detailsJson as Record<string, unknown>)
       : defaultDetailsForIntentionType(intention);
   const normalizedDetails = normalizePacketDetailsForIntention(intention, rawDetails);
-  const secondaryScalingMode = getSecondaryScalingMode(normalizedDetails);
+  const powerRangeState = readSharedCastContextForPacketApplyTo(power);
+  const normalizedApplyTo = normalizePacketApplyToForPowerRange(
+    getPacketApplyTo(packet ?? normalizedDetails),
+    powerRangeState,
+    packet?.localTargetingOverride ?? null,
+  );
+  const secondaryScalingMode = sortOrder > 0
+    ? deriveSecondaryScalingModeFromPrimaryPacket(primaryEffectPacket)
+    : getSecondaryScalingMode(normalizedDetails);
   const woundsPerSuccess =
     secondaryScalingMode === "PRIMARY_WOUND_BANDS"
-      ? getPositiveWholeNumber(normalizedDetails.woundsPerSuccess) ?? 1
+      ? deriveWoundsPerSuccessFromPrimaryPacket(primaryEffectPacket)
       : null;
-  const rawEffectTriggerText = getPacketEffectTriggerText(normalizedDetails);
+  const rawTriggerConditionText = getPacketTriggerConditionText(packet ?? normalizedDetails);
   const legacyAttachedPayloadTriggerText =
     descriptorChassis === "ATTACHED" && hostileEntryPattern === "ON_PAYLOAD"
       ? String(descriptorChassisConfig.payloadTriggerText ?? "").trim()
       : "";
-  const effectTriggerText =
-    (rawEffectTriggerText.trim().length > 0 ? rawEffectTriggerText : "") ||
+  const triggerConditionText =
+    (rawTriggerConditionText.trim().length > 0 ? rawTriggerConditionText : "") ||
     (effectTimingType === "ON_TRIGGER" ? legacyAttachedPayloadTriggerText : "");
+  const nextDetails = { ...normalizedDetails };
+  delete nextDetails.applyTo;
+  delete nextDetails.triggerConditionText;
+  delete nextDetails.effectTriggerText;
   return {
     ...createDefaultPowerPacket(intention, sortOrder),
     ...packet,
@@ -1193,12 +1578,21 @@ function normalizePowerEffectPacket(
       effectTimingType === "ON_TRIGGER"
         ? Math.max(1, Number(packet?.effectTimingTurns ?? 1))
         : null,
-    effectDurationType:
+    effectDurationType: normalizeEffectDurationTypeForTiming(
       packet?.effectDurationType ?? power?.effectDurationType ?? power?.durationType ?? "INSTANT",
-    effectDurationTurns: packet?.effectDurationTurns ?? null,
+      effectTimingType,
+    ),
+    effectDurationTurns:
+      normalizeEffectDurationTypeForTiming(
+        packet?.effectDurationType ?? power?.effectDurationType ?? power?.durationType ?? "INSTANT",
+        effectTimingType,
+      ) === "TURNS"
+        ? (packet?.effectDurationTurns ?? null)
+        : null,
+    applyTo: normalizedApplyTo,
+    triggerConditionText: triggerConditionText || null,
     detailsJson: {
-      ...normalizedDetails,
-      ...(effectTriggerText ? { effectTriggerText } : {}),
+      ...nextDetails,
       secondaryScalingMode,
       ...(secondaryScalingMode === "PRIMARY_WOUND_BANDS"
         ? { woundsPerSuccess }
@@ -1216,7 +1610,11 @@ function getPowerEffectPackets(power: MonsterPower): MonsterPower["effectPackets
   if (rawPackets.length === 0) {
     return [createDefaultPowerPacket("ATTACK", 0)];
   }
-  return rawPackets.map((packet, index) => normalizePowerEffectPacket(packet, index, power));
+  const normalizedPackets = rawPackets.map((packet, index) => normalizePowerEffectPacket(packet, index, power));
+  const primaryEffectPacket = normalizedPackets[0];
+  return normalizedPackets.map((packet, index) =>
+    index === 0 ? packet : applyDerivedSecondaryScalingToPacket(packet, primaryEffectPacket),
+  );
 }
 
 function derivePrimaryDefenceGateFromEffectPacket(
@@ -1282,7 +1680,7 @@ function derivePrimaryDefenceGateFromEffectPacket(
       resistAttribute:
         cleanseEffectType === "Effect over time" || cleanseEffectType === "Damage over time"
           ? "FORTITUDE"
-          : null,
+          : getCleanseThemeResistAttribute(details),
       hostileEntryPattern: null,
       resolutionSource: "INFERRED",
     };
@@ -1310,10 +1708,15 @@ function syncPowerFromEffectPackets(
       {
         ...power,
         descriptorChassis,
+        effectPackets: nextPackets,
+        intentions: nextPackets,
       },
     ),
   );
   const primaryEffectPacket = effectPackets[0] ?? createDefaultPowerPacket("ATTACK", 0);
+  const normalizedEffectPackets = effectPackets.map((packet, index) =>
+    index === 0 ? packet : applyDerivedSecondaryScalingToPacket(packet, primaryEffectPacket),
+  );
   const commitmentModifier = normalizeCommitmentModifier(power.commitmentModifier, descriptorChassis);
   const derivedPrimaryDefenceGate = derivePrimaryDefenceGateFromEffectPacket(primaryEffectPacket);
   const preserveAttachedHostileEntry = shouldShowAttachedHostileEntryControl(
@@ -1347,7 +1750,31 @@ function syncPowerFromEffectPackets(
     commitmentModifier,
     descriptorChassis,
   );
+  const chargeType =
+    commitmentModifier === "CHARGE"
+      ? (() => {
+          const allowedChargeTypes = getAllowedChargeTypeOptions();
+          const candidate = normalizeChargeType(power.chargeType);
+          return allowedChargeTypes.includes(candidate) ? candidate : allowedChargeTypes[0];
+        })()
+      : null;
+  const chargeTurns =
+    commitmentModifier === "CHARGE" ? normalizeChargeTurns(power.chargeTurns) : null;
+  const chargeBonusDicePerTurn =
+    commitmentModifier === "CHARGE" && chargeType === "BUILD_POWER"
+      ? normalizeChargeBonusDicePerTurn(power.chargeBonusDicePerTurn)
+      : null;
+  const triggerMethod =
+    descriptorChassis === "TRIGGER"
+      ? normalizeTriggerMethod(power.triggerMethod)
+      : null;
+  const attachedHostAnchorType =
+    descriptorChassis === "ATTACHED"
+      ? normalizeAttachedHostAnchorTypeValue(power.attachedHostAnchorType) ??
+        (normalizeAttachedHostAnchorOption((power.descriptorChassisConfig ?? {}).anchorText) || null)
+      : null;
   const normalizedLifespan = normalizePowerLifespan(
+    descriptorChassis,
     commitmentModifier,
     power.lifespanType,
     power.lifespanTurns,
@@ -1373,8 +1800,18 @@ function syncPowerFromEffectPackets(
     ...power,
     descriptorChassis,
     descriptorChassisConfig,
-    counterMode: normalizeCounterModeForChassis(power.counterMode, descriptorChassis),
+    chargeType,
+    chargeTurns,
+    chargeBonusDicePerTurn,
+    counterMode: normalizeCounterModeForChassis(
+      power.counterMode,
+      descriptorChassis,
+      commitmentModifier,
+      chargeType,
+    ),
     commitmentModifier,
+    triggerMethod,
+    attachedHostAnchorType,
     ...normalizedLifespan,
     primaryDefenceGate,
     defenceRequirement: primaryDefenceGate?.gateResult ?? "NONE",
@@ -1384,8 +1821,8 @@ function syncPowerFromEffectPackets(
     effectDurationTurns,
     durationType: effectDurationType,
     durationTurns: effectDurationTurns,
-    effectPackets,
-    intentions: effectPackets.map((packet) => ({ ...packet })),
+    effectPackets: normalizedEffectPackets,
+    intentions: normalizedEffectPackets.map((packet) => ({ ...packet })),
     ...rangePatch,
   };
 }
@@ -1668,7 +2105,7 @@ function setPowerDescriptorChassisConfigField(
   });
 }
 
-function setPowerChargeDescriptorConfigFields(
+function setPowerChargeFields(
   setEditor: Dispatch<SetStateAction<EditableMonster | null>>,
   powerIndex: number,
   updates: Partial<Record<"chargeType" | "chargeTurns" | "chargeBonusDicePerTurn", unknown>>,
@@ -1677,34 +2114,50 @@ function setPowerChargeDescriptorConfigFields(
     if (!prev) return prev;
     const powers = prev.powers.map((power, pi) => {
       if (pi !== powerIndex) return power;
-      const descriptorChassis = normalizePowerDescriptorChassis(power.descriptorChassis);
-      const commitmentModifier = normalizeCommitmentModifier(
-        power.commitmentModifier,
-        descriptorChassis,
-      );
-      const descriptorChassisConfig = {
-        ...normalizeChargeDescriptorChassisConfig(
-          power.descriptorChassisConfig,
-          commitmentModifier,
-          descriptorChassis,
-        ),
-      };
-
-      for (const [key, value] of Object.entries(updates)) {
-        if (value === null || value === undefined || value === "") {
-          delete descriptorChassisConfig[key];
-        } else {
-          descriptorChassisConfig[key] = value;
-        }
-      }
-
       return syncPowerFromEffectPackets(
         {
           ...power,
-          descriptorChassisConfig,
+          chargeType:
+            updates.chargeType === null || updates.chargeType === undefined || updates.chargeType === ""
+              ? power.chargeType ?? null
+              : (updates.chargeType as MonsterPower["chargeType"]),
+          chargeTurns:
+            updates.chargeTurns === null || updates.chargeTurns === undefined || updates.chargeTurns === ""
+              ? power.chargeTurns ?? null
+              : Number(updates.chargeTurns),
+          chargeBonusDicePerTurn:
+            updates.chargeBonusDicePerTurn === null ||
+            updates.chargeBonusDicePerTurn === undefined ||
+            updates.chargeBonusDicePerTurn === ""
+              ? null
+              : Number(updates.chargeBonusDicePerTurn),
         },
         getPowerEffectPackets(power),
       );
+    });
+    return { ...prev, powers };
+  });
+}
+
+function setPowerEffectPacketField(
+  setEditor: Dispatch<SetStateAction<EditableMonster | null>>,
+  powerIndex: number,
+  effectPacketIndex: number,
+  patch: Partial<Pick<MonsterPower["effectPackets"][number], "applyTo" | "triggerConditionText">>,
+) {
+  setEditor((prev) => {
+    if (!prev) return prev;
+    const powers = prev.powers.map((power, pi) => {
+      if (pi !== powerIndex) return power;
+      const effectPackets = getPowerEffectPackets(power).map((effectPacket, packetIndex) =>
+        packetIndex === effectPacketIndex
+          ? {
+              ...effectPacket,
+              ...patch,
+            }
+          : effectPacket,
+      );
+      return syncPowerFromEffectPackets(power, effectPackets);
     });
     return { ...prev, powers };
   });
@@ -2072,6 +2525,16 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
                   it.detailsJson && typeof it.detailsJson === "object"
                     ? (it.detailsJson as Record<string, unknown>)
                     : defaultDetailsForIntentionType(type),
+                applyTo:
+                  it.applyTo === "SELF" || it.applyTo === "ALLIES" || it.applyTo === "PRIMARY_TARGET"
+                    ? (it.applyTo as MonsterPower["effectPackets"][number]["applyTo"])
+                    : undefined,
+                triggerConditionText:
+                  typeof it.triggerConditionText === "string"
+                    ? it.triggerConditionText
+                    : typeof it.effectTriggerText === "string"
+                      ? it.effectTriggerText
+                      : null,
                 effectTimingType:
                   normalizeEffectTimingType(
                     it.effectTimingType,
@@ -2108,6 +2571,7 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
               ? "YES"
               : "NO";
         const normalizedLifespan = normalizePowerLifespan(
+          descriptorChassis,
           commitmentModifier,
           ((p.lifespanType === "TURNS" || p.lifespanType === "PASSIVE" ? p.lifespanType : "NONE") as
             MonsterPower["lifespanType"]),
@@ -2118,6 +2582,13 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
           name: String(p.name ?? ""),
           description: p.description ? String(p.description) : null,
           descriptorChassis,
+          chargeType:
+            p.chargeType === "BUILD_POWER" || p.chargeType === "DELAYED_RELEASE"
+              ? (p.chargeType as MonsterPower["chargeType"])
+              : null,
+          chargeTurns: typeof p.chargeTurns === "number" ? p.chargeTurns : null,
+          chargeBonusDicePerTurn:
+            typeof p.chargeBonusDicePerTurn === "number" ? p.chargeBonusDicePerTurn : null,
           diceCount: Number(primaryEffectPacket?.diceCount ?? p.diceCount ?? 1),
           potency: Number(primaryEffectPacket?.potency ?? p.potency ?? 1),
           effectDurationType: primaryDurationType,
@@ -2135,6 +2606,12 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
           cooldownReduction: Number(p.cooldownReduction ?? 0),
           counterMode,
           commitmentModifier,
+          triggerMethod:
+            p.triggerMethod === "TARGET_AND_THEN_ARM" || p.triggerMethod === "ARM_AND_THEN_TARGET"
+              ? (p.triggerMethod as MonsterPower["triggerMethod"])
+              : null,
+          attachedHostAnchorType:
+            normalizeAttachedHostAnchorTypeValue(p.attachedHostAnchorType) ?? null,
           descriptorChassisConfig: normalizeChargeDescriptorChassisConfig(
             p.descriptorChassisConfig,
             commitmentModifier,
@@ -2386,6 +2863,9 @@ function defaultPower(): MonsterPower {
     description: null,
     descriptorChassis: "IMMEDIATE",
     descriptorChassisConfig: {},
+    chargeType: null,
+    chargeTurns: null,
+    chargeBonusDicePerTurn: null,
     diceCount: 1,
     potency: 1,
     effectDurationType: "INSTANT",
@@ -2400,6 +2880,8 @@ function defaultPower(): MonsterPower {
     cooldownReduction: 0,
     counterMode: "NO",
     commitmentModifier: "STANDARD",
+    triggerMethod: null,
+    attachedHostAnchorType: null,
     intentions: [createDefaultPowerPacket("ATTACK", 0)],
     effectPackets: [createDefaultPowerPacket("ATTACK", 0)],
   }, [createDefaultPowerPacket("ATTACK", 0)]);
@@ -2487,10 +2969,10 @@ function createCanarySuite(): MonsterPower[] {
     effectTimingType: "ON_CAST",
     effectDurationType: "INSTANT",
     effectDurationTurns: null,
+    applyTo: "PRIMARY_TARGET",
     detailsJson: {
       attackMode: "PHYSICAL",
       damageTypes: ["slashing"],
-      applyTo: "PRIMARY_TARGET",
     },
   });
 
@@ -2502,10 +2984,10 @@ function createCanarySuite(): MonsterPower[] {
     effectTimingType: "START_OF_TURN",
     effectDurationType: "INSTANT",
     effectDurationTurns: null,
+    applyTo: "PRIMARY_TARGET",
     detailsJson: {
       attackMode: "PHYSICAL",
       damageTypes: ["fire"],
-      applyTo: "PRIMARY_TARGET",
     },
   });
 
@@ -2517,11 +2999,11 @@ function createCanarySuite(): MonsterPower[] {
     effectTimingType: "ON_TRIGGER",
     effectDurationType: "INSTANT",
     effectDurationTurns: null,
+    applyTo: "PRIMARY_TARGET",
+    triggerConditionText: "when the mark ruptures",
     detailsJson: {
       attackMode: "PHYSICAL",
       damageTypes: ["poison"],
-      effectTriggerText: "when the mark ruptures",
-      applyTo: "PRIMARY_TARGET",
     },
   });
 
@@ -2533,11 +3015,11 @@ function createCanarySuite(): MonsterPower[] {
     effectDurationTurns: null,
     diceCount: 3,
     potency: 1,
+    applyTo: "PRIMARY_TARGET",
+    triggerConditionText: "a foe crosses the warded space",
     detailsJson: {
-      effectTriggerText: "a foe crosses the warded space",
       attackMode: "PHYSICAL",
       damageTypes: ["piercing"],
-      applyTo: "PRIMARY_TARGET",
     },
   });
 
@@ -2549,10 +3031,10 @@ function createCanarySuite(): MonsterPower[] {
     effectDurationTurns: null,
     diceCount: 2,
     potency: 2,
+    applyTo: "PRIMARY_TARGET",
     detailsJson: {
       attackMode: "MENTAL",
       damageTypes: ["corruption"],
-      applyTo: "PRIMARY_TARGET",
     },
   });
 
@@ -2564,10 +3046,10 @@ function createCanarySuite(): MonsterPower[] {
     effectTimingType: "ON_CAST",
     effectDurationType: "TURNS",
     effectDurationTurns: 1,
+    applyTo: "PRIMARY_TARGET",
     detailsJson: {
       controlMode: "Force specific main action",
       controlTheme: "TRUST_BELONGING",
-      applyTo: "PRIMARY_TARGET",
     },
   });
 
@@ -2592,9 +3074,6 @@ function createCanarySuite(): MonsterPower[] {
       counterMode: "NO",
       commitmentModifier: "STANDARD",
       cooldownTurns: 2,
-      descriptorChassisConfig: {
-        fieldInteractionText: "to targets that start their turn inside the field",
-      },
       lifespanType: "TURNS",
       lifespanTurns: 3,
       rangeCategories: ["AOE"],
@@ -2612,9 +3091,7 @@ function createCanarySuite(): MonsterPower[] {
       counterMode: "NO",
       commitmentModifier: "STANDARD",
       cooldownTurns: 2,
-      descriptorChassisConfig: {
-        anchorText: "the marked target",
-      },
+      attachedHostAnchorType: "TARGET",
       lifespanType: "TURNS",
       lifespanTurns: 3,
       rangeCategories: ["RANGED"],
@@ -7433,17 +7910,23 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 commitmentModifier,
                 descriptorChassis,
               );
+              const packetApplyToCastContext = readSharedCastContextForPacketApplyTo(power);
+              const triggerMethod = normalizeTriggerMethod(power.triggerMethod);
               const defineReleaseBehaviour = normalizeDefineReleaseBehaviour(
                 descriptorChassisConfig.defineReleaseBehaviour,
                 descriptorChassisConfig.releaseBehaviourText,
               );
-              const chargeType = normalizeChargeType(descriptorChassisConfig.chargeType);
-              const chargeTurns = normalizeChargeTurns(descriptorChassisConfig.chargeTurns);
+              const chargeType = normalizeChargeType(power.chargeType);
+              const chargeTurns = normalizeChargeTurns(power.chargeTurns);
               const chargeBonusDicePerTurn = normalizeChargeBonusDicePerTurn(
-                descriptorChassisConfig.chargeBonusDicePerTurn,
+                power.chargeBonusDicePerTurn,
               );
               const showLifespanControls =
-                descriptorChassis !== "IMMEDIATE" || (power.lifespanType ?? "NONE") !== "NONE";
+                descriptorChassis !== "IMMEDIATE" || commitmentModifier !== "STANDARD";
+              const allowedLifespanOptions = getAllowedPowerLifespanOptions(
+                descriptorChassis,
+                commitmentModifier,
+              );
               const visibleRangeCategories =
                 descriptorChassis === "FIELD"
                   ? (["AOE"] as PowerRangeCategory[])
@@ -7462,6 +7945,434 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 powerIntegrity.errors.length > 0 ||
                 powerIntegrity.warnings.length > 0 ||
                 powerIntegrity.notes.length > 0;
+              const powerRangeSection = (
+                <div className="order-3 space-y-2 pt-2">
+                  <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Range</p>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {visibleRangeCategories.map((category) => {
+                      const selected = powerRangeState.category === category;
+                      return (
+                        <button
+                          key={category}
+                          type="button"
+                          disabled={readOnly}
+                          onClick={() => {
+                            const patchByCategory: Record<PowerRangeCategory, Record<string, unknown>> = {
+                              SELF: {
+                                rangeCategory: "SELF",
+                                rangeValue: 0,
+                                rangeExtra: {},
+                              },
+                              MELEE: {
+                                rangeCategory: "MELEE",
+                                rangeValue: powerRangeState.meleeTargets,
+                                rangeExtra: {},
+                              },
+                              RANGED: {
+                                rangeCategory: "RANGED",
+                                rangeValue: powerRangeState.rangedDistanceFeet,
+                                rangeExtra: { targets: powerRangeState.rangedTargets },
+                              },
+                              AOE: {
+                                rangeCategory: "AOE",
+                                rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                rangeExtra: {
+                                  count: powerRangeState.aoeCount,
+                                  shape: powerRangeState.aoeShape,
+                                  sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                  coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                  lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                  lineLengthFeet: powerRangeState.aoeLineLengthFeet,
+                                },
+                              },
+                            };
+                            setPowerCanonicalPowerRange(setEditor, i, patchByCategory[category]);
+                          }}
+                          className={[
+                            "px-2 py-1 rounded-full border",
+                            selected
+                              ? "border-emerald-500 bg-emerald-600/20 text-emerald-200"
+                              : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500",
+                            readOnly ? "opacity-60 cursor-not-allowed hover:border-zinc-700" : "",
+                          ].join(" ")}
+                        >
+                          {category}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {descriptorChassis === "FIELD" && (
+                    <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-400">
+                      Field powers are authored as area effects in this pass, so range is locked to AoE.
+                    </div>
+                  )}
+
+                  {powerRangeState.category === "SELF" && (
+                    <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-400">
+                      Self range. This power is expected to affect only the user.
+                    </div>
+                  )}
+
+                  {powerRangeState.category === "MELEE" && (
+                    <div className="space-y-1">
+                      <label className="block text-[11px] text-zinc-500">Melee Targets</label>
+                      <select
+                        disabled={readOnly}
+                        value={powerRangeState.meleeTargets}
+                        onChange={(e) =>
+                          setPowerCanonicalPowerRange(setEditor, i, {
+                            rangeCategory: "MELEE",
+                            rangeValue: Number(e.target.value),
+                            rangeExtra: {},
+                          })
+                        }
+                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                      >
+                        {POWER_RANGE_TARGET_OPTIONS.map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {powerRangeState.category === "RANGED" && (
+                    <div className="space-y-2">
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-zinc-500">Ranged Distance (ft)</label>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {POWER_RANGE_RANGED_DISTANCE_OPTIONS.map((distance) => (
+                            <label key={distance} className="inline-flex items-center gap-1">
+                              <input
+                                disabled={readOnly}
+                                type="radio"
+                                className="h-3 w-3 rounded border-zinc-600 bg-zinc-900"
+                                value={distance}
+                                checked={powerRangeState.rangedDistanceFeet === distance}
+                                onChange={() =>
+                                  setPowerCanonicalPowerRange(setEditor, i, {
+                                    rangeCategory: "RANGED",
+                                    rangeValue: distance,
+                                    rangeExtra: { ...powerRangeState.rangeExtra, targets: powerRangeState.rangedTargets },
+                                  })
+                                }
+                              />
+                              <span>{distance}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-zinc-500">Ranged Targets</label>
+                        <select
+                          disabled={readOnly}
+                          value={powerRangeState.rangedTargets}
+                          onChange={(e) =>
+                            setPowerCanonicalPowerRange(setEditor, i, {
+                              rangeCategory: "RANGED",
+                              rangeValue: powerRangeState.rangedDistanceFeet,
+                              rangeExtra: { ...powerRangeState.rangeExtra, targets: Number(e.target.value) },
+                            })
+                          }
+                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                        >
+                          {POWER_RANGE_TARGET_OPTIONS.map((n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {powerRangeState.category === "AOE" && (
+                    <div className="space-y-2">
+                      <div className="space-y-1">
+                        <label className="block text-[11px] text-zinc-500">AoE Cast Range (ft)</label>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {POWER_RANGE_AOE_CENTER_RANGE_OPTIONS.map((distance) => (
+                            <label key={distance} className="inline-flex items-center gap-1">
+                              <input
+                                disabled={readOnly}
+                                type="radio"
+                                className="h-3 w-3 rounded border-zinc-600 bg-zinc-900"
+                                value={distance}
+                                checked={powerRangeState.aoeCenterRangeFeet === distance}
+                                onChange={() =>
+                                  setPowerCanonicalPowerRange(setEditor, i, {
+                                    rangeCategory: "AOE",
+                                    rangeValue: distance,
+                                    rangeExtra: {
+                                      ...powerRangeState.rangeExtra,
+                                      count: powerRangeState.aoeCount,
+                                      shape: powerRangeState.aoeShape,
+                                      sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                      coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                      lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                      lineLengthFeet: powerRangeState.aoeLineLengthFeet,
+                                    },
+                                  })
+                                }
+                              />
+                              <span>{distance}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <label className="space-y-1">
+                          <span className="block text-[11px] text-zinc-500">AoE Count</span>
+                          <select
+                            disabled={readOnly}
+                            value={powerRangeState.aoeCount}
+                            onChange={(e) =>
+                              setPowerCanonicalPowerRange(setEditor, i, {
+                                rangeCategory: "AOE",
+                                rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                rangeExtra: {
+                                  ...powerRangeState.rangeExtra,
+                                  count: Number(e.target.value),
+                                  shape: powerRangeState.aoeShape,
+                                  sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                  coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                  lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                  lineLengthFeet: powerRangeState.aoeLineLengthFeet,
+                                },
+                              })
+                            }
+                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                          >
+                            {POWER_RANGE_TARGET_OPTIONS.map((n) => (
+                              <option key={n} value={n}>
+                                {n}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="space-y-1">
+                          <span className="block text-[11px] text-zinc-500">AoE Shape</span>
+                          <select
+                            disabled={readOnly}
+                            value={powerRangeState.aoeShape}
+                            onChange={(e) => {
+                              const nextShape = e.target.value as PowerRangeAoeShape;
+                              const nextSphereRadiusFeet = clampToOptions(
+                                powerRangeState.aoeSphereRadiusFeet,
+                                POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS,
+                                10,
+                              );
+                              const nextConeLengthFeet = clampToOptions(
+                                powerRangeState.aoeConeLengthFeet,
+                                POWER_RANGE_AOE_CONE_LENGTH_OPTIONS,
+                                15,
+                              );
+                              const nextLineWidthFeet = clampToOptions(
+                                powerRangeState.aoeLineWidthFeet,
+                                POWER_RANGE_AOE_LINE_WIDTH_OPTIONS,
+                                5,
+                              );
+                              const nextLineLengthFeet = clampToOptions(
+                                powerRangeState.aoeLineLengthFeet,
+                                POWER_RANGE_AOE_LINE_LENGTH_OPTIONS,
+                                30,
+                              );
+
+                              setPowerCanonicalPowerRange(setEditor, i, {
+                                rangeCategory: "AOE",
+                                rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                rangeExtra: {
+                                  ...powerRangeState.rangeExtra,
+                                  count: powerRangeState.aoeCount,
+                                  shape: nextShape,
+                                  sphereRadiusFeet: nextSphereRadiusFeet,
+                                  coneLengthFeet: nextConeLengthFeet,
+                                  lineWidthFeet: nextLineWidthFeet,
+                                  lineLengthFeet: nextLineLengthFeet,
+                                },
+                              });
+                            }}
+                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                          >
+                            {POWER_RANGE_AOE_SHAPES.map((shape) => (
+                              <option key={shape} value={shape}>
+                                {shape}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      {powerRangeState.aoeShape === "SPHERE" && (
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-zinc-500">Sphere Radius (ft)</label>
+                          <select
+                            disabled={readOnly}
+                            value={powerRangeState.aoeSphereRadiusFeet}
+                            onChange={(e) =>
+                              setPowerCanonicalPowerRange(setEditor, i, {
+                                rangeCategory: "AOE",
+                                rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                rangeExtra: {
+                                  ...powerRangeState.rangeExtra,
+                                  count: powerRangeState.aoeCount,
+                                  shape: powerRangeState.aoeShape,
+                                  sphereRadiusFeet: Number(e.target.value),
+                                  coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                  lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                  lineLengthFeet: powerRangeState.aoeLineLengthFeet,
+                                },
+                              })
+                            }
+                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                          >
+                            {POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS.map((n) => (
+                              <option key={n} value={n}>
+                                {n}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {powerRangeState.aoeShape === "CONE" && (
+                        <div className="space-y-1">
+                          <label className="block text-[11px] text-zinc-500">Cone Length (ft)</label>
+                          <select
+                            disabled={readOnly}
+                            value={powerRangeState.aoeConeLengthFeet}
+                            onChange={(e) =>
+                              setPowerCanonicalPowerRange(setEditor, i, {
+                                rangeCategory: "AOE",
+                                rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                rangeExtra: {
+                                  ...powerRangeState.rangeExtra,
+                                  count: powerRangeState.aoeCount,
+                                  shape: powerRangeState.aoeShape,
+                                  sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                  coneLengthFeet: Number(e.target.value),
+                                  lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                  lineLengthFeet: powerRangeState.aoeLineLengthFeet,
+                                },
+                              })
+                            }
+                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                          >
+                            {POWER_RANGE_AOE_CONE_LENGTH_OPTIONS.map((n) => (
+                              <option key={n} value={n}>
+                                {n}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {powerRangeState.aoeShape === "LINE" && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <label className="space-y-1">
+                            <span className="block text-[11px] text-zinc-500">Line Width (ft)</span>
+                            <select
+                              disabled={readOnly}
+                              value={powerRangeState.aoeLineWidthFeet}
+                              onChange={(e) =>
+                                setPowerCanonicalPowerRange(setEditor, i, {
+                                  rangeCategory: "AOE",
+                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                  rangeExtra: {
+                                    ...powerRangeState.rangeExtra,
+                                    count: powerRangeState.aoeCount,
+                                    shape: powerRangeState.aoeShape,
+                                    sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                    coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                    lineWidthFeet: Number(e.target.value),
+                                    lineLengthFeet: powerRangeState.aoeLineLengthFeet,
+                                  },
+                                })
+                              }
+                              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                            >
+                              {POWER_RANGE_AOE_LINE_WIDTH_OPTIONS.map((n) => (
+                                <option key={n} value={n}>
+                                  {n}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="space-y-1">
+                            <span className="block text-[11px] text-zinc-500">Line Length (ft)</span>
+                            <select
+                              disabled={readOnly}
+                              value={powerRangeState.aoeLineLengthFeet}
+                              onChange={(e) =>
+                                setPowerCanonicalPowerRange(setEditor, i, {
+                                  rangeCategory: "AOE",
+                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
+                                  rangeExtra: {
+                                    ...powerRangeState.rangeExtra,
+                                    count: powerRangeState.aoeCount,
+                                    shape: powerRangeState.aoeShape,
+                                    sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
+                                    coneLengthFeet: powerRangeState.aoeConeLengthFeet,
+                                    lineWidthFeet: powerRangeState.aoeLineWidthFeet,
+                                    lineLengthFeet: Number(e.target.value),
+                                  },
+                                })
+                              }
+                              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
+                            >
+                              {POWER_RANGE_AOE_LINE_LENGTH_OPTIONS.map((n) => (
+                                <option key={n} value={n}>
+                                  {n}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {!powerRangeState.category && (
+                    <p className="text-sm text-zinc-500">Select a range category.</p>
+                  )}
+                </div>
+              );
+              const diceCountSection = (
+                <div className="space-y-1 pt-2">
+                  <span className="text-[11px] text-zinc-500">Dice Count</span>
+                  <select
+                    disabled={readOnly}
+                    value={String(clampToOptions(Number(primaryEffectPacket.diceCount ?? power.diceCount), DICE_COUNT_OPTIONS, 1))}
+                    onChange={(e) =>
+                      setEditor((p) =>
+                        p
+                          ? {
+                              ...p,
+                              powers: p.powers.map((x, idx) =>
+                                idx === i
+                                  ? syncPowerFromEffectPackets(x, getPowerEffectPackets(x).map((packet, packetIndex) =>
+                                      packetIndex === 0
+                                        ? {
+                                            ...packet,
+                                            diceCount: Number(e.target.value),
+                                          }
+                                        : packet,
+                                    ))
+                                  : x,
+                              ),
+                            }
+                          : p,
+                      )
+                    }
+                    className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                  >
+                    {DICE_COUNT_OPTIONS.map((v) => (
+                      <option key={v} value={String(v)}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
               return (
                 <div key={powerKey} className="rounded border border-zinc-800 p-3 space-y-2">
                   <div className="flex items-center gap-2">
@@ -7551,6 +8462,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                   />
                   </label>
                   </div>
+                  {powerRangeSection}
+                  {diceCountSection}
                   <div className="order-1 space-y-2 pt-2">
                     <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Power Level</p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
@@ -7574,6 +8487,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                           counterMode: normalizeCounterModeForChassis(
                                             x.counterMode,
                                             nextDescriptorChassis,
+                                            normalizeCommitmentModifier(
+                                              x.commitmentModifier,
+                                              nextDescriptorChassis,
+                                            ),
+                                            x.chargeType,
                                           ),
                                           commitmentModifier: normalizeCommitmentModifier(
                                             x.commitmentModifier,
@@ -7615,6 +8533,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                               counterMode: normalizeCounterModeForChassis(
                                                 e.target.value,
                                                 normalizePowerDescriptorChassis(x.descriptorChassis),
+                                                normalizeCommitmentModifier(
+                                                  x.commitmentModifier,
+                                                  normalizePowerDescriptorChassis(x.descriptorChassis),
+                                                ),
+                                                x.chargeType,
                                               ),
                                             }
                                           : x,
@@ -7626,7 +8549,15 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                             className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                           >
                             {COUNTER_MODE_OPTIONS.map((option) => (
-                              <option key={option} value={option}>
+                              <option
+                                key={option}
+                                value={option}
+                                disabled={
+                                  option === "YES" &&
+                                  commitmentModifier === "CHARGE" &&
+                                  chargeType === "DELAYED_RELEASE"
+                                }
+                              >
                                 {option === "YES" ? "Yes" : "No"}
                               </option>
                             ))}
@@ -7688,7 +8619,9 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                     {commitmentModifier === "CHARGE" && (
                       <div className="space-y-2">
                         <p className="text-[11px] text-zinc-500">
-                          Charge uses either Delayed Release or Build Power in this first pass.
+                          {descriptorChassis === "RESERVE"
+                            ? "Reserve can use Delayed Cast or Build Power in this first pass."
+                            : "Delayed Cast and Build Power are both legal in this first pass, but only Reserve grants Response release for Delayed Cast."}
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
                           <label className="space-y-1">
@@ -7697,7 +8630,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                               disabled={readOnly}
                               value={chargeType}
                               onChange={(e) =>
-                                setPowerChargeDescriptorConfigFields(
+                                setPowerChargeFields(
                                   setEditor,
                                   i,
                                   { chargeType: e.target.value },
@@ -7705,7 +8638,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                               }
                               className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                             >
-                              {CHARGE_TYPE_OPTIONS.map((option) => (
+                              {getAllowedChargeTypeOptions().map((option) => (
                                 <option key={option} value={option}>
                                   {CHARGE_TYPE_LABELS[option]}
                                 </option>
@@ -7719,7 +8652,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                               disabled={readOnly}
                               value={String(chargeTurns)}
                               onChange={(e) =>
-                                setPowerChargeDescriptorConfigFields(
+                                setPowerChargeFields(
                                   setEditor,
                                   i,
                                   { chargeTurns: Number(e.target.value) },
@@ -7742,7 +8675,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                 disabled={readOnly}
                                 value={String(chargeBonusDicePerTurn)}
                                 onChange={(e) =>
-                                  setPowerChargeDescriptorConfigFields(
+                                  setPowerChargeFields(
                                     setEditor,
                                     i,
                                     { chargeBonusDicePerTurn: Number(e.target.value) },
@@ -7759,6 +8692,16 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                             </label>
                           )}
                         </div>
+                        {descriptorChassis === "RESERVE" && chargeType === "DELAYED_RELEASE" && (
+                          <p className="text-[11px] text-zinc-500">
+                            Delayed Cast becomes primed after its charge turns. Once primed, it may be released with a Power Action on your turn or a Response before the end of your next turn; if not released by then, it is lost and goes on cooldown.
+                          </p>
+                        )}
+                        {descriptorChassis !== "RESERVE" && chargeType === "DELAYED_RELEASE" && (
+                          <p className="text-[11px] text-zinc-500">
+                            Delayed Cast becomes primed after its charge turns. Once primed, it may be cast with a Power Action on your turn.
+                          </p>
+                        )}
                       </div>
                     )}
                     {!isChannelAllowedForChassis(descriptorChassis) && (
@@ -7804,12 +8747,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                             }
                             className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                           >
-                            {POWER_LIFESPAN_OPTIONS.map((option) => (
-                              <option
-                                key={option}
-                                value={option}
-                                disabled={commitmentModifier === "CHANNEL" && option === "NONE"}
-                              >
+                            {allowedLifespanOptions.map((option) => (
+                              <option key={option} value={option}>
                                 {option}
                               </option>
                             ))}
@@ -7913,48 +8852,81 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                           <>
                             <label className="space-y-1 block">
                               <span className="text-[11px] text-zinc-500">Host / Anchor</span>
-                              <input
+                              <select
                                 disabled={readOnly}
-                                value={String(descriptorChassisConfig.anchorText ?? "")}
+                                value={normalizeAttachedHostAnchorTypeValue(power.attachedHostAnchorType) ?? ""}
                                 onChange={(e) =>
-                                  setPowerDescriptorChassisConfigField(
-                                    setEditor,
-                                    i,
-                                    "anchorText",
-                                    e.target.value || null,
+                                  setEditor((p) =>
+                                    p
+                                      ? {
+                                          ...p,
+                                          powers: p.powers.map((x, idx) =>
+                                            idx === i
+                                              ? syncPowerFromEffectPackets(
+                                                  {
+                                                    ...x,
+                                                    attachedHostAnchorType:
+                                                      normalizeAttachedHostAnchorTypeValue(e.target.value),
+                                                  },
+                                                  getPowerEffectPackets(x),
+                                                )
+                                              : x,
+                                          ),
+                                        }
+                                      : p,
                                   )
                                 }
-                                placeholder="One host or anchor, such as the marked foe or the bound weapon"
                                 className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                              />
+                              >
+                                <option value="">Choose...</option>
+                                {ATTACHED_HOST_ANCHOR_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
                             </label>
                           </>
-                        )}
-
-                        {descriptorChassis === "FIELD" && (
-                          <label className="space-y-1 block">
-                            <span className="text-[11px] text-zinc-500">Field Interaction Wording</span>
-                            <input
-                              disabled={readOnly}
-                              value={String(descriptorChassisConfig.fieldInteractionText ?? "")}
-                              onChange={(e) =>
-                                setPowerDescriptorChassisConfigField(
-                                  setEditor,
-                                  i,
-                                  "fieldInteractionText",
-                                  e.target.value || null,
-                                )
-                              }
-                              placeholder="For example: to targets that start their turn inside the field"
-                              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                            />
-                          </label>
                         )}
 
                         {descriptorChassis === "TRIGGER" && (
                           <>
                             <label className="space-y-1 block">
-                              <span className="text-[11px] text-zinc-500">Payload Trigger</span>
+                              <span className="text-[11px] text-zinc-500">Trigger Method</span>
+                              <select
+                                disabled={readOnly}
+                                value={triggerMethod}
+                                onChange={(e) =>
+                                  setEditor((p) =>
+                                    p
+                                      ? {
+                                          ...p,
+                                          powers: p.powers.map((x, idx) =>
+                                            idx === i
+                                              ? syncPowerFromEffectPackets(
+                                                  {
+                                                    ...x,
+                                                    triggerMethod: normalizeTriggerMethod(e.target.value),
+                                                  },
+                                                  getPowerEffectPackets(x),
+                                                )
+                                              : x,
+                                          ),
+                                        }
+                                      : p,
+                                  )
+                                }
+                                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                              >
+                                {TRIGGER_METHOD_OPTIONS.map((option) => (
+                                  <option key={option} value={option}>
+                                    {TRIGGER_METHOD_LABELS[option]}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="space-y-1 block">
+                              <span className="text-[11px] text-zinc-500">Trigger Condition</span>
                               <input
                                 disabled={readOnly}
                                 value={String(descriptorChassisConfig.triggerConditionText ?? "")}
@@ -8133,14 +9105,29 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         );
                         const showControlTheme = it.intention === "CONTROL" && controlModeNeedsTheme(normalizedControlMode);
                         const cleanseEffectType = getDetailsString(details, "cleanseEffectType");
+                        const cleanseTheme = normalizeCleanseTheme(
+                          getDetailsString(details, "cleanseTheme"),
+                          cleanseEffectType,
+                        );
+                        const showCleanseTheme =
+                          it.intention === "CLEANSE" && cleanseEffectNeedsTheme(cleanseEffectType);
                         const movementMode = getDetailsString(details, "movementMode");
                         const statTarget = getDetailsStatTarget(details);
-                        const applyTo = getDetailsApplyTo(details);
+                        const applyToOptions = getAllowedPacketApplyToOptions(
+                          packetApplyToCastContext,
+                          it.localTargetingOverride ?? null,
+                        );
+                        const applyTo = normalizePacketApplyToForPowerRange(
+                          getPacketApplyTo(it),
+                          packetApplyToCastContext,
+                          it.localTargetingOverride ?? null,
+                        );
                         const packetTimingOptions = getAllowedEffectTimingOptions(
                           descriptorChassis,
                           j,
                           power.primaryDefenceGate?.hostileEntryPattern ?? null,
                           commitmentModifier,
+                          effectPackets[0],
                         );
                         const packetEffectTimingType = normalizeEffectTimingType(
                           it.effectTimingType,
@@ -8148,13 +9135,32 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                           j,
                           power.primaryDefenceGate?.hostileEntryPattern ?? null,
                           commitmentModifier,
+                          effectPackets[0],
                         );
                         const packetEffectDurationType =
-                          it.effectDurationType ?? power.effectDurationType ?? power.durationType ?? "INSTANT";
-                        const packetScalingMode = getSecondaryScalingMode(details);
-                        const packetEffectTriggerText = getPacketEffectTriggerText(details);
-                        const packetWoundsPerSuccess = getPositiveWholeNumber(details.woundsPerSuccess) ?? 1;
-                        const isEffectTimingLocked = readOnly || packetTimingOptions.length <= 1;
+                          normalizeEffectDurationTypeForTiming(
+                            it.effectDurationType ?? power.effectDurationType ?? power.durationType ?? "INSTANT",
+                            packetEffectTimingType,
+                          );
+                        const packetEffectDurationOptions = getAllowedEffectDurationTypes(
+                          packetEffectTimingType,
+                        );
+                        const packetScalingMode =
+                          j > 0
+                            ? deriveSecondaryScalingModeFromPrimaryPacket(effectPackets[0])
+                            : getSecondaryScalingMode(details);
+                        const packetTriggerConditionText = getPacketTriggerConditionText(it);
+                        const packetWoundsPerSuccess =
+                          j > 0
+                            ? (deriveWoundsPerSuccessFromPrimaryPacket(effectPackets[0]) ?? 1)
+                            : (getPositiveWholeNumber(details.woundsPerSuccess) ?? 1);
+                        const requiresAttachedHostileEntryBeforeTiming =
+                          descriptorChassis === "ATTACHED" &&
+                          j === 0 &&
+                          showAttachedHostileEntryControl &&
+                          !power.primaryDefenceGate?.hostileEntryPattern;
+                        const isEffectTimingLocked =
+                          readOnly || requiresAttachedHostileEntryBeforeTiming || packetTimingOptions.length <= 1;
 
                         const availableDamageTypes =
                           attackMode === "MENTAL"
@@ -8327,6 +9333,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                       </option>
                                     ))}
                                   </select>
+                                  {requiresAttachedHostileEntryBeforeTiming && (
+                                    <p className="text-[11px] text-zinc-500">
+                                      Choose Attached Hostile Entry above before authoring Packet 1 timing.
+                                    </p>
+                                  )}
                                 </label>
 
                                 <label className="space-y-1">
@@ -8365,10 +9376,17 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                     }
                                     className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                                   >
-                                    <option value="INSTANT">Instant</option>
-                                    <option value="UNTIL_TARGET_NEXT_TURN">Until target&apos;s next turn</option>
-                                    <option value="TURNS">Turns</option>
-                                    <option value="PASSIVE">Passive</option>
+                                    {packetEffectDurationOptions.map((durationOption) => (
+                                      <option key={durationOption} value={durationOption}>
+                                        {durationOption === "INSTANT"
+                                          ? "Instant"
+                                          : durationOption === "UNTIL_TARGET_NEXT_TURN"
+                                            ? "Until target's next turn"
+                                            : durationOption === "TURNS"
+                                              ? "Turns"
+                                              : "Passive"}
+                                      </option>
+                                    ))}
                                   </select>
                                 </label>
 
@@ -8416,13 +9434,13 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                 !(descriptorChassis === "TRIGGER" && j === 0) && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                                   <label className="space-y-1">
-                                    <span className="text-[11px] text-zinc-500">Effect Trigger</span>
+                                    <span className="text-[11px] text-zinc-500">Trigger Condition</span>
                                     <input
                                       disabled={readOnly}
-                                      value={packetEffectTriggerText}
+                                      value={packetTriggerConditionText}
                                       onChange={(e) =>
-                                        setPowerEffectPacketDetails(setEditor, i, j, {
-                                          effectTriggerText: e.target.value || null,
+                                        setPowerEffectPacketField(setEditor, i, j, {
+                                          triggerConditionText: e.target.value || null,
                                         })
                                       }
                                       placeholder="What causes this packet to trigger?"
@@ -8436,44 +9454,27 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                                   <label className="space-y-1">
                                     <span className="text-[11px] text-zinc-500">Secondary Scaling</span>
-                                    <select
-                                      disabled={readOnly}
-                                      value={packetScalingMode}
-                                      onChange={(e) =>
-                                        setPowerEffectPacketDetails(setEditor, i, j, {
-                                          secondaryScalingMode: e.target.value,
-                                          woundsPerSuccess:
-                                            e.target.value === "PRIMARY_WOUND_BANDS"
-                                              ? Math.max(1, packetWoundsPerSuccess)
-                                              : null,
-                                        })
+                                    <input
+                                      disabled
+                                      readOnly
+                                      value={
+                                        packetScalingMode === "PRIMARY_WOUND_BANDS"
+                                          ? "Primary Wound Bands"
+                                          : "Primary Applied Successes"
                                       }
-                                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                                    >
-                                      <option value="PER_SUCCESS">Per Success</option>
-                                      <option value="PRIMARY_APPLIED_SUCCESSES">Primary Applied Successes</option>
-                                      <option value="PRIMARY_WOUND_BANDS">Primary Wound Bands</option>
-                                    </select>
+                                      className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-400 disabled:opacity-100"
+                                    />
                                   </label>
 
                                   {packetScalingMode === "PRIMARY_WOUND_BANDS" && (
                                     <label className="space-y-1">
                                       <span className="text-[11px] text-zinc-500">Wounds Per Success</span>
                                       <input
-                                        disabled={readOnly}
-                                        type="number"
-                                        min={1}
-                                        max={12}
+                                        disabled
+                                        readOnly
+                                        type="text"
                                         value={packetWoundsPerSuccess}
-                                        onChange={(e) =>
-                                          setPowerEffectPacketDetails(setEditor, i, j, {
-                                            woundsPerSuccess: Math.max(
-                                              1,
-                                              Math.min(12, Number(e.target.value || 1)),
-                                            ),
-                                          })
-                                        }
-                                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                                        className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-400 disabled:opacity-100"
                                       />
                                     </label>
                                   )}
@@ -8491,14 +9492,21 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                     disabled={readOnly}
                                     value={applyTo}
                                     onChange={(e) =>
-                                      setPowerEffectPacketDetails(setEditor, i, j, {
+                                      setPowerEffectPacketField(setEditor, i, j, {
                                         applyTo: e.target.value as MonsterPowerIntentionApplyTo,
                                       })
                                     }
                                     className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                                   >
-                                    <option value="PRIMARY_TARGET">Primary Target(s)</option>
-                                    <option value="SELF">Self</option>
+                                    {applyToOptions.map((option) => (
+                                      <option key={option} value={option}>
+                                        {option === "PRIMARY_TARGET"
+                                          ? "Primary Targets"
+                                          : option === "ALLIES"
+                                            ? "Allies"
+                                            : "Self"}
+                                      </option>
+                                    ))}
                                   </select>
                                 </label>
                               )}
@@ -8619,24 +9627,48 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                               )}
 
                               {it.intention === "CLEANSE" && (
-                                <label className="space-y-1 block">
-                                  <span className="text-[11px] text-zinc-500">Cleanse Effect</span>
-                                  <select
-                                    disabled={readOnly}
-                                    value={cleanseEffectType}
-                                    onChange={(e) =>
-                                      setPowerEffectPacketDetails(setEditor, i, j, { cleanseEffectType: e.target.value })
-                                    }
-                                    className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                                  >
-                                    <option value="">Select...</option>
-                                    {CLEANSE_EFFECTS.map((effect) => (
-                                      <option key={effect} value={effect}>
-                                        {effect}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  <label className="space-y-1 block">
+                                    <span className="text-[11px] text-zinc-500">Cleanse Effect</span>
+                                    <select
+                                      disabled={readOnly}
+                                      value={cleanseEffectType}
+                                      onChange={(e) =>
+                                        setPowerEffectPacketDetails(setEditor, i, j, { cleanseEffectType: e.target.value })
+                                      }
+                                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                                    >
+                                      <option value="">Select...</option>
+                                      {CLEANSE_EFFECTS.map((effect) => (
+                                        <option key={effect} value={effect}>
+                                          {effect}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  {showCleanseTheme && (
+                                    <label className="space-y-1 block">
+                                      <span className="text-[11px] text-zinc-500">Cleanse Theme</span>
+                                      <select
+                                        disabled={readOnly}
+                                        value={cleanseTheme ?? ""}
+                                        onChange={(e) =>
+                                          setPowerEffectPacketDetails(setEditor, i, j, {
+                                            cleanseTheme: e.target.value || null,
+                                          })
+                                        }
+                                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                                      >
+                                        <option value="">Select...</option>
+                                        {CONTROL_THEME_OPTIONS.map((option) => (
+                                          <option key={option.value} value={option.value}>
+                                            {option.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                  )}
+                                </div>
                               )}
 
                               {it.intention === "MOVEMENT" && (
@@ -8711,7 +9743,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       })}
                     </div>
 
-                    {!readOnly && (
+                    {!readOnly && effectPackets.length < 4 && (
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -8739,458 +9771,9 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       </div>
                     )}
                   </div>
-                  <div className="order-3 space-y-2 pt-2">
-                    <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Range</p>
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      {visibleRangeCategories.map((category) => {
-                        const selected = powerRangeState.category === category;
-                        return (
-                          <button
-                            key={category}
-                            type="button"
-                            disabled={readOnly}
-                            onClick={() => {
-                              const patchByCategory: Record<PowerRangeCategory, Record<string, unknown>> = {
-                                SELF: {
-                                  rangeCategory: "SELF",
-                                  rangeValue: 0,
-                                  rangeExtra: {},
-                                },
-                                MELEE: {
-                                  rangeCategory: "MELEE",
-                                  rangeValue: powerRangeState.meleeTargets,
-                                  rangeExtra: {},
-                                },
-                                RANGED: {
-                                  rangeCategory: "RANGED",
-                                  rangeValue: powerRangeState.rangedDistanceFeet,
-                                  rangeExtra: { targets: powerRangeState.rangedTargets },
-                                },
-                                AOE: {
-                                  rangeCategory: "AOE",
-                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
-                                  rangeExtra: {
-                                    count: powerRangeState.aoeCount,
-                                    shape: powerRangeState.aoeShape,
-                                    sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
-                                    coneLengthFeet: powerRangeState.aoeConeLengthFeet,
-                                    lineWidthFeet: powerRangeState.aoeLineWidthFeet,
-                                    lineLengthFeet: powerRangeState.aoeLineLengthFeet,
-                                  },
-                                },
-                              };
-                              setPowerCanonicalPowerRange(setEditor, i, patchByCategory[category]);
-                            }}
-                            className={[
-                              "px-2 py-1 rounded-full border",
-                              selected
-                                ? "border-emerald-500 bg-emerald-600/20 text-emerald-200"
-                                : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500",
-                              readOnly ? "opacity-60 cursor-not-allowed hover:border-zinc-700" : "",
-                            ].join(" ")}
-                          >
-                            {category}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {descriptorChassis === "FIELD" && (
-                      <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-400">
-                        Field powers are authored as area effects in this pass, so range is locked to AoE.
-                      </div>
-                    )}
-
-                    {powerRangeState.category === "SELF" && (
-                      <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs text-zinc-400">
-                        Self range. This power is expected to affect only the user.
-                      </div>
-                    )}
-
-                    {powerRangeState.category === "MELEE" && (
-                      <div className="space-y-1">
-                        <label className="block text-[11px] text-zinc-500">Melee Targets</label>
-                        <select
-                          disabled={readOnly}
-                          value={powerRangeState.meleeTargets}
-                          onChange={(e) =>
-                            setPowerCanonicalPowerRange(setEditor, i, {
-                              rangeCategory: "MELEE",
-                              rangeValue: Number(e.target.value),
-                              rangeExtra: {},
-                            })
-                          }
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
-                        >
-                          {POWER_RANGE_TARGET_OPTIONS.map((n) => (
-                            <option key={n} value={n}>
-                              {n}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {powerRangeState.category === "RANGED" && (
-                      <div className="space-y-2">
-                        <div className="space-y-1">
-                          <label className="block text-[11px] text-zinc-500">Ranged Distance (ft)</label>
-                          <div className="flex flex-wrap gap-2 text-xs">
-                            {POWER_RANGE_RANGED_DISTANCE_OPTIONS.map((distance) => (
-                              <label key={distance} className="inline-flex items-center gap-1">
-                                <input
-                                  disabled={readOnly}
-                                  type="radio"
-                                  className="h-3 w-3 rounded border-zinc-600 bg-zinc-900"
-                                  value={distance}
-                                  checked={powerRangeState.rangedDistanceFeet === distance}
-                                  onChange={() =>
-                                    setPowerCanonicalPowerRange(setEditor, i, {
-                                      rangeCategory: "RANGED",
-                                      rangeValue: distance,
-                                      rangeExtra: { ...powerRangeState.rangeExtra, targets: powerRangeState.rangedTargets },
-                                    })
-                                  }
-                                />
-                                <span>{distance}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="block text-[11px] text-zinc-500">Ranged Targets</label>
-                          <select
-                            disabled={readOnly}
-                            value={powerRangeState.rangedTargets}
-                            onChange={(e) =>
-                              setPowerCanonicalPowerRange(setEditor, i, {
-                                rangeCategory: "RANGED",
-                                rangeValue: powerRangeState.rangedDistanceFeet,
-                                rangeExtra: { ...powerRangeState.rangeExtra, targets: Number(e.target.value) },
-                              })
-                            }
-                            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
-                          >
-                            {POWER_RANGE_TARGET_OPTIONS.map((n) => (
-                              <option key={n} value={n}>
-                                {n}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    )}
-
-                    {powerRangeState.category === "AOE" && (
-                      <div className="space-y-2">
-                        <div className="space-y-1">
-                          <label className="block text-[11px] text-zinc-500">AoE Cast Range (ft)</label>
-                          <div className="flex flex-wrap gap-2 text-xs">
-                            {POWER_RANGE_AOE_CENTER_RANGE_OPTIONS.map((distance) => (
-                              <label key={distance} className="inline-flex items-center gap-1">
-                                <input
-                                  disabled={readOnly}
-                                  type="radio"
-                                  className="h-3 w-3 rounded border-zinc-600 bg-zinc-900"
-                                  value={distance}
-                                  checked={powerRangeState.aoeCenterRangeFeet === distance}
-                                  onChange={() =>
-                                    setPowerCanonicalPowerRange(setEditor, i, {
-                                      rangeCategory: "AOE",
-                                      rangeValue: distance,
-                                      rangeExtra: {
-                                        ...powerRangeState.rangeExtra,
-                                        count: powerRangeState.aoeCount,
-                                        shape: powerRangeState.aoeShape,
-                                        sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
-                                        coneLengthFeet: powerRangeState.aoeConeLengthFeet,
-                                        lineWidthFeet: powerRangeState.aoeLineWidthFeet,
-                                        lineLengthFeet: powerRangeState.aoeLineLengthFeet,
-                                      },
-                                    })
-                                  }
-                                />
-                                <span>{distance}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          <label className="space-y-1">
-                            <span className="block text-[11px] text-zinc-500">AoE Count</span>
-                            <select
-                              disabled={readOnly}
-                              value={powerRangeState.aoeCount}
-                              onChange={(e) =>
-                                setPowerCanonicalPowerRange(setEditor, i, {
-                                  rangeCategory: "AOE",
-                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
-                                  rangeExtra: {
-                                    ...powerRangeState.rangeExtra,
-                                    count: Number(e.target.value),
-                                    shape: powerRangeState.aoeShape,
-                                    sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
-                                    coneLengthFeet: powerRangeState.aoeConeLengthFeet,
-                                    lineWidthFeet: powerRangeState.aoeLineWidthFeet,
-                                    lineLengthFeet: powerRangeState.aoeLineLengthFeet,
-                                  },
-                                })
-                              }
-                              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
-                            >
-                              {POWER_RANGE_TARGET_OPTIONS.map((n) => (
-                                <option key={n} value={n}>
-                                  {n}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="space-y-1">
-                            <span className="block text-[11px] text-zinc-500">AoE Shape</span>
-                            <select
-                              disabled={readOnly}
-                              value={powerRangeState.aoeShape}
-                              onChange={(e) => {
-                                const nextShape = e.target.value as PowerRangeAoeShape;
-                                const nextSphereRadiusFeet = clampToOptions(
-                                  powerRangeState.aoeSphereRadiusFeet,
-                                  POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS,
-                                  10,
-                                );
-                                const nextConeLengthFeet = clampToOptions(
-                                  powerRangeState.aoeConeLengthFeet,
-                                  POWER_RANGE_AOE_CONE_LENGTH_OPTIONS,
-                                  15,
-                                );
-                                const nextLineWidthFeet = clampToOptions(
-                                  powerRangeState.aoeLineWidthFeet,
-                                  POWER_RANGE_AOE_LINE_WIDTH_OPTIONS,
-                                  5,
-                                );
-                                const nextLineLengthFeet = clampToOptions(
-                                  powerRangeState.aoeLineLengthFeet,
-                                  POWER_RANGE_AOE_LINE_LENGTH_OPTIONS,
-                                  30,
-                                );
-
-                                setPowerCanonicalPowerRange(setEditor, i, {
-                                  rangeCategory: "AOE",
-                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
-                                  rangeExtra: {
-                                    ...powerRangeState.rangeExtra,
-                                    count: powerRangeState.aoeCount,
-                                    shape: nextShape,
-                                    sphereRadiusFeet: nextSphereRadiusFeet,
-                                    coneLengthFeet: nextConeLengthFeet,
-                                    lineWidthFeet: nextLineWidthFeet,
-                                    lineLengthFeet: nextLineLengthFeet,
-                                  },
-                                });
-                              }}
-                              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
-                            >
-                              {POWER_RANGE_AOE_SHAPES.map((shape) => (
-                                <option key={shape} value={shape}>
-                                  {shape}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
-                        {powerRangeState.aoeShape === "SPHERE" && (
-                          <div className="space-y-1">
-                            <label className="block text-[11px] text-zinc-500">Sphere Radius (ft)</label>
-                            <select
-                              disabled={readOnly}
-                              value={powerRangeState.aoeSphereRadiusFeet}
-                              onChange={(e) =>
-                                setPowerCanonicalPowerRange(setEditor, i, {
-                                  rangeCategory: "AOE",
-                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
-                                  rangeExtra: {
-                                    ...powerRangeState.rangeExtra,
-                                    count: powerRangeState.aoeCount,
-                                    shape: powerRangeState.aoeShape,
-                                    sphereRadiusFeet: Number(e.target.value),
-                                    coneLengthFeet: powerRangeState.aoeConeLengthFeet,
-                                    lineWidthFeet: powerRangeState.aoeLineWidthFeet,
-                                    lineLengthFeet: powerRangeState.aoeLineLengthFeet,
-                                  },
-                                })
-                              }
-                              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
-                            >
-                              {POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS.map((n) => (
-                                <option key={n} value={n}>
-                                  {n}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                        {powerRangeState.aoeShape === "CONE" && (
-                          <div className="space-y-1">
-                            <label className="block text-[11px] text-zinc-500">Cone Length (ft)</label>
-                            <select
-                              disabled={readOnly}
-                              value={powerRangeState.aoeConeLengthFeet}
-                              onChange={(e) =>
-                                setPowerCanonicalPowerRange(setEditor, i, {
-                                  rangeCategory: "AOE",
-                                  rangeValue: powerRangeState.aoeCenterRangeFeet,
-                                  rangeExtra: {
-                                    ...powerRangeState.rangeExtra,
-                                    count: powerRangeState.aoeCount,
-                                    shape: powerRangeState.aoeShape,
-                                    sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
-                                    coneLengthFeet: Number(e.target.value),
-                                    lineWidthFeet: powerRangeState.aoeLineWidthFeet,
-                                    lineLengthFeet: powerRangeState.aoeLineLengthFeet,
-                                  },
-                                })
-                              }
-                              className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
-                            >
-                              {POWER_RANGE_AOE_CONE_LENGTH_OPTIONS.map((n) => (
-                                <option key={n} value={n}>
-                                  {n}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                        {powerRangeState.aoeShape === "LINE" && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <label className="space-y-1">
-                              <span className="block text-[11px] text-zinc-500">Line Width (ft)</span>
-                              <select
-                                disabled={readOnly}
-                                value={powerRangeState.aoeLineWidthFeet}
-                                onChange={(e) =>
-                                  setPowerCanonicalPowerRange(setEditor, i, {
-                                    rangeCategory: "AOE",
-                                    rangeValue: powerRangeState.aoeCenterRangeFeet,
-                                    rangeExtra: {
-                                      ...powerRangeState.rangeExtra,
-                                      count: powerRangeState.aoeCount,
-                                      shape: powerRangeState.aoeShape,
-                                      sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
-                                      coneLengthFeet: powerRangeState.aoeConeLengthFeet,
-                                      lineWidthFeet: Number(e.target.value),
-                                      lineLengthFeet: powerRangeState.aoeLineLengthFeet,
-                                    },
-                                  })
-                                }
-                                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
-                              >
-                                {POWER_RANGE_AOE_LINE_WIDTH_OPTIONS.map((n) => (
-                                  <option key={n} value={n}>
-                                    {n}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label className="space-y-1">
-                              <span className="block text-[11px] text-zinc-500">Line Length (ft)</span>
-                              <select
-                                disabled={readOnly}
-                                value={powerRangeState.aoeLineLengthFeet}
-                                onChange={(e) =>
-                                  setPowerCanonicalPowerRange(setEditor, i, {
-                                    rangeCategory: "AOE",
-                                    rangeValue: powerRangeState.aoeCenterRangeFeet,
-                                    rangeExtra: {
-                                      ...powerRangeState.rangeExtra,
-                                      count: powerRangeState.aoeCount,
-                                      shape: powerRangeState.aoeShape,
-                                      sphereRadiusFeet: powerRangeState.aoeSphereRadiusFeet,
-                                      coneLengthFeet: powerRangeState.aoeConeLengthFeet,
-                                      lineWidthFeet: powerRangeState.aoeLineWidthFeet,
-                                      lineLengthFeet: Number(e.target.value),
-                                    },
-                                  })
-                                }
-                                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
-                              >
-                                {POWER_RANGE_AOE_LINE_LENGTH_OPTIONS.map((n) => (
-                                  <option key={n} value={n}>
-                                    {n}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {!powerRangeState.category && (
-                      <p className="text-sm text-zinc-500">Select a range category.</p>
-                    )}
-                  </div>
-                  <div className="order-4 space-y-2 pt-2">
-                    <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Timing</p>
-                    <div className="rounded border border-zinc-800 bg-zinc-950/30 p-3 space-y-2">
-                      <p className="text-xs text-zinc-400">
-                        Effect Timing and Effect Duration are authored per packet. Lifespan is authored above when the chassis needs it.
-                      </p>
-                      {descriptorChassis === "ATTACHED" && (
-                        <p className="text-xs text-zinc-500">
-                          Attached powers use On Attach for immediate application or On Trigger when the stored payload should wait.
-                        </p>
-                      )}
-                      {descriptorChassis === "RESERVE" && (
-                        <p className="text-xs text-zinc-500">
-                          Reserve currently uses a minimal On Release bridge and a hold window note, without runtime tracking.
-                        </p>
-                      )}
-                      {descriptorChassis === "FIELD" && (
-                        <p className="text-xs text-zinc-500">
-                          Field timing is still a first-pass bridge here, using start/end turn or expiry packet timing.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
                   <div className="order-5 space-y-2 pt-2">
                     <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Tuning</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      <label className="space-y-1">
-                        <span className="text-[11px] text-zinc-500">Dice Count</span>
-                        <select
-                          disabled={readOnly}
-                          value={String(clampToOptions(Number(primaryEffectPacket.diceCount ?? power.diceCount), DICE_COUNT_OPTIONS, 1))}
-                          onChange={(e) =>
-                            setEditor((p) =>
-                              p
-                                ? {
-                                    ...p,
-                                    powers: p.powers.map((x, idx) =>
-                                      idx === i
-                                        ? syncPowerFromEffectPackets(x, getPowerEffectPackets(x).map((packet, packetIndex) =>
-                                            packetIndex === 0
-                                              ? {
-                                                  ...packet,
-                                                  diceCount: Number(e.target.value),
-                                                }
-                                              : packet,
-                                          ))
-                                        : x,
-                                    ),
-                                  }
-                                : p,
-                            )
-                          }
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                        >
-                          {DICE_COUNT_OPTIONS.map((v) => (
-                            <option key={v} value={String(v)}>
-                              {v}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <label className="space-y-1">
                         <span className="text-[11px] text-zinc-500">Cooldown (Turns)</span>
                         <input

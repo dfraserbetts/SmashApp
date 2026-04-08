@@ -268,6 +268,133 @@ function readCommitmentModifier(
     : "STANDARD";
 }
 
+function normalizeChargeType(
+  value: unknown,
+): Power["chargeType"] {
+  return value === "BUILD_POWER" || value === "DELAYED_RELEASE"
+    ? value
+    : null;
+}
+
+function normalizeTriggerMethod(
+  value: unknown,
+): Power["triggerMethod"] {
+  return value === "TARGET_AND_THEN_ARM" || value === "ARM_AND_THEN_TARGET"
+    ? value
+    : null;
+}
+
+function normalizeAttachedHostAnchorType(
+  value: unknown,
+): Power["attachedHostAnchorType"] {
+  return value === "TARGET" ||
+    value === "OBJECT" ||
+    value === "WEAPON" ||
+    value === "ARMOR" ||
+    value === "SELF" ||
+    value === "AREA"
+    ? value
+    : null;
+}
+
+function readLegacyAttachedHostAnchorType(
+  descriptorChassisConfig: Record<string, unknown>,
+): Power["attachedHostAnchorType"] {
+  const normalized = String(descriptorChassisConfig.anchorText ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  if (
+    normalized === "target" ||
+    normalized === "the target" ||
+    normalized === "marked target" ||
+    normalized === "the marked target" ||
+    normalized === "chosen target" ||
+    normalized === "the chosen target" ||
+    normalized === "host" ||
+    normalized === "the host"
+  ) {
+    return "TARGET";
+  }
+  if (normalized === "object" || normalized === "the object") return "OBJECT";
+  if (
+    normalized === "weapon" ||
+    normalized === "the weapon" ||
+    normalized === "your weapon" ||
+    normalized === "bound weapon" ||
+    normalized === "the bound weapon"
+  ) {
+    return "WEAPON";
+  }
+  if (
+    normalized === "armor" ||
+    normalized === "armour" ||
+    normalized === "the armor" ||
+    normalized === "the armour" ||
+    normalized === "your armor" ||
+    normalized === "your armour"
+  ) {
+    return "ARMOR";
+  }
+  if (normalized === "self" || normalized === "yourself") return "SELF";
+  if (normalized === "area" || normalized === "the area") return "AREA";
+  return null;
+}
+
+function normalizeEffectPacketApplyTo(
+  value: unknown,
+): "PRIMARY_TARGET" | "ALLIES" | "SELF" | null {
+  return value === "ALLIES" || value === "SELF" || value === "PRIMARY_TARGET"
+    ? value
+    : null;
+}
+
+function readPacketApplyTo(
+  effectPacket: Pick<Power["effectPackets"][number], "applyTo" | "detailsJson">,
+): "PRIMARY_TARGET" | "ALLIES" | "SELF" {
+  const details =
+    effectPacket.detailsJson && typeof effectPacket.detailsJson === "object" && !Array.isArray(effectPacket.detailsJson)
+      ? (effectPacket.detailsJson as Record<string, unknown>)
+      : {};
+  return normalizeEffectPacketApplyTo(effectPacket.applyTo ?? details.applyTo) ?? "PRIMARY_TARGET";
+}
+
+function readPacketTriggerConditionText(
+  effectPacket: Pick<Power["effectPackets"][number], "triggerConditionText" | "detailsJson">,
+): string | null {
+  const details =
+    effectPacket.detailsJson && typeof effectPacket.detailsJson === "object" && !Array.isArray(effectPacket.detailsJson)
+      ? (effectPacket.detailsJson as Record<string, unknown>)
+      : {};
+  const value =
+    effectPacket.triggerConditionText ?? details.triggerConditionText ?? details.effectTriggerText;
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function sanitizeDescriptorChassisConfig(
+  value: unknown,
+): Prisma.InputJsonValue {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const config = { ...(value as Record<string, unknown>) };
+  delete config.fieldInteractionText;
+  delete config.chargeType;
+  delete config.chargeTurns;
+  delete config.chargeBonusDicePerTurn;
+  delete config.triggerMethod;
+  delete config.anchorText;
+  delete config.payloadTriggerText;
+  return config as Prisma.InputJsonValue;
+}
+
+function sanitizeEffectPacketDetails(
+  value: unknown,
+): Prisma.InputJsonValue {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const details = { ...(value as Record<string, unknown>) };
+  delete details.applyTo;
+  delete details.triggerConditionText;
+  delete details.effectTriggerText;
+  return details as Prisma.InputJsonValue;
+}
+
 function buildPowerCreateData(power: Power) {
   const effectPackets = Array.isArray(power.effectPackets)
     ? power.effectPackets
@@ -286,9 +413,25 @@ function buildPowerCreateData(power: Power) {
     previewRendererVersion: power.previewRendererVersion ?? 1,
     status: power.status ?? "ACTIVE",
     descriptorChassis: normalizeDescriptorChassis(power.descriptorChassis),
-    descriptorChassisConfig: (power.descriptorChassisConfig ?? {}) as Prisma.InputJsonValue,
+    descriptorChassisConfig: sanitizeDescriptorChassisConfig(power.descriptorChassisConfig),
+    chargeType:
+      power.commitmentModifier === "CHARGE" ? normalizeChargeType(power.chargeType) : null,
+    chargeTurns:
+      power.commitmentModifier === "CHARGE" ? (power.chargeTurns ?? null) : null,
+    chargeBonusDicePerTurn:
+      power.commitmentModifier === "CHARGE" && power.chargeType === "BUILD_POWER"
+        ? (power.chargeBonusDicePerTurn ?? null)
+        : null,
     counterMode: power.counterMode ?? "NO",
     commitmentModifier: power.commitmentModifier ?? "STANDARD",
+    triggerMethod:
+      normalizeDescriptorChassis(power.descriptorChassis) === "TRIGGER"
+        ? normalizeTriggerMethod(power.triggerMethod)
+        : null,
+    attachedHostAnchorType:
+      normalizeDescriptorChassis(power.descriptorChassis) === "ATTACHED"
+        ? normalizeAttachedHostAnchorType(power.attachedHostAnchorType)
+        : null,
     cooldownTurns: power.cooldownTurns,
     cooldownReduction: power.cooldownReduction,
     lifespanType: power.lifespanType ?? "NONE",
@@ -322,43 +465,48 @@ function buildPowerCreateData(power: Power) {
         }
       : undefined,
     effectPackets: {
-      create: effectPackets.map((effectPacket, packetIndex) => ({
-        packetIndex: effectPacket.packetIndex ?? effectPacket.sortOrder ?? packetIndex,
-        hostility: effectPacket.hostility ?? "NON_HOSTILE",
-        intention: effectPacket.intention ?? effectPacket.type ?? "ATTACK",
-        specific: effectPacket.specific ?? null,
-        diceCount: effectPacket.diceCount ?? power.diceCount,
-        potency: effectPacket.potency ?? power.potency,
-        effectTimingType: effectPacket.effectTimingType ?? "ON_CAST",
-        effectTimingTurns: effectPacket.effectTimingTurns ?? null,
-        effectDurationType: (effectPacket.effectDurationType ?? effectDurationType) as EffectDurationType,
-        effectDurationTurns:
-          (effectPacket.effectDurationType ?? effectDurationType) === "TURNS"
-            ? (effectPacket.effectDurationTurns ?? power.effectDurationTurns ?? power.durationTurns ?? null)
-            : null,
-        dealsWounds: effectPacket.dealsWounds ?? false,
-        woundChannel: effectPacket.woundChannel ?? null,
-        targetedAttribute: effectPacket.targetedAttribute ?? null,
-        applicationModeKey: effectPacket.applicationModeKey ?? null,
-        resolutionOrigin: effectPacket.resolutionOrigin ?? "CASTER",
-        detailsJson: effectPacket.detailsJson as Prisma.InputJsonValue,
-        localTargetingOverride: effectPacket.localTargetingOverride
-          ? {
-              create: {
-                meleeTargets: effectPacket.localTargetingOverride.meleeTargets,
-                rangedTargets: effectPacket.localTargetingOverride.rangedTargets,
-                rangedDistanceFeet: effectPacket.localTargetingOverride.rangedDistanceFeet,
-                aoeCenterRangeFeet: effectPacket.localTargetingOverride.aoeCenterRangeFeet,
-                aoeCount: effectPacket.localTargetingOverride.aoeCount,
-                aoeShape: effectPacket.localTargetingOverride.aoeShape,
-                aoeSphereRadiusFeet: effectPacket.localTargetingOverride.aoeSphereRadiusFeet,
-                aoeConeLengthFeet: effectPacket.localTargetingOverride.aoeConeLengthFeet,
-                aoeLineWidthFeet: effectPacket.localTargetingOverride.aoeLineWidthFeet,
-                aoeLineLengthFeet: effectPacket.localTargetingOverride.aoeLineLengthFeet,
-              },
-            }
-          : undefined,
-      })),
+      create: effectPackets.map((effectPacket, packetIndex) => {
+        const normalizedDurationType = (effectPacket.effectDurationType ?? effectDurationType) as EffectDurationType;
+        return {
+          packetIndex: effectPacket.packetIndex ?? effectPacket.sortOrder ?? packetIndex,
+          hostility: effectPacket.hostility ?? "NON_HOSTILE",
+          intention: effectPacket.intention ?? effectPacket.type ?? "ATTACK",
+          specific: effectPacket.specific ?? null,
+          diceCount: effectPacket.diceCount ?? power.diceCount,
+          potency: effectPacket.potency ?? power.potency,
+          effectTimingType: effectPacket.effectTimingType ?? "ON_CAST",
+          effectTimingTurns: effectPacket.effectTimingTurns ?? null,
+          effectDurationType: normalizedDurationType,
+          effectDurationTurns:
+            normalizedDurationType === "TURNS"
+              ? (effectPacket.effectDurationTurns ?? power.effectDurationTurns ?? power.durationTurns ?? null)
+              : null,
+          dealsWounds: effectPacket.dealsWounds ?? false,
+          woundChannel: effectPacket.woundChannel ?? null,
+          targetedAttribute: effectPacket.targetedAttribute ?? null,
+          applicationModeKey: effectPacket.applicationModeKey ?? null,
+          resolutionOrigin: effectPacket.resolutionOrigin ?? "CASTER",
+          applyTo: readPacketApplyTo(effectPacket),
+          triggerConditionText: readPacketTriggerConditionText(effectPacket),
+          detailsJson: sanitizeEffectPacketDetails(effectPacket.detailsJson),
+          localTargetingOverride: effectPacket.localTargetingOverride
+            ? {
+                create: {
+                  meleeTargets: effectPacket.localTargetingOverride.meleeTargets,
+                  rangedTargets: effectPacket.localTargetingOverride.rangedTargets,
+                  rangedDistanceFeet: effectPacket.localTargetingOverride.rangedDistanceFeet,
+                  aoeCenterRangeFeet: effectPacket.localTargetingOverride.aoeCenterRangeFeet,
+                  aoeCount: effectPacket.localTargetingOverride.aoeCount,
+                  aoeShape: effectPacket.localTargetingOverride.aoeShape,
+                  aoeSphereRadiusFeet: effectPacket.localTargetingOverride.aoeSphereRadiusFeet,
+                  aoeConeLengthFeet: effectPacket.localTargetingOverride.aoeConeLengthFeet,
+                  aoeLineWidthFeet: effectPacket.localTargetingOverride.aoeLineWidthFeet,
+                  aoeLineLengthFeet: effectPacket.localTargetingOverride.aoeLineLengthFeet,
+                },
+              }
+            : undefined,
+        };
+      }),
     },
   };
 }
@@ -367,6 +515,10 @@ function serializePower(
   power: MonsterWithPowers["powers"][number],
 ): Power {
   const rawPower = power as unknown as Record<string, unknown>;
+  const rawDescriptorChassisConfig =
+    power.descriptorChassisConfig && typeof power.descriptorChassisConfig === "object" && !Array.isArray(power.descriptorChassisConfig)
+      ? (power.descriptorChassisConfig as Record<string, unknown>)
+      : {};
   const rangeCategories = power.rangeCategories.map((row) => row.rangeCategory);
   const baseRangeDetails = {
     rangeCategory: rangeCategories.includes("AOE")
@@ -409,14 +561,34 @@ function serializePower(
     previewRendererVersion: power.previewRendererVersion,
     status: power.status,
     descriptorChassis: normalizeDescriptorChassis(power.descriptorChassis),
-    descriptorChassisConfig:
-      power.descriptorChassisConfig && typeof power.descriptorChassisConfig === "object"
-        ? (power.descriptorChassisConfig as Record<string, unknown>)
-        : {},
+    descriptorChassisConfig: sanitizeDescriptorChassisConfig(power.descriptorChassisConfig) as Record<
+      string,
+      unknown
+    >,
+    chargeType: normalizeChargeType((power as { chargeType?: unknown }).chargeType ?? rawDescriptorChassisConfig.chargeType),
+    chargeTurns:
+      typeof (power as { chargeTurns?: unknown }).chargeTurns === "number"
+        ? ((power as { chargeTurns?: number }).chargeTurns ?? null)
+        : typeof rawDescriptorChassisConfig.chargeTurns === "number"
+          ? (rawDescriptorChassisConfig.chargeTurns as number)
+          : null,
+    chargeBonusDicePerTurn:
+      typeof (power as { chargeBonusDicePerTurn?: unknown }).chargeBonusDicePerTurn === "number"
+        ? ((power as { chargeBonusDicePerTurn?: number }).chargeBonusDicePerTurn ?? null)
+        : typeof rawDescriptorChassisConfig.chargeBonusDicePerTurn === "number"
+          ? (rawDescriptorChassisConfig.chargeBonusDicePerTurn as number)
+          : null,
     cooldownTurns: power.cooldownTurns,
     cooldownReduction: power.cooldownReduction,
     counterMode: readCounterMode(rawPower),
     commitmentModifier: readCommitmentModifier(rawPower),
+    triggerMethod: normalizeTriggerMethod(
+      (power as { triggerMethod?: unknown }).triggerMethod ?? rawDescriptorChassisConfig.triggerMethod,
+    ),
+    attachedHostAnchorType:
+      normalizeAttachedHostAnchorType(
+        (power as { attachedHostAnchorType?: unknown }).attachedHostAnchorType,
+      ) ?? readLegacyAttachedHostAnchorType(rawDescriptorChassisConfig),
     lifespanType: power.lifespanType,
     lifespanTurns: power.lifespanTurns,
     previewSummaryOverride: power.previewSummaryOverride,
@@ -441,82 +613,112 @@ function serializePower(
           resolutionSource: power.primaryDefenceGate.resolutionSource,
         }
       : null,
-    effectPackets: power.effectPackets.map((effectPacket) => ({
-      id: effectPacket.id,
-      packetIndex: effectPacket.packetIndex,
-      sortOrder: effectPacket.packetIndex,
-      hostility: effectPacket.hostility,
-      intention: effectPacket.intention,
-      type: effectPacket.intention,
-      specific: effectPacket.specific,
-      diceCount: effectPacket.diceCount,
-      potency: effectPacket.potency,
-      effectTimingType: effectPacket.effectTimingType,
-      effectTimingTurns: effectPacket.effectTimingTurns,
-      effectDurationType: effectPacket.effectDurationType,
-      effectDurationTurns: effectPacket.effectDurationTurns,
-      dealsWounds: effectPacket.dealsWounds,
-      woundChannel: effectPacket.woundChannel,
-      targetedAttribute: effectPacket.targetedAttribute,
-      applicationModeKey: effectPacket.applicationModeKey,
-      resolutionOrigin: effectPacket.resolutionOrigin,
-      detailsJson:
-        effectPacket.packetIndex === 0
-          ? { ...(effectPacket.detailsJson as Record<string, unknown>), ...baseRangeDetails }
-          : ((effectPacket.detailsJson as Record<string, unknown>) ?? {}),
-      localTargetingOverride: effectPacket.localTargetingOverride
-        ? {
-            meleeTargets: effectPacket.localTargetingOverride.meleeTargets,
-            rangedTargets: effectPacket.localTargetingOverride.rangedTargets,
-            rangedDistanceFeet: effectPacket.localTargetingOverride.rangedDistanceFeet,
-            aoeCenterRangeFeet: effectPacket.localTargetingOverride.aoeCenterRangeFeet,
-            aoeCount: effectPacket.localTargetingOverride.aoeCount,
-            aoeShape: effectPacket.localTargetingOverride.aoeShape,
-            aoeSphereRadiusFeet: effectPacket.localTargetingOverride.aoeSphereRadiusFeet,
-            aoeConeLengthFeet: effectPacket.localTargetingOverride.aoeConeLengthFeet,
-            aoeLineWidthFeet: effectPacket.localTargetingOverride.aoeLineWidthFeet,
-            aoeLineLengthFeet: effectPacket.localTargetingOverride.aoeLineLengthFeet,
-          }
-        : null,
-    })),
-    intentions: power.effectPackets.map((effectPacket) => ({
-      id: effectPacket.id,
-      packetIndex: effectPacket.packetIndex,
-      sortOrder: effectPacket.packetIndex,
-      hostility: effectPacket.hostility,
-      intention: effectPacket.intention,
-      type: effectPacket.intention,
-      specific: effectPacket.specific,
-      diceCount: effectPacket.diceCount,
-      potency: effectPacket.potency,
-      effectTimingType: effectPacket.effectTimingType,
-      effectTimingTurns: effectPacket.effectTimingTurns,
-      effectDurationType: effectPacket.effectDurationType,
-      effectDurationTurns: effectPacket.effectDurationTurns,
-      dealsWounds: effectPacket.dealsWounds,
-      woundChannel: effectPacket.woundChannel,
-      targetedAttribute: effectPacket.targetedAttribute,
-      applicationModeKey: effectPacket.applicationModeKey,
-      resolutionOrigin: effectPacket.resolutionOrigin,
-      detailsJson:
-        effectPacket.packetIndex === 0
-          ? { ...(effectPacket.detailsJson as Record<string, unknown>), ...baseRangeDetails }
-          : ((effectPacket.detailsJson as Record<string, unknown>) ?? {}),
-      localTargetingOverride: effectPacket.localTargetingOverride
-        ? {
-            meleeTargets: effectPacket.localTargetingOverride.meleeTargets,
-            rangedTargets: effectPacket.localTargetingOverride.rangedTargets,
-            rangedDistanceFeet: effectPacket.localTargetingOverride.rangedDistanceFeet,
-            aoeCenterRangeFeet: effectPacket.localTargetingOverride.aoeCenterRangeFeet,
-            aoeCount: effectPacket.localTargetingOverride.aoeCount,
-            aoeShape: effectPacket.localTargetingOverride.aoeShape,
-            aoeSphereRadiusFeet: effectPacket.localTargetingOverride.aoeSphereRadiusFeet,
-            aoeConeLengthFeet: effectPacket.localTargetingOverride.aoeConeLengthFeet,
-            aoeLineWidthFeet: effectPacket.localTargetingOverride.aoeLineWidthFeet,
-            aoeLineLengthFeet: effectPacket.localTargetingOverride.aoeLineLengthFeet,
-          }
-        : null,
-    })),
+    effectPackets: power.effectPackets.map((effectPacket) => {
+      const rawDetails =
+        effectPacket.detailsJson && typeof effectPacket.detailsJson === "object" && !Array.isArray(effectPacket.detailsJson)
+          ? (effectPacket.detailsJson as Record<string, unknown>)
+          : {};
+      return {
+        id: effectPacket.id,
+        packetIndex: effectPacket.packetIndex,
+        sortOrder: effectPacket.packetIndex,
+        hostility: effectPacket.hostility,
+        intention: effectPacket.intention,
+        type: effectPacket.intention,
+        specific: effectPacket.specific,
+        diceCount: effectPacket.diceCount,
+        potency: effectPacket.potency,
+        effectTimingType: effectPacket.effectTimingType,
+        effectTimingTurns: effectPacket.effectTimingTurns,
+        effectDurationType: effectPacket.effectDurationType,
+        effectDurationTurns: effectPacket.effectDurationTurns,
+        dealsWounds: effectPacket.dealsWounds,
+        woundChannel: effectPacket.woundChannel,
+        targetedAttribute: effectPacket.targetedAttribute,
+        applicationModeKey: effectPacket.applicationModeKey,
+        resolutionOrigin: effectPacket.resolutionOrigin,
+        applyTo: normalizeEffectPacketApplyTo(
+          (effectPacket as { applyTo?: unknown }).applyTo ?? rawDetails.applyTo,
+        ) ?? "PRIMARY_TARGET",
+        triggerConditionText: readPacketTriggerConditionText(
+          effectPacket as unknown as Pick<Power["effectPackets"][number], "triggerConditionText" | "detailsJson">,
+        ),
+        detailsJson:
+          effectPacket.packetIndex === 0
+            ? {
+                ...(sanitizeEffectPacketDetails(rawDetails) as Record<string, unknown>),
+                ...baseRangeDetails,
+              }
+            : ((sanitizeEffectPacketDetails(rawDetails) as Record<string, unknown>) ?? {}),
+        localTargetingOverride: effectPacket.localTargetingOverride
+          ? {
+              meleeTargets: effectPacket.localTargetingOverride.meleeTargets,
+              rangedTargets: effectPacket.localTargetingOverride.rangedTargets,
+              rangedDistanceFeet: effectPacket.localTargetingOverride.rangedDistanceFeet,
+              aoeCenterRangeFeet: effectPacket.localTargetingOverride.aoeCenterRangeFeet,
+              aoeCount: effectPacket.localTargetingOverride.aoeCount,
+              aoeShape: effectPacket.localTargetingOverride.aoeShape,
+              aoeSphereRadiusFeet: effectPacket.localTargetingOverride.aoeSphereRadiusFeet,
+              aoeConeLengthFeet: effectPacket.localTargetingOverride.aoeConeLengthFeet,
+              aoeLineWidthFeet: effectPacket.localTargetingOverride.aoeLineWidthFeet,
+              aoeLineLengthFeet: effectPacket.localTargetingOverride.aoeLineLengthFeet,
+            }
+          : null,
+      };
+    }),
+    intentions: power.effectPackets.map((effectPacket) => {
+      const rawDetails =
+        effectPacket.detailsJson && typeof effectPacket.detailsJson === "object" && !Array.isArray(effectPacket.detailsJson)
+          ? (effectPacket.detailsJson as Record<string, unknown>)
+          : {};
+      return {
+        id: effectPacket.id,
+        packetIndex: effectPacket.packetIndex,
+        sortOrder: effectPacket.packetIndex,
+        hostility: effectPacket.hostility,
+        intention: effectPacket.intention,
+        type: effectPacket.intention,
+        specific: effectPacket.specific,
+        diceCount: effectPacket.diceCount,
+        potency: effectPacket.potency,
+        effectTimingType: effectPacket.effectTimingType,
+        effectTimingTurns: effectPacket.effectTimingTurns,
+        effectDurationType: effectPacket.effectDurationType,
+        effectDurationTurns: effectPacket.effectDurationTurns,
+        dealsWounds: effectPacket.dealsWounds,
+        woundChannel: effectPacket.woundChannel,
+        targetedAttribute: effectPacket.targetedAttribute,
+        applicationModeKey: effectPacket.applicationModeKey,
+        resolutionOrigin: effectPacket.resolutionOrigin,
+        applyTo: normalizeEffectPacketApplyTo(
+          (effectPacket as { applyTo?: unknown }).applyTo ?? rawDetails.applyTo,
+        ) ?? "PRIMARY_TARGET",
+        triggerConditionText: readPacketTriggerConditionText(
+          effectPacket as unknown as Pick<Power["effectPackets"][number], "triggerConditionText" | "detailsJson">,
+        ),
+        detailsJson:
+          effectPacket.packetIndex === 0
+            ? {
+                ...(sanitizeEffectPacketDetails(rawDetails) as Record<string, unknown>),
+                ...baseRangeDetails,
+              }
+            : ((sanitizeEffectPacketDetails(rawDetails) as Record<string, unknown>) ?? {}),
+        localTargetingOverride: effectPacket.localTargetingOverride
+          ? {
+              meleeTargets: effectPacket.localTargetingOverride.meleeTargets,
+              rangedTargets: effectPacket.localTargetingOverride.rangedTargets,
+              rangedDistanceFeet: effectPacket.localTargetingOverride.rangedDistanceFeet,
+              aoeCenterRangeFeet: effectPacket.localTargetingOverride.aoeCenterRangeFeet,
+              aoeCount: effectPacket.localTargetingOverride.aoeCount,
+              aoeShape: effectPacket.localTargetingOverride.aoeShape,
+              aoeSphereRadiusFeet: effectPacket.localTargetingOverride.aoeSphereRadiusFeet,
+              aoeConeLengthFeet: effectPacket.localTargetingOverride.aoeConeLengthFeet,
+              aoeLineWidthFeet: effectPacket.localTargetingOverride.aoeLineWidthFeet,
+              aoeLineLengthFeet: effectPacket.localTargetingOverride.aoeLineLengthFeet,
+            }
+          : null,
+      };
+    }),
     diceCount: power.effectPackets[0]?.diceCount ?? 1,
     potency: power.effectPackets[0]?.potency ?? 1,
     effectDurationType: (power.effectPackets[0]?.effectDurationType ?? "INSTANT") as Power["effectDurationType"],

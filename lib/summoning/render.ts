@@ -82,13 +82,98 @@ function getControlThemeResistAttribute(details: Record<string, unknown>): strin
   return CONTROL_THEME_TO_RESIST_ATTRIBUTE.get(controlTheme) ?? null;
 }
 
-function readApplyTo(details: Record<string, unknown> | undefined): "PRIMARY_TARGET" | "SELF" {
-  const v = details?.applyTo;
-  return v === "SELF" ? "SELF" : "PRIMARY_TARGET";
+function cleanseEffectNeedsTheme(cleanseEffectType: string): boolean {
+  return cleanseEffectType === "Active Power" || cleanseEffectType === "Channelled Power";
 }
 
-function applyToEntity(applyTo: "PRIMARY_TARGET" | "SELF"): string {
-  return applyTo === "SELF" ? "the user" : "the target";
+function getCleanseThemeResistAttribute(details: Record<string, unknown>): string | null {
+  const cleanseEffectType = getDetailsString(details, "cleanseEffectType");
+  if (!cleanseEffectNeedsTheme(cleanseEffectType)) return null;
+  const cleanseTheme =
+    typeof details.cleanseTheme === "string" ? details.cleanseTheme.trim().toUpperCase() : "";
+  return CONTROL_THEME_TO_RESIST_ATTRIBUTE.get(cleanseTheme) ?? null;
+}
+
+function readPacketApplyTo(
+  effectPacket: Pick<EffectPacket, "applyTo" | "detailsJson"> | undefined,
+): "PRIMARY_TARGET" | "ALLIES" | "SELF" {
+  const details =
+    effectPacket?.detailsJson && typeof effectPacket.detailsJson === "object" && !Array.isArray(effectPacket.detailsJson)
+      ? (effectPacket.detailsJson as Record<string, unknown>)
+      : {};
+  const value = effectPacket?.applyTo ?? details.applyTo;
+  if (value === "ALLIES") return "ALLIES";
+  return value === "SELF" ? "SELF" : "PRIMARY_TARGET";
+}
+
+function getPrimaryRangeCategory(
+  power: Pick<Power, "rangeCategories">,
+): "MELEE" | "RANGED" | "AOE" | null {
+  if ((power.rangeCategories ?? []).includes("AOE")) return "AOE";
+  if ((power.rangeCategories ?? []).includes("RANGED")) return "RANGED";
+  if ((power.rangeCategories ?? []).includes("MELEE")) return "MELEE";
+  return null;
+}
+
+function renderFieldAlliesPhrase(
+  effectTimingType: EffectPacket["effectTimingType"] | undefined,
+): string {
+  const timing = effectTimingType ?? "ON_CAST";
+  if (timing === "START_OF_TURN" || timing === "START_OF_TURN_WHILST_CHANNELLED") {
+    return "allies that start their turn inside the field";
+  }
+  if (timing === "END_OF_TURN" || timing === "END_OF_TURN_WHILST_CHANNELLED") {
+    return "allies that end their turn inside the field";
+  }
+  if (timing === "ON_EXPIRY") {
+    return "allies inside the field when it ends";
+  }
+  return "allies inside the field";
+}
+
+function applyToEntity(
+  applyTo: "PRIMARY_TARGET" | "ALLIES" | "SELF",
+  power: Pick<Power, "descriptorChassis" | "descriptorChassisConfig" | "rangeCategories">,
+  effectPacket: Pick<EffectPacket, "effectTimingType">,
+): string {
+  if (applyTo === "SELF") return "the user";
+  if (applyTo === "PRIMARY_TARGET") {
+    const primaryRangeCategory = getPrimaryRangeCategory(power);
+    if (primaryRangeCategory === "AOE") return "targets within the area";
+    return "the target";
+  }
+
+  if (power.descriptorChassis === "FIELD") {
+    return renderFieldAlliesPhrase(effectPacket.effectTimingType);
+  }
+  if (power.descriptorChassis === "ATTACHED") {
+    return "allies within range of the attached host";
+  }
+
+  const primaryRangeCategory = getPrimaryRangeCategory(power);
+  if (primaryRangeCategory === "AOE") return "allies within the area";
+  if (primaryRangeCategory === "RANGED") return "allies within range";
+  if (primaryRangeCategory === "MELEE") return "adjacent allies";
+  return "allies";
+}
+
+function formatPrimaryBaseClauseForRange(
+  effectPacket: EffectPacket | undefined,
+  baseClause: string,
+  rangeCategory: string,
+): string {
+  if (!effectPacket || rangeCategory !== "AOE") return baseClause;
+
+  if (effectPacket.intention === "MOVEMENT") {
+    const replaced = baseClause.replace(/\bthe target\b/gi, "targets within the area");
+    return replaced === baseClause ? `${baseClause} for targets within the area` : replaced;
+  }
+
+  if (effectPacket.intention === "CLEANSE") {
+    return `${baseClause} from targets within the area`;
+  }
+
+  return `${baseClause} to targets within the area`;
 }
 
 function getSortedEffectPackets(
@@ -184,18 +269,32 @@ function stripTrailingPeriod(value: string): string {
   return value.trim().replace(/[.]+$/, "");
 }
 
+function stripTrailingComma(value: string): string {
+  return value.trim().replace(/[,]+$/, "");
+}
+
 function capitalizeSentenceStart(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
   return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
 }
 
-function readPacketTriggerText(effectPacket: EffectPacket | undefined): string {
+function lowercaseSentenceStart(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return `${trimmed.charAt(0).toLowerCase()}${trimmed.slice(1)}`;
+}
+
+function readPacketTriggerConditionText(effectPacket: EffectPacket | undefined): string {
   const details =
     effectPacket?.detailsJson && typeof effectPacket.detailsJson === "object" && !Array.isArray(effectPacket.detailsJson)
       ? (effectPacket.detailsJson as Record<string, unknown>)
       : {};
-  return getDetailsString(details, "effectTriggerText").trim();
+  return String(
+    effectPacket?.triggerConditionText ??
+      getDetailsString(details, "triggerConditionText") ??
+      getDetailsString(details, "effectTriggerText"),
+  ).trim();
 }
 
 function readSecondaryScalingMode(details: Record<string, unknown>): "PER_SUCCESS" | "PRIMARY_APPLIED_SUCCESSES" | "PRIMARY_WOUND_BANDS" {
@@ -203,6 +302,32 @@ function readSecondaryScalingMode(details: Record<string, unknown>): "PER_SUCCES
   if (value === "PRIMARY_APPLIED_SUCCESSES") return "PRIMARY_APPLIED_SUCCESSES";
   if (value === "PRIMARY_WOUND_BANDS") return "PRIMARY_WOUND_BANDS";
   return "PER_SUCCESS";
+}
+
+function deriveSecondaryScalingModeFromPrimaryPacket(
+  primaryPacket: EffectPacket | undefined,
+): "PRIMARY_APPLIED_SUCCESSES" | "PRIMARY_WOUND_BANDS" {
+  if (!primaryPacket) return "PRIMARY_APPLIED_SUCCESSES";
+  return primaryPacket.intention === "ATTACK" && primaryPacket.dealsWounds !== false
+    ? "PRIMARY_WOUND_BANDS"
+    : "PRIMARY_APPLIED_SUCCESSES";
+}
+
+function deriveWoundsPerSuccessFromPrimaryPacket(
+  primaryPacket: EffectPacket | undefined,
+): number | null {
+  if (!primaryPacket) return null;
+  if (primaryPacket.intention !== "ATTACK" || primaryPacket.dealsWounds === false) return null;
+  const details =
+    primaryPacket.detailsJson && typeof primaryPacket.detailsJson === "object" && !Array.isArray(primaryPacket.detailsJson)
+      ? (primaryPacket.detailsJson as Record<string, unknown>)
+      : {};
+  const selectedDamageTypeCount = getDetailsStringArray(details, "damageTypes")
+    .map((entry) => entry.trim())
+    .filter(Boolean).length;
+  const potency = Math.max(1, Number(primaryPacket.potency ?? 1));
+  const effectiveDamageTypeCount = Math.max(1, selectedDamageTypeCount);
+  return potency * 2 * effectiveDamageTypeCount;
 }
 
 function readPositiveWholeNumber(value: unknown): number | null {
@@ -221,22 +346,34 @@ function normalizeChargeType(value: unknown): "DELAYED_RELEASE" | "BUILD_POWER" 
   return value === "BUILD_POWER" ? "BUILD_POWER" : "DELAYED_RELEASE";
 }
 
+function getAllowedChargeTypesForChassis(): Array<"DELAYED_RELEASE" | "BUILD_POWER"> {
+  return ["DELAYED_RELEASE", "BUILD_POWER"];
+}
+
 function normalizeChargeDescriptorConfig(
   descriptorChassisConfig: Record<string, unknown>,
   commitmentModifier: Power["commitmentModifier"] | undefined,
+  descriptorChassis: Power["descriptorChassis"],
+  chargeTypeValue?: Power["chargeType"],
+  chargeTurnsValue?: Power["chargeTurns"],
+  chargeBonusDicePerTurnValue?: Power["chargeBonusDicePerTurn"],
 ): {
   chargeType: "DELAYED_RELEASE" | "BUILD_POWER";
   chargeTurns: number;
   chargeBonusDicePerTurn: number | null;
 } | null {
   if (commitmentModifier !== "CHARGE") return null;
-  const chargeType = normalizeChargeType(descriptorChassisConfig.chargeType);
+  const rawChargeType = normalizeChargeType(chargeTypeValue ?? descriptorChassisConfig.chargeType);
+  const allowedChargeTypes = getAllowedChargeTypesForChassis();
+  const chargeType = allowedChargeTypes.includes(rawChargeType)
+    ? rawChargeType
+    : allowedChargeTypes[0];
   return {
     chargeType,
-    chargeTurns: readPositiveWholeNumber(descriptorChassisConfig.chargeTurns) ?? 1,
+    chargeTurns: readPositiveWholeNumber(chargeTurnsValue ?? descriptorChassisConfig.chargeTurns) ?? 1,
     chargeBonusDicePerTurn:
       chargeType === "BUILD_POWER"
-        ? readPositiveWholeNumber(descriptorChassisConfig.chargeBonusDicePerTurn) ?? 1
+        ? readPositiveWholeNumber(chargeBonusDicePerTurnValue ?? descriptorChassisConfig.chargeBonusDicePerTurn) ?? 1
         : null,
   };
 }
@@ -273,6 +410,10 @@ function shouldDefineReleaseBehaviour(
   return readDescriptorConfigText(descriptorChassisConfig, "releaseBehaviourText").length > 0;
 }
 
+function normalizeTriggerMethod(value: unknown): "ARM_AND_THEN_TARGET" | "TARGET_AND_THEN_ARM" {
+  return value === "TARGET_AND_THEN_ARM" ? "TARGET_AND_THEN_ARM" : "ARM_AND_THEN_TARGET";
+}
+
 function buildReserveHoldClause(
   power: Pick<Power, "lifespanType" | "lifespanTurns">,
 ): string {
@@ -283,6 +424,93 @@ function buildReserveHoldClause(
     return " until it ends or is removed";
   }
   return "";
+}
+
+function shouldUseNonReserveChargeCastWording(
+  descriptorChassis: Power["descriptorChassis"],
+  chargeConfig:
+    | {
+        chargeType: "DELAYED_RELEASE" | "BUILD_POWER";
+        chargeTurns: number;
+        chargeBonusDicePerTurn: number | null;
+      }
+    | null,
+): boolean {
+  return descriptorChassis !== "RESERVE" && !!chargeConfig;
+}
+
+function shouldUseNonReserveDelayedCastPrefix(
+  descriptorChassis: Power["descriptorChassis"],
+  chargeConfig:
+    | {
+        chargeType: "DELAYED_RELEASE" | "BUILD_POWER";
+        chargeTurns: number;
+        chargeBonusDicePerTurn: number | null;
+      }
+    | null,
+): boolean {
+  return descriptorChassis !== "RESERVE" && chargeConfig?.chargeType === "DELAYED_RELEASE";
+}
+
+function getPrimaryDisplayTimingType(
+  descriptorChassis: Power["descriptorChassis"],
+  effectTimingType: EffectPacket["effectTimingType"] | undefined,
+  chargeConfig:
+    | {
+        chargeType: "DELAYED_RELEASE" | "BUILD_POWER";
+        chargeTurns: number;
+        chargeBonusDicePerTurn: number | null;
+      }
+    | null,
+): EffectPacket["effectTimingType"] {
+  const timing = (effectTimingType ?? "ON_CAST") as EffectPacket["effectTimingType"];
+  if (!chargeConfig) return timing;
+  if (chargeConfig.chargeType === "DELAYED_RELEASE") {
+    return descriptorChassis === "RESERVE" ? "ON_RELEASE" : timing;
+  }
+  if (chargeConfig.chargeType === "BUILD_POWER" && timing === "ON_CAST") return "ON_RELEASE";
+  return timing;
+}
+
+function getSecondaryDisplayTimingType(
+  descriptorChassis: Power["descriptorChassis"],
+  effectTimingType: EffectPacket["effectTimingType"] | undefined,
+  chargeConfig:
+    | {
+        chargeType: "DELAYED_RELEASE" | "BUILD_POWER";
+        chargeTurns: number;
+        chargeBonusDicePerTurn: number | null;
+      }
+    | null,
+): EffectPacket["effectTimingType"] {
+  const timing = (effectTimingType ?? "ON_CAST") as EffectPacket["effectTimingType"];
+  if (!chargeConfig) return timing;
+  if (chargeConfig.chargeType === "DELAYED_RELEASE") {
+    return descriptorChassis === "RESERVE" && timing === "ON_CAST" ? "ON_RELEASE" : timing;
+  }
+  if (timing === "ON_CAST") return "ON_RELEASE";
+  return timing;
+}
+
+function buildPrimaryRollClause(params: {
+  baseDiceCount: number;
+  timingPrefix: string | null;
+  chargeConfig:
+    | {
+        chargeType: "DELAYED_RELEASE" | "BUILD_POWER";
+        chargeTurns: number;
+        chargeBonusDicePerTurn: number | null;
+      }
+    | null;
+}): string {
+  const { baseDiceCount, timingPrefix, chargeConfig } = params;
+  if (chargeConfig?.chargeType === "BUILD_POWER") {
+    const rollText = `roll ${formatDieCount(baseDiceCount)} plus ${formatDieCount(chargeConfig.chargeBonusDicePerTurn ?? 1)} per turn charged`;
+    return timingPrefix ? `${timingPrefix} ${rollText}.` : `${capitalizeSentenceStart(rollText)}.`;
+  }
+  return timingPrefix
+    ? `${timingPrefix} roll ${formatDieCount(baseDiceCount)}.`
+    : `Roll ${formatDieCount(baseDiceCount)}.`;
 }
 
 function derivePrimaryDefenceCheckFromGate(
@@ -311,19 +539,28 @@ function formatSecondaryClause(
   intentionType: EffectPacket["intention"],
   baseClause: string,
   details: Record<string, unknown>,
-  applyTo: "PRIMARY_TARGET" | "SELF",
+  applyTo: "PRIMARY_TARGET" | "ALLIES" | "SELF",
   powerPotency: number,
+  power: Pick<Power, "descriptorChassis" | "descriptorChassisConfig" | "rangeCategories">,
+  effectPacket: Pick<EffectPacket, "effectTimingType">,
+  omitRecipientContext?: boolean,
 ): string {
-  const entity = applyToEntity(applyTo);
+  const entity = applyToEntity(applyTo, power, effectPacket);
 
   // Intention-specific grammar for secondary intentions:
   if (intentionType === "DEFENCE") {
     const mode = getDetailsString(details, "attackMode").trim().toUpperCase() === "MENTAL" ? "mental" : "physical";
+    if (omitRecipientContext) {
+      return `blocks ${powerPotency} ${mode} wounds suffered`;
+    }
     return `blocks ${powerPotency} ${mode} wounds suffered by ${entity}`;
   }
 
   if (intentionType === "HEALING") {
     const mode = getDetailsString(details, "healingMode").trim().toUpperCase() === "MENTAL" ? "mental" : "physical";
+    if (omitRecipientContext) {
+      return `heals for ${powerPotency} ${mode} wounds`;
+    }
     return `heals ${entity} for ${powerPotency} ${mode} wounds`;
   }
 
@@ -331,18 +568,30 @@ function formatSecondaryClause(
     const cleanseEffectType = getDetailsString(details, "cleanseEffectType");
 
     if (cleanseEffectType === "Effect over time") {
+      if (omitRecipientContext) {
+        return `removes ${powerPotency} stacks of the chosen effect`;
+      }
       return `removes ${powerPotency} stacks of the chosen effect from ${entity}`;
     }
 
     if (cleanseEffectType === "Damage over time") {
-      return `removes ${powerPotency} stacks of the chosen damage from ${entity}`;
+      if (omitRecipientContext) {
+        return `removes ${powerPotency} ongoing damage`;
+      }
+      return `removes ${powerPotency} ongoing damage from ${entity}`;
     }
 
     if (cleanseEffectType === "Active Power" || cleanseEffectType === "Channelled Power") {
+      if (omitRecipientContext) {
+        return `removes ${powerPotency} successes from the chosen power`;
+      }
       return `removes ${powerPotency} successes from the chosen power affecting ${entity}`;
     }
 
     // Fallback: keep it sensible and non-redundant.
+    if (omitRecipientContext) {
+      return `removes ${powerPotency} stacks of the chosen effect`;
+    }
     return `removes ${powerPotency} stacks of the chosen effect from ${entity}`;
   }
 
@@ -366,7 +615,10 @@ function formatSecondaryClause(
 
   // Default: preserve existing clause and append a minimal target phrase
   // (Attack stays acceptable with "to the user/target", control/augment/debuff already read fine).
-  return `${baseClause}${applyTo === "SELF" ? " to the user" : " to the target"}`;
+  if (omitRecipientContext) {
+    return baseClause;
+  }
+  return `${baseClause} to ${entity}`;
 }
 
 function humanizeLabel(value: string): string {
@@ -435,7 +687,8 @@ function derivePrimaryDefenceCheck(
     if (cleanseEffectType === "Effect over time" || cleanseEffectType === "Damage over time") {
       checkLabel = "Fortitude Resist";
     } else {
-      checkLabel = "Resist";
+      const resistAttribute = getCleanseThemeResistAttribute(details);
+      checkLabel = resistAttribute ? `${humanizeLabel(resistAttribute)} Resist` : "Resist";
     }
   }
 
@@ -494,6 +747,7 @@ function renderEffectPacketDetail(
 }
 
 function buildRangeLead(
+  descriptorChassis: Power["descriptorChassis"] | undefined,
   rangeCategory: string,
   rangeValue: number | null,
   rangeExtra: Record<string, unknown>,
@@ -507,9 +761,15 @@ function buildRangeLead(
     return "Target self.";
   }
   if (rangeCategory === "MELEE") {
+    if (meleeTargets > 1) {
+      return `Choose up to ${meleeTargets} adjacent ${plural(meleeTargets, "target")}.`;
+    }
     return `Choose ${meleeTargets} adjacent ${plural(meleeTargets, "target")}.`;
   }
   if (rangeCategory === "RANGED") {
+    if (rangedTargets > 1) {
+      return `Choose up to ${rangedTargets} ${plural(rangedTargets, "target")} within ${rangeValue ?? "?"} ft.`;
+    }
     return `Choose ${rangedTargets} ${plural(rangedTargets, "target")} within ${rangeValue ?? "?"} ft.`;
   }
   if (rangeCategory === "AOE") {
@@ -517,9 +777,25 @@ function buildRangeLead(
     const coneLength = readNumber(rangeExtra, "coneLengthFeet");
     const lineWidth = readNumber(rangeExtra, "lineWidthFeet");
     const lineLength = readNumber(rangeExtra, "lineLengthFeet");
-    const castRangePhrase = rangeValue === 0 ? "centred on self" : `within ${rangeValue ?? "?"} ft`;
+    const isSelfOriginSphere = rangeValue === 0 && aoeShape === "SPHERE";
+    const castRangePhrase =
+      rangeValue === 0
+        ? (aoeShape === "SPHERE" ? "centered on your current space" : "emanating from self")
+        : `within ${rangeValue ?? "?"} ft`;
 
     if (aoeShape === "SPHERE") {
+      if (isSelfOriginSphere) {
+        if (descriptorChassis === "ATTACHED") {
+          if (aoeCount > 1) {
+            return `Create ${aoeCount} spheres, each with a ${sphereRadius ?? "?"} ft radius, attached to yourself.`;
+          }
+          return `Create a ${sphereRadius ?? "?"} ft radius sphere attached to yourself.`;
+        }
+        if (aoeCount > 1) {
+          return `Create ${aoeCount} spheres, each with a ${sphereRadius ?? "?"} ft radius, centered on your current space.`;
+        }
+        return `Create a ${sphereRadius ?? "?"} ft radius sphere centered on your current space.`;
+      }
       return `Choose ${aoeCount} ${plural(aoeCount, "sphere")} with a ${sphereRadius ?? "?"} ft radius ${castRangePhrase}.`;
     }
     if (aoeShape === "CONE") {
@@ -534,6 +810,80 @@ function buildRangeLead(
   }
 
   return "Choose 1 target.";
+}
+
+function isSelfOriginSphereRange(
+  rangeCategory: string,
+  rangeValue: number | null,
+  rangeExtra: Record<string, unknown>,
+): boolean {
+  const aoeShape = getDetailsString(rangeExtra, "shape").trim().toUpperCase() || "SPHERE";
+  return rangeCategory === "AOE" && rangeValue === 0 && aoeShape === "SPHERE";
+}
+
+function normalizeAttachedHostAnchorType(value: unknown): Power["attachedHostAnchorType"] {
+  const normalized = typeof value === "string" ? value.trim().toUpperCase() : "";
+  if (
+    normalized === "TARGET" ||
+    normalized === "OBJECT" ||
+    normalized === "WEAPON" ||
+    normalized === "ARMOR" ||
+    normalized === "SELF" ||
+    normalized === "AREA"
+  ) {
+    return normalized as NonNullable<Power["attachedHostAnchorType"]>;
+  }
+  return null;
+}
+
+function readLegacyAttachedAnchorText(
+  descriptorChassisConfig: Record<string, unknown>,
+): string {
+  return readDescriptorConfigText(descriptorChassisConfig, "anchorText");
+}
+
+function renderAttachedAnchorText(
+  anchorType: Power["attachedHostAnchorType"],
+  legacyAnchorText: string,
+): string {
+  if (anchorType === "TARGET") return "the target";
+  if (anchorType === "OBJECT") return "the object";
+  if (anchorType === "WEAPON") return "your weapon";
+  if (anchorType === "ARMOR") return "your armor";
+  if (anchorType === "SELF") return "self";
+  if (anchorType === "AREA") return "the area";
+  return legacyAnchorText || "the chosen host";
+}
+
+function renderAttachedSelfHostPhrase(anchorText: string): string {
+  const trimmed = anchorText.trim();
+  if (!trimmed) return "yourself";
+  if (/^(self|yourself)$/i.test(trimmed)) return "yourself";
+  if (/^(your|the|a|an)\b/i.test(trimmed)) return trimmed;
+  return `your ${trimmed}`;
+}
+
+function buildAttachedSelfOriginSphereLine(params: {
+  rangeExtra: Record<string, unknown>;
+  anchorText: string;
+  lifespanType: Power["lifespanType"];
+  lifespanTurns: number | null | undefined;
+}): string {
+  const sphereRadius = readNumber(params.rangeExtra, "sphereRadiusFeet");
+  const aoeCount = asNumber(params.rangeExtra.count) ?? 1;
+  const hostPhrase = renderAttachedSelfHostPhrase(params.anchorText);
+  const lifespanText =
+    params.lifespanType === "TURNS"
+      ? ` for up to ${formatCountedUnit(params.lifespanTurns, "turn")}`
+      : params.lifespanType === "PASSIVE"
+        ? " until it ends or is removed"
+        : "";
+
+  if (aoeCount > 1) {
+    return `Create ${aoeCount} spheres, each with a ${sphereRadius ?? "?"} ft radius, attached to ${hostPhrase}${lifespanText}.`;
+  }
+
+  return `Create a ${sphereRadius ?? "?"} ft radius sphere attached to ${hostPhrase}${lifespanText}.`;
 }
 
 function renderPacketEffectDurationSuffix(
@@ -553,6 +903,42 @@ function renderPacketEffectDurationSuffix(
   return null;
 }
 
+function renderRepeatingDirectEffectSuffix(
+  effectPacket: Pick<EffectPacket, "effectDurationType" | "effectDurationTurns">,
+): string | null {
+  if ((effectPacket.effectDurationType ?? "INSTANT") !== "TURNS") return null;
+  return `at the start of their next ${formatCountedUnit(effectPacket.effectDurationTurns, "turn")}`;
+}
+
+function combineRangeLeadWithRollClause(
+  rangeLead: string,
+  rollClause: string,
+  rangeCategory: string,
+  isMultiTarget: boolean,
+): string {
+  const loweredRollClause = lowercaseSentenceStart(rollClause);
+  const strippedLead = stripTrailingPeriod(rangeLead);
+  const canCombineWithChooseLead =
+    /^(choose|create)\b/i.test(strippedLead) ||
+    rangeCategory === "MELEE" ||
+    rangeCategory === "RANGED" ||
+    isMultiTarget;
+  if (
+    canCombineWithChooseLead &&
+    /^on cast,\s+roll\b/i.test(loweredRollClause)
+  ) {
+    const rollOnlyClause = loweredRollClause.replace(/^on cast,\s+/i, "");
+    return `On cast, ${lowercaseSentenceStart(strippedLead)} and ${rollOnlyClause}`;
+  }
+  if (
+    canCombineWithChooseLead &&
+    /^roll\b/i.test(loweredRollClause)
+  ) {
+    return `${strippedLead} and ${loweredRollClause}`;
+  }
+  return `${rangeLead} ${rollClause}`.replace(/\s+/g, " ").trim();
+}
+
 function renderFieldEffectTimingSuffix(
   powerName: string,
   effectTimingType: EffectPacket["effectTimingType"] | undefined,
@@ -564,6 +950,144 @@ function renderFieldEffectTimingSuffix(
   if (timing === "END_OF_TURN_WHILST_CHANNELLED") return "at the end of the target's turn";
   if (timing === "ON_EXPIRY") return `when ${powerName} ends`;
   return null;
+}
+
+function renderFieldAffectedTargetQualifier(
+  effectTimingType: EffectPacket["effectTimingType"] | undefined,
+): string | null {
+  const timing = effectTimingType ?? "ON_CAST";
+  if (timing === "START_OF_TURN" || timing === "START_OF_TURN_WHILST_CHANNELLED") {
+    return "to targets that start their turn inside the field";
+  }
+  if (timing === "END_OF_TURN" || timing === "END_OF_TURN_WHILST_CHANNELLED") {
+    return "to targets that end their turn inside the field";
+  }
+  if (timing === "ON_EXPIRY") {
+    return "to targets inside the field when it ends";
+  }
+  return null;
+}
+
+function renderFieldRepeatingDirectEffectSentence(
+  effectPacket: EffectPacket | undefined,
+): string | null {
+  if (!effectPacket) return null;
+  if (effectPacket.intention !== "ATTACK") return null;
+  if ((effectPacket.effectDurationType ?? "INSTANT") !== "TURNS") return null;
+  return `Any damage inflicted this way is repeated at the start of the target's next ${formatCountedUnit(effectPacket.effectDurationTurns, "turn")}.`;
+}
+
+function renderTriggerArmedDurationText(
+  power: Pick<Power, "lifespanType" | "lifespanTurns">,
+): string {
+  if (power.lifespanType === "TURNS") {
+    return `for ${formatCountedUnit(power.lifespanTurns, "turn")}`;
+  }
+  if (power.lifespanType === "PASSIVE") {
+    return "until it ends or is removed";
+  }
+  return "until it ends";
+}
+
+function renderTriggerWatchTargetPhrase(
+  rangeCategory: string,
+  rangeValue: number | null,
+  rangeExtra: Record<string, unknown>,
+): string {
+  const meleeTargets = asNumber(rangeValue) ?? 1;
+  const rangedTargets = asNumber(rangeExtra.targets) ?? 1;
+  const aoeCount = asNumber(rangeExtra.count) ?? 1;
+  if (rangeCategory === "MELEE") {
+    return meleeTargets > 1
+      ? `up to ${meleeTargets} adjacent ${plural(meleeTargets, "target")}`
+      : "an adjacent target";
+  }
+  if (rangeCategory === "RANGED") {
+    return rangedTargets > 1
+      ? `up to ${rangedTargets} ${plural(rangedTargets, "target")} within ${rangeValue ?? "?"} ft.`
+      : `a target within ${rangeValue ?? "?"} ft.`;
+  }
+  if (rangeCategory === "AOE") {
+    return aoeCount > 1 ? `targets within the chosen areas` : "targets within the chosen area";
+  }
+  return "a target";
+}
+
+function renderTriggerArmedSubject(
+  rangeCategory: string,
+  rangeValue: number | null,
+  rangeExtra: Record<string, unknown>,
+): string {
+  const meleeTargets = asNumber(rangeValue) ?? 1;
+  const rangedTargets = asNumber(rangeExtra.targets) ?? 1;
+  const aoeCount = asNumber(rangeExtra.count) ?? 1;
+  if (rangeCategory === "MELEE") {
+    return meleeTargets > 1 ? "those targets" : "that target";
+  }
+  if (rangeCategory === "RANGED") {
+    return rangedTargets > 1 ? "those targets" : "that target";
+  }
+  if (rangeCategory === "AOE") {
+    return aoeCount > 1 ? "those areas" : "that area";
+  }
+  return "that target";
+}
+
+function renderTriggerSelectionPhrase(
+  rangeCategory: string,
+  rangeValue: number | null,
+  rangeExtra: Record<string, unknown>,
+): string {
+  return lowercaseSentenceStart(stripTrailingPeriod(buildRangeLead(undefined, rangeCategory, rangeValue, rangeExtra)));
+}
+
+function stripLeadingWhenOrIf(value: string): string {
+  return stripTrailingPeriod(value).replace(/^(when|if)\s+/i, "").trim();
+}
+
+function startsWithTriggerVerbPhrase(value: string): boolean {
+  return /^(makes?|takes?|ends?|starts?|enters?|leaves?|moves?|uses?|attacks?|casts?|would|attempts?|suffers?|is|are|becomes?|rolls?)\b/i.test(value.trim());
+}
+
+function renderTriggerActivationSentence(params: {
+  triggerMethod: "ARM_AND_THEN_TARGET" | "TARGET_AND_THEN_ARM";
+  triggerText: string;
+  rangeCategory: string;
+  rangeValue: number | null;
+  rangeExtra: Record<string, unknown>;
+  rollClause: string;
+}): string {
+  const {
+    triggerMethod,
+    triggerText,
+    rangeCategory,
+    rangeValue,
+    rangeExtra,
+    rollClause,
+  } = params;
+  const cleanTriggerText = stripLeadingWhenOrIf(triggerText);
+  const rollOnlyClause = stripTrailingPeriod(rollClause).toLowerCase();
+  const triggerTargetPhrase = renderTriggerWatchTargetPhrase(rangeCategory, rangeValue, rangeExtra);
+  const armedSubject = renderTriggerArmedSubject(rangeCategory, rangeValue, rangeExtra);
+  const selectionPhrase = renderTriggerSelectionPhrase(rangeCategory, rangeValue, rangeExtra);
+
+  if (!cleanTriggerText) {
+    return triggerMethod === "ARM_AND_THEN_TARGET"
+      ? `When triggered, ${selectionPhrase} and ${rollOnlyClause}.`
+      : `When triggered, ${rollOnlyClause}.`;
+  }
+
+  if (triggerMethod === "ARM_AND_THEN_TARGET") {
+    if (startsWithTriggerVerbPhrase(cleanTriggerText)) {
+      return `When ${triggerTargetPhrase} ${cleanTriggerText}, ${rollOnlyClause}.`;
+    }
+    return `When ${cleanTriggerText}, ${selectionPhrase} and ${rollOnlyClause}.`;
+  }
+
+  if (startsWithTriggerVerbPhrase(cleanTriggerText)) {
+    return `When ${armedSubject} ${cleanTriggerText}, ${rollOnlyClause}.`;
+  }
+  return `When ${cleanTriggerText}, ${rollOnlyClause}.`;
 }
 
 function renderAttachedDefenceTimingText(
@@ -594,6 +1118,8 @@ function renderDefenceTimingDescriptor(
   powerName: string,
   effectTimingType: EffectPacket["effectTimingType"] | undefined,
   hostileEntryPattern?: PrimaryDefenceGate["hostileEntryPattern"] | null,
+  useCastWordingForRelease?: boolean,
+  useCastWordingForOnCast?: boolean,
 ): string {
   const defendedTiming =
     hostileEntryPattern === "ON_ATTACH"
@@ -602,14 +1128,18 @@ function renderDefenceTimingDescriptor(
         ? (effectTimingType ?? "ON_TRIGGER")
         : (effectTimingType ?? "ON_CAST");
 
-  if (defendedTiming === "ON_CAST") return "as soon as the power is declared";
+  if (defendedTiming === "ON_CAST") {
+    return useCastWordingForOnCast ? "when the power is cast" : "as soon as the power is declared";
+  }
   if (defendedTiming === "ON_TRIGGER") return "when triggered";
   if (defendedTiming === "ON_ATTACH") return `when ${powerName} attaches`;
   if (defendedTiming === "START_OF_TURN") return "at the start of each turn";
   if (defendedTiming === "END_OF_TURN") return "at the end of each turn";
   if (defendedTiming === "START_OF_TURN_WHILST_CHANNELLED") return "at the start of each turn";
   if (defendedTiming === "END_OF_TURN_WHILST_CHANNELLED") return "at the end of each turn";
-  if (defendedTiming === "ON_RELEASE") return "when the power is released";
+  if (defendedTiming === "ON_RELEASE") {
+    return useCastWordingForRelease ? "when the power is cast" : "when the power is released";
+  }
   if (defendedTiming === "ON_EXPIRY") return `when ${powerName} ends`;
   return "as soon as the power is declared";
 }
@@ -681,8 +1211,20 @@ function renderDescriptorTimingPrefix(params: {
   triggerText?: string | null;
   commitmentModifier?: Power["commitmentModifier"] | null;
   hasMultipleTimingGroups?: boolean;
+  useCastWordingForRelease?: boolean;
+  useCastWordingForOnCast?: boolean;
 }): string | null {
   const timing = params.effectTimingType ?? "ON_CAST";
+  if (timing === "ON_CAST" && params.useCastWordingForOnCast) return "On cast,";
+  if (
+    timing === "ON_CAST" &&
+    params.isPrimary &&
+    params.descriptorChassis === "IMMEDIATE" &&
+    params.commitmentModifier === "STANDARD"
+  ) {
+    return "On cast,";
+  }
+  if (timing === "ON_RELEASE" && params.useCastWordingForRelease) return "On cast,";
   const basePrefix = renderPacketTimingPrefix({
     descriptorChassis: params.descriptorChassis,
     hostileEntryPattern: params.hostileEntryPattern,
@@ -750,7 +1292,7 @@ function renderPacketBaseClause(
       return `removes ${formatCountedUnit(packetPotency, "stack")} of the chosen effect`;
     }
     if (cleanseEffectType === "Damage over time") {
-      return `removes ${formatCountedUnit(packetPotency, "stack")} of the chosen damage`;
+      return `removes ${packetPotency} ongoing damage`;
     }
     if (cleanseEffectType === "Active Power" || cleanseEffectType === "Channelled Power") {
       return `removes ${packetPotency} successes from the chosen power`;
@@ -791,32 +1333,224 @@ function renderPacketBaseClause(
 
 function renderSecondaryPacketClause(params: {
   effectPacket: EffectPacket;
-  power: Pick<Power, "potency">;
+  power: Pick<
+    Power,
+    | "potency"
+    | "effectPackets"
+    | "intentions"
+    | "descriptorChassis"
+    | "descriptorChassisConfig"
+    | "commitmentModifier"
+    | "rangeCategories"
+  >;
+}): string | null {
+  const scalingLead = renderSecondaryScalingLead(params.power);
+  const body = renderSecondaryPacketBody(params);
+  if (!scalingLead || !body) return null;
+  return `${scalingLead} ${body}.`;
+}
+
+function isRepeatingDirectImmediateSecondary(params: {
+  effectPacket: EffectPacket;
+  power: Pick<Power, "descriptorChassis" | "commitmentModifier">;
+}): boolean {
+  const { effectPacket, power } = params;
+  return (
+    power.descriptorChassis === "IMMEDIATE" &&
+    power.commitmentModifier === "STANDARD" &&
+    (effectPacket.effectTimingType ?? "ON_CAST") === "ON_CAST" &&
+    (effectPacket.effectDurationType ?? "INSTANT") === "TURNS" &&
+    (
+      effectPacket.intention === "ATTACK" ||
+      effectPacket.intention === "HEALING" ||
+      effectPacket.intention === "DEFENCE"
+    )
+  );
+}
+
+function renderSecondaryScalingLead(
+  power: Pick<Power, "potency" | "effectPackets" | "intentions">,
+): string | null {
+  const primaryPacket = getSortedEffectPackets(power)[0];
+  const scalingMode = deriveSecondaryScalingModeFromPrimaryPacket(primaryPacket);
+  if (scalingMode === "PRIMARY_APPLIED_SUCCESSES") {
+    return "For each applied success from the primary effect, it also";
+  }
+  const woundsPerSuccess = deriveWoundsPerSuccessFromPrimaryPacket(primaryPacket);
+  if (!woundsPerSuccess) return null;
+  return `For every ${woundsPerSuccess} wounds inflicted, rounding up, it also`;
+}
+
+function renderSecondaryPacketBody(params: {
+  effectPacket: EffectPacket;
+  power: Pick<
+    Power,
+    | "potency"
+    | "effectPackets"
+    | "intentions"
+    | "descriptorChassis"
+    | "descriptorChassisConfig"
+    | "commitmentModifier"
+    | "rangeCategories"
+  >;
+  suppressRecurringCadence?: boolean;
+  omitPrimaryRecipientContext?: boolean;
 }): string | null {
   const { effectPacket, power } = params;
   const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
-  const applyTo = readApplyTo(details);
+  const applyTo = readPacketApplyTo(effectPacket);
+  const omitRecipientContext =
+    Boolean(params.omitPrimaryRecipientContext) &&
+    applyTo === "PRIMARY_TARGET" &&
+    effectPacket.intention !== "MOVEMENT";
   const baseClause = formatSecondaryClause(
     effectPacket.intention,
     renderPacketBaseClause(effectPacket, power),
     details,
     applyTo,
     getPacketPotency(effectPacket, power),
+    power,
+    effectPacket,
+    omitRecipientContext,
   );
   const durationSuffix = renderPacketEffectDurationSuffix(effectPacket);
-  const scalingMode = readSecondaryScalingMode(details);
-
-  if (scalingMode === "PER_SUCCESS") {
-    return `it also ${baseClause} per success${durationSuffix ? ` ${durationSuffix}` : ""}.`;
+  const repeatingDirectEffectSuffix = renderRepeatingDirectEffectSuffix(effectPacket);
+  if (isRepeatingDirectImmediateSecondary(params) && repeatingDirectEffectSuffix) {
+    if (params.suppressRecurringCadence) return baseClause;
+    return `${baseClause} ${repeatingDirectEffectSuffix}`;
   }
+  return `${baseClause}${durationSuffix ? ` ${durationSuffix}` : ""}`;
+}
 
-  if (scalingMode === "PRIMARY_APPLIED_SUCCESSES") {
-    return `it also ${baseClause} for each applied success from the primary effect${durationSuffix ? ` ${durationSuffix}` : ""}.`;
+function renderSecondaryPacketBodyWithInlineTiming(params: {
+  effectPacket: EffectPacket;
+  power: Pick<
+    Power,
+    | "potency"
+    | "effectPackets"
+    | "intentions"
+    | "descriptorChassis"
+    | "descriptorChassisConfig"
+    | "commitmentModifier"
+    | "rangeCategories"
+  >;
+  timingPrefix: string | null;
+  omitPrimaryRecipientContext?: boolean;
+}): string | null {
+  const body = renderSecondaryPacketBody({
+    effectPacket: params.effectPacket,
+    power: params.power,
+    omitPrimaryRecipientContext: params.omitPrimaryRecipientContext,
+  });
+  if (!body) return null;
+  const cleanTiming = params.timingPrefix ? lowercaseSentenceStart(stripTrailingComma(params.timingPrefix)) : "";
+  if (!cleanTiming) return stripTrailingPeriod(body);
+  const cleanBody = stripTrailingPeriod(body);
+  const durationSuffix = renderPacketEffectDurationSuffix(params.effectPacket);
+  if (durationSuffix && cleanBody.endsWith(` ${durationSuffix}`)) {
+    const baseWithoutDuration = cleanBody.slice(0, -(` ${durationSuffix}`).length);
+    return `${baseWithoutDuration} ${cleanTiming} ${durationSuffix}`;
   }
+  return `${cleanBody} ${cleanTiming}`;
+}
 
-  const woundsPerSuccess = readPositiveWholeNumber(details.woundsPerSuccess);
-  if (!woundsPerSuccess) return null;
-  return `for every ${woundsPerSuccess} wounds inflicted, rounded up into wound bands, it also ${baseClause}${durationSuffix ? ` ${durationSuffix}` : ""}.`;
+type CleanupLane = {
+  subject: string;
+  actionWindow: string;
+  resistAttribute: string;
+  removalText: string;
+};
+
+function buildStackResistRemovalLane(params: {
+  effectPacket: EffectPacket | undefined;
+  isMultiTarget: boolean;
+}): CleanupLane | null {
+  const { effectPacket, isMultiTarget } = params;
+  if (!effectPacket) return null;
+  const details =
+    effectPacket.detailsJson && typeof effectPacket.detailsJson === "object" && !Array.isArray(effectPacket.detailsJson)
+      ? (effectPacket.detailsJson as Record<string, unknown>)
+      : {};
+  if (readPacketApplyTo(effectPacket) === "SELF") return null;
+  if (effectPacket.intention === "CONTROL") {
+    const resistAttribute = getControlThemeResistAttribute(details);
+    if (!resistAttribute) return null;
+    const controlSpecific = humanizeLabel(normalizeControlMode(getDetailsString(details, "controlMode"))) || "Control";
+    return {
+      subject: isMultiTarget ? "Each target" : "The target",
+      actionWindow: "a main action on their turn",
+      resistAttribute: humanizeLabel(resistAttribute),
+      removalText: `remove 1 stack of ${controlSpecific} per success`,
+    };
+  }
+  if (effectPacket.intention === "DEBUFF") {
+    const statTarget = normalizeCoreDefenceStat(readStatTarget(details));
+    if (!statTarget) return null;
+    const potency = Math.max(1, effectPacket.potency ?? 1);
+    return {
+      subject: isMultiTarget ? "Each target" : "The target",
+      actionWindow: "a main action on their turn",
+      resistAttribute: statTarget,
+      removalText: `remove 1 stack of -${potency} ${readStatTarget(details)} per success`,
+    };
+  }
+  return null;
+}
+
+function buildOngoingDamageCleanupLane(params: {
+  effectPacket: EffectPacket | undefined;
+  isMultiTarget: boolean;
+}): CleanupLane | null {
+  const { effectPacket, isMultiTarget } = params;
+  if (!effectPacket) return null;
+  if (effectPacket.intention !== "ATTACK") return null;
+  if ((effectPacket.effectDurationType ?? "INSTANT") !== "TURNS") return null;
+  const details =
+    effectPacket.detailsJson && typeof effectPacket.detailsJson === "object" && !Array.isArray(effectPacket.detailsJson)
+      ? (effectPacket.detailsJson as Record<string, unknown>)
+      : {};
+  if (readPacketApplyTo(effectPacket) === "SELF") return null;
+  const resistAttribute =
+    getDetailsString(details, "attackMode").trim().toUpperCase() === "MENTAL" ? "Bravery" : "Fortitude";
+  return {
+    subject: isMultiTarget ? "Each target" : "The target",
+    actionWindow: "a main action on their turn",
+    resistAttribute,
+    removalText: "remove 1 ongoing damage from one chosen effect per success",
+  };
+}
+
+function renderCleanupLine(lane: CleanupLane): string {
+  return `${lane.subject} may use ${lane.actionWindow} to attempt a ${lane.resistAttribute} Resist roll to ${lane.removalText}.`;
+}
+
+function stripPerSuccess(text: string): string {
+  return text.replace(/\s+per success\.?$/i, "").trim();
+}
+
+function renderCleanupLines(lanes: Array<CleanupLane | null | undefined>): string[] {
+  const filtered = lanes.filter((lane): lane is CleanupLane => Boolean(lane));
+  if (filtered.length <= 1) return filtered.map(renderCleanupLine);
+  if (filtered.length > 2) return filtered.map(renderCleanupLine);
+  const [first, second] = filtered;
+  if (first.subject !== second.subject || first.actionWindow !== second.actionWindow) {
+    return filtered.map(renderCleanupLine);
+  }
+  if (first.resistAttribute === second.resistAttribute) {
+    return [
+      `${first.subject} may use ${first.actionWindow} to attempt a ${first.resistAttribute} Resist roll to ${stripPerSuccess(first.removalText)} or ${stripPerSuccess(second.removalText)} per success.`,
+    ];
+  }
+  return [
+    `${first.subject} may use ${first.actionWindow} to attempt a ${first.resistAttribute} Resist roll to ${stripPerSuccess(first.removalText)}, or a ${second.resistAttribute} Resist roll to ${stripPerSuccess(second.removalText)}, per success.`,
+  ];
+}
+
+function renderSecondaryBulletLine(timingPrefix: string, mergedBody: string): string {
+  const cleanTiming = stripTrailingComma(timingPrefix);
+  const cleanBody = stripTrailingPeriod(mergedBody);
+  if (!cleanTiming) return `- ${capitalizeSentenceStart(cleanBody)}.`;
+  return `- ${capitalizeSentenceStart(cleanBody)} ${lowercaseSentenceStart(cleanTiming)}.`;
 }
 
 export function renderPowerSuccessClause(power: Pick<Power, "potency" | "effectPackets" | "intentions">): string {
@@ -835,7 +1569,12 @@ export function renderPowerDescriptorLines(
     | "name"
     | "descriptorChassis"
     | "descriptorChassisConfig"
+    | "chargeType"
+    | "chargeTurns"
+    | "chargeBonusDicePerTurn"
     | "commitmentModifier"
+    | "triggerMethod"
+    | "attachedHostAnchorType"
     | "lifespanType"
     | "lifespanTurns"
     | "diceCount"
@@ -875,8 +1614,13 @@ export function renderPowerDescriptorLines(
   const chargeConfig = normalizeChargeDescriptorConfig(
     descriptorChassisConfig,
     power.commitmentModifier,
+    power.descriptorChassis,
+    power.chargeType,
+    power.chargeTurns,
+    power.chargeBonusDicePerTurn,
   );
   const defineReleaseBehaviour = shouldDefineReleaseBehaviour(descriptorChassisConfig);
+  const triggerMethod = normalizeTriggerMethod(power.triggerMethod ?? descriptorChassisConfig.triggerMethod);
   const rangeCategory = getDetailsString(primaryDetails, "rangeCategory").trim().toUpperCase();
   const rangeValue = asNumber(primaryDetails.rangeValue);
   const rangeExtra =
@@ -887,35 +1631,68 @@ export function renderPowerDescriptorLines(
       : {};
   const meleeTargets = asNumber(rangeValue) ?? 1;
   const rangedTargets = asNumber(rangeExtra.targets) ?? 1;
-  const genericRangeLead = buildRangeLead(rangeCategory, rangeValue, rangeExtra);
+  const genericRangeLead = buildRangeLead(power.descriptorChassis, rangeCategory, rangeValue, rangeExtra);
   const rangeLead =
     power.descriptorChassis === "FIELD"
       ? genericRangeLead.replace(/^Choose\b/i, "Create")
       : genericRangeLead;
-  const payloadTriggerText = readDescriptorConfigText(descriptorChassisConfig, "payloadTriggerText");
   const triggerPayloadText =
-    readDescriptorConfigText(descriptorChassisConfig, "triggerConditionText") || payloadTriggerText;
-  const primaryPacketTriggerText = readPacketTriggerText(primaryPacket);
-  const attachedPayloadTriggerText = primaryPacketTriggerText || payloadTriggerText;
-  const fieldInteractionText = readDescriptorConfigText(descriptorChassisConfig, "fieldInteractionText");
+    readDescriptorConfigText(descriptorChassisConfig, "triggerConditionText");
+  const primaryPacketTriggerConditionText =
+    readPacketTriggerConditionText(primaryPacket) ||
+    readDescriptorConfigText(descriptorChassisConfig, "payloadTriggerText");
+  const attachedPayloadTriggerText = primaryPacketTriggerConditionText;
   const timingGroupKeys = Array.from(
-    new Set(effectPackets.map((effectPacket) => getPacketTimingKey(effectPacket))),
+    new Set(
+      effectPackets.map((effectPacket, index) =>
+        index === 0
+          ? getPrimaryDisplayTimingType(
+              power.descriptorChassis,
+              getPacketTimingKey(effectPacket),
+              chargeConfig,
+            )
+          : getSecondaryDisplayTimingType(
+              power.descriptorChassis,
+              getPacketTimingKey(effectPacket),
+              chargeConfig,
+            ),
+      ),
+    ),
   );
   const hasMultipleTimingGroups = timingGroupKeys.length > 1;
+  const primaryDisplayTimingType = getPrimaryDisplayTimingType(
+    power.descriptorChassis,
+    primaryPacket?.effectTimingType,
+    chargeConfig,
+  );
+  const useNonReserveChargeCastWording = shouldUseNonReserveChargeCastWording(
+    power.descriptorChassis,
+    chargeConfig,
+  );
+  const useNonReserveDelayedCastPrefix = shouldUseNonReserveDelayedCastPrefix(
+    power.descriptorChassis,
+    chargeConfig,
+  );
   const primaryTimingPrefix = renderDescriptorTimingPrefix({
     descriptorChassis: power.descriptorChassis,
     hostileEntryPattern: power.primaryDefenceGate?.hostileEntryPattern,
-    effectTimingType: primaryPacket?.effectTimingType,
+    effectTimingType: primaryDisplayTimingType,
     isPrimary: true,
     triggerText:
       power.descriptorChassis === "TRIGGER"
-        ? (triggerPayloadText || primaryPacketTriggerText)
-        : primaryPacketTriggerText,
+        ? (triggerPayloadText || primaryPacketTriggerConditionText)
+        : primaryPacketTriggerConditionText,
     commitmentModifier: power.commitmentModifier,
     hasMultipleTimingGroups,
+    useCastWordingForRelease: useNonReserveChargeCastWording,
+    useCastWordingForOnCast: useNonReserveDelayedCastPrefix,
   });
   const primaryBaseClause = primaryPacket
-    ? renderPacketBaseClause(primaryPacket, power)
+    ? formatPrimaryBaseClauseForRange(
+        primaryPacket,
+        renderPacketBaseClause(primaryPacket, power),
+        rangeCategory,
+      )
     : "resolves the effect";
   const primaryEffectDuration = primaryPacket ? renderPacketEffectDurationSuffix(primaryPacket) : null;
 
@@ -958,7 +1735,8 @@ export function renderPowerDescriptorLines(
       }
 
       return [
-        `After ${power.name} has been charged for ${chargeConfig.chargeTurns} ${plural(chargeConfig.chargeTurns, "turn")} it may be held in reserve${reserveHoldClause}.`,
+        `After ${power.name} has been charged for ${formatCountedUnit(chargeConfig.chargeTurns, "turn")}, it becomes primed.`,
+        `Once primed, it can be held in reserve${reserveHoldClause}.`,
         releaseBehaviourText ? `${stripTrailingPeriod(releaseBehaviourText)}.` : null,
       ]
         .filter((segment): segment is string => Boolean(segment))
@@ -968,10 +1746,27 @@ export function renderPowerDescriptorLines(
     }
 
     if (chargeConfig.chargeType === "BUILD_POWER") {
-      return `Charge ${power.name} for up to ${formatCountedUnit(chargeConfig.chargeTurns, "turn")}, gaining +${formatDieCount(chargeConfig.chargeBonusDicePerTurn ?? 1)} per turn before release.`;
+      return `Charge ${power.name} for up to ${formatCountedUnit(chargeConfig.chargeTurns, "turn")}, gaining +${formatDieCount(chargeConfig.chargeBonusDicePerTurn ?? 1)} per turn before cast.`;
     }
 
-    return `After ${power.name} has been charged for ${chargeConfig.chargeTurns} ${plural(chargeConfig.chargeTurns, "turn")} it is released at the start of the next turn.`;
+    if (power.descriptorChassis !== "TRIGGER") {
+      return [
+        `After ${power.name} has been charged for ${formatCountedUnit(chargeConfig.chargeTurns, "turn")}, it becomes primed.`,
+        "Once primed, it must be cast with a Power Action before the end of your next turn.",
+        "If it is not cast, it is lost and goes on cooldown.",
+      ]
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    return [
+      `After ${power.name} has been charged for ${formatCountedUnit(chargeConfig.chargeTurns, "turn")} it becomes primed.`,
+      "Once primed, it may be released with a Power Action on your turn.",
+    ]
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
   })();
   const chassisLine = (() => {
     if (power.descriptorChassis === "TRIGGER") {
@@ -1021,25 +1816,136 @@ export function renderPowerDescriptorLines(
     }
     return null;
   })();
-  const primaryTimingKey = getPacketTimingKey(primaryPacket);
+  const primaryTimingKey = primaryDisplayTimingType;
   const shouldExplainReestablishChannel =
     power.commitmentModifier === "CHANNEL" &&
     power.descriptorChassis === "ATTACHED" &&
     effectPackets.some((effectPacket) => isWhilstChannelledTiming(getPacketTimingKey(effectPacket)));
   const reestablishChannelSentence =
     "If the channel is broken, a response or power action can be spent to re-establish the channel.";
-  const sameTimingSecondaryClauses = effectPackets
+  const contingentSecondaryEntries = effectPackets
     .slice(1)
-    .filter((effectPacket) => getPacketTimingKey(effectPacket) === primaryTimingKey)
-    .map((effectPacket) => renderSecondaryPacketClause({ effectPacket, power }))
-    .filter((clause): clause is string => Boolean(clause));
+    .map((effectPacket, index) => {
+      const displayTimingKey = getSecondaryDisplayTimingType(
+        power.descriptorChassis,
+        getPacketTimingKey(effectPacket),
+        chargeConfig,
+      );
+      const inlineClause = renderSecondaryPacketClause({ effectPacket, power });
+      const repeatingDirectEffectSuffix = renderRepeatingDirectEffectSuffix(effectPacket);
+      const usesRecurringCadenceHeader =
+        isRepeatingDirectImmediateSecondary({ effectPacket, power }) && Boolean(repeatingDirectEffectSuffix);
+      const body = renderSecondaryPacketBody({
+        effectPacket,
+        power,
+        suppressRecurringCadence: usesRecurringCadenceHeader,
+      });
+      if (!inlineClause || !body) return null;
+      const timingPrefix = usesRecurringCadenceHeader && repeatingDirectEffectSuffix
+        ? `${capitalizeSentenceStart(repeatingDirectEffectSuffix)},`
+        : displayTimingKey === "ON_CAST"
+          ? "On cast,"
+          : (renderDescriptorTimingPrefix({
+              descriptorChassis: power.descriptorChassis,
+              hostileEntryPattern: power.primaryDefenceGate?.hostileEntryPattern,
+              effectTimingType: displayTimingKey,
+              isPrimary: false,
+              triggerText: readPacketTriggerConditionText(effectPacket),
+              commitmentModifier: power.commitmentModifier,
+              hasMultipleTimingGroups,
+              useCastWordingForRelease: useNonReserveChargeCastWording,
+              useCastWordingForOnCast: useNonReserveDelayedCastPrefix,
+            }) ?? "After the primary effect,");
+      return {
+        effectPacket,
+        authoringIndex: index,
+        displayTimingKey,
+        timingPrefix,
+        inlineClause,
+        body,
+      };
+    })
+    .filter(
+      (
+        entry,
+      ): entry is {
+        effectPacket: EffectPacket;
+        authoringIndex: number;
+        displayTimingKey: EffectPacket["effectTimingType"];
+        timingPrefix: string;
+        inlineClause: string;
+        body: string;
+      } => Boolean(entry),
+    );
+  const distinctSecondaryTimingBuckets = Array.from(
+    new Set(contingentSecondaryEntries.map((entry) => entry.timingPrefix)),
+  );
+  const shouldUseSecondaryBulletBlock =
+    contingentSecondaryEntries.length >= 3 || distinctSecondaryTimingBuckets.length >= 2;
+  const sameTimingSecondaryClauses = shouldUseSecondaryBulletBlock
+    ? []
+    : (() => {
+        const sameTimingEntries = contingentSecondaryEntries.filter(
+          (entry) => entry.displayTimingKey === primaryTimingKey,
+        );
+        if (sameTimingEntries.length === 0) return [] as string[];
+        const sharedScalingLead = renderSecondaryScalingLead(power);
+        const sameTimingBodies = sameTimingEntries.map((entry) =>
+          renderSecondaryPacketBody({
+            effectPacket: entry.effectPacket,
+            power,
+            omitPrimaryRecipientContext: true,
+          }) ?? entry.body,
+        );
+        if (!sharedScalingLead) {
+          return sameTimingEntries.map((entry) => entry.inlineClause);
+        }
+        return [`${sharedScalingLead} ${joinWithCommasAnd(sameTimingBodies)}.`];
+      })();
+  const sameTimingSecondaryResistLines = effectPackets
+    .slice(1)
+    .filter(
+      (effectPacket) =>
+        getSecondaryDisplayTimingType(
+          power.descriptorChassis,
+          getPacketTimingKey(effectPacket),
+          chargeConfig,
+        ) === primaryTimingKey,
+    )
+    .map((effectPacket) =>
+      buildStackResistRemovalLane({
+        effectPacket,
+        isMultiTarget,
+      }))
+    .filter((lane): lane is CleanupLane => Boolean(lane));
+  const sameTimingSecondaryOngoingDamageCleanupLines = effectPackets
+    .slice(1)
+    .filter(
+      (effectPacket) =>
+        getSecondaryDisplayTimingType(
+          power.descriptorChassis,
+          getPacketTimingKey(effectPacket),
+          chargeConfig,
+        ) === primaryTimingKey,
+    )
+    .map((effectPacket) =>
+      buildOngoingDamageCleanupLane({
+        effectPacket,
+        isMultiTarget,
+      }))
+    .filter((lane): lane is CleanupLane => Boolean(lane));
   const primaryLine = (() => {
-    const rollClause = primaryTimingPrefix
-      ? `${primaryTimingPrefix} roll ${getPacketDiceCount(primaryPacket, power)} dice.`
-      : `Roll ${getPacketDiceCount(primaryPacket, power)} dice.`;
+    const rollClause = buildPrimaryRollClause({
+      baseDiceCount: getPacketDiceCount(primaryPacket, power),
+      timingPrefix: primaryTimingPrefix,
+      chargeConfig,
+    });
 
     if (power.descriptorChassis === "ATTACHED") {
-      const anchorText = readDescriptorConfigText(descriptorChassisConfig, "anchorText");
+      const anchorText = renderAttachedAnchorText(
+        normalizeAttachedHostAnchorType(power.attachedHostAnchorType),
+        readLegacyAttachedAnchorText(descriptorChassisConfig),
+      );
       const targetPhrase = anchorText || "the chosen host";
       const attachedLifespanText =
         power.lifespanType === "TURNS"
@@ -1047,21 +1953,33 @@ export function renderPowerDescriptorLines(
           : power.lifespanType === "PASSIVE"
             ? " until it ends or is removed"
             : "";
-      const attachLine =
-        `${stripTrailingPeriod(genericRangeLead)} and attach ${power.name} to ${targetPhrase}${attachedLifespanText}.`;
+      const attachLine = isSelfOriginSphereRange(rangeCategory, rangeValue, rangeExtra)
+        ? buildAttachedSelfOriginSphereLine({
+            rangeExtra,
+            anchorText,
+            lifespanType: power.lifespanType,
+            lifespanTurns: power.lifespanTurns,
+          })
+        : `${stripTrailingPeriod(genericRangeLead)} and attach ${power.name} to ${targetPhrase}${attachedLifespanText}.`;
       if (power.primaryDefenceGate?.hostileEntryPattern === "ON_PAYLOAD") {
         const triggerLead = renderDescriptorTimingPrefix({
           descriptorChassis: power.descriptorChassis,
           hostileEntryPattern: power.primaryDefenceGate?.hostileEntryPattern,
-          effectTimingType: primaryPacket?.effectTimingType,
+          effectTimingType: primaryDisplayTimingType,
           isPrimary: true,
           triggerText: attachedPayloadTriggerText,
           commitmentModifier: power.commitmentModifier,
           hasMultipleTimingGroups,
+          useCastWordingForRelease: useNonReserveChargeCastWording,
+          useCastWordingForOnCast: useNonReserveDelayedCastPrefix,
         }) ?? "While attached, when its stored effect is triggered,";
         return [
           attachLine,
-          `${triggerLead} roll ${getPacketDiceCount(primaryPacket, power)} dice.`,
+          `${triggerLead} ${buildPrimaryRollClause({
+            baseDiceCount: getPacketDiceCount(primaryPacket, power),
+            timingPrefix: null,
+            chargeConfig,
+          }).replace(/\.$/, "").toLowerCase()}.`,
           `${power.name} ${primaryBaseClause} per success${primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}.`,
           ...sameTimingSecondaryClauses,
           shouldExplainReestablishChannel && isWhilstChannelledTiming(primaryTimingKey)
@@ -1090,15 +2008,28 @@ export function renderPowerDescriptorLines(
     if (power.descriptorChassis === "FIELD") {
       const fieldTimingSuffix = renderFieldEffectTimingSuffix(
         power.name,
-        primaryPacket?.effectTimingType,
+        primaryDisplayTimingType,
+      );
+      const fieldAffectedTargetQualifier = renderFieldAffectedTargetQualifier(
+        primaryDisplayTimingType,
       );
       const fieldRollClause = primaryTimingPrefix
-        ? `${primaryTimingPrefix} roll ${getPacketDiceCount(primaryPacket, power)} dice.`
-        : `Roll ${getPacketDiceCount(primaryPacket, power)} dice.`;
-      const fieldEffectClause = `${fieldRollClause} ${power.name} ${primaryBaseClause} per success${primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}${primaryTimingPrefix ? "" : fieldTimingSuffix ? ` ${fieldTimingSuffix}` : ""}${fieldInteractionText ? ` ${fieldInteractionText}` : ""}.`;
+        ? buildPrimaryRollClause({
+            baseDiceCount: getPacketDiceCount(primaryPacket, power),
+            timingPrefix: primaryTimingPrefix,
+            chargeConfig,
+          })
+        : buildPrimaryRollClause({
+            baseDiceCount: getPacketDiceCount(primaryPacket, power),
+            timingPrefix: null,
+            chargeConfig,
+          });
+      const fieldRepeatingDirectSentence = renderFieldRepeatingDirectEffectSentence(primaryPacket);
+      const fieldEffectClause = `${fieldRollClause} ${power.name} ${primaryBaseClause} per success${fieldAffectedTargetQualifier ? ` ${fieldAffectedTargetQualifier}` : ""}${fieldRepeatingDirectSentence ? "" : primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}${primaryTimingPrefix ? "" : fieldTimingSuffix ? ` ${fieldTimingSuffix}` : ""}.`;
       return [
         rangeLead,
         fieldEffectClause,
+        fieldRepeatingDirectSentence,
         ...sameTimingSecondaryClauses,
       ]
         .filter((segment): segment is string => Boolean(segment))
@@ -1110,10 +2041,18 @@ export function renderPowerDescriptorLines(
     if (power.descriptorChassis === "RESERVE") {
       const releaseRangeLead = stripTrailingPeriod(genericRangeLead);
       const reserveReleaseLead = primaryTimingPrefix
-        ? `${primaryTimingPrefix} ${releaseRangeLead.toLowerCase()} and roll ${getPacketDiceCount(primaryPacket, power)} dice.`
-        : `${releaseRangeLead} and roll ${getPacketDiceCount(primaryPacket, power)} dice.`;
+        ? `${primaryTimingPrefix} ${releaseRangeLead.toLowerCase()} and ${buildPrimaryRollClause({
+            baseDiceCount: getPacketDiceCount(primaryPacket, power),
+            timingPrefix: null,
+            chargeConfig,
+          }).replace(/\.$/, "").toLowerCase()}`
+        : `${releaseRangeLead} and ${buildPrimaryRollClause({
+            baseDiceCount: getPacketDiceCount(primaryPacket, power),
+            timingPrefix: null,
+            chargeConfig,
+          }).replace(/\.$/, "").toLowerCase()}`;
       return [
-        capitalizeSentenceStart(reserveReleaseLead),
+        `${capitalizeSentenceStart(reserveReleaseLead).replace(/\s+$/, "")}.`,
         `${power.name} ${primaryBaseClause} per success${primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}.`,
         ...sameTimingSecondaryClauses,
       ]
@@ -1123,16 +2062,26 @@ export function renderPowerDescriptorLines(
     }
 
     if (power.descriptorChassis === "TRIGGER") {
-      const triggerLifespanSentence =
-        power.lifespanType === "TURNS"
-          ? `It persists for ${formatCountedUnit(power.lifespanTurns, "turn")}.`
-          : power.lifespanType === "PASSIVE"
-            ? "It persists until it ends or is removed."
-            : null;
+      const triggerArmedSentence =
+        triggerMethod === "TARGET_AND_THEN_ARM"
+          ? `Once cast, ${power.name} remains armed against ${renderTriggerArmedSubject(rangeCategory, rangeValue, rangeExtra)} ${renderTriggerArmedDurationText(power)}.`
+          : `Once cast, ${power.name} remains armed ${renderTriggerArmedDurationText(power)}.`;
+      const triggerActivationSentence = renderTriggerActivationSentence({
+        triggerMethod,
+        triggerText: triggerPayloadText || primaryPacketTriggerConditionText,
+        rangeCategory,
+        rangeValue,
+        rangeExtra,
+        rollClause: buildPrimaryRollClause({
+          baseDiceCount: getPacketDiceCount(primaryPacket, power),
+          timingPrefix: null,
+          chargeConfig,
+        }),
+      });
       return [
-        rangeLead,
-        triggerLifespanSentence,
-        `${rollClause} ${power.name} ${primaryBaseClause} per success${primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}.`,
+        triggerMethod === "TARGET_AND_THEN_ARM" ? rangeLead : null,
+        triggerArmedSentence,
+        `${triggerActivationSentence} ${power.name} ${primaryBaseClause} per success${primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}.`,
         ...sameTimingSecondaryClauses,
       ]
         .filter((segment): segment is string => Boolean(segment))
@@ -1141,9 +2090,14 @@ export function renderPowerDescriptorLines(
         .trim();
     }
 
-    return [
+    const leadWithRoll = combineRangeLeadWithRollClause(
       rangeLead,
       rollClause,
+      rangeCategory,
+      isMultiTarget,
+    );
+    return [
+      leadWithRoll,
       `${power.name} ${primaryBaseClause} per success${primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}.`,
       ...sameTimingSecondaryClauses,
     ]
@@ -1154,45 +2108,133 @@ export function renderPowerDescriptorLines(
   const groupedSecondaryPackets = effectPackets.slice(1).reduce(
     (groups, effectPacket) => {
       const timingKey = getPacketTimingKey(effectPacket);
-      if (timingKey === primaryTimingKey) return groups;
-      const existingGroup = groups.find((group) => group.timingKey === timingKey);
+      const displayedTimingKey = getSecondaryDisplayTimingType(
+        power.descriptorChassis,
+        timingKey,
+        chargeConfig,
+      );
+      if (displayedTimingKey === primaryTimingKey) return groups;
+      const existingGroup = groups.find((group) => group.timingKey === displayedTimingKey);
       if (existingGroup) {
         existingGroup.packets.push(effectPacket);
         return groups;
       }
       groups.push({
-        timingKey,
+        timingKey: displayedTimingKey,
         packets: [effectPacket],
       });
       return groups;
     },
     [] as Array<{ timingKey: EffectPacket["effectTimingType"]; packets: EffectPacket[] }>,
   );
+  const groupedSecondaryResistLines = groupedSecondaryPackets.flatMap(({ packets }) =>
+    packets
+      .map((effectPacket) =>
+        buildStackResistRemovalLane({
+          effectPacket,
+          isMultiTarget,
+        }))
+      .filter((lane): lane is CleanupLane => Boolean(lane)),
+  );
+  const groupedSecondaryOngoingDamageCleanupLines = groupedSecondaryPackets.flatMap(({ packets }) =>
+    packets
+      .map((effectPacket) =>
+        buildOngoingDamageCleanupLane({
+          effectPacket,
+          isMultiTarget,
+        }))
+      .filter((lane): lane is CleanupLane => Boolean(lane)),
+  );
   let hasAppendedReestablishChannelSentence =
     !shouldExplainReestablishChannel || isWhilstChannelledTiming(primaryTimingKey);
-  const secondaryLines = groupedSecondaryPackets.map(({ packets }) => {
+  const secondaryLines = shouldUseSecondaryBulletBlock
+    ? (() => {
+        const sharedScalingLead = renderSecondaryScalingLead(power);
+        if (!sharedScalingLead) return [] as string[];
+        const bucketedEntries = contingentSecondaryEntries.reduce(
+          (groups, entry) => {
+            const existingGroup = groups.find((group) => group.timingPrefix === entry.timingPrefix);
+            if (existingGroup) {
+              existingGroup.entries.push(entry);
+              return groups;
+            }
+            groups.push({
+              timingPrefix: entry.timingPrefix,
+              entries: [entry],
+            });
+            return groups;
+          },
+          [] as Array<{
+            timingPrefix: string;
+            entries: typeof contingentSecondaryEntries;
+          }>,
+        );
+        const bulletLines = bucketedEntries.map(({ timingPrefix, entries }) => {
+          const mergedBody = joinWithCommasAnd(entries.map((entry) => entry.body));
+          return renderSecondaryBulletLine(timingPrefix, mergedBody);
+        });
+        if (!hasAppendedReestablishChannelSentence) {
+          const hasWhilstChannelledBullet = bucketedEntries.some(({ entries }) =>
+            entries.some((entry) => isWhilstChannelledTiming(getPacketTimingKey(entry.effectPacket))),
+          );
+          if (hasWhilstChannelledBullet) {
+            hasAppendedReestablishChannelSentence = true;
+            bulletLines.push(reestablishChannelSentence);
+          }
+        }
+        return [`${sharedScalingLead}:`, ...bulletLines];
+      })()
+    : groupedSecondaryPackets.map(({ packets }) => {
     const leadPacket = packets[0];
-    const packetTriggerText = readPacketTriggerText(leadPacket);
+    const packetTriggerText = readPacketTriggerConditionText(leadPacket);
     const timingPrefix = renderDescriptorTimingPrefix({
       descriptorChassis: power.descriptorChassis,
       hostileEntryPattern: power.primaryDefenceGate?.hostileEntryPattern,
-      effectTimingType: leadPacket?.effectTimingType,
+      effectTimingType: getSecondaryDisplayTimingType(
+        power.descriptorChassis,
+        leadPacket?.effectTimingType,
+        chargeConfig,
+      ),
       isPrimary: false,
       triggerText: packetTriggerText,
       commitmentModifier: power.commitmentModifier,
       hasMultipleTimingGroups,
+      useCastWordingForRelease: useNonReserveChargeCastWording,
+      useCastWordingForOnCast: useNonReserveDelayedCastPrefix,
     });
-    const contingentPrefix = timingPrefix ?? "After the primary effect,";
-    const contingentBodies = packets
-      .map((effectPacket) => renderSecondaryPacketClause({ effectPacket, power }))
-      .filter((clause): clause is string => Boolean(clause));
+    const sharedScalingLead = renderSecondaryScalingLead(power);
+    const contingentBodies =
+      timingPrefix && sharedScalingLead
+        ? packets
+            .map((effectPacket) =>
+              renderSecondaryPacketBodyWithInlineTiming({
+                effectPacket,
+                power,
+                timingPrefix,
+              }))
+            .filter((clause): clause is string => Boolean(clause))
+        : [];
     const shouldAppendReestablishChannelSentence =
       !hasAppendedReestablishChannelSentence && isWhilstChannelledTiming(getPacketTimingKey(leadPacket));
     if (shouldAppendReestablishChannelSentence) {
       hasAppendedReestablishChannelSentence = true;
     }
+    if (timingPrefix && sharedScalingLead) {
+      return [
+        `${sharedScalingLead} ${joinWithCommasAnd(contingentBodies) || "it also resolves an additional effect"}.`,
+        shouldAppendReestablishChannelSentence ? reestablishChannelSentence : null,
+      ]
+        .filter((segment): segment is string => Boolean(segment))
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+    const contingentPrefix = timingPrefix ?? "After the primary effect,";
+    const contingentClauses = packets
+      .map((effectPacket) => renderSecondaryPacketClause({ effectPacket, power }))
+      .filter((clause): clause is string => Boolean(clause));
     return [
-      `${contingentPrefix} ${contingentBodies.join(" ") || "it also resolves an additional effect."}`,
+      `${contingentPrefix} ${contingentClauses.join(" ") || "it also resolves an additional effect."}`,
       shouldAppendReestablishChannelSentence ? reestablishChannelSentence : null,
     ]
       .filter((segment): segment is string => Boolean(segment))
@@ -1203,11 +2245,13 @@ export function renderPowerDescriptorLines(
   const lines = [channelLine, chargeLine, chassisLine, primaryLine, ...secondaryLines, lifespanLine].filter(
     (line): line is string => Boolean(line),
   );
-  if (primaryDefenceCheck) {
+  if (primaryDefenceCheck && rangeCategory !== "SELF") {
     const defenceTimingText = renderDefenceTimingDescriptor(
       power.name,
-      primaryPacket?.effectTimingType,
+      primaryDisplayTimingType,
       power.primaryDefenceGate?.hostileEntryPattern,
+      useNonReserveChargeCastWording,
+      useNonReserveDelayedCastPrefix,
     );
     if (primaryDefenceCheck.isMultiTarget) {
       lines.push(
@@ -1219,6 +2263,24 @@ export function renderPowerDescriptorLines(
       );
     }
   }
+  const primaryStackResistLine = buildStackResistRemovalLane({
+    effectPacket: primaryPacket,
+    isMultiTarget,
+  });
+  const primaryOngoingDamageCleanupLine = buildOngoingDamageCleanupLane({
+    effectPacket: primaryPacket,
+    isMultiTarget,
+  });
+  lines.push(
+    ...renderCleanupLines([
+      primaryStackResistLine,
+      primaryOngoingDamageCleanupLine,
+      ...sameTimingSecondaryResistLines,
+      ...sameTimingSecondaryOngoingDamageCleanupLines,
+      ...groupedSecondaryResistLines,
+      ...groupedSecondaryOngoingDamageCleanupLines,
+    ]),
+  );
   return lines;
 }
 

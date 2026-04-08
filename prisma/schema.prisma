@@ -463,8 +463,13 @@ model Power {
   status                 PowerStatus            @default(ACTIVE)
   descriptorChassis      DescriptorChassisType  @default(IMMEDIATE)
   descriptorChassisConfig Json                  @default("{}")
+  chargeType             ChargeType?
+  chargeTurns            Int?
+  chargeBonusDicePerTurn Int?
   counterMode            CounterMode            @default(NO)
   commitmentModifier     CommitmentModifier     @default(STANDARD)
+  triggerMethod          TriggerMethod?
+  attachedHostAnchorType AttachedHostAnchorType?
   cooldownTurns          Int
   cooldownReduction      Int                    @default(0)
   lifespanType           PowerLifespanType      @default(NONE)
@@ -789,6 +794,8 @@ model EffectPacket {
   targetedAttribute     CoreAttribute?
   applicationModeKey    String?
   resolutionOrigin      ResolutionOrigin                    @default(CASTER)
+  applyTo               EffectPacketApplyTo?
+  triggerConditionText  String?
   detailsJson           Json                                @default("{}")
   power                 Power                               @relation(fields: [powerId], references: [id], onDelete: Cascade)
   localTargetingOverride EffectPacketLocalTargetingOverride?
@@ -952,9 +959,34 @@ enum CommitmentModifier {
   CHARGE
 }
 
+enum ChargeType {
+  DELAYED_RELEASE
+  BUILD_POWER
+}
+
+enum TriggerMethod {
+  ARM_AND_THEN_TARGET
+  TARGET_AND_THEN_ARM
+}
+
+enum AttachedHostAnchorType {
+  TARGET
+  OBJECT
+  WEAPON
+  ARMOR
+  SELF
+  AREA
+}
+
 enum PacketHostility {
   NON_HOSTILE
   HOSTILE
+}
+
+enum EffectPacketApplyTo {
+  PRIMARY_TARGET
+  ALLIES
+  SELF
 }
 
 enum PrimaryDefenceGateResult {

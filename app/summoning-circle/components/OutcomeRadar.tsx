@@ -8,14 +8,14 @@ type Props = {
   size?: number;
 };
 
-const AXES: { key: keyof RadarAxes; label: string }[] = [
-  { key: "physicalThreat", label: "Phys" },
-  { key: "mentalThreat", label: "Ment" },
-  { key: "survivability", label: "Surv" },
-  { key: "manipulation", label: "Ctrl" },
-  { key: "synergy", label: "Syn" },
-  { key: "mobility", label: "Mob" },
-  { key: "presence", label: "Pres" },
+const AXES: { key: keyof RadarAxes; labelLines: string[] }[] = [
+  { key: "physicalThreat", labelLines: ["Physical", "Threat"] },
+  { key: "mentalThreat", labelLines: ["Mental", "Threat"] },
+  { key: "survivability", labelLines: ["Survivability"] },
+  { key: "manipulation", labelLines: ["Control", "Pressure"] },
+  { key: "synergy", labelLines: ["Synergy"] },
+  { key: "mobility", labelLines: ["Mobility"] },
+  { key: "presence", labelLines: ["Pressure"] },
 ];
 
 function clamp01(n: number) {
@@ -32,11 +32,14 @@ function buildPath(points: { x: number; y: number }[]) {
   return `M ${points.map((p) => `${p.x} ${p.y}`).join(" L ")} Z`;
 }
 
-export function OutcomeRadar({ axes, backgroundAxes, size = 240 }: Props) {
+export function OutcomeRadar({ axes, backgroundAxes, size = 312 }: Props) {
   const cx = size / 2;
   const cy = size / 2;
-  const padding = 20;
-  const radius = cx - padding;
+  // Reserve a real label gutter so long axis names stay inside the SVG
+  // instead of colliding with the outer ring.
+  const labelGutter = 48;
+  const radius = Math.max(48, cx - labelGutter);
+  const labelRadius = radius + 24;
 
   const angles = AXES.map((_, i) => -Math.PI / 2 + (i * 2 * Math.PI) / AXES.length);
 
@@ -84,18 +87,27 @@ export function OutcomeRadar({ axes, backgroundAxes, size = 240 }: Props) {
         <path d={fgPath} className="fill-emerald-500/20 stroke-emerald-400" strokeWidth={2} />
 
         {angles.map((angle, i) => {
-          const labelPos = toPoint(cx, cy, radius + 12, angle);
+          const labelPos = toPoint(cx, cy, labelRadius, angle);
+          const labelLines = AXES[i].labelLines;
+          const firstLineY = labelPos.y - ((labelLines.length - 1) * 5) / 2;
           return (
             <text
               key={`label-${i}`}
               x={labelPos.x}
-              y={labelPos.y}
+              y={firstLineY}
               textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize="10"
+              fontSize="9"
               className="fill-zinc-400"
             >
-              {AXES[i].label}
+              {labelLines.map((line, lineIndex) => (
+                <tspan
+                  key={`${AXES[i].key}-${lineIndex}`}
+                  x={labelPos.x}
+                  dy={lineIndex === 0 ? 0 : 10}
+                >
+                  {line}
+                </tspan>
+              ))}
             </text>
           );
         })}

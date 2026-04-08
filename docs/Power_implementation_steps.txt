@@ -1,0 +1,88 @@
+Power implementation steps:
+
+Status note:
+Phases 1, 2, 3, 4, and 5 are complete enough to close as design phases.
+
+Phase 7 is substantially complete in Summoning Circle.
+Phase 8 is substantially complete as a minimal but real monster power builder pass.
+Phase 9 is actively underway and has already produced multiple descriptor and builder corrections.
+Phase 11 has effectively started through preview/descriptor cleanup and builder UX tightening.
+
+Phase 1 — Lock the power foundation
+Complete enough to close.
+The shared conceptual model is locked around Power-Level Fields, Descriptor Chassis, Effect Packets, the Primary Packet defence rule, and the timing triad.
+
+Phase 2 — Define the shared power schema direction
+Complete enough to close as a design phase.
+The shared schema direction is established strongly enough to drive implementation, even though some long-term ownership boundaries remain open.
+
+Phase 3 — Build the descriptor chassis matrix
+Complete enough to close as a design phase.
+The hardened chassis matrix is Immediate, Field, Attached, Trigger, and Reserve.
+
+Phase 4 — Define the packet resolution rules
+Complete enough to close as a design phase.
+Primary versus Secondary packet behaviour, packet timing legality, and mixed-intention legality are established.
+
+Phase 5 — Build the defence gating matrix and implementation-facing translation
+Complete enough to close as a design phase.
+The defence-gating logic and the implementation-facing builder/preview split are both materially clarified.
+
+Phase 6 — Rework costing against the new structure
+Not implemented yet.
+This remains a real next-stage job and should eventually price persistence, timing, action commitment, scaling, and structural burden honestly.
+
+Phase 7 — Implement the shared power core behind the Summoning Circle first
+Substantially complete.
+The shared power core is now implemented behind the Summoning Circle monster builder in first-pass form.
+
+Phase 8 — Ship a minimal but real monster power builder pass
+Substantially complete.
+The builder already supports the current core chassis, Counter, Commitment, packet-local timing/duration/potency, visible Lifespan where needed, real preview rendering, and pressure-test fixtures.
+
+Phase 9 — Validate descriptor clarity with real monster powers
+Actively underway.
+Real authored monster powers have already exposed and corrected multiple failures in descriptor truth, timing expression, field gating, builder clarity, delayed-cast framing, persistent-state cleanup wording, ongoing-damage cadence wording, packet-local ally-targeting clarity, Trigger watched-target honesty, and self-origin area wording.
+
+Phase 10 — Add monster-specific policy layers
+Not materially started.
+This remains later work after the core builder path is considered stable enough.
+
+Phase 11 — Standardize preview formatting and builder UX
+Underway.
+Recent implementation work is already doing this through descriptor cleanup, timing grouping, field gating, and simplified authoring surfaces.
+
+Phase 12 — Add printable power reference output
+Not started.
+
+Phase 13 — Add printable effect-slip output
+Not started.
+
+Phase 14 — Start the Character Builder on the shared foundation
+Not started.
+
+Phase 15 — Layer in player-only systems
+Not started.
+
+Phase 16 — Rebalance and iterate through playtest
+Not started in earnest.
+Balance implications have been identified, but real cost integration and rebalance passes are still ahead.
+
+Phase 17 — Design the runtime active-effect model
+Not started.
+
+Phase 18 — Build the optional encounter runner
+Not started.
+
+Immediate practical next-step direction
+
+The architecture is no longer the main risk.
+The practical next work should stay focused on:
+
+- finishing descriptor trust and preview standardization
+- resolving the remaining builder ambiguities with the smallest hard rules needed
+- preparing for cost integration
+- avoiding drift between current code reality and source-doc status
+- resolving only the remaining honest builder edge cases such as any truly blocking Trigger + Charge + Delayed Cast interaction
+- implementing the settled self-origin sphere descriptor wording for static versus Attached areas
+- carrying the hardened same-packet AoE overlap rule into implementation without adding extra defence rolls

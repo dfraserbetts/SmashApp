@@ -17,7 +17,15 @@ Phase 3 — Descriptor Chassis Matrix and Builder Workflow Hardening — is comp
 
 Phase 4 — Packet Resolution Rules Consolidation and Hardening — is complete enough to close as a design phase.
 
-Phase 5 — Implementation-Facing Translation of the Hardened Power Model — is now materially clarified at the design-language level, but still contains a small number of explicit unresolved hard-rule questions.
+Phase 5 — Implementation-Facing Translation of the Hardened Power Model — is complete enough to close as a design phase.
+
+Phase 7 is substantially complete in Summoning Circle.
+
+Phase 8 is substantially complete as a minimal but real monster power builder pass.
+
+Phase 9 is underway and has already produced multiple descriptor and builder-honesty corrections.
+
+Phase 11 is underway through preview formatting and builder UX cleanup.
 
 The architecture is no longer the main uncertainty.
 
@@ -61,6 +69,24 @@ The following points should now be treated as stable design truth:
 - authored Effect Timing determines when each packet resolves while maintained
 - recurring maintained effects must be authored through packet timing rather than assumed from Channel alone
 - delayed Secondary Packets stay scheduled for their own later timing
+- Charge now uses two first-pass player-facing modes:
+  Delayed Cast and Build Power
+- Delayed Cast is not Reserve-only
+- Build Power uses bonus dice per charged turn
+- Delayed Cast cannot be Counter-enabled
+- Reserve + Charge delayed-cast becomes primed after its charge turns and must be released with a Power Action or with a Response before the end of the user’s next turn or be lost and go on cooldown
+- non-Reserve delayed-cast becomes primed after its charge turns and must be cast with a Power Action before the end of the user’s next turn or be lost
+- Reserve owns release flavour and release permission
+- non-Reserve delayed-cast uses cast framing, not release framing
+- non-Reserve delayed-cast packet and defence wording now follow the authored Packet 1 Effect Timing instead of a forced ON_RELEASE bridge
+- non-Reserve Build Power uses cast framing rather than release framing
+- Immediate + Standard Packet 1 currently uses On Cast only in the builder surface
+- if an Immediate Packet 1 resolves On Cast and creates no beyond-turn carrier, later Immediate packets remain On Cast only in first implementation
+- secondary scaling now derives from the Primary result class rather than remaining a manual builder guess
+- repeating direct effects such as ongoing damage now use ongoing value plus duration rather than stack count
+- Immediate + Standard repeating direct effects apply initially on cast and then reapply at the start of the affected target’s next turns for their duration
+- persistent states use stack cleanup through resist rolls, cleanse, natural degradation, and expiry
+- ongoing damage cleanup uses cleanse or a cleanup Resist roll against one chosen effect, does not naturally degrade, and ends on expiry
 - reapplying live stacks from the same power/source refreshes them
 - Channelled powers end when upkeep ends, the structure expires, or the sustaining anchor is broken
 - Attached powers require legal initial range, but host-bound persistence may continue after later range changes
@@ -115,6 +141,19 @@ The following implementation-facing direction is now strong enough to carry forw
 - the builder field matrix is now clear enough for Immediate, Field, Attached, Trigger, and Reserve
 - the live preview contract is now clear enough to distinguish chassis behaviour, contingent Secondary behaviour, maintained-turn resolution, and delayed packet timing
 - Attached preview wording must keep gate on attach and gate on payload explicit for hostile delayed-entry structures
+- Charge preview and builder wording now distinguish Reserve delayed-cast from non-Reserve delayed-cast
+- Build Power now uses cast-facing wording on non-Reserve chassis and explicitly states bonus charged dice in the live descriptor
+- Immediate timing choices are now gated conservatively enough that the builder stops offering fake no-carrier later timings
+- Field lifespan and field-target qualifier cleanup now keep Field honest as a persistent footprint rather than an AoE burst in disguise
+- current descriptor wording now distinguishes persistent state cleanup from ongoing-damage cleanup
+- ambiguous Cleanse targeting of Active Power or Channelled Power may now use Cleanse Theme to resolve one exact cleanup Resist Attribute
+- Trigger now has a first-pass watched-target distinction through Trigger Method: Arm and then target versus Target and then arm
+- Secondary timing choices are now further gated by Packet 1 carrier legality so later recurring Secondary timings only appear where Packet 1 creates a real carrier
+- Immediate remains the only chassis that can honestly have no Lifespan requirement in the current builder surface; Field, Attached, Trigger, and Reserve now require Turns or Passive and default to Turns
+- self-origin sphere wording direction is now settled: static areas are centered on the user's current space, while self-hosted Attached areas are attached to the user
+- overlapping areas from the same packet at the same timing now resolve through one power roll, pre-defence multiplication by overlap count, and one defence roll
+- packet-local secondary recipient class may now distinguish Primary Targets, Allies, and Self where the packet needs a different recipient class from Packet 1
+- Allies includes self by default unless an explicit authored restriction says otherwise
 
 
 What Still Needs Refinement
@@ -125,28 +164,29 @@ The next unresolved work is the small set of implementation-facing hard rules th
 
 The biggest remaining open questions are:
 
-- the exact first-pass implementation-facing behaviour boundary for Charge
 - the final schema ownership boundary for Lifespan
 - the final schema boundary between Power-Level Fields, chassis-local fields, packet-local fields, and derived metadata
-- the exact locked preview wording for maintained-turn resolution and delayed packet timing
 - how costing maps onto the hardened chassis matrix plus Commitment Modifier
 - how trigger cooldown handling scales by complexity
+- whether any broader Trigger + Charge + Delayed Cast canon needs hardening beyond the current first-pass implementation surface
 - full transformation and summoning treatment once their linked builders are ready
 
 
 Recommended Immediate Next Step
 
-The next work should focus on implementation planning and execution against current Summoning Circle files, not more broad theory.
+The next work should focus on finishing descriptor and builder honesty cleanup against current Summoning Circle files, keeping the source docs aligned with code reality, and preparing for Phase 6 cost integration.
 
 That work should focus on:
 
-- mapping the surviving chassis matrix into actual schema shape
-- defining the concrete builder field groups for Immediate, Field, Attached, Trigger, and Reserve
-- defining how Counter, Standard, Channel, and Charge alter builder behaviour without bloating simple powers
-- implementing the live preview contract so it stays mechanically honest
+- finishing the remaining descriptor-trust and builder-clarity cleanup
+- keeping the source docs aligned with current implemented behaviour
+- preserving the live preview contract so it stays mechanically honest
 - preserving attached hostile-entry distinction in both builder and preview
+- implementing the settled self-origin sphere wording for static versus Attached descriptors
 - keeping local origin / targeting override behind advanced controls only
-- adapting costing against chassis complexity, structural presence, action commitment, and applied-result scaling
+- preserving the new split between persistent-state cleanup and ongoing-damage cleanup
+- carrying the newly hardened AoE overlap rule into implementation without adding extra defence rolls
+- preparing cost integration against chassis complexity, structural presence, action commitment, and applied-result scaling
 
 If implementation work hits one of the still-unresolved boundary questions, resolve only the smallest hard rule needed to unblock honest implementation.
 
@@ -157,13 +197,11 @@ Near-Term Implementation Path
 
 The likely implementation order is now:
 
-- convert the Phase 5 translation into an implementation blueprint against current Summoning Circle files
-- lock the minimum remaining hard rules for Charge and Lifespan ownership only if they materially block implementation
-- implement the shared power core behind Summoning Circle
-- ship a minimal but real monster power builder pass
-- validate the builder with real authored monster powers across the surviving chassis
-- adapt costing to the hardened architecture including Commitment Modifier
-- later reuse the same core in Character Builder
+- finish the remaining descriptor and builder ambiguity cleanup in Summoning Circle
+- keep the source docs aligned with current code reality as those fixes land
+- validate the existing builder with real authored monster powers across the surviving chassis
+- begin and carry Phase 6 cost integration against the hardened architecture including Commitment Modifier
+- later extend monster-policy layers and reuse the same core in Character Builder
 
 
 Things Intentionally Postponed

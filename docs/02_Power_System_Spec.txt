@@ -73,7 +73,7 @@ full summoning payload builders
 
 final naming purity for every helper label
 
-final implementation lock for Charge behaviour
+advanced Charge variants beyond the current first-pass implementation
 
 final schema lock for Lifespan ownership
 
@@ -172,7 +172,7 @@ Standard is the default.
 
 Channel means the user may or must continue consuming later Power Actions to maintain, reapply, or sustain the power after initial use.
 
-Charge means the user must or may consume one or more later Power Actions building power before Packet 1 resolves, or may grow the power’s eventual result while the power remains held before release.
+Charge means the user must or may consume one or more later Power Actions building power before Packet 1 resolves, or may grow the power’s eventual result while the power remains held before cast or release depending on chassis.
 
 Commitment Modifier is not a Descriptor Chassis.
 
@@ -188,11 +188,53 @@ Channel uses one behaviour model only as an action-commitment modifier. It does 
 
 Authored Effect Timing determines when each Effect Packet resolves.
 
-Charge may constrain when Packet 1 is allowed to resolve and how long a power may remain in a usable pre-resolution state, but it does not replace the meaning of Lifespan or Effect Timing.
+Charge may constrain when Packet 1 is allowed to resolve and how long a power may remain in a usable pre-resolution state, but it does not replace the meaning of Lifespan, Effect Timing, or Effect Duration.
 
 First-pass Channel support is limited to Immediate, Field, and Attached powers. Trigger + Channel and Reserve + Channel are deferred.
 
-The exact first-pass implementation-facing boundary for Charge is still unresolved and must not be falsely treated as settled canon.
+In first implementation, Charge uses one active Charge Type only:
+
+Delayed Cast
+
+Build Power
+
+Delayed Cast is the design-facing term. The current code may still use the implementation-internal enum/value DELAYED_RELEASE for stability.
+
+Build Power uses bonus dice per charged turn.
+
+Delayed Cast is not Reserve-only.
+
+Delayed Cast cannot be Counter-enabled.
+
+Reserve + Charge delayed-cast:
+
+becomes primed after the required charge turns
+
+must be released with a Power Action or with a Response before the end of the user’s next turn
+
+if not released, is lost and goes on cooldown
+
+Reserve keeps release permission and release-flavoured wording.
+
+Non-Reserve delayed-cast:
+
+becomes primed after the required charge turns
+
+must be cast with a Power Action before the end of the user’s next turn
+
+if not cast, is lost
+
+Non-Reserve delayed-cast does not inherit Reserve release framing.
+
+For non-Reserve delayed-cast, Packet 1 timing and defence wording follow the authored Packet 1 Effect Timing rather than a forced ON_RELEASE bridge.
+
+Build Power remains separate from Delayed Cast. On non-Reserve chassis its player-facing wording uses cast framing such as before cast, on cast, and when the power is cast.
+
+In the current builder surface, Immediate + Standard Packet 1 uses On Cast only.
+
+If an Immediate Packet 1 resolves On Cast and does not create a beyond-turn carrier, later Immediate packets are also restricted to On Cast in first implementation.
+
+Secondary scaling from the Primary Packet result class is derived rather than manually selected in the current builder surface.
 
 
 2.2 Counter
@@ -245,6 +287,37 @@ Counter is not the same thing as Trigger.
 Assist is universal by system rule and does not need authored representation in the power builder.
 
 Responses remain the player-facing resource and are not the authored power field.
+
+
+3.1 AoE placement, self-origin wording, and overlap
+
+AoE count, shape, and footprint remain part of shared cast context.
+
+Where an AoE sphere uses cast range 0 from the user's own position, descriptor wording must distinguish between static placement and attached presence.
+
+For static self-origin area text, wording should describe the sphere or spheres as centered on the user's current space.
+
+For Attached self-origin area text, wording should describe the sphere or spheres as attached to the user.
+
+This wording distinction exists to keep preview text honest without bloating every power with handbook text.
+
+Overlapping areas from the same packet at the same timing resolve as one packet with multiplied intensity, not as multiple separate defended entry points.
+
+The power rolls once.
+
+The packet's hostile result is determined once.
+
+That hostile result is multiplied by the number of distinct authored areas from that packet affecting that target at that timing.
+
+One defence roll is then resolved against the multiplied result.
+
+The resulting applied value is the Packet 1 applied result for that target.
+
+Dodge avoids the whole overlapped packet on that target.
+
+Protection blocks against the multiplied wound total.
+
+Resist cancels against the multiplied hostile successes or other hostile effect units.
 
 
 4. Delivery Method and Descriptor Chassis
@@ -418,7 +491,7 @@ trigger condition
 armed window or Lifespan
 
 Optional supporting fields:
-watch scope
+Trigger Method where the watched-target structure must be explicit
 simple one-shot versus reusable later handling
 Secondary Packets
 
@@ -428,6 +501,18 @@ local origin override
 local targeting override
 stricter cooldown handling by complexity
 Application Mode where trigger framing still leaves the gate unclear
+
+Trigger Method uses the following first-pass distinction where needed:
+
+Arm and then target
+
+Target and then arm
+
+Arm and then target means the power is cast now, remains armed for its Lifespan, and identifies legal target or targets only when the trigger condition occurs.
+
+Target and then arm means the power is cast now, chooses its legal target or targets now, and remains armed against that chosen watched target set for its Lifespan.
+
+In both cases, Packet 1 still resolves on trigger.
 
 Timing profile:
 Lifespan is usually highly relevant
@@ -619,6 +704,41 @@ Commitment Modifier does not create new packet timing categories, but it may con
 Channel may require continued Power Action spend to keep a structure or effect operating across turns.
 
 Charge may require or allow continued Power Action spend before Packet 1 resolves, and may scale the eventual result during that period.
+
+
+6.6 Persistent states versus repeating direct effects
+
+Persistent states and repeating direct effects do not use the same cleanup model.
+
+Persistent states such as Control stacks, stack-based Debuffs, and other stack-bearing conditions apply now and then persist as a state.
+
+Repeating direct effects such as ongoing damage, healing-over-time, or repeated direct restoration apply on a cadence and are tracked through ongoing value plus duration rather than stack count.
+
+For Immediate + Standard packets that resolve On Cast and use a non-instant duration for a repeating direct effect, the effect applies initially on cast and then reapplies at the start of the affected target’s next turns for the authored duration.
+
+This first-pass default cadence is a convenience rule for currently supported immediate repeating direct effects. It is not a new universal timing category.
+
+
+6.7 Cleanup model for persistent states and ongoing damage
+
+Persistent-state cleanup uses the following first-pass model:
+
+- the target may use a Main Action to attempt the authored cleanup Resist Attribute and remove stacks equal to rolled successes
+- Cleanse effects remove stacks per success
+- persistent-state stacks naturally degrade by 1 at the end of each turn unless a more specific rule overrides this
+- when the source duration ends, the remaining stacks are removed
+
+Ongoing-damage cleanup uses the following first-pass model:
+
+- ongoing damage is not tracked as stacks
+- Cleanse removes ongoing damage from the target per success
+- the target may use a Main Action to attempt a cleanup Resist roll against one chosen ongoing damage effect
+- Physical ongoing damage uses Fortitude Resist by default for this cleanup roll
+- Mental ongoing damage uses Bravery Resist by default for this cleanup roll
+- each cleanup-roll success removes 1 ongoing damage from the chosen effect
+- ongoing damage does not naturally degrade by 1 each turn
+- expiry ends the ongoing damage effect
+- same-source reapplication may refresh duration without adding potency unless explicitly authored otherwise
 
 
 7. Defence Gating
@@ -1038,6 +1158,8 @@ Mixed intention does not create additional defence gates. Only Packet 1 is defen
 
 A Secondary Packet may use a different target class or local targeting pattern only if that targeting is explicitly authored at packet level.
 
+In the current builder-facing model, the relevant packet-local recipient classes may include Primary Targets, Allies, and Self. Allies includes self by default. A power that should exclude the user must do so through an explicit authored restriction rather than by redefining Allies as not-self.
+
 Legal mixed-intention patterns include hostile-primary into hostile-secondary, hostile-primary into beneficial-secondary, and non-hostile-primary into non-hostile-secondary.
 
 Non-hostile-primary into hostile-secondary is illegal.
@@ -1050,7 +1172,11 @@ Packet 1 legal timings are on cast / on use now and, where needed, on hit.
 
 Immediate Secondary Packets may resolve at the same moment as Packet 1 or later only if Packet 1’s successful application creates an ongoing result that can carry that later timing.
 
+If an Immediate Packet 1 resolves On Cast and creates no beyond-turn carrier, later Immediate packets remain On Cast only in first implementation.
+
 Immediate Packet 1 may not use start of turn, end of turn, on trigger, on release, or on expiry timings as if it had a hidden persistent chassis.
+
+In the current builder surface, Immediate + Standard Packet 1 is restricted to On Cast only unless a more specific later implementation opens an honest On Hit path.
 
 Field
 
@@ -1083,6 +1209,16 @@ Reserve Packet 1 resolves on release, or on reserve expiry only if the authored 
 Reserve Secondary Packets may resolve at the same moment as Packet 1 release or later from the moment Packet 1 landed.
 
 Reserve may not use on cast or on trigger as its Packet 1 timing.
+
+Secondary timing carrier rule
+
+Secondary Packets must obey both chassis legality and carrier legality.
+
+If Packet 1 has Effect Duration Instant or Until the target's next turn, Secondary Packets are restricted to same-moment or expiry-style timings such as On Cast, On Trigger, or On Expiry, subject to the selected chassis.
+
+Start of Turn, End of Turn, and other later recurring timings are only legal where Packet 1 creates a real beyond-resolution carrier such as Turns or Passive, again subject to the selected chassis.
+
+This rule narrows legal Secondary timing choices. It does not add new timings to any chassis.
 
 Channel First-Pass Rules
 
@@ -1169,6 +1305,30 @@ Attached powers require legal initial range, but host-bound persistence may cont
 
 Channelled Attached reinforcement requires the target to remain within legal cast range from the source
 
+Immediate + Standard Packet 1 uses On Cast only in the current builder surface
+
+If an Immediate Packet 1 resolves On Cast and creates no beyond-turn carrier, later Immediate packets remain On Cast only in first implementation
+
+Secondary scaling from the Primary result class is derived rather than manually authored in the current builder surface
+packet-local recipient class may distinguish Primary Targets, Allies, and Self where a Secondary Packet needs a different target class from Packet 1
+Allies includes self by default unless an explicit authored restriction says otherwise
+
+Persistent states use stacks and a stack-cleanup model, while repeating direct effects use ongoing value plus duration
+
+Physical ongoing-damage cleanup defaults to Fortitude Resist and mental ongoing-damage cleanup defaults to Bravery Resist
+
+Ambiguous Cleanse targeting of Active Power or Channelled Power may use a narrow Cleanse Theme disambiguator to resolve one exact cleanup Resist Attribute
+
+Trigger powers may distinguish Trigger Method as Arm and then target versus Target and then arm while still resolving Packet 1 only on trigger
+
+Secondary Packet timing is further narrowed by Packet 1 carrier legality; Instant or Until the target's next turn do not support later recurring Secondary timings
+
+Immediate remains the only chassis that can honestly have no Lifespan requirement in the current builder surface; Field, Attached, Trigger, and Reserve require Turns or Passive and default to Turns
+
+Self-origin sphere wording must distinguish static areas centered on the user's current space from Attached areas attached to the user
+
+Overlapping areas from the same packet at the same timing multiply hostile result before one defence roll rather than creating extra defended entry points
+
 simple powers must stay simple
 
 live preview is mandatory
@@ -1199,13 +1359,13 @@ for UI clarity, Lifespan may still be rendered near top-level controls even if e
 
 The following implementation-facing questions remain open and should not be falsely written as settled canon:
 
-the exact first-pass behaviour boundary for Charge
+broader Trigger + Charge + Delayed Cast canon where the current first-pass implementation has not fully hardened it
 
 the final schema ownership boundary for Lifespan
 
 the exact schema boundary between Power-Level Fields, chassis-local fields, packet-local fields, and derived metadata
 
-the exact preview wording lock for maintained-turn and delayed packet timing
+longer-term timing taxonomy beyond the current implemented preview surface
 
 the exact cost integration model for chassis complexity plus Commitment Modifier
 
@@ -1258,6 +1418,7 @@ hostile-entry structure where required
 Trigger:
 trigger condition
 armed window or Lifespan
+Trigger Method where the watched-target structure must be explicit
 
 Reserve:
 hold window or Lifespan
@@ -1286,6 +1447,7 @@ required subtype or type data
 supporting application details where relevant
 
 packet-local targeting override only when explicitly authored
+packet-local recipient class may currently distinguish Primary Targets, Allies, and Self where the packet needs a different recipient class from Packet 1
 
 Derived preview metadata
 
@@ -1475,6 +1637,8 @@ the chassis-local card required by the selected chassis
 
 Lifespan where the selected chassis meaningfully relies on it
 
+Trigger Method where a Trigger power must honestly distinguish arm-first versus target-first watched structure
+
 Application Mode only when inference fails
 
 Packet 2 and later cards only when added
@@ -1565,6 +1729,8 @@ Attached resolves through an attachment state
 
 Trigger arms now and resolves on trigger
 
+Trigger Method may distinguish arm now / target later from target now / remain armed against that target or those targets
+
 Reserve holds now and resolves on release
 
 Packet 1 is the Primary Packet
@@ -1580,6 +1746,8 @@ For hostile delayed-entry Attached powers, preview must explicitly distinguish:
 gate on attach
 
 gate on payload
+
+For self-origin sphere wording, preview must distinguish static areas centered on the user's current space from Attached areas attached to the user.
 
 The preview should remain mechanically explicit and should avoid inventing a second hidden state language.
 

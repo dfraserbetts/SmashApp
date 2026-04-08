@@ -50,6 +50,9 @@ export type ResolutionOrigin =
 export type HostileEntryPattern = "DIRECT" | "ON_ATTACH" | "ON_PAYLOAD";
 export type GateResolutionSource = "INFERRED" | "EXPLICIT";
 export type PowerLifespanType = "NONE" | "TURNS" | "PASSIVE";
+export type ChargeType = "DELAYED_RELEASE" | "BUILD_POWER";
+export type TriggerMethod = "ARM_AND_THEN_TARGET" | "TARGET_AND_THEN_ARM";
+export type AttachedHostAnchorType = "TARGET" | "OBJECT" | "WEAPON" | "ARMOR" | "SELF" | "AREA";
 export type EffectTimingType =
   | "ON_CAST"
   | "ON_HIT"
@@ -63,11 +66,9 @@ export type EffectTimingType =
   | "ON_EXPIRY";
 export type EffectDurationType = "INSTANT" | "TURNS" | "PASSIVE" | "UNTIL_TARGET_NEXT_TURN";
 export type WoundChannel = "PHYSICAL" | "MENTAL";
-export type EffectPacketApplyTo = "PRIMARY_TARGET" | "SELF";
+export type EffectPacketApplyTo = "PRIMARY_TARGET" | "ALLIES" | "SELF";
 
-export type EffectPacketDetails = Record<string, unknown> & {
-  applyTo?: EffectPacketApplyTo;
-};
+export type EffectPacketDetails = Record<string, unknown>;
 
 export type EffectPacketLocalTargetingOverride = {
   meleeTargets: number | null;
@@ -101,6 +102,8 @@ export type EffectPacket = {
   targetedAttribute?: CoreAttribute | null;
   applicationModeKey?: string | null;
   resolutionOrigin?: ResolutionOrigin;
+  applyTo?: EffectPacketApplyTo | null;
+  triggerConditionText?: string | null;
   detailsJson: EffectPacketDetails;
   localTargetingOverride?: EffectPacketLocalTargetingOverride | null;
 };
@@ -126,10 +129,15 @@ export type Power = {
   status?: PowerStatus;
   descriptorChassis?: DescriptorChassisType;
   descriptorChassisConfig?: Record<string, unknown>;
+  chargeType?: ChargeType | null;
+  chargeTurns?: number | null;
+  chargeBonusDicePerTurn?: number | null;
   cooldownTurns: number;
   cooldownReduction: number;
   counterMode?: "NO" | "YES";
   commitmentModifier?: "STANDARD" | "CHANNEL" | "CHARGE";
+  triggerMethod?: TriggerMethod | null;
+  attachedHostAnchorType?: AttachedHostAnchorType | null;
   lifespanType?: PowerLifespanType;
   lifespanTurns?: number | null;
   previewSummaryOverride?: string | null;

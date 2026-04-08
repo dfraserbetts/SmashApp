@@ -47,6 +47,9 @@ const COMMITMENT_MODIFIER_SET = new Set<NonNullable<Power["commitmentModifier"]>
   "CHARGE",
 ]);
 const CHARGE_TYPE_SET = new Set(["DELAYED_RELEASE", "BUILD_POWER"]);
+const TRIGGER_METHOD_SET = new Set(["ARM_AND_THEN_TARGET", "TARGET_AND_THEN_ARM"]);
+const ATTACHED_HOST_ANCHOR_TYPE_SET = new Set(["TARGET", "OBJECT", "WEAPON", "ARMOR", "SELF", "AREA"]);
+const EFFECT_PACKET_APPLY_TO_SET = new Set(["PRIMARY_TARGET", "ALLIES", "SELF"]);
 const EFFECT_TIMING_SET = new Set<string>([
   "ON_CAST",
   "ON_TRIGGER",
@@ -157,23 +160,203 @@ function getControlThemeResistAttribute(details: Record<string, unknown>): CoreA
   return controlTheme ? (CONTROL_THEME_TO_RESIST_ATTRIBUTE.get(controlTheme) ?? null) : null;
 }
 
+function cleanseEffectNeedsTheme(cleanseEffectType: string): boolean {
+  return cleanseEffectType === "Active Power" || cleanseEffectType === "Channelled Power";
+}
+
+function normalizeCleanseTheme(value: unknown, cleanseEffectType: string): string | null {
+  if (!cleanseEffectNeedsTheme(cleanseEffectType)) return null;
+  const normalized = asString(value, "").toUpperCase();
+  return CONTROL_THEME_TO_RESIST_ATTRIBUTE.has(normalized) ? normalized : null;
+}
+
+function getCleanseThemeResistAttribute(details: Record<string, unknown>): CoreAttribute | null {
+  const cleanseEffectType = asString(details.cleanseEffectType, "");
+  const cleanseTheme = normalizeCleanseTheme(details.cleanseTheme, cleanseEffectType);
+  return cleanseTheme ? (CONTROL_THEME_TO_RESIST_ATTRIBUTE.get(cleanseTheme) ?? null) : null;
+}
+
 function normalizePacketDetailsForIntention(
   intention: PowerIntention,
   details: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (intention !== "CONTROL") return details;
-  const controlMode = normalizeControlMode(details.controlMode) || "Force move";
-  const controlTheme = normalizeControlTheme(details.controlTheme, controlMode);
-  const nextDetails: Record<string, unknown> = {
-    ...details,
-    controlMode,
-  };
-  if (controlTheme) {
-    nextDetails.controlTheme = controlTheme;
-  } else {
-    delete nextDetails.controlTheme;
+  if (intention === "CONTROL") {
+    const controlMode = normalizeControlMode(details.controlMode) || "Force move";
+    const controlTheme = normalizeControlTheme(details.controlTheme, controlMode);
+    const nextDetails: Record<string, unknown> = {
+      ...details,
+      controlMode,
+    };
+    if (controlTheme) {
+      nextDetails.controlTheme = controlTheme;
+    } else {
+      delete nextDetails.controlTheme;
+    }
+    return nextDetails;
   }
+  if (intention === "CLEANSE") {
+    const cleanseEffectType = asString(details.cleanseEffectType, "Active Power");
+    const cleanseTheme = normalizeCleanseTheme(details.cleanseTheme, cleanseEffectType);
+    const nextDetails: Record<string, unknown> = {
+      ...details,
+      cleanseEffectType,
+    };
+    if (cleanseTheme) {
+      nextDetails.cleanseTheme = cleanseTheme;
+    } else {
+      delete nextDetails.cleanseTheme;
+    }
+    return nextDetails;
+  }
+  return details;
+}
+
+function normalizeEffectPacketApplyTo(
+  value: unknown,
+): "PRIMARY_TARGET" | "ALLIES" | "SELF" {
+  return EFFECT_PACKET_APPLY_TO_SET.has(asString(value, "PRIMARY_TARGET"))
+    ? (asString(value, "PRIMARY_TARGET") as "PRIMARY_TARGET" | "ALLIES" | "SELF")
+    : "PRIMARY_TARGET";
+}
+
+function readPacketApplyTo(
+  packet:
+    | Pick<EffectPacket, "applyTo" | "detailsJson">
+    | undefined,
+): "PRIMARY_TARGET" | "ALLIES" | "SELF" {
+  const details =
+    packet?.detailsJson && typeof packet.detailsJson === "object" && !Array.isArray(packet.detailsJson)
+      ? (packet.detailsJson as Record<string, unknown>)
+      : undefined;
+  return normalizeEffectPacketApplyTo(packet?.applyTo ?? details?.applyTo);
+}
+
+function readPacketTriggerConditionText(
+  packet:
+    | Pick<EffectPacket, "triggerConditionText" | "detailsJson">
+    | undefined,
+): string | null {
+  const details =
+    packet?.detailsJson && typeof packet.detailsJson === "object" && !Array.isArray(packet.detailsJson)
+      ? (packet.detailsJson as Record<string, unknown>)
+      : undefined;
+  return asNullableString(
+    packet?.triggerConditionText ?? details?.triggerConditionText ?? details?.effectTriggerText,
+  );
+}
+
+function normalizeAttachedHostAnchorType(
+  value: unknown,
+): Power["attachedHostAnchorType"] {
+  const normalized = asString(value, "").toUpperCase();
+  return ATTACHED_HOST_ANCHOR_TYPE_SET.has(normalized)
+    ? (normalized as NonNullable<Power["attachedHostAnchorType"]>)
+    : null;
+}
+
+function readLegacyAttachedHostAnchorType(
+  descriptorChassisConfig: Record<string, unknown>,
+): Power["attachedHostAnchorType"] {
+  const normalized = asString(descriptorChassisConfig.anchorText, "").toLowerCase();
+  if (!normalized) return null;
+  if (
+    normalized === "target" ||
+    normalized === "the target" ||
+    normalized === "marked target" ||
+    normalized === "the marked target" ||
+    normalized === "chosen target" ||
+    normalized === "the chosen target" ||
+    normalized === "host" ||
+    normalized === "the host"
+  ) {
+    return "TARGET";
+  }
+  if (normalized === "object" || normalized === "the object") return "OBJECT";
+  if (
+    normalized === "weapon" ||
+    normalized === "the weapon" ||
+    normalized === "your weapon" ||
+    normalized === "bound weapon" ||
+    normalized === "the bound weapon"
+  ) {
+    return "WEAPON";
+  }
+  if (
+    normalized === "armor" ||
+    normalized === "armour" ||
+    normalized === "the armor" ||
+    normalized === "the armour" ||
+    normalized === "your armor" ||
+    normalized === "your armour"
+  ) {
+    return "ARMOR";
+  }
+  if (normalized === "self" || normalized === "yourself") return "SELF";
+  if (normalized === "area" || normalized === "the area") return "AREA";
+  return null;
+}
+
+function sanitizePacketDetails(details: Record<string, unknown>): Record<string, unknown> {
+  const nextDetails = { ...details };
+  delete nextDetails.applyTo;
+  delete nextDetails.triggerConditionText;
+  delete nextDetails.effectTriggerText;
   return nextDetails;
+}
+
+function getAllowedPacketApplyToOptions(params: {
+  rangeCategory: "SELF" | "MELEE" | "RANGED" | "AOE" | null;
+  meleeTargets: number;
+  rangedTargets: number;
+  localTargetingOverride: EffectPacket["localTargetingOverride"] | null | undefined;
+}): Array<"PRIMARY_TARGET" | "ALLIES" | "SELF"> {
+  if (params.localTargetingOverride) {
+    return ["PRIMARY_TARGET", "ALLIES", "SELF"];
+  }
+  if (params.rangeCategory === "SELF") {
+    return ["SELF"];
+  }
+  if (params.rangeCategory === "MELEE" && params.meleeTargets <= 1) {
+    return ["PRIMARY_TARGET", "SELF"];
+  }
+  if (params.rangeCategory === "RANGED" && params.rangedTargets <= 1) {
+    return ["PRIMARY_TARGET", "SELF"];
+  }
+  return ["PRIMARY_TARGET", "ALLIES", "SELF"];
+}
+
+function normalizePacketApplyToForCastContext(
+  value: "PRIMARY_TARGET" | "ALLIES" | "SELF",
+  params: {
+    rangeCategory: "SELF" | "MELEE" | "RANGED" | "AOE" | null;
+    meleeTargets: number;
+    rangedTargets: number;
+    localTargetingOverride: EffectPacket["localTargetingOverride"] | null | undefined;
+  },
+): "PRIMARY_TARGET" | "ALLIES" | "SELF" {
+  const allowed = getAllowedPacketApplyToOptions(params);
+  if (allowed.includes(value)) return value;
+  if (allowed.includes("PRIMARY_TARGET")) return "PRIMARY_TARGET";
+  return allowed[0] ?? "PRIMARY_TARGET";
+}
+
+function readSharedCastContextForPacketApplyTo(params: {
+  powerRangeCategory: "SELF" | "MELEE" | "RANGED" | "AOE" | null;
+  rangeValue: number;
+  packetRangeExtra: Record<string, unknown>;
+}): {
+  rangeCategory: "SELF" | "MELEE" | "RANGED" | "AOE" | null;
+  meleeTargets: number;
+  rangedTargets: number;
+} {
+  return {
+    rangeCategory: params.powerRangeCategory,
+    meleeTargets: params.powerRangeCategory === "MELEE" ? Math.max(1, params.rangeValue || 1) : 1,
+    rangedTargets:
+      params.powerRangeCategory === "RANGED"
+        ? Math.max(1, asInt(params.packetRangeExtra.targets, 1))
+        : 1,
+  };
 }
 
 function normalizeDescriptorChassis(value: unknown): Power["descriptorChassis"] {
@@ -189,6 +372,10 @@ function normalizeDescriptorChassis(value: unknown): Power["descriptorChassis"] 
 function normalizeChargeType(value: unknown): "DELAYED_RELEASE" | "BUILD_POWER" {
   const normalized = asString(value, "DELAYED_RELEASE");
   return CHARGE_TYPE_SET.has(normalized) ? (normalized as "DELAYED_RELEASE" | "BUILD_POWER") : "DELAYED_RELEASE";
+}
+
+function getAllowedChargeTypesForChassis(): Array<"DELAYED_RELEASE" | "BUILD_POWER"> {
+  return ["DELAYED_RELEASE", "BUILD_POWER"];
 }
 
 function normalizeChargeTurns(value: unknown): number {
@@ -212,6 +399,11 @@ function normalizeDefineReleaseBehaviour(
   return asString(releaseBehaviourText, "").length > 0;
 }
 
+function normalizeTriggerMethod(value: unknown): string {
+  const normalized = asString(value, "ARM_AND_THEN_TARGET");
+  return TRIGGER_METHOD_SET.has(normalized) ? normalized : "ARM_AND_THEN_TARGET";
+}
+
 function normalizePowerDescriptorChassisConfig(
   value: unknown,
   commitmentModifier: NonNullable<Power["commitmentModifier"]>,
@@ -230,6 +422,10 @@ function normalizePowerDescriptorChassisConfig(
   delete descriptorChassisConfig.chargeType;
   delete descriptorChassisConfig.chargeTurns;
   delete descriptorChassisConfig.chargeBonusDicePerTurn;
+  delete descriptorChassisConfig.triggerMethod;
+  delete descriptorChassisConfig.anchorText;
+  delete descriptorChassisConfig.payloadTriggerText;
+  delete descriptorChassisConfig.fieldInteractionText;
 
   if (descriptorChassis === "RESERVE") {
     descriptorChassisConfig.defineReleaseBehaviour = normalizeDefineReleaseBehaviour(
@@ -238,20 +434,23 @@ function normalizePowerDescriptorChassisConfig(
     );
   }
 
-  if (commitmentModifier !== "CHARGE") {
-    return descriptorChassisConfig;
-  }
-  const chargeType = normalizeChargeType(rawConfig.chargeType);
-  descriptorChassisConfig.chargeType = chargeType;
-  descriptorChassisConfig.chargeTurns = normalizeChargeTurns(rawConfig.chargeTurns);
-
-  if (chargeType === "BUILD_POWER") {
-    descriptorChassisConfig.chargeBonusDicePerTurn = normalizeChargeBonusDicePerTurn(
-      rawConfig.chargeBonusDicePerTurn,
-    );
-  }
-
   return descriptorChassisConfig;
+}
+
+function normalizeCounterMode(
+  value: unknown,
+  descriptorChassis: Power["descriptorChassis"],
+  commitmentModifier: NonNullable<Power["commitmentModifier"]>,
+  chargeType: Power["chargeType"],
+): NonNullable<Power["counterMode"]> {
+  if (descriptorChassis === "TRIGGER") return "NO";
+  if (
+    commitmentModifier === "CHARGE" &&
+    normalizeChargeType(chargeType) === "DELAYED_RELEASE"
+  ) {
+    return "NO";
+  }
+  return value === "YES" ? "YES" : "NO";
 }
 
 function normalizeEffectTimingType(value: unknown): EffectPacket["effectTimingType"] {
@@ -260,7 +459,209 @@ function normalizeEffectTimingType(value: unknown): EffectPacket["effectTimingTy
   return (EFFECT_TIMING_SET.has(normalized) ? normalized : "ON_CAST") as EffectPacket["effectTimingType"];
 }
 
+function doesPacketCreateBeyondTurnCarrier(
+  effectPacket: EffectPacket | undefined,
+): boolean {
+  if (!effectPacket) return false;
+  const durationType = effectPacket.effectDurationType ?? "INSTANT";
+  return durationType === "TURNS" || durationType === "PASSIVE" || durationType === "UNTIL_TARGET_NEXT_TURN";
+}
+
+function restrictImmediateSecondaryTimingsByPrimaryDuration(
+  allowedTimings: EffectPacket["effectTimingType"][],
+  primaryPacket: EffectPacket | undefined,
+): EffectPacket["effectTimingType"][] {
+  const primaryDurationType = primaryPacket?.effectDurationType ?? "INSTANT";
+  if (primaryDurationType !== "INSTANT" && primaryDurationType !== "UNTIL_TARGET_NEXT_TURN") {
+    return allowedTimings;
+  }
+  return allowedTimings.filter((timing) =>
+    timing === "ON_CAST" || timing === "ON_TRIGGER" || timing === "ON_EXPIRY",
+  );
+}
+
+function getAllowedAttachedEffectTimingsForHostileEntry(
+  packetIndex: number,
+  hostileEntryPattern: "ON_ATTACH" | "ON_PAYLOAD" | null | undefined,
+): EffectPacket["effectTimingType"][] {
+  if (packetIndex > 0) {
+    return ["ON_TRIGGER", "START_OF_TURN", "END_OF_TURN", "ON_EXPIRY"];
+  }
+  if (hostileEntryPattern === "ON_ATTACH") {
+    return ["ON_ATTACH"];
+  }
+  if (hostileEntryPattern === "ON_PAYLOAD") {
+    return ["ON_TRIGGER", "START_OF_TURN", "END_OF_TURN", "ON_EXPIRY"];
+  }
+  return ["ON_ATTACH", "ON_TRIGGER", "START_OF_TURN", "END_OF_TURN", "ON_EXPIRY"];
+}
+
+function normalizeAttachedEffectPacketTimings(
+  effectPackets: EffectPacket[],
+  hostileEntryPattern: "ON_ATTACH" | "ON_PAYLOAD" | null | undefined,
+): EffectPacket[] {
+  return effectPackets.map((effectPacket, index) => {
+    const allowedTimings = getAllowedAttachedEffectTimingsForHostileEntry(index, hostileEntryPattern);
+    const timingCandidate = effectPacket.effectTimingType ?? (index === 0 ? "ON_ATTACH" : "ON_TRIGGER");
+    const normalizedTiming = allowedTimings.includes(timingCandidate)
+      ? timingCandidate
+      : allowedTimings[0];
+    return {
+      ...effectPacket,
+      effectTimingType: normalizedTiming,
+      effectTimingTurns:
+        normalizedTiming === "ON_TRIGGER"
+          ? Math.max(1, asInt(effectPacket.effectTimingTurns, 1))
+          : null,
+    };
+  });
+}
+
+function deriveSecondaryScalingModeFromPrimaryPacket(
+  primaryPacket: EffectPacket | undefined,
+): "PRIMARY_APPLIED_SUCCESSES" | "PRIMARY_WOUND_BANDS" {
+  if (!primaryPacket) return "PRIMARY_APPLIED_SUCCESSES";
+  return primaryPacket.intention === "ATTACK" && primaryPacket.dealsWounds !== false
+    ? "PRIMARY_WOUND_BANDS"
+    : "PRIMARY_APPLIED_SUCCESSES";
+}
+
+function deriveWoundsPerSuccessFromPrimaryPacket(
+  primaryPacket: EffectPacket | undefined,
+): number | null {
+  if (!primaryPacket) return null;
+  if (primaryPacket.intention !== "ATTACK" || primaryPacket.dealsWounds === false) return null;
+  const details =
+    primaryPacket.detailsJson && typeof primaryPacket.detailsJson === "object"
+      ? (primaryPacket.detailsJson as Record<string, unknown>)
+      : {};
+  const selectedDamageTypeCount = Array.isArray(details.damageTypes)
+    ? details.damageTypes.map((entry) => String(entry).trim()).filter(Boolean).length
+    : 0;
+  const potency = Math.max(1, asInt(primaryPacket.potency, 1));
+  const effectiveDamageTypeCount = Math.max(1, selectedDamageTypeCount);
+  return potency * 2 * effectiveDamageTypeCount;
+}
+
+function normalizeImmediateEffectPacketTimings(
+  effectPackets: EffectPacket[],
+  commitmentModifier: NonNullable<Power["commitmentModifier"]>,
+): EffectPacket[] {
+  if (effectPackets.length === 0) return effectPackets;
+  const primaryPacket = effectPackets[0];
+  const immediatePrimaryAllowed =
+    commitmentModifier === "STANDARD"
+      ? ["ON_CAST"]
+      : [
+          "ON_CAST",
+          "ON_TRIGGER",
+          "START_OF_TURN",
+          "END_OF_TURN",
+          ...(commitmentModifier === "CHANNEL"
+            ? (["START_OF_TURN_WHILST_CHANNELLED", "END_OF_TURN_WHILST_CHANNELLED"] as const)
+            : []),
+          "ON_EXPIRY",
+        ];
+  const primaryTimingCandidate = primaryPacket.effectTimingType ?? "ON_CAST";
+  const normalizedPrimaryTiming = immediatePrimaryAllowed.includes(primaryTimingCandidate)
+    ? primaryTimingCandidate
+    : "ON_CAST";
+  const normalizedPrimaryPacket =
+    primaryPacket.effectTimingType === normalizedPrimaryTiming
+      ? primaryPacket
+      : {
+          ...primaryPacket,
+          effectTimingType: normalizedPrimaryTiming,
+          effectTimingTurns: normalizedPrimaryTiming === "ON_TRIGGER"
+            ? Math.max(1, asInt(primaryPacket.effectTimingTurns, 1))
+            : null,
+        };
+  const primarySupportsLaterTimings =
+    normalizedPrimaryTiming !== "ON_CAST" || doesPacketCreateBeyondTurnCarrier(normalizedPrimaryPacket);
+  const immediateSecondaryTimings: EffectPacket["effectTimingType"][] = primarySupportsLaterTimings
+    ? [
+        "ON_CAST",
+        "ON_TRIGGER",
+        "START_OF_TURN",
+        "END_OF_TURN",
+        ...(commitmentModifier === "CHANNEL"
+          ? (["START_OF_TURN_WHILST_CHANNELLED", "END_OF_TURN_WHILST_CHANNELLED"] as const)
+          : []),
+        "ON_EXPIRY",
+      ]
+    : ["ON_CAST"];
+  const allowedSecondaryTimings = restrictImmediateSecondaryTimingsByPrimaryDuration(
+    immediateSecondaryTimings,
+    normalizedPrimaryPacket,
+  );
+  return effectPackets.map((effectPacket, index) => {
+    if (index === 0) return normalizedPrimaryPacket;
+    const timingCandidate = effectPacket.effectTimingType ?? "ON_CAST";
+    const normalizedTiming = allowedSecondaryTimings.includes(timingCandidate)
+      ? timingCandidate
+      : "ON_CAST";
+    return {
+      ...effectPacket,
+      effectTimingType: normalizedTiming,
+      effectTimingTurns:
+        normalizedTiming === "ON_TRIGGER"
+          ? Math.max(1, asInt(effectPacket.effectTimingTurns, 1))
+          : null,
+    };
+  });
+}
+
+function normalizeDerivedSecondaryScaling(effectPackets: EffectPacket[]): EffectPacket[] {
+  if (effectPackets.length <= 1) return effectPackets;
+  const primaryPacket = effectPackets[0];
+  return effectPackets.map((effectPacket, index) => {
+    if (index === 0) return effectPacket;
+    const details =
+      effectPacket.detailsJson && typeof effectPacket.detailsJson === "object"
+        ? { ...(effectPacket.detailsJson as Record<string, unknown>) }
+        : {};
+    const scalingMode = deriveSecondaryScalingModeFromPrimaryPacket(primaryPacket);
+    const woundsPerSuccess =
+      scalingMode === "PRIMARY_WOUND_BANDS"
+        ? deriveWoundsPerSuccessFromPrimaryPacket(primaryPacket)
+        : null;
+    return {
+      ...effectPacket,
+      detailsJson: {
+        ...details,
+        secondaryScalingMode: scalingMode,
+        ...(scalingMode === "PRIMARY_WOUND_BANDS"
+          ? { woundsPerSuccess }
+          : { woundsPerSuccess: null }),
+      },
+    };
+  });
+}
+
+function getAllowedEffectDurationTypes(
+  effectTimingType: EffectPacket["effectTimingType"] | undefined,
+): EffectDurationType[] {
+  const timing = effectTimingType ?? "ON_CAST";
+  if (timing === "START_OF_TURN" || timing === "END_OF_TURN") {
+    return ["INSTANT", "TURNS", "PASSIVE"];
+  }
+  return ["INSTANT", "TURNS", "PASSIVE", "UNTIL_TARGET_NEXT_TURN"];
+}
+
+function normalizeEffectDurationTypeForTiming(
+  value: unknown,
+  effectTimingType: EffectPacket["effectTimingType"] | undefined,
+  fallback: EffectDurationType,
+): EffectDurationType {
+  const normalized = EFFECT_DURATION_SET.has(value as EffectDurationType)
+    ? (value as EffectDurationType)
+    : fallback;
+  const allowed = getAllowedEffectDurationTypes(effectTimingType);
+  return allowed.includes(normalized) ? normalized : "INSTANT";
+}
+
 function normalizePowerLifespan(
+  descriptorChassis: Power["descriptorChassis"],
   commitmentModifier: NonNullable<Power["commitmentModifier"]>,
   lifespanType: unknown,
   lifespanTurns: unknown,
@@ -269,6 +670,13 @@ function normalizePowerLifespan(
   const normalizedLifespanType = LIFESPAN_SET.has(normalizedLifespanTypeRaw as PowerLifespanType)
     ? (normalizedLifespanTypeRaw as PowerLifespanType)
     : "NONE";
+
+  if (descriptorChassis === "IMMEDIATE" && commitmentModifier === "STANDARD") {
+    return {
+      lifespanType: "NONE",
+      lifespanTurns: null,
+    };
+  }
 
   if (commitmentModifier === "CHANNEL") {
     if (normalizedLifespanType === "PASSIVE") {
@@ -281,6 +689,16 @@ function normalizePowerLifespan(
     return {
       lifespanType: "TURNS",
       lifespanTurns: Math.max(2, asInt(lifespanTurns, 2)),
+    };
+  }
+
+  if (descriptorChassis !== "IMMEDIATE") {
+    return {
+      lifespanType: normalizedLifespanType === "PASSIVE" ? "PASSIVE" : "TURNS",
+      lifespanTurns:
+        normalizedLifespanType === "PASSIVE"
+          ? null
+          : Math.max(1, asInt(lifespanTurns, 1)),
     };
   }
 
@@ -322,7 +740,7 @@ function normalizePacketIntention(
     raw.detailsJson && typeof raw.detailsJson === "object"
       ? (raw.detailsJson as Record<string, unknown>)
       : {};
-  const details = normalizePacketDetailsForIntention(intention, rawDetails);
+  const details = sanitizePacketDetails(normalizePacketDetailsForIntention(intention, rawDetails));
   const attackMode = asString(details.attackMode, "PHYSICAL").toUpperCase();
   const targetedAttribute = normalizeCoreAttribute(
     raw.targetedAttribute ?? details.statTarget ?? details.statChoice,
@@ -333,9 +751,12 @@ function normalizePacketIntention(
     raw.effectDurationType ?? raw.durationType,
     fallbackDurationType,
   );
-  const effectDurationType = EFFECT_DURATION_SET.has(effectDurationTypeRaw as EffectDurationType)
-    ? (effectDurationTypeRaw as EffectDurationType)
-    : fallbackDurationType;
+  const effectTimingType = normalizeEffectTimingType(raw.effectTimingType);
+  const effectDurationType = normalizeEffectDurationTypeForTiming(
+    effectDurationTypeRaw,
+    effectTimingType,
+    fallbackDurationType,
+  );
   const effectDurationTurns =
     effectDurationType === "TURNS"
       ? Math.max(1, Math.min(4, asInt(raw.effectDurationTurns ?? raw.durationTurns, fallbackDurationTurns ?? 1)))
@@ -347,6 +768,13 @@ function normalizePacketIntention(
       : intention === "ATTACK" || intention === "CONTROL" || intention === "DEBUFF" || intention === "MOVEMENT"
         ? "HOSTILE"
         : "NON_HOSTILE";
+  const applyTo = normalizeEffectPacketApplyTo(raw.applyTo ?? rawDetails.applyTo);
+  const triggerConditionText = asNullableString(
+    raw.triggerConditionText ??
+      raw.effectTriggerText ??
+      rawDetails.triggerConditionText ??
+      rawDetails.effectTriggerText,
+  );
   const woundChannelRaw = asString(raw.woundChannel, "");
   const woundChannel =
     woundChannelRaw === "PHYSICAL" || woundChannelRaw === "MENTAL"
@@ -377,9 +805,9 @@ function normalizePacketIntention(
     ),
     diceCount,
     potency,
-    effectTimingType: normalizeEffectTimingType(raw.effectTimingType),
+    effectTimingType,
     effectTimingTurns:
-      normalizeEffectTimingType(raw.effectTimingType) === "ON_TRIGGER"
+      effectTimingType === "ON_TRIGGER"
         ? Math.max(1, asInt(raw.effectTimingTurns, 1))
         : null,
     effectDurationType,
@@ -390,6 +818,8 @@ function normalizePacketIntention(
     applicationModeKey: asNullableString(raw.applicationModeKey),
     resolutionOrigin:
       asString(raw.resolutionOrigin, "CASTER") as EffectPacket["resolutionOrigin"],
+    applyTo,
+    triggerConditionText,
     detailsJson: details,
     localTargetingOverride:
       raw.localTargetingOverride && typeof raw.localTargetingOverride === "object"
@@ -488,6 +918,24 @@ function derivePrimaryDefenceGate(
       resolutionSource: "INFERRED",
     };
   }
+  if (firstPacket.hostility === "HOSTILE" && firstPacket.intention === "CLEANSE") {
+    const details =
+      firstPacket.detailsJson && typeof firstPacket.detailsJson === "object" && !Array.isArray(firstPacket.detailsJson)
+        ? (firstPacket.detailsJson as Record<string, unknown>)
+        : {};
+    const cleanseEffectType = asString(details.cleanseEffectType, "");
+    return {
+      sourcePacketIndex: 0,
+      gateResult: "RESIST",
+      protectionChannel: null,
+      resistAttribute:
+        cleanseEffectType === "Effect over time" || cleanseEffectType === "Damage over time"
+          ? "FORTITUDE"
+          : getCleanseThemeResistAttribute(details),
+      hostileEntryPattern: null,
+      resolutionSource: "INFERRED",
+    };
+  }
   return {
     sourcePacketIndex: 0,
     gateResult: "NONE",
@@ -501,6 +949,10 @@ function derivePrimaryDefenceGate(
 function normalizePower(value: unknown, sortOrder: number): Power {
   const raw = (value ?? {}) as Record<string, unknown>;
   const descriptorChassis = normalizeDescriptorChassis(raw.descriptorChassis);
+  const rawDescriptorChassisConfig =
+    raw.descriptorChassisConfig && typeof raw.descriptorChassisConfig === "object" && !Array.isArray(raw.descriptorChassisConfig)
+      ? (raw.descriptorChassisConfig as Record<string, unknown>)
+      : {};
   const effectDurationTypeRaw = asString(
     raw.effectDurationType ?? raw.durationType,
     "INSTANT",
@@ -522,6 +974,13 @@ function normalizePower(value: unknown, sortOrder: number): Power {
     : Array.isArray(raw.intentions)
       ? raw.intentions
       : [];
+  const commitmentModifierRaw = asString(
+    raw.commitmentModifier,
+    "STANDARD",
+  ) as NonNullable<Power["commitmentModifier"]>;
+  const commitmentModifier = COMMITMENT_MODIFIER_SET.has(commitmentModifierRaw)
+    ? commitmentModifierRaw
+    : "STANDARD";
   const normalizedEffectPackets = effectPacketsRaw
     .slice(0, 4)
     .map((entry, index) =>
@@ -533,7 +992,23 @@ function normalizePower(value: unknown, sortOrder: number): Power {
       : normalizePacketIntention({}, 0, diceCount, potency, effectDurationType, effectDurationTurns);
   const effectPackets =
     normalizedEffectPackets.length > 0 ? normalizedEffectPackets : [fallbackPacket];
-  const primaryPacketDetails = (effectPackets[0]?.detailsJson ?? {}) as Record<string, unknown>;
+  const normalizedImmediateEffectPackets =
+    descriptorChassis === "IMMEDIATE"
+      ? normalizeImmediateEffectPacketTimings(effectPackets, commitmentModifier)
+      : effectPackets;
+  const explicitHostileEntryPattern =
+    raw.primaryDefenceGate && typeof raw.primaryDefenceGate === "object"
+      ? (asNullableString((raw.primaryDefenceGate as Record<string, unknown>).hostileEntryPattern) as
+          | "ON_ATTACH"
+          | "ON_PAYLOAD"
+          | null)
+      : null;
+  const normalizedAttachedEffectPackets =
+    descriptorChassis === "ATTACHED"
+      ? normalizeAttachedEffectPacketTimings(normalizedImmediateEffectPackets, explicitHostileEntryPattern)
+      : normalizedImmediateEffectPackets;
+  const normalizedScaledEffectPackets = normalizeDerivedSecondaryScaling(normalizedAttachedEffectPackets);
+  const primaryPacketDetails = (normalizedScaledEffectPackets[0]?.detailsJson ?? {}) as Record<string, unknown>;
   const explicitRangeCategories = Array.isArray(raw.rangeCategories)
     ? raw.rangeCategories
         .map((entry) => asString(entry, "").toUpperCase())
@@ -567,24 +1042,82 @@ function normalizePower(value: unknown, sortOrder: number): Power {
         : powerRangeCategory === "AOE"
           ? asInt(raw.aoeCenterRangeFeet ?? primaryPacketDetails.rangeValue, 0)
           : 0;
+  const packetApplyToCastContext = readSharedCastContextForPacketApplyTo({
+    powerRangeCategory,
+    rangeValue,
+    packetRangeExtra: {
+      ...packetRangeExtra,
+      targets: raw.rangedTargets ?? packetRangeExtra.targets,
+    },
+  });
+  const finalEffectPackets = normalizedScaledEffectPackets.map((packet) => {
+    const details =
+      packet.detailsJson && typeof packet.detailsJson === "object" && !Array.isArray(packet.detailsJson)
+        ? sanitizePacketDetails(packet.detailsJson as Record<string, unknown>)
+        : {};
+    const triggerConditionText =
+      readPacketTriggerConditionText(packet) ??
+      (packet.effectTimingType === "ON_TRIGGER" ? legacyAttachedPayloadTriggerText : null);
+    return {
+      ...packet,
+      applyTo: normalizePacketApplyToForCastContext(readPacketApplyTo(packet), {
+        rangeCategory: packetApplyToCastContext.rangeCategory,
+        meleeTargets: packetApplyToCastContext.meleeTargets,
+        rangedTargets: packetApplyToCastContext.rangedTargets,
+        localTargetingOverride: packet.localTargetingOverride,
+      }),
+      triggerConditionText,
+      detailsJson: details,
+    };
+  });
   const counterModeRaw = asString(raw.counterMode, "") as NonNullable<Power["counterMode"]>;
   const counterMode = COUNTER_MODE_SET.has(counterModeRaw)
     ? counterModeRaw
     : asBool(raw.responseRequired, false)
       ? "YES"
       : "NO";
-  const commitmentModifierRaw = asString(
-    raw.commitmentModifier,
-    "STANDARD",
-  ) as NonNullable<Power["commitmentModifier"]>;
-  const commitmentModifier = COMMITMENT_MODIFIER_SET.has(commitmentModifierRaw)
-    ? commitmentModifierRaw
-    : "STANDARD";
   const normalizedLifespan = normalizePowerLifespan(
+    descriptorChassis,
     commitmentModifier,
     raw.lifespanType,
     raw.lifespanTurns,
   );
+  const chargeType =
+    commitmentModifier === "CHARGE"
+      ? (() => {
+          const allowedChargeTypes = getAllowedChargeTypesForChassis();
+          const candidate = normalizeChargeType(raw.chargeType ?? rawDescriptorChassisConfig.chargeType);
+          return allowedChargeTypes.includes(candidate) ? candidate : allowedChargeTypes[0];
+        })()
+      : null;
+  const chargeTurns =
+    commitmentModifier === "CHARGE"
+      ? normalizeChargeTurns(raw.chargeTurns ?? rawDescriptorChassisConfig.chargeTurns)
+      : null;
+  const chargeBonusDicePerTurn =
+    commitmentModifier === "CHARGE" && chargeType === "BUILD_POWER"
+      ? normalizeChargeBonusDicePerTurn(
+          raw.chargeBonusDicePerTurn ?? rawDescriptorChassisConfig.chargeBonusDicePerTurn,
+        )
+      : null;
+  const triggerMethod =
+    descriptorChassis === "TRIGGER"
+      ? (normalizeTriggerMethod(raw.triggerMethod ?? rawDescriptorChassisConfig.triggerMethod) as Power["triggerMethod"])
+      : null;
+  const attachedHostAnchorType =
+    descriptorChassis === "ATTACHED"
+      ? normalizeAttachedHostAnchorType(raw.attachedHostAnchorType) ??
+        readLegacyAttachedHostAnchorType(rawDescriptorChassisConfig)
+      : null;
+  const descriptorChassisConfig = normalizePowerDescriptorChassisConfig(
+    raw.descriptorChassisConfig,
+    commitmentModifier,
+    descriptorChassis,
+  );
+  const legacyAttachedPayloadTriggerText =
+    descriptorChassis === "ATTACHED" && explicitHostileEntryPattern === "ON_PAYLOAD"
+      ? asNullableString(rawDescriptorChassisConfig.payloadTriggerText)
+      : null;
 
   return {
     sortOrder,
@@ -596,15 +1129,21 @@ function normalizePower(value: unknown, sortOrder: number): Power {
     previewRendererVersion: Math.max(1, asInt(raw.previewRendererVersion, 1)),
     status: asString(raw.status, "ACTIVE") as Power["status"],
     descriptorChassis,
-    descriptorChassisConfig: normalizePowerDescriptorChassisConfig(
-      raw.descriptorChassisConfig,
-      commitmentModifier,
-      descriptorChassis,
-    ),
+    descriptorChassisConfig,
+    chargeType,
+    chargeTurns,
+    chargeBonusDicePerTurn,
     cooldownTurns,
     cooldownReduction,
-    counterMode: descriptorChassis === "TRIGGER" ? "NO" : counterMode,
+    counterMode: normalizeCounterMode(
+      counterMode,
+      descriptorChassis,
+      commitmentModifier,
+      chargeType,
+    ),
     commitmentModifier,
+    triggerMethod,
+    attachedHostAnchorType,
     ...normalizedLifespan,
     previewSummaryOverride: asNullableString(raw.previewSummaryOverride),
     rangeCategories: explicitRangeCategories.length > 0 ? explicitRangeCategories : powerRangeCategory === null ? [] : [powerRangeCategory],
@@ -629,9 +1168,9 @@ function normalizePower(value: unknown, sortOrder: number): Power {
       powerRangeCategory === "AOE" ? asInt(raw.aoeLineWidthFeet ?? packetRangeExtra.lineWidthFeet, 0) || null : null,
     aoeLineLengthFeet:
       powerRangeCategory === "AOE" ? asInt(raw.aoeLineLengthFeet ?? packetRangeExtra.lineLengthFeet, 0) || null : null,
-    primaryDefenceGate: derivePrimaryDefenceGate(raw, effectPackets),
-    effectPackets,
-    intentions: effectPackets.map((packet, index) => ({
+    primaryDefenceGate: derivePrimaryDefenceGate(raw, finalEffectPackets),
+    effectPackets: finalEffectPackets,
+    intentions: finalEffectPackets.map((packet, index) => ({
       ...packet,
       sortOrder: packet.sortOrder ?? index,
       packetIndex: packet.packetIndex ?? index,

@@ -270,6 +270,42 @@ Channel means the power may or must continue consuming later Power Actions to ma
 
 Charge means the power must or may consume one or more Power Actions building power before resolution, or may grow in strength while held before release.
 
+In first implementation, only one Charge Type may be active at a time:
+
+Delayed Cast
+
+Build Power
+
+Build Power uses bonus dice per charged turn.
+
+Delayed Cast is not Reserve-only.
+
+Delayed Cast cannot be Counter-enabled.
+
+Reserve + Charge delayed-cast:
+
+becomes primed after the required charge turns
+
+must be released with a Power Action or with a Response before the end of the user’s next turn
+
+if not released, is lost and goes on cooldown
+
+Non-Reserve delayed-cast:
+
+becomes primed after the required charge turns
+
+must be cast with a Power Action before the end of the user’s next turn
+
+if not cast, is lost
+
+Reserve owns release permission and release flavour.
+
+Non-Reserve delayed-cast uses cast framing, not release framing.
+
+For non-Reserve delayed-cast, Packet 1 timing and defence wording follow the authored Packet 1 Effect Timing rather than a forced ON_RELEASE bridge.
+
+Build Power on non-Reserve chassis uses cast framing rather than release framing.
+
 
 28. Commitment Modifier does not replace Lifespan, Effect Timing, or Effect Duration
 
@@ -393,3 +429,104 @@ Targets of Attached powers must be in legal range for the initial application.
 Once attached, the attached state may continue and later attached effects may resolve for its Lifespan even if later range changes.
 
 For first implementation, a Channelled Attached power may only add new applications, refreshes, or maintained re-resolution while the attached target remains within the power’s legal cast range from the source. Existing attached effects already on the host continue until their own duration, attachment end, or expiry rules say otherwise.
+
+
+41. First-pass Immediate timing constraints stay conservative and honest
+
+In the current builder surface, Immediate + Standard Packet 1 uses On Cast only.
+
+If an Immediate Packet 1 resolves On Cast and does not create a beyond-turn carrier, later Immediate packets also remain On Cast only in first implementation.
+
+Secondary scaling from the Primary Packet’s result class is derived rather than manually authored in the current builder surface.
+
+42. Persistent states use stacks and a stack-cleanup model
+
+Persistent states such as Control stacks and other stack-based states are tracked as stacks rather than as ongoing direct-value effects.
+
+A target may use a Main Action to attempt the authored cleanup Resist Attribute and remove stacks equal to rolled successes.
+
+Cleanse effects remove stacks per success.
+
+At the end of each turn, persistent-state stacks naturally degrade by 1 unless a more specific rule says otherwise.
+
+When the duration of the source power ends, any remaining stacks from that effect are removed.
+
+43. Ongoing direct effects use ongoing value plus duration rather than stacks
+
+Repeating direct effects such as ongoing damage, healing-over-time, or repeated direct restoration are tracked through ongoing value plus duration rather than stack count.
+
+For Immediate + Standard packets that resolve On Cast and use a non-instant duration for a repeating direct effect, the effect applies initially on cast and then reapplies at the start of the affected target’s next turns for the authored duration.
+
+Ongoing damage may be reduced by Cleanse or by a Main Action cleanup Resist roll against one chosen ongoing damage effect.
+
+Physical ongoing damage uses Fortitude Resist by default for this cleanup roll. Mental ongoing damage uses Bravery Resist by default.
+
+Each cleanup-roll success removes 1 ongoing damage from the chosen effect.
+
+Ongoing damage does not naturally degrade by 1 each turn.
+
+Expiry ends the ongoing damage effect.
+
+Same-source reapplication may refresh duration without adding potency unless the power is explicitly authored to stack or escalate.
+
+44. Packet-local secondary target classes may distinguish Primary Targets, Allies, and Self
+
+Where a Secondary Packet needs a different recipient class from the Primary Packet, packet-local targeting may use:
+
+Primary Targets
+
+Allies
+
+Self
+
+Allies includes self by default. A power that should exclude the user must do so through an explicit authored restriction rather than by narrowing the baseline meaning of Allies.
+
+The renderer should explain the contextual reach of that target class through chassis and range language such as inside the field, within the released area, or within range of the attached host rather than bloating the authored dropdown label itself.
+
+45. Ambiguous Cleanse cleanup uses a narrow Cleanse Theme where needed
+
+Where Cleanse targets an Active Power or a Channelled Power and the current authored specifics do not already settle one unique cleanup Resist Attribute, the builder may surface a packet-local Cleanse Theme disambiguator.
+
+Cleanse Theme resolves to one exact cleanup Resist Attribute and exists only to keep the builder and descriptor honest.
+
+46. Trigger powers may distinguish arm-first versus target-first watched structures
+
+Trigger powers may use a Trigger Method distinction between:
+
+Arm and then target
+
+Target and then arm
+
+Arm and then target means the power is armed now and legal target selection happens when the trigger condition occurs.
+
+Target and then arm means legal target selection happens on cast and the power remains armed against that chosen target or those chosen targets for its Lifespan.
+
+In both cases, Packet 1 still resolves on trigger, not on cast.
+
+47. Secondary packet later timings require a real carrier from Packet 1
+
+For Secondary Packets, chassis legality is not enough by itself.
+
+If Packet 1 has Effect Duration Instant or Until the target's next turn, later recurring timings such as Start of Turn or End of Turn are not legal for Secondary Packets.
+
+Those later timings are only legal where Packet 1 creates a real beyond-resolution carrier such as Turns or Passive, subject to the existing chassis timing rules.
+
+48. Non-Immediate chassis require a real Lifespan in the current builder surface
+
+Immediate remains the only chassis that can honestly have no Lifespan requirement.
+
+Field, Attached, Trigger, and Reserve require a real Lifespan.
+
+In the current builder surface they use Turns or Passive, default to Turns, and do not allow None.
+
+49. Self-origin AoE wording must distinguish static placement from attached presence
+
+When a sphere area uses cast range 0 from the user's own position, static chassis wording must describe the area as centered on the user's current space rather than implying that it moves with the user.
+
+Where the area is hosted through an Attached structure on the user, the wording must describe the area as attached to the user.
+
+50. Overlapping areas from the same packet stack before one defence roll
+
+If multiple distinct areas from the same packet affect the same target at the same timing, the power rolls once, determines the packet's hostile result once, multiplies that hostile result by the number of overlapping authored areas affecting that target, and then resolves one defence roll against that multiplied result.
+
+This preserves one defended entry point while allowing focused overlap from the same packet to matter.
