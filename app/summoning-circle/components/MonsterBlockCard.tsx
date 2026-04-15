@@ -492,7 +492,6 @@ function getEquippedItems(
 function buildEquipmentWeaponAttacks(
   monster: MonsterUpsertInput,
   weaponSkillValue: number,
-  level: number,
   weaponById?: Record<string, WeaponProjection>,
 ): Array<{ label: string; lines: string[]; attackPlacementLines: string[] }> {
   if (!weaponById) return [];
@@ -537,7 +536,7 @@ function buildEquipmentWeaponAttacks(
         aoe: item.aoe,
       } as MonsterNaturalAttackConfig,
       weaponSkillValue,
-      { applyWeaponSkillOverride: true, strengthMultiplier: 2, level },
+      { applyWeaponSkillOverride: true, strengthMultiplier: 2 },
     );
 
     if (lines.length === 0) continue;
@@ -690,13 +689,22 @@ export function MonsterBlockCard({
     DEFAULT_IMAGE_POS_Y,
   );
   const monsterMeta = monster as MonsterUpsertInput & { rarity?: string | null; tier?: string | null };
+  const resolvedCombatTuning = useMemo(
+    () => normalizeCombatTuning(protectionTuning),
+    [protectionTuning],
+  );
   const baseWeaponSkillValue = useMemo(
-    () => getWeaponSkillDiceCountFromAttributes(monster.attackDie, monster.braveryDie),
-    [monster.attackDie, monster.braveryDie],
+    () => getWeaponSkillDiceCountFromAttributes(monster.attackDie, monster.braveryDie, resolvedCombatTuning),
+    [monster.attackDie, monster.braveryDie, resolvedCombatTuning],
   );
   const baseArmorSkillValue = useMemo(
-    () => getArmorSkillDiceCountFromAttributes(monster.defenceDie, monster.fortitudeDie),
-    [monster.defenceDie, monster.fortitudeDie],
+    () =>
+      getArmorSkillDiceCountFromAttributes(
+        monster.defenceDie,
+        monster.fortitudeDie,
+        resolvedCombatTuning,
+      ),
+    [monster.defenceDie, monster.fortitudeDie, resolvedCombatTuning],
   );
   const equippedItems = useMemo(
     () => getEquippedItems(monster, weaponById),
@@ -707,10 +715,6 @@ export function MonsterBlockCard({
     const itemProtection = getProtectionTotalsFromItems(equippedItems);
     return { itemModifiers, itemProtection };
   }, [equippedItems]);
-  const resolvedCombatTuning = useMemo(
-    () => normalizeCombatTuning(protectionTuning),
-    [protectionTuning],
-  );
   const resilienceValues = useMemo(
     () => calculateMonsterResilienceValues(monster, resolvedCombatTuning),
     [monster, resolvedCombatTuning],
@@ -735,11 +739,9 @@ export function MonsterBlockCard({
   );
 
   const renderedAttacks = useMemo(() => {
-    // SC_LEVEL_WOUND_SCALER_WIRING
     const slotBasedAttacks = buildEquipmentWeaponAttacks(
       monster,
       computedWeaponSkillValue,
-      monster.level,
       weaponById,
     );
     const naturalMapped = getRenderableNaturalAttacks(monster).map((attack) => ({
@@ -750,12 +752,17 @@ export function MonsterBlockCard({
         renderAttackActionLines(
           (attack.attackConfig ?? {}) as MonsterNaturalAttackConfig,
           computedWeaponSkillValue,
-          { applyWeaponSkillOverride: true, strengthMultiplier: 2, level: monster.level },
+          {
+            applyWeaponSkillOverride: true,
+            strengthMultiplier: resolvedCombatTuning.naturalAttackStrengthWoundMultiplier,
+            level: monster.level,
+            levelWoundBonusDivisor: resolvedCombatTuning.naturalAttackLevelWoundBonusDivisor,
+          },
         ),
       ),
     }));
     return [...slotBasedAttacks, ...naturalMapped];
-  }, [computedWeaponSkillValue, monster, weaponById]);
+  }, [computedWeaponSkillValue, monster, resolvedCombatTuning, weaponById]);
   const attackGroups = useMemo(() => {
     const map = new Map<string, typeof renderedAttacks>();
     for (const a of renderedAttacks) {
@@ -863,6 +870,7 @@ export function MonsterBlockCard({
           monster.intellectDie,
           monster.level,
           protectionValues.physicalProtection,
+          resolvedCombatTuning,
         ),
       ),
     [
@@ -870,16 +878,26 @@ export function MonsterBlockCard({
       monster.intellectDie,
       monster.level,
       protectionValues.physicalProtection,
+      resolvedCombatTuning,
     ],
   );
   const willpowerValue = useMemo(
     () =>
       Math.max(
         1,
-        getWillpowerDiceCountFromAttributes(monster.supportDie, monster.braveryDie) +
+        getWillpowerDiceCountFromAttributes(
+          monster.supportDie,
+          monster.braveryDie,
+          resolvedCombatTuning,
+        ) +
           Math.max(0, Math.trunc(itemDerived.itemModifiers.willpowerModifier ?? 0)),
       ),
-    [monster.supportDie, monster.braveryDie, itemDerived.itemModifiers.willpowerModifier],
+    [
+      monster.supportDie,
+      monster.braveryDie,
+      itemDerived.itemModifiers.willpowerModifier,
+      resolvedCombatTuning,
+    ],
   );
   const renderedDefenceStrings = useMemo(() => {
     const dodgeDice = Math.max(

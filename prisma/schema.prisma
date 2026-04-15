@@ -90,14 +90,14 @@ model ItemTag {
 }
 
 model DamageType {
-  id              Int                            @id @default(autoincrement())
-  name            String                         @unique
-  attackMode      String                         @default("PHYSICAL")
+  id                Int                            @id @default(autoincrement())
+  name              String                         @unique
+  attackMode        String                         @default("PHYSICAL")
   attackEffectLinks AttackEffectDamageType[]
-  aoeTemplates    ItemTemplateAoEDamageType[]
-  meleeTemplates  ItemTemplateMeleeDamageType[]
-  rangedTemplates ItemTemplateRangedDamageType[]
-  vrpEntries      ItemTemplateVRPEntry[]
+  aoeTemplates      ItemTemplateAoEDamageType[]
+  meleeTemplates    ItemTemplateMeleeDamageType[]
+  rangedTemplates   ItemTemplateRangedDamageType[]
+  vrpEntries        ItemTemplateVRPEntry[]
 
   @@map("DamageType")
 }
@@ -363,30 +363,42 @@ model ForgeCostEntry {
 }
 
 model CombatTuning {
-  id                    String   @id @default(cuid())
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  protectionK           Int      @default(2)
-  protectionS           Int      @default(6)
-  attackWeight          Float    @default(1)
-  defenceWeight         Float    @default(1)
-  fortitudeWeight       Float    @default(1)
-  intellectWeight       Float    @default(1)
-  supportWeight         Float    @default(1)
-  braveryWeight         Float    @default(1)
-  minionTierMultiplier  Float    @default(1)
-  soldierTierMultiplier Float    @default(1.5)
-  eliteTierMultiplier   Float    @default(2)
-  bossTierMultiplier    Float    @default(3)
-  expectedPhysicalResilienceAt1      Float @default(19)
-  expectedPhysicalResiliencePerLevel Float @default(1.5)
-  expectedMentalPerseveranceAt1      Float @default(19)
-  expectedMentalPerseverancePerLevel Float @default(1.5)
+  id                                 String   @id @default(cuid())
+  createdAt                          DateTime @default(now())
+  updatedAt                          DateTime @updatedAt
+  protectionK                        Int      @default(2)
+  protectionS                        Int      @default(6)
+  attackWeight                       Float    @default(1)
+  defenceWeight                      Float    @default(1)
+  fortitudeWeight                    Float    @default(1)
+  intellectWeight                    Float    @default(1)
+  supportWeight                      Float    @default(1)
+  braveryWeight                      Float    @default(1)
+  weaponSkillBraveryWeight           Float    @default(2)
+  weaponSkillAttackWeight            Float    @default(1)
+  weaponSkillBaselineOffset          Float    @default(1)
+  weaponSkillScale                   Float    @default(1)
+  armorSkillFortitudeWeight          Float    @default(2)
+  armorSkillDefenceWeight            Float    @default(1)
+  armorSkillBaselineOffset           Float    @default(1)
+  armorSkillScale                    Float    @default(1)
+  willpowerSupportWeight             Float    @default(2)
+  willpowerBraveryWeight             Float    @default(1)
+  willpowerBaselineOffset            Float    @default(1)
+  willpowerScale                     Float    @default(1)
+  minionTierMultiplier               Float    @default(1)
+  soldierTierMultiplier              Float    @default(1.5)
+  eliteTierMultiplier                Float    @default(2)
+  bossTierMultiplier                 Float    @default(3)
+  expectedPhysicalResilienceAt1      Float    @default(19)
+  expectedPhysicalResiliencePerLevel Float    @default(1.5)
+  expectedMentalPerseveranceAt1      Float    @default(19)
+  expectedMentalPerseverancePerLevel Float    @default(1.5)
 
-  expectedPoolMinionMultiplier Float @default(1)
+  expectedPoolMinionMultiplier  Float @default(1)
   expectedPoolSoldierMultiplier Float @default(1.5)
-  expectedPoolEliteMultiplier Float @default(2)
-  expectedPoolBossMultiplier Float @default(3)
+  expectedPoolEliteMultiplier   Float @default(2)
+  expectedPoolBossMultiplier    Float @default(3)
 
   poolWeakerSideWeight Float @default(0.75)
   poolAverageWeight    Float @default(0.25)
@@ -397,6 +409,93 @@ model CombatTuning {
   poolAboveExpectedScale           Float @default(0.4)
 
   @@map("CombatTuning")
+}
+
+model CombatTuningConfigSet {
+  id          String                     @id @default(cuid())
+  name        String
+  slug        String                     @unique
+  status      CombatTuningConfigStatus   @default(DRAFT)
+  notes       String?                    @db.Text
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  activatedAt DateTime?
+  entries     CombatTuningConfigEntry[]
+
+  @@index([status, updatedAt])
+  @@map("CombatTuningConfigSet")
+}
+
+model CombatTuningConfigEntry {
+  id          String                @id @default(cuid())
+  configSetId String
+  configKey   String
+  value       Float
+  notes       String?               @db.Text
+  sortOrder   Int                   @default(0)
+  configSet   CombatTuningConfigSet @relation(fields: [configSetId], references: [id], onDelete: Cascade)
+
+  @@unique([configSetId, configKey])
+  @@index([configSetId, sortOrder])
+  @@map("CombatTuningConfigEntry")
+}
+
+model PowerTuningConfigSet {
+  id          String                   @id @default(cuid())
+  name        String
+  slug        String                   @unique
+  status      PowerTuningConfigStatus  @default(DRAFT)
+  notes       String?                  @db.Text
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  activatedAt DateTime?
+  entries     PowerTuningConfigEntry[]
+
+  @@index([status, updatedAt])
+  @@map("PowerTuningConfigSet")
+}
+
+model PowerTuningConfigEntry {
+  id          String               @id @default(cuid())
+  configSetId String
+  configKey   String
+  value       Float
+  notes       String?              @db.Text
+  sortOrder   Int                  @default(0)
+  configSet   PowerTuningConfigSet @relation(fields: [configSetId], references: [id], onDelete: Cascade)
+
+  @@unique([configSetId, configKey])
+  @@index([configSetId, sortOrder])
+  @@map("PowerTuningConfigEntry")
+}
+
+model OutcomeNormalizationConfigSet {
+  id          String                            @id @default(cuid())
+  name        String
+  slug        String                            @unique
+  status      OutcomeNormalizationConfigStatus  @default(DRAFT)
+  notes       String?                           @db.Text
+  createdAt   DateTime                          @default(now())
+  updatedAt   DateTime                          @updatedAt
+  activatedAt DateTime?
+  entries     OutcomeNormalizationConfigEntry[]
+
+  @@index([status, updatedAt])
+  @@map("OutcomeNormalizationConfigSet")
+}
+
+model OutcomeNormalizationConfigEntry {
+  id          String                        @id @default(cuid())
+  configSetId String
+  configKey   String
+  value       Float
+  notes       String?                       @db.Text
+  sortOrder   Int                           @default(0)
+  configSet   OutcomeNormalizationConfigSet @relation(fields: [configSetId], references: [id], onDelete: Cascade)
+
+  @@unique([configSetId, configKey])
+  @@index([configSetId, sortOrder])
+  @@map("OutcomeNormalizationConfigEntry")
 }
 
 model UserProfile {
@@ -450,50 +549,50 @@ model DescriptorRule {
 }
 
 model Power {
-  id                     String                 @id @default(cuid())
-  monsterId              String?
-  sourceType             PowerSourceType        @default(MONSTER_POWER)
-  sortOrder              Int                    @default(0)
-  name                   String
-  description            String?                @db.Text
-  schemaVersion          Int                    @default(1)
-  rulesVersion           String                 @default("v1")
-  contentRevision        Int                    @default(1)
-  previewRendererVersion Int                    @default(1)
-  status                 PowerStatus            @default(ACTIVE)
-  descriptorChassis      DescriptorChassisType  @default(IMMEDIATE)
-  descriptorChassisConfig Json                  @default("{}")
-  chargeType             ChargeType?
-  chargeTurns            Int?
-  chargeBonusDicePerTurn Int?
-  counterMode            CounterMode            @default(NO)
-  commitmentModifier     CommitmentModifier     @default(STANDARD)
-  triggerMethod          TriggerMethod?
-  attachedHostAnchorType AttachedHostAnchorType?
-  cooldownTurns          Int
-  cooldownReduction      Int                    @default(0)
-  lifespanType           PowerLifespanType      @default(NONE)
-  lifespanTurns          Int?
-  previewSummaryOverride String?                @db.Text
-  meleeTargets           Int?
-  rangedTargets          Int?
-  rangedDistanceFeet     Int?
-  aoeCenterRangeFeet     Int?
-  aoeCount               Int?
-  aoeShape               AoEShape?
-  aoeSphereRadiusFeet    Int?
-  aoeConeLengthFeet      Int?
-  aoeLineWidthFeet       Int?
-  aoeLineLengthFeet      Int?
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @default(now()) @updatedAt
-  monster                Monster?               @relation(fields: [monsterId], references: [id], onDelete: Cascade)
-  effectPackets          EffectPacket[]
-  primaryDefenceGate     PrimaryDefenceGate?
-  rangeCategories        PowerRangeCategory[]
-  tags                   PowerTag[]
-  limitBreakUsages       PowerLimitBreakUsage[]
-  limitBreakProfiles     LimitBreakProfile[]
+  id                      String                  @id @default(cuid())
+  monsterId               String?
+  sourceType              PowerSourceType         @default(MONSTER_POWER)
+  sortOrder               Int                     @default(0)
+  name                    String
+  description             String?                 @db.Text
+  schemaVersion           Int                     @default(1)
+  rulesVersion            String                  @default("v1")
+  contentRevision         Int                     @default(1)
+  previewRendererVersion  Int                     @default(1)
+  status                  PowerStatus             @default(ACTIVE)
+  descriptorChassis       DescriptorChassisType   @default(IMMEDIATE)
+  descriptorChassisConfig Json                    @default("{}")
+  chargeType              ChargeType?
+  chargeTurns             Int?
+  chargeBonusDicePerTurn  Int?
+  counterMode             CounterMode             @default(NO)
+  commitmentModifier      CommitmentModifier      @default(STANDARD)
+  triggerMethod           TriggerMethod?
+  attachedHostAnchorType  AttachedHostAnchorType?
+  cooldownTurns           Int
+  cooldownReduction       Int                     @default(0)
+  lifespanType            PowerLifespanType       @default(NONE)
+  lifespanTurns           Int?
+  previewSummaryOverride  String?                 @db.Text
+  meleeTargets            Int?
+  rangedTargets           Int?
+  rangedDistanceFeet      Int?
+  aoeCenterRangeFeet      Int?
+  aoeCount                Int?
+  aoeShape                AoEShape?
+  aoeSphereRadiusFeet     Int?
+  aoeConeLengthFeet       Int?
+  aoeLineWidthFeet        Int?
+  aoeLineLengthFeet       Int?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @default(now()) @updatedAt
+  monster                 Monster?                @relation(fields: [monsterId], references: [id], onDelete: Cascade)
+  effectPackets           EffectPacket[]
+  primaryDefenceGate      PrimaryDefenceGate?
+  rangeCategories         PowerRangeCategory[]
+  tags                    PowerTag[]
+  limitBreakUsages        PowerLimitBreakUsage[]
+  limitBreakProfiles      LimitBreakProfile[]
 
   @@index([monsterId, sortOrder])
   @@index([sourceType])
@@ -696,23 +795,23 @@ model Monster {
 }
 
 model MonsterTraitDefinition {
-  id                    String           @id @default(cuid())
-  name                  String           @unique
-  effectText            String?          @db.Text
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @default(now()) @updatedAt
-  isEnabled             Boolean          @default(true)
-  source                MonsterSource    @default(CORE)
-  isReadOnly            Boolean          @default(true)
-  band                  MonsterTraitBand @default(STANDARD)
-  physicalThreatWeight  Int              @default(0)
-  mentalThreatWeight    Int              @default(0)
-  survivabilityWeight   Int              @default(0)
-  manipulationWeight    Int              @default(0)
-  synergyWeight         Int              @default(0)
-  mobilityWeight        Int              @default(0)
-  presenceWeight        Int              @default(0)
-  traits                MonsterTrait[]
+  id                   String           @id @default(cuid())
+  name                 String           @unique
+  effectText           String?          @db.Text
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @default(now()) @updatedAt
+  isEnabled            Boolean          @default(true)
+  source               MonsterSource    @default(CORE)
+  isReadOnly           Boolean          @default(true)
+  band                 MonsterTraitBand @default(STANDARD)
+  physicalThreatWeight Int              @default(0)
+  mentalThreatWeight   Int              @default(0)
+  survivabilityWeight  Int              @default(0)
+  manipulationWeight   Int              @default(0)
+  synergyWeight        Int              @default(0)
+  mobilityWeight       Int              @default(0)
+  presenceWeight       Int              @default(0)
+  traits               MonsterTrait[]
 
   @@index([source, isEnabled])
   @@map("MonsterTraitDefinition")
@@ -768,36 +867,36 @@ model MonsterAttack {
 }
 
 model PowerRangeCategory {
-  powerId        String
-  rangeCategory  RangeCategory
-  power          Power         @relation(fields: [powerId], references: [id], onDelete: Cascade)
+  powerId       String
+  rangeCategory RangeCategory
+  power         Power         @relation(fields: [powerId], references: [id], onDelete: Cascade)
 
   @@id([powerId, rangeCategory])
   @@map("PowerRangeCategory")
 }
 
 model EffectPacket {
-  id                    String                              @id @default(cuid())
-  powerId               String
-  packetIndex           Int                                 @default(0)
-  hostility             PacketHostility
-  intention             PowerIntention
-  specific              String?
-  diceCount             Int
-  potency               Int
-  effectTimingType      EffectTimingType
-  effectTimingTurns     Int?
-  effectDurationType    EffectDurationType
-  effectDurationTurns   Int?
-  dealsWounds           Boolean                             @default(false)
-  woundChannel          WoundChannel?
-  targetedAttribute     CoreAttribute?
-  applicationModeKey    String?
-  resolutionOrigin      ResolutionOrigin                    @default(CASTER)
-  applyTo               EffectPacketApplyTo?
-  triggerConditionText  String?
-  detailsJson           Json                                @default("{}")
-  power                 Power                               @relation(fields: [powerId], references: [id], onDelete: Cascade)
+  id                     String                              @id @default(cuid())
+  powerId                String
+  packetIndex            Int                                 @default(0)
+  hostility              PacketHostility
+  intention              PowerIntention
+  specific               String?
+  diceCount              Int
+  potency                Int
+  effectTimingType       EffectTimingType
+  effectTimingTurns      Int?
+  effectDurationType     EffectDurationType
+  effectDurationTurns    Int?
+  dealsWounds            Boolean                             @default(false)
+  woundChannel           WoundChannel?
+  targetedAttribute      CoreAttribute?
+  applicationModeKey     String?
+  resolutionOrigin       ResolutionOrigin                    @default(CASTER)
+  applyTo                EffectPacketApplyTo?
+  triggerConditionText   String?
+  detailsJson            Json                                @default("{}")
+  power                  Power                               @relation(fields: [powerId], references: [id], onDelete: Cascade)
   localTargetingOverride EffectPacketLocalTargetingOverride?
 
   @@index([powerId, packetIndex])
@@ -805,31 +904,31 @@ model EffectPacket {
 }
 
 model EffectPacketLocalTargetingOverride {
-  packetId             String      @id
-  meleeTargets         Int?
-  rangedTargets        Int?
-  rangedDistanceFeet   Int?
-  aoeCenterRangeFeet   Int?
-  aoeCount             Int?
-  aoeShape             AoEShape?
-  aoeSphereRadiusFeet  Int?
-  aoeConeLengthFeet    Int?
-  aoeLineWidthFeet     Int?
-  aoeLineLengthFeet    Int?
-  packet               EffectPacket @relation(fields: [packetId], references: [id], onDelete: Cascade)
+  packetId            String       @id
+  meleeTargets        Int?
+  rangedTargets       Int?
+  rangedDistanceFeet  Int?
+  aoeCenterRangeFeet  Int?
+  aoeCount            Int?
+  aoeShape            AoEShape?
+  aoeSphereRadiusFeet Int?
+  aoeConeLengthFeet   Int?
+  aoeLineWidthFeet    Int?
+  aoeLineLengthFeet   Int?
+  packet              EffectPacket @relation(fields: [packetId], references: [id], onDelete: Cascade)
 
   @@map("EffectPacketLocalTargetingOverride")
 }
 
 model PrimaryDefenceGate {
-  powerId              String                    @id
-  sourcePacketIndex    Int                       @default(0)
-  gateResult           PrimaryDefenceGateResult
-  protectionChannel    ProtectionChannel?
-  resistAttribute      CoreAttribute?
-  hostileEntryPattern  HostileEntryPattern?
-  resolutionSource     GateResolutionSource      @default(INFERRED)
-  power                Power                     @relation(fields: [powerId], references: [id], onDelete: Cascade)
+  powerId             String                   @id
+  sourcePacketIndex   Int                      @default(0)
+  gateResult          PrimaryDefenceGateResult
+  protectionChannel   ProtectionChannel?
+  resistAttribute     CoreAttribute?
+  hostileEntryPattern HostileEntryPattern?
+  resolutionSource    GateResolutionSource     @default(INFERRED)
+  power               Power                    @relation(fields: [powerId], references: [id], onDelete: Cascade)
 
   @@map("PrimaryDefenceGate")
 }
@@ -849,6 +948,24 @@ model PowerTag {
 enum EntitlementTier {
   FREE
   PAID
+}
+
+enum PowerTuningConfigStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum OutcomeNormalizationConfigStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum CombatTuningConfigStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
 }
 
 enum PowerSourceType {

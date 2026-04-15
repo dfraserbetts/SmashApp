@@ -1,672 +1,727 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  COMBAT_TUNING_ADMIN_GROUPS,
+  COMBAT_TUNING_ADMIN_METADATA,
+  type CombatTuningAdminGroup,
+  type CombatTuningValueFormat,
+} from "@/lib/config/combatTuningAdminMetadata";
+import {
+  COMBAT_TUNING_CONFIG_KEY_ORDER,
+  DEFAULT_COMBAT_TUNING_VALUES,
+  type CombatTuningConfigStatus,
+  type CombatTuningSnapshot,
+} from "@/lib/config/combatTuningShared";
 
-type TuningRow = {
+type CombatTuningSetListItem = {
   id: string;
-  protectionK: number;
-  protectionS: number;
-  attackWeight: number;
-  defenceWeight: number;
-  fortitudeWeight: number;
-  intellectWeight: number;
-  supportWeight: number;
-  braveryWeight: number;
-  minionTierMultiplier: number;
-  soldierTierMultiplier: number;
-  eliteTierMultiplier: number;
-  bossTierMultiplier: number;
-  expectedPhysicalResilienceAt1: number;
-  expectedPhysicalResiliencePerLevel: number;
-  expectedMentalPerseveranceAt1: number;
-  expectedMentalPerseverancePerLevel: number;
-  expectedPoolMinionMultiplier: number;
-  expectedPoolSoldierMultiplier: number;
-  expectedPoolEliteMultiplier: number;
-  expectedPoolBossMultiplier: number;
-  poolWeakerSideWeight: number;
-  poolAverageWeight: number;
-  poolBelowExpectedMaxPenaltyShare: number;
-  poolBelowExpectedScale: number;
-  poolAboveExpectedMaxBonusShare: number;
-  poolAboveExpectedScale: number;
+  name: string;
+  slug: string;
+  status: CombatTuningConfigStatus;
+  notes: string | null;
   updatedAt: string;
+  activatedAt: string | null;
 };
 
-// ADMIN_COMBAT_TUNING_PAGE
+type AdminCombatTuningResponse = {
+  activeSetId: string;
+  sets: CombatTuningSetListItem[];
+  selectedSet: CombatTuningSnapshot;
+};
+
+function formatDateTime(value: string | null): string {
+  if (!value) return "Never";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
+function getStatusChipClass(status: CombatTuningConfigStatus): string {
+  if (status === "ACTIVE") return "border-emerald-600/60 bg-emerald-500/10 text-emerald-200";
+  if (status === "DRAFT") return "border-amber-600/60 bg-amber-500/10 text-amber-200";
+  return "border-zinc-700 bg-zinc-900 text-zinc-300";
+}
+
+function toDraftInputs(values: Record<string, number>): Record<string, string> {
+  const next: Record<string, string> = {};
+  for (const key of COMBAT_TUNING_CONFIG_KEY_ORDER) {
+    next[key] = String(values[key] ?? (DEFAULT_COMBAT_TUNING_VALUES as Record<string, number>)[key] ?? 0);
+  }
+  return next;
+}
+
+function getSnapshotValue(snapshot: CombatTuningSnapshot | null, key: string): number {
+  return snapshot?.values[key] ?? (DEFAULT_COMBAT_TUNING_VALUES as Record<string, number>)[key] ?? 0;
+}
+
+function parseDraftValue(value: string | undefined): number | null {
+  if (typeof value !== "string" || value.trim().length === 0) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function valuesDiffer(left: number | null, right: number): boolean {
+  return left === null || Math.abs(left - right) > 0.0000001;
+}
+
+function formatHint(format?: CombatTuningValueFormat): string | null {
+  if (format === "share") return "0.00 to 1.00 typical";
+  if (format === "multiplier") return "1.00 = neutral";
+  return null;
+}
+
+const FORMULA_GUIDES: Partial<
+  Record<
+    CombatTuningAdminGroup,
+    {
+      title: string;
+      formula: string;
+      notes: string[];
+    }
+  >
+> = {
+  "Protection Formula": {
+    title: "How protection block is made",
+    formula: "Block per success = ceil((Protection Value / K) * (1 + Skill / S))",
+    notes: [
+      "Raise K to make protection block less.",
+      "Raise S to make Armor Skill or Willpower matter less.",
+      "Physical block uses Armor Skill. Mental block uses Willpower.",
+    ],
+  },
+  "Baseline Resilience & Perseverance": {
+    title: "How monster pools are made",
+    formula:
+      "Pool = round((Level + weighted attributes) * Tier Multiplier + Legendary Bonus)",
+    notes: [
+      "Physical Resilience uses Attack, Defence, and Fortitude.",
+      "Mental Perseverance uses Intellect, Support, and Bravery.",
+      "Raise a tier multiplier to make that tier's real stat-block pools larger.",
+    ],
+  },
+  "Pool Expectation by Tier": {
+    title: "How expected pools are made",
+    formula: "Expected Pool = (Level 1 value + Per Level growth * (Level - 1)) * Tier Multiplier",
+    notes: [
+      "These values describe what the calculator expects, not the stat block's actual pool.",
+      "Raise expected values to make the same monster look less durable by comparison.",
+      "Lower expected values to make the same monster look more durable by comparison.",
+    ],
+  },
+  "Pool Penalty / Bonus Scaling": {
+    title: "How pool expectation affects survivability",
+    formula: "Pool Ratio = weighted blend of weaker pool ratio and average pool ratio",
+    notes: [
+      "Pool ratio below 1 gives a survivability penalty.",
+      "Pool ratio above 1 gives a survivability bonus.",
+      "Caps set the maximum penalty or bonus; scale controls how quickly it ramps.",
+    ],
+  },
+  "Attribute Weights / Realization Inputs": {
+    title: "How attribute weights become baseline stats",
+    formula:
+      "Skill = max(1, ceil(round(((primary half * primary weight + secondary half * secondary weight) / total weight - offset) * scale, 1)))",
+    notes: [
+      "Raise an attribute weight to make that attribute matter more.",
+      "Raise Baseline Offset to lower the final skill.",
+      "Raise Skill Scale to make stronger attributes improve the skill faster.",
+      "Dodge = max(1, ceil((Intellect * Intellect Weight + Defence * Defence Weight) / Attribute Divisor) + Level - Physical Protection * Protection Penalty).",
+    ],
+  },
+  "Natural Attack Formula": {
+    title: "How natural attack Strength becomes wounds",
+    formula:
+      "Wounds per success = Strength * Wounds per Strength + floor(Level / Level Bonus Divider)",
+    notes: [
+      "Raise Wounds per Strength to make natural attacks hit harder at every level.",
+      "Raise Level Bonus Divider to make the level-based wound bonus grow more slowly.",
+      "These values affect natural weapon preview/render output, not equipped weapon item strings.",
+    ],
+  },
+  "Dodge & Defence Package": {
+    title: "How defensive baseline becomes radar survivability",
+    formula: "Defence Package Bonus = Survivability Budget * (Dodge Share + Block Share)",
+    notes: [
+      "Dodge Share comes from Dodge dice compared against expected incoming attack dice.",
+      "Block Share comes from Armor Skill, Willpower, and protection block output.",
+      "Raise caps to allow a bigger survivability contribution; raise scales to make it ramp more slowly.",
+    ],
+  },
+};
+
+function FormulaGuide(props: { group: CombatTuningAdminGroup }) {
+  const guide = FORMULA_GUIDES[props.group];
+  if (!guide) return null;
+
+  return (
+    <div className="mt-3 rounded border border-zinc-800 bg-zinc-950 p-3">
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+        Formula Guide
+      </p>
+      <h3 className="mt-1 text-sm font-medium text-zinc-200">{guide.title}</h3>
+      <p className="mt-2 rounded border border-zinc-800 bg-black/30 px-2 py-1.5 font-mono text-xs text-zinc-300">
+        {guide.formula}
+      </p>
+      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-zinc-400">
+        {guide.notes.map((note) => (
+          <li key={note}>{note}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function buildValuesPayload(draftValues: Record<string, string>): Record<string, number> | string {
+  const values: Record<string, number> = {};
+  for (const key of COMBAT_TUNING_CONFIG_KEY_ORDER) {
+    const parsed = parseDraftValue(draftValues[key]);
+    if (parsed === null) return `${key} must be a finite number > 0.`;
+    values[key] = parsed;
+  }
+  return values;
+}
+
+async function fetchAdminCombatTuning(setId?: string | null): Promise<AdminCombatTuningResponse> {
+  const query = setId ? `?setId=${encodeURIComponent(setId)}` : "";
+  const response = await fetch(`/api/admin/combat-tuning${query}`, { cache: "no-store" });
+  const payload = (await response.json().catch(() => null)) as
+    | (AdminCombatTuningResponse & { error?: string })
+    | null;
+  if (!response.ok || !payload?.selectedSet) {
+    throw new Error(payload?.error ?? "Failed to load combat tuning");
+  }
+  return payload;
+}
+
 export default function AdminCombatTuningPage() {
-  const [row, setRow] = useState<TuningRow | null>(null);
-  const [protectionK, setProtectionK] = useState("");
-  const [protectionS, setProtectionS] = useState("");
-  const [attackWeight, setAttackWeight] = useState("");
-  const [defenceWeight, setDefenceWeight] = useState("");
-  const [fortitudeWeight, setFortitudeWeight] = useState("");
-  const [intellectWeight, setIntellectWeight] = useState("");
-  const [supportWeight, setSupportWeight] = useState("");
-  const [braveryWeight, setBraveryWeight] = useState("");
-  const [minionTierMultiplier, setMinionTierMultiplier] = useState("");
-  const [soldierTierMultiplier, setSoldierTierMultiplier] = useState("");
-  const [eliteTierMultiplier, setEliteTierMultiplier] = useState("");
-  const [bossTierMultiplier, setBossTierMultiplier] = useState("");
-  const [expectedPhysicalResilienceAt1, setExpectedPhysicalResilienceAt1] = useState("");
-  const [expectedPhysicalResiliencePerLevel, setExpectedPhysicalResiliencePerLevel] =
-    useState("");
-  const [expectedMentalPerseveranceAt1, setExpectedMentalPerseveranceAt1] = useState("");
-  const [expectedMentalPerseverancePerLevel, setExpectedMentalPerseverancePerLevel] =
-    useState("");
-  const [expectedPoolMinionMultiplier, setExpectedPoolMinionMultiplier] = useState("");
-  const [expectedPoolSoldierMultiplier, setExpectedPoolSoldierMultiplier] = useState("");
-  const [expectedPoolEliteMultiplier, setExpectedPoolEliteMultiplier] = useState("");
-  const [expectedPoolBossMultiplier, setExpectedPoolBossMultiplier] = useState("");
-  const [poolWeakerSideWeight, setPoolWeakerSideWeight] = useState("");
-  const [poolAverageWeight, setPoolAverageWeight] = useState("");
-  const [poolBelowExpectedMaxPenaltyShare, setPoolBelowExpectedMaxPenaltyShare] = useState("");
-  const [poolBelowExpectedScale, setPoolBelowExpectedScale] = useState("");
-  const [poolAboveExpectedMaxBonusShare, setPoolAboveExpectedMaxBonusShare] = useState("");
-  const [poolAboveExpectedScale, setPoolAboveExpectedScale] = useState("");
+  const [data, setData] = useState<AdminCombatTuningResponse | null>(null);
+  const [activeSnapshot, setActiveSnapshot] = useState<CombatTuningSnapshot | null>(null);
+  const [selectedSetId, setSelectedSetId] = useState<string | null>(null);
+  const [draftValues, setDraftValues] = useState<Record<string, string>>(
+    toDraftInputs(DEFAULT_COMBAT_TUNING_VALUES),
+  );
+  const [newDraftName, setNewDraftName] = useState("");
+  const [newDraftNotes, setNewDraftNotes] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
-  const physicalResilienceWeightFields = [
-    { label: "Attack Weight", value: attackWeight, setter: setAttackWeight },
-    { label: "Defence Weight", value: defenceWeight, setter: setDefenceWeight },
-    { label: "Fortitude Weight", value: fortitudeWeight, setter: setFortitudeWeight },
-  ] as const;
-  const mentalPerseveranceWeightFields = [
-    { label: "Intellect Weight", value: intellectWeight, setter: setIntellectWeight },
-    { label: "Support Weight", value: supportWeight, setter: setSupportWeight },
-    { label: "Bravery Weight", value: braveryWeight, setter: setBraveryWeight },
-  ] as const;
-  const tierMultiplierFields = [
-    { label: "Minion Multiplier", value: minionTierMultiplier, setter: setMinionTierMultiplier },
-    { label: "Soldier Multiplier", value: soldierTierMultiplier, setter: setSoldierTierMultiplier },
-    { label: "Elite Multiplier", value: eliteTierMultiplier, setter: setEliteTierMultiplier },
-    { label: "Boss Multiplier", value: bossTierMultiplier, setter: setBossTierMultiplier },
-  ] as const;
-  const expectedPhysicalPoolCurveFields = [
-    {
-      label: "Expected Physical Resilience @ Level 1",
-      value: expectedPhysicalResilienceAt1,
-      setter: setExpectedPhysicalResilienceAt1,
-    },
-    {
-      label: "Expected Physical Resilience Per Level",
-      value: expectedPhysicalResiliencePerLevel,
-      setter: setExpectedPhysicalResiliencePerLevel,
-    },
-  ] as const;
-  const expectedMentalPoolCurveFields = [
-    {
-      label: "Expected Mental Perseverance @ Level 1",
-      value: expectedMentalPerseveranceAt1,
-      setter: setExpectedMentalPerseveranceAt1,
-    },
-    {
-      label: "Expected Mental Perseverance Per Level",
-      value: expectedMentalPerseverancePerLevel,
-      setter: setExpectedMentalPerseverancePerLevel,
-    },
-  ] as const;
-  const expectedPoolTierMultiplierFields = [
-    {
-      label: "Expected Pool Minion Multiplier",
-      value: expectedPoolMinionMultiplier,
-      setter: setExpectedPoolMinionMultiplier,
-    },
-    {
-      label: "Expected Pool Soldier Multiplier",
-      value: expectedPoolSoldierMultiplier,
-      setter: setExpectedPoolSoldierMultiplier,
-    },
-    {
-      label: "Expected Pool Elite Multiplier",
-      value: expectedPoolEliteMultiplier,
-      setter: setExpectedPoolEliteMultiplier,
-    },
-    {
-      label: "Expected Pool Boss Multiplier",
-      value: expectedPoolBossMultiplier,
-      setter: setExpectedPoolBossMultiplier,
-    },
-  ] as const;
-  const poolBlendFields = [
-    {
-      label: "Weaker Side Weight",
-      value: poolWeakerSideWeight,
-      setter: setPoolWeakerSideWeight,
-    },
-    {
-      label: "Average Weight",
-      value: poolAverageWeight,
-      setter: setPoolAverageWeight,
-    },
-  ] as const;
-  const poolDeltaFields = [
-    {
-      label: "Below Expected Max Penalty Share",
-      value: poolBelowExpectedMaxPenaltyShare,
-      setter: setPoolBelowExpectedMaxPenaltyShare,
-    },
-    {
-      label: "Below Expected Scale",
-      value: poolBelowExpectedScale,
-      setter: setPoolBelowExpectedScale,
-    },
-    {
-      label: "Above Expected Max Bonus Share",
-      value: poolAboveExpectedMaxBonusShare,
-      setter: setPoolAboveExpectedMaxBonusShare,
-    },
-    {
-      label: "Above Expected Scale",
-      value: poolAboveExpectedScale,
-      setter: setPoolAboveExpectedScale,
-    },
-  ] as const;
+  const selectedSet = data?.selectedSet ?? null;
+  const selectedSetListItem = data?.sets.find((set) => set.id === selectedSet?.setId) ?? null;
+  const isDraft = selectedSet?.status === "DRAFT";
+  const isArchived = selectedSet?.status === "ARCHIVED";
 
-  async function load() {
-    setLoading(true);
-    setErr(null);
-    try {
-      const res = await fetch("/api/admin/combat-tuning", { cache: "no-store" });
-      const data = (await res.json().catch(() => ({}))) as {
-        row?: TuningRow;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(data.error ?? "Failed to load combat tuning");
-      if (!data.row) throw new Error("Missing combat tuning row");
-      setRow(data.row);
-      setProtectionK(String(data.row.protectionK));
-      setProtectionS(String(data.row.protectionS));
-      setAttackWeight(String(data.row.attackWeight));
-      setDefenceWeight(String(data.row.defenceWeight));
-      setFortitudeWeight(String(data.row.fortitudeWeight));
-      setIntellectWeight(String(data.row.intellectWeight));
-      setSupportWeight(String(data.row.supportWeight));
-      setBraveryWeight(String(data.row.braveryWeight));
-      setMinionTierMultiplier(String(data.row.minionTierMultiplier));
-      setSoldierTierMultiplier(String(data.row.soldierTierMultiplier));
-      setEliteTierMultiplier(String(data.row.eliteTierMultiplier));
-      setBossTierMultiplier(String(data.row.bossTierMultiplier));
-      setExpectedPhysicalResilienceAt1(String(data.row.expectedPhysicalResilienceAt1));
-      setExpectedPhysicalResiliencePerLevel(String(data.row.expectedPhysicalResiliencePerLevel));
-      setExpectedMentalPerseveranceAt1(String(data.row.expectedMentalPerseveranceAt1));
-      setExpectedMentalPerseverancePerLevel(String(data.row.expectedMentalPerseverancePerLevel));
-      setExpectedPoolMinionMultiplier(String(data.row.expectedPoolMinionMultiplier));
-      setExpectedPoolSoldierMultiplier(String(data.row.expectedPoolSoldierMultiplier));
-      setExpectedPoolEliteMultiplier(String(data.row.expectedPoolEliteMultiplier));
-      setExpectedPoolBossMultiplier(String(data.row.expectedPoolBossMultiplier));
-      setPoolWeakerSideWeight(String(data.row.poolWeakerSideWeight));
-      setPoolAverageWeight(String(data.row.poolAverageWeight));
-      setPoolBelowExpectedMaxPenaltyShare(String(data.row.poolBelowExpectedMaxPenaltyShare));
-      setPoolBelowExpectedScale(String(data.row.poolBelowExpectedScale));
-      setPoolAboveExpectedMaxBonusShare(String(data.row.poolAboveExpectedMaxBonusShare));
-      setPoolAboveExpectedScale(String(data.row.poolAboveExpectedScale));
-    } catch (e: unknown) {
-      setErr(String((e as { message?: unknown })?.message ?? "Failed to load combat tuning"));
-    } finally {
-      setLoading(false);
-    }
-  }
+  const dirtyKeys = useMemo(
+    () =>
+      isDraft
+        ? COMBAT_TUNING_CONFIG_KEY_ORDER.filter((key) =>
+            valuesDiffer(parseDraftValue(draftValues[key]), getSnapshotValue(selectedSet, key)),
+          )
+        : [],
+    [draftValues, isDraft, selectedSet],
+  );
+  const isDirty = dirtyKeys.length > 0;
+
+  const activeChangedKeys = useMemo(
+    () =>
+      COMBAT_TUNING_CONFIG_KEY_ORDER.filter((key) =>
+        valuesDiffer(
+          isDraft ? parseDraftValue(draftValues[key]) : getSnapshotValue(selectedSet, key),
+          getSnapshotValue(activeSnapshot, key),
+        ),
+      ),
+    [activeSnapshot, draftValues, isDraft, selectedSet],
+  );
+  const activeChangedSet = useMemo(() => new Set(activeChangedKeys), [activeChangedKeys]);
+
+  const groupedKeys = useMemo(
+    () =>
+      COMBAT_TUNING_ADMIN_GROUPS.map((group) => {
+        const allKeys = COMBAT_TUNING_CONFIG_KEY_ORDER.filter(
+          (key) => COMBAT_TUNING_ADMIN_METADATA[key]?.group === group,
+        );
+        const normalizedSearch = searchQuery.trim().toLowerCase();
+        const keys = allKeys.filter((key) => {
+          if (!normalizedSearch) return true;
+          const metadata = COMBAT_TUNING_ADMIN_METADATA[key];
+          return [metadata?.label, metadata?.description, metadata?.group, metadata?.aliases?.join(" "), key]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(normalizedSearch));
+        });
+        return {
+          group,
+          keys,
+          totalChangedCount: allKeys.filter((key) => activeChangedSet.has(key)).length,
+        };
+      }),
+    [activeChangedSet, searchQuery],
+  );
+
+  const visibleKeyCount = groupedKeys.reduce((sum, group) => sum + group.keys.length, 0);
+
+  const load = useCallback(
+    async (nextSetId?: string | null) => {
+      if (isDirty && !window.confirm("Discard unsaved combat tuning edits?")) return;
+      setLoading(true);
+      setError(null);
+
+      try {
+        const payload = await fetchAdminCombatTuning(nextSetId ?? selectedSetId);
+        const nextActiveSnapshot =
+          payload.activeSetId === payload.selectedSet.setId
+            ? payload.selectedSet
+            : (await fetchAdminCombatTuning(payload.activeSetId)).selectedSet;
+
+        setData(payload);
+        setActiveSnapshot(nextActiveSnapshot);
+        setSelectedSetId(payload.selectedSet.setId);
+        setDraftValues(toDraftInputs(payload.selectedSet.values));
+      } catch (loadError: unknown) {
+        setError(String((loadError as { message?: unknown })?.message ?? "Failed to load combat tuning"));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [isDirty, selectedSetId],
+  );
 
   useEffect(() => {
-    void load();
-  }, []);
+    if (selectedSetId === null) void load(null);
+  }, [load, selectedSetId]);
 
-  async function save() {
-    const k = Number.parseInt(protectionK, 10);
-    const s = Number.parseInt(protectionS, 10);
-    const parsedAttackWeight = Number(attackWeight);
-    const parsedDefenceWeight = Number(defenceWeight);
-    const parsedFortitudeWeight = Number(fortitudeWeight);
-    const parsedIntellectWeight = Number(intellectWeight);
-    const parsedSupportWeight = Number(supportWeight);
-    const parsedBraveryWeight = Number(braveryWeight);
-    const parsedMinionTierMultiplier = Number(minionTierMultiplier);
-    const parsedSoldierTierMultiplier = Number(soldierTierMultiplier);
-    const parsedEliteTierMultiplier = Number(eliteTierMultiplier);
-    const parsedBossTierMultiplier = Number(bossTierMultiplier);
-    const parsedExpectedPhysicalResilienceAt1 = Number(expectedPhysicalResilienceAt1);
-    const parsedExpectedPhysicalResiliencePerLevel = Number(expectedPhysicalResiliencePerLevel);
-    const parsedExpectedMentalPerseveranceAt1 = Number(expectedMentalPerseveranceAt1);
-    const parsedExpectedMentalPerseverancePerLevel = Number(expectedMentalPerseverancePerLevel);
-    const parsedExpectedPoolMinionMultiplier = Number(expectedPoolMinionMultiplier);
-    const parsedExpectedPoolSoldierMultiplier = Number(expectedPoolSoldierMultiplier);
-    const parsedExpectedPoolEliteMultiplier = Number(expectedPoolEliteMultiplier);
-    const parsedExpectedPoolBossMultiplier = Number(expectedPoolBossMultiplier);
-    const parsedPoolWeakerSideWeight = Number(poolWeakerSideWeight);
-    const parsedPoolAverageWeight = Number(poolAverageWeight);
-    const parsedPoolBelowExpectedMaxPenaltyShare = Number(poolBelowExpectedMaxPenaltyShare);
-    const parsedPoolBelowExpectedScale = Number(poolBelowExpectedScale);
-    const parsedPoolAboveExpectedMaxBonusShare = Number(poolAboveExpectedMaxBonusShare);
-    const parsedPoolAboveExpectedScale = Number(poolAboveExpectedScale);
-    if (!Number.isFinite(k) || k < 1) {
-      setErr("Protection K must be >= 1.");
-      return;
-    }
-    if (!Number.isFinite(s) || s < 1) {
-      setErr("Protection S must be >= 1.");
-      return;
-    }
-    if (
-      !Number.isFinite(parsedAttackWeight) ||
-      parsedAttackWeight <= 0 ||
-      !Number.isFinite(parsedDefenceWeight) ||
-      parsedDefenceWeight <= 0 ||
-      !Number.isFinite(parsedFortitudeWeight) ||
-      parsedFortitudeWeight <= 0 ||
-      !Number.isFinite(parsedIntellectWeight) ||
-      parsedIntellectWeight <= 0 ||
-      !Number.isFinite(parsedSupportWeight) ||
-      parsedSupportWeight <= 0 ||
-      !Number.isFinite(parsedBraveryWeight) ||
-      parsedBraveryWeight <= 0
-    ) {
-      setErr("All attribute weights must be > 0.");
-      return;
-    }
-    if (
-      !Number.isFinite(parsedMinionTierMultiplier) ||
-      parsedMinionTierMultiplier <= 0 ||
-      !Number.isFinite(parsedSoldierTierMultiplier) ||
-      parsedSoldierTierMultiplier <= 0 ||
-      !Number.isFinite(parsedEliteTierMultiplier) ||
-      parsedEliteTierMultiplier <= 0 ||
-      !Number.isFinite(parsedBossTierMultiplier) ||
-      parsedBossTierMultiplier <= 0
-    ) {
-      setErr("All tier multipliers must be > 0.");
-      return;
-    }
-    if (
-      !Number.isFinite(parsedExpectedPhysicalResilienceAt1) ||
-      parsedExpectedPhysicalResilienceAt1 <= 0 ||
-      !Number.isFinite(parsedExpectedPhysicalResiliencePerLevel) ||
-      parsedExpectedPhysicalResiliencePerLevel <= 0 ||
-      !Number.isFinite(parsedExpectedMentalPerseveranceAt1) ||
-      parsedExpectedMentalPerseveranceAt1 <= 0 ||
-      !Number.isFinite(parsedExpectedMentalPerseverancePerLevel) ||
-      parsedExpectedMentalPerseverancePerLevel <= 0
-    ) {
-      setErr("Expected pool curve values must be > 0.");
-      return;
-    }
-    if (
-      !Number.isFinite(parsedExpectedPoolMinionMultiplier) ||
-      parsedExpectedPoolMinionMultiplier <= 0 ||
-      !Number.isFinite(parsedExpectedPoolSoldierMultiplier) ||
-      parsedExpectedPoolSoldierMultiplier <= 0 ||
-      !Number.isFinite(parsedExpectedPoolEliteMultiplier) ||
-      parsedExpectedPoolEliteMultiplier <= 0 ||
-      !Number.isFinite(parsedExpectedPoolBossMultiplier) ||
-      parsedExpectedPoolBossMultiplier <= 0
-    ) {
-      setErr("Expected pool tier multipliers must be > 0.");
-      return;
-    }
-    if (
-      !Number.isFinite(parsedPoolWeakerSideWeight) ||
-      parsedPoolWeakerSideWeight <= 0 ||
-      !Number.isFinite(parsedPoolAverageWeight) ||
-      parsedPoolAverageWeight <= 0
-    ) {
-      setErr("Pool blend weights must be > 0.");
-      return;
-    }
-    if (
-      !Number.isFinite(parsedPoolBelowExpectedMaxPenaltyShare) ||
-      parsedPoolBelowExpectedMaxPenaltyShare <= 0 ||
-      !Number.isFinite(parsedPoolBelowExpectedScale) ||
-      parsedPoolBelowExpectedScale <= 0 ||
-      !Number.isFinite(parsedPoolAboveExpectedMaxBonusShare) ||
-      parsedPoolAboveExpectedMaxBonusShare <= 0 ||
-      !Number.isFinite(parsedPoolAboveExpectedScale) ||
-      parsedPoolAboveExpectedScale <= 0
-    ) {
-      setErr("Pool delta tuning values must be > 0.");
-      return;
-    }
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
 
+  async function createDraft() {
+    if (isDirty && !window.confirm("Discard unsaved combat tuning edits?")) return;
     setSaving(true);
-    setErr(null);
+    setError(null);
     setFlash(null);
+
     try {
-      const res = await fetch("/api/admin/combat-tuning", {
-        method: "PUT",
+      const response = await fetch("/api/admin/combat-tuning", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          protectionK: k,
-          protectionS: s,
-          attackWeight: parsedAttackWeight,
-          defenceWeight: parsedDefenceWeight,
-          fortitudeWeight: parsedFortitudeWeight,
-          intellectWeight: parsedIntellectWeight,
-          supportWeight: parsedSupportWeight,
-          braveryWeight: parsedBraveryWeight,
-          minionTierMultiplier: parsedMinionTierMultiplier,
-          soldierTierMultiplier: parsedSoldierTierMultiplier,
-          eliteTierMultiplier: parsedEliteTierMultiplier,
-          bossTierMultiplier: parsedBossTierMultiplier,
-          expectedPhysicalResilienceAt1: parsedExpectedPhysicalResilienceAt1,
-          expectedPhysicalResiliencePerLevel: parsedExpectedPhysicalResiliencePerLevel,
-          expectedMentalPerseveranceAt1: parsedExpectedMentalPerseveranceAt1,
-          expectedMentalPerseverancePerLevel: parsedExpectedMentalPerseverancePerLevel,
-          expectedPoolMinionMultiplier: parsedExpectedPoolMinionMultiplier,
-          expectedPoolSoldierMultiplier: parsedExpectedPoolSoldierMultiplier,
-          expectedPoolEliteMultiplier: parsedExpectedPoolEliteMultiplier,
-          expectedPoolBossMultiplier: parsedExpectedPoolBossMultiplier,
-          poolWeakerSideWeight: parsedPoolWeakerSideWeight,
-          poolAverageWeight: parsedPoolAverageWeight,
-          poolBelowExpectedMaxPenaltyShare: parsedPoolBelowExpectedMaxPenaltyShare,
-          poolBelowExpectedScale: parsedPoolBelowExpectedScale,
-          poolAboveExpectedMaxBonusShare: parsedPoolAboveExpectedMaxBonusShare,
-          poolAboveExpectedScale: parsedPoolAboveExpectedScale,
+          action: "createDraftFromActive",
+          name: newDraftName,
+          notes: newDraftNotes,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        row?: TuningRow;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(data.error ?? "Failed to save combat tuning");
-      if (data.row) {
-        setRow(data.row);
-        setProtectionK(String(data.row.protectionK));
-        setProtectionS(String(data.row.protectionS));
-        setAttackWeight(String(data.row.attackWeight));
-        setDefenceWeight(String(data.row.defenceWeight));
-        setFortitudeWeight(String(data.row.fortitudeWeight));
-        setIntellectWeight(String(data.row.intellectWeight));
-        setSupportWeight(String(data.row.supportWeight));
-        setBraveryWeight(String(data.row.braveryWeight));
-        setMinionTierMultiplier(String(data.row.minionTierMultiplier));
-        setSoldierTierMultiplier(String(data.row.soldierTierMultiplier));
-        setEliteTierMultiplier(String(data.row.eliteTierMultiplier));
-        setBossTierMultiplier(String(data.row.bossTierMultiplier));
-        setExpectedPhysicalResilienceAt1(String(data.row.expectedPhysicalResilienceAt1));
-        setExpectedPhysicalResiliencePerLevel(
-          String(data.row.expectedPhysicalResiliencePerLevel),
-        );
-        setExpectedMentalPerseveranceAt1(String(data.row.expectedMentalPerseveranceAt1));
-        setExpectedMentalPerseverancePerLevel(
-          String(data.row.expectedMentalPerseverancePerLevel),
-        );
-        setExpectedPoolMinionMultiplier(String(data.row.expectedPoolMinionMultiplier));
-        setExpectedPoolSoldierMultiplier(String(data.row.expectedPoolSoldierMultiplier));
-        setExpectedPoolEliteMultiplier(String(data.row.expectedPoolEliteMultiplier));
-        setExpectedPoolBossMultiplier(String(data.row.expectedPoolBossMultiplier));
-        setPoolWeakerSideWeight(String(data.row.poolWeakerSideWeight));
-        setPoolAverageWeight(String(data.row.poolAverageWeight));
-        setPoolBelowExpectedMaxPenaltyShare(String(data.row.poolBelowExpectedMaxPenaltyShare));
-        setPoolBelowExpectedScale(String(data.row.poolBelowExpectedScale));
-        setPoolAboveExpectedMaxBonusShare(String(data.row.poolAboveExpectedMaxBonusShare));
-        setPoolAboveExpectedScale(String(data.row.poolAboveExpectedScale));
+      const payload = (await response.json().catch(() => null)) as
+        | (AdminCombatTuningResponse & { error?: string })
+        | null;
+
+      if (!response.ok || !payload?.selectedSet) {
+        throw new Error(payload?.error ?? "Failed to create draft");
       }
-      setFlash("Saved combat tuning.");
-      window.setTimeout(() => setFlash(null), 2000);
-    } catch (e: unknown) {
-      setErr(String((e as { message?: unknown })?.message ?? "Failed to save combat tuning"));
+
+      const nextActiveSnapshot =
+        payload.activeSetId === payload.selectedSet.setId
+          ? payload.selectedSet
+          : (await fetchAdminCombatTuning(payload.activeSetId)).selectedSet;
+      setData(payload);
+      setActiveSnapshot(nextActiveSnapshot);
+      setSelectedSetId(payload.selectedSet.setId);
+      setDraftValues(toDraftInputs(payload.selectedSet.values));
+      setNewDraftName("");
+      setNewDraftNotes("");
+      setFlash("Created draft from active set.");
+    } catch (createError: unknown) {
+      setError(String((createError as { message?: unknown })?.message ?? "Failed to create draft"));
     } finally {
       setSaving(false);
     }
   }
 
+  async function saveDraft() {
+    if (!selectedSet) return;
+    const valuesOrError = buildValuesPayload(draftValues);
+    if (typeof valuesOrError === "string") {
+      setError(valuesOrError);
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setFlash(null);
+
+    try {
+      const response = await fetch("/api/admin/combat-tuning", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "saveDraftValues",
+          setId: selectedSet.setId,
+          values: valuesOrError,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | (AdminCombatTuningResponse & { error?: string })
+        | null;
+      if (!response.ok || !payload?.selectedSet) {
+        throw new Error(payload?.error ?? "Failed to save draft");
+      }
+      setData(payload);
+      setSelectedSetId(payload.selectedSet.setId);
+      setDraftValues(toDraftInputs(payload.selectedSet.values));
+      setFlash("Saved draft.");
+    } catch (saveError: unknown) {
+      setError(String((saveError as { message?: unknown })?.message ?? "Failed to save draft"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function runAction(action: "activateDraft" | "archiveSet" | "unarchiveSet" | "deleteArchivedSet") {
+    if (!selectedSet) return;
+    if (action === "activateDraft" && isDirty) {
+      setError("Save draft changes before activating.");
+      return;
+    }
+    if (
+      action === "deleteArchivedSet" &&
+      !window.confirm("This cannot be undone, are you sure?")
+    ) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setFlash(null);
+
+    try {
+      const response = await fetch("/api/admin/combat-tuning", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, setId: selectedSet.setId }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | (AdminCombatTuningResponse & { error?: string })
+        | null;
+      if (!response.ok || !payload?.selectedSet) {
+        throw new Error(payload?.error ?? `Failed to ${action}`);
+      }
+      const nextActiveSnapshot =
+        payload.activeSetId === payload.selectedSet.setId
+          ? payload.selectedSet
+          : (await fetchAdminCombatTuning(payload.activeSetId)).selectedSet;
+      setData(payload);
+      setActiveSnapshot(nextActiveSnapshot);
+      setSelectedSetId(payload.selectedSet.setId);
+      setDraftValues(toDraftInputs(payload.selectedSet.values));
+      setFlash("Updated combat tuning set.");
+    } catch (actionError: unknown) {
+      setError(String((actionError as { message?: unknown })?.message ?? "Failed to update set"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function resetFieldToActive(key: string) {
+    setDraftValues((current) => ({
+      ...current,
+      [key]: String(getSnapshotValue(activeSnapshot, key)),
+    }));
+  }
+
+  function resetSectionToActive(group: CombatTuningAdminGroup) {
+    setDraftValues((current) => {
+      const next = { ...current };
+      for (const key of COMBAT_TUNING_CONFIG_KEY_ORDER) {
+        if (COMBAT_TUNING_ADMIN_METADATA[key]?.group === group) {
+          next[key] = String(getSnapshotValue(activeSnapshot, key));
+        }
+      }
+      return next;
+    });
+  }
+
+  function resetAllToActive() {
+    if (!activeSnapshot) return;
+    setDraftValues(toDraftInputs(activeSnapshot.values));
+  }
+
   return (
-    <div className="space-y-6">
-      <a className="text-sm underline" href="/admin">
-        Back to Admin Dashboard
-      </a>
-
-      <div className="rounded-lg border">
-        <div className="border-b p-3">
-          <h2 className="text-lg font-medium">Combat Tuning</h2>
-          <p className="mt-1 text-sm opacity-80">Protection Block Tuning</p>
+    <main className="mx-auto max-w-7xl space-y-6 px-6 py-8 text-zinc-100">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <a className="text-sm underline" href="/admin">
+            Back to Admin Dashboard
+          </a>
+          <p className="mt-4 text-xs uppercase tracking-[0.2em] text-zinc-500">Game Ops</p>
+          <h1 className="mt-1 text-2xl font-semibold">Combat Tuning</h1>
+          <p className="mt-2 max-w-3xl text-sm text-zinc-400">
+            Monster Baseline Tuning controls non-power monster contribution: pools, protection,
+            attribute realization, derived skills, and defensive baseline shape. Power-cost truth and
+            final radar normalization remain in their own admin tools.
+          </p>
         </div>
+        {selectedSet ? (
+          <span className={`rounded-full border px-3 py-1 text-xs ${getStatusChipClass(selectedSet.status)}`}>
+            {selectedSet.status}
+          </span>
+        ) : null}
+      </header>
 
-        <div className="space-y-4 p-3">
-          <p className="text-sm opacity-80">
-            block = ceil((PPV / K) * (1 + skill / S))
-          </p>
-          <p className="text-xs opacity-70">
-            Adjusting K and S: because even spreadsheets deserve a GM screen.
-          </p>
+      {error ? (
+        <div className="rounded border border-red-700 bg-red-950/30 p-3 text-sm text-red-200">
+          {error}
+        </div>
+      ) : null}
+      {flash ? (
+        <div className="rounded border border-emerald-700 bg-emerald-950/30 p-3 text-sm text-emerald-200">
+          {flash}
+        </div>
+      ) : null}
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <label className="text-sm">Protection K</label>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                value={protectionK}
-                onChange={(e) => setProtectionK(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="text-sm">Protection S</label>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                value={protectionS}
-                onChange={(e) => setProtectionS(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Physical Resilience Attribute Weights</h3>
-            <p className="text-xs opacity-70">
-              Physical Resilience uses Attack, Defence, and Fortitude.
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {physicalResilienceWeightFields.map((field) => (
-                <div key={field.label}>
-                  <label className="text-sm">{field.label}</label>
-                  <input
-                    type="number"
-                    min={0.1}
-                    step={0.1}
-                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                    value={field.value}
-                    onChange={(e) => field.setter(e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Mental Perseverance Attribute Weights</h3>
-            <p className="text-xs opacity-70">
-              Mental Perseverance uses Intellect, Support, and Bravery.
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {mentalPerseveranceWeightFields.map((field) => (
-                <div key={field.label}>
-                  <label className="text-sm">{field.label}</label>
-                  <input
-                    type="number"
-                    min={0.1}
-                    step={0.1}
-                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                    value={field.value}
-                    onChange={(e) => field.setter(e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Tier Multipliers</h3>
-            <p className="text-xs opacity-70">
-              These multipliers are shared by both Physical Resilience and Mental Perseverance.
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-              {tierMultiplierFields.map((field) => (
-                <div key={field.label}>
-                  <label className="text-sm">{field.label}</label>
-                  <input
-                    type="number"
-                    min={0.1}
-                    step={0.1}
-                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                    value={field.value}
-                    onChange={(e) => field.setter(e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Expected Physical Resilience Curve</h3>
-            <p className="text-xs opacity-70">
-              Defines the neutral expected Physical Resilience curve before tier multipliers.
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {expectedPhysicalPoolCurveFields.map((field) => (
-                <div key={field.label}>
-                  <label className="text-sm">{field.label}</label>
-                  <input
-                    type="number"
-                    min={0.1}
-                    step={0.1}
-                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                    value={field.value}
-                    onChange={(e) => field.setter(e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Expected Mental Perseverance Curve</h3>
-            <p className="text-xs opacity-70">
-              Defines the neutral expected Mental Perseverance curve before tier multipliers.
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {expectedMentalPoolCurveFields.map((field) => (
-                <div key={field.label}>
-                  <label className="text-sm">{field.label}</label>
-                  <input
-                    type="number"
-                    min={0.1}
-                    step={0.1}
-                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                    value={field.value}
-                    onChange={(e) => field.setter(e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Expected Pool Tier Multipliers</h3>
-            <p className="text-xs opacity-70">
-              Applies Level+Tier expectation to expected pool curves only. These do not change
-              actual pool generation.
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-              {expectedPoolTierMultiplierFields.map((field) => (
-                <div key={field.label}>
-                  <label className="text-sm">{field.label}</label>
-                  <input
-                    type="number"
-                    min={0.1}
-                    step={0.1}
-                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                    value={field.value}
-                    onChange={(e) => field.setter(e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Pool Blend Weights</h3>
-            <p className="text-xs opacity-70">
-              The weaker side matters more than the overall average. Use these to control that
-              blend.
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {poolBlendFields.map((field) => (
-                <div key={field.label}>
-                  <label className="text-sm">{field.label}</label>
-                  <input
-                    type="number"
-                    min={0.1}
-                    step={0.1}
-                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                    value={field.value}
-                    onChange={(e) => field.setter(e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Pool Delta Tuning</h3>
-            <p className="text-xs opacity-70">
-              Below expected pools penalize survivability harder. Above expected pools reward
-              survivability more gently.
-            </p>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-              {poolDeltaFields.map((field) => (
-                <div key={field.label}>
-                  <label className="text-sm">{field.label}</label>
-                  <input
-                    type="number"
-                    min={0.1}
-                    step={0.1}
-                    className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                    value={field.value}
-                    onChange={(e) => field.setter(e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {row?.updatedAt ? (
-            <p className="text-xs opacity-70">Last updated: {new Date(row.updatedAt).toLocaleString()}</p>
-          ) : null}
-
-          {err ? <div className="rounded border p-3 text-sm">{err}</div> : null}
-          {flash ? <div className="rounded border p-3 text-sm">{flash}</div> : null}
-
-          <div className="flex gap-2">
-            <button
-              className="rounded border px-3 py-2 text-sm"
-              type="button"
-              onClick={save}
+      <section className="grid gap-4 rounded border border-zinc-800 bg-zinc-950/60 p-4 lg:grid-cols-[1fr_1fr]">
+        <div className="space-y-3">
+          <label className="block space-y-1">
+            <span className="text-xs uppercase tracking-wide text-zinc-500">Selected Set</span>
+            <select
+              value={selectedSet?.setId ?? ""}
+              onChange={(event) => void load(event.target.value)}
               disabled={loading || saving}
+              className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm"
             >
-              {saving ? "Saving..." : "Save"}
-            </button>
+              {data?.sets.map((set) => (
+                <option key={set.id} value={set.id}>
+                  {set.name} ({set.status}
+                  {set.id === data.activeSetId ? ", active" : ""})
+                </option>
+              ))}
+            </select>
+          </label>
+          {selectedSet ? (
+            <div className="space-y-1 text-xs text-zinc-500">
+              <p>Name: {selectedSet.name}</p>
+              <p>Slug: {selectedSet.slug}</p>
+              <p>Updated: {formatDateTime(selectedSet.updatedAt)}</p>
+              <p>Activated: {formatDateTime(selectedSetListItem?.activatedAt ?? null)}</p>
+              {selectedSetListItem?.notes ? <p>Notes: {selectedSetListItem.notes}</p> : null}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {isDraft ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void saveDraft()}
+                  disabled={saving || loading}
+                  className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-900 disabled:opacity-60"
+                >
+                  Save Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runAction("activateDraft")}
+                  disabled={saving || loading || isDirty}
+                  className="rounded border border-emerald-700 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-950/30 disabled:opacity-60"
+                >
+                  Activate Draft
+                </button>
+              </>
+            ) : null}
+            {selectedSet && selectedSet.status !== "ARCHIVED" ? (
+              <button
+                type="button"
+                onClick={() => void runAction("archiveSet")}
+                disabled={saving || loading || selectedSet.status === "ACTIVE"}
+                className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-900 disabled:opacity-60"
+                title={selectedSet.status === "ACTIVE" ? "Activate another draft before archiving active." : undefined}
+              >
+                Archive
+              </button>
+            ) : null}
+            {isArchived ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void runAction("unarchiveSet")}
+                  disabled={saving || loading}
+                  className="rounded border border-amber-700 px-3 py-2 text-sm text-amber-200 hover:bg-amber-950/30 disabled:opacity-60"
+                >
+                  Unarchive to Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runAction("deleteArchivedSet")}
+                  disabled={saving || loading}
+                  className="rounded border border-red-700 px-3 py-2 text-sm text-red-200 hover:bg-red-950/30 disabled:opacity-60"
+                >
+                  Delete Archived
+                </button>
+              </>
+            ) : null}
             <button
-              className="rounded border px-3 py-2 text-sm"
               type="button"
-              onClick={() => void load()}
-              disabled={loading || saving}
+              onClick={() => void load(selectedSet?.setId ?? null)}
+              disabled={saving || loading}
+              className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-900 disabled:opacity-60"
             >
               Refresh
             </button>
           </div>
-
-          {loading ? <p className="text-sm opacity-80">Loading...</p> : null}
+          {isDirty ? (
+            <p className="text-xs text-amber-300">Unsaved changes: {dirtyKeys.length}</p>
+          ) : null}
         </div>
-      </div>
-    </div>
+
+        <div className="space-y-3">
+          <div className="rounded border border-zinc-800 bg-zinc-950 p-3">
+            <h2 className="text-sm font-medium">Create Draft From Active</h2>
+            <div className="mt-3 grid gap-2">
+              <input
+                value={newDraftName}
+                onChange={(event) => setNewDraftName(event.target.value)}
+                placeholder="Draft name"
+                className="rounded border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm"
+              />
+              <textarea
+                value={newDraftNotes}
+                onChange={(event) => setNewDraftNotes(event.target.value)}
+                placeholder="Notes"
+                className="min-h-20 rounded border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => void createDraft()}
+                disabled={saving || loading}
+                className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-900 disabled:opacity-60"
+              >
+                Create Draft
+              </button>
+            </div>
+          </div>
+          <label className="block space-y-1">
+            <span className="text-xs uppercase tracking-wide text-zinc-500">Search tuning keys</span>
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search label, key, group, or alias"
+              className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm"
+            />
+          </label>
+          {isDraft ? (
+            <button
+              type="button"
+              onClick={resetAllToActive}
+              className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-900"
+            >
+              Reset Whole Draft To Active
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="rounded border border-zinc-800 bg-zinc-950/60 p-4 text-xs text-zinc-500">
+        {visibleKeyCount} visible keys. {activeChangedKeys.length} changed vs active.
+      </section>
+
+      {groupedKeys.map(({ group, keys, totalChangedCount }) => {
+        if (keys.length === 0) return null;
+        return (
+          <section key={group} className="rounded border border-zinc-800 bg-zinc-950/60 p-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-300">{group}</h2>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {keys.length} visible keys. {totalChangedCount} changed vs active in this section.
+                </p>
+              </div>
+              {isDraft ? (
+                <button
+                  type="button"
+                  onClick={() => resetSectionToActive(group)}
+                  className="rounded border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-900"
+                >
+                  Reset Section To Active
+                </button>
+              ) : null}
+            </div>
+            <FormulaGuide group={group} />
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {keys.map((key) => {
+                const metadata = COMBAT_TUNING_ADMIN_METADATA[key];
+                const selectedValue = isDraft
+                  ? parseDraftValue(draftValues[key])
+                  : getSnapshotValue(selectedSet, key);
+                const activeValue = getSnapshotValue(activeSnapshot, key);
+                const changed = activeChangedSet.has(key);
+                const hint = formatHint(metadata?.format);
+                return (
+                  <div
+                    key={key}
+                    className={`rounded border p-3 ${
+                      changed ? "border-amber-700/70 bg-amber-950/10" : "border-zinc-800 bg-zinc-950"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-medium text-zinc-100">{metadata?.label ?? key}</h3>
+                        <p className="mt-1 text-xs text-zinc-500">{key}</p>
+                      </div>
+                      {isDraft ? (
+                        <button
+                          type="button"
+                          onClick={() => resetFieldToActive(key)}
+                          className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-900"
+                        >
+                          Reset
+                        </button>
+                      ) : null}
+                    </div>
+                    <p className="mt-2 text-xs text-zinc-400">{metadata?.description}</p>
+                    <div className="mt-3 flex items-end gap-2">
+                      <label className="flex-1 space-y-1">
+                        <span className="text-xs text-zinc-500">Selected Value</span>
+                        <input
+                          type="number"
+                          min={0.000001}
+                          step={metadata?.format === "share" ? 0.01 : 0.1}
+                          value={
+                            isDraft
+                              ? (draftValues[key] ?? "")
+                              : String(getSnapshotValue(selectedSet, key))
+                          }
+                          onChange={(event) =>
+                            setDraftValues((current) => ({
+                              ...current,
+                              [key]: event.target.value,
+                            }))
+                          }
+                          disabled={!isDraft}
+                          className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm disabled:opacity-70"
+                        />
+                      </label>
+                      <span className="rounded border border-zinc-800 px-2 py-2 text-xs text-zinc-400">
+                        Active: {activeValue}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-500">
+                      {hint ? <span>{hint}</span> : null}
+                      <span>Selected parsed: {selectedValue ?? "invalid"}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+
+      {loading ? <p className="text-sm text-zinc-400">Loading...</p> : null}
+    </main>
   );
 }
-

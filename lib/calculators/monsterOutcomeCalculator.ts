@@ -1,11 +1,9 @@
 import type {
   CoreAttribute,
-  EffectPacket,
   LimitBreakTier,
   MonsterTraitBand,
   MonsterTier,
   MonsterUpsertInput,
-  Power,
 } from "@/lib/summoning/types";
 import type { CalculatorConfig, LevelCurvePoint } from "@/lib/calculators/calculatorConfig";
 
@@ -101,6 +99,13 @@ type MonsterOutcomeInput = Pick<
   | "supportResistDie"
 >;
 
+export type CanonicalPowerContribution = {
+  axisVector?: Partial<RadarAxes> | null;
+  basePowerValue?: number | null;
+  powerCount?: number | null;
+  debug?: Record<string, unknown> | null;
+};
+
 type TierBudgetKey = keyof CalculatorConfig["tierMultipliers"];
 
 type AttackConfigLike = {
@@ -164,135 +169,6 @@ const EMPTY_TRAIT_AXIS_BONUSES: TraitAxisBonuses = {
 function clampNonNegative(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, value);
-}
-
-function getEffectPackets(
-  power: Pick<Power, "effectPackets" | "intentions">,
-): EffectPacket[] {
-  const rawPackets = Array.isArray(power.effectPackets)
-    ? power.effectPackets
-    : Array.isArray(power.intentions)
-      ? power.intentions
-      : [];
-  return rawPackets.map((packet, index) => ({
-    ...packet,
-    packetIndex: packet.packetIndex ?? packet.sortOrder ?? index,
-    intention: packet.intention ?? packet.type ?? "ATTACK",
-  }));
-}
-
-function getPacketDiceCount(
-  effectPacket: Pick<EffectPacket, "diceCount"> | undefined,
-  power: Pick<Power, "diceCount">,
-): number {
-  return clampNonNegative(effectPacket?.diceCount ?? power.diceCount);
-}
-
-function getPacketPotency(
-  effectPacket: Pick<EffectPacket, "potency"> | undefined,
-  power: Pick<Power, "potency">,
-): number {
-  return clampNonNegative(effectPacket?.potency ?? power.potency);
-}
-
-function getCanonicalPrimaryRangeDetails(
-  power: Pick<
-    Power,
-    | "rangeCategories"
-    | "meleeTargets"
-    | "rangedTargets"
-    | "rangedDistanceFeet"
-    | "aoeCenterRangeFeet"
-    | "aoeCount"
-    | "aoeShape"
-    | "aoeSphereRadiusFeet"
-    | "aoeConeLengthFeet"
-    | "aoeLineWidthFeet"
-    | "aoeLineLengthFeet"
-  >,
-  fallbackDetails: Record<string, unknown>,
-): Record<string, unknown> {
-  if ((power.rangeCategories ?? []).includes("AOE")) {
-    return {
-      rangeCategory: "AOE",
-      rangeValue: power.aoeCenterRangeFeet ?? 0,
-      rangeExtra: {
-        count: power.aoeCount ?? 1,
-        shape: power.aoeShape ?? "SPHERE",
-        sphereRadiusFeet: power.aoeSphereRadiusFeet ?? undefined,
-        coneLengthFeet: power.aoeConeLengthFeet ?? undefined,
-        lineWidthFeet: power.aoeLineWidthFeet ?? undefined,
-        lineLengthFeet: power.aoeLineLengthFeet ?? undefined,
-      },
-    };
-  }
-  if ((power.rangeCategories ?? []).includes("RANGED")) {
-    return {
-      rangeCategory: "RANGED",
-      rangeValue: power.rangedDistanceFeet ?? 0,
-      rangeExtra: {
-        targets: power.rangedTargets ?? 1,
-      },
-    };
-  }
-  if ((power.rangeCategories ?? []).includes("MELEE")) {
-    return {
-      rangeCategory: "MELEE",
-      rangeValue: power.meleeTargets ?? 1,
-      rangeExtra: {},
-    };
-  }
-  return fallbackDetails;
-}
-
-function getCanonicalPacketRangeDetails(
-  effectPacket: EffectPacket,
-  primaryRangeDetails: Record<string, unknown>,
-): Record<string, unknown> {
-  if (effectPacket.localTargetingOverride) {
-    const local = effectPacket.localTargetingOverride;
-    if (local.aoeShape || local.aoeCount || local.aoeCenterRangeFeet !== null) {
-      return {
-        rangeCategory: "AOE",
-        rangeValue: local.aoeCenterRangeFeet ?? 0,
-        rangeExtra: {
-          count: local.aoeCount ?? 1,
-          shape: local.aoeShape ?? "SPHERE",
-          sphereRadiusFeet: local.aoeSphereRadiusFeet ?? undefined,
-          coneLengthFeet: local.aoeConeLengthFeet ?? undefined,
-          lineWidthFeet: local.aoeLineWidthFeet ?? undefined,
-          lineLengthFeet: local.aoeLineLengthFeet ?? undefined,
-        },
-      };
-    }
-    if (local.rangedDistanceFeet !== null || local.rangedTargets !== null) {
-      return {
-        rangeCategory: "RANGED",
-        rangeValue: local.rangedDistanceFeet ?? 0,
-        rangeExtra: {
-          targets: local.rangedTargets ?? 1,
-        },
-      };
-    }
-    if (local.meleeTargets !== null) {
-      return {
-        rangeCategory: "MELEE",
-        rangeValue: local.meleeTargets,
-        rangeExtra: {},
-      };
-    }
-  }
-
-  const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
-  const hasOwnRangeDetails =
-    details.rangeCategory !== undefined ||
-    details.rangeValue !== undefined ||
-    details.rangeExtra !== undefined ||
-    details.targets !== undefined ||
-    details.count !== undefined ||
-    details.distance !== undefined ||
-    details.shape !== undefined;
-  return hasOwnRangeDetails ? details : primaryRangeDetails;
 }
 
 function clampRadarScore(value: number): number {
@@ -383,15 +259,6 @@ function readDamageModes(value: unknown): Set<Mode> {
     }
   }
   return out;
-}
-
-function normalizeLabel(value: unknown): string {
-  return String(value ?? "").trim().toLowerCase();
-}
-
-function clamp01(n: number): number {
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(1, n));
 }
 
 function safeNum(v: unknown): number {
@@ -502,173 +369,6 @@ function normalizeRawAxisBonuses(
     mobility: clampNonNegative(bonuses.mobility ?? 0),
     presence: clampNonNegative(bonuses.presence ?? 0),
   };
-}
-
-function getDurationTicks(
-  power: Pick<Power, "effectDurationType" | "effectDurationTurns" | "durationType" | "durationTurns">,
-  horizon: number,
-): number {
-  const t = String(power.effectDurationType ?? power.durationType ?? "").toUpperCase();
-  if (t === "INSTANT") return 1;
-  if (t === "UNTIL_TARGET_NEXT_TURN") return 1;
-  if (t === "TURNS") {
-    const turns = Math.max(1, Math.floor(safeNum(power.effectDurationTurns ?? power.durationTurns ?? 1)));
-    return Math.min(turns, Math.max(1, horizon - 1));
-  }
-  if (t === "PASSIVE") {
-    return Math.max(1, horizon - 1);
-  }
-  return 1;
-}
-
-function getRangeCategory(details: Record<string, unknown>): "SELF" | "MELEE" | "RANGED" | "AOE" {
-  const rc = String(details.rangeCategory ?? "").trim().toUpperCase();
-  if (rc === "SELF") return "SELF";
-  if (rc === "AOE") return "AOE";
-  if (rc === "RANGED") return "RANGED";
-  return "MELEE";
-}
-
-function getRangeExtra(details: Record<string, unknown>): Record<string, unknown> {
-  const extra = details.rangeExtra;
-  if (extra && typeof extra === "object" && !Array.isArray(extra)) {
-    return extra as Record<string, unknown>;
-  }
-  return {};
-}
-
-function estimateAoETargetsFromGeometry(
-  details: Record<string, unknown>,
-  tuning: CalculatorConfig["manipulationTuning"],
-): number {
-  const extra = getRangeExtra(details);
-  const shape = String(extra.shape ?? details.shape ?? "").toUpperCase();
-  const square = Math.max(1, Number(tuning.aoeGridSquareFeet ?? 25));
-  let areaFeet2 = 0;
-
-  if (shape === "SPHERE") {
-    const r = safeNum(extra.sphereRadiusFeet ?? details.sphereRadiusFeet);
-    areaFeet2 = Math.PI * r * r;
-  } else if (shape === "CONE") {
-    const l = safeNum(extra.coneLengthFeet ?? details.coneLengthFeet);
-    const width = l;
-    areaFeet2 = 0.5 * width * l;
-  } else if (shape === "LINE") {
-    const len = safeNum(extra.lineLengthFeet ?? details.lineLengthFeet);
-    const w = safeNum(extra.lineWidthFeet ?? details.lineWidthFeet);
-    areaFeet2 = Math.max(0, len * Math.max(1, w));
-  } else {
-    areaFeet2 = 0;
-  }
-
-  if (areaFeet2 <= 0) return 1;
-  const est = areaFeet2 / square;
-  return Math.max(1, est);
-}
-
-function computeDistanceScalar(
-  details: Record<string, unknown>,
-  tuning: CalculatorConfig["manipulationTuning"],
-): number {
-  const rc = getRangeCategory(details);
-
-  if (rc === "SELF") {
-    return 1;
-  }
-
-  if (rc === "RANGED") {
-    const dist = safeNum(details.rangeValue ?? details.distance ?? 0);
-    const rawBonus = (dist / 30) * tuning.rangedDistanceScalarPer30ft;
-    const cap = Math.max(0, tuning.maxDistanceScalarBonus);
-    const bonus = cap <= 0 ? 0 : cap * clamp01(rawBonus / cap);
-    return 1 + Math.max(0, bonus);
-  }
-
-  if (rc === "AOE") {
-    const extra = getRangeExtra(details);
-    const cast = safeNum(details.rangeValue ?? extra.castRangeFeet ?? extra.centerRange ?? 0);
-    const rawBonus = (cast / 30) * tuning.aoeCastRangeScalarPer30ft;
-    const cap = Math.max(0, tuning.maxDistanceScalarBonus);
-    const bonus = cap <= 0 ? 0 : cap * clamp01(rawBonus / cap);
-    return 1 + Math.max(0, bonus);
-  }
-
-  return 1;
-}
-
-function computeTargetScalar(details: Record<string, unknown>, cfg: CalculatorConfig): number {
-  const tuning = cfg.manipulationTuning;
-  const rc = getRangeCategory(details);
-  const extra = getRangeExtra(details);
-
-  if (rc === "SELF") {
-    return 1;
-  }
-
-  if (rc === "MELEE") {
-    const targets = Math.max(1, Math.floor(safeNum(details.targets ?? details.rangeValue ?? 1)));
-    const exp = Number(tuning.meleeTargetExponent ?? 0.7);
-    return Math.pow(targets, exp);
-  }
-
-  if (rc === "RANGED") {
-    const targets = Math.max(1, Math.floor(safeNum(details.targets ?? extra.targets ?? 1)));
-    const exp = Number(tuning.rangedTargetExponent ?? 0.8);
-    return Math.pow(targets, exp);
-  }
-
-  const aoeCount = Math.max(1, Math.floor(safeNum(extra.count ?? details.count ?? 1)));
-  const baseTargets = estimateAoETargetsFromGeometry(details, tuning);
-  const countScalar = Math.pow(aoeCount, tuning.aoeCountExponent);
-  const maxTargets = Math.max(1, Math.floor(safeNum(tuning.aoeMaxExpectedTargets ?? 12)));
-  const expected = Math.min(maxTargets, baseTargets * countScalar);
-  return Math.max(1, expected);
-}
-
-function computeImpactMultiplier(details: Record<string, unknown>, cfg: CalculatorConfig): number {
-  const tuning = cfg.manipulationTuning;
-  const rc = getRangeCategory(details);
-  const rangeMult = tuning.rangeCategoryMultiplier[rc] ?? 1;
-  const distanceMult = computeDistanceScalar(details, tuning);
-  const targetMult = computeTargetScalar(details, cfg);
-  return rangeMult * distanceMult * targetMult;
-}
-
-function controlTSUPerSuccess(details: Record<string, unknown>): number {
-  const mode = normalizeLabel(details.controlMode);
-  if (!mode) return 1.0;
-
-  if (mode.includes("no move")) return 1.0;
-  if (
-    mode.includes("force move") ||
-    mode.includes("push") ||
-    mode.includes("pull") ||
-    mode.includes("knockback")
-  ) {
-    return 1.25;
-  }
-  if (mode.includes("no main")) return 2.0;
-  if (mode.includes("force main")) return 1.75;
-  if (mode.includes("friendly fire")) return 2.25;
-  if (mode.includes("specific power") || mode.includes("burn")) return 2.5;
-
-  return 1.0;
-}
-
-function debuffTSUPerSuccess(powerPotency: number): number {
-  const p = Math.max(1, Math.min(5, Math.trunc(powerPotency || 1)));
-  return p * 0.5;
-}
-
-function movementTSUPerSuccess(details: Record<string, unknown>): number {
-  const mode = normalizeLabel(details.movementMode);
-  if (!mode) return 0;
-  if (mode.includes("force")) return 1.25;
-  return 0;
-}
-
-function getPowerCooldown(power: Pick<Power, "cooldownTurns" | "cooldownReduction">): number {
-  return Math.max(1, power.cooldownTurns - power.cooldownReduction);
 }
 
 function normalizeByLevelCurve(
@@ -930,10 +630,11 @@ function withEffectiveNaturalAoeTargetCount(attackConfig: AttackConfigLike): Att
   };
 }
 
-function getLevelWoundBonus(level?: number): number {
+function getLevelWoundBonus(level?: number, divisor = 3): number {
   const parsed = typeof level === "number" ? level : Number(level ?? 0);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
-  return Math.floor(parsed / 3);
+  const resolvedDivisor = Number.isFinite(divisor) && divisor > 0 ? divisor : 3;
+  return Math.floor(parsed / resolvedDivisor);
 }
 
 function computeAtWillFromAttackConfig(
@@ -943,6 +644,7 @@ function computeAtWillFromAttackConfig(
   netSuccessMultiplier: number,
   strengthMultiplier: number,
   level: number,
+  levelWoundBonusDivisor = 3,
 ): AtWillContribution {
   if (!attackConfig) {
     return {
@@ -983,7 +685,7 @@ function computeAtWillFromAttackConfig(
     const toWoundsPerSuccess = (strength: number): number => {
       const base = strength * strengthScalar;
       if (!(base > 0)) return base;
-      return base + getLevelWoundBonus(level);
+      return base + getLevelWoundBonus(level, levelWoundBonusDivisor);
     };
 
     const scalar = successChance * netSuccessMultiplier * Math.max(0, multiplier);
@@ -1069,45 +771,6 @@ export function successChanceFromDieSides(sides: number): number {
   return raw;
 }
 
-export function computeSEUFromIntention(
-  effectPacket: EffectPacket,
-  power: Pick<Power, "diceCount">,
-  attackDie: string,
-  cfg: CalculatorConfig,
-): number {
-  if (
-    effectPacket.intention !== "AUGMENT" &&
-    effectPacket.intention !== "DEBUFF" &&
-    effectPacket.intention !== "CLEANSE"
-  ) {
-    return 0;
-  }
-
-  const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
-  const expectedSuccesses =
-    getPacketDiceCount(effectPacket, power) * successChanceFromDieSides(dieSidesFromDieString(attackDie));
-  const expectedStacksApplied = expectedSuccesses;
-
-  let fallbackSeuPerSuccess = 0;
-  let fallbackSeuPerStack = 0;
-
-  if (effectPacket.intention === "AUGMENT") {
-    fallbackSeuPerSuccess = cfg.seuFallbacks.augmentSeuPerSuccess;
-    fallbackSeuPerStack = cfg.seuFallbacks.augmentSeuPerStack;
-  } else if (effectPacket.intention === "DEBUFF") {
-    fallbackSeuPerSuccess = cfg.seuFallbacks.debuffSeuPerSuccess;
-    fallbackSeuPerStack = cfg.seuFallbacks.debuffSeuPerStack;
-  } else {
-    fallbackSeuPerSuccess = cfg.seuFallbacks.cleanseSeuPerSuccess;
-    fallbackSeuPerStack = cfg.seuFallbacks.cleanseSeuPerStack;
-  }
-
-  const seuPerSuccess = readPositiveNumber(details.seuPerSuccess) ?? fallbackSeuPerSuccess;
-  const seuPerStack = readPositiveNumber(details.seuPerStack) ?? fallbackSeuPerStack;
-
-  return seuPerSuccess * expectedSuccesses + seuPerStack * expectedStacksApplied;
-}
-
 export function computeMonsterOutcomes(
   monster: MonsterOutcomeInput,
   config: CalculatorConfig,
@@ -1116,6 +779,9 @@ export function computeMonsterOutcomes(
     equipmentModifierAxisBonuses?: Partial<RadarAxes>;
     naturalAttackGsAxisBonuses?: Partial<RadarAxes>;
     naturalAttackRangeAxisBonuses?: Partial<RadarAxes>;
+    naturalAttackStrengthMultiplier?: number;
+    naturalAttackLevelWoundBonusDivisor?: number;
+    powerContribution?: CanonicalPowerContribution | null;
     traitAxisBonuses?: Partial<TraitAxisBonuses>;
   },
 ): MonsterOutcomeProfile {
@@ -1132,8 +798,9 @@ export function computeMonsterOutcomes(
         successChance,
         cfg.baselineParty.aoeMultiplier,
         netSuccessMultiplier,
-        2,
+        opts?.naturalAttackStrengthMultiplier ?? 2,
         monster.level,
+        opts?.naturalAttackLevelWoundBonusDivisor ?? 3,
       ),
     );
   }
@@ -1144,8 +811,9 @@ export function computeMonsterOutcomes(
         successChance,
         cfg.baselineParty.aoeMultiplier,
         netSuccessMultiplier,
-        2,
+        opts?.naturalAttackStrengthMultiplier ?? 2,
         monster.level,
+        opts?.naturalAttackLevelWoundBonusDivisor ?? 3,
       ),
     );
   }
@@ -1163,94 +831,12 @@ export function computeMonsterOutcomes(
   }
   const atWillSummary = summarizeAtWillCandidates(atWillCandidates);
 
-  let sustainedPhysical = atWillSummary.bestPhysical;
-  let sustainedMental = atWillSummary.bestMental;
-  let spike = atWillSummary.bestTotal;
-  let seuPerRound = 0;
-  let tsuPerRound = 0;
-  const intentionCounts: Record<EffectPacket["intention"], number> = {
-    ATTACK: 0,
-    DEFENCE: 0,
-    HEALING: 0,
-    CLEANSE: 0,
-    CONTROL: 0,
-    MOVEMENT: 0,
-    SUPPORT: 0,
-    AUGMENT: 0,
-    DEBUFF: 0,
-    SUMMONING: 0,
-    TRANSFORMATION: 0,
-  };
-  let hasRangedPressure = atWillSummary.hasRanged;
-  let hasAoePressure = atWillSummary.hasAoe;
-  let movementPotencyTotal = 0;
-
-  const horizon = Math.max(1, Math.floor(safeNum(cfg.baselineParty.combatHorizonRounds ?? 5)));
-
-  for (const power of monster.powers ?? []) {
-    const cooldown = getPowerCooldown(power);
-    const ticks = getDurationTicks(power, horizon);
-    const effectPackets = getEffectPackets(power);
-    const primaryRangeDetails = getCanonicalPrimaryRangeDetails(
-      power,
-      (effectPackets[0]?.detailsJson ?? {}) as Record<string, unknown>,
-    );
-
-    for (const effectPacket of effectPackets) {
-      intentionCounts[effectPacket.intention] += 1;
-      const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
-      const impactDetails = getCanonicalPacketRangeDetails(effectPacket, primaryRangeDetails);
-      const impact = computeImpactMultiplier(impactDetails, cfg);
-      const packetDiceCount = getPacketDiceCount(effectPacket, power);
-      const packetPotency = getPacketPotency(effectPacket, power);
-      const packetExpectedSuccesses = packetDiceCount * successChance;
-
-      const seuPerUse = computeSEUFromIntention(effectPacket, power, monster.attackDie, cfg);
-      if (seuPerUse > 0) seuPerRound += (seuPerUse * ticks * impact) / cooldown;
-
-      if (effectPacket.intention === "CONTROL") {
-        const tsuPerSuccess = controlTSUPerSuccess(details);
-        const tsuPerUse = packetExpectedSuccesses * tsuPerSuccess * ticks * impact;
-        tsuPerRound += tsuPerUse / cooldown;
-      }
-
-      if (effectPacket.intention === "DEBUFF") {
-        const tsuPerSuccess = debuffTSUPerSuccess(packetPotency);
-        const tsuPerUse = packetExpectedSuccesses * tsuPerSuccess * ticks * impact;
-        tsuPerRound += tsuPerUse / cooldown;
-      }
-
-      if (effectPacket.intention === "MOVEMENT") {
-        movementPotencyTotal += packetPotency;
-        const tsuPerSuccess = movementTSUPerSuccess(details);
-        if (tsuPerSuccess > 0) {
-          const tsuPerUse = packetExpectedSuccesses * tsuPerSuccess * ticks * impact;
-          tsuPerRound += tsuPerUse / cooldown;
-        }
-      }
-
-      if (effectPacket.intention !== "ATTACK") continue;
-
-      const attackMode = String(details.attackMode ?? "").trim().toUpperCase();
-      const rangeCategory = String(impactDetails.rangeCategory ?? "").trim().toUpperCase();
-      if (rangeCategory === "RANGED") hasRangedPressure = true;
-      if (rangeCategory === "AOE") hasAoePressure = true;
-
-      const damageTypes = readStringArray(details.damageTypes);
-      const damageTypeCount = Math.max(1, damageTypes.length);
-      const woundsPerSuccess = packetPotency * 2 * damageTypeCount;
-
-      let expectedWoundsPerUse = packetExpectedSuccesses * woundsPerSuccess;
-      if (rangeCategory === "AOE") expectedWoundsPerUse *= cfg.baselineParty.aoeMultiplier;
-      expectedWoundsPerUse *= netSuccessMultiplier;
-
-      const perRound = expectedWoundsPerUse / cooldown;
-      if (attackMode === "MENTAL") sustainedMental += perRound;
-      else sustainedPhysical += perRound;
-
-      spike = Math.max(spike, expectedWoundsPerUse);
-    }
-  }
+  const sustainedPhysical = atWillSummary.bestPhysical;
+  const sustainedMental = atWillSummary.bestMental;
+  const spike = atWillSummary.bestTotal;
+  const seuPerRound = 0;
+  const tsuPerRound = 0;
+  const powerAxisVector = normalizeRawAxisBonuses(opts?.powerContribution?.axisVector);
 
   const sustainedTotal = sustainedPhysical + sustainedMental;
 
@@ -1267,18 +853,8 @@ export function computeMonsterOutcomes(
   const roundsToPRZero = clampNonNegative(monster.physicalResilienceMax) / netIncoming;
   const roundsToMPZero = clampNonNegative(monster.mentalPerseveranceMax) / netIncoming;
   const survivabilityRounds = Math.min(roundsToPRZero, roundsToMPZero);
-  const manipulationBudget = clampNonNegative(tsuPerRound);
-  const synergyBudget =
-    intentionCounts.AUGMENT * 3 +
-    intentionCounts.HEALING * 2 +
-    intentionCounts.CLEANSE * 1.5 +
-    clampNonNegative(seuPerRound);
-  const mobilityBudget =
-    intentionCounts.MOVEMENT * 2 +
-    (movementPotencyTotal * 5) / 15 +
-    (hasRangedPressure ? 1.5 : 0) +
-    (hasAoePressure ? 1 : 0);
-  const presenceBudget = spike * 0.6 + sustainedTotal * 0.4 + (hasAoePressure ? 1.5 : 0);
+  const nonPowerPresenceBudget =
+    spike * 0.6 + sustainedTotal * 0.4 + (atWillSummary.hasAoe ? 1.5 : 0);
 
   const level = Math.max(1, Math.trunc(monster.level || 1));
   const tierKey = toTierBudgetKey(monster);
@@ -1402,90 +978,98 @@ export function computeMonsterOutcomes(
   const routedEquipmentMentalThreatBonus = hasMentalThreat
     ? equipmentAttackThreatBonus
     : 0;
-  const physicalThreatBudget =
-    sustainedPhysical +
+  const nonPowerContribution: RadarAxes = {
+    physicalThreat:
+      sustainedPhysical +
     attackResistContribution +
     routedEquipmentPhysicalThreatBonus +
     naturalAttackGsAxisBonuses.physicalThreat +
     naturalAttackRangeAxisBonuses.physicalThreat +
     customLimitBreakAxisBonuses.physicalThreat +
-    traitAxisBonuses.physicalThreat;
-  const mentalThreatBudget =
-    sustainedMental +
-    intellectResistContribution +
-    routedEquipmentMentalThreatBonus +
-    equipmentModifierAxisBonuses.mentalThreat +
-    naturalAttackGsAxisBonuses.mentalThreat +
-    naturalAttackRangeAxisBonuses.mentalThreat +
-    customLimitBreakAxisBonuses.mentalThreat +
-    traitAxisBonuses.mentalThreat;
-  const survivabilityBudget =
-    poolHealthRawBonus +
-    defenceResistContribution +
-    fortitudeResistContribution +
-    equipmentModifierAxisBonuses.survivability +
-    naturalAttackGsAxisBonuses.survivability +
-    customLimitBreakAxisBonuses.survivability +
-    traitAxisBonuses.survivability;
-  const manipulationAxisBudget =
-    manipulationBudget +
-    braveryResistContribution +
-    equipmentModifierAxisBonuses.manipulation +
-    naturalAttackGsAxisBonuses.manipulation +
-    customLimitBreakAxisBonuses.manipulation +
-    traitAxisBonuses.manipulation;
-  const synergyAxisBudget =
-    synergyBudget +
-    supportResistContribution +
-    equipmentModifierAxisBonuses.synergy +
-    naturalAttackGsAxisBonuses.synergy +
-    customLimitBreakAxisBonuses.synergy +
-    traitAxisBonuses.synergy;
-  const mobilityAxisBudget =
-    mobilityBudget +
-    naturalAttackGsAxisBonuses.mobility +
-    naturalAttackRangeAxisBonuses.mobility +
-    customLimitBreakAxisBonuses.mobility +
-    traitAxisBonuses.mobility;
-  const presenceAxisBudget =
-    presenceBudget +
-    naturalAttackGsAxisBonuses.presence +
-    naturalAttackRangeAxisBonuses.presence +
-    customLimitBreakAxisBonuses.presence +
-    traitAxisBonuses.presence;
+      traitAxisBonuses.physicalThreat,
+    mentalThreat:
+      sustainedMental +
+      intellectResistContribution +
+      routedEquipmentMentalThreatBonus +
+      equipmentModifierAxisBonuses.mentalThreat +
+      naturalAttackGsAxisBonuses.mentalThreat +
+      naturalAttackRangeAxisBonuses.mentalThreat +
+      customLimitBreakAxisBonuses.mentalThreat +
+      traitAxisBonuses.mentalThreat,
+    survivability:
+      poolHealthRawBonus +
+      defenceResistContribution +
+      fortitudeResistContribution +
+      equipmentModifierAxisBonuses.survivability +
+      naturalAttackGsAxisBonuses.survivability +
+      customLimitBreakAxisBonuses.survivability +
+      traitAxisBonuses.survivability,
+    manipulation:
+      braveryResistContribution +
+      equipmentModifierAxisBonuses.manipulation +
+      naturalAttackGsAxisBonuses.manipulation +
+      customLimitBreakAxisBonuses.manipulation +
+      traitAxisBonuses.manipulation,
+    synergy:
+      supportResistContribution +
+      equipmentModifierAxisBonuses.synergy +
+      naturalAttackGsAxisBonuses.synergy +
+      customLimitBreakAxisBonuses.synergy +
+      traitAxisBonuses.synergy,
+    mobility:
+      naturalAttackGsAxisBonuses.mobility +
+      naturalAttackRangeAxisBonuses.mobility +
+      customLimitBreakAxisBonuses.mobility +
+      traitAxisBonuses.mobility,
+    presence:
+      nonPowerPresenceBudget +
+      naturalAttackGsAxisBonuses.presence +
+      naturalAttackRangeAxisBonuses.presence +
+      customLimitBreakAxisBonuses.presence +
+      traitAxisBonuses.presence,
+  };
+  const finalPreNormalizationAxes: RadarAxes = {
+    physicalThreat: nonPowerContribution.physicalThreat + powerAxisVector.physicalThreat,
+    mentalThreat: nonPowerContribution.mentalThreat + powerAxisVector.mentalThreat,
+    survivability: nonPowerContribution.survivability + powerAxisVector.survivability,
+    manipulation: nonPowerContribution.manipulation + powerAxisVector.manipulation,
+    synergy: nonPowerContribution.synergy + powerAxisVector.synergy,
+    mobility: nonPowerContribution.mobility + powerAxisVector.mobility,
+    presence: nonPowerContribution.presence + powerAxisVector.presence,
+  };
   const radarAxes: RadarAxes = {
     physicalThreat: normalizeByLevelCurve(
-      physicalThreatBudget,
+      finalPreNormalizationAxes.physicalThreat,
       physicalThreatCurvePoint,
       tierMultiplier,
     ),
     mentalThreat: normalizeByLevelCurve(
-      mentalThreatBudget,
+      finalPreNormalizationAxes.mentalThreat,
       mentalThreatCurvePoint,
       tierMultiplier,
     ),
     survivability: normalizeByLevelCurve(
-      survivabilityBudget,
+      finalPreNormalizationAxes.survivability,
       survivabilityCurvePoint,
       tierMultiplier,
     ),
     manipulation: normalizeByLevelCurve(
-      manipulationAxisBudget,
+      finalPreNormalizationAxes.manipulation,
       manipulationCurvePoint,
       tierMultiplier,
     ),
     synergy: normalizeByLevelCurve(
-      synergyAxisBudget,
+      finalPreNormalizationAxes.synergy,
       synergyCurvePoint,
       tierMultiplier,
     ),
     mobility: normalizeByLevelCurve(
-      mobilityAxisBudget,
+      finalPreNormalizationAxes.mobility,
       mobilityCurvePoint,
       tierMultiplier,
     ),
     presence: normalizeByLevelCurve(
-      presenceAxisBudget,
+      finalPreNormalizationAxes.presence,
       presenceCurvePoint,
       tierMultiplier,
     ),
@@ -1511,6 +1095,60 @@ export function computeMonsterOutcomes(
     netSuccessMultiplier,
     radarAxes,
     debug: {
+      powerContribution: {
+        axisVector: powerAxisVector,
+        basePowerValue: opts?.powerContribution?.basePowerValue ?? null,
+        powerCount: opts?.powerContribution?.powerCount ?? null,
+        resolverDebug: opts?.powerContribution?.debug ?? null,
+        source: opts?.powerContribution ? "canonical_phase6_resolver" : "none_provided",
+      },
+      nonPowerContribution: {
+        axisVector: nonPowerContribution,
+        sources: {
+          atWillSummary,
+          attackResistContribution,
+          intellectResistContribution,
+          defenceResistContribution,
+          fortitudeResistContribution,
+          supportResistContribution,
+          braveryResistContribution,
+          equipmentModifierAxisBonuses,
+          naturalAttackGsAxisBonuses,
+          naturalAttackRangeAxisBonuses,
+          traitAxisBonuses,
+          customLimitBreakAxisBonuses,
+          poolHealthRawBonus,
+          nonPowerPresenceBudget,
+        },
+      },
+      finalPreNormalizationAxes,
+      normalizationBreakdown: {
+        level,
+        tierKey,
+        tierMultiplier,
+        curvePoints: {
+          physicalThreat: physicalThreatCurvePoint,
+          mentalThreat: mentalThreatCurvePoint,
+          survivability: survivabilityCurvePoint,
+          manipulation: manipulationCurvePoint,
+          synergy: synergyCurvePoint,
+          mobility: mobilityCurvePoint,
+          presence: presenceCurvePoint,
+        },
+        axisBudgetTargets,
+        radarAxes,
+      },
+      legacyPowerHeuristics: {
+        active: false,
+        removed: [
+          "power attack WPR/spike loop",
+          "power SEU/TSU loop",
+          "power intention-count synergy budget",
+          "power movement heuristic mobility/manipulation budget",
+          "power AoE pressure presence flag",
+          "power range/target impact multiplier",
+        ],
+      },
       poolHealthBreakdown: {
         expectedPhysicalResilience,
         expectedMentalPerseverance,

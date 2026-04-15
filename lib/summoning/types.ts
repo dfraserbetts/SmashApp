@@ -53,6 +53,41 @@ export type PowerLifespanType = "NONE" | "TURNS" | "PASSIVE";
 export type ChargeType = "DELAYED_RELEASE" | "BUILD_POWER";
 export type TriggerMethod = "ARM_AND_THEN_TARGET" | "TARGET_AND_THEN_ARM";
 export type AttachedHostAnchorType = "TARGET" | "OBJECT" | "WEAPON" | "ARMOR" | "SELF" | "AREA";
+export const MAX_POWER_PACKET_DAMAGE_TYPES = 4 as const;
+export const RESIST_THEME_VALUES = [
+  "BODY_ENDURANCE",
+  "MIND_COGNITION",
+  "COURAGE_RESOLVE",
+  "TRUST_BELONGING",
+  "OFFENSIVE_EXECUTION",
+  "DEFENSIVE_COORDINATION",
+] as const;
+export type ResistTheme = (typeof RESIST_THEME_VALUES)[number];
+export const RESERVE_RELEASE_BEHAVIOUR_OPTIONS = [
+  "ACTION_OR_RESPONSE",
+  "ACTION_ONLY",
+  "RESPONSE_ONLY",
+  "ON_EXPIRY",
+] as const;
+export type ReserveReleaseBehaviour = (typeof RESERVE_RELEASE_BEHAVIOUR_OPTIONS)[number];
+export const TRIGGER_CONDITION_KEYS = [
+  "AREA_ENTERS",
+  "AREA_LEAVES",
+  "AREA_STARTS_TURN",
+  "AREA_ENDS_TURN",
+  "MOVES",
+  "MAKES_ATTACK",
+  "ACTIVATES_POWER",
+  "SUFFERS_WOUNDS",
+  "HEALS_WOUNDS",
+  "SUFFERS_EFFECT",
+  "GAINS_EFFECT",
+  "USES_ITEM",
+  "MAKES_DEFENCE_ROLL",
+  "MAKES_RESIST_ROLL",
+] as const;
+export type TriggerConditionKey = (typeof TRIGGER_CONDITION_KEYS)[number];
+export const LEGACY_TRIGGER_CONDITION_TEXT_KEY = "effectTriggerText" as const;
 export type EffectTimingType =
   | "ON_CAST"
   | "ON_HIT"

@@ -13,6 +13,16 @@ import type {
   PowerLifespanType,
   PrimaryDefenceGate,
   PrimaryDefenceGateResult,
+  ResistTheme,
+  ReserveReleaseBehaviour,
+  TriggerConditionKey,
+} from "@/lib/summoning/types";
+import {
+  LEGACY_TRIGGER_CONDITION_TEXT_KEY as LEGACY_TRIGGER_CONDITION_TEXT_KEY_VALUE,
+  MAX_POWER_PACKET_DAMAGE_TYPES,
+  RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
+  RESIST_THEME_VALUES,
+  TRIGGER_CONDITION_KEYS,
 } from "@/lib/summoning/types";
 
 const DICE_SET = new Set<DiceSize>(["D4", "D6", "D8", "D10", "D12"]);
@@ -48,6 +58,17 @@ const COMMITMENT_MODIFIER_SET = new Set<NonNullable<Power["commitmentModifier"]>
 ]);
 const CHARGE_TYPE_SET = new Set(["DELAYED_RELEASE", "BUILD_POWER"]);
 const TRIGGER_METHOD_SET = new Set(["ARM_AND_THEN_TARGET", "TARGET_AND_THEN_ARM"]);
+const RESIST_THEME_SET = new Set<ResistTheme>(RESIST_THEME_VALUES);
+const RESERVE_RELEASE_BEHAVIOUR_SET = new Set<ReserveReleaseBehaviour>(RESERVE_RELEASE_BEHAVIOUR_OPTIONS);
+const LEGACY_TRIGGER_CONDITION_KEY: typeof LEGACY_TRIGGER_CONDITION_TEXT_KEY_VALUE =
+  LEGACY_TRIGGER_CONDITION_TEXT_KEY_VALUE;
+const TRIGGER_CONDITION_SET = new Set<TriggerConditionKey>(TRIGGER_CONDITION_KEYS);
+const TRIGGER_AREA_PRESENCE_KEYS = new Set<TriggerConditionKey>([
+  "AREA_ENTERS",
+  "AREA_LEAVES",
+  "AREA_STARTS_TURN",
+  "AREA_ENDS_TURN",
+]);
 const ATTACHED_HOST_ANCHOR_TYPE_SET = new Set(["TARGET", "OBJECT", "WEAPON", "ARMOR", "SELF", "AREA"]);
 const EFFECT_PACKET_APPLY_TO_SET = new Set(["PRIMARY_TARGET", "ALLIES", "SELF"]);
 const EFFECT_TIMING_SET = new Set<string>([
@@ -105,6 +126,65 @@ function asString(value: unknown, fallback = ""): string {
 function asNullableString(value: unknown): string | null {
   const normalized = asString(value, "");
   return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeTriggerConditionKey(
+  value: unknown,
+): TriggerConditionKey | null {
+  return TRIGGER_CONDITION_SET.has(value as TriggerConditionKey)
+    ? (value as TriggerConditionKey)
+    : null;
+}
+
+function mapLegacyTriggerConditionTextToKey(
+  value: unknown,
+): TriggerConditionKey | null {
+  const normalized = asString(value, "").toLowerCase();
+  if (!normalized) return null;
+  if (
+    /(crosses?|enters?)\b/.test(normalized) &&
+    /\b(area|warded space|targeted space)\b/.test(normalized)
+  ) {
+    return "AREA_ENTERS";
+  }
+  if (/\bleaves?\b/.test(normalized) && /\b(area|warded space|targeted space)\b/.test(normalized)) {
+    return "AREA_LEAVES";
+  }
+  if (
+    /\bstarts?\b/.test(normalized) &&
+    /\bturn\b/.test(normalized) &&
+    /\b(area|warded space|targeted space)\b/.test(normalized)
+  ) {
+    return "AREA_STARTS_TURN";
+  }
+  if (
+    /\bends?\b/.test(normalized) &&
+    /\bturn\b/.test(normalized) &&
+    /\b(area|warded space|targeted space)\b/.test(normalized)
+  ) {
+    return "AREA_ENDS_TURN";
+  }
+  if (/\bmoves?\b/.test(normalized)) return "MOVES";
+  if (/\bmakes? an attack\b|\bweapon attack\b|\battacks?\b/.test(normalized)) return "MAKES_ATTACK";
+  if (/\bactivates? a power\b|\buses? a power\b|\bcasts? a power\b/.test(normalized)) {
+    return "ACTIVATES_POWER";
+  }
+  if (/\bsuffers? wounds\b|\btakes? wounds\b/.test(normalized)) return "SUFFERS_WOUNDS";
+  if (/\bheals? wounds\b|\brecovers? wounds\b|\bregains? wounds\b/.test(normalized)) {
+    return "HEALS_WOUNDS";
+  }
+  if (/\bsuffers? an effect\b|\bis affected\b/.test(normalized)) return "SUFFERS_EFFECT";
+  if (/\bgains? an effect\b|\breceives? an effect\b/.test(normalized)) return "GAINS_EFFECT";
+  if (/\buses? an item\b|\buses? item\b/.test(normalized)) return "USES_ITEM";
+  if (/\bdefence roll\b|\bdodge roll\b/.test(normalized)) return "MAKES_DEFENCE_ROLL";
+  if (/\bresist roll\b|\bresistance roll\b/.test(normalized)) return "MAKES_RESIST_ROLL";
+  return null;
+}
+
+function readTriggerConditionKey(
+  value: unknown,
+): TriggerConditionKey | null {
+  return normalizeTriggerConditionKey(value) ?? mapLegacyTriggerConditionTextToKey(value);
 }
 
 function asDice(value: unknown, fallback: DiceSize = "D6"): DiceSize {
@@ -176,6 +256,50 @@ function getCleanseThemeResistAttribute(details: Record<string, unknown>): CoreA
   return cleanseTheme ? (CONTROL_THEME_TO_RESIST_ATTRIBUTE.get(cleanseTheme) ?? null) : null;
 }
 
+function normalizeMovementTheme(value: unknown): ResistTheme | null {
+  const normalized = asString(value, "").toUpperCase();
+  return RESIST_THEME_SET.has(normalized as ResistTheme)
+    ? (normalized as ResistTheme)
+    : null;
+}
+
+function mapLegacyApplicationModeKeyToMovementTheme(
+  value: unknown,
+): ResistTheme | null {
+  const normalized = asString(value, "").toUpperCase();
+  if (!normalized) return null;
+  if (RESIST_THEME_SET.has(normalized as ResistTheme)) return normalized as ResistTheme;
+  if (normalized === "FORTITUDE" || normalized === "BODY" || normalized === "BODY / ENDURANCE") {
+    return "BODY_ENDURANCE";
+  }
+  if (normalized === "INTELLECT" || normalized === "MIND" || normalized === "MIND / COGNITION / PERCEPTION") {
+    return "MIND_COGNITION";
+  }
+  if (normalized === "BRAVERY" || normalized === "COURAGE" || normalized === "COURAGE / RESOLVE / PANIC") {
+    return "COURAGE_RESOLVE";
+  }
+  if (normalized === "SUPPORT" || normalized === "TRUST" || normalized === "TRUST / BELONGING / ANCHORING") {
+    return "TRUST_BELONGING";
+  }
+  if (normalized === "ATTACK" || normalized === "OFFENSIVE" || normalized === "OFFENSIVE EXECUTION") {
+    return "OFFENSIVE_EXECUTION";
+  }
+  if (
+    normalized === "DEFENCE" ||
+    normalized === "DEFENSE" ||
+    normalized === "DEFENSIVE" ||
+    normalized === "DEFENSIVE COORDINATION / BALANCE"
+  ) {
+    return "DEFENSIVE_COORDINATION";
+  }
+  return null;
+}
+
+function getMovementThemeResistAttribute(details: Record<string, unknown>): CoreAttribute | null {
+  const movementTheme = normalizeMovementTheme(details.movementTheme);
+  return movementTheme ? (CONTROL_THEME_TO_RESIST_ATTRIBUTE.get(movementTheme) ?? null) : null;
+}
+
 function normalizePacketDetailsForIntention(
   intention: PowerIntention,
   details: Record<string, unknown>,
@@ -205,6 +329,20 @@ function normalizePacketDetailsForIntention(
       nextDetails.cleanseTheme = cleanseTheme;
     } else {
       delete nextDetails.cleanseTheme;
+    }
+    return nextDetails;
+  }
+  if (intention === "MOVEMENT") {
+    const movementMode = asString(details.movementMode, "Force Push");
+    const movementTheme = normalizeMovementTheme(details.movementTheme);
+    const nextDetails: Record<string, unknown> = {
+      ...details,
+      movementMode,
+    };
+    if (movementTheme) {
+      nextDetails.movementTheme = movementTheme;
+    } else {
+      delete nextDetails.movementTheme;
     }
     return nextDetails;
   }
@@ -241,7 +379,9 @@ function readPacketTriggerConditionText(
       ? (packet.detailsJson as Record<string, unknown>)
       : undefined;
   return asNullableString(
-    packet?.triggerConditionText ?? details?.triggerConditionText ?? details?.effectTriggerText,
+    packet?.triggerConditionText ??
+      details?.triggerConditionText ??
+      details?.[LEGACY_TRIGGER_CONDITION_KEY],
   );
 }
 
@@ -300,8 +440,19 @@ function sanitizePacketDetails(details: Record<string, unknown>): Record<string,
   const nextDetails = { ...details };
   delete nextDetails.applyTo;
   delete nextDetails.triggerConditionText;
-  delete nextDetails.effectTriggerText;
+  delete nextDetails[LEGACY_TRIGGER_CONDITION_KEY];
   return nextDetails;
+}
+
+function countSelectedAttackDamageTypes(details: Record<string, unknown>): number {
+  if (!Array.isArray(details.damageTypes)) return 0;
+  const seen = new Set<string>();
+  for (const entry of details.damageTypes) {
+    const normalized = asString(entry, "").trim().toLowerCase();
+    if (!normalized) continue;
+    seen.add(normalized);
+  }
+  return seen.size;
 }
 
 function getAllowedPacketApplyToOptions(params: {
@@ -386,17 +537,37 @@ function normalizeChargeBonusDicePerTurn(value: unknown): number {
   return Math.max(1, Math.min(10, asInt(value, 1)));
 }
 
-function normalizeDefineReleaseBehaviour(
+function coerceReserveReleaseBehaviour(
   value: unknown,
-  releaseBehaviourText: unknown,
-): boolean {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === "true") return true;
-    if (normalized === "false") return false;
+): ReserveReleaseBehaviour | null {
+  const normalized = asString(value, "");
+  return RESERVE_RELEASE_BEHAVIOUR_SET.has(normalized as ReserveReleaseBehaviour)
+    ? (normalized as ReserveReleaseBehaviour)
+    : null;
+}
+
+function mapLegacyReleaseBehaviourTextToKey(
+  value: unknown,
+): ReserveReleaseBehaviour | null {
+  const normalized = asString(value, "").toLowerCase();
+  if (!normalized) return null;
+  if (/\b(expiry|expire|expires|expired)\b/.test(normalized)) return "ON_EXPIRY";
+  if (/\bresponse only\b/.test(normalized)) return "RESPONSE_ONLY";
+  if (/\bpower action only\b/.test(normalized)) return "ACTION_ONLY";
+  if (/\bpower action\b/.test(normalized) && /\bresponse\b/.test(normalized)) {
+    return "ACTION_OR_RESPONSE";
   }
-  return asString(releaseBehaviourText, "").length > 0;
+  if (/\bresponse\b/.test(normalized)) return "RESPONSE_ONLY";
+  if (/\bpower action\b/.test(normalized) || /\baction\b/.test(normalized)) return "ACTION_ONLY";
+  return null;
+}
+
+function readReserveReleaseBehaviour(
+  descriptorChassisConfig: Record<string, unknown>,
+): ReserveReleaseBehaviour {
+  return coerceReserveReleaseBehaviour(descriptorChassisConfig.releaseBehaviour) ??
+    mapLegacyReleaseBehaviourTextToKey(descriptorChassisConfig.releaseBehaviourText) ??
+    "ACTION_OR_RESPONSE";
 }
 
 function normalizeTriggerMethod(value: unknown): string {
@@ -419,19 +590,20 @@ function normalizePowerDescriptorChassisConfig(
       : {};
 
   delete descriptorChassisConfig.defineReleaseBehaviour;
+  delete descriptorChassisConfig.releaseBehaviourText;
   delete descriptorChassisConfig.chargeType;
   delete descriptorChassisConfig.chargeTurns;
   delete descriptorChassisConfig.chargeBonusDicePerTurn;
   delete descriptorChassisConfig.triggerMethod;
+  delete descriptorChassisConfig.triggerConditionText;
   delete descriptorChassisConfig.anchorText;
   delete descriptorChassisConfig.payloadTriggerText;
   delete descriptorChassisConfig.fieldInteractionText;
 
   if (descriptorChassis === "RESERVE") {
-    descriptorChassisConfig.defineReleaseBehaviour = normalizeDefineReleaseBehaviour(
-      rawConfig.defineReleaseBehaviour,
-      rawConfig.releaseBehaviourText,
-    );
+    descriptorChassisConfig.releaseBehaviour = readReserveReleaseBehaviour(rawConfig);
+  } else {
+    delete descriptorChassisConfig.releaseBehaviour;
   }
 
   return descriptorChassisConfig;
@@ -535,11 +707,12 @@ function deriveWoundsPerSuccessFromPrimaryPacket(
     primaryPacket.detailsJson && typeof primaryPacket.detailsJson === "object"
       ? (primaryPacket.detailsJson as Record<string, unknown>)
       : {};
-  const selectedDamageTypeCount = Array.isArray(details.damageTypes)
-    ? details.damageTypes.map((entry) => String(entry).trim()).filter(Boolean).length
-    : 0;
+  const selectedDamageTypeCount = countSelectedAttackDamageTypes(details);
   const potency = Math.max(1, asInt(primaryPacket.potency, 1));
-  const effectiveDamageTypeCount = Math.max(1, selectedDamageTypeCount);
+  const effectiveDamageTypeCount = Math.max(
+    1,
+    Math.min(MAX_POWER_PACKET_DAMAGE_TYPES, selectedDamageTypeCount),
+  );
   return potency * 2 * effectiveDamageTypeCount;
 }
 
@@ -740,7 +913,18 @@ function normalizePacketIntention(
     raw.detailsJson && typeof raw.detailsJson === "object"
       ? (raw.detailsJson as Record<string, unknown>)
       : {};
-  const details = sanitizePacketDetails(normalizePacketDetailsForIntention(intention, rawDetails));
+  const details = sanitizePacketDetails(
+    normalizePacketDetailsForIntention(
+      intention,
+      intention === "MOVEMENT"
+        ? {
+            ...rawDetails,
+            movementTheme:
+              rawDetails.movementTheme ?? mapLegacyApplicationModeKeyToMovementTheme(raw.applicationModeKey),
+          }
+        : rawDetails,
+    ),
+  );
   const attackMode = asString(details.attackMode, "PHYSICAL").toUpperCase();
   const targetedAttribute = normalizeCoreAttribute(
     raw.targetedAttribute ?? details.statTarget ?? details.statChoice,
@@ -771,9 +955,9 @@ function normalizePacketIntention(
   const applyTo = normalizeEffectPacketApplyTo(raw.applyTo ?? rawDetails.applyTo);
   const triggerConditionText = asNullableString(
     raw.triggerConditionText ??
-      raw.effectTriggerText ??
+      raw[LEGACY_TRIGGER_CONDITION_KEY] ??
       rawDetails.triggerConditionText ??
-      rawDetails.effectTriggerText,
+      rawDetails[LEGACY_TRIGGER_CONDITION_KEY],
   );
   const woundChannelRaw = asString(raw.woundChannel, "");
   const woundChannel =
@@ -815,7 +999,7 @@ function normalizePacketIntention(
     dealsWounds: asBool(raw.dealsWounds, intention === "ATTACK"),
     woundChannel,
     targetedAttribute,
-    applicationModeKey: asNullableString(raw.applicationModeKey),
+    applicationModeKey: null,
     resolutionOrigin:
       asString(raw.resolutionOrigin, "CASTER") as EffectPacket["resolutionOrigin"],
     applyTo,
@@ -918,6 +1102,20 @@ function derivePrimaryDefenceGate(
       resolutionSource: "INFERRED",
     };
   }
+  if (firstPacket.hostility === "HOSTILE" && firstPacket.intention === "MOVEMENT") {
+    const details =
+      firstPacket.detailsJson && typeof firstPacket.detailsJson === "object" && !Array.isArray(firstPacket.detailsJson)
+        ? (firstPacket.detailsJson as Record<string, unknown>)
+        : {};
+    return {
+      sourcePacketIndex: 0,
+      gateResult: "RESIST",
+      protectionChannel: null,
+      resistAttribute: getMovementThemeResistAttribute(details),
+      hostileEntryPattern: null,
+      resolutionSource: "INFERRED",
+    };
+  }
   if (firstPacket.hostility === "HOSTILE" && firstPacket.intention === "CLEANSE") {
     const details =
       firstPacket.detailsJson && typeof firstPacket.detailsJson === "object" && !Array.isArray(firstPacket.detailsJson)
@@ -1008,6 +1206,18 @@ function normalizePower(value: unknown, sortOrder: number): Power {
       ? normalizeAttachedEffectPacketTimings(normalizedImmediateEffectPackets, explicitHostileEntryPattern)
       : normalizedImmediateEffectPackets;
   const normalizedScaledEffectPackets = normalizeDerivedSecondaryScaling(normalizedAttachedEffectPackets);
+  const triggerMethod =
+    descriptorChassis === "TRIGGER"
+      ? (normalizeTriggerMethod(raw.triggerMethod ?? rawDescriptorChassisConfig.triggerMethod) as Power["triggerMethod"])
+      : null;
+  const legacyAttachedPayloadTriggerText =
+    descriptorChassis === "ATTACHED" && explicitHostileEntryPattern === "ON_PAYLOAD"
+      ? asNullableString(rawDescriptorChassisConfig.payloadTriggerText)
+      : null;
+  const legacyTriggerConditionKey =
+    descriptorChassis === "TRIGGER"
+      ? readTriggerConditionKey(rawDescriptorChassisConfig.triggerConditionText)
+      : null;
   const primaryPacketDetails = (normalizedScaledEffectPackets[0]?.detailsJson ?? {}) as Record<string, unknown>;
   const explicitRangeCategories = Array.isArray(raw.rangeCategories)
     ? raw.rangeCategories
@@ -1056,8 +1266,19 @@ function normalizePower(value: unknown, sortOrder: number): Power {
         ? sanitizePacketDetails(packet.detailsJson as Record<string, unknown>)
         : {};
     const triggerConditionText =
-      readPacketTriggerConditionText(packet) ??
-      (packet.effectTimingType === "ON_TRIGGER" ? legacyAttachedPayloadTriggerText : null);
+      descriptorChassis === "TRIGGER" && packet.packetIndex === 0
+        ? (() => {
+            const nextTriggerCondition =
+              readTriggerConditionKey(packet.triggerConditionText) ?? legacyTriggerConditionKey;
+            return triggerMethod === "TARGET_AND_THEN_ARM" &&
+                powerRangeCategory !== "AOE" &&
+                nextTriggerCondition &&
+                TRIGGER_AREA_PRESENCE_KEYS.has(nextTriggerCondition)
+              ? null
+              : nextTriggerCondition;
+          })()
+        : readPacketTriggerConditionText(packet) ??
+          (packet.effectTimingType === "ON_TRIGGER" ? legacyAttachedPayloadTriggerText : null);
     return {
       ...packet,
       applyTo: normalizePacketApplyToForCastContext(readPacketApplyTo(packet), {
@@ -1100,10 +1321,6 @@ function normalizePower(value: unknown, sortOrder: number): Power {
           raw.chargeBonusDicePerTurn ?? rawDescriptorChassisConfig.chargeBonusDicePerTurn,
         )
       : null;
-  const triggerMethod =
-    descriptorChassis === "TRIGGER"
-      ? (normalizeTriggerMethod(raw.triggerMethod ?? rawDescriptorChassisConfig.triggerMethod) as Power["triggerMethod"])
-      : null;
   const attachedHostAnchorType =
     descriptorChassis === "ATTACHED"
       ? normalizeAttachedHostAnchorType(raw.attachedHostAnchorType) ??
@@ -1114,10 +1331,6 @@ function normalizePower(value: unknown, sortOrder: number): Power {
     commitmentModifier,
     descriptorChassis,
   );
-  const legacyAttachedPayloadTriggerText =
-    descriptorChassis === "ATTACHED" && explicitHostileEntryPattern === "ON_PAYLOAD"
-      ? asNullableString(rawDescriptorChassisConfig.payloadTriggerText)
-      : null;
 
   return {
     sortOrder,
@@ -1326,6 +1539,19 @@ export function normalizeMonsterUpsertInput(body: unknown): {
     }
     if (power.effectDurationType !== "TURNS" && power.effectDurationTurns !== null) {
       return { ok: false, error: "effectDurationTurns is only allowed when effectDurationType is TURNS" };
+    }
+    for (const packet of power.effectPackets) {
+      if ((packet.intention ?? packet.type ?? "ATTACK") !== "ATTACK") continue;
+      const details =
+        packet.detailsJson && typeof packet.detailsJson === "object" && !Array.isArray(packet.detailsJson)
+          ? (packet.detailsJson as Record<string, unknown>)
+          : {};
+      if (countSelectedAttackDamageTypes(details) > MAX_POWER_PACKET_DAMAGE_TYPES) {
+        return {
+          ok: false,
+          error: `Attack packets can select at most ${MAX_POWER_PACKET_DAMAGE_TYPES} damage types`,
+        };
+      }
     }
   }
 

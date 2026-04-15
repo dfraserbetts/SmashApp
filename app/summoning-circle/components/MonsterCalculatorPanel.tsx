@@ -11,6 +11,15 @@ type Props = {
   profile: MonsterOutcomeProfile | null;
   archetype: MonsterCalculatorArchetype;
   onArchetypeChangeAction: (value: MonsterCalculatorArchetype) => void;
+  powerCostPreview?: {
+    tuningSetId: string | null;
+    tuningSetName: string | null;
+    totalBasePowerValue: number;
+    powerCount: number;
+    axisVector: RadarAxes;
+    perPower: Array<{ name: string; basePowerValue: number }>;
+    debug?: Record<string, unknown>;
+  } | null;
 };
 
 const ARCHETYPE_OPTIONS: MonsterCalculatorArchetype[] = [
@@ -83,7 +92,22 @@ function formatDecimal(value: number): string {
   return value.toFixed(2);
 }
 
-export function MonsterCalculatorPanel({ profile, archetype, onArchetypeChangeAction }: Props) {
+const POWER_AXIS_ROWS: Array<{ key: keyof RadarAxes; label: string }> = [
+  { key: "physicalThreat", label: "Physical Threat" },
+  { key: "mentalThreat", label: "Mental Threat" },
+  { key: "survivability", label: "Survivability" },
+  { key: "manipulation", label: "Control Pressure" },
+  { key: "synergy", label: "Synergy" },
+  { key: "mobility", label: "Mobility" },
+  { key: "presence", label: "Pressure" },
+];
+
+export function MonsterCalculatorPanel({
+  profile,
+  archetype,
+  onArchetypeChangeAction,
+  powerCostPreview = null,
+}: Props) {
   return (
     <section className="rounded border border-zinc-800 bg-zinc-900/30 p-4 space-y-3">
       <div className="flex items-center justify-between gap-2">
@@ -111,6 +135,13 @@ export function MonsterCalculatorPanel({ profile, archetype, onArchetypeChangeAc
 
       {profile && (
         <>
+          <div className="space-y-1">
+            <h4 className="text-sm font-semibold">Final Outcome</h4>
+            <p className="text-[11px] text-zinc-500">
+              Combined monster radar after canonical power contribution, non-power contributors,
+              and outcome normalization.
+            </p>
+          </div>
           <OutcomeRadar
             axes={profile.radarAxes}
             backgroundAxes={ARCHETYPE_TARGETS[archetype]}
@@ -143,6 +174,89 @@ export function MonsterCalculatorPanel({ profile, archetype, onArchetypeChangeAc
           Net Success Multiplier: {formatDecimal(profile.netSuccessMultiplier)}
         </p>
       )}
+
+      <section className="rounded border border-zinc-800 bg-zinc-950/30 p-3 space-y-3">
+        <div className="space-y-1">
+          <h4 className="text-sm font-semibold">Power Contribution</h4>
+          <p className="text-[11px] text-zinc-500">
+            Canonical Phase 6 power vector. This is now merged into the final monster outcome
+            profile below alongside non-power contributors.
+          </p>
+        </div>
+
+        {!powerCostPreview && (
+          <p className="text-xs text-zinc-500">No power preview available.</p>
+        )}
+
+        {powerCostPreview && (
+          <>
+            <dl className="grid gap-2 text-xs sm:grid-cols-3">
+              <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">
+                <dt className="text-zinc-500">Tuning Set</dt>
+                <dd className="mt-1 text-zinc-200">
+                  {powerCostPreview.tuningSetName ?? "Default values (loading or fallback)"}
+                </dd>
+              </div>
+              <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">
+                <dt className="text-zinc-500">Powers</dt>
+                <dd className="mt-1 text-zinc-200">{powerCostPreview.powerCount}</dd>
+              </div>
+              <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">
+                <dt className="text-zinc-500">Total Base Power Value</dt>
+                <dd className="mt-1 text-zinc-200">
+                  {formatDecimal(powerCostPreview.totalBasePowerValue)}
+                </dd>
+              </div>
+            </dl>
+
+            <div className="space-y-2">
+              <h5 className="text-xs font-medium text-zinc-300">Canonical Power Axis Vector</h5>
+              <div className="grid gap-2 text-xs sm:grid-cols-2">
+                {POWER_AXIS_ROWS.map((axis) => (
+                  <div
+                    key={axis.key}
+                    className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-900/40 px-2 py-1"
+                  >
+                    <span className="text-zinc-500">{axis.label}</span>
+                    <span className="text-zinc-200">
+                      {formatDecimal(powerCostPreview.axisVector[axis.key] ?? 0)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h5 className="text-xs font-medium text-zinc-300">Per Power</h5>
+              <div className="space-y-1">
+                {powerCostPreview.perPower.length === 0 && (
+                  <p className="text-xs text-zinc-500">No powers authored yet.</p>
+                )}
+                {powerCostPreview.perPower.map((power, index) => (
+                  <div
+                    key={`${power.name}-${index}`}
+                    className="flex items-center justify-between gap-3 rounded border border-zinc-800 bg-zinc-900/40 px-2 py-1 text-xs"
+                  >
+                    <span className="truncate text-zinc-300">{power.name || `Power ${index + 1}`}</span>
+                    <span className="shrink-0 text-zinc-200">
+                      {formatDecimal(power.basePowerValue)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <details className="rounded border border-zinc-800 bg-zinc-950/30 p-2 text-[10px] text-zinc-400">
+              <summary className="cursor-pointer select-none text-zinc-500">
+                Power Cost Debug
+              </summary>
+              <pre className="mt-2 overflow-auto">
+                {JSON.stringify(powerCostPreview.debug ?? null, null, 2)}
+              </pre>
+            </details>
+          </>
+        )}
+      </section>
     </section>
   );
 }

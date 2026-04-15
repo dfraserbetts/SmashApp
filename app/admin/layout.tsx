@@ -17,10 +17,20 @@ async function getSupabaseServer() {
           return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: unknown) {
-          cookieStore.set({ name, value, ...(options as Record<string, unknown>) });
+          try {
+            cookieStore.set({ name, value, ...(options as Record<string, unknown>) });
+          } catch {
+            // Server Components can read cookies but cannot commit refreshes.
+            // proxy.ts handles auth cookie writes on the request/response path.
+          }
         },
         remove(name: string, options: unknown) {
-          cookieStore.set({ name, value: "", ...(options as Record<string, unknown>) });
+          try {
+            cookieStore.set({ name, value: "", ...(options as Record<string, unknown>) });
+          } catch {
+            // Server Components can read cookies but cannot commit refreshes.
+            // proxy.ts handles auth cookie writes on the request/response path.
+          }
         },
       },
     },
@@ -85,6 +95,15 @@ export default async function AdminLayout({
                 </Link>
                 <Link className="underline" href="/admin/combat-tuning">
                   Combat Tuning
+                </Link>
+                <Link className="underline" href="/admin/power-tuning">
+                  Power Tuning
+                </Link>
+                <Link className="underline" href="/admin/outcome-normalization">
+                  Outcome Normalization
+                </Link>
+                <Link className="underline" href="/admin/canary-harness">
+                  Power Radar Comparison
                 </Link>
               </div>
             </div>

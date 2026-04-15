@@ -1,22 +1,24 @@
-// ADMIN_COMBAT_TUNING_API
+// ADMIN_OUTCOME_NORMALIZATION_API
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
 import {
-  activateCombatTuningSet,
-  archiveCombatTuningSet,
-  createDraftCombatTuningSetFromActive,
-  deleteArchivedCombatTuningSet,
-  ensureSeedCombatTuningSet,
-  getCombatTuningSetById,
-  listCombatTuningSets,
-  saveCombatTuningSetValues,
-  unarchiveCombatTuningSet,
-} from "@/lib/config/combatTuning";
-import { DEFAULT_COMBAT_TUNING_VALUES } from "@/lib/config/combatTuningShared";
+  activateOutcomeNormalizationSet,
+  archiveOutcomeNormalizationSet,
+  createDraftOutcomeNormalizationSetFromActive,
+  deleteArchivedOutcomeNormalizationSet,
+  ensureSeedOutcomeNormalizationSet,
+  getOutcomeNormalizationSetById,
+  listOutcomeNormalizationSets,
+  saveOutcomeNormalizationSetValues,
+  unarchiveOutcomeNormalizationSet,
+} from "@/lib/config/outcomeNormalization";
+import { DEFAULT_OUTCOME_NORMALIZATION_VALUES } from "@/lib/config/outcomeNormalizationShared";
 
-const KNOWN_COMBAT_TUNING_KEYS = new Set(Object.keys(DEFAULT_COMBAT_TUNING_VALUES));
+const KNOWN_OUTCOME_NORMALIZATION_KEYS = new Set(
+  Object.keys(DEFAULT_OUTCOME_NORMALIZATION_VALUES),
+);
 
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -74,16 +76,16 @@ function errorResponse(error: unknown) {
     message === "INVALID_SET_ID" ||
     message === "INVALID_VALUES" ||
     message === "INVALID_NOTES" ||
-    message === "COMBAT_TUNING_SET_NOT_FOUND" ||
-    message === "COMBAT_TUNING_SET_NOT_EDITABLE" ||
-    message === "COMBAT_TUNING_SET_NOT_DRAFT" ||
-    message === "COMBAT_TUNING_SET_NOT_ARCHIVED" ||
-    message === "COMBAT_TUNING_ACTIVE_ARCHIVE_REQUIRES_REPLACEMENT"
+    message === "OUTCOME_NORMALIZATION_SET_NOT_FOUND" ||
+    message === "OUTCOME_NORMALIZATION_SET_NOT_EDITABLE" ||
+    message === "OUTCOME_NORMALIZATION_SET_NOT_DRAFT" ||
+    message === "OUTCOME_NORMALIZATION_SET_NOT_ARCHIVED" ||
+    message === "OUTCOME_NORMALIZATION_ACTIVE_ARCHIVE_REQUIRES_REPLACEMENT"
   ) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  console.error("[ADMIN_COMBAT_TUNING]", error);
+  console.error("[ADMIN_OUTCOME_NORMALIZATION]", error);
   return NextResponse.json(
     process.env.NODE_ENV === "production"
       ? { error: "Server error" }
@@ -95,7 +97,7 @@ function errorResponse(error: unknown) {
   );
 }
 
-function parseFinitePositiveNumber(value: unknown): number | null {
+function parseFiniteNonNegativeNumber(value: unknown): number | null {
   const numericValue =
     typeof value === "number"
       ? value
@@ -103,7 +105,7 @@ function parseFinitePositiveNumber(value: unknown): number | null {
         ? Number(value)
         : Number.NaN;
 
-  if (!Number.isFinite(numericValue) || numericValue <= 0) return null;
+  if (!Number.isFinite(numericValue) || numericValue < 0) return null;
   return numericValue;
 }
 
@@ -119,8 +121,8 @@ function validateValues(input: unknown): Record<string, number> {
 
   const values: Record<string, number> = {};
   for (const [key, value] of Object.entries(input)) {
-    if (!KNOWN_COMBAT_TUNING_KEYS.has(key)) throw new Error("INVALID_VALUES");
-    const parsed = parseFinitePositiveNumber(value);
+    if (!KNOWN_OUTCOME_NORMALIZATION_KEYS.has(key)) throw new Error("INVALID_VALUES");
+    const parsed = parseFiniteNonNegativeNumber(value);
     if (parsed === null) throw new Error("INVALID_VALUES");
     values[key] = parsed;
   }
@@ -134,7 +136,7 @@ function validateNotesByKey(input: unknown): Record<string, string> | undefined 
 
   const notesByKey: Record<string, string> = {};
   for (const [key, value] of Object.entries(input)) {
-    if (!KNOWN_COMBAT_TUNING_KEYS.has(key)) throw new Error("INVALID_NOTES");
+    if (!KNOWN_OUTCOME_NORMALIZATION_KEYS.has(key)) throw new Error("INVALID_NOTES");
     if (value == null) continue;
     if (typeof value !== "string") throw new Error("INVALID_NOTES");
     notesByKey[key] = value;
@@ -143,16 +145,16 @@ function validateNotesByKey(input: unknown): Record<string, string> | undefined 
 }
 
 async function buildAdminResponse(selectedSetId?: string | null) {
-  const activeSnapshot = await ensureSeedCombatTuningSet();
+  const activeSnapshot = await ensureSeedOutcomeNormalizationSet();
   const selectedSnapshot = selectedSetId
-    ? await getCombatTuningSetById(selectedSetId)
+    ? await getOutcomeNormalizationSetById(selectedSetId)
     : activeSnapshot;
 
-  if (!selectedSnapshot) throw new Error("COMBAT_TUNING_SET_NOT_FOUND");
+  if (!selectedSnapshot) throw new Error("OUTCOME_NORMALIZATION_SET_NOT_FOUND");
 
   return {
     activeSetId: activeSnapshot.setId,
-    sets: await listCombatTuningSets(),
+    sets: await listOutcomeNormalizationSets(),
     selectedSet: selectedSnapshot,
   };
 }
@@ -179,7 +181,7 @@ export async function POST(req: Request) {
       throw new Error("INVALID_ACTION");
     }
 
-    const createdSet = await createDraftCombatTuningSetFromActive({
+    const createdSet = await createDraftOutcomeNormalizationSetFromActive({
       name: typeof body.name === "string" ? body.name : undefined,
       notes: typeof body.notes === "string" ? body.notes : undefined,
     });
@@ -210,31 +212,31 @@ export async function PUT(req: Request) {
       const setId = validateSetId(body.setId);
       const values = validateValues(body.values);
       const notesByKey = validateNotesByKey(body.notesByKey);
-      const selectedSet = await saveCombatTuningSetValues(setId, values, notesByKey);
+      const selectedSet = await saveOutcomeNormalizationSetValues(setId, values, notesByKey);
       return NextResponse.json(await buildAdminResponse(selectedSet.setId));
     }
 
     if (body?.action === "activateDraft") {
       const setId = validateSetId(body.setId);
-      const selectedSet = await activateCombatTuningSet(setId);
+      const selectedSet = await activateOutcomeNormalizationSet(setId);
       return NextResponse.json(await buildAdminResponse(selectedSet.setId));
     }
 
     if (body?.action === "archiveSet") {
       const setId = validateSetId(body.setId);
-      const selectedSet = await archiveCombatTuningSet(setId);
+      const selectedSet = await archiveOutcomeNormalizationSet(setId);
       return NextResponse.json(await buildAdminResponse(selectedSet.setId));
     }
 
     if (body?.action === "unarchiveSet") {
       const setId = validateSetId(body.setId);
-      const selectedSet = await unarchiveCombatTuningSet(setId);
+      const selectedSet = await unarchiveOutcomeNormalizationSet(setId);
       return NextResponse.json(await buildAdminResponse(selectedSet.setId));
     }
 
     if (body?.action === "deleteArchivedSet") {
       const setId = validateSetId(body.setId);
-      await deleteArchivedCombatTuningSet(setId);
+      await deleteArchivedOutcomeNormalizationSet(setId);
       return NextResponse.json(await buildAdminResponse());
     }
 

@@ -1,22 +1,22 @@
-// ADMIN_COMBAT_TUNING_API
+// ADMIN_POWER_TUNING_API
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
 import {
-  activateCombatTuningSet,
-  archiveCombatTuningSet,
-  createDraftCombatTuningSetFromActive,
-  deleteArchivedCombatTuningSet,
-  ensureSeedCombatTuningSet,
-  getCombatTuningSetById,
-  listCombatTuningSets,
-  saveCombatTuningSetValues,
-  unarchiveCombatTuningSet,
-} from "@/lib/config/combatTuning";
-import { DEFAULT_COMBAT_TUNING_VALUES } from "@/lib/config/combatTuningShared";
+  activatePowerTuningSet,
+  archivePowerTuningSet,
+  createDraftPowerTuningSetFromActive,
+  deleteArchivedPowerTuningSet,
+  ensureSeedPowerTuningSet,
+  getPowerTuningSetById,
+  listPowerTuningSets,
+  savePowerTuningSetValues,
+  unarchivePowerTuningSet,
+} from "@/lib/config/powerTuning";
+import { DEFAULT_POWER_TUNING_VALUES } from "@/lib/config/powerTuningShared";
 
-const KNOWN_COMBAT_TUNING_KEYS = new Set(Object.keys(DEFAULT_COMBAT_TUNING_VALUES));
+const KNOWN_POWER_TUNING_KEYS = new Set(Object.keys(DEFAULT_POWER_TUNING_VALUES));
 
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -74,16 +74,16 @@ function errorResponse(error: unknown) {
     message === "INVALID_SET_ID" ||
     message === "INVALID_VALUES" ||
     message === "INVALID_NOTES" ||
-    message === "COMBAT_TUNING_SET_NOT_FOUND" ||
-    message === "COMBAT_TUNING_SET_NOT_EDITABLE" ||
-    message === "COMBAT_TUNING_SET_NOT_DRAFT" ||
-    message === "COMBAT_TUNING_SET_NOT_ARCHIVED" ||
-    message === "COMBAT_TUNING_ACTIVE_ARCHIVE_REQUIRES_REPLACEMENT"
+    message === "POWER_TUNING_SET_NOT_FOUND" ||
+    message === "POWER_TUNING_SET_NOT_EDITABLE" ||
+    message === "POWER_TUNING_SET_NOT_DRAFT" ||
+    message === "POWER_TUNING_SET_NOT_ARCHIVED" ||
+    message === "POWER_TUNING_ACTIVE_ARCHIVE_REQUIRES_REPLACEMENT"
   ) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  console.error("[ADMIN_COMBAT_TUNING]", error);
+  console.error("[ADMIN_POWER_TUNING]", error);
   return NextResponse.json(
     process.env.NODE_ENV === "production"
       ? { error: "Server error" }
@@ -95,7 +95,7 @@ function errorResponse(error: unknown) {
   );
 }
 
-function parseFinitePositiveNumber(value: unknown): number | null {
+function parseFiniteNonNegativeNumber(value: unknown): number | null {
   const numericValue =
     typeof value === "number"
       ? value
@@ -103,7 +103,7 @@ function parseFinitePositiveNumber(value: unknown): number | null {
         ? Number(value)
         : Number.NaN;
 
-  if (!Number.isFinite(numericValue) || numericValue <= 0) return null;
+  if (!Number.isFinite(numericValue) || numericValue < 0) return null;
   return numericValue;
 }
 
@@ -119,8 +119,8 @@ function validateValues(input: unknown): Record<string, number> {
 
   const values: Record<string, number> = {};
   for (const [key, value] of Object.entries(input)) {
-    if (!KNOWN_COMBAT_TUNING_KEYS.has(key)) throw new Error("INVALID_VALUES");
-    const parsed = parseFinitePositiveNumber(value);
+    if (!KNOWN_POWER_TUNING_KEYS.has(key)) throw new Error("INVALID_VALUES");
+    const parsed = parseFiniteNonNegativeNumber(value);
     if (parsed === null) throw new Error("INVALID_VALUES");
     values[key] = parsed;
   }
@@ -134,7 +134,7 @@ function validateNotesByKey(input: unknown): Record<string, string> | undefined 
 
   const notesByKey: Record<string, string> = {};
   for (const [key, value] of Object.entries(input)) {
-    if (!KNOWN_COMBAT_TUNING_KEYS.has(key)) throw new Error("INVALID_NOTES");
+    if (!KNOWN_POWER_TUNING_KEYS.has(key)) throw new Error("INVALID_NOTES");
     if (value == null) continue;
     if (typeof value !== "string") throw new Error("INVALID_NOTES");
     notesByKey[key] = value;
@@ -143,16 +143,16 @@ function validateNotesByKey(input: unknown): Record<string, string> | undefined 
 }
 
 async function buildAdminResponse(selectedSetId?: string | null) {
-  const activeSnapshot = await ensureSeedCombatTuningSet();
+  const activeSnapshot = await ensureSeedPowerTuningSet();
   const selectedSnapshot = selectedSetId
-    ? await getCombatTuningSetById(selectedSetId)
+    ? await getPowerTuningSetById(selectedSetId)
     : activeSnapshot;
 
-  if (!selectedSnapshot) throw new Error("COMBAT_TUNING_SET_NOT_FOUND");
+  if (!selectedSnapshot) throw new Error("POWER_TUNING_SET_NOT_FOUND");
 
   return {
     activeSetId: activeSnapshot.setId,
-    sets: await listCombatTuningSets(),
+    sets: await listPowerTuningSets(),
     selectedSet: selectedSnapshot,
   };
 }
@@ -179,7 +179,7 @@ export async function POST(req: Request) {
       throw new Error("INVALID_ACTION");
     }
 
-    const createdSet = await createDraftCombatTuningSetFromActive({
+    const createdSet = await createDraftPowerTuningSetFromActive({
       name: typeof body.name === "string" ? body.name : undefined,
       notes: typeof body.notes === "string" ? body.notes : undefined,
     });
@@ -210,31 +210,31 @@ export async function PUT(req: Request) {
       const setId = validateSetId(body.setId);
       const values = validateValues(body.values);
       const notesByKey = validateNotesByKey(body.notesByKey);
-      const selectedSet = await saveCombatTuningSetValues(setId, values, notesByKey);
+      const selectedSet = await savePowerTuningSetValues(setId, values, notesByKey);
       return NextResponse.json(await buildAdminResponse(selectedSet.setId));
     }
 
     if (body?.action === "activateDraft") {
       const setId = validateSetId(body.setId);
-      const selectedSet = await activateCombatTuningSet(setId);
+      const selectedSet = await activatePowerTuningSet(setId);
       return NextResponse.json(await buildAdminResponse(selectedSet.setId));
     }
 
     if (body?.action === "archiveSet") {
       const setId = validateSetId(body.setId);
-      const selectedSet = await archiveCombatTuningSet(setId);
+      const selectedSet = await archivePowerTuningSet(setId);
       return NextResponse.json(await buildAdminResponse(selectedSet.setId));
     }
 
     if (body?.action === "unarchiveSet") {
       const setId = validateSetId(body.setId);
-      const selectedSet = await unarchiveCombatTuningSet(setId);
+      const selectedSet = await unarchivePowerTuningSet(setId);
       return NextResponse.json(await buildAdminResponse(selectedSet.setId));
     }
 
     if (body?.action === "deleteArchivedSet") {
       const setId = validateSetId(body.setId);
-      await deleteArchivedCombatTuningSet(setId);
+      await deleteArchivedPowerTuningSet(setId);
       return NextResponse.json(await buildAdminResponse());
     }
 

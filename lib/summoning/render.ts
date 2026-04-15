@@ -1,12 +1,19 @@
 import { buildDescriptorResult } from "@/lib/descriptors/descriptorEngine";
 import { renderForgeResult } from "@/lib/descriptors/renderers/forgeRenderer";
-import type {
-  EffectPacket,
-  MonsterNaturalAttackConfig,
-  Power,
-  PrimaryDefenceGate,
+import {
+  LEGACY_TRIGGER_CONDITION_TEXT_KEY,
+  MAX_POWER_PACKET_DAMAGE_TYPES,
+  RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
+  RESIST_THEME_VALUES,
+  TRIGGER_CONDITION_KEYS,
+  type TriggerConditionKey,
+  type EffectPacket,
+  type MonsterNaturalAttackConfig,
+  type Power,
+  type PrimaryDefenceGate,
+  type ResistTheme,
+  type ReserveReleaseBehaviour,
 } from "@/lib/summoning/types";
-
 function clampEffectiveModifier(raw: number): number {
   return Math.max(-5, Math.min(5, raw));
 }
@@ -67,6 +74,14 @@ const CONTROL_THEME_TO_RESIST_ATTRIBUTE = new Map<string, string>([
   ["OFFENSIVE_EXECUTION", "ATTACK"],
   ["DEFENSIVE_COORDINATION", "DEFENCE"],
 ]);
+const TRIGGER_CONDITION_SET = new Set<TriggerConditionKey>(TRIGGER_CONDITION_KEYS);
+const TRIGGER_AREA_PRESENCE_KEYS = new Set<TriggerConditionKey>([
+  "AREA_ENTERS",
+  "AREA_LEAVES",
+  "AREA_STARTS_TURN",
+  "AREA_ENDS_TURN",
+]);
+const RESIST_THEME_SET = new Set<ResistTheme>(RESIST_THEME_VALUES);
 
 function normalizeControlMode(value: unknown): string {
   const raw = typeof value === "string" ? value.trim() : "";
@@ -92,6 +107,14 @@ function getCleanseThemeResistAttribute(details: Record<string, unknown>): strin
   const cleanseTheme =
     typeof details.cleanseTheme === "string" ? details.cleanseTheme.trim().toUpperCase() : "";
   return CONTROL_THEME_TO_RESIST_ATTRIBUTE.get(cleanseTheme) ?? null;
+}
+
+function getMovementThemeResistAttribute(details: Record<string, unknown>): string | null {
+  const movementTheme =
+    typeof details.movementTheme === "string" ? details.movementTheme.trim().toUpperCase() : "";
+  return RESIST_THEME_SET.has(movementTheme as ResistTheme)
+    ? (CONTROL_THEME_TO_RESIST_ATTRIBUTE.get(movementTheme) ?? null)
+    : null;
 }
 
 function readPacketApplyTo(
@@ -293,8 +316,61 @@ function readPacketTriggerConditionText(effectPacket: EffectPacket | undefined):
   return String(
     effectPacket?.triggerConditionText ??
       getDetailsString(details, "triggerConditionText") ??
-      getDetailsString(details, "effectTriggerText"),
+      getDetailsString(details, LEGACY_TRIGGER_CONDITION_TEXT_KEY),
   ).trim();
+}
+
+function normalizeTriggerConditionKey(value: unknown): TriggerConditionKey | null {
+  return TRIGGER_CONDITION_SET.has(value as TriggerConditionKey)
+    ? (value as TriggerConditionKey)
+    : null;
+}
+
+function mapLegacyTriggerConditionTextToKey(value: unknown): TriggerConditionKey | null {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  if (
+    /(crosses?|enters?)\b/.test(normalized) &&
+    /\b(area|warded space|targeted space)\b/.test(normalized)
+  ) {
+    return "AREA_ENTERS";
+  }
+  if (/\bleaves?\b/.test(normalized) && /\b(area|warded space|targeted space)\b/.test(normalized)) {
+    return "AREA_LEAVES";
+  }
+  if (
+    /\bstarts?\b/.test(normalized) &&
+    /\bturn\b/.test(normalized) &&
+    /\b(area|warded space|targeted space)\b/.test(normalized)
+  ) {
+    return "AREA_STARTS_TURN";
+  }
+  if (
+    /\bends?\b/.test(normalized) &&
+    /\bturn\b/.test(normalized) &&
+    /\b(area|warded space|targeted space)\b/.test(normalized)
+  ) {
+    return "AREA_ENDS_TURN";
+  }
+  if (/\bmoves?\b/.test(normalized)) return "MOVES";
+  if (/\bmakes? an attack\b|\bweapon attack\b|\battacks?\b/.test(normalized)) return "MAKES_ATTACK";
+  if (/\bactivates? a power\b|\buses? a power\b|\bcasts? a power\b/.test(normalized)) {
+    return "ACTIVATES_POWER";
+  }
+  if (/\bsuffers? wounds\b|\btakes? wounds\b/.test(normalized)) return "SUFFERS_WOUNDS";
+  if (/\bheals? wounds\b|\brecovers? wounds\b|\bregains? wounds\b/.test(normalized)) {
+    return "HEALS_WOUNDS";
+  }
+  if (/\bsuffers? an effect\b|\bis affected\b/.test(normalized)) return "SUFFERS_EFFECT";
+  if (/\bgains? an effect\b|\breceives? an effect\b/.test(normalized)) return "GAINS_EFFECT";
+  if (/\buses? an item\b|\buses? item\b/.test(normalized)) return "USES_ITEM";
+  if (/\bdefence roll\b|\bdodge roll\b/.test(normalized)) return "MAKES_DEFENCE_ROLL";
+  if (/\bresist roll\b|\bresistance roll\b/.test(normalized)) return "MAKES_RESIST_ROLL";
+  return null;
+}
+
+function readTriggerConditionKey(value: unknown): TriggerConditionKey | null {
+  return normalizeTriggerConditionKey(value) ?? mapLegacyTriggerConditionTextToKey(value);
 }
 
 function readSecondaryScalingMode(details: Record<string, unknown>): "PER_SUCCESS" | "PRIMARY_APPLIED_SUCCESSES" | "PRIMARY_WOUND_BANDS" {
@@ -326,7 +402,10 @@ function deriveWoundsPerSuccessFromPrimaryPacket(
     .map((entry) => entry.trim())
     .filter(Boolean).length;
   const potency = Math.max(1, Number(primaryPacket.potency ?? 1));
-  const effectiveDamageTypeCount = Math.max(1, selectedDamageTypeCount);
+  const effectiveDamageTypeCount = Math.max(
+    1,
+    Math.min(MAX_POWER_PACKET_DAMAGE_TYPES, selectedDamageTypeCount),
+  );
   return potency * 2 * effectiveDamageTypeCount;
 }
 
@@ -397,17 +476,53 @@ function formatCountedUnit(
   return `${count ?? "?"} ${noun}`;
 }
 
-function shouldDefineReleaseBehaviour(
-  descriptorChassisConfig: Record<string, unknown>,
-): boolean {
-  const value = descriptorChassisConfig.defineReleaseBehaviour;
-  if (typeof value === "boolean") return value;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === "true") return true;
-    if (normalized === "false") return false;
+const RESERVE_RELEASE_BEHAVIOUR_SET = new Set<ReserveReleaseBehaviour>(RESERVE_RELEASE_BEHAVIOUR_OPTIONS);
+
+function coerceReserveReleaseBehaviour(
+  value: unknown,
+): ReserveReleaseBehaviour | null {
+  return RESERVE_RELEASE_BEHAVIOUR_SET.has(value as ReserveReleaseBehaviour)
+    ? (value as ReserveReleaseBehaviour)
+    : null;
+}
+
+function mapLegacyReleaseBehaviourTextToKey(
+  value: unknown,
+): ReserveReleaseBehaviour | null {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  if (/\b(expiry|expire|expires|expired)\b/.test(normalized)) return "ON_EXPIRY";
+  if (/\bresponse only\b/.test(normalized)) return "RESPONSE_ONLY";
+  if (/\bpower action only\b/.test(normalized)) return "ACTION_ONLY";
+  if (/\bpower action\b/.test(normalized) && /\bresponse\b/.test(normalized)) {
+    return "ACTION_OR_RESPONSE";
   }
-  return readDescriptorConfigText(descriptorChassisConfig, "releaseBehaviourText").length > 0;
+  if (/\bresponse\b/.test(normalized)) return "RESPONSE_ONLY";
+  if (/\bpower action\b/.test(normalized) || /\baction\b/.test(normalized)) return "ACTION_ONLY";
+  return null;
+}
+
+function readReserveReleaseBehaviour(
+  descriptorChassisConfig: Record<string, unknown>,
+): ReserveReleaseBehaviour {
+  return coerceReserveReleaseBehaviour(descriptorChassisConfig.releaseBehaviour) ??
+    mapLegacyReleaseBehaviourTextToKey(descriptorChassisConfig.releaseBehaviourText) ??
+    "ACTION_OR_RESPONSE";
+}
+
+function renderReserveReleaseBehaviourSentence(
+  releaseBehaviour: ReserveReleaseBehaviour,
+): string {
+  switch (releaseBehaviour) {
+    case "ACTION_ONLY":
+      return "It may be released with a Power Action on your turn only.";
+    case "RESPONSE_ONLY":
+      return "It may be released as a Response only.";
+    case "ON_EXPIRY":
+      return "It releases automatically when it expires.";
+    default:
+      return "It may be released with a Power Action on your turn or as a Response.";
+  }
 }
 
 function normalizeTriggerMethod(value: unknown): "ARM_AND_THEN_TARGET" | "TARGET_AND_THEN_ARM" {
@@ -678,7 +793,8 @@ function derivePrimaryDefenceCheck(
     const resistAttribute = getControlThemeResistAttribute(details);
     checkLabel = resistAttribute ? `${humanizeLabel(resistAttribute)} Resist` : "Resist";
   } else if (intention.intention === "MOVEMENT") {
-    checkLabel = "Resist";
+    const resistAttribute = getMovementThemeResistAttribute(details);
+    checkLabel = resistAttribute ? `${humanizeLabel(resistAttribute)} Resist` : "Resist";
   } else if (intention.intention === "DEBUFF") {
     const statTarget = normalizeCoreDefenceStat(readStatTarget(details));
     checkLabel = statTarget ? `${statTarget} Resist` : "Resist";
@@ -855,6 +971,13 @@ function renderAttachedAnchorText(
   return legacyAnchorText || "the chosen host";
 }
 
+function isAttachedSelfHost(
+  anchorType: Power["attachedHostAnchorType"],
+  anchorText: string,
+): boolean {
+  return anchorType === "SELF" || /^(self|yourself)$/i.test(anchorText.trim());
+}
+
 function renderAttachedSelfHostPhrase(anchorText: string): string {
   const trimmed = anchorText.trim();
   if (!trimmed) return "yourself";
@@ -1010,6 +1133,7 @@ function renderTriggerWatchTargetPhrase(
   if (rangeCategory === "AOE") {
     return aoeCount > 1 ? `targets within the chosen areas` : "targets within the chosen area";
   }
+  if (rangeCategory === "SELF") return "self";
   return "a target";
 }
 
@@ -1030,6 +1154,7 @@ function renderTriggerArmedSubject(
   if (rangeCategory === "AOE") {
     return aoeCount > 1 ? "those areas" : "that area";
   }
+  if (rangeCategory === "SELF") return "self";
   return "that target";
 }
 
@@ -1039,6 +1164,209 @@ function renderTriggerSelectionPhrase(
   rangeExtra: Record<string, unknown>,
 ): string {
   return lowercaseSentenceStart(stripTrailingPeriod(buildRangeLead(undefined, rangeCategory, rangeValue, rangeExtra)));
+}
+
+function renderTargetLockedTriggerSubject(
+  triggerConditionKey: TriggerConditionKey,
+  rangeCategory: string,
+  rangeValue: number | null,
+  rangeExtra: Record<string, unknown>,
+): string {
+  const meleeTargets = asNumber(rangeValue) ?? 1;
+  const rangedTargets = asNumber(rangeExtra.targets) ?? 1;
+  if (rangeCategory === "SELF") return "you";
+  if (rangeCategory === "MELEE") return meleeTargets > 1 ? "a target" : "the target";
+  if (rangeCategory === "RANGED") return rangedTargets > 1 ? "a target" : "the target";
+  if (rangeCategory === "AOE") {
+    return TRIGGER_AREA_PRESENCE_KEYS.has(triggerConditionKey) ? "a target" : "a target in the area";
+  }
+  return "the target";
+}
+
+function renderArmFirstTriggerSubject(
+  triggerConditionKey: TriggerConditionKey,
+  rangeCategory: string,
+  rangeValue: number | null,
+  rangeExtra: Record<string, unknown>,
+): string {
+  if (rangeCategory === "SELF") return "you";
+  if (rangeCategory === "AOE") {
+    if (TRIGGER_AREA_PRESENCE_KEYS.has(triggerConditionKey)) return "a target";
+    if ((rangeValue ?? 0) > 0) return `a target within ${rangeValue ?? "?"} ft`;
+    const aoeShape = getDetailsString(rangeExtra, "shape").trim().toUpperCase() || "SPHERE";
+    const sphereRadius = readNumber(rangeExtra, "sphereRadiusFeet");
+    const coneLength = readNumber(rangeExtra, "coneLengthFeet");
+    const lineLength = readNumber(rangeExtra, "lineLengthFeet");
+    if (aoeShape === "SPHERE") return `a target within ${sphereRadius ?? "?"} ft`;
+    if (aoeShape === "CONE") return `a target within ${coneLength ?? "?"} ft`;
+    if (aoeShape === "LINE") return `a target within ${lineLength ?? "?"} ft`;
+    return "a target in range";
+  }
+  return "a target in range";
+}
+
+function renderArmFirstTriggerResolutionClause(
+  rangeCategory: string,
+  rangeValue: number | null,
+  rangeExtra: Record<string, unknown>,
+): string | null {
+  const meleeTargets = asNumber(rangeValue) ?? 1;
+  const rangedTargets = asNumber(rangeExtra.targets) ?? 1;
+  const aoeCount = asNumber(rangeExtra.count) ?? 1;
+  const aoeShape = getDetailsString(rangeExtra, "shape").trim().toUpperCase() || "SPHERE";
+  const sphereRadius = readNumber(rangeExtra, "sphereRadiusFeet");
+  const coneLength = readNumber(rangeExtra, "coneLengthFeet");
+  const lineWidth = readNumber(rangeExtra, "lineWidthFeet");
+  const lineLength = readNumber(rangeExtra, "lineLengthFeet");
+
+  if (rangeCategory === "MELEE") {
+    return meleeTargets > 1
+      ? `choose up to ${meleeTargets} adjacent targets`
+      : "choose 1 adjacent target";
+  }
+
+  if (rangeCategory === "RANGED") {
+    return rangedTargets > 1
+      ? `choose up to ${rangedTargets} targets within ${rangeValue ?? "?"} ft`
+      : `choose 1 target within ${rangeValue ?? "?"} ft`;
+  }
+
+  if (rangeCategory !== "AOE") return null;
+
+  if ((rangeValue ?? 0) === 0) {
+    if (aoeShape === "SPHERE") {
+      return aoeCount > 1
+        ? `create ${aoeCount} ${sphereRadius ?? "?"} ft radius spheres centered on your current space`
+        : `create a ${sphereRadius ?? "?"} ft radius sphere centered on your current space`;
+    }
+    if (aoeShape === "CONE") {
+      return aoeCount > 1
+        ? `create ${aoeCount} ${coneLength ?? "?"} ft cones emanating from self`
+        : `create a ${coneLength ?? "?"} ft cone emanating from self`;
+    }
+    if (aoeShape === "LINE") {
+      return aoeCount > 1
+        ? `create ${aoeCount} ${lineWidth ?? "?"} ft wide and ${lineLength ?? "?"} ft long lines emanating from self`
+        : `create a ${lineWidth ?? "?"} ft wide and ${lineLength ?? "?"} ft long line emanating from self`;
+    }
+  }
+
+  if (aoeShape === "SPHERE") {
+    return aoeCount > 1
+      ? `choose up to ${aoeCount} ${sphereRadius ?? "?"} ft radius spheres within ${rangeValue ?? "?"} ft`
+      : `choose 1 ${sphereRadius ?? "?"} ft radius sphere within ${rangeValue ?? "?"} ft`;
+  }
+  if (aoeShape === "CONE") {
+    return aoeCount > 1
+      ? `choose up to ${aoeCount} ${coneLength ?? "?"} ft cones within ${rangeValue ?? "?"} ft`
+      : `choose 1 ${coneLength ?? "?"} ft cone within ${rangeValue ?? "?"} ft`;
+  }
+  if (aoeShape === "LINE") {
+    return aoeCount > 1
+      ? `choose up to ${aoeCount} ${lineWidth ?? "?"} ft wide and ${lineLength ?? "?"} ft long lines within ${rangeValue ?? "?"} ft`
+      : `choose 1 ${lineWidth ?? "?"} ft wide and ${lineLength ?? "?"} ft long line within ${rangeValue ?? "?"} ft`;
+  }
+
+  return null;
+}
+
+function pluralizeTriggerAoeAreaPhrases(
+  value: string,
+  rangeCategory: string,
+  rangeExtra: Record<string, unknown>,
+): string {
+  if (rangeCategory !== "AOE") return value;
+  const aoeCount = asNumber(rangeExtra.count) ?? 1;
+  if (aoeCount <= 1) return value;
+  return value.replace(/\bwithin the area\b/gi, "within the areas");
+}
+
+function renderSelfTriggerPrimaryClause(
+  effectPacket: EffectPacket,
+  baseClause: string,
+): string {
+  if (effectPacket.intention === "HEALING") {
+    return `You ${baseClause.replace(/^heals\b/i, "heal")}`;
+  }
+  if (effectPacket.intention === "DEFENCE") {
+    return `You ${baseClause.replace(/^blocks\b/i, "block")}`;
+  }
+  if (effectPacket.intention === "CLEANSE") {
+    return `You ${baseClause.replace(/^removes\b/i, "remove")}`;
+  }
+  if (effectPacket.intention === "AUGMENT") {
+    return `You ${baseClause.replace(/^applies\b/i, "gain")}`;
+  }
+  if (effectPacket.intention === "DEBUFF" || effectPacket.intention === "CONTROL") {
+    return `You ${baseClause.replace(/^applies\b/i, "suffer")}`;
+  }
+  if (effectPacket.intention === "MOVEMENT") {
+    if (/^teleports\b/i.test(baseClause)) return `You ${baseClause.replace(/^teleports\b/i, "teleport")}`;
+    if (/^flies\b/i.test(baseClause)) return `You ${baseClause.replace(/^flies\b/i, "fly")}`;
+    if (/^pushes\b/i.test(baseClause)) return `You are ${baseClause.replace(/^pushes\b/i, "pushed")}`;
+    return `You ${baseClause.replace(/^moves\b/i, "move")}`;
+  }
+  if (effectPacket.intention === "ATTACK") {
+    return `You ${baseClause.replace(/^inflicts\b/i, "inflict")}`;
+  }
+  return `You ${baseClause}`;
+}
+
+function renderTriggerEventClause(
+  triggerConditionKey: TriggerConditionKey,
+  subject: string,
+): string {
+  const isYou = subject === "you";
+  switch (triggerConditionKey) {
+    case "AREA_ENTERS":
+      return isYou ? "you enter the area" : `${subject} enters the area`;
+    case "AREA_LEAVES":
+      return isYou ? "you leave the area" : `${subject} leaves the area`;
+    case "AREA_STARTS_TURN":
+      return isYou ? "you start your turn in the area" : `${subject} starts its turn in the area`;
+    case "AREA_ENDS_TURN":
+      return isYou ? "you end your turn in the area" : `${subject} ends its turn in the area`;
+    case "MOVES":
+      return isYou ? "you move" : `${subject} moves`;
+    case "MAKES_ATTACK":
+      return isYou ? "you make an attack" : `${subject} makes an attack`;
+    case "ACTIVATES_POWER":
+      return isYou ? "you activate a power" : `${subject} activates a power`;
+    case "SUFFERS_WOUNDS":
+      return isYou ? "you suffer wounds" : `${subject} suffers wounds`;
+    case "HEALS_WOUNDS":
+      return isYou ? "you heal wounds" : `${subject} heals wounds`;
+    case "SUFFERS_EFFECT":
+      return isYou ? "you suffer an effect" : `${subject} suffers an effect`;
+    case "GAINS_EFFECT":
+      return isYou ? "you gain an effect" : `${subject} gains an effect`;
+    case "USES_ITEM":
+      return isYou ? "you use an item" : `${subject} uses an item`;
+    case "MAKES_DEFENCE_ROLL":
+      return isYou ? "you make a Defence roll" : `${subject} makes a Defence roll`;
+    case "MAKES_RESIST_ROLL":
+      return isYou ? "you make a Resist roll" : `${subject} makes a Resist roll`;
+  }
+}
+
+function renderPacketTriggerSubject(
+  power: Pick<Power, "descriptorChassis" | "descriptorChassisConfig" | "rangeCategories">,
+  effectPacket: Pick<EffectPacket, "applyTo" | "detailsJson" | "effectTimingType"> | undefined,
+): string {
+  const applyTo = readPacketApplyTo(effectPacket);
+  if (applyTo === "SELF") return "you";
+  if (applyTo === "ALLIES") return "an ally";
+  return "the target";
+}
+
+function renderPacketTriggerText(
+  triggerText: string,
+  power: Pick<Power, "descriptorChassis" | "descriptorChassisConfig" | "rangeCategories"> | undefined,
+  effectPacket: Pick<EffectPacket, "applyTo" | "detailsJson" | "effectTimingType"> | undefined,
+): string {
+  const triggerConditionKey = readTriggerConditionKey(triggerText);
+  if (!triggerConditionKey || !power) return triggerText;
+  return renderTriggerEventClause(triggerConditionKey, renderPacketTriggerSubject(power, effectPacket));
 }
 
 function stripLeadingWhenOrIf(value: string): string {
@@ -1056,7 +1384,7 @@ function renderTriggerActivationSentence(params: {
   rangeValue: number | null;
   rangeExtra: Record<string, unknown>;
   rollClause: string;
-}): string {
+}): string | null {
   const {
     triggerMethod,
     triggerText,
@@ -1065,29 +1393,95 @@ function renderTriggerActivationSentence(params: {
     rangeExtra,
     rollClause,
   } = params;
+  const triggerConditionKey = readTriggerConditionKey(triggerText);
   const cleanTriggerText = stripLeadingWhenOrIf(triggerText);
   const rollOnlyClause = stripTrailingPeriod(rollClause).toLowerCase();
-  const triggerTargetPhrase = renderTriggerWatchTargetPhrase(rangeCategory, rangeValue, rangeExtra);
-  const armedSubject = renderTriggerArmedSubject(rangeCategory, rangeValue, rangeExtra);
   const selectionPhrase = renderTriggerSelectionPhrase(rangeCategory, rangeValue, rangeExtra);
+  const armFirstResolutionClause =
+    triggerMethod === "ARM_AND_THEN_TARGET"
+      ? renderArmFirstTriggerResolutionClause(rangeCategory, rangeValue, rangeExtra)
+      : null;
+
+  if (triggerConditionKey) {
+    const subject =
+      triggerMethod === "ARM_AND_THEN_TARGET"
+        ? renderArmFirstTriggerSubject(triggerConditionKey, rangeCategory, rangeValue, rangeExtra)
+        : renderTargetLockedTriggerSubject(triggerConditionKey, rangeCategory, rangeValue, rangeExtra);
+    const conditionClause = renderTriggerEventClause(triggerConditionKey, subject);
+    return `When ${conditionClause}, ${armFirstResolutionClause ? `${armFirstResolutionClause} and ${rollOnlyClause}` : rollOnlyClause}.`;
+  }
 
   if (!cleanTriggerText) {
-    return triggerMethod === "ARM_AND_THEN_TARGET"
-      ? `When triggered, ${selectionPhrase} and ${rollOnlyClause}.`
-      : `When triggered, ${rollOnlyClause}.`;
+    return null;
   }
 
   if (triggerMethod === "ARM_AND_THEN_TARGET") {
+    const triggerTargetPhrase = renderTriggerWatchTargetPhrase(rangeCategory, rangeValue, rangeExtra);
     if (startsWithTriggerVerbPhrase(cleanTriggerText)) {
-      return `When ${triggerTargetPhrase} ${cleanTriggerText}, ${rollOnlyClause}.`;
+      return `When ${triggerTargetPhrase} ${cleanTriggerText}, ${armFirstResolutionClause ? `${armFirstResolutionClause} and ${rollOnlyClause}` : rollOnlyClause}.`;
     }
     return `When ${cleanTriggerText}, ${selectionPhrase} and ${rollOnlyClause}.`;
   }
 
+  const armedSubject = renderTriggerArmedSubject(rangeCategory, rangeValue, rangeExtra);
   if (startsWithTriggerVerbPhrase(cleanTriggerText)) {
     return `When ${armedSubject} ${cleanTriggerText}, ${rollOnlyClause}.`;
   }
   return `When ${cleanTriggerText}, ${rollOnlyClause}.`;
+}
+
+function isArmFirstEstablishedAreaTriggerCase(params: {
+  descriptorChassis: Power["descriptorChassis"];
+  triggerMethod: "ARM_AND_THEN_TARGET" | "TARGET_AND_THEN_ARM";
+  primaryTimingType: EffectPacket["effectTimingType"] | undefined;
+  triggerConditionKey: TriggerConditionKey | null;
+  rangeCategory: string;
+  rangeValue: number | null;
+  rangeExtra: Record<string, unknown>;
+}): boolean {
+  const aoeShape = getDetailsString(params.rangeExtra, "shape").trim().toUpperCase() || "SPHERE";
+  return params.descriptorChassis === "TRIGGER" &&
+    params.triggerMethod === "ARM_AND_THEN_TARGET" &&
+    (params.primaryTimingType ?? "ON_TRIGGER") === "ON_TRIGGER" &&
+    params.triggerConditionKey !== null &&
+    TRIGGER_AREA_PRESENCE_KEYS.has(params.triggerConditionKey) &&
+    params.rangeCategory === "AOE" &&
+    aoeShape === "SPHERE" &&
+    (params.rangeValue ?? 0) === 0;
+}
+
+function renderEstablishedArmFirstAreaText(
+  rangeExtra: Record<string, unknown>,
+): string | null {
+  const aoeCount = asNumber(rangeExtra.count) ?? 1;
+  const sphereRadius = readNumber(rangeExtra, "sphereRadiusFeet");
+  if (aoeCount > 1) {
+    return `${aoeCount} spheres, each with a ${sphereRadius ?? "?"} ft radius, centered on your current space`;
+  }
+  return `a ${sphereRadius ?? "?"} ft radius sphere centered on your current space`;
+}
+
+function renderEstablishedAreaTriggerSentence(
+  triggerConditionKey: TriggerConditionKey,
+  rangeExtra: Record<string, unknown>,
+  rollClause: string,
+): string {
+  const aoeCount = asNumber(rangeExtra.count) ?? 1;
+  const areaRef = aoeCount > 1 ? "those areas" : "that area";
+  const rollOnlyClause = stripTrailingPeriod(rollClause).toLowerCase();
+
+  switch (triggerConditionKey) {
+    case "AREA_ENTERS":
+      return `When a target enters ${areaRef}, ${rollOnlyClause}.`;
+    case "AREA_LEAVES":
+      return `When a target leaves ${areaRef}, ${rollOnlyClause}.`;
+    case "AREA_STARTS_TURN":
+      return `When a target starts its turn in ${areaRef}, ${rollOnlyClause}.`;
+    case "AREA_ENDS_TURN":
+      return `When a target ends its turn in ${areaRef}, ${rollOnlyClause}.`;
+    default:
+      return `When triggered, ${rollOnlyClause}.`;
+  }
 }
 
 function renderAttachedDefenceTimingText(
@@ -1150,10 +1544,14 @@ function renderPacketTimingPrefix(params: {
   effectTimingType: EffectPacket["effectTimingType"] | undefined;
   isPrimary: boolean;
   triggerText?: string | null;
+  power?: Pick<Power, "descriptorChassis" | "descriptorChassisConfig" | "rangeCategories">;
+  effectPacket?: Pick<EffectPacket, "applyTo" | "detailsJson" | "effectTimingType"> | undefined;
 }): string | null {
   const { descriptorChassis, hostileEntryPattern, effectTimingType, isPrimary } = params;
   const timing = effectTimingType ?? "ON_CAST";
-  const triggerText = stripTrailingPeriod(params.triggerText ?? "");
+  const triggerText = stripTrailingPeriod(
+    renderPacketTriggerText(params.triggerText ?? "", params.power, params.effectPacket),
+  );
 
   if (timing === "ON_CAST") {
     if (descriptorChassis === "FIELD" && isPrimary) return "When this field is created,";
@@ -1179,7 +1577,7 @@ function renderPacketTimingPrefix(params: {
       return "While attached, when its stored effect is triggered,";
     }
     if (descriptorChassis === "TRIGGER" && isPrimary) {
-      return "When the trigger is sprung,";
+      return null;
     }
     return "When triggered,";
   }
@@ -1209,6 +1607,8 @@ function renderDescriptorTimingPrefix(params: {
   effectTimingType: EffectPacket["effectTimingType"] | undefined;
   isPrimary: boolean;
   triggerText?: string | null;
+  power?: Pick<Power, "descriptorChassis" | "descriptorChassisConfig" | "rangeCategories">;
+  effectPacket?: Pick<EffectPacket, "applyTo" | "detailsJson" | "effectTimingType"> | undefined;
   commitmentModifier?: Power["commitmentModifier"] | null;
   hasMultipleTimingGroups?: boolean;
   useCastWordingForRelease?: boolean;
@@ -1231,6 +1631,8 @@ function renderDescriptorTimingPrefix(params: {
     effectTimingType: params.effectTimingType,
     isPrimary: params.isPrimary,
     triggerText: params.triggerText,
+    power: params.power,
+    effectPacket: params.effectPacket,
   });
   if (basePrefix) return basePrefix;
   if (timing === "ON_CAST" && params.hasMultipleTimingGroups) return "On cast,";
@@ -1381,19 +1783,20 @@ function renderSecondaryScalingLead(
   return `For every ${woundsPerSuccess} wounds inflicted, rounding up, it also`;
 }
 
-function renderSecondaryPacketBody(params: {
+type SecondaryRenderPower = Pick<
+  Power,
+  | "potency"
+  | "effectPackets"
+  | "intentions"
+  | "descriptorChassis"
+  | "descriptorChassisConfig"
+  | "commitmentModifier"
+  | "rangeCategories"
+>;
+
+function renderSecondaryPacketPayload(params: {
   effectPacket: EffectPacket;
-  power: Pick<
-    Power,
-    | "potency"
-    | "effectPackets"
-    | "intentions"
-    | "descriptorChassis"
-    | "descriptorChassisConfig"
-    | "commitmentModifier"
-    | "rangeCategories"
-  >;
-  suppressRecurringCadence?: boolean;
+  power: SecondaryRenderPower;
   omitPrimaryRecipientContext?: boolean;
 }): string | null {
   const { effectPacket, power } = params;
@@ -1413,45 +1816,24 @@ function renderSecondaryPacketBody(params: {
     effectPacket,
     omitRecipientContext,
   );
-  const durationSuffix = renderPacketEffectDurationSuffix(effectPacket);
-  const repeatingDirectEffectSuffix = renderRepeatingDirectEffectSuffix(effectPacket);
+  return baseClause;
+}
+
+function renderSecondaryPacketBody(params: {
+  effectPacket: EffectPacket;
+  power: SecondaryRenderPower;
+  suppressRecurringCadence?: boolean;
+  omitPrimaryRecipientContext?: boolean;
+}): string | null {
+  const baseClause = renderSecondaryPacketPayload(params);
+  if (!baseClause) return null;
+  const durationSuffix = renderPacketEffectDurationSuffix(params.effectPacket);
+  const repeatingDirectEffectSuffix = renderRepeatingDirectEffectSuffix(params.effectPacket);
   if (isRepeatingDirectImmediateSecondary(params) && repeatingDirectEffectSuffix) {
     if (params.suppressRecurringCadence) return baseClause;
     return `${baseClause} ${repeatingDirectEffectSuffix}`;
   }
   return `${baseClause}${durationSuffix ? ` ${durationSuffix}` : ""}`;
-}
-
-function renderSecondaryPacketBodyWithInlineTiming(params: {
-  effectPacket: EffectPacket;
-  power: Pick<
-    Power,
-    | "potency"
-    | "effectPackets"
-    | "intentions"
-    | "descriptorChassis"
-    | "descriptorChassisConfig"
-    | "commitmentModifier"
-    | "rangeCategories"
-  >;
-  timingPrefix: string | null;
-  omitPrimaryRecipientContext?: boolean;
-}): string | null {
-  const body = renderSecondaryPacketBody({
-    effectPacket: params.effectPacket,
-    power: params.power,
-    omitPrimaryRecipientContext: params.omitPrimaryRecipientContext,
-  });
-  if (!body) return null;
-  const cleanTiming = params.timingPrefix ? lowercaseSentenceStart(stripTrailingComma(params.timingPrefix)) : "";
-  if (!cleanTiming) return stripTrailingPeriod(body);
-  const cleanBody = stripTrailingPeriod(body);
-  const durationSuffix = renderPacketEffectDurationSuffix(params.effectPacket);
-  if (durationSuffix && cleanBody.endsWith(` ${durationSuffix}`)) {
-    const baseWithoutDuration = cleanBody.slice(0, -(` ${durationSuffix}`).length);
-    return `${baseWithoutDuration} ${cleanTiming} ${durationSuffix}`;
-  }
-  return `${cleanBody} ${cleanTiming}`;
 }
 
 type CleanupLane = {
@@ -1521,36 +1903,177 @@ function buildOngoingDamageCleanupLane(params: {
 }
 
 function renderCleanupLine(lane: CleanupLane): string {
-  return `${lane.subject} may use ${lane.actionWindow} to attempt a ${lane.resistAttribute} Resist roll to ${lane.removalText}.`;
+  return `${lane.subject} may use a resist action to attempt a ${lane.resistAttribute} Resist roll to ${lane.removalText}.`;
 }
 
 function stripPerSuccess(text: string): string {
   return text.replace(/\s+per success\.?$/i, "").trim();
 }
 
+function joinWithOr(items: string[]): string {
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} or ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, or ${items[items.length - 1]}`;
+}
+
 function renderCleanupLines(lanes: Array<CleanupLane | null | undefined>): string[] {
   const filtered = lanes.filter((lane): lane is CleanupLane => Boolean(lane));
   if (filtered.length <= 1) return filtered.map(renderCleanupLine);
-  if (filtered.length > 2) return filtered.map(renderCleanupLine);
-  const [first, second] = filtered;
-  if (first.subject !== second.subject || first.actionWindow !== second.actionWindow) {
+  const [first] = filtered;
+  if (
+    filtered.some(
+      (lane) => lane.subject !== first.subject || lane.actionWindow !== first.actionWindow,
+    )
+  ) {
     return filtered.map(renderCleanupLine);
   }
-  if (first.resistAttribute === second.resistAttribute) {
-    return [
-      `${first.subject} may use ${first.actionWindow} to attempt a ${first.resistAttribute} Resist roll to ${stripPerSuccess(first.removalText)} or ${stripPerSuccess(second.removalText)} per success.`,
-    ];
+
+  const groupedByResist = filtered.reduce(
+    (groups, lane) => {
+      const existing = groups.find((group) => group.resistAttribute === lane.resistAttribute);
+      if (existing) {
+        existing.lanes.push(lane);
+        return groups;
+      }
+      groups.push({ resistAttribute: lane.resistAttribute, lanes: [lane] });
+      return groups;
+    },
+    [] as Array<{ resistAttribute: string; lanes: CleanupLane[] }>,
+  );
+
+  const actionLines = groupedByResist.map(({ resistAttribute, lanes: groupLanes }) => {
+    if (groupLanes.length === 1) {
+      return `- ${resistAttribute} Resist roll to ${groupLanes[0].removalText}.`;
+    }
+    const removalOptions = groupLanes.map((lane) => stripPerSuccess(lane.removalText));
+    return `- ${resistAttribute} Resist roll to either ${joinWithOr(removalOptions)} per success.`;
+  });
+
+  if (actionLines.length > 0) {
+    return ["Resist Actions:", ...actionLines];
   }
-  return [
-    `${first.subject} may use ${first.actionWindow} to attempt a ${first.resistAttribute} Resist roll to ${stripPerSuccess(first.removalText)}, or a ${second.resistAttribute} Resist roll to ${stripPerSuccess(second.removalText)}, per success.`,
-  ];
+
+  return filtered.map(renderCleanupLine);
 }
 
 function renderSecondaryBulletLine(timingPrefix: string, mergedBody: string): string {
   const cleanTiming = stripTrailingComma(timingPrefix);
   const cleanBody = stripTrailingPeriod(mergedBody);
   if (!cleanTiming) return `- ${capitalizeSentenceStart(cleanBody)}.`;
+  const durationSuffix = [
+    "until the start of the target's next turn",
+    "until it ends or is removed",
+  ].find((suffix) => cleanBody.endsWith(` ${suffix}`)) ??
+    (/ for \d+ turns?$/.exec(cleanBody)?.[0].trim() ?? null);
+  if (durationSuffix) {
+    const baseWithoutDuration = cleanBody.slice(0, -(` ${durationSuffix}`).length);
+    return `- ${capitalizeSentenceStart(baseWithoutDuration)} ${lowercaseSentenceStart(cleanTiming)} ${durationSuffix}.`;
+  }
   return `- ${capitalizeSentenceStart(cleanBody)} ${lowercaseSentenceStart(cleanTiming)}.`;
+}
+
+type SecondaryRenderEntry = {
+  effectPacket: EffectPacket;
+  authoringIndex: number;
+  displayTimingKey: EffectPacket["effectTimingType"];
+  timingPrefix: string;
+  inlineClause: string;
+  body: string;
+};
+
+function getSecondaryMergeContextKey(
+  entry: SecondaryRenderEntry,
+  power: SecondaryRenderPower,
+): string {
+  const applyTo = readPacketApplyTo(entry.effectPacket);
+  const durationType = entry.effectPacket.effectDurationType ?? "INSTANT";
+  const durationTurns = durationType === "TURNS" ? (entry.effectPacket.effectDurationTurns ?? 1) : null;
+  const entity = applyToEntity(applyTo, power, entry.effectPacket);
+  return [
+    entry.displayTimingKey,
+    entry.timingPrefix,
+    applyTo,
+    entity,
+    durationType,
+    durationTurns,
+    power.descriptorChassis ?? "",
+  ].join("|");
+}
+
+function renderMergedSecondaryContextBody(
+  entries: SecondaryRenderEntry[],
+  power: SecondaryRenderPower,
+): string | null {
+  if (entries.length === 0) return null;
+  if (entries.length === 1) return entries[0].body;
+
+  const payloads = entries
+    .map((entry) =>
+      renderSecondaryPacketPayload({
+        effectPacket: entry.effectPacket,
+        power,
+        omitPrimaryRecipientContext: true,
+      }),
+    )
+    .filter((payload): payload is string => Boolean(payload));
+  if (payloads.length !== entries.length || payloads.some((payload) => !/^applies\b/i.test(payload))) {
+    return null;
+  }
+
+  const firstPacket = entries[0].effectPacket;
+  const applyTo = readPacketApplyTo(firstPacket);
+  const entity = applyToEntity(applyTo, power, firstPacket);
+  const durationSuffix = renderPacketEffectDurationSuffix(firstPacket);
+  const mergedPayload = [
+    payloads[0],
+    ...payloads.slice(1).map((payload) => payload.replace(/^applies\s+/i, "")),
+  ];
+
+  return `${joinWithCommasAnd(mergedPayload)} to ${entity}${durationSuffix ? ` ${durationSuffix}` : ""}`;
+}
+
+function buildSecondaryContextBodies(
+  entries: SecondaryRenderEntry[],
+  power: SecondaryRenderPower,
+): string[] {
+  const groups = entries.reduce(
+    (acc, entry) => {
+      const key = getSecondaryMergeContextKey(entry, power);
+      const existing = acc.find((group) => group.key === key);
+      if (existing) {
+        existing.entries.push(entry);
+        return acc;
+      }
+      acc.push({ key, entries: [entry] });
+      return acc;
+    },
+    [] as Array<{ key: string; entries: SecondaryRenderEntry[] }>,
+  );
+
+  return groups.flatMap((group) => {
+    const merged = renderMergedSecondaryContextBody(group.entries, power);
+    if (merged) return [merged];
+    return group.entries.map((entry) => entry.body);
+  });
+}
+
+function renderSecondaryMergedBodyWithInlineTiming(
+  entries: SecondaryRenderEntry[],
+  power: SecondaryRenderPower,
+  timingPrefix: string,
+): string[] {
+  const cleanTiming = lowercaseSentenceStart(stripTrailingComma(timingPrefix));
+  return buildSecondaryContextBodies(entries, power).map((body) => {
+    if (!cleanTiming) return body;
+    const cleanBody = stripTrailingPeriod(body);
+    const durationSuffix = renderPacketEffectDurationSuffix(entries[0]?.effectPacket);
+    if (durationSuffix && cleanBody.endsWith(` ${durationSuffix}`)) {
+      const baseWithoutDuration = cleanBody.slice(0, -(` ${durationSuffix}`).length);
+      return `${baseWithoutDuration} ${cleanTiming} ${durationSuffix}`;
+    }
+    return `${cleanBody} ${cleanTiming}`;
+  });
 }
 
 export function renderPowerSuccessClause(power: Pick<Power, "potency" | "effectPackets" | "intentions">): string {
@@ -1619,7 +2142,7 @@ export function renderPowerDescriptorLines(
     power.chargeTurns,
     power.chargeBonusDicePerTurn,
   );
-  const defineReleaseBehaviour = shouldDefineReleaseBehaviour(descriptorChassisConfig);
+  const reserveReleaseBehaviour = readReserveReleaseBehaviour(descriptorChassisConfig);
   const triggerMethod = normalizeTriggerMethod(power.triggerMethod ?? descriptorChassisConfig.triggerMethod);
   const rangeCategory = getDetailsString(primaryDetails, "rangeCategory").trim().toUpperCase();
   const rangeValue = asNumber(primaryDetails.rangeValue);
@@ -1636,7 +2159,15 @@ export function renderPowerDescriptorLines(
     power.descriptorChassis === "FIELD"
       ? genericRangeLead.replace(/^Choose\b/i, "Create")
       : genericRangeLead;
+  const triggerConditionKey =
+    power.descriptorChassis === "TRIGGER"
+      ? readTriggerConditionKey(
+          primaryPacket?.triggerConditionText ??
+            readDescriptorConfigText(descriptorChassisConfig, "triggerConditionText"),
+        )
+      : null;
   const triggerPayloadText =
+    triggerConditionKey ??
     readDescriptorConfigText(descriptorChassisConfig, "triggerConditionText");
   const primaryPacketTriggerConditionText =
     readPacketTriggerConditionText(primaryPacket) ||
@@ -1682,6 +2213,8 @@ export function renderPowerDescriptorLines(
       power.descriptorChassis === "TRIGGER"
         ? (triggerPayloadText || primaryPacketTriggerConditionText)
         : primaryPacketTriggerConditionText,
+    power,
+    effectPacket: primaryPacket,
     commitmentModifier: power.commitmentModifier,
     hasMultipleTimingGroups,
     useCastWordingForRelease: useNonReserveChargeCastWording,
@@ -1718,15 +2251,13 @@ export function renderPowerDescriptorLines(
 
     if (power.descriptorChassis === "RESERVE") {
       const reserveHoldClause = buildReserveHoldClause(power);
-      const releaseBehaviourText = defineReleaseBehaviour
-        ? readDescriptorConfigText(descriptorChassisConfig, "releaseBehaviourText")
-        : "";
+      const releaseBehaviourSentence = renderReserveReleaseBehaviourSentence(reserveReleaseBehaviour);
 
       if (chargeConfig.chargeType === "BUILD_POWER") {
         return [
           `Charge ${power.name} for up to ${formatCountedUnit(chargeConfig.chargeTurns, "turn")}, gaining +${formatDieCount(chargeConfig.chargeBonusDicePerTurn ?? 1)} per turn before release.`,
           `Once charged, it may be held in reserve${reserveHoldClause}.`,
-          releaseBehaviourText ? `${stripTrailingPeriod(releaseBehaviourText)}.` : null,
+          releaseBehaviourSentence,
         ]
           .filter((segment): segment is string => Boolean(segment))
           .join(" ")
@@ -1737,7 +2268,7 @@ export function renderPowerDescriptorLines(
       return [
         `After ${power.name} has been charged for ${formatCountedUnit(chargeConfig.chargeTurns, "turn")}, it becomes primed.`,
         `Once primed, it can be held in reserve${reserveHoldClause}.`,
-        releaseBehaviourText ? `${stripTrailingPeriod(releaseBehaviourText)}.` : null,
+        releaseBehaviourSentence,
       ]
         .filter((segment): segment is string => Boolean(segment))
         .join(" ")
@@ -1776,14 +2307,14 @@ export function renderPowerDescriptorLines(
       if (chargeConfig) {
         return null;
       }
-      const releaseBehaviourText = defineReleaseBehaviour
-        ? readDescriptorConfigText(descriptorChassisConfig, "releaseBehaviourText")
-        : "";
       const reserveLifespanText = buildReserveHoldClause(power);
-      if (releaseBehaviourText) {
-        return `Hold this power in reserve${reserveLifespanText}. ${stripTrailingPeriod(releaseBehaviourText)}.`;
-      }
-      return `Hold this power in reserve${reserveLifespanText}.`;
+      return [
+        `Hold this power in reserve${reserveLifespanText}.`,
+        renderReserveReleaseBehaviourSentence(reserveReleaseBehaviour),
+      ]
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
     }
     return null;
   })();
@@ -1846,16 +2377,18 @@ export function renderPowerDescriptorLines(
         : displayTimingKey === "ON_CAST"
           ? "On cast,"
           : (renderDescriptorTimingPrefix({
-              descriptorChassis: power.descriptorChassis,
-              hostileEntryPattern: power.primaryDefenceGate?.hostileEntryPattern,
-              effectTimingType: displayTimingKey,
-              isPrimary: false,
-              triggerText: readPacketTriggerConditionText(effectPacket),
-              commitmentModifier: power.commitmentModifier,
-              hasMultipleTimingGroups,
-              useCastWordingForRelease: useNonReserveChargeCastWording,
-              useCastWordingForOnCast: useNonReserveDelayedCastPrefix,
-            }) ?? "After the primary effect,");
+          descriptorChassis: power.descriptorChassis,
+          hostileEntryPattern: power.primaryDefenceGate?.hostileEntryPattern,
+          effectTimingType: displayTimingKey,
+          isPrimary: false,
+          triggerText: readPacketTriggerConditionText(effectPacket),
+          power,
+          effectPacket,
+          commitmentModifier: power.commitmentModifier,
+          hasMultipleTimingGroups,
+          useCastWordingForRelease: useNonReserveChargeCastWording,
+          useCastWordingForOnCast: useNonReserveDelayedCastPrefix,
+        }) ?? "After the primary effect,");
       return {
         effectPacket,
         authoringIndex: index,
@@ -1868,20 +2401,35 @@ export function renderPowerDescriptorLines(
     .filter(
       (
         entry,
-      ): entry is {
-        effectPacket: EffectPacket;
-        authoringIndex: number;
-        displayTimingKey: EffectPacket["effectTimingType"];
-        timingPrefix: string;
-        inlineClause: string;
-        body: string;
-      } => Boolean(entry),
+      ): entry is SecondaryRenderEntry => Boolean(entry),
     );
   const distinctSecondaryTimingBuckets = Array.from(
     new Set(contingentSecondaryEntries.map((entry) => entry.timingPrefix)),
   );
+  const hasSplitSecondaryMergeContexts =
+    contingentSecondaryEntries.length > 1 &&
+    (() => {
+      const timingBuckets = contingentSecondaryEntries.reduce(
+        (groups, entry) => {
+          const existing = groups.find((group) => group.timingPrefix === entry.timingPrefix);
+          if (existing) {
+            existing.entries.push(entry);
+            return groups;
+          }
+          groups.push({ timingPrefix: entry.timingPrefix, entries: [entry] });
+          return groups;
+        },
+        [] as Array<{ timingPrefix: string; entries: SecondaryRenderEntry[] }>,
+      );
+      return timingBuckets.some(
+        ({ entries }) =>
+          new Set(entries.map((entry) => getSecondaryMergeContextKey(entry, power))).size > 1,
+      );
+    })();
   const shouldUseSecondaryBulletBlock =
-    contingentSecondaryEntries.length >= 3 || distinctSecondaryTimingBuckets.length >= 2;
+    contingentSecondaryEntries.length >= 3 ||
+    distinctSecondaryTimingBuckets.length >= 2 ||
+    hasSplitSecondaryMergeContexts;
   const sameTimingSecondaryClauses = shouldUseSecondaryBulletBlock
     ? []
     : (() => {
@@ -1890,12 +2438,17 @@ export function renderPowerDescriptorLines(
         );
         if (sameTimingEntries.length === 0) return [] as string[];
         const sharedScalingLead = renderSecondaryScalingLead(power);
-        const sameTimingBodies = sameTimingEntries.map((entry) =>
-          renderSecondaryPacketBody({
-            effectPacket: entry.effectPacket,
-            power,
-            omitPrimaryRecipientContext: true,
-          }) ?? entry.body,
+        const sameTimingBodies = buildSecondaryContextBodies(
+          sameTimingEntries.map((entry) => ({
+            ...entry,
+            body:
+              renderSecondaryPacketBody({
+                effectPacket: entry.effectPacket,
+                power,
+                omitPrimaryRecipientContext: true,
+              }) ?? entry.body,
+          })),
+          power,
         );
         if (!sharedScalingLead) {
           return sameTimingEntries.map((entry) => entry.inlineClause);
@@ -1942,8 +2495,9 @@ export function renderPowerDescriptorLines(
     });
 
     if (power.descriptorChassis === "ATTACHED") {
+      const attachedHostAnchorType = normalizeAttachedHostAnchorType(power.attachedHostAnchorType);
       const anchorText = renderAttachedAnchorText(
-        normalizeAttachedHostAnchorType(power.attachedHostAnchorType),
+        attachedHostAnchorType,
         readLegacyAttachedAnchorText(descriptorChassisConfig),
       );
       const targetPhrase = anchorText || "the chosen host";
@@ -1953,14 +2507,22 @@ export function renderPowerDescriptorLines(
           : power.lifespanType === "PASSIVE"
             ? " until it ends or is removed"
             : "";
-      const attachLine = isSelfOriginSphereRange(rangeCategory, rangeValue, rangeExtra)
-        ? buildAttachedSelfOriginSphereLine({
+      const attachLine = (() => {
+        if (isSelfOriginSphereRange(rangeCategory, rangeValue, rangeExtra)) {
+          return buildAttachedSelfOriginSphereLine({
             rangeExtra,
             anchorText,
             lifespanType: power.lifespanType,
             lifespanTurns: power.lifespanTurns,
-          })
-        : `${stripTrailingPeriod(genericRangeLead)} and attach ${power.name} to ${targetPhrase}${attachedLifespanText}.`;
+          });
+        }
+
+        if (rangeCategory === "SELF" && isAttachedSelfHost(attachedHostAnchorType, anchorText)) {
+          return `Attach ${power.name} to ${targetPhrase}${attachedLifespanText}.`;
+        }
+
+        return `${stripTrailingPeriod(genericRangeLead)} and attach ${power.name} to ${targetPhrase}${attachedLifespanText}.`;
+      })();
       if (power.primaryDefenceGate?.hostileEntryPattern === "ON_PAYLOAD") {
         const triggerLead = renderDescriptorTimingPrefix({
           descriptorChassis: power.descriptorChassis,
@@ -1968,6 +2530,8 @@ export function renderPowerDescriptorLines(
           effectTimingType: primaryDisplayTimingType,
           isPrimary: true,
           triggerText: attachedPayloadTriggerText,
+          power,
+          effectPacket: primaryPacket,
           commitmentModifier: power.commitmentModifier,
           hasMultipleTimingGroups,
           useCastWordingForRelease: useNonReserveChargeCastWording,
@@ -2062,9 +2626,27 @@ export function renderPowerDescriptorLines(
     }
 
     if (power.descriptorChassis === "TRIGGER") {
+      const isSelfTrigger = rangeCategory === "SELF";
+      const usesEstablishedAreaTriggerWording = isArmFirstEstablishedAreaTriggerCase({
+        descriptorChassis: power.descriptorChassis,
+        triggerMethod,
+        primaryTimingType: primaryPacket?.effectTimingType,
+        triggerConditionKey,
+        rangeCategory,
+        rangeValue,
+        rangeExtra,
+      });
+      const triggerPrimaryBaseClause =
+        primaryPacket && isSelfTrigger
+          ? renderSelfTriggerPrimaryClause(primaryPacket, primaryBaseClause)
+          : pluralizeTriggerAoeAreaPhrases(primaryBaseClause, rangeCategory, rangeExtra);
       const triggerArmedSentence =
-        triggerMethod === "TARGET_AND_THEN_ARM"
+        isSelfTrigger
+          ? `Once cast, ${power.name} remains armed ${renderTriggerArmedDurationText(power)}.`
+          : triggerMethod === "TARGET_AND_THEN_ARM"
           ? `Once cast, ${power.name} remains armed against ${renderTriggerArmedSubject(rangeCategory, rangeValue, rangeExtra)} ${renderTriggerArmedDurationText(power)}.`
+          : usesEstablishedAreaTriggerWording
+          ? `Once cast, ${power.name} remains armed ${renderTriggerArmedDurationText(power)} as ${renderEstablishedArmFirstAreaText(rangeExtra) ?? "an armed area"}.`
           : `Once cast, ${power.name} remains armed ${renderTriggerArmedDurationText(power)}.`;
       const triggerActivationSentence = renderTriggerActivationSentence({
         triggerMethod,
@@ -2078,10 +2660,25 @@ export function renderPowerDescriptorLines(
           chargeConfig,
         }),
       });
+      const triggerRollSentence =
+        usesEstablishedAreaTriggerWording && triggerConditionKey
+          ? renderEstablishedAreaTriggerSentence(
+              triggerConditionKey,
+              rangeExtra,
+              buildPrimaryRollClause({
+                baseDiceCount: getPacketDiceCount(primaryPacket, power),
+                timingPrefix: null,
+                chargeConfig,
+              }),
+            )
+          : triggerActivationSentence;
+      const triggerResolutionSentence = triggerActivationSentence
+        ? `${triggerRollSentence} ${isSelfTrigger ? triggerPrimaryBaseClause : `${power.name} ${triggerPrimaryBaseClause}`} per success${primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}.`
+        : `${power.name} cannot resolve until a Trigger Condition is selected.`;
       return [
-        triggerMethod === "TARGET_AND_THEN_ARM" ? rangeLead : null,
+        triggerMethod === "TARGET_AND_THEN_ARM" && !isSelfTrigger ? rangeLead : null,
         triggerArmedSentence,
-        `${triggerActivationSentence} ${power.name} ${primaryBaseClause} per success${primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}.`,
+        triggerResolutionSentence,
         ...sameTimingSecondaryClauses,
       ]
         .filter((segment): segment is string => Boolean(segment))
@@ -2169,10 +2766,11 @@ export function renderPowerDescriptorLines(
             entries: typeof contingentSecondaryEntries;
           }>,
         );
-        const bulletLines = bucketedEntries.map(({ timingPrefix, entries }) => {
-          const mergedBody = joinWithCommasAnd(entries.map((entry) => entry.body));
-          return renderSecondaryBulletLine(timingPrefix, mergedBody);
-        });
+        const bulletLines = bucketedEntries.flatMap(({ timingPrefix, entries }) =>
+          buildSecondaryContextBodies(entries, power).map((mergedBody) =>
+            renderSecondaryBulletLine(timingPrefix, mergedBody),
+          ),
+        );
         if (!hasAppendedReestablishChannelSentence) {
           const hasWhilstChannelledBullet = bucketedEntries.some(({ entries }) =>
             entries.some((entry) => isWhilstChannelledTiming(getPacketTimingKey(entry.effectPacket))),
@@ -2197,6 +2795,8 @@ export function renderPowerDescriptorLines(
       ),
       isPrimary: false,
       triggerText: packetTriggerText,
+      power,
+      effectPacket: leadPacket,
       commitmentModifier: power.commitmentModifier,
       hasMultipleTimingGroups,
       useCastWordingForRelease: useNonReserveChargeCastWording,
@@ -2205,14 +2805,31 @@ export function renderPowerDescriptorLines(
     const sharedScalingLead = renderSecondaryScalingLead(power);
     const contingentBodies =
       timingPrefix && sharedScalingLead
-        ? packets
-            .map((effectPacket) =>
-              renderSecondaryPacketBodyWithInlineTiming({
-                effectPacket,
-                power,
-                timingPrefix,
-              }))
-            .filter((clause): clause is string => Boolean(clause))
+        ? renderSecondaryMergedBodyWithInlineTiming(
+            packets
+              .map((effectPacket, authoringIndex) => {
+                const body = renderSecondaryPacketBody({
+                  effectPacket,
+                  power,
+                });
+                if (!body) return null;
+                return {
+                  effectPacket,
+                  authoringIndex,
+                  displayTimingKey: getSecondaryDisplayTimingType(
+                    power.descriptorChassis,
+                    effectPacket?.effectTimingType,
+                    chargeConfig,
+                  ),
+                  timingPrefix,
+                  inlineClause: renderSecondaryPacketClause({ effectPacket, power }) ?? "",
+                  body,
+                };
+              })
+              .filter((entry): entry is SecondaryRenderEntry => Boolean(entry)),
+            power,
+            timingPrefix,
+          )
         : [];
     const shouldAppendReestablishChannelSentence =
       !hasAppendedReestablishChannelSentence && isWhilstChannelledTiming(getPacketTimingKey(leadPacket));
@@ -2325,25 +2942,35 @@ export function renderPowerStackCleanupText(): string | null {
   return null;
 }
 
-function getLevelWoundBonus(level?: number): number {
+function getLevelWoundBonus(level?: number, divisor = 3): number {
   const parsed = typeof level === "number" ? level : Number(level ?? 0);
   if (!Number.isFinite(parsed) || parsed <= 0) return 0;
-  return Math.floor(parsed / 3);
+  const resolvedDivisor = Number.isFinite(divisor) && divisor > 0 ? divisor : 3;
+  return Math.floor(parsed / resolvedDivisor);
 }
 
 export function renderAttackActionLines(
   attackConfig: MonsterNaturalAttackConfig,
   weaponSkillValue: number,
-  options?: { applyWeaponSkillOverride?: boolean; strengthMultiplier?: number; level?: number },
+  options?: {
+    applyWeaponSkillOverride?: boolean;
+    strengthMultiplier?: number;
+    level?: number;
+    levelWoundBonusDivisor?: number;
+  },
 ): string[] {
   const strengthMultiplier =
     typeof options?.strengthMultiplier === "number" && Number.isFinite(options.strengthMultiplier)
       ? options.strengthMultiplier
-      : 1;
+      : 2;
   const scaleStrength = (value: unknown): number => {
-    const baseAmount = Number(value ?? 0) * strengthMultiplier;
-    if (!(baseAmount > 0)) return baseAmount;
-    return baseAmount + getLevelWoundBonus(options?.level);
+    const woundAmount = Number(value ?? 0) * strengthMultiplier;
+    if (!(woundAmount > 0)) return woundAmount;
+    // The descriptor engine renders attack damage as strength * 2, so pass the
+    // half-wound unit needed to display the already-scaled wound amount once.
+    return (
+      woundAmount + getLevelWoundBonus(options?.level, options?.levelWoundBonusDivisor)
+    ) / 2;
   };
 
   const descriptorInput = {

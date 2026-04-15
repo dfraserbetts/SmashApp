@@ -2,7 +2,17 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
 import type { EffectDurationType, Prisma } from "@prisma/client";
 import { renderAttackActionLines } from "@/lib/summoning/render";
-import type { MonsterNaturalAttackConfig, Power } from "@/lib/summoning/types";
+import {
+  LEGACY_TRIGGER_CONDITION_TEXT_KEY,
+  RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
+  RESIST_THEME_VALUES,
+  TRIGGER_CONDITION_KEYS,
+  type MonsterNaturalAttackConfig,
+  type Power,
+  type ResistTheme,
+  type ReserveReleaseBehaviour,
+  type TriggerConditionKey,
+} from "@/lib/summoning/types";
 import type { SummoningEquipmentItem } from "@/lib/summoning/equipment";
 import { requireCampaignDirectorOrAdmin, requireUserId } from "../../../_shared";
 
@@ -32,6 +42,8 @@ const MONSTER_INCLUDE = {
 const WEAPON_SOURCE_CAP = 3;
 const WEAPON_SOURCE_CAP_ERROR =
   "A monster can have at most 3 weapon sources total (equipped + natural). Unequip a weapon source or remove a natural weapon.";
+const TRIGGER_CONDITION_SET = new Set<TriggerConditionKey>(TRIGGER_CONDITION_KEYS);
+const RESIST_THEME_SET = new Set<ResistTheme>(RESIST_THEME_VALUES);
 
 type EquipmentItemsById = Map<string, SummoningEquipmentItem>;
 
@@ -347,6 +359,65 @@ function normalizeEffectPacketApplyTo(
     : null;
 }
 
+function normalizeTriggerConditionKey(
+  value: unknown,
+): TriggerConditionKey | null {
+  return TRIGGER_CONDITION_SET.has(value as TriggerConditionKey)
+    ? (value as TriggerConditionKey)
+    : null;
+}
+
+function mapLegacyTriggerConditionTextToKey(
+  value: unknown,
+): TriggerConditionKey | null {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  if (
+    /(crosses?|enters?)\b/.test(normalized) &&
+    /\b(area|warded space|targeted space)\b/.test(normalized)
+  ) {
+    return "AREA_ENTERS";
+  }
+  if (/\bleaves?\b/.test(normalized) && /\b(area|warded space|targeted space)\b/.test(normalized)) {
+    return "AREA_LEAVES";
+  }
+  if (
+    /\bstarts?\b/.test(normalized) &&
+    /\bturn\b/.test(normalized) &&
+    /\b(area|warded space|targeted space)\b/.test(normalized)
+  ) {
+    return "AREA_STARTS_TURN";
+  }
+  if (
+    /\bends?\b/.test(normalized) &&
+    /\bturn\b/.test(normalized) &&
+    /\b(area|warded space|targeted space)\b/.test(normalized)
+  ) {
+    return "AREA_ENDS_TURN";
+  }
+  if (/\bmoves?\b/.test(normalized)) return "MOVES";
+  if (/\bmakes? an attack\b|\bweapon attack\b|\battacks?\b/.test(normalized)) return "MAKES_ATTACK";
+  if (/\bactivates? a power\b|\buses? a power\b|\bcasts? a power\b/.test(normalized)) {
+    return "ACTIVATES_POWER";
+  }
+  if (/\bsuffers? wounds\b|\btakes? wounds\b/.test(normalized)) return "SUFFERS_WOUNDS";
+  if (/\bheals? wounds\b|\brecovers? wounds\b|\bregains? wounds\b/.test(normalized)) {
+    return "HEALS_WOUNDS";
+  }
+  if (/\bsuffers? an effect\b|\bis affected\b/.test(normalized)) return "SUFFERS_EFFECT";
+  if (/\bgains? an effect\b|\breceives? an effect\b/.test(normalized)) return "GAINS_EFFECT";
+  if (/\buses? an item\b|\buses? item\b/.test(normalized)) return "USES_ITEM";
+  if (/\bdefence roll\b|\bdodge roll\b/.test(normalized)) return "MAKES_DEFENCE_ROLL";
+  if (/\bresist roll\b|\bresistance roll\b/.test(normalized)) return "MAKES_RESIST_ROLL";
+  return null;
+}
+
+function readTriggerConditionKey(
+  value: unknown,
+): TriggerConditionKey | null {
+  return normalizeTriggerConditionKey(value) ?? mapLegacyTriggerConditionTextToKey(value);
+}
+
 function readPacketApplyTo(
   effectPacket: Pick<Power["effectPackets"][number], "applyTo" | "detailsJson">,
 ): "PRIMARY_TARGET" | "ALLIES" | "SELF" {
@@ -365,33 +436,144 @@ function readPacketTriggerConditionText(
       ? (effectPacket.detailsJson as Record<string, unknown>)
       : {};
   const value =
-    effectPacket.triggerConditionText ?? details.triggerConditionText ?? details.effectTriggerText;
+    effectPacket.triggerConditionText ??
+    details.triggerConditionText ??
+    details[LEGACY_TRIGGER_CONDITION_TEXT_KEY];
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function coerceResistTheme(
+  value: unknown,
+): ResistTheme | null {
+  return RESIST_THEME_SET.has(value as ResistTheme)
+    ? (value as ResistTheme)
+    : null;
+}
+
+function mapLegacyApplicationModeKeyToMovementTheme(
+  value: unknown,
+): ResistTheme | null {
+  const normalized = typeof value === "string" ? value.trim().toUpperCase() : "";
+  if (!normalized) return null;
+  if (RESIST_THEME_SET.has(normalized as ResistTheme)) return normalized as ResistTheme;
+  if (normalized === "FORTITUDE" || normalized === "BODY" || normalized === "BODY / ENDURANCE") {
+    return "BODY_ENDURANCE";
+  }
+  if (normalized === "INTELLECT" || normalized === "MIND" || normalized === "MIND / COGNITION / PERCEPTION") {
+    return "MIND_COGNITION";
+  }
+  if (normalized === "BRAVERY" || normalized === "COURAGE" || normalized === "COURAGE / RESOLVE / PANIC") {
+    return "COURAGE_RESOLVE";
+  }
+  if (normalized === "SUPPORT" || normalized === "TRUST" || normalized === "TRUST / BELONGING / ANCHORING") {
+    return "TRUST_BELONGING";
+  }
+  if (normalized === "ATTACK" || normalized === "OFFENSIVE" || normalized === "OFFENSIVE EXECUTION") {
+    return "OFFENSIVE_EXECUTION";
+  }
+  if (
+    normalized === "DEFENCE" ||
+    normalized === "DEFENSE" ||
+    normalized === "DEFENSIVE" ||
+    normalized === "DEFENSIVE COORDINATION / BALANCE"
+  ) {
+    return "DEFENSIVE_COORDINATION";
+  }
+  return null;
+}
+
+function readMovementThemeFromPacket(
+  effectPacket:
+    | Pick<Power["effectPackets"][number], "applicationModeKey" | "detailsJson" | "intention" | "type">
+    | undefined,
+): ResistTheme | null {
+  if (!effectPacket) return null;
+  const intention = effectPacket.intention ?? effectPacket.type ?? "ATTACK";
+  if (intention !== "MOVEMENT") return null;
+  const details =
+    effectPacket.detailsJson && typeof effectPacket.detailsJson === "object" && !Array.isArray(effectPacket.detailsJson)
+      ? (effectPacket.detailsJson as Record<string, unknown>)
+      : {};
+  return coerceResistTheme(details.movementTheme) ??
+    mapLegacyApplicationModeKeyToMovementTheme(effectPacket.applicationModeKey);
+}
+
+const RESERVE_RELEASE_BEHAVIOUR_SET = new Set<ReserveReleaseBehaviour>(RESERVE_RELEASE_BEHAVIOUR_OPTIONS);
+
+function coerceReserveReleaseBehaviour(
+  value: unknown,
+): ReserveReleaseBehaviour | null {
+  return RESERVE_RELEASE_BEHAVIOUR_SET.has(value as ReserveReleaseBehaviour)
+    ? (value as ReserveReleaseBehaviour)
+    : null;
+}
+
+function mapLegacyReleaseBehaviourTextToKey(
+  value: unknown,
+): ReserveReleaseBehaviour | null {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!normalized) return null;
+  if (/\b(expiry|expire|expires|expired)\b/.test(normalized)) return "ON_EXPIRY";
+  if (/\bresponse only\b/.test(normalized)) return "RESPONSE_ONLY";
+  if (/\bpower action only\b/.test(normalized)) return "ACTION_ONLY";
+  if (/\bpower action\b/.test(normalized) && /\bresponse\b/.test(normalized)) {
+    return "ACTION_OR_RESPONSE";
+  }
+  if (/\bresponse\b/.test(normalized)) return "RESPONSE_ONLY";
+  if (/\bpower action\b/.test(normalized) || /\baction\b/.test(normalized)) return "ACTION_ONLY";
+  return null;
+}
+
+function readReserveReleaseBehaviour(
+  descriptorChassisConfig: Record<string, unknown>,
+): ReserveReleaseBehaviour {
+  return coerceReserveReleaseBehaviour(descriptorChassisConfig.releaseBehaviour) ??
+    mapLegacyReleaseBehaviourTextToKey(descriptorChassisConfig.releaseBehaviourText) ??
+    "ACTION_OR_RESPONSE";
 }
 
 function sanitizeDescriptorChassisConfig(
   value: unknown,
+  descriptorChassis?: Power["descriptorChassis"],
 ): Prisma.InputJsonValue {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  const config = { ...(value as Record<string, unknown>) };
+  const rawConfig = value as Record<string, unknown>;
+  const config = { ...rawConfig };
+  delete config.defineReleaseBehaviour;
+  delete config.releaseBehaviourText;
   delete config.fieldInteractionText;
   delete config.chargeType;
   delete config.chargeTurns;
   delete config.chargeBonusDicePerTurn;
   delete config.triggerMethod;
+  delete config.triggerConditionText;
   delete config.anchorText;
   delete config.payloadTriggerText;
+  if (descriptorChassis === "RESERVE") {
+    config.releaseBehaviour = readReserveReleaseBehaviour(rawConfig);
+  } else {
+    delete config.releaseBehaviour;
+  }
   return config as Prisma.InputJsonValue;
 }
 
 function sanitizeEffectPacketDetails(
   value: unknown,
+  effectPacket?: Pick<Power["effectPackets"][number], "applicationModeKey" | "detailsJson" | "intention" | "type">,
 ): Prisma.InputJsonValue {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const details = { ...(value as Record<string, unknown>) };
   delete details.applyTo;
   delete details.triggerConditionText;
-  delete details.effectTriggerText;
+  delete details[LEGACY_TRIGGER_CONDITION_TEXT_KEY];
+  const movementTheme = readMovementThemeFromPacket(effectPacket);
+  if ((effectPacket?.intention ?? effectPacket?.type) === "MOVEMENT") {
+    if (movementTheme) {
+      details.movementTheme = movementTheme;
+    } else {
+      delete details.movementTheme;
+    }
+  }
   return details as Prisma.InputJsonValue;
 }
 
@@ -402,6 +584,7 @@ function buildPowerCreateData(power: Power) {
       ? power.intentions
       : [];
   const effectDurationType = power.effectDurationType ?? power.durationType ?? "INSTANT";
+  const descriptorChassis = normalizeDescriptorChassis(power.descriptorChassis);
   return {
     sortOrder: power.sortOrder,
     sourceType: "MONSTER_POWER" as const,
@@ -412,8 +595,8 @@ function buildPowerCreateData(power: Power) {
     contentRevision: power.contentRevision ?? 1,
     previewRendererVersion: power.previewRendererVersion ?? 1,
     status: power.status ?? "ACTIVE",
-    descriptorChassis: normalizeDescriptorChassis(power.descriptorChassis),
-    descriptorChassisConfig: sanitizeDescriptorChassisConfig(power.descriptorChassisConfig),
+    descriptorChassis,
+    descriptorChassisConfig: sanitizeDescriptorChassisConfig(power.descriptorChassisConfig, descriptorChassis),
     chargeType:
       power.commitmentModifier === "CHARGE" ? normalizeChargeType(power.chargeType) : null,
     chargeTurns:
@@ -484,11 +667,11 @@ function buildPowerCreateData(power: Power) {
           dealsWounds: effectPacket.dealsWounds ?? false,
           woundChannel: effectPacket.woundChannel ?? null,
           targetedAttribute: effectPacket.targetedAttribute ?? null,
-          applicationModeKey: effectPacket.applicationModeKey ?? null,
+          applicationModeKey: null,
           resolutionOrigin: effectPacket.resolutionOrigin ?? "CASTER",
           applyTo: readPacketApplyTo(effectPacket),
           triggerConditionText: readPacketTriggerConditionText(effectPacket),
-          detailsJson: sanitizeEffectPacketDetails(effectPacket.detailsJson),
+          detailsJson: sanitizeEffectPacketDetails(effectPacket.detailsJson, effectPacket),
           localTargetingOverride: effectPacket.localTargetingOverride
             ? {
                 create: {
@@ -519,6 +702,11 @@ function serializePower(
     power.descriptorChassisConfig && typeof power.descriptorChassisConfig === "object" && !Array.isArray(power.descriptorChassisConfig)
       ? (power.descriptorChassisConfig as Record<string, unknown>)
       : {};
+  const descriptorChassis = normalizeDescriptorChassis(power.descriptorChassis);
+  const legacyTriggerConditionKey =
+    descriptorChassis === "TRIGGER"
+      ? readTriggerConditionKey(rawDescriptorChassisConfig.triggerConditionText)
+      : null;
   const rangeCategories = power.rangeCategories.map((row) => row.rangeCategory);
   const baseRangeDetails = {
     rangeCategory: rangeCategories.includes("AOE")
@@ -560,8 +748,8 @@ function serializePower(
     contentRevision: power.contentRevision,
     previewRendererVersion: power.previewRendererVersion,
     status: power.status,
-    descriptorChassis: normalizeDescriptorChassis(power.descriptorChassis),
-    descriptorChassisConfig: sanitizeDescriptorChassisConfig(power.descriptorChassisConfig) as Record<
+    descriptorChassis,
+    descriptorChassisConfig: sanitizeDescriptorChassisConfig(power.descriptorChassisConfig, normalizeDescriptorChassis(power.descriptorChassis)) as Record<
       string,
       unknown
     >,
@@ -635,21 +823,26 @@ function serializePower(
         dealsWounds: effectPacket.dealsWounds,
         woundChannel: effectPacket.woundChannel,
         targetedAttribute: effectPacket.targetedAttribute,
-        applicationModeKey: effectPacket.applicationModeKey,
+        applicationModeKey: null,
         resolutionOrigin: effectPacket.resolutionOrigin,
         applyTo: normalizeEffectPacketApplyTo(
           (effectPacket as { applyTo?: unknown }).applyTo ?? rawDetails.applyTo,
         ) ?? "PRIMARY_TARGET",
-        triggerConditionText: readPacketTriggerConditionText(
-          effectPacket as unknown as Pick<Power["effectPackets"][number], "triggerConditionText" | "detailsJson">,
-        ),
+        triggerConditionText:
+          descriptorChassis === "TRIGGER" && effectPacket.packetIndex === 0
+            ? (readTriggerConditionKey(
+                (effectPacket as { triggerConditionText?: unknown }).triggerConditionText,
+              ) ?? legacyTriggerConditionKey)
+            : readPacketTriggerConditionText(
+                effectPacket as unknown as Pick<Power["effectPackets"][number], "triggerConditionText" | "detailsJson">,
+              ),
         detailsJson:
           effectPacket.packetIndex === 0
             ? {
-                ...(sanitizeEffectPacketDetails(rawDetails) as Record<string, unknown>),
+                ...(sanitizeEffectPacketDetails(rawDetails, effectPacket as unknown as Pick<Power["effectPackets"][number], "applicationModeKey" | "detailsJson" | "intention" | "type">) as Record<string, unknown>),
                 ...baseRangeDetails,
               }
-            : ((sanitizeEffectPacketDetails(rawDetails) as Record<string, unknown>) ?? {}),
+            : ((sanitizeEffectPacketDetails(rawDetails, effectPacket as unknown as Pick<Power["effectPackets"][number], "applicationModeKey" | "detailsJson" | "intention" | "type">) as Record<string, unknown>) ?? {}),
         localTargetingOverride: effectPacket.localTargetingOverride
           ? {
               meleeTargets: effectPacket.localTargetingOverride.meleeTargets,
@@ -688,21 +881,26 @@ function serializePower(
         dealsWounds: effectPacket.dealsWounds,
         woundChannel: effectPacket.woundChannel,
         targetedAttribute: effectPacket.targetedAttribute,
-        applicationModeKey: effectPacket.applicationModeKey,
+        applicationModeKey: null,
         resolutionOrigin: effectPacket.resolutionOrigin,
         applyTo: normalizeEffectPacketApplyTo(
           (effectPacket as { applyTo?: unknown }).applyTo ?? rawDetails.applyTo,
         ) ?? "PRIMARY_TARGET",
-        triggerConditionText: readPacketTriggerConditionText(
-          effectPacket as unknown as Pick<Power["effectPackets"][number], "triggerConditionText" | "detailsJson">,
-        ),
+        triggerConditionText:
+          descriptorChassis === "TRIGGER" && effectPacket.packetIndex === 0
+            ? (readTriggerConditionKey(
+                (effectPacket as { triggerConditionText?: unknown }).triggerConditionText,
+              ) ?? legacyTriggerConditionKey)
+            : readPacketTriggerConditionText(
+                effectPacket as unknown as Pick<Power["effectPackets"][number], "triggerConditionText" | "detailsJson">,
+              ),
         detailsJson:
           effectPacket.packetIndex === 0
             ? {
-                ...(sanitizeEffectPacketDetails(rawDetails) as Record<string, unknown>),
+                ...(sanitizeEffectPacketDetails(rawDetails, effectPacket as unknown as Pick<Power["effectPackets"][number], "applicationModeKey" | "detailsJson" | "intention" | "type">) as Record<string, unknown>),
                 ...baseRangeDetails,
               }
-            : ((sanitizeEffectPacketDetails(rawDetails) as Record<string, unknown>) ?? {}),
+            : ((sanitizeEffectPacketDetails(rawDetails, effectPacket as unknown as Pick<Power["effectPackets"][number], "applicationModeKey" | "detailsJson" | "intention" | "type">) as Record<string, unknown>) ?? {}),
         localTargetingOverride: effectPacket.localTargetingOverride
           ? {
               meleeTargets: effectPacket.localTargetingOverride.meleeTargets,
