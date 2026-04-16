@@ -30,6 +30,7 @@ import type {
 import { useForgeItems, type ForgeItemSummary } from '../../../lib/forge/useForgeItems';
 import { buildDescriptorResult } from '@/lib/descriptors/descriptorEngine';
 import { renderForgeResult } from '@/lib/descriptors/renderers/forgeRenderer';
+import { getForgeRarityPalette } from '@/lib/forge/itemRarityPalette';
 import { interpolateText, safeParseJson } from '@/lib/textInterpolation';
 import { InfoTooltip, TooltipLabel } from '@/app/components/HoverTooltip';
 
@@ -2451,6 +2452,7 @@ function handleResetForge() {
     (data?.costs ?? []) as ForgeCostRow[],
     calculatorContext,
   );
+  const itemRarityPalette = getForgeRarityPalette(watchedValues.rarity);
 
   // Descriptor debug toggle (keep OUT of JSX or TS will scream)
   const DEBUG_DESCRIPTORS = false;
@@ -6819,10 +6821,9 @@ useEffect(() => {
         <h2 className="text-xl font-semibold mb-4">Preview</h2>
 
         <div
-          className="relative w-full overflow-hidden rounded-xl border border-amber-500/70 p-6 text-sm text-orange-50 shadow-[0_0_28px_rgba(120,32,8,0.42),inset_0_0_42px_rgba(0,0,0,0.72)] ring-1 ring-inset ring-amber-200/35 space-y-4"
+          className={`relative w-full overflow-hidden rounded-xl border ${itemRarityPalette.outerBorderClass} p-3 text-sm text-orange-50 ${itemRarityPalette.outerShadowClass} space-y-4`}
           style={{
-            backgroundImage:
-              "radial-gradient(circle at 50% -12%, rgba(239, 104, 48, 0.42), transparent 34%), linear-gradient(180deg, #7f2115 0%, #3a120d 34%, #170906 68%, #070302 100%)",
+            backgroundImage: itemRarityPalette.backgroundImage,
           }}
         >
           {loading && <p className="relative z-10 text-amber-100/70">Waiting for picklists…</p>}
@@ -6834,7 +6835,7 @@ useEffect(() => {
 
           {/* LIVE ITEM CARD (updates while typing) */}
           {!error && (
-            <div className="relative z-10 space-y-3">
+            <div className={`relative z-10 rounded-lg border ${itemRarityPalette.innerBorderClass} p-6 ${itemRarityPalette.innerShadowClass} space-y-3`}>
               {/* Header (above image) */}
               <div className="space-y-1">
                 {(() => {
@@ -6842,7 +6843,7 @@ useEffect(() => {
                   const sizeLabel = rawSize ? SIZE_LABELS[rawSize] ?? rawSize : null;
 
                   return (
-                <p className="font-serif text-xs uppercase tracking-[0.22em] text-amber-300 drop-shadow">
+                <p className={`font-serif text-xs uppercase tracking-[0.22em] ${itemRarityPalette.headerTextClass} drop-shadow`}>
                   {watchedValues.rarity} {watchedValues.type}
                   {' '}
                   -{' '}
@@ -6859,17 +6860,17 @@ useEffect(() => {
                   );
                 })()}
 
-                <p className="font-serif text-xl font-semibold uppercase tracking-[0.16em] text-amber-200 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                <p className={`font-serif text-xl font-semibold uppercase tracking-[0.16em] ${itemRarityPalette.nameTextClass} drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]`}>
                   {watchedValues.name?.trim() ? watchedValues.name : 'Unnamed item'}
                 </p>
 
                 {watchedValues.generalDescription?.trim() && (
-                  <p className="text-sm text-orange-100/85">{watchedValues.generalDescription}</p>
+                  <p className={`text-sm ${itemRarityPalette.descriptionTextClass}`}>{watchedValues.generalDescription}</p>
                 )}
               </div>
               <div
                 aria-hidden="true"
-                className="h-px bg-gradient-to-r from-transparent via-amber-400/50 to-transparent"
+                className={`h-px bg-gradient-to-r from-transparent ${itemRarityPalette.dividerClass} to-transparent`}
               />
                             {/* Descriptor output (starting with Modifiers) */}
               {(() => {
@@ -7196,7 +7197,7 @@ useEffect(() => {
                         .filter((l) => l.length > 0)
                         .map((l, idx) => (
                           <li key={`${keyPrefix}-${idx}`} className="flex gap-2 text-sm leading-5">
-                            <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rotate-45 bg-amber-300/70 shadow-[0_0_6px_rgba(251,191,36,0.35)]" />
+                            <span className={`mt-[0.45rem] h-1.5 w-1.5 shrink-0 rotate-45 ${itemRarityPalette.bulletClass}`} />
                             <span>{l}</span>
                           </li>
                         ))}
@@ -7232,7 +7233,7 @@ useEffect(() => {
                         .filter((l) => l.length > 0)
                         .map((l, idx) => (
                           <li key={`${keyPrefix}-${idx}`} className="flex gap-2 text-sm leading-5">
-                            <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rotate-45 bg-amber-300/70 shadow-[0_0_6px_rgba(251,191,36,0.35)]" />
+                            <span className={`mt-[0.45rem] h-1.5 w-1.5 shrink-0 rotate-45 ${itemRarityPalette.bulletClass}`} />
                             <span>{l}</span>
                           </li>
                         ))}
@@ -7259,7 +7260,7 @@ useEffect(() => {
                   return (
                     <div className="mt-3 space-y-4">
                       {/* Image (placeholder by default, swap to URL if valid) */}
-                      <div className="rounded-lg border border-amber-700/50 bg-black/35 overflow-hidden shadow-[inset_0_0_18px_rgba(0,0,0,0.55)]">
+                      <div className={`rounded-lg border ${itemRarityPalette.imageBorderClass} bg-black/35 overflow-hidden shadow-[inset_0_0_18px_rgba(0,0,0,0.55)]`}>
                         <img
                           src={
                             isHttpUrl(watchedValues.itemUrl)
@@ -7317,7 +7318,7 @@ useEffect(() => {
 
                     {/* Image (placeholder by default, swap to URL if valid) */}
 
-                    <div className="rounded-lg border border-amber-700/50 bg-black/35 overflow-hidden shadow-[inset_0_0_18px_rgba(0,0,0,0.55)]">
+                    <div className={`rounded-lg border ${itemRarityPalette.imageBorderClass} bg-black/35 overflow-hidden shadow-[inset_0_0_18px_rgba(0,0,0,0.55)]`}>
                       <img
                         src={
                           isHttpUrl(watchedValues.itemUrl)
@@ -7377,19 +7378,19 @@ useEffect(() => {
                       <>
                         {/* ATTRIBUTES BOX */}
                         {showAttributesBox && (
-                          <div className="rounded-lg border border-amber-700/40 bg-black/25 p-3 space-y-2 shadow-[inset_0_1px_0_rgba(251,191,36,0.08)]">
-                              <p className="font-serif text-xs uppercase tracking-[0.18em] text-amber-300/80">
+                          <div className={`rounded-lg border ${itemRarityPalette.panelBorderClass} bg-black/25 p-3 space-y-2 ${itemRarityPalette.panelShadowClass}`}>
+                              <p className={`font-serif text-xs uppercase tracking-[0.18em] ${itemRarityPalette.headerTextClass}`}>
                               Attributes
                             </p>
 
                             {showArmorWearPreface && (
-                              <p className="text-sm leading-5 text-orange-50/90">
+                              <p className={`text-sm leading-5 ${itemRarityPalette.bodyTextClass}`}>
                                 Whilst wearing this armor, the wielder gains
                               </p>
                             )}
 
                             {showShieldWieldPreface && (
-                              <p className="text-sm leading-5 text-orange-50/90">
+                              <p className={`text-sm leading-5 ${itemRarityPalette.bodyTextClass}`}>
                                 Whilst wielding this shield, the wielder gains
                               </p>
                             )}
@@ -7486,8 +7487,8 @@ useEffect(() => {
 
                         {/* DEFENCE BOX */}
                         {showDefenceBox && (
-                          <div className="rounded-lg border border-amber-700/40 bg-black/30 p-3 space-y-2 shadow-[inset_0_1px_0_rgba(251,191,36,0.08)]">
-                            <p className="font-serif text-xs uppercase tracking-[0.18em] text-amber-300/80">
+                          <div className={`rounded-lg border ${itemRarityPalette.panelBorderClass} bg-black/30 p-3 space-y-2 ${itemRarityPalette.panelShadowClass}`}>
+                            <p className={`font-serif text-xs uppercase tracking-[0.18em] ${itemRarityPalette.headerTextClass}`}>
                               {(defence && defence.title) ? defence.title : 'Defence'}
                             </p>
                             <div className="space-y-1">
@@ -7503,7 +7504,7 @@ useEffect(() => {
                                 const line = formatGreaterDefenceLine(greaterDefence.lines);
                                 if (!line) return null;
                                 return (
-                                  <p className="text-sm leading-5 text-orange-50/90">
+                                  <p className={`text-sm leading-5 ${itemRarityPalette.bodyTextClass}`}>
                                     {line}
                                   </p>
                                 );
@@ -7514,8 +7515,8 @@ useEffect(() => {
 
                         {/* ATTACK BOX */}
                         {showAttack && attack && (
-                          <div className="rounded-lg border border-amber-700/40 bg-black/30 p-3 space-y-2 shadow-[inset_0_1px_0_rgba(251,191,36,0.08)]">
-                            <p className="font-serif text-xs uppercase tracking-[0.18em] text-amber-300/80">
+                          <div className={`rounded-lg border ${itemRarityPalette.panelBorderClass} bg-black/30 p-3 space-y-2 ${itemRarityPalette.panelShadowClass}`}>
+                            <p className={`font-serif text-xs uppercase tracking-[0.18em] ${itemRarityPalette.headerTextClass}`}>
                               {attack.title}
                             </p>
 
@@ -7534,10 +7535,10 @@ useEffect(() => {
                                   key={`atk-${idx}`}
                                   className="grid grid-cols-[72px_1fr] gap-x-2"
                                 >
-                                  <div className="text-amber-100 font-semibold">
+                                  <div className={`${itemRarityPalette.attackLabelClass} font-semibold`}>
                                     {header}
                                   </div>
-                                  <div className="text-orange-50/90">{text}</div>
+                                  <div className={itemRarityPalette.bodyTextClass}>{text}</div>
                                 </div>
                               );
                             })}

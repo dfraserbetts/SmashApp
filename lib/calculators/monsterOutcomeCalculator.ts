@@ -156,6 +156,8 @@ type AtWillSummary = {
 
 type Mode = "PHYSICAL" | "MENTAL";
 
+const NATURAL_ATTACK_WOUNDS_PER_STRENGTH = 2;
+
 const EMPTY_TRAIT_AXIS_BONUSES: TraitAxisBonuses = {
   physicalThreat: 0,
   mentalThreat: 0,
@@ -178,6 +180,17 @@ function clampRadarScore(value: number): number {
   return value;
 }
 
+function scaleAtWillContribution(contribution: AtWillContribution, weight: number): AtWillContribution {
+  const safeWeight = clampNonNegative(weight);
+  return {
+    physical: contribution.physical * safeWeight,
+    mental: contribution.mental * safeWeight,
+    total: contribution.total * safeWeight,
+    hasRanged: contribution.hasRanged,
+    hasAoe: contribution.hasAoe,
+  };
+}
+
 function clampTraitAxisWeight(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) return 0;
@@ -194,7 +207,7 @@ function getExpectedPoolValue(
   return Math.max(1, (at1 + (normalizedLevel - 1) * perLevel) * Math.max(0.001, tierMultiplier));
 }
 
-function getSignedExpectedPoolShare(
+function getSignedExpectedPoolDeltaShare(
   ratio: number,
   cfg: CalculatorConfig["healthPoolTuning"],
 ): number {
@@ -216,6 +229,12 @@ function getSignedExpectedPoolShare(
   }
 
   return 0;
+}
+
+function getFinalPoolShare(atExpectedShare: number, signedDeltaShare: number): number {
+  const base = clampNonNegative(atExpectedShare);
+  const delta = Number.isFinite(signedDeltaShare) ? signedDeltaShare : 0;
+  return Math.max(0, Math.min(1, base + delta));
 }
 
 function readPositiveNumber(value: unknown): number | null {
@@ -368,6 +387,19 @@ function normalizeRawAxisBonuses(
     synergy: clampNonNegative(bonuses.synergy ?? 0),
     mobility: clampNonNegative(bonuses.mobility ?? 0),
     presence: clampNonNegative(bonuses.presence ?? 0),
+  };
+}
+
+function scaleRawAxisBonuses(bonuses: RadarAxes, weight: number): RadarAxes {
+  const safeWeight = clampNonNegative(weight);
+  return {
+    physicalThreat: bonuses.physicalThreat * safeWeight,
+    mentalThreat: bonuses.mentalThreat * safeWeight,
+    survivability: bonuses.survivability * safeWeight,
+    manipulation: bonuses.manipulation * safeWeight,
+    synergy: bonuses.synergy * safeWeight,
+    mobility: bonuses.mobility * safeWeight,
+    presence: bonuses.presence * safeWeight,
   };
 }
 
@@ -645,6 +677,7 @@ function computeAtWillFromAttackConfig(
   strengthMultiplier: number,
   level: number,
   levelWoundBonusDivisor = 3,
+  includeLevelWoundBonus = true,
 ): AtWillContribution {
   if (!attackConfig) {
     return {
@@ -685,6 +718,7 @@ function computeAtWillFromAttackConfig(
     const toWoundsPerSuccess = (strength: number): number => {
       const base = strength * strengthScalar;
       if (!(base > 0)) return base;
+      if (!includeLevelWoundBonus) return base;
       return base + getLevelWoundBonus(level, levelWoundBonusDivisor);
     };
 
@@ -779,8 +813,6 @@ export function computeMonsterOutcomes(
     equipmentModifierAxisBonuses?: Partial<RadarAxes>;
     naturalAttackGsAxisBonuses?: Partial<RadarAxes>;
     naturalAttackRangeAxisBonuses?: Partial<RadarAxes>;
-    naturalAttackStrengthMultiplier?: number;
-    naturalAttackLevelWoundBonusDivisor?: number;
     powerContribution?: CanonicalPowerContribution | null;
     traitAxisBonuses?: Partial<TraitAxisBonuses>;
   },
@@ -793,27 +825,37 @@ export function computeMonsterOutcomes(
   for (const attack of monster.attacks ?? []) {
     if (attack.attackMode !== "NATURAL") continue;
     atWillCandidates.push(
-      computeAtWillFromAttackConfig(
-        withEffectiveNaturalAoeTargetCount(attack.attackConfig as AttackConfigLike),
-        successChance,
-        cfg.baselineParty.aoeMultiplier,
-        netSuccessMultiplier,
-        opts?.naturalAttackStrengthMultiplier ?? 2,
-        monster.level,
-        opts?.naturalAttackLevelWoundBonusDivisor ?? 3,
+      scaleAtWillContribution(
+        computeAtWillFromAttackConfig(
+          withEffectiveNaturalAoeTargetCount(attack.attackConfig as AttackConfigLike),
+          successChance,
+          cfg.baselineParty.aoeMultiplier,
+          netSuccessMultiplier,
+          NATURAL_ATTACK_WOUNDS_PER_STRENGTH,
+          monster.level,
+          3,
+          false,
+        ),
+        cfg.naturalAttackTuning.damageOutputWeight,
       ),
     );
   }
   if (monster.naturalAttack?.attackConfig) {
     atWillCandidates.push(
-      computeAtWillFromAttackConfig(
-        withEffectiveNaturalAoeTargetCount(monster.naturalAttack.attackConfig as AttackConfigLike),
-        successChance,
-        cfg.baselineParty.aoeMultiplier,
-        netSuccessMultiplier,
-        opts?.naturalAttackStrengthMultiplier ?? 2,
-        monster.level,
-        opts?.naturalAttackLevelWoundBonusDivisor ?? 3,
+      scaleAtWillContribution(
+        computeAtWillFromAttackConfig(
+          withEffectiveNaturalAoeTargetCount(
+            monster.naturalAttack.attackConfig as AttackConfigLike,
+          ),
+          successChance,
+          cfg.baselineParty.aoeMultiplier,
+          netSuccessMultiplier,
+          NATURAL_ATTACK_WOUNDS_PER_STRENGTH,
+          monster.level,
+          3,
+          false,
+        ),
+        cfg.naturalAttackTuning.damageOutputWeight,
       ),
     );
   }
@@ -896,9 +938,16 @@ export function computeMonsterOutcomes(
     (weakerPoolRatio * cfg.healthPoolTuning.weakerSideWeight +
       averagePoolRatio * cfg.healthPoolTuning.averageWeight) /
     poolWeightTotal;
-  const poolHealthShare = getSignedExpectedPoolShare(combinedPoolRatio, cfg.healthPoolTuning);
+  const signedPoolDeltaShare = getSignedExpectedPoolDeltaShare(
+    combinedPoolRatio,
+    cfg.healthPoolTuning,
+  );
+  const finalPoolShare = getFinalPoolShare(
+    cfg.healthPoolTuning.poolAtExpectedShare,
+    signedPoolDeltaShare,
+  );
   const poolHealthRawBonus =
-    getTierAdjustedAxisBudgetTarget(survivabilityCurvePoint, tierMultiplier) * poolHealthShare;
+    getTierAdjustedAxisBudgetTarget(survivabilityCurvePoint, tierMultiplier) * finalPoolShare;
   const axisBudgetTargets: RadarAxes = {
     physicalThreat: getTierAdjustedAxisBudgetTarget(physicalThreatCurvePoint, tierMultiplier),
     mentalThreat: getTierAdjustedAxisBudgetTarget(mentalThreatCurvePoint, tierMultiplier),
@@ -961,9 +1010,17 @@ export function computeMonsterOutcomes(
     tierMultiplier,
     resistPressureMultiplier,
   );
-  const naturalAttackGsAxisBonuses = normalizeRawAxisBonuses(opts?.naturalAttackGsAxisBonuses);
-  const naturalAttackRangeAxisBonuses = normalizeRawAxisBonuses(
+  const rawNaturalAttackGsAxisBonuses = normalizeRawAxisBonuses(opts?.naturalAttackGsAxisBonuses);
+  const rawNaturalAttackRangeAxisBonuses = normalizeRawAxisBonuses(
     opts?.naturalAttackRangeAxisBonuses,
+  );
+  const naturalAttackGsAxisBonuses = scaleRawAxisBonuses(
+    rawNaturalAttackGsAxisBonuses,
+    cfg.naturalAttackTuning.greaterSuccessEffectWeight,
+  );
+  const naturalAttackRangeAxisBonuses = scaleRawAxisBonuses(
+    rawNaturalAttackRangeAxisBonuses,
+    cfg.naturalAttackTuning.rangeEffectWeight,
   );
   const traitAxisBonuses = normalizeTraitAxisBonuses(opts?.traitAxisBonuses);
   const equipmentModifierAxisBonuses = normalizeRawAxisBonuses(
@@ -1115,6 +1172,12 @@ export function computeMonsterOutcomes(
           equipmentModifierAxisBonuses,
           naturalAttackGsAxisBonuses,
           naturalAttackRangeAxisBonuses,
+          naturalAttackTuning: {
+            ...cfg.naturalAttackTuning,
+            fixedWoundsPerStrength: NATURAL_ATTACK_WOUNDS_PER_STRENGTH,
+            rawGreaterSuccessAxisBonuses: rawNaturalAttackGsAxisBonuses,
+            rawRangeAxisBonuses: rawNaturalAttackRangeAxisBonuses,
+          },
           traitAxisBonuses,
           customLimitBreakAxisBonuses,
           poolHealthRawBonus,
@@ -1159,7 +1222,9 @@ export function computeMonsterOutcomes(
         weakerPoolRatio,
         averagePoolRatio,
         combinedPoolRatio,
-        signedPoolShare: poolHealthShare,
+        poolAtExpectedShare: cfg.healthPoolTuning.poolAtExpectedShare,
+        signedPoolDeltaShare,
+        finalPoolShare,
         rawBonus: poolHealthRawBonus,
         legacyRoundsToPRZero: roundsToPRZero,
         legacyRoundsToMPZero: roundsToMPZero,

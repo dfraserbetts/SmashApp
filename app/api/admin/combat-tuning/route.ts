@@ -14,9 +14,22 @@ import {
   saveCombatTuningSetValues,
   unarchiveCombatTuningSet,
 } from "@/lib/config/combatTuning";
-import { DEFAULT_COMBAT_TUNING_VALUES } from "@/lib/config/combatTuningShared";
+import {
+  COMBAT_TUNING_CONFIG_KEY_ORDER,
+  validateCombatTuningConfigValue,
+  type CombatTuningValueValidationIssue,
+} from "@/lib/config/combatTuningShared";
 
-const KNOWN_COMBAT_TUNING_KEYS = new Set(Object.keys(DEFAULT_COMBAT_TUNING_VALUES));
+const KNOWN_COMBAT_TUNING_KEYS = new Set(COMBAT_TUNING_CONFIG_KEY_ORDER);
+
+class CombatTuningValidationError extends Error {
+  issue: CombatTuningValueValidationIssue;
+
+  constructor(issue: CombatTuningValueValidationIssue) {
+    super("INVALID_VALUES");
+    this.issue = issue;
+  }
+}
 
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -80,6 +93,20 @@ function errorResponse(error: unknown) {
     message === "COMBAT_TUNING_SET_NOT_ARCHIVED" ||
     message === "COMBAT_TUNING_ACTIVE_ARCHIVE_REQUIRES_REPLACEMENT"
   ) {
+    if (error instanceof CombatTuningValidationError && process.env.NODE_ENV !== "production") {
+      return NextResponse.json(
+        {
+          error: message,
+          debug: {
+            offendingKey: error.issue.key,
+            offendingRawValue: error.issue.rawValue,
+            reason: error.issue.reason,
+            requirement: error.issue.requirement,
+          },
+        },
+        { status: 400 },
+      );
+    }
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
@@ -95,18 +122,6 @@ function errorResponse(error: unknown) {
   );
 }
 
-function parseFinitePositiveNumber(value: unknown): number | null {
-  const numericValue =
-    typeof value === "number"
-      ? value
-      : typeof value === "string" && value.trim().length > 0
-        ? Number(value)
-        : Number.NaN;
-
-  if (!Number.isFinite(numericValue) || numericValue <= 0) return null;
-  return numericValue;
-}
-
 function validateSetId(value: unknown): string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new Error("INVALID_SET_ID");
@@ -119,10 +134,9 @@ function validateValues(input: unknown): Record<string, number> {
 
   const values: Record<string, number> = {};
   for (const [key, value] of Object.entries(input)) {
-    if (!KNOWN_COMBAT_TUNING_KEYS.has(key)) throw new Error("INVALID_VALUES");
-    const parsed = parseFinitePositiveNumber(value);
-    if (parsed === null) throw new Error("INVALID_VALUES");
-    values[key] = parsed;
+    const validation = validateCombatTuningConfigValue(key, value);
+    if (!validation.ok) throw new CombatTuningValidationError(validation.issue);
+    values[key] = validation.value;
   }
 
   return values;

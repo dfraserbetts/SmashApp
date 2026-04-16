@@ -3717,7 +3717,7 @@ function getWeaponSourceAttackLines(
       aoe: item.aoe,
     } as MonsterNaturalAttackConfig,
     weaponSkillValue,
-    { applyWeaponSkillOverride: true, strengthMultiplier: 2 },
+    { applyWeaponSkillOverride: true },
   );
 }
 
@@ -4974,13 +4974,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         computedWeaponSkillValue,
         {
           applyWeaponSkillOverride: true,
-          strengthMultiplier: protectionTuning.naturalAttackStrengthWoundMultiplier,
-          level: editor.level,
-          levelWoundBonusDivisor: protectionTuning.naturalAttackLevelWoundBonusDivisor,
         },
       ),
     );
-  }, [editor?.attacks, editor?.level, computedWeaponSkillValue, protectionTuning]);
+  }, [editor?.attacks, computedWeaponSkillValue]);
 
   const weaponAttackStringCount = equippedWeaponAttackPreview.reduce(
     (total, row) => total + row.lines.length,
@@ -5532,8 +5529,6 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       equipmentModifierAxisBonuses: selectedEquipmentModifierAxisBonuses,
       naturalAttackGsAxisBonuses: selectedNaturalAttackGsAxisBonuses,
       naturalAttackRangeAxisBonuses: selectedNaturalAttackRangeAxisBonuses,
-      naturalAttackStrengthMultiplier: protectionTuning.naturalAttackStrengthWoundMultiplier,
-      naturalAttackLevelWoundBonusDivisor: protectionTuning.naturalAttackLevelWoundBonusDivisor,
       powerContribution: {
         axisVector: resolvedPowerCosts.totals.axisVector,
         basePowerValue: resolvedPowerCosts.totals.basePowerValue,
@@ -5559,7 +5554,6 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     selectedNaturalAttackGsAxisBonuses,
     selectedNaturalAttackRangeAxisBonuses,
     selectedTraitAxisBonuses,
-    protectionTuning,
     survivabilityDebugBreakdown,
   ]);
 

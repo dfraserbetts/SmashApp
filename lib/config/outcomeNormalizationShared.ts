@@ -65,23 +65,8 @@ export const OUTCOME_NORMALIZATION_DEFAULTS_NESTED = {
   seuFallbacks: {
     ...calculatorConfig.seuFallbacks,
   },
-  healthPoolTuning: {
-    expectedPhysicalResilienceAt1: calculatorConfig.healthPoolTuning.expectedPhysicalResilienceAt1,
-    expectedPhysicalResiliencePerLevel:
-      calculatorConfig.healthPoolTuning.expectedPhysicalResiliencePerLevel,
-    expectedMentalPerseveranceAt1:
-      calculatorConfig.healthPoolTuning.expectedMentalPerseveranceAt1,
-    expectedMentalPerseverancePerLevel:
-      calculatorConfig.healthPoolTuning.expectedMentalPerseverancePerLevel,
-    expectedPoolTierMultipliers: {
-      ...calculatorConfig.healthPoolTuning.expectedPoolTierMultipliers,
-    },
-    weakerSideWeight: calculatorConfig.healthPoolTuning.weakerSideWeight,
-    averageWeight: calculatorConfig.healthPoolTuning.averageWeight,
-    belowExpectedMaxPenaltyShare: calculatorConfig.healthPoolTuning.belowExpectedMaxPenaltyShare,
-    belowExpectedScale: calculatorConfig.healthPoolTuning.belowExpectedScale,
-    aboveExpectedMaxBonusShare: calculatorConfig.healthPoolTuning.aboveExpectedMaxBonusShare,
-    aboveExpectedScale: calculatorConfig.healthPoolTuning.aboveExpectedScale,
+  naturalAttackTuning: {
+    ...calculatorConfig.naturalAttackTuning,
   },
   scoringCurves: Object.fromEntries(
     SCORING_CURVE_AXES.map((axis) => [axis, curveDefaults(axis)]),
@@ -218,25 +203,10 @@ export function outcomeNormalizationValuesToCalculatorConfig(
       cleanseSeuPerSuccess: values["seuFallbacks.cleanseSeuPerSuccess"],
       cleanseSeuPerStack: values["seuFallbacks.cleanseSeuPerStack"],
     },
-    healthPoolTuning: {
-      expectedPhysicalResilienceAt1: values["healthPoolTuning.expectedPhysicalResilienceAt1"],
-      expectedPhysicalResiliencePerLevel:
-        values["healthPoolTuning.expectedPhysicalResiliencePerLevel"],
-      expectedMentalPerseveranceAt1: values["healthPoolTuning.expectedMentalPerseveranceAt1"],
-      expectedMentalPerseverancePerLevel:
-        values["healthPoolTuning.expectedMentalPerseverancePerLevel"],
-      expectedPoolTierMultipliers: {
-        MINION: values["healthPoolTuning.expectedPoolTierMultipliers.MINION"],
-        SOLDIER: values["healthPoolTuning.expectedPoolTierMultipliers.SOLDIER"],
-        ELITE: values["healthPoolTuning.expectedPoolTierMultipliers.ELITE"],
-        BOSS: values["healthPoolTuning.expectedPoolTierMultipliers.BOSS"],
-      },
-      weakerSideWeight: values["healthPoolTuning.weakerSideWeight"],
-      averageWeight: values["healthPoolTuning.averageWeight"],
-      belowExpectedMaxPenaltyShare: values["healthPoolTuning.belowExpectedMaxPenaltyShare"],
-      belowExpectedScale: values["healthPoolTuning.belowExpectedScale"],
-      aboveExpectedMaxBonusShare: values["healthPoolTuning.aboveExpectedMaxBonusShare"],
-      aboveExpectedScale: values["healthPoolTuning.aboveExpectedScale"],
+    naturalAttackTuning: {
+      damageOutputWeight: values["naturalAttackTuning.damageOutputWeight"],
+      greaterSuccessEffectWeight: values["naturalAttackTuning.greaterSuccessEffectWeight"],
+      rangeEffectWeight: values["naturalAttackTuning.rangeEffectWeight"],
     },
     scoringCurves: {
       physicalThreat: curveFromValues(values, "physicalThreat"),

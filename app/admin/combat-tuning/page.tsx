@@ -10,6 +10,7 @@ import {
 import {
   COMBAT_TUNING_CONFIG_KEY_ORDER,
   DEFAULT_COMBAT_TUNING_VALUES,
+  validateCombatTuningConfigValue,
   type CombatTuningConfigStatus,
   type CombatTuningSnapshot,
 } from "@/lib/config/combatTuningShared";
@@ -55,10 +56,9 @@ function getSnapshotValue(snapshot: CombatTuningSnapshot | null, key: string): n
   return snapshot?.values[key] ?? (DEFAULT_COMBAT_TUNING_VALUES as Record<string, number>)[key] ?? 0;
 }
 
-function parseDraftValue(value: string | undefined): number | null {
-  if (typeof value !== "string" || value.trim().length === 0) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+function parseDraftValue(key: string, value: string | undefined): number | null {
+  const validation = validateCombatTuningConfigValue(key, value);
+  return validation.ok ? validation.value : null;
 }
 
 function valuesDiffer(left: number | null, right: number): boolean {
@@ -111,8 +111,10 @@ const FORMULA_GUIDES: Partial<
   },
   "Pool Penalty / Bonus Scaling": {
     title: "How pool expectation affects survivability",
-    formula: "Pool Ratio = weighted blend of weaker pool ratio and average pool ratio",
+    formula:
+      "Pool Share = Expected Pool Share + below/above expected delta, clamped from 0 to 1",
     notes: [
+      "Expected Pool Share is the survivability share at exactly expected pools.",
       "Pool ratio below 1 gives a survivability penalty.",
       "Pool ratio above 1 gives a survivability bonus.",
       "Caps set the maximum penalty or bonus; scale controls how quickly it ramps.",
@@ -127,16 +129,6 @@ const FORMULA_GUIDES: Partial<
       "Raise Baseline Offset to lower the final skill.",
       "Raise Skill Scale to make stronger attributes improve the skill faster.",
       "Dodge = max(1, ceil((Intellect * Intellect Weight + Defence * Defence Weight) / Attribute Divisor) + Level - Physical Protection * Protection Penalty).",
-    ],
-  },
-  "Natural Attack Formula": {
-    title: "How natural attack Strength becomes wounds",
-    formula:
-      "Wounds per success = Strength * Wounds per Strength + floor(Level / Level Bonus Divider)",
-    notes: [
-      "Raise Wounds per Strength to make natural attacks hit harder at every level.",
-      "Raise Level Bonus Divider to make the level-based wound bonus grow more slowly.",
-      "These values affect natural weapon preview/render output, not equipped weapon item strings.",
     ],
   },
   "Dodge & Defence Package": {
@@ -175,8 +167,16 @@ function FormulaGuide(props: { group: CombatTuningAdminGroup }) {
 function buildValuesPayload(draftValues: Record<string, string>): Record<string, number> | string {
   const values: Record<string, number> = {};
   for (const key of COMBAT_TUNING_CONFIG_KEY_ORDER) {
-    const parsed = parseDraftValue(draftValues[key]);
-    if (parsed === null) return `${key} must be a finite number > 0.`;
+    const parsed = parseDraftValue(key, draftValues[key]);
+    if (parsed === null) {
+      const validation = validateCombatTuningConfigValue(key, draftValues[key]);
+      if (!validation.ok) {
+        const metadata = COMBAT_TUNING_ADMIN_METADATA[key];
+        const label = metadata?.label ? `${metadata.label} (${key})` : key;
+        return `${label} must be a ${validation.issue.requirement}. Reason: ${validation.issue.reason}.`;
+      }
+      return `${key} must be a valid combat tuning value.`;
+    }
     values[key] = parsed;
   }
   return values;
@@ -218,7 +218,7 @@ export default function AdminCombatTuningPage() {
     () =>
       isDraft
         ? COMBAT_TUNING_CONFIG_KEY_ORDER.filter((key) =>
-            valuesDiffer(parseDraftValue(draftValues[key]), getSnapshotValue(selectedSet, key)),
+            valuesDiffer(parseDraftValue(key, draftValues[key]), getSnapshotValue(selectedSet, key)),
           )
         : [],
     [draftValues, isDraft, selectedSet],
@@ -229,7 +229,7 @@ export default function AdminCombatTuningPage() {
     () =>
       COMBAT_TUNING_CONFIG_KEY_ORDER.filter((key) =>
         valuesDiffer(
-          isDraft ? parseDraftValue(draftValues[key]) : getSnapshotValue(selectedSet, key),
+          isDraft ? parseDraftValue(key, draftValues[key]) : getSnapshotValue(selectedSet, key),
           getSnapshotValue(activeSnapshot, key),
         ),
       ),
@@ -604,15 +604,6 @@ export default function AdminCombatTuningPage() {
               </button>
             </div>
           </div>
-          <label className="block space-y-1">
-            <span className="text-xs uppercase tracking-wide text-zinc-500">Search tuning keys</span>
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search label, key, group, or alias"
-              className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-2 text-sm"
-            />
-          </label>
           {isDraft ? (
             <button
               type="button"
@@ -625,8 +616,36 @@ export default function AdminCombatTuningPage() {
         </div>
       </section>
 
-      <section className="rounded border border-zinc-800 bg-zinc-950/60 p-4 text-xs text-zinc-500">
-        {visibleKeyCount} visible keys. {activeChangedKeys.length} changed vs active.
+      <section className="space-y-4 rounded border border-zinc-800 bg-zinc-950/60 p-4">
+        <div className="grid gap-3 text-xs sm:grid-cols-4">
+          <div className="rounded border border-zinc-800 bg-zinc-950/40 p-3">
+            <div className="text-zinc-500">Total keys</div>
+            <div className="mt-1 text-lg text-zinc-100">{COMBAT_TUNING_CONFIG_KEY_ORDER.length}</div>
+          </div>
+          <div className="rounded border border-zinc-800 bg-zinc-950/40 p-3">
+            <div className="text-zinc-500">Visible after search</div>
+            <div className="mt-1 text-lg text-zinc-100">{visibleKeyCount}</div>
+          </div>
+          <div className="rounded border border-zinc-800 bg-zinc-950/40 p-3">
+            <div className="text-zinc-500">Changed vs active</div>
+            <div className="mt-1 text-lg text-zinc-100">{activeChangedKeys.length}</div>
+          </div>
+          <div className="rounded border border-zinc-800 bg-zinc-950/40 p-3">
+            <div className="text-zinc-500">Unsaved</div>
+            <div className="mt-1 text-lg text-zinc-100">{dirtyKeys.length}</div>
+          </div>
+        </div>
+
+        <label className="block">
+          <span className="text-sm">Search Tunables</span>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            className="mt-1 w-full rounded border border-zinc-700 bg-transparent p-2 text-sm"
+            placeholder="Filter by label, flat key, description, group, or tag"
+          />
+        </label>
       </section>
 
       {groupedKeys.map(({ group, keys, totalChangedCount }) => {
@@ -655,7 +674,7 @@ export default function AdminCombatTuningPage() {
               {keys.map((key) => {
                 const metadata = COMBAT_TUNING_ADMIN_METADATA[key];
                 const selectedValue = isDraft
-                  ? parseDraftValue(draftValues[key])
+                  ? parseDraftValue(key, draftValues[key])
                   : getSnapshotValue(selectedSet, key);
                 const activeValue = getSnapshotValue(activeSnapshot, key);
                 const changed = activeChangedSet.has(key);

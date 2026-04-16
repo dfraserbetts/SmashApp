@@ -2942,35 +2942,16 @@ export function renderPowerStackCleanupText(): string | null {
   return null;
 }
 
-function getLevelWoundBonus(level?: number, divisor = 3): number {
-  const parsed = typeof level === "number" ? level : Number(level ?? 0);
-  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
-  const resolvedDivisor = Number.isFinite(divisor) && divisor > 0 ? divisor : 3;
-  return Math.floor(parsed / resolvedDivisor);
-}
-
 export function renderAttackActionLines(
   attackConfig: MonsterNaturalAttackConfig,
   weaponSkillValue: number,
   options?: {
     applyWeaponSkillOverride?: boolean;
-    strengthMultiplier?: number;
-    level?: number;
-    levelWoundBonusDivisor?: number;
   },
 ): string[] {
-  const strengthMultiplier =
-    typeof options?.strengthMultiplier === "number" && Number.isFinite(options.strengthMultiplier)
-      ? options.strengthMultiplier
-      : 2;
   const scaleStrength = (value: unknown): number => {
-    const woundAmount = Number(value ?? 0) * strengthMultiplier;
-    if (!(woundAmount > 0)) return woundAmount;
-    // The descriptor engine renders attack damage as strength * 2, so pass the
-    // half-wound unit needed to display the already-scaled wound amount once.
-    return (
-      woundAmount + getLevelWoundBonus(options?.level, options?.levelWoundBonusDivisor)
-    ) / 2;
+    const strength = Number(value ?? 0);
+    return Number.isFinite(strength) ? strength : 0;
   };
 
   const descriptorInput = {

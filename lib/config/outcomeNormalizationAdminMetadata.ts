@@ -5,7 +5,7 @@ export const OUTCOME_NORMALIZATION_ADMIN_GROUPS = [
   "Baseline Party",
   "Manipulation Tuning",
   "Support Utility Fallbacks",
-  "Health Pool Tuning",
+  "Natural Attack Weighting",
   "Scoring Curves - Physical Threat",
   "Scoring Curves - Mental Threat",
   "Scoring Curves - Survivability",
@@ -104,19 +104,11 @@ function labelForKey(configKey: string): string {
   if (configKey === "seuFallbacks.cleanseSeuPerSuccess") return "Cleanse Support Value per Success";
   if (configKey === "seuFallbacks.cleanseSeuPerStack") return "Cleanse Support Value per Stack";
 
-  if (configKey === "healthPoolTuning.expectedPhysicalResilienceAt1") return "Expected Physical Resilience at Level 1";
-  if (configKey === "healthPoolTuning.expectedPhysicalResiliencePerLevel") return "Expected Physical Resilience per Level";
-  if (configKey === "healthPoolTuning.expectedMentalPerseveranceAt1") return "Expected Mental Perseverance at Level 1";
-  if (configKey === "healthPoolTuning.expectedMentalPerseverancePerLevel") return "Expected Mental Perseverance per Level";
-  if (configKey.startsWith("healthPoolTuning.expectedPoolTierMultipliers.")) {
-    return `${formatSegment(parts[2] ?? "")} Expected Health Pool Multiplier`;
+  if (configKey === "naturalAttackTuning.damageOutputWeight") return "Natural Attack Damage Impact";
+  if (configKey === "naturalAttackTuning.greaterSuccessEffectWeight") {
+    return "Natural Attack Greater-Success Impact";
   }
-  if (configKey === "healthPoolTuning.weakerSideWeight") return "Lower-Durability Weight";
-  if (configKey === "healthPoolTuning.averageWeight") return "Average Durability Weight";
-  if (configKey === "healthPoolTuning.belowExpectedMaxPenaltyShare") return "Below-Expected Durability Penalty Cap";
-  if (configKey === "healthPoolTuning.belowExpectedScale") return "Below-Expected Durability Penalty Curve";
-  if (configKey === "healthPoolTuning.aboveExpectedMaxBonusShare") return "Above-Expected Durability Bonus Cap";
-  if (configKey === "healthPoolTuning.aboveExpectedScale") return "Above-Expected Durability Bonus Curve";
+  if (configKey === "naturalAttackTuning.rangeEffectWeight") return "Natural Attack Range Impact";
 
   return parts.map(formatSegment).join(" / ");
 }
@@ -126,7 +118,7 @@ function groupForKey(configKey: string): OutcomeNormalizationAdminGroup {
   if (configKey.startsWith("baselineParty.")) return "Baseline Party";
   if (configKey.startsWith("manipulationTuning.")) return "Manipulation Tuning";
   if (configKey.startsWith("seuFallbacks.")) return "Support Utility Fallbacks";
-  if (configKey.startsWith("healthPoolTuning.")) return "Health Pool Tuning";
+  if (configKey.startsWith("naturalAttackTuning.")) return "Natural Attack Weighting";
   if (configKey.startsWith("scoringCurves.")) {
     const axis = configKey.split(".")[1];
     return CURVE_GROUPS[axis] ?? "Scoring Curves - Pressure";
@@ -135,11 +127,11 @@ function groupForKey(configKey: string): OutcomeNormalizationAdminGroup {
 }
 
 function formatForKey(configKey: string): OutcomeNormalizationValueFormat {
+  if (configKey.startsWith("naturalAttackTuning.")) return "multiplier";
   if (configKey.startsWith("scoringCurves.")) return "curve_value";
   if (
     configKey.startsWith("tierMultipliers.") ||
     configKey.includes("rangeCategoryMultiplier") ||
-    configKey.includes("expectedPoolTierMultipliers") ||
     configKey.endsWith("Multiplier") ||
     configKey.endsWith("MultiplierPerRound")
   ) {
@@ -174,11 +166,14 @@ function descriptionForKey(configKey: string): string {
   if (configKey.startsWith("seuFallbacks.")) {
     return "Fallback support or control value used when a landed effect has no stronger direct signal.";
   }
-  if (configKey.startsWith("healthPoolTuning.expectedPoolTierMultipliers.")) {
-    return "Raises or lowers the expected health-pool baseline for this monster tier.";
+  if (configKey === "naturalAttackTuning.damageOutputWeight") {
+    return "Raises or lowers how much natural attack damage output moves the final radar without changing printed wounds.";
   }
-  if (configKey.startsWith("healthPoolTuning.")) {
-    return "Raises or lowers how physical and mental durability become survivability score.";
+  if (configKey === "naturalAttackTuning.greaterSuccessEffectWeight") {
+    return "Raises or lowers how much natural attack greater-success rider effects move the radar.";
+  }
+  if (configKey === "naturalAttackTuning.rangeEffectWeight") {
+    return "Raises or lowers how much natural attack range and delivery rider value moves the radar.";
   }
   if (configKey.startsWith("scoringCurves.")) {
     return "Curve bound for this level and radar axis. Raising it makes the same raw score normalize lower.";
@@ -214,13 +209,15 @@ function aliasesForKey(configKey: string): string[] {
     aliases.add("AoE");
     aliases.add("Area");
   }
-  if (lowerKey.includes("healthpool") || lowerKey.includes("resilience") || lowerKey.includes("perseverance")) {
-    aliases.add("Durability");
-    aliases.add("Health Pool");
-  }
   if (lowerKey.includes("scoringcurves")) {
     aliases.add("Radar Curve");
     aliases.add("Normalization Curve");
+  }
+  if (lowerKey.includes("naturalattack")) {
+    aliases.add("Natural Attack");
+    aliases.add("Natural Weapon");
+    aliases.add("Natural Attack Weighting");
+    aliases.add("Natural Attack Impact");
   }
   if (lowerKey.includes("range")) aliases.add("Targeting");
   if (lowerKey.includes("multiplier")) aliases.add("Multiplier");

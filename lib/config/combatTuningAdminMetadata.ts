@@ -6,7 +6,6 @@ export const COMBAT_TUNING_ADMIN_GROUPS = [
   "Pool Expectation by Tier",
   "Pool Penalty / Bonus Scaling",
   "Attribute Weights / Realization Inputs",
-  "Natural Attack Formula",
   "Dodge & Defence Package",
   "Misc Combat Baseline",
 ] as const;
@@ -216,25 +215,6 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     format: "multiplier",
     aliases: ["dodge", "avoidance", "protection", "penalty"],
   },
-  naturalAttackStrengthWoundMultiplier: {
-    label: "Natural Attack Wounds per Strength",
-    group: "Natural Attack Formula",
-    description: "Raise this to make each point of natural attack Strength deal more wounds.",
-    affects: "baseline",
-    format: "multiplier",
-    suggestedMin: 1,
-    suggestedMax: 6,
-    aliases: ["natural attack", "strength", "wounds", "damage", "natural weapon"],
-  },
-  naturalAttackLevelWoundBonusDivisor: {
-    label: "Natural Attack Level Bonus Divider",
-    group: "Natural Attack Formula",
-    description: "Raise this to make the extra level-based wound bonus arrive more slowly.",
-    affects: "baseline",
-    suggestedMin: 1,
-    suggestedMax: 10,
-    aliases: ["natural attack", "level bonus", "wounds", "damage", "natural weapon"],
-  },
   minionTierMultiplier: {
     label: "MINION Resilience Multiplier",
     group: "Baseline Resilience & Perseverance",
@@ -342,6 +322,17 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     affects: "baseline",
     format: "share",
     aliases: ["average", "health pool", "survivability"],
+  },
+  poolAtExpectedShare: {
+    label: "Expected Pool Survivability Share",
+    group: "Pool Penalty / Bonus Scaling",
+    description:
+      "When physical and mental pools are exactly on the expected baseline, this is the share of survivability budget they contribute before other survivability systems are added.",
+    affects: "baseline",
+    format: "share",
+    suggestedMin: 0,
+    suggestedMax: 1,
+    aliases: ["parity", "expected", "health pool", "survivability"],
   },
   poolBelowExpectedMaxPenaltyShare: {
     label: "Below-Expected Pool Penalty Cap",

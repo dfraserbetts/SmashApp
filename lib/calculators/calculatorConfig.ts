@@ -45,6 +45,11 @@ export type CalculatorConfig = {
     cleanseSeuPerSuccess: number;
     cleanseSeuPerStack: number;
   };
+  naturalAttackTuning: {
+    damageOutputWeight: number;
+    greaterSuccessEffectWeight: number;
+    rangeEffectWeight: number;
+  };
   healthPoolTuning: {
     expectedPhysicalResilienceAt1: number;
     expectedPhysicalResiliencePerLevel: number;
@@ -61,6 +66,7 @@ export type CalculatorConfig = {
     weakerSideWeight: number;
     averageWeight: number;
 
+    poolAtExpectedShare: number;
     belowExpectedMaxPenaltyShare: number;
     belowExpectedScale: number;
     aboveExpectedMaxBonusShare: number;
@@ -141,6 +147,11 @@ export const calculatorConfig: CalculatorConfig = {
     cleanseSeuPerSuccess: 0.25,
     cleanseSeuPerStack: 0.15,
   },
+  naturalAttackTuning: {
+    damageOutputWeight: 1,
+    greaterSuccessEffectWeight: 1,
+    rangeEffectWeight: 1,
+  },
   healthPoolTuning: {
     expectedPhysicalResilienceAt1: 19,
     expectedPhysicalResiliencePerLevel: 1.5,
@@ -154,6 +165,7 @@ export const calculatorConfig: CalculatorConfig = {
     },
     weakerSideWeight: 0.75,
     averageWeight: 0.25,
+    poolAtExpectedShare: 0,
     belowExpectedMaxPenaltyShare: 0.35,
     belowExpectedScale: 0.25,
     aboveExpectedMaxBonusShare: 0.25,
@@ -309,6 +321,17 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
         overrides.seuFallbacks?.cleanseSeuPerStack ??
         calculatorConfig.seuFallbacks.cleanseSeuPerStack,
     },
+    naturalAttackTuning: {
+      damageOutputWeight:
+        overrides.naturalAttackTuning?.damageOutputWeight ??
+        calculatorConfig.naturalAttackTuning.damageOutputWeight,
+      greaterSuccessEffectWeight:
+        overrides.naturalAttackTuning?.greaterSuccessEffectWeight ??
+        calculatorConfig.naturalAttackTuning.greaterSuccessEffectWeight,
+      rangeEffectWeight:
+        overrides.naturalAttackTuning?.rangeEffectWeight ??
+        calculatorConfig.naturalAttackTuning.rangeEffectWeight,
+    },
     healthPoolTuning: {
       expectedPhysicalResilienceAt1:
         overrides.healthPoolTuning?.expectedPhysicalResilienceAt1 ??
@@ -342,6 +365,9 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
       averageWeight:
         overrides.healthPoolTuning?.averageWeight ??
         calculatorConfig.healthPoolTuning.averageWeight,
+      poolAtExpectedShare:
+        overrides.healthPoolTuning?.poolAtExpectedShare ??
+        calculatorConfig.healthPoolTuning.poolAtExpectedShare,
       belowExpectedMaxPenaltyShare:
         overrides.healthPoolTuning?.belowExpectedMaxPenaltyShare ??
         calculatorConfig.healthPoolTuning.belowExpectedMaxPenaltyShare,

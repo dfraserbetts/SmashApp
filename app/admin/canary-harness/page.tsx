@@ -202,8 +202,6 @@ function computeHarnessSide(params: {
   });
   const profile = computeMonsterOutcomes(baseline.monster, calculatorConfigForSide, {
     equipmentModifierAxisBonuses: baseline.equipmentModifierAxisBonuses,
-    naturalAttackStrengthMultiplier: combatTuningValues.naturalAttackStrengthWoundMultiplier,
-    naturalAttackLevelWoundBonusDivisor: combatTuningValues.naturalAttackLevelWoundBonusDivisor,
     powerContribution: {
       axisVector: powerOnly.totals.axisVector,
       basePowerValue: powerOnly.totals.basePowerValue,

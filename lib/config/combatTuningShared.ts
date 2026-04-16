@@ -24,8 +24,6 @@ export const DEFAULT_DODGE_INTELLECT_WEIGHT = 2;
 export const DEFAULT_DODGE_DEFENCE_WEIGHT = 1;
 export const DEFAULT_DODGE_ATTRIBUTE_DIVISOR = 2;
 export const DEFAULT_DODGE_PROTECTION_PENALTY_WEIGHT = 1;
-export const DEFAULT_NATURAL_ATTACK_STRENGTH_WOUND_MULTIPLIER = 2;
-export const DEFAULT_NATURAL_ATTACK_LEVEL_WOUND_BONUS_DIVISOR = 3;
 export const DEFAULT_MINION_TIER_MULTIPLIER = 1;
 export const DEFAULT_SOLDIER_TIER_MULTIPLIER = 1.5;
 export const DEFAULT_ELITE_TIER_MULTIPLIER = 2;
@@ -43,6 +41,7 @@ export const DEFAULT_EXPECTED_POOL_BOSS_MULTIPLIER = 3;
 export const DEFAULT_POOL_WEAKER_SIDE_WEIGHT = 0.75;
 export const DEFAULT_POOL_AVERAGE_WEIGHT = 0.25;
 
+export const DEFAULT_POOL_AT_EXPECTED_SHARE = 0;
 export const DEFAULT_POOL_BELOW_EXPECTED_MAX_PENALTY_SHARE = 0.35;
 export const DEFAULT_POOL_BELOW_EXPECTED_SCALE = 0.25;
 export const DEFAULT_POOL_ABOVE_EXPECTED_MAX_BONUS_SHARE = 0.25;
@@ -84,8 +83,6 @@ export type ProtectionTuningValues = {
   dodgeDefenceWeight: number;
   dodgeAttributeDivisor: number;
   dodgeProtectionPenaltyWeight: number;
-  naturalAttackStrengthWoundMultiplier: number;
-  naturalAttackLevelWoundBonusDivisor: number;
   minionTierMultiplier: number;
   soldierTierMultiplier: number;
   eliteTierMultiplier: number;
@@ -103,6 +100,7 @@ export type ProtectionTuningValues = {
   poolWeakerSideWeight: number;
   poolAverageWeight: number;
 
+  poolAtExpectedShare: number;
   poolBelowExpectedMaxPenaltyShare: number;
   poolBelowExpectedScale: number;
   poolAboveExpectedMaxBonusShare: number;
@@ -156,8 +154,6 @@ export const DEFAULT_COMBAT_TUNING_VALUES: ProtectionTuningValues = {
   dodgeDefenceWeight: DEFAULT_DODGE_DEFENCE_WEIGHT,
   dodgeAttributeDivisor: DEFAULT_DODGE_ATTRIBUTE_DIVISOR,
   dodgeProtectionPenaltyWeight: DEFAULT_DODGE_PROTECTION_PENALTY_WEIGHT,
-  naturalAttackStrengthWoundMultiplier: DEFAULT_NATURAL_ATTACK_STRENGTH_WOUND_MULTIPLIER,
-  naturalAttackLevelWoundBonusDivisor: DEFAULT_NATURAL_ATTACK_LEVEL_WOUND_BONUS_DIVISOR,
   minionTierMultiplier: DEFAULT_MINION_TIER_MULTIPLIER,
   soldierTierMultiplier: DEFAULT_SOLDIER_TIER_MULTIPLIER,
   eliteTierMultiplier: DEFAULT_ELITE_TIER_MULTIPLIER,
@@ -172,6 +168,7 @@ export const DEFAULT_COMBAT_TUNING_VALUES: ProtectionTuningValues = {
   expectedPoolBossMultiplier: DEFAULT_EXPECTED_POOL_BOSS_MULTIPLIER,
   poolWeakerSideWeight: DEFAULT_POOL_WEAKER_SIDE_WEIGHT,
   poolAverageWeight: DEFAULT_POOL_AVERAGE_WEIGHT,
+  poolAtExpectedShare: DEFAULT_POOL_AT_EXPECTED_SHARE,
   poolBelowExpectedMaxPenaltyShare: DEFAULT_POOL_BELOW_EXPECTED_MAX_PENALTY_SHARE,
   poolBelowExpectedScale: DEFAULT_POOL_BELOW_EXPECTED_SCALE,
   poolAboveExpectedMaxBonusShare: DEFAULT_POOL_ABOVE_EXPECTED_MAX_BONUS_SHARE,
@@ -190,6 +187,67 @@ export const DEFAULT_COMBAT_TUNING_VALUES: ProtectionTuningValues = {
 };
 
 export const COMBAT_TUNING_CONFIG_KEY_ORDER = Object.keys(DEFAULT_COMBAT_TUNING_VALUES);
+export const COMBAT_TUNING_ZERO_ALLOWED_KEYS = new Set<string>(["poolAtExpectedShare"]);
+
+export type CombatTuningValueValidationReason =
+  | "unknown_key"
+  | "non_finite"
+  | "negative"
+  | "not_positive";
+
+export type CombatTuningValueValidationIssue = {
+  key: string;
+  rawValue: unknown;
+  reason: CombatTuningValueValidationReason;
+  requirement: string;
+};
+
+const COMBAT_TUNING_CONFIG_KEY_SET = new Set(COMBAT_TUNING_CONFIG_KEY_ORDER);
+
+export function validateCombatTuningConfigValue(
+  key: string,
+  value: unknown,
+): { ok: true; value: number } | { ok: false; issue: CombatTuningValueValidationIssue } {
+  if (!COMBAT_TUNING_CONFIG_KEY_SET.has(key)) {
+    return {
+      ok: false,
+      issue: { key, rawValue: value, reason: "unknown_key", requirement: "known combat tuning key" },
+    };
+  }
+
+  const numericValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim().length > 0
+        ? Number(value)
+        : Number.NaN;
+
+  if (!Number.isFinite(numericValue)) {
+    return {
+      ok: false,
+      issue: { key, rawValue: value, reason: "non_finite", requirement: "finite number" },
+    };
+  }
+
+  if (COMBAT_TUNING_ZERO_ALLOWED_KEYS.has(key)) {
+    if (numericValue < 0) {
+      return {
+        ok: false,
+        issue: { key, rawValue: value, reason: "negative", requirement: "finite number >= 0" },
+      };
+    }
+    return { ok: true, value: numericValue };
+  }
+
+  if (numericValue <= 0) {
+    return {
+      ok: false,
+      issue: { key, rawValue: value, reason: "not_positive", requirement: "finite number > 0" },
+    };
+  }
+
+  return { ok: true, value: numericValue };
+}
 
 export function combatTuningValuesToFlat(values: ProtectionTuningValues): CombatTuningFlatValues {
   return { ...values };
@@ -206,6 +264,15 @@ function toPositiveNumber(value: unknown, fallback: number): number {
   if (typeof value === "string" && value.trim().length > 0) {
     const parsed = Number(value);
     if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return fallback;
+}
+
+function toNonNegativeNumber(value: unknown, fallback: number): number {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
   }
   return fallback;
 }
@@ -275,14 +342,6 @@ export function normalizeCombatTuning(input?: Partial<Record<keyof ProtectionTun
       input?.dodgeProtectionPenaltyWeight,
       DEFAULT_DODGE_PROTECTION_PENALTY_WEIGHT,
     ),
-    naturalAttackStrengthWoundMultiplier: toPositiveNumber(
-      input?.naturalAttackStrengthWoundMultiplier,
-      DEFAULT_NATURAL_ATTACK_STRENGTH_WOUND_MULTIPLIER,
-    ),
-    naturalAttackLevelWoundBonusDivisor: toPositiveNumber(
-      input?.naturalAttackLevelWoundBonusDivisor,
-      DEFAULT_NATURAL_ATTACK_LEVEL_WOUND_BONUS_DIVISOR,
-    ),
     minionTierMultiplier: toPositiveNumber(
       input?.minionTierMultiplier,
       DEFAULT_MINION_TIER_MULTIPLIER,
@@ -338,6 +397,10 @@ export function normalizeCombatTuning(input?: Partial<Record<keyof ProtectionTun
     poolAverageWeight: toPositiveNumber(
       input?.poolAverageWeight,
       DEFAULT_POOL_AVERAGE_WEIGHT,
+    ),
+    poolAtExpectedShare: toNonNegativeNumber(
+      input?.poolAtExpectedShare,
+      DEFAULT_POOL_AT_EXPECTED_SHARE,
     ),
     poolBelowExpectedMaxPenaltyShare: toPositiveNumber(
       input?.poolBelowExpectedMaxPenaltyShare,
@@ -420,6 +483,7 @@ export function applyCombatTuningToCalculatorConfig(
       },
       weakerSideWeight: tuning.poolWeakerSideWeight,
       averageWeight: tuning.poolAverageWeight,
+      poolAtExpectedShare: tuning.poolAtExpectedShare,
       belowExpectedMaxPenaltyShare: tuning.poolBelowExpectedMaxPenaltyShare,
       belowExpectedScale: tuning.poolBelowExpectedScale,
       aboveExpectedMaxBonusShare: tuning.poolAboveExpectedMaxBonusShare,

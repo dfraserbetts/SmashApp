@@ -536,7 +536,7 @@ function buildEquipmentWeaponAttacks(
         aoe: item.aoe,
       } as MonsterNaturalAttackConfig,
       weaponSkillValue,
-      { applyWeaponSkillOverride: true, strengthMultiplier: 2 },
+      { applyWeaponSkillOverride: true },
     );
 
     if (lines.length === 0) continue;
@@ -754,15 +754,12 @@ export function MonsterBlockCard({
           computedWeaponSkillValue,
           {
             applyWeaponSkillOverride: true,
-            strengthMultiplier: resolvedCombatTuning.naturalAttackStrengthWoundMultiplier,
-            level: monster.level,
-            levelWoundBonusDivisor: resolvedCombatTuning.naturalAttackLevelWoundBonusDivisor,
           },
         ),
       ),
     }));
     return [...slotBasedAttacks, ...naturalMapped];
-  }, [computedWeaponSkillValue, monster, resolvedCombatTuning, weaponById]);
+  }, [computedWeaponSkillValue, monster, weaponById]);
   const attackGroups = useMemo(() => {
     const map = new Map<string, typeof renderedAttacks>();
     for (const a of renderedAttacks) {
