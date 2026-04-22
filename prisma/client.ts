@@ -6,7 +6,7 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is not set in the environment');
 }
 
-const PRISMA_CLIENT_GENERATION = '2026-03-26-channelled-recurring-timing';
+const PRISMA_CLIENT_GENERATION = '2026-04-22-guard-attribute-placement';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL,

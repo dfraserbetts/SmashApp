@@ -1588,6 +1588,7 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     data: forgeItems,
     loading: itemsLoading,
     error: itemsError,
+    errorKind: itemsErrorKind,
     refetch: refetchForgeItems,
   } = useForgeItems(campaignId);
 
@@ -5737,11 +5738,21 @@ useEffect(() => {
             <p className="text-xs text-zinc-500">Loading campaign items...</p>
           )}
 
-          {itemsError && (
-            <p className="text-xs text-red-400">
-              Failed to load campaign items: {itemsError}
-            </p>
-          )}
+          {itemsError &&
+            (itemsErrorKind === 'unauthenticated' ? (
+              <div className="rounded border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
+                Campaign items are unavailable because this browser session is not signed in on this local Forge.
+                Sign in, then reload the page to browse or edit saved Forge items.
+              </div>
+            ) : itemsErrorKind === 'forbidden' ? (
+              <div className="rounded border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200">
+                Campaign items are unavailable for this account. You do not currently have access to this campaign&apos;s Forge library.
+              </div>
+            ) : (
+              <p className="text-xs text-red-400">
+                Failed to load campaign items: {itemsError}
+              </p>
+            ))}
         </div>
         {/* Manual test checklist:
             - Click input: dropdown opens, shows all results

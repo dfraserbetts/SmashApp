@@ -684,13 +684,17 @@ export function ForgePrintMode({ campaignId }: Props) {
   const [printFriendly, setPrintFriendly] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<'unauthenticated' | 'forbidden' | 'other' | null>(
+    null,
+  );
 
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
-      setLoading(true);
-      setError(null);
+      async function load() {
+        setLoading(true);
+        setError(null);
+        setErrorKind(null);
 
       try {
         const res = await fetch(`/api/forge/items?campaignId=${encodeURIComponent(campaignId)}`, {
@@ -699,7 +703,18 @@ export function ForgePrintMode({ campaignId }: Props) {
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error((data as { error?: string }).error ?? 'Failed to load forge items');
+          const message = (data as { error?: string }).error ?? 'Failed to load forge items';
+          const nextErrorKind =
+            res.status === 401 || message === 'Unauthenticated'
+              ? 'unauthenticated'
+              : res.status === 403 || message === 'Forbidden'
+                ? 'forbidden'
+                : 'other';
+          const error = new Error(message) as Error & {
+            forgeErrorKind?: 'unauthenticated' | 'forbidden' | 'other';
+          };
+          error.forgeErrorKind = nextErrorKind;
+          throw error;
         }
 
         const rows = (await res.json()) as ForgeApiItem[];
@@ -707,7 +722,16 @@ export function ForgePrintMode({ campaignId }: Props) {
         setItems(Array.isArray(rows) ? rows : []);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load print mode data';
+        const nextErrorKind =
+          err instanceof Error &&
+          'forgeErrorKind' in err &&
+          (err as Error & { forgeErrorKind?: 'unauthenticated' | 'forbidden' | 'other' })
+            .forgeErrorKind
+            ? (err as Error & { forgeErrorKind: 'unauthenticated' | 'forbidden' | 'other' })
+                .forgeErrorKind
+            : 'other';
         if (!cancelled) setError(message);
+        if (!cancelled) setErrorKind(nextErrorKind);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -798,7 +822,19 @@ export function ForgePrintMode({ campaignId }: Props) {
           </label>
         </div>
 
-        {error && <p className="text-sm text-red-300">{error}</p>}
+        {error &&
+          (errorKind === 'unauthenticated' ? (
+            <div className="rounded border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-sm text-amber-200">
+              Print Mode cannot load campaign Forge items because this browser session is not signed in locally.
+              Sign in, then reload this page.
+            </div>
+          ) : errorKind === 'forbidden' ? (
+            <div className="rounded border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-sm text-amber-200">
+              Print Mode cannot access this campaign&apos;s Forge items for the current account.
+            </div>
+          ) : (
+            <p className="text-sm text-red-300">{error}</p>
+          ))}
 
         <div className="rounded border border-zinc-800 bg-zinc-950/60 p-3">
           <p className="text-xs uppercase tracking-wide text-zinc-500 mb-2">Campaign Forge Items</p>

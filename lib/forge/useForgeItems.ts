@@ -15,6 +15,7 @@ type ForgeItemsState = {
   data: ForgeItemSummary[] | null;
   loading: boolean;
   error: string | null;
+  errorKind: 'unauthenticated' | 'forbidden' | 'other' | null;
   refetch: () => Promise<void>;
 };
 
@@ -50,21 +51,56 @@ function toSummary(row: ForgeItemSummaryRow): ForgeItemSummary {
   };
 }
 
+async function getForgeItemsError(res: Response): Promise<{
+  message: string;
+  kind: 'unauthenticated' | 'forbidden' | 'other';
+}> {
+  const payload = await res.json().catch(() => ({}));
+  const rawMessage =
+    typeof (payload as { error?: unknown }).error === 'string'
+      ? (payload as { error: string }).error
+      : '';
+
+  if (res.status === 401 || rawMessage === 'Unauthenticated') {
+    return {
+      message: rawMessage || 'Unauthenticated',
+      kind: 'unauthenticated',
+    };
+  }
+
+  if (res.status === 403 || rawMessage === 'Forbidden') {
+    return {
+      message: rawMessage || 'Forbidden',
+      kind: 'forbidden',
+    };
+  }
+
+  return {
+    message: rawMessage || `Items request failed: ${res.status}`,
+    kind: 'other',
+  };
+}
+
 export function useForgeItems(campaignId: string): ForgeItemsState {
   const [data, setData] = useState<ForgeItemSummary[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorKind, setErrorKind] = useState<'unauthenticated' | 'forbidden' | 'other' | null>(
+    null,
+  );
 
   const load = useCallback(async () => {
     if (!campaignId) {
       setData(null);
       setLoading(false);
       setError('campaignId is required');
+      setErrorKind('other');
       return;
     }
 
     setLoading(true);
     setError(null);
+    setErrorKind(null);
 
     try {
       const res = await fetch(
@@ -72,8 +108,12 @@ export function useForgeItems(campaignId: string): ForgeItemsState {
       );
 
       if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(text || `Items request failed: ${res.status}`);
+        const failure = await getForgeItemsError(res);
+        const error = new Error(failure.message) as Error & {
+          forgeErrorKind?: 'unauthenticated' | 'forbidden' | 'other';
+        };
+        error.forgeErrorKind = failure.kind;
+        throw error;
       }
 
       const json = (await res.json()) as unknown;
@@ -87,12 +127,20 @@ export function useForgeItems(campaignId: string): ForgeItemsState {
 
       setData(summaries);
       setLoading(false);
+      setErrorKind(null);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Unknown error fetching items';
+      const nextErrorKind =
+        err instanceof Error &&
+        'forgeErrorKind' in err &&
+        (err as Error & { forgeErrorKind?: ForgeItemsState['errorKind'] }).forgeErrorKind
+          ? (err as Error & { forgeErrorKind: ForgeItemsState['errorKind'] }).forgeErrorKind
+          : 'other';
       setData(null);
       setLoading(false);
       setError(message);
+      setErrorKind(nextErrorKind);
     }
   }, [campaignId]);
 
@@ -104,6 +152,7 @@ export function useForgeItems(campaignId: string): ForgeItemsState {
     data,
     loading,
     error,
+    errorKind,
     refetch: load,
   };
 }

@@ -4299,7 +4299,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       fetch(`/api/summoning-circle/weapons?campaignId=${encodeURIComponent(campaignId)}`, {
         cache: "no-store",
       }),
-      fetch("/api/forge/picklists", { cache: "no-store" }),
+      fetch("/api/summoning-circle/picklists", { cache: "no-store" }),
       fetch("/api/summoning-circle/traits", { cache: "no-store" }),
     ]);
 
@@ -7899,7 +7899,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
                         aria-label={`Move attack ${attackIndex + 1} up`}
                       >
-                        â†‘
+                        ^
                       </button>
                       <button
                         type="button"
@@ -7908,7 +7908,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
                         aria-label={`Move attack ${attackIndex + 1} down`}
                       >
-                        â†“
+                        v
                       </button>
                       <button
                         type="button"

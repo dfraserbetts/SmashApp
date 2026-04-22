@@ -12,7 +12,7 @@ export default function CampaignForgeLibraryPage({
   params,
 }: CampaignForgeLibraryPageProps) {
   const campaignId = params.id;
-  const { data, loading, error } = useForgeItems(campaignId);
+  const { data, loading, error, errorKind } = useForgeItems(campaignId);
 
   return (
     <main className="min-h-screen w-full bg-black text-zinc-100">
@@ -39,11 +39,21 @@ export default function CampaignForgeLibraryPage({
             <p className="text-sm text-zinc-500">Loading item templates…</p>
           )}
 
-          {error && (
-            <p className="text-sm text-red-400">
-              Failed to load items: {error}
-            </p>
-          )}
+          {error &&
+            (errorKind === 'unauthenticated' ? (
+              <div className="rounded border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-sm text-amber-200">
+                Forge Library is unavailable because this browser session is not signed in locally.
+                Sign in, then reload the page to view saved items.
+              </div>
+            ) : errorKind === 'forbidden' ? (
+              <div className="rounded border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-sm text-amber-200">
+                Forge Library is unavailable for this account because it does not currently have access to this campaign.
+              </div>
+            ) : (
+              <p className="text-sm text-red-400">
+                Failed to load items: {error}
+              </p>
+            ))}
 
           {!loading && !error && (!data || data.length === 0) && (
             <p className="text-sm text-zinc-500">
