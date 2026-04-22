@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 
 import { calculatorConfig } from "../lib/calculators/calculatorConfig";
-import { computeMonsterOutcomes, type WeaponAttackSource } from "../lib/calculators/monsterOutcomeCalculator";
+import { DEFAULT_COMBAT_TUNING_VALUES } from "../lib/config/combatTuningShared";
+import {
+  computeMonsterOutcomes,
+  type DefensiveProfileSource,
+  type WeaponAttackSource,
+} from "../lib/calculators/monsterOutcomeCalculator";
 import type { MonsterAttack, MonsterUpsertInput } from "../lib/summoning/types";
 
 function createBaseMonster(): MonsterUpsertInput {
@@ -94,11 +99,80 @@ function getNonPowerPhysicalThreat(result: ReturnType<typeof computeMonsterOutco
   return Number(debug.nonPowerContribution?.axisVector?.physicalThreat ?? 0);
 }
 
+function getNonPowerPhysicalSurvivability(
+  result: ReturnType<typeof computeMonsterOutcomes>,
+): number {
+  const debug = result.debug as {
+    nonPowerContribution?: { axisVector?: { physicalSurvivability?: number } };
+  };
+  return Number(debug.nonPowerContribution?.axisVector?.physicalSurvivability ?? 0);
+}
+
+function getNonPowerMentalSurvivability(
+  result: ReturnType<typeof computeMonsterOutcomes>,
+): number {
+  const debug = result.debug as {
+    nonPowerContribution?: { axisVector?: { mentalSurvivability?: number } };
+  };
+  return Number(debug.nonPowerContribution?.axisVector?.mentalSurvivability ?? 0);
+}
+
 function getAtWillProfiles(result: ReturnType<typeof computeMonsterOutcomes>) {
   const debug = result.debug as {
     nonPowerContribution?: { sources?: { atWillProfiles?: unknown[] } };
   };
   return debug.nonPowerContribution?.sources?.atWillProfiles ?? [];
+}
+
+function getDefensiveProfiles(result: ReturnType<typeof computeMonsterOutcomes>) {
+  const debug = result.debug as {
+    nonPowerContribution?: { sources?: { defensiveProfiles?: unknown[] } };
+  };
+  return debug.nonPowerContribution?.sources?.defensiveProfiles ?? [];
+}
+
+function getDefensiveProfileContribution(result: ReturnType<typeof computeMonsterOutcomes>) {
+  const debug = result.debug as {
+    nonPowerContribution?: {
+      sources?: {
+        defensiveProfileContribution?: {
+          physicalSurvivability?: number;
+          mentalSurvivability?: number;
+        };
+      };
+    };
+  };
+  return {
+    physical: Number(
+      debug.nonPowerContribution?.sources?.defensiveProfileContribution?.physicalSurvivability ?? 0,
+    ),
+    mental: Number(
+      debug.nonPowerContribution?.sources?.defensiveProfileContribution?.mentalSurvivability ?? 0,
+    ),
+  };
+}
+
+function getDefensiveSharedDodgeContribution(result: ReturnType<typeof computeMonsterOutcomes>) {
+  const debug = result.debug as {
+    nonPowerContribution?: {
+      sources?: {
+        defensiveSharedDodgeContribution?: {
+          physicalSurvivability?: number;
+          mentalSurvivability?: number;
+        };
+      };
+    };
+  };
+  return {
+    physical: Number(
+      debug.nonPowerContribution?.sources?.defensiveSharedDodgeContribution?.physicalSurvivability ??
+        0,
+    ),
+    mental: Number(
+      debug.nonPowerContribution?.sources?.defensiveSharedDodgeContribution?.mentalSurvivability ??
+        0,
+    ),
+  };
 }
 
 const slashAttackConfig = {
@@ -134,6 +208,18 @@ const naturalSlash = computeMonsterOutcomes(
   calculatorConfig,
 );
 
+const duplicatedNaturalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attacks: [createNaturalAttack(slashAttackConfig)],
+    naturalAttack: {
+      attackName: "Slash",
+      attackConfig: slashAttackConfig,
+    },
+  },
+  calculatorConfig,
+);
+
 const equippedClub = computeMonsterOutcomes(createBaseMonster(), calculatorConfig, {
   equippedWeaponSources: [clubWeaponSource],
 });
@@ -141,6 +227,7 @@ const equippedClub = computeMonsterOutcomes(createBaseMonster(), calculatorConfi
 assert.equal(naturalSlash.sustainedPhysical, equippedClub.sustainedPhysical);
 assert.equal(getNonPowerPhysicalThreat(naturalSlash), getNonPowerPhysicalThreat(equippedClub));
 assert.equal(getAtWillProfiles(naturalSlash).length, 1);
+assert.equal(getAtWillProfiles(duplicatedNaturalSlash).length, 1);
 assert.equal(getAtWillProfiles(equippedClub).length, 1);
 
 const rangedAttackConfig = {
@@ -185,6 +272,101 @@ const equippedRanged = computeMonsterOutcomes(createBaseMonster(), calculatorCon
 assert.equal(naturalRanged.sustainedPhysical, equippedRanged.sustainedPhysical);
 assert.equal(getNonPowerPhysicalThreat(naturalRanged), getNonPowerPhysicalThreat(equippedRanged));
 
+function createDefensiveParityCase(
+  source: DefensiveProfileSource,
+  protection: { physicalProtection: number; mentalProtection: number },
+) {
+  return computeMonsterOutcomes(
+    {
+      ...createBaseMonster(),
+      physicalProtection: protection.physicalProtection,
+      mentalProtection: protection.mentalProtection,
+      naturalPhysicalProtection: source.sourceKind === "natural" ? protection.physicalProtection : 0,
+      naturalMentalProtection: source.sourceKind === "natural" ? protection.mentalProtection : 0,
+    },
+    calculatorConfig,
+    {
+      defensiveProfileSources: [source],
+      defensiveProfileContext: {
+        dodgeDice: 1,
+        armorSkillDice: 2,
+        willpowerDice: 2,
+        totalPhysicalProtection: protection.physicalProtection,
+        totalMentalProtection: protection.mentalProtection,
+      },
+      protectionTuning: DEFAULT_COMBAT_TUNING_VALUES,
+    },
+  );
+}
+
+const naturalPhysicalDefence = createDefensiveParityCase(
+  {
+    sourceKind: "natural",
+    sourceId: "hide",
+    sourceLabel: "Hide",
+    physicalProtection: 2,
+    mentalProtection: 0,
+  },
+  { physicalProtection: 2, mentalProtection: 0 },
+);
+
+const equippedPhysicalDefence = createDefensiveParityCase(
+  {
+    sourceKind: "equipped",
+    sourceId: "shield",
+    sourceLabel: "Shield",
+    physicalProtection: 2,
+    mentalProtection: 0,
+  },
+  { physicalProtection: 2, mentalProtection: 0 },
+);
+
+const naturalMentalDefence = createDefensiveParityCase(
+  {
+    sourceKind: "natural",
+    sourceId: "ward",
+    sourceLabel: "Ward",
+    physicalProtection: 0,
+    mentalProtection: 3,
+  },
+  { physicalProtection: 0, mentalProtection: 3 },
+);
+
+const equippedMentalDefence = createDefensiveParityCase(
+  {
+    sourceKind: "equipped",
+    sourceId: "mantle",
+    sourceLabel: "Mantle",
+    physicalProtection: 0,
+    mentalProtection: 3,
+  },
+  { physicalProtection: 0, mentalProtection: 3 },
+);
+
+assert.equal(
+  getNonPowerPhysicalSurvivability(naturalPhysicalDefence),
+  getNonPowerPhysicalSurvivability(equippedPhysicalDefence),
+);
+assert.equal(getDefensiveProfiles(naturalPhysicalDefence).length, 1);
+assert.equal(getDefensiveProfiles(equippedPhysicalDefence).length, 1);
+assert.equal(
+  getNonPowerMentalSurvivability(naturalMentalDefence),
+  getNonPowerMentalSurvivability(equippedMentalDefence),
+);
+
+const ppvOnlyContribution = getDefensiveProfileContribution(naturalPhysicalDefence);
+const mpvOnlyContribution = getDefensiveProfileContribution(naturalMentalDefence);
+const ppvOnlyDodgeContribution = getDefensiveSharedDodgeContribution(naturalPhysicalDefence);
+const mpvOnlyDodgeContribution = getDefensiveSharedDodgeContribution(naturalMentalDefence);
+assert.equal(ppvOnlyContribution.mental, 0);
+assert.ok(ppvOnlyContribution.physical > 0);
+assert.equal(mpvOnlyContribution.physical, 0);
+assert.ok(mpvOnlyContribution.mental > 0);
+assert.ok(ppvOnlyDodgeContribution.physical > 0);
+assert.equal(ppvOnlyDodgeContribution.mental, 0);
+assert.ok(mpvOnlyDodgeContribution.physical > 0);
+assert.equal(mpvOnlyDodgeContribution.mental, 0);
+
 const legacyNaturalSlashPhysicalThreat =
   1 *
   ((8 - 3) / 8) *
@@ -205,9 +387,31 @@ console.log(
           equippedClubPhysicalThreat: getNonPowerPhysicalThreat(equippedClub),
         },
       },
+      duplicateNaturalIngress: {
+        naturalProfileCount: getAtWillProfiles(duplicatedNaturalSlash).length,
+        naturalPhysicalThreat: getNonPowerPhysicalThreat(duplicatedNaturalSlash),
+      },
       rangedParity: {
         natural: getNonPowerPhysicalThreat(naturalRanged),
         equipped: getNonPowerPhysicalThreat(equippedRanged),
+      },
+      defensiveParity: {
+        physical: {
+          natural: getNonPowerPhysicalSurvivability(naturalPhysicalDefence),
+          equipped: getNonPowerPhysicalSurvivability(equippedPhysicalDefence),
+        },
+        mental: {
+          natural: getNonPowerMentalSurvivability(naturalMentalDefence),
+          equipped: getNonPowerMentalSurvivability(equippedMentalDefence),
+        },
+      },
+      defensiveProfileRouting: {
+        ppvOnly: ppvOnlyContribution,
+        mpvOnly: mpvOnlyContribution,
+      },
+      defensiveDodgeRouting: {
+        ppvOnly: ppvOnlyDodgeContribution,
+        mpvOnly: mpvOnlyDodgeContribution,
       },
     },
     null,

@@ -71,6 +71,7 @@ import {
   computeMonsterOutcomes,
   getEquipmentModifierBudgetShare,
   getEquipmentModifierPressureMultiplier,
+  type DefensiveProfileSource,
   type MonsterCalculatorArchetype,
   type RadarAxes,
   type TraitAxisWeightDefinition,
@@ -4830,6 +4831,36 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     () => naturalMentalProtectionValue + itemProtectionValues.mentalProtection,
     [naturalMentalProtectionValue, itemProtectionValues.mentalProtection],
   );
+  const selectedDefensiveProfileSources = useMemo(() => {
+    const profiles: DefensiveProfileSource[] = [];
+    if (naturalPhysicalProtectionValue > 0 || naturalMentalProtectionValue > 0) {
+      profiles.push({
+        sourceKind: "natural",
+        sourceId: null,
+        sourceLabel: "Natural Protection",
+        physicalProtection: naturalPhysicalProtectionValue,
+        mentalProtection: naturalMentalProtectionValue,
+      });
+    }
+    for (const item of equippedItems) {
+      if (!item || (item.type !== "ARMOR" && item.type !== "SHIELD")) continue;
+      const physicalProtection = Math.max(0, Number(item.ppv ?? 0) || 0);
+      const mentalProtection = Math.max(0, Number(item.mpv ?? 0) || 0);
+      if (!(physicalProtection > 0) && !(mentalProtection > 0)) continue;
+      profiles.push({
+        sourceKind: "equipped",
+        sourceId: item.id,
+        sourceLabel: item.name,
+        physicalProtection,
+        mentalProtection,
+      });
+    }
+    return profiles;
+  }, [
+    equippedItems,
+    naturalMentalProtectionValue,
+    naturalPhysicalProtectionValue,
+  ]);
   const computedWeaponSkillValue = useMemo(
     () =>
       Math.max(
@@ -5278,82 +5309,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     bonuses.synergy += axisBudgetTargets.synergy * generalSynergyShare;
     bonuses.presence += axisBudgetTargets.presence * generalPresenceShare;
 
-    const expectedIncomingAttackDice = getExpectedIncomingAttackDiceForDodge(
-      previewMonster.level,
-      previewMonster.tier,
-    );
-
-    const baselineDodgeShare = getSmoothDodgeShare(
-      dodgeDice,
-      protectionTuning.dodgeBaselineScale,
-      protectionTuning.dodgeBaselineMaxShare,
-    );
-
-    const dodgeParityProgress = getDodgeParityProgress(
-      dodgeDice,
-      expectedIncomingAttackDice,
-    );
-
-    const parityDodgeShare = getSmoothDodgeShare(
-      dodgeParityProgress,
-      protectionTuning.dodgeParityScale,
-      protectionTuning.dodgeParityMaxShare,
-    );
-
-    const dodgeAboveExpectedDice = Math.max(0, dodgeDice - expectedIncomingAttackDice);
-    const aboveExpectedDodgeShare = getSmoothDodgeShare(
-      Math.min(1, dodgeAboveExpectedDice),
-      protectionTuning.dodgeAboveExpectedScale,
-      protectionTuning.dodgeAboveExpectedMaxShare,
-    );
-
-    const extremeAboveExpectedDice = Math.max(0, dodgeAboveExpectedDice - 1);
-    const extremeAboveExpectedDodgeShare = getSmoothDodgeShare(
-      extremeAboveExpectedDice,
-      protectionTuning.dodgeExtremeAboveExpectedScale,
-      protectionTuning.dodgeExtremeAboveExpectedMaxShare,
-    );
-
-    const totalDodgeShare = Math.min(
-      protectionTuning.dodgeTotalMaxShare,
-      baselineDodgeShare +
-        parityDodgeShare +
-        aboveExpectedDodgeShare +
-        extremeAboveExpectedDodgeShare,
-    );
-
-    const physicalDefencePotential = computedArmorSkillValue * physicalBlockPerSuccess;
-    const physicalDefenceSurvivabilityShare = getSmoothDefenceShare(
-      physicalDefencePotential,
-      protectionTuning.defenceStringProtectionOutputScale,
-      protectionTuning.defenceStringProtectionOutputMaxShare,
-    );
-
-    const mentalDefencePotential = willpowerDice * mentalBlockPerSuccess;
-    const mentalDefenceSurvivabilityShare = getSmoothDefenceShare(
-      mentalDefencePotential,
-      protectionTuning.defenceStringProtectionOutputScale,
-      protectionTuning.defenceStringProtectionOutputMaxShare,
-    );
-
-    bonuses.physicalSurvivability +=
-      axisBudgetTargets.physicalSurvivability *
-      (totalDodgeShare * 0.5 + physicalDefenceSurvivabilityShare);
-    bonuses.mentalSurvivability +=
-      axisBudgetTargets.mentalSurvivability *
-      (totalDodgeShare * 0.5 + mentalDefenceSurvivabilityShare);
-
     return bonuses;
   }, [
     equippedItems,
     itemModifierValues,
     previewMonster,
-    dodgeDice,
-    computedArmorSkillValue,
-    physicalBlockPerSuccess,
-    willpowerDice,
-    mentalBlockPerSuccess,
-    protectionTuning,
     runtimeCalculatorConfig,
   ]);
   const selectedNaturalAttackRangeAxisBonuses = useMemo(() => {
@@ -5497,9 +5457,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     );
 
     const physicalDodgeRawBonus =
-      physicalSurvivabilityAxisBudgetTarget * totalDodgeShare * 0.5;
-    const mentalDodgeRawBonus =
-      mentalSurvivabilityAxisBudgetTarget * totalDodgeShare * 0.5;
+      physicalSurvivabilityAxisBudgetTarget * totalDodgeShare;
+    const mentalDodgeRawBonus = 0;
     const physicalDefencePackageRawBonus =
       physicalDodgeRawBonus +
       physicalSurvivabilityAxisBudgetTarget * physicalDefenceSurvivabilityShare;
@@ -5532,7 +5491,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         extremeAboveExpectedDice,
         extremeAboveExpectedShare: extremeAboveExpectedDodgeShare,
         totalShare: totalDodgeShare,
-        routing: "shared_even_split_across_physical_and_mental_survivability",
+        routing: "physical_survivability_only",
         physicalRawBonus: physicalDodgeRawBonus,
         mentalRawBonus: mentalDodgeRawBonus,
       },
@@ -5580,6 +5539,15 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     );
     const baseProfile = computeMonsterOutcomes(previewMonster, runtimeCalculatorConfig, {
       equippedWeaponSources,
+      defensiveProfileSources: selectedDefensiveProfileSources,
+      defensiveProfileContext: {
+        dodgeDice,
+        armorSkillDice: computedArmorSkillValue,
+        willpowerDice,
+        totalPhysicalProtection,
+        totalMentalProtection,
+      },
+      protectionTuning,
       equipmentModifierAxisBonuses: selectedEquipmentModifierAxisBonuses,
       naturalAttackGsAxisBonuses: selectedNaturalAttackGsAxisBonuses,
       naturalAttackRangeAxisBonuses: selectedNaturalAttackRangeAxisBonuses,
@@ -5604,6 +5572,13 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     previewMonster,
     powerTuning.snapshot,
     runtimeCalculatorConfig,
+    selectedDefensiveProfileSources,
+    dodgeDice,
+    computedArmorSkillValue,
+    willpowerDice,
+    totalPhysicalProtection,
+    totalMentalProtection,
+    protectionTuning,
     selectedEquipmentModifierAxisBonuses,
     selectedNaturalAttackGsAxisBonuses,
     selectedNaturalAttackRangeAxisBonuses,

@@ -73,7 +73,7 @@ const GLOBAL_ATTRIBUTE_COST_STATS_FALLBACK: GlobalAttributeCostStat[] = [
   "Synergy",
   "Bravery",
 ];
-const WEAPON_ATTRIBUTE_PRICING_MODE_OPTIONS = [
+const BASE_ATTRIBUTE_PRICING_MODE_OPTIONS = [
   { value: "", label: "Static ForgeCostEntry rows" },
   { value: "ATTRIBUTE_VALUE", label: "[AttributeValue]" },
   { value: "AURA_PHYSICAL", label: "[AuraPhysical]" },
@@ -86,6 +86,11 @@ const WEAPON_ATTRIBUTE_PRICING_MODE_OPTIONS = [
   { value: "AOE_MENTAL_STRENGTH", label: "AoE Mental Strength" },
   { value: "CHOSEN_PHYSICAL_STRENGTH", label: "Chosen Physical Strength" },
   { value: "CHOSEN_MENTAL_STRENGTH", label: "Chosen Mental Strength" },
+] as const;
+const ARMOR_SHIELD_ATTRIBUTE_PRICING_MODE_OPTIONS = [
+  ...BASE_ATTRIBUTE_PRICING_MODE_OPTIONS,
+  { value: "PPV", label: "[PPV]" },
+  { value: "MPV", label: "[MPV]" },
 ] as const;
 const ITEM_MODIFIER_COST_STATS: ItemModifierCostStat[] = [
   "Armor Skill",
@@ -879,6 +884,13 @@ function renderTemplatePreview(
   const isDynamicAttributePricingActive = useMemo(
     () => (isWeaponAttributes || isArmorAttributes || isShieldAttributes) && pricingMode.trim().length > 0,
     [isArmorAttributes, isShieldAttributes, isWeaponAttributes, pricingMode],
+  );
+  const attributePricingModeOptions = useMemo(
+    () =>
+      isArmorAttributes || isShieldAttributes
+        ? ARMOR_SHIELD_ATTRIBUTE_PRICING_MODE_OPTIONS
+        : BASE_ATTRIBUTE_PRICING_MODE_OPTIONS,
+    [isArmorAttributes, isShieldAttributes],
   );
 
   async function loadCostsLive() {
@@ -1769,7 +1781,7 @@ function renderTemplatePreview(
                               value={pricingMode}
                               onChange={(e) => setPricingMode(e.target.value)}
                             >
-                              {WEAPON_ATTRIBUTE_PRICING_MODE_OPTIONS.map((option) => (
+                              {attributePricingModeOptions.map((option) => (
                                 <option key={option.value || "STATIC"} value={option.value}>
                                   {option.label}
                                 </option>
@@ -1954,7 +1966,7 @@ function renderTemplatePreview(
                     <div>
                       Active rule: <span className="font-medium">{pricingScalar.trim() || "0"}</span> x{" "}
                       <span className="font-medium">
-                        {WEAPON_ATTRIBUTE_PRICING_MODE_OPTIONS.find((option) => option.value === pricingMode)?.label ?? pricingMode}
+                        {attributePricingModeOptions.find((option) => option.value === pricingMode)?.label ?? pricingMode}
                       </span>
                     </div>
                     <div className="mt-2 text-xs opacity-70">

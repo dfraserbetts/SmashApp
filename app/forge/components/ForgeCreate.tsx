@@ -564,6 +564,8 @@ type AttributePricingMode =
   | 'ATTRIBUTE_VALUE'
   | 'AURA_PHYSICAL'
   | 'AURA_MENTAL'
+  | 'PPV'
+  | 'MPV'
   | 'MELEE_PHYSICAL_STRENGTH'
   | 'MELEE_MENTAL_STRENGTH'
   | 'RANGED_PHYSICAL_STRENGTH'
@@ -1672,6 +1674,10 @@ function getAttributeDynamicPricingMagnitude(
       return Number(values.auraPhysical ?? 0);
     case 'AURA_MENTAL':
       return Number(values.auraMental ?? 0);
+    case 'PPV':
+      return Number(values.ppv ?? 0);
+    case 'MPV':
+      return Number(values.mpv ?? 0);
     case 'MELEE_PHYSICAL_STRENGTH':
       return Number(values.meleePhysicalStrength ?? 0);
     case 'MELEE_MENTAL_STRENGTH':
@@ -1730,6 +1736,7 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   const [pickerFiltersOpen, setPickerFiltersOpen] = useState(false);
   const [pickerLevelSelected, setPickerLevelSelected] = useState<number[]>([]);
   const [pickerItemTypesSelected, setPickerItemTypesSelected] = useState<ItemType[]>([]);
+  const [pickerRaritiesSelected, setPickerRaritiesSelected] = useState<ItemRarity[]>([]);
   const [pickerExcludeLegendary, setPickerExcludeLegendary] = useState(false);
   const [pickerExcludeMythic, setPickerExcludeMythic] = useState(false);
   const [recentForgeItemIds, setRecentForgeItemIds] = useState<string[]>([]);
@@ -1905,6 +1912,12 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
             return false;
           }
         }
+        if (pickerRaritiesSelected.length > 0) {
+          const itemRarity = String(row.rarity ?? '').trim().toUpperCase() as ItemRarity;
+          if (!ITEM_RARITIES.includes(itemRarity) || !pickerRaritiesSelected.includes(itemRarity)) {
+            return false;
+          }
+        }
         if (pickerExcludeLegendary && isLegendaryItem(row)) {
           return false;
         }
@@ -1918,6 +1931,7 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
       pickerExcludeLegendary,
       pickerExcludeMythic,
       pickerItemTypesSelected,
+      pickerRaritiesSelected,
       pickerLevelSelected,
       queryFilteredForgeItems,
     ],
@@ -1937,12 +1951,13 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   const hasPickerFilters =
     (forgePickerSupportsLevel && pickerLevelSelected.length > 0) ||
     pickerItemTypesSelected.length > 0 ||
+    pickerRaritiesSelected.length > 0 ||
     pickerExcludeLegendary ||
     pickerExcludeMythic;
   const pickerTotalCount = (forgeItems ?? []).length;
   const pickerFilteredCount = filteredForgeItems.length;
   const activePickerFilterPills = useMemo(() => {
-    const pills: Array<{ id: 'level' | 'itemType' | 'noLegendary' | 'noMythic'; label: string }> = [];
+    const pills: Array<{ id: 'level' | 'itemType' | 'rarity' | 'noLegendary' | 'noMythic'; label: string }> = [];
     if (forgePickerSupportsLevel && pickerLevelSelected.length > 0) {
       pills.push({
         id: 'level',
@@ -1954,6 +1969,14 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
         id: 'itemType',
         label: `Item Type: ${pickerItemTypesSelected
           .map((itemType) => PICKER_ITEM_TYPE_LABELS[itemType])
+          .join(', ')}`,
+      });
+    }
+    if (pickerRaritiesSelected.length > 0) {
+      pills.push({
+        id: 'rarity',
+        label: `Rarity: ${pickerRaritiesSelected
+          .map((rarity) => formatItemRarityLabel(rarity))
           .join(', ')}`,
       });
     }
@@ -1969,6 +1992,7 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     pickerExcludeLegendary,
     pickerExcludeMythic,
     pickerItemTypesSelected,
+    pickerRaritiesSelected,
     pickerLevelSelected,
   ]);
   const recentForgeItems = useMemo(() => {
@@ -2011,19 +2035,31 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
         : ITEM_TYPES.filter((entry) => entry === itemType || prev.includes(entry)),
     );
   };
+  const togglePickerRarity = (rarity: ItemRarity) => {
+    setPickerRaritiesSelected((prev) =>
+      prev.includes(rarity)
+        ? prev.filter((entry) => entry !== rarity)
+        : ITEM_RARITIES.filter((entry) => entry === rarity || prev.includes(entry)),
+    );
+  };
   const clearPickerFilters = () => {
     setPickerLevelSelected([]);
     setPickerItemTypesSelected([]);
+    setPickerRaritiesSelected([]);
     setPickerExcludeLegendary(false);
     setPickerExcludeMythic(false);
   };
-  const removePickerFilterPill = (pillId: 'level' | 'itemType' | 'noLegendary' | 'noMythic') => {
+  const removePickerFilterPill = (pillId: 'level' | 'itemType' | 'rarity' | 'noLegendary' | 'noMythic') => {
     if (pillId === 'level') {
       setPickerLevelSelected([]);
       return;
     }
     if (pillId === 'itemType') {
       setPickerItemTypesSelected([]);
+      return;
+    }
+    if (pillId === 'rarity') {
+      setPickerRaritiesSelected([]);
       return;
     }
     if (pillId === 'noLegendary') {
@@ -5789,6 +5825,40 @@ useEffect(() => {
                               }`}
                             >
                               {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs uppercase tracking-wide text-zinc-500">Rarity</p>
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setPickerRaritiesSelected([])}
+                          className={`rounded border px-2 py-1 text-xs ${
+                            pickerRaritiesSelected.length === 0
+                              ? 'border-emerald-600 bg-emerald-950/20 text-emerald-100'
+                              : 'border-zinc-700 bg-zinc-900 hover:bg-zinc-800'
+                          }`}
+                        >
+                          All
+                        </button>
+                        {ITEM_RARITIES.map((rarity) => {
+                          const active = pickerRaritiesSelected.includes(rarity);
+                          return (
+                            <button
+                              key={rarity}
+                              type="button"
+                              onClick={() => togglePickerRarity(rarity)}
+                              className={`rounded border px-2 py-1 text-xs ${
+                                active
+                                  ? 'border-emerald-600 bg-emerald-950/20 text-emerald-100'
+                                  : 'border-zinc-700 bg-zinc-900 hover:bg-zinc-800'
+                              }`}
+                            >
+                              {formatItemRarityLabel(rarity)}
                             </button>
                           );
                         })}

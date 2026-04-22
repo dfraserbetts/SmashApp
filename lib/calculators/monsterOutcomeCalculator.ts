@@ -5,7 +5,16 @@ import type {
   MonsterTier,
   MonsterUpsertInput,
 } from "@/lib/summoning/types";
+import {
+  getArmorSkillDiceCountFromAttributes,
+  getDodgeValue,
+  getWillpowerDiceCountFromAttributes,
+} from "@/lib/summoning/attributes";
 import type { CalculatorConfig, LevelCurvePoint } from "@/lib/calculators/calculatorConfig";
+import {
+  DEFAULT_COMBAT_TUNING_VALUES,
+  type ProtectionTuningValues,
+} from "@/lib/config/combatTuningShared";
 
 export type MonsterCalculatorArchetype = "BALANCED" | "GLASS_CANNON" | "TANK" | "CONTROLLER";
 
@@ -81,6 +90,16 @@ export type WeaponAttackSource = {
   };
 };
 
+export type DefensiveProfileSourceKind = "natural" | "equipped";
+
+export type DefensiveProfileSource = {
+  sourceKind: DefensiveProfileSourceKind;
+  sourceId?: string | null;
+  sourceLabel: string;
+  physicalProtection?: number | null;
+  mentalProtection?: number | null;
+};
+
 export type MonsterOutcomeProfile = {
   threat: {
     sustainedPhysical: number;
@@ -111,6 +130,7 @@ type MonsterOutcomeInput = Pick<
   | "attackDie"
   | "attackResistDie"
   | "attacks"
+  | "guardDie"
   | "braveryResistDie"
   | "guardResistDie"
   | "fortitudeResistDie"
@@ -120,11 +140,18 @@ type MonsterOutcomeInput = Pick<
   | "limitBreak2Attribute"
   | "limitBreak2Tier"
   | "naturalAttack"
+  | "naturalPhysicalProtection"
+  | "naturalMentalProtection"
   | "powers"
   | "physicalResilienceMax"
   | "mentalPerseveranceMax"
   | "physicalProtection"
   | "mentalProtection"
+  | "fortitudeDie"
+  | "intellectDie"
+  | "synergyDie"
+  | "braveryDie"
+  | "armorSkillValue"
   | "synergyResistDie"
 >;
 
@@ -201,6 +228,42 @@ type NormalizedAtWillAttackProfile = {
   rangeAxisBonuses: RadarAxes;
 };
 
+type NormalizedDefensiveProfile = {
+  sourceKind: DefensiveProfileSourceKind;
+  sourceId: string | null;
+  sourceLabel: string;
+  physicalProtection: number;
+  mentalProtection: number;
+};
+
+type DefensiveProfileContext = {
+  dodgeDice: number;
+  armorSkillDice: number;
+  willpowerDice: number;
+  totalPhysicalProtection: number;
+  totalMentalProtection: number;
+};
+
+type DefensiveContribution = {
+  axisVector: Pick<RadarAxes, "physicalSurvivability" | "mentalSurvivability">;
+  sharedDodgeAxisVector: Pick<RadarAxes, "physicalSurvivability" | "mentalSurvivability">;
+  profileBreakdown: Array<
+    NormalizedDefensiveProfile & {
+      physicalProtectionShare: number;
+      mentalProtectionShare: number;
+      axisVector: Pick<RadarAxes, "physicalSurvivability" | "mentalSurvivability">;
+    }
+  >;
+  totals: {
+    physicalBlockPerSuccess: number;
+    mentalBlockPerSuccess: number;
+    physicalDodgeRawBonus: number;
+    mentalDodgeRawBonus: number;
+    physicalDefenceRawBonus: number;
+    mentalDefenceRawBonus: number;
+  };
+};
+
 type AtWillSummary = {
   bestPhysical: number;
   bestMental: number;
@@ -210,6 +273,35 @@ type AtWillSummary = {
 };
 
 type Mode = "PHYSICAL" | "MENTAL";
+
+type DefensiveProfileProtectionTuning = Pick<
+  ProtectionTuningValues,
+  | "protectionK"
+  | "protectionS"
+  | "armorSkillGuardWeight"
+  | "armorSkillFortitudeWeight"
+  | "armorSkillBaselineOffset"
+  | "armorSkillScale"
+  | "willpowerSynergyWeight"
+  | "willpowerBraveryWeight"
+  | "willpowerBaselineOffset"
+  | "willpowerScale"
+  | "dodgeIntellectWeight"
+  | "dodgeGuardWeight"
+  | "dodgeAttributeDivisor"
+  | "dodgeProtectionPenaltyWeight"
+  | "defenceStringProtectionOutputScale"
+  | "defenceStringProtectionOutputMaxShare"
+  | "dodgeBaselineScale"
+  | "dodgeBaselineMaxShare"
+  | "dodgeParityScale"
+  | "dodgeParityMaxShare"
+  | "dodgeAboveExpectedScale"
+  | "dodgeAboveExpectedMaxShare"
+  | "dodgeExtremeAboveExpectedScale"
+  | "dodgeExtremeAboveExpectedMaxShare"
+  | "dodgeTotalMaxShare"
+>;
 
 const EMPTY_TRAIT_AXIS_BONUSES: TraitAxisBonuses = {
   physicalThreat: 0,
@@ -888,6 +980,272 @@ function computeAtWillContributionFromProfile(
   };
 }
 
+function getExpectedIncomingAttackDiceForDodge(level: number, tier: MonsterTier): number {
+  const normalizedLevel = Math.max(1, Math.trunc(level || 1));
+  const levelOffset = Math.floor((normalizedLevel - 1) / 5);
+  const tierOffset = tier === "BOSS" ? 1 : 0;
+  return Math.max(1, 1 + levelOffset + tierOffset);
+}
+
+function getSmoothDodgeShare(value: number, scale: number, maxShare: number): number {
+  if (!(value > 0) || !(scale > 0) || !(maxShare > 0)) return 0;
+  return maxShare * (1 - Math.exp(-value / scale));
+}
+
+function getDodgeParityProgress(currentDodgeDice: number, expectedIncomingAttackDice: number): number {
+  if (!(currentDodgeDice > 0) || !(expectedIncomingAttackDice > 0)) return 0;
+  return Math.min(1, currentDodgeDice / expectedIncomingAttackDice);
+}
+
+function getSmoothDefenceShare(value: number, scale: number, maxShare: number): number {
+  if (!(value > 0) || !(scale > 0) || !(maxShare > 0)) return 0;
+  return maxShare * (1 - Math.exp(-value / scale));
+}
+
+function normalizeDefensiveProfile(source: DefensiveProfileSource): NormalizedDefensiveProfile | null {
+  const physicalProtection = clampNonNegative(Number(source.physicalProtection ?? 0));
+  const mentalProtection = clampNonNegative(Number(source.mentalProtection ?? 0));
+  if (!(physicalProtection > 0) && !(mentalProtection > 0)) return null;
+  return {
+    sourceKind: source.sourceKind,
+    sourceId: source.sourceId ?? null,
+    sourceLabel: String(source.sourceLabel ?? "").trim() || "Defensive Source",
+    physicalProtection,
+    mentalProtection,
+  };
+}
+
+function buildDefaultDefensiveProfiles(
+  monster: Pick<
+    MonsterOutcomeInput,
+    "physicalProtection" | "mentalProtection" | "naturalPhysicalProtection" | "naturalMentalProtection"
+  >,
+): NormalizedDefensiveProfile[] {
+  const profiles: NormalizedDefensiveProfile[] = [];
+  const naturalPhysicalProtection = clampNonNegative(Number(monster.naturalPhysicalProtection ?? 0));
+  const naturalMentalProtection = clampNonNegative(Number(monster.naturalMentalProtection ?? 0));
+  const equippedPhysicalProtection = Math.max(
+    0,
+    clampNonNegative(monster.physicalProtection ?? 0) - naturalPhysicalProtection,
+  );
+  const equippedMentalProtection = Math.max(
+    0,
+    clampNonNegative(monster.mentalProtection ?? 0) - naturalMentalProtection,
+  );
+
+  if (naturalPhysicalProtection > 0 || naturalMentalProtection > 0) {
+    profiles.push({
+      sourceKind: "natural",
+      sourceId: null,
+      sourceLabel: "Natural Protection",
+      physicalProtection: naturalPhysicalProtection,
+      mentalProtection: naturalMentalProtection,
+    });
+  }
+  if (equippedPhysicalProtection > 0 || equippedMentalProtection > 0) {
+    profiles.push({
+      sourceKind: "equipped",
+      sourceId: null,
+      sourceLabel: "Equipped Protection",
+      physicalProtection: equippedPhysicalProtection,
+      mentalProtection: equippedMentalProtection,
+    });
+  }
+  return profiles;
+}
+
+function resolveDefensiveProfileContext(
+  monster: MonsterOutcomeInput,
+  tuning: DefensiveProfileProtectionTuning,
+  provided?: Partial<DefensiveProfileContext>,
+): DefensiveProfileContext {
+  const totalPhysicalProtection = clampNonNegative(
+    provided?.totalPhysicalProtection ?? monster.physicalProtection ?? 0,
+  );
+  const totalMentalProtection = clampNonNegative(
+    provided?.totalMentalProtection ?? monster.mentalProtection ?? 0,
+  );
+  const armorSkillDice = Math.max(
+    1,
+    Math.trunc(
+      provided?.armorSkillDice ??
+        monster.armorSkillValue ??
+        getArmorSkillDiceCountFromAttributes(monster.guardDie, monster.fortitudeDie, tuning),
+    ) || 1,
+  );
+  const willpowerDice = Math.max(
+    0,
+    Math.trunc(
+      provided?.willpowerDice ??
+        getWillpowerDiceCountFromAttributes(monster.synergyDie, monster.braveryDie, tuning),
+    ) || 0,
+  );
+  const dodgeDice = Math.max(
+    0,
+    Math.trunc(
+      provided?.dodgeDice ??
+        (Math.ceil(
+          getDodgeValue(
+            monster.guardDie,
+            monster.intellectDie,
+            monster.level,
+            totalPhysicalProtection,
+            tuning,
+          ) / 6,
+        )),
+    ) || 0,
+  );
+
+  return {
+    dodgeDice,
+    armorSkillDice,
+    willpowerDice,
+    totalPhysicalProtection,
+    totalMentalProtection,
+  };
+}
+
+function computeDefensiveContributionFromProfiles(
+  profiles: NormalizedDefensiveProfile[],
+  context: DefensiveProfileContext,
+  tuning: DefensiveProfileProtectionTuning,
+  level: number,
+  tier: MonsterTier,
+  axisBudgetTargets: Pick<RadarAxes, "physicalSurvivability" | "mentalSurvivability">,
+): DefensiveContribution {
+  if (profiles.length === 0) {
+    return {
+      axisVector: { physicalSurvivability: 0, mentalSurvivability: 0 },
+      sharedDodgeAxisVector: { physicalSurvivability: 0, mentalSurvivability: 0 },
+      profileBreakdown: [],
+      totals: {
+        physicalBlockPerSuccess: 0,
+        mentalBlockPerSuccess: 0,
+        physicalDodgeRawBonus: 0,
+        mentalDodgeRawBonus: 0,
+        physicalDefenceRawBonus: 0,
+        mentalDefenceRawBonus: 0,
+      },
+    };
+  }
+
+  const expectedIncomingAttackDice = getExpectedIncomingAttackDiceForDodge(level, tier);
+  const baselineDodgeShare = getSmoothDodgeShare(
+    context.dodgeDice,
+    tuning.dodgeBaselineScale,
+    tuning.dodgeBaselineMaxShare,
+  );
+  const parityDodgeShare = getSmoothDodgeShare(
+    getDodgeParityProgress(context.dodgeDice, expectedIncomingAttackDice),
+    tuning.dodgeParityScale,
+    tuning.dodgeParityMaxShare,
+  );
+  const dodgeAboveExpectedDice = Math.max(0, context.dodgeDice - expectedIncomingAttackDice);
+  const aboveExpectedDodgeShare = getSmoothDodgeShare(
+    Math.min(1, dodgeAboveExpectedDice),
+    tuning.dodgeAboveExpectedScale,
+    tuning.dodgeAboveExpectedMaxShare,
+  );
+  const extremeAboveExpectedDice = Math.max(0, dodgeAboveExpectedDice - 1);
+  const extremeAboveExpectedDodgeShare = getSmoothDodgeShare(
+    extremeAboveExpectedDice,
+    tuning.dodgeExtremeAboveExpectedScale,
+    tuning.dodgeExtremeAboveExpectedMaxShare,
+  );
+  const totalDodgeShare = Math.min(
+    tuning.dodgeTotalMaxShare,
+    baselineDodgeShare +
+      parityDodgeShare +
+      aboveExpectedDodgeShare +
+      extremeAboveExpectedDodgeShare,
+  );
+
+  const physicalBlockPerSuccess =
+    context.totalPhysicalProtection > 0
+      ? Math.ceil(
+          (context.totalPhysicalProtection / tuning.protectionK) *
+            (1 + Math.max(1, context.armorSkillDice) / tuning.protectionS),
+        )
+      : 0;
+  const mentalBlockPerSuccess =
+    context.totalMentalProtection > 0
+      ? Math.ceil(
+          (context.totalMentalProtection / tuning.protectionK) *
+            (1 + Math.max(1, context.willpowerDice) / tuning.protectionS),
+        )
+      : 0;
+  const physicalDefenceShare = getSmoothDefenceShare(
+    context.armorSkillDice * physicalBlockPerSuccess,
+    tuning.defenceStringProtectionOutputScale,
+    tuning.defenceStringProtectionOutputMaxShare,
+  );
+  const mentalDefenceShare = getSmoothDefenceShare(
+    context.willpowerDice * mentalBlockPerSuccess,
+    tuning.defenceStringProtectionOutputScale,
+    tuning.defenceStringProtectionOutputMaxShare,
+  );
+
+  const physicalDodgeRawBonus =
+    axisBudgetTargets.physicalSurvivability * totalDodgeShare;
+  const mentalDodgeRawBonus = 0;
+  const physicalDefenceRawBonus =
+    axisBudgetTargets.physicalSurvivability * physicalDefenceShare;
+  const mentalDefenceRawBonus = axisBudgetTargets.mentalSurvivability * mentalDefenceShare;
+  const totalProfilePhysicalProtection = profiles.reduce(
+    (sum, profile) => sum + profile.physicalProtection,
+    0,
+  );
+  const totalProfileMentalProtection = profiles.reduce(
+    (sum, profile) => sum + profile.mentalProtection,
+    0,
+  );
+  const profileBreakdown = profiles.map((profile) => {
+    const physicalProtectionShare =
+      totalProfilePhysicalProtection > 0
+        ? profile.physicalProtection / totalProfilePhysicalProtection
+        : 0;
+    const mentalProtectionShare =
+      totalProfileMentalProtection > 0
+        ? profile.mentalProtection / totalProfileMentalProtection
+        : 0;
+    return {
+      ...profile,
+      physicalProtectionShare,
+      mentalProtectionShare,
+      axisVector: {
+        physicalSurvivability: physicalDefenceRawBonus * physicalProtectionShare,
+        mentalSurvivability: mentalDefenceRawBonus * mentalProtectionShare,
+      },
+    };
+  });
+
+  return {
+    axisVector: {
+      physicalSurvivability: profileBreakdown.reduce(
+        (sum, profile) => sum + profile.axisVector.physicalSurvivability,
+        0,
+      ),
+      mentalSurvivability: profileBreakdown.reduce(
+        (sum, profile) => sum + profile.axisVector.mentalSurvivability,
+        0,
+      ),
+    },
+    sharedDodgeAxisVector: {
+      physicalSurvivability: physicalDodgeRawBonus,
+      mentalSurvivability: mentalDodgeRawBonus,
+    },
+    profileBreakdown,
+    totals: {
+      physicalBlockPerSuccess,
+      mentalBlockPerSuccess,
+      physicalDodgeRawBonus,
+      mentalDodgeRawBonus,
+      physicalDefenceRawBonus,
+      mentalDefenceRawBonus,
+    },
+  };
+}
+
 function summarizeAtWillCandidates(candidates: AtWillContribution[]): AtWillSummary {
   const summary: AtWillSummary = {
     bestPhysical: 0,
@@ -930,6 +1288,9 @@ export function computeMonsterOutcomes(
   config: CalculatorConfig,
   opts?: {
     equippedWeaponSources?: WeaponAttackSource[];
+    defensiveProfileSources?: DefensiveProfileSource[];
+    defensiveProfileContext?: Partial<DefensiveProfileContext>;
+    protectionTuning?: Partial<DefensiveProfileProtectionTuning>;
     equipmentModifierAxisBonuses?: Partial<RadarAxes>;
     naturalAttackGsAxisBonuses?: Partial<RadarAxes>;
     naturalAttackRangeAxisBonuses?: Partial<RadarAxes>;
@@ -943,8 +1304,8 @@ export function computeMonsterOutcomes(
   const successChance = successChanceFromDieSides(dieSides);
 
   const atWillProfiles: NormalizedAtWillAttackProfile[] = [];
-  for (const attack of monster.attacks ?? []) {
-    if (attack.attackMode !== "NATURAL") continue;
+  const naturalAttacks = (monster.attacks ?? []).filter((attack) => attack.attackMode === "NATURAL");
+  for (const attack of naturalAttacks) {
     atWillProfiles.push(
       normalizeAtWillAttackProfile({
         sourceKind: "natural",
@@ -958,7 +1319,7 @@ export function computeMonsterOutcomes(
       }),
     );
   }
-  if (monster.naturalAttack?.attackConfig) {
+  if (naturalAttacks.length === 0 && monster.naturalAttack?.attackConfig) {
     atWillProfiles.push(
       normalizeAtWillAttackProfile({
         sourceKind: "natural",
@@ -1082,6 +1443,99 @@ export function computeMonsterOutcomes(
     mobility: getTierAdjustedAxisBudgetTarget(mobilityCurvePoint, tierMultiplier),
     presence: getTierAdjustedAxisBudgetTarget(presenceCurvePoint, tierMultiplier),
   };
+  const normalizedDefensiveProfiles = (opts?.defensiveProfileSources ?? [])
+    .map((source) => normalizeDefensiveProfile(source))
+    .filter((profile): profile is NormalizedDefensiveProfile => Boolean(profile));
+  const defensiveProfiles =
+    normalizedDefensiveProfiles.length > 0
+      ? normalizedDefensiveProfiles
+      : buildDefaultDefensiveProfiles(monster);
+  const defensiveProtectionTuning: DefensiveProfileProtectionTuning = {
+    protectionK:
+      opts?.protectionTuning?.protectionK ?? DEFAULT_COMBAT_TUNING_VALUES.protectionK,
+    protectionS:
+      opts?.protectionTuning?.protectionS ?? DEFAULT_COMBAT_TUNING_VALUES.protectionS,
+    armorSkillGuardWeight:
+      opts?.protectionTuning?.armorSkillGuardWeight ??
+      DEFAULT_COMBAT_TUNING_VALUES.armorSkillGuardWeight,
+    armorSkillFortitudeWeight:
+      opts?.protectionTuning?.armorSkillFortitudeWeight ??
+      DEFAULT_COMBAT_TUNING_VALUES.armorSkillFortitudeWeight,
+    armorSkillBaselineOffset:
+      opts?.protectionTuning?.armorSkillBaselineOffset ??
+      DEFAULT_COMBAT_TUNING_VALUES.armorSkillBaselineOffset,
+    armorSkillScale:
+      opts?.protectionTuning?.armorSkillScale ?? DEFAULT_COMBAT_TUNING_VALUES.armorSkillScale,
+    willpowerSynergyWeight:
+      opts?.protectionTuning?.willpowerSynergyWeight ??
+      DEFAULT_COMBAT_TUNING_VALUES.willpowerSynergyWeight,
+    willpowerBraveryWeight:
+      opts?.protectionTuning?.willpowerBraveryWeight ??
+      DEFAULT_COMBAT_TUNING_VALUES.willpowerBraveryWeight,
+    willpowerBaselineOffset:
+      opts?.protectionTuning?.willpowerBaselineOffset ??
+      DEFAULT_COMBAT_TUNING_VALUES.willpowerBaselineOffset,
+    willpowerScale:
+      opts?.protectionTuning?.willpowerScale ?? DEFAULT_COMBAT_TUNING_VALUES.willpowerScale,
+    dodgeIntellectWeight:
+      opts?.protectionTuning?.dodgeIntellectWeight ??
+      DEFAULT_COMBAT_TUNING_VALUES.dodgeIntellectWeight,
+    dodgeGuardWeight:
+      opts?.protectionTuning?.dodgeGuardWeight ?? DEFAULT_COMBAT_TUNING_VALUES.dodgeGuardWeight,
+    dodgeAttributeDivisor:
+      opts?.protectionTuning?.dodgeAttributeDivisor ??
+      DEFAULT_COMBAT_TUNING_VALUES.dodgeAttributeDivisor,
+    dodgeProtectionPenaltyWeight:
+      opts?.protectionTuning?.dodgeProtectionPenaltyWeight ??
+      DEFAULT_COMBAT_TUNING_VALUES.dodgeProtectionPenaltyWeight,
+    defenceStringProtectionOutputScale:
+      opts?.protectionTuning?.defenceStringProtectionOutputScale ??
+      DEFAULT_COMBAT_TUNING_VALUES.defenceStringProtectionOutputScale,
+    defenceStringProtectionOutputMaxShare:
+      opts?.protectionTuning?.defenceStringProtectionOutputMaxShare ??
+      DEFAULT_COMBAT_TUNING_VALUES.defenceStringProtectionOutputMaxShare,
+    dodgeBaselineScale:
+      opts?.protectionTuning?.dodgeBaselineScale ??
+      DEFAULT_COMBAT_TUNING_VALUES.dodgeBaselineScale,
+    dodgeBaselineMaxShare:
+      opts?.protectionTuning?.dodgeBaselineMaxShare ??
+      DEFAULT_COMBAT_TUNING_VALUES.dodgeBaselineMaxShare,
+    dodgeParityScale:
+      opts?.protectionTuning?.dodgeParityScale ?? DEFAULT_COMBAT_TUNING_VALUES.dodgeParityScale,
+    dodgeParityMaxShare:
+      opts?.protectionTuning?.dodgeParityMaxShare ??
+      DEFAULT_COMBAT_TUNING_VALUES.dodgeParityMaxShare,
+    dodgeAboveExpectedScale:
+      opts?.protectionTuning?.dodgeAboveExpectedScale ??
+      DEFAULT_COMBAT_TUNING_VALUES.dodgeAboveExpectedScale,
+    dodgeAboveExpectedMaxShare:
+      opts?.protectionTuning?.dodgeAboveExpectedMaxShare ??
+      DEFAULT_COMBAT_TUNING_VALUES.dodgeAboveExpectedMaxShare,
+    dodgeExtremeAboveExpectedScale:
+      opts?.protectionTuning?.dodgeExtremeAboveExpectedScale ??
+      DEFAULT_COMBAT_TUNING_VALUES.dodgeExtremeAboveExpectedScale,
+    dodgeExtremeAboveExpectedMaxShare:
+      opts?.protectionTuning?.dodgeExtremeAboveExpectedMaxShare ??
+      DEFAULT_COMBAT_TUNING_VALUES.dodgeExtremeAboveExpectedMaxShare,
+    dodgeTotalMaxShare:
+      opts?.protectionTuning?.dodgeTotalMaxShare ??
+      DEFAULT_COMBAT_TUNING_VALUES.dodgeTotalMaxShare,
+  };
+  const defensiveContribution = computeDefensiveContributionFromProfiles(
+    defensiveProfiles,
+    resolveDefensiveProfileContext(
+      monster,
+      defensiveProtectionTuning,
+      opts?.defensiveProfileContext,
+    ),
+    defensiveProtectionTuning,
+    level,
+    monster.tier,
+    {
+      physicalSurvivability: axisBudgetTargets.physicalSurvivability,
+      mentalSurvivability: axisBudgetTargets.mentalSurvivability,
+    },
+  );
   const customLimitBreakAxisBonuses = computeCustomLimitBreakAxisBonuses(
     [
       {
@@ -1191,12 +1645,16 @@ export function computeMonsterOutcomes(
       physicalPoolLane.rawBonus +
       defenceResistContribution +
       fortitudeResistContribution +
+      defensiveContribution.sharedDodgeAxisVector.physicalSurvivability +
+      defensiveContribution.axisVector.physicalSurvivability +
       equipmentModifierAxisBonuses.physicalSurvivability +
       naturalAttackGsAxisBonuses.physicalSurvivability +
       customLimitBreakAxisBonuses.physicalSurvivability +
       traitAxisBonuses.physicalSurvivability,
     mentalSurvivability:
       mentalPoolLane.rawBonus +
+      defensiveContribution.sharedDodgeAxisVector.mentalSurvivability +
+      defensiveContribution.axisVector.mentalSurvivability +
       equipmentModifierAxisBonuses.mentalSurvivability +
       naturalAttackGsAxisBonuses.mentalSurvivability +
       customLimitBreakAxisBonuses.mentalSurvivability +
@@ -1317,6 +1775,10 @@ export function computeMonsterOutcomes(
           fortitudeResistContribution,
           supportResistContribution,
           braveryResistContribution,
+          defensiveProfileContribution: defensiveContribution.axisVector,
+          defensiveSharedDodgeContribution: defensiveContribution.sharedDodgeAxisVector,
+          defensiveProfileTotals: defensiveContribution.totals,
+          defensiveProfiles: defensiveContribution.profileBreakdown,
           equipmentModifierAxisBonuses,
           naturalAttackGsAxisBonuses,
           naturalAttackRangeAxisBonuses,
