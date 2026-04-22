@@ -140,9 +140,9 @@ const FORMULA_GUIDES: Partial<
   "Dodge & Defence Package": {
     title: "How defensive baseline becomes physical and mental survivability",
     formula:
-      "Lane Bonus = Lane Budget * (shared Dodge split + lane-specific Block Share)",
+      "Physical Lane Bonus = Physical Lane Budget * (Dodge Share + Physical Block Share); Mental Lane Bonus = Mental Lane Budget * Mental Block Share",
     notes: [
-      "Dodge Share comes from Dodge dice compared against expected incoming attack dice and is split across both survivability lanes.",
+      "Dodge Share comes from Dodge dice compared against expected incoming attack dice and applies to physical survivability only.",
       "Physical block uses Armor Skill and physical protection output. Mental block uses the Willpower pool and mental protection output, while Bravery remains the surfaced Mental Defence stat.",
       "Raise caps to allow a bigger survivability contribution; raise scales to make it ramp more slowly.",
     ],

@@ -1113,22 +1113,6 @@ function computeDefensiveContributionFromProfiles(
   tier: MonsterTier,
   axisBudgetTargets: Pick<RadarAxes, "physicalSurvivability" | "mentalSurvivability">,
 ): DefensiveContribution {
-  if (profiles.length === 0) {
-    return {
-      axisVector: { physicalSurvivability: 0, mentalSurvivability: 0 },
-      sharedDodgeAxisVector: { physicalSurvivability: 0, mentalSurvivability: 0 },
-      profileBreakdown: [],
-      totals: {
-        physicalBlockPerSuccess: 0,
-        mentalBlockPerSuccess: 0,
-        physicalDodgeRawBonus: 0,
-        mentalDodgeRawBonus: 0,
-        physicalDefenceRawBonus: 0,
-        mentalDefenceRawBonus: 0,
-      },
-    };
-  }
-
   const expectedIncomingAttackDice = getExpectedIncomingAttackDiceForDodge(level, tier);
   const baselineDodgeShare = getSmoothDodgeShare(
     context.dodgeDice,

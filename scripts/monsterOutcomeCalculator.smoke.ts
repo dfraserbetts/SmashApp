@@ -175,6 +175,35 @@ function getDefensiveSharedDodgeContribution(result: ReturnType<typeof computeMo
   };
 }
 
+function getDefensiveProfileTotals(result: ReturnType<typeof computeMonsterOutcomes>) {
+  const debug = result.debug as {
+    nonPowerContribution?: {
+      sources?: {
+        defensiveProfileTotals?: {
+          physicalDodgeRawBonus?: number;
+          mentalDodgeRawBonus?: number;
+          physicalBlockPerSuccess?: number;
+          mentalBlockPerSuccess?: number;
+        };
+      };
+    };
+  };
+  return {
+    physicalDodge: Number(
+      debug.nonPowerContribution?.sources?.defensiveProfileTotals?.physicalDodgeRawBonus ?? 0,
+    ),
+    mentalDodge: Number(
+      debug.nonPowerContribution?.sources?.defensiveProfileTotals?.mentalDodgeRawBonus ?? 0,
+    ),
+    physicalBlockPerSuccess: Number(
+      debug.nonPowerContribution?.sources?.defensiveProfileTotals?.physicalBlockPerSuccess ?? 0,
+    ),
+    mentalBlockPerSuccess: Number(
+      debug.nonPowerContribution?.sources?.defensiveProfileTotals?.mentalBlockPerSuccess ?? 0,
+    ),
+  };
+}
+
 const slashAttackConfig = {
   melee: {
     enabled: true,
@@ -273,7 +302,7 @@ assert.equal(naturalRanged.sustainedPhysical, equippedRanged.sustainedPhysical);
 assert.equal(getNonPowerPhysicalThreat(naturalRanged), getNonPowerPhysicalThreat(equippedRanged));
 
 function createDefensiveParityCase(
-  source: DefensiveProfileSource,
+  source: DefensiveProfileSource | null,
   protection: { physicalProtection: number; mentalProtection: number },
 ) {
   return computeMonsterOutcomes(
@@ -281,12 +310,13 @@ function createDefensiveParityCase(
       ...createBaseMonster(),
       physicalProtection: protection.physicalProtection,
       mentalProtection: protection.mentalProtection,
-      naturalPhysicalProtection: source.sourceKind === "natural" ? protection.physicalProtection : 0,
-      naturalMentalProtection: source.sourceKind === "natural" ? protection.mentalProtection : 0,
+      naturalPhysicalProtection:
+        source?.sourceKind === "natural" ? protection.physicalProtection : 0,
+      naturalMentalProtection: source?.sourceKind === "natural" ? protection.mentalProtection : 0,
     },
     calculatorConfig,
     {
-      defensiveProfileSources: [source],
+      defensiveProfileSources: source ? [source] : [],
       defensiveProfileContext: {
         dodgeDice: 1,
         armorSkillDice: 2,
@@ -298,6 +328,11 @@ function createDefensiveParityCase(
     },
   );
 }
+
+const baselineDefence = createDefensiveParityCase(null, {
+  physicalProtection: 0,
+  mentalProtection: 0,
+});
 
 const naturalPhysicalDefence = createDefensiveParityCase(
   {
@@ -356,16 +391,38 @@ assert.equal(
 
 const ppvOnlyContribution = getDefensiveProfileContribution(naturalPhysicalDefence);
 const mpvOnlyContribution = getDefensiveProfileContribution(naturalMentalDefence);
+const baselineDodgeContribution = getDefensiveSharedDodgeContribution(baselineDefence);
 const ppvOnlyDodgeContribution = getDefensiveSharedDodgeContribution(naturalPhysicalDefence);
 const mpvOnlyDodgeContribution = getDefensiveSharedDodgeContribution(naturalMentalDefence);
+const baselineDefenceTotals = getDefensiveProfileTotals(baselineDefence);
+const ppvOnlyDefenceTotals = getDefensiveProfileTotals(naturalPhysicalDefence);
+const ppvThreeDefence = createDefensiveParityCase(
+  {
+    sourceKind: "natural",
+    sourceId: "plate",
+    sourceLabel: "Plate",
+    physicalProtection: 3,
+    mentalProtection: 0,
+  },
+  { physicalProtection: 3, mentalProtection: 0 },
+);
+const ppvThreeDodgeContribution = getDefensiveSharedDodgeContribution(ppvThreeDefence);
 assert.equal(ppvOnlyContribution.mental, 0);
 assert.ok(ppvOnlyContribution.physical > 0);
 assert.equal(mpvOnlyContribution.physical, 0);
 assert.ok(mpvOnlyContribution.mental > 0);
+assert.ok(baselineDodgeContribution.physical > 0);
+assert.equal(baselineDodgeContribution.mental, 0);
+assert.equal(baselineDodgeContribution.physical, baselineDefenceTotals.physicalDodge);
+assert.equal(baselineDodgeContribution.mental, baselineDefenceTotals.mentalDodge);
 assert.ok(ppvOnlyDodgeContribution.physical > 0);
 assert.equal(ppvOnlyDodgeContribution.mental, 0);
 assert.ok(mpvOnlyDodgeContribution.physical > 0);
 assert.equal(mpvOnlyDodgeContribution.mental, 0);
+assert.equal(mpvOnlyDodgeContribution.physical, baselineDodgeContribution.physical);
+assert.equal(mpvOnlyDodgeContribution.mental, baselineDodgeContribution.mental);
+assert.equal(ppvOnlyDodgeContribution.physical, ppvOnlyDefenceTotals.physicalDodge);
+assert.equal(ppvOnlyDodgeContribution.mental, ppvOnlyDefenceTotals.mentalDodge);
 
 const legacyNaturalSlashPhysicalThreat =
   1 *
@@ -410,8 +467,14 @@ console.log(
         mpvOnly: mpvOnlyContribution,
       },
       defensiveDodgeRouting: {
+        baseline: baselineDodgeContribution,
         ppvOnly: ppvOnlyDodgeContribution,
+        ppvThree: ppvThreeDodgeContribution,
         mpvOnly: mpvOnlyDodgeContribution,
+      },
+      defensiveDodgeTotals: {
+        baseline: baselineDefenceTotals,
+        ppvOnly: ppvOnlyDefenceTotals,
       },
     },
     null,

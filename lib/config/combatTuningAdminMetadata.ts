@@ -386,7 +386,7 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
   dodgeBaselineMaxShare: {
     label: "Dodge Baseline Lane Cap",
     group: "Dodge & Defence Package",
-    description: "Raise this to let any Dodge dice add more shared survivability before the dodge split is applied.",
+    description: "Raise this to let any Dodge dice add more physical survivability.",
     affects: "baseline",
     format: "share",
     aliases: ["dodge", "defence package", "survivability"],
@@ -444,9 +444,9 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     aliases: ["dodge", "extreme", "scale"],
   },
   dodgeTotalMaxShare: {
-    label: "Total Shared Dodge Cap",
+    label: "Total Dodge Physical Survivability Cap",
     group: "Dodge & Defence Package",
-    description: "Raise this to allow Dodge to contribute more total shared survivability before it is split across both lanes.",
+    description: "Raise this to allow Dodge to contribute more total physical survivability.",
     affects: "baseline",
     format: "share",
     aliases: ["dodge", "cap", "survivability"],
