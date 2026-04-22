@@ -38,6 +38,8 @@ type ValueRow = {
   damageTypeIds?: number[] | null;
   descriptorTemplate?: string | null;
   descriptorNotes?: string | null;
+  pricingMode?: string | null;
+  pricingScalar?: number | null;
   requiresRange?: "MELEE" | "RANGED" | "AOE" | null;
   requiresAoeShape?: "SPHERE" | "CONE" | "LINE" | null;
   requiresPpv?: boolean;
@@ -71,6 +73,17 @@ const GLOBAL_ATTRIBUTE_COST_STATS_FALLBACK: GlobalAttributeCostStat[] = [
   "Synergy",
   "Bravery",
 ];
+const WEAPON_ATTRIBUTE_PRICING_MODE_OPTIONS = [
+  { value: "", label: "Static ForgeCostEntry rows" },
+  { value: "MELEE_PHYSICAL_STRENGTH", label: "Melee Physical Strength" },
+  { value: "MELEE_MENTAL_STRENGTH", label: "Melee Mental Strength" },
+  { value: "RANGED_PHYSICAL_STRENGTH", label: "Ranged Physical Strength" },
+  { value: "RANGED_MENTAL_STRENGTH", label: "Ranged Mental Strength" },
+  { value: "AOE_PHYSICAL_STRENGTH", label: "AoE Physical Strength" },
+  { value: "AOE_MENTAL_STRENGTH", label: "AoE Mental Strength" },
+  { value: "CHOSEN_PHYSICAL_STRENGTH", label: "Chosen Physical Strength" },
+  { value: "CHOSEN_MENTAL_STRENGTH", label: "Chosen Mental Strength" },
+] as const;
 const ITEM_MODIFIER_COST_STATS: ItemModifierCostStat[] = [
   "Armor Skill",
   "Weapon Skill",
@@ -138,6 +151,7 @@ export default function AdminForgeValuesPage() {
     {},
   );
   const [savingContext, setSavingContext] = useState<string | null>(null);
+  const [deletingStaticCosts, setDeletingStaticCosts] = useState(false);
   // Bootstrap first context (when none exist yet)
   const [bootstrapContext, setBootstrapContext] = useState("");
   const [bootstrapValue, setBootstrapValue] = useState("");
@@ -199,6 +213,8 @@ export default function AdminForgeValuesPage() {
     useState<"SPHERE" | "CONE" | "LINE" | "">( "");
   const [requiresStrengthSource, setRequiresStrengthSource] =
     useState<boolean>(false);
+  const [pricingMode, setPricingMode] = useState("");
+  const [pricingScalar, setPricingScalar] = useState("");
 
   const [requiresRangeSelection, setRequiresRangeSelection] =
     useState<boolean>(false);
@@ -752,6 +768,8 @@ function renderTemplatePreview(
       setRequiresAoeShape("");
       setRequiresRangeSelection(false);
       setRequiresStrengthKind("");
+      setPricingMode("");
+      setPricingScalar("");
       setRequiresPpv(false);
       setRequiresMpv(false);
       setPlacement("TRAITS");
@@ -780,6 +798,12 @@ function renderTemplatePreview(
     setRequiresStrengthSource(!!(selected as any).requiresStrengthSource);
     setRequiresRangeSelection(!!(selected as any).requiresRangeSelection);
     setRequiresStrengthKind((selected as any).requiresStrengthKind ?? "");
+    setPricingMode(String((selected as any).pricingMode ?? ""));
+    setPricingScalar(
+      (selected as any).pricingScalar === null || (selected as any).pricingScalar === undefined
+        ? ""
+        : String((selected as any).pricingScalar),
+    );
     setRequiresPpv(Boolean((selected as any).requiresPpv));
     setRequiresMpv(Boolean((selected as any).requiresMpv));
     const rawPlacement = String(selected.placement ?? "").toUpperCase();
@@ -842,6 +866,17 @@ function renderTemplatePreview(
                 : null;
   }, [category]);
 
+  const fixedCostContext = useMemo(() => {
+    if (isWeaponAttributes) return "Weapon";
+    if (isShieldAttributes) return "Shield";
+    return null;
+  }, [isShieldAttributes, isWeaponAttributes]);
+
+  const isDynamicWeaponPricingActive = useMemo(
+    () => isWeaponAttributes && pricingMode.trim().length > 0,
+    [isWeaponAttributes, pricingMode],
+  );
+
   async function loadCostsLive() {
     if (!selectedParsed) {
       setCostContexts([]);
@@ -875,12 +910,16 @@ function renderTemplatePreview(
       const contexts = (data?.contexts ?? []) as string[];
       const rows = (data?.rows ?? []) as ForgeCostEntry[];
 
-      setCostContexts(isShieldAttributes ? contexts.filter((c) => c === "Shield") : contexts);
+      const filteredContexts = fixedCostContext
+        ? [fixedCostContext]
+        : contexts;
+
+      setCostContexts(filteredContexts);
       setCostRowsLive(rows);
 
       // Initialize edit buffers for every context (Option B matrix)
       const nextEdits: Record<string, { value: string; notes: string }> = {};
-      for (const ctx of contexts) {
+      for (const ctx of filteredContexts) {
         const existing = rows.find((r) => r.selector1 === ctx) ?? null;
         nextEdits[ctx] = {
           value: existing ? String(existing.value) : "",
@@ -905,15 +944,19 @@ function renderTemplatePreview(
       setCostEdits({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [costCategory, selectedParsed?.base, tierStr]);
+  }, [costCategory, fixedCostContext, selectedParsed?.base, tierStr]);
 
   const costMatrix = useMemo(() => {
     if (!selectedParsed) return [];
+    const visibleRows = fixedCostContext
+      ? costRowsLive.filter((row) => String(row.selector1 ?? "").trim() === fixedCostContext)
+      : costRowsLive;
     return costContexts.map((ctx) => {
-      const existing = costRowsLive.find((r) => r.selector1 === ctx) ?? null;
+      const existing = visibleRows.find((r) => r.selector1 === ctx) ?? null;
       return { context: ctx, existing };
     });
-  }, [costContexts, costRowsLive, selectedParsed]);
+  }, [costContexts, costRowsLive, fixedCostContext, selectedParsed]);
+  const hasStaticCostRows = costRowsLive.length > 0;
   const statCostEntryByLevel = useMemo(() => {
     const out = new Map<number, ForgeCostEntry>();
     for (const row of costs) {
@@ -1569,6 +1612,11 @@ function renderTemplatePreview(
                               payload.requiresStrengthSource = requiresStrengthSource;
                               payload.requiresRangeSelection = requiresRangeSelection;
                               payload.requiresStrengthKind = requiresStrengthKind || null;
+                              payload.pricingMode = pricingMode || null;
+                              payload.pricingScalar =
+                                pricingScalar.trim().length > 0
+                                  ? Number(pricingScalar)
+                                  : null;
                             }
                             // Armor attributes support PV gating.
                             if (isArmorAttributes) {
@@ -1695,6 +1743,47 @@ function renderTemplatePreview(
                                   <option value="MENTAL">Mental</option>
                                 </select>
                               </div>
+
+                              <div className="pt-2 space-y-1">
+                                <div className="text-xs font-medium opacity-80">
+                                  Dynamic Cost Basis
+                                </div>
+                                <select
+                                  className="w-full rounded border bg-transparent p-2 text-sm"
+                                  value={pricingMode}
+                                  onChange={(e) => setPricingMode(e.target.value)}
+                                >
+                                  {WEAPON_ATTRIBUTE_PRICING_MODE_OPTIONS.map((option) => (
+                                    <option key={option.value || "STATIC"} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <p className="text-[11px] opacity-70">
+                                  If set, Forge cost becomes Pricing Scalar multiplied by the selected live strength value instead of using static ForgeCostEntry rows.
+                                </p>
+                              </div>
+
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium opacity-80">Pricing Scalar</div>
+                                <input
+                                  className="w-full rounded border bg-transparent p-2 text-sm"
+                                  value={pricingScalar}
+                                  onChange={(e) => setPricingScalar(e.target.value)}
+                                  placeholder="e.g. 1"
+                                  inputMode="decimal"
+                                />
+                                <p className="text-[11px] opacity-70">
+                                  Example: scalar 2 with Melee Physical Strength prices the attribute as 2 x current Melee Physical Strength.
+                                </p>
+                              </div>
+
+                              {isDynamicWeaponPricingActive && (
+                                <div className="rounded border border-amber-600/50 bg-amber-950/30 p-3 text-xs text-amber-100">
+                                  Dynamic pricing is active for this weapon attribute. Forge ignores static `ForgeCostEntry` rows while this mode is set and uses `Pricing Scalar x selected live strength` instead.
+                                  Context selectors do not change the scalar behavior. Weapon attributes resolve on the `Weapon` context only, so any old non-`Weapon` rows are legacy static data.
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1834,24 +1923,112 @@ function renderTemplatePreview(
               {costCategory ? (
                 <div className="rounded border">
                   <div className="border-b p-2 text-xs font-medium opacity-80">
-                    Costs (full context matrix)
+                    {isDynamicWeaponPricingActive
+                      ? "Static Costs (inactive while dynamic pricing is enabled)"
+                      : fixedCostContext
+                        ? `Costs (${fixedCostContext} context)`
+                        : "Costs (full context matrix)"}
                   </div>
 
-              {costMatrix.length === 0 ? (
+              {isDynamicWeaponPricingActive ? (
+                <div className="space-y-3 p-3">
+                  <div className="text-sm opacity-80">
+                    This attribute currently uses dynamic pricing, so the Forge does not read static cost rows for it.
+                  </div>
+
+                  <div className="rounded border border-zinc-800 p-3 text-sm">
+                    <div>
+                      Active rule: <span className="font-medium">{pricingScalar.trim() || "0"}</span> x{" "}
+                      <span className="font-medium">
+                        {WEAPON_ATTRIBUTE_PRICING_MODE_OPTIONS.find((option) => option.value === pricingMode)?.label ?? pricingMode}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-xs opacity-70">
+                      Selector contexts such as `Weapon` or `Shield` do not participate in this calculation. Dynamic weapon-attribute pricing uses the authored scalar plus the chosen live strength basis only.
+                    </div>
+                  </div>
+
+                  {hasStaticCostRows ? (
+                    <div className="space-y-3">
+                      <div className="text-sm opacity-80">
+                        Legacy static rows still stored for this attribute:
+                      </div>
+                      <table className="w-full text-sm">
+                        <thead className="text-xs opacity-70">
+                          <tr>
+                            <th className="p-2 text-left">Context</th>
+                            <th className="p-2 text-left">Cost</th>
+                            <th className="p-2 text-left">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {costRowsLive.map((row) => (
+                            <tr key={row.id}>
+                              <td className="p-2">{row.selector1}</td>
+                              <td className="p-2">{row.value}</td>
+                              <td className="p-2">{row.notes ?? "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+
+                      <button
+                        className="rounded border px-3 py-2 text-sm"
+                        disabled={deletingStaticCosts}
+                        onClick={async () => {
+                          if (costRowsLive.length === 0) return;
+                          setErr(null);
+                          setDeletingStaticCosts(true);
+                          try {
+                            const res = await fetch("/api/admin/forge-costs", {
+                              method: "DELETE",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ ids: costRowsLive.map((row) => row.id) }),
+                            });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok) throw new Error(data?.error ?? "Delete failed");
+                            await loadCostsLive();
+                            setFlash("Removed inactive static cost rows.");
+                            setTimeout(() => setFlash(null), 2000);
+                          } catch (e: any) {
+                            setErr(String(e?.message ?? "Delete failed"));
+                          } finally {
+                            setDeletingStaticCosts(false);
+                          }
+                        }}
+                      >
+                        {deletingStaticCosts ? "Removing..." : "Delete inactive static rows"}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-sm opacity-70">
+                      No legacy static rows are stored for this attribute.
+                    </div>
+                  )}
+                </div>
+              ) : costMatrix.length === 0 ? (
                 <div className="p-2 space-y-3">
                   <div className="text-sm opacity-80">
-                    No cost contexts exist for this category yet. Create the first one below.
+                    {fixedCostContext
+                      ? `No ${fixedCostContext} cost row exists for this value yet. Create it below.`
+                      : "No cost contexts exist for this category yet. Create the first one below."}
                   </div>
 
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
                     <div className="md:col-span-1">
                       <label className="text-xs opacity-70">Context (selector1)</label>
-                      <input
-                        className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                        value={bootstrapContext}
-                        onChange={(e) => setBootstrapContext(e.target.value)}
-                        placeholder="e.g. Armor"
-                      />
+                      {fixedCostContext ? (
+                        <div className="mt-1 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-sm">
+                          {fixedCostContext}
+                        </div>
+                      ) : (
+                        <input
+                          className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
+                          value={bootstrapContext}
+                          onChange={(e) => setBootstrapContext(e.target.value)}
+                          placeholder="e.g. Armor"
+                        />
+                      )}
                     </div>
 
                     <div className="md:col-span-1">
@@ -1879,7 +2056,7 @@ function renderTemplatePreview(
                     className="rounded border px-3 py-2 text-sm"
                     disabled={
                       bootstrapping ||
-                      !bootstrapContext.trim() ||
+                      (!(fixedCostContext ?? bootstrapContext.trim())) ||
                       bootstrapValue.trim() === "" ||
                       !selectedParsed ||
                       !costCategory
@@ -1887,7 +2064,7 @@ function renderTemplatePreview(
                     onClick={async () => {
                       if (!selectedParsed || !costCategory) return;
 
-                      const ctx = bootstrapContext.trim();
+                      const ctx = fixedCostContext ?? bootstrapContext.trim();
                       const v = Number.parseFloat(bootstrapValue);
                       if (!ctx) return;
 
@@ -1905,7 +2082,7 @@ function renderTemplatePreview(
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
                             category: costCategory,
-                            selector1: isShieldAttributes ? "Shield" : ctx,
+                            selector1: fixedCostContext ?? ctx,
                             selector2: selectedParsed.base,
                             selector3: tierStr ?? null,
                             value: v,
@@ -1936,7 +2113,9 @@ function renderTemplatePreview(
                   </button>
 
                   <div className="text-xs opacity-70">
-                    Tip: Contexts are just labels (selector1). Once one exists, the full matrix appears and you can add more rows normally.
+                    {fixedCostContext
+                      ? `This category uses a fixed ${fixedCostContext} selector1 value in ForgeCostEntry.`
+                      : "Tip: Contexts are just labels (selector1). Once one exists, the full matrix appears and you can add more rows normally."}
                   </div>
                 </div>
               ) : (
@@ -1994,7 +2173,7 @@ function renderTemplatePreview(
                                   headers: { "Content-Type": "application/json" },
                                   body: JSON.stringify({
                                     category: costCategory,
-                                    selector1: isShieldAttributes ? "Shield" : context,
+                                    selector1: fixedCostContext ?? context,
                                     selector2: selectedParsed.base,
                                     selector3: tierStr ?? null,
                                     value: v,

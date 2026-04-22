@@ -140,6 +140,8 @@ model WeaponAttribute {
   tooltip                String?
   descriptorNotes        String?
   descriptorTemplate     String?
+  pricingMode            String?
+  pricingScalar          Float?
   placement              AttributePlacement            @default(TRAITS)
   requiresAoeShape       AoEShape?
   requiresRange          RangeCategory?

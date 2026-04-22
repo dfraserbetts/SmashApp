@@ -50,9 +50,34 @@ export type WeaponAttackSource = {
   id: string;
   label: string;
   attackConfig: {
-    melee?: { enabled?: boolean; targets?: number; physicalStrength?: number; mentalStrength?: number };
-    ranged?: { enabled?: boolean; targets?: number; physicalStrength?: number; mentalStrength?: number };
-    aoe?: { enabled?: boolean; count?: number; physicalStrength?: number; mentalStrength?: number };
+    melee?: {
+      enabled?: boolean;
+      targets?: number;
+      physicalStrength?: number;
+      mentalStrength?: number;
+      damageTypes?: unknown;
+    };
+    ranged?: {
+      enabled?: boolean;
+      targets?: number;
+      distance?: number;
+      physicalStrength?: number;
+      mentalStrength?: number;
+      damageTypes?: unknown;
+    };
+    aoe?: {
+      enabled?: boolean;
+      count?: number;
+      centerRange?: number;
+      shape?: string;
+      sphereRadiusFeet?: number;
+      coneLengthFeet?: number;
+      lineWidthFeet?: number;
+      lineLengthFeet?: number;
+      physicalStrength?: number;
+      mentalStrength?: number;
+      damageTypes?: unknown;
+    };
   };
 };
 
@@ -150,6 +175,32 @@ type AtWillContribution = {
   hasAoe: boolean;
 };
 
+type AtWillProfileSourceKind = "natural" | "equipped";
+
+type NormalizedAtWillAttackSegment = {
+  attackKind: "melee" | "ranged" | "aoe";
+  threatLane: Mode;
+  rangeCategory: "MELEE" | "RANGED" | "AOE";
+  diceCount: number;
+  dieSides: number;
+  successChance: number;
+  authoredStrength: number;
+  damageTypeCount: number;
+  woundsPerSuccess: number;
+  targetCount: number;
+  targetMultiplier: number;
+  aoeContributionInput: number;
+};
+
+type NormalizedAtWillAttackProfile = {
+  sourceKind: AtWillProfileSourceKind;
+  sourceId: string | null;
+  sourceLabel: string;
+  segments: NormalizedAtWillAttackSegment[];
+  greaterSuccessAxisBonuses: RadarAxes;
+  rangeAxisBonuses: RadarAxes;
+};
+
 type AtWillSummary = {
   bestPhysical: number;
   bestMental: number;
@@ -159,8 +210,6 @@ type AtWillSummary = {
 };
 
 type Mode = "PHYSICAL" | "MENTAL";
-
-const NATURAL_ATTACK_WOUNDS_PER_STRENGTH = 2;
 
 const EMPTY_TRAIT_AXIS_BONUSES: TraitAxisBonuses = {
   physicalThreat: 0,
@@ -183,17 +232,6 @@ function clampRadarScore(value: number): number {
   if (value < 0) return 0;
   if (value > 10) return 10;
   return value;
-}
-
-function scaleAtWillContribution(contribution: AtWillContribution, weight: number): AtWillContribution {
-  const safeWeight = clampNonNegative(weight);
-  return {
-    physical: contribution.physical * safeWeight,
-    mental: contribution.mental * safeWeight,
-    total: contribution.total * safeWeight,
-    hasRanged: contribution.hasRanged,
-    hasAoe: contribution.hasAoe,
-  };
 }
 
 function clampTraitAxisWeight(value: unknown): number {
@@ -700,94 +738,145 @@ function getLevelWoundBonus(level?: number, divisor = 3): number {
   return Math.floor(parsed / resolvedDivisor);
 }
 
-function computeAtWillFromAttackConfig(
-  attackConfig: AttackConfigLike,
+function pushNormalizedAtWillSegments(
+  segments: NormalizedAtWillAttackSegment[],
+  config:
+    | NonNullable<AttackConfigLike>["melee"]
+    | NonNullable<AttackConfigLike>["ranged"]
+    | NonNullable<AttackConfigLike>["aoe"],
+  attackKind: NormalizedAtWillAttackSegment["attackKind"],
+  rangeCategory: NormalizedAtWillAttackSegment["rangeCategory"],
+  dieSides: number,
   successChance: number,
-  aoeMultiplier: number,
-  netSuccessMultiplier: number,
-  strengthMultiplier: number,
-  level: number,
-  levelWoundBonusDivisor = 3,
-  includeLevelWoundBonus = true,
-): AtWillContribution {
-  if (!attackConfig) {
-    return {
-      physical: 0,
-      mental: 0,
-      total: 0,
-      hasRanged: false,
-      hasAoe: false,
-    };
+  targetCount: number,
+  targetMultiplier: number,
+  levelWoundBonus: number,
+) {
+  if (!config?.enabled) return;
+
+  let physicalValue = clampNonNegative(Number(config.physicalStrength ?? 0));
+  let mentalValue = clampNonNegative(Number(config.mentalStrength ?? 0));
+  const damageTypeCount = Math.max(1, readStringArray(config.damageTypes).length);
+  const modes = readDamageModes(config.damageTypes);
+
+  if (modes.has("MENTAL") && !modes.has("PHYSICAL") && mentalValue === 0 && physicalValue > 0) {
+    mentalValue = physicalValue;
+    physicalValue = 0;
+  }
+  if (modes.has("PHYSICAL") && !modes.has("MENTAL") && physicalValue === 0 && mentalValue > 0) {
+    physicalValue = mentalValue;
+    mentalValue = 0;
   }
 
+  const pushSegment = (threatLane: Mode, authoredStrength: number) => {
+    if (!(authoredStrength > 0)) return;
+    segments.push({
+      attackKind,
+      threatLane,
+      rangeCategory,
+      diceCount: 1,
+      dieSides,
+      successChance,
+      authoredStrength,
+      damageTypeCount,
+      woundsPerSuccess: authoredStrength + levelWoundBonus,
+      targetCount,
+      targetMultiplier,
+      aoeContributionInput: attackKind === "aoe" ? targetCount : 0,
+    });
+  };
+
+  pushSegment("PHYSICAL", physicalValue);
+  pushSegment("MENTAL", mentalValue);
+}
+
+function normalizeAtWillAttackProfile(params: {
+  sourceKind: AtWillProfileSourceKind;
+  sourceId?: string | null;
+  sourceLabel: string;
+  attackConfig: AttackConfigLike;
+  dieSides: number;
+  successChance: number;
+  aoeMultiplier: number;
+  level: number;
+  levelWoundBonusDivisor?: number;
+}): NormalizedAtWillAttackProfile {
+  const segments: NormalizedAtWillAttackSegment[] = [];
+  const levelWoundBonus = getLevelWoundBonus(params.level, params.levelWoundBonusDivisor ?? 3);
+  const attackConfig = params.attackConfig;
+
+  if (attackConfig?.melee?.enabled) {
+    const targets = readMultiplier(attackConfig.melee.targets, 1);
+    pushNormalizedAtWillSegments(
+      segments,
+      attackConfig.melee,
+      "melee",
+      "MELEE",
+      params.dieSides,
+      params.successChance,
+      targets,
+      targets,
+      levelWoundBonus,
+    );
+  }
+
+  if (attackConfig?.ranged?.enabled) {
+    const targets = readMultiplier(attackConfig.ranged.targets, 1);
+    pushNormalizedAtWillSegments(
+      segments,
+      attackConfig.ranged,
+      "ranged",
+      "RANGED",
+      params.dieSides,
+      params.successChance,
+      targets,
+      targets,
+      levelWoundBonus,
+    );
+  }
+
+  if (attackConfig?.aoe?.enabled) {
+    const count = readMultiplier(attackConfig.aoe.count, 1);
+    pushNormalizedAtWillSegments(
+      segments,
+      attackConfig.aoe,
+      "aoe",
+      "AOE",
+      params.dieSides,
+      params.successChance,
+      count,
+      params.aoeMultiplier * count,
+      levelWoundBonus,
+    );
+  }
+
+  return {
+    sourceKind: params.sourceKind,
+    sourceId: params.sourceId ?? null,
+    sourceLabel: params.sourceLabel,
+    segments,
+    greaterSuccessAxisBonuses: createEmptyAxisBonuses(),
+    rangeAxisBonuses: createEmptyAxisBonuses(),
+  };
+}
+
+function computeAtWillContributionFromProfile(
+  profile: NormalizedAtWillAttackProfile,
+  netSuccessMultiplier: number,
+): AtWillContribution {
   let physical = 0;
   let mental = 0;
   let hasRanged = false;
   let hasAoe = false;
-  const strengthScalar = clampNonNegative(Number(strengthMultiplier || 0));
 
-  const applyContribution = (
-    physicalStrength: unknown,
-    mentalStrength: unknown,
-    damageTypes: unknown,
-    multiplier: number,
-  ) => {
-    let physicalValue = clampNonNegative(Number(physicalStrength ?? 0));
-    let mentalValue = clampNonNegative(Number(mentalStrength ?? 0));
-    const damageTypeCount = Math.max(1, readStringArray(damageTypes).length);
-    const modes = readDamageModes(damageTypes);
-
-    if (modes.has("MENTAL") && !modes.has("PHYSICAL") && mentalValue === 0 && physicalValue > 0) {
-      mentalValue = physicalValue;
-      physicalValue = 0;
-    }
-    if (modes.has("PHYSICAL") && !modes.has("MENTAL") && physicalValue === 0 && mentalValue > 0) {
-      physicalValue = mentalValue;
-      mentalValue = 0;
-    }
-
-    const toWoundsPerSuccess = (strength: number): number => {
-      const base = strength * strengthScalar;
-      if (!(base > 0)) return base;
-      if (!includeLevelWoundBonus) return base;
-      return base + getLevelWoundBonus(level, levelWoundBonusDivisor);
-    };
-
-    const scalar = successChance * netSuccessMultiplier * Math.max(0, multiplier);
-    physical += toWoundsPerSuccess(physicalValue) * scalar * damageTypeCount;
-    mental += toWoundsPerSuccess(mentalValue) * scalar * damageTypeCount;
-  };
-
-  if (attackConfig.melee?.enabled) {
-    const targets = readMultiplier(attackConfig.melee.targets, 1);
-    applyContribution(
-      attackConfig.melee.physicalStrength,
-      attackConfig.melee.mentalStrength,
-      attackConfig.melee.damageTypes,
-      targets,
-    );
-  }
-
-  if (attackConfig.ranged?.enabled) {
-    hasRanged = true;
-    const targets = readMultiplier(attackConfig.ranged.targets, 1);
-    applyContribution(
-      attackConfig.ranged.physicalStrength,
-      attackConfig.ranged.mentalStrength,
-      attackConfig.ranged.damageTypes,
-      targets,
-    );
-  }
-
-  if (attackConfig.aoe?.enabled) {
-    hasAoe = true;
-    const count = readMultiplier(attackConfig.aoe.count, 1);
-    applyContribution(
-      attackConfig.aoe.physicalStrength,
-      attackConfig.aoe.mentalStrength,
-      attackConfig.aoe.damageTypes,
-      aoeMultiplier * count,
-    );
+  for (const segment of profile.segments) {
+    const scalar =
+      segment.successChance * netSuccessMultiplier * Math.max(0, segment.targetMultiplier);
+    const contribution = segment.woundsPerSuccess * scalar * segment.damageTypeCount;
+    if (segment.threatLane === "PHYSICAL") physical += contribution;
+    if (segment.threatLane === "MENTAL") mental += contribution;
+    hasRanged = hasRanged || segment.attackKind === "ranged";
+    hasAoe = hasAoe || segment.attackKind === "aoe";
   }
 
   return {
@@ -850,58 +939,58 @@ export function computeMonsterOutcomes(
 ): MonsterOutcomeProfile {
   const cfg = config;
   const netSuccessMultiplier = cfg.baselineParty.netSuccessMultiplier;
-  const successChance = successChanceFromDieSides(dieSidesFromDieString(monster.attackDie));
+  const dieSides = dieSidesFromDieString(monster.attackDie);
+  const successChance = successChanceFromDieSides(dieSides);
 
-  const atWillCandidates: AtWillContribution[] = [];
+  const atWillProfiles: NormalizedAtWillAttackProfile[] = [];
   for (const attack of monster.attacks ?? []) {
     if (attack.attackMode !== "NATURAL") continue;
-    atWillCandidates.push(
-      scaleAtWillContribution(
-        computeAtWillFromAttackConfig(
-          withEffectiveNaturalAoeTargetCount(attack.attackConfig as AttackConfigLike),
-          successChance,
-          cfg.baselineParty.aoeMultiplier,
-          netSuccessMultiplier,
-          NATURAL_ATTACK_WOUNDS_PER_STRENGTH,
-          monster.level,
-          3,
-          false,
-        ),
-        cfg.naturalAttackTuning.damageOutputWeight,
-      ),
+    atWillProfiles.push(
+      normalizeAtWillAttackProfile({
+        sourceKind: "natural",
+        sourceId: attack.id ?? null,
+        sourceLabel: attack.attackName ?? "Natural Attack",
+        attackConfig: withEffectiveNaturalAoeTargetCount(attack.attackConfig as AttackConfigLike),
+        dieSides,
+        successChance,
+        aoeMultiplier: cfg.baselineParty.aoeMultiplier,
+        level: monster.level,
+      }),
     );
   }
   if (monster.naturalAttack?.attackConfig) {
-    atWillCandidates.push(
-      scaleAtWillContribution(
-        computeAtWillFromAttackConfig(
-          withEffectiveNaturalAoeTargetCount(
-            monster.naturalAttack.attackConfig as AttackConfigLike,
-          ),
-          successChance,
-          cfg.baselineParty.aoeMultiplier,
-          netSuccessMultiplier,
-          NATURAL_ATTACK_WOUNDS_PER_STRENGTH,
-          monster.level,
-          3,
-          false,
+    atWillProfiles.push(
+      normalizeAtWillAttackProfile({
+        sourceKind: "natural",
+        sourceId: null,
+        sourceLabel: monster.naturalAttack.attackName ?? "Natural Attack",
+        attackConfig: withEffectiveNaturalAoeTargetCount(
+          monster.naturalAttack.attackConfig as AttackConfigLike,
         ),
-        cfg.naturalAttackTuning.damageOutputWeight,
-      ),
+        dieSides,
+        successChance,
+        aoeMultiplier: cfg.baselineParty.aoeMultiplier,
+        level: monster.level,
+      }),
     );
   }
   for (const equippedWeaponSource of opts?.equippedWeaponSources ?? []) {
-    atWillCandidates.push(
-      computeAtWillFromAttackConfig(
-        equippedWeaponSource.attackConfig as AttackConfigLike,
+    atWillProfiles.push(
+      normalizeAtWillAttackProfile({
+        sourceKind: "equipped",
+        sourceId: equippedWeaponSource.id,
+        sourceLabel: equippedWeaponSource.label,
+        attackConfig: equippedWeaponSource.attackConfig as AttackConfigLike,
+        dieSides,
         successChance,
-        cfg.baselineParty.aoeMultiplier,
-        netSuccessMultiplier,
-        1,
-        monster.level,
-      ),
+        aoeMultiplier: cfg.baselineParty.aoeMultiplier,
+        level: monster.level,
+      }),
     );
   }
+  const atWillCandidates = atWillProfiles.map((profile) =>
+    computeAtWillContributionFromProfile(profile, netSuccessMultiplier),
+  );
   const atWillSummary = summarizeAtWillCandidates(atWillCandidates);
 
   const sustainedPhysical = atWillSummary.bestPhysical;
@@ -1058,6 +1147,15 @@ export function computeMonsterOutcomes(
     rawNaturalAttackRangeAxisBonuses,
     cfg.naturalAttackTuning.rangeEffectWeight,
   );
+  const naturalProfileCount = atWillProfiles.filter((profile) => profile.sourceKind === "natural").length;
+  const debugAtWillProfiles = atWillProfiles.map((profile) => {
+    if (profile.sourceKind !== "natural" || naturalProfileCount !== 1) return profile;
+    return {
+      ...profile,
+      greaterSuccessAxisBonuses: rawNaturalAttackGsAxisBonuses,
+      rangeAxisBonuses: rawNaturalAttackRangeAxisBonuses,
+    };
+  });
   const traitAxisBonuses = normalizeTraitAxisBonuses(opts?.traitAxisBonuses);
   const equipmentModifierAxisBonuses = normalizeRawAxisBonuses(
     opts?.equipmentModifierAxisBonuses,
@@ -1222,9 +1320,9 @@ export function computeMonsterOutcomes(
           equipmentModifierAxisBonuses,
           naturalAttackGsAxisBonuses,
           naturalAttackRangeAxisBonuses,
+          atWillProfiles: debugAtWillProfiles,
           naturalAttackTuning: {
             ...cfg.naturalAttackTuning,
-            fixedWoundsPerStrength: NATURAL_ATTACK_WOUNDS_PER_STRENGTH,
             rawGreaterSuccessAxisBonuses: rawNaturalAttackGsAxisBonuses,
             rawRangeAxisBonuses: rawNaturalAttackRangeAxisBonuses,
           },

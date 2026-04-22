@@ -560,6 +560,16 @@ type ForgeCalculatorContext = {
   }[];
 };
 
+type WeaponAttributePricingMode =
+  | 'MELEE_PHYSICAL_STRENGTH'
+  | 'MELEE_MENTAL_STRENGTH'
+  | 'RANGED_PHYSICAL_STRENGTH'
+  | 'RANGED_MENTAL_STRENGTH'
+  | 'AOE_PHYSICAL_STRENGTH'
+  | 'AOE_MENTAL_STRENGTH'
+  | 'CHOSEN_PHYSICAL_STRENGTH'
+  | 'CHOSEN_MENTAL_STRENGTH';
+
 function normaliseConfigKey(value: unknown): string {
   if (value === null || value === undefined) return '';
   return String(value).trim().toLowerCase();
@@ -1335,6 +1345,27 @@ function calculateRawSpentFp(
       if (!attr || !attr.name) continue;
 
       const name = attr.name.trim();
+      const pricingMode = String((attr as { pricingMode?: unknown }).pricingMode ?? '').trim().toUpperCase();
+      const pricingScalarRaw = (attr as { pricingScalar?: unknown }).pricingScalar;
+      const pricingScalar =
+        typeof pricingScalarRaw === 'number'
+          ? pricingScalarRaw
+          : typeof pricingScalarRaw === 'string'
+            ? Number(pricingScalarRaw)
+            : NaN;
+
+      if (pricingMode && Number.isFinite(pricingScalar)) {
+        const magnitude = Math.max(
+          0,
+          getWeaponAttributeDynamicPricingMagnitude(
+            values,
+            attr.id,
+            pricingMode as WeaponAttributePricingMode,
+          ),
+        );
+        otherCost += pricingScalar * magnitude;
+        continue;
+      }
 
       // Handle attributes with magnitude encoded in the name, e.g. "Dangerous 3", "Reload 5"
       const match = name.match(/^(.*\D)\s+(\d+)$/);
@@ -1576,6 +1607,41 @@ function calculateForgeTotals(
     multiplier,
 
   };
+}
+
+function getWeaponAttributeDynamicPricingMagnitude(
+  values: ForgeFormValues,
+  attrId: number,
+  pricingMode: WeaponAttributePricingMode | null | undefined,
+): number {
+  switch (pricingMode) {
+    case 'MELEE_PHYSICAL_STRENGTH':
+      return Number(values.meleePhysicalStrength ?? 0);
+    case 'MELEE_MENTAL_STRENGTH':
+      return Number(values.meleeMentalStrength ?? 0);
+    case 'RANGED_PHYSICAL_STRENGTH':
+      return Number(values.rangedPhysicalStrength ?? 0);
+    case 'RANGED_MENTAL_STRENGTH':
+      return Number(values.rangedMentalStrength ?? 0);
+    case 'AOE_PHYSICAL_STRENGTH':
+      return Number(values.aoePhysicalStrength ?? 0);
+    case 'AOE_MENTAL_STRENGTH':
+      return Number(values.aoeMentalStrength ?? 0);
+    case 'CHOSEN_PHYSICAL_STRENGTH': {
+      const source = values.weaponAttributeStrengthSources?.[String(attrId)];
+      if (source === 'RANGED') return Number(values.rangedPhysicalStrength ?? 0);
+      if (source === 'AOE') return Number(values.aoePhysicalStrength ?? 0);
+      return Number(values.meleePhysicalStrength ?? 0);
+    }
+    case 'CHOSEN_MENTAL_STRENGTH': {
+      const source = values.weaponAttributeStrengthSources?.[String(attrId)];
+      if (source === 'RANGED') return Number(values.rangedMentalStrength ?? 0);
+      if (source === 'AOE') return Number(values.aoeMentalStrength ?? 0);
+      return Number(values.meleeMentalStrength ?? 0);
+    }
+    default:
+      return 0;
+  }
 }
 
 export function ForgeCreate({ campaignId }: { campaignId: string }) {

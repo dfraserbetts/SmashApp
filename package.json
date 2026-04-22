@@ -6,7 +6,7 @@
     "node": ">=22 <23"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev-supervisor.mjs",
     "build": "next build",
     "build:vercel": "prisma migrate deploy && next build",
     "start": "next start",

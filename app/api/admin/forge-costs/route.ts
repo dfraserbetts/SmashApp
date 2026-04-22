@@ -333,3 +333,40 @@ export async function PATCH(req: Request) {
     );
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    await requireAdmin();
+
+    const body = (await req.json().catch(() => null)) as
+      | { ids?: unknown }
+      | null;
+
+    const ids = Array.isArray(body?.ids)
+      ? body.ids
+          .map((value) =>
+            typeof value === "number"
+              ? value
+              : typeof value === "string"
+                ? Number.parseInt(value, 10)
+                : NaN,
+          )
+          .filter((value) => Number.isFinite(value))
+      : [];
+
+    if (ids.length === 0) {
+      return NextResponse.json({ error: "ids are required" }, { status: 400 });
+    }
+
+    const result = await prisma.forgeCostEntry.deleteMany({
+      where: { id: { in: ids } },
+    });
+
+    return NextResponse.json({ deletedCount: result.count });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: "Failed to delete forge cost rows" },
+      { status: statusFromErr(e) },
+    );
+  }
+}

@@ -28,6 +28,8 @@ export type WeaponAttribute = {
   id: number;
   name: string;
   tooltip?: string | null;
+  pricingMode?: string | null;
+  pricingScalar?: number | null;
 
   // Authored in Admin UI
   descriptorTemplate?: string | null;

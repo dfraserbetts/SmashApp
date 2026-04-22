@@ -7,6 +7,7 @@ SmashApp is a Next.js 16 app backed by Supabase and Prisma.
 1. Copy `.env.example` to `.env.local` and fill in the real values.
 2. Install dependencies with `npm ci`.
 3. Start the app with `npm run dev`.
+   The dev launcher now auto-restarts Next when Prisma/runtime files change, which helps clear stale local server state after schema, migration, or Prisma client patches.
 
 The app expects Node 22. `.nvmrc` is included so GitHub Actions, local shells, and Vercel can stay aligned.
 

@@ -38,6 +38,17 @@ const WEAPON_ATTRIBUTE_TOKEN_WHITELIST = new Set<string>([
   "[AoeLineLengthFeet]",
 ]);
 
+const WEAPON_ATTRIBUTE_PRICING_MODES = new Set([
+  "MELEE_PHYSICAL_STRENGTH",
+  "MELEE_MENTAL_STRENGTH",
+  "RANGED_PHYSICAL_STRENGTH",
+  "RANGED_MENTAL_STRENGTH",
+  "AOE_PHYSICAL_STRENGTH",
+  "AOE_MENTAL_STRENGTH",
+  "CHOSEN_PHYSICAL_STRENGTH",
+  "CHOSEN_MENTAL_STRENGTH",
+]);
+
 function normalizePlacement(value: unknown): AttributePlacement {
   if (value === "DEFENCE") return "GUARD";
   if (value === "ATTACK" || value === "GUARD" || value === "TRAITS" || value === "GENERAL") {
@@ -65,6 +76,24 @@ function validateDescriptorTemplateOrThrow(tpl: string) {
   if (unknown.length) {
     throw new Error(`UNKNOWN_TOKENS:${unknown.join(",")}`);
   }
+}
+
+function normalizePricingMode(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase();
+  return WEAPON_ATTRIBUTE_PRICING_MODES.has(normalized) ? normalized : null;
+}
+
+function normalizePricingScalar(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value.trim())
+        : NaN;
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
 }
 
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
@@ -118,6 +147,8 @@ export async function GET() {
         tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
+        pricingMode: true,
+        pricingScalar: true,
         requiresRange: true,
         requiresAoeShape: true,
         requiresStrengthSource: true,
@@ -149,6 +180,8 @@ export async function POST(req: Request) {
           tooltip?: unknown;
           descriptorTemplate?: unknown;
           descriptorNotes?: unknown;
+          pricingMode?: unknown;
+          pricingScalar?: unknown;
           requiresRange?: unknown;
           requiresAoeShape?: unknown;
           requiresStrengthSource?: unknown;
@@ -171,6 +204,16 @@ export async function POST(req: Request) {
 
     const descriptorNotes =
       typeof body?.descriptorNotes === "string" ? body.descriptorNotes.trim() : "";
+    const pricingMode = normalizePricingMode((body as { pricingMode?: unknown } | null)?.pricingMode);
+    const pricingScalar = normalizePricingScalar(
+      (body as { pricingScalar?: unknown } | null)?.pricingScalar,
+    );
+    if (pricingMode && pricingScalar === null) {
+      return NextResponse.json(
+        { error: "pricingScalar is required when pricingMode is set" },
+        { status: 400 },
+      );
+    }
 
     const requiresRangeRaw = body?.requiresRange;
     const requiresAoeShapeRaw = body?.requiresAoeShape;
@@ -211,6 +254,8 @@ export async function POST(req: Request) {
         tooltip: tooltip || null,
         descriptorTemplate: descriptorTemplate || null,
         descriptorNotes: descriptorNotes || null,
+        pricingMode,
+        pricingScalar,
         requiresRange,
         requiresAoeShape,
         requiresStrengthSource,
@@ -223,6 +268,8 @@ export async function POST(req: Request) {
         tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
+        pricingMode: true,
+        pricingScalar: true,
         requiresRange: true,
         requiresAoeShape: true,
         requiresStrengthSource: true,
@@ -270,6 +317,8 @@ export async function PATCH(req: Request) {
           tooltip?: unknown;
           descriptorTemplate?: unknown;
           descriptorNotes?: unknown;
+          pricingMode?: unknown;
+          pricingScalar?: unknown;
           requiresRange?: unknown;
           requiresAoeShape?: unknown;
           requiresStrengthSource?: unknown;
@@ -300,6 +349,16 @@ export async function PATCH(req: Request) {
       typeof body?.descriptorNotes === "string"
         ? body.descriptorNotes.trim()
         : null;
+    const pricingMode = normalizePricingMode((body as { pricingMode?: unknown } | null)?.pricingMode);
+    const pricingScalar = normalizePricingScalar(
+      (body as { pricingScalar?: unknown } | null)?.pricingScalar,
+    );
+    if ("pricingMode" in (body ?? {}) && pricingMode && pricingScalar === null) {
+      return NextResponse.json(
+        { error: "pricingScalar is required when pricingMode is set" },
+        { status: 400 },
+      );
+    }
 
     const requiresRangeRaw = body?.requiresRange;
     const requiresAoeShapeRaw = body?.requiresAoeShape;
@@ -357,6 +416,14 @@ export async function PATCH(req: Request) {
     if ("descriptorNotes" in (body ?? {}))
       data.descriptorNotes = descriptorNotes || null;
 
+    if ("pricingMode" in (body ?? {})) {
+      data.pricingMode = pricingMode;
+    }
+
+    if ("pricingScalar" in (body ?? {})) {
+      data.pricingScalar = pricingScalar;
+    }
+
     if ("requiresRange" in (body ?? {})) data.requiresRange = requiresRange;
 
     if ("requiresAoeShape" in (body ?? {})) data.requiresAoeShape = requiresAoeShape;
@@ -393,6 +460,8 @@ export async function PATCH(req: Request) {
         tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
+        pricingMode: true,
+        pricingScalar: true,
         requiresRange: true,
         requiresAoeShape: true,
         requiresStrengthSource: true,
