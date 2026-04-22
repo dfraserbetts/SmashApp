@@ -75,6 +75,9 @@ const GLOBAL_ATTRIBUTE_COST_STATS_FALLBACK: GlobalAttributeCostStat[] = [
 ];
 const WEAPON_ATTRIBUTE_PRICING_MODE_OPTIONS = [
   { value: "", label: "Static ForgeCostEntry rows" },
+  { value: "ATTRIBUTE_VALUE", label: "[AttributeValue]" },
+  { value: "AURA_PHYSICAL", label: "[AuraPhysical]" },
+  { value: "AURA_MENTAL", label: "[AuraMental]" },
   { value: "MELEE_PHYSICAL_STRENGTH", label: "Melee Physical Strength" },
   { value: "MELEE_MENTAL_STRENGTH", label: "Melee Mental Strength" },
   { value: "RANGED_PHYSICAL_STRENGTH", label: "Ranged Physical Strength" },
@@ -868,13 +871,14 @@ function renderTemplatePreview(
 
   const fixedCostContext = useMemo(() => {
     if (isWeaponAttributes) return "Weapon";
+    if (isArmorAttributes) return "Armor";
     if (isShieldAttributes) return "Shield";
     return null;
-  }, [isShieldAttributes, isWeaponAttributes]);
+  }, [isArmorAttributes, isShieldAttributes, isWeaponAttributes]);
 
-  const isDynamicWeaponPricingActive = useMemo(
-    () => isWeaponAttributes && pricingMode.trim().length > 0,
-    [isWeaponAttributes, pricingMode],
+  const isDynamicAttributePricingActive = useMemo(
+    () => (isWeaponAttributes || isArmorAttributes || isShieldAttributes) && pricingMode.trim().length > 0,
+    [isArmorAttributes, isShieldAttributes, isWeaponAttributes, pricingMode],
   );
 
   async function loadCostsLive() {
@@ -1605,6 +1609,13 @@ function renderTemplatePreview(
                               placement,
                             };
 
+                            if (isWeaponAttributes || isArmorAttributes || isShieldAttributes) {
+                              payload.pricingMode = pricingMode || null;
+                              payload.pricingScalar =
+                                pricingScalar.trim().length > 0
+                                  ? Number(pricingScalar)
+                                  : null;
+                            }
                             // Weapon attributes support range/shape/source gating.
                             if (isWeaponAttributes) {
                               payload.requiresRange = requiresRange || null;
@@ -1612,11 +1623,6 @@ function renderTemplatePreview(
                               payload.requiresStrengthSource = requiresStrengthSource;
                               payload.requiresRangeSelection = requiresRangeSelection;
                               payload.requiresStrengthKind = requiresStrengthKind || null;
-                              payload.pricingMode = pricingMode || null;
-                              payload.pricingScalar =
-                                pricingScalar.trim().length > 0
-                                  ? Number(pricingScalar)
-                                  : null;
                             }
                             // Armor attributes support PV gating.
                             if (isArmorAttributes) {
@@ -1681,111 +1687,119 @@ function renderTemplatePreview(
                         ))}
                       </div>
 
-                      {isWeaponAttributes && (
+                      {(isWeaponAttributes || isArmorAttributes || isShieldAttributes) && (
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          <div className="space-y-1">
-                            <div className="text-xs font-medium opacity-80">Requires Range</div>
-                            <select
-                              className="w-full rounded border bg-transparent p-2 text-sm"
-                              value={requiresRange}
-                              onChange={(e) => setRequiresRange(e.target.value as any)}
-                            >
-                              <option value="">None</option>
-                              <option value="MELEE">Melee</option>
-                              <option value="RANGED">Ranged</option>
-                              <option value="AOE">AoE</option>
-                            </select>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="text-xs font-medium opacity-80">Requires AoE Shape</div>
-                            <select
-                              className="w-full rounded border bg-transparent p-2 text-sm"
-                              value={requiresAoeShape}
-                              onChange={(e) => setRequiresAoeShape(e.target.value as any)}
-                            >
-                              <option value="">None</option>
-                              <option value="SPHERE">Sphere</option>
-                              <option value="CONE">Cone</option>
-                              <option value="LINE">Line</option>
-                            </select>
-
-                            <div className="pt-2 space-y-2">
-                              <label className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={requiresStrengthSource}
-                                  onChange={(e) => setRequiresStrengthSource(e.target.checked)}
-                                />
-                                Requires Strength Source Selection
-                              </label>
-
-                              <label className="flex items-center gap-2 text-xs">
-                                <input
-                                  type="checkbox"
-                                  checked={requiresRangeSelection}
-                                  onChange={(e) => setRequiresRangeSelection(e.target.checked)}
-                                />
-                                Requires range selection
-                              </label>
-
-                              <div className="pt-2 space-y-1">
-                                <div className="text-xs font-medium opacity-80">
-                                  Requires Physical or Mental
-                                </div>
+                          {isWeaponAttributes ? (
+                            <>
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium opacity-80">Requires Range</div>
                                 <select
                                   className="w-full rounded border bg-transparent p-2 text-sm"
-                                  value={requiresStrengthKind}
-                                  onChange={(e) => setRequiresStrengthKind(e.target.value)}
+                                  value={requiresRange}
+                                  onChange={(e) => setRequiresRange(e.target.value as any)}
                                 >
                                   <option value="">None</option>
-                                  <option value="PHYSICAL">Physical</option>
-                                  <option value="MENTAL">Mental</option>
+                                  <option value="MELEE">Melee</option>
+                                  <option value="RANGED">Ranged</option>
+                                  <option value="AOE">AoE</option>
                                 </select>
-                              </div>
-
-                              <div className="pt-2 space-y-1">
-                                <div className="text-xs font-medium opacity-80">
-                                  Dynamic Cost Basis
-                                </div>
-                                <select
-                                  className="w-full rounded border bg-transparent p-2 text-sm"
-                                  value={pricingMode}
-                                  onChange={(e) => setPricingMode(e.target.value)}
-                                >
-                                  {WEAPON_ATTRIBUTE_PRICING_MODE_OPTIONS.map((option) => (
-                                    <option key={option.value || "STATIC"} value={option.value}>
-                                      {option.label}
-                                    </option>
-                                  ))}
-                                </select>
-                                <p className="text-[11px] opacity-70">
-                                  If set, Forge cost becomes Pricing Scalar multiplied by the selected live strength value instead of using static ForgeCostEntry rows.
-                                </p>
                               </div>
 
                               <div className="space-y-1">
-                                <div className="text-xs font-medium opacity-80">Pricing Scalar</div>
-                                <input
+                                <div className="text-xs font-medium opacity-80">Requires AoE Shape</div>
+                                <select
                                   className="w-full rounded border bg-transparent p-2 text-sm"
-                                  value={pricingScalar}
-                                  onChange={(e) => setPricingScalar(e.target.value)}
-                                  placeholder="e.g. 1"
-                                  inputMode="decimal"
-                                />
-                                <p className="text-[11px] opacity-70">
-                                  Example: scalar 2 with Melee Physical Strength prices the attribute as 2 x current Melee Physical Strength.
-                                </p>
-                              </div>
+                                  value={requiresAoeShape}
+                                  onChange={(e) => setRequiresAoeShape(e.target.value as any)}
+                                >
+                                  <option value="">None</option>
+                                  <option value="SPHERE">Sphere</option>
+                                  <option value="CONE">Cone</option>
+                                  <option value="LINE">Line</option>
+                                </select>
 
-                              {isDynamicWeaponPricingActive && (
-                                <div className="rounded border border-amber-600/50 bg-amber-950/30 p-3 text-xs text-amber-100">
-                                  Dynamic pricing is active for this weapon attribute. Forge ignores static `ForgeCostEntry` rows while this mode is set and uses `Pricing Scalar x selected live strength` instead.
-                                  Context selectors do not change the scalar behavior. Weapon attributes resolve on the `Weapon` context only, so any old non-`Weapon` rows are legacy static data.
+                                <div className="pt-2 space-y-2">
+                                  <label className="flex items-center gap-2 text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={requiresStrengthSource}
+                                      onChange={(e) => setRequiresStrengthSource(e.target.checked)}
+                                    />
+                                    Requires Strength Source Selection
+                                  </label>
+
+                                  <label className="flex items-center gap-2 text-xs">
+                                    <input
+                                      type="checkbox"
+                                      checked={requiresRangeSelection}
+                                      onChange={(e) => setRequiresRangeSelection(e.target.checked)}
+                                    />
+                                    Requires range selection
+                                  </label>
+
+                                  <div className="pt-2 space-y-1">
+                                    <div className="text-xs font-medium opacity-80">
+                                      Requires Physical or Mental
+                                    </div>
+                                    <select
+                                      className="w-full rounded border bg-transparent p-2 text-sm"
+                                      value={requiresStrengthKind}
+                                      onChange={(e) => setRequiresStrengthKind(e.target.value)}
+                                    >
+                                      <option value="">None</option>
+                                      <option value="PHYSICAL">Physical</option>
+                                      <option value="MENTAL">Mental</option>
+                                    </select>
+                                  </div>
                                 </div>
-                              )}
+                              </div>
+                            </>
+                          ) : (
+                            <div className="sm:col-span-2 rounded border border-zinc-800 p-3 text-xs opacity-80">
+                              Dynamic pricing for {isArmorAttributes ? "armor" : "shield"} attributes uses the same live strength basis options as weapon attributes. Static pricing still falls back to the fixed {fixedCostContext} `ForgeCostEntry` row when no dynamic basis is set.
                             </div>
+                          )}
+
+                          <div className="space-y-1">
+                            <div className="text-xs font-medium opacity-80">
+                              Dynamic Cost Basis
+                            </div>
+                            <select
+                              className="w-full rounded border bg-transparent p-2 text-sm"
+                              value={pricingMode}
+                              onChange={(e) => setPricingMode(e.target.value)}
+                            >
+                              {WEAPON_ATTRIBUTE_PRICING_MODE_OPTIONS.map((option) => (
+                                <option key={option.value || "STATIC"} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-[11px] opacity-70">
+                              If set, Forge cost becomes Pricing Scalar multiplied by the selected live strength value instead of using static ForgeCostEntry rows.
+                            </p>
                           </div>
+
+                          <div className="space-y-1">
+                            <div className="text-xs font-medium opacity-80">Pricing Scalar</div>
+                            <input
+                              className="w-full rounded border bg-transparent p-2 text-sm"
+                              value={pricingScalar}
+                              onChange={(e) => setPricingScalar(e.target.value)}
+                              placeholder="e.g. 1"
+                              inputMode="decimal"
+                            />
+                            <p className="text-[11px] opacity-70">
+                              Example: scalar 2 with Melee Physical Strength prices the attribute as 2 x current Melee Physical Strength.
+                            </p>
+                          </div>
+
+                          {isDynamicAttributePricingActive && (
+                            <div className="sm:col-span-2 rounded border border-amber-600/50 bg-amber-950/30 p-3 text-xs text-amber-100">
+                              Dynamic pricing is active for this {isWeaponAttributes ? "weapon" : isArmorAttributes ? "armor" : "shield"} attribute. Forge ignores static `ForgeCostEntry` rows while this mode is set and uses `Pricing Scalar x selected live strength` instead.
+                              Context selectors do not change the scalar behavior. {isWeaponAttributes ? "Weapon" : isArmorAttributes ? "Armor" : "Shield"} attributes resolve on the `{fixedCostContext}` context only, so any other stored rows are legacy static data.
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -1923,14 +1937,14 @@ function renderTemplatePreview(
               {costCategory ? (
                 <div className="rounded border">
                   <div className="border-b p-2 text-xs font-medium opacity-80">
-                    {isDynamicWeaponPricingActive
+                    {isDynamicAttributePricingActive
                       ? "Static Costs (inactive while dynamic pricing is enabled)"
                       : fixedCostContext
                         ? `Costs (${fixedCostContext} context)`
                         : "Costs (full context matrix)"}
                   </div>
 
-              {isDynamicWeaponPricingActive ? (
+              {isDynamicAttributePricingActive ? (
                 <div className="space-y-3 p-3">
                   <div className="text-sm opacity-80">
                     This attribute currently uses dynamic pricing, so the Forge does not read static cost rows for it.

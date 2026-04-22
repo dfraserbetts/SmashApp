@@ -48,6 +48,8 @@ export type ArmorAttribute = {
   id: number;
   name: string;
   tooltip?: string | null;
+  pricingMode?: string | null;
+  pricingScalar?: number | null;
 
   // Authored in Admin UI
   descriptorTemplate?: string | null;
@@ -61,6 +63,8 @@ export type ShieldAttribute = {
   id: number;
   name: string;
   tooltip?: string | null;
+  pricingMode?: string | null;
+  pricingScalar?: number | null;
 
   // Authored in Admin UI
   descriptorTemplate?: string | null;

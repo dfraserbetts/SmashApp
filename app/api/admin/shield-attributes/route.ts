@@ -4,12 +4,44 @@ import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
 import type { AttributePlacement } from "@/lib/summoning/types";
 
+const ATTRIBUTE_PRICING_MODES = new Set([
+  "ATTRIBUTE_VALUE",
+  "AURA_PHYSICAL",
+  "AURA_MENTAL",
+  "MELEE_PHYSICAL_STRENGTH",
+  "MELEE_MENTAL_STRENGTH",
+  "RANGED_PHYSICAL_STRENGTH",
+  "RANGED_MENTAL_STRENGTH",
+  "AOE_PHYSICAL_STRENGTH",
+  "AOE_MENTAL_STRENGTH",
+  "CHOSEN_PHYSICAL_STRENGTH",
+  "CHOSEN_MENTAL_STRENGTH",
+]);
+
 function normalizePlacement(value: unknown): AttributePlacement {
   if (value === "DEFENCE") return "GUARD";
   if (value === "ATTACK" || value === "GUARD" || value === "TRAITS" || value === "GENERAL") {
     return value;
   }
   return "TRAITS";
+}
+
+function normalizePricingMode(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase();
+  return ATTRIBUTE_PRICING_MODES.has(normalized) ? normalized : null;
+}
+
+function normalizePricingScalar(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value.trim())
+        : NaN;
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
 }
 
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
@@ -63,6 +95,8 @@ export async function GET() {
         tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
+        pricingMode: true,
+        pricingScalar: true,
         placement: true,
       } as any,
     });
@@ -88,6 +122,8 @@ const body = (await req.json().catch(() => null)) as
           tooltip?: unknown;
           descriptorTemplate?: unknown;
           descriptorNotes?: unknown;
+          pricingMode?: unknown;
+          pricingScalar?: unknown;
           placement?: unknown;
         }
       | null;
@@ -103,16 +139,36 @@ const body = (await req.json().catch(() => null)) as
 
     const descriptorNotes =
       typeof body?.descriptorNotes === "string" ? body.descriptorNotes : null;
+    const pricingMode = normalizePricingMode((body as { pricingMode?: unknown } | null)?.pricingMode);
+    const pricingScalar = normalizePricingScalar(
+      (body as { pricingScalar?: unknown } | null)?.pricingScalar,
+    );
+    if (pricingMode && pricingScalar === null) {
+      return NextResponse.json(
+        { error: "pricingScalar is required when pricingMode is set" },
+        { status: 400 },
+      );
+    }
     const placement = normalizePlacement((body as { placement?: unknown } | null)?.placement);
 
     const created = await prisma.shieldAttribute.create({
-      data: { name, tooltip, descriptorTemplate, descriptorNotes, placement } as any,
+      data: {
+        name,
+        tooltip,
+        descriptorTemplate,
+        descriptorNotes,
+        pricingMode,
+        pricingScalar,
+        placement,
+      } as any,
       select: {
         id: true,
         name: true,
         tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
+        pricingMode: true,
+        pricingScalar: true,
         placement: true,
       } as any,
     });
@@ -146,6 +202,8 @@ export async function PATCH(req: Request) {
           tooltip?: unknown;
           descriptorTemplate?: unknown;
           descriptorNotes?: unknown;
+          pricingMode?: unknown;
+          pricingScalar?: unknown;
           placement?: unknown;
         }
       | null;
@@ -175,6 +233,16 @@ export async function PATCH(req: Request) {
       typeof body?.descriptorNotes === "string"
         ? String(body.descriptorNotes).trim()
         : "";
+    const pricingMode = normalizePricingMode((body as { pricingMode?: unknown } | null)?.pricingMode);
+    const pricingScalar = normalizePricingScalar(
+      (body as { pricingScalar?: unknown } | null)?.pricingScalar,
+    );
+    if ("pricingMode" in (body ?? {}) && pricingMode && pricingScalar === null) {
+      return NextResponse.json(
+        { error: "pricingScalar is required when pricingMode is set" },
+        { status: 400 },
+      );
+    }
     const placement = normalizePlacement((body as { placement?: unknown } | null)?.placement);
 
     // Backwards compatible: name is only required if the caller is actually updating it.
@@ -197,6 +265,12 @@ export async function PATCH(req: Request) {
     if ("descriptorNotes" in (body ?? {})) {
       data.descriptorNotes = descriptorNotes || null;
     }
+    if ("pricingMode" in (body ?? {})) {
+      data.pricingMode = pricingMode;
+    }
+    if ("pricingScalar" in (body ?? {})) {
+      data.pricingScalar = pricingScalar;
+    }
     if ("placement" in (body ?? {})) {
       data.placement = placement;
     }
@@ -210,6 +284,8 @@ export async function PATCH(req: Request) {
         tooltip: true,
         descriptorTemplate: true,
         descriptorNotes: true,
+        pricingMode: true,
+        pricingScalar: true,
         placement: true,
       } as any,
     });

@@ -159,6 +159,8 @@ model ArmorAttribute {
   tooltip            String?
   descriptorNotes    String?
   descriptorTemplate String?
+  pricingMode        String?
+  pricingScalar      Float?
   placement          AttributePlacement           @default(TRAITS)
   requiresPvKind     StrengthKind?
   requiresPpv        Boolean                      @default(false)
@@ -174,6 +176,8 @@ model ShieldAttribute {
   tooltip            String?
   descriptorNotes    String?
   descriptorTemplate String?
+  pricingMode        String?
+  pricingScalar      Float?
   placement          AttributePlacement            @default(TRAITS)
   templates          ItemTemplateShieldAttribute[]
 

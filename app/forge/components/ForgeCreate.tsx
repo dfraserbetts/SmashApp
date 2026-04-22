@@ -560,7 +560,10 @@ type ForgeCalculatorContext = {
   }[];
 };
 
-type WeaponAttributePricingMode =
+type AttributePricingMode =
+  | 'ATTRIBUTE_VALUE'
+  | 'AURA_PHYSICAL'
+  | 'AURA_MENTAL'
   | 'MELEE_PHYSICAL_STRENGTH'
   | 'MELEE_MENTAL_STRENGTH'
   | 'RANGED_PHYSICAL_STRENGTH'
@@ -1357,11 +1360,13 @@ function calculateRawSpentFp(
       if (pricingMode && Number.isFinite(pricingScalar)) {
         const magnitude = Math.max(
           0,
-          getWeaponAttributeDynamicPricingMagnitude(
-            values,
-            attr.id,
-            pricingMode as WeaponAttributePricingMode,
-          ),
+          pricingMode === 'ATTRIBUTE_VALUE'
+            ? getAttributeValueMagnitude(name)
+            : getAttributeDynamicPricingMagnitude(
+                values,
+                attr.id,
+                pricingMode as AttributePricingMode,
+              ),
         );
         otherCost += pricingScalar * magnitude;
         continue;
@@ -1401,6 +1406,30 @@ function calculateRawSpentFp(
       const attr = context.armorAttributes.find((a) => a.id === attrId);
       if (!attr) continue;
 
+      const pricingMode = String((attr as { pricingMode?: unknown }).pricingMode ?? '').trim().toUpperCase();
+      const pricingScalarRaw = (attr as { pricingScalar?: unknown }).pricingScalar;
+      const pricingScalar =
+        typeof pricingScalarRaw === 'number'
+          ? pricingScalarRaw
+          : typeof pricingScalarRaw === 'string'
+            ? Number(pricingScalarRaw)
+            : NaN;
+
+      if (pricingMode && Number.isFinite(pricingScalar)) {
+        const magnitude = Math.max(
+          0,
+          pricingMode === 'ATTRIBUTE_VALUE'
+            ? getAttributeValueMagnitude(attr.name)
+            : getAttributeDynamicPricingMagnitude(
+                values,
+                attr.id,
+                pricingMode as AttributePricingMode,
+              ),
+        );
+        otherCost += pricingScalar * magnitude;
+        continue;
+      }
+
       otherCost += findCostValue(
         costRows,
         'ArmorAttributes',
@@ -1417,6 +1446,30 @@ function calculateRawSpentFp(
     for (const attrId of shieldAttrIds) {
       const attr = context.shieldAttributes.find((a) => a.id === attrId);
       if (!attr) continue;
+
+      const pricingMode = String((attr as { pricingMode?: unknown }).pricingMode ?? '').trim().toUpperCase();
+      const pricingScalarRaw = (attr as { pricingScalar?: unknown }).pricingScalar;
+      const pricingScalar =
+        typeof pricingScalarRaw === 'number'
+          ? pricingScalarRaw
+          : typeof pricingScalarRaw === 'string'
+            ? Number(pricingScalarRaw)
+            : NaN;
+
+      if (pricingMode && Number.isFinite(pricingScalar)) {
+        const magnitude = Math.max(
+          0,
+          pricingMode === 'ATTRIBUTE_VALUE'
+            ? getAttributeValueMagnitude(attr.name)
+            : getAttributeDynamicPricingMagnitude(
+                values,
+                attr.id,
+                pricingMode as AttributePricingMode,
+              ),
+        );
+        otherCost += pricingScalar * magnitude;
+        continue;
+      }
 
       otherCost += findCostValue(
         costRows,
@@ -1609,12 +1662,16 @@ function calculateForgeTotals(
   };
 }
 
-function getWeaponAttributeDynamicPricingMagnitude(
+function getAttributeDynamicPricingMagnitude(
   values: ForgeFormValues,
   attrId: number,
-  pricingMode: WeaponAttributePricingMode | null | undefined,
+  pricingMode: AttributePricingMode | null | undefined,
 ): number {
   switch (pricingMode) {
+    case 'AURA_PHYSICAL':
+      return Number(values.auraPhysical ?? 0);
+    case 'AURA_MENTAL':
+      return Number(values.auraMental ?? 0);
     case 'MELEE_PHYSICAL_STRENGTH':
       return Number(values.meleePhysicalStrength ?? 0);
     case 'MELEE_MENTAL_STRENGTH':
@@ -1642,6 +1699,14 @@ function getWeaponAttributeDynamicPricingMagnitude(
     default:
       return 0;
   }
+}
+
+function getAttributeValueMagnitude(name: unknown): number {
+  if (typeof name !== 'string') return 0;
+  const match = name.trim().match(/^(.*?)(?:\s+(\d+))$/);
+  if (!match) return 0;
+  const parsed = Number(match[2] ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export function ForgeCreate({ campaignId }: { campaignId: string }) {
