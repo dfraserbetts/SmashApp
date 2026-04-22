@@ -88,7 +88,8 @@ type WeaponRouteRow = Prisma.ItemTemplateGetPayload<{
 }>;
 
 function normalizePlacement(value: unknown): AttributePlacement {
-  if (value === "ATTACK" || value === "DEFENCE" || value === "TRAITS" || value === "GENERAL") {
+  if (value === "DEFENCE") return "GUARD";
+  if (value === "ATTACK" || value === "GUARD" || value === "TRAITS" || value === "GENERAL") {
     return value;
   }
   return "TRAITS";
@@ -297,17 +298,17 @@ function buildVrpAttributeLines(row: WeaponRouteRow): AttributeLine[] {
     if (normalized === "RESISTANCE") {
       out.push({
         text: `+${amount} to Defence rolls against ${damageTypeName} attacks`,
-        placement: "DEFENCE",
+        placement: "GUARD",
       });
     } else if (normalized === "VULNERABILITY") {
       out.push({
         text: `-${amount} to Defence rolls against ${damageTypeName} attacks`,
-        placement: "DEFENCE",
+        placement: "GUARD",
       });
     } else if (normalized === "PROTECTION") {
       out.push({
         text: `+${amount} dice to Defence rolls against ${damageTypeName} attacks`,
-        placement: "DEFENCE",
+        placement: "GUARD",
       });
     }
   }

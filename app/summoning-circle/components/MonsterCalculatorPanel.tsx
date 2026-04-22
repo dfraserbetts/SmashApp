@@ -36,11 +36,11 @@ const ARCHETYPE_LABELS: Record<MonsterCalculatorArchetype, string> = {
 };
 const ARCHETYPE_TOOLTIPS: Record<MonsterCalculatorArchetype, string> = {
   BALANCED:
-    "Aims for an even spread across offence, survivability, control, mobility, and presence.",
+    "Aims for an even spread across offence, both survivability lanes, control, mobility, and presence.",
   GLASS_CANNON:
-    "Aims for high threat and burst pressure with intentionally low survivability.",
+    "Aims for high threat and burst pressure with intentionally low physical and mental survivability.",
   TANK:
-    "Aims for very high survivability and battlefield staying power over raw offensive output.",
+    "Aims for very high physical and mental survivability over raw offensive output.",
   CONTROLLER:
     "Aims for disruption, manipulation, and encounter-shaping value over direct damage.",
 };
@@ -52,7 +52,8 @@ const ARCHETYPE_TARGETS: Record<
   BALANCED: {
     physicalThreat: 5,
     mentalThreat: 5,
-    survivability: 5,
+    physicalSurvivability: 5,
+    mentalSurvivability: 5,
     manipulation: 5,
     synergy: 5,
     mobility: 5,
@@ -61,7 +62,8 @@ const ARCHETYPE_TARGETS: Record<
   GLASS_CANNON: {
     physicalThreat: 9,
     mentalThreat: 7,
-    survivability: 2,
+    physicalSurvivability: 2,
+    mentalSurvivability: 2,
     manipulation: 3,
     synergy: 2,
     mobility: 6,
@@ -70,7 +72,8 @@ const ARCHETYPE_TARGETS: Record<
   TANK: {
     physicalThreat: 4,
     mentalThreat: 2,
-    survivability: 9,
+    physicalSurvivability: 9,
+    mentalSurvivability: 8,
     manipulation: 3,
     synergy: 2,
     mobility: 3,
@@ -79,7 +82,8 @@ const ARCHETYPE_TARGETS: Record<
   CONTROLLER: {
     physicalThreat: 3,
     mentalThreat: 4,
-    survivability: 5,
+    physicalSurvivability: 4,
+    mentalSurvivability: 6,
     manipulation: 9,
     synergy: 4,
     mobility: 5,
@@ -95,7 +99,8 @@ function formatDecimal(value: number): string {
 const POWER_AXIS_ROWS: Array<{ key: keyof RadarAxes; label: string }> = [
   { key: "physicalThreat", label: "Physical Threat" },
   { key: "mentalThreat", label: "Mental Threat" },
-  { key: "survivability", label: "Survivability" },
+  { key: "physicalSurvivability", label: "Physical Survivability" },
+  { key: "mentalSurvivability", label: "Mental Survivability" },
   { key: "manipulation", label: "Control Pressure" },
   { key: "synergy", label: "Synergy" },
   { key: "mobility", label: "Mobility" },

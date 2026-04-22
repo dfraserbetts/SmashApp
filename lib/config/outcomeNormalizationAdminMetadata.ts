@@ -4,11 +4,12 @@ export const OUTCOME_NORMALIZATION_ADMIN_GROUPS = [
   "Tier Multipliers",
   "Baseline Party",
   "Manipulation Tuning",
-  "Support Utility Fallbacks",
+  "Synergy Utility Fallbacks",
   "Natural Attack Weighting",
   "Scoring Curves - Physical Threat",
   "Scoring Curves - Mental Threat",
-  "Scoring Curves - Survivability",
+  "Scoring Curves - Physical Survivability",
+  "Scoring Curves - Mental Survivability",
   "Scoring Curves - Manipulation",
   "Scoring Curves - Synergy",
   "Scoring Curves - Mobility",
@@ -35,7 +36,8 @@ export type OutcomeNormalizationAdminMetadata = {
 const CURVE_GROUPS: Record<string, OutcomeNormalizationAdminGroup> = {
   physicalThreat: "Scoring Curves - Physical Threat",
   mentalThreat: "Scoring Curves - Mental Threat",
-  survivability: "Scoring Curves - Survivability",
+  physicalSurvivability: "Scoring Curves - Physical Survivability",
+  mentalSurvivability: "Scoring Curves - Mental Survivability",
   manipulation: "Scoring Curves - Manipulation",
   synergy: "Scoring Curves - Synergy",
   mobility: "Scoring Curves - Mobility",
@@ -56,7 +58,8 @@ function formatSegment(segment: string): string {
 function axisLabel(axis: string): string {
   if (axis === "physicalThreat") return "Physical Threat";
   if (axis === "mentalThreat") return "Mental Threat";
-  if (axis === "survivability") return "Survivability";
+  if (axis === "physicalSurvivability") return "Physical Survivability";
+  if (axis === "mentalSurvivability") return "Mental Survivability";
   if (axis === "manipulation") return "Control Pressure";
   if (axis === "synergy") return "Synergy";
   if (axis === "mobility") return "Mobility";
@@ -97,12 +100,12 @@ function labelForKey(configKey: string): string {
   if (configKey === "manipulationTuning.lineWidthScalarPer5ft") return "Line Width Bonus per 5 ft";
   if (configKey === "manipulationTuning.maxGeometryScalarBonus") return "Maximum Area Geometry Bonus";
 
-  if (configKey === "seuFallbacks.augmentSeuPerSuccess") return "Augment Support Value per Success";
-  if (configKey === "seuFallbacks.augmentSeuPerStack") return "Augment Support Value per Stack";
+  if (configKey === "seuFallbacks.augmentSeuPerSuccess") return "Augment Synergy Value per Success";
+  if (configKey === "seuFallbacks.augmentSeuPerStack") return "Augment Synergy Value per Stack";
   if (configKey === "seuFallbacks.debuffSeuPerSuccess") return "Debuff Control Value per Success";
   if (configKey === "seuFallbacks.debuffSeuPerStack") return "Debuff Control Value per Stack";
-  if (configKey === "seuFallbacks.cleanseSeuPerSuccess") return "Cleanse Support Value per Success";
-  if (configKey === "seuFallbacks.cleanseSeuPerStack") return "Cleanse Support Value per Stack";
+  if (configKey === "seuFallbacks.cleanseSeuPerSuccess") return "Cleanse Synergy Value per Success";
+  if (configKey === "seuFallbacks.cleanseSeuPerStack") return "Cleanse Synergy Value per Stack";
 
   if (configKey === "naturalAttackTuning.damageOutputWeight") return "Natural Attack Damage Impact";
   if (configKey === "naturalAttackTuning.greaterSuccessEffectWeight") {
@@ -117,7 +120,7 @@ function groupForKey(configKey: string): OutcomeNormalizationAdminGroup {
   if (configKey.startsWith("tierMultipliers.")) return "Tier Multipliers";
   if (configKey.startsWith("baselineParty.")) return "Baseline Party";
   if (configKey.startsWith("manipulationTuning.")) return "Manipulation Tuning";
-  if (configKey.startsWith("seuFallbacks.")) return "Support Utility Fallbacks";
+  if (configKey.startsWith("seuFallbacks.")) return "Synergy Utility Fallbacks";
   if (configKey.startsWith("naturalAttackTuning.")) return "Natural Attack Weighting";
   if (configKey.startsWith("scoringCurves.")) {
     const axis = configKey.split(".")[1];
@@ -164,7 +167,7 @@ function descriptionForKey(configKey: string): string {
     return "Raises or lowers downstream control-pressure scaling from range, target count, or area geometry.";
   }
   if (configKey.startsWith("seuFallbacks.")) {
-    return "Fallback support or control value used when a landed effect has no stronger direct signal.";
+    return "Fallback synergy or control value used when a landed effect has no stronger direct signal.";
   }
   if (configKey === "naturalAttackTuning.damageOutputWeight") {
     return "Raises or lowers how much natural attack damage output moves the final radar without changing printed wounds.";
@@ -192,6 +195,7 @@ function aliasesForKey(configKey: string): string[] {
   }
   if (lowerKey.includes("seu")) {
     aliases.add("SEU");
+    aliases.add("Synergy Utility Output");
     aliases.add("Support Utility Output");
     aliases.add("Standard Effect Unit");
   }

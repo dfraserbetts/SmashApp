@@ -51,10 +51,10 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     format: "multiplier",
     aliases: ["physical resilience", "attributes"],
   },
-  defenceWeight: {
-    label: "Defence Weight for Physical Resilience",
+  guardWeight: {
+    label: "Guard Weight for Physical Resilience",
     group: "Attribute Weights / Realization Inputs",
-    description: "Raise this to make Defence add more physical resilience.",
+    description: "Raise this to make Guard add more physical resilience.",
     affects: "baseline",
     format: "multiplier",
     aliases: ["physical resilience", "attributes"],
@@ -75,10 +75,10 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     format: "multiplier",
     aliases: ["mental perseverance", "attributes"],
   },
-  supportWeight: {
-    label: "Support Weight for Mental Perseverance",
+  synergyWeight: {
+    label: "Synergy Weight for Mental Perseverance",
     group: "Attribute Weights / Realization Inputs",
-    description: "Raise this to make Support add more mental perseverance.",
+    description: "Raise this to make Synergy add more mental perseverance.",
     affects: "baseline",
     format: "multiplier",
     aliases: ["mental perseverance", "attributes"],
@@ -130,10 +130,10 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     format: "multiplier",
     aliases: ["armor skill", "defence skill"],
   },
-  armorSkillDefenceWeight: {
-    label: "Defence Weight for Armor Skill",
+  armorSkillGuardWeight: {
+    label: "Guard Weight for Armor Skill",
     group: "Attribute Weights / Realization Inputs",
-    description: "Raise this to make Defence matter more for Armor Skill.",
+    description: "Raise this to make Guard matter more for Armor Skill.",
     affects: "baseline",
     format: "multiplier",
     aliases: ["armor skill", "defence skill"],
@@ -153,21 +153,23 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     format: "multiplier",
     aliases: ["armor skill", "defence skill", "curve"],
   },
-  willpowerSupportWeight: {
-    label: "Support Weight for Willpower",
+  willpowerSynergyWeight: {
+    label: "Synergy Weight for Willpower Pool",
     group: "Attribute Weights / Realization Inputs",
-    description: "Raise this to make Support matter more for Willpower.",
+    description:
+      "Raise this to make Synergy matter more for the pooled Willpower value that supports mental protection.",
     affects: "baseline",
     format: "multiplier",
-    aliases: ["willpower", "mental defence"],
+    aliases: ["willpower", "mental protection"],
   },
   willpowerBraveryWeight: {
-    label: "Bravery Weight for Willpower",
+    label: "Bravery Weight for Willpower Pool",
     group: "Attribute Weights / Realization Inputs",
-    description: "Raise this to make Bravery matter more for Willpower.",
+    description:
+      "Raise this to make Bravery matter more for the pooled Willpower value while Bravery remains the surfaced Mental Defence stat.",
     affects: "baseline",
     format: "multiplier",
-    aliases: ["willpower", "mental defence"],
+    aliases: ["willpower", "mental protection"],
   },
   willpowerBaselineOffset: {
     label: "Willpower Baseline Offset",
@@ -192,10 +194,10 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     format: "multiplier",
     aliases: ["dodge", "avoidance", "attribute"],
   },
-  dodgeDefenceWeight: {
-    label: "Defence Weight for Dodge",
+  dodgeGuardWeight: {
+    label: "Guard Weight for Dodge",
     group: "Attribute Weights / Realization Inputs",
-    description: "Raise this to make Defence increase Dodge more.",
+    description: "Raise this to make Guard increase Dodge more.",
     affects: "baseline",
     format: "multiplier",
     aliases: ["dodge", "avoidance", "attribute"],
@@ -308,26 +310,26 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     aliases: ["health pool", "expected", "tier"],
   },
   poolWeakerSideWeight: {
-    label: "Lower Pool Side Weight",
+    label: "Legacy Lower Pool Side Weight",
     group: "Pool Penalty / Bonus Scaling",
-    description: "Raise this to make the weaker pool matter more in survivability scoring.",
+    description: "Legacy combined-pool control from the old single survivability axis.",
     affects: "baseline",
     format: "share",
-    aliases: ["weaker side", "health pool", "survivability"],
+    aliases: ["legacy", "weaker side", "health pool", "survivability"],
   },
   poolAverageWeight: {
-    label: "Average Pool Weight",
+    label: "Legacy Average Pool Weight",
     group: "Pool Penalty / Bonus Scaling",
-    description: "Raise this to make the average of both pools matter more.",
+    description: "Legacy combined-pool control from the old single survivability axis.",
     affects: "baseline",
     format: "share",
-    aliases: ["average", "health pool", "survivability"],
+    aliases: ["legacy", "average", "health pool", "survivability"],
   },
   poolAtExpectedShare: {
-    label: "Expected Pool Survivability Share",
+    label: "Expected Pool Lane Share",
     group: "Pool Penalty / Bonus Scaling",
     description:
-      "When physical and mental pools are exactly on the expected baseline, this is the share of survivability budget they contribute before other survivability systems are added.",
+      "When a physical or mental pool is exactly on its expected baseline, this is the share of that lane budget it contributes before protection and dodge are added.",
     affects: "baseline",
     format: "share",
     suggestedMin: 0,
@@ -367,9 +369,9 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     aliases: ["bonus", "health pool", "scale"],
   },
   defenceStringProtectionOutputMaxShare: {
-    label: "Protection Block Survivability Cap",
+    label: "Protection Block Lane Cap",
     group: "Dodge & Defence Package",
-    description: "Raise this to let protection block contribute more survivability axis.",
+    description: "Raise this to let protection block contribute more physical or mental survivability.",
     affects: "baseline",
     format: "share",
     aliases: ["defence package", "block", "survivability"],
@@ -377,14 +379,14 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
   defenceStringProtectionOutputScale: {
     label: "Protection Block Ramp Speed",
     group: "Dodge & Defence Package",
-    description: "Raise this to make protection block survivability ramp more slowly.",
+    description: "Raise this to make protection block contribution ramp more slowly in each survivability lane.",
     affects: "baseline",
     aliases: ["defence package", "block", "scale"],
   },
   dodgeBaselineMaxShare: {
-    label: "Dodge Baseline Survivability Cap",
+    label: "Dodge Baseline Lane Cap",
     group: "Dodge & Defence Package",
-    description: "Raise this to let any Dodge dice add more survivability.",
+    description: "Raise this to let any Dodge dice add more shared survivability before the dodge split is applied.",
     affects: "baseline",
     format: "share",
     aliases: ["dodge", "defence package", "survivability"],
@@ -397,7 +399,7 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     aliases: ["dodge", "defence package", "scale"],
   },
   dodgeParityMaxShare: {
-    label: "Dodge Parity Survivability Cap",
+    label: "Dodge Parity Lane Cap",
     group: "Dodge & Defence Package",
     description: "Raise this to reward matching expected incoming attack dice more strongly.",
     affects: "baseline",
@@ -442,9 +444,9 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     aliases: ["dodge", "extreme", "scale"],
   },
   dodgeTotalMaxShare: {
-    label: "Total Dodge Survivability Cap",
+    label: "Total Shared Dodge Cap",
     group: "Dodge & Defence Package",
-    description: "Raise this to allow Dodge to contribute more total survivability.",
+    description: "Raise this to allow Dodge to contribute more total shared survivability before it is split across both lanes.",
     affects: "baseline",
     format: "share",
     aliases: ["dodge", "cap", "survivability"],
@@ -463,3 +465,4 @@ export const COMBAT_TUNING_ADMIN_METADATA: Record<string, CombatTuningAdminMetad
       },
     ]),
   );
+

@@ -5,7 +5,8 @@ import { prisma } from "@/prisma/client";
 import type { AttributePlacement } from "@/lib/summoning/types";
 
 function normalizePlacement(value: unknown): AttributePlacement {
-  if (value === "ATTACK" || value === "DEFENCE" || value === "TRAITS" || value === "GENERAL") {
+  if (value === "DEFENCE") return "GUARD";
+  if (value === "ATTACK" || value === "GUARD" || value === "TRAITS" || value === "GENERAL") {
     return value;
   }
   return "TRAITS";

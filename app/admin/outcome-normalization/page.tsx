@@ -10,6 +10,7 @@ import {
 import {
   DEFAULT_OUTCOME_NORMALIZATION_VALUES,
   OUTCOME_NORMALIZATION_KEY_ORDER,
+  normalizeOutcomeNormalizationValues,
   type OutcomeNormalizationConfigStatus,
   type OutcomeNormalizationSnapshot,
 } from "@/lib/config/outcomeNormalizationShared";
@@ -44,15 +45,20 @@ function getStatusChipClass(status: OutcomeNormalizationConfigStatus): string {
 }
 
 function toDraftInputs(values: Record<string, number>): Record<string, string> {
+  const normalizedValues = normalizeOutcomeNormalizationValues(values);
   const next: Record<string, string> = {};
   for (const key of OUTCOME_NORMALIZATION_KEY_ORDER) {
-    next[key] = String(values[key] ?? DEFAULT_OUTCOME_NORMALIZATION_VALUES[key] ?? 0);
+    next[key] = String(normalizedValues[key] ?? DEFAULT_OUTCOME_NORMALIZATION_VALUES[key] ?? 0);
   }
   return next;
 }
 
 function getSnapshotValue(snapshot: OutcomeNormalizationSnapshot | null, key: string): number {
-  return snapshot?.values[key] ?? DEFAULT_OUTCOME_NORMALIZATION_VALUES[key] ?? 0;
+  return (
+    normalizeOutcomeNormalizationValues(snapshot?.values ?? DEFAULT_OUTCOME_NORMALIZATION_VALUES)[key] ??
+    DEFAULT_OUTCOME_NORMALIZATION_VALUES[key] ??
+    0
+  );
 }
 
 function parseDraftValue(value: string | undefined): number | null {
@@ -481,8 +487,8 @@ export default function AdminOutcomeNormalizationPage() {
               <dd>Expected damage dealt per round.</dd>
             </div>
             <div>
-              <dt className="font-medium text-zinc-300">Support Utility Output</dt>
-              <dd>Non-damage support value used by the calculator.</dd>
+              <dt className="font-medium text-zinc-300">Synergy Utility Output</dt>
+              <dd>Non-damage synergy value used by the calculator.</dd>
             </div>
             <div>
               <dt className="font-medium text-zinc-300">Control Pressure</dt>

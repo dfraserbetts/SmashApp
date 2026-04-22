@@ -12,7 +12,8 @@ export type MonsterCalculatorArchetype = "BALANCED" | "GLASS_CANNON" | "TANK" | 
 export type RadarAxes = {
   physicalThreat: number;
   mentalThreat: number;
-  survivability: number;
+  physicalSurvivability: number;
+  mentalSurvivability: number;
   manipulation: number;
   synergy: number;
   mobility: number;
@@ -22,7 +23,8 @@ export type RadarAxes = {
 export type TraitAxisBonuses = {
   physicalThreat: number;
   mentalThreat: number;
-  survivability: number;
+  physicalSurvivability: number;
+  mentalSurvivability: number;
   manipulation: number;
   synergy: number;
   mobility: number;
@@ -33,6 +35,8 @@ export type TraitAxisWeightDefinition = {
   band?: MonsterTraitBand | null;
   physicalThreatWeight?: number | null;
   mentalThreatWeight?: number | null;
+  physicalSurvivabilityWeight?: number | null;
+  mentalSurvivabilityWeight?: number | null;
   survivabilityWeight?: number | null;
   manipulationWeight?: number | null;
   synergyWeight?: number | null;
@@ -83,7 +87,7 @@ type MonsterOutcomeInput = Pick<
   | "attackResistDie"
   | "attacks"
   | "braveryResistDie"
-  | "defenceResistDie"
+  | "guardResistDie"
   | "fortitudeResistDie"
   | "intellectResistDie"
   | "limitBreakAttribute"
@@ -96,7 +100,7 @@ type MonsterOutcomeInput = Pick<
   | "mentalPerseveranceMax"
   | "physicalProtection"
   | "mentalProtection"
-  | "supportResistDie"
+  | "synergyResistDie"
 >;
 
 export type CanonicalPowerContribution = {
@@ -161,7 +165,8 @@ const NATURAL_ATTACK_WOUNDS_PER_STRENGTH = 2;
 const EMPTY_TRAIT_AXIS_BONUSES: TraitAxisBonuses = {
   physicalThreat: 0,
   mentalThreat: 0,
-  survivability: 0,
+  physicalSurvivability: 0,
+  mentalSurvivability: 0,
   manipulation: 0,
   synergy: 0,
   mobility: 0,
@@ -237,6 +242,21 @@ function getFinalPoolShare(atExpectedShare: number, signedDeltaShare: number): n
   return Math.max(0, Math.min(1, base + delta));
 }
 
+function getPoolLaneRawBonus(
+  ratio: number,
+  curvePoint: LevelCurvePoint,
+  tierMultiplier: number,
+  cfg: CalculatorConfig["healthPoolTuning"],
+): { signedDeltaShare: number; finalShare: number; rawBonus: number } {
+  const signedDeltaShare = getSignedExpectedPoolDeltaShare(ratio, cfg);
+  const finalShare = getFinalPoolShare(cfg.poolAtExpectedShare, signedDeltaShare);
+  return {
+    signedDeltaShare,
+    finalShare,
+    rawBonus: getTierAdjustedAxisBudgetTarget(curvePoint, tierMultiplier) * finalShare,
+  };
+}
+
 function readPositiveNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim().length > 0) {
@@ -289,7 +309,8 @@ function createEmptyAxisBonuses(): RadarAxes {
   return {
     physicalThreat: 0,
     mentalThreat: 0,
-    survivability: 0,
+    physicalSurvivability: 0,
+    mentalSurvivability: 0,
     manipulation: 0,
     synergy: 0,
     mobility: 0,
@@ -332,12 +353,18 @@ export function computeTraitAxisBonuses(
 
   for (const trait of traits) {
     const pressureMultiplier = getTraitBandPressureMultiplier(trait.band, monsterLevel);
+    const legacySharedSurvivability =
+      clampTraitAxisWeight(trait.survivabilityWeight) * TRAIT_AXIS_UNIT * pressureMultiplier * 0.5;
     bonuses.physicalThreat +=
       clampTraitAxisWeight(trait.physicalThreatWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
     bonuses.mentalThreat +=
       clampTraitAxisWeight(trait.mentalThreatWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
-    bonuses.survivability +=
-      clampTraitAxisWeight(trait.survivabilityWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
+    bonuses.physicalSurvivability +=
+      clampTraitAxisWeight(trait.physicalSurvivabilityWeight) * TRAIT_AXIS_UNIT * pressureMultiplier +
+      legacySharedSurvivability;
+    bonuses.mentalSurvivability +=
+      clampTraitAxisWeight(trait.mentalSurvivabilityWeight) * TRAIT_AXIS_UNIT * pressureMultiplier +
+      legacySharedSurvivability;
     bonuses.manipulation +=
       clampTraitAxisWeight(trait.manipulationWeight) * TRAIT_AXIS_UNIT * pressureMultiplier;
     bonuses.synergy +=
@@ -367,7 +394,8 @@ function normalizeTraitAxisBonuses(
   return {
     physicalThreat: clampNonNegative(bonuses.physicalThreat ?? 0),
     mentalThreat: clampNonNegative(bonuses.mentalThreat ?? 0),
-    survivability: clampNonNegative(bonuses.survivability ?? 0),
+    physicalSurvivability: clampNonNegative(bonuses.physicalSurvivability ?? 0),
+    mentalSurvivability: clampNonNegative(bonuses.mentalSurvivability ?? 0),
     manipulation: clampNonNegative(bonuses.manipulation ?? 0),
     synergy: clampNonNegative(bonuses.synergy ?? 0),
     mobility: clampNonNegative(bonuses.mobility ?? 0),
@@ -382,7 +410,8 @@ function normalizeRawAxisBonuses(
   return {
     physicalThreat: clampNonNegative(bonuses.physicalThreat ?? 0),
     mentalThreat: clampNonNegative(bonuses.mentalThreat ?? 0),
-    survivability: clampNonNegative(bonuses.survivability ?? 0),
+    physicalSurvivability: clampNonNegative(bonuses.physicalSurvivability ?? 0),
+    mentalSurvivability: clampNonNegative(bonuses.mentalSurvivability ?? 0),
     manipulation: clampNonNegative(bonuses.manipulation ?? 0),
     synergy: clampNonNegative(bonuses.synergy ?? 0),
     mobility: clampNonNegative(bonuses.mobility ?? 0),
@@ -395,7 +424,8 @@ function scaleRawAxisBonuses(bonuses: RadarAxes, weight: number): RadarAxes {
   return {
     physicalThreat: bonuses.physicalThreat * safeWeight,
     mentalThreat: bonuses.mentalThreat * safeWeight,
-    survivability: bonuses.survivability * safeWeight,
+    physicalSurvivability: bonuses.physicalSurvivability * safeWeight,
+    mentalSurvivability: bonuses.mentalSurvivability * safeWeight,
     manipulation: bonuses.manipulation * safeWeight,
     synergy: bonuses.synergy * safeWeight,
     mobility: bonuses.mobility * safeWeight,
@@ -504,9 +534,9 @@ function getLimitBreakTierMagnitude(tier: LimitBreakTier | null | undefined): nu
 
 function getLimitBreakPrimaryAxis(attribute: CoreAttribute | null | undefined): keyof RadarAxes | null {
   if (attribute === "ATTACK") return "physicalThreat";
-  if (attribute === "DEFENCE" || attribute === "FORTITUDE") return "survivability";
+  if (attribute === "GUARD" || attribute === "FORTITUDE") return "physicalSurvivability";
   if (attribute === "INTELLECT") return "mentalThreat";
-  if (attribute === "SUPPORT") return "synergy";
+  if (attribute === "SYNERGY") return "synergy";
   if (attribute === "BRAVERY") return "manipulation";
   return null;
 }
@@ -580,7 +610,8 @@ function computeCustomLimitBreakAxisBonuses(
     );
     bonuses.physicalThreat += slotBonus.physicalThreat;
     bonuses.mentalThreat += slotBonus.mentalThreat;
-    bonuses.survivability += slotBonus.survivability;
+    bonuses.physicalSurvivability += slotBonus.physicalSurvivability;
+    bonuses.mentalSurvivability += slotBonus.mentalSurvivability;
     bonuses.manipulation += slotBonus.manipulation;
     bonuses.synergy += slotBonus.synergy;
     bonuses.mobility += slotBonus.mobility;
@@ -889,12 +920,11 @@ export function computeMonsterOutcomes(
   // SC_DEFENCE_STRING_SURVIVABILITY_V1
   // Raw PP/MP should not directly reduce incoming WPR here.
   // Protection is already represented through the editor-side defence-string
-  // survivability bonus built from Dodge + Physical Protection output + Mental Protection output.
+  // Defence-string lane bonuses are built from shared Dodge plus physical and mental protection output.
   const netIncoming = Math.max(1, partyWPR);
 
-  const roundsToPRZero = clampNonNegative(monster.physicalResilienceMax) / netIncoming;
-  const roundsToMPZero = clampNonNegative(monster.mentalPerseveranceMax) / netIncoming;
-  const survivabilityRounds = Math.min(roundsToPRZero, roundsToMPZero);
+  const physicalRoundsToZero = clampNonNegative(monster.physicalResilienceMax) / netIncoming;
+  const mentalRoundsToZero = clampNonNegative(monster.mentalPerseveranceMax) / netIncoming;
   const nonPowerPresenceBudget =
     spike * 0.6 + sustainedTotal * 0.4 + (atWillSummary.hasAoe ? 1.5 : 0);
 
@@ -904,7 +934,14 @@ export function computeMonsterOutcomes(
   const resistPressureMultiplier = getResistPressureMultiplier(level, tierKey);
   const physicalThreatCurvePoint = getCurvePointForLevel(cfg.scoringCurves.physicalThreat, level);
   const mentalThreatCurvePoint = getCurvePointForLevel(cfg.scoringCurves.mentalThreat, level);
-  const survivabilityCurvePoint = getCurvePointForLevel(cfg.scoringCurves.survivability, level);
+  const physicalSurvivabilityCurvePoint = getCurvePointForLevel(
+    cfg.scoringCurves.physicalSurvivability,
+    level,
+  );
+  const mentalSurvivabilityCurvePoint = getCurvePointForLevel(
+    cfg.scoringCurves.mentalSurvivability,
+    level,
+  );
   const manipulationCurvePoint = getCurvePointForLevel(cfg.scoringCurves.manipulation, level);
   const synergyCurvePoint = getCurvePointForLevel(cfg.scoringCurves.synergy, level);
   const mobilityCurvePoint = getCurvePointForLevel(cfg.scoringCurves.mobility, level);
@@ -928,30 +965,29 @@ export function computeMonsterOutcomes(
     clampNonNegative(monster.physicalResilienceMax) / Math.max(1, expectedPhysicalResilience);
   const mentalPoolRatio =
     clampNonNegative(monster.mentalPerseveranceMax) / Math.max(1, expectedMentalPerseverance);
-  const weakerPoolRatio = Math.min(physicalPoolRatio, mentalPoolRatio);
-  const averagePoolRatio = (physicalPoolRatio + mentalPoolRatio) / 2;
-  const poolWeightTotal = Math.max(
-    0.0001,
-    cfg.healthPoolTuning.weakerSideWeight + cfg.healthPoolTuning.averageWeight,
-  );
-  const combinedPoolRatio =
-    (weakerPoolRatio * cfg.healthPoolTuning.weakerSideWeight +
-      averagePoolRatio * cfg.healthPoolTuning.averageWeight) /
-    poolWeightTotal;
-  const signedPoolDeltaShare = getSignedExpectedPoolDeltaShare(
-    combinedPoolRatio,
+  const physicalPoolLane = getPoolLaneRawBonus(
+    physicalPoolRatio,
+    physicalSurvivabilityCurvePoint,
+    tierMultiplier,
     cfg.healthPoolTuning,
   );
-  const finalPoolShare = getFinalPoolShare(
-    cfg.healthPoolTuning.poolAtExpectedShare,
-    signedPoolDeltaShare,
+  const mentalPoolLane = getPoolLaneRawBonus(
+    mentalPoolRatio,
+    mentalSurvivabilityCurvePoint,
+    tierMultiplier,
+    cfg.healthPoolTuning,
   );
-  const poolHealthRawBonus =
-    getTierAdjustedAxisBudgetTarget(survivabilityCurvePoint, tierMultiplier) * finalPoolShare;
   const axisBudgetTargets: RadarAxes = {
     physicalThreat: getTierAdjustedAxisBudgetTarget(physicalThreatCurvePoint, tierMultiplier),
     mentalThreat: getTierAdjustedAxisBudgetTarget(mentalThreatCurvePoint, tierMultiplier),
-    survivability: getTierAdjustedAxisBudgetTarget(survivabilityCurvePoint, tierMultiplier),
+    physicalSurvivability: getTierAdjustedAxisBudgetTarget(
+      physicalSurvivabilityCurvePoint,
+      tierMultiplier,
+    ),
+    mentalSurvivability: getTierAdjustedAxisBudgetTarget(
+      mentalSurvivabilityCurvePoint,
+      tierMultiplier,
+    ),
     manipulation: getTierAdjustedAxisBudgetTarget(manipulationCurvePoint, tierMultiplier),
     synergy: getTierAdjustedAxisBudgetTarget(synergyCurvePoint, tierMultiplier),
     mobility: getTierAdjustedAxisBudgetTarget(mobilityCurvePoint, tierMultiplier),
@@ -987,19 +1023,19 @@ export function computeMonsterOutcomes(
     resistPressureMultiplier,
   );
   const defenceResistContribution = getRawAxisContributionFromBudgetShare(
-    getResistBudgetShare(monster.defenceResistDie),
-    survivabilityCurvePoint,
+    getResistBudgetShare(monster.guardResistDie),
+    physicalSurvivabilityCurvePoint,
     tierMultiplier,
     resistPressureMultiplier,
   );
   const fortitudeResistContribution = getRawAxisContributionFromBudgetShare(
     getResistBudgetShare(monster.fortitudeResistDie),
-    survivabilityCurvePoint,
+    physicalSurvivabilityCurvePoint,
     tierMultiplier,
     resistPressureMultiplier,
   );
   const supportResistContribution = getRawAxisContributionFromBudgetShare(
-    getResistBudgetShare(monster.supportResistDie),
+    getResistBudgetShare(monster.synergyResistDie),
     synergyCurvePoint,
     tierMultiplier,
     resistPressureMultiplier,
@@ -1053,14 +1089,20 @@ export function computeMonsterOutcomes(
       naturalAttackRangeAxisBonuses.mentalThreat +
       customLimitBreakAxisBonuses.mentalThreat +
       traitAxisBonuses.mentalThreat,
-    survivability:
-      poolHealthRawBonus +
+    physicalSurvivability:
+      physicalPoolLane.rawBonus +
       defenceResistContribution +
       fortitudeResistContribution +
-      equipmentModifierAxisBonuses.survivability +
-      naturalAttackGsAxisBonuses.survivability +
-      customLimitBreakAxisBonuses.survivability +
-      traitAxisBonuses.survivability,
+      equipmentModifierAxisBonuses.physicalSurvivability +
+      naturalAttackGsAxisBonuses.physicalSurvivability +
+      customLimitBreakAxisBonuses.physicalSurvivability +
+      traitAxisBonuses.physicalSurvivability,
+    mentalSurvivability:
+      mentalPoolLane.rawBonus +
+      equipmentModifierAxisBonuses.mentalSurvivability +
+      naturalAttackGsAxisBonuses.mentalSurvivability +
+      customLimitBreakAxisBonuses.mentalSurvivability +
+      traitAxisBonuses.mentalSurvivability,
     manipulation:
       braveryResistContribution +
       equipmentModifierAxisBonuses.manipulation +
@@ -1088,7 +1130,10 @@ export function computeMonsterOutcomes(
   const finalPreNormalizationAxes: RadarAxes = {
     physicalThreat: nonPowerContribution.physicalThreat + powerAxisVector.physicalThreat,
     mentalThreat: nonPowerContribution.mentalThreat + powerAxisVector.mentalThreat,
-    survivability: nonPowerContribution.survivability + powerAxisVector.survivability,
+    physicalSurvivability:
+      nonPowerContribution.physicalSurvivability + powerAxisVector.physicalSurvivability,
+    mentalSurvivability:
+      nonPowerContribution.mentalSurvivability + powerAxisVector.mentalSurvivability,
     manipulation: nonPowerContribution.manipulation + powerAxisVector.manipulation,
     synergy: nonPowerContribution.synergy + powerAxisVector.synergy,
     mobility: nonPowerContribution.mobility + powerAxisVector.mobility,
@@ -1105,9 +1150,14 @@ export function computeMonsterOutcomes(
       mentalThreatCurvePoint,
       tierMultiplier,
     ),
-    survivability: normalizeByLevelCurve(
-      finalPreNormalizationAxes.survivability,
-      survivabilityCurvePoint,
+    physicalSurvivability: normalizeByLevelCurve(
+      finalPreNormalizationAxes.physicalSurvivability,
+      physicalSurvivabilityCurvePoint,
+      tierMultiplier,
+    ),
+    mentalSurvivability: normalizeByLevelCurve(
+      finalPreNormalizationAxes.mentalSurvivability,
+      mentalSurvivabilityCurvePoint,
       tierMultiplier,
     ),
     manipulation: normalizeByLevelCurve(
@@ -1180,7 +1230,8 @@ export function computeMonsterOutcomes(
           },
           traitAxisBonuses,
           customLimitBreakAxisBonuses,
-          poolHealthRawBonus,
+          physicalPoolRawBonus: physicalPoolLane.rawBonus,
+          mentalPoolRawBonus: mentalPoolLane.rawBonus,
           nonPowerPresenceBudget,
         },
       },
@@ -1192,7 +1243,8 @@ export function computeMonsterOutcomes(
         curvePoints: {
           physicalThreat: physicalThreatCurvePoint,
           mentalThreat: mentalThreatCurvePoint,
-          survivability: survivabilityCurvePoint,
+          physicalSurvivability: physicalSurvivabilityCurvePoint,
+          mentalSurvivability: mentalSurvivabilityCurvePoint,
           manipulation: manipulationCurvePoint,
           synergy: synergyCurvePoint,
           mobility: mobilityCurvePoint,
@@ -1219,17 +1271,13 @@ export function computeMonsterOutcomes(
         currentMentalPerseveranceMax: clampNonNegative(monster.mentalPerseveranceMax),
         physicalPoolRatio,
         mentalPoolRatio,
-        weakerPoolRatio,
-        averagePoolRatio,
-        combinedPoolRatio,
         poolAtExpectedShare: cfg.healthPoolTuning.poolAtExpectedShare,
-        signedPoolDeltaShare,
-        finalPoolShare,
-        rawBonus: poolHealthRawBonus,
-        legacyRoundsToPRZero: roundsToPRZero,
-        legacyRoundsToMPZero: roundsToMPZero,
-        legacySurvivabilityRounds: survivabilityRounds,
+        physicalLane: physicalPoolLane,
+        mentalLane: mentalPoolLane,
+        physicalRoundsToZero,
+        mentalRoundsToZero,
       },
     },
   };
 }
+

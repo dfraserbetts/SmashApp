@@ -54,7 +54,7 @@ export default function CombatLabPage() {
     level: 3,
 
     attackDie: "D8",
-    defenceDie: "D8",
+    guardDie: "D8",
     intellectDie: "D8",
 
     physicalHPMax: 20,
@@ -102,7 +102,7 @@ export default function CombatLabPage() {
   "physicalProtection": 2,
   "mentalProtection": 2,
   "attackDie": "D8",
-  "defenceDie": "D8",
+  "guardDie": "D8",
   "intellectDie": "D8",
   "powers": [
     {
@@ -432,11 +432,11 @@ export default function CombatLabPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label className="space-y-1">
-              <div className="text-xs text-zinc-400">Defence Die (for Dodge)</div>
+              <div className="text-xs text-zinc-400">Guard Die (for Dodge)</div>
               <select
                 className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2 text-sm"
-                value={player.defenceDie}
-                onChange={(e) => updatePlayer({ defenceDie: e.target.value as DiceSize })}
+                value={player.guardDie}
+                onChange={(e) => updatePlayer({ guardDie: e.target.value as DiceSize })}
               >
                 {DICE_OPTIONS.map((d) => (
                   <option key={d} value={d}>
@@ -582,7 +582,7 @@ export default function CombatLabPage() {
                 className="mt-6 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800 disabled:opacity-60"
                 title="Reload campaigns"
               >
-                {campaignsLoading ? "Loading..." : "↻"}
+                {campaignsLoading ? "Loading..." : "â†»"}
               </button>
 
               <button
@@ -700,7 +700,7 @@ export default function CombatLabPage() {
                 <span className="font-mono">
                   {Number.isFinite(duel.res.expectedTurnsToDefeatDefender)
                     ? duel.res.expectedTurnsToDefeatDefender.toFixed(2)
-                    : "∞"}
+                    : "âˆž"}
                 </span>
               </div>
 
@@ -757,7 +757,7 @@ export default function CombatLabPage() {
                 <span className="font-mono">
                   {Number.isFinite(duel.resReverse.expectedTurnsToDefeatDefender)
                     ? duel.resReverse.expectedTurnsToDefeatDefender.toFixed(2)
-                    : "∞"}
+                    : "âˆž"}
                 </span>
               </div>
 
@@ -808,3 +808,4 @@ export default function CombatLabPage() {
     </div>
   );
 }
+

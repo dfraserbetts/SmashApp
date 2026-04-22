@@ -369,20 +369,20 @@ model CombatTuning {
   protectionK                        Int      @default(2)
   protectionS                        Int      @default(6)
   attackWeight                       Float    @default(1)
-  defenceWeight                      Float    @default(1)
+  guardWeight                      Float    @default(1)
   fortitudeWeight                    Float    @default(1)
   intellectWeight                    Float    @default(1)
-  supportWeight                      Float    @default(1)
+  synergyWeight                      Float    @default(1)
   braveryWeight                      Float    @default(1)
   weaponSkillBraveryWeight           Float    @default(2)
   weaponSkillAttackWeight            Float    @default(1)
   weaponSkillBaselineOffset          Float    @default(1)
   weaponSkillScale                   Float    @default(1)
   armorSkillFortitudeWeight          Float    @default(2)
-  armorSkillDefenceWeight            Float    @default(1)
+  armorSkillGuardWeight            Float    @default(1)
   armorSkillBaselineOffset           Float    @default(1)
   armorSkillScale                    Float    @default(1)
-  willpowerSupportWeight             Float    @default(2)
+  willpowerSynergyWeight             Float    @default(2)
   willpowerBraveryWeight             Float    @default(1)
   willpowerBaselineOffset            Float    @default(1)
   willpowerScale                     Float    @default(1)
@@ -763,18 +763,18 @@ model Monster {
   attackDie                     DiceSize
   attackResistDie               Int                   @default(0)
   attackModifier                Int                   @default(0)
-  defenceDie                    DiceSize
-  defenceResistDie              Int                   @default(0)
-  defenceModifier               Int                   @default(0)
+  guardDie                    DiceSize
+  guardResistDie              Int                   @default(0)
+  guardModifier               Int                   @default(0)
   fortitudeDie                  DiceSize
   fortitudeResistDie            Int                   @default(0)
   fortitudeModifier             Int                   @default(0)
   intellectDie                  DiceSize
   intellectResistDie            Int                   @default(0)
   intellectModifier             Int                   @default(0)
-  supportDie                    DiceSize
-  supportResistDie              Int                   @default(0)
-  supportModifier               Int                   @default(0)
+  synergyDie                    DiceSize
+  synergyResistDie              Int                   @default(0)
+  synergyModifier               Int                   @default(0)
   braveryDie                    DiceSize
   braveryResistDie              Int                   @default(0)
   braveryModifier               Int                   @default(0)
@@ -1002,10 +1002,10 @@ enum LimitBreakTier {
 
 enum CoreAttribute {
   ATTACK
-  DEFENCE
+  GUARD
   FORTITUDE
   INTELLECT
-  SUPPORT
+  SYNERGY
   BRAVERY
 }
 
@@ -1204,7 +1204,7 @@ enum StrengthKind {
 
 enum AttributePlacement {
   ATTACK
-  DEFENCE
+  GUARD
   TRAITS
   GENERAL
 }
@@ -1285,3 +1285,4 @@ enum ForgeCostCategory {
   WardingOptions
   WeaponAttributes
 }
+

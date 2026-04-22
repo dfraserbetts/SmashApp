@@ -89,16 +89,20 @@ function createCanaryPacket(
 function getCoreAttributeFromStatTarget(value: unknown): CoreAttribute | null {
   const normalized = String(value ?? "").trim().toUpperCase().replace(/\s+/g, "_");
   if (normalized === "ARMOR_SKILL" || normalized === "DODGE" || normalized === "WILLPOWER") {
-    return "DEFENCE";
+    return "GUARD";
   }
   if (
     normalized === "ATTACK" ||
+    normalized === "GUARD" ||
     normalized === "DEFENCE" ||
     normalized === "FORTITUDE" ||
     normalized === "INTELLECT" ||
+    normalized === "SYNERGY" ||
     normalized === "SUPPORT" ||
     normalized === "BRAVERY"
   ) {
+    if (normalized === "DEFENCE") return "GUARD";
+    if (normalized === "SUPPORT") return "SYNERGY";
     return normalized as CoreAttribute;
   }
   return null;
@@ -109,9 +113,9 @@ function getControlThemeResistAttribute(value: unknown): CoreAttribute | null {
   if (normalized === "BODY_ENDURANCE") return "FORTITUDE";
   if (normalized === "MIND_COGNITION") return "INTELLECT";
   if (normalized === "COURAGE_RESOLVE") return "BRAVERY";
-  if (normalized === "TRUST_BELONGING") return "SUPPORT";
+  if (normalized === "TRUST_BELONGING") return "SYNERGY";
   if (normalized === "OFFENSIVE_EXECUTION") return "ATTACK";
-  if (normalized === "DEFENSIVE_COORDINATION") return "DEFENCE";
+  if (normalized === "DEFENSIVE_COORDINATION") return "GUARD";
   return null;
 }
 
@@ -248,7 +252,7 @@ const attachedSelfBuffDefence = createCanaryPacket("AUGMENT", 0, {
   applyTo: "SELF",
   detailsJson: {
     rangeCategory: "SELF",
-    statTarget: "Defence",
+    statTarget: "Guard",
   },
 });
 
@@ -362,7 +366,7 @@ const cripplingSurgeSelfRider = createCanaryPacket("AUGMENT", 1, {
   effectDurationTurns: 1,
   applyTo: "SELF",
   detailsJson: {
-    statTarget: "Defence",
+    statTarget: "Guard",
     secondaryScalingMode: "PRIMARY_WOUND_BANDS",
   },
 });
@@ -405,7 +409,7 @@ const searingLockdownDebuff = createCanaryPacket("DEBUFF", 2, {
   effectDurationTurns: null,
   applyTo: "PRIMARY_TARGET",
   detailsJson: {
-    statTarget: "Defence",
+    statTarget: "Guard",
     secondaryScalingMode: "PRIMARY_WOUND_BANDS",
   },
 });
@@ -420,7 +424,7 @@ const channelledBulwarkAugment = createCanaryPacket("AUGMENT", 0, {
   applyTo: "SELF",
   detailsJson: {
     rangeCategory: "SELF",
-    statTarget: "Defence",
+    statTarget: "Guard",
   },
 });
 

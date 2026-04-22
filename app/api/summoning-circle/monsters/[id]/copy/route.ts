@@ -465,13 +465,14 @@ function mapLegacyApplicationModeKeyToMovementTheme(
   if (normalized === "BRAVERY" || normalized === "COURAGE" || normalized === "COURAGE / RESOLVE / PANIC") {
     return "COURAGE_RESOLVE";
   }
-  if (normalized === "SUPPORT" || normalized === "TRUST" || normalized === "TRUST / BELONGING / ANCHORING") {
+  if (normalized === "SYNERGY" || normalized === "SUPPORT" || normalized === "TRUST" || normalized === "TRUST / BELONGING / ANCHORING") {
     return "TRUST_BELONGING";
   }
   if (normalized === "ATTACK" || normalized === "OFFENSIVE" || normalized === "OFFENSIVE EXECUTION") {
     return "OFFENSIVE_EXECUTION";
   }
   if (
+    normalized === "GUARD" ||
     normalized === "DEFENCE" ||
     normalized === "DEFENSE" ||
     normalized === "DEFENSIVE" ||
@@ -1032,18 +1033,18 @@ export async function POST(
         attackDie: source.attackDie,
         attackResistDie: source.attackResistDie,
         attackModifier: source.attackModifier,
-        defenceDie: source.defenceDie,
-        defenceResistDie: source.defenceResistDie,
-        defenceModifier: source.defenceModifier,
+        guardDie: source.guardDie,
+        guardResistDie: source.guardResistDie,
+        guardModifier: source.guardModifier,
         fortitudeDie: source.fortitudeDie,
         fortitudeResistDie: source.fortitudeResistDie,
         fortitudeModifier: source.fortitudeModifier,
         intellectDie: source.intellectDie,
         intellectResistDie: source.intellectResistDie,
         intellectModifier: source.intellectModifier,
-        supportDie: source.supportDie,
-        supportResistDie: source.supportResistDie,
-        supportModifier: source.supportModifier,
+        synergyDie: source.synergyDie,
+        synergyResistDie: source.synergyResistDie,
+        synergyModifier: source.synergyModifier,
         braveryDie: source.braveryDie,
         braveryResistDie: source.braveryResistDie,
         braveryModifier: source.braveryModifier,
@@ -1100,3 +1101,4 @@ export async function POST(
     return NextResponse.json({ error: "Failed to copy monster" }, { status: 500 });
   }
 }
+

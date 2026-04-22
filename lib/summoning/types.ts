@@ -5,13 +5,13 @@ export type MonsterAttackMode = "NATURAL";
 export type LimitBreakTier = "PUSH" | "BREAK" | "TRANSCEND";
 export type CoreAttribute =
   | "ATTACK"
-  | "DEFENCE"
+  | "GUARD"
   | "FORTITUDE"
   | "INTELLECT"
-  | "SUPPORT"
+  | "SYNERGY"
   | "BRAVERY";
 export type DiceSize = "D4" | "D6" | "D8" | "D10" | "D12";
-export type AttributePlacement = "ATTACK" | "DEFENCE" | "TRAITS" | "GENERAL";
+export type AttributePlacement = "ATTACK" | "GUARD" | "TRAITS" | "GENERAL";
 export type RangeCategory = "MELEE" | "RANGED" | "AOE";
 
 export type PowerStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
@@ -326,18 +326,18 @@ export type MonsterRecord = {
   attackDie: DiceSize;
   attackResistDie: number;
   attackModifier: number;
-  defenceDie: DiceSize;
-  defenceResistDie: number;
-  defenceModifier: number;
+  guardDie: DiceSize;
+  guardResistDie: number;
+  guardModifier: number;
   fortitudeDie: DiceSize;
   fortitudeResistDie: number;
   fortitudeModifier: number;
   intellectDie: DiceSize;
   intellectResistDie: number;
   intellectModifier: number;
-  supportDie: DiceSize;
-  supportResistDie: number;
-  supportModifier: number;
+  synergyDie: DiceSize;
+  synergyResistDie: number;
+  synergyModifier: number;
   braveryDie: DiceSize;
   braveryResistDie: number;
   braveryModifier: number;
@@ -394,11 +394,13 @@ export type MonsterSummary = Pick<
 
 export const CORE_ATTRIBUTE_ORDER = [
   "Attack",
-  "Defence",
+  "Guard",
   "Fortitude",
   "Intellect",
-  "Support",
+  "Synergy",
   "Bravery",
 ] as const;
 
 export const DICE_SIZES: DiceSize[] = ["D4", "D6", "D8", "D10", "D12"];
+
+

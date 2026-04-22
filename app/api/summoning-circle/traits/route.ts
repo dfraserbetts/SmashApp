@@ -16,7 +16,7 @@ const CORE_TRAIT_SEED: Array<{
 }> = [
   {
     name: "Tough",
-    effectText: "Gain a +1 to defence",
+    effectText: "Gain a +1 to Guard",
     band: "MINOR",
     physicalThreatWeight: 0,
     mentalThreatWeight: 0,
@@ -76,7 +76,7 @@ const CORE_TRAIT_SEED: Array<{
   },
   {
     name: "Reliable",
-    effectText: "Gain a +1 to support",
+    effectText: "Gain a +1 to Synergy",
     band: "MINOR",
     physicalThreatWeight: 0,
     mentalThreatWeight: 0,

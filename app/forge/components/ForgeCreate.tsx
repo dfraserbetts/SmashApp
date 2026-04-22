@@ -5402,9 +5402,18 @@ useEffect(() => {
 
       {/* FORM COLUMN */}
       <div
-        className={`relative w-full md:w-1/2 p-3 md:p-8 border-b md:border-b-0 md:border-r border-zinc-800 md:overflow-y-auto ${editorMobileVisibility} md:block`}
+        className={`w-full md:w-1/2 p-3 md:p-8 border-b md:border-b-0 md:border-r border-zinc-800 md:overflow-y-auto ${editorMobileVisibility} md:block`}
       >
-        <h1 className="text-2xl font-bold mb-4">Forge Item Creator</h1>
+        <div
+          className={`relative overflow-hidden rounded-xl border ${itemRarityPalette.outerBorderClass} p-3 ${itemRarityPalette.outerShadowClass}`}
+          style={{
+            backgroundImage: itemRarityPalette.backgroundImage,
+          }}
+        >
+          <div
+            className={`relative z-10 rounded-lg border ${itemRarityPalette.innerBorderClass} bg-black/30 p-4 md:p-6 ${itemRarityPalette.innerShadowClass}`}
+          >
+        <h1 className={`mb-4 text-2xl font-bold ${itemRarityPalette.nameTextClass}`}>Forge Item Creator</h1>
 
         <div className="mb-6 space-y-2">
           <label className="block text-sm font-medium">
@@ -5773,7 +5782,7 @@ useEffect(() => {
 
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="space-y-4 bg-zinc-900/40 border border-zinc-800 rounded-xl p-4"
+          className={`space-y-4 rounded-xl border p-4 ${itemRarityPalette.panelBorderClass} ${itemRarityPalette.panelShadowClass} bg-black/30`}
         >
                     {/* BASIC SECTION */}
           <div className="space-y-4">
@@ -6812,6 +6821,8 @@ useEffect(() => {
         </button>
       </div>
     </form>
+          </div>
+        </div>
     </div>
 
           {/* PREVIEW COLUMN */}

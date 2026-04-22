@@ -10,6 +10,8 @@ Use this file together with:
 - 01_Locked_Decisions_Log
 - 02_Power_System_Spec
 - 03_Current_Phase_And_Next_Steps
+- 05_Phase_6_Cost_Integration_Blueprint
+- Power implementation steps
 
 
 Current Phase Status
@@ -28,11 +30,23 @@ Phase 7 is substantially complete in Summoning Circle.
 
 Phase 8 is substantially complete as a minimal but real monster power builder pass.
 
-Phase 9 is underway and has already produced multiple descriptor and builder-honesty corrections.
+Phase 9 is in late-stage builder-surface validation and is close enough to close for the current Summoning Circle surface, even though niche edge cases may still appear.
 
-Phase 11 is underway through preview formatting and builder UX cleanup.
+Phase 11 is well advanced through preview formatting and builder UX cleanup and is close enough to close for the current builder surface.
 
-Phase 6 costing is now the next major unfinished workstream.
+Phase 6 costing is no longer hypothetical. It is in active implementation.
+
+The current Phase 6 toolchain already exists:
+- canonical power-cost resolver
+- versioned Power Tuning
+- versioned Outcome Normalization
+- versioned Combat Tuning / Monster Baseline Tuning
+- shared canary catalog
+- shared scenario catalog
+- Canary Harness
+- aligned live/harness stripped baseline
+
+The next work is now real tuning, remaining translation gaps, and later the monster-side realization layer.
 
 A small number of implementation-facing boundary questions still remain open.
 
@@ -58,7 +72,6 @@ All future builder work should assume:
 - Commitment Modifier uses Standard / Channel / Charge
 - Channel uses one first-pass behaviour only as an action-commitment modifier
 - first-pass Channel support is limited to Immediate, Field, and Attached
-- Application Mode is hidden unless inference fails
 - hostile delayed-entry Attached powers must explicitly distinguish gate on attach from gate on payload
 - Immediate + Standard Packet 1 currently uses On Cast only in the builder surface
 - if an Immediate Packet 1 resolves On Cast and creates no beyond-turn carrier, later Immediate packets remain On Cast only in first implementation
@@ -68,6 +81,7 @@ All future builder work should assume:
 - physical ongoing-damage cleanup defaults to Fortitude Resist and mental ongoing-damage cleanup defaults to Bravery Resist
 - packet-local recipient class may distinguish Primary Targets, Allies, and Self where a Secondary Packet needs a different target class from Packet 1
 - Allies includes self by default unless an explicit authored restriction says otherwise
+- packet-local recipient class must remain legal within the shared cast context
 - ambiguous Cleanse targeting of Active Power or Channelled Power may use Cleanse Theme only where a unique cleanup Resist Attribute is not otherwise already settled
 - Trigger powers may use Trigger Method to distinguish Arm and then target from Target and then arm while keeping Packet 1 on trigger
 - Secondary timing choices must obey both chassis legality and Packet 1 carrier legality
@@ -82,6 +96,36 @@ Future builder work should also preserve the following implementation-facing dir
 - packet outcomes should be represented through Effect Packets
 - resolved gates, legality warnings, and preview wording should be treated as derived metadata rather than co-equal authored truth
 - local origin and local targeting overrides should stay behind advanced controls
+
+
+Rule for Future Phase 6 Work
+
+All future Phase 6 work should preserve the current three-layer split:
+
+Power Tuning
+- canonical power truth
+
+Combat Tuning / Monster Baseline Tuning
+- non-power monster baseline contribution
+
+Outcome Normalization
+- downstream radar interpretation and display
+
+Do not collapse these into one fuzzy tuning system.
+
+Use this ownership rule:
+
+- if the power itself is wrong, tune Power Tuning
+- if stripped monsters are too weak or too strong before powers, tune Combat Tuning
+- if the combined result displays wrongly on the radar, tune Outcome Normalization
+- if the issue is routing law, realization law, or a missing implementation seam, then it is a code / architecture task rather than a numeric tuning task
+
+The current live implementation already uses:
+- canonical power contribution from the Phase 6 resolver
+- non-power contribution from the stripped monster baseline and other monster systems
+- final outcome normalization on top
+
+Do not resurrect old legacy power-side heuristics beside this cleaned pipeline.
 
 
 Rule for Future Packet Resolution Work
@@ -132,8 +176,8 @@ The following questions are still genuinely open and should be treated honestly:
 
 - the final schema ownership boundary for Lifespan
 - the final schema boundary between Power-Level Fields, chassis-local fields, packet-local fields, and derived metadata
-- the exact cost integration model for chassis complexity plus Commitment Modifier
-- any broader Trigger + Charge + Delayed Cast canon beyond the current first-pass implementation surface
+- the exact long-term treatment of costs that are currently cost-only versus later translated through cadence, realization, or structural pressure
+- the exact monster-side realization modifier layer that should gate typed contributor output through monster attributes without contaminating canonical power truth
 
 These are real open questions.
 
@@ -149,6 +193,8 @@ Use this update pattern:
 - architecture and authoritative rules language go in 02_Power_System_Spec
 - project progress and priority changes go in 03_Current_Phase_And_Next_Steps
 - reusable continuity guidance and chat-openers go in 04_Implementation_Handoffs
+- Phase 6 tooling / output / formula-boundary updates go in 05_Phase_6_Cost_Integration_Blueprint
+- implementation-sequence updates go in Power implementation steps
 
 Do not dump temporary argument sludge into the source docs.
 
@@ -159,15 +205,25 @@ Current-State Design / Implementation Opener
 
 Use the following opener when starting the next chat for continued implementation work:
 
-Use the project sources 00_Master_Implementation_Plan, 01_Locked_Decisions_Log, 02_Power_System_Spec, 03_Current_Phase_And_Next_Steps, 04_Implementation_Handoffs, and Power implementation steps as source of truth.
+Use the project sources 00_Master_Implementation_Plan, 01_Locked_Decisions_Log, 02_Power_System_Spec, 03_Current_Phase_And_Next_Steps, 04_Implementation_Handoffs, 05_Phase_6_Cost_Integration_Blueprint, and Power implementation steps as source of truth.
 
-We have completed Phases 1–5 enough to close them as design phases.
+The shared power architecture is already implemented behind Summoning Circle in first-pass form.
 
-The shared power architecture is already implemented behind the Summoning Circle builder in first-pass form.
+Phases 1–5 are complete enough to close as design phases.
 
-Phase 7 and Phase 8 are substantially complete.
+Phases 7 and 8 are substantially complete.
 
-Phase 9 and Phase 11 are underway through descriptor trust, preview formatting, and builder UX cleanup.
+Phases 9 and 11 are late-stage builder-surface cleanup passes and are close enough to close for the current Summoning Circle surface, even though niche edge cases may still appear.
+
+Phase 6 is now in active implementation and already includes:
+- a canonical power-cost resolver
+- versioned Power Tuning
+- versioned Outcome Normalization
+- versioned Combat Tuning / Monster Baseline Tuning
+- shared canary catalog and scenario catalog
+- a Canary Harness that compares active baseline versus candidate tuning sets
+- a shared stripped Summoning Circle baseline used by both live editor and harness
+- a cleaned radar pipeline where canonical power contribution feeds monster outcome calculation before outcome normalization
 
 The following are treated as locked for this session:
 
@@ -187,117 +243,41 @@ The following are treated as locked for this session:
 - Responses are the player-facing resource
 - Commitment Modifier is a Power-Level Field with Standard / Channel / Charge
 - Channel is an action-commitment modifier only in first implementation; authored packet timing determines when effects occur
-- Charge now uses the player-facing modes Delayed Cast and Build Power
+- first-pass Channel support is limited to Immediate, Field, and Attached
+- Charge uses the player-facing modes Delayed Cast and Build Power
 - Delayed Cast is not Reserve-only
 - Build Power uses bonus dice per charged turn
 - Delayed Cast cannot be Counter-enabled
-- Reserve delayed-cast becomes primed after its charge turns and must be released with a Power Action or with a Response before the end of the user’s next turn or be lost and go on cooldown
-- non-Reserve delayed-cast becomes primed after its charge turns and must be cast with a Power Action before the end of the user’s next turn or be lost
-- Reserve is the only chassis that gets release-flavoured primed handling and Response release
-- non-Reserve delayed-cast packet and defence wording follow the authored Packet 1 Effect Timing rather than a forced ON_RELEASE bridge
-- Build Power on non-Reserve chassis uses cast framing rather than release framing
-- Immediate + Standard Packet 1 currently uses On Cast only in the builder surface
-- if an Immediate Packet 1 resolves On Cast and creates no beyond-turn carrier, later Immediate packets remain On Cast only in first implementation
-- secondary scaling now derives from the Primary result class rather than remaining a manual builder guess
+- secondary scaling derives from the Primary result class in the current builder surface
 - persistent states use stack cleanup through resist rolls, cleanse, natural degradation, and expiry
 - ongoing damage uses ongoing value plus duration rather than stacks
-- Immediate + Standard repeating direct effects apply initially on cast and then reapply at the start of the affected target’s next turns for their duration
-- physical ongoing-damage cleanup defaults to Fortitude Resist and mental ongoing-damage cleanup defaults to Bravery Resist
-- packet-local recipient class may distinguish Primary Targets, Allies, and Self where a Secondary Packet needs a different target class from Packet 1
+- packet-local recipient class may distinguish Primary Targets, Allies, and Self where needed
 - Allies includes self by default unless an explicit authored restriction says otherwise
-- ambiguous Cleanse targeting of Active Power or Channelled Power may use Cleanse Theme only where a unique cleanup Resist Attribute is not otherwise already settled
 - Trigger powers may use Trigger Method to distinguish Arm and then target from Target and then arm while keeping Packet 1 on trigger
-- Secondary timing choices must obey both chassis legality and Packet 1 carrier legality
-- Immediate remains the only chassis that can honestly have no Lifespan requirement in the current builder surface; Field, Attached, Trigger, and Reserve require Turns or Passive and default to Turns
-- self-origin sphere wording should distinguish static areas centered on the user's current space from self-hosted Attached areas attached to the user
+- Secondary timing choices must obey both chassis legality and carrier legality
+- Immediate remains the only chassis that can honestly have no Lifespan requirement in the current builder surface
+- Field, Attached, Trigger, and Reserve require Turns or Passive and default to Turns
 - overlapping areas from the same packet at the same timing use one power roll, pre-defence multiplication by overlap count, and one defence roll
-- ongoing damage does not naturally degrade and ends on expiry
-- ambiguous Cleanse targeting of Active Power or Channelled Power may use Cleanse Theme only where a unique cleanup Resist Attribute is not otherwise already settled
-- Trigger powers may distinguish Arm and then target from Target and then arm while still resolving Packet 1 on trigger only
-- Secondary timing choices must obey both chassis legality and Packet 1 carrier legality
-- Immediate remains the only chassis that can honestly have no Lifespan requirement in the current builder surface; Field, Attached, Trigger, and Reserve require Turns or Passive and default to Turns
-- self-origin sphere wording should distinguish static areas centered on the user's current space from self-hosted Attached areas attached to the user
-- overlapping areas from the same packet at the same timing use one power roll, pre-defence multiplication by overlap count, and one defence roll
-- Charge still does not become a hidden second chassis system
-- first-pass Channel support is limited to Immediate, Field, and Attached
-- Attached powers require legal initial range, but host-bound persistence may continue after later range changes
-- Channelled Attached reinforcement requires the target to remain within legal cast range from the source
-- hostile delayed-entry Attached powers must explicitly distinguish gate on attach from gate on payload
-- Immediate + Standard Packet 1 currently uses On Cast only in the builder surface
-- if an Immediate Packet 1 resolves On Cast and creates no beyond-turn carrier, later Immediate packets remain On Cast only in first implementation
-- secondary scaling from the Primary result class is derived in the current builder surface rather than manually guessed
-- persistent states use a stack-cleanup model distinct from ongoing direct effects
-- ongoing damage uses ongoing value plus duration rather than stacks
-- physical ongoing-damage cleanup defaults to Fortitude Resist and mental ongoing-damage cleanup defaults to Bravery Resist
 - simple powers must stay simple
 - complexity increases cost
 - live preview is mandatory
-- Application Mode is hidden unless inference fails
 
-The following are implementation recommendations, not falsely locked canon:
+The current tuning-layer split is also locked for this session:
 
-- shared cast context should stay centered in Power-Level Fields
-- structural state should be represented through the selected chassis
-- packet outcomes should be represented through Effect Packets
-- resolved gates, legality warnings, and preview wording should be treated as derived metadata
-- local origin and local targeting overrides should stay advanced-only
-
-The following are still unresolved and should only be hardened if needed to unblock implementation:
-
-- the final schema ownership boundary for Lifespan
-- the final schema boundary between Power-Level Fields, chassis-local fields, packet-local fields, and derived metadata
-
-The current focus is finishing remaining descriptor and builder honesty cleanup against current Summoning Circle files while preparing for Phase 6 cost integration.
+- Power Tuning = canonical power truth
+- Combat Tuning / Monster Baseline Tuning = non-power monster baseline contribution
+- Outcome Normalization = downstream radar interpretation/display
 
 Scope for this session:
-
-- preserve the existing shared power architecture already implemented behind Summoning Circle
+- preserve the existing shared power architecture
 - preserve the distinction between authored data, derived resolver logic, and preview wording
-- keep simple powers fast
-- keep Attached hostile-entry distinction explicit
-- keep Channel singular in first implementation
-- settle only the smallest remaining hard rules required by the work actually in scope
+- preserve the three-layer tuning split
+- tune against the now-aligned live/harness baseline
+- resolve only genuinely blocking remaining builder, descriptor, or translation edge cases
 
 Non-goals:
-
 - do not reopen Phase 1–4 architecture unless a direct contradiction appears
 - do not redesign the whole UI visually
 - do not drift into runtime tracking systems
 - do not solve full Transformation or Summoning payload builders
 - do not invent alternate Channel modes or advanced Charge variants unless a direct implementation contradiction forces it
-
-
-Priority prompts for the next session
-
-If the next chat is still design-facing, focus on:
-
-- the minimum hard rule needed for Lifespan ownership if schema work requires it
-- any genuinely unresolved Trigger + Charge + Delayed Cast edge only if current implementation forces it
-- exact preview wording only where the live builder still lies or becomes ambiguous
-
-If the next chat is implementation-facing, focus on:
-
-- finishing the remaining descriptor and builder ambiguity cleanup
-- keeping the source docs aligned with current code reality
-- implementing live preview so it stays mechanically honest
-- implementing the settled self-origin sphere wording for static versus Attached descriptors
-- carrying the hardened AoE overlap rule into implementation without adding extra defence rolls
-- preserving gate on attach versus gate on payload for hostile delayed-entry Attached powers
-- keeping Application Mode narrow and hidden by default
-- beginning cost integration only where it directly depends on the hardened builder structure
-
-
-Anti-Drift Warning
-
-The most likely failure modes going forward are:
-
-- quietly re-opening solved architecture because implementation feels hard
-- promoting implementation recommendations into fake canon without updating the spec honestly
-- letting UI convenience blur authored data, derived logic, and preview wording into one mess
-- accidentally reintroducing multiple defence rolls through delayed, Attached, or Reserve structures
-- softening gate on attach versus gate on payload into vague timing language
-- turning Channel into multiple hidden behaviour modes before playtest earns them
-- collapsing Commitment Modifier into Lifespan or packet timing
-- overbuilding runtime logic before the builder output is trustworthy
-
-Future chats should watch for these aggressively.

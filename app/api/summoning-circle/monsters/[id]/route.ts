@@ -722,13 +722,14 @@ function mapLegacyApplicationModeKeyToMovementTheme(
   if (normalized === "BRAVERY" || normalized === "COURAGE" || normalized === "COURAGE / RESOLVE / PANIC") {
     return "COURAGE_RESOLVE";
   }
-  if (normalized === "SUPPORT" || normalized === "TRUST" || normalized === "TRUST / BELONGING / ANCHORING") {
+  if (normalized === "SYNERGY" || normalized === "SUPPORT" || normalized === "TRUST" || normalized === "TRUST / BELONGING / ANCHORING") {
     return "TRUST_BELONGING";
   }
   if (normalized === "ATTACK" || normalized === "OFFENSIVE" || normalized === "OFFENSIVE EXECUTION") {
     return "OFFENSIVE_EXECUTION";
   }
   if (
+    normalized === "GUARD" ||
     normalized === "DEFENCE" ||
     normalized === "DEFENSE" ||
     normalized === "DEFENSIVE" ||
@@ -1312,18 +1313,18 @@ export async function PUT(
           attackDie: data.attackDie,
           attackResistDie: data.attackResistDie,
           attackModifier: data.attackModifier,
-          defenceDie: data.defenceDie,
-          defenceResistDie: data.defenceResistDie,
-          defenceModifier: data.defenceModifier,
+          guardDie: data.guardDie,
+          guardResistDie: data.guardResistDie,
+          guardModifier: data.guardModifier,
           fortitudeDie: data.fortitudeDie,
           fortitudeResistDie: data.fortitudeResistDie,
           fortitudeModifier: data.fortitudeModifier,
           intellectDie: data.intellectDie,
           intellectResistDie: data.intellectResistDie,
           intellectModifier: data.intellectModifier,
-          supportDie: data.supportDie,
-          supportResistDie: data.supportResistDie,
-          supportModifier: data.supportModifier,
+          synergyDie: data.synergyDie,
+          synergyResistDie: data.synergyResistDie,
+          synergyModifier: data.synergyModifier,
           braveryDie: data.braveryDie,
           braveryResistDie: data.braveryResistDie,
           braveryModifier: data.braveryModifier,
@@ -1463,3 +1464,4 @@ export async function DELETE(
     return NextResponse.json({ error: "Failed to delete monster" }, { status: 500 });
   }
 }
+

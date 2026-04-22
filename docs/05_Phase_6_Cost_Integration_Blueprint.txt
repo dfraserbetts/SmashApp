@@ -1,0 +1,347 @@
+05_Phase_6_Cost_Integration_Blueprint.txt
+
+Purpose
+
+This document records the implementation-facing blueprint for Phase 6 cost integration.
+
+It is not a design-theory document.
+
+It exists to define:
+
+- what Phase 6 is trying to accomplish
+- how the cost model should be structured
+- which parts now already exist in code
+- which parts are still unfinished
+- which boundaries future chats must preserve when continuing the work
+
+
+Phase 6 Goal
+
+Phase 6 exists to price the hardened shared power system honestly.
+
+That means the cost model must reflect:
+
+- shared cast context burden
+- structural chassis burden
+- access / action-commitment burden
+- packet identity
+- packet magnitude
+- packet timing
+- packet duration
+- packet recipient
+- specific mechanic burden
+- packet count complexity
+- cross-packet leverage
+
+The cost model must support both:
+- future Character Builder scalar spend
+- Summoning Circle monster-side derived axis contribution
+
+There must still be one underlying cost truth.
+
+
+What Phase 6 Already Has
+
+The current implementation already includes:
+
+1. Canonical power-cost resolution
+- a live Phase 6 power-cost resolver exists
+- packet-level and total power breakdowns are inspectable
+- canonical power contribution now feeds the monster-side calculator through a cleaned integration path
+
+2. Versioned Power Tuning
+- active / draft / archived sets
+- grouped admin UI
+- friendly labels / descriptions
+- searchable current keys
+- comparison and reset workflow
+
+3. Versioned Outcome Normalization
+- active / draft / archived sets
+- grouped admin UI
+- current radar-curve / display tuning exposed separately from power truth
+
+4. Versioned Combat Tuning / Monster Baseline Tuning
+- active / draft / archived sets
+- grouped admin UI
+- non-power monster baseline contributors exposed separately from power truth and radar normalization
+
+5. Canary Harness
+- shared approved canary catalog
+- shared approved scenario catalog
+- baseline-versus-candidate comparison for:
+  - Power Tuning
+  - Outcome Normalization
+  - Combat Tuning
+- shared stripped Summoning Circle baseline so live editor and harness now align
+
+6. Cleaned radar pipeline
+- canonical power contribution is derived first
+- non-power monster contribution is added second
+- outcome normalization is applied last
+- legacy independent power heuristics have been removed or bypassed
+
+
+What Phase 6 Must Still Preserve
+
+Even though major tooling now exists, Phase 6 must still preserve the following hard rules:
+
+- formula shape lives in code
+- tunable numeric values live in admin-editable config
+- one canonical underlying power-cost truth
+- no duplicate independent balance systems
+- cooldown is derived after BasePowerValue
+- Cooldown Reduction is not part of the base formula and remains future work
+- simple powers must stay simple
+- not every cost node automatically becomes a visible radar lane
+
+
+Canonical Output Split
+
+Character Builder side:
+- shows a total Power Point pool
+- consumes a scalar spend value per power
+- supports players allocating that pool across few or many powers
+
+Summoning Circle side:
+- consumes a derived axis contribution vector from powers
+- combines that vector with non-power monster contribution
+- then applies outcome normalization for radar display
+
+This means:
+- one shared costing truth
+- multiple downstream consumption layers
+- no duplicate independent tuning system
+
+
+Current Phase 6 Layer Split
+
+The current implementation now has three distinct tuning layers.
+
+Power Tuning
+- canonical power truth
+
+Combat Tuning / Monster Baseline Tuning
+- non-power monster baseline contribution
+
+Outcome Normalization
+- downstream radar interpretation and display
+
+Future chats must not collapse these into one blurred tuning page or one blurred mental model.
+
+
+Cooldown Rule For Phase 6
+
+Cooldown is not a cost input.
+
+Cooldown is a derived output from the base power value.
+
+The intended sequence remains:
+- calculate BasePowerValue
+- derive cooldown band from BasePowerValue
+- optionally allow additional spend to reduce that cooldown where legal
+
+Cooldown Reduction is a separate paid modifier.
+
+Cooldown Reduction is not part of the base authored power value and should be layered on top as additional spend later.
+
+
+Canonical Cost Formula Shape
+
+The base formula shape for Phase 6 is:
+
+BasePowerValue =
+  SharedContextFormula
+  + StructuralFormula
+  + AccessFormula
+  + CombinedEffectPacketFormula
+
+Cooldown is derived outside the base formula.
+
+If cooldown reduction is purchased in later work, then:
+
+FinalPowerSpendValue = BasePowerValue + CooldownReductionFormula
+
+
+SharedContextFormula
+
+SharedContextFormula prices the shared cast context that applies across the whole power.
+
+It contains:
+- Range category
+- target count choices
+- ranged distance
+- AoE cast range
+- AoE count
+- AoE shape
+- AoE dimensions
+
+SharedContextFormula should be additive.
+
+It is a real cost burden, but it should not be allowed to dominate packet identity.
+
+
+StructuralFormula
+
+StructuralFormula prices structural burden created by the chassis and its presence pattern.
+
+It contains:
+- chassis base cost
+- structural presence / lifespan burden
+- trigger / release structure burden where relevant
+- delayed-payload / carrier burden where relevant
+
+StructuralFormula should be mostly additive.
+
+This is where premium non-immediate leverage must be priced honestly.
+
+
+AccessFormula
+
+AccessFormula prices use access and action-commitment burden.
+
+It contains:
+- Counter access burden
+- Commitment Modifier burden
+- charge-turn burden where relevant
+
+AccessFormula should be mostly additive.
+
+Build Power bonus output may also influence packet magnitude through a local packet-level scaling step rather than only this top-level access formula.
+
+
+CombinedEffectPacketFormula
+
+CombinedEffectPacketFormula is the heart of the power cost model.
+
+It contains:
+- PrimaryPacketFormula
+- SumOfSecondaryPacketFormulae
+- PacketCountComplexityFormula
+- CrossPacketSynergyFormula
+
+
+PrimaryPacketFormula
+
+The Primary Packet is the main defended entry point and should be priced as the full leading effect.
+
+PrimaryPacketFormula contains:
+- EffectFamilyBaseFormula
+- MagnitudeFormula
+- PacketTimingFormula
+- PacketDurationFormula
+- RecipientFormula
+- SpecificMechanicFormula
+- PersistenceCleanupFormula
+- ScalingFormula where relevant
+
+
+SecondaryPacketFormula
+
+Secondary Packets are real value but contingent.
+
+Each SecondaryPacketFormula should therefore be calculated as its own packet value and then reduced by a contingency factor rather than treated as either free or fully independent.
+
+SecondaryPacketFormula_i =
+  (PacketCoreFormula_i + PacketModifierFormulae_i)
+  × SecondaryContingencyMultiplier_i
+
+
+PacketCountComplexityFormula
+
+This formula prices the burden of having multiple packets regardless of what those packets do.
+
+It exists because:
+- more packets increase exploit surface
+- more packets increase complexity
+- more packets increase leverage density
+
+This is cost-only by default.
+
+It should not emit axis by itself.
+
+
+CrossPacketSynergyFormula
+
+This formula prices additional leverage that emerges from packet combinations rather than from isolated packet values.
+
+Examples include:
+- hostile-primary into beneficial rider
+- delayed-payload leverage
+- recurring leverage created by a real carrier
+- result-scaling follow-through
+- other packet combinations that are stronger together than as isolated dropdown values
+
+This is additive by default.
+
+Axis emission from this node is conditional and must follow actual battlefield shape rather than defaulting blindly into Synergy.
+
+
+Cost-Only / Modifier-Only / Axis-Carrying Split
+
+The Phase 6 model now explicitly distinguishes three types of cost node:
+
+Cost-Only
+- adds scalar cost
+- emits no axis directly
+
+Modifier-Only
+- modifies other value expressions
+- may add scalar cost
+- should not emit large raw axis value by itself
+
+Axis-Carrying
+- adds scalar cost
+- may also emit derived axis contribution where honest
+
+This matters because not every expensive thing should automatically become a visible radar spike.
+
+Examples:
+- Packet Set Complexity is cost-only
+- Shared Cast Context is modifier-only
+- Structural Presence may emit modest Pressure / Presence
+- Cross-Packet leverage may emit axis only where the combination truly changes battlefield shape
+
+
+Current Translation Order
+
+The current intended order is:
+
+1. derive canonical cost breakdown
+2. derive canonical per-use power axis contribution
+3. add non-power monster contribution
+4. apply outcome normalization
+5. display the final monster radar
+
+Later work may still add:
+- cadence / availability translation improvements
+- monster-side realization modifier layer
+- other missing downstream translation seams
+
+But those belong after canonical power truth, not inside it.
+
+
+Current Open Phase 6 Questions
+
+The following are still real open questions inside Phase 6:
+
+- which current costs should remain cost-only versus later translated into cadence, structural pressure, or realization
+- how the later monster-side realization modifier layer should gate typed contributor output through monster attributes
+- which current downstream translation steps still under-report or over-report real battlefield strength
+- whether additional debug or comparison surfaces are still needed for faster tuning iteration
+
+These are now implementation-facing tuning questions, not permission to reopen the whole formula architecture.
+
+
+Immediate Practical Phase 6 Direction
+
+The immediate Phase 6 work should stay focused on:
+
+- tuning specific powers against the aligned live/harness baseline
+- tuning non-power monster baseline contribution where stripped monsters are too weak or too strong
+- tuning outcome normalization where radar display saturates too early or too late
+- preserving clean separation between:
+  - Power Tuning
+  - Combat Tuning
+  - Outcome Normalization
+- beginning the monster-side realization modifier layer only when current tuning layers are stable enough to justify it

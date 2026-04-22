@@ -24,7 +24,7 @@ export interface PlayerLabState {
   attackDie: DiceSize;
 
   // Defensive dice needed for dodge derivation (same pattern as monster)
-  defenceDie: DiceSize;
+  guardDie: DiceSize;
   intellectDie: DiceSize;
 
   // HP pools
@@ -41,3 +41,4 @@ export interface PlayerLabState {
   // Powers
   powers: PlayerLabPower[];
 }
+

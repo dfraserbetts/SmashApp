@@ -10,6 +10,7 @@ import {
 import {
   COMBAT_TUNING_CONFIG_KEY_ORDER,
   DEFAULT_COMBAT_TUNING_VALUES,
+  getCombatTuningInputMin,
   validateCombatTuningConfigValue,
   type CombatTuningConfigStatus,
   type CombatTuningSnapshot,
@@ -71,6 +72,11 @@ function formatHint(format?: CombatTuningValueFormat): string | null {
   return null;
 }
 
+const HIDDEN_COMBAT_TUNING_KEYS = new Set(["poolWeakerSideWeight", "poolAverageWeight"]);
+const DISPLAYED_COMBAT_TUNING_KEYS = COMBAT_TUNING_CONFIG_KEY_ORDER.filter(
+  (key) => !HIDDEN_COMBAT_TUNING_KEYS.has(key),
+);
+
 const FORMULA_GUIDES: Partial<
   Record<
     CombatTuningAdminGroup,
@@ -86,8 +92,8 @@ const FORMULA_GUIDES: Partial<
     formula: "Block per success = ceil((Protection Value / K) * (1 + Skill / S))",
     notes: [
       "Raise K to make protection block less.",
-      "Raise S to make Armor Skill or Willpower matter less.",
-      "Physical block uses Armor Skill. Mental block uses Willpower.",
+      "Raise S to make Armor Skill or the pooled Willpower value matter less.",
+      "Physical block uses Armor Skill. Mental block scales through the Willpower pool, while Bravery remains the surfaced Mental Defence stat.",
     ],
   },
   "Baseline Resilience & Perseverance": {
@@ -95,8 +101,8 @@ const FORMULA_GUIDES: Partial<
     formula:
       "Pool = round((Level + weighted attributes) * Tier Multiplier + Legendary Bonus)",
     notes: [
-      "Physical Resilience uses Attack, Defence, and Fortitude.",
-      "Mental Perseverance uses Intellect, Support, and Bravery.",
+      "Physical Resilience uses Attack, Guard, and Fortitude.",
+      "Mental Perseverance uses Intellect, Synergy, and Bravery.",
       "Raise a tier multiplier to make that tier's real stat-block pools larger.",
     ],
   },
@@ -110,13 +116,13 @@ const FORMULA_GUIDES: Partial<
     ],
   },
   "Pool Penalty / Bonus Scaling": {
-    title: "How pool expectation affects survivability",
+    title: "How pool expectation affects each survivability lane",
     formula:
-      "Pool Share = Expected Pool Share + below/above expected delta, clamped from 0 to 1",
+      "Lane Pool Share = Expected Pool Share + below/above expected delta, clamped from 0 to 1",
     notes: [
-      "Expected Pool Share is the survivability share at exactly expected pools.",
-      "Pool ratio below 1 gives a survivability penalty.",
-      "Pool ratio above 1 gives a survivability bonus.",
+      "Expected Pool Share is the per-lane share at exactly expected physical or mental pools.",
+      "Pool ratio below 1 gives that lane a survivability penalty.",
+      "Pool ratio above 1 gives that lane a survivability bonus.",
       "Caps set the maximum penalty or bonus; scale controls how quickly it ramps.",
     ],
   },
@@ -128,15 +134,16 @@ const FORMULA_GUIDES: Partial<
       "Raise an attribute weight to make that attribute matter more.",
       "Raise Baseline Offset to lower the final skill.",
       "Raise Skill Scale to make stronger attributes improve the skill faster.",
-      "Dodge = max(1, ceil((Intellect * Intellect Weight + Defence * Defence Weight) / Attribute Divisor) + Level - Physical Protection * Protection Penalty).",
+      "Dodge = max(1, ceil((Intellect * Intellect Weight + Guard * Guard Weight) / Attribute Divisor) + Level - Physical Protection * Protection Penalty).",
     ],
   },
   "Dodge & Defence Package": {
-    title: "How defensive baseline becomes radar survivability",
-    formula: "Defence Package Bonus = Survivability Budget * (Dodge Share + Block Share)",
+    title: "How defensive baseline becomes physical and mental survivability",
+    formula:
+      "Lane Bonus = Lane Budget * (shared Dodge split + lane-specific Block Share)",
     notes: [
-      "Dodge Share comes from Dodge dice compared against expected incoming attack dice.",
-      "Block Share comes from Armor Skill, Willpower, and protection block output.",
+      "Dodge Share comes from Dodge dice compared against expected incoming attack dice and is split across both survivability lanes.",
+      "Physical block uses Armor Skill and physical protection output. Mental block uses the Willpower pool and mental protection output, while Bravery remains the surfaced Mental Defence stat.",
       "Raise caps to allow a bigger survivability contribution; raise scales to make it ramp more slowly.",
     ],
   },
@@ -240,7 +247,7 @@ export default function AdminCombatTuningPage() {
   const groupedKeys = useMemo(
     () =>
       COMBAT_TUNING_ADMIN_GROUPS.map((group) => {
-        const allKeys = COMBAT_TUNING_CONFIG_KEY_ORDER.filter(
+        const allKeys = DISPLAYED_COMBAT_TUNING_KEYS.filter(
           (key) => COMBAT_TUNING_ADMIN_METADATA[key]?.group === group,
         );
         const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -620,7 +627,7 @@ export default function AdminCombatTuningPage() {
         <div className="grid gap-3 text-xs sm:grid-cols-4">
           <div className="rounded border border-zinc-800 bg-zinc-950/40 p-3">
             <div className="text-zinc-500">Total keys</div>
-            <div className="mt-1 text-lg text-zinc-100">{COMBAT_TUNING_CONFIG_KEY_ORDER.length}</div>
+            <div className="mt-1 text-lg text-zinc-100">{DISPLAYED_COMBAT_TUNING_KEYS.length}</div>
           </div>
           <div className="rounded border border-zinc-800 bg-zinc-950/40 p-3">
             <div className="text-zinc-500">Visible after search</div>
@@ -707,7 +714,7 @@ export default function AdminCombatTuningPage() {
                         <span className="text-xs text-zinc-500">Selected Value</span>
                         <input
                           type="number"
-                          min={0.000001}
+                          min={getCombatTuningInputMin(key)}
                           step={metadata?.format === "share" ? 0.01 : 0.1}
                           value={
                             isDraft

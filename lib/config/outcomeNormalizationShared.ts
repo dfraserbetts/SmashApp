@@ -19,7 +19,8 @@ export type OutcomeNormalizationSnapshot = {
 const SCORING_CURVE_AXES = [
   "physicalThreat",
   "mentalThreat",
-  "survivability",
+  "physicalSurvivability",
+  "mentalSurvivability",
   "manipulation",
   "synergy",
   "mobility",
@@ -120,7 +121,14 @@ export function normalizeOutcomeNormalizationValues(
 ): OutcomeNormalizationFlatValues {
   const normalized: OutcomeNormalizationFlatValues = {};
   for (const key of OUTCOME_NORMALIZATION_KEY_ORDER) {
-    normalized[key] = toNonNegativeNumber(input?.[key], DEFAULT_OUTCOME_NORMALIZATION_VALUES[key]);
+    const legacySurvivabilityKey = key.replace(
+      "physicalSurvivability",
+      "survivability",
+    ).replace("mentalSurvivability", "survivability");
+    normalized[key] = toNonNegativeNumber(
+      input?.[key] ?? input?.[legacySurvivabilityKey],
+      DEFAULT_OUTCOME_NORMALIZATION_VALUES[key],
+    );
   }
   return normalized;
 }
@@ -211,7 +219,8 @@ export function outcomeNormalizationValuesToCalculatorConfig(
     scoringCurves: {
       physicalThreat: curveFromValues(values, "physicalThreat"),
       mentalThreat: curveFromValues(values, "mentalThreat"),
-      survivability: curveFromValues(values, "survivability"),
+      physicalSurvivability: curveFromValues(values, "physicalSurvivability"),
+      mentalSurvivability: curveFromValues(values, "mentalSurvivability"),
       manipulation: curveFromValues(values, "manipulation"),
       synergy: curveFromValues(values, "synergy"),
       mobility: curveFromValues(values, "mobility"),

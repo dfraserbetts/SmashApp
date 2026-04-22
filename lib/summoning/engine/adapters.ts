@@ -43,7 +43,7 @@ export function adaptMonsterToCombatant(monster: MonsterUpsertInput): CombatantM
   const pp = Number(monster.physicalProtection ?? 0);
   const mp = Number(monster.mentalProtection ?? 0);
 
-  const dodgeScore = getDodgeValue(monster.defenceDie, monster.intellectDie, level, pp);
+  const dodgeScore = getDodgeValue(monster.guardDie, monster.intellectDie, level, pp);
   const dodge = clamp01(dodgeScore / 100);
 
   const accuracyDie = monster.attackDie;
@@ -78,7 +78,7 @@ export function adaptPlayerToCombatant(player: PlayerLabState): CombatantModel {
   const pp = player.physicalProtection;
 
   // Reuse the same derived dodge approach as monsters
-  const dodgeScore = getDodgeValue(player.defenceDie, player.intellectDie, level, pp);
+  const dodgeScore = getDodgeValue(player.guardDie, player.intellectDie, level, pp);
   const dodge = clamp01(dodgeScore / 100);
 
   return {
@@ -105,3 +105,4 @@ export function adaptPlayerToCombatant(player: PlayerLabState): CombatantModel {
     })),
   };
 }
+

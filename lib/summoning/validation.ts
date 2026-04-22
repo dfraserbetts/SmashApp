@@ -30,10 +30,10 @@ const TIER_SET = new Set<MonsterTier>(["MINION", "SOLDIER", "ELITE", "BOSS"]);
 const LIMIT_BREAK_TIER_SET = new Set<LimitBreakTier>(["PUSH", "BREAK", "TRANSCEND"]);
 const CORE_ATTRIBUTE_SET = new Set<CoreAttribute>([
   "ATTACK",
-  "DEFENCE",
+  "GUARD",
   "FORTITUDE",
   "INTELLECT",
-  "SUPPORT",
+  "SYNERGY",
   "BRAVERY",
 ]);
 const EFFECT_DURATION_SET = new Set<EffectDurationType>([
@@ -193,8 +193,10 @@ function asDice(value: unknown, fallback: DiceSize = "D6"): DiceSize {
 }
 
 function normalizeCoreAttribute(value: unknown): CoreAttribute | null {
-  const normalized = asString(value, "") as CoreAttribute;
-  return CORE_ATTRIBUTE_SET.has(normalized) ? normalized : null;
+  const normalized = asString(value, "").toUpperCase();
+  if (normalized === "DEFENCE" || normalized === "DEFENSE") return "GUARD";
+  if (normalized === "SUPPORT") return "SYNERGY";
+  return CORE_ATTRIBUTE_SET.has(normalized as CoreAttribute) ? (normalized as CoreAttribute) : null;
 }
 
 const LEGACY_CONTROL_MODE_MAP = new Map<string, string>([
@@ -213,9 +215,9 @@ const CONTROL_THEME_TO_RESIST_ATTRIBUTE = new Map<string, CoreAttribute>([
   ["BODY_ENDURANCE", "FORTITUDE"],
   ["MIND_COGNITION", "INTELLECT"],
   ["COURAGE_RESOLVE", "BRAVERY"],
-  ["TRUST_BELONGING", "SUPPORT"],
+  ["TRUST_BELONGING", "SYNERGY"],
   ["OFFENSIVE_EXECUTION", "ATTACK"],
-  ["DEFENSIVE_COORDINATION", "DEFENCE"],
+  ["DEFENSIVE_COORDINATION", "GUARD"],
 ]);
 
 function normalizeControlMode(value: unknown): string {
@@ -278,13 +280,14 @@ function mapLegacyApplicationModeKeyToMovementTheme(
   if (normalized === "BRAVERY" || normalized === "COURAGE" || normalized === "COURAGE / RESOLVE / PANIC") {
     return "COURAGE_RESOLVE";
   }
-  if (normalized === "SUPPORT" || normalized === "TRUST" || normalized === "TRUST / BELONGING / ANCHORING") {
+  if (normalized === "SYNERGY" || normalized === "SUPPORT" || normalized === "TRUST" || normalized === "TRUST / BELONGING / ANCHORING") {
     return "TRUST_BELONGING";
   }
   if (normalized === "ATTACK" || normalized === "OFFENSIVE" || normalized === "OFFENSIVE EXECUTION") {
     return "OFFENSIVE_EXECUTION";
   }
   if (
+    normalized === "GUARD" ||
     normalized === "DEFENCE" ||
     normalized === "DEFENSE" ||
     normalized === "DEFENSIVE" ||
@@ -345,6 +348,21 @@ function normalizePacketDetailsForIntention(
       delete nextDetails.movementTheme;
     }
     return nextDetails;
+  }
+  if (intention === "AUGMENT" || intention === "DEBUFF") {
+    const statTarget = asString(details.statTarget ?? details.statChoice, "Attack");
+    const normalizedAttribute = normalizeCoreAttribute(statTarget);
+    return {
+      ...details,
+      statTarget:
+        normalizedAttribute === "GUARD"
+          ? "Guard"
+          : normalizedAttribute === "SYNERGY"
+            ? "Synergy"
+            : normalizedAttribute
+              ? `${normalizedAttribute[0]}${normalizedAttribute.slice(1).toLowerCase()}`
+              : statTarget,
+    };
   }
   return details;
 }
@@ -1470,16 +1488,15 @@ export function normalizeMonsterUpsertInput(body: unknown): {
   }
   const limitBreakTier = limitBreakTierRaw as LimitBreakTier | null;
   const limitBreakAttributeRaw = asNullableString(raw.limitBreakAttribute);
-  if (
-    limitBreakAttributeRaw &&
-    !CORE_ATTRIBUTE_SET.has(limitBreakAttributeRaw as CoreAttribute)
-  ) {
+  const limitBreakAttribute = limitBreakAttributeRaw
+    ? normalizeCoreAttribute(limitBreakAttributeRaw)
+    : null;
+  if (limitBreakAttributeRaw && !limitBreakAttribute) {
     return {
       ok: false,
-      error: "limitBreakAttribute must be one of ATTACK, DEFENCE, FORTITUDE, INTELLECT, SUPPORT, BRAVERY",
+      error: "limitBreakAttribute must be one of ATTACK, GUARD, FORTITUDE, INTELLECT, SYNERGY, BRAVERY",
     };
   }
-  const limitBreakAttribute = limitBreakAttributeRaw as CoreAttribute | null;
 
   let limitBreakThresholdSuccesses: number | null = null;
   const thresholdRaw = raw.limitBreakThresholdSuccesses;
@@ -1504,16 +1521,15 @@ export function normalizeMonsterUpsertInput(body: unknown): {
   }
   const limitBreak2Tier = limitBreak2TierRaw as LimitBreakTier | null;
   const limitBreak2AttributeRaw = asNullableString(raw.limitBreak2Attribute);
-  if (
-    limitBreak2AttributeRaw &&
-    !CORE_ATTRIBUTE_SET.has(limitBreak2AttributeRaw as CoreAttribute)
-  ) {
+  const limitBreak2Attribute = limitBreak2AttributeRaw
+    ? normalizeCoreAttribute(limitBreak2AttributeRaw)
+    : null;
+  if (limitBreak2AttributeRaw && !limitBreak2Attribute) {
     return {
       ok: false,
-      error: "limitBreak2Attribute must be one of ATTACK, DEFENCE, FORTITUDE, INTELLECT, SUPPORT, BRAVERY",
+      error: "limitBreak2Attribute must be one of ATTACK, GUARD, FORTITUDE, INTELLECT, SYNERGY, BRAVERY",
     };
   }
-  const limitBreak2Attribute = limitBreak2AttributeRaw as CoreAttribute | null;
 
   let limitBreak2ThresholdSuccesses: number | null = null;
   const threshold2Raw = raw.limitBreak2ThresholdSuccesses;
@@ -1683,18 +1699,18 @@ export function normalizeMonsterUpsertInput(body: unknown): {
     attackDie: asDice(raw.attackDie, "D6"),
     attackResistDie: Math.max(0, asInt(raw.attackResistDie, 0)),
     attackModifier: asInt(raw.attackModifier, 0),
-    defenceDie: asDice(raw.defenceDie, "D6"),
-    defenceResistDie: Math.max(0, asInt(raw.defenceResistDie, 0)),
-    defenceModifier: asInt(raw.defenceModifier, 0),
+    guardDie: asDice(raw.guardDie ?? raw.defenceDie, "D6"),
+    guardResistDie: Math.max(0, asInt(raw.guardResistDie ?? raw.defenceResistDie, 0)),
+    guardModifier: asInt(raw.guardModifier ?? raw.defenceModifier, 0),
     fortitudeDie: asDice(raw.fortitudeDie, "D6"),
     fortitudeResistDie: Math.max(0, asInt(raw.fortitudeResistDie, 0)),
     fortitudeModifier: asInt(raw.fortitudeModifier, 0),
     intellectDie: asDice(raw.intellectDie, "D6"),
     intellectResistDie: Math.max(0, asInt(raw.intellectResistDie, 0)),
     intellectModifier: asInt(raw.intellectModifier, 0),
-    supportDie: asDice(raw.supportDie, "D6"),
-    supportResistDie: Math.max(0, asInt(raw.supportResistDie, 0)),
-    supportModifier: asInt(raw.supportModifier, 0),
+    synergyDie: asDice(raw.synergyDie ?? raw.supportDie, "D6"),
+    synergyResistDie: Math.max(0, asInt(raw.synergyResistDie ?? raw.supportResistDie, 0)),
+    synergyModifier: asInt(raw.synergyModifier ?? raw.supportModifier, 0),
     braveryDie: asDice(raw.braveryDie, "D6"),
     braveryResistDie: Math.max(0, asInt(raw.braveryResistDie, 0)),
     braveryModifier: asInt(raw.braveryModifier, 0),
@@ -1717,3 +1733,4 @@ export function normalizeMonsterUpsertInput(body: unknown): {
 
   return { ok: true, data };
 }
+

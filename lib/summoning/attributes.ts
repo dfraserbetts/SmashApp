@@ -2,11 +2,11 @@ import type { DiceSize, MonsterTier } from "@/lib/summoning/types";
 import type { ProtectionTuningValues } from "@/lib/config/combatTuningShared";
 import {
   DEFAULT_ARMOR_SKILL_BASELINE_OFFSET,
-  DEFAULT_ARMOR_SKILL_DEFENCE_WEIGHT,
+  DEFAULT_ARMOR_SKILL_GUARD_WEIGHT,
   DEFAULT_ARMOR_SKILL_FORTITUDE_WEIGHT,
   DEFAULT_ARMOR_SKILL_SCALE,
   DEFAULT_DODGE_ATTRIBUTE_DIVISOR,
-  DEFAULT_DODGE_DEFENCE_WEIGHT,
+  DEFAULT_DODGE_GUARD_WEIGHT,
   DEFAULT_DODGE_INTELLECT_WEIGHT,
   DEFAULT_DODGE_PROTECTION_PENALTY_WEIGHT,
   DEFAULT_WEAPON_SKILL_ATTACK_WEIGHT,
@@ -16,7 +16,7 @@ import {
   DEFAULT_WILLPOWER_BASELINE_OFFSET,
   DEFAULT_WILLPOWER_BRAVERY_WEIGHT,
   DEFAULT_WILLPOWER_SCALE,
-  DEFAULT_WILLPOWER_SUPPORT_WEIGHT,
+  DEFAULT_WILLPOWER_SYNERGY_WEIGHT,
 } from "@/lib/config/combatTuningShared";
 
 const DICE_SIZE_NUMERIC_VALUE: Record<DiceSize, number> = {
@@ -124,72 +124,73 @@ export function getWeaponSkillDiceCountFromAttributes(
 }
 
 export function getArmorSkillDiceCountFromAttributes(
-  defenceDie: DiceSize | null | undefined,
+  guardDie: DiceSize | null | undefined,
   fortitudeDie: DiceSize | null | undefined,
   tuning?: Pick<
     ProtectionTuningValues,
-    | "armorSkillDefenceWeight"
+    | "armorSkillGuardWeight"
     | "armorSkillFortitudeWeight"
     | "armorSkillBaselineOffset"
     | "armorSkillScale"
   >,
 ): number {
-  const defenceValue = getAttributeNumericValue(defenceDie);
+  const guardValue = getAttributeNumericValue(guardDie);
   const fortitudeValue = getAttributeNumericValue(fortitudeDie);
-  // Armor Skill: primary Fortitude, secondary Defence
-  return weightedSkillFromAttributes(fortitudeValue, defenceValue, {
+  // Armor Skill: primary Fortitude, secondary Guard
+  return weightedSkillFromAttributes(fortitudeValue, guardValue, {
     primaryWeight: tuning?.armorSkillFortitudeWeight ?? DEFAULT_ARMOR_SKILL_FORTITUDE_WEIGHT,
-    secondaryWeight: tuning?.armorSkillDefenceWeight ?? DEFAULT_ARMOR_SKILL_DEFENCE_WEIGHT,
+    secondaryWeight: tuning?.armorSkillGuardWeight ?? DEFAULT_ARMOR_SKILL_GUARD_WEIGHT,
     baselineOffset: tuning?.armorSkillBaselineOffset ?? DEFAULT_ARMOR_SKILL_BASELINE_OFFSET,
     scale: tuning?.armorSkillScale ?? DEFAULT_ARMOR_SKILL_SCALE,
   });
 }
 
 export function getDodgeValue(
-  defenceDie: DiceSize | null | undefined,
+  guardDie: DiceSize | null | undefined,
   intellectDie: DiceSize | null | undefined,
   level: number,
   physicalProtection: number,
   tuning?: Pick<
     ProtectionTuningValues,
     | "dodgeIntellectWeight"
-    | "dodgeDefenceWeight"
+    | "dodgeGuardWeight"
     | "dodgeAttributeDivisor"
     | "dodgeProtectionPenaltyWeight"
   >,
 ): number {
-  const defenceValue = getAttributeNumericValue(defenceDie);
+  const guardValue = getAttributeNumericValue(guardDie);
   const intellectValue = getAttributeNumericValue(intellectDie);
   const intellectWeight = tuning?.dodgeIntellectWeight ?? DEFAULT_DODGE_INTELLECT_WEIGHT;
-  const defenceWeight = tuning?.dodgeDefenceWeight ?? DEFAULT_DODGE_DEFENCE_WEIGHT;
+  const guardWeight = tuning?.dodgeGuardWeight ?? DEFAULT_DODGE_GUARD_WEIGHT;
   const attributeDivisor = tuning?.dodgeAttributeDivisor ?? DEFAULT_DODGE_ATTRIBUTE_DIVISOR;
   const protectionPenaltyWeight =
     tuning?.dodgeProtectionPenaltyWeight ?? DEFAULT_DODGE_PROTECTION_PENALTY_WEIGHT;
   // DODGE_VALUE_FORMULA_V2
   // Rogues dodge, knights tank. Choose your class fantasy... even in a classless system.
   const base = Math.ceil(
-    (intellectValue * intellectWeight + defenceValue * defenceWeight) / attributeDivisor,
+    (intellectValue * intellectWeight + guardValue * guardWeight) / attributeDivisor,
   );
   const raw = base + level - physicalProtection * protectionPenaltyWeight;
   return Math.max(1, Math.ceil(raw));
 }
 
 export function getWillpowerDiceCountFromAttributes(
-  supportDie: DiceSize | null | undefined,
+  synergyDie: DiceSize | null | undefined,
   braveryDie: DiceSize | null | undefined,
   tuning?: Pick<
     ProtectionTuningValues,
-    | "willpowerSupportWeight"
+    | "willpowerSynergyWeight"
     | "willpowerBraveryWeight"
     | "willpowerBaselineOffset"
     | "willpowerScale"
   >,
 ): number {
-  const supportValue = getAttributeNumericValue(supportDie);
+  const synergyValue = getAttributeNumericValue(synergyDie);
   const braveryValue = getAttributeNumericValue(braveryDie);
-  // Willpower: primary Support, secondary Bravery
-  return weightedSkillFromAttributes(supportValue, braveryValue, {
-    primaryWeight: tuning?.willpowerSupportWeight ?? DEFAULT_WILLPOWER_SUPPORT_WEIGHT,
+  // Willpower: primary Synergy, secondary Bravery.
+  // Bravery remains the direct mental-defence die readout, while Synergy still feeds the shared willpower pool.
+  return weightedSkillFromAttributes(synergyValue, braveryValue, {
+    primaryWeight: tuning?.willpowerSynergyWeight ?? DEFAULT_WILLPOWER_SYNERGY_WEIGHT,
     secondaryWeight: tuning?.willpowerBraveryWeight ?? DEFAULT_WILLPOWER_BRAVERY_WEIGHT,
     baselineOffset: tuning?.willpowerBaselineOffset ?? DEFAULT_WILLPOWER_BASELINE_OFFSET,
     scale: tuning?.willpowerScale ?? DEFAULT_WILLPOWER_SCALE,
@@ -209,19 +210,19 @@ export function calculateMonsterResilienceValues(
     tier: MonsterTier;
     legendary: boolean;
     attackDie: DiceSize | null | undefined;
-    defenceDie: DiceSize | null | undefined;
+    guardDie: DiceSize | null | undefined;
     fortitudeDie: DiceSize | null | undefined;
     intellectDie: DiceSize | null | undefined;
-    supportDie: DiceSize | null | undefined;
+    synergyDie: DiceSize | null | undefined;
     braveryDie: DiceSize | null | undefined;
   },
   tuning: Pick<
     ProtectionTuningValues,
     | "attackWeight"
-    | "defenceWeight"
+    | "guardWeight"
     | "fortitudeWeight"
     | "intellectWeight"
-    | "supportWeight"
+    | "synergyWeight"
     | "braveryWeight"
     | "minionTierMultiplier"
     | "soldierTierMultiplier"
@@ -245,13 +246,13 @@ export function calculateMonsterResilienceValues(
   const prBase =
     monster.level +
     getAttributeNumericValue(monster.attackDie) * tuning.attackWeight +
-    getAttributeNumericValue(monster.defenceDie) * tuning.defenceWeight +
+    getAttributeNumericValue(monster.guardDie) * tuning.guardWeight +
     getAttributeNumericValue(monster.fortitudeDie) * tuning.fortitudeWeight;
 
   const mpBase =
     monster.level +
     getAttributeNumericValue(monster.intellectDie) * tuning.intellectWeight +
-    getAttributeNumericValue(monster.supportDie) * tuning.supportWeight +
+    getAttributeNumericValue(monster.synergyDie) * tuning.synergyWeight +
     getAttributeNumericValue(monster.braveryDie) * tuning.braveryWeight;
 
   const physicalResilienceMax = Math.round(prBase * tierMultiplier + prBase * legendaryBonus);
@@ -259,3 +260,4 @@ export function calculateMonsterResilienceValues(
 
   return { physicalResilienceMax, mentalPerseveranceMax };
 }
+

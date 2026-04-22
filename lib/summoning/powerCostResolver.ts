@@ -53,6 +53,7 @@ type PowerTuningSnapshotLike = {
 type CanonicalRangeCategory = "self" | "melee" | "ranged" | "aoe";
 type DerivedHostileEntryPattern = "ON_ATTACH" | "ON_PAYLOAD" | null;
 type ThreatAxisKey = "physicalThreat" | "mentalThreat";
+type SurvivabilityAxisKey = "physicalSurvivability" | "mentalSurvivability";
 
 type SelectedTuningValue = {
   tuningKey: string | null;
@@ -63,7 +64,8 @@ type SelectedTuningValue = {
 const EMPTY_AXIS_VECTOR: PowerCostAxisVector = {
   physicalThreat: 0,
   mentalThreat: 0,
-  survivability: 0,
+  physicalSurvivability: 0,
+  mentalSurvivability: 0,
   manipulation: 0,
   synergy: 0,
   mobility: 0,
@@ -73,7 +75,8 @@ const EMPTY_AXIS_VECTOR: PowerCostAxisVector = {
 const AXIS_KEYS: Array<keyof PowerCostAxisVector> = [
   "physicalThreat",
   "mentalThreat",
-  "survivability",
+  "physicalSurvivability",
+  "mentalSurvivability",
   "manipulation",
   "synergy",
   "mobility",
@@ -115,7 +118,9 @@ function addAxisVectors(
   return {
     physicalThreat: left.physicalThreat + (right.physicalThreat ?? 0),
     mentalThreat: left.mentalThreat + (right.mentalThreat ?? 0),
-    survivability: left.survivability + (right.survivability ?? 0),
+    physicalSurvivability:
+      left.physicalSurvivability + (right.physicalSurvivability ?? 0),
+    mentalSurvivability: left.mentalSurvivability + (right.mentalSurvivability ?? 0),
     manipulation: left.manipulation + (right.manipulation ?? 0),
     synergy: left.synergy + (right.synergy ?? 0),
     mobility: left.mobility + (right.mobility ?? 0),
@@ -127,7 +132,8 @@ function normalizeAxisVector(axis: PowerCostAxisVector): PowerCostAxisVector {
   return {
     physicalThreat: roundCost(axis.physicalThreat),
     mentalThreat: roundCost(axis.mentalThreat),
-    survivability: roundCost(axis.survivability),
+    physicalSurvivability: roundCost(axis.physicalSurvivability),
+    mentalSurvivability: roundCost(axis.mentalSurvivability),
     manipulation: roundCost(axis.manipulation),
     synergy: roundCost(axis.synergy),
     mobility: roundCost(axis.mobility),
@@ -330,10 +336,10 @@ function getStatTargetKey(value: unknown): string | null {
   const normalized = asString(value).toLowerCase();
   if (!normalized) return null;
   if (normalized === "attack") return "attack";
-  if (normalized === "defence" || normalized === "defense") return "defence";
+  if (normalized === "guard" || normalized === "defence" || normalized === "defense") return "guard";
   if (normalized === "fortitude") return "fortitude";
   if (normalized === "intellect") return "intellect";
-  if (normalized === "support") return "support";
+  if (normalized === "synergy" || normalized === "support") return "synergy";
   if (normalized === "bravery") return "bravery";
   if (normalized === "movement") return "movement";
   if (normalized === "weapon skill") return "weaponSkill";
@@ -376,6 +382,27 @@ function getPacketRelevantThreatAxes(
   const explicitPacketThreatAxis = getExplicitPacketThreatAxis(packet);
   if (explicitPacketThreatAxis) threatAxes.add(explicitPacketThreatAxis);
   return Array.from(threatAxes);
+}
+
+function getSurvivabilityAxisFromChannel(value: unknown): SurvivabilityAxisKey {
+  return asString(value).toUpperCase() === "MENTAL"
+    ? "mentalSurvivability"
+    : "physicalSurvivability";
+}
+
+function getDefenceStatAxis(statTargetKey: string | null): SurvivabilityAxisKey | null {
+  if (
+    statTargetKey === "guard" ||
+    statTargetKey === "armorSkill" ||
+    statTargetKey === "dodge" ||
+    statTargetKey === "fortitude"
+  ) {
+    return "physicalSurvivability";
+  }
+  if (statTargetKey === "willpower" || statTargetKey === "bravery") {
+    return "mentalSurvivability";
+  }
+  return null;
 }
 
 function applyThreatShareToRelevantAxes(
@@ -499,6 +526,7 @@ function scaleAxisVector(
 }
 
 function allocatePacketAxisVector(
+  power: Power,
   packet: EffectPacket,
   totalCost: number,
   powerRelevantThreatAxes: ThreatAxisKey[],
@@ -512,6 +540,12 @@ function allocatePacketAxisVector(
   const hostile = isHostilePacket(packet);
   const threatAxis = getPacketThreatAxis(packet);
   const relevantThreatAxes = getPacketRelevantThreatAxes(packet, powerRelevantThreatAxes);
+  const defenceStatAxis = getDefenceStatAxis(statTargetKey);
+  const healingAxis = getSurvivabilityAxisFromChannel(details.healingMode);
+  const defenceAxis =
+    power.primaryDefenceGate?.protectionChannel != null
+      ? getSurvivabilityAxisFromChannel(power.primaryDefenceGate.protectionChannel)
+      : getSurvivabilityAxisFromChannel(details.attackMode ?? packet.woundChannel);
   let baseLane: string | null = null;
   const spillRules: string[] = [];
   let augmentRoutingDebug: Record<string, unknown> | null = null;
@@ -524,14 +558,17 @@ function allocatePacketAxisVector(
       spillRules.push("presenceFromAttackPressure");
       break;
     case "DEFENCE":
-      baseLane = "survivability";
-      applyAxisShare(axisVector, "survivability", totalCost);
+      baseLane = defenceAxis;
+      applyAxisShare(axisVector, defenceAxis, totalCost);
       break;
     case "HEALING":
-      baseLane = "survivability";
-      applyAxisShare(axisVector, "survivability", totalCost * 0.7);
-      applyAxisShare(axisVector, "synergy", totalCost * 0.3);
-      spillRules.push("healingSupportSpill");
+      baseLane = healingAxis;
+      applyAxisShare(axisVector, healingAxis, totalCost * 0.7);
+      spillRules.push(`healingTo:${healingAxis}`);
+      if (applyTo !== "SELF") {
+        applyAxisShare(axisVector, "synergy", totalCost * 0.3);
+        spillRules.push("healingSynergySpill");
+      }
       break;
     case "CLEANSE":
       baseLane = "synergy";
@@ -563,13 +600,6 @@ function allocatePacketAxisVector(
       }
       break;
     case "AUGMENT": {
-      const defenceStat =
-        statTargetKey === "defence" ||
-        statTargetKey === "armorSkill" ||
-        statTargetKey === "dodge" ||
-        statTargetKey === "fortitude" ||
-        statTargetKey === "bravery" ||
-        statTargetKey === "willpower";
       const threatStat = statTargetKey === "attack" || statTargetKey === "weaponSkill";
       const threatSpill = (amount: number) =>
         applyThreatShareToRelevantAxes(axisVector, relevantThreatAxes, amount);
@@ -588,33 +618,33 @@ function allocatePacketAxisVector(
           secondarySpillLane = "threat";
           spillRules.push("selfAugmentAttackClusterToRelevantThreat");
           if (applied.suppressed) spillRules.push("selfAugmentThreatSuppressedNoRelevantThreatLane");
-        } else if (defenceStat) {
-          applyAxisShare(axisVector, "survivability", totalCost);
-          secondarySpillLane = "survivability";
-          spillRules.push("selfAugmentDefenceClusterToSurvivability");
+        } else if (defenceStatAxis) {
+          applyAxisShare(axisVector, defenceStatAxis, totalCost);
+          secondarySpillLane = defenceStatAxis;
+          spillRules.push(`selfAugmentDefenceClusterTo:${defenceStatAxis}`);
         } else if (statTargetKey === "intellect") {
           applyAxisShare(axisVector, "manipulation", totalCost);
           secondarySpillLane = "manipulation";
           spillRules.push("selfAugmentIntellectToManipulation");
-        } else if (statTargetKey === "support") {
+        } else if (statTargetKey === "synergy") {
           applyAxisShare(axisVector, "synergy", totalCost);
           secondarySpillLane = "synergy";
-          spillRules.push("selfAugmentSupportToSynergy");
+          spillRules.push("selfAugmentSynergyToSynergy");
         } else if (statTargetKey === "movement") {
           applyAxisShare(axisVector, "mobility", totalCost);
           secondarySpillLane = "mobility";
           spillRules.push("selfAugmentMovementToMobility");
         } else {
-          applyAxisShare(axisVector, "survivability", totalCost);
-          secondarySpillLane = "survivability";
+          applyAxisShare(axisVector, "physicalSurvivability", totalCost);
+          secondarySpillLane = "physicalSurvivability";
           spillRules.push("selfAugmentFallbackToSelfUtility");
         }
       } else if (applyTo === "ALLIES") {
         alliesSplitUsed = true;
-        if (statTargetKey === "support") {
+        if (statTargetKey === "synergy") {
           applyAxisShare(axisVector, "synergy", totalCost);
           secondarySpillLane = "synergy";
-          spillRules.push("alliesAugmentSupportToSynergy");
+          spillRules.push("alliesAugmentSynergyToSynergy");
         } else {
           applyAxisShare(axisVector, "synergy", totalCost * ALLIES_SYNERGY_PRIMARY_SHARE);
           if (threatStat) {
@@ -624,10 +654,10 @@ function allocatePacketAxisVector(
             secondarySpillLane = "threat";
             spillRules.push("alliesAugmentAttackClusterSplitToSynergyAndThreat");
             if (applied.suppressed) spillRules.push("alliesAugmentThreatSuppressedNoRelevantThreatLane");
-          } else if (defenceStat) {
-            applyAxisShare(axisVector, "survivability", totalCost * ALLIES_SELF_SPILL_SHARE);
-            secondarySpillLane = "survivability";
-            spillRules.push("alliesAugmentDefenceClusterSplitToSynergyAndSurvivability");
+          } else if (defenceStatAxis) {
+            applyAxisShare(axisVector, defenceStatAxis, totalCost * ALLIES_SELF_SPILL_SHARE);
+            secondarySpillLane = defenceStatAxis;
+            spillRules.push(`alliesAugmentDefenceClusterSplitToSynergyAnd:${defenceStatAxis}`);
           } else if (statTargetKey === "intellect") {
             applyAxisShare(axisVector, "manipulation", totalCost * ALLIES_SELF_SPILL_SHARE);
             secondarySpillLane = "manipulation";
@@ -637,8 +667,12 @@ function allocatePacketAxisVector(
             secondarySpillLane = "mobility";
             spillRules.push("alliesAugmentMovementSplitToSynergyAndMobility");
           } else {
-            applyAxisShare(axisVector, "survivability", totalCost * ALLIES_SELF_SPILL_SHARE);
-            secondarySpillLane = "survivability";
+            applyAxisShare(
+              axisVector,
+              "physicalSurvivability",
+              totalCost * ALLIES_SELF_SPILL_SHARE,
+            );
+            secondarySpillLane = "physicalSurvivability";
             spillRules.push("alliesAugmentFallbackSplitToSynergyAndSelfUtility");
           }
         }
@@ -648,16 +682,9 @@ function allocatePacketAxisVector(
         if (statTargetKey === "movement") {
           applyAxisShare(axisVector, "mobility", totalCost * 0.2);
           spillRules.push("augmentMovementSpillToMobility");
-        } else if (
-          statTargetKey === "defence" ||
-          statTargetKey === "armorSkill" ||
-          statTargetKey === "dodge" ||
-          statTargetKey === "fortitude" ||
-          statTargetKey === "willpower" ||
-          statTargetKey === "bravery"
-        ) {
-          applyAxisShare(axisVector, "survivability", totalCost * 0.2);
-          spillRules.push("augmentDefenceClusterSpillToSurvivability");
+        } else if (defenceStatAxis) {
+          applyAxisShare(axisVector, defenceStatAxis, totalCost * 0.2);
+          spillRules.push(`augmentDefenceClusterSpillTo:${defenceStatAxis}`);
         } else if (statTargetKey === "attack" || statTargetKey === "weaponSkill") {
           applyAxisShare(axisVector, "physicalThreat", totalCost * 0.2);
           spillRules.push("augmentAttackClusterSpillToPhysicalThreat");
@@ -693,7 +720,7 @@ function allocatePacketAxisVector(
         spillRules.push("debuffMovementSpillToMobility");
       } else if (
         hostile &&
-        (statTargetKey === "defence" ||
+        (statTargetKey === "guard" ||
           statTargetKey === "armorSkill" ||
           statTargetKey === "dodge")
       ) {
@@ -704,18 +731,11 @@ function allocatePacketAxisVector(
         hostile &&
         (statTargetKey === "attack" || statTargetKey === "weaponSkill")
       ) {
-        applyAxisShare(axisVector, "survivability", totalCost * 0.2);
-        spillRules.push("hostileAttackClusterDebuffToSurvivability");
-      } else if (
-        statTargetKey === "defence" ||
-        statTargetKey === "armorSkill" ||
-        statTargetKey === "dodge" ||
-        statTargetKey === "fortitude" ||
-        statTargetKey === "willpower" ||
-        statTargetKey === "bravery"
-      ) {
-        applyAxisShare(axisVector, "survivability", totalCost * 0.2);
-        spillRules.push("debuffDefenceClusterFallbackToSurvivability");
+        applyAxisShare(axisVector, "physicalSurvivability", totalCost * 0.2);
+        spillRules.push("hostileAttackClusterDebuffTo:physicalSurvivability");
+      } else if (defenceStatAxis) {
+        applyAxisShare(axisVector, defenceStatAxis, totalCost * 0.2);
+        spillRules.push(`debuffDefenceClusterFallbackTo:${defenceStatAxis}`);
       } else if (statTargetKey === "attack" || statTargetKey === "weaponSkill") {
         applyAxisShare(axisVector, "physicalThreat", totalCost * 0.2);
         spillRules.push("debuffAttackClusterFallbackToPhysicalThreat");
@@ -738,6 +758,9 @@ function allocatePacketAxisVector(
       applyTo,
       hostile,
       statTargetKey,
+      defenceAxis,
+      healingAxis,
+      defenceStatAxis,
       movementMode: movementMode || null,
       hostileForcedMovementSplitFired:
         intention === "MOVEMENT" ? isForcedMovementMode(movementMode) : false,
@@ -1743,11 +1766,12 @@ function getComboPacketRoutingDebug(
 }
 
 function routeComboAxisThroughPacket(
+  power: Power,
   packet: EffectPacket,
   amount: number,
   relevantThreatAxes: ThreatAxisKey[],
 ): { axisVector: PowerCostAxisVector; debug: Record<string, unknown> } {
-  const routed = allocatePacketAxisVector(packet, amount, relevantThreatAxes);
+  const routed = allocatePacketAxisVector(power, packet, amount, relevantThreatAxes);
   return {
     axisVector: routed.axisVector,
     debug: {
@@ -1799,6 +1823,7 @@ function getCrossPacketSynergyCost(
     let axisNote = "No beneficial secondary packet was available for axis routing.";
     if (beneficialLaterPacket) {
       const routed = routeComboAxisThroughPacket(
+        power,
         beneficialLaterPacket,
         resolved.value,
         relevantThreatAxes,
@@ -1908,6 +1933,7 @@ function getCrossPacketSynergyCost(
     let axisContribution = cloneEmptyAxisVector();
     const routedPackets = resultScalingPackets.map((packet) => {
       const routed = routeComboAxisThroughPacket(
+        power,
         packet,
         resolved.value / Math.max(1, resultScalingPackets.length),
         relevantThreatAxes,
@@ -2040,6 +2066,7 @@ export function resolvePowerCost(
 
     packetCostsTotal += packetTotalAfterContingency;
     const packetAxisRouting = allocatePacketAxisVector(
+      power,
       packet,
       packetTotalAfterContingency,
       relevantThreatAxes,

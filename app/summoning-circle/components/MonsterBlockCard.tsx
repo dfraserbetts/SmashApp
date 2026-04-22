@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, type ReactNode } from "react";
 import type {
@@ -90,10 +90,10 @@ type PrintPageMode = "COMPACT" | "PAGE1_MAIN" | "PAGE2_POWER";
 
 const ATTR_ROWS = [
   ["Attack", "attackDie", "attackResistDie", "attackModifier"],
-  ["Defence", "defenceDie", "defenceResistDie", "defenceModifier"],
+  ["Guard", "guardDie", "guardResistDie", "guardModifier"],
   ["Fortitude", "fortitudeDie", "fortitudeResistDie", "fortitudeModifier"],
   ["Intellect", "intellectDie", "intellectResistDie", "intellectModifier"],
-  ["Support", "supportDie", "supportResistDie", "supportModifier"],
+  ["Synergy", "synergyDie", "synergyResistDie", "synergyModifier"],
   ["Bravery", "braveryDie", "braveryResistDie", "braveryModifier"],
 ] as const;
 const DEFAULT_IMAGE_POS_X = 50;
@@ -318,10 +318,10 @@ export function buildMonsterTraitRenderContext(params: {
         | "name"
         | "level"
         | "attackDie"
-        | "defenceDie"
+        | "guardDie"
         | "fortitudeDie"
         | "intellectDie"
-        | "supportDie"
+        | "synergyDie"
         | "braveryDie"
       >
     | null
@@ -344,10 +344,12 @@ export function buildMonsterTraitRenderContext(params: {
     MonsterLevel: typeof monster?.level === "number" ? monster.level : null,
 
     MonsterAttack: monster?.attackDie ?? null,
-    MonsterDefence: monster?.defenceDie ?? null,
+    MonsterGuard: monster?.guardDie ?? null,
+    MonsterDefence: monster?.guardDie ?? null,
     MonsterFortitude: monster?.fortitudeDie ?? null,
     MonsterIntellect: monster?.intellectDie ?? null,
-    MonsterSupport: monster?.supportDie ?? null,
+    MonsterSynergy: monster?.synergyDie ?? null,
+    MonsterSupport: monster?.synergyDie ?? null,
     MonsterBravery: monster?.braveryDie ?? null,
 
     MonsterWeaponSkill: weaponSkillValue,
@@ -613,10 +615,10 @@ function getCustomLimitBreakAttributeContext(
   attribute: CoreAttribute | null,
 ): { value: number | null; label: string | null } {
   if (attribute === "ATTACK") return { value: dieNumeric(monster.attackDie), label: "Attack" };
-  if (attribute === "DEFENCE") return { value: dieNumeric(monster.defenceDie), label: "Defence" };
+  if (attribute === "GUARD") return { value: dieNumeric(monster.guardDie), label: "Guard" };
   if (attribute === "FORTITUDE") return { value: dieNumeric(monster.fortitudeDie), label: "Fortitude" };
   if (attribute === "INTELLECT") return { value: dieNumeric(monster.intellectDie), label: "Intellect" };
-  if (attribute === "SUPPORT") return { value: dieNumeric(monster.supportDie), label: "Support" };
+  if (attribute === "SYNERGY") return { value: dieNumeric(monster.synergyDie), label: "Synergy" };
   if (attribute === "BRAVERY") return { value: dieNumeric(monster.braveryDie), label: "Bravery" };
   return { value: null, label: null };
 }
@@ -700,11 +702,11 @@ export function MonsterBlockCard({
   const baseArmorSkillValue = useMemo(
     () =>
       getArmorSkillDiceCountFromAttributes(
-        monster.defenceDie,
+        monster.guardDie,
         monster.fortitudeDie,
         resolvedCombatTuning,
       ),
-    [monster.defenceDie, monster.fortitudeDie, resolvedCombatTuning],
+    [monster.guardDie, monster.fortitudeDie, resolvedCombatTuning],
   );
   const equippedItems = useMemo(
     () => getEquippedItems(monster, weaponById),
@@ -863,7 +865,7 @@ export function MonsterBlockCard({
       Math.max(
         0,
         getDodgeValue(
-          monster.defenceDie,
+          monster.guardDie,
           monster.intellectDie,
           monster.level,
           protectionValues.physicalProtection,
@@ -871,7 +873,7 @@ export function MonsterBlockCard({
         ),
       ),
     [
-      monster.defenceDie,
+      monster.guardDie,
       monster.intellectDie,
       monster.level,
       protectionValues.physicalProtection,
@@ -883,14 +885,14 @@ export function MonsterBlockCard({
       Math.max(
         1,
         getWillpowerDiceCountFromAttributes(
-          monster.supportDie,
+          monster.synergyDie,
           monster.braveryDie,
           resolvedCombatTuning,
         ) +
           Math.max(0, Math.trunc(itemDerived.itemModifiers.willpowerModifier ?? 0)),
       ),
     [
-      monster.supportDie,
+      monster.synergyDie,
       monster.braveryDie,
       itemDerived.itemModifiers.willpowerModifier,
       resolvedCombatTuning,
@@ -939,13 +941,13 @@ export function MonsterBlockCard({
   const equippedAttributeLinesByPlacement = useMemo(() => {
     const buckets: Record<AttributePlacement, string[]> = {
       ATTACK: [],
-      DEFENCE: [],
+      GUARD: [],
       TRAITS: [],
       GENERAL: [],
     };
     const seen: Record<AttributePlacement, Set<string>> = {
       ATTACK: new Set<string>(),
-      DEFENCE: new Set<string>(),
+      GUARD: new Set<string>(),
       TRAITS: new Set<string>(),
       GENERAL: new Set<string>(),
     };
@@ -982,12 +984,15 @@ export function MonsterBlockCard({
       for (const rawLine of rawLines) {
         const text = typeof rawLine?.text === "string" ? rawLine.text.trim() : "";
         if (!text) continue;
+        const rawPlacement = String(rawLine?.placement ?? "").toUpperCase();
         const placement: AttributePlacement =
-          rawLine?.placement === "ATTACK" ||
-          rawLine?.placement === "DEFENCE" ||
-          rawLine?.placement === "TRAITS" ||
-          rawLine?.placement === "GENERAL"
-            ? rawLine.placement
+          rawPlacement === "ATTACK" ||
+          rawPlacement === "GUARD" ||
+          rawPlacement === "TRAITS" ||
+          rawPlacement === "GENERAL"
+            ? (rawPlacement as AttributePlacement)
+            : rawPlacement === "DEFENCE"
+              ? "GUARD"
             : "TRAITS";
         if (seen[placement].has(text)) continue;
         seen[placement].add(text);
@@ -1037,13 +1042,16 @@ export function MonsterBlockCard({
       for (const rawLine of rawLines) {
         const text = typeof rawLine?.text === "string" ? rawLine.text.trim() : "";
         if (!text) continue;
+        const rawPlacement = String(rawLine?.placement ?? "").toUpperCase();
 
         const placement: AttributePlacement =
-          rawLine?.placement === "ATTACK" ||
-          rawLine?.placement === "DEFENCE" ||
-          rawLine?.placement === "TRAITS" ||
-          rawLine?.placement === "GENERAL"
-            ? rawLine.placement
+          rawPlacement === "ATTACK" ||
+          rawPlacement === "GUARD" ||
+          rawPlacement === "TRAITS" ||
+          rawPlacement === "GENERAL"
+            ? (rawPlacement as AttributePlacement)
+            : rawPlacement === "DEFENCE"
+              ? "GUARD"
             : "TRAITS";
 
         if (placement !== "TRAITS") continue;
@@ -1058,7 +1066,7 @@ export function MonsterBlockCard({
 
     return out;
   }, [monster, weaponById]);
-  const equippedDefenceLinesWithSource = useMemo(() => {
+  const equippedGuardLinesWithSource = useMemo(() => {
     const out: Array<{ text: string; sourceItemName: string }> = [];
     const seen = new Set<string>();
     if (!weaponById) return out;
@@ -1096,16 +1104,19 @@ export function MonsterBlockCard({
       for (const rawLine of rawLines) {
         const text = typeof rawLine?.text === "string" ? rawLine.text.trim() : "";
         if (!text) continue;
+        const rawPlacement = String(rawLine?.placement ?? "").toUpperCase();
 
         const placement: AttributePlacement =
-          rawLine?.placement === "ATTACK" ||
-          rawLine?.placement === "DEFENCE" ||
-          rawLine?.placement === "TRAITS" ||
-          rawLine?.placement === "GENERAL"
-            ? rawLine.placement
+          rawPlacement === "ATTACK" ||
+          rawPlacement === "GUARD" ||
+          rawPlacement === "TRAITS" ||
+          rawPlacement === "GENERAL"
+            ? (rawPlacement as AttributePlacement)
+            : rawPlacement === "DEFENCE"
+              ? "GUARD"
             : "TRAITS";
 
-        if (placement !== "DEFENCE") continue;
+        if (placement !== "GUARD") continue;
 
         const key = `${itemName}::${text}`;
         if (seen.has(key)) continue;
@@ -1117,7 +1128,7 @@ export function MonsterBlockCard({
 
     return out;
   }, [monster, weaponById]);
-  const compressedDefenceLinesWithSource = useMemo(() => {
+  const compressedGuardLinesWithSource = useMemo(() => {
     const out: Array<{ text: string; sourceItemName: string }> = [];
 
     // Match:
@@ -1136,7 +1147,7 @@ export function MonsterBlockCard({
       out.push(row);
     };
 
-    for (const row of equippedDefenceLinesWithSource) {
+    for (const row of equippedGuardLinesWithSource) {
       const text = row.text.trim();
       const m = text.match(vrpRe);
       if (!m) {
@@ -1199,14 +1210,14 @@ export function MonsterBlockCard({
       if (aIsVrp !== bIsVrp) return aIsVrp ? -1 : 1;
       return a.sourceItemName.localeCompare(b.sourceItemName) || a.text.localeCompare(b.text);
     });
-  }, [equippedDefenceLinesWithSource]);
+  }, [equippedGuardLinesWithSource]);
 
   const MOD_KEY_TO_ITEM_FIELD: Record<(typeof ATTR_ROWS)[number][3], MonsterModifierField> = {
     attackModifier: "attackModifier",
-    defenceModifier: "defenceModifier",
+    guardModifier: "guardModifier",
     fortitudeModifier: "fortitudeModifier",
     intellectModifier: "intellectModifier",
-    supportModifier: "supportModifier",
+    synergyModifier: "synergyModifier",
     braveryModifier: "braveryModifier",
   };
   const customNotesText = monster.customNotes?.trim() ?? "";
@@ -1417,7 +1428,7 @@ export function MonsterBlockCard({
                 inPrint ? "gap-1" : nonPrintAttrGapClass,
               ].join(" ")}
             >
-              {(["Intellect", "Support", "Bravery"] as const).map((label) => {
+              {(["Intellect", "Synergy", "Bravery"] as const).map((label) => {
                 const row = ATTR_ROWS.find((r) => r[0] === label);
                 if (!row) return null;
                 const [, dieKey, resistKey, modKey] = row;
@@ -1488,7 +1499,7 @@ export function MonsterBlockCard({
                 inPrint ? "gap-1" : nonPrintAttrGapClass,
               ].join(" ")}
             >
-              {(["Attack", "Defence", "Fortitude"] as const).map((label) => {
+              {(["Attack", "Guard", "Fortitude"] as const).map((label) => {
                 const row = ATTR_ROWS.find((r) => r[0] === label);
                 if (!row) return null;
                 const [, dieKey, resistKey, modKey] = row;
@@ -1590,7 +1601,7 @@ export function MonsterBlockCard({
 
       {!isPowerPage && (
       <div>
-        <p className="text-xs uppercase tracking-wide text-zinc-500">DEFENCE</p>
+        <p className="text-xs uppercase tracking-wide text-zinc-500">GUARD</p>
         <div className="rounded border border-zinc-800 p-2 space-y-2">
           {/* Core defence lines: always 3-up, wrappers scale this block on small screens */}
           <div className="grid grid-cols-3 gap-2 sc-defence-grid">
@@ -1604,9 +1615,9 @@ export function MonsterBlockCard({
             ))}
           </div>
 
-          {compressedDefenceLinesWithSource.length > 0 && (
+          {compressedGuardLinesWithSource.length > 0 && (
             <div className="border-t border-zinc-800 pt-2 space-y-1 sc-defence-passives">
-              {compressedDefenceLinesWithSource.map((row, idx) => (
+              {compressedGuardLinesWithSource.map((row, idx) => (
                 <p key={`defence-placement-${idx}`} className="text-xs text-zinc-400">
                   {row.sourceItemName}: {row.text}
                 </p>
@@ -2094,6 +2105,7 @@ export function MonsterBlockCard({
     </div>
   );
 }
+
 
 
 

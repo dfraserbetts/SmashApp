@@ -49,7 +49,8 @@ function createEmptyAxisBonuses(): RadarAxes {
   return {
     physicalThreat: 0,
     mentalThreat: 0,
-    survivability: 0,
+    physicalSurvivability: 0,
+    mentalSurvivability: 0,
     manipulation: 0,
     synergy: 0,
     mobility: 0,
@@ -132,7 +133,10 @@ export type StrippedSummoningCircleBaseline = {
     willpowerValue: number;
     physicalBlockPerSuccess: number;
     mentalBlockPerSuccess: number;
-    defencePackageRawBonus: number;
+    physicalDodgeRawBonus: number;
+    mentalDodgeRawBonus: number;
+    physicalDefencePackageRawBonus: number;
+    mentalDefencePackageRawBonus: number;
     defencePackageTuning: {
       defenceStringProtectionOutputMaxShare: number;
       defenceStringProtectionOutputScale: number;
@@ -145,6 +149,7 @@ export type StrippedSummoningCircleBaseline = {
       dodgeExtremeAboveExpectedMaxShare: number;
       dodgeExtremeAboveExpectedScale: number;
       dodgeTotalMaxShare: number;
+      dodgeLaneSplit: string;
     };
     note: string;
   };
@@ -164,10 +169,10 @@ export function buildStrippedSummoningCircleBaseline(params: {
     tier,
     legendary: false,
     attackDie: "D6",
-    defenceDie: "D6",
+    guardDie: "D6",
     fortitudeDie: "D6",
     intellectDie: "D6",
-    supportDie: "D6",
+    synergyDie: "D6",
     braveryDie: "D6",
   } as const;
   const resilienceValues = calculateMonsterResilienceValues(baseMonster, params.protectionTuning);
@@ -177,19 +182,19 @@ export function buildStrippedSummoningCircleBaseline(params: {
     params.protectionTuning,
   );
   const armorSkillValue = getArmorSkillDiceCountFromAttributes(
-    baseMonster.defenceDie,
+    baseMonster.guardDie,
     baseMonster.fortitudeDie,
     params.protectionTuning,
   );
   const willpowerValue = getWillpowerDiceCountFromAttributes(
-    baseMonster.supportDie,
+    baseMonster.synergyDie,
     baseMonster.braveryDie,
     params.protectionTuning,
   );
   const totalPhysicalProtection = 0;
   const totalMentalProtection = 0;
   const dodgeValue = getDodgeValue(
-    baseMonster.defenceDie,
+    baseMonster.guardDie,
     baseMonster.intellectDie,
     level,
     totalPhysicalProtection,
@@ -200,8 +205,12 @@ export function buildStrippedSummoningCircleBaseline(params: {
   const mentalBlockPerSuccess = 0;
 
   const tierMultiplier = getCalculatorTierMultiplier(baseMonster, params.calculatorConfig);
-  const survivabilityAxisBudgetTarget = getTierAdjustedAxisBudgetTarget(
-    getCurvePointForLevel(params.calculatorConfig.scoringCurves.survivability, level),
+  const physicalSurvivabilityAxisBudgetTarget = getTierAdjustedAxisBudgetTarget(
+    getCurvePointForLevel(params.calculatorConfig.scoringCurves.physicalSurvivability, level),
+    tierMultiplier,
+  );
+  const mentalSurvivabilityAxisBudgetTarget = getTierAdjustedAxisBudgetTarget(
+    getCurvePointForLevel(params.calculatorConfig.scoringCurves.mentalSurvivability, level),
     tierMultiplier,
   );
   const expectedIncomingAttackDice = getExpectedIncomingAttackDiceForDodge(level, tier);
@@ -245,13 +254,19 @@ export function buildStrippedSummoningCircleBaseline(params: {
     params.protectionTuning.defenceStringProtectionOutputScale,
     params.protectionTuning.defenceStringProtectionOutputMaxShare,
   );
-  const defencePackageShareTotal =
-    totalDodgeShare +
-    physicalDefenceSurvivabilityShare +
-    mentalDefenceSurvivabilityShare;
-  const defencePackageRawBonus = survivabilityAxisBudgetTarget * defencePackageShareTotal;
+  const physicalDodgeRawBonus =
+    physicalSurvivabilityAxisBudgetTarget * totalDodgeShare * 0.5;
+  const mentalDodgeRawBonus =
+    mentalSurvivabilityAxisBudgetTarget * totalDodgeShare * 0.5;
+  const physicalDefencePackageRawBonus =
+    physicalDodgeRawBonus +
+    physicalSurvivabilityAxisBudgetTarget * physicalDefenceSurvivabilityShare;
+  const mentalDefencePackageRawBonus =
+    mentalDodgeRawBonus +
+    mentalSurvivabilityAxisBudgetTarget * mentalDefenceSurvivabilityShare;
   const equipmentModifierAxisBonuses = createEmptyAxisBonuses();
-  equipmentModifierAxisBonuses.survivability = defencePackageRawBonus;
+  equipmentModifierAxisBonuses.physicalSurvivability = physicalDefencePackageRawBonus;
+  equipmentModifierAxisBonuses.mentalSurvivability = mentalDefencePackageRawBonus;
 
   const monster: MonsterUpsertInput = {
     name: "Power Radar Comparison Neutral",
@@ -273,18 +288,18 @@ export function buildStrippedSummoningCircleBaseline(params: {
     attackDie: baseMonster.attackDie,
     attackResistDie: 0,
     attackModifier: 0,
-    defenceDie: baseMonster.defenceDie,
-    defenceResistDie: 0,
-    defenceModifier: 0,
+    guardDie: baseMonster.guardDie,
+    guardResistDie: 0,
+    guardModifier: 0,
     fortitudeDie: baseMonster.fortitudeDie,
     fortitudeResistDie: 0,
     fortitudeModifier: 0,
     intellectDie: baseMonster.intellectDie,
     intellectResistDie: 0,
     intellectModifier: 0,
-    supportDie: baseMonster.supportDie,
-    supportResistDie: 0,
-    supportModifier: 0,
+    synergyDie: baseMonster.synergyDie,
+    synergyResistDie: 0,
+    synergyModifier: 0,
     braveryDie: baseMonster.braveryDie,
     braveryResistDie: 0,
     braveryModifier: 0,
@@ -340,7 +355,10 @@ export function buildStrippedSummoningCircleBaseline(params: {
       willpowerValue,
       physicalBlockPerSuccess,
       mentalBlockPerSuccess,
-      defencePackageRawBonus,
+      physicalDodgeRawBonus,
+      mentalDodgeRawBonus,
+      physicalDefencePackageRawBonus,
+      mentalDefencePackageRawBonus,
       defencePackageTuning: {
         defenceStringProtectionOutputMaxShare:
           params.protectionTuning.defenceStringProtectionOutputMaxShare,
@@ -357,9 +375,11 @@ export function buildStrippedSummoningCircleBaseline(params: {
         dodgeExtremeAboveExpectedScale:
           params.protectionTuning.dodgeExtremeAboveExpectedScale,
         dodgeTotalMaxShare: params.protectionTuning.dodgeTotalMaxShare,
+        dodgeLaneSplit: "shared_even_split_across_physical_and_mental_survivability",
       },
       note:
         "Derived from the stripped Summoning Circle live baseline: D6 attributes, combat-tuned resilience/skills, no traits, no gear, no natural attacks, no limit breaks.",
     },
   };
 }
+

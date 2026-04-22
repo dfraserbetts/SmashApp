@@ -994,7 +994,7 @@ Bravery Resist is used when the hostile force attacks courage, fear threshold, p
 
 Examples include fear, terror, panic, dread, intimidation, supernatural awe, and command-through-dominance.
 
-Support Resist is used when the hostile force attacks relational grounding, belonging, trust, empathy, ally-bonding, or interpersonal anchoring.
+Synergy Resist is used when the hostile force attacks relational grounding, belonging, trust, empathy, ally-bonding, or interpersonal anchoring.
 
 Examples include isolation effects, bond-breaking curses, belonging collapse, trust corrosion, and loneliness-based mental assault.
 
@@ -1002,7 +1002,7 @@ Attack Resist is legal but narrower. It is used when the hostile force attacks o
 
 Examples include offensive-force drain, suppression of striking limbs, or direct dampening of attack output.
 
-Defence Resist is legal but narrower. It is used when the hostile force attacks guard posture, evasive readiness, balance, defensive coordination, or internal motor control tied to defensive function.
+Guard Resist is legal but narrower. It is used when the hostile force attacks guard posture, evasive readiness, balance, defensive coordination, or internal motor control tied to defensive function.
 
 Examples include vertigo curses, balance collapse, reflex jam, or internal motor desync that primarily damages defensive function.
 
@@ -1016,7 +1016,7 @@ do not collapse every physical internal effect into Fortitude
 
 do not collapse every emotional effect into Bravery
 
-do not use Attack or Defence merely to make the matrix look symmetric
+do not use Attack or Guard merely to make the matrix look symmetric
 
 one Resist Attribute per Resist-gated Primary Packet
 

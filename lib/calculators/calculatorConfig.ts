@@ -75,7 +75,8 @@ export type CalculatorConfig = {
   scoringCurves: {
     physicalThreat: LevelCurvePoint[];
     mentalThreat: LevelCurvePoint[];
-    survivability: LevelCurvePoint[];
+    physicalSurvivability: LevelCurvePoint[];
+    mentalSurvivability: LevelCurvePoint[];
     manipulation: LevelCurvePoint[];
     synergy: LevelCurvePoint[];
     mobility: LevelCurvePoint[];
@@ -184,7 +185,13 @@ export const calculatorConfig: CalculatorConfig = {
       minPerLevel: 0.5,
       maxPerLevel: 2.5,
     }),
-    survivability: makeLinearCurve({
+    physicalSurvivability: makeLinearCurve({
+      minAt1: 1,
+      maxAt1: 8,
+      minPerLevel: 0.05,
+      maxPerLevel: 0.15,
+    }),
+    mentalSurvivability: makeLinearCurve({
       minAt1: 1,
       maxAt1: 8,
       minPerLevel: 0.05,
@@ -386,8 +393,12 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
         overrides.scoringCurves?.physicalThreat ?? calculatorConfig.scoringCurves.physicalThreat,
       mentalThreat:
         overrides.scoringCurves?.mentalThreat ?? calculatorConfig.scoringCurves.mentalThreat,
-      survivability:
-        overrides.scoringCurves?.survivability ?? calculatorConfig.scoringCurves.survivability,
+      physicalSurvivability:
+        overrides.scoringCurves?.physicalSurvivability ??
+        calculatorConfig.scoringCurves.physicalSurvivability,
+      mentalSurvivability:
+        overrides.scoringCurves?.mentalSurvivability ??
+        calculatorConfig.scoringCurves.mentalSurvivability,
       manipulation:
         overrides.scoringCurves?.manipulation ?? calculatorConfig.scoringCurves.manipulation,
       synergy: overrides.scoringCurves?.synergy ?? calculatorConfig.scoringCurves.synergy,

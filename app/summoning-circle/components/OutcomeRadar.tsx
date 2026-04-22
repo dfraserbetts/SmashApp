@@ -11,7 +11,8 @@ type Props = {
 const AXES: { key: keyof RadarAxes; labelLines: string[] }[] = [
   { key: "physicalThreat", labelLines: ["Physical", "Threat"] },
   { key: "mentalThreat", labelLines: ["Mental", "Threat"] },
-  { key: "survivability", labelLines: ["Survivability"] },
+  { key: "physicalSurvivability", labelLines: ["Physical", "Survivability"] },
+  { key: "mentalSurvivability", labelLines: ["Mental", "Survivability"] },
   { key: "manipulation", labelLines: ["Control", "Pressure"] },
   { key: "synergy", labelLines: ["Synergy"] },
   { key: "mobility", labelLines: ["Mobility"] },
@@ -37,7 +38,7 @@ export function OutcomeRadar({ axes, backgroundAxes, size = 312 }: Props) {
   const cy = size / 2;
   // Reserve a real label gutter so long axis names stay inside the SVG
   // instead of colliding with the outer ring.
-  const labelGutter = 48;
+  const labelGutter = 58;
   const radius = Math.max(48, cx - labelGutter);
   const labelRadius = radius + 24;
 

@@ -70,9 +70,9 @@ const CONTROL_THEME_TO_RESIST_ATTRIBUTE = new Map<string, string>([
   ["BODY_ENDURANCE", "FORTITUDE"],
   ["MIND_COGNITION", "INTELLECT"],
   ["COURAGE_RESOLVE", "BRAVERY"],
-  ["TRUST_BELONGING", "SUPPORT"],
+  ["TRUST_BELONGING", "SYNERGY"],
   ["OFFENSIVE_EXECUTION", "ATTACK"],
-  ["DEFENSIVE_COORDINATION", "DEFENCE"],
+  ["DEFENSIVE_COORDINATION", "GUARD"],
 ]);
 const TRIGGER_CONDITION_SET = new Set<TriggerConditionKey>(TRIGGER_CONDITION_KEYS);
 const TRIGGER_AREA_PRESENCE_KEYS = new Set<TriggerConditionKey>([
@@ -767,10 +767,10 @@ function readNumber(details: Record<string, unknown> | null | undefined, key: st
 function normalizeCoreDefenceStat(statTarget: string): string | null {
   const normalized = statTarget.trim().toLowerCase();
   if (normalized === "attack") return "Attack";
-  if (normalized === "defence") return "Defence";
+  if (normalized === "guard" || normalized === "defence") return "Guard";
   if (normalized === "fortitude") return "Fortitude";
   if (normalized === "intellect") return "Intellect";
-  if (normalized === "support") return "Support";
+  if (normalized === "synergy" || normalized === "support") return "Synergy";
   if (normalized === "bravery") return "Bravery";
   return null;
 }

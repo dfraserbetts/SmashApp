@@ -94,6 +94,7 @@ import {
   buildApprovedCanarySuite,
   cloneApprovedCanaryPower,
 } from "@/lib/summoning/canaryCatalog";
+import { evaluateAttributeBalancingGuide } from "@/lib/summoning/attributeBalancingGuide";
 
 type Props = { campaignId: string };
 type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
@@ -163,18 +164,18 @@ const MONSTER_TIER_LABELS: Record<MonsterTier, string> = {
 const LIMIT_BREAK_TIER_OPTIONS: LimitBreakTier[] = ["PUSH", "BREAK", "TRANSCEND"];
 const CORE_ATTRIBUTE_OPTIONS: CoreAttribute[] = [
   "ATTACK",
-  "DEFENCE",
+  "GUARD",
   "FORTITUDE",
   "INTELLECT",
-  "SUPPORT",
+  "SYNERGY",
   "BRAVERY",
 ];
 const CORE_ATTRIBUTE_LABELS: Record<CoreAttribute, string> = {
   ATTACK: "Attack",
-  DEFENCE: "Defence",
+  GUARD: "Guard",
   FORTITUDE: "Fortitude",
   INTELLECT: "Intellect",
-  SUPPORT: "Support",
+  SYNERGY: "Synergy",
   BRAVERY: "Bravery",
 };
 const MAX_RECENT_PICKER_ITEMS = 5;
@@ -357,10 +358,10 @@ const LIMIT_BREAK_TIER_TOOLTIPS: Record<LimitBreakTier, string> = {
 };
 const CORE_ATTRIBUTE_OPTION_TOOLTIPS: Record<CoreAttribute, string> = {
   ATTACK: "Uses Attack as the attribute for this custom limit break.",
-  DEFENCE: "Uses Defence as the attribute for this custom limit break.",
+  GUARD: "Uses Guard as the attribute for this custom limit break.",
   FORTITUDE: "Uses Fortitude as the attribute for this custom limit break.",
   INTELLECT: "Uses Intellect as the attribute for this custom limit break.",
-  SUPPORT: "Uses Support as the attribute for this custom limit break.",
+  SYNERGY: "Uses Synergy as the attribute for this custom limit break.",
   BRAVERY: "Uses Bravery as the attribute for this custom limit break.",
 };
 const NATURAL_ATTACK_GS_ATTRITION_PRIMARY_SHARE = 0.08;
@@ -456,9 +457,9 @@ const CONTROL_THEME_TO_RESIST_ATTRIBUTE: Record<ControlThemeOption, CoreAttribut
   BODY_ENDURANCE: "FORTITUDE",
   MIND_COGNITION: "INTELLECT",
   COURAGE_RESOLVE: "BRAVERY",
-  TRUST_BELONGING: "SUPPORT",
+  TRUST_BELONGING: "SYNERGY",
   OFFENSIVE_EXECUTION: "ATTACK",
-  DEFENSIVE_COORDINATION: "DEFENCE",
+  DEFENSIVE_COORDINATION: "GUARD",
 };
 
 const CLEANSE_EFFECTS = [
@@ -479,10 +480,10 @@ const MOVEMENT_MODES = [
 
 const AUGMENT_DEBUFF_STATS = [
   "Attack",
-  "Defence",
+  "Guard",
   "Fortitude",
   "Intellect",
-  "Support",
+  "Synergy",
   "Bravery",
   "Movement",
   "Weapon Skill",
@@ -516,6 +517,16 @@ function getDetailsNullableNumber(details: Record<string, unknown>, key: string)
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function normalizeLegacyCoreAttribute(value: unknown): CoreAttribute | null {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  if (!normalized) return null;
+  if (normalized === "DEFENCE" || normalized === "DEFENSE") return "GUARD";
+  if (normalized === "SUPPORT") return "SYNERGY";
+  return CORE_ATTRIBUTE_OPTIONS.includes(normalized as CoreAttribute)
+    ? (normalized as CoreAttribute)
+    : null;
 }
 
 function getSecondaryScalingMode(details: Record<string, unknown>): SecondaryScalingMode {
@@ -772,7 +783,10 @@ function getPositiveWholeNumber(value: unknown): number | null {
 
 function getDetailsStatTarget(details: Record<string, unknown>): string {
   const value = details.statTarget ?? details.statChoice;
-  return typeof value === "string" ? value : "";
+  if (typeof value !== "string") return "";
+  if (value === "Defence") return "Guard";
+  if (value === "Support") return "Synergy";
+  return value;
 }
 
 function normalizeControlMode(value: unknown): string {
@@ -841,13 +855,14 @@ function mapLegacyApplicationModeKeyToMovementTheme(
   if (normalized === "BRAVERY" || normalized === "COURAGE" || normalized === "COURAGE / RESOLVE / PANIC") {
     return "COURAGE_RESOLVE";
   }
-  if (normalized === "SUPPORT" || normalized === "TRUST" || normalized === "TRUST / BELONGING / ANCHORING") {
+  if (normalized === "SYNERGY" || normalized === "SUPPORT" || normalized === "TRUST" || normalized === "TRUST / BELONGING / ANCHORING") {
     return "TRUST_BELONGING";
   }
   if (normalized === "ATTACK" || normalized === "OFFENSIVE" || normalized === "OFFENSIVE EXECUTION") {
     return "OFFENSIVE_EXECUTION";
   }
   if (
+    normalized === "GUARD" ||
     normalized === "DEFENCE" ||
     normalized === "DEFENSE" ||
     normalized === "DEFENSIVE" ||
@@ -1046,10 +1061,10 @@ function deriveDefenceCheckLabel(
   const normalizeCoreStat = (statTarget: string): string | null => {
     const normalized = statTarget.trim().toLowerCase();
     if (normalized === "attack") return "Attack";
-    if (normalized === "defence") return "Defence";
+    if (normalized === "guard" || normalized === "defence") return "Guard";
     if (normalized === "fortitude") return "Fortitude";
     if (normalized === "intellect") return "Intellect";
-    if (normalized === "support") return "Support";
+    if (normalized === "synergy" || normalized === "support") return "Synergy";
     if (normalized === "bravery") return "Bravery";
     return null;
   };
@@ -1835,18 +1850,7 @@ function createDefaultPowerPacket(
 }
 
 function getCoreAttributeFromStatTarget(statTarget: string): CoreAttribute | null {
-  const normalized = statTarget.trim().toUpperCase();
-  if (
-    normalized === "ATTACK" ||
-    normalized === "DEFENCE" ||
-    normalized === "FORTITUDE" ||
-    normalized === "INTELLECT" ||
-    normalized === "SUPPORT" ||
-    normalized === "BRAVERY"
-  ) {
-    return normalized as CoreAttribute;
-  }
-  return null;
+  return normalizeLegacyCoreAttribute(statTarget);
 }
 
 function normalizePowerEffectPacket(
@@ -2651,29 +2655,29 @@ function sanitizePowerPacketDamageTypes(
 
 const ATTR_ROWS = [
   ["Attack", "attackDie", "attackResistDie", "attackModifier"],
-  ["Defence", "defenceDie", "defenceResistDie", "defenceModifier"],
+  ["Guard", "guardDie", "guardResistDie", "guardModifier"],
   ["Fortitude", "fortitudeDie", "fortitudeResistDie", "fortitudeModifier"],
   ["Intellect", "intellectDie", "intellectResistDie", "intellectModifier"],
-  ["Support", "supportDie", "supportResistDie", "supportModifier"],
+  ["Synergy", "synergyDie", "synergyResistDie", "synergyModifier"],
   ["Bravery", "braveryDie", "braveryResistDie", "braveryModifier"],
 ] as const;
 const ATTRIBUTE_TOOLTIPS: Record<(typeof ATTR_ROWS)[number][0], string> = {
   Attack: "Affects Physical Resilience, Weapon Skill, and physical attack dice.",
-  Defence: "Affects Physical Resilience, Armor Skill, Dodge, and physical defence dice.",
+  Guard: "Affects Physical Resilience, Armor Skill, Dodge, and physical defence dice.",
   Fortitude: "Affects Physical Resilience and Armor Skill.",
   Intellect: "Affects Mental Perseverance, Dodge, and mental attack dice.",
-  Support: "Affects Mental Perseverance, Willpower, and all Ally Assist rolls.",
-  Bravery: "Affects Mental Perseverance, Weapon Skill, and Willpower.",
+  Synergy: "Affects Mental Perseverance, Willpower, and all Ally Assist rolls.",
+  Bravery: "Affects Mental Perseverance, Weapon Skill, Willpower, and Mental Defence dice.",
 };
 const DERIVED_STAT_TOOLTIPS = {
   weaponSkill:
     "Derived from Bravery (weighted) + Attack (weighted). Attributes are halved before weighting.",
   armorSkill:
-    "Derived from Fortitude (weighted) + Defence (weighted). Attributes are halved before weighting.",
+    "Derived from Fortitude (weighted) + Guard (weighted). Attributes are halved before weighting.",
   dodge:
-    "Derived from Intellect and Defence, then reduced by Physical Protection.",
+    "Derived from Intellect and Guard, then reduced by Physical Protection.",
   willpower:
-    "Derived from Support (weighted) + Bravery (weighted). Attributes are halved before weighting.",
+    "Derived from Synergy (weighted) + Bravery (weighted). This pooled Willpower value supports mental protection, while Bravery remains the surfaced Mental Defence stat.",
 } as const;
 
 const TRAIT_POINTS_PLACEHOLDER = 5;
@@ -2690,10 +2694,10 @@ function calculateResilienceValues(
     | "tier"
     | "legendary"
     | "attackDie"
-    | "defenceDie"
+    | "guardDie"
     | "fortitudeDie"
     | "intellectDie"
-    | "supportDie"
+    | "synergyDie"
     | "braveryDie"
   >,
   tuning: ProtectionTuningValues,
@@ -2780,18 +2784,18 @@ function defaultMonster(): EditableMonster {
     attackDie: "D6",
     attackResistDie: 0,
     attackModifier: 0,
-    defenceDie: "D6",
-    defenceResistDie: 0,
-    defenceModifier: 0,
+    guardDie: "D6",
+    guardResistDie: 0,
+    guardModifier: 0,
     fortitudeDie: "D6",
     fortitudeResistDie: 0,
     fortitudeModifier: 0,
     intellectDie: "D6",
     intellectResistDie: 0,
     intellectModifier: 0,
-    supportDie: "D6",
-    supportResistDie: 0,
-    supportModifier: 0,
+    synergyDie: "D6",
+    synergyResistDie: 0,
+    synergyModifier: 0,
     braveryDie: "D6",
     braveryResistDie: 0,
     braveryModifier: 0,
@@ -3044,10 +3048,19 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
     ...defaultMonster(),
     ...raw,
     attackResistDie: Number(raw.attackResistDie ?? 0),
-    defenceResistDie: Number(raw.defenceResistDie ?? 0),
+    guardDie: typeof raw.guardDie === "string" ? (raw.guardDie as DiceSize) : typeof raw.defenceDie === "string" ? (raw.defenceDie as DiceSize) : defaultMonster().guardDie,
+    guardResistDie: Number(raw.guardResistDie ?? raw.defenceResistDie ?? 0),
+    guardModifier: Number(raw.guardModifier ?? raw.defenceModifier ?? 0),
     fortitudeResistDie: Number(raw.fortitudeResistDie ?? 0),
     intellectResistDie: Number(raw.intellectResistDie ?? 0),
-    supportResistDie: Number(raw.supportResistDie ?? 0),
+    synergyDie:
+      typeof raw.synergyDie === "string"
+        ? (raw.synergyDie as DiceSize)
+        : typeof raw.supportDie === "string"
+          ? (raw.supportDie as DiceSize)
+          : defaultMonster().synergyDie,
+    synergyResistDie: Number(raw.synergyResistDie ?? raw.supportResistDie ?? 0),
+    synergyModifier: Number(raw.synergyModifier ?? raw.supportModifier ?? 0),
     braveryResistDie: Number(raw.braveryResistDie ?? 0),
     naturalPhysicalProtection: Math.max(
       0,
@@ -3128,15 +3141,7 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
       typeof raw.limitBreakTriggerText === "string" && raw.limitBreakTriggerText.trim().length > 0
         ? raw.limitBreakTriggerText
         : null,
-    limitBreakAttribute:
-      raw.limitBreakAttribute === "ATTACK" ||
-      raw.limitBreakAttribute === "DEFENCE" ||
-      raw.limitBreakAttribute === "FORTITUDE" ||
-      raw.limitBreakAttribute === "INTELLECT" ||
-      raw.limitBreakAttribute === "SUPPORT" ||
-      raw.limitBreakAttribute === "BRAVERY"
-        ? (raw.limitBreakAttribute as CoreAttribute)
-        : null,
+    limitBreakAttribute: normalizeLegacyCoreAttribute(raw.limitBreakAttribute),
     limitBreakThresholdSuccesses: (() => {
       if (
         raw.limitBreakThresholdSuccesses === null ||
@@ -3170,15 +3175,7 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
       typeof raw.limitBreak2TriggerText === "string" && raw.limitBreak2TriggerText.trim().length > 0
         ? raw.limitBreak2TriggerText.trim()
         : null,
-    limitBreak2Attribute:
-      raw.limitBreak2Attribute === "ATTACK" ||
-      raw.limitBreak2Attribute === "DEFENCE" ||
-      raw.limitBreak2Attribute === "FORTITUDE" ||
-      raw.limitBreak2Attribute === "INTELLECT" ||
-      raw.limitBreak2Attribute === "SUPPORT" ||
-      raw.limitBreak2Attribute === "BRAVERY"
-        ? (raw.limitBreak2Attribute as CoreAttribute)
-        : null,
+    limitBreak2Attribute: normalizeLegacyCoreAttribute(raw.limitBreak2Attribute),
     limitBreak2ThresholdSuccesses: (() => {
       if (
         raw.limitBreak2ThresholdSuccesses === null ||
@@ -3398,7 +3395,8 @@ function createEmptyAxisBonuses(): RadarAxes {
   return {
     physicalThreat: 0,
     mentalThreat: 0,
-    survivability: 0,
+    physicalSurvivability: 0,
+    mentalSurvivability: 0,
     manipulation: 0,
     synergy: 0,
     mobility: 0,
@@ -3432,13 +3430,13 @@ function getCalculatorTierMultiplier(
 
 const EQUIPMENT_MODIFIER_AXIS_FIELDS = [
   { field: "attackModifier", axis: "physicalThreat" },
-  { field: "defenceModifier", axis: "survivability" },
-  { field: "fortitudeModifier", axis: "survivability" },
+  { field: "guardModifier", axis: "physicalSurvivability" },
+  { field: "fortitudeModifier", axis: "physicalSurvivability" },
   { field: "intellectModifier", axis: "mentalThreat" },
-  { field: "supportModifier", axis: "synergy" },
+  { field: "synergyModifier", axis: "synergy" },
   { field: "braveryModifier", axis: "manipulation" },
   { field: "weaponSkillModifier", axis: "physicalThreat" },
-  { field: "armorSkillModifier", axis: "survivability" },
+  { field: "armorSkillModifier", axis: "physicalSurvivability" },
 ] as const;
 
 const EQUIPMENT_LINE_ATTACK_THREAT_SHARE_PER_LINE = 0.05;
@@ -3877,6 +3875,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     LB2: true,
   });
   const [equippedGearCollapsed, setEquippedGearCollapsed] = useState(false);
+  const [collapsedGuideSections, setCollapsedGuideSections] = useState({
+    attributes: false,
+    traits: false,
+    defence: false,
+    attacks: false,
+  });
 
   const togglePowerCollapsed = useCallback((powerId: string) => {
     setCollapsedPowerIds((prev) => {
@@ -3888,6 +3892,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       return { ...prev, [powerId]: true };
     });
   }, []);
+  const toggleGuideSectionCollapsed = useCallback(
+    (section: keyof typeof collapsedGuideSections) => {
+      setCollapsedGuideSections((prev) => ({ ...prev, [section]: !prev[section] }));
+    },
+    [],
+  );
   const getNaturalAttackCollapseKey = useCallback(
     (attack: MonsterAttack, attackIndex: number) => {
       const candidate = (attack as { id?: unknown }).id;
@@ -4034,6 +4044,25 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   const powerTuning = usePowerTuning();
   const outcomeNormalization = useOutcomeNormalization();
   const canaryEntries = useMemo(() => APPROVED_CANARY_POWERS, []);
+  const attributeBalancingGuide = useMemo(
+    () =>
+      editor
+        ? evaluateAttributeBalancingGuide({
+            level: editor.level,
+            tier: editor.tier,
+            archetype: calculatorArchetype,
+            attributes: {
+              attackDie: editor.attackDie,
+              guardDie: editor.guardDie,
+              fortitudeDie: editor.fortitudeDie,
+              intellectDie: editor.intellectDie,
+              synergyDie: editor.synergyDie,
+              braveryDie: editor.braveryDie,
+            },
+          })
+        : null,
+    [calculatorArchetype, editor],
+  );
   const runtimeCalculatorConfig = useMemo(
     () =>
       applyCombatTuningToCalculatorConfig(
@@ -4059,23 +4088,23 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   const baseArmorSkillValue = useMemo(
     () =>
       editor
-        ? getArmorSkillDiceCountFromAttributes(editor.defenceDie, editor.fortitudeDie, protectionTuning)
+        ? getArmorSkillDiceCountFromAttributes(editor.guardDie, editor.fortitudeDie, protectionTuning)
         : 1,
-    [editor?.defenceDie, editor?.fortitudeDie, protectionTuning],
+    [editor?.guardDie, editor?.fortitudeDie, protectionTuning],
   );
   const customLimitBreakAttributeValue = useMemo(() => {
     if (!editor?.limitBreakAttribute) return null;
     switch (editor.limitBreakAttribute) {
       case "ATTACK":
         return getAttributeNumericValue(editor.attackDie);
-      case "DEFENCE":
-        return getAttributeNumericValue(editor.defenceDie);
+      case "GUARD":
+        return getAttributeNumericValue(editor.guardDie);
       case "FORTITUDE":
         return getAttributeNumericValue(editor.fortitudeDie);
       case "INTELLECT":
         return getAttributeNumericValue(editor.intellectDie);
-      case "SUPPORT":
-        return getAttributeNumericValue(editor.supportDie);
+      case "SYNERGY":
+        return getAttributeNumericValue(editor.synergyDie);
       case "BRAVERY":
         return getAttributeNumericValue(editor.braveryDie);
       default:
@@ -4084,11 +4113,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   }, [
     editor?.attackDie,
     editor?.braveryDie,
-    editor?.defenceDie,
+    editor?.guardDie,
     editor?.fortitudeDie,
     editor?.intellectDie,
     editor?.limitBreakAttribute,
-    editor?.supportDie,
+    editor?.synergyDie,
   ]);
   const customLimitBreakThresholdRequired = useMemo(() => {
     if (!editor?.limitBreakTier || customLimitBreakAttributeValue === null) return null;
@@ -4104,14 +4133,14 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     switch (editor.limitBreak2Attribute) {
       case "ATTACK":
         return getAttributeNumericValue(editor.attackDie);
-      case "DEFENCE":
-        return getAttributeNumericValue(editor.defenceDie);
+      case "GUARD":
+        return getAttributeNumericValue(editor.guardDie);
       case "FORTITUDE":
         return getAttributeNumericValue(editor.fortitudeDie);
       case "INTELLECT":
         return getAttributeNumericValue(editor.intellectDie);
-      case "SUPPORT":
-        return getAttributeNumericValue(editor.supportDie);
+      case "SYNERGY":
+        return getAttributeNumericValue(editor.synergyDie);
       case "BRAVERY":
         return getAttributeNumericValue(editor.braveryDie);
       default:
@@ -4120,11 +4149,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   }, [
     editor?.attackDie,
     editor?.braveryDie,
-    editor?.defenceDie,
+    editor?.guardDie,
     editor?.fortitudeDie,
     editor?.intellectDie,
     editor?.limitBreak2Attribute,
-    editor?.supportDie,
+    editor?.synergyDie,
   ]);
   const customLimitBreak2ThresholdRequired = useMemo(() => {
     if (!editor?.limitBreak2Tier || customLimitBreak2AttributeValue === null) return null;
@@ -4825,7 +4854,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         0,
         editor
           ? getDodgeValue(
-              editor.defenceDie,
+              editor.guardDie,
               editor.intellectDie,
               editor.level,
               totalPhysicalProtection,
@@ -4834,7 +4863,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           : 0,
       ),
     [
-      editor?.defenceDie,
+      editor?.guardDie,
       editor?.intellectDie,
       editor?.level,
       totalPhysicalProtection,
@@ -4847,7 +4876,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         ? Math.max(
             1,
             getWillpowerDiceCountFromAttributes(
-              editor.supportDie,
+              editor.synergyDie,
               editor.braveryDie,
               protectionTuning,
             ) +
@@ -4855,7 +4884,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           )
         : 0,
     [
-      editor?.supportDie,
+      editor?.synergyDie,
       editor?.braveryDie,
       itemModifierValues.willpowerModifier,
       protectionTuning,
@@ -5037,10 +5066,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         naturalPhysicalProtection: naturalPhysicalProtectionValue,
         naturalMentalProtection: naturalMentalProtectionValue,
         attackModifier: itemModifierValues.attackModifier,
-        defenceModifier: itemModifierValues.defenceModifier,
+        guardModifier: itemModifierValues.guardModifier,
         fortitudeModifier: itemModifierValues.fortitudeModifier,
         intellectModifier: itemModifierValues.intellectModifier,
-        supportModifier: itemModifierValues.supportModifier,
+        synergyModifier: itemModifierValues.synergyModifier,
         braveryModifier: itemModifierValues.braveryModifier,
         weaponSkillModifier: itemModifierValues.weaponSkillModifier,
         armorSkillModifier: itemModifierValues.armorSkillModifier,
@@ -5113,8 +5142,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalThreat, level),
         tierMultiplier,
       ),
-      survivability: getTierAdjustedAxisBudgetTarget(
-        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.survivability, level),
+      physicalSurvivability: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.physicalSurvivability, level),
+        tierMultiplier,
+      ),
+      mentalSurvivability: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalSurvivability, level),
         tierMultiplier,
       ),
       manipulation: getTierAdjustedAxisBudgetTarget(
@@ -5163,8 +5196,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalThreat, level),
         tierMultiplier,
       ),
-      survivability: getTierAdjustedAxisBudgetTarget(
-        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.survivability, level),
+      physicalSurvivability: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.physicalSurvivability, level),
+        tierMultiplier,
+      ),
+      mentalSurvivability: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalSurvivability, level),
         tierMultiplier,
       ),
       manipulation: getTierAdjustedAxisBudgetTarget(
@@ -5207,7 +5244,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       EQUIPMENT_LINE_ATTACK_PRESENCE_CAP_SHARE,
     );
     const defenceSurvivabilityShare = getCappedEquipmentLineShare(
-      lineCounts.DEFENCE,
+      lineCounts.GUARD,
       EQUIPMENT_LINE_DEFENCE_SURVIVABILITY_SHARE_PER_LINE,
       EQUIPMENT_LINE_DEFENCE_SURVIVABILITY_CAP_SHARE,
     );
@@ -5234,7 +5271,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
 
     bonuses.physicalThreat += axisBudgetTargets.physicalThreat * attackThreatShare;
     bonuses.presence += axisBudgetTargets.presence * attackPresenceShare;
-    bonuses.survivability += axisBudgetTargets.survivability * defenceSurvivabilityShare;
+    bonuses.physicalSurvivability +=
+      axisBudgetTargets.physicalSurvivability * defenceSurvivabilityShare;
     bonuses.synergy += axisBudgetTargets.synergy * traitsSynergyShare;
     bonuses.presence += axisBudgetTargets.presence * traitsPresenceShare;
     bonuses.synergy += axisBudgetTargets.synergy * generalSynergyShare;
@@ -5298,11 +5336,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       protectionTuning.defenceStringProtectionOutputMaxShare,
     );
 
-    bonuses.survivability +=
-      axisBudgetTargets.survivability *
-      (totalDodgeShare +
-        physicalDefenceSurvivabilityShare +
-        mentalDefenceSurvivabilityShare);
+    bonuses.physicalSurvivability +=
+      axisBudgetTargets.physicalSurvivability *
+      (totalDodgeShare * 0.5 + physicalDefenceSurvivabilityShare);
+    bonuses.mentalSurvivability +=
+      axisBudgetTargets.mentalSurvivability *
+      (totalDodgeShare * 0.5 + mentalDefenceSurvivabilityShare);
 
     return bonuses;
   }, [
@@ -5331,8 +5370,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalThreat, level),
         tierMultiplier,
       ),
-      survivability: getTierAdjustedAxisBudgetTarget(
-        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.survivability, level),
+      physicalSurvivability: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.physicalSurvivability, level),
+        tierMultiplier,
+      ),
+      mentalSurvivability: getTierAdjustedAxisBudgetTarget(
+        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalSurvivability, level),
         tierMultiplier,
       ),
       manipulation: getTierAdjustedAxisBudgetTarget(
@@ -5381,13 +5424,17 @@ export function SummoningCircleEditor({ campaignId }: Props) {
 
     return bonuses;
   }, [previewMonster, runtimeCalculatorConfig]);
-  const survivabilityDebugBreakdown = useMemo(() => {
+  const survivabilityLaneDebugBreakdown = useMemo(() => {
     if (!previewMonster) return null;
 
     const level = Math.max(1, Math.trunc(previewMonster.level || 1));
     const tierMultiplier = getCalculatorTierMultiplier(previewMonster, runtimeCalculatorConfig);
-    const survivabilityAxisBudgetTarget = getTierAdjustedAxisBudgetTarget(
-      getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.survivability, level),
+    const physicalSurvivabilityAxisBudgetTarget = getTierAdjustedAxisBudgetTarget(
+      getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.physicalSurvivability, level),
+      tierMultiplier,
+    );
+    const mentalSurvivabilityAxisBudgetTarget = getTierAdjustedAxisBudgetTarget(
+      getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalSurvivability, level),
       tierMultiplier,
     );
 
@@ -5449,26 +5496,31 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       protectionTuning.defenceStringProtectionOutputMaxShare,
     );
 
-    const defencePackageShareTotal =
-      totalDodgeShare +
-      physicalDefenceSurvivabilityShare +
-      mentalDefenceSurvivabilityShare;
+    const physicalDodgeRawBonus =
+      physicalSurvivabilityAxisBudgetTarget * totalDodgeShare * 0.5;
+    const mentalDodgeRawBonus =
+      mentalSurvivabilityAxisBudgetTarget * totalDodgeShare * 0.5;
+    const physicalDefencePackageRawBonus =
+      physicalDodgeRawBonus +
+      physicalSurvivabilityAxisBudgetTarget * physicalDefenceSurvivabilityShare;
+    const mentalDefencePackageRawBonus =
+      mentalDodgeRawBonus +
+      mentalSurvivabilityAxisBudgetTarget * mentalDefenceSurvivabilityShare;
 
-    const defencePackageRawBonus =
-      survivabilityAxisBudgetTarget * defencePackageShareTotal;
-
-    const selectedEquipmentSurvivabilityRawBonusTotal =
-      Math.max(0, selectedEquipmentModifierAxisBonuses.survivability ?? 0);
-
-    const selectedEquipmentSurvivabilityRawBonusOther = Math.max(
+    const selectedEquipmentPhysicalSurvivabilityRawBonusTotal = Math.max(
       0,
-      selectedEquipmentSurvivabilityRawBonusTotal - defencePackageRawBonus,
+      selectedEquipmentModifierAxisBonuses.physicalSurvivability ?? 0,
+    );
+    const selectedEquipmentMentalSurvivabilityRawBonusTotal = Math.max(
+      0,
+      selectedEquipmentModifierAxisBonuses.mentalSurvivability ?? 0,
     );
 
     return {
-      survivabilityAxisBudgetTarget,
-      selectedEquipmentSurvivabilityRawBonusTotal,
-      selectedEquipmentSurvivabilityRawBonusOther,
+      physicalSurvivabilityAxisBudgetTarget,
+      mentalSurvivabilityAxisBudgetTarget,
+      selectedEquipmentPhysicalSurvivabilityRawBonusTotal,
+      selectedEquipmentMentalSurvivabilityRawBonusTotal,
       dodge: {
         currentDodgeDice: dodgeDice,
         expectedIncomingAttackDice,
@@ -5480,14 +5532,16 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         extremeAboveExpectedDice,
         extremeAboveExpectedShare: extremeAboveExpectedDodgeShare,
         totalShare: totalDodgeShare,
-        rawBonus: survivabilityAxisBudgetTarget * totalDodgeShare,
+        routing: "shared_even_split_across_physical_and_mental_survivability",
+        physicalRawBonus: physicalDodgeRawBonus,
+        mentalRawBonus: mentalDodgeRawBonus,
       },
       physicalDefence: {
         armorSkillDice: computedArmorSkillValue,
         blockPerSuccess: physicalBlockPerSuccess,
         potential: physicalDefencePotential,
         share: physicalDefenceSurvivabilityShare,
-        rawBonus: survivabilityAxisBudgetTarget * physicalDefenceSurvivabilityShare,
+        rawBonus: physicalSurvivabilityAxisBudgetTarget * physicalDefenceSurvivabilityShare,
         totalPhysicalProtection,
       },
       mentalDefence: {
@@ -5495,12 +5549,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         blockPerSuccess: mentalBlockPerSuccess,
         potential: mentalDefencePotential,
         share: mentalDefenceSurvivabilityShare,
-        rawBonus: survivabilityAxisBudgetTarget * mentalDefenceSurvivabilityShare,
+        rawBonus: mentalSurvivabilityAxisBudgetTarget * mentalDefenceSurvivabilityShare,
         totalMentalProtection,
       },
-      defencePackage: {
-        totalShare: defencePackageShareTotal,
-        rawBonus: defencePackageRawBonus,
+      laneTotals: {
+        physicalRawBonus: physicalDefencePackageRawBonus,
+        mentalRawBonus: mentalDefencePackageRawBonus,
       },
     };
   }, [
@@ -5542,7 +5596,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       ...baseProfile,
       debug: {
         ...(baseProfile.debug ?? {}),
-        survivabilityBreakdown: survivabilityDebugBreakdown,
+        survivabilityLaneBreakdown: survivabilityLaneDebugBreakdown,
       },
     };
   }, [
@@ -5554,7 +5608,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     selectedNaturalAttackGsAxisBonuses,
     selectedNaturalAttackRangeAxisBonuses,
     selectedTraitAxisBonuses,
-    survivabilityDebugBreakdown,
+    survivabilityLaneDebugBreakdown,
   ]);
 
   const hasEditor = !!editor;
@@ -5625,10 +5679,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         naturalPhysicalProtection: naturalPhysicalProtectionValue,
         naturalMentalProtection: naturalMentalProtectionValue,
         attackModifier: itemModifierValues.attackModifier,
-        defenceModifier: itemModifierValues.defenceModifier,
+        guardModifier: itemModifierValues.guardModifier,
         fortitudeModifier: itemModifierValues.fortitudeModifier,
         intellectModifier: itemModifierValues.intellectModifier,
-        supportModifier: itemModifierValues.supportModifier,
+        synergyModifier: itemModifierValues.synergyModifier,
         braveryModifier: itemModifierValues.braveryModifier,
         weaponSkillModifier: itemModifierValues.weaponSkillModifier,
         armorSkillModifier: itemModifierValues.armorSkillModifier,
@@ -6998,7 +7052,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       className="text-zinc-400 hover:text-zinc-200"
                       aria-label={`Remove tag ${tag}`}
                     >
-                      ×
+                      x
                     </button>
                   )}
                 </span>
@@ -7224,7 +7278,19 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         </section>
 
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3 overflow-visible">
-          <h3 className="text-xs uppercase tracking-wide text-zinc-400">Attributes</h3>
+          <button
+            type="button"
+            onClick={() => toggleGuideSectionCollapsed("attributes")}
+            className="w-full flex items-center justify-between rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 hover:bg-zinc-900/40 cursor-pointer select-none"
+            aria-expanded={!collapsedGuideSections.attributes}
+          >
+            <span className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-400">
+              <span aria-hidden="true">{collapsedGuideSections.attributes ? ">" : "v"}</span>
+              Attributes
+            </span>
+          </button>
+          {!collapsedGuideSections.attributes && (
+            <>
           <div className="space-y-2 min-w-0">
             <div className="mb-2 grid grid-cols-4 gap-2 items-center min-w-0 text-xs text-zinc-400 uppercase tracking-wide">
               <div aria-hidden="true" />
@@ -7276,10 +7342,91 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             ))}
           </div>
 
+          {attributeBalancingGuide && (
+            <div className="rounded border border-zinc-800 bg-zinc-900/40 p-3 text-xs">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h4 className="font-medium text-zinc-200">Attribute Balancing Guide</h4>
+                  <p className="mt-1 text-[11px] text-zinc-500">
+                    Soft authoring guidance only. Specialist spreads are allowed; the Outcome
+                    Calculator remains the downstream truth.
+                  </p>
+                </div>
+                <span
+                  className={`rounded border px-2 py-1 text-[11px] ${
+                    attributeBalancingGuide.budgetStatus === "On Budget"
+                      ? "border-emerald-700/70 bg-emerald-950/30 text-emerald-200"
+                      : attributeBalancingGuide.budgetStatus === "Under Budget"
+                        ? "border-sky-700/70 bg-sky-950/30 text-sky-200"
+                        : "border-amber-700/70 bg-amber-950/30 text-amber-200"
+                  }`}
+                >
+                  {attributeBalancingGuide.budgetStatus}
+                </span>
+              </div>
+
+              <dl className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="rounded border border-zinc-800 bg-zinc-950/40 p-2">
+                  <dt className="text-[11px] text-zinc-500">Current Total</dt>
+                  <dd className="mt-1 text-zinc-100">{attributeBalancingGuide.currentTotal}</dd>
+                </div>
+                <div className="rounded border border-zinc-800 bg-zinc-950/40 p-2">
+                  <dt className="text-[11px] text-zinc-500">Expected Total</dt>
+                  <dd className="mt-1 text-zinc-100">{attributeBalancingGuide.expectedTotal}</dd>
+                </div>
+                <div className="rounded border border-zinc-800 bg-zinc-950/40 p-2">
+                  <dt className="text-[11px] text-zinc-500">Delta</dt>
+                  <dd className="mt-1 text-zinc-100">
+                    {attributeBalancingGuide.budgetDelta > 0 ? "+" : ""}
+                    {attributeBalancingGuide.budgetDelta}
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="rounded border border-zinc-800 bg-zinc-950/40 p-2">
+                  <p className="text-[11px] text-zinc-500">Shape Readout</p>
+                  <p className="mt-1 text-zinc-100">{attributeBalancingGuide.shapeReadout}</p>
+                </div>
+                <div className="rounded border border-zinc-800 bg-zinc-950/40 p-2">
+                  <p className="text-[11px] text-zinc-500">Weakness Readout</p>
+                  <p className="mt-1 text-zinc-100">{attributeBalancingGuide.weaknessReadout}</p>
+                </div>
+                <div className="rounded border border-zinc-800 bg-zinc-950/40 p-2">
+                  <p className="text-[11px] text-zinc-500">Archetype Fit</p>
+                  <p className="mt-1 text-zinc-100">{attributeBalancingGuide.archetypeFit}</p>
+                </div>
+              </div>
+
+              <p className="mt-3 text-[11px] text-zinc-500">
+                {attributeBalancingGuide.archetypeFitNote}
+                {attributeBalancingGuide.highAttributes.length > 0
+                  ? ` Peaks: ${attributeBalancingGuide.highAttributes.join(", ")}.`
+                  : ""}
+                {attributeBalancingGuide.lowAttributes.length > 0
+                  ? ` Weaknesses: ${attributeBalancingGuide.lowAttributes.join(", ")}.`
+                  : ""}
+              </p>
+            </div>
+          )}
+            </>
+          )}
         </section>
 
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
-          <h3 className="text-xs uppercase tracking-wide text-zinc-400">Traits</h3>
+          <button
+            type="button"
+            onClick={() => toggleGuideSectionCollapsed("traits")}
+            className="w-full flex items-center justify-between rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 hover:bg-zinc-900/40 cursor-pointer select-none"
+            aria-expanded={!collapsedGuideSections.traits}
+          >
+            <span className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-400">
+              <span aria-hidden="true">{collapsedGuideSections.traits ? ">" : "v"}</span>
+              Traits
+            </span>
+          </button>
+          {!collapsedGuideSections.traits && (
+            <>
           <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-2 items-center">
             <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Trait Points</p>
             <input
@@ -7326,7 +7473,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                           className="text-zinc-400 hover:text-zinc-200"
                           aria-label={`Remove trait ${label}`}
                         >
-                          ×
+                          x
                         </button>
                       )}
                     </span>
@@ -7387,6 +7534,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
               )}
             </div>
           </div>
+            </>
+          )}
         </section>
 
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
@@ -7397,7 +7546,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             aria-expanded={!equippedGearCollapsed}
           >
             <span className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-400">
-              <span aria-hidden="true">{equippedGearCollapsed ? "▶" : "▼"}</span>
+              <span aria-hidden="true">{equippedGearCollapsed ? ">" : "v"}</span>
               Equipped Gear
             </span>
           </button>
@@ -7455,8 +7604,20 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         </section>
 
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
-          <h3 className="text-xs uppercase tracking-wide text-zinc-400">Defence</h3>
+          <button
+            type="button"
+            onClick={() => toggleGuideSectionCollapsed("defence")}
+            className="w-full flex items-center justify-between rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 hover:bg-zinc-900/40 cursor-pointer select-none"
+            aria-expanded={!collapsedGuideSections.defence}
+          >
+            <span className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-400">
+              <span aria-hidden="true">{collapsedGuideSections.defence ? ">" : "v"}</span>
+              Defence
+            </span>
+          </button>
 
+          {!collapsedGuideSections.defence && (
+            <>
           <div className="space-y-2">
             <p className="text-[11px] text-zinc-500">Derived from Gear & Attributes</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -7611,11 +7772,23 @@ export function SummoningCircleEditor({ campaignId }: Props) {
               ))}
             </div>
           </div>
+            </>
+          )}
         </section>
 
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs uppercase tracking-wide text-zinc-400">Attacks</h3>
+            <button
+              type="button"
+              onClick={() => toggleGuideSectionCollapsed("attacks")}
+              className="w-full flex items-center justify-between rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 hover:bg-zinc-900/40 cursor-pointer select-none text-left"
+              aria-expanded={!collapsedGuideSections.attacks}
+            >
+              <span className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-400">
+                <span aria-hidden="true">{collapsedGuideSections.attacks ? ">" : "v"}</span>
+                Attacks
+              </span>
+            </button>
             {!readOnly && (
               <button
                 onClick={() => {
@@ -7641,13 +7814,15 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 type="button"
                 onClickCapture={undefined}
                 disabled={editor.attacks.length >= 3 || naturalAttacksLocked}
-                className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
+                className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50 shrink-0 ml-2"
               >
                 Add Natural Attack
               </button>
             )}
           </div>
 
+          {!collapsedGuideSections.attacks && (
+            <>
           <label className="flex items-center gap-2">
             <span className="text-[11px] text-zinc-500">
               <HoverTooltipLabel
@@ -7710,7 +7885,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                   >
                     <span className="min-w-0 truncate text-sm font-medium">
                       <span className="mr-2" aria-hidden="true">
-                        {collapsed ? "▶" : "▼"}
+                        {collapsed ? ">" : "v"}
                       </span>
                       {naturalAttackName || "Unnamed"}
                     </span>
@@ -7724,7 +7899,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
                         aria-label={`Move attack ${attackIndex + 1} up`}
                       >
-                        ↑
+                        â†‘
                       </button>
                       <button
                         type="button"
@@ -7733,7 +7908,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                         className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
                         aria-label={`Move attack ${attackIndex + 1} down`}
                       >
-                        ↓
+                        â†“
                       </button>
                       <button
                         type="button"
@@ -8196,6 +8371,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
               );
             })}
           </div>
+            </>
+          )}
         </section>
 
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
@@ -8942,7 +9119,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                     >
                       <span className="min-w-0 truncate text-sm font-medium">
                         <span className="mr-2" aria-hidden="true">
-                          {collapsed ? "▶" : "▼"}
+                          {collapsed ? ">" : "v"}
                         </span>
                         {powerName}
                       </span>
@@ -10558,7 +10735,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                   >
                     <span className="min-w-0 truncate text-sm font-medium">
                       <span className="mr-2" aria-hidden="true">
-                        {collapsedLimitBreaks.LB1 ? "▶" : "▼"}
+                        {collapsedLimitBreaks.LB1 ? ">" : "v"}
                       </span>
                       {(editor.limitBreakName ?? "").trim() || "Unnamed"}
                     </span>
@@ -10641,15 +10818,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       p
                         ? {
                             ...p,
-                            limitBreakAttribute:
-                              e.target.value === "ATTACK" ||
-                              e.target.value === "DEFENCE" ||
-                              e.target.value === "FORTITUDE" ||
-                              e.target.value === "INTELLECT" ||
-                              e.target.value === "SUPPORT" ||
-                              e.target.value === "BRAVERY"
-                                ? (e.target.value as CoreAttribute)
-                                : null,
+                            limitBreakAttribute: normalizeLegacyCoreAttribute(e.target.value),
                           }
                         : p,
                     )
@@ -10738,7 +10907,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                     >
                       <span className="min-w-0 truncate text-sm font-medium">
                         <span className="mr-2" aria-hidden="true">
-                          {collapsedLimitBreaks.LB2 ? "▶" : "▼"}
+                          {collapsedLimitBreaks.LB2 ? ">" : "v"}
                         </span>
                         {(editor.limitBreak2Name ?? "").trim() || "Unnamed"}
                       </span>
@@ -10835,15 +11004,9 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                               p
                                 ? {
                                     ...p,
-                                    limitBreak2Attribute:
-                                      e.target.value === "ATTACK" ||
-                                      e.target.value === "DEFENCE" ||
-                                      e.target.value === "FORTITUDE" ||
-                                      e.target.value === "INTELLECT" ||
-                                      e.target.value === "SUPPORT" ||
-                                      e.target.value === "BRAVERY"
-                                        ? (e.target.value as CoreAttribute)
-                                        : null,
+                                    limitBreak2Attribute: normalizeLegacyCoreAttribute(
+                                      e.target.value,
+                                    ),
                                   }
                                 : p,
                             )
@@ -11034,3 +11197,4 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     </div>
   );
 }
+

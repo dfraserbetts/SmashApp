@@ -478,8 +478,8 @@ export default function AdminPowerTuningPage() {
               <dd>Expected damage dealt per round.</dd>
             </div>
             <div>
-              <dt className="font-medium text-zinc-300">Support Utility Output</dt>
-              <dd>Non-damage support value used by the calculator.</dd>
+              <dt className="font-medium text-zinc-300">Synergy Utility Output</dt>
+              <dd>Non-damage synergy value used by the calculator.</dd>
             </div>
             <div>
               <dt className="font-medium text-zinc-300">Control Pressure</dt>

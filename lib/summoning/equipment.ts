@@ -40,10 +40,10 @@ export type EquipmentSlotKey =
 
 export type MonsterModifierField =
   | "attackModifier"
-  | "defenceModifier"
+  | "guardModifier"
   | "fortitudeModifier"
   | "intellectModifier"
-  | "supportModifier"
+  | "synergyModifier"
   | "braveryModifier"
   | "weaponSkillModifier"
   | "armorSkillModifier"
@@ -52,11 +52,13 @@ export type MonsterModifierField =
 
 const MODIFIER_ALIASES: Record<string, MonsterModifierField> = {
   attack: "attackModifier",
-  defence: "defenceModifier",
-  defense: "defenceModifier",
+  guard: "guardModifier",
+  defence: "guardModifier",
+  defense: "guardModifier",
   fortitude: "fortitudeModifier",
   intellect: "intellectModifier",
-  support: "supportModifier",
+  synergy: "synergyModifier",
+  support: "synergyModifier",
   bravery: "braveryModifier",
   "weapon skill": "weaponSkillModifier",
   weaponskill: "weaponSkillModifier",
@@ -70,10 +72,10 @@ const MODIFIER_ALIASES: Record<string, MonsterModifierField> = {
 
 export const MONSTER_MODIFIER_FIELDS: MonsterModifierField[] = [
   "attackModifier",
-  "defenceModifier",
+  "guardModifier",
   "fortitudeModifier",
   "intellectModifier",
-  "supportModifier",
+  "synergyModifier",
   "braveryModifier",
   "weaponSkillModifier",
   "armorSkillModifier",
@@ -81,12 +83,13 @@ export const MONSTER_MODIFIER_FIELDS: MonsterModifierField[] = [
   "dodgeModifier",
 ];
 
-const EQUIPMENT_LINE_PLACEMENTS = ["ATTACK", "DEFENCE", "TRAITS", "GENERAL"] as const;
+const EQUIPMENT_LINE_PLACEMENTS = ["ATTACK", "GUARD", "TRAITS", "GENERAL"] as const;
 
 export type EquipmentLinePlacementKey = (typeof EQUIPMENT_LINE_PLACEMENTS)[number];
 
 function toEquipmentLinePlacementKey(value: unknown): EquipmentLinePlacementKey | null {
   const normalized = String(value ?? "").trim().toUpperCase();
+  if (normalized === "DEFENCE") return "GUARD";
   return EQUIPMENT_LINE_PLACEMENTS.find((placement) => placement === normalized) ?? null;
 }
 
@@ -109,7 +112,7 @@ export function getItemLinePlacementCounts(
 ): Record<EquipmentLinePlacementKey, number> {
   const counts: Record<EquipmentLinePlacementKey, number> = {
     ATTACK: 0,
-    DEFENCE: 0,
+    GUARD: 0,
     TRAITS: 0,
     GENERAL: 0,
   };
@@ -229,3 +232,4 @@ export function isValidItemAccessorySlot(
   if (slot === "armsItemId") return item.itemLocation === "ARMS";
   return item.itemLocation === "BELT";
 }
+

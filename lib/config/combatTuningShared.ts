@@ -3,25 +3,25 @@ import type { CalculatorConfig } from "@/lib/calculators/calculatorConfig";
 export const DEFAULT_PROTECTION_K = 2;
 export const DEFAULT_PROTECTION_S = 6;
 export const DEFAULT_ATTACK_WEIGHT = 1;
-export const DEFAULT_DEFENCE_WEIGHT = 1;
+export const DEFAULT_GUARD_WEIGHT = 1;
 export const DEFAULT_FORTITUDE_WEIGHT = 1;
 export const DEFAULT_INTELLECT_WEIGHT = 1;
-export const DEFAULT_SUPPORT_WEIGHT = 1;
+export const DEFAULT_SYNERGY_WEIGHT = 1;
 export const DEFAULT_BRAVERY_WEIGHT = 1;
 export const DEFAULT_WEAPON_SKILL_BRAVERY_WEIGHT = 2;
 export const DEFAULT_WEAPON_SKILL_ATTACK_WEIGHT = 1;
 export const DEFAULT_WEAPON_SKILL_BASELINE_OFFSET = 1;
 export const DEFAULT_WEAPON_SKILL_SCALE = 1;
 export const DEFAULT_ARMOR_SKILL_FORTITUDE_WEIGHT = 2;
-export const DEFAULT_ARMOR_SKILL_DEFENCE_WEIGHT = 1;
+export const DEFAULT_ARMOR_SKILL_GUARD_WEIGHT = 1;
 export const DEFAULT_ARMOR_SKILL_BASELINE_OFFSET = 1;
 export const DEFAULT_ARMOR_SKILL_SCALE = 1;
-export const DEFAULT_WILLPOWER_SUPPORT_WEIGHT = 2;
+export const DEFAULT_WILLPOWER_SYNERGY_WEIGHT = 2;
 export const DEFAULT_WILLPOWER_BRAVERY_WEIGHT = 1;
 export const DEFAULT_WILLPOWER_BASELINE_OFFSET = 1;
 export const DEFAULT_WILLPOWER_SCALE = 1;
 export const DEFAULT_DODGE_INTELLECT_WEIGHT = 2;
-export const DEFAULT_DODGE_DEFENCE_WEIGHT = 1;
+export const DEFAULT_DODGE_GUARD_WEIGHT = 1;
 export const DEFAULT_DODGE_ATTRIBUTE_DIVISOR = 2;
 export const DEFAULT_DODGE_PROTECTION_PENALTY_WEIGHT = 1;
 export const DEFAULT_MINION_TIER_MULTIPLIER = 1;
@@ -62,25 +62,25 @@ export type ProtectionTuningValues = {
   protectionK: number;
   protectionS: number;
   attackWeight: number;
-  defenceWeight: number;
+  guardWeight: number;
   fortitudeWeight: number;
   intellectWeight: number;
-  supportWeight: number;
+  synergyWeight: number;
   braveryWeight: number;
   weaponSkillBraveryWeight: number;
   weaponSkillAttackWeight: number;
   weaponSkillBaselineOffset: number;
   weaponSkillScale: number;
   armorSkillFortitudeWeight: number;
-  armorSkillDefenceWeight: number;
+  armorSkillGuardWeight: number;
   armorSkillBaselineOffset: number;
   armorSkillScale: number;
-  willpowerSupportWeight: number;
+  willpowerSynergyWeight: number;
   willpowerBraveryWeight: number;
   willpowerBaselineOffset: number;
   willpowerScale: number;
   dodgeIntellectWeight: number;
-  dodgeDefenceWeight: number;
+  dodgeGuardWeight: number;
   dodgeAttributeDivisor: number;
   dodgeProtectionPenaltyWeight: number;
   minionTierMultiplier: number;
@@ -133,25 +133,25 @@ export const DEFAULT_COMBAT_TUNING_VALUES: ProtectionTuningValues = {
   protectionK: DEFAULT_PROTECTION_K,
   protectionS: DEFAULT_PROTECTION_S,
   attackWeight: DEFAULT_ATTACK_WEIGHT,
-  defenceWeight: DEFAULT_DEFENCE_WEIGHT,
+  guardWeight: DEFAULT_GUARD_WEIGHT,
   fortitudeWeight: DEFAULT_FORTITUDE_WEIGHT,
   intellectWeight: DEFAULT_INTELLECT_WEIGHT,
-  supportWeight: DEFAULT_SUPPORT_WEIGHT,
+  synergyWeight: DEFAULT_SYNERGY_WEIGHT,
   braveryWeight: DEFAULT_BRAVERY_WEIGHT,
   weaponSkillBraveryWeight: DEFAULT_WEAPON_SKILL_BRAVERY_WEIGHT,
   weaponSkillAttackWeight: DEFAULT_WEAPON_SKILL_ATTACK_WEIGHT,
   weaponSkillBaselineOffset: DEFAULT_WEAPON_SKILL_BASELINE_OFFSET,
   weaponSkillScale: DEFAULT_WEAPON_SKILL_SCALE,
   armorSkillFortitudeWeight: DEFAULT_ARMOR_SKILL_FORTITUDE_WEIGHT,
-  armorSkillDefenceWeight: DEFAULT_ARMOR_SKILL_DEFENCE_WEIGHT,
+  armorSkillGuardWeight: DEFAULT_ARMOR_SKILL_GUARD_WEIGHT,
   armorSkillBaselineOffset: DEFAULT_ARMOR_SKILL_BASELINE_OFFSET,
   armorSkillScale: DEFAULT_ARMOR_SKILL_SCALE,
-  willpowerSupportWeight: DEFAULT_WILLPOWER_SUPPORT_WEIGHT,
+  willpowerSynergyWeight: DEFAULT_WILLPOWER_SYNERGY_WEIGHT,
   willpowerBraveryWeight: DEFAULT_WILLPOWER_BRAVERY_WEIGHT,
   willpowerBaselineOffset: DEFAULT_WILLPOWER_BASELINE_OFFSET,
   willpowerScale: DEFAULT_WILLPOWER_SCALE,
   dodgeIntellectWeight: DEFAULT_DODGE_INTELLECT_WEIGHT,
-  dodgeDefenceWeight: DEFAULT_DODGE_DEFENCE_WEIGHT,
+  dodgeGuardWeight: DEFAULT_DODGE_GUARD_WEIGHT,
   dodgeAttributeDivisor: DEFAULT_DODGE_ATTRIBUTE_DIVISOR,
   dodgeProtectionPenaltyWeight: DEFAULT_DODGE_PROTECTION_PENALTY_WEIGHT,
   minionTierMultiplier: DEFAULT_MINION_TIER_MULTIPLIER,
@@ -188,6 +188,10 @@ export const DEFAULT_COMBAT_TUNING_VALUES: ProtectionTuningValues = {
 
 export const COMBAT_TUNING_CONFIG_KEY_ORDER = Object.keys(DEFAULT_COMBAT_TUNING_VALUES);
 export const COMBAT_TUNING_ZERO_ALLOWED_KEYS = new Set<string>(["poolAtExpectedShare"]);
+
+export function getCombatTuningInputMin(configKey: string): number {
+  return COMBAT_TUNING_ZERO_ALLOWED_KEYS.has(configKey) ? 0 : 0.000001;
+}
 
 export type CombatTuningValueValidationReason =
   | "unknown_key"
@@ -278,14 +282,28 @@ function toNonNegativeNumber(value: unknown, fallback: number): number {
 }
 
 export function normalizeCombatTuning(input?: Partial<Record<keyof ProtectionTuningValues, unknown>> | null): ProtectionTuningValues {
+  const legacyInput = (input ?? {}) as Partial<
+    Record<
+      | keyof ProtectionTuningValues
+      | "defenceWeight"
+      | "supportWeight"
+      | "armorSkillDefenceWeight"
+      | "willpowerSupportWeight"
+      | "dodgeDefenceWeight",
+      unknown
+    >
+  >;
   return {
     protectionK: toPositiveNumber(input?.protectionK, DEFAULT_PROTECTION_K),
     protectionS: toPositiveNumber(input?.protectionS, DEFAULT_PROTECTION_S),
     attackWeight: toPositiveNumber(input?.attackWeight, DEFAULT_ATTACK_WEIGHT),
-    defenceWeight: toPositiveNumber(input?.defenceWeight, DEFAULT_DEFENCE_WEIGHT),
+    guardWeight: toPositiveNumber(legacyInput.guardWeight ?? legacyInput.defenceWeight, DEFAULT_GUARD_WEIGHT),
     fortitudeWeight: toPositiveNumber(input?.fortitudeWeight, DEFAULT_FORTITUDE_WEIGHT),
     intellectWeight: toPositiveNumber(input?.intellectWeight, DEFAULT_INTELLECT_WEIGHT),
-    supportWeight: toPositiveNumber(input?.supportWeight, DEFAULT_SUPPORT_WEIGHT),
+    synergyWeight: toPositiveNumber(
+      legacyInput.synergyWeight ?? legacyInput.supportWeight,
+      DEFAULT_SYNERGY_WEIGHT,
+    ),
     braveryWeight: toPositiveNumber(input?.braveryWeight, DEFAULT_BRAVERY_WEIGHT),
     weaponSkillBraveryWeight: toPositiveNumber(
       input?.weaponSkillBraveryWeight,
@@ -304,18 +322,18 @@ export function normalizeCombatTuning(input?: Partial<Record<keyof ProtectionTun
       input?.armorSkillFortitudeWeight,
       DEFAULT_ARMOR_SKILL_FORTITUDE_WEIGHT,
     ),
-    armorSkillDefenceWeight: toPositiveNumber(
-      input?.armorSkillDefenceWeight,
-      DEFAULT_ARMOR_SKILL_DEFENCE_WEIGHT,
+    armorSkillGuardWeight: toPositiveNumber(
+      legacyInput.armorSkillGuardWeight ?? legacyInput.armorSkillDefenceWeight,
+      DEFAULT_ARMOR_SKILL_GUARD_WEIGHT,
     ),
     armorSkillBaselineOffset: toPositiveNumber(
       input?.armorSkillBaselineOffset,
       DEFAULT_ARMOR_SKILL_BASELINE_OFFSET,
     ),
     armorSkillScale: toPositiveNumber(input?.armorSkillScale, DEFAULT_ARMOR_SKILL_SCALE),
-    willpowerSupportWeight: toPositiveNumber(
-      input?.willpowerSupportWeight,
-      DEFAULT_WILLPOWER_SUPPORT_WEIGHT,
+    willpowerSynergyWeight: toPositiveNumber(
+      legacyInput.willpowerSynergyWeight ?? legacyInput.willpowerSupportWeight,
+      DEFAULT_WILLPOWER_SYNERGY_WEIGHT,
     ),
     willpowerBraveryWeight: toPositiveNumber(
       input?.willpowerBraveryWeight,
@@ -330,9 +348,9 @@ export function normalizeCombatTuning(input?: Partial<Record<keyof ProtectionTun
       input?.dodgeIntellectWeight,
       DEFAULT_DODGE_INTELLECT_WEIGHT,
     ),
-    dodgeDefenceWeight: toPositiveNumber(
-      input?.dodgeDefenceWeight,
-      DEFAULT_DODGE_DEFENCE_WEIGHT,
+    dodgeGuardWeight: toPositiveNumber(
+      legacyInput.dodgeGuardWeight ?? legacyInput.dodgeDefenceWeight,
+      DEFAULT_DODGE_GUARD_WEIGHT,
     ),
     dodgeAttributeDivisor: toPositiveNumber(
       input?.dodgeAttributeDivisor,
@@ -491,3 +509,4 @@ export function applyCombatTuningToCalculatorConfig(
     },
   };
 }
+

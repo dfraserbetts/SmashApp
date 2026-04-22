@@ -31,12 +31,12 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
       armorSkill: 1,
       attack: 1.5,
       bravery: 1,
-      defence: 1.5,
+      guard: 1.5,
       dodge: 2,
       fortitude: 1,
       intellect: 1,
       movement: 1.5,
-      support: 1,
+      synergy: 1,
       weaponSkill: 1,
       willpower: 1,
     },
@@ -57,12 +57,12 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
       armorSkill: 1,
       attack: 1.5,
       bravery: 1,
-      defence: 1.5,
+      guard: 1.5,
       dodge: 2,
       fortitude: 1,
       intellect: 1,
       movement: 1.5,
-      support: 1,
+      synergy: 1,
       weaponSkill: 1,
       willpower: 1,
     },
@@ -171,6 +171,17 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
   },
 } as const;
 
+const LEGACY_POWER_TUNING_KEY_ALIASES: Record<string, string> = {
+  "packet.augmentStat.defence": "packet.augmentStat.guard",
+  "packet.augmentStat.support": "packet.augmentStat.synergy",
+  "packet.debuffStat.defence": "packet.debuffStat.guard",
+  "packet.debuffStat.support": "packet.debuffStat.synergy",
+};
+
+export function canonicalizePowerTuningConfigKey(configKey: string): string {
+  return LEGACY_POWER_TUNING_KEY_ALIASES[configKey] ?? configKey;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -217,8 +228,16 @@ export function normalizePowerTuningValues(
   input?: Record<string, unknown> | null,
 ): PowerTuningFlatValues {
   const normalized: PowerTuningFlatValues = {};
+  const canonicalInput: Record<string, unknown> = {};
+
+  if (input) {
+    for (const [key, value] of Object.entries(input)) {
+      canonicalInput[canonicalizePowerTuningConfigKey(key)] = value;
+    }
+  }
+
   for (const key of POWER_TUNING_CONFIG_KEY_ORDER) {
-    normalized[key] = toNonNegativeNumber(input?.[key], DEFAULT_POWER_TUNING_VALUES[key]);
+    normalized[key] = toNonNegativeNumber(canonicalInput[key], DEFAULT_POWER_TUNING_VALUES[key]);
   }
   return normalized;
 }

@@ -99,7 +99,8 @@ const TIER_OPTIONS: MonsterTier[] = ["MINION", "SOLDIER", "ELITE", "BOSS"];
 const AXIS_KEYS: Array<keyof RadarAxes> = [
   "physicalThreat",
   "mentalThreat",
-  "survivability",
+  "physicalSurvivability",
+  "mentalSurvivability",
   "manipulation",
   "synergy",
   "mobility",
@@ -110,7 +111,8 @@ function formatAxisLabel(key: keyof RadarAxes): string {
   const labels: Record<keyof RadarAxes, string> = {
     physicalThreat: "Physical Threat",
     mentalThreat: "Mental Threat",
-    survivability: "Survivability",
+    physicalSurvivability: "Physical Survivability",
+    mentalSurvivability: "Mental Survivability",
     manipulation: "Control Pressure",
     synergy: "Synergy",
     mobility: "Mobility",
@@ -388,9 +390,14 @@ function HarnessSideCard(props: {
           baseline={props.baseline?.baselineScaffoldSummary.dodgeDice}
         />
         <MetricRow
-          label="Defence Package Raw Bonus"
-          value={result.baselineScaffoldSummary.defencePackageRawBonus}
-          baseline={props.baseline?.baselineScaffoldSummary.defencePackageRawBonus}
+          label="Physical Survivability Raw Bonus"
+          value={result.baselineScaffoldSummary.physicalDefencePackageRawBonus}
+          baseline={props.baseline?.baselineScaffoldSummary.physicalDefencePackageRawBonus}
+        />
+        <MetricRow
+          label="Mental Survivability Raw Bonus"
+          value={result.baselineScaffoldSummary.mentalDefencePackageRawBonus}
+          baseline={props.baseline?.baselineScaffoldSummary.mentalDefencePackageRawBonus}
         />
       </div>
 
@@ -853,7 +860,7 @@ export default function PowerRadarComparisonAdminPage() {
         <p>
           Neutral scaffold: no traits, no gear, no natural attacks, no limit breaks, D6 base
           attributes, and scenario powers only. Resilience, derived skills, dodge, and defensive
-          baseline axis are derived from the selected Combat Tuning set using the same stripped
+          baseline lanes are derived from the selected Combat Tuning set using the same stripped
           Summoning Circle baseline path.
         </p>
         <p className="mt-2">Scenario composition stays curated; no freestyle scenario builder is enabled.</p>

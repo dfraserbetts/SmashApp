@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/prisma/client";
 import {
+  canonicalizePowerTuningConfigKey,
   DEFAULT_POWER_TUNING_VALUES,
   POWER_TUNING_CONFIG_KEY_ORDER,
   normalizePowerTuningValues,
@@ -72,7 +73,7 @@ function toNotesFromEntries(
   const notesByKey: Record<string, string> = {};
   for (const entry of entries) {
     const note = trimOptionalText(entry.notes);
-    if (note) notesByKey[entry.configKey] = note;
+    if (note) notesByKey[canonicalizePowerTuningConfigKey(entry.configKey)] = note;
   }
   return notesByKey;
 }

@@ -16,7 +16,7 @@ type ForgeValueCategory =
   | "ITEM_MODIFIER_COSTS"
   | "GLOBAL_ATTRIBUTE_MODIFIER_COSTS";
 
-type AttributePlacement = "ATTACK" | "DEFENCE" | "TRAITS" | "GENERAL";
+type AttributePlacement = "ATTACK" | "GUARD" | "TRAITS" | "GENERAL";
 type AttackMode = "PHYSICAL" | "MENTAL";
 type StatCostType = "PPV" | "MPV";
 type StatCostTarget = "Armor" | "Shield";
@@ -24,10 +24,10 @@ type ItemModifierCostStat = "Armor Skill" | "Weapon Skill" | "Willpower" | "Dodg
 type GlobalAttributeCostItemType = "Weapon" | "Armor" | "Shield" | "Item";
 type GlobalAttributeCostStat =
   | "Attack"
-  | "Defence"
+  | "Guard"
   | "Fortitude"
   | "Intellect"
-  | "Support"
+  | "Synergy"
   | "Bravery";
 
 type ValueRow = {
@@ -65,10 +65,10 @@ const GLOBAL_ATTRIBUTE_COST_ITEM_TYPES: GlobalAttributeCostItemType[] = [
 ];
 const GLOBAL_ATTRIBUTE_COST_STATS_FALLBACK: GlobalAttributeCostStat[] = [
   "Attack",
-  "Defence",
+  "Guard",
   "Fortitude",
   "Intellect",
-  "Support",
+  "Synergy",
   "Bravery",
 ];
 const ITEM_MODIFIER_COST_STATS: ItemModifierCostStat[] = [
@@ -782,13 +782,16 @@ function renderTemplatePreview(
     setRequiresStrengthKind((selected as any).requiresStrengthKind ?? "");
     setRequiresPpv(Boolean((selected as any).requiresPpv));
     setRequiresMpv(Boolean((selected as any).requiresMpv));
+    const rawPlacement = String(selected.placement ?? "").toUpperCase();
     setPlacement(
-      selected.placement === "ATTACK" ||
-        selected.placement === "DEFENCE" ||
-        selected.placement === "TRAITS" ||
-        selected.placement === "GENERAL"
-        ? selected.placement
-        : "TRAITS",
+      rawPlacement === "ATTACK" ||
+        rawPlacement === "GUARD" ||
+        rawPlacement === "TRAITS" ||
+        rawPlacement === "GENERAL"
+        ? (rawPlacement as AttributePlacement)
+        : rawPlacement === "DEFENCE"
+          ? "GUARD"
+          : "TRAITS",
     );
   }, [selected]);
 
@@ -1726,7 +1729,7 @@ function renderTemplatePreview(
                           onChange={(e) => setPlacement(e.target.value as AttributePlacement)}
                         >
                           <option value="ATTACK">Attack</option>
-                          <option value="DEFENCE">Defence</option>
+                          <option value="GUARD">Guard</option>
                           <option value="TRAITS">Traits</option>
                           <option value="GENERAL">General</option>
                         </select>
