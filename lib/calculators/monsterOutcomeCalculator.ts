@@ -1830,6 +1830,12 @@ export function computeMonsterOutcomes(
     tierMultiplier,
     resistPressureMultiplier,
   );
+  const suppressedOffensiveResistContributions = {
+    attackResistContribution,
+    intellectResistContribution,
+    supportResistContribution,
+    braveryResistContribution,
+  };
   const rawNaturalAttackGsAxisBonuses = normalizeRawAxisBonuses(opts?.naturalAttackGsAxisBonuses);
   const rawNaturalAttackRangeAxisBonuses = normalizeRawAxisBonuses(
     opts?.naturalAttackRangeAxisBonuses,
@@ -1867,7 +1873,6 @@ export function computeMonsterOutcomes(
   const nonPowerContribution: RadarAxes = {
     physicalThreat:
       sustainedPhysicalThreatAxis +
-    attackResistContribution +
     routedEquipmentPhysicalThreatBonus +
     naturalAttackGsAxisBonuses.physicalThreat +
     naturalAttackRangeAxisBonuses.physicalThreat +
@@ -1875,7 +1880,6 @@ export function computeMonsterOutcomes(
       traitAxisBonuses.physicalThreat,
     mentalThreat:
       sustainedMentalThreatAxis +
-      intellectResistContribution +
       routedEquipmentMentalThreatBonus +
       equipmentModifierAxisBonuses.mentalThreat +
       naturalAttackGsAxisBonuses.mentalThreat +
@@ -1901,13 +1905,11 @@ export function computeMonsterOutcomes(
       customLimitBreakAxisBonuses.mentalSurvivability +
       traitAxisBonuses.mentalSurvivability,
     manipulation:
-      braveryResistContribution +
       equipmentModifierAxisBonuses.manipulation +
       naturalAttackGsAxisBonuses.manipulation +
       customLimitBreakAxisBonuses.manipulation +
       traitAxisBonuses.manipulation,
     synergy:
-      supportResistContribution +
       equipmentModifierAxisBonuses.synergy +
       naturalAttackGsAxisBonuses.synergy +
       customLimitBreakAxisBonuses.synergy +
@@ -2023,12 +2025,15 @@ export function computeMonsterOutcomes(
           atWillThreatAxisMultiplier,
           sustainedPhysicalThreatAxis,
           sustainedMentalThreatAxis,
-          attackResistContribution,
-          intellectResistContribution,
+          attackResistContribution: 0,
+          intellectResistContribution: 0,
           defenceResistContribution,
           fortitudeResistContribution,
-          supportResistContribution,
-          braveryResistContribution,
+          supportResistContribution: 0,
+          braveryResistContribution: 0,
+          suppressedOffensiveResistContributions,
+          resistAxisContributionPolicy:
+            "Resist dice are defensive capability and do not emit offensive radar axes by themselves.",
           defensiveProfileContribution: defensiveContribution.axisVector,
           defensiveSharedDodgeContribution: defensiveContribution.sharedDodgeAxisVector,
           defensiveProfileTotals: defensiveContribution.totals,

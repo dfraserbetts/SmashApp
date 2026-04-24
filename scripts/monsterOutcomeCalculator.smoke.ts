@@ -99,6 +99,13 @@ function getNonPowerPhysicalThreat(result: ReturnType<typeof computeMonsterOutco
   return Number(debug.nonPowerContribution?.axisVector?.physicalThreat ?? 0);
 }
 
+function getNonPowerMentalThreat(result: ReturnType<typeof computeMonsterOutcomes>): number {
+  const debug = result.debug as {
+    nonPowerContribution?: { axisVector?: { mentalThreat?: number } };
+  };
+  return Number(debug.nonPowerContribution?.axisVector?.mentalThreat ?? 0);
+}
+
 function getNonPowerPhysicalSurvivability(
   result: ReturnType<typeof computeMonsterOutcomes>,
 ): number {
@@ -122,6 +129,24 @@ function getAtWillProfiles(result: ReturnType<typeof computeMonsterOutcomes>) {
     nonPowerContribution?: { sources?: { atWillProfiles?: unknown[] } };
   };
   return debug.nonPowerContribution?.sources?.atWillProfiles ?? [];
+}
+
+function getSuppressedOffensiveResistContributions(
+  result: ReturnType<typeof computeMonsterOutcomes>,
+) {
+  const debug = result.debug as {
+    nonPowerContribution?: {
+      sources?: {
+        suppressedOffensiveResistContributions?: {
+          attackResistContribution?: number;
+          intellectResistContribution?: number;
+          supportResistContribution?: number;
+          braveryResistContribution?: number;
+        };
+      };
+    };
+  };
+  return debug.nonPowerContribution?.sources?.suppressedOffensiveResistContributions ?? {};
 }
 
 function getDefensiveProfiles(result: ReturnType<typeof computeMonsterOutcomes>) {
@@ -283,6 +308,33 @@ const duplicatedNaturalSlash = computeMonsterOutcomes(
 const equippedClub = computeMonsterOutcomes(createBaseMonster(), calculatorConfig, {
   equippedWeaponSources: [clubWeaponSource],
 });
+
+const highIntellectResistNakedMonster = {
+  ...createBaseMonster(),
+  tier: "MINION" as const,
+  physicalResilienceCurrent: 8,
+  physicalResilienceMax: 8,
+  mentalPerseveranceCurrent: 8,
+  mentalPerseveranceMax: 8,
+  intellectResistDie: 5,
+  attacks: [],
+  naturalAttack: null,
+  powers: [],
+  traits: [],
+};
+const highIntellectResistNaked = computeMonsterOutcomes(
+  highIntellectResistNakedMonster,
+  calculatorConfig,
+);
+const highIntellectResistSuppressed =
+  getSuppressedOffensiveResistContributions(highIntellectResistNaked);
+
+assert.equal(highIntellectResistNaked.sustainedPhysical, 0);
+assert.equal(highIntellectResistNaked.sustainedMental, 0);
+assert.equal(getNonPowerPhysicalThreat(highIntellectResistNaked), 0);
+assert.equal(getNonPowerMentalThreat(highIntellectResistNaked), 0);
+assert.equal(getAtWillProfiles(highIntellectResistNaked).length, 0);
+assert.ok(Number(highIntellectResistSuppressed.intellectResistContribution ?? 0) > 0);
 
 assert.equal(naturalSlash.sustainedPhysical, equippedClub.sustainedPhysical);
 assert.equal(getNonPowerPhysicalThreat(naturalSlash), getNonPowerPhysicalThreat(equippedClub));
@@ -620,6 +672,15 @@ console.log(
       duplicateNaturalIngress: {
         naturalProfileCount: getAtWillProfiles(duplicatedNaturalSlash).length,
         naturalPhysicalThreat: getNonPowerPhysicalThreat(duplicatedNaturalSlash),
+      },
+      highIntellectResistNaked: {
+        sustainedPhysical: highIntellectResistNaked.sustainedPhysical,
+        sustainedMental: highIntellectResistNaked.sustainedMental,
+        physicalThreat: getNonPowerPhysicalThreat(highIntellectResistNaked),
+        mentalThreat: getNonPowerMentalThreat(highIntellectResistNaked),
+        atWillProfiles: getAtWillProfiles(highIntellectResistNaked).length,
+        suppressedIntellectResistContribution:
+          highIntellectResistSuppressed.intellectResistContribution,
       },
       rangedParity: {
         natural: getNonPowerPhysicalThreat(naturalRanged),
