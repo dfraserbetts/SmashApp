@@ -35,12 +35,13 @@ import {
   type ReserveReleaseBehaviour,
 } from "@/lib/summoning/types";
 import {
-  calculateMonsterResilienceValues,
   getArmorSkillDiceCountFromAttributes,
+  getDodgeValueFromAttributeNumbers,
   getDodgeValue,
   getAttributeNumericValue,
   getWeaponSkillDiceCountFromAttributes,
   getWillpowerDiceCountFromAttributes,
+  weightedSkillFromAttributes,
 } from "@/lib/summoning/attributes";
 import {
   getHighestItemModifiers,
@@ -96,6 +97,12 @@ import {
   cloneApprovedCanaryPower,
 } from "@/lib/summoning/canaryCatalog";
 import { evaluateAttributeBalancingGuide } from "@/lib/summoning/attributeBalancingGuide";
+import { getForgeRarityPalette } from "@/lib/forge/itemRarityPalette";
+import {
+  computeMonsterTraitMechanicalModifiers,
+  createEmptyMonsterTraitMechanicalModifiers,
+  type MonsterTraitMechanicalEffectSummary,
+} from "@/lib/summoning/traitMechanics";
 
 type Props = { campaignId: string };
 type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
@@ -233,6 +240,17 @@ const POWER_RANGE_AOE_CONE_LENGTH_OPTIONS = [15, 30, 60] as const;
 const POWER_RANGE_AOE_LINE_WIDTH_OPTIONS = [5, 10, 15, 20] as const;
 const POWER_RANGE_AOE_LINE_LENGTH_OPTIONS = [30, 60, 90, 120] as const;
 const POWER_RANGE_AOE_SHAPES: PowerRangeAoeShape[] = ["SPHERE", "CONE", "LINE"];
+const TRAIT_AXIS_WEIGHT_KEYS = [
+  "physicalThreatWeight",
+  "mentalThreatWeight",
+  "physicalSurvivabilityWeight",
+  "mentalSurvivabilityWeight",
+  "survivabilityWeight",
+  "manipulationWeight",
+  "synergyWeight",
+  "mobilityWeight",
+  "presenceWeight",
+] as const satisfies ReadonlyArray<keyof MonsterTraitDefinitionSummary>;
 const DESCRIPTOR_CHASSIS_OPTIONS = [
   "IMMEDIATE",
   "FIELD",
@@ -2681,11 +2699,23 @@ const DERIVED_STAT_TOOLTIPS = {
     "Derived from Synergy (weighted) + Bravery (weighted). This pooled Willpower value supports mental protection, while Bravery remains the surfaced Mental Defence stat.",
 } as const;
 
-const TRAIT_POINTS_PLACEHOLDER = 5;
-
 function dieLabel(value: DiceSize | null | undefined): string {
   if (!value) return "-";
   return `d${value.replace("D", "")}`;
+}
+
+type TraitPolarityColumn = "helpful" | "hindering" | "mixed";
+
+function getTraitPolarityColumn(trait: MonsterTraitDefinitionSummary): TraitPolarityColumn {
+  const weights = TRAIT_AXIS_WEIGHT_KEYS.map((key) => Number(trait[key] ?? 0)).filter(
+    Number.isFinite,
+  );
+  const hasPositive = weights.some((value) => value > 0);
+  const hasNegative = weights.some((value) => value < 0);
+
+  if (hasPositive && !hasNegative) return "helpful";
+  if (hasNegative && !hasPositive) return "hindering";
+  return "mixed";
 }
 
 function calculateResilienceValues(
@@ -2702,11 +2732,58 @@ function calculateResilienceValues(
     | "braveryDie"
   >,
   tuning: ProtectionTuningValues,
+  traitModifiers = createEmptyMonsterTraitMechanicalModifiers(),
 ): {
   physicalResilienceMax: number;
   mentalPerseveranceMax: number;
 } {
-  return calculateMonsterResilienceValues(monster, tuning);
+  const tierMultiplierByTier: Record<MonsterTier, number> = {
+    MINION: tuning.minionTierMultiplier,
+    SOLDIER: tuning.soldierTierMultiplier,
+    ELITE: tuning.eliteTierMultiplier,
+    BOSS: tuning.bossTierMultiplier,
+  };
+  const legendaryBonusByTier: Record<MonsterTier, number> = {
+    MINION: 0.25,
+    SOLDIER: 0.5,
+    ELITE: 0.75,
+    BOSS: 1,
+  };
+
+  const tierMultiplier = tierMultiplierByTier[monster.tier];
+  const legendaryBonus = monster.legendary ? legendaryBonusByTier[monster.tier] : 0;
+  const attrs = traitModifiers.attributeModifiers;
+
+  const attackValue = getAttributeNumericValue(monster.attackDie) + attrs.attack;
+  const guardValue = getAttributeNumericValue(monster.guardDie) + attrs.guard;
+  const fortitudeValue = getAttributeNumericValue(monster.fortitudeDie) + attrs.fortitude;
+  const intellectValue = getAttributeNumericValue(monster.intellectDie) + attrs.intellect;
+  const synergyValue = getAttributeNumericValue(monster.synergyDie) + attrs.synergy;
+  const braveryValue = getAttributeNumericValue(monster.braveryDie) + attrs.bravery;
+
+  const prBase =
+    monster.level +
+    attackValue * tuning.attackWeight +
+    guardValue * tuning.guardWeight +
+    fortitudeValue * tuning.fortitudeWeight;
+  const mpBase =
+    monster.level +
+    intellectValue * tuning.intellectWeight +
+    synergyValue * tuning.synergyWeight +
+    braveryValue * tuning.braveryWeight;
+
+  return {
+    physicalResilienceMax: Math.max(
+      1,
+      Math.round(prBase * tierMultiplier + prBase * legendaryBonus) +
+        traitModifiers.poolModifiers.physicalResilience,
+    ),
+    mentalPerseveranceMax: Math.max(
+      1,
+      Math.round(mpBase * tierMultiplier + mpBase * legendaryBonus) +
+        traitModifiers.poolModifiers.mentalPerseverance,
+    ),
+  };
 }
 
 function defaultNaturalConfig(): MonsterNaturalAttackConfig {
@@ -3703,6 +3780,71 @@ function isHttpUrl(value: unknown): value is string {
   }
 }
 
+function formatEquipmentRarityLabel(value: string | null | undefined): string {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "";
+  return normalized
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatEquipmentTypeLabel(value: SummoningEquipmentItem["type"] | null | undefined): string {
+  if (value === "WEAPON") return "Weapon";
+  if (value === "SHIELD") return "Shield";
+  if (value === "ARMOR") return "Armor";
+  if (value === "ITEM") return "Item";
+  if (value === "CONSUMABLE") return "Consumable";
+  return String(value ?? "").trim();
+}
+
+function formatEquipmentDropdownLabel(item: SummoningEquipmentItem): string {
+  const parsedLevel = Number(item.level ?? 0);
+  const level = Number.isFinite(parsedLevel) ? Math.max(0, Math.trunc(parsedLevel)) : 0;
+  const rarity = formatEquipmentRarityLabel(item.rarity);
+  const typeLabel = formatEquipmentTypeLabel(item.type);
+  return rarity
+    ? `${item.name} - Level ${level} ${rarity} ${typeLabel}`
+    : `${item.name} - Level ${level} ${typeLabel}`;
+}
+
+function isEquipmentWithinLevelRange(
+  item: SummoningEquipmentItem,
+  monsterLevel: number,
+  tolerance = 1,
+): boolean {
+  const parsedLevel = Number(item.level ?? Number.NaN);
+  if (!Number.isFinite(parsedLevel)) return true;
+  return Math.abs(Math.trunc(parsedLevel) - Math.trunc(monsterLevel)) <= tolerance;
+}
+
+function getEquipmentRarityOptionStyle(
+  item: SummoningEquipmentItem | null | undefined,
+): { color?: string; textShadow?: string } {
+  if (!item?.rarity) return {};
+  const palette = getForgeRarityPalette(item.rarity);
+  return {
+    color: palette.headerColor,
+    textShadow: `0 0 6px ${palette.outerBorderColor}`,
+  };
+}
+
+function hasSharedEquipmentTag(
+  item: SummoningEquipmentItem,
+  monsterTags: string[],
+): boolean {
+  const normalizedMonsterTags = monsterTags
+    .map((tag) => String(tag).trim().toLowerCase())
+    .filter((tag) => tag.length > 0);
+  if (normalizedMonsterTags.length === 0) return true;
+  const itemTags = Array.isArray(item.tags) ? item.tags : [];
+  if (itemTags.length === 0) return false;
+  const normalizedMonsterTagSet = new Set(normalizedMonsterTags);
+  return itemTags.some((tag) => normalizedMonsterTagSet.has(String(tag).trim().toLowerCase()));
+}
+
 function getWeaponSourceAttackLines(
   item: Pick<WeaponProjection, "type" | "melee" | "ranged" | "aoe"> | null | undefined,
   weaponSkillValue: number,
@@ -3875,12 +4017,15 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     LB1: true,
     LB2: true,
   });
-  const [equippedGearCollapsed, setEquippedGearCollapsed] = useState(false);
+  const [equippedGearCollapsed, setEquippedGearCollapsed] = useState(true);
+  const [limitLoadoutToLevelAppropriate, setLimitLoadoutToLevelAppropriate] = useState(false);
+  const [matchLoadoutToTags, setMatchLoadoutToTags] = useState(false);
   const [collapsedGuideSections, setCollapsedGuideSections] = useState({
-    attributes: false,
-    traits: false,
-    defence: false,
-    attacks: false,
+    identity: false,
+    attributes: true,
+    traits: true,
+    defence: true,
+    attacks: true,
   });
 
   const togglePowerCollapsed = useCallback((powerId: string) => {
@@ -4072,26 +4217,100 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       ),
     [outcomeNormalization.calculatorConfig, protectionTuning],
   );
+  const selectedTraitMechanicalModifiers = useMemo(() => {
+    if (!editor) return createEmptyMonsterTraitMechanicalModifiers();
+    const selectedIds = new Set(editor.traits.map((trait) => trait.traitDefinitionId));
+    const selectedEffects = traitDefinitions
+      .filter((trait) => selectedIds.has(trait.id))
+      .flatMap((trait) => (trait.mechanicalEffects ?? []) as MonsterTraitMechanicalEffectSummary[]);
+
+    return computeMonsterTraitMechanicalModifiers(selectedEffects, {
+      MonsterName: editor.name,
+      MonsterLevel: editor.level,
+      MonsterAttack: editor.attackDie,
+      MonsterGuard: editor.guardDie,
+      MonsterFortitude: editor.fortitudeDie,
+      MonsterIntellect: editor.intellectDie,
+      MonsterSynergy: editor.synergyDie,
+      MonsterBravery: editor.braveryDie,
+      MonsterArmorSkill: getArmorSkillDiceCountFromAttributes(
+        editor.guardDie,
+        editor.fortitudeDie,
+        protectionTuning,
+      ),
+      MonsterWeaponSkill: getWeaponSkillDiceCountFromAttributes(
+        editor.attackDie,
+        editor.braveryDie,
+        protectionTuning,
+      ),
+      MonsterWillpower: getWillpowerDiceCountFromAttributes(
+        editor.synergyDie,
+        editor.braveryDie,
+        protectionTuning,
+      ),
+      MonsterDodge: getDodgeValue(
+        editor.guardDie,
+        editor.intellectDie,
+        editor.level,
+        0,
+        protectionTuning,
+      ),
+    });
+  }, [editor, protectionTuning, traitDefinitions]);
   const resilienceValues = useMemo(
     () =>
       editor
-        ? calculateResilienceValues(editor, protectionTuning)
+        ? calculateResilienceValues(editor, protectionTuning, selectedTraitMechanicalModifiers)
         : { physicalResilienceMax: 0, mentalPerseveranceMax: 0 },
-    [editor, protectionTuning],
+    [editor, protectionTuning, selectedTraitMechanicalModifiers],
   );
   const baseWeaponSkillValue = useMemo(
     () =>
       editor
-        ? getWeaponSkillDiceCountFromAttributes(editor.attackDie, editor.braveryDie, protectionTuning)
+        ? weightedSkillFromAttributes(
+            getAttributeNumericValue(editor.braveryDie) +
+              selectedTraitMechanicalModifiers.attributeModifiers.bravery,
+            getAttributeNumericValue(editor.attackDie) +
+              selectedTraitMechanicalModifiers.attributeModifiers.attack,
+            {
+              primaryWeight: protectionTuning.weaponSkillBraveryWeight,
+              secondaryWeight: protectionTuning.weaponSkillAttackWeight,
+              baselineOffset: protectionTuning.weaponSkillBaselineOffset,
+              scale: protectionTuning.weaponSkillScale,
+            },
+          )
         : 1,
-    [editor?.attackDie, editor?.braveryDie, protectionTuning],
+    [
+      editor?.attackDie,
+      editor?.braveryDie,
+      protectionTuning,
+      selectedTraitMechanicalModifiers.attributeModifiers.attack,
+      selectedTraitMechanicalModifiers.attributeModifiers.bravery,
+    ],
   );
   const baseArmorSkillValue = useMemo(
     () =>
       editor
-        ? getArmorSkillDiceCountFromAttributes(editor.guardDie, editor.fortitudeDie, protectionTuning)
+        ? weightedSkillFromAttributes(
+            getAttributeNumericValue(editor.fortitudeDie) +
+              selectedTraitMechanicalModifiers.attributeModifiers.fortitude,
+            getAttributeNumericValue(editor.guardDie) +
+              selectedTraitMechanicalModifiers.attributeModifiers.guard,
+            {
+              primaryWeight: protectionTuning.armorSkillFortitudeWeight,
+              secondaryWeight: protectionTuning.armorSkillGuardWeight,
+              baselineOffset: protectionTuning.armorSkillBaselineOffset,
+              scale: protectionTuning.armorSkillScale,
+            },
+          )
         : 1,
-    [editor?.guardDie, editor?.fortitudeDie, protectionTuning],
+    [
+      editor?.guardDie,
+      editor?.fortitudeDie,
+      protectionTuning,
+      selectedTraitMechanicalModifiers.attributeModifiers.fortitude,
+      selectedTraitMechanicalModifiers.attributeModifiers.guard,
+    ],
   );
   const customLimitBreakAttributeValue = useMemo(() => {
     if (!editor?.limitBreakAttribute) return null;
@@ -4343,12 +4562,42 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 band?: unknown;
                 physicalThreatWeight?: unknown;
                 mentalThreatWeight?: unknown;
+                physicalSurvivabilityWeight?: unknown;
+                mentalSurvivabilityWeight?: unknown;
                 survivabilityWeight?: unknown;
                 manipulationWeight?: unknown;
                 synergyWeight?: unknown;
                 mobilityWeight?: unknown;
                 presenceWeight?: unknown;
+                mechanicalEffects?: unknown;
               };
+              const mechanicalEffects = Array.isArray(candidate.mechanicalEffects)
+                ? candidate.mechanicalEffects
+                    .map((raw, idx): MonsterTraitMechanicalEffectSummary | null => {
+                      const effect = raw as {
+                        id?: unknown;
+                        sortOrder?: unknown;
+                        target?: unknown;
+                        operation?: unknown;
+                        valueExpression?: unknown;
+                      };
+                      const target = String(effect.target ?? "");
+                      const operation = String(effect.operation ?? "ADD");
+                      const valueExpression = String(effect.valueExpression ?? "").trim();
+                      if (!target || !valueExpression) return null;
+                      return {
+                        id: typeof effect.id === "string" ? effect.id : undefined,
+                        sortOrder: Number(effect.sortOrder ?? idx) || idx,
+                        target: target as MonsterTraitMechanicalEffectSummary["target"],
+                        operation: operation as MonsterTraitMechanicalEffectSummary["operation"],
+                        valueExpression,
+                      };
+                    })
+                    .filter(
+                      (effect): effect is MonsterTraitMechanicalEffectSummary =>
+                        effect !== null,
+                    )
+                : [];
               return {
                 id: String(candidate.id ?? ""),
                 name: String(candidate.name ?? ""),
@@ -4365,11 +4614,16 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                     : "STANDARD",
                 physicalThreatWeight: Number(candidate.physicalThreatWeight ?? 0) || 0,
                 mentalThreatWeight: Number(candidate.mentalThreatWeight ?? 0) || 0,
+                physicalSurvivabilityWeight:
+                  Number(candidate.physicalSurvivabilityWeight ?? 0) || 0,
+                mentalSurvivabilityWeight:
+                  Number(candidate.mentalSurvivabilityWeight ?? 0) || 0,
                 survivabilityWeight: Number(candidate.survivabilityWeight ?? 0) || 0,
                 manipulationWeight: Number(candidate.manipulationWeight ?? 0) || 0,
                 synergyWeight: Number(candidate.synergyWeight ?? 0) || 0,
                 mobilityWeight: Number(candidate.mobilityWeight ?? 0) || 0,
                 presenceWeight: Number(candidate.presenceWeight ?? 0) || 0,
+                mechanicalEffects,
               };
             })
           : [],
@@ -4473,8 +4727,6 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     }
     collapseSeedKeyRef.current = collapseSeedKey;
 
-    const isExistingMonster = normalizedId !== null;
-
     const nextCollapsedPowerIds: Record<string, boolean> = {};
     for (let idx = 0; idx < editor.powers.length; idx += 1) {
       const key = getPowerCollapseKey(editor.powers[idx], idx);
@@ -4487,7 +4739,14 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       nextCollapsedNaturalAttackIds[key] = true;
     }
 
-    setEquippedGearCollapsed(isExistingMonster);
+    setEquippedGearCollapsed(true);
+    setCollapsedGuideSections({
+      identity: false,
+      attributes: true,
+      traits: true,
+      defence: true,
+      attacks: true,
+    });
     setCollapsedPowerIds(nextCollapsedPowerIds);
     setCollapsedNaturalAttacks(nextCollapsedNaturalAttackIds);
     setCollapsedLimitBreaks({ LB1: true, LB2: true });
@@ -4702,6 +4961,23 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     }
     return map;
   }, [traitDefinitions]);
+  const availableTraitColumns = useMemo(() => {
+    const selectedTraitIds = new Set(
+      (editor?.traits ?? []).map((trait) => trait.traitDefinitionId),
+    );
+    const columns: Record<TraitPolarityColumn, MonsterTraitDefinitionSummary[]> = {
+      helpful: [],
+      hindering: [],
+      mixed: [],
+    };
+
+    for (const trait of traitDefinitions) {
+      if (selectedTraitIds.has(trait.id)) continue;
+      columns[getTraitPolarityColumn(trait)].push(trait);
+    }
+
+    return columns;
+  }, [editor?.traits, traitDefinitions]);
   const selectedTraitAxisBonuses = useMemo(
     () =>
       computeTraitAxisBonuses(
@@ -4713,6 +4989,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
               band: trait.band,
               physicalThreatWeight: trait.physicalThreatWeight,
               mentalThreatWeight: trait.mentalThreatWeight,
+              physicalSurvivabilityWeight: trait.physicalSurvivabilityWeight,
+              mentalSurvivabilityWeight: trait.mentalSurvivabilityWeight,
               survivabilityWeight: trait.survivabilityWeight,
               manipulationWeight: trait.manipulationWeight,
               synergyWeight: trait.synergyWeight,
@@ -4811,6 +5089,95 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   }, [editor, weaponById]);
 
   const itemModifierValues = useMemo(() => getHighestItemModifiers(equippedItems), [equippedItems]);
+  const displayedModifierValues = useMemo(
+    () => ({
+      ...itemModifierValues,
+      attackModifier:
+        (itemModifierValues.attackModifier ?? 0) +
+        selectedTraitMechanicalModifiers.attributeModifiers.attack,
+      guardModifier:
+        (itemModifierValues.guardModifier ?? 0) +
+        selectedTraitMechanicalModifiers.attributeModifiers.guard,
+      fortitudeModifier:
+        (itemModifierValues.fortitudeModifier ?? 0) +
+        selectedTraitMechanicalModifiers.attributeModifiers.fortitude,
+      intellectModifier:
+        (itemModifierValues.intellectModifier ?? 0) +
+        selectedTraitMechanicalModifiers.attributeModifiers.intellect,
+      synergyModifier:
+        (itemModifierValues.synergyModifier ?? 0) +
+        selectedTraitMechanicalModifiers.attributeModifiers.synergy,
+      braveryModifier:
+        (itemModifierValues.braveryModifier ?? 0) +
+        selectedTraitMechanicalModifiers.attributeModifiers.bravery,
+      weaponSkillModifier:
+        (itemModifierValues.weaponSkillModifier ?? 0) +
+        selectedTraitMechanicalModifiers.derivedModifiers.weaponSkill,
+      armorSkillModifier:
+        (itemModifierValues.armorSkillModifier ?? 0) +
+        selectedTraitMechanicalModifiers.derivedModifiers.armorSkill,
+      willpowerModifier:
+        (itemModifierValues.willpowerModifier ?? 0) +
+        selectedTraitMechanicalModifiers.derivedModifiers.willpower,
+      dodgeModifier:
+        (itemModifierValues.dodgeModifier ?? 0) +
+        selectedTraitMechanicalModifiers.derivedModifiers.dodge,
+    }),
+    [itemModifierValues, selectedTraitMechanicalModifiers],
+  );
+  const displayedResistValues = useMemo(
+    () => ({
+      attackResistDie: Math.max(
+        0,
+        Number(editor?.attackResistDie ?? 0) +
+          selectedTraitMechanicalModifiers.resistModifiers.attack,
+      ),
+      guardResistDie: Math.max(
+        0,
+        Number(editor?.guardResistDie ?? 0) + selectedTraitMechanicalModifiers.resistModifiers.guard,
+      ),
+      fortitudeResistDie: Math.max(
+        0,
+        Number(editor?.fortitudeResistDie ?? 0) +
+          selectedTraitMechanicalModifiers.resistModifiers.fortitude,
+      ),
+      intellectResistDie: Math.max(
+        0,
+        Number(editor?.intellectResistDie ?? 0) +
+          selectedTraitMechanicalModifiers.resistModifiers.intellect,
+      ),
+      synergyResistDie: Math.max(
+        0,
+        Number(editor?.synergyResistDie ?? 0) +
+          selectedTraitMechanicalModifiers.resistModifiers.synergy,
+      ),
+      braveryResistDie: Math.max(
+        0,
+        Number(editor?.braveryResistDie ?? 0) +
+          selectedTraitMechanicalModifiers.resistModifiers.bravery,
+      ),
+    }),
+    [
+      editor?.attackResistDie,
+      editor?.braveryResistDie,
+      editor?.fortitudeResistDie,
+      editor?.guardResistDie,
+      editor?.intellectResistDie,
+      editor?.synergyResistDie,
+      selectedTraitMechanicalModifiers,
+    ],
+  );
+  const displayedResistModifiers = useMemo(
+    () => ({
+      attackResistDie: selectedTraitMechanicalModifiers.resistModifiers.attack,
+      guardResistDie: selectedTraitMechanicalModifiers.resistModifiers.guard,
+      fortitudeResistDie: selectedTraitMechanicalModifiers.resistModifiers.fortitude,
+      intellectResistDie: selectedTraitMechanicalModifiers.resistModifiers.intellect,
+      synergyResistDie: selectedTraitMechanicalModifiers.resistModifiers.synergy,
+      braveryResistDie: selectedTraitMechanicalModifiers.resistModifiers.bravery,
+    }),
+    [selectedTraitMechanicalModifiers],
+  );
   const itemProtectionValues = useMemo(
     () => getProtectionTotalsFromItems(equippedItems),
     [equippedItems],
@@ -4865,28 +5232,28 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     () =>
       Math.max(
         1,
-        baseWeaponSkillValue +
-          Math.max(0, Math.trunc(itemModifierValues.weaponSkillModifier ?? 0)),
+        baseWeaponSkillValue + Number(displayedModifierValues.weaponSkillModifier ?? 0),
       ),
-    [baseWeaponSkillValue, itemModifierValues.weaponSkillModifier],
+    [baseWeaponSkillValue, displayedModifierValues.weaponSkillModifier],
   );
   const computedArmorSkillValue = useMemo(
     () =>
       Math.max(
         1,
-        baseArmorSkillValue +
-          Math.max(0, Math.trunc(itemModifierValues.armorSkillModifier ?? 0)),
+        baseArmorSkillValue + Number(displayedModifierValues.armorSkillModifier ?? 0),
       ),
-    [baseArmorSkillValue, itemModifierValues.armorSkillModifier],
+    [baseArmorSkillValue, displayedModifierValues.armorSkillModifier],
   );
   const dodgeValue = useMemo(
     () =>
       Math.max(
         0,
         editor
-          ? getDodgeValue(
-              editor.guardDie,
-              editor.intellectDie,
+          ? getDodgeValueFromAttributeNumbers(
+              getAttributeNumericValue(editor.guardDie) +
+                selectedTraitMechanicalModifiers.attributeModifiers.guard,
+              getAttributeNumericValue(editor.intellectDie) +
+                selectedTraitMechanicalModifiers.attributeModifiers.intellect,
               editor.level,
               totalPhysicalProtection,
               protectionTuning,
@@ -4899,6 +5266,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       editor?.level,
       totalPhysicalProtection,
       protectionTuning,
+      selectedTraitMechanicalModifiers.attributeModifiers.guard,
+      selectedTraitMechanicalModifiers.attributeModifiers.intellect,
     ],
   );
   const willpowerValue = useMemo(
@@ -4906,28 +5275,36 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       editor
         ? Math.max(
             1,
-            getWillpowerDiceCountFromAttributes(
-              editor.synergyDie,
-              editor.braveryDie,
-              protectionTuning,
-            ) +
-              Math.max(0, Math.trunc(itemModifierValues.willpowerModifier ?? 0)),
+            weightedSkillFromAttributes(
+              getAttributeNumericValue(editor.synergyDie) +
+                selectedTraitMechanicalModifiers.attributeModifiers.synergy,
+              getAttributeNumericValue(editor.braveryDie) +
+                selectedTraitMechanicalModifiers.attributeModifiers.bravery,
+              {
+                primaryWeight: protectionTuning.willpowerSynergyWeight,
+                secondaryWeight: protectionTuning.willpowerBraveryWeight,
+                baselineOffset: protectionTuning.willpowerBaselineOffset,
+                scale: protectionTuning.willpowerScale,
+              },
+            ) + Number(displayedModifierValues.willpowerModifier ?? 0),
           )
         : 0,
     [
       editor?.synergyDie,
       editor?.braveryDie,
-      itemModifierValues.willpowerModifier,
+      displayedModifierValues.willpowerModifier,
       protectionTuning,
+      selectedTraitMechanicalModifiers.attributeModifiers.bravery,
+      selectedTraitMechanicalModifiers.attributeModifiers.synergy,
     ],
   );
   const dodgeDice = useMemo(
     () =>
       Math.max(
         0,
-        Math.ceil(dodgeValue / 6) + Math.max(0, Math.trunc(itemModifierValues.dodgeModifier ?? 0)),
+        Math.ceil(dodgeValue / 6) + Number(displayedModifierValues.dodgeModifier ?? 0),
       ),
-    [dodgeValue, itemModifierValues.dodgeModifier],
+    [dodgeValue, displayedModifierValues.dodgeModifier],
   );
   const armorSkillForDefenceCalc = Math.max(1, computedArmorSkillValue);
   const physicalBlockPerSuccess = useMemo(
@@ -4987,7 +5364,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   );
   const defenceStrings = useMemo(
     () => [
-      `Dodge: Roll ${dodgeDice} dice. If successes exceed the attacker's successes, take 0 damage. Otherwise take full damage.`,
+      `Dodge: Roll ${dodgeDice} dice. If successes match or exceed the attacker’s successes, take 0 damage. Otherwise take full damage.`,
       `Physical Protection: Roll ${computedArmorSkillValue} dice, block ${physicalBlockPerSuccess} wounds per success.`,
       `Mental Protection: Roll ${willpowerDice} dice, block ${mentalBlockPerSuccess} wounds per success.`,
     ],
@@ -5096,14 +5473,20 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         mentalProtection: totalMentalProtection,
         naturalPhysicalProtection: naturalPhysicalProtectionValue,
         naturalMentalProtection: naturalMentalProtectionValue,
-        attackModifier: itemModifierValues.attackModifier,
-        guardModifier: itemModifierValues.guardModifier,
-        fortitudeModifier: itemModifierValues.fortitudeModifier,
-        intellectModifier: itemModifierValues.intellectModifier,
-        synergyModifier: itemModifierValues.synergyModifier,
-        braveryModifier: itemModifierValues.braveryModifier,
-        weaponSkillModifier: itemModifierValues.weaponSkillModifier,
-        armorSkillModifier: itemModifierValues.armorSkillModifier,
+        attackResistDie: displayedResistValues.attackResistDie,
+        guardResistDie: displayedResistValues.guardResistDie,
+        fortitudeResistDie: displayedResistValues.fortitudeResistDie,
+        intellectResistDie: displayedResistValues.intellectResistDie,
+        synergyResistDie: displayedResistValues.synergyResistDie,
+        braveryResistDie: displayedResistValues.braveryResistDie,
+        attackModifier: displayedModifierValues.attackModifier,
+        guardModifier: displayedModifierValues.guardModifier,
+        fortitudeModifier: displayedModifierValues.fortitudeModifier,
+        intellectModifier: displayedModifierValues.intellectModifier,
+        synergyModifier: displayedModifierValues.synergyModifier,
+        braveryModifier: displayedModifierValues.braveryModifier,
+        weaponSkillModifier: displayedModifierValues.weaponSkillModifier,
+        armorSkillModifier: displayedModifierValues.armorSkillModifier,
         weaponSkillValue: computedWeaponSkillValue,
         armorSkillValue: computedArmorSkillValue,
         attacks: editor.attacks,
@@ -5119,7 +5502,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       computedArmorSkillValue,
       computedWeaponSkillValue,
       editor,
-      itemModifierValues,
+      displayedModifierValues,
+      displayedResistValues,
       naturalMentalProtectionValue,
       naturalPhysicalProtectionValue,
       resilienceValues,
@@ -5452,8 +5836,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     const mentalDefencePotential = willpowerDice * mentalBlockPerSuccess;
     const mentalDefenceSurvivabilityShare = getSmoothDefenceShare(
       mentalDefencePotential,
-      protectionTuning.defenceStringProtectionOutputScale,
-      protectionTuning.defenceStringProtectionOutputMaxShare,
+      protectionTuning.mentalDefenceStringProtectionOutputScale,
+      protectionTuning.mentalDefenceStringProtectionOutputMaxShare,
     );
 
     const physicalDodgeRawBonus =
@@ -5510,6 +5894,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         share: mentalDefenceSurvivabilityShare,
         rawBonus: mentalSurvivabilityAxisBudgetTarget * mentalDefenceSurvivabilityShare,
         totalMentalProtection,
+        tuning: {
+          maxShare: protectionTuning.mentalDefenceStringProtectionOutputMaxShare,
+          scale: protectionTuning.mentalDefenceStringProtectionOutputScale,
+        },
       },
       laneTotals: {
         physicalRawBonus: physicalDefencePackageRawBonus,
@@ -5653,14 +6041,14 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         mentalProtection: totalMentalProtection,
         naturalPhysicalProtection: naturalPhysicalProtectionValue,
         naturalMentalProtection: naturalMentalProtectionValue,
-        attackModifier: itemModifierValues.attackModifier,
-        guardModifier: itemModifierValues.guardModifier,
-        fortitudeModifier: itemModifierValues.fortitudeModifier,
-        intellectModifier: itemModifierValues.intellectModifier,
-        synergyModifier: itemModifierValues.synergyModifier,
-        braveryModifier: itemModifierValues.braveryModifier,
-        weaponSkillModifier: itemModifierValues.weaponSkillModifier,
-        armorSkillModifier: itemModifierValues.armorSkillModifier,
+        attackModifier: displayedModifierValues.attackModifier,
+        guardModifier: displayedModifierValues.guardModifier,
+        fortitudeModifier: displayedModifierValues.fortitudeModifier,
+        intellectModifier: displayedModifierValues.intellectModifier,
+        synergyModifier: displayedModifierValues.synergyModifier,
+        braveryModifier: displayedModifierValues.braveryModifier,
+        weaponSkillModifier: displayedModifierValues.weaponSkillModifier,
+        armorSkillModifier: displayedModifierValues.armorSkillModifier,
         weaponSkillValue: computedWeaponSkillValue,
         armorSkillValue: computedArmorSkillValue,
         mainHandItemId: asNullableId(editor.mainHandItemId),
@@ -5714,7 +6102,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     naturalPhysicalProtectionValue,
     totalMentalProtection,
     totalPhysicalProtection,
-    itemModifierValues,
+    displayedModifierValues,
     computedWeaponSkillValue,
     computedArmorSkillValue,
     tagInput,
@@ -6343,33 +6731,104 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     return Array.from(new Set(bullets)).slice(0, 8);
   }
 
-  const renderSlotImagePreview = (
+  const renderSelectedSlotCard = (
     slotLabel: string,
     selectedItemId: string | null | undefined,
+    onClear: () => void,
+    clearDisabled: boolean,
   ) => {
     const selectedItem = selectedItemId ? weaponById[selectedItemId] ?? null : null;
     const selectedImageUrl =
       selectedItem && isHttpUrl(selectedItem.imageUrl) ? selectedItem.imageUrl.trim() : null;
-    if (!selectedItem || !selectedImageUrl) return null;
+    if (!selectedItem) return null;
     const compactBullets = buildCompactItemBullets(selectedItem);
+    const rarityPalette = getForgeRarityPalette(selectedItem.rarity);
+    const headerLabel = formatEquipmentDropdownLabel(selectedItem);
 
     return (
-      <div className="grid h-[200px] w-full grid-cols-[minmax(92px,42%)_1fr] gap-3 overflow-hidden rounded border border-zinc-800 bg-zinc-900/40 p-2">
-        <div className="flex min-w-0 items-center justify-center overflow-hidden rounded bg-black/20">
-          <img
-            src={selectedImageUrl}
-            alt={`${slotLabel} item preview`}
-            className="max-h-full max-w-full object-contain"
-            loading="lazy"
-            referrerPolicy="no-referrer"
-          />
+      <div
+        className={`space-y-2 overflow-hidden rounded border p-2 ${rarityPalette.panelBorderClass} ${rarityPalette.panelShadowClass}`}
+        style={{
+          backgroundImage: rarityPalette.backgroundImage,
+          borderColor: rarityPalette.panelBorderColor,
+        }}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] text-zinc-500">{slotLabel}</p>
+            <p
+              className={`truncate text-sm ${rarityPalette.nameTextClass}`}
+              style={{ color: rarityPalette.headerColor }}
+            >
+              {headerLabel}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={clearDisabled}
+            onClick={onClear}
+            className={`shrink-0 rounded border px-2 py-1 text-xs transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 ${rarityPalette.panelBorderClass} ${rarityPalette.panelShadowClass} ${rarityPalette.attackLabelClass}`}
+            style={{
+              borderColor: rarityPalette.panelBorderColor,
+              color: rarityPalette.attackLabelColor,
+              backgroundColor: "rgba(3, 7, 18, 0.58)",
+            }}
+          >
+            Remove
+          </button>
         </div>
-        <div className="min-h-0 min-w-0 overflow-y-auto overflow-x-hidden rounded border border-zinc-800/70 bg-zinc-950/60 p-2 pr-3">
-          <p className="mb-1 truncate text-[10px] uppercase tracking-wide text-zinc-500">
+        <div
+          className={`grid h-[200px] grid-cols-[minmax(92px,42%)_1fr] gap-3 overflow-hidden rounded border p-2 ${rarityPalette.panelBorderClass} ${rarityPalette.panelShadowClass}`}
+          style={{
+            borderColor: rarityPalette.panelBorderColor,
+            backgroundColor: "rgba(3, 7, 18, 0.34)",
+          }}
+        >
+        <div
+          className={`flex min-w-0 items-center justify-center overflow-hidden rounded border bg-black/20 ${rarityPalette.imageBorderClass}`}
+          style={{
+            borderColor: rarityPalette.panelBorderColor,
+            boxShadow: `inset 0 0 18px rgba(0,0,0,0.35), 0 0 14px ${rarityPalette.outerBorderColor.replace(
+              "/",
+              "",
+            )}`,
+          }}
+        >
+          {selectedImageUrl ? (
+            <img
+              src={selectedImageUrl}
+              alt={`${slotLabel} item preview`}
+              className="max-h-full max-w-full object-contain"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <p
+              className={`text-xs ${rarityPalette.descriptionTextClass}`}
+              style={{ color: rarityPalette.bodyColor }}
+            >
+              No image
+            </p>
+          )}
+        </div>
+        <div
+          className={`min-h-0 min-w-0 overflow-y-auto overflow-x-hidden rounded border p-2 pr-3 ${rarityPalette.panelBorderClass} ${rarityPalette.panelShadowClass}`}
+          style={{
+            borderColor: rarityPalette.panelBorderColor,
+            backgroundColor: "rgba(3, 7, 18, 0.58)",
+          }}
+        >
+          <p
+            className={`mb-1 truncate text-[10px] uppercase tracking-wide ${rarityPalette.headerTextClass}`}
+            style={{ color: rarityPalette.headerColor }}
+          >
             Values
           </p>
           {compactBullets.length > 0 ? (
-            <ul className="list-disc space-y-0.5 pl-4 text-[11px] leading-snug text-zinc-300">
+            <ul
+              className={`list-disc space-y-0.5 pl-4 text-[11px] leading-snug ${rarityPalette.bodyTextClass}`}
+              style={{ color: rarityPalette.bodyColor }}
+            >
               {compactBullets.map((bullet) => (
                 <li key={bullet} className="break-words">
                   {bullet}
@@ -6377,169 +6836,216 @@ export function SummoningCircleEditor({ campaignId }: Props) {
               ))}
             </ul>
           ) : (
-            <p className="text-[11px] leading-snug text-zinc-500">No listed values.</p>
+            <p
+              className={`text-[11px] leading-snug ${rarityPalette.descriptionTextClass}`}
+              style={{ color: rarityPalette.bodyColor }}
+            >
+              No listed values.
+            </p>
           )}
+        </div>
         </div>
       </div>
     );
   };
   const renderHandSlot = (slot: (typeof HAND_SLOTS)[number]) => {
     const selectedValue = editor[slot.key] ?? "";
+    const selectedItem = selectedValue ? weaponById[selectedValue] ?? null : null;
     const options = weapons.filter((item) => {
       if (slot.key === "offHandItemId" && offHandDisabled) return false;
-      return isValidHandItemForSlot(slot.key, item);
+      if (!isValidHandItemForSlot(slot.key, item)) return false;
+      if (matchLoadoutToTags && !hasSharedEquipmentTag(item, editor.tags)) {
+        return selectedItem?.id === item.id;
+      }
+      if (!limitLoadoutToLevelAppropriate) return true;
+      if (selectedItem?.id === item.id) return true;
+      return isEquipmentWithinLevelRange(item, editor.level, 1);
     });
     const offHandLocked = slot.key === "offHandItemId" && offHandDisabled;
     const disabled = readOnly || offHandLocked;
     const showInlineEquipmentCapHint = equipmentCapHint && equipmentCapHintSlot === slot.key;
+    const selectedItemStyle = getEquipmentRarityOptionStyle(selectedItem);
 
     return (
       <label
         key={slot.key}
         className={`space-y-1 ${offHandLocked ? "opacity-60" : ""}`}
       >
-        <span className="text-[11px] text-zinc-500">{slot.label}</span>
-        {renderSlotImagePreview(slot.label, selectedValue)}
-        <div className="flex gap-2">
-          <select
-            disabled={disabled}
-            aria-disabled={disabled}
-            value={selectedValue}
-            onChange={(e) => {
-              const itemId = asNullableId(e.target.value);
-              let blockedBySourceCap = false;
-              setEditor((prev) => {
-                if (!prev) return prev;
-                const next: EditableMonster = { ...prev, [slot.key]: itemId };
-                if (slot.key === "mainHandItemId") {
-                  const selectedItem = itemId ? weaponById[itemId] ?? null : null;
-                  if (isTwoHanded(selectedItem)) {
-                    next.offHandItemId = null;
-                  }
-                }
-                const nextEquippedSourceCount = countEquippedWeaponSourcesForState(next);
-                const nextTotalWeaponSources = nextEquippedSourceCount + next.attacks.length;
-                if (nextTotalWeaponSources > 3) {
-                  blockedBySourceCap = true;
-                  return prev;
-                }
-                return next;
-              });
-              if (blockedBySourceCap) {
-                setEquipmentCapHint(equipBlockedHint);
-                setEquipmentCapHintSlot(slot.key);
-              } else {
-                setEquipmentCapHint(null);
-                setEquipmentCapHintSlot(null);
-              }
-            }}
-            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <option value="">None</option>
-            {options.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            disabled={disabled || !selectedValue}
-            onClick={() => {
+        {selectedItem ? (
+          renderSelectedSlotCard(
+            slot.label,
+            selectedValue,
+            () => {
               setEquipmentCapHint(null);
               setEquipmentCapHintSlot(null);
               setEditor((prev) => (prev ? { ...prev, [slot.key]: null } : prev));
-            }}
-            className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Clear
-          </button>
-        </div>
+            },
+            disabled,
+          )
+        ) : (
+          <>
+            <span className="text-[11px] text-zinc-500">{slot.label}</span>
+            <div className="flex gap-2">
+              <select
+                disabled={disabled}
+                aria-disabled={disabled}
+                value={selectedValue}
+                onChange={(e) => {
+                  const itemId = asNullableId(e.target.value);
+                  let blockedBySourceCap = false;
+                  setEditor((prev) => {
+                    if (!prev) return prev;
+                    const next: EditableMonster = { ...prev, [slot.key]: itemId };
+                    if (slot.key === "mainHandItemId") {
+                      const selectedItem = itemId ? weaponById[itemId] ?? null : null;
+                      if (isTwoHanded(selectedItem)) {
+                        next.offHandItemId = null;
+                      }
+                    }
+                    const nextEquippedSourceCount = countEquippedWeaponSourcesForState(next);
+                    const nextTotalWeaponSources = nextEquippedSourceCount + next.attacks.length;
+                    if (nextTotalWeaponSources > 3) {
+                      blockedBySourceCap = true;
+                      return prev;
+                    }
+                    return next;
+                  });
+                  if (blockedBySourceCap) {
+                    setEquipmentCapHint(equipBlockedHint);
+                    setEquipmentCapHintSlot(slot.key);
+                  } else {
+                    setEquipmentCapHint(null);
+                    setEquipmentCapHintSlot(null);
+                  }
+                }}
+                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                style={selectedItemStyle}
+              >
+                <option value="">None</option>
+                {options.map((item) => (
+                  <option
+                    key={item.id}
+                    value={item.id}
+                    style={getEquipmentRarityOptionStyle(item)}
+                  >
+                    {formatEquipmentDropdownLabel(item)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
         {showInlineEquipmentCapHint && <p className="text-xs text-zinc-500">{equipmentCapHint}</p>}
       </label>
     );
   };
   const renderArmorSlot = (slot: (typeof ARMOR_SLOTS)[number]) => {
     const selectedValue = editor[slot.key] ?? "";
-    const options = weapons.filter(
-      (item) => item.type === "ARMOR" && isValidArmorItemForSlot(slot.key, item),
-    );
+    const selectedItem = selectedValue ? weaponById[selectedValue] ?? null : null;
+    const options = weapons.filter((item) => {
+      if (!(item.type === "ARMOR" && isValidArmorItemForSlot(slot.key, item))) return false;
+      if (matchLoadoutToTags && !hasSharedEquipmentTag(item, editor.tags)) {
+        return selectedItem?.id === item.id;
+      }
+      if (!limitLoadoutToLevelAppropriate) return true;
+      if (selectedItem?.id === item.id) return true;
+      return isEquipmentWithinLevelRange(item, editor.level, 1);
+    });
+    const selectedItemStyle = getEquipmentRarityOptionStyle(selectedItem);
 
     return (
       <label key={slot.key} className="space-y-1">
-        <span className="text-[11px] text-zinc-500">{slot.label}</span>
-        {renderSlotImagePreview(slot.label, selectedValue)}
-        <div className="flex gap-2">
-          <select
-            disabled={readOnly}
-            value={selectedValue}
-            onChange={(e) =>
-              setEditor((prev) =>
-                prev ? { ...prev, [slot.key]: asNullableId(e.target.value) } : prev,
-              )
-            }
-            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-          >
-            <option value="">None</option>
-            {options.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            disabled={readOnly || !selectedValue}
-            onClick={() =>
-              setEditor((prev) => (prev ? { ...prev, [slot.key]: null } : prev))
-            }
-            className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
-          >
-            Clear
-          </button>
-        </div>
+        {selectedItem ? (
+          renderSelectedSlotCard(
+            slot.label,
+            selectedValue,
+            () => setEditor((prev) => (prev ? { ...prev, [slot.key]: null } : prev)),
+            Boolean(readOnly),
+          )
+        ) : (
+          <>
+            <span className="text-[11px] text-zinc-500">{slot.label}</span>
+            <div className="flex gap-2">
+              <select
+                disabled={readOnly}
+                value={selectedValue}
+                onChange={(e) =>
+                  setEditor((prev) =>
+                    prev ? { ...prev, [slot.key]: asNullableId(e.target.value) } : prev,
+                  )
+                }
+                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                style={selectedItemStyle}
+              >
+                <option value="">None</option>
+                {options.map((item) => (
+                  <option
+                    key={item.id}
+                    value={item.id}
+                    style={getEquipmentRarityOptionStyle(item)}
+                  >
+                    {formatEquipmentDropdownLabel(item)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
       </label>
     );
   };
   const renderItemSlot = (slot: (typeof ITEM_SLOTS)[number]) => {
     const selectedValue = editor[slot.key] ?? "";
-    const options = weapons.filter(
-      (item) => item.type === "ITEM" && isValidItemAccessorySlot(slot.key, item),
-    );
+    const selectedItem = selectedValue ? weaponById[selectedValue] ?? null : null;
+    const options = weapons.filter((item) => {
+      if (!(item.type === "ITEM" && isValidItemAccessorySlot(slot.key, item))) return false;
+      if (matchLoadoutToTags && !hasSharedEquipmentTag(item, editor.tags)) {
+        return selectedItem?.id === item.id;
+      }
+      if (!limitLoadoutToLevelAppropriate) return true;
+      if (selectedItem?.id === item.id) return true;
+      return isEquipmentWithinLevelRange(item, editor.level, 1);
+    });
+    const selectedItemStyle = getEquipmentRarityOptionStyle(selectedItem);
 
     return (
       <label key={slot.key} className="space-y-1">
-        <span className="text-[11px] text-zinc-500">{slot.label}</span>
-        {renderSlotImagePreview(slot.label, selectedValue)}
-        <div className="flex gap-2">
-          <select
-            disabled={readOnly}
-            value={selectedValue}
-            onChange={(e) =>
-              setEditor((prev) =>
-                prev ? { ...prev, [slot.key]: asNullableId(e.target.value) } : prev,
-              )
-            }
-            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-          >
-            <option value="">None</option>
-            {options.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            disabled={readOnly || !selectedValue}
-            onClick={() =>
-              setEditor((prev) => (prev ? { ...prev, [slot.key]: null } : prev))
-            }
-            className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
-          >
-            Clear
-          </button>
-        </div>
+        {selectedItem ? (
+          renderSelectedSlotCard(
+            slot.label,
+            selectedValue,
+            () => setEditor((prev) => (prev ? { ...prev, [slot.key]: null } : prev)),
+            Boolean(readOnly),
+          )
+        ) : (
+          <>
+            <span className="text-[11px] text-zinc-500">{slot.label}</span>
+            <div className="flex gap-2">
+              <select
+                disabled={readOnly}
+                value={selectedValue}
+                onChange={(e) =>
+                  setEditor((prev) =>
+                    prev ? { ...prev, [slot.key]: asNullableId(e.target.value) } : prev,
+                  )
+                }
+                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                style={selectedItemStyle}
+              >
+                <option value="">None</option>
+                {options.map((item) => (
+                  <option
+                    key={item.id}
+                    value={item.id}
+                    style={getEquipmentRarityOptionStyle(item)}
+                  >
+                    {formatEquipmentDropdownLabel(item)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
       </label>
     );
   };
@@ -6921,7 +7427,17 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           <div className={`${editorMobileVisibility} lg:block space-y-5`}>
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
           <div className="flex items-center gap-3">
-            <h2 className="font-semibold">Monster Editor</h2>
+            <button
+              type="button"
+              onClick={() => toggleGuideSectionCollapsed("identity")}
+              className="flex min-w-0 flex-1 items-center gap-2 rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-left hover:bg-zinc-900/40 cursor-pointer select-none"
+              aria-expanded={!collapsedGuideSections.identity}
+            >
+              <span className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-400">
+                <span aria-hidden="true">{collapsedGuideSections.identity ? ">" : "v"}</span>
+                Monster Identity
+              </span>
+            </button>
             {readOnly && (
               <span className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-300">
                 Core monster (read-only)
@@ -6958,6 +7474,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             </div>
           </div>
 
+          {!collapsedGuideSections.identity && (
+            <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
             <input
               disabled={readOnly}
@@ -7226,30 +7744,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
               )}
             </div>
           </div>
-        </section>
-
-        <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
-          <h3 className="text-xs uppercase tracking-wide text-zinc-400">Survivability & Defence</h3>
-          <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-2 gap-2">
-            <label className="space-y-1">
-              <span className="text-[11px] text-zinc-500">Physical Resilience</span>
-              <input
-                readOnly
-                type="number"
-                value={resilienceValues.physicalResilienceMax}
-                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-              />
-            </label>
-            <label className="space-y-1">
-              <span className="text-[11px] text-zinc-500">Mental Perseverance</span>
-              <input
-                readOnly
-                type="number"
-                value={resilienceValues.mentalPerseveranceMax}
-                className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
-              />
-            </label>
-          </div>
+            </>
+          )}
         </section>
 
         <section className="rounded border border-zinc-800 bg-zinc-950/40 p-4 space-y-3 overflow-visible">
@@ -7267,54 +7763,87 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           {!collapsedGuideSections.attributes && (
             <>
           <div className="space-y-2 min-w-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className="space-y-1">
+                <span className="text-[11px] text-zinc-500">Physical Resilience</span>
+                <input
+                  readOnly
+                  type="number"
+                  value={resilienceValues.physicalResilienceMax}
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] text-zinc-500">Mental Perseverance</span>
+                <input
+                  readOnly
+                  type="number"
+                  value={resilienceValues.mentalPerseveranceMax}
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-80"
+                />
+              </label>
+            </div>
             <div className="mb-2 grid grid-cols-4 gap-2 items-center min-w-0 text-xs text-zinc-400 uppercase tracking-wide">
               <div aria-hidden="true" />
               <div className="text-center">Attributes</div>
               <div className="text-center">Resist</div>
               <div className="text-center">Modifiers</div>
             </div>
-            {ATTR_ROWS.map(([label, dieKey, resistKey, modKey]) => (
-              <div
-                key={label}
-                className="grid grid-cols-4 gap-2 items-center min-w-0"
-              >
-                <p className="self-center min-w-0 text-center">
-                  <HoverTooltipLabel label={label} tooltip={ATTRIBUTE_TOOLTIPS[label]} />
-                </p>
-                <select
-                  disabled={readOnly}
-                  value={String(editor[dieKey])}
-                  onChange={(e) =>
-                    setEditor((p) => (p ? { ...p, [dieKey]: e.target.value as DiceSize } : p))
-                  }
-                  className="min-w-0 w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-center"
+            {ATTR_ROWS.map(([label, dieKey, resistKey, modKey]) => {
+              const resistModifier = displayedResistModifiers[resistKey];
+              const hasResistModifier = resistModifier !== 0;
+
+              return (
+                <div
+                  key={label}
+                  className="grid grid-cols-4 gap-2 items-center min-w-0"
                 >
-                  {DICE.map((die) => (
-                    <option key={die} value={die}>
-                      {dieLabel(die)}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  disabled={readOnly}
-                  type="number"
-                  min={0}
-                  value={Number(editor[resistKey])}
-                  onChange={(e) =>
-                    setEditor((p) =>
-                      p ? { ...p, [resistKey]: Math.max(0, Number(e.target.value || 0)) } : p,
-                    )
-                  }
-                  className="min-w-0 w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-center"
-                />
-                <input
-                  readOnly
-                  type="number"
-                  value={itemModifierValues[modKey]}
-                  className="min-w-0 w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-center opacity-80"
-                />
-              </div>
-            ))}
+                  <p className="self-center min-w-0 text-center">
+                    <HoverTooltipLabel label={label} tooltip={ATTRIBUTE_TOOLTIPS[label]} />
+                  </p>
+                  <select
+                    disabled={readOnly}
+                    value={String(editor[dieKey])}
+                    onChange={(e) =>
+                      setEditor((p) => (p ? { ...p, [dieKey]: e.target.value as DiceSize } : p))
+                    }
+                    className="min-w-0 w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-center"
+                  >
+                    {DICE.map((die) => (
+                      <option key={die} value={die}>
+                        {dieLabel(die)}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="min-w-0">
+                    <input
+                      disabled={readOnly}
+                      type="number"
+                      min={0}
+                      value={Number(editor[resistKey])}
+                      onChange={(e) =>
+                        setEditor((p) =>
+                          p ? { ...p, [resistKey]: Math.max(0, Number(e.target.value || 0)) } : p,
+                        )
+                      }
+                      className="min-w-0 w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-center"
+                    />
+                    {hasResistModifier && (
+                      <p className="mt-1 truncate text-center text-[10px] text-zinc-500">
+                        Trait {resistModifier > 0 ? "+" : ""}
+                        {resistModifier} = {displayedResistValues[resistKey]}
+                      </p>
+                    )}
+                  </div>
+                  <input
+                    readOnly
+                    type="number"
+                    value={displayedModifierValues[modKey]}
+                    className="min-w-0 w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-center opacity-80"
+                  />
+                </div>
+              );
+            })}
           </div>
 
           {attributeBalancingGuide && (
@@ -7402,16 +7931,6 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           </button>
           {!collapsedGuideSections.traits && (
             <>
-          <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-2 items-center">
-            <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Trait Points</p>
-            <input
-              readOnly
-              type="number"
-              value={TRAIT_POINTS_PLACEHOLDER}
-              className="w-20 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-center opacity-80"
-            />
-          </div>
-
           <div className="space-y-2">
             <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Selected Traits</p>
             {editor.traits.length === 0 ? (
@@ -7459,55 +7978,63 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           </div>
 
           <div className="space-y-2">
-            <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Available CORE Traits</p>
-            <div className="flex flex-wrap gap-2">
-              {traitDefinitions
-                .filter(
-                  (trait) =>
-                    !editor.traits.some((selected) => selected.traitDefinitionId === trait.id),
-                )
-                .map((trait) => {
-                  const renderedEffect = renderTraitEffectText(
-                    trait.effectText ?? "No description",
-                  );
-                  return (
-                    <button
-                      key={trait.id}
-                      type="button"
-                      title={renderedEffect}
-                      disabled={readOnly}
-                      onClick={() =>
-                        setEditor((p) =>
-                          p
-                            ? {
-                                ...p,
-                                traits: p.traits.some(
-                                  (selected) => selected.traitDefinitionId === trait.id,
-                                )
-                                  ? p.traits
-                                  : [
-                                      ...p.traits,
-                                      {
-                                        sortOrder: p.traits.length,
-                                        traitDefinitionId: trait.id,
-                                        name: trait.name,
-                                        effectText: trait.effectText,
-                                      },
-                                    ],
-                              }
-                            : p,
-                        )
-                      }
-                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-60"
-                    >
-                      {trait.name}
-                    </button>
-                  );
-                })}
-              {traitDefinitions.length === 0 && (
-                <p className="text-sm text-zinc-500">No CORE traits available.</p>
-              )}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              {([
+                ["helpful", "Helpful Traits"],
+                ["hindering", "Hindering Traits"],
+                ["mixed", "Mixed Traits"],
+              ] as const).map(([columnKey, label]) => (
+                <div key={columnKey} className="space-y-2">
+                  <p className="text-[11px] text-zinc-500 uppercase tracking-wide">{label}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {availableTraitColumns[columnKey].map((trait) => {
+                      const renderedEffect = renderTraitEffectText(
+                        trait.effectText ?? "No description",
+                      );
+                      return (
+                        <button
+                          key={trait.id}
+                          type="button"
+                          title={renderedEffect}
+                          disabled={readOnly}
+                          onClick={() =>
+                            setEditor((p) =>
+                              p
+                                ? {
+                                    ...p,
+                                    traits: p.traits.some(
+                                      (selected) => selected.traitDefinitionId === trait.id,
+                                    )
+                                      ? p.traits
+                                      : [
+                                          ...p.traits,
+                                          {
+                                            sortOrder: p.traits.length,
+                                            traitDefinitionId: trait.id,
+                                            name: trait.name,
+                                            effectText: trait.effectText,
+                                          },
+                                        ],
+                                  }
+                                : p,
+                            )
+                          }
+                          className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-60"
+                        >
+                          {trait.name}
+                        </button>
+                      );
+                    })}
+                    {availableTraitColumns[columnKey].length === 0 && (
+                      <p className="text-sm text-zinc-500">None</p>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
+            {traitDefinitions.length === 0 && (
+              <p className="text-sm text-zinc-500">No CORE traits available.</p>
+            )}
           </div>
             </>
           )}
@@ -7530,7 +8057,37 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             <>
               {/* SC_EQUIP_LAYOUT_BODY_ORDER_V1 */}
               <div className="space-y-2">
-                <p className="text-[11px] text-zinc-500">Loadout</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <p className="text-[11px] text-zinc-500">Loadout</p>
+                  <label className="inline-flex items-center gap-2 text-[11px] text-zinc-400">
+                    <input
+                      type="checkbox"
+                      checked={limitLoadoutToLevelAppropriate}
+                      onChange={(e) => setLimitLoadoutToLevelAppropriate(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-200"
+                    />
+                    <span
+                      title="When checked, gear dropdowns only show items within 1 level above or below the monster's current level."
+                      className="cursor-help"
+                    >
+                      Limit to level appropriate?
+                    </span>
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-[11px] text-zinc-400">
+                    <input
+                      type="checkbox"
+                      checked={matchLoadoutToTags}
+                      onChange={(e) => setMatchLoadoutToTags(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border border-zinc-700 bg-zinc-900 text-zinc-200"
+                    />
+                    <span
+                      title="When checked, gear dropdowns only show items that share at least one tag with the monster."
+                      className="cursor-help"
+                    >
+                      Match to tags?
+                    </span>
+                  </label>
+                </div>
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {renderArmorSlot(ARMOR_SLOTS[0])}

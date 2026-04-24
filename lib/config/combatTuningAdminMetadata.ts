@@ -383,6 +383,23 @@ const METADATA: Record<string, CombatTuningAdminMetadata> = {
     affects: "baseline",
     aliases: ["defence package", "block", "scale"],
   },
+  mentalDefenceStringProtectionOutputMaxShare: {
+    label: "Mental Protection Block Lane Cap",
+    group: "Dodge & Defence Package",
+    description:
+      "Raise this to let mental protection contribute more mental survivability without changing physical protection output.",
+    affects: "baseline",
+    format: "share",
+    aliases: ["mental defence", "mpv", "block", "survivability"],
+  },
+  mentalDefenceStringProtectionOutputScale: {
+    label: "Mental Protection Block Ramp Speed",
+    group: "Dodge & Defence Package",
+    description:
+      "Raise this to make mental protection contribution ramp more slowly without changing physical protection ramping.",
+    affects: "baseline",
+    aliases: ["mental defence", "mpv", "block", "scale"],
+  },
   dodgeBaselineMaxShare: {
     label: "Dodge Baseline Lane Cap",
     group: "Dodge & Defence Package",

@@ -48,6 +48,10 @@ export const DEFAULT_POOL_ABOVE_EXPECTED_MAX_BONUS_SHARE = 0.25;
 export const DEFAULT_POOL_ABOVE_EXPECTED_SCALE = 0.4;
 export const DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE = 0.4;
 export const DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE = 12;
+export const DEFAULT_MENTAL_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE =
+  DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE;
+export const DEFAULT_MENTAL_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE =
+  DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE;
 export const DEFAULT_DODGE_BASELINE_MAX_SHARE = 0.2;
 export const DEFAULT_DODGE_BASELINE_SCALE = 1.25;
 export const DEFAULT_DODGE_PARITY_MAX_SHARE = 0.32;
@@ -107,6 +111,8 @@ export type ProtectionTuningValues = {
   poolAboveExpectedScale: number;
   defenceStringProtectionOutputMaxShare: number;
   defenceStringProtectionOutputScale: number;
+  mentalDefenceStringProtectionOutputMaxShare: number;
+  mentalDefenceStringProtectionOutputScale: number;
   dodgeBaselineMaxShare: number;
   dodgeBaselineScale: number;
   dodgeParityMaxShare: number;
@@ -175,6 +181,9 @@ export const DEFAULT_COMBAT_TUNING_VALUES: ProtectionTuningValues = {
   poolAboveExpectedScale: DEFAULT_POOL_ABOVE_EXPECTED_SCALE,
   defenceStringProtectionOutputMaxShare: DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE,
   defenceStringProtectionOutputScale: DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE,
+  mentalDefenceStringProtectionOutputMaxShare:
+    DEFAULT_MENTAL_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE,
+  mentalDefenceStringProtectionOutputScale: DEFAULT_MENTAL_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE,
   dodgeBaselineMaxShare: DEFAULT_DODGE_BASELINE_MAX_SHARE,
   dodgeBaselineScale: DEFAULT_DODGE_BASELINE_SCALE,
   dodgeParityMaxShare: DEFAULT_DODGE_PARITY_MAX_SHARE,
@@ -443,6 +452,20 @@ export function normalizeCombatTuning(input?: Partial<Record<keyof ProtectionTun
     defenceStringProtectionOutputScale: toPositiveNumber(
       input?.defenceStringProtectionOutputScale,
       DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE,
+    ),
+    mentalDefenceStringProtectionOutputMaxShare: toPositiveNumber(
+      input?.mentalDefenceStringProtectionOutputMaxShare,
+      toPositiveNumber(
+        input?.defenceStringProtectionOutputMaxShare,
+        DEFAULT_MENTAL_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE,
+      ),
+    ),
+    mentalDefenceStringProtectionOutputScale: toPositiveNumber(
+      input?.mentalDefenceStringProtectionOutputScale,
+      toPositiveNumber(
+        input?.defenceStringProtectionOutputScale,
+        DEFAULT_MENTAL_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE,
+      ),
     ),
     dodgeBaselineMaxShare: toPositiveNumber(
       input?.dodgeBaselineMaxShare,

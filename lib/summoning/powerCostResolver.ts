@@ -215,7 +215,16 @@ function isHostilePacket(packet: EffectPacket | undefined): boolean {
   if (!packet) return false;
   if (packet.hostility === "HOSTILE") return true;
   if (packet.hostility === "NON_HOSTILE") return false;
-  return HOSTILE_INTENTIONS.has(packet.intention ?? packet.type ?? "ATTACK");
+  const intention = packet.intention ?? packet.type ?? "ATTACK";
+  if (intention === "MOVEMENT") {
+    const details = asRecord(packet.detailsJson);
+    const movementMode = normalizeMovementMode(details.movementMode);
+    if (isForcedMovementMode(movementMode)) return true;
+    if (isFriendlyMovementMode(movementMode)) return false;
+    const applyTo = getPacketApplyTo(packet);
+    if (applyTo === "SELF" || applyTo === "ALLIES") return false;
+  }
+  return HOSTILE_INTENTIONS.has(intention);
 }
 
 function resolveCanonicalRangeCategory(power: Power): CanonicalRangeCategory {
@@ -891,6 +900,7 @@ function getPacketMagnitudeCost(
   const chosenKeys: string[] = [];
   const notes: string[] = [];
   const details = asRecord(packet.detailsJson);
+  const intention = packet.intention ?? packet.type ?? "ATTACK";
 
   const diceResolved = resolveNumericTuningValue(
     tuningValues,
@@ -907,11 +917,14 @@ function getPacketMagnitudeCost(
 
   const baseMagnitude = diceResolved.value + potencyResolved.value;
   let woundAdjustedMagnitude = baseMagnitude;
+  let movementMagnitude = baseMagnitude;
   let damageTypeCount = 0;
   let damageTypeMultiplier = 1;
   let damageTypeMultiplierKey: string | null = null;
+  let movementTypeMultiplier = 1;
+  let movementTypeMultiplierKey: string | null = null;
 
-  if ((packet.intention ?? packet.type ?? "ATTACK") === "ATTACK") {
+  if (intention === "ATTACK") {
     damageTypeCount = countDamageTypes(details);
     if (damageTypeCount > 0) {
       const damageTypeResolved = resolveNumericTuningValue(
@@ -924,6 +937,35 @@ function getPacketMagnitudeCost(
       pushSelectedTuning(chosenKeys, notes, damageTypeResolved);
     }
     woundAdjustedMagnitude = baseMagnitude * damageTypeMultiplier;
+  }
+
+  if (intention === "MOVEMENT") {
+    const movementMode = normalizeMovementMode(details.movementMode);
+    const movementModeSuffix =
+      movementMode === "Force Push"
+        ? "forcePush"
+        : movementMode === "Force Teleport"
+          ? "forceTeleport"
+          : movementMode === "Force Fly"
+            ? "forceFly"
+            : movementMode === "Run"
+              ? "run"
+              : movementMode === "Fly"
+                ? "fly"
+                : movementMode === "Teleport"
+                  ? "teleport"
+                  : null;
+    if (movementModeSuffix) {
+      const movementMagnitudeResolved = resolveDiscreteTuningValue(
+        tuningValues,
+        "packet.magnitude.movementTypeMultiplier",
+        movementModeSuffix,
+      );
+      movementTypeMultiplier = movementMagnitudeResolved.value || 1;
+      movementTypeMultiplierKey = movementMagnitudeResolved.tuningKey;
+      pushSelectedTuning(chosenKeys, notes, movementMagnitudeResolved);
+    }
+    movementMagnitude = baseMagnitude * Math.max(0, movementTypeMultiplier);
   }
 
   let buildPowerBonusCost = 0;
@@ -945,19 +987,26 @@ function getPacketMagnitudeCost(
     pushSelectedTuning(chosenKeys, notes, buildPowerResolved);
   }
 
+  const resolvedMagnitude =
+    intention === "MOVEMENT" ? movementMagnitude : woundAdjustedMagnitude;
+
   return {
-    cost: roundCost(woundAdjustedMagnitude + buildPowerBonusCost),
+    cost: roundCost(resolvedMagnitude + buildPowerBonusCost),
     chosenKeys,
     notes,
     debug: {
       baseDiceCost: roundCost(diceResolved.value),
       basePotencyCost: roundCost(potencyResolved.value),
+      movementTypeMultiplier: roundCost(movementTypeMultiplier),
+      movementTypeMultiplierKey,
+      movementMagnitude: roundCost(movementMagnitude),
       damageTypeCount,
       damageTypeMultiplier: roundCost(damageTypeMultiplier),
       damageTypeMultiplierKey,
       buildPowerMultiplier: roundCost(buildPowerMultiplier),
       buildPowerMultiplierKey,
       buildPowerBonusCost: roundCost(buildPowerBonusCost),
+      resolvedMagnitude: roundCost(resolvedMagnitude),
     },
   };
 }

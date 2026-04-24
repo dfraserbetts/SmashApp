@@ -1,5 +1,3 @@
-02_Power_System_Spec.txt
-
 Purpose
 
 This document defines the authoritative design-level specification for the new SMASH shared power system.
@@ -210,9 +208,9 @@ Reserve + Charge delayed-cast:
 
 becomes primed after the required charge turns
 
-must be released with a Power Action or with a Response before the end of the user’s next turn
+once primed, may be held in reserve for up to its authored Reserve Lifespan
 
-if not released, is lost and goes on cooldown
+if not released before that Reserve hold window ends, it is lost and goes on cooldown
 
 Reserve keeps release permission and release-flavoured wording.
 
@@ -900,7 +898,7 @@ preserve live preview as a constant readout of the resulting descriptor structur
 This exists to keep simple powers fast while still allowing more advanced structures to expose deeper control where justified.
 
 
-14. Phase 2 Addendum — Defence Gating, Resist Attributes, and Application Mode
+14. Phase 2 Addendum — Defence Gating, Resist Attributes, Dodge Resolution, and Application Mode
 
 Defence Gating is determined from the Primary Packet only.
 
@@ -959,6 +957,18 @@ Dodge means the target may avoid the hostile packet entirely during the standard
 Dodge is only a legal gate option if the target could plausibly avoid the hostile packet’s threatened point, line, path, or area during that response window.
 
 If the packet’s area, spread, persistence, or contact state makes that implausible, Dodge is not a legal gate option.
+
+Dodge Resolution Rule
+
+When Dodge is the legal defence gate, the defender rolls their dodge dice.
+
+If the defender’s successes match or exceed the attacker’s successes on the hostile Primary Packet, the hostile packet is avoided entirely.
+
+If the defender’s successes do not match or exceed the attacker’s successes, the packet is not avoided.
+
+This is a locked rules truth.
+
+Dodge no longer requires the defender to exceed the attacker’s successes. Matching is sufficient.
 
 Protection means the target resolves the hostile packet through a protection-based defence rather than full evasion.
 
@@ -1160,6 +1170,18 @@ A Secondary Packet may use a different target class or local targeting pattern o
 
 In the current builder-facing model, the relevant packet-local recipient classes may include Primary Targets, Allies, and Self. Allies includes self by default. A power that should exclude the user must do so through an explicit authored restriction rather than by redefining Allies as not-self.
 
+Packet-local recipient classes must remain legal within the power's shared cast context unless an explicit advanced local targeting override truthfully authorizes a different recipient lane.
+
+In the current builder surface:
+
+Self range collapses packet-local recipient selection to Self only.
+
+Single-target Melee and single-target Ranged powers collapse packet-local recipient selection to Primary Targets or Self only unless an explicit advanced local targeting override is present.
+
+These restrictions are builder-surface legality and anti-redundancy rules. They do not redefine the broader meaning of Allies, which still includes self by default where Allies is legally available.
+
+If a legally authored packet has no legal recipient when it would resolve, that packet simply does not apply to that recipient.
+
 Legal mixed-intention patterns include hostile-primary into hostile-secondary, hostile-primary into beneficial-secondary, and non-hostile-primary into non-hostile-secondary.
 
 Non-hostile-primary into hostile-secondary is illegal.
@@ -1310,8 +1332,12 @@ Immediate + Standard Packet 1 uses On Cast only in the current builder surface
 If an Immediate Packet 1 resolves On Cast and creates no beyond-turn carrier, later Immediate packets remain On Cast only in first implementation
 
 Secondary scaling from the Primary result class is derived rather than manually authored in the current builder surface
+
 packet-local recipient class may distinguish Primary Targets, Allies, and Self where a Secondary Packet needs a different target class from Packet 1
+
 Allies includes self by default unless an explicit authored restriction says otherwise
+
+packet-local recipient class must remain legal within the shared cast context unless an explicit advanced local targeting override authorizes a different recipient lane; in the current builder surface Self collapses to Self only, and single-target Melee / Ranged collapses to Primary Targets or Self only
 
 Persistent states use stacks and a stack-cleanup model, while repeating direct effects use ongoing value plus duration
 
@@ -1328,6 +1354,8 @@ Immediate remains the only chassis that can honestly have no Lifespan requiremen
 Self-origin sphere wording must distinguish static areas centered on the user's current space from Attached areas attached to the user
 
 Overlapping areas from the same packet at the same timing multiply hostile result before one defence roll rather than creating extra defended entry points
+
+Dodge succeeds on match or exceed, not exceed-only
 
 simple powers must stay simple
 
@@ -1447,6 +1475,7 @@ required subtype or type data
 supporting application details where relevant
 
 packet-local targeting override only when explicitly authored
+
 packet-local recipient class may currently distinguish Primary Targets, Allies, and Self where the packet needs a different recipient class from Packet 1
 
 Derived preview metadata

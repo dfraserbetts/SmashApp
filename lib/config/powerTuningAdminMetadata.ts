@@ -157,6 +157,9 @@ function labelForKey(configKey: string): string {
     if (family === "magnitude" && detail === "buildPowerBonusDice") {
       return `Build Power Charged Dice Multiplier - ${value} Dice`;
     }
+    if (family === "magnitude" && detail === "movementTypeMultiplier") {
+      return `Movement Magnitude Multiplier - ${formatSegment(value ?? "")}`;
+    }
     if (family === "duration") return `${formatSegment(detail ?? "")} Effect Duration Cost`;
     if (family === "durationTurns") return `Effect Duration - ${pluralizeTurn(detail ?? "")}`;
     if (family === "recipient") return `${formatSegment(detail ?? "")} Recipient Cost`;
@@ -223,7 +226,8 @@ function formatForKey(configKey: string): PowerTuningValueFormat {
   }
   if (
     configKey.startsWith("packet.magnitude.damageTypeCount.") ||
-    configKey.startsWith("packet.magnitude.buildPowerBonusDice.")
+    configKey.startsWith("packet.magnitude.buildPowerBonusDice.") ||
+    configKey.startsWith("packet.magnitude.movementTypeMultiplier.")
   ) {
     return "multiplier";
   }
@@ -243,6 +247,7 @@ function descriptionForKey(configKey: string): string {
   if (configKey.startsWith("packet.identity.")) return "Raises or lowers the base cost of this packet intention.";
   if (configKey.startsWith("packet.magnitude.damageTypeCount.")) return "Multiplies the wound-sensitive part of attack output when more damage types are present.";
   if (configKey.startsWith("packet.magnitude.buildPowerBonusDice.")) return "Multiplies the bonus-output portion created by Build Power charged dice.";
+  if (configKey.startsWith("packet.magnitude.movementTypeMultiplier.")) return "Multiplies the generic packet magnitude burden for this movement mode before movement still routes to mobility through the normal packet path.";
   if (configKey.startsWith("packet.magnitude.")) return "Raises or lowers cost from authored dice, potency, or output scale.";
   if (configKey.startsWith("packet.timing.")) return "Raises or lowers cost based on when the packet resolves.";
   if (configKey.startsWith("packet.duration")) return "Raises or lowers cost based on how long the packet effect lasts.";

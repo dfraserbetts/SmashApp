@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { prisma } from "@/prisma/client";
+import {
+  MONSTER_TRAIT_MECHANICAL_OPERATIONS,
+  MONSTER_TRAIT_MECHANICAL_TARGETS,
+  type MonsterTraitMechanicalOperation,
+  type MonsterTraitMechanicalTarget,
+} from "@/lib/summoning/traitMechanics";
 
 const MONSTER_TRAIT_BANDS = ["MINOR", "STANDARD", "MAJOR", "BOSS"] as const;
 
@@ -15,11 +21,23 @@ const monsterTraitDefinitionSelect = {
   band: true,
   physicalThreatWeight: true,
   mentalThreatWeight: true,
+  physicalSurvivabilityWeight: true,
+  mentalSurvivabilityWeight: true,
   survivabilityWeight: true,
   manipulationWeight: true,
   synergyWeight: true,
   mobilityWeight: true,
   presenceWeight: true,
+  mechanicalEffects: {
+    orderBy: { sortOrder: "asc" },
+    select: {
+      id: true,
+      sortOrder: true,
+      target: true,
+      operation: true,
+      valueExpression: true,
+    },
+  },
 } as const;
 
 async function getUserIdFromSupabaseSSR(): Promise<string | null> {
@@ -88,7 +106,52 @@ function normalizeAxisWeight(value: unknown): number {
   const parsed =
     typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   if (!Number.isFinite(parsed)) return 0;
-  return Math.max(0, Math.min(3, Math.trunc(parsed)));
+  return parsed;
+}
+
+function normalizeMechanicalEffects(value: unknown): Array<{
+  sortOrder: number;
+  target: MonsterTraitMechanicalTarget;
+  operation: MonsterTraitMechanicalOperation;
+  valueExpression: string;
+}> {
+  if (!Array.isArray(value)) return [];
+
+  const effects: Array<{
+    sortOrder: number;
+    target: MonsterTraitMechanicalTarget;
+    operation: MonsterTraitMechanicalOperation;
+    valueExpression: string;
+  }> = [];
+
+  for (let index = 0; index < value.length; index += 1) {
+    const raw = value[index] as {
+      target?: unknown;
+      operation?: unknown;
+      valueExpression?: unknown;
+    };
+    const target = String(raw?.target ?? "").trim();
+    const operation = String(raw?.operation ?? "ADD").trim();
+    const valueExpression =
+      typeof raw?.valueExpression === "string" ? raw.valueExpression.trim() : "";
+
+    if (
+      !MONSTER_TRAIT_MECHANICAL_TARGETS.includes(target as MonsterTraitMechanicalTarget) ||
+      !MONSTER_TRAIT_MECHANICAL_OPERATIONS.includes(operation as MonsterTraitMechanicalOperation) ||
+      valueExpression.length === 0
+    ) {
+      continue;
+    }
+
+    effects.push({
+      sortOrder: effects.length,
+      target: target as MonsterTraitMechanicalTarget,
+      operation: operation as MonsterTraitMechanicalOperation,
+      valueExpression,
+    });
+  }
+
+  return effects;
 }
 
 export async function GET() {
@@ -126,11 +189,14 @@ export async function POST(req: Request) {
           band?: unknown;
           physicalThreatWeight?: unknown;
           mentalThreatWeight?: unknown;
+          physicalSurvivabilityWeight?: unknown;
+          mentalSurvivabilityWeight?: unknown;
           survivabilityWeight?: unknown;
           manipulationWeight?: unknown;
           synergyWeight?: unknown;
           mobilityWeight?: unknown;
           presenceWeight?: unknown;
+          mechanicalEffects?: unknown;
         }
       | null;
 
@@ -141,11 +207,15 @@ export async function POST(req: Request) {
     const band = normalizeBand(body?.band);
     const physicalThreatWeight = normalizeAxisWeight(body?.physicalThreatWeight);
     const mentalThreatWeight = normalizeAxisWeight(body?.mentalThreatWeight);
-    const survivabilityWeight = normalizeAxisWeight(body?.survivabilityWeight);
+    const physicalSurvivabilityWeight = normalizeAxisWeight(body?.physicalSurvivabilityWeight);
+    const mentalSurvivabilityWeight = normalizeAxisWeight(body?.mentalSurvivabilityWeight);
+    const survivabilityWeight =
+      body && "survivabilityWeight" in body ? normalizeAxisWeight(body.survivabilityWeight) : 0;
     const manipulationWeight = normalizeAxisWeight(body?.manipulationWeight);
     const synergyWeight = normalizeAxisWeight(body?.synergyWeight);
     const mobilityWeight = normalizeAxisWeight(body?.mobilityWeight);
     const presenceWeight = normalizeAxisWeight(body?.presenceWeight);
+    const mechanicalEffects = normalizeMechanicalEffects(body?.mechanicalEffects);
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -161,11 +231,17 @@ export async function POST(req: Request) {
             band,
             physicalThreatWeight,
             mentalThreatWeight,
+            physicalSurvivabilityWeight,
+            mentalSurvivabilityWeight,
             survivabilityWeight,
             manipulationWeight,
             synergyWeight,
             mobilityWeight,
             presenceWeight,
+            mechanicalEffects: {
+              deleteMany: {},
+              create: mechanicalEffects,
+            },
           },
           select: monsterTraitDefinitionSelect,
         })
@@ -179,11 +255,16 @@ export async function POST(req: Request) {
             band,
             physicalThreatWeight,
             mentalThreatWeight,
+            physicalSurvivabilityWeight,
+            mentalSurvivabilityWeight,
             survivabilityWeight,
             manipulationWeight,
             synergyWeight,
             mobilityWeight,
             presenceWeight,
+            mechanicalEffects: {
+              create: mechanicalEffects,
+            },
           },
           select: monsterTraitDefinitionSelect,
         });
@@ -218,11 +299,14 @@ export async function PUT(req: Request) {
           band?: unknown;
           physicalThreatWeight?: unknown;
           mentalThreatWeight?: unknown;
+          physicalSurvivabilityWeight?: unknown;
+          mentalSurvivabilityWeight?: unknown;
           survivabilityWeight?: unknown;
           manipulationWeight?: unknown;
           synergyWeight?: unknown;
           mobilityWeight?: unknown;
           presenceWeight?: unknown;
+          mechanicalEffects?: unknown;
         }
       | null;
 
@@ -233,11 +317,17 @@ export async function PUT(req: Request) {
     const band = normalizeBand(body?.band);
     const physicalThreatWeight = normalizeAxisWeight(body?.physicalThreatWeight);
     const mentalThreatWeight = normalizeAxisWeight(body?.mentalThreatWeight);
-    const survivabilityWeight = normalizeAxisWeight(body?.survivabilityWeight);
+    const physicalSurvivabilityWeight = normalizeAxisWeight(body?.physicalSurvivabilityWeight);
+    const mentalSurvivabilityWeight = normalizeAxisWeight(body?.mentalSurvivabilityWeight);
+    const legacySurvivabilityUpdate =
+      body && "survivabilityWeight" in body
+        ? { survivabilityWeight: normalizeAxisWeight(body.survivabilityWeight) }
+        : {};
     const manipulationWeight = normalizeAxisWeight(body?.manipulationWeight);
     const synergyWeight = normalizeAxisWeight(body?.synergyWeight);
     const mobilityWeight = normalizeAxisWeight(body?.mobilityWeight);
     const presenceWeight = normalizeAxisWeight(body?.presenceWeight);
+    const mechanicalEffects = normalizeMechanicalEffects(body?.mechanicalEffects);
 
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
@@ -254,11 +344,17 @@ export async function PUT(req: Request) {
         band,
         physicalThreatWeight,
         mentalThreatWeight,
-        survivabilityWeight,
+        physicalSurvivabilityWeight,
+        mentalSurvivabilityWeight,
+        ...legacySurvivabilityUpdate,
         manipulationWeight,
         synergyWeight,
         mobilityWeight,
         presenceWeight,
+        mechanicalEffects: {
+          deleteMany: {},
+          create: mechanicalEffects,
+        },
         ...(isEnabled === undefined ? {} : { isEnabled }),
       },
       select: monsterTraitDefinitionSelect,

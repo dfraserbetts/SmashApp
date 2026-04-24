@@ -106,6 +106,14 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
         "9": 27,
         "10": 30,
       },
+      movementTypeMultiplier: {
+        fly: 0.3,
+        forceFly: 0.55,
+        forcePush: 0.5,
+        forceTeleport: 0.65,
+        run: 0.2,
+        teleport: 0.4,
+      },
       potency: { "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
     },
     movementType: {

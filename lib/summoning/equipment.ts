@@ -8,6 +8,9 @@ export type EquipmentItemLocation = "HEAD" | "NECK" | "ARMS" | "BELT";
 export type SummoningEquipmentItem = {
   id: string;
   name: string;
+  level?: number | null;
+  rarity?: string | null;
+  tags?: string[] | null;
   type: EquipmentItemType;
   size: EquipmentItemSize | null;
   armorLocation: EquipmentArmorLocation | null;

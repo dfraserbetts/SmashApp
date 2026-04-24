@@ -8,11 +8,14 @@ const CORE_TRAIT_SEED: Array<{
   band: "MINOR";
   physicalThreatWeight: number;
   mentalThreatWeight: number;
+  physicalSurvivabilityWeight: number;
+  mentalSurvivabilityWeight: number;
   survivabilityWeight: number;
   manipulationWeight: number;
   synergyWeight: number;
   mobilityWeight: number;
   presenceWeight: number;
+  mechanicalEffects?: never[];
 }> = [
   {
     name: "Tough",
@@ -20,6 +23,8 @@ const CORE_TRAIT_SEED: Array<{
     band: "MINOR",
     physicalThreatWeight: 0,
     mentalThreatWeight: 0,
+    physicalSurvivabilityWeight: 0,
+    mentalSurvivabilityWeight: 0,
     survivabilityWeight: 0,
     manipulationWeight: 0,
     synergyWeight: 0,
@@ -32,6 +37,8 @@ const CORE_TRAIT_SEED: Array<{
     band: "MINOR",
     physicalThreatWeight: 0,
     mentalThreatWeight: 0,
+    physicalSurvivabilityWeight: 0,
+    mentalSurvivabilityWeight: 0,
     survivabilityWeight: 0,
     manipulationWeight: 0,
     synergyWeight: 0,
@@ -44,6 +51,8 @@ const CORE_TRAIT_SEED: Array<{
     band: "MINOR",
     physicalThreatWeight: 0,
     mentalThreatWeight: 0,
+    physicalSurvivabilityWeight: 0,
+    mentalSurvivabilityWeight: 0,
     survivabilityWeight: 0,
     manipulationWeight: 0,
     synergyWeight: 0,
@@ -56,6 +65,8 @@ const CORE_TRAIT_SEED: Array<{
     band: "MINOR",
     physicalThreatWeight: 0,
     mentalThreatWeight: 0,
+    physicalSurvivabilityWeight: 0,
+    mentalSurvivabilityWeight: 0,
     survivabilityWeight: 0,
     manipulationWeight: 0,
     synergyWeight: 0,
@@ -68,6 +79,8 @@ const CORE_TRAIT_SEED: Array<{
     band: "MINOR",
     physicalThreatWeight: 0,
     mentalThreatWeight: 0,
+    physicalSurvivabilityWeight: 0,
+    mentalSurvivabilityWeight: 0,
     survivabilityWeight: 0,
     manipulationWeight: 0,
     synergyWeight: 0,
@@ -80,6 +93,8 @@ const CORE_TRAIT_SEED: Array<{
     band: "MINOR",
     physicalThreatWeight: 0,
     mentalThreatWeight: 0,
+    physicalSurvivabilityWeight: 0,
+    mentalSurvivabilityWeight: 0,
     survivabilityWeight: 0,
     manipulationWeight: 0,
     synergyWeight: 0,
@@ -121,11 +136,23 @@ export async function GET() {
         band: true,
         physicalThreatWeight: true,
         mentalThreatWeight: true,
+        physicalSurvivabilityWeight: true,
+        mentalSurvivabilityWeight: true,
         survivabilityWeight: true,
         manipulationWeight: true,
         synergyWeight: true,
         mobilityWeight: true,
         presenceWeight: true,
+        mechanicalEffects: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            sortOrder: true,
+            target: true,
+            operation: true,
+            valueExpression: true,
+          },
+        },
       },
     });
 

@@ -9,9 +9,9 @@ type Props = {
 };
 
 const AXES: { key: keyof RadarAxes; labelLines: string[] }[] = [
+  { key: "physicalSurvivability", labelLines: ["Physical", "Survivability"] },
   { key: "physicalThreat", labelLines: ["Physical", "Threat"] },
   { key: "mentalThreat", labelLines: ["Mental", "Threat"] },
-  { key: "physicalSurvivability", labelLines: ["Physical", "Survivability"] },
   { key: "mentalSurvivability", labelLines: ["Mental", "Survivability"] },
   { key: "manipulation", labelLines: ["Control", "Pressure"] },
   { key: "synergy", labelLines: ["Synergy"] },

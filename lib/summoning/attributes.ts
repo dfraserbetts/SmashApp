@@ -174,6 +174,31 @@ export function getDodgeValue(
   return Math.max(1, Math.ceil(raw));
 }
 
+export function getDodgeValueFromAttributeNumbers(
+  guardValue: number,
+  intellectValue: number,
+  level: number,
+  physicalProtection: number,
+  tuning?: Pick<
+    ProtectionTuningValues,
+    | "dodgeIntellectWeight"
+    | "dodgeGuardWeight"
+    | "dodgeAttributeDivisor"
+    | "dodgeProtectionPenaltyWeight"
+  >,
+): number {
+  const intellectWeight = tuning?.dodgeIntellectWeight ?? DEFAULT_DODGE_INTELLECT_WEIGHT;
+  const guardWeight = tuning?.dodgeGuardWeight ?? DEFAULT_DODGE_GUARD_WEIGHT;
+  const attributeDivisor = tuning?.dodgeAttributeDivisor ?? DEFAULT_DODGE_ATTRIBUTE_DIVISOR;
+  const protectionPenaltyWeight =
+    tuning?.dodgeProtectionPenaltyWeight ?? DEFAULT_DODGE_PROTECTION_PENALTY_WEIGHT;
+  const base = Math.ceil(
+    (intellectValue * intellectWeight + guardValue * guardWeight) / attributeDivisor,
+  );
+  const raw = base + level - physicalProtection * protectionPenaltyWeight;
+  return Math.max(1, Math.ceil(raw));
+}
+
 export function getWillpowerDiceCountFromAttributes(
   synergyDie: DiceSize | null | undefined,
   braveryDie: DiceSize | null | undefined,

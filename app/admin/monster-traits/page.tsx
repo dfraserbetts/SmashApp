@@ -1,7 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import type { MonsterTraitBand } from "@/lib/summoning/types";
+import {
+  MONSTER_TRAIT_MECHANICAL_OPERATIONS,
+  MONSTER_TRAIT_MECHANICAL_TARGET_LABELS,
+  MONSTER_TRAIT_MECHANICAL_TARGETS,
+  evaluateMonsterTraitFormula,
+  type MonsterTraitMechanicalEffectSummary,
+  type MonsterTraitMechanicalOperation,
+  type MonsterTraitMechanicalTarget,
+} from "@/lib/summoning/traitMechanics";
 
 type DiceSize = "D4" | "D6" | "D8" | "D10" | "D12";
 
@@ -222,29 +231,37 @@ const SAMPLE_CTX: Record<string, unknown> = {
 };
 
 const TRAIT_BANDS: MonsterTraitBand[] = ["MINOR", "STANDARD", "MAJOR", "BOSS"];
-const TRAIT_AXIS_WEIGHT_OPTIONS = [0, 1, 2, 3] as const;
 const TRAIT_AXIS_FIELDS = [
   { key: "physicalThreatWeight", label: "Physical Threat" },
   { key: "mentalThreatWeight", label: "Mental Threat" },
-  { key: "survivabilityWeight", label: "Survivability" },
+  { key: "physicalSurvivabilityWeight", label: "Physical Survivability" },
+  { key: "mentalSurvivabilityWeight", label: "Mental Survivability" },
   { key: "manipulationWeight", label: "Manipulation" },
   { key: "synergyWeight", label: "Synergy" },
   { key: "mobilityWeight", label: "Mobility" },
   { key: "presenceWeight", label: "Presence" },
 ] as const;
 
+const DEFAULT_MECHANICAL_EFFECT: MonsterTraitMechanicalEffectSummary = {
+  sortOrder: 0,
+  target: "PHYSICAL_RESILIENCE",
+  operation: "ADD",
+  valueExpression: "1",
+};
+
 type TraitAxisWeightKey = (typeof TRAIT_AXIS_FIELDS)[number]["key"];
 
-type TraitAxisWeights = Record<TraitAxisWeightKey, number>;
+type TraitAxisWeightInputs = Record<TraitAxisWeightKey, string>;
 
-const DEFAULT_TRAIT_AXIS_WEIGHTS: TraitAxisWeights = {
-  physicalThreatWeight: 0,
-  mentalThreatWeight: 0,
-  survivabilityWeight: 0,
-  manipulationWeight: 0,
-  synergyWeight: 0,
-  mobilityWeight: 0,
-  presenceWeight: 0,
+const DEFAULT_TRAIT_AXIS_WEIGHT_INPUTS: TraitAxisWeightInputs = {
+  physicalThreatWeight: "0",
+  mentalThreatWeight: "0",
+  physicalSurvivabilityWeight: "0",
+  mentalSurvivabilityWeight: "0",
+  manipulationWeight: "0",
+  synergyWeight: "0",
+  mobilityWeight: "0",
+  presenceWeight: "0",
 };
 
 type Row = {
@@ -255,12 +272,120 @@ type Row = {
   band: MonsterTraitBand;
   physicalThreatWeight: number;
   mentalThreatWeight: number;
-  survivabilityWeight: number;
+  physicalSurvivabilityWeight: number;
+  mentalSurvivabilityWeight: number;
   manipulationWeight: number;
   synergyWeight: number;
   mobilityWeight: number;
   presenceWeight: number;
+  mechanicalEffects: MonsterTraitMechanicalEffectSummary[];
 };
+
+function parseAxisInputValue(value: string): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toAxisWeightPayload(inputs: TraitAxisWeightInputs): Record<TraitAxisWeightKey, number> {
+  return Object.fromEntries(
+    TRAIT_AXIS_FIELDS.map((field) => [field.key, parseAxisInputValue(inputs[field.key])]),
+  ) as Record<TraitAxisWeightKey, number>;
+}
+
+function normalizeMechanicalEffectInputs(
+  effects: MonsterTraitMechanicalEffectSummary[],
+): MonsterTraitMechanicalEffectSummary[] {
+  return effects
+    .map((effect, index) => ({
+      sortOrder: index,
+      target: MONSTER_TRAIT_MECHANICAL_TARGETS.includes(
+        effect.target as MonsterTraitMechanicalTarget,
+      )
+        ? effect.target
+        : DEFAULT_MECHANICAL_EFFECT.target,
+      operation: MONSTER_TRAIT_MECHANICAL_OPERATIONS.includes(
+        effect.operation as MonsterTraitMechanicalOperation,
+      )
+        ? effect.operation
+        : DEFAULT_MECHANICAL_EFFECT.operation,
+      valueExpression: String(effect.valueExpression ?? "").trim(),
+    }))
+    .filter((effect) => effect.valueExpression.length > 0);
+}
+
+function formatMechanicalEffect(effect: MonsterTraitMechanicalEffectSummary): string {
+  const label =
+    MONSTER_TRAIT_MECHANICAL_TARGET_LABELS[
+      effect.target as MonsterTraitMechanicalTarget
+    ] ?? effect.target;
+  return `${label}: ${effect.operation} ${effect.valueExpression}`;
+}
+
+function evaluateMechanicalEffectPreview(effect: MonsterTraitMechanicalEffectSummary): string {
+  const value = evaluateMonsterTraitFormula(
+    effect.valueExpression,
+    SAMPLE_CTX as unknown as Parameters<typeof evaluateMonsterTraitFormula>[1],
+  );
+  return value === null ? "?" : String(Math.round(value * 100) / 100);
+}
+
+function normalizeMechanicalEffectsForUi(value: unknown): MonsterTraitMechanicalEffectSummary[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((raw, index) => {
+      const candidate = raw as {
+        id?: unknown;
+        sortOrder?: unknown;
+        target?: unknown;
+        operation?: unknown;
+        valueExpression?: unknown;
+      };
+      const target = String(candidate.target ?? "");
+      const operation = String(candidate.operation ?? "ADD");
+      return {
+        id: typeof candidate.id === "string" ? candidate.id : undefined,
+        sortOrder: Number(candidate.sortOrder ?? index) || index,
+        target: MONSTER_TRAIT_MECHANICAL_TARGETS.includes(
+          target as MonsterTraitMechanicalTarget,
+        )
+          ? (target as MonsterTraitMechanicalTarget)
+          : DEFAULT_MECHANICAL_EFFECT.target,
+        operation: MONSTER_TRAIT_MECHANICAL_OPERATIONS.includes(
+          operation as MonsterTraitMechanicalOperation,
+        )
+          ? (operation as MonsterTraitMechanicalOperation)
+          : DEFAULT_MECHANICAL_EFFECT.operation,
+        valueExpression: String(candidate.valueExpression ?? ""),
+      };
+    })
+    .filter((effect) => effect.valueExpression.trim().length > 0);
+}
+
+function normalizeRowForUi(value: unknown): Row {
+  const candidate = value as Row & { mechanicalEffects?: unknown };
+  return {
+    id: String(candidate.id ?? ""),
+    name: String(candidate.name ?? ""),
+    effectText: typeof candidate.effectText === "string" ? candidate.effectText : null,
+    isEnabled: Boolean(candidate.isEnabled),
+    band:
+      candidate.band === "MINOR" ||
+      candidate.band === "STANDARD" ||
+      candidate.band === "MAJOR" ||
+      candidate.band === "BOSS"
+        ? candidate.band
+        : "STANDARD",
+    physicalThreatWeight: Number(candidate.physicalThreatWeight ?? 0) || 0,
+    mentalThreatWeight: Number(candidate.mentalThreatWeight ?? 0) || 0,
+    physicalSurvivabilityWeight: Number(candidate.physicalSurvivabilityWeight ?? 0) || 0,
+    mentalSurvivabilityWeight: Number(candidate.mentalSurvivabilityWeight ?? 0) || 0,
+    manipulationWeight: Number(candidate.manipulationWeight ?? 0) || 0,
+    synergyWeight: Number(candidate.synergyWeight ?? 0) || 0,
+    mobilityWeight: Number(candidate.mobilityWeight ?? 0) || 0,
+    presenceWeight: Number(candidate.presenceWeight ?? 0) || 0,
+    mechanicalEffects: normalizeMechanicalEffectsForUi(candidate.mechanicalEffects),
+  };
+}
 
 export default function AdminMonsterTraitsPage() {
   const [rows, setRows] = useState<Row[]>([]);
@@ -271,14 +396,24 @@ export default function AdminMonsterTraitsPage() {
   const [newEffectText, setNewEffectText] = useState("");
   const [newIsEnabled, setNewIsEnabled] = useState(true);
   const [newBand, setNewBand] = useState<MonsterTraitBand>("STANDARD");
-  const [newWeights, setNewWeights] = useState<TraitAxisWeights>(DEFAULT_TRAIT_AXIS_WEIGHTS);
+  const [newWeights, setNewWeights] = useState<TraitAxisWeightInputs>(
+    DEFAULT_TRAIT_AXIS_WEIGHT_INPUTS,
+  );
+  const [newMechanicalEffects, setNewMechanicalEffects] = useState<
+    MonsterTraitMechanicalEffectSummary[]
+  >([]);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const [editingEffectText, setEditingEffectText] = useState("");
   const [editingIsEnabled, setEditingIsEnabled] = useState(true);
   const [editingBand, setEditingBand] = useState<MonsterTraitBand>("STANDARD");
-  const [editingWeights, setEditingWeights] = useState<TraitAxisWeights>(DEFAULT_TRAIT_AXIS_WEIGHTS);
+  const [editingWeights, setEditingWeights] = useState<TraitAxisWeightInputs>(
+    DEFAULT_TRAIT_AXIS_WEIGHT_INPUTS,
+  );
+  const [editingMechanicalEffects, setEditingMechanicalEffects] = useState<
+    MonsterTraitMechanicalEffectSummary[]
+  >([]);
 
   const sorted = useMemo(
     () => [...rows].sort((a, b) => a.name.localeCompare(b.name)),
@@ -292,7 +427,7 @@ export default function AdminMonsterTraitsPage() {
       const res = await fetch("/api/admin/monster-traits", { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Failed to load");
-      setRows(Array.isArray(data.rows) ? data.rows : []);
+      setRows(Array.isArray(data.rows) ? data.rows.map(normalizeRowForUi) : []);
     } catch (e: unknown) {
       setErr(String((e as { message?: unknown })?.message ?? "Failed to load"));
     } finally {
@@ -317,17 +452,19 @@ export default function AdminMonsterTraitsPage() {
           effectText: newEffectText.trim() || null,
           isEnabled: newIsEnabled,
           band: newBand,
-          ...newWeights,
+          ...toAxisWeightPayload(newWeights),
+          mechanicalEffects: normalizeMechanicalEffectInputs(newMechanicalEffects),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Create failed");
-      setRows((prev) => [data.row, ...prev]);
+      setRows((prev) => [normalizeRowForUi(data.row), ...prev]);
       setNewName("");
       setNewEffectText("");
       setNewIsEnabled(true);
       setNewBand("STANDARD");
-      setNewWeights(DEFAULT_TRAIT_AXIS_WEIGHTS);
+      setNewWeights(DEFAULT_TRAIT_AXIS_WEIGHT_INPUTS);
+      setNewMechanicalEffects([]);
     } catch (e: unknown) {
       setErr(String((e as { message?: unknown })?.message ?? "Create failed"));
     }
@@ -340,14 +477,24 @@ export default function AdminMonsterTraitsPage() {
     setEditingIsEnabled(row.isEnabled);
     setEditingBand(row.band);
     setEditingWeights({
-      physicalThreatWeight: row.physicalThreatWeight,
-      mentalThreatWeight: row.mentalThreatWeight,
-      survivabilityWeight: row.survivabilityWeight,
-      manipulationWeight: row.manipulationWeight,
-      synergyWeight: row.synergyWeight,
-      mobilityWeight: row.mobilityWeight,
-      presenceWeight: row.presenceWeight,
+      physicalThreatWeight: String(row.physicalThreatWeight),
+      mentalThreatWeight: String(row.mentalThreatWeight),
+      physicalSurvivabilityWeight: String(row.physicalSurvivabilityWeight),
+      mentalSurvivabilityWeight: String(row.mentalSurvivabilityWeight),
+      manipulationWeight: String(row.manipulationWeight),
+      synergyWeight: String(row.synergyWeight),
+      mobilityWeight: String(row.mobilityWeight),
+      presenceWeight: String(row.presenceWeight),
     });
+    setEditingMechanicalEffects(
+      (row.mechanicalEffects ?? []).map((effect, index) => ({
+        id: effect.id,
+        sortOrder: index,
+        target: effect.target,
+        operation: effect.operation,
+        valueExpression: effect.valueExpression,
+      })),
+    );
   }
 
   function cancelEdit() {
@@ -356,7 +503,8 @@ export default function AdminMonsterTraitsPage() {
     setEditingEffectText("");
     setEditingIsEnabled(true);
     setEditingBand("STANDARD");
-    setEditingWeights(DEFAULT_TRAIT_AXIS_WEIGHTS);
+    setEditingWeights(DEFAULT_TRAIT_AXIS_WEIGHT_INPUTS);
+    setEditingMechanicalEffects([]);
   }
 
   async function saveEdit() {
@@ -378,12 +526,15 @@ export default function AdminMonsterTraitsPage() {
           effectText: editingEffectText.trim() || null,
           isEnabled: editingIsEnabled,
           band: editingBand,
-          ...editingWeights,
+          ...toAxisWeightPayload(editingWeights),
+          mechanicalEffects: normalizeMechanicalEffectInputs(editingMechanicalEffects),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Update failed");
-      setRows((prev) => prev.map((row) => (row.id === editingId ? data.row : row)));
+      setRows((prev) =>
+        prev.map((row) => (row.id === editingId ? normalizeRowForUi(data.row) : row)),
+      );
       cancelEdit();
     } catch (e: unknown) {
       setErr(String((e as { message?: unknown })?.message ?? "Update failed"));
@@ -407,12 +558,149 @@ export default function AdminMonsterTraitsPage() {
     }
   }
 
+  function renderTokenButtons(onInsert: (token: string) => void) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        {TRAIT_TOKENS.map((token) => (
+          <button
+            key={token}
+            type="button"
+            className="rounded border px-2 py-1 text-[11px] font-mono opacity-90 hover:bg-zinc-900"
+            onClick={() => onInsert(token)}
+            title={`Insert ${token}`}
+          >
+            {token}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  function renderMechanicalEffectsEditor(
+    effects: MonsterTraitMechanicalEffectSummary[],
+    setEffects: Dispatch<SetStateAction<MonsterTraitMechanicalEffectSummary[]>>,
+  ) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium">Mechanical Effects</p>
+            <p className="text-[11px] opacity-70">
+              Structured rules applied by Summoning Circle. Use formulas like [MonsterLevel]*2.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded border px-2 py-1 text-xs"
+            onClick={() =>
+              setEffects((prev) => [
+                ...prev,
+                { ...DEFAULT_MECHANICAL_EFFECT, sortOrder: prev.length },
+              ])
+            }
+          >
+            Add Effect
+          </button>
+        </div>
+
+        {effects.length === 0 ? (
+          <p className="text-xs opacity-70">No mechanical effects.</p>
+        ) : (
+          <div className="space-y-2">
+            {effects.map((effect, index) => (
+              <div
+                key={`${effect.id ?? "draft"}-${index}`}
+                className="grid grid-cols-1 gap-2 rounded border border-zinc-800 p-2 md:grid-cols-[1.2fr_0.7fr_1fr_auto]"
+              >
+                <select
+                  className="rounded border bg-transparent p-2 text-sm"
+                  value={effect.target}
+                  onChange={(e) =>
+                    setEffects((prev) =>
+                      prev.map((row, idx) =>
+                        idx === index
+                          ? {
+                              ...row,
+                              target: e.target.value as MonsterTraitMechanicalTarget,
+                            }
+                          : row,
+                      ),
+                    )
+                  }
+                >
+                  {MONSTER_TRAIT_MECHANICAL_TARGETS.map((target) => (
+                    <option key={target} value={target}>
+                      {MONSTER_TRAIT_MECHANICAL_TARGET_LABELS[target]}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="rounded border bg-transparent p-2 text-sm"
+                  value={effect.operation}
+                  onChange={(e) =>
+                    setEffects((prev) =>
+                      prev.map((row, idx) =>
+                        idx === index
+                          ? {
+                              ...row,
+                              operation: e.target.value as MonsterTraitMechanicalOperation,
+                            }
+                          : row,
+                      ),
+                    )
+                  }
+                >
+                  {MONSTER_TRAIT_MECHANICAL_OPERATIONS.map((operation) => (
+                    <option key={operation} value={operation}>
+                      {operation}
+                    </option>
+                  ))}
+                </select>
+                <div className="space-y-1">
+                  <input
+                    className="w-full rounded border bg-transparent p-2 text-sm"
+                    value={effect.valueExpression}
+                    onChange={(e) =>
+                      setEffects((prev) =>
+                        prev.map((row, idx) =>
+                          idx === index ? { ...row, valueExpression: e.target.value } : row,
+                        ),
+                      )
+                    }
+                    placeholder="e.g. [MonsterLevel]*2"
+                  />
+                  <p className="text-[11px] opacity-70">
+                    Sample result: {evaluateMechanicalEffectPreview(effect)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="rounded border px-2 py-1 text-xs hover:bg-zinc-900"
+                  onClick={() =>
+                    setEffects((prev) =>
+                      prev
+                        .filter((_row, idx) => idx !== index)
+                        .map((row, idx) => ({ ...row, sortOrder: idx })),
+                    )
+                  }
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <a className="text-sm underline" href="/admin">
         ← Back to Admin Dashboard
       </a>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+      <div className="rounded border p-3 space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-start">
         <div className="md:col-span-1">
           <label className="text-sm">Trait name</label>
           <input
@@ -422,16 +710,7 @@ export default function AdminMonsterTraitsPage() {
             placeholder="e.g. Tough"
           />
         </div>
-        <div className="md:col-span-2">
-          <label className="text-sm">Effect text</label>
-          <input
-            className="mt-1 w-full rounded border bg-transparent p-2"
-            value={newEffectText}
-            onChange={(e) => setNewEffectText(e.target.value)}
-            placeholder="Trait effect description"
-          />
-        </div>
-        <label className="flex items-center gap-2 text-sm">
+        <label className="mt-7 flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={newIsEnabled}
@@ -439,6 +718,29 @@ export default function AdminMonsterTraitsPage() {
           />
           Enabled
         </label>
+        <div className="md:col-span-2">
+          <label className="text-sm">Effect text</label>
+          <textarea
+            className="mt-1 h-24 w-full rounded border bg-transparent p-2 text-sm"
+            value={newEffectText}
+            onChange={(e) => setNewEffectText(e.target.value)}
+            placeholder="Trait effect description"
+          />
+          <div className="mt-2">
+            {renderTokenButtons((token) => setNewEffectText((prev) => `${prev}${token}`))}
+          </div>
+          <p className="mt-2 text-[11px] opacity-70">
+            Arithmetic is supported in formulas and templated text, e.g. [MonsterLevel]*2 or ceil([MonsterLevel]/2).
+          </p>
+        </div>
+        <div className="md:col-span-1">
+          <p className="text-xs font-medium opacity-80">Effect preview</p>
+          <div className="mt-1 min-h-24 rounded border p-2 text-sm">
+            {renderTraitTemplate(newEffectText || "", SAMPLE_CTX) || (
+              <span className="opacity-70">Nothing to preview.</span>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
@@ -459,25 +761,23 @@ export default function AdminMonsterTraitsPage() {
         {TRAIT_AXIS_FIELDS.map((field) => (
           <div key={field.key}>
             <label className="text-sm">{field.label}</label>
-            <select
+            <input
+              type="number"
+              step="any"
               className="mt-1 w-full rounded border bg-transparent p-2"
-              value={String(newWeights[field.key])}
+              value={newWeights[field.key]}
               onChange={(e) =>
                 setNewWeights((prev) => ({
                   ...prev,
-                  [field.key]: Number(e.target.value),
+                  [field.key]: e.target.value,
                 }))
               }
-            >
-              {TRAIT_AXIS_WEIGHT_OPTIONS.map((value) => (
-                <option key={value} value={String(value)}>
-                  {value}
-                </option>
-              ))}
-            </select>
+            />
           </div>
         ))}
       </div>
+
+      {renderMechanicalEffectsEditor(newMechanicalEffects, setNewMechanicalEffects)}
 
       <div className="flex gap-3">
         <button
@@ -492,55 +792,6 @@ export default function AdminMonsterTraitsPage() {
           Refresh
         </button>
       </div>
-
-      <div className="rounded border p-3 space-y-2">
-        <p className="text-sm font-medium">Trait templating</p>
-        <p className="text-xs opacity-80">
-          You can use tokens like <span className="font-mono">[MonsterLevel]</span>. Arithmetic is supported only inside parentheses, e.g. <span className="font-mono">([MonsterLevel]/2)</span>.
-          Unknown tokens or invalid expressions render as <span className="font-mono">?</span>.
-        </p>
-
-        <div className="flex flex-wrap gap-2">
-          {TRAIT_TOKENS.map((t) => (
-            <span key={t} className="rounded border px-2 py-1 text-xs font-mono opacity-90">
-              {t}
-            </span>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <div className="rounded border p-2">
-            <p className="text-xs font-medium mb-1">Example</p>
-            <p className="text-xs font-mono opacity-80">
-              [MonsterName] recovers ([MonsterLevel]/2) wounds at the start of each of its turns.
-            </p>
-            <p className="mt-1 text-xs font-mono opacity-80">
-              [MonsterName] recovers (ceil([MonsterLevel]/2)) wounds at the start of each of its turns.
-            </p>
-          </div>
-          <div className="rounded border p-2">
-            <p className="text-xs font-medium mb-1">Rendered preview (sample context)</p>
-            <p className="text-xs opacity-90">
-              {renderTraitTemplate(
-                "[MonsterName] recovers ([MonsterLevel]/2) wounds at the start of each of its turns.",
-                SAMPLE_CTX,
-              )}
-            </p>
-            <p className="mt-1 text-xs opacity-90">
-              {renderTraitTemplate(
-                "[MonsterName] recovers (ceil([MonsterLevel]/2)) wounds at the start of each of its turns.",
-                SAMPLE_CTX,
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded border p-2">
-          <p className="text-xs font-medium mb-1">Your current &quot;Effect text&quot; preview</p>
-          <p className="text-xs opacity-90">
-            {renderTraitTemplate(newEffectText || "", SAMPLE_CTX) || <span className="opacity-70">-</span>}
-          </p>
-        </div>
       </div>
 
       {err && <div className="rounded border p-3 text-sm">{err}</div>}
@@ -565,15 +816,22 @@ export default function AdminMonsterTraitsPage() {
                       value={editingName}
                       onChange={(e) => setEditingName(e.target.value)}
                     />
-                    <input
-                      className="md:col-span-2 w-full rounded border bg-transparent p-2 text-sm"
-                      value={editingEffectText}
-                      onChange={(e) => setEditingEffectText(e.target.value)}
-                    />
-                    <div className="md:col-span-4 rounded border p-2">
-                      <p className="text-xs font-medium mb-1">Rendered preview (sample context)</p>
+                    <div className="md:col-span-2 space-y-2">
+                      <textarea
+                        className="h-24 w-full rounded border bg-transparent p-2 text-sm"
+                        value={editingEffectText}
+                        onChange={(e) => setEditingEffectText(e.target.value)}
+                      />
+                      {renderTokenButtons((token) =>
+                        setEditingEffectText((prev) => `${prev}${token}`),
+                      )}
+                    </div>
+                    <div className="rounded border p-2">
+                      <p className="text-xs font-medium mb-1">Effect preview</p>
                       <p className="text-xs opacity-90">
-                        {renderTraitTemplate(editingEffectText || "", SAMPLE_CTX) || <span className="opacity-70">-</span>}
+                        {renderTraitTemplate(editingEffectText || "", SAMPLE_CTX) || (
+                          <span className="opacity-70">-</span>
+                        )}
                       </p>
                     </div>
                     <label className="flex items-center gap-2 text-sm">
@@ -602,24 +860,26 @@ export default function AdminMonsterTraitsPage() {
                       {TRAIT_AXIS_FIELDS.map((field) => (
                         <div key={field.key}>
                           <label className="text-sm">{field.label}</label>
-                          <select
+                          <input
+                            type="number"
+                            step="any"
                             className="mt-1 w-full rounded border bg-transparent p-2 text-sm"
-                            value={String(editingWeights[field.key])}
+                            value={editingWeights[field.key]}
                             onChange={(e) =>
                               setEditingWeights((prev) => ({
                                 ...prev,
-                                [field.key]: Number(e.target.value),
+                                [field.key]: e.target.value,
                               }))
                             }
-                          >
-                            {TRAIT_AXIS_WEIGHT_OPTIONS.map((value) => (
-                              <option key={value} value={String(value)}>
-                                {value}
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </div>
                       ))}
+                    </div>
+                    <div className="md:col-span-4">
+                      {renderMechanicalEffectsEditor(
+                        editingMechanicalEffects,
+                        setEditingMechanicalEffects,
+                      )}
                     </div>
                     <div className="md:col-span-4 flex gap-2">
                       <button className="rounded border px-3 py-2 text-sm" onClick={saveEdit}>
@@ -645,6 +905,18 @@ export default function AdminMonsterTraitsPage() {
                           </span>
                         ))}
                       </div>
+                      {row.mechanicalEffects.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {row.mechanicalEffects.map((effect, index) => (
+                            <span
+                              key={`${row.id}-mechanical-${index}`}
+                              className="rounded border border-emerald-800/70 px-2 py-1 text-[11px] opacity-80"
+                            >
+                              {formatMechanicalEffect(effect)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <button className="rounded border px-3 py-2 text-sm" onClick={() => startEdit(row)}>
                       Edit

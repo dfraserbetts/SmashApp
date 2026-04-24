@@ -810,17 +810,33 @@ model MonsterTraitDefinition {
   source               MonsterSource    @default(CORE)
   isReadOnly           Boolean          @default(true)
   band                 MonsterTraitBand @default(STANDARD)
-  physicalThreatWeight Int              @default(0)
-  mentalThreatWeight   Int              @default(0)
-  survivabilityWeight  Int              @default(0)
-  manipulationWeight   Int              @default(0)
-  synergyWeight        Int              @default(0)
-  mobilityWeight       Int              @default(0)
-  presenceWeight       Int              @default(0)
+  physicalThreatWeight Float            @default(0)
+  mentalThreatWeight   Float            @default(0)
+  physicalSurvivabilityWeight Float      @default(0)
+  mentalSurvivabilityWeight   Float      @default(0)
+  survivabilityWeight  Float            @default(0)
+  manipulationWeight   Float            @default(0)
+  synergyWeight        Float            @default(0)
+  mobilityWeight       Float            @default(0)
+  presenceWeight       Float            @default(0)
   traits               MonsterTrait[]
+  mechanicalEffects    MonsterTraitMechanicalEffect[]
 
   @@index([source, isEnabled])
   @@map("MonsterTraitDefinition")
+}
+
+model MonsterTraitMechanicalEffect {
+  id                String                 @id @default(cuid())
+  traitDefinitionId String
+  sortOrder         Int                    @default(0)
+  target            String
+  operation         String                 @default("ADD")
+  valueExpression   String
+  traitDefinition   MonsterTraitDefinition @relation(fields: [traitDefinitionId], references: [id], onDelete: Cascade)
+
+  @@index([traitDefinitionId, sortOrder])
+  @@map("MonsterTraitMechanicalEffect")
 }
 
 model MonsterTag {

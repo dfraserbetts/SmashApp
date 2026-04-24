@@ -1,0 +1,10 @@
+ALTER TABLE "MonsterTraitDefinition"
+ALTER COLUMN "physicalThreatWeight" TYPE DOUBLE PRECISION USING "physicalThreatWeight"::DOUBLE PRECISION,
+ALTER COLUMN "mentalThreatWeight" TYPE DOUBLE PRECISION USING "mentalThreatWeight"::DOUBLE PRECISION,
+ALTER COLUMN "physicalSurvivabilityWeight" TYPE DOUBLE PRECISION USING "physicalSurvivabilityWeight"::DOUBLE PRECISION,
+ALTER COLUMN "mentalSurvivabilityWeight" TYPE DOUBLE PRECISION USING "mentalSurvivabilityWeight"::DOUBLE PRECISION,
+ALTER COLUMN "survivabilityWeight" TYPE DOUBLE PRECISION USING "survivabilityWeight"::DOUBLE PRECISION,
+ALTER COLUMN "manipulationWeight" TYPE DOUBLE PRECISION USING "manipulationWeight"::DOUBLE PRECISION,
+ALTER COLUMN "synergyWeight" TYPE DOUBLE PRECISION USING "synergyWeight"::DOUBLE PRECISION,
+ALTER COLUMN "mobilityWeight" TYPE DOUBLE PRECISION USING "mobilityWeight"::DOUBLE PRECISION,
+ALTER COLUMN "presenceWeight" TYPE DOUBLE PRECISION USING "presenceWeight"::DOUBLE PRECISION;

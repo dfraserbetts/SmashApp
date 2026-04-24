@@ -176,6 +176,35 @@ function getArchetypeFit(params: {
     return { fit: "Soft Tension", note: "Controller usually wants Intellect, Synergy, or Bravery to stand out." };
   }
 
+  if (archetype === "SCRAPPER") {
+    const hasPhysicalPeak = highAttributes.some((attr) =>
+      ["Attack", "Guard", "Bravery"].includes(attr),
+    );
+    const hasMentalWeakness = lowAttributes.some((attr) =>
+      ["Intellect", "Synergy", "Fortitude"].includes(attr),
+    );
+    if (
+      (shape === "Light Specialist" || shape === "Strong Specialist") &&
+      hasPhysicalPeak &&
+      hasMentalWeakness
+    ) {
+      return {
+        fit: "Good Fit",
+        note: "Physical pressure with softer mental lanes matches Scrapper guidance well.",
+      };
+    }
+    if (hasPhysicalPeak) {
+      return {
+        fit: "Partial Fit",
+        note: "The physical core is there, but the build is not yet clearly sacrificing mental lanes.",
+      };
+    }
+    return {
+      fit: "Soft Tension",
+      note: "Scrapper usually wants Attack, Guard, or Bravery to stand out over Intellect and Synergy.",
+    };
+  }
+
   return { fit: "Partial Fit", note: "Use this as soft guidance only; the outcome calculator remains the source of truth." };
 }
 

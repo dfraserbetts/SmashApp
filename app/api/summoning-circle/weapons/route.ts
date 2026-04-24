@@ -33,6 +33,7 @@ const WEAPON_INCLUDE = {
   weaponAttributes: { include: { weaponAttribute: true } },
   armorAttributes: { include: { armorAttribute: true } },
   shieldAttributes: { include: { shieldAttribute: true } },
+  tags: true,
   mythicLbPushTemplate: {
     select: {
       id: true,
@@ -422,6 +423,9 @@ export async function GET(req: Request) {
         mythicLimitBreakTemplate,
         id: row.id,
         name: row.name,
+        level: row.level,
+        rarity: row.rarity,
+        tags: row.tags.map((entry) => String(entry.tag ?? "").trim()).filter((tag) => tag.length > 0),
         imageUrl: row.itemUrl ?? null,
         type: row.type,
         size: row.size,

@@ -217,6 +217,14 @@ export type MonsterTraitSelection = {
   effectText?: string | null;
 };
 
+export type MonsterTraitMechanicalEffectSummary = {
+  id?: string;
+  sortOrder: number;
+  target: string;
+  operation: string;
+  valueExpression: string;
+};
+
 export type MonsterTraitDefinitionSummary = {
   id: string;
   name: string;
@@ -224,11 +232,14 @@ export type MonsterTraitDefinitionSummary = {
   band: MonsterTraitBand;
   physicalThreatWeight: number;
   mentalThreatWeight: number;
+  physicalSurvivabilityWeight: number;
+  mentalSurvivabilityWeight: number;
   survivabilityWeight: number;
   manipulationWeight: number;
   synergyWeight: number;
   mobilityWeight: number;
   presenceWeight: number;
+  mechanicalEffects: MonsterTraitMechanicalEffectSummary[];
 };
 
 export type MonsterNaturalAttackConfig = {

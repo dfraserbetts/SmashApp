@@ -27,12 +27,14 @@ const ARCHETYPE_OPTIONS: MonsterCalculatorArchetype[] = [
   "GLASS_CANNON",
   "TANK",
   "CONTROLLER",
+  "SCRAPPER",
 ];
 const ARCHETYPE_LABELS: Record<MonsterCalculatorArchetype, string> = {
   BALANCED: "Balanced",
   GLASS_CANNON: "Glass Cannon",
   TANK: "Tank",
   CONTROLLER: "Controller",
+  SCRAPPER: "Scrapper",
 };
 const ARCHETYPE_TOOLTIPS: Record<MonsterCalculatorArchetype, string> = {
   BALANCED:
@@ -43,6 +45,8 @@ const ARCHETYPE_TOOLTIPS: Record<MonsterCalculatorArchetype, string> = {
     "Aims for very high physical and mental survivability over raw offensive output.",
   CONTROLLER:
     "Aims for disruption, manipulation, and encounter-shaping value over direct damage.",
+  SCRAPPER:
+    "Aims for high physical threat and pressure with average mobility and physical survivability, while leaving mental lanes and synergy intentionally low.",
 };
 
 const ARCHETYPE_TARGETS: Record<
@@ -89,6 +93,16 @@ const ARCHETYPE_TARGETS: Record<
     mobility: 5,
     presence: 6,
   },
+  SCRAPPER: {
+    physicalThreat: 9,
+    mentalThreat: 0,
+    physicalSurvivability: 5,
+    mentalSurvivability: 0,
+    manipulation: 0,
+    synergy: 0,
+    mobility: 5,
+    presence: 3,
+  },
 };
 
 function formatDecimal(value: number): string {
@@ -97,9 +111,9 @@ function formatDecimal(value: number): string {
 }
 
 const POWER_AXIS_ROWS: Array<{ key: keyof RadarAxes; label: string }> = [
+  { key: "physicalSurvivability", label: "Physical Survivability" },
   { key: "physicalThreat", label: "Physical Threat" },
   { key: "mentalThreat", label: "Mental Threat" },
-  { key: "physicalSurvivability", label: "Physical Survivability" },
   { key: "mentalSurvivability", label: "Mental Survivability" },
   { key: "manipulation", label: "Control Pressure" },
   { key: "synergy", label: "Synergy" },

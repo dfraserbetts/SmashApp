@@ -144,6 +144,7 @@ const FORMULA_GUIDES: Partial<
     notes: [
       "Dodge Share comes from Dodge dice compared against expected incoming attack dice and applies to physical survivability only.",
       "Physical block uses Armor Skill and physical protection output. Mental block uses the Willpower pool and mental protection output, while Bravery remains the surfaced Mental Defence stat.",
+      "Mental protection now has its own optional cap and ramp seam in Combat Tuning, with shared block settings still acting as the fallback.",
       "Raise caps to allow a bigger survivability contribution; raise scales to make it ramp more slowly.",
     ],
   },

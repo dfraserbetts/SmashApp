@@ -16,7 +16,12 @@ import {
   type ProtectionTuningValues,
 } from "@/lib/config/combatTuningShared";
 
-export type MonsterCalculatorArchetype = "BALANCED" | "GLASS_CANNON" | "TANK" | "CONTROLLER";
+export type MonsterCalculatorArchetype =
+  | "BALANCED"
+  | "GLASS_CANNON"
+  | "TANK"
+  | "CONTROLLER"
+  | "SCRAPPER";
 
 export type RadarAxes = {
   physicalThreat: number;
@@ -292,6 +297,8 @@ type DefensiveProfileProtectionTuning = Pick<
   | "dodgeProtectionPenaltyWeight"
   | "defenceStringProtectionOutputScale"
   | "defenceStringProtectionOutputMaxShare"
+  | "mentalDefenceStringProtectionOutputScale"
+  | "mentalDefenceStringProtectionOutputMaxShare"
   | "dodgeBaselineScale"
   | "dodgeBaselineMaxShare"
   | "dodgeParityScale"
@@ -329,7 +336,7 @@ function clampRadarScore(value: number): number {
 function clampTraitAxisWeight(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(parsed)) return 0;
-  return Math.max(0, Math.min(3, Math.trunc(parsed)));
+  return parsed;
 }
 
 function getExpectedPoolValue(
@@ -522,14 +529,18 @@ function normalizeTraitAxisBonuses(
 ): TraitAxisBonuses {
   if (!bonuses) return createEmptyTraitAxisBonuses();
   return {
-    physicalThreat: clampNonNegative(bonuses.physicalThreat ?? 0),
-    mentalThreat: clampNonNegative(bonuses.mentalThreat ?? 0),
-    physicalSurvivability: clampNonNegative(bonuses.physicalSurvivability ?? 0),
-    mentalSurvivability: clampNonNegative(bonuses.mentalSurvivability ?? 0),
-    manipulation: clampNonNegative(bonuses.manipulation ?? 0),
-    synergy: clampNonNegative(bonuses.synergy ?? 0),
-    mobility: clampNonNegative(bonuses.mobility ?? 0),
-    presence: clampNonNegative(bonuses.presence ?? 0),
+    physicalThreat: Number.isFinite(bonuses.physicalThreat) ? bonuses.physicalThreat ?? 0 : 0,
+    mentalThreat: Number.isFinite(bonuses.mentalThreat) ? bonuses.mentalThreat ?? 0 : 0,
+    physicalSurvivability: Number.isFinite(bonuses.physicalSurvivability)
+      ? bonuses.physicalSurvivability ?? 0
+      : 0,
+    mentalSurvivability: Number.isFinite(bonuses.mentalSurvivability)
+      ? bonuses.mentalSurvivability ?? 0
+      : 0,
+    manipulation: Number.isFinite(bonuses.manipulation) ? bonuses.manipulation ?? 0 : 0,
+    synergy: Number.isFinite(bonuses.synergy) ? bonuses.synergy ?? 0 : 0,
+    mobility: Number.isFinite(bonuses.mobility) ? bonuses.mobility ?? 0 : 0,
+    presence: Number.isFinite(bonuses.presence) ? bonuses.presence ?? 0 : 0,
   };
 }
 
@@ -1165,8 +1176,8 @@ function computeDefensiveContributionFromProfiles(
   );
   const mentalDefenceShare = getSmoothDefenceShare(
     context.willpowerDice * mentalBlockPerSuccess,
-    tuning.defenceStringProtectionOutputScale,
-    tuning.defenceStringProtectionOutputMaxShare,
+    tuning.mentalDefenceStringProtectionOutputScale,
+    tuning.mentalDefenceStringProtectionOutputMaxShare,
   );
 
   const physicalDodgeRawBonus =
@@ -1478,6 +1489,14 @@ export function computeMonsterOutcomes(
     defenceStringProtectionOutputMaxShare:
       opts?.protectionTuning?.defenceStringProtectionOutputMaxShare ??
       DEFAULT_COMBAT_TUNING_VALUES.defenceStringProtectionOutputMaxShare,
+    mentalDefenceStringProtectionOutputScale:
+      opts?.protectionTuning?.mentalDefenceStringProtectionOutputScale ??
+      opts?.protectionTuning?.defenceStringProtectionOutputScale ??
+      DEFAULT_COMBAT_TUNING_VALUES.mentalDefenceStringProtectionOutputScale,
+    mentalDefenceStringProtectionOutputMaxShare:
+      opts?.protectionTuning?.mentalDefenceStringProtectionOutputMaxShare ??
+      opts?.protectionTuning?.defenceStringProtectionOutputMaxShare ??
+      DEFAULT_COMBAT_TUNING_VALUES.mentalDefenceStringProtectionOutputMaxShare,
     dodgeBaselineScale:
       opts?.protectionTuning?.dodgeBaselineScale ??
       DEFAULT_COMBAT_TUNING_VALUES.dodgeBaselineScale,

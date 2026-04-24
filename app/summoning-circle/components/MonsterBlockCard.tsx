@@ -45,6 +45,9 @@ import {
 export type WeaponProjection = {
   id: string;
   name: string;
+  level?: number | null;
+  rarity?: string | null;
+  tags?: string[] | null;
   imageUrl?: string | null;
   type: "WEAPON" | "SHIELD" | "ARMOR" | "ITEM" | "CONSUMABLE";
   size: "SMALL" | "ONE_HANDED" | "TWO_HANDED" | null;
@@ -924,7 +927,7 @@ export function MonsterBlockCard({
           );
 
     return [
-      `Dodge: Roll ${dodgeDice} dice. If successes exceed the attacker's successes, take 0 damage. Otherwise take full damage.`,
+      `Dodge: Roll ${dodgeDice} dice. If successes match or exceed the attacker’s successes, take 0 damage. Otherwise take full damage.`,
       `Physical Protection: Roll ${computedArmorSkillValue} dice, block ${physicalBlockPerSuccess} wounds per success.`,
       `Mental Protection: Roll ${willpowerDice} dice, block ${mentalBlockPerSuccess} wounds per success.`,
     ];

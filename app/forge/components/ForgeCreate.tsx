@@ -5573,7 +5573,7 @@ useEffect(() => {
         className={`w-full md:w-1/2 p-3 md:p-8 border-b md:border-b-0 md:border-r border-zinc-800 md:overflow-y-auto ${editorMobileVisibility} md:block`}
       >
         <div
-          className={`relative overflow-hidden rounded-xl border ${itemRarityPalette.outerBorderClass} p-3 ${itemRarityPalette.outerShadowClass}`}
+          className={`relative overflow-visible rounded-xl border ${itemRarityPalette.outerBorderClass} p-3 ${itemRarityPalette.outerShadowClass}`}
           style={{
             backgroundImage: itemRarityPalette.backgroundImage,
           }}

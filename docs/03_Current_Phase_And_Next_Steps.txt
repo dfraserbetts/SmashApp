@@ -1,5 +1,3 @@
-03_Current_Phase_And_Next_Steps.txt
-
 Purpose
 
 This document records where the project currently stands, what has already been solved conceptually, and what should happen next.
@@ -78,7 +76,9 @@ The following points should now be treated as stable design truth:
 - Immediate remains the only chassis that can honestly have no Lifespan requirement in the current builder surface
 - Field, Attached, Trigger, and Reserve require Turns or Passive and default to Turns
 - overlapping areas from the same packet at the same timing use one power roll, pre-defence multiplication by overlap count, and one defence roll
-
+- canonical attribute naming is Guard and Synergy, not Defence and Support
+- Bravery is the mental defence dice stat
+- Dodge now succeeds on match or exceed, not exceed-only
 
 What Phase 6 Now Includes
 
@@ -111,6 +111,13 @@ Combat Tuning / Monster Baseline Tuning
 Outcome Normalization
 - final radar interpretation and display
 
+The current non-power baseline work also now includes:
+
+- normalized natural vs equipped at-will attack parity through one shared calculator-owned profile path
+- normalized natural vs equipped protection parity through one shared calculator-owned defensive profile path
+- physical-only dodge routing in monster survivability baseline work
+- a separate mental protection contribution seam in Combat Tuning so MPV can be tuned independently from PPV in the monster calculator
+- updated combat-tuning admin copy to remove stale shared-dodge language
 
 What Remains Actively In Progress
 
@@ -123,18 +130,22 @@ The following parts remain active work:
 - balancing outcome-normalization curves and tier multipliers against the combined contributor output
 - deciding which current costs should remain cost-only and which should create honest axis expression
 - defining and later implementing the monster-side realization modifier layer that translates contributor quality through monster attributes without contaminating canonical power truth
-
+- settling the correct low-end and mid-band dodge valuation now that dodge is physical-only and succeeds on match or exceed
+- tuning the mental protection lane so it feels like a viable premium alternative without inventing mental dodge
+- deciding the right Forge-side and Summoning Circle-side economic relationship between PPV and MPV
 
 Immediate Practical Next-Step Direction
 
 The practical next work should stay focused on:
 
 - using the Canary Harness as the main comparative tuning workspace
-- tuning specific powers against the now-aligned live baseline
 - preserving the three-layer split between:
   - Power Tuning
   - Combat Tuning
   - Outcome Normalization
+- using attack and defence anchor cases before broader family-wide tuning
+- tuning physical dodge and PPV tradeoffs so the physical survivability lane has a believable breakpoint shape
+- tuning mental protection contribution so the mental lane can stand beside the physical lane while preserving asymmetry
 - resolving only genuinely blocking remaining builder / descriptor edge cases
 - beginning the monster-side realization modifier layer only after the current tuning layers are behaving honestly
 - keeping the source docs aligned with current code reality
@@ -150,7 +161,8 @@ They are:
 - whether radar curves are saturating too early or too late once power plus non-power contribution are combined
 - which current costs should remain cost-only versus later translated through cadence, realization, or structural pressure
 - how the future monster-side realization modifier layer should gate powers, weapons, armor, and other typed contributors through the relevant monster attributes
-
+- what the correct low-end and mid-band physical dodge valuation should be under match-or-exceed rules
+- how much cheaper or more efficient MPV should be than PPV in Forge and in monster baseline contribution without breaking the table-facing defence experience
 
 Important Anti-Drift Rule
 

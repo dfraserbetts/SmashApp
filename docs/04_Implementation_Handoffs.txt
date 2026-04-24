@@ -1,5 +1,3 @@
-04_Implementation_Handoffs.txt
-
 Purpose
 
 This document records durable handoff guidance so future chats can resume work on the shared power system without re-litigating core architecture.
@@ -88,6 +86,9 @@ All future builder work should assume:
 - Immediate remains the only chassis that can honestly have no Lifespan requirement in the current builder surface; Field, Attached, Trigger, and Reserve require Turns or Passive and default to Turns
 - self-origin sphere wording should distinguish static areas centered on the user's current space from self-hosted Attached areas attached to the user
 - overlapping areas from the same packet at the same timing use one power roll, pre-defence multiplication by overlap count, and one defence roll
+- canonical attribute naming is Guard and Synergy
+- Dodge succeeds on match or exceed
+- future chats must not reintroduce exceed-only dodge wording
 
 Future builder work should also preserve the following implementation-facing direction:
 
@@ -126,6 +127,17 @@ The current live implementation already uses:
 - final outcome normalization on top
 
 Do not resurrect old legacy power-side heuristics beside this cleaned pipeline.
+
+Current non-power baseline truths that future chats must preserve:
+
+- natural attacks and equipped weapons with the same authored at-will attack profile should produce the same baseline threat contribution
+- natural protection and equipped protection with the same authored defensive profile should produce the same baseline survivability contribution
+- dodge is physical-only in monster survivability baseline work
+- mental protection now has its own calculator-economy seam and should not be forced back into the exact same direct-budget curve as physical protection
+- the asymmetry target is:
+  - physical is broader and safer at baseline
+  - mental is narrower, lacks dodge, and may therefore be cheaper or more efficient to buy in the relevant economy layer
+- do not invent mental dodge merely to fake symmetry
 
 
 Rule for Future Packet Resolution Work
@@ -169,6 +181,10 @@ If a remaining unresolved design boundary does not materially block implementati
 
 If a remaining unresolved design boundary does materially block implementation, resolve only the smallest hard rule needed to unblock honest execution.
 
+If the user asks for repo review, treat the pushed GitHub commit or branch they name as the canonical review truth.
+
+If the user asks for local-worktree review instead, require the current file or diff rather than pretending GitHub matches local state.
+
 
 Current Open Questions That Are Real
 
@@ -178,6 +194,9 @@ The following questions are still genuinely open and should be treated honestly:
 - the final schema boundary between Power-Level Fields, chassis-local fields, packet-local fields, and derived metadata
 - the exact long-term treatment of costs that are currently cost-only versus later translated through cadence, realization, or structural pressure
 - the exact monster-side realization modifier layer that should gate typed contributor output through monster attributes without contaminating canonical power truth
+- the correct long-term low-end and breakpoint valuation for physical-only dodge under match-or-exceed rules
+- the correct long-term economic relationship between PPV and MPV in Forge and in monster baseline contribution
+- whether low-end mental survivability visibility needs Outcome Normalization help after raw package tuning is considered stable
 
 These are real open questions.
 
@@ -258,6 +277,11 @@ The following are treated as locked for this session:
 - Immediate remains the only chassis that can honestly have no Lifespan requirement in the current builder surface
 - Field, Attached, Trigger, and Reserve require Turns or Passive and default to Turns
 - overlapping areas from the same packet at the same timing use one power roll, pre-defence multiplication by overlap count, and one defence roll
+- Dodge succeeds on match or exceed
+- natural and equipped at-will attack anchors are normalized to the same baseline law
+- natural and equipped protection anchors are normalized to the same baseline law
+- dodge is physical-only in monster survivability baseline work
+- mental protection has its own calculator-economy seam and may be tuned independently from physical protection
 - simple powers must stay simple
 - complexity increases cost
 - live preview is mandatory
@@ -280,4 +304,5 @@ Non-goals:
 - do not redesign the whole UI visually
 - do not drift into runtime tracking systems
 - do not solve full Transformation or Summoning payload builders
-- do not invent alternate Channel modes or advanced Charge variants unless a direct implementation contradiction forces it
+- do not invent mental dodge
+- do not collapse the PPV/MPV asymmetry merely to make the spreadsheet look symmetric
