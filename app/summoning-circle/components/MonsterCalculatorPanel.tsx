@@ -156,9 +156,9 @@ export function MonsterCalculatorPanel({
         <>
           <div className="space-y-1">
             <h4 className="text-sm font-semibold">Final Outcome</h4>
-            <p className="text-[11px] text-zinc-500">
-              Combined monster radar after canonical power contribution, non-power contributors,
-              and outcome normalization.
+          <p className="text-[11px] text-zinc-500">
+            Combined monster radar after non-power contributors, effective power availability,
+            and outcome normalization.
             </p>
           </div>
           <OutcomeRadar
@@ -198,8 +198,8 @@ export function MonsterCalculatorPanel({
         <div className="space-y-1">
           <h4 className="text-sm font-semibold">Power Contribution</h4>
           <p className="text-[11px] text-zinc-500">
-            Canonical Phase 6 power vector. This is now merged into the final monster outcome
-            profile below alongside non-power contributors.
+            Canonical Phase 6 per-use power vector. Final outcome debug shows the effective
+            availability-adjusted contribution used by the monster radar.
           </p>
         </div>
 

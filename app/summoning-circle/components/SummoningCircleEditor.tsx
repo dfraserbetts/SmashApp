@@ -88,6 +88,7 @@ import { usePowerTuning } from "@/app/summoning-circle/components/usePowerTuning
 import { useOutcomeNormalization } from "@/app/summoning-circle/components/useOutcomeNormalization";
 import {
   applyCombatTuningToCalculatorConfig,
+  getRawSurvivabilityBudgetTarget,
   type ProtectionTuningValues,
 } from "@/lib/config/combatTuningShared";
 import { resolvePowerCosts } from "@/lib/summoning/powerCostResolver";
@@ -3041,6 +3042,17 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
             : p.responseRequired
               ? "YES"
               : "NO";
+        const rangeCategories = Array.isArray(p.rangeCategories)
+          ? p.rangeCategories
+              .map((entry) => String(entry).toUpperCase())
+              .filter((entry): entry is "MELEE" | "RANGED" | "AOE" =>
+                entry === "MELEE" || entry === "RANGED" || entry === "AOE",
+              )
+          : [];
+        const aoeShape: MonsterPower["aoeShape"] =
+          p.aoeShape === "SPHERE" || p.aoeShape === "CONE" || p.aoeShape === "LINE"
+            ? p.aoeShape
+            : null;
         const normalizedLifespan = normalizePowerLifespan(
           descriptorChassis,
           commitmentModifier,
@@ -3077,6 +3089,17 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
           cooldownReduction: Number(p.cooldownReduction ?? 0),
           counterMode,
           commitmentModifier,
+          rangeCategories,
+          meleeTargets: typeof p.meleeTargets === "number" ? p.meleeTargets : null,
+          rangedTargets: typeof p.rangedTargets === "number" ? p.rangedTargets : null,
+          rangedDistanceFeet: typeof p.rangedDistanceFeet === "number" ? p.rangedDistanceFeet : null,
+          aoeCenterRangeFeet: typeof p.aoeCenterRangeFeet === "number" ? p.aoeCenterRangeFeet : null,
+          aoeCount: typeof p.aoeCount === "number" ? p.aoeCount : null,
+          aoeShape,
+          aoeSphereRadiusFeet: typeof p.aoeSphereRadiusFeet === "number" ? p.aoeSphereRadiusFeet : null,
+          aoeConeLengthFeet: typeof p.aoeConeLengthFeet === "number" ? p.aoeConeLengthFeet : null,
+          aoeLineWidthFeet: typeof p.aoeLineWidthFeet === "number" ? p.aoeLineWidthFeet : null,
+          aoeLineLengthFeet: typeof p.aoeLineLengthFeet === "number" ? p.aoeLineLengthFeet : null,
           triggerMethod:
             p.triggerMethod === "TARGET_AND_THEN_ARM" || p.triggerMethod === "ARM_AND_THEN_TARGET"
               ? (p.triggerMethod as MonsterPower["triggerMethod"])
@@ -3504,6 +3527,21 @@ function getCalculatorTierMultiplier(
 ): number {
   const tierKey = monster.legendary ? "LEGENDARY" : monster.tier;
   return config.tierMultipliers[tierKey] ?? config.tierMultipliers.ELITE;
+}
+
+function getRawSurvivabilityAxisBudgetTarget(
+  protectionTuning: ProtectionTuningValues,
+  lane: "physical" | "mental",
+  level: number,
+  monster: Pick<EditableMonster, "tier" | "legendary">,
+): number {
+  return getRawSurvivabilityBudgetTarget(
+    protectionTuning,
+    lane,
+    level,
+    monster.tier,
+    Boolean(monster.legendary),
+  );
 }
 
 const EQUIPMENT_MODIFIER_AXIS_FIELDS = [
@@ -5631,13 +5669,17 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalThreat, level),
         tierMultiplier,
       ),
-      physicalSurvivability: getTierAdjustedAxisBudgetTarget(
-        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.physicalSurvivability, level),
-        tierMultiplier,
+      physicalSurvivability: getRawSurvivabilityAxisBudgetTarget(
+        protectionTuning,
+        "physical",
+        level,
+        previewMonster,
       ),
-      mentalSurvivability: getTierAdjustedAxisBudgetTarget(
-        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalSurvivability, level),
-        tierMultiplier,
+      mentalSurvivability: getRawSurvivabilityAxisBudgetTarget(
+        protectionTuning,
+        "mental",
+        level,
+        previewMonster,
       ),
       manipulation: getTierAdjustedAxisBudgetTarget(
         getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.manipulation, level),
@@ -5670,7 +5712,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     }
 
     return bonuses;
-  }, [previewMonster, runtimeCalculatorConfig]);
+  }, [previewMonster, protectionTuning, runtimeCalculatorConfig]);
   const selectedEquipmentModifierAxisBonuses = useMemo(() => {
     if (!previewMonster) return createEmptyAxisBonuses();
 
@@ -5685,13 +5727,17 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalThreat, level),
         tierMultiplier,
       ),
-      physicalSurvivability: getTierAdjustedAxisBudgetTarget(
-        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.physicalSurvivability, level),
-        tierMultiplier,
+      physicalSurvivability: getRawSurvivabilityAxisBudgetTarget(
+        protectionTuning,
+        "physical",
+        level,
+        previewMonster,
       ),
-      mentalSurvivability: getTierAdjustedAxisBudgetTarget(
-        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalSurvivability, level),
-        tierMultiplier,
+      mentalSurvivability: getRawSurvivabilityAxisBudgetTarget(
+        protectionTuning,
+        "mental",
+        level,
+        previewMonster,
       ),
       manipulation: getTierAdjustedAxisBudgetTarget(
         getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.manipulation, level),
@@ -5772,6 +5818,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     equippedItems,
     itemModifierValues,
     previewMonster,
+    protectionTuning,
     runtimeCalculatorConfig,
   ]);
   const selectedNaturalAttackRangeAxisBonuses = useMemo(() => {
@@ -5788,13 +5835,17 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalThreat, level),
         tierMultiplier,
       ),
-      physicalSurvivability: getTierAdjustedAxisBudgetTarget(
-        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.physicalSurvivability, level),
-        tierMultiplier,
+      physicalSurvivability: getRawSurvivabilityAxisBudgetTarget(
+        protectionTuning,
+        "physical",
+        level,
+        previewMonster,
       ),
-      mentalSurvivability: getTierAdjustedAxisBudgetTarget(
-        getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalSurvivability, level),
-        tierMultiplier,
+      mentalSurvivability: getRawSurvivabilityAxisBudgetTarget(
+        protectionTuning,
+        "mental",
+        level,
+        previewMonster,
       ),
       manipulation: getTierAdjustedAxisBudgetTarget(
         getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.manipulation, level),
@@ -5841,19 +5892,22 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     );
 
     return bonuses;
-  }, [previewMonster, runtimeCalculatorConfig]);
+  }, [previewMonster, protectionTuning, runtimeCalculatorConfig]);
   const survivabilityLaneDebugBreakdown = useMemo(() => {
     if (!previewMonster) return null;
 
     const level = Math.max(1, Math.trunc(previewMonster.level || 1));
-    const tierMultiplier = getCalculatorTierMultiplier(previewMonster, runtimeCalculatorConfig);
-    const physicalSurvivabilityAxisBudgetTarget = getTierAdjustedAxisBudgetTarget(
-      getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.physicalSurvivability, level),
-      tierMultiplier,
+    const physicalSurvivabilityAxisBudgetTarget = getRawSurvivabilityAxisBudgetTarget(
+      protectionTuning,
+      "physical",
+      level,
+      previewMonster,
     );
-    const mentalSurvivabilityAxisBudgetTarget = getTierAdjustedAxisBudgetTarget(
-      getCurvePointForLevel(runtimeCalculatorConfig.scoringCurves.mentalSurvivability, level),
-      tierMultiplier,
+    const mentalSurvivabilityAxisBudgetTarget = getRawSurvivabilityAxisBudgetTarget(
+      protectionTuning,
+      "mental",
+      level,
+      previewMonster,
     );
 
     const expectedIncomingAttackDice = getExpectedIncomingAttackDiceForDodge(
@@ -6017,6 +6071,14 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         axisVector: resolvedPowerCosts.totals.axisVector,
         basePowerValue: resolvedPowerCosts.totals.basePowerValue,
         powerCount: resolvedPowerCosts.powers.length,
+        powers: resolvedPowerCosts.powers.map((power) => ({
+          id: power.powerId ?? null,
+          name: power.name,
+          axisVector: power.breakdown.axisVector,
+          basePowerValue: power.breakdown.basePowerValue,
+          cooldownTurns: power.cooldownTurns,
+          cooldownReduction: power.cooldownReduction,
+        })),
         debug: resolvedPowerCosts,
       },
       traitAxisBonuses: selectedTraitAxisBonuses,
