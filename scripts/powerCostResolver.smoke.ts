@@ -69,6 +69,10 @@ function getFirstPacketBreakdown(power: Power) {
   return breakdown.packetCosts[0];
 }
 
+function roundCost(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 function createBaseMonster() {
   return {
     name: "Movement Smoke",
@@ -151,15 +155,38 @@ const selfHealPacket = createPacket("HEALING", {
   },
 });
 
+const selfHealPower = createPower({
+  name: "Self Heal Smoke",
+  packet: selfHealPacket,
+});
 const selfHeal = getFirstPacketBreakdown(
-  createPower({
-    name: "Self Heal Smoke",
-    packet: selfHealPacket,
-  }),
+  selfHealPower,
 );
+const selfHealScalarBreakdown = resolvePowerCost(selfHealPower, {
+  values: {
+    ...DEFAULT_POWER_TUNING_VALUES,
+    "packet.axisEmission.intention.healing": 1,
+  },
+});
+const selfHealAxisEmissionBreakdown = resolvePowerCost(selfHealPower, {
+  values: DEFAULT_POWER_TUNING_VALUES,
+});
+const selfHealScalarPacket = selfHealScalarBreakdown.packetCosts[0];
+const selfHealAxisEmissionPacket = selfHealAxisEmissionBreakdown.packetCosts[0];
 
 assert.equal(selfHeal.axisVector.synergy, 0);
 assert.ok(selfHeal.axisVector.physicalSurvivability > 0);
+assert.equal(selfHealAxisEmissionBreakdown.basePowerValue, selfHealScalarBreakdown.basePowerValue);
+assert.equal(
+  selfHealAxisEmissionPacket.packetTotalAfterContingency,
+  selfHealScalarPacket.packetTotalAfterContingency,
+);
+assert.equal(selfHealAxisEmissionPacket.scalarPacketValue, selfHealScalarPacket.scalarPacketValue);
+assert.equal(selfHealAxisEmissionPacket.axisEmissionMultiplier, 0.5);
+assert.equal(
+  selfHealAxisEmissionPacket.axisVector.physicalSurvivability,
+  roundCost(selfHealScalarPacket.axisVector.physicalSurvivability * 0.5),
+);
 assert.deepEqual(
   (selfHeal.debug.axisRouting as { spillRules?: string[] }).spillRules ?? [],
   ["healingTo:physicalSurvivability"],
@@ -231,38 +258,62 @@ const weakestMovementBaselineValues = {
   "packet.identity.intention.movement": 0.8,
   "packet.magnitude.dice.2": 3,
 };
-const weakestMovementBeforeBreakdown = resolvePowerCost(selfRunMovementPower, {
+const weakestMovementUnreducedMagnitudeBreakdown = resolvePowerCost(selfRunMovementPower, {
   values: {
     ...weakestMovementBaselineValues,
     "packet.magnitude.movementTypeMultiplier.run": 1,
+    "packet.axisEmission.intention.movement": 1,
+  },
+});
+const weakestMovementMagnitudeOnlyBreakdown = resolvePowerCost(selfRunMovementPower, {
+  values: {
+    ...weakestMovementBaselineValues,
+    "packet.axisEmission.intention.movement": 1,
   },
 });
 const weakestMovementAfterBreakdown = resolvePowerCost(selfRunMovementPower, {
   values: weakestMovementBaselineValues,
 });
 const weakestMovementAfterPacket = weakestMovementAfterBreakdown.packetCosts[0];
-const weakestMovementBeforeMonster = computeMonsterOutcomes(createBaseMonster(), calculatorConfig, {
-  powerContribution: weakestMovementBeforeBreakdown,
-});
+const weakestMovementMagnitudeOnlyPacket = weakestMovementMagnitudeOnlyBreakdown.packetCosts[0];
 const weakestMovementAfterMonster = computeMonsterOutcomes(createBaseMonster(), calculatorConfig, {
   powerContribution: weakestMovementAfterBreakdown,
 });
 const weakestMovementAfterMonsterDebug = weakestMovementAfterMonster.debug as {
   finalPreNormalizationAxes?: { mobility?: number };
 };
-const weakestMovementBeforeMonsterDebug = weakestMovementBeforeMonster.debug as {
+const weakestMovementMagnitudeOnlyMonster = computeMonsterOutcomes(createBaseMonster(), calculatorConfig, {
+  powerContribution: weakestMovementMagnitudeOnlyBreakdown,
+});
+const weakestMovementMagnitudeOnlyMonsterDebug = weakestMovementMagnitudeOnlyMonster.debug as {
   finalPreNormalizationAxes?: { mobility?: number };
 };
 
 assert.equal(weakestMovementAfterPacket.packetIdentityCost, 0.8);
-assert.equal(weakestMovementBeforeBreakdown.packetCosts[0].packetMagnitudeCost, 4);
+assert.equal(weakestMovementUnreducedMagnitudeBreakdown.packetCosts[0].packetMagnitudeCost, 4);
 assert.equal(weakestMovementAfterPacket.packetMagnitudeCost, 0.8);
 assert.equal(weakestMovementAfterPacket.packetRecipientCost, 0.5);
 assert.equal(weakestMovementAfterPacket.packetSpecificCost, 1);
-assert.equal(weakestMovementAfterPacket.axisVector.mobility, 3.1);
+assert.equal(weakestMovementMagnitudeOnlyPacket.axisVector.mobility, 3.1);
+assert.equal(weakestMovementAfterPacket.axisEmissionMultiplier, 0.5);
+assert.equal(weakestMovementAfterPacket.axisEmissionValue, 1.55);
+assert.equal(weakestMovementAfterPacket.axisEmissionTuningKey, "packet.axisEmission.intention.movement");
+assert.equal(weakestMovementAfterPacket.axisVector.mobility, 1.55);
+assert.equal(weakestMovementAfterPacket.packetTotalAfterContingency, 3.1);
+assert.equal(
+  weakestMovementAfterPacket.packetTotalAfterContingency,
+  weakestMovementMagnitudeOnlyPacket.packetTotalAfterContingency,
+);
 assert.equal(weakestMovementAfterBreakdown.basePowerValue, 3.1);
-assert.equal(weakestMovementAfterMonsterDebug.finalPreNormalizationAxes?.mobility ?? 0, 3.1);
-assert.equal(weakestMovementAfterMonster.radarAxes.mobility, 6.5625);
+assert.equal(
+  weakestMovementAfterBreakdown.basePowerValue,
+  weakestMovementMagnitudeOnlyBreakdown.basePowerValue,
+);
+assert.equal(weakestMovementAfterMonsterDebug.finalPreNormalizationAxes?.mobility ?? 0, 1.55);
+assert.equal(
+  weakestMovementMagnitudeOnlyMonsterDebug.finalPreNormalizationAxes?.mobility ?? 0,
+  3.1,
+);
 assert.equal(
   (weakestMovementAfterPacket.debug as { hostility?: string }).hostility,
   "NON_HOSTILE_OR_UNKNOWN",
@@ -288,16 +339,24 @@ console.log(
   JSON.stringify(
     {
       weakestSelfRunMovement: {
-        before: {
-          packetMagnitudeCost: weakestMovementBeforeBreakdown.packetCosts[0].packetMagnitudeCost,
-          powerContributionMobility: weakestMovementBeforeBreakdown.axisVector.mobility,
-          basePowerValue: weakestMovementBeforeBreakdown.basePowerValue,
+        unreducedMagnitude: {
+          packetMagnitudeCost:
+            weakestMovementUnreducedMagnitudeBreakdown.packetCosts[0].packetMagnitudeCost,
+          powerContributionMobility: weakestMovementUnreducedMagnitudeBreakdown.axisVector.mobility,
+          basePowerValue: weakestMovementUnreducedMagnitudeBreakdown.basePowerValue,
+        },
+        magnitudeOnly: {
+          packetMagnitudeCost: weakestMovementMagnitudeOnlyPacket.packetMagnitudeCost,
+          powerContributionMobility: weakestMovementMagnitudeOnlyBreakdown.axisVector.mobility,
+          basePowerValue: weakestMovementMagnitudeOnlyBreakdown.basePowerValue,
           finalPreNormalizationAxesMobility:
-            weakestMovementBeforeMonsterDebug.finalPreNormalizationAxes?.mobility ?? 0,
-          radarMobility: weakestMovementBeforeMonster.radarAxes.mobility,
+            weakestMovementMagnitudeOnlyMonsterDebug.finalPreNormalizationAxes?.mobility ?? 0,
+          radarMobility: weakestMovementMagnitudeOnlyMonster.radarAxes.mobility,
         },
         after: {
           packetMagnitudeCost: weakestMovementAfterPacket.packetMagnitudeCost,
+          axisEmissionMultiplier: weakestMovementAfterPacket.axisEmissionMultiplier,
+          axisEmissionValue: weakestMovementAfterPacket.axisEmissionValue,
           powerContributionMobility: weakestMovementAfterBreakdown.axisVector.mobility,
           basePowerValue: weakestMovementAfterBreakdown.basePowerValue,
           finalPreNormalizationAxesMobility:

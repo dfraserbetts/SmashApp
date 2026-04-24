@@ -13,6 +13,7 @@ import {
 import type { CalculatorConfig, LevelCurvePoint } from "@/lib/calculators/calculatorConfig";
 import {
   DEFAULT_COMBAT_TUNING_VALUES,
+  getRawSurvivabilityBudgetTarget,
   type ProtectionTuningValues,
 } from "@/lib/config/combatTuningShared";
 
@@ -164,6 +165,14 @@ export type CanonicalPowerContribution = {
   axisVector?: Partial<RadarAxes> | null;
   basePowerValue?: number | null;
   powerCount?: number | null;
+  powers?: Array<{
+    id?: string | null;
+    name?: string | null;
+    axisVector?: Partial<RadarAxes> | null;
+    basePowerValue?: number | null;
+    cooldownTurns?: number | null;
+    cooldownReduction?: number | null;
+  }> | null;
   debug?: Record<string, unknown> | null;
 };
 
@@ -295,6 +304,7 @@ type DefensiveProfileProtectionTuning = Pick<
   | "dodgeGuardWeight"
   | "dodgeAttributeDivisor"
   | "dodgeProtectionPenaltyWeight"
+  | "atWillThreatAxisMultiplier"
   | "defenceStringProtectionOutputScale"
   | "defenceStringProtectionOutputMaxShare"
   | "mentalDefenceStringProtectionOutputScale"
@@ -381,16 +391,16 @@ function getFinalPoolShare(atExpectedShare: number, signedDeltaShare: number): n
 
 function getPoolLaneRawBonus(
   ratio: number,
-  curvePoint: LevelCurvePoint,
-  tierMultiplier: number,
+  rawBudgetTarget: number,
   cfg: CalculatorConfig["healthPoolTuning"],
-): { signedDeltaShare: number; finalShare: number; rawBonus: number } {
+): { signedDeltaShare: number; finalShare: number; rawBudgetTarget: number; rawBonus: number } {
   const signedDeltaShare = getSignedExpectedPoolDeltaShare(ratio, cfg);
   const finalShare = getFinalPoolShare(cfg.poolAtExpectedShare, signedDeltaShare);
   return {
     signedDeltaShare,
     finalShare,
-    rawBonus: getTierAdjustedAxisBudgetTarget(curvePoint, tierMultiplier) * finalShare,
+    rawBudgetTarget,
+    rawBonus: rawBudgetTarget * finalShare,
   };
 }
 
@@ -574,6 +584,181 @@ function scaleRawAxisBonuses(bonuses: RadarAxes, weight: number): RadarAxes {
   };
 }
 
+function addRawAxisBonuses(left: RadarAxes, right: RadarAxes): RadarAxes {
+  return {
+    physicalThreat: left.physicalThreat + right.physicalThreat,
+    mentalThreat: left.mentalThreat + right.mentalThreat,
+    physicalSurvivability: left.physicalSurvivability + right.physicalSurvivability,
+    mentalSurvivability: left.mentalSurvivability + right.mentalSurvivability,
+    manipulation: left.manipulation + right.manipulation,
+    synergy: left.synergy + right.synergy,
+    mobility: left.mobility + right.mobility,
+    presence: left.presence + right.presence,
+  };
+}
+
+function readFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function getPowerAvailabilityFactor(cooldownTurns: number): number {
+  if (cooldownTurns <= 0) return 1;
+  if (cooldownTurns === 1) return 0.75;
+  if (cooldownTurns === 2) return 0.55;
+  if (cooldownTurns === 3) return 0.4;
+  return 0.3;
+}
+
+function resolvePowerAvailability(power: {
+  cooldownTurns?: number | null;
+  cooldownReduction?: number | null;
+}): {
+  availabilityFactor: number;
+  availabilityReason: string;
+  cooldownTurns: number | null;
+  cooldownSource: string;
+} {
+  const authoredCooldown = readFiniteNumber(power.cooldownTurns);
+  const authoredReduction = readFiniteNumber(power.cooldownReduction) ?? 0;
+
+  if (authoredCooldown === null) {
+    return {
+      availabilityFactor: 1,
+      availabilityReason:
+        "No per-power cooldownTurns was provided at the monster outcome merge point; canonical axis contribution was left unchanged.",
+      cooldownTurns: null,
+      cooldownSource: "missing",
+    };
+  }
+
+  const resolvedCooldown =
+    authoredCooldown <= 0
+      ? 0
+      : Math.max(1, Math.trunc(authoredCooldown) - Math.max(0, Math.trunc(authoredReduction)));
+  const availabilityFactor = getPowerAvailabilityFactor(resolvedCooldown);
+
+  return {
+    availabilityFactor,
+    availabilityReason:
+      resolvedCooldown <= 0
+        ? "Authored cooldown resolved to at-will/0, so full canonical axis contribution is used."
+        : `Authored cooldownTurns (${Math.trunc(authoredCooldown)}) minus cooldownReduction (${Math.max(
+            0,
+            Math.trunc(authoredReduction),
+          )}) resolved to cooldown ${resolvedCooldown}; first-pass monster availability factor ${availabilityFactor} applied.`,
+    cooldownTurns: resolvedCooldown,
+    cooldownSource: "authored_power.cooldownTurns_minus_cooldownReduction",
+  };
+}
+
+function resolveEffectivePowerAxisContribution(
+  contribution: CanonicalPowerContribution | null | undefined,
+): {
+  canonicalPowerAxisVector: RadarAxes;
+  effectivePowerAxisVector: RadarAxes;
+  availabilityFactor: number | null;
+  availabilityReason: string;
+  cooldownTurns: number | null;
+  cooldownSource: string;
+  perPower: Array<{
+    id: string | null;
+    name: string | null;
+    canonicalPowerAxisVector: RadarAxes;
+    effectivePowerAxisVector: RadarAxes;
+    availabilityFactor: number;
+    availabilityReason: string;
+    cooldownTurns: number | null;
+    cooldownSource: string;
+    basePowerValue: number | null;
+  }>;
+  warnings: string[];
+} {
+  const canonicalPowerAxisVector = normalizeRawAxisBonuses(contribution?.axisVector);
+  const powers = Array.isArray(contribution?.powers) ? contribution.powers : [];
+  const warnings: string[] = [];
+
+  if (powers.length === 0) {
+    if (contribution) {
+      warnings.push(
+        "No per-power contribution rows were provided; effective power axis vector falls back to canonical aggregate without availability reduction.",
+      );
+    }
+    return {
+      canonicalPowerAxisVector,
+      effectivePowerAxisVector: canonicalPowerAxisVector,
+      availabilityFactor: contribution ? 1 : null,
+      availabilityReason: contribution
+        ? "Aggregate canonical power contribution had no per-power cooldown data, so no availability factor could be honestly applied."
+        : "No canonical power contribution was provided.",
+      cooldownTurns: null,
+      cooldownSource: contribution ? "missing_per_power_rows" : "none",
+      perPower: [],
+      warnings,
+    };
+  }
+
+  let effectivePowerAxisVector = createEmptyAxisBonuses();
+  const perPower = powers.map((power, index) => {
+    const canonicalAxis = normalizeRawAxisBonuses(power.axisVector);
+    const availability = resolvePowerAvailability(power);
+    const effectiveAxis = scaleRawAxisBonuses(canonicalAxis, availability.availabilityFactor);
+    effectivePowerAxisVector = addRawAxisBonuses(effectivePowerAxisVector, effectiveAxis);
+    if (availability.cooldownSource === "missing") {
+      warnings.push(
+        `Power ${power.name || index + 1} had no cooldownTurns; canonical axis contribution was left unchanged.`,
+      );
+    }
+    return {
+      id: power.id ?? null,
+      name: power.name ?? null,
+      canonicalPowerAxisVector: canonicalAxis,
+      effectivePowerAxisVector: effectiveAxis,
+      availabilityFactor: availability.availabilityFactor,
+      availabilityReason: availability.availabilityReason,
+      cooldownTurns: availability.cooldownTurns,
+      cooldownSource: availability.cooldownSource,
+      basePowerValue:
+        typeof power.basePowerValue === "number" && Number.isFinite(power.basePowerValue)
+          ? power.basePowerValue
+          : null,
+    };
+  });
+
+  const weightedAvailabilityDenominator = perPower.reduce(
+    (sum, power) =>
+      sum +
+      Object.values(power.canonicalPowerAxisVector).reduce((axisSum, value) => axisSum + value, 0),
+    0,
+  );
+  const weightedAvailabilityNumerator = perPower.reduce((sum, power) => {
+    const powerWeight = Object.values(power.canonicalPowerAxisVector).reduce(
+      (axisSum, value) => axisSum + value,
+      0,
+    );
+    return sum + powerWeight * power.availabilityFactor;
+  }, 0);
+
+  return {
+    canonicalPowerAxisVector,
+    effectivePowerAxisVector,
+    availabilityFactor:
+      weightedAvailabilityDenominator > 0
+        ? weightedAvailabilityNumerator / weightedAvailabilityDenominator
+        : 0,
+    availabilityReason:
+      "Per-power authored cooldown availability applied before final monster outcome axes.",
+    cooldownTurns: null,
+    cooldownSource: "per_power_authored_cooldown",
+    perPower,
+    warnings,
+  };
+}
+
 function normalizeByLevelCurve(
   value: number,
   curvePoint: LevelCurvePoint,
@@ -663,6 +848,18 @@ function getRawAxisContributionFromBudgetShare(
     clampNonNegative(budgetShare) *
     clampNonNegative(resistPressureMultiplier) *
     getTierAdjustedAxisBudgetTarget(curvePoint, tierMultiplier)
+  );
+}
+
+function getRawAxisContributionFromBudgetTarget(
+  budgetShare: number,
+  rawBudgetTarget: number,
+  resistPressureMultiplier = 1,
+): number {
+  return (
+    clampNonNegative(budgetShare) *
+    clampNonNegative(resistPressureMultiplier) *
+    clampNonNegative(rawBudgetTarget)
   );
 }
 
@@ -1285,7 +1482,7 @@ export function computeMonsterOutcomes(
     equippedWeaponSources?: WeaponAttackSource[];
     defensiveProfileSources?: DefensiveProfileSource[];
     defensiveProfileContext?: Partial<DefensiveProfileContext>;
-    protectionTuning?: Partial<DefensiveProfileProtectionTuning>;
+    protectionTuning?: Partial<ProtectionTuningValues>;
     equipmentModifierAxisBonuses?: Partial<RadarAxes>;
     naturalAttackGsAxisBonuses?: Partial<RadarAxes>;
     naturalAttackRangeAxisBonuses?: Partial<RadarAxes>;
@@ -1354,7 +1551,9 @@ export function computeMonsterOutcomes(
   const spike = atWillSummary.bestTotal;
   const seuPerRound = 0;
   const tsuPerRound = 0;
-  const powerAxisVector = normalizeRawAxisBonuses(opts?.powerContribution?.axisVector);
+  const powerAvailability = resolveEffectivePowerAxisContribution(opts?.powerContribution);
+  const canonicalPowerAxisVector = powerAvailability.canonicalPowerAxisVector;
+  const effectivePowerAxisVector = powerAvailability.effectivePowerAxisVector;
 
   const sustainedTotal = sustainedPhysical + sustainedMental;
 
@@ -1372,6 +1571,11 @@ export function computeMonsterOutcomes(
   const mentalRoundsToZero = clampNonNegative(monster.mentalPerseveranceMax) / netIncoming;
   const nonPowerPresenceBudget =
     spike * 0.6 + sustainedTotal * 0.4 + (atWillSummary.hasAoe ? 1.5 : 0);
+  const atWillThreatAxisMultiplier =
+    opts?.protectionTuning?.atWillThreatAxisMultiplier ??
+    DEFAULT_COMBAT_TUNING_VALUES.atWillThreatAxisMultiplier;
+  const sustainedPhysicalThreatAxis = sustainedPhysical * atWillThreatAxisMultiplier;
+  const sustainedMentalThreatAxis = sustainedMental * atWillThreatAxisMultiplier;
 
   const level = Math.max(1, Math.trunc(monster.level || 1));
   const tierKey = toTierBudgetKey(monster);
@@ -1410,29 +1614,64 @@ export function computeMonsterOutcomes(
     clampNonNegative(monster.physicalResilienceMax) / Math.max(1, expectedPhysicalResilience);
   const mentalPoolRatio =
     clampNonNegative(monster.mentalPerseveranceMax) / Math.max(1, expectedMentalPerseverance);
+  const rawSurvivabilityBudgetTuning = {
+    rawPhysicalSurvivabilityBudgetAt1:
+      opts?.protectionTuning?.rawPhysicalSurvivabilityBudgetAt1 ??
+      DEFAULT_COMBAT_TUNING_VALUES.rawPhysicalSurvivabilityBudgetAt1,
+    rawPhysicalSurvivabilityBudgetPerLevel:
+      opts?.protectionTuning?.rawPhysicalSurvivabilityBudgetPerLevel ??
+      DEFAULT_COMBAT_TUNING_VALUES.rawPhysicalSurvivabilityBudgetPerLevel,
+    rawMentalSurvivabilityBudgetAt1:
+      opts?.protectionTuning?.rawMentalSurvivabilityBudgetAt1 ??
+      DEFAULT_COMBAT_TUNING_VALUES.rawMentalSurvivabilityBudgetAt1,
+    rawMentalSurvivabilityBudgetPerLevel:
+      opts?.protectionTuning?.rawMentalSurvivabilityBudgetPerLevel ??
+      DEFAULT_COMBAT_TUNING_VALUES.rawMentalSurvivabilityBudgetPerLevel,
+    rawSurvivabilityBudgetMinionMultiplier:
+      opts?.protectionTuning?.rawSurvivabilityBudgetMinionMultiplier ??
+      DEFAULT_COMBAT_TUNING_VALUES.rawSurvivabilityBudgetMinionMultiplier,
+    rawSurvivabilityBudgetSoldierMultiplier:
+      opts?.protectionTuning?.rawSurvivabilityBudgetSoldierMultiplier ??
+      DEFAULT_COMBAT_TUNING_VALUES.rawSurvivabilityBudgetSoldierMultiplier,
+    rawSurvivabilityBudgetEliteMultiplier:
+      opts?.protectionTuning?.rawSurvivabilityBudgetEliteMultiplier ??
+      DEFAULT_COMBAT_TUNING_VALUES.rawSurvivabilityBudgetEliteMultiplier,
+    rawSurvivabilityBudgetBossMultiplier:
+      opts?.protectionTuning?.rawSurvivabilityBudgetBossMultiplier ??
+      DEFAULT_COMBAT_TUNING_VALUES.rawSurvivabilityBudgetBossMultiplier,
+    rawSurvivabilityBudgetLegendaryMultiplier:
+      opts?.protectionTuning?.rawSurvivabilityBudgetLegendaryMultiplier ??
+      DEFAULT_COMBAT_TUNING_VALUES.rawSurvivabilityBudgetLegendaryMultiplier,
+  };
+  const physicalSurvivabilityRawBudgetTarget = getRawSurvivabilityBudgetTarget(
+    rawSurvivabilityBudgetTuning,
+    "physical",
+    level,
+    monster.tier,
+    Boolean(monster.legendary),
+  );
+  const mentalSurvivabilityRawBudgetTarget = getRawSurvivabilityBudgetTarget(
+    rawSurvivabilityBudgetTuning,
+    "mental",
+    level,
+    monster.tier,
+    Boolean(monster.legendary),
+  );
   const physicalPoolLane = getPoolLaneRawBonus(
     physicalPoolRatio,
-    physicalSurvivabilityCurvePoint,
-    tierMultiplier,
+    physicalSurvivabilityRawBudgetTarget,
     cfg.healthPoolTuning,
   );
   const mentalPoolLane = getPoolLaneRawBonus(
     mentalPoolRatio,
-    mentalSurvivabilityCurvePoint,
-    tierMultiplier,
+    mentalSurvivabilityRawBudgetTarget,
     cfg.healthPoolTuning,
   );
   const axisBudgetTargets: RadarAxes = {
     physicalThreat: getTierAdjustedAxisBudgetTarget(physicalThreatCurvePoint, tierMultiplier),
     mentalThreat: getTierAdjustedAxisBudgetTarget(mentalThreatCurvePoint, tierMultiplier),
-    physicalSurvivability: getTierAdjustedAxisBudgetTarget(
-      physicalSurvivabilityCurvePoint,
-      tierMultiplier,
-    ),
-    mentalSurvivability: getTierAdjustedAxisBudgetTarget(
-      mentalSurvivabilityCurvePoint,
-      tierMultiplier,
-    ),
+    physicalSurvivability: physicalSurvivabilityRawBudgetTarget,
+    mentalSurvivability: mentalSurvivabilityRawBudgetTarget,
     manipulation: getTierAdjustedAxisBudgetTarget(manipulationCurvePoint, tierMultiplier),
     synergy: getTierAdjustedAxisBudgetTarget(synergyCurvePoint, tierMultiplier),
     mobility: getTierAdjustedAxisBudgetTarget(mobilityCurvePoint, tierMultiplier),
@@ -1483,6 +1722,7 @@ export function computeMonsterOutcomes(
     dodgeProtectionPenaltyWeight:
       opts?.protectionTuning?.dodgeProtectionPenaltyWeight ??
       DEFAULT_COMBAT_TUNING_VALUES.dodgeProtectionPenaltyWeight,
+    atWillThreatAxisMultiplier,
     defenceStringProtectionOutputScale:
       opts?.protectionTuning?.defenceStringProtectionOutputScale ??
       DEFAULT_COMBAT_TUNING_VALUES.defenceStringProtectionOutputScale,
@@ -1568,16 +1808,14 @@ export function computeMonsterOutcomes(
     tierMultiplier,
     resistPressureMultiplier,
   );
-  const defenceResistContribution = getRawAxisContributionFromBudgetShare(
+  const defenceResistContribution = getRawAxisContributionFromBudgetTarget(
     getResistBudgetShare(monster.guardResistDie),
-    physicalSurvivabilityCurvePoint,
-    tierMultiplier,
+    physicalSurvivabilityRawBudgetTarget,
     resistPressureMultiplier,
   );
-  const fortitudeResistContribution = getRawAxisContributionFromBudgetShare(
+  const fortitudeResistContribution = getRawAxisContributionFromBudgetTarget(
     getResistBudgetShare(monster.fortitudeResistDie),
-    physicalSurvivabilityCurvePoint,
-    tierMultiplier,
+    physicalSurvivabilityRawBudgetTarget,
     resistPressureMultiplier,
   );
   const supportResistContribution = getRawAxisContributionFromBudgetShare(
@@ -1628,7 +1866,7 @@ export function computeMonsterOutcomes(
     : 0;
   const nonPowerContribution: RadarAxes = {
     physicalThreat:
-      sustainedPhysical +
+      sustainedPhysicalThreatAxis +
     attackResistContribution +
     routedEquipmentPhysicalThreatBonus +
     naturalAttackGsAxisBonuses.physicalThreat +
@@ -1636,7 +1874,7 @@ export function computeMonsterOutcomes(
     customLimitBreakAxisBonuses.physicalThreat +
       traitAxisBonuses.physicalThreat,
     mentalThreat:
-      sustainedMental +
+      sustainedMentalThreatAxis +
       intellectResistContribution +
       routedEquipmentMentalThreatBonus +
       equipmentModifierAxisBonuses.mentalThreat +
@@ -1687,16 +1925,18 @@ export function computeMonsterOutcomes(
       traitAxisBonuses.presence,
   };
   const finalPreNormalizationAxes: RadarAxes = {
-    physicalThreat: nonPowerContribution.physicalThreat + powerAxisVector.physicalThreat,
-    mentalThreat: nonPowerContribution.mentalThreat + powerAxisVector.mentalThreat,
+    physicalThreat: nonPowerContribution.physicalThreat + effectivePowerAxisVector.physicalThreat,
+    mentalThreat: nonPowerContribution.mentalThreat + effectivePowerAxisVector.mentalThreat,
     physicalSurvivability:
-      nonPowerContribution.physicalSurvivability + powerAxisVector.physicalSurvivability,
+      nonPowerContribution.physicalSurvivability +
+      effectivePowerAxisVector.physicalSurvivability,
     mentalSurvivability:
-      nonPowerContribution.mentalSurvivability + powerAxisVector.mentalSurvivability,
-    manipulation: nonPowerContribution.manipulation + powerAxisVector.manipulation,
-    synergy: nonPowerContribution.synergy + powerAxisVector.synergy,
-    mobility: nonPowerContribution.mobility + powerAxisVector.mobility,
-    presence: nonPowerContribution.presence + powerAxisVector.presence,
+      nonPowerContribution.mentalSurvivability +
+      effectivePowerAxisVector.mentalSurvivability,
+    manipulation: nonPowerContribution.manipulation + effectivePowerAxisVector.manipulation,
+    synergy: nonPowerContribution.synergy + effectivePowerAxisVector.synergy,
+    mobility: nonPowerContribution.mobility + effectivePowerAxisVector.mobility,
+    presence: nonPowerContribution.presence + effectivePowerAxisVector.presence,
   };
   const radarAxes: RadarAxes = {
     physicalThreat: normalizeByLevelCurve(
@@ -1762,7 +2002,15 @@ export function computeMonsterOutcomes(
     radarAxes,
     debug: {
       powerContribution: {
-        axisVector: powerAxisVector,
+        axisVector: canonicalPowerAxisVector,
+        canonicalPowerAxisVector,
+        effectivePowerAxisVector,
+        availabilityFactor: powerAvailability.availabilityFactor,
+        availabilityReason: powerAvailability.availabilityReason,
+        cooldownTurns: powerAvailability.cooldownTurns,
+        cooldownSource: powerAvailability.cooldownSource,
+        perPowerAvailability: powerAvailability.perPower,
+        availabilityWarnings: powerAvailability.warnings,
         basePowerValue: opts?.powerContribution?.basePowerValue ?? null,
         powerCount: opts?.powerContribution?.powerCount ?? null,
         resolverDebug: opts?.powerContribution?.debug ?? null,
@@ -1772,6 +2020,9 @@ export function computeMonsterOutcomes(
         axisVector: nonPowerContribution,
         sources: {
           atWillSummary,
+          atWillThreatAxisMultiplier,
+          sustainedPhysicalThreatAxis,
+          sustainedMentalThreatAxis,
           attackResistContribution,
           intellectResistContribution,
           defenceResistContribution,
@@ -1793,6 +2044,16 @@ export function computeMonsterOutcomes(
           },
           traitAxisBonuses,
           customLimitBreakAxisBonuses,
+          rawSurvivabilityBudgetTargets: {
+            source: "combat_tuning.raw_survivability_budget",
+            physicalSurvivability: physicalSurvivabilityRawBudgetTarget,
+            mentalSurvivability: mentalSurvivabilityRawBudgetTarget,
+          },
+          displaySurvivabilityCurvePoints: {
+            source: "outcome_normalization.scoring_curves",
+            physicalSurvivability: physicalSurvivabilityCurvePoint,
+            mentalSurvivability: mentalSurvivabilityCurvePoint,
+          },
           physicalPoolRawBonus: physicalPoolLane.rawBonus,
           mentalPoolRawBonus: mentalPoolLane.rawBonus,
           nonPowerPresenceBudget,
@@ -1803,6 +2064,16 @@ export function computeMonsterOutcomes(
         level,
         tierKey,
         tierMultiplier,
+        displayCurvePoints: {
+          physicalThreat: physicalThreatCurvePoint,
+          mentalThreat: mentalThreatCurvePoint,
+          physicalSurvivability: physicalSurvivabilityCurvePoint,
+          mentalSurvivability: mentalSurvivabilityCurvePoint,
+          manipulation: manipulationCurvePoint,
+          synergy: synergyCurvePoint,
+          mobility: mobilityCurvePoint,
+          presence: presenceCurvePoint,
+        },
         curvePoints: {
           physicalThreat: physicalThreatCurvePoint,
           mentalThreat: mentalThreatCurvePoint,
@@ -1813,6 +2084,7 @@ export function computeMonsterOutcomes(
           mobility: mobilityCurvePoint,
           presence: presenceCurvePoint,
         },
+        rawAxisBudgetTargets: axisBudgetTargets,
         axisBudgetTargets,
         radarAxes,
       },

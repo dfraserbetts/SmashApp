@@ -1,6 +1,9 @@
-import type { CalculatorConfig, LevelCurvePoint } from "@/lib/calculators/calculatorConfig";
+import type { CalculatorConfig } from "@/lib/calculators/calculatorConfig";
 import type { RadarAxes } from "@/lib/calculators/monsterOutcomeCalculator";
-import type { ProtectionTuningValues } from "@/lib/config/combatTuningShared";
+import {
+  getRawSurvivabilityBudgetTarget,
+  type ProtectionTuningValues,
+} from "@/lib/config/combatTuningShared";
 import {
   calculateMonsterResilienceValues,
   getArmorSkillDiceCountFromAttributes,
@@ -56,30 +59,6 @@ function createEmptyAxisBonuses(): RadarAxes {
     mobility: 0,
     presence: 0,
   };
-}
-
-function getCurvePointForLevel(curve: LevelCurvePoint[], level: number): LevelCurvePoint {
-  if (curve.length === 0) return { level: 1, min: 0, max: 1 };
-  const sorted = [...curve].sort((a, b) => a.level - b.level);
-  const minLevel = sorted[0].level;
-  const maxLevel = sorted[sorted.length - 1].level;
-  const normalizedLevel = Math.max(minLevel, Math.min(maxLevel, Math.trunc(level || minLevel)));
-  const exact = sorted.find((point) => point.level === normalizedLevel);
-  if (exact) return exact;
-  if (normalizedLevel < minLevel) return sorted[0];
-  return sorted[sorted.length - 1];
-}
-
-function getTierAdjustedAxisBudgetTarget(curvePoint: LevelCurvePoint, tierMultiplier: number): number {
-  return curvePoint.max * Math.max(0, tierMultiplier);
-}
-
-function getCalculatorTierMultiplier(
-  monster: Pick<MonsterUpsertInput, "tier" | "legendary">,
-  config: CalculatorConfig,
-): number {
-  const tierKey = monster.legendary ? "LEGENDARY" : monster.tier;
-  return config.tierMultipliers[tierKey] ?? config.tierMultipliers.ELITE;
 }
 
 function getExpectedIncomingAttackDiceForDodge(
@@ -204,14 +183,19 @@ export function buildStrippedSummoningCircleBaseline(params: {
   const physicalBlockPerSuccess = 0;
   const mentalBlockPerSuccess = 0;
 
-  const tierMultiplier = getCalculatorTierMultiplier(baseMonster, params.calculatorConfig);
-  const physicalSurvivabilityAxisBudgetTarget = getTierAdjustedAxisBudgetTarget(
-    getCurvePointForLevel(params.calculatorConfig.scoringCurves.physicalSurvivability, level),
-    tierMultiplier,
+  const physicalSurvivabilityAxisBudgetTarget = getRawSurvivabilityBudgetTarget(
+    params.protectionTuning,
+    "physical",
+    level,
+    tier,
+    false,
   );
-  const mentalSurvivabilityAxisBudgetTarget = getTierAdjustedAxisBudgetTarget(
-    getCurvePointForLevel(params.calculatorConfig.scoringCurves.mentalSurvivability, level),
-    tierMultiplier,
+  const mentalSurvivabilityAxisBudgetTarget = getRawSurvivabilityBudgetTarget(
+    params.protectionTuning,
+    "mental",
+    level,
+    tier,
+    false,
   );
   const expectedIncomingAttackDice = getExpectedIncomingAttackDiceForDodge(level, tier);
   const baselineDodgeShare = getSmoothShare(

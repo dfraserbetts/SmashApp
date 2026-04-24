@@ -5,6 +5,7 @@ export const POWER_TUNING_ADMIN_GROUPS = [
   "Structural",
   "Access",
   "Packet Identity",
+  "Packet Axis Emission",
   "Packet Magnitude",
   "Packet Timing",
   "Packet Duration",
@@ -149,6 +150,12 @@ function labelForKey(configKey: string): string {
 
   if (section === "packet") {
     if (family === "identity") return `${formatSegment(value ?? detail ?? "")} Packet Identity Cost`;
+    if (family === "axisEmission" && detail === "intention") {
+      return `${formatSegment(value ?? "")} Axis Emission Multiplier`;
+    }
+    if (family === "axisRouting" && detail === "hostileForcedMovement") {
+      return `Hostile Forced Movement ${formatSegment(value ?? "")}`;
+    }
     if (family === "magnitude" && detail === "dice") return `Output Dice - ${value} Dice`;
     if (family === "magnitude" && detail === "potency") return `Potency Rank - ${value}`;
     if (family === "magnitude" && detail === "damageTypeCount") {
@@ -195,6 +202,8 @@ function groupForKey(configKey: string): PowerTuningAdminGroup {
   if (configKey.startsWith("structural.")) return "Structural";
   if (configKey.startsWith("access.")) return "Access";
   if (configKey.startsWith("packet.identity.")) return "Packet Identity";
+  if (configKey.startsWith("packet.axisEmission.")) return "Packet Axis Emission";
+  if (configKey.startsWith("packet.axisRouting.")) return "Packet Axis Emission";
   if (configKey.startsWith("packet.magnitude.")) return "Packet Magnitude";
   if (configKey.startsWith("packet.timing.")) return "Packet Timing";
   if (configKey.startsWith("packet.duration")) return "Packet Duration";
@@ -214,20 +223,24 @@ function groupForKey(configKey: string): PowerTuningAdminGroup {
 
 function affectsForKey(configKey: string): PowerTuningAffects {
   if (configKey.startsWith("axis.")) return "axis";
+  if (configKey.startsWith("packet.axisEmission.")) return "axis";
+  if (configKey.startsWith("packet.axisRouting.")) return "axis";
   return "cost";
 }
 
 function formatForKey(configKey: string): PowerTuningValueFormat {
   if (
     configKey.startsWith("system.secondaryContingency.") ||
-    configKey.endsWith("recurringCarrierTurnShare")
+    configKey.endsWith("recurringCarrierTurnShare") ||
+    configKey.startsWith("packet.axisRouting.")
   ) {
     return "share";
   }
   if (
     configKey.startsWith("packet.magnitude.damageTypeCount.") ||
     configKey.startsWith("packet.magnitude.buildPowerBonusDice.") ||
-    configKey.startsWith("packet.magnitude.movementTypeMultiplier.")
+    configKey.startsWith("packet.magnitude.movementTypeMultiplier.") ||
+    configKey.startsWith("packet.axisEmission.")
   ) {
     return "multiplier";
   }
@@ -245,6 +258,8 @@ function descriptionForKey(configKey: string): string {
   if (configKey.startsWith("access.chargeTurns.")) return "Raises or lowers the extra cost for longer charge times.";
   if (configKey.startsWith("access.")) return "Raises or lowers the cost of commitment, counterplay, and charge access.";
   if (configKey.startsWith("packet.identity.")) return "Raises or lowers the base cost of this packet intention.";
+  if (configKey.startsWith("packet.axisEmission.intention.")) return "Multiplies only this packet intention's emitted behaviour-axis contribution. Scalar packet cost, BasePowerValue, and cooldown/cost truth are unchanged.";
+  if (configKey.startsWith("packet.axisRouting.hostileForcedMovement.")) return "Controls how hostile forced movement's emitted movement-axis value is routed between Manipulation and Mobility. Scalar packet cost, BasePowerValue, and friendly movement are unchanged.";
   if (configKey.startsWith("packet.magnitude.damageTypeCount.")) return "Multiplies the wound-sensitive part of attack output when more damage types are present.";
   if (configKey.startsWith("packet.magnitude.buildPowerBonusDice.")) return "Multiplies the bonus-output portion created by Build Power charged dice.";
   if (configKey.startsWith("packet.magnitude.movementTypeMultiplier.")) return "Multiplies the generic packet magnitude burden for this movement mode before movement still routes to mobility through the normal packet path.";
@@ -299,6 +314,11 @@ function aliasesForKey(configKey: string): string[] {
     aliases.add("Multi-Packet");
   }
   if (lowerKey.includes("secondarycontingency")) aliases.add("Contingency");
+  if (lowerKey.includes("axisemission")) {
+    aliases.add("Axis Emission");
+    aliases.add("Radar Contribution");
+    aliases.add("Behaviour Axis");
+  }
   if (lowerKey.includes("synergy")) aliases.add("Cross-Packet");
   if (lowerKey.includes("structural")) aliases.add("Structural Presence");
   if (lowerKey.includes("commitment")) aliases.add("Access");

@@ -215,6 +215,26 @@ function getRawDefensivePackage(result: ReturnType<typeof computeMonsterOutcomes
   };
 }
 
+function getOutcomePowerDebug(result: ReturnType<typeof computeMonsterOutcomes>) {
+  const debug = result.debug as {
+    powerContribution?: {
+      axisVector?: { mobility?: number };
+      canonicalPowerAxisVector?: { mobility?: number };
+      effectivePowerAxisVector?: { mobility?: number };
+      availabilityFactor?: number | null;
+      basePowerValue?: number | null;
+      perPowerAvailability?: Array<{
+        availabilityFactor?: number;
+        cooldownTurns?: number | null;
+        canonicalPowerAxisVector?: { mobility?: number };
+        effectivePowerAxisVector?: { mobility?: number };
+      }>;
+    };
+    finalPreNormalizationAxes?: { mobility?: number };
+  };
+  return debug.powerContribution ?? {};
+}
+
 const slashAttackConfig = {
   melee: {
     enabled: true,
@@ -514,6 +534,69 @@ assert.ok(
   mpvLadderAfter[mpvLadderAfter.length - 1].total > mpvLadderBefore[mpvLadderBefore.length - 1].total,
 );
 
+const canonicalMobilityPower = {
+  mobility: 4,
+};
+const cooldownOnePowerOutcome = computeMonsterOutcomes(createBaseMonster(), calculatorConfig, {
+  powerContribution: {
+    axisVector: canonicalMobilityPower,
+    basePowerValue: 10,
+    powerCount: 1,
+    powers: [
+      {
+        name: "Cooldown 1 Movement",
+        axisVector: canonicalMobilityPower,
+        basePowerValue: 10,
+        cooldownTurns: 1,
+        cooldownReduction: 0,
+      },
+    ],
+  },
+});
+const cooldownThreePowerOutcome = computeMonsterOutcomes(createBaseMonster(), calculatorConfig, {
+  powerContribution: {
+    axisVector: canonicalMobilityPower,
+    basePowerValue: 10,
+    powerCount: 1,
+    powers: [
+      {
+        name: "Cooldown 3 Movement",
+        axisVector: canonicalMobilityPower,
+        basePowerValue: 10,
+        cooldownTurns: 3,
+        cooldownReduction: 0,
+      },
+    ],
+  },
+});
+const cooldownOneDebug = getOutcomePowerDebug(cooldownOnePowerOutcome);
+const cooldownThreeDebug = getOutcomePowerDebug(cooldownThreePowerOutcome);
+const cooldownOneFinalDebug = cooldownOnePowerOutcome.debug as {
+  finalPreNormalizationAxes?: { mobility?: number };
+};
+const cooldownThreeFinalDebug = cooldownThreePowerOutcome.debug as {
+  finalPreNormalizationAxes?: { mobility?: number };
+};
+
+assert.equal(cooldownOneDebug.axisVector?.mobility, 4);
+assert.equal(cooldownOneDebug.canonicalPowerAxisVector?.mobility, 4);
+assert.equal(cooldownOneDebug.effectivePowerAxisVector?.mobility, 3);
+assert.equal(cooldownOneDebug.availabilityFactor, 0.75);
+assert.equal(cooldownOneDebug.basePowerValue, 10);
+assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.cooldownTurns, 1);
+assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.canonicalPowerAxisVector?.mobility, 4);
+assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.effectivePowerAxisVector?.mobility, 3);
+assert.equal(cooldownOneFinalDebug.finalPreNormalizationAxes?.mobility, 3);
+assert.equal(cooldownThreeDebug.effectivePowerAxisVector?.mobility, 1.6);
+assert.equal(cooldownThreeDebug.availabilityFactor, 0.4);
+assert.equal(cooldownThreeDebug.basePowerValue, 10);
+assert.equal(cooldownThreeDebug.perPowerAvailability?.[0]?.cooldownTurns, 3);
+assert.equal(cooldownThreeFinalDebug.finalPreNormalizationAxes?.mobility, 1.6);
+assert.ok(
+  Number(cooldownOneDebug.effectivePowerAxisVector?.mobility ?? 0) >
+    Number(cooldownThreeDebug.effectivePowerAxisVector?.mobility ?? 0),
+);
+
 const legacyNaturalSlashPhysicalThreat =
   1 *
   ((8 - 3) / 8) *
@@ -570,6 +653,22 @@ console.log(
         ppvRawPhysicalTotals: ppvLadder,
         mpvRawMentalTotalsBefore: mpvLadderBefore,
         mpvRawMentalTotalsAfter: mpvLadderAfter,
+      },
+      powerAvailability: {
+        cooldownOne: {
+          canonicalMobility: cooldownOneDebug.canonicalPowerAxisVector?.mobility,
+          effectiveMobility: cooldownOneDebug.effectivePowerAxisVector?.mobility,
+          finalPreNormalizationMobility:
+            cooldownOneFinalDebug.finalPreNormalizationAxes?.mobility,
+          availabilityFactor: cooldownOneDebug.availabilityFactor,
+        },
+        cooldownThree: {
+          canonicalMobility: cooldownThreeDebug.canonicalPowerAxisVector?.mobility,
+          effectiveMobility: cooldownThreeDebug.effectivePowerAxisVector?.mobility,
+          finalPreNormalizationMobility:
+            cooldownThreeFinalDebug.finalPreNormalizationAxes?.mobility,
+          availabilityFactor: cooldownThreeDebug.availabilityFactor,
+        },
       },
     },
     null,

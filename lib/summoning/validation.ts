@@ -1245,15 +1245,22 @@ function normalizePower(value: unknown, sortOrder: number): Power {
         )
     : [];
   const rawRangeCategory = asString(primaryPacketDetails.rangeCategory, "").toUpperCase();
+  const hasAoeRangeFields =
+    raw.aoeCenterRangeFeet != null || raw.aoeCount != null || raw.aoeShape != null;
+  const hasRangedRangeFields = raw.rangedDistanceFeet != null || raw.rangedTargets != null;
+  const hasMeleeRangeFields = raw.meleeTargets != null;
   const powerRangeCategory =
     explicitRangeCategories[0] ??
-    (raw.aoeCenterRangeFeet !== undefined || raw.aoeCount !== undefined || raw.aoeShape !== undefined
+    (hasAoeRangeFields
       ? "AOE"
-      : raw.rangedDistanceFeet !== undefined || raw.rangedTargets !== undefined
+      : hasRangedRangeFields
         ? "RANGED"
-        : raw.meleeTargets !== undefined
+        : hasMeleeRangeFields
           ? "MELEE"
-          : rawRangeCategory === "MELEE" || rawRangeCategory === "RANGED" || rawRangeCategory === "AOE"
+          : rawRangeCategory === "SELF" ||
+              rawRangeCategory === "MELEE" ||
+              rawRangeCategory === "RANGED" ||
+              rawRangeCategory === "AOE"
             ? rawRangeCategory
             : null);
   const packetRangeExtra =
@@ -1377,7 +1384,12 @@ function normalizePower(value: unknown, sortOrder: number): Power {
     attachedHostAnchorType,
     ...normalizedLifespan,
     previewSummaryOverride: asNullableString(raw.previewSummaryOverride),
-    rangeCategories: explicitRangeCategories.length > 0 ? explicitRangeCategories : powerRangeCategory === null ? [] : [powerRangeCategory],
+    rangeCategories:
+      explicitRangeCategories.length > 0
+        ? explicitRangeCategories
+        : powerRangeCategory === "MELEE" || powerRangeCategory === "RANGED" || powerRangeCategory === "AOE"
+          ? [powerRangeCategory]
+          : [],
     meleeTargets: powerRangeCategory === "MELEE" ? Math.max(1, rangeValue || 1) : null,
     rangedTargets:
       powerRangeCategory === "RANGED"

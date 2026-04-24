@@ -46,12 +46,11 @@ export const DEFAULT_POOL_BELOW_EXPECTED_MAX_PENALTY_SHARE = 0.35;
 export const DEFAULT_POOL_BELOW_EXPECTED_SCALE = 0.25;
 export const DEFAULT_POOL_ABOVE_EXPECTED_MAX_BONUS_SHARE = 0.25;
 export const DEFAULT_POOL_ABOVE_EXPECTED_SCALE = 0.4;
-export const DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE = 0.4;
-export const DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE = 12;
-export const DEFAULT_MENTAL_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE =
-  DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE;
-export const DEFAULT_MENTAL_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE =
-  DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE;
+export const DEFAULT_AT_WILL_THREAT_AXIS_MULTIPLIER = 6;
+export const DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE = 1;
+export const DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE = 2.5;
+export const DEFAULT_MENTAL_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE = 0.6;
+export const DEFAULT_MENTAL_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE = 12;
 export const DEFAULT_DODGE_BASELINE_MAX_SHARE = 0.2;
 export const DEFAULT_DODGE_BASELINE_SCALE = 1.25;
 export const DEFAULT_DODGE_PARITY_MAX_SHARE = 0.32;
@@ -61,6 +60,14 @@ export const DEFAULT_DODGE_ABOVE_EXPECTED_SCALE = 0.85;
 export const DEFAULT_DODGE_EXTREME_ABOVE_EXPECTED_MAX_SHARE = 0.28;
 export const DEFAULT_DODGE_EXTREME_ABOVE_EXPECTED_SCALE = 0.6;
 export const DEFAULT_DODGE_TOTAL_MAX_SHARE = 1.02;
+export const DEFAULT_RAW_SURVIVABILITY_BUDGET_AT_1 = 8;
+export const DEFAULT_RAW_MENTAL_SURVIVABILITY_BUDGET_AT_1 = 13;
+export const DEFAULT_RAW_SURVIVABILITY_BUDGET_PER_LEVEL = 0.15;
+export const DEFAULT_RAW_SURVIVABILITY_BUDGET_MINION_MULTIPLIER = 0.6;
+export const DEFAULT_RAW_SURVIVABILITY_BUDGET_SOLDIER_MULTIPLIER = 0.8;
+export const DEFAULT_RAW_SURVIVABILITY_BUDGET_ELITE_MULTIPLIER = 1;
+export const DEFAULT_RAW_SURVIVABILITY_BUDGET_BOSS_MULTIPLIER = 1.5;
+export const DEFAULT_RAW_SURVIVABILITY_BUDGET_LEGENDARY_MULTIPLIER = 2;
 
 export type ProtectionTuningValues = {
   protectionK: number;
@@ -109,6 +116,7 @@ export type ProtectionTuningValues = {
   poolBelowExpectedScale: number;
   poolAboveExpectedMaxBonusShare: number;
   poolAboveExpectedScale: number;
+  atWillThreatAxisMultiplier: number;
   defenceStringProtectionOutputMaxShare: number;
   defenceStringProtectionOutputScale: number;
   mentalDefenceStringProtectionOutputMaxShare: number;
@@ -122,6 +130,15 @@ export type ProtectionTuningValues = {
   dodgeExtremeAboveExpectedMaxShare: number;
   dodgeExtremeAboveExpectedScale: number;
   dodgeTotalMaxShare: number;
+  rawPhysicalSurvivabilityBudgetAt1: number;
+  rawPhysicalSurvivabilityBudgetPerLevel: number;
+  rawMentalSurvivabilityBudgetAt1: number;
+  rawMentalSurvivabilityBudgetPerLevel: number;
+  rawSurvivabilityBudgetMinionMultiplier: number;
+  rawSurvivabilityBudgetSoldierMultiplier: number;
+  rawSurvivabilityBudgetEliteMultiplier: number;
+  rawSurvivabilityBudgetBossMultiplier: number;
+  rawSurvivabilityBudgetLegendaryMultiplier: number;
 };
 
 export type CombatTuningConfigStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
@@ -179,6 +196,7 @@ export const DEFAULT_COMBAT_TUNING_VALUES: ProtectionTuningValues = {
   poolBelowExpectedScale: DEFAULT_POOL_BELOW_EXPECTED_SCALE,
   poolAboveExpectedMaxBonusShare: DEFAULT_POOL_ABOVE_EXPECTED_MAX_BONUS_SHARE,
   poolAboveExpectedScale: DEFAULT_POOL_ABOVE_EXPECTED_SCALE,
+  atWillThreatAxisMultiplier: DEFAULT_AT_WILL_THREAT_AXIS_MULTIPLIER,
   defenceStringProtectionOutputMaxShare: DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE,
   defenceStringProtectionOutputScale: DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_SCALE,
   mentalDefenceStringProtectionOutputMaxShare:
@@ -193,6 +211,15 @@ export const DEFAULT_COMBAT_TUNING_VALUES: ProtectionTuningValues = {
   dodgeExtremeAboveExpectedMaxShare: DEFAULT_DODGE_EXTREME_ABOVE_EXPECTED_MAX_SHARE,
   dodgeExtremeAboveExpectedScale: DEFAULT_DODGE_EXTREME_ABOVE_EXPECTED_SCALE,
   dodgeTotalMaxShare: DEFAULT_DODGE_TOTAL_MAX_SHARE,
+  rawPhysicalSurvivabilityBudgetAt1: DEFAULT_RAW_SURVIVABILITY_BUDGET_AT_1,
+  rawPhysicalSurvivabilityBudgetPerLevel: DEFAULT_RAW_SURVIVABILITY_BUDGET_PER_LEVEL,
+  rawMentalSurvivabilityBudgetAt1: DEFAULT_RAW_MENTAL_SURVIVABILITY_BUDGET_AT_1,
+  rawMentalSurvivabilityBudgetPerLevel: DEFAULT_RAW_SURVIVABILITY_BUDGET_PER_LEVEL,
+  rawSurvivabilityBudgetMinionMultiplier: DEFAULT_RAW_SURVIVABILITY_BUDGET_MINION_MULTIPLIER,
+  rawSurvivabilityBudgetSoldierMultiplier: DEFAULT_RAW_SURVIVABILITY_BUDGET_SOLDIER_MULTIPLIER,
+  rawSurvivabilityBudgetEliteMultiplier: DEFAULT_RAW_SURVIVABILITY_BUDGET_ELITE_MULTIPLIER,
+  rawSurvivabilityBudgetBossMultiplier: DEFAULT_RAW_SURVIVABILITY_BUDGET_BOSS_MULTIPLIER,
+  rawSurvivabilityBudgetLegendaryMultiplier: DEFAULT_RAW_SURVIVABILITY_BUDGET_LEGENDARY_MULTIPLIER,
 };
 
 export const COMBAT_TUNING_CONFIG_KEY_ORDER = Object.keys(DEFAULT_COMBAT_TUNING_VALUES);
@@ -445,6 +472,10 @@ export function normalizeCombatTuning(input?: Partial<Record<keyof ProtectionTun
       input?.poolAboveExpectedScale,
       DEFAULT_POOL_ABOVE_EXPECTED_SCALE,
     ),
+    atWillThreatAxisMultiplier: toPositiveNumber(
+      input?.atWillThreatAxisMultiplier,
+      DEFAULT_AT_WILL_THREAT_AXIS_MULTIPLIER,
+    ),
     defenceStringProtectionOutputMaxShare: toPositiveNumber(
       input?.defenceStringProtectionOutputMaxShare,
       DEFAULT_DEFENCE_STRING_PROTECTION_OUTPUT_MAX_SHARE,
@@ -494,7 +525,82 @@ export function normalizeCombatTuning(input?: Partial<Record<keyof ProtectionTun
       DEFAULT_DODGE_EXTREME_ABOVE_EXPECTED_SCALE,
     ),
     dodgeTotalMaxShare: toPositiveNumber(input?.dodgeTotalMaxShare, DEFAULT_DODGE_TOTAL_MAX_SHARE),
+    rawPhysicalSurvivabilityBudgetAt1: toPositiveNumber(
+      input?.rawPhysicalSurvivabilityBudgetAt1,
+      DEFAULT_RAW_SURVIVABILITY_BUDGET_AT_1,
+    ),
+    rawPhysicalSurvivabilityBudgetPerLevel: toPositiveNumber(
+      input?.rawPhysicalSurvivabilityBudgetPerLevel,
+      DEFAULT_RAW_SURVIVABILITY_BUDGET_PER_LEVEL,
+    ),
+    rawMentalSurvivabilityBudgetAt1: toPositiveNumber(
+      input?.rawMentalSurvivabilityBudgetAt1,
+      DEFAULT_RAW_MENTAL_SURVIVABILITY_BUDGET_AT_1,
+    ),
+    rawMentalSurvivabilityBudgetPerLevel: toPositiveNumber(
+      input?.rawMentalSurvivabilityBudgetPerLevel,
+      DEFAULT_RAW_SURVIVABILITY_BUDGET_PER_LEVEL,
+    ),
+    rawSurvivabilityBudgetMinionMultiplier: toPositiveNumber(
+      input?.rawSurvivabilityBudgetMinionMultiplier,
+      DEFAULT_RAW_SURVIVABILITY_BUDGET_MINION_MULTIPLIER,
+    ),
+    rawSurvivabilityBudgetSoldierMultiplier: toPositiveNumber(
+      input?.rawSurvivabilityBudgetSoldierMultiplier,
+      DEFAULT_RAW_SURVIVABILITY_BUDGET_SOLDIER_MULTIPLIER,
+    ),
+    rawSurvivabilityBudgetEliteMultiplier: toPositiveNumber(
+      input?.rawSurvivabilityBudgetEliteMultiplier,
+      DEFAULT_RAW_SURVIVABILITY_BUDGET_ELITE_MULTIPLIER,
+    ),
+    rawSurvivabilityBudgetBossMultiplier: toPositiveNumber(
+      input?.rawSurvivabilityBudgetBossMultiplier,
+      DEFAULT_RAW_SURVIVABILITY_BUDGET_BOSS_MULTIPLIER,
+    ),
+    rawSurvivabilityBudgetLegendaryMultiplier: toPositiveNumber(
+      input?.rawSurvivabilityBudgetLegendaryMultiplier,
+      DEFAULT_RAW_SURVIVABILITY_BUDGET_LEGENDARY_MULTIPLIER,
+    ),
   };
+}
+
+export function getRawSurvivabilityBudgetTarget(
+  tuning: Pick<
+    ProtectionTuningValues,
+    | "rawPhysicalSurvivabilityBudgetAt1"
+    | "rawPhysicalSurvivabilityBudgetPerLevel"
+    | "rawMentalSurvivabilityBudgetAt1"
+    | "rawMentalSurvivabilityBudgetPerLevel"
+    | "rawSurvivabilityBudgetMinionMultiplier"
+    | "rawSurvivabilityBudgetSoldierMultiplier"
+    | "rawSurvivabilityBudgetEliteMultiplier"
+    | "rawSurvivabilityBudgetBossMultiplier"
+    | "rawSurvivabilityBudgetLegendaryMultiplier"
+  >,
+  lane: "physical" | "mental",
+  level: number,
+  tier: "MINION" | "SOLDIER" | "ELITE" | "BOSS",
+  legendary = false,
+): number {
+  const normalizedLevel = Math.max(1, Math.trunc(level || 1));
+  const at1 =
+    lane === "physical"
+      ? tuning.rawPhysicalSurvivabilityBudgetAt1
+      : tuning.rawMentalSurvivabilityBudgetAt1;
+  const perLevel =
+    lane === "physical"
+      ? tuning.rawPhysicalSurvivabilityBudgetPerLevel
+      : tuning.rawMentalSurvivabilityBudgetPerLevel;
+  const tierMultiplier = legendary
+    ? tuning.rawSurvivabilityBudgetLegendaryMultiplier
+    : tier === "MINION"
+      ? tuning.rawSurvivabilityBudgetMinionMultiplier
+      : tier === "SOLDIER"
+        ? tuning.rawSurvivabilityBudgetSoldierMultiplier
+        : tier === "BOSS"
+          ? tuning.rawSurvivabilityBudgetBossMultiplier
+          : tuning.rawSurvivabilityBudgetEliteMultiplier;
+  return Math.max(0, (at1 + (normalizedLevel - 1) * perLevel) * tierMultiplier);
 }
 
 export function normalizeProtectionTuning(

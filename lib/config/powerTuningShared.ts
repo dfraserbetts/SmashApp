@@ -27,6 +27,24 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
     },
   },
   packet: {
+    axisEmission: {
+      intention: {
+        attack: 0.8,
+        augment: 0.5,
+        cleanse: 0.5,
+        control: 0.65,
+        debuff: 0.65,
+        defence: 0.55,
+        healing: 0.5,
+        movement: 0.5,
+      },
+    },
+    axisRouting: {
+      hostileForcedMovement: {
+        manipulationShare: 1,
+        mobilityShare: 0.27,
+      },
+    },
     augmentStat: {
       armorSkill: 1,
       attack: 1.5,
@@ -109,7 +127,7 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
       movementTypeMultiplier: {
         fly: 0.3,
         forceFly: 0.55,
-        forcePush: 0.5,
+        forcePush: 1,
         forceTeleport: 0.65,
         run: 0.2,
         teleport: 0.4,

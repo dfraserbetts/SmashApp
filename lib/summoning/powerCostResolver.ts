@@ -26,6 +26,10 @@ export type PowerCostPacketBreakdown = {
   packetTotalBeforeContingency: number;
   contingencyMultiplier: number;
   packetTotalAfterContingency: number;
+  scalarPacketValue: number;
+  axisEmissionMultiplier: number;
+  axisEmissionValue: number;
+  axisEmissionTuningKey: string | null;
   axisVector: PowerCostAxisVector;
   debug: Record<string, unknown>;
 };
@@ -83,8 +87,6 @@ const AXIS_KEYS: Array<keyof PowerCostAxisVector> = [
   "presence",
 ];
 
-const HOSTILE_FORCED_MOVEMENT_MANIPULATION_SHARE = 0.6;
-const HOSTILE_FORCED_MOVEMENT_MOBILITY_SHARE = 0.4;
 const ALLIES_SYNERGY_PRIMARY_SHARE = 0.7;
 const ALLIES_SELF_SPILL_SHARE = 0.3;
 
@@ -506,6 +508,43 @@ function resolveNumericTuningValue(
   };
 }
 
+function resolveAxisEmissionMultiplier(
+  tuningValues: Record<string, number>,
+  intention: PowerIntention,
+): SelectedTuningValue {
+  const tuningKey = `packet.axisEmission.intention.${intention.toLowerCase()}`;
+  if (Object.prototype.hasOwnProperty.call(tuningValues, tuningKey)) {
+    return {
+      tuningKey,
+      value: roundCost(getPowerTuningValue(tuningValues, tuningKey, 1)),
+    };
+  }
+  return {
+    tuningKey: null,
+    value: 1,
+    note: `Missing axis-emission tuning key ${tuningKey}; defaulted to 1.`,
+  };
+}
+
+function resolveHostileForcedMovementAxisRouting(
+  tuningValues: Record<string, number>,
+): {
+  manipulationShare: number;
+  mobilityShare: number;
+  manipulationShareKey: string;
+  mobilityShareKey: string;
+} {
+  const manipulationShareKey =
+    "packet.axisRouting.hostileForcedMovement.manipulationShare";
+  const mobilityShareKey = "packet.axisRouting.hostileForcedMovement.mobilityShare";
+  return {
+    manipulationShare: roundCost(getPowerTuningValue(tuningValues, manipulationShareKey, 0.6)),
+    mobilityShare: roundCost(getPowerTuningValue(tuningValues, mobilityShareKey, 0.4)),
+    manipulationShareKey,
+    mobilityShareKey,
+  };
+}
+
 function pushSelectedTuning(
   list: string[],
   notes: string[],
@@ -535,6 +574,7 @@ function scaleAxisVector(
 }
 
 function allocatePacketAxisVector(
+  tuningValues: Record<string, number>,
   power: Power,
   packet: EffectPacket,
   totalCost: number,
@@ -555,6 +595,7 @@ function allocatePacketAxisVector(
     power.primaryDefenceGate?.protectionChannel != null
       ? getSurvivabilityAxisFromChannel(power.primaryDefenceGate.protectionChannel)
       : getSurvivabilityAxisFromChannel(details.attackMode ?? packet.woundChannel);
+  const forcedMovementAxisRouting = resolveHostileForcedMovementAxisRouting(tuningValues);
   let baseLane: string | null = null;
   const spillRules: string[] = [];
   let augmentRoutingDebug: Record<string, unknown> | null = null;
@@ -595,9 +636,9 @@ function allocatePacketAxisVector(
         baseLane = hostileForcedMovement ? "manipulationMobilitySplit" : "mobility";
         if (hostileForcedMovement) {
           const manipulationShare = roundCost(
-            totalCost * HOSTILE_FORCED_MOVEMENT_MANIPULATION_SHARE,
+            totalCost * forcedMovementAxisRouting.manipulationShare,
           );
-          const mobilityShare = roundCost(totalCost * HOSTILE_FORCED_MOVEMENT_MOBILITY_SHARE);
+          const mobilityShare = roundCost(totalCost * forcedMovementAxisRouting.mobilityShare);
           applyAxisShare(axisVector, "manipulation", manipulationShare);
           applyAxisShare(axisVector, "mobility", mobilityShare);
           spillRules.push("hostileForcedMovementToManipulationAndMobility");
@@ -784,6 +825,12 @@ function allocatePacketAxisVector(
           ? {
               manipulation: roundCost(axisVector.manipulation),
               mobility: roundCost(axisVector.mobility),
+              hostileForcedMovementManipulationShare:
+                forcedMovementAxisRouting.manipulationShare,
+              hostileForcedMovementMobilityShare: forcedMovementAxisRouting.mobilityShare,
+              hostileForcedMovementManipulationShareKey:
+                forcedMovementAxisRouting.manipulationShareKey,
+              hostileForcedMovementMobilityShareKey: forcedMovementAxisRouting.mobilityShareKey,
             }
           : null,
       augmentRouting:
@@ -1815,12 +1862,19 @@ function getComboPacketRoutingDebug(
 }
 
 function routeComboAxisThroughPacket(
+  tuningValues: Record<string, number>,
   power: Power,
   packet: EffectPacket,
   amount: number,
   relevantThreatAxes: ThreatAxisKey[],
 ): { axisVector: PowerCostAxisVector; debug: Record<string, unknown> } {
-  const routed = allocatePacketAxisVector(power, packet, amount, relevantThreatAxes);
+  const routed = allocatePacketAxisVector(
+    tuningValues,
+    power,
+    packet,
+    amount,
+    relevantThreatAxes,
+  );
   return {
     axisVector: routed.axisVector,
     debug: {
@@ -1872,6 +1926,7 @@ function getCrossPacketSynergyCost(
     let axisNote = "No beneficial secondary packet was available for axis routing.";
     if (beneficialLaterPacket) {
       const routed = routeComboAxisThroughPacket(
+        tuningValues,
         power,
         beneficialLaterPacket,
         resolved.value,
@@ -1982,6 +2037,7 @@ function getCrossPacketSynergyCost(
     let axisContribution = cloneEmptyAxisVector();
     const routedPackets = resultScalingPackets.map((packet) => {
       const routed = routeComboAxisThroughPacket(
+        tuningValues,
         power,
         packet,
         resolved.value / Math.max(1, resultScalingPackets.length),
@@ -2114,16 +2170,23 @@ export function resolvePowerCost(
     );
 
     packetCostsTotal += packetTotalAfterContingency;
+    const intention = packet.intention ?? packet.type ?? "ATTACK";
+    const axisEmission = resolveAxisEmissionMultiplier(tuningValues, intention);
+    pushSelectedTuning(chosenKeys, packetNotes, axisEmission);
+    const axisEmissionValue = roundCost(
+      packetTotalAfterContingency * Math.max(0, axisEmission.value),
+    );
     const packetAxisRouting = allocatePacketAxisVector(
+      tuningValues,
       power,
       packet,
-      packetTotalAfterContingency,
+      axisEmissionValue,
       relevantThreatAxes,
     );
 
     return {
       packetIndex: packet.packetIndex ?? packetListIndex,
-      intention: packet.intention ?? packet.type ?? "ATTACK",
+      intention,
       specific:
         packet.specific ??
         asNullableString(
@@ -2142,15 +2205,23 @@ export function resolvePowerCost(
       packetTotalBeforeContingency,
       contingencyMultiplier: roundCost(contingency.value),
       packetTotalAfterContingency,
+      scalarPacketValue: packetTotalAfterContingency,
+      axisEmissionMultiplier: roundCost(axisEmission.value),
+      axisEmissionValue,
+      axisEmissionTuningKey: axisEmission.tuningKey,
       axisVector: packetAxisRouting.axisVector,
       debug: {
-        intention: packet.intention ?? packet.type ?? "ATTACK",
+        intention,
         specific: packet.specific ?? null,
         timing: packet.effectTimingType ?? null,
         duration: packet.effectDurationType ?? null,
         applyTo: getPacketApplyTo(packet),
         hostility: isHostilePacket(packet) ? "HOSTILE" : "NON_HOSTILE_OR_UNKNOWN",
         chosenTuningKeys: chosenKeys,
+        scalarPacketValue: packetTotalAfterContingency,
+        axisEmissionMultiplier: roundCost(axisEmission.value),
+        axisEmissionValue,
+        axisEmissionTuningKey: axisEmission.tuningKey,
         deferredIntention: identity.deferred,
         localTargetingOverride: packet.localTargetingOverride ?? null,
         axisRouting: packetAxisRouting.debug,
@@ -2252,7 +2323,13 @@ export function resolvePowerCosts(
   powers: Power[],
   tuningSnapshot?: PowerTuningSnapshotLike,
 ): {
-  powers: Array<{ powerId?: string; name: string; breakdown: PowerCostBreakdown }>;
+  powers: Array<{
+    powerId?: string;
+    name: string;
+    cooldownTurns: number | null;
+    cooldownReduction: number | null;
+    breakdown: PowerCostBreakdown;
+  }>;
   totals: {
     sharedContextCost: number;
     structuralCost: number;
@@ -2266,6 +2343,14 @@ export function resolvePowerCosts(
   const resolvedPowers = powers.map((power) => ({
     powerId: power.id,
     name: power.name,
+    cooldownTurns:
+      typeof power.cooldownTurns === "number" && Number.isFinite(power.cooldownTurns)
+        ? power.cooldownTurns
+        : null,
+    cooldownReduction:
+      typeof power.cooldownReduction === "number" && Number.isFinite(power.cooldownReduction)
+        ? power.cooldownReduction
+        : null,
     breakdown: resolvePowerCost(power, tuningSnapshot),
   }));
 
