@@ -103,6 +103,16 @@ function makeLinearCurve(opts: {
   return out;
 }
 
+function withCurvePointOverrides(
+  curve: LevelCurvePoint[],
+  overrides: Record<number, Partial<Omit<LevelCurvePoint, "level">>>,
+): LevelCurvePoint[] {
+  return curve.map((point) => ({
+    ...point,
+    ...(overrides[point.level] ?? {}),
+  }));
+}
+
 export const calculatorConfig: CalculatorConfig = {
   tierMultipliers: {
     MINION: 0.6,
@@ -173,35 +183,41 @@ export const calculatorConfig: CalculatorConfig = {
     aboveExpectedScale: 0.4,
   },
   scoringCurves: {
-    physicalThreat: makeLinearCurve({
-      minAt1: 0,
-      maxAt1: 10,
-      minPerLevel: 0.5,
-      maxPerLevel: 2.5,
-    }),
+    physicalThreat: withCurvePointOverrides(
+      makeLinearCurve({
+        minAt1: 0,
+        maxAt1: 10,
+        minPerLevel: 0.5,
+        maxPerLevel: 2.5,
+      }),
+      {
+        10: { min: 0 },
+        20: { min: 0, max: 48 },
+      },
+    ),
     mentalThreat: makeLinearCurve({
       minAt1: 0,
-      maxAt1: 10,
-      minPerLevel: 0.5,
-      maxPerLevel: 2.5,
+      maxAt1: 28,
+      minPerLevel: 0.2,
+      maxPerLevel: -0.15,
     }),
     physicalSurvivability: makeLinearCurve({
       minAt1: 0,
       maxAt1: 14,
       minPerLevel: 0.05,
-      maxPerLevel: 0.15,
+      maxPerLevel: 0.06,
     }),
     mentalSurvivability: makeLinearCurve({
-      minAt1: 1,
+      minAt1: 0,
       maxAt1: 8,
-      minPerLevel: 0.05,
-      maxPerLevel: 0.15,
+      minPerLevel: 0,
+      maxPerLevel: 0.226,
     }),
     manipulation: makeLinearCurve({
       minAt1: 0,
-      maxAt1: 13,
+      maxAt1: 12.5,
       minPerLevel: 0.05,
-      maxPerLevel: 0.2,
+      maxPerLevel: -0.17,
     }),
     synergy: makeLinearCurve({
       minAt1: 0,
@@ -212,14 +228,14 @@ export const calculatorConfig: CalculatorConfig = {
     mobility: makeLinearCurve({
       minAt1: 0,
       maxAt1: 7,
-      minPerLevel: 0.1,
+      minPerLevel: 0,
       maxPerLevel: 0.2,
     }),
     presence: makeLinearCurve({
       minAt1: 0,
-      maxAt1: 10,
-      minPerLevel: 0.2,
-      maxPerLevel: 1.5,
+      maxAt1: 6.2,
+      minPerLevel: 0,
+      maxPerLevel: 0.35,
     }),
   },
 };

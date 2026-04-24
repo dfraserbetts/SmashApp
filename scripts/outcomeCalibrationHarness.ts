@@ -42,6 +42,8 @@ type AxisKey = (typeof AXES)[number];
 type BandName = keyof typeof EXPECTED_BANDS;
 type ExpectedBands = Partial<Record<AxisKey, BandName>>;
 type OutcomeStatus = "pass" | "warn" | "fail";
+type FixtureGroup = "level-1-foundation" | "higher-level-tier";
+type DisplayDirection = "TOO_HIGH" | "TOO_LOW" | "ON_BAND";
 type MismatchClassification =
   | "RAW_VALUE"
   | "DISPLAY_NORMALIZATION"
@@ -56,6 +58,7 @@ type OwnerLayer =
 type CalibrationFixture = {
   id: string;
   title: string;
+  group?: FixtureGroup;
   monster: MonsterUpsertInput;
   expected: ExpectedBands;
   notes?: string[];
@@ -73,6 +76,7 @@ type CalibrationFixture = {
   naturalAttackGsAxisBonuses?: Partial<RadarAxes>;
   naturalAttackRangeAxisBonuses?: Partial<RadarAxes>;
   equipmentModifierAxisBonuses?: Partial<RadarAxes>;
+  traitAxisBonuses?: Partial<RadarAxes>;
 };
 
 type AxisEvaluation = {
@@ -86,6 +90,11 @@ type AxisEvaluation = {
   classification?: MismatchClassification;
   ownerLayer?: OwnerLayer;
   classificationReason?: string;
+};
+
+type DisplayCurvePoint = {
+  min: number;
+  max: number;
 };
 
 function axisVector(): RadarAxes {
@@ -158,6 +167,14 @@ function bandDistance(actual: BandName | "ABOVE_EXTREME", expected: BandName): n
   return Math.abs(signedBandDistance(actual, expected));
 }
 
+function displayDirectionForValue(value: number, expected: BandName): DisplayDirection {
+  const range = EXPECTED_BANDS[expected];
+  const score = Math.round(value);
+  if (score < range.min) return "TOO_LOW";
+  if (score > range.max) return "TOO_HIGH";
+  return "ON_BAND";
+}
+
 function isPowerLedMismatch(powerValue: number, nonPowerValue: number): boolean {
   return powerValue > 0 && powerValue >= nonPowerValue;
 }
@@ -225,6 +242,14 @@ function classifyMismatch(params: {
       classification: "DISPLAY_NORMALIZATION",
       ownerLayer: "Outcome Normalization",
       reason: `Raw value ${raw} is inside expected ${params.expected}, but radar ${radar} lands in ${params.actualBand}.`,
+    };
+  }
+
+  if (rawSide > 0 && radarSide < 0) {
+    return {
+      classification: "DISPLAY_NORMALIZATION",
+      ownerLayer: "Outcome Normalization",
+      reason: `Raw-implied band ${params.rawImpliedBand} is at or above expected ${params.expected}, but radar band ${params.actualBand} underreports it.`,
     };
   }
 
@@ -351,6 +376,17 @@ function createBaseMonster(overrides: Partial<MonsterUpsertInput> = {}): Monster
   return monster;
 }
 
+function readDisplayCurvePoint(
+  value: unknown,
+): DisplayCurvePoint | null {
+  if (!value || typeof value !== "object") return null;
+  const point = value as { min?: unknown; max?: unknown };
+  return {
+    min: round(point.min),
+    max: round(point.max),
+  };
+}
+
 function createNaturalAttack(
   name: string,
   attackConfig: MonsterNaturalAttackConfig,
@@ -362,6 +398,8 @@ function createNaturalAttack(
     attackConfig,
   };
 }
+
+const expandedFixtureGroup: FixtureGroup = "higher-level-tier";
 
 const basicPhysicalAttackConfig: MonsterNaturalAttackConfig = {
   melee: {
@@ -475,6 +513,7 @@ function withPower(fixture: Omit<CalibrationFixture, "powerContribution">): Cali
 function authoredSummary(fixture: CalibrationFixture): Record<string, unknown> {
   const monster = fixture.monster;
   return {
+    fixtureGroup: fixture.group ?? "level-1-foundation",
     monster: {
       name: monster.name,
       level: monster.level,
@@ -502,6 +541,7 @@ function authoredSummary(fixture: CalibrationFixture): Record<string, unknown> {
     equippedWeaponSources: fixture.equippedWeaponSources?.map((source) => source.label) ?? [],
     defensiveProfileSources: fixture.defensiveProfileSources ?? [],
     defensiveProfileContext: fixture.defensiveProfileContext ?? null,
+    traitAxisBonuses: fixture.traitAxisBonuses ?? null,
     power: fixture.power
       ? {
           name: fixture.power.name,
@@ -527,6 +567,7 @@ function evaluateFixture(fixture: CalibrationFixture) {
     naturalAttackGsAxisBonuses: fixture.naturalAttackGsAxisBonuses,
     naturalAttackRangeAxisBonuses: fixture.naturalAttackRangeAxisBonuses,
     powerContribution: fixture.powerContribution,
+    traitAxisBonuses: fixture.traitAxisBonuses,
   });
   const debug = result.debug as {
     powerContribution?: {
@@ -542,6 +583,13 @@ function evaluateFixture(fixture: CalibrationFixture) {
     };
     nonPowerContribution?: { axisVector?: Partial<RadarAxes> };
     finalPreNormalizationAxes?: Partial<RadarAxes>;
+    normalizationBreakdown?: {
+      level?: number;
+      tierKey?: string;
+      tierMultiplier?: number;
+      displayCurvePoints?: Partial<Record<AxisKey, unknown>>;
+      curvePoints?: Partial<Record<AxisKey, unknown>>;
+    };
   };
   const powerContribution = roundedAxes(
     debug.powerContribution?.canonicalPowerAxisVector ?? debug.powerContribution?.axisVector,
@@ -552,6 +600,17 @@ function evaluateFixture(fixture: CalibrationFixture) {
   const nonPowerContribution = roundedAxes(debug.nonPowerContribution?.axisVector);
   const finalPreNormalizationAxes = roundedAxes(debug.finalPreNormalizationAxes);
   const radarAxes = roundedAxes(result.radarAxes);
+  const displayCurvePointSource =
+    debug.normalizationBreakdown?.displayCurvePoints ??
+    debug.normalizationBreakdown?.curvePoints ??
+    {};
+  const displayCurvePoints = AXES.reduce(
+    (acc, axis) => {
+      acc[axis] = readDisplayCurvePoint(displayCurvePointSource[axis]);
+      return acc;
+    },
+    {} as Record<AxisKey, DisplayCurvePoint | null>,
+  );
   const axisEvaluations: AxisEvaluation[] = [];
 
   for (const axis of AXES) {
@@ -604,6 +663,9 @@ function evaluateFixture(fixture: CalibrationFixture) {
   return {
     id: fixture.id,
     title: fixture.title,
+    group: fixture.group ?? "level-1-foundation",
+    level: fixture.monster.level,
+    tier: fixture.monster.tier,
     authoredInputs: authoredSummary(fixture),
     powerContribution: { axisVector: powerContribution },
     effectivePowerContribution: {
@@ -618,6 +680,12 @@ function evaluateFixture(fixture: CalibrationFixture) {
     nonPowerContribution: { axisVector: nonPowerContribution },
     finalPreNormalizationAxes,
     radarAxes,
+    normalization: {
+      level: debug.normalizationBreakdown?.level ?? fixture.monster.level,
+      tier: debug.normalizationBreakdown?.tierKey ?? fixture.monster.tier,
+      tierMultiplier: round(debug.normalizationBreakdown?.tierMultiplier),
+      displayCurvePoints,
+    },
     expectedBands: fixture.expected,
     axisEvaluations,
     status: overall,
@@ -630,7 +698,9 @@ function printSection(title: string, value: unknown) {
 }
 
 function printFixtureReport(report: ReturnType<typeof evaluateFixture>) {
-  console.log(`\n=== ${report.id}: ${report.title} [${report.status.toUpperCase()}] ===`);
+  console.log(
+    `\n=== ${report.group} / ${report.id}: ${report.title} [${report.status.toUpperCase()}] ===`,
+  );
   printSection("authored inputs summary", report.authoredInputs);
   printSection("canonicalPowerContribution.axisVector", report.powerContribution.axisVector);
   printSection("effectivePowerContribution", report.effectivePowerContribution);
@@ -932,6 +1002,468 @@ const fixtures: CalibrationFixture[] = [
       presence: "TRACE",
     },
   }),
+  {
+    id: "level-5-soldier-weapon-user",
+    title: "level 5 soldier weapon user",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "Level 5 Soldier Weapon User",
+      level: 5,
+      tier: "SOLDIER",
+      physicalResilienceCurrent: 30,
+      physicalResilienceMax: 30,
+      mentalPerseveranceCurrent: 18,
+      mentalPerseveranceMax: 18,
+      attackDie: "D8",
+      guardDie: "D8",
+      fortitudeDie: "D8",
+    }),
+    equippedWeaponSources: [
+      {
+        id: "calibration-level-5-soldier-sword",
+        label: "Main Hand: Soldier Sword",
+        attackConfig: {
+          melee: {
+            enabled: true,
+            targets: 1,
+            physicalStrength: 2,
+            mentalStrength: 0,
+            damageTypes: [{ name: "Slashing", mode: "PHYSICAL" }],
+          },
+        },
+      },
+    ],
+    expected: {
+      physicalThreat: "LOW",
+      mentalThreat: "NONE",
+      physicalSurvivability: "MEDIUM",
+      mentalSurvivability: "NONE",
+      mobility: "NONE",
+      manipulation: "NONE",
+      synergy: "NONE",
+      presence: "TRACE",
+    },
+  },
+  withPower({
+    id: "level-5-soldier-controller",
+    title: "level 5 soldier controller",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "Level 5 Soldier Controller",
+      level: 5,
+      tier: "SOLDIER",
+      physicalResilienceCurrent: 26,
+      physicalResilienceMax: 26,
+      mentalPerseveranceCurrent: 24,
+      mentalPerseveranceMax: 24,
+      intellectDie: "D10",
+      braveryDie: "D8",
+    }),
+    power: createPower({
+      name: "Commanding Pin",
+      packet: createPacket("CONTROL", {
+        applyTo: "PRIMARY_TARGET",
+        hostility: "HOSTILE",
+        diceCount: 3,
+        potency: 2,
+        effectDurationType: "TURNS",
+        effectDurationTurns: 2,
+        detailsJson: { controlMode: "Force no move", rangeCategory: "RANGED" },
+      }),
+      rangeCategories: ["RANGED"],
+      rangedTargets: 1,
+    }),
+    expected: {
+      physicalThreat: "NONE",
+      mentalThreat: "NONE",
+      physicalSurvivability: "MEDIUM",
+      mentalSurvivability: "NONE",
+      manipulation: "HIGH",
+      presence: "TRACE",
+      mobility: "NONE",
+      synergy: "NONE",
+    },
+  }),
+  {
+    id: "level-10-elite-area-threat",
+    title: "level 10 elite area threat",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "Level 10 Elite Area Threat",
+      level: 10,
+      tier: "ELITE",
+      physicalResilienceCurrent: 72,
+      physicalResilienceMax: 72,
+      mentalPerseveranceCurrent: 42,
+      mentalPerseveranceMax: 42,
+      attackDie: "D8",
+      guardDie: "D8",
+      fortitudeDie: "D10",
+      attacks: [
+        createNaturalAttack("Sweeping Flame", {
+          aoe: {
+            enabled: true,
+            count: 2,
+            centerRange: 30,
+            shape: "SPHERE",
+            sphereRadiusFeet: 5,
+            physicalStrength: 1,
+            mentalStrength: 0,
+            damageTypes: [{ name: "Fire", mode: "PHYSICAL" }],
+            attackEffects: [],
+          },
+        }),
+      ],
+    }),
+    naturalAttackRangeAxisBonuses: { mobility: 0.5 },
+    expected: {
+      physicalThreat: "HIGH",
+      mentalThreat: "NONE",
+      physicalSurvivability: "MEDIUM",
+      mentalSurvivability: "NONE",
+      manipulation: "NONE",
+      mobility: "TRACE",
+      synergy: "NONE",
+      presence: "MEDIUM",
+    },
+  },
+  {
+    id: "level-10-elite-mental-attacker",
+    title: "level 10 elite mental attacker",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "Level 10 Elite Mental Attacker",
+      level: 10,
+      tier: "ELITE",
+      physicalResilienceCurrent: 50,
+      physicalResilienceMax: 50,
+      mentalPerseveranceCurrent: 64,
+      mentalPerseveranceMax: 64,
+      mentalProtection: 3,
+      naturalMentalProtection: 3,
+      attackDie: "D10",
+      intellectDie: "D10",
+      braveryDie: "D10",
+      attacks: [
+        createNaturalAttack("Mind Lance", {
+          ranged: {
+            enabled: true,
+            targets: 1,
+            distance: 60,
+            physicalStrength: 0,
+            mentalStrength: 2,
+            damageTypes: [{ name: "Psychic", mode: "MENTAL" }],
+            attackEffects: [],
+          },
+        }),
+      ],
+    }),
+    expected: {
+      physicalThreat: "NONE",
+      mentalThreat: "MEDIUM",
+      physicalSurvivability: "MEDIUM",
+      mentalSurvivability: "MEDIUM",
+      manipulation: "NONE",
+      mobility: "NONE",
+      synergy: "NONE",
+      presence: "LOW",
+    },
+  },
+  withPower({
+    id: "level-20-boss-mixed-threat",
+    title: "level 20 boss mixed threat",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "Level 20 Boss Mixed Threat",
+      level: 20,
+      tier: "BOSS",
+      physicalResilienceCurrent: 120,
+      physicalResilienceMax: 120,
+      mentalPerseveranceCurrent: 170,
+      mentalPerseveranceMax: 170,
+      physicalProtection: 2,
+      mentalProtection: 4,
+      naturalPhysicalProtection: 2,
+      naturalMentalProtection: 4,
+      attackDie: "D12",
+      guardDie: "D10",
+      fortitudeDie: "D12",
+      intellectDie: "D10",
+      braveryDie: "D10",
+      attacks: [
+        createNaturalAttack("Titan Cleave and Soul Burn", {
+          melee: {
+            enabled: true,
+            targets: 2,
+            physicalStrength: 3,
+            mentalStrength: 0,
+            damageTypes: [{ name: "Crushing", mode: "PHYSICAL" }],
+            attackEffects: [],
+          },
+          ranged: {
+            enabled: true,
+            targets: 1,
+            distance: 60,
+            physicalStrength: 0,
+            mentalStrength: 3,
+            damageTypes: [{ name: "Psychic", mode: "MENTAL" }],
+            attackEffects: [],
+          },
+        }),
+      ],
+    }),
+    power: createPower({
+      name: "Forceful Reposition",
+      packet: createPacket("MOVEMENT", {
+        applyTo: "PRIMARY_TARGET",
+        hostility: "HOSTILE",
+        diceCount: 2,
+        potency: 2,
+        detailsJson: { movementMode: "Force Push", rangeCategory: "RANGED" },
+      }),
+      rangeCategories: ["RANGED"],
+      rangedTargets: 2,
+    }),
+    expected: {
+      physicalThreat: "HIGH",
+      mentalThreat: "HIGH",
+      physicalSurvivability: "HIGH",
+      mentalSurvivability: "MEDIUM",
+      presence: "HIGH",
+      mobility: "TRACE",
+      manipulation: "LOW",
+      synergy: "NONE",
+    },
+  }),
+  {
+    id: "level-20-boss-tank",
+    title: "level 20 boss tank",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "Level 20 Boss Tank",
+      level: 20,
+      tier: "BOSS",
+      physicalResilienceCurrent: 280,
+      physicalResilienceMax: 280,
+      mentalPerseveranceCurrent: 190,
+      mentalPerseveranceMax: 190,
+      physicalProtection: 9,
+      mentalProtection: 5,
+      naturalPhysicalProtection: 9,
+      naturalMentalProtection: 5,
+      attackDie: "D8",
+      guardDie: "D12",
+      fortitudeDie: "D12",
+      braveryDie: "D12",
+    }),
+    equippedWeaponSources: [
+      {
+        id: "calibration-boss-tank-slam",
+        label: "Main Hand: Heavy Shield Slam",
+        attackConfig: {
+          melee: {
+            enabled: true,
+            targets: 1,
+            physicalStrength: 1,
+            mentalStrength: 0,
+            damageTypes: [{ name: "Bludgeoning", mode: "PHYSICAL" }],
+          },
+        },
+      },
+    ],
+    traitAxisBonuses: { presence: 6 },
+    expected: {
+      physicalSurvivability: "EXTREME",
+      mentalSurvivability: "HIGH",
+      physicalThreat: "LOW",
+      mentalThreat: "NONE",
+      mobility: "NONE",
+      manipulation: "NONE",
+      synergy: "NONE",
+      presence: "MEDIUM",
+    },
+  },
+  withPower({
+    id: "high-mobility-skirmisher",
+    title: "high mobility skirmisher",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "High Mobility Skirmisher",
+      level: 8,
+      tier: "SOLDIER",
+      physicalResilienceCurrent: 34,
+      physicalResilienceMax: 34,
+      mentalPerseveranceCurrent: 22,
+      mentalPerseveranceMax: 22,
+      attackDie: "D8",
+      guardDie: "D10",
+      attacks: [
+        createNaturalAttack("Skirmisher Blade", {
+          melee: {
+            enabled: true,
+            targets: 1,
+            physicalStrength: 1,
+            mentalStrength: 0,
+            damageTypes: [{ name: "Slashing", mode: "PHYSICAL" }],
+            attackEffects: ["Follow-up cut on greater success"],
+          },
+        }),
+      ],
+    }),
+    naturalAttackGsAxisBonuses: { physicalThreat: 4.5 },
+    power: createPower({
+      name: "Blink Step",
+      packet: createPacket("MOVEMENT", {
+        applyTo: "SELF",
+        diceCount: 4,
+        potency: 3,
+        detailsJson: { movementMode: "Teleport", rangeCategory: "SELF" },
+      }),
+      cooldownTurns: 1,
+    }),
+    expected: {
+      mobility: "HIGH",
+      physicalThreat: "MEDIUM",
+      physicalSurvivability: "MEDIUM",
+      mentalSurvivability: "NONE",
+      manipulation: "NONE",
+      synergy: "NONE",
+      presence: "TRACE",
+    },
+  }),
+  withPower({
+    id: "support-commander",
+    title: "support commander",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "Support Commander",
+      level: 8,
+      tier: "SOLDIER",
+      physicalResilienceCurrent: 34,
+      physicalResilienceMax: 34,
+      mentalPerseveranceCurrent: 34,
+      mentalPerseveranceMax: 34,
+      attackDie: "D6",
+      synergyDie: "D10",
+      braveryDie: "D8",
+    }),
+    traitAxisBonuses: { presence: 2 },
+    power: createPower({
+      name: "Battle Orders",
+      packet: createPacket("AUGMENT", {
+        applyTo: "ALLIES",
+        diceCount: 3,
+        potency: 2,
+        effectDurationType: "TURNS",
+        effectDurationTurns: 2,
+        detailsJson: { statTarget: "Attack", rangeCategory: "RANGED" },
+      }),
+      rangeCategories: ["RANGED"],
+      rangedTargets: 2,
+    }),
+    expected: {
+      synergy: "HIGH",
+      physicalThreat: "NONE",
+      mentalThreat: "NONE",
+      physicalSurvivability: "LOW",
+      mentalSurvivability: "NONE",
+      presence: "LOW",
+      manipulation: "NONE",
+      mobility: "NONE",
+    },
+  }),
+  {
+    id: "low-threat-tank",
+    title: "low threat tank",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "Low Threat Tank",
+      level: 10,
+      tier: "ELITE",
+      physicalResilienceCurrent: 65,
+      physicalResilienceMax: 65,
+      mentalPerseveranceCurrent: 74,
+      mentalPerseveranceMax: 74,
+      physicalProtection: 4,
+      mentalProtection: 5,
+      naturalPhysicalProtection: 4,
+      naturalMentalProtection: 5,
+      attackDie: "D6",
+      guardDie: "D12",
+      fortitudeDie: "D12",
+      braveryDie: "D10",
+    }),
+    traitAxisBonuses: { presence: 3 },
+    expected: {
+      physicalSurvivability: "HIGH",
+      mentalSurvivability: "MEDIUM",
+      physicalThreat: "NONE",
+      mentalThreat: "NONE",
+      mobility: "NONE",
+      manipulation: "NONE",
+      synergy: "NONE",
+      presence: "LOW",
+    },
+  },
+  withPower({
+    id: "glass-cannon-with-power",
+    title: "glass cannon with power",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "Glass Cannon With Power",
+      level: 10,
+      tier: "ELITE",
+      physicalResilienceCurrent: 16,
+      physicalResilienceMax: 16,
+      mentalPerseveranceCurrent: 18,
+      mentalPerseveranceMax: 18,
+      attackDie: "D10",
+      intellectDie: "D8",
+      attacks: [
+        createNaturalAttack("Volatile Focus Bolt", {
+          ranged: {
+            enabled: true,
+            targets: 1,
+            distance: 60,
+            physicalStrength: 0,
+            mentalStrength: 0,
+            damageTypes: [{ name: "Fire", mode: "PHYSICAL" }],
+            attackEffects: ["Overload on greater success"],
+          },
+        }),
+      ],
+    }),
+    traitAxisBonuses: { physicalSurvivability: -4 },
+    naturalAttackGsAxisBonuses: { physicalThreat: 9 },
+    power: createPower({
+      name: "Focused Ruin",
+      packet: createPacket("ATTACK", {
+        applyTo: "PRIMARY_TARGET",
+        hostility: "HOSTILE",
+        diceCount: 5,
+        potency: 4,
+        woundChannel: "PHYSICAL",
+        detailsJson: {
+          attackMode: "PHYSICAL",
+          damageTypes: ["Fire", "Piercing"],
+          rangeCategory: "RANGED",
+        },
+      }),
+      rangeCategories: ["RANGED"],
+      rangedTargets: 1,
+      cooldownTurns: 1,
+    }),
+    expected: {
+      physicalThreat: "HIGH",
+      mentalThreat: "NONE",
+      physicalSurvivability: "LOW",
+      mentalSurvivability: "NONE",
+      mobility: "NONE",
+      presence: "TRACE",
+      manipulation: "NONE",
+      synergy: "NONE",
+    },
+  }),
 ];
 
 const reports = fixtures.map(evaluateFixture);
@@ -954,6 +1486,9 @@ const initialFailures = reports.flatMap((report) =>
     .map((row) => ({
       fixtureId: report.id,
       fixtureName: report.title,
+      fixtureGroup: report.group,
+      level: report.level,
+      tier: report.tier,
       axis: row.axis,
       expectedBand: row.expected,
       rawImpliedBand: row.rawImpliedBand,
@@ -965,6 +1500,124 @@ const initialFailures = reports.flatMap((report) =>
       suggestedOwnerLayer: row.ownerLayer,
       classificationReason: row.classificationReason,
     })),
+);
+
+const mismatchGroupingDiagnostics = initialFailures.reduce(
+  (acc, row) => {
+    const key = [
+      row.suggestedOwnerLayer ?? "Code seam",
+      row.axis,
+      `level-${row.level}`,
+      row.tier,
+      row.fixtureGroup,
+    ].join(" | ");
+    acc[key] = acc[key] ?? {
+      ownerLayer: row.suggestedOwnerLayer ?? "Code seam",
+      axis: row.axis,
+      level: row.level,
+      tier: row.tier,
+      fixtureGroup: row.fixtureGroup,
+      count: 0,
+      fixtureIds: [] as string[],
+    };
+    acc[key].count += 1;
+    acc[key].fixtureIds.push(row.fixtureId);
+    return acc;
+  },
+  {} as Record<
+    string,
+    {
+      ownerLayer: OwnerLayer;
+      axis: AxisKey;
+      level: number;
+      tier: MonsterUpsertInput["tier"];
+      fixtureGroup: FixtureGroup;
+      count: number;
+      fixtureIds: string[];
+    }
+  >,
+);
+
+const outcomeNormalizationMismatchDetails = reports.flatMap((report) =>
+  report.axisEvaluations
+    .filter((row) => row.status !== "pass" && row.ownerLayer === "Outcome Normalization")
+    .map((row) => {
+      const curvePoint = report.normalization.displayCurvePoints[row.axis];
+      return {
+        fixtureId: report.id,
+        level: report.level,
+        tier: report.tier,
+        axis: row.axis,
+        expectedBand: row.expected,
+        rawPreNormalizationValue: row.finalPreNormalizationValue,
+        rawImpliedBand: row.rawImpliedBand,
+        radarValue: row.radarValue,
+        radarBand: row.actualBand,
+        displayCurveMin: curvePoint?.min ?? null,
+        displayCurveMax: curvePoint?.max ?? null,
+        tierMultiplierUsed: report.normalization.tierMultiplier,
+        displayDirection: displayDirectionForValue(row.radarValue, row.expected),
+      };
+    }),
+);
+
+const outcomeNormalizationMismatchSummaryByAxis = AXES.flatMap((axis) => {
+  const rows = outcomeNormalizationMismatchDetails.filter((row) => row.axis === axis);
+  if (rows.length === 0) return [];
+  const averageRawValue = round(
+    rows.reduce((sum, row) => sum + row.rawPreNormalizationValue, 0) / rows.length,
+  );
+  const averageRadarValue = round(
+    rows.reduce((sum, row) => sum + row.radarValue, 0) / rows.length,
+  );
+  const tooHigh = rows.filter((row) => row.displayDirection === "TOO_HIGH").length;
+  const tooLow = rows.filter((row) => row.displayDirection === "TOO_LOW").length;
+  const onBand = rows.filter((row) => row.displayDirection === "ON_BAND").length;
+  return [
+    {
+      axis,
+      count: rows.length,
+      averageRawValue,
+      averageRadarValue,
+      tooHigh,
+      tooLow,
+      onBand,
+      mostDirection:
+        tooHigh > tooLow && tooHigh > onBand
+          ? "TOO_HIGH"
+          : tooLow > tooHigh && tooLow > onBand
+            ? "TOO_LOW"
+            : "MIXED",
+    },
+  ];
+});
+
+const summaryByGroup = reports.reduce(
+  (acc, report) => {
+    acc[report.group] = acc[report.group] ?? {
+      fixtureCount: 0,
+      pass: 0,
+      warn: 0,
+      fail: 0,
+      mismatchCount: 0,
+    };
+    acc[report.group].fixtureCount += 1;
+    acc[report.group][report.status] += 1;
+    acc[report.group].mismatchCount += report.axisEvaluations.filter(
+      (row) => row.status !== "pass",
+    ).length;
+    return acc;
+  },
+  {} as Record<
+    FixtureGroup,
+    {
+      fixtureCount: number;
+      pass: number;
+      warn: number;
+      fail: number;
+      mismatchCount: number;
+    }
+  >,
 );
 
 const mismatchSummaryByOwnerLayer = initialFailures.reduce(
@@ -1001,6 +1654,27 @@ const mismatchSummaryByOwnerLayer = initialFailures.reduce(
 );
 
 printSection(
+  "higher-level/tier mismatch grouping diagnostics",
+  Object.values(mismatchGroupingDiagnostics)
+    .filter((row) => row.fixtureGroup === "higher-level-tier")
+    .sort((a, b) =>
+      `${a.ownerLayer}.${a.axis}.${a.level}.${a.tier}`.localeCompare(
+        `${b.ownerLayer}.${b.axis}.${b.level}.${b.tier}`,
+      ),
+    ),
+);
+
+printSection(
+  "Outcome Normalization mismatch details",
+  outcomeNormalizationMismatchDetails,
+);
+
+printSection(
+  "Outcome Normalization mismatch summary by axis",
+  outcomeNormalizationMismatchSummaryByAxis,
+);
+
+printSection(
   "summary",
   {
     fixtureCount: reports.length,
@@ -1008,6 +1682,10 @@ printSection(
     warn: reports.filter((report) => report.status === "warn").length,
     fail: reports.filter((report) => report.status === "fail").length,
     mismatchCount: initialFailures.length,
+    summaryByGroup,
+    mismatchGroupingDiagnostics,
+    outcomeNormalizationMismatchDetails,
+    outcomeNormalizationMismatchSummaryByAxis,
     initialFailures,
     rawValueIssues: initialFailures.filter((row) => row.classification === "RAW_VALUE"),
     displayNormalizationIssues: initialFailures.filter(

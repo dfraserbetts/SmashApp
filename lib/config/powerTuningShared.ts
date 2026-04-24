@@ -130,7 +130,7 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
         forcePush: 1,
         forceTeleport: 0.65,
         run: 0.2,
-        teleport: 0.4,
+        teleport: 0.5,
       },
       potency: { "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
     },
