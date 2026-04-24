@@ -3978,6 +3978,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   const searchParams = useSearchParams();
   const monsterIdFromUrl = searchParams.get("monsterId");
   const [summaries, setSummaries] = useState<MonsterSummary[]>([]);
+  const [landingPreviewMonsters, setLandingPreviewMonsters] = useState<EditableMonster[]>([]);
+  const [landingPreviewLoading, setLandingPreviewLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditableMonster | null>(null);
   const [powerDiceCountChosen, setPowerDiceCountChosen] = useState<Record<string, boolean>>({});
@@ -4460,6 +4462,22 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     }
     return pills;
   }, [monsterExcludeLegendary, monsterLevelSelected, monsterTierSelected]);
+  const landingPreviewSummaryIds = useMemo(
+    () =>
+      [...summaries]
+        .sort((a, b) => {
+          const bTime = Date.parse(String(b.updatedAt ?? ""));
+          const aTime = Date.parse(String(a.updatedAt ?? ""));
+          if (Number.isFinite(bTime) && Number.isFinite(aTime) && bTime !== aTime) {
+            return bTime - aTime;
+          }
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 12)
+        .map((summary) => summary.id)
+        .join(","),
+    [summaries],
+  );
   const recentMonsterRows = useMemo(() => {
     if (hasMonsterSearchQuery) return [] as MonsterSummary[];
     const allowedIds = new Set(filteredSummaries.map((row) => row.id));
@@ -4508,9 +4526,9 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     setSummaries(list);
     setSelectedId((current) => {
       if (current) {
-        return list.some((m) => m.id === current) ? current : (list[0]?.id ?? null);
+        return list.some((m) => m.id === current) ? current : null;
       }
-      return hasDraftRef.current ? null : (list[0]?.id ?? null);
+      return null;
     });
   }, [campaignId]);
 
@@ -4679,6 +4697,50 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       cancelled = true;
     };
   }, [refreshSelected, selectedId]);
+
+  useEffect(() => {
+    const ids = landingPreviewSummaryIds.split(",").filter(Boolean);
+    if (ids.length === 0) {
+      setLandingPreviewMonsters([]);
+      setLandingPreviewLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    async function loadLandingPreviews() {
+      setLandingPreviewLoading(true);
+      try {
+        const rows = await Promise.all(
+          ids.map(async (id) => {
+            const res = await fetch(
+              `/api/summoning-circle/monsters/${id}?campaignId=${encodeURIComponent(campaignId)}`,
+              { cache: "no-store" },
+            );
+            if (!res.ok) return null;
+            const json = await res.json();
+            return toEditable(json);
+          }),
+        );
+        if (!cancelled) {
+          setLandingPreviewMonsters(
+            rows.filter((row): row is EditableMonster => row !== null).slice(0, 12),
+          );
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setLandingPreviewMonsters([]);
+          setError(e instanceof Error ? e.message : "Failed to load monster previews");
+        }
+      } finally {
+        if (!cancelled) setLandingPreviewLoading(false);
+      }
+    }
+
+    loadLandingPreviews();
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId, landingPreviewSummaryIds]);
 
   useEffect(() => {
     if (!editor) {
@@ -4860,6 +4922,18 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       });
     },
     [persistRecentMonsterIds],
+  );
+
+  const loadMonsterForEditing = useCallback(
+    (monsterId: string) => {
+      hasDraftRef.current = false;
+      setSuccess(null);
+      setSelectedId(monsterId);
+      markMonsterAsRecent(monsterId);
+      setMonsterPickerOpen(false);
+      setMonsterPickerQuery("");
+    },
+    [markMonsterAsRecent],
   );
 
   const currentTagToken = useMemo(() => tokenFromTagInput(tagInput), [tagInput]);
@@ -6577,20 +6651,406 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     contentKey: `${previewPrintLayout}-${previewMonsterName}-${mobileView}`,
   });
 
-  if (loading) return <p className="text-sm text-zinc-400">Loading Summoning Circle...</p>;
+  const toggleMonsterLevel = (level: number) => {
+    setMonsterLevelSelected((prev) =>
+      prev.includes(level)
+        ? prev.filter((entry) => entry !== level)
+        : [...prev, level].sort((a, b) => a - b),
+    );
+  };
 
-  if (!editor) {
-    return (
-      <div className="space-y-4">
+  const toggleMonsterTier = (tier: MonsterTier) => {
+    setMonsterTierSelected((prev) =>
+      prev.includes(tier)
+        ? prev.filter((entry) => entry !== tier)
+        : [...prev, tier],
+    );
+  };
+
+  const setMonsterLevelRange = (min: number, max: number) => {
+    setMonsterLevelSelected(
+      PICKER_LEVEL_OPTIONS.filter((level) => level >= min && level <= max),
+    );
+  };
+
+  const clearMonsterFilters = () => {
+    setMonsterLevelSelected([]);
+    setMonsterTierSelected([]);
+    setMonsterExcludeLegendary(false);
+  };
+
+  const removeMonsterFilterPill = (pillId: "level" | "tier" | "noLegendary") => {
+    if (pillId === "level") {
+      setMonsterLevelSelected([]);
+      return;
+    }
+    if (pillId === "tier") {
+      setMonsterTierSelected([]);
+      return;
+    }
+    setMonsterExcludeLegendary(false);
+  };
+
+  const renderMonsterSelectionBar = () => (
+    <section className="rounded border border-zinc-800 bg-zinc-950/40 p-3">
+      <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+        <div className="flex flex-1 items-start gap-2">
+          <div ref={monsterPickerRef} className="flex-1 space-y-2 relative">
+            <div className="relative">
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+              >
+                <path
+                  d="M10.5 3a7.5 7.5 0 1 0 4.73 13.32l4.22 4.21 1.06-1.06-4.21-4.22A7.5 7.5 0 0 0 10.5 3Zm0 1.5a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z"
+                  fill="currentColor"
+                />
+              </svg>
+              <input
+                value={monsterPickerQuery}
+                onFocus={() => setMonsterPickerOpen(true)}
+                onClick={() => setMonsterPickerOpen(true)}
+                onChange={(e) => {
+                  setMonsterPickerQuery(e.target.value);
+                  setMonsterPickerOpen(true);
+                }}
+                placeholder="Click to search monsters"
+                className="w-full rounded border border-zinc-800 bg-zinc-900/30 pl-9 pr-3 py-2 text-sm"
+              />
+            </div>
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-wrap gap-1">
+                {activeMonsterFilterPills.map((pill) => (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={() => removeMonsterFilterPill(pill.id)}
+                    className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                  >
+                    <span>{pill.label}</span>
+                    <span aria-hidden="true">x</span>
+                  </button>
+                ))}
+              </div>
+              <p className="pt-1 text-right text-[11px] text-zinc-500">
+                {hasMonsterSearchQuery || hasMonsterFilters
+                  ? `Showing ${monsterPickerFilteredCount} of ${monsterPickerTotalCount}`
+                  : `Showing ${monsterPickerTotalCount}`}
+              </p>
+            </div>
+
+            {monsterPickerOpen && (
+              <div className="absolute z-30 mt-1 w-full rounded border border-zinc-800 bg-zinc-950/95 p-2 space-y-2 shadow-lg">
+                <div className="max-h-80 overflow-auto space-y-1">
+                  {recentMonsterRows.length === 0 &&
+                  filteredSummariesWithoutRecent.length === 0 ? (
+                    <p className="px-2 py-2 text-sm text-zinc-500">No matches.</p>
+                  ) : (
+                    <>
+                      {!hasMonsterSearchQuery && recentMonsterRows.length > 0 && (
+                        <>
+                          <p className="px-2 pt-1 text-[11px] uppercase tracking-wide text-zinc-500">
+                            Recently used
+                          </p>
+                          {recentMonsterRows.map((row) => {
+                            const tags = getMonsterTags(row);
+                            return (
+                              <button
+                                key={`recent-${row.id}`}
+                                type="button"
+                                onClick={() => loadMonsterForEditing(row.id)}
+                                className={`w-full text-left rounded border px-2 py-2 ${
+                                  selectedId === row.id
+                                    ? "border-emerald-500 bg-emerald-950/20"
+                                    : "border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className="text-sm font-medium">{row.name}</p>
+                                    <p className="text-xs text-zinc-500">
+                                      L{row.level} {row.tier} {row.source === "CORE" ? "- Core" : ""}
+                                    </p>
+                                  </div>
+                                </div>
+                                {tags.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-1">
+                                    {tags.slice(0, 6).map((tag) => (
+                                      <span
+                                        key={`recent-${row.id}-${tag}`}
+                                        className="rounded border border-zinc-700 bg-zinc-900 px-2 py-[2px] text-[10px] text-zinc-300"
+                                      >
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                          <div className="my-1 border-t border-zinc-800" />
+                        </>
+                      )}
+                      {filteredSummariesWithoutRecent.map((row) => {
+                        const tags = getMonsterTags(row);
+                        return (
+                          <button
+                            key={row.id}
+                            type="button"
+                            onClick={() => loadMonsterForEditing(row.id)}
+                            className={`w-full text-left rounded border px-2 py-2 ${
+                              selectedId === row.id
+                                ? "border-emerald-500 bg-emerald-950/20"
+                                : "border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-medium">{row.name}</p>
+                                <p className="text-xs text-zinc-500">
+                                  L{row.level} {row.tier} {row.source === "CORE" ? "- Core" : ""}
+                                </p>
+                              </div>
+                            </div>
+                            {tags.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {tags.slice(0, 6).map((tag) => (
+                                  <span
+                                    key={`${row.id}-${tag}`}
+                                    className="rounded border border-zinc-700 bg-zinc-900 px-2 py-[2px] text-[10px] text-zinc-300"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div ref={monsterFiltersRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setMonsterFiltersOpen((prev) => !prev)}
+              className={`rounded border px-3 py-2 text-sm ${
+                monsterFiltersOpen
+                  ? "border-emerald-600 bg-emerald-950/20 text-emerald-100"
+                  : "border-zinc-700 hover:bg-zinc-800"
+              }`}
+            >
+              Filters
+            </button>
+
+            {monsterFiltersOpen && (
+              <div className="absolute right-0 z-40 mt-1 w-80 max-w-[90vw] rounded border border-zinc-800 bg-zinc-950/95 p-3 shadow-lg space-y-3">
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Monster Level</p>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setMonsterLevelSelected([])}
+                      className={`rounded border px-2 py-1 text-xs ${
+                        monsterLevelSelected.length === 0
+                          ? "border-emerald-600 bg-emerald-950/20 text-emerald-100"
+                          : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800"
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMonsterLevelRange(1, 5)}
+                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800"
+                    >
+                      1-5
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMonsterLevelRange(6, 10)}
+                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800"
+                    >
+                      6-10
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMonsterLevelRange(11, 15)}
+                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800"
+                    >
+                      11-15
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMonsterLevelRange(16, 20)}
+                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs hover:bg-zinc-800"
+                    >
+                      16-20
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1">
+                    {PICKER_LEVEL_OPTIONS.map((level) => {
+                      const active = monsterLevelSelected.includes(level);
+                      return (
+                        <button
+                          key={level}
+                          type="button"
+                          onClick={() => toggleMonsterLevel(level)}
+                          className={`rounded border px-2 py-1 text-xs ${
+                            active
+                              ? "border-emerald-600 bg-emerald-950/20 text-emerald-100"
+                              : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800"
+                          }`}
+                        >
+                          {level}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Tier</p>
+                  <div className="flex flex-wrap gap-1">
+                    {MONSTER_TIER_OPTIONS.map((tier) => {
+                      const active = monsterTierSelected.includes(tier);
+                      return (
+                        <button
+                          key={tier}
+                          type="button"
+                          onClick={() => toggleMonsterTier(tier)}
+                          className={`rounded border px-2 py-1 text-xs ${
+                            active
+                              ? "border-emerald-600 bg-emerald-950/20 text-emerald-100"
+                              : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800"
+                          }`}
+                        >
+                          {MONSTER_TIER_LABELS[tier]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={monsterExcludeLegendary}
+                    onChange={(e) => setMonsterExcludeLegendary(e.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Exclude Legendary
+                </label>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={clearMonsterFilters}
+                    className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
         <button
           onClick={newMonster}
           className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800"
         >
-          Create Monster
+          Summon new monster
         </button>
-        <div className="rounded border border-zinc-800 p-4 text-sm text-zinc-400">
-          Select a monster from the list, or create a new one.
+      </div>
+    </section>
+  );
+
+  const renderLandingGrid = () => (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">
+            Recently Edited Monsters
+          </h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Select a monster or summon a new one to open the editor.
+          </p>
         </div>
+        <p className="text-xs text-zinc-500">
+          {landingPreviewLoading
+            ? "Loading previews..."
+            : `${landingPreviewMonsters.length} of ${Math.min(12, summaries.length)} shown`}
+        </p>
+      </div>
+
+      {landingPreviewMonsters.length === 0 ? (
+        <div className="rounded border border-zinc-800 bg-zinc-950/40 p-6 text-sm text-zinc-400">
+          {landingPreviewLoading
+            ? "Loading monster previews..."
+            : "No monsters found. Use the search above or summon a new monster to begin."}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {landingPreviewMonsters.map((monster) => (
+            <article
+              key={monster.id ?? monster.name}
+              className="min-w-0 rounded border border-zinc-800 bg-zinc-950/40 p-3 space-y-3"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{monster.name}</p>
+                  <p className="text-xs text-zinc-500">
+                    Level {monster.level} | {monster.legendary ? "Legendary " : ""}
+                    {MONSTER_TIER_LABELS[monster.tier]}
+                  </p>
+                </div>
+                {monster.id && (
+                  <button
+                    type="button"
+                    onClick={() => loadMonsterForEditing(monster.id as string)}
+                    className="shrink-0 rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800"
+                  >
+                    Load
+                  </button>
+                )}
+              </div>
+              <div className="rounded border border-zinc-900/80">
+                <MonsterBlockCard
+                  monster={monster}
+                  weaponById={weaponById}
+                  className="border-0"
+                  protectionTuning={protectionTuning}
+                />
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+
+  if (loading) return <p className="text-sm text-zinc-400">Loading Summoning Circle...</p>;
+
+  if (!editor) {
+    return (
+      <div className="space-y-5">
+        {renderMonsterSelectionBar()}
+        {error && (
+          <div className="rounded border border-red-700/40 bg-red-950/20 p-2 text-sm text-red-200">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="rounded border border-emerald-700/40 bg-emerald-950/20 p-2 text-sm text-emerald-200">
+            {success}
+          </div>
+        )}
+        {renderLandingGrid()}
       </div>
     );
   }
@@ -7050,46 +7510,6 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     );
   };
 
-  const toggleMonsterLevel = (level: number) => {
-    setMonsterLevelSelected((prev) =>
-      prev.includes(level)
-        ? prev.filter((entry) => entry !== level)
-        : [...prev, level].sort((a, b) => a - b),
-    );
-  };
-
-  const toggleMonsterTier = (tier: MonsterTier) => {
-    setMonsterTierSelected((prev) =>
-      prev.includes(tier)
-        ? prev.filter((entry) => entry !== tier)
-        : [...prev, tier],
-    );
-  };
-
-  const setMonsterLevelRange = (min: number, max: number) => {
-    setMonsterLevelSelected(
-      PICKER_LEVEL_OPTIONS.filter((level) => level >= min && level <= max),
-    );
-  };
-
-  const clearMonsterFilters = () => {
-    setMonsterLevelSelected([]);
-    setMonsterTierSelected([]);
-    setMonsterExcludeLegendary(false);
-  };
-
-  const removeMonsterFilterPill = (pillId: "level" | "tier" | "noLegendary") => {
-    if (pillId === "level") {
-      setMonsterLevelSelected([]);
-      return;
-    }
-    if (pillId === "tier") {
-      setMonsterTierSelected([]);
-      return;
-    }
-    setMonsterExcludeLegendary(false);
-  };
-
   return (
     <div className="space-y-5">
       <section className="rounded border border-zinc-800 bg-zinc-950/40 p-3">
@@ -7160,12 +7580,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                   key={`recent-${row.id}`}
                                   type="button"
                                   onClick={() => {
-                                    hasDraftRef.current = false;
-                                    setSuccess(null);
-                                    setSelectedId(row.id);
-                                    markMonsterAsRecent(row.id);
-                                    setMonsterPickerOpen(false);
-                                    setMonsterPickerQuery("");
+                                    loadMonsterForEditing(row.id);
                                   }}
                                   className={`w-full text-left rounded border px-2 py-2 ${
                                     selectedId === row.id
@@ -7206,12 +7621,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                               key={row.id}
                               type="button"
                               onClick={() => {
-                                hasDraftRef.current = false;
-                                setSuccess(null);
-                                setSelectedId(row.id);
-                                markMonsterAsRecent(row.id);
-                                setMonsterPickerOpen(false);
-                                setMonsterPickerQuery("");
+                                loadMonsterForEditing(row.id);
                               }}
                               className={`w-full text-left rounded border px-2 py-2 ${
                                 selectedId === row.id

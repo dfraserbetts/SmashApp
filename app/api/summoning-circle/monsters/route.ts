@@ -1176,7 +1176,7 @@ export async function GET(req: Request) {
           orderBy: { tag: "asc" },
         },
       },
-      orderBy: [{ source: "asc" }, { name: "asc" }],
+      orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
     });
 
     return NextResponse.json({
