@@ -1358,7 +1358,7 @@ export function MonsterBlockCard({
   const powerCount = Array.isArray(monster.powers) ? monster.powers.length : 0;
   const powerGridClass = powerCount <= 1 ? "sc-print-power-grid sc-grid-1" : "sc-print-power-grid";
   const nonPrintAttrGapClass =
-    printLayout === "LEGENDARY_2P" ? "flex-1 gap-[14px] lg:gap-[75px]" : "flex-1 gap-1 lg:gap-[65px]";
+    printLayout === "LEGENDARY_2P" ? "gap-2 lg:gap-4" : "gap-2 lg:gap-4";
 
   return (
     <div
@@ -1418,8 +1418,7 @@ export function MonsterBlockCard({
 
         <div
           className={[
-            "grid grid-cols-1 lg:grid-cols-[2.2fr_1.6fr_2.2fr] gap-4 items-start min-w-0 sc-hero-row",
-            !inPrint ? "lg:min-h-[360px] xl:min-h-[420px]" : "",
+            "grid grid-cols-1 lg:grid-cols-[1.45fr_2fr_1.45fr] gap-3 items-start min-w-0 sc-hero-row",
           ].join(" ")}
         >
           {/* LEFT: Mental */}
@@ -1442,14 +1441,14 @@ export function MonsterBlockCard({
                 const die = monster[dieKey];
 
                 return (
-                  <div key={label} className="rounded border border-zinc-800 bg-zinc-950/20 px-0.5 py-0.5 sm:px-0.5 sm:py-0.5 lg:px-1 lg:py-1">
-                    <p className="font-semibold text-[10px] sm:text-[11px] lg:text-xs xl:text-sm leading-tight text-center">{label}</p>
-                    <div className="mt-1 grid grid-cols-[1fr_auto] items-start gap-1">
+                  <div key={label} className="sc-attr-card rounded border border-zinc-800 bg-zinc-950/20 px-1.5 py-1">
+                    <p className="font-semibold text-[10px] sm:text-[11px] lg:text-[11px] xl:text-xs leading-tight text-center">{label}</p>
+                    <div className="mt-0.5 grid grid-cols-[1fr_auto] items-start gap-1">
                       <div className="text-[8px] sm:text-[9px] text-zinc-400 leading-snug">
                         <p className="whitespace-nowrap">Mod: {formatModifierWithEffective(modifierValue)}</p>
                         <p className="whitespace-nowrap">Resist: {resistDice} Dice</p>
                       </div>
-                      <p className="text-[clamp(0.9rem,2.4vw,1.6rem)] font-semibold leading-none">
+                      <p className="text-[clamp(0.9rem,1.7vw,1.35rem)] font-semibold leading-none">
                         {formatAttributeDieDisplay(dieLabel(die))}
                       </p>
                     </div>
@@ -1466,8 +1465,8 @@ export function MonsterBlockCard({
                 data-sc="hero-image-wrap"
                 className={[
                   "w-full min-w-0 sc-image-wrap rounded border border-zinc-800 bg-zinc-900/40 overflow-hidden p-2 flex items-center justify-center",
-                  "mx-auto max-w-[240px] sm:max-w-[280px]",
-                  "lg:mx-auto lg:max-w-[320px] xl:max-w-[360px]",
+                  "mx-auto max-w-[280px] sm:max-w-[340px]",
+                  "lg:mx-auto lg:max-w-[420px] xl:max-w-[460px]",
                 ].join(" ")}
               >
                 <img
@@ -1484,8 +1483,8 @@ export function MonsterBlockCard({
                 data-sc="hero-image-wrap"
                 className={[
                   "w-full min-w-0 rounded border border-zinc-800 bg-zinc-950/30 p-3 text-center text-xs text-zinc-500 flex items-center justify-center overflow-hidden",
-                  "mx-auto max-w-[240px] sm:max-w-[280px]",
-                  "lg:mx-auto lg:max-w-[320px] xl:max-w-[360px]",
+                  "mx-auto max-w-[280px] sm:max-w-[340px]",
+                  "lg:mx-auto lg:max-w-[420px] xl:max-w-[460px]",
                 ].join(" ")}
               >
                 No image
@@ -1513,10 +1512,10 @@ export function MonsterBlockCard({
                 const die = monster[dieKey];
 
                 return (
-                  <div key={label} className="rounded border border-zinc-800 bg-zinc-950/20 px-0.5 py-0.5 sm:px-0.5 sm:py-0.5 lg:px-1 lg:py-1 text-right">
-                    <p className="font-semibold text-[10px] sm:text-[11px] lg:text-xs xl:text-sm leading-tight text-center">{label}</p>
-                    <div className="mt-1 grid grid-cols-[auto_1fr] items-start gap-1">
-                      <p className="text-[clamp(0.9rem,2.4vw,1.6rem)] font-semibold leading-none">
+                  <div key={label} className="sc-attr-card rounded border border-zinc-800 bg-zinc-950/20 px-1.5 py-1 text-right">
+                    <p className="font-semibold text-[10px] sm:text-[11px] lg:text-[11px] xl:text-xs leading-tight text-center">{label}</p>
+                    <div className="mt-0.5 grid grid-cols-[auto_1fr] items-start gap-1">
+                      <p className="text-[clamp(0.9rem,1.7vw,1.35rem)] font-semibold leading-none">
                         {formatAttributeDieDisplay(dieLabel(die))}
                       </p>
                       <div className="text-[8px] sm:text-[9px] text-zinc-400 leading-snug text-right">
@@ -1883,7 +1882,7 @@ export function MonsterBlockCard({
            =========================== */
         .sc-monster-card {
           --sc-image-aspect: 3 / 4;
-          --sc-image-max-h: 60mm;
+          --sc-image-max-h: 72mm;
           --sc-image-max-h-compact-1p: 60mm;
           --sc-image-max-h-legendary-p1: 70mm;
           --sc-image-max-h-legendary-p2: 60mm;
