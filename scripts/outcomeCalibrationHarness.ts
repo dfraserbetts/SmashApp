@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { inspect } from "node:util";
 
 import { calculatorConfig } from "../lib/calculators/calculatorConfig";
@@ -8,6 +10,15 @@ import {
   type RadarAxes,
   type WeaponAttackSource,
 } from "../lib/calculators/monsterOutcomeCalculator";
+import {
+  applyCombatTuningToCalculatorConfig,
+  normalizeCombatTuning,
+} from "../lib/config/combatTuningShared";
+import {
+  normalizeOutcomeNormalizationValues,
+  outcomeNormalizationValuesToCalculatorConfig,
+} from "../lib/config/outcomeNormalizationShared";
+import { normalizePowerTuningValues } from "../lib/config/powerTuningShared";
 import { resolvePowerCost } from "../lib/summoning/powerCostResolver";
 import type {
   EffectPacket,
@@ -96,6 +107,184 @@ type DisplayCurvePoint = {
   min: number;
   max: number;
 };
+
+type TuningSource = {
+  layer: "Power Tuning" | "Combat Tuning" | "Outcome Normalization";
+  kind: "snapshot" | "source defaults";
+  path?: string;
+  name?: string | null;
+};
+
+type LoadedTuning<TValues> = {
+  values: TValues;
+  source: TuningSource;
+};
+
+type RequestedTuningMode = "active" | "defaults";
+type CalibrationTuningMode = "active" | "defaults" | "mixed";
+type BalanceTruthStatus =
+  | "FULL ACTIVE SNAPSHOT"
+  | "MIXED ACTIVE/DEFAULT SNAPSHOT"
+  | "SOURCE DEFAULT SMOKE TEST ONLY";
+
+const TUNING_SNAPSHOT_PATHS = {
+  power: "scripts/fixtures/tuning/active-power-tuning.json",
+  combat: "scripts/fixtures/tuning/active-combat-tuning.json",
+  outcome: "scripts/fixtures/tuning/active-outcome-normalization.json",
+} as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readSnapshotPayload(relativePath: string): {
+  values: Record<string, unknown>;
+  name: string | null;
+} | null {
+  const absolutePath = join(process.cwd(), relativePath);
+  if (!existsSync(absolutePath)) return null;
+
+  const parsed = JSON.parse(readFileSync(absolutePath, "utf8").replace(/^\uFEFF/, "")) as unknown;
+  if (!isRecord(parsed)) {
+    throw new Error(`Tuning snapshot ${relativePath} must contain a JSON object.`);
+  }
+
+  const values = isRecord(parsed.values) ? parsed.values : parsed;
+  return {
+    values,
+    name: typeof parsed.name === "string" && parsed.name.trim().length > 0
+      ? parsed.name.trim()
+      : null,
+  };
+}
+
+function snapshotExists(relativePath: string): boolean {
+  return existsSync(join(process.cwd(), relativePath));
+}
+
+function parseRequestedTuningMode(argv: string[]): {
+  mode: RequestedTuningMode | null;
+  explicit: boolean;
+} {
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--tuning") {
+      const value = argv[index + 1];
+      if (value !== "active" && value !== "defaults") {
+        throw new Error("--tuning must be either active or defaults.");
+      }
+      return { mode: value, explicit: true };
+    }
+    if (arg.startsWith("--tuning=")) {
+      const value = arg.slice("--tuning=".length);
+      if (value !== "active" && value !== "defaults") {
+        throw new Error("--tuning must be either active or defaults.");
+      }
+      return { mode: value, explicit: true };
+    }
+  }
+
+  return { mode: null, explicit: false };
+}
+
+function loadOptionalTuningSnapshot<TValues>(params: {
+  layer: TuningSource["layer"];
+  relativePath: string;
+  useSnapshot: boolean;
+  normalize: (values?: Record<string, unknown> | null) => TValues;
+}): LoadedTuning<TValues> {
+  if (!params.useSnapshot) {
+    return {
+      values: params.normalize(null),
+      source: {
+        layer: params.layer,
+        kind: "source defaults",
+      },
+    };
+  }
+
+  const snapshot = readSnapshotPayload(params.relativePath);
+  if (!snapshot) {
+    return {
+      values: params.normalize(null),
+      source: {
+        layer: params.layer,
+        kind: "source defaults",
+      },
+    };
+  }
+
+  return {
+    values: params.normalize(snapshot.values),
+    source: {
+      layer: params.layer,
+      kind: "snapshot",
+      path: params.relativePath,
+      name: snapshot.name,
+    },
+  };
+}
+
+function formatTuningSource(source: TuningSource): string {
+  if (source.kind === "source defaults") return `${source.layer}: source defaults`;
+  return `${source.layer}: snapshot ${source.path}${source.name ? ` (${source.name})` : ""}`;
+}
+
+const requestedTuningMode = parseRequestedTuningMode(process.argv.slice(2));
+const anySnapshotExists = Object.values(TUNING_SNAPSHOT_PATHS).some(snapshotExists);
+const selectedTuningMode: RequestedTuningMode =
+  requestedTuningMode.mode ?? (anySnapshotExists ? "active" : "defaults");
+const useTuningSnapshots = selectedTuningMode === "active";
+
+const powerTuning = loadOptionalTuningSnapshot({
+  layer: "Power Tuning",
+  relativePath: TUNING_SNAPSHOT_PATHS.power,
+  useSnapshot: useTuningSnapshots,
+  normalize: normalizePowerTuningValues,
+});
+const combatTuning = loadOptionalTuningSnapshot({
+  layer: "Combat Tuning",
+  relativePath: TUNING_SNAPSHOT_PATHS.combat,
+  useSnapshot: useTuningSnapshots,
+  normalize: (values) => normalizeCombatTuning(values),
+});
+const outcomeNormalization = loadOptionalTuningSnapshot({
+  layer: "Outcome Normalization",
+  relativePath: TUNING_SNAPSHOT_PATHS.outcome,
+  useSnapshot: useTuningSnapshots,
+  normalize: normalizeOutcomeNormalizationValues,
+});
+
+const tuningSources = [powerTuning.source, combatTuning.source, outcomeNormalization.source] as const;
+const snapshotBackedLayerCount = tuningSources.filter((source) => source.kind === "snapshot").length;
+const calibrationTuningMode: CalibrationTuningMode =
+  selectedTuningMode === "defaults"
+    ? "defaults"
+    : snapshotBackedLayerCount === tuningSources.length
+      ? "active"
+      : "mixed";
+const balanceTruthStatus: BalanceTruthStatus =
+  calibrationTuningMode === "active"
+    ? "FULL ACTIVE SNAPSHOT"
+    : calibrationTuningMode === "mixed"
+      ? "MIXED ACTIVE/DEFAULT SNAPSHOT"
+      : "SOURCE DEFAULT SMOKE TEST ONLY";
+const tuningModeWarnings = [
+  selectedTuningMode === "defaults" && requestedTuningMode.explicit
+    ? "SOURCE DEFAULT MODE: fallback smoke test only, not live balance truth."
+    : null,
+  selectedTuningMode === "defaults" && !requestedTuningMode.explicit && !anySnapshotExists
+    ? "No active tuning snapshots found. Running source-default smoke mode. This is not live balance truth."
+    : null,
+  selectedTuningMode === "active" && snapshotBackedLayerCount < tuningSources.length
+    ? "MIXED TUNING MODE: not full active balance truth."
+    : null,
+].filter((warning): warning is string => Boolean(warning));
+
+const runtimeCalculatorConfig = applyCombatTuningToCalculatorConfig(
+  outcomeNormalizationValuesToCalculatorConfig(outcomeNormalization.values),
+  combatTuning.values,
+);
 
 function axisVector(): RadarAxes {
   return {
@@ -487,7 +676,7 @@ function createPower(config: {
 
 function withPower(fixture: Omit<CalibrationFixture, "powerContribution">): CalibrationFixture {
   if (!fixture.power) return fixture;
-  const breakdown = resolvePowerCost(fixture.power);
+  const breakdown = resolvePowerCost(fixture.power, { values: powerTuning.values });
   return {
     ...fixture,
     monster: {
@@ -559,10 +748,11 @@ function authoredSummary(fixture: CalibrationFixture): Record<string, unknown> {
 }
 
 function evaluateFixture(fixture: CalibrationFixture) {
-  const result = computeMonsterOutcomes(fixture.monster, calculatorConfig, {
+  const result = computeMonsterOutcomes(fixture.monster, runtimeCalculatorConfig, {
     equippedWeaponSources: fixture.equippedWeaponSources,
     defensiveProfileSources: fixture.defensiveProfileSources,
     defensiveProfileContext: fixture.defensiveProfileContext,
+    protectionTuning: combatTuning.values,
     equipmentModifierAxisBonuses: fixture.equipmentModifierAxisBonuses,
     naturalAttackGsAxisBonuses: fixture.naturalAttackGsAxisBonuses,
     naturalAttackRangeAxisBonuses: fixture.naturalAttackRangeAxisBonuses,
@@ -741,7 +931,7 @@ const fixtures: CalibrationFixture[] = [
     expected: {
       physicalThreat: "NONE",
       mentalThreat: "NONE",
-      physicalSurvivability: "LOW",
+      physicalSurvivability: "TRACE",
       mentalSurvivability: "NONE",
       presence: "NONE",
     },
@@ -754,7 +944,7 @@ const fixtures: CalibrationFixture[] = [
     expected: {
       physicalThreat: "LOW",
       mentalThreat: "NONE",
-      physicalSurvivability: "LOW",
+      physicalSurvivability: "TRACE",
       mentalSurvivability: "NONE",
       presence: "TRACE",
     },
@@ -769,7 +959,7 @@ const fixtures: CalibrationFixture[] = [
     expected: {
       physicalThreat: "LOW",
       mentalThreat: "NONE",
-      physicalSurvivability: "LOW",
+      physicalSurvivability: "TRACE",
       mentalSurvivability: "NONE",
       presence: "TRACE",
     },
@@ -794,7 +984,7 @@ const fixtures: CalibrationFixture[] = [
       totalMentalProtection: 0,
     },
     expected: {
-      physicalSurvivability: "MEDIUM",
+      physicalSurvivability: "LOW",
       mentalSurvivability: "NONE",
       mobility: "NONE",
       physicalThreat: "NONE",
@@ -835,9 +1025,37 @@ const fixtures: CalibrationFixture[] = [
       braveryDie: "D10",
     }),
     expected: {
-      physicalSurvivability: "LOW",
+      physicalSurvivability: "TRACE",
       mentalSurvivability: "HIGH",
       physicalThreat: "NONE",
+    },
+  },
+  {
+    id: "level-4-boss-balanced-naked-body",
+    title: "level 4 boss balanced naked body",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "Level 4 Boss Balanced Naked Body",
+      level: 4,
+      tier: "BOSS",
+      physicalResilienceCurrent: 75,
+      physicalResilienceMax: 75,
+      mentalPerseveranceCurrent: 75,
+      mentalPerseveranceMax: 75,
+      guardDie: "D8",
+      fortitudeDie: "D8",
+      synergyDie: "D8",
+      braveryDie: "D8",
+    }),
+    expected: {
+      physicalThreat: "NONE",
+      mentalThreat: "NONE",
+      physicalSurvivability: "LOW",
+      mentalSurvivability: "TRACE",
+      manipulation: "NONE",
+      synergy: "NONE",
+      mobility: "NONE",
+      presence: "NONE",
     },
   },
   withPower({
@@ -860,6 +1078,63 @@ const fixtures: CalibrationFixture[] = [
     },
   }),
   withPower({
+    id: "level-1-minion-self-run-1-1",
+    title: "level 1 minion self run 1/1",
+    monster: createBaseMonster({ name: "Level 1 Minion Self Run 1/1" }),
+    power: createPower({
+      name: "Short Run",
+      packet: createPacket("MOVEMENT", {
+        applyTo: "SELF",
+        diceCount: 1,
+        potency: 1,
+        detailsJson: { movementMode: "Run", rangeCategory: "SELF" },
+      }),
+    }),
+    expected: {
+      mobility: "LOW",
+      manipulation: "NONE",
+      synergy: "NONE",
+    },
+  }),
+  withPower({
+    id: "level-1-minion-self-run-2-2",
+    title: "level 1 minion self run 2/2",
+    monster: createBaseMonster({ name: "Level 1 Minion Self Run 2/2" }),
+    power: createPower({
+      name: "Battle Run",
+      packet: createPacket("MOVEMENT", {
+        applyTo: "SELF",
+        diceCount: 2,
+        potency: 2,
+        detailsJson: { movementMode: "Run", rangeCategory: "SELF" },
+      }),
+    }),
+    expected: {
+      mobility: "MEDIUM",
+      manipulation: "NONE",
+      synergy: "NONE",
+    },
+  }),
+  withPower({
+    id: "level-1-minion-self-run-3-2",
+    title: "level 1 minion self run 3/2",
+    monster: createBaseMonster({ name: "Level 1 Minion Self Run 3/2" }),
+    power: createPower({
+      name: "Surging Run",
+      packet: createPacket("MOVEMENT", {
+        applyTo: "SELF",
+        diceCount: 3,
+        potency: 2,
+        detailsJson: { movementMode: "Run", rangeCategory: "SELF" },
+      }),
+    }),
+    expected: {
+      mobility: "HIGH",
+      manipulation: "NONE",
+      synergy: "NONE",
+    },
+  }),
+  withPower({
     id: "forced-movement-controller",
     title: "forced movement controller",
     monster: createBaseMonster({ name: "Forced Movement Controller" }),
@@ -876,8 +1151,8 @@ const fixtures: CalibrationFixture[] = [
       rangedTargets: 1,
     }),
     expected: {
-      manipulation: "MEDIUM",
-      mobility: "LOW",
+      manipulation: "LOW",
+      mobility: "TRACE",
       presence: "NONE",
     },
   }),
@@ -895,7 +1170,7 @@ const fixtures: CalibrationFixture[] = [
       }),
     }),
     expected: {
-      physicalSurvivability: "MEDIUM",
+      physicalSurvivability: "LOW",
       synergy: "NONE",
     },
   }),
@@ -915,8 +1190,8 @@ const fixtures: CalibrationFixture[] = [
       rangedTargets: 1,
     }),
     expected: {
-      physicalSurvivability: "MEDIUM",
-      synergy: "LOW",
+      physicalSurvivability: "LOW",
+      synergy: "TRACE",
     },
   }),
   withPower({
@@ -933,7 +1208,7 @@ const fixtures: CalibrationFixture[] = [
       }),
     }),
     expected: {
-      physicalSurvivability: "HIGH",
+      physicalSurvivability: "LOW",
       synergy: "NONE",
     },
   }),
@@ -953,8 +1228,8 @@ const fixtures: CalibrationFixture[] = [
       rangedTargets: 1,
     }),
     expected: {
-      synergy: "MEDIUM",
-      physicalSurvivability: "MEDIUM",
+      synergy: "LOW",
+      physicalSurvivability: "LOW",
     },
   }),
   withPower({
@@ -974,9 +1249,9 @@ const fixtures: CalibrationFixture[] = [
       rangedTargets: 1,
     }),
     expected: {
-      manipulation: "MEDIUM",
-      physicalThreat: "TRACE",
-      presence: "TRACE",
+      manipulation: "TRACE",
+      physicalThreat: "NONE",
+      presence: "NONE",
     },
   }),
   withPower({
@@ -998,7 +1273,7 @@ const fixtures: CalibrationFixture[] = [
       rangedTargets: 1,
     }),
     expected: {
-      manipulation: "HIGH",
+      manipulation: "MEDIUM",
       presence: "TRACE",
     },
   }),
@@ -1036,7 +1311,7 @@ const fixtures: CalibrationFixture[] = [
     expected: {
       physicalThreat: "LOW",
       mentalThreat: "NONE",
-      physicalSurvivability: "MEDIUM",
+      physicalSurvivability: "LOW",
       mentalSurvivability: "NONE",
       mobility: "NONE",
       manipulation: "NONE",
@@ -1076,9 +1351,9 @@ const fixtures: CalibrationFixture[] = [
     expected: {
       physicalThreat: "NONE",
       mentalThreat: "NONE",
-      physicalSurvivability: "MEDIUM",
+      physicalSurvivability: "LOW",
       mentalSurvivability: "NONE",
-      manipulation: "HIGH",
+      manipulation: "MEDIUM",
       presence: "TRACE",
       mobility: "NONE",
       synergy: "NONE",
@@ -1137,10 +1412,10 @@ const fixtures: CalibrationFixture[] = [
       tier: "ELITE",
       physicalResilienceCurrent: 50,
       physicalResilienceMax: 50,
-      mentalPerseveranceCurrent: 64,
-      mentalPerseveranceMax: 64,
-      mentalProtection: 3,
-      naturalMentalProtection: 3,
+      mentalPerseveranceCurrent: 80,
+      mentalPerseveranceMax: 80,
+      mentalProtection: 5,
+      naturalMentalProtection: 5,
       attackDie: "D10",
       intellectDie: "D10",
       braveryDie: "D10",
@@ -1161,7 +1436,7 @@ const fixtures: CalibrationFixture[] = [
     expected: {
       physicalThreat: "NONE",
       mentalThreat: "MEDIUM",
-      physicalSurvivability: "MEDIUM",
+      physicalSurvivability: "LOW",
       mentalSurvivability: "MEDIUM",
       manipulation: "NONE",
       mobility: "NONE",
@@ -1324,11 +1599,39 @@ const fixtures: CalibrationFixture[] = [
     expected: {
       mobility: "HIGH",
       physicalThreat: "MEDIUM",
-      physicalSurvivability: "MEDIUM",
+      physicalSurvivability: "LOW",
       mentalSurvivability: "NONE",
       manipulation: "NONE",
       synergy: "NONE",
       presence: "TRACE",
+    },
+  }),
+  withPower({
+    id: "level-5-elite-self-run-2-2",
+    title: "level 5 elite self run 2/2",
+    group: expandedFixtureGroup,
+    monster: createBaseMonster({
+      name: "Level 5 Elite Self Run 2/2",
+      level: 5,
+      tier: "ELITE",
+      physicalResilienceCurrent: 30,
+      physicalResilienceMax: 30,
+      mentalPerseveranceCurrent: 24,
+      mentalPerseveranceMax: 24,
+    }),
+    power: createPower({
+      name: "Elite Battle Run",
+      packet: createPacket("MOVEMENT", {
+        applyTo: "SELF",
+        diceCount: 2,
+        potency: 2,
+        detailsJson: { movementMode: "Run", rangeCategory: "SELF" },
+      }),
+    }),
+    expected: {
+      mobility: "LOW",
+      manipulation: "NONE",
+      synergy: "NONE",
     },
   }),
   withPower({
@@ -1352,20 +1655,20 @@ const fixtures: CalibrationFixture[] = [
       name: "Battle Orders",
       packet: createPacket("AUGMENT", {
         applyTo: "ALLIES",
-        diceCount: 3,
-        potency: 2,
+        diceCount: 4,
+        potency: 3,
         effectDurationType: "TURNS",
         effectDurationTurns: 2,
         detailsJson: { statTarget: "Attack", rangeCategory: "RANGED" },
       }),
       rangeCategories: ["RANGED"],
-      rangedTargets: 2,
+      rangedTargets: 3,
     }),
     expected: {
       synergy: "HIGH",
       physicalThreat: "NONE",
       mentalThreat: "NONE",
-      physicalSurvivability: "LOW",
+      physicalSurvivability: "TRACE",
       mentalSurvivability: "NONE",
       presence: "LOW",
       manipulation: "NONE",
@@ -1396,7 +1699,7 @@ const fixtures: CalibrationFixture[] = [
     traitAxisBonuses: { presence: 3 },
     expected: {
       physicalSurvivability: "HIGH",
-      mentalSurvivability: "MEDIUM",
+      mentalSurvivability: "LOW",
       physicalThreat: "NONE",
       mentalThreat: "NONE",
       mobility: "NONE",
@@ -1456,10 +1759,10 @@ const fixtures: CalibrationFixture[] = [
     expected: {
       physicalThreat: "HIGH",
       mentalThreat: "NONE",
-      physicalSurvivability: "LOW",
+      physicalSurvivability: "TRACE",
       mentalSurvivability: "NONE",
       mobility: "NONE",
-      presence: "TRACE",
+      presence: "LOW",
       manipulation: "NONE",
       synergy: "NONE",
     },
@@ -1474,6 +1777,15 @@ console.log(
     .map(([name, range]) => `${name}=${range.min === range.max ? range.min : `${range.min}-${range.max}`}`)
     .join(", ")}`,
 );
+console.log(`Calibration tuning mode: ${calibrationTuningMode}`);
+console.log(`Balance truth status: ${balanceTruthStatus}`);
+for (const warning of tuningModeWarnings) {
+  console.log(`WARNING: ${warning}`);
+}
+console.log("Tuning source:");
+for (const source of tuningSources) {
+  console.log(`- ${formatTuningSource(source)}`);
+}
 console.log(`Fixtures: ${reports.length}`);
 
 for (const report of reports) {
