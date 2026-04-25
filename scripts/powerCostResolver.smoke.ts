@@ -291,28 +291,28 @@ const weakestMovementMagnitudeOnlyMonsterDebug = weakestMovementMagnitudeOnlyMon
 
 assert.equal(weakestMovementAfterPacket.packetIdentityCost, 0.8);
 assert.equal(weakestMovementUnreducedMagnitudeBreakdown.packetCosts[0].packetMagnitudeCost, 4);
-assert.equal(weakestMovementAfterPacket.packetMagnitudeCost, 0.8);
+assert.equal(weakestMovementAfterPacket.packetMagnitudeCost, 1.2);
 assert.equal(weakestMovementAfterPacket.packetRecipientCost, 0.5);
 assert.equal(weakestMovementAfterPacket.packetSpecificCost, 1);
-assert.equal(weakestMovementMagnitudeOnlyPacket.axisVector.mobility, 3.1);
+assert.equal(weakestMovementMagnitudeOnlyPacket.axisVector.mobility, 3.5);
 assert.equal(weakestMovementAfterPacket.axisEmissionMultiplier, 0.5);
-assert.equal(weakestMovementAfterPacket.axisEmissionValue, 1.55);
+assert.equal(weakestMovementAfterPacket.axisEmissionValue, 1.75);
 assert.equal(weakestMovementAfterPacket.axisEmissionTuningKey, "packet.axisEmission.intention.movement");
-assert.equal(weakestMovementAfterPacket.axisVector.mobility, 1.55);
-assert.equal(weakestMovementAfterPacket.packetTotalAfterContingency, 3.1);
+assert.equal(weakestMovementAfterPacket.axisVector.mobility, 1.75);
+assert.equal(weakestMovementAfterPacket.packetTotalAfterContingency, 3.5);
 assert.equal(
   weakestMovementAfterPacket.packetTotalAfterContingency,
   weakestMovementMagnitudeOnlyPacket.packetTotalAfterContingency,
 );
-assert.equal(weakestMovementAfterBreakdown.basePowerValue, 3.1);
+assert.equal(weakestMovementAfterBreakdown.basePowerValue, 3.5);
 assert.equal(
   weakestMovementAfterBreakdown.basePowerValue,
   weakestMovementMagnitudeOnlyBreakdown.basePowerValue,
 );
-assert.equal(weakestMovementAfterMonsterDebug.finalPreNormalizationAxes?.mobility ?? 0, 1.55);
+assert.equal(weakestMovementAfterMonsterDebug.finalPreNormalizationAxes?.mobility ?? 0, 1.75);
 assert.equal(
   weakestMovementMagnitudeOnlyMonsterDebug.finalPreNormalizationAxes?.mobility ?? 0,
-  3.1,
+  3.5,
 );
 assert.equal(
   (weakestMovementAfterPacket.debug as { hostility?: string }).hostility,
@@ -324,7 +324,7 @@ assert.equal(
       magnitude?: { movementTypeMultiplier?: number; movementTypeMultiplierKey?: string | null };
     }
   ).magnitude?.movementTypeMultiplier,
-  0.2,
+  0.3,
 );
 assert.equal(
   (
