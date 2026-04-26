@@ -26,14 +26,23 @@ function log(message) {
 
 function runCommand(command, args, label) {
   return new Promise((resolve, reject) => {
-    const process = spawn(command, args, {
+    const commandArgs =
+      process.platform === 'win32' && command.endsWith('.cmd')
+        ? ['/d', '/s', '/c', command, ...args]
+        : args;
+    const commandBin =
+      process.platform === 'win32' && command.endsWith('.cmd')
+        ? process.env.ComSpec || 'cmd.exe'
+        : command;
+
+    const childProcess = spawn(commandBin, commandArgs, {
       cwd: rootDir,
       stdio: 'inherit',
       env: globalThis.process.env,
     });
 
-    process.on('error', reject);
-    process.on('exit', (code, signal) => {
+    childProcess.on('error', reject);
+    childProcess.on('exit', (code, signal) => {
       if (signal) {
         reject(new Error(`${label} exited from signal ${signal}`));
         return;
