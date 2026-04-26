@@ -25,7 +25,7 @@ Phase 9 is in late-stage builder-surface validation and is close enough to close
 
 Phase 11 is well advanced through preview formatting, descriptor cleanup, and builder UX cleanup and is close enough to close for the current builder surface.
 
-Phase 6 is now in active implementation rather than pre-implementation planning.
+Phase 6 is now in active implementation and has reached a major calibration milestone.
 
 The architecture is no longer the main uncertainty.
 
@@ -79,6 +79,14 @@ The following points should now be treated as stable design truth:
 - canonical attribute naming is Guard and Synergy, not Defence and Support
 - Bravery is the mental defence dice stat
 - Dodge now succeeds on match or exceed, not exceed-only
+- Dodge is physical-only in monster survivability baseline work
+- Resist dice do not create offensive radar axes by themselves
+- natural attacks and equipped weapons with the same authored at-will attack profile must produce the same non-power threat contribution
+- natural protection and equipped protection with the same authored defensive profile must produce the same non-power survivability contribution
+- mental protection has its own calculator-economy seam and must not be forced back into the exact same direct-budget curve as physical protection
+- source defaults are smoke-test fallback values only
+- active tuning snapshots are the current live balance truth for Outcome Calculator calibration
+
 
 What Phase 6 Now Includes
 
@@ -90,17 +98,20 @@ The current implementation now includes:
 - a Power Tuning system with versioned active / draft / archived sets
 - an Outcome Normalization system with versioned active / draft / archived sets
 - a Combat Tuning / Monster Baseline Tuning system with versioned active / draft / archived sets
-- a shared canary catalog and curated scenario catalog
-- a Canary Harness that compares:
-  - Active Power Tuning + Active Outcome Normalization + Active Combat Tuning
-  - versus selected candidate tuning sets
-- a shared stripped Summoning Circle baseline so live editor and harness comparisons now align
+- a Canary Harness for comparing active and candidate tuning sets
+- an active Outcome Calibration Harness for behaviour regression testing
+- active tuning snapshot export workflow
+- snapshot-backed harness mode for live balance truth
+- source-default harness mode for fallback smoke testing only
+- a shared stripped Summoning Circle baseline so live editor and harness comparisons align
 - a cleaned monster radar pipeline where:
   - canonical power contribution is derived first
+  - per-power availability/cooldown adjustment is applied for monster outcome contribution
   - non-power monster contribution is added second
   - outcome normalization is applied last
+- a real-monster manual validation checklist for field-testing authored campaign monsters
 
-This means the tuning model now has three distinct layers:
+The tuning model now has three distinct layers:
 
 Power Tuning
 - canonical power truth
@@ -111,44 +122,116 @@ Combat Tuning / Monster Baseline Tuning
 Outcome Normalization
 - final radar interpretation and display
 
-The current non-power baseline work also now includes:
+
+Current Calibration Reality
+
+The active calibration workflow now exists.
+
+The active workflow is:
+
+1. export active tuning snapshots
+2. run the Outcome Calibration Harness in active mode
+3. treat active-mode results as live balance truth
+4. treat source-default mode as smoke-test fallback only
+
+The current command sequence is:
+
+npm run calibration:export-active-tuning
+
+npx --yes tsx scripts/outcomeCalibrationHarness.ts --tuning active
+
+The active harness is currently calibrated against active snapshots.
+
+The current target state is:
+
+29 fixtures
+29 pass
+0 warn
+0 fail
+0 mismatches
+
+This is the current regression shield for the live Outcome Calculator.
+
+Defaults mode is not balance truth.
+
+Defaults mode may warn and still be acceptable as long as it runs successfully as a smoke test.
+
+The source-default harness exists to catch code breakage and fallback configuration errors, not to decide live balance.
+
+
+Current Non-Power Baseline Truths
+
+The current non-power baseline work includes:
 
 - normalized natural vs equipped at-will attack parity through one shared calculator-owned profile path
 - normalized natural vs equipped protection parity through one shared calculator-owned defensive profile path
 - physical-only dodge routing in monster survivability baseline work
-- a separate mental protection contribution seam in Combat Tuning so MPV can be tuned independently from PPV in the monster calculator
-- updated combat-tuning admin copy to remove stale shared-dodge language
+- match-or-exceed Dodge resolution
+- separate MPV / mental protection contribution tuning
+- resist-derived offensive contribution suppression
+- health-pool baseline tuning through Combat Tuning
+- pool parity treated as baseline rather than automatic survivability reward
+- PPV and MPV stress fixtures for defensive baseline calibration
+
+
+Current Active Snapshot Truth
+
+Active tuning snapshots are now part of the calibration workflow.
+
+The snapshot files are:
+
+scripts/fixtures/tuning/active-power-tuning.json
+
+scripts/fixtures/tuning/active-combat-tuning.json
+
+scripts/fixtures/tuning/active-outcome-normalization.json
+
+These snapshots are refreshed from the active DB tuning sets by:
+
+npm run calibration:export-active-tuning
+
+When active tuning changes in the Admin UI, snapshots must be exported again before the active harness can be trusted.
+
+Future chats must not confuse source defaults with live tuning.
+
 
 What Remains Actively In Progress
 
-Phase 6 is not finished.
+Phase 6 is still not finished.
 
 The following parts remain active work:
 
-- balancing the canonical power-cost numbers against the current builder surface
-- balancing non-power monster baseline contribution against stripped and real monsters
-- balancing outcome-normalization curves and tier multipliers against the combined contributor output
+- validating real authored monsters against the active Outcome Calculator
+- turning genuine repeated real-monster mismatches into new calibration fixtures
+- continuing focused Power Tuning only when a power-led raw mismatch survives fixture review
+- continuing focused Combat Tuning only when a non-power raw mismatch survives fixture review
+- continuing focused Outcome Normalization only when raw values look right but radar display is wrong
 - deciding which current costs should remain cost-only and which should create honest axis expression
 - defining and later implementing the monster-side realization modifier layer that translates contributor quality through monster attributes without contaminating canonical power truth
-- settling the correct low-end and mid-band dodge valuation now that dodge is physical-only and succeeds on match or exceed
-- tuning the mental protection lane so it feels like a viable premium alternative without inventing mental dodge
-- deciding the right Forge-side and Summoning Circle-side economic relationship between PPV and MPV
+- continuing low-end and mid-band Dodge valuation review now that Dodge is physical-only and succeeds on match or exceed
+- continuing the PPV / MPV economy relationship review in Forge and monster baseline contribution
+- expanding the active harness with real monsters only when the real-monster validation workflow exposes genuine gaps
+
 
 Immediate Practical Next-Step Direction
 
 The practical next work should stay focused on:
 
-- using the Canary Harness as the main comparative tuning workspace
+- using the active Outcome Calibration Harness as the main live balance regression shield
+- using the Real Monster Outcome Validation Checklist before further tuning
+- building 6–10 real monsters manually in Summoning Circle
+- writing expected radar bands before looking at the calculator
+- comparing actual radar to intended archetype shape
+- classifying mismatches by owner layer before changing anything
+- adding only real, repeated, or clearly diagnostic failures as new harness fixtures
 - preserving the three-layer split between:
   - Power Tuning
   - Combat Tuning
   - Outcome Normalization
-- using attack and defence anchor cases before broader family-wide tuning
-- tuning physical dodge and PPV tradeoffs so the physical survivability lane has a believable breakpoint shape
-- tuning mental protection contribution so the mental lane can stand beside the physical lane while preserving asymmetry
 - resolving only genuinely blocking remaining builder / descriptor edge cases
-- beginning the monster-side realization modifier layer only after the current tuning layers are behaving honestly
+- beginning the monster-side realization modifier layer only after the current tuning layers remain stable through real-monster validation
 - keeping the source docs aligned with current code reality
+
 
 Near-Term Priority Questions
 
@@ -156,13 +239,17 @@ The next real questions are no longer broad architecture questions.
 
 They are:
 
+- whether real authored monsters consistently match their intended archetype shape
+- whether existing monsters authored before the calibrated Pressure / Presence model need re-authoring rather than tuning
+- whether any remaining manual mismatch belongs to monster authoring rather than the calculator
 - which powers are still over- or under-valued in canonical Power Tuning
 - whether stripped monsters are too weak or too strong before powers are added
 - whether radar curves are saturating too early or too late once power plus non-power contribution are combined
 - which current costs should remain cost-only versus later translated through cadence, realization, or structural pressure
 - how the future monster-side realization modifier layer should gate powers, weapons, armor, and other typed contributors through the relevant monster attributes
-- what the correct low-end and mid-band physical dodge valuation should be under match-or-exceed rules
+- what the correct long-term low-end and mid-band physical dodge valuation should be under match-or-exceed rules
 - how much cheaper or more efficient MPV should be than PPV in Forge and in monster baseline contribution without breaking the table-facing defence experience
+
 
 Important Anti-Drift Rule
 
@@ -173,5 +260,12 @@ If a problem belongs to:
 - the power itself -> fix in Power Tuning
 - the stripped monster body / non-power baseline -> fix in Combat Tuning
 - the radar display curve -> fix in Outcome Normalization
+- authored monster composition -> fix monster authoring
+- a stale fixture expectation -> fix the fixture expectation
+- a wrong axis route -> fix code / routing law
 
 Only escalate to code changes when the issue is routing law, realization law, or a genuinely missing implementation seam rather than a numeric tuning problem.
+
+Do not tune from one real monster unless it exposes a clear routing/code bug.
+
+If a mismatch seems real, add it as a future calibration fixture first, then tune against the fixture set.

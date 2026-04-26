@@ -34,6 +34,7 @@ That means the cost model must reflect:
 - cross-packet leverage
 
 The cost model must support both:
+
 - future Character Builder scalar spend
 - Summoning Circle monster-side derived axis contribution
 
@@ -45,38 +46,67 @@ What Phase 6 Already Has
 The current implementation already includes:
 
 1. Canonical power-cost resolution
+
 - a live Phase 6 power-cost resolver exists
 - packet-level and total power breakdowns are inspectable
 - canonical power contribution now feeds the monster-side calculator through a cleaned integration path
 
 2. Versioned Power Tuning
+
 - active / draft / archived sets
 - grouped admin UI
 - friendly labels / descriptions
 - searchable current keys
 - comparison and reset workflow
+- active tuning snapshots for calibration harness use
 
 3. Versioned Outcome Normalization
+
 - active / draft / archived sets
 - grouped admin UI
-- current radar-curve / display tuning exposed separately from power truth
+- radar-curve / display tuning exposed separately from power truth
+- active tuning snapshots for calibration harness use
 
 4. Versioned Combat Tuning / Monster Baseline Tuning
+
 - active / draft / archived sets
 - grouped admin UI
 - non-power monster baseline contributors exposed separately from power truth and radar normalization
+- active tuning snapshots for calibration harness use
 
 5. Canary Harness
+
 - shared approved canary catalog
 - shared approved scenario catalog
 - baseline-versus-candidate comparison for:
   - Power Tuning
   - Outcome Normalization
   - Combat Tuning
-- shared stripped Summoning Circle baseline so live editor and harness now align
+- shared stripped Summoning Circle baseline so live editor and harness align
 
-6. Cleaned radar pipeline
+6. Outcome Calibration Harness
+
+- active/default tuning modes
+- active snapshot mode for live balance truth
+- source-default mode for smoke testing only
+- expanded fixture coverage across level 1 foundation and higher-level/tier archetypes
+- current active calibration target of 29 fixtures, 29 pass, 0 warn, 0 fail
+- real-monster validation workflow to identify new fixture candidates
+
+7. Active Tuning Snapshot Export
+
+- active tuning snapshots can be exported from the active DB sets
+- snapshots live under:
+  - scripts/fixtures/tuning/active-power-tuning.json
+  - scripts/fixtures/tuning/active-combat-tuning.json
+  - scripts/fixtures/tuning/active-outcome-normalization.json
+- snapshot export command:
+  - npm run calibration:export-active-tuning
+
+8. Cleaned radar pipeline
+
 - canonical power contribution is derived first
+- per-power availability / cooldown adjustment is applied for monster outcome contribution
 - non-power monster contribution is added second
 - outcome normalization is applied last
 - legacy independent power heuristics have been removed or bypassed
@@ -88,27 +118,34 @@ Even though major tooling now exists, Phase 6 must still preserve the following 
 
 - formula shape lives in code
 - tunable numeric values live in admin-editable config
+- active DB tuning and exported active snapshots are live balance truth
+- source defaults are smoke-test fallback only
 - one canonical underlying power-cost truth
 - no duplicate independent balance systems
 - cooldown is derived after BasePowerValue
 - Cooldown Reduction is not part of the base formula and remains future work
 - simple powers must stay simple
 - not every cost node automatically becomes a visible radar lane
+- fixture expectations must be checked against authored monster construction, not just intended archetype labels
 
 
 Canonical Output Split
 
 Character Builder side:
+
 - shows a total Power Point pool
 - consumes a scalar spend value per power
 - supports players allocating that pool across few or many powers
 
 Summoning Circle side:
+
 - consumes a derived axis contribution vector from powers
+- applies monster-side effective availability before final outcome
 - combines that vector with non-power monster contribution
 - then applies outcome normalization for radar display
 
 This means:
+
 - one shared costing truth
 - multiple downstream consumption layers
 - no duplicate independent tuning system
@@ -116,7 +153,7 @@ This means:
 
 Current Phase 6 Layer Split
 
-The current implementation now has three distinct tuning layers.
+The current implementation has three distinct tuning layers.
 
 Power Tuning
 - canonical power truth
@@ -130,13 +167,14 @@ Outcome Normalization
 Future chats must not collapse these into one blurred tuning page or one blurred mental model.
 
 
-Cooldown Rule For Phase 6
+Cooldown and Availability Rule For Phase 6
 
-Cooldown is not a cost input.
+Cooldown is not a base cost input.
 
-Cooldown is a derived output from the base power value.
+Cooldown is a derived output from BasePowerValue, with authored cooldown fields currently used by Summoning Circle as the live implementation truth.
 
-The intended sequence remains:
+The intended long-term sequence remains:
+
 - calculate BasePowerValue
 - derive cooldown band from BasePowerValue
 - optionally allow additional spend to reduce that cooldown where legal
@@ -144,6 +182,14 @@ The intended sequence remains:
 Cooldown Reduction is a separate paid modifier.
 
 Cooldown Reduction is not part of the base authored power value and should be layered on top as additional spend later.
+
+For current Summoning Circle monster outcome calculation:
+
+- canonical per-use power contribution is preserved
+- effective monster contribution applies a first-pass availability factor based on current cooldown data
+- debug exposes canonicalPowerAxisVector and effectivePowerAxisVector separately
+- Power Cost Preview should continue to show canonical power truth
+- final monster radar should use effective contribution
 
 
 Canonical Cost Formula Shape
@@ -168,6 +214,7 @@ SharedContextFormula
 SharedContextFormula prices the shared cast context that applies across the whole power.
 
 It contains:
+
 - Range category
 - target count choices
 - ranged distance
@@ -186,6 +233,7 @@ StructuralFormula
 StructuralFormula prices structural burden created by the chassis and its presence pattern.
 
 It contains:
+
 - chassis base cost
 - structural presence / lifespan burden
 - trigger / release structure burden where relevant
@@ -201,6 +249,7 @@ AccessFormula
 AccessFormula prices use access and action-commitment burden.
 
 It contains:
+
 - Counter access burden
 - Commitment Modifier burden
 - charge-turn burden where relevant
@@ -215,6 +264,7 @@ CombinedEffectPacketFormula
 CombinedEffectPacketFormula is the heart of the power cost model.
 
 It contains:
+
 - PrimaryPacketFormula
 - SumOfSecondaryPacketFormulae
 - PacketCountComplexityFormula
@@ -226,6 +276,7 @@ PrimaryPacketFormula
 The Primary Packet is the main defended entry point and should be priced as the full leading effect.
 
 PrimaryPacketFormula contains:
+
 - EffectFamilyBaseFormula
 - MagnitudeFormula
 - PacketTimingFormula
@@ -252,6 +303,7 @@ PacketCountComplexityFormula
 This formula prices the burden of having multiple packets regardless of what those packets do.
 
 It exists because:
+
 - more packets increase exploit surface
 - more packets increase complexity
 - more packets increase leverage density
@@ -266,6 +318,7 @@ CrossPacketSynergyFormula
 This formula prices additional leverage that emerges from packet combinations rather than from isolated packet values.
 
 Examples include:
+
 - hostile-primary into beneficial rider
 - delayed-payload leverage
 - recurring leverage created by a real carrier
@@ -279,7 +332,7 @@ Axis emission from this node is conditional and must follow actual battlefield s
 
 Cost-Only / Modifier-Only / Axis-Carrying Split
 
-The Phase 6 model now explicitly distinguishes three types of cost node:
+The Phase 6 model explicitly distinguishes three types of cost node:
 
 Cost-Only
 - adds scalar cost
@@ -297,10 +350,29 @@ Axis-Carrying
 This matters because not every expensive thing should automatically become a visible radar spike.
 
 Examples:
+
 - Packet Set Complexity is cost-only
 - Shared Cast Context is modifier-only
 - Structural Presence may emit modest Pressure / Presence
 - Cross-Packet leverage may emit axis only where the combination truly changes battlefield shape
+
+
+Canonical Scalar Versus Axis Emission
+
+The current resolver preserves scalar cost truth separately from axis expression.
+
+BasePowerValue remains cost / cooldown truth.
+
+Axis emission is tunable separately so an expensive power component does not automatically explode the monster radar.
+
+Effect packets now expose debug data such as:
+
+- scalarPacketValue
+- axisEmissionMultiplier
+- axisEmissionValue
+- axisEmissionTuningKey
+
+This split is important and must be preserved.
 
 
 Current Translation Order
@@ -309,16 +381,86 @@ The current intended order is:
 
 1. derive canonical cost breakdown
 2. derive canonical per-use power axis contribution
-3. add non-power monster contribution
-4. apply outcome normalization
-5. display the final monster radar
+3. apply monster-side power availability / cooldown translation
+4. add non-power monster contribution
+5. apply outcome normalization
+6. display the final monster radar
 
 Later work may still add:
+
 - cadence / availability translation improvements
 - monster-side realization modifier layer
 - other missing downstream translation seams
 
 But those belong after canonical power truth, not inside it.
+
+
+Non-Power Monster Baseline Current Truth
+
+The current non-power baseline now includes:
+
+- one shared at-will profile path for natural attacks and equipped weapons
+- one shared defensive profile path for natural protection and equipped protection
+- physical-only Dodge contribution
+- match-or-exceed Dodge logic
+- separate MPV / mental protection tuning seam
+- health-pool baseline contribution through Combat Tuning
+- PPV / MPV defensive stress fixtures
+- suppressed offensive resist contribution
+
+Resist dice are defensive capability.
+
+They do not create Physical Threat, Mental Threat, Manipulation, Synergy, or Presence by themselves.
+
+If a monster creates those axes, it must do so through attacks, powers, traits, equipment, authored pressure, or other honest contributor paths.
+
+
+Active Calibration Harness
+
+The active Outcome Calibration Harness is now the main Phase 6 regression shield.
+
+The live calibration sequence is:
+
+npm run calibration:export-active-tuning
+
+npx --yes tsx scripts/outcomeCalibrationHarness.ts --tuning active
+
+Active mode reads exported active tuning snapshots.
+
+Defaults mode is smoke-test fallback only.
+
+Do not judge live balance from defaults mode.
+
+The active harness currently targets:
+
+29 fixtures
+29 pass
+0 warn
+0 fail
+0 mismatches
+
+Future tuning should preserve or intentionally update this target.
+
+When active tuning changes, export snapshots again before trusting harness output.
+
+
+Real-Monster Validation Workflow
+
+The next validation layer is authored real monster testing.
+
+Before using a monster as evidence:
+
+- export active snapshots
+- run active harness
+- confirm FULL ACTIVE SNAPSHOT
+- write expected radar bands before recalculating the monster
+- inspect actual radar bands
+- inspect raw axis values and main contributors
+- classify mismatch owner before changing anything
+
+Do not tune from one real monster unless it exposes a clear routing/code bug.
+
+If a mismatch seems real, add it as a future calibration fixture first, then tune against the fixture set.
 
 
 Current Open Phase 6 Questions
@@ -329,15 +471,17 @@ The following are still real open questions inside Phase 6:
 - how the later monster-side realization modifier layer should gate typed contributor output through monster attributes
 - which current downstream translation steps still under-report or over-report real battlefield strength
 - whether additional debug or comparison surfaces are still needed for faster tuning iteration
-
-These are now implementation-facing tuning questions, not permission to reopen the whole formula architecture.
+- whether active real-monster validation reveals archetypes not covered by the current 29 fixtures
+- whether source-default smoke fixtures should be reduced or kept broad despite defaults not being live balance truth
 
 
 Immediate Practical Phase 6 Direction
 
 The immediate Phase 6 work should stay focused on:
 
-- tuning specific powers against the aligned live/harness baseline
+- validating real authored monsters against the active Outcome Calculator
+- turning real mismatches into new fixtures only when they reveal genuine gaps
+- tuning specific powers against the active live/harness baseline
 - tuning non-power monster baseline contribution where stripped monsters are too weak or too strong
 - tuning outcome normalization where radar display saturates too early or too late
 - preserving clean separation between:

@@ -32,9 +32,10 @@ Phase 9 is in late-stage builder-surface validation and is close enough to close
 
 Phase 11 is well advanced through preview formatting and builder UX cleanup and is close enough to close for the current builder surface.
 
-Phase 6 costing is no longer hypothetical. It is in active implementation.
+Phase 6 costing is no longer hypothetical. It is active implementation and has reached a major calibration milestone.
 
 The current Phase 6 toolchain already exists:
+
 - canonical power-cost resolver
 - versioned Power Tuning
 - versioned Outcome Normalization
@@ -42,9 +43,13 @@ The current Phase 6 toolchain already exists:
 - shared canary catalog
 - shared scenario catalog
 - Canary Harness
+- Outcome Calibration Harness
+- active tuning snapshot export workflow
+- active/default tuning modes for the calibration harness
 - aligned live/harness stripped baseline
+- active snapshot calibration currently passing 29 fixtures with 0 warnings
 
-The next work is now real tuning, remaining translation gaps, and later the monster-side realization layer.
+The next work is now real-monster validation, fixture expansion from real failures, remaining translation gaps, and later the monster-side realization layer.
 
 A small number of implementation-facing boundary questions still remain open.
 
@@ -101,7 +106,7 @@ Future builder work should also preserve the following implementation-facing dir
 
 Rule for Future Phase 6 Work
 
-All future Phase 6 work should preserve the current three-layer split:
+All future Phase 6 work must preserve the current three-layer split:
 
 Power Tuning
 - canonical power truth
@@ -119,25 +124,78 @@ Use this ownership rule:
 - if the power itself is wrong, tune Power Tuning
 - if stripped monsters are too weak or too strong before powers, tune Combat Tuning
 - if the combined result displays wrongly on the radar, tune Outcome Normalization
+- if the authored monster does not contain the behaviour its name implies, fix monster authoring
+- if the fixture expectation no longer matches the active tuning truth, fix the fixture expectation
 - if the issue is routing law, realization law, or a missing implementation seam, then it is a code / architecture task rather than a numeric tuning task
 
 The current live implementation already uses:
+
 - canonical power contribution from the Phase 6 resolver
-- non-power contribution from the stripped monster baseline and other monster systems
+- effective per-power availability/cooldown adjustment before final monster outcome
+- non-power contribution from stripped monster baseline and other monster systems
 - final outcome normalization on top
 
 Do not resurrect old legacy power-side heuristics beside this cleaned pipeline.
 
-Current non-power baseline truths that future chats must preserve:
+
+Current Active Calibration Workflow
+
+The live balance calibration workflow is:
+
+1. update active admin tuning where needed
+2. export active tuning snapshots
+3. run active harness mode
+4. review pass/warn/fail
+5. classify mismatches before tuning
+6. tune only the correct owner layer
+7. export snapshots again
+8. rerun active harness
+
+The required commands are:
+
+npm run calibration:export-active-tuning
+
+npx --yes tsx scripts/outcomeCalibrationHarness.ts --tuning active
+
+Active harness mode is live balance truth.
+
+Defaults mode is smoke-test fallback only.
+
+Do not judge live balance from defaults mode.
+
+The snapshot files are:
+
+scripts/fixtures/tuning/active-power-tuning.json
+
+scripts/fixtures/tuning/active-combat-tuning.json
+
+scripts/fixtures/tuning/active-outcome-normalization.json
+
+The active harness currently targets:
+
+29 fixtures
+29 pass
+0 warn
+0 fail
+0 mismatches
+
+If active harness is not clean, do not tune manually from vibes. Inspect the mismatch owner first.
+
+
+Current Non-Power Baseline Truths Future Chats Must Preserve
 
 - natural attacks and equipped weapons with the same authored at-will attack profile should produce the same baseline threat contribution
 - natural protection and equipped protection with the same authored defensive profile should produce the same baseline survivability contribution
 - dodge is physical-only in monster survivability baseline work
-- mental protection now has its own calculator-economy seam and should not be forced back into the exact same direct-budget curve as physical protection
+- Dodge succeeds on match or exceed
+- mental protection has its own calculator-economy seam and should not be forced back into the exact same direct-budget curve as physical protection
 - the asymmetry target is:
   - physical is broader and safer at baseline
   - mental is narrower, lacks dodge, and may therefore be cheaper or more efficient to buy in the relevant economy layer
 - do not invent mental dodge merely to fake symmetry
+- resist dice are defensive capability and do not emit offensive radar axes by themselves
+- health pool parity is baseline, not automatic survivability reward
+- PPV and MPV stress fixtures are part of the current calibration shield
 
 
 Rule for Future Packet Resolution Work
@@ -165,6 +223,27 @@ Do not let future chats accidentally design a second contradictory state model.
 Printable effect slips and digital effect tracking should grow from the same power structure as the builder outputs.
 
 Do not let runtime speculation contaminate builder truth before the builder is stable.
+
+
+Rule for Future Real-Monster Validation Work
+
+Use the Real Monster Outcome Validation Checklist when field-testing authored monsters.
+
+Before judging a monster:
+
+- export active tuning snapshots
+- run active harness mode
+- confirm FULL ACTIVE SNAPSHOT
+- confirm active harness pass/warn/fail counts
+- write expected radar bands before recalculating the monster
+- compare actual radar to expected archetype shape
+- inspect raw values and main contributors before assigning blame
+
+Do not tune from one manual monster unless it exposes a clear routing/code bug.
+
+If a mismatch seems real, add it as a future calibration fixture first, then tune against the fixture set.
+
+Existing monsters authored before Pressure / Presence became visible may need re-authoring rather than global tuning.
 
 
 Rule for Future Implementation Chats
@@ -197,6 +276,7 @@ The following questions are still genuinely open and should be treated honestly:
 - the correct long-term low-end and breakpoint valuation for physical-only dodge under match-or-exceed rules
 - the correct long-term economic relationship between PPV and MPV in Forge and in monster baseline contribution
 - whether low-end mental survivability visibility needs Outcome Normalization help after raw package tuning is considered stable
+- whether active real-monster validation reveals new archetypes missing from the current 29-fixture harness
 
 These are real open questions.
 
@@ -220,13 +300,13 @@ Do not dump temporary argument sludge into the source docs.
 Save back only durable truth, durable guidance, or a real implementation-facing blueprint.
 
 
-Current-State Design / Implementation Opener
+Current-State Implementation Opener
 
 Use the following opener when starting the next chat for continued implementation work:
 
 Use the project sources 00_Master_Implementation_Plan, 01_Locked_Decisions_Log, 02_Power_System_Spec, 03_Current_Phase_And_Next_Steps, 04_Implementation_Handoffs, 05_Phase_6_Cost_Integration_Blueprint, and Power implementation steps as source of truth.
 
-The shared power architecture is already implemented behind Summoning Circle in first-pass form.
+The shared power architecture is implemented behind Summoning Circle in first-pass form.
 
 Phases 1–5 are complete enough to close as design phases.
 
@@ -234,15 +314,26 @@ Phases 7 and 8 are substantially complete.
 
 Phases 9 and 11 are late-stage builder-surface cleanup passes and are close enough to close for the current Summoning Circle surface, even though niche edge cases may still appear.
 
-Phase 6 is now in active implementation and already includes:
-- a canonical power-cost resolver
+Phase 6 is active implementation and already includes:
+
+- canonical power-cost resolver
 - versioned Power Tuning
 - versioned Outcome Normalization
 - versioned Combat Tuning / Monster Baseline Tuning
-- shared canary catalog and scenario catalog
-- a Canary Harness that compares active baseline versus candidate tuning sets
-- a shared stripped Summoning Circle baseline used by both live editor and harness
-- a cleaned radar pipeline where canonical power contribution feeds monster outcome calculation before outcome normalization
+- active tuning snapshot export workflow
+- Outcome Calibration Harness with active/default modes
+- active snapshots as live balance truth
+- source defaults as smoke-test fallback only
+- 29 active calibration fixtures currently expected to pass with 0 warnings
+- cleaned radar pipeline where canonical power contribution and non-power contribution feed outcome normalization
+
+Before changing files:
+
+1. Run git status.
+2. Run npm run calibration:export-active-tuning.
+3. Run npx --yes tsx scripts/outcomeCalibrationHarness.ts --tuning active.
+4. Confirm active harness status.
+5. If active harness is not clean, resolve that before unrelated tuning.
 
 The following are treated as locked for this session:
 
@@ -251,7 +342,7 @@ The following are treated as locked for this session:
 - Delivery Method is implemented through Descriptor Chassis
 - the hardened chassis matrix is Immediate, Field, Attached, Trigger, and Reserve
 - Packet 1 is always the Primary Packet
-- only the Primary Packet sets the Defence Gate
+- only Packet 1 sets the Defence Gate
 - Secondary Packets never create separate defended entry points and only resolve if the Primary Packet lands
 - Packet 1 lands if it applies at least one operative result unit
 - wound-based Secondary scaling uses Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
@@ -282,27 +373,32 @@ The following are treated as locked for this session:
 - natural and equipped protection anchors are normalized to the same baseline law
 - dodge is physical-only in monster survivability baseline work
 - mental protection has its own calculator-economy seam and may be tuned independently from physical protection
+- resist dice do not create offensive radar axes
 - simple powers must stay simple
 - complexity increases cost
 - live preview is mandatory
 
-The current tuning-layer split is also locked for this session:
+The current tuning-layer split is locked for this session:
 
 - Power Tuning = canonical power truth
 - Combat Tuning / Monster Baseline Tuning = non-power monster baseline contribution
 - Outcome Normalization = downstream radar interpretation/display
 
 Scope for this session:
+
 - preserve the existing shared power architecture
 - preserve the distinction between authored data, derived resolver logic, and preview wording
 - preserve the three-layer tuning split
-- tune against the now-aligned live/harness baseline
+- tune only against active snapshot truth
+- use real-monster validation to identify next fixture candidates
 - resolve only genuinely blocking remaining builder, descriptor, or translation edge cases
 
 Non-goals:
+
 - do not reopen Phase 1–4 architecture unless a direct contradiction appears
 - do not redesign the whole UI visually
 - do not drift into runtime tracking systems
 - do not solve full Transformation or Summoning payload builders
 - do not invent mental dodge
 - do not collapse the PPV/MPV asymmetry merely to make the spreadsheet look symmetric
+- do not judge live balance from source-default mode
