@@ -4,6 +4,7 @@ import type {
   EffectDurationType,
   EffectPacket,
   LimitBreakTier,
+  MonsterCalculatorArchetype,
   MonsterAttack,
   MonsterNaturalAttackConfig,
   MonsterTier,
@@ -20,6 +21,7 @@ import type {
 import {
   LEGACY_TRIGGER_CONDITION_TEXT_KEY as LEGACY_TRIGGER_CONDITION_TEXT_KEY_VALUE,
   MAX_POWER_PACKET_DAMAGE_TYPES,
+  MONSTER_CALCULATOR_ARCHETYPES,
   RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
   RESIST_THEME_VALUES,
   TRIGGER_CONDITION_KEYS,
@@ -27,6 +29,9 @@ import {
 
 const DICE_SET = new Set<DiceSize>(["D4", "D6", "D8", "D10", "D12"]);
 const TIER_SET = new Set<MonsterTier>(["MINION", "SOLDIER", "ELITE", "BOSS"]);
+const MONSTER_CALCULATOR_ARCHETYPE_SET = new Set<MonsterCalculatorArchetype>(
+  MONSTER_CALCULATOR_ARCHETYPES,
+);
 const LIMIT_BREAK_TIER_SET = new Set<LimitBreakTier>(["PUSH", "BREAK", "TRANSCEND"]);
 const CORE_ATTRIBUTE_SET = new Set<CoreAttribute>([
   "ATTACK",
@@ -1491,6 +1496,13 @@ export function normalizeMonsterUpsertInput(body: unknown): {
     return { ok: false, error: "tier must be one of MINION, SOLDIER, ELITE, BOSS" };
   }
 
+  const calculatorArchetypeRaw = asString(raw.calculatorArchetype, "BALANCED");
+  const calculatorArchetype = MONSTER_CALCULATOR_ARCHETYPE_SET.has(
+    calculatorArchetypeRaw as MonsterCalculatorArchetype,
+  )
+    ? (calculatorArchetypeRaw as MonsterCalculatorArchetype)
+    : "BALANCED";
+
   const limitBreakTierRaw = asNullableString(raw.limitBreakTier);
   if (
     limitBreakTierRaw &&
@@ -1667,6 +1679,7 @@ export function normalizeMonsterUpsertInput(body: unknown): {
     level: Math.max(1, asInt(raw.level, 1)),
     tier,
     legendary: asBool(raw.legendary, false),
+    calculatorArchetype,
     mainHandItemId: asNullableString(raw.mainHandItemId),
     offHandItemId: asNullableString(raw.offHandItemId),
     smallItemId: asNullableString(raw.smallItemId),

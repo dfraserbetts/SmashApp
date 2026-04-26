@@ -209,6 +209,21 @@ export type MonsterPowerIntentionDetails = EffectPacketDetails;
 export type MonsterPowerIntention = EffectPacket;
 export type MonsterPower = Power;
 
+export type MonsterCalculatorArchetype =
+  | "BALANCED"
+  | "GLASS_CANNON"
+  | "TANK"
+  | "CONTROLLER"
+  | "SCRAPPER";
+
+export const MONSTER_CALCULATOR_ARCHETYPES: MonsterCalculatorArchetype[] = [
+  "BALANCED",
+  "GLASS_CANNON",
+  "TANK",
+  "CONTROLLER",
+  "SCRAPPER",
+];
+
 export type MonsterTraitSelection = {
   id?: string;
   sortOrder: number;
@@ -295,6 +310,7 @@ export type MonsterRecord = {
   level: number;
   tier: MonsterTier;
   legendary: boolean;
+  calculatorArchetype: MonsterCalculatorArchetype;
   source: MonsterSource;
   isReadOnly: boolean;
   campaignId: string | null;
@@ -374,12 +390,14 @@ export type MonsterUpsertInput = Omit<
   | "source"
   | "isReadOnly"
   | "campaignId"
+  | "calculatorArchetype"
   | "tags"
   | "traits"
   | "powers"
   | "attacks"
   | "naturalAttack"
 > & {
+  calculatorArchetype?: MonsterCalculatorArchetype;
   tags: string[];
   traits: MonsterTraitSelection[];
   attacks: MonsterAttack[];

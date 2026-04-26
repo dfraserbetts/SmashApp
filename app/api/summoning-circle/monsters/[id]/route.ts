@@ -1272,6 +1272,7 @@ export async function PUT(
           level: data.level,
           tier: data.tier,
           legendary: data.legendary,
+          calculatorArchetype: data.calculatorArchetype,
           attackMode: "NATURAL_WEAPON",
           equippedWeaponId: null,
           // SC_SEPARATE_ARMOR_AND_ITEM_PERSIST_V2

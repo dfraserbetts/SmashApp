@@ -997,6 +997,7 @@ export async function POST(
         level: source.level,
         tier: source.tier,
         legendary: source.legendary,
+        calculatorArchetype: source.calculatorArchetype,
         source: "CAMPAIGN",
         isReadOnly: false,
         Campaign: {

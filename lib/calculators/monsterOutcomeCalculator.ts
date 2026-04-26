@@ -4,6 +4,7 @@ import type {
   MonsterTraitBand,
   MonsterTier,
   MonsterUpsertInput,
+  MonsterCalculatorArchetype,
 } from "@/lib/summoning/types";
 import {
   getArmorSkillDiceCountFromAttributes,
@@ -17,12 +18,7 @@ import {
   type ProtectionTuningValues,
 } from "@/lib/config/combatTuningShared";
 
-export type MonsterCalculatorArchetype =
-  | "BALANCED"
-  | "GLASS_CANNON"
-  | "TANK"
-  | "CONTROLLER"
-  | "SCRAPPER";
+export type { MonsterCalculatorArchetype };
 
 export type RadarAxes = {
   physicalThreat: number;

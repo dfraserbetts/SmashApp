@@ -1,0 +1,2 @@
+ALTER TABLE "Monster"
+ADD COLUMN "calculatorArchetype" TEXT NOT NULL DEFAULT 'BALANCED';

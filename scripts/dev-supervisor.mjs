@@ -18,12 +18,54 @@ const watchedDirs = [
 let child = null;
 let restartTimer = null;
 let shuttingDown = false;
+let startToken = 0;
 
 function log(message) {
   process.stdout.write(`[dev-supervisor] ${message}\n`);
 }
 
-function startChild() {
+function runCommand(command, args, label) {
+  return new Promise((resolve, reject) => {
+    const process = spawn(command, args, {
+      cwd: rootDir,
+      stdio: 'inherit',
+      env: globalThis.process.env,
+    });
+
+    process.on('error', reject);
+    process.on('exit', (code, signal) => {
+      if (signal) {
+        reject(new Error(`${label} exited from signal ${signal}`));
+        return;
+      }
+      if (code && code !== 0) {
+        reject(new Error(`${label} exited with code ${code}`));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function syncPrismaRuntime() {
+  const npxBin = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+  log('Applying pending Prisma migrations.');
+  await runCommand(npxBin, ['prisma', 'migrate', 'deploy'], 'prisma migrate deploy');
+  log('Regenerating Prisma Client.');
+  await runCommand(npxBin, ['prisma', 'generate'], 'prisma generate');
+}
+
+async function startChild() {
+  const token = ++startToken;
+  try {
+    await syncPrismaRuntime();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log(`Prisma sync failed: ${message}. Next dev was not started.`);
+    return;
+  }
+
+  if (shuttingDown || token !== startToken) return;
   child = spawn(process.execPath, [nextBin, 'dev'], {
     cwd: rootDir,
     stdio: 'inherit',
@@ -48,12 +90,12 @@ function stopChildAndRestart(reason) {
     log(`Restarting dev server because ${reason}.`);
     const previousChild = child;
     if (!previousChild || previousChild.killed) {
-      startChild();
+      void startChild();
       return;
     }
 
     previousChild.once('exit', () => {
-      if (!shuttingDown) startChild();
+      if (!shuttingDown) void startChild();
     });
 
     previousChild.kill('SIGTERM');
@@ -119,4 +161,4 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 log('Watching Prisma/runtime files for restart-sensitive changes.');
-startChild();
+void startChild();

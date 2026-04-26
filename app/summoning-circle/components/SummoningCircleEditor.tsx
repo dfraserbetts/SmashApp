@@ -14,6 +14,7 @@ import { useSearchParams } from "next/navigation";
 import {
   LEGACY_TRIGGER_CONDITION_TEXT_KEY,
   MAX_POWER_PACKET_DAMAGE_TYPES,
+  MONSTER_CALCULATOR_ARCHETYPES,
   RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
   RESIST_THEME_VALUES,
   TRIGGER_CONDITION_KEYS,
@@ -113,6 +114,16 @@ type EditableMonster = MonsterUpsertInput & {
   source?: MonsterSource;
   isReadOnly?: boolean;
 };
+
+const MONSTER_CALCULATOR_ARCHETYPE_SET = new Set<MonsterCalculatorArchetype>(
+  MONSTER_CALCULATOR_ARCHETYPES,
+);
+
+function normalizeCalculatorArchetype(value: unknown): MonsterCalculatorArchetype {
+  return MONSTER_CALCULATOR_ARCHETYPE_SET.has(value as MonsterCalculatorArchetype)
+    ? (value as MonsterCalculatorArchetype)
+    : "BALANCED";
+}
 
 type Picklists = {
   damageTypes: Array<{ id: number; name: string; attackMode?: "PHYSICAL" | "MENTAL" }>;
@@ -2851,6 +2862,7 @@ function defaultMonster(): EditableMonster {
     level: 1,
     tier: "MINION",
     legendary: false,
+    calculatorArchetype: "BALANCED",
     customNotes: null,
     physicalResilienceCurrent: 10,
     physicalResilienceMax: 10,
@@ -3148,6 +3160,7 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
   return {
     ...defaultMonster(),
     ...raw,
+    calculatorArchetype: normalizeCalculatorArchetype(raw.calculatorArchetype),
     attackResistDie: Number(raw.attackResistDie ?? 0),
     guardDie: typeof raw.guardDie === "string" ? (raw.guardDie as DiceSize) : typeof raw.defenceDie === "string" ? (raw.defenceDie as DiceSize) : defaultMonster().guardDie,
     guardResistDie: Number(raw.guardResistDie ?? raw.defenceResistDie ?? 0),
@@ -4695,7 +4708,9 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       );
       if (!res.ok) throw new Error("Failed to load monster");
       const json = await res.json();
-      setEditor(toEditable(json));
+      const editable = toEditable(json);
+      setEditor(editable);
+      setCalculatorArchetype(normalizeCalculatorArchetype(editable.calculatorArchetype));
     },
     [campaignId],
   );
@@ -6151,6 +6166,11 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     setEditor((prev) => (prev ? { ...prev, powers: [] } : prev));
   }, []);
 
+  const handleCalculatorArchetypeChange = useCallback((value: MonsterCalculatorArchetype) => {
+    setCalculatorArchetype(value);
+    setEditor((prev) => (prev ? { ...prev, calculatorArchetype: value } : prev));
+  }, []);
+
   const saveMonster = useCallback(async () => {
     if (!editor || readOnly) return;
     setBusy(true);
@@ -6165,6 +6185,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       }
       const normalizedEditor: EditableMonster = {
         ...editor,
+        calculatorArchetype,
         imageUrl: asNullableText(editor.imageUrl),
         imagePosX: clampImagePosition(editor.imagePosX, DEFAULT_IMAGE_POS_X),
         imagePosY: clampImagePosition(editor.imagePosY, DEFAULT_IMAGE_POS_Y),
@@ -6229,6 +6250,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     }
   }, [
     campaignId,
+    calculatorArchetype,
     editor,
     readOnly,
     refreshSelected,
@@ -6297,6 +6319,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     setMonsterPickerOpen(false);
     setMonsterPickerQuery("");
     setSelectedId(null);
+    setCalculatorArchetype("BALANCED");
     setEditor(defaultMonster());
   }, []);
 
@@ -12102,7 +12125,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
             <MonsterCalculatorPanel
               profile={outcomeProfile}
               archetype={calculatorArchetype}
-              onArchetypeChangeAction={setCalculatorArchetype}
+              onArchetypeChangeAction={handleCalculatorArchetypeChange}
               powerCostPreview={powerCostPreview}
             />
             <section className="sc-print rounded border border-zinc-800 bg-zinc-900/30 p-4 space-y-3 min-w-0 w-full">

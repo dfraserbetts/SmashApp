@@ -725,6 +725,7 @@ model Monster {
   level                         Int
   tier                          MonsterTier
   legendary                     Boolean               @default(false)
+  calculatorArchetype           String                @default("BALANCED")
   source                        MonsterSource         @default(CAMPAIGN)
   isReadOnly                    Boolean               @default(false)
   campaignId                    String?
