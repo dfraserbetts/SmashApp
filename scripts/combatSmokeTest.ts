@@ -144,9 +144,20 @@ type RoundLengthStats = {
   rounds13PlusPercent: number;
 };
 
+type MatchupExpectationClassification =
+  | "representative"
+  | "expected-role-friction"
+  | "party-dependent-edge-case";
+
+type MatchupExpectation = {
+  classification: MatchupExpectationClassification;
+  reason: string;
+};
+
 type MatchupAggregate = {
   first: SmokeMonsterFixture;
   second: SmokeMonsterFixture;
+  expectation: MatchupExpectation;
   runs: number;
   firstWins: number;
   secondWins: number;
@@ -972,6 +983,7 @@ function aggregateMatchup(
   const aggregate: MatchupAggregate = {
     first,
     second,
+    expectation: getMatchupExpectation(first, second),
     runs: RUNS_PER_MATCHUP,
     firstWins,
     secondWins,
@@ -1045,6 +1057,85 @@ function formatRoundDistribution(stats: RoundLengthStats): string {
   ].join(" | ");
 }
 
+function pacingLabel(stats: RoundLengthStats): string {
+  if (stats.medianRounds > 10 || stats.rounds13PlusPercent > 0.2) {
+    return "slog-risk";
+  }
+  if (stats.medianRounds >= 8) return "long";
+  if (stats.medianRounds >= 5) return "normal";
+  return "explosive";
+}
+
+function getMatchupExpectation(
+  first: SmokeMonsterFixture,
+  second: SmokeMonsterFixture,
+): MatchupExpectation {
+  const matchupKey = [first.id, second.id].sort().join("|");
+
+  switch (matchupKey) {
+    case "bruiser|glass-cannon":
+      return {
+        classification: "representative",
+        reason:
+          "Sustained physical pressure versus fragile burst threat should produce a clear lethality signal.",
+      };
+    case "bruiser|defender":
+      return {
+        classification: "expected-role-friction",
+        reason:
+          "Sustained damage dealer versus sustained survivor is expected to run longer.",
+      };
+    case "bruiser|controller":
+      return {
+        classification: "representative",
+        reason:
+          "Control should disrupt but still needs enough follow-through to survive pressure.",
+      };
+    case "defender|glass-cannon":
+      return {
+        classification: "representative",
+        reason:
+          "Fragile burst into a durable target is a useful check for whether burst can threaten defence.",
+      };
+    case "controller|glass-cannon":
+      return {
+        classification: "representative",
+        reason:
+          "Burst versus disruption is a useful pacing and pressure check.",
+      };
+    case "controller|defender":
+      return {
+        classification: "party-dependent-edge-case",
+        reason:
+          "Controller is often a party-enabling role and may not be expected to solo-kill a Defender efficiently.",
+      };
+    default:
+      return {
+        classification: "representative",
+        reason: "No special role-friction expectation is registered.",
+      };
+  }
+}
+
+function pacingWarning(
+  matchup: MatchupAggregate,
+  warning: string,
+  escalateEdgeCase = false,
+): string {
+  switch (matchup.expectation.classification) {
+    case "expected-role-friction":
+      return `expected friction monitor: ${warning}`;
+    case "party-dependent-edge-case":
+      if (escalateEdgeCase) {
+        return `edge-case warning: ${warning}`;
+      }
+      return `edge-case context (do not tune from this 1v1 alone): ${warning}`;
+    case "representative":
+    default:
+      return warning;
+  }
+}
+
 function buildWarnings(matchup: MatchupAggregate): string[] {
   const warnings: string[] = [];
   const firstWinRate = matchup.firstWins / matchup.runs;
@@ -1070,10 +1161,35 @@ function buildWarnings(matchup: MatchupAggregate): string[] {
     warnings.push(`${matchup.second.name} win rate exceeds 70%`);
   }
   if (matchup.averageRounds < 2) {
-    warnings.push("average fight length is under 2 rounds");
+    warnings.push(pacingWarning(matchup, "average fight length is under 2 rounds"));
   }
   if (matchup.averageRounds > 12) {
-    warnings.push("average fight length exceeds 12 rounds");
+    warnings.push(pacingWarning(matchup, "average fight length exceeds 12 rounds"));
+  }
+  if (matchup.roundLengthStats.medianRounds > 8) {
+    warnings.push(pacingWarning(matchup, "median fight length exceeds 8 rounds"));
+  }
+  if (matchup.roundLengthStats.averageRounds > 10) {
+    warnings.push(pacingWarning(matchup, "average fight length exceeds 10 rounds"));
+  }
+  if (matchup.roundLengthStats.rounds13PlusPercent > 0.2) {
+    warnings.push(
+      pacingWarning(matchup, "more than 20% of matchup runs reach 13+ rounds"),
+    );
+  }
+  if (matchup.roundLengthStats.timeoutPercent > 0.05) {
+    warnings.push(
+      pacingWarning(
+        matchup,
+        "more than 5% of matchup runs hit max-round timeout",
+        true,
+      ),
+    );
+  }
+  if (matchup.roundLengthStats.rounds1To2Percent > 0.4) {
+    warnings.push(
+      pacingWarning(matchup, "more than 40% of matchup runs end in 1-2 rounds"),
+    );
   }
   if (firstSpikeShare > 0.5 || secondSpikeShare > 0.5) {
     warnings.push("largest single-turn spike exceeds 50% of a target HP pool");
@@ -1092,7 +1208,9 @@ function buildWarnings(matchup: MatchupAggregate): string[] {
     matchup.averageRounds > 10 &&
     matchup.firstAverageWoundsPerRound + matchup.secondAverageWoundsPerRound < 4
   ) {
-    warnings.push("defender matchup is a very long low-damage fight");
+    warnings.push(
+      pacingWarning(matchup, "defender matchup is a very long low-damage fight"),
+    );
   }
   if (matchup.firstCooldownViolations + matchup.secondCooldownViolations > 0) {
     warnings.push("a power was used while active or cooling");
@@ -1431,6 +1549,10 @@ function printMatchup(aggregate: MatchupAggregate): void {
   console.log(
     `rounds median ${round(aggregate.roundLengthStats.medianRounds)} | min ${aggregate.roundLengthStats.minRounds} | max ${aggregate.roundLengthStats.maxRounds} | draws/timeouts ${aggregate.draws}/${aggregate.roundLengthStats.timeoutCount} (${percent(aggregate.roundLengthStats.timeoutPercent)})`,
   );
+  console.log(`pacing label ${pacingLabel(aggregate.roundLengthStats)}`);
+  console.log(
+    `matchup classification ${aggregate.expectation.classification} | ${aggregate.expectation.reason}`,
+  );
   console.log(`round distribution ${formatRoundDistribution(aggregate.roundLengthStats)}`);
   console.log(
     `avg wounds/round ${aggregate.first.name} ${round(aggregate.firstAverageWoundsPerRound)} / ${aggregate.second.name} ${round(aggregate.secondAverageWoundsPerRound)} | largest spike ${aggregate.largestSingleTurnSpike}`,
@@ -1485,36 +1607,74 @@ function formatRate(value: number | null): string {
   return value === null ? "n/a" : percent(value);
 }
 
-function buildLethalityWarnings(stats: RoundLengthStats): string[] {
+function buildLethalityWarnings(
+  stats: RoundLengthStats,
+  scopeLabel = "overall",
+): string[] {
   const warnings: string[] = [];
-  if (stats.medianRounds > 8) {
-    warnings.push("overall median rounds exceeds 8");
+  if (stats.medianRounds > 6) {
+    warnings.push(`${scopeLabel} median rounds exceeds 6`);
   }
-  if (stats.averageRounds > 10) {
-    warnings.push("overall average rounds exceeds 10");
+  if (stats.averageRounds > 8) {
+    warnings.push(`${scopeLabel} average rounds exceeds 8`);
   }
-  if (stats.rounds13PlusPercent > 0.25) {
-    warnings.push("more than 25% of fights reach 13+ rounds");
+  if (stats.rounds13PlusPercent > 0.1) {
+    warnings.push(`${scopeLabel}: more than 10% of fights reach 13+ rounds`);
   }
-  if (stats.timeoutPercent > 0.1) {
-    warnings.push("more than 10% of fights hit max-round timeout");
+  if (stats.timeoutPercent > 0.03) {
+    warnings.push(`${scopeLabel}: more than 3% of fights hit max-round timeout`);
   }
   if (stats.rounds1To2Percent > 0.3) {
-    warnings.push("more than 30% of fights end in 1-2 rounds");
+    warnings.push(`${scopeLabel}: more than 30% of fights end in 1-2 rounds`);
   }
   return warnings;
 }
 
-function printOverallRoundSummary(aggregates: MatchupAggregate[]): string[] {
+function matchupLabel(aggregate: MatchupAggregate): string {
+  return `${aggregate.first.name} vs ${aggregate.second.name}`;
+}
+
+function printLongTailAttribution(aggregates: MatchupAggregate[]): void {
+  const sorted = [...aggregates].sort(
+    (a, b) =>
+      b.roundLengthStats.rounds13PlusPercent -
+        a.roundLengthStats.rounds13PlusPercent ||
+      b.roundLengthStats.timeoutPercent - a.roundLengthStats.timeoutPercent ||
+      b.roundLengthStats.medianRounds - a.roundLengthStats.medianRounds ||
+      b.roundLengthStats.averageRounds - a.roundLengthStats.averageRounds,
+  );
+
+  console.log("\n## Long-Tail Attribution");
+  for (const aggregate of sorted) {
+    const stats = aggregate.roundLengthStats;
+    console.log(
+      `- ${matchupLabel(aggregate)}: 13+ ${percent(stats.rounds13PlusPercent)} | timeouts ${percent(stats.timeoutPercent)} | median ${round(stats.medianRounds)} | average ${round(stats.averageRounds)} | ${pacingLabel(stats)}`,
+    );
+    console.log(
+      `  classification ${aggregate.expectation.classification}: ${aggregate.expectation.reason}`,
+    );
+  }
+}
+
+function computeAggregateRoundLengthStats(
+  aggregates: MatchupAggregate[],
+): RoundLengthStats {
   const roundLengths = aggregates.flatMap((aggregate) => aggregate.roundLengths);
   const timeoutCount = aggregates.reduce(
     (sum, aggregate) => sum + aggregate.roundLengthStats.timeoutCount,
     0,
   );
-  const stats = computeRoundLengthStats(roundLengths, timeoutCount);
-  const warnings = buildLethalityWarnings(stats);
+  return computeRoundLengthStats(roundLengths, timeoutCount);
+}
 
-  console.log("\n## Overall Round-Length / Lethality Summary");
+function printRoundSummaryBlock(
+  label: string,
+  aggregates: MatchupAggregate[],
+): string[] {
+  const stats = computeAggregateRoundLengthStats(aggregates);
+  const warnings = buildLethalityWarnings(stats, label.toLowerCase());
+
+  console.log(`\n### ${label}`);
   console.log(`total fights ${stats.totalFights}`);
   console.log(
     `average rounds ${round(stats.averageRounds)} | median ${round(stats.medianRounds)} | min ${stats.minRounds} | max ${stats.maxRounds}`,
@@ -1528,6 +1688,30 @@ function printOverallRoundSummary(aggregates: MatchupAggregate[]): string[] {
   } else {
     console.log("lethality warnings: none");
   }
+
+  return warnings;
+}
+
+function printOverallRoundSummary(aggregates: MatchupAggregate[]): string[] {
+  const representativeAggregates = aggregates.filter(
+    (aggregate) => aggregate.expectation.classification === "representative",
+  );
+  const frictionAggregates = aggregates.filter(
+    (aggregate) => aggregate.expectation.classification !== "representative",
+  );
+
+  console.log("\n## Overall Round-Length / Lethality Summary");
+  const warnings = printRoundSummaryBlock("All matchups", aggregates);
+  printRoundSummaryBlock("Representative matchups only", representativeAggregates);
+  printRoundSummaryBlock(
+    "Expected-friction / edge-case matchups",
+    frictionAggregates,
+  );
+  console.log(
+    "Long fights in expected role-friction or party-dependent 1v1s are diagnostic context, not direct tuning instructions.",
+  );
+
+  printLongTailAttribution(aggregates);
 
   return warnings;
 }
