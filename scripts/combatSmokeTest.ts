@@ -27,6 +27,20 @@ type SnapshotPayload = {
 
 type ActionType = "basicAttack" | "powerAttack" | "controlPower";
 type ActionLifecycle = "basic" | "immediate" | "lifespan" | "passive";
+type ActionSlot = "main" | "power";
+type ControlEffectType =
+  | "forceMove"
+  | "forceNoMove"
+  | "forceSpecificMainAction"
+  | "forceNoMainAction"
+  | "forceSpecificPowerAction"
+  | "forceNoPowerAction";
+
+type ControlRestrictions = {
+  noMainActionTurns: number;
+  noPowerActionTurns: number;
+  noMoveTurns: number;
+};
 
 type ActionDefinition = {
   id: string;
@@ -38,6 +52,9 @@ type ActionDefinition = {
   dieSize: DiceSize;
   potency: number;
   controlTurns: number;
+  controlEffectType: ControlEffectType | null;
+  controlTheme: string | null;
+  controlResistAttribute: string | null;
   lifespanTurns: number | null;
   power?: Power;
 };
@@ -70,13 +87,16 @@ type SmokeMonsterFixture = {
   physicalHp: number;
   physicalProtection: number;
   dodgeChance: number;
+  controlResistDice: number;
+  controlResistDieSize: DiceSize;
+  controlResistAttribute: string;
   actions: ActionDefinition[];
 };
 
 type CombatantRuntime = {
   fixture: SmokeMonsterFixture;
   currentHp: number;
-  deniedTurns: number;
+  controlRestrictions: ControlRestrictions;
   actions: ResolvedAction[];
   actionStates: Record<string, ActionRuntimeState>;
   stats: CombatantStats;
@@ -88,9 +108,11 @@ type CombatantStats = {
   actionUses: Record<string, number>;
   powerUses: Record<string, number>;
   controlAttempts: number;
-  controlSuccesses: number;
-  controlInflicted: number;
-  controlSuffered: number;
+  controlResisted: number;
+  controlLanded: number;
+  controlMainActionsBlocked: number;
+  controlPowerActionsBlocked: number;
+  controlMoveBlocked: number;
   dodgesAttempted: number;
   dodgesSucceeded: number;
   protectionPrevented: number;
@@ -128,12 +150,16 @@ type MatchupAggregate = {
   secondMostUsedAction: string | null;
   firstControlAttempts: number;
   secondControlAttempts: number;
-  firstControlSuccesses: number;
-  secondControlSuccesses: number;
-  firstControlInflicted: number;
-  secondControlInflicted: number;
-  firstControlSuffered: number;
-  secondControlSuffered: number;
+  firstControlResisted: number;
+  secondControlResisted: number;
+  firstControlLanded: number;
+  secondControlLanded: number;
+  firstMainActionsBlocked: number;
+  secondMainActionsBlocked: number;
+  firstPowerActionsBlocked: number;
+  secondPowerActionsBlocked: number;
+  firstMoveBlocked: number;
+  secondMoveBlocked: number;
   firstDefensiveSuccessRate: number | null;
   secondDefensiveSuccessRate: number | null;
   firstActiveBlocked: number;
@@ -294,9 +320,11 @@ function emptyStats(): CombatantStats {
     actionUses: {},
     powerUses: {},
     controlAttempts: 0,
-    controlSuccesses: 0,
-    controlInflicted: 0,
-    controlSuffered: 0,
+    controlResisted: 0,
+    controlLanded: 0,
+    controlMainActionsBlocked: 0,
+    controlPowerActionsBlocked: 0,
+    controlMoveBlocked: 0,
     dodgesAttempted: 0,
     dodgesSucceeded: 0,
     protectionPrevented: 0,
@@ -317,6 +345,14 @@ function emptyActionState(): ActionRuntimeState {
     blockedByActiveState: 0,
     blockedByCooldown: 0,
     usageAttempts: 0,
+  };
+}
+
+function emptyControlRestrictions(): ControlRestrictions {
+  return {
+    noMainActionTurns: 0,
+    noPowerActionTurns: 0,
+    noMoveTurns: 0,
   };
 }
 
@@ -343,8 +379,17 @@ function expectedUnmitigatedWounds(action: ResolvedAction): number {
   return action.diceCount * pSuccess(action.dieSize) * action.potency;
 }
 
-function expectedControlTurns(action: ResolvedAction): number {
-  return action.controlTurns * pSuccess(action.dieSize);
+function expectedControlTurns(
+  action: ResolvedAction,
+  target?: CombatantRuntime,
+): number {
+  if (action.type !== "controlPower" || action.controlTurns <= 0) return 0;
+  const attackerMean = action.diceCount * pSuccess(action.dieSize);
+  const defenderMean = target
+    ? target.fixture.controlResistDice *
+      pSuccess(target.fixture.controlResistDieSize)
+    : 0;
+  return Math.max(0, attackerMean - defenderMean) * action.controlTurns;
 }
 
 function expectedActionScore(action: ResolvedAction): number {
@@ -396,33 +441,41 @@ function recordBlockedActions(actor: CombatantRuntime): void {
 function chooseAction(
   actor: CombatantRuntime,
   target: CombatantRuntime,
-): ResolvedAction {
-  recordBlockedActions(actor);
-  const available = actor.actions.filter((action) =>
+  candidateActions: ResolvedAction[],
+): ResolvedAction | null {
+  const available = candidateActions.filter((action) =>
     isActionAvailable(action, actor),
   );
-  const legalActions = available.length > 0 ? available : actor.actions;
+  if (available.length === 0) return null;
 
   const targetHp = target.currentHp;
-  const ranked = legalActions.map((action, index) => {
+  const ranked = available.map((action, index) => {
     const expectedWounds = expectedDamage(action, target);
-    const expectedControl = expectedControlTurns(action);
+    const expectedControl = expectedControlTurns(action, target);
     const lethal = expectedWounds >= targetHp ? 1000 : 0;
     const score = lethal + expectedWounds + expectedControl * 2;
     return { action, index, score };
   });
 
   ranked.sort((a, b) => b.score - a.score || a.index - b.index);
-  return ranked[0]?.action ?? actor.actions[0];
+  return ranked[0]?.action ?? null;
 }
 
-function rollSuccesses(action: ResolvedAction, rng: SeededRng): number {
+function rollDiceSuccesses(
+  diceCount: number,
+  dieSize: DiceSize,
+  rng: SeededRng,
+): number {
   let successes = 0;
-  const sides = diceSides(action.dieSize);
-  for (let i = 0; i < action.diceCount; i += 1) {
+  const sides = diceSides(dieSize);
+  for (let i = 0; i < diceCount; i += 1) {
     if (rng.intInclusive(1, sides) >= SUCCESS_THRESHOLD) successes += 1;
   }
   return successes;
+}
+
+function rollSuccesses(action: ResolvedAction, rng: SeededRng): number {
+  return rollDiceSuccesses(action.diceCount, action.dieSize, rng);
 }
 
 function placeCooldown(
@@ -483,6 +536,53 @@ function closeOpponentFinalResolutionWindows(
   }
 }
 
+function applyControlRestriction(
+  target: CombatantRuntime,
+  action: ResolvedAction,
+): void {
+  const duration = Math.max(1, action.controlTurns);
+  switch (action.controlEffectType) {
+    case "forceNoMainAction":
+      target.controlRestrictions.noMainActionTurns = Math.max(
+        target.controlRestrictions.noMainActionTurns,
+        duration,
+      );
+      break;
+    case "forceNoPowerAction":
+      target.controlRestrictions.noPowerActionTurns = Math.max(
+        target.controlRestrictions.noPowerActionTurns,
+        duration,
+      );
+      break;
+    case "forceNoMove":
+      target.controlRestrictions.noMoveTurns = Math.max(
+        target.controlRestrictions.noMoveTurns,
+        duration,
+      );
+      break;
+    case "forceMove":
+    case "forceSpecificMainAction":
+    case "forceSpecificPowerAction":
+    case null:
+      break;
+  }
+}
+
+function expireControlRestrictions(target: CombatantRuntime): void {
+  target.controlRestrictions.noMainActionTurns = Math.max(
+    0,
+    target.controlRestrictions.noMainActionTurns - 1,
+  );
+  target.controlRestrictions.noPowerActionTurns = Math.max(
+    0,
+    target.controlRestrictions.noPowerActionTurns - 1,
+  );
+  target.controlRestrictions.noMoveTurns = Math.max(
+    0,
+    target.controlRestrictions.noMoveTurns - 1,
+  );
+}
+
 function endTurnLifecycle(
   owner: CombatantRuntime,
   opponent: CombatantRuntime,
@@ -541,9 +641,18 @@ function useAction(
   }
 
   if (action.type === "controlPower" && successes > 0 && action.controlTurns > 0) {
-    target.deniedTurns += action.controlTurns;
-    actor.stats.controlSuccesses += 1;
-    actor.stats.controlInflicted += action.controlTurns;
+    const resistSuccesses = rollDiceSuccesses(
+      target.fixture.controlResistDice,
+      target.fixture.controlResistDieSize,
+      rng,
+    );
+    const netControlSuccesses = successes - resistSuccesses;
+    if (netControlSuccesses <= 0) {
+      actor.stats.controlResisted += 1;
+    } else {
+      actor.stats.controlLanded += 1;
+      applyControlRestriction(target, action);
+    }
   }
 
   if (!state) return;
@@ -564,16 +673,36 @@ function takeTurn(
   target: CombatantRuntime,
   rng: SeededRng,
 ): void {
-  if (actor.deniedTurns > 0) {
-    actor.deniedTurns -= 1;
-    actor.stats.controlSuffered += 1;
-    recordBlockedActions(actor);
-    endTurnLifecycle(actor, target);
-    return;
+  if (actor.controlRestrictions.noMoveTurns > 0) {
+    actor.stats.controlMoveBlocked += 1;
   }
 
-  const action = chooseAction(actor, target);
-  useAction(actor, target, action, rng);
+  if (actor.controlRestrictions.noMainActionTurns > 0) {
+    actor.stats.controlMainActionsBlocked += 1;
+  } else {
+    const mainAction = chooseAction(
+      actor,
+      target,
+      actor.actions.filter((action) => action.lifecycle === "basic"),
+    );
+    if (mainAction) useAction(actor, target, mainAction, rng);
+  }
+
+  if (target.currentHp > 0) {
+    if (actor.controlRestrictions.noPowerActionTurns > 0) {
+      actor.stats.controlPowerActionsBlocked += 1;
+    } else {
+      recordBlockedActions(actor);
+      const powerActionChoice = chooseAction(
+        actor,
+        target,
+        actor.actions.filter((action) => action.lifecycle !== "basic"),
+      );
+      if (powerActionChoice) useAction(actor, target, powerActionChoice, rng);
+    }
+  }
+
+  expireControlRestrictions(actor);
   endTurnLifecycle(actor, target);
 }
 
@@ -589,7 +718,7 @@ function makeRuntime(
   return {
     fixture,
     currentHp: fixture.physicalHp,
-    deniedTurns: 0,
+    controlRestrictions: emptyControlRestrictions(),
     actions: resolvedActions,
     actionStates,
     stats: emptyStats(),
@@ -692,12 +821,16 @@ function aggregateMatchup(
   let largestSingleTurnSpike = 0;
   let firstControlAttempts = 0;
   let secondControlAttempts = 0;
-  let firstControlSuccesses = 0;
-  let secondControlSuccesses = 0;
-  let firstControlInflicted = 0;
-  let secondControlInflicted = 0;
-  let firstControlSuffered = 0;
-  let secondControlSuffered = 0;
+  let firstControlResisted = 0;
+  let secondControlResisted = 0;
+  let firstControlLanded = 0;
+  let secondControlLanded = 0;
+  let firstMainActionsBlocked = 0;
+  let secondMainActionsBlocked = 0;
+  let firstPowerActionsBlocked = 0;
+  let secondPowerActionsBlocked = 0;
+  let firstMoveBlocked = 0;
+  let secondMoveBlocked = 0;
   let firstActiveBlocked = 0;
   let secondActiveBlocked = 0;
   let firstCooldownBlocked = 0;
@@ -741,12 +874,16 @@ function aggregateMatchup(
     );
     firstControlAttempts += firstStats.controlAttempts;
     secondControlAttempts += secondStats.controlAttempts;
-    firstControlSuccesses += firstStats.controlSuccesses;
-    secondControlSuccesses += secondStats.controlSuccesses;
-    firstControlInflicted += firstStats.controlInflicted;
-    secondControlInflicted += secondStats.controlInflicted;
-    firstControlSuffered += firstStats.controlSuffered;
-    secondControlSuffered += secondStats.controlSuffered;
+    firstControlResisted += firstStats.controlResisted;
+    secondControlResisted += secondStats.controlResisted;
+    firstControlLanded += firstStats.controlLanded;
+    secondControlLanded += secondStats.controlLanded;
+    firstMainActionsBlocked += firstStats.controlMainActionsBlocked;
+    secondMainActionsBlocked += secondStats.controlMainActionsBlocked;
+    firstPowerActionsBlocked += firstStats.controlPowerActionsBlocked;
+    secondPowerActionsBlocked += secondStats.controlPowerActionsBlocked;
+    firstMoveBlocked += firstStats.controlMoveBlocked;
+    secondMoveBlocked += secondStats.controlMoveBlocked;
     firstActiveBlocked += firstStats.blockedByActiveState;
     secondActiveBlocked += secondStats.blockedByActiveState;
     firstCooldownBlocked += firstStats.blockedByCooldown;
@@ -796,12 +933,16 @@ function aggregateMatchup(
     secondMostUsedAction: topEntry(secondActionUses),
     firstControlAttempts,
     secondControlAttempts,
-    firstControlSuccesses,
-    secondControlSuccesses,
-    firstControlInflicted,
-    secondControlInflicted,
-    firstControlSuffered,
-    secondControlSuffered,
+    firstControlResisted,
+    secondControlResisted,
+    firstControlLanded,
+    secondControlLanded,
+    firstMainActionsBlocked,
+    secondMainActionsBlocked,
+    firstPowerActionsBlocked,
+    secondPowerActionsBlocked,
+    firstMoveBlocked,
+    secondMoveBlocked,
     firstDefensiveSuccessRate,
     secondDefensiveSuccessRate,
     firstActiveBlocked,
@@ -842,8 +983,13 @@ function buildWarnings(matchup: MatchupAggregate): string[] {
   const secondSpikeShare = matchup.largestSingleTurnSpike / matchup.first.physicalHp;
   const firstActionShare = highestActionShare(matchup.firstActionUses);
   const secondActionShare = highestActionShare(matchup.secondActionUses);
-  const totalDeniedTurns =
-    matchup.firstControlInflicted + matchup.secondControlInflicted;
+  const totalSlotBlocks =
+    matchup.firstMainActionsBlocked +
+    matchup.secondMainActionsBlocked +
+    matchup.firstPowerActionsBlocked +
+    matchup.secondPowerActionsBlocked +
+    matchup.firstMoveBlocked +
+    matchup.secondMoveBlocked;
   const defenderInvolved =
     matchup.first.id === "defender" || matchup.second.id === "defender";
 
@@ -868,8 +1014,8 @@ function buildWarnings(matchup: MatchupAggregate): string[] {
   if (secondActionShare > 0.8) {
     warnings.push(`${matchup.second.name} has one action above 80% usage`);
   }
-  if (totalDeniedTurns / matchup.runs > 4) {
-    warnings.push("controller-style denial exceeds 4 denied turns per run");
+  if (totalSlotBlocks / matchup.runs > 4) {
+    warnings.push("control slot blocks exceed 4 blocked slots per run");
   }
   if (
     defenderInvolved &&
@@ -895,6 +1041,9 @@ function powerAction(config: {
   dieSize: DiceSize;
   potency: number;
   controlTurns?: number;
+  controlEffectType?: ControlEffectType | null;
+  controlTheme?: string | null;
+  controlResistAttribute?: string | null;
   lifespanTurns?: number | null;
   intention: PowerIntention;
   detailsJson: Record<string, unknown>;
@@ -910,6 +1059,9 @@ function powerAction(config: {
     dieSize: config.dieSize,
     potency: config.potency,
     controlTurns: config.controlTurns ?? 0,
+    controlEffectType: config.controlEffectType ?? null,
+    controlTheme: config.controlTheme ?? null,
+    controlResistAttribute: config.controlResistAttribute ?? null,
     lifespanTurns: config.lifecycle === "lifespan" ? (config.lifespanTurns ?? 1) : null,
     power: createPower({
       sortOrder: config.sortOrder,
@@ -937,6 +1089,9 @@ function basicAttack(config: {
     lifecycle: "basic",
     lifecycleLabel: "At-will basic action",
     controlTurns: 0,
+    controlEffectType: null,
+    controlTheme: null,
+    controlResistAttribute: null,
     lifespanTurns: null,
   };
 }
@@ -953,6 +1108,9 @@ function createFixtures(): SmokeMonsterFixture[] {
       physicalHp: 34,
       physicalProtection: 1,
       dodgeChance: 0.15,
+      controlResistDice: 1,
+      controlResistDieSize: "D8",
+      controlResistAttribute: "Fortitude",
       actions: [
         basicAttack({
           id: "bruiser-basic",
@@ -990,6 +1148,9 @@ function createFixtures(): SmokeMonsterFixture[] {
       physicalHp: 28,
       physicalProtection: 0,
       dodgeChance: 0.1,
+      controlResistDice: 1,
+      controlResistDieSize: "D6",
+      controlResistAttribute: "Fortitude",
       actions: [
         basicAttack({
           id: "glass-basic",
@@ -1027,6 +1188,9 @@ function createFixtures(): SmokeMonsterFixture[] {
       physicalHp: 46,
       physicalProtection: 3,
       dodgeChance: 0.2,
+      controlResistDice: 2,
+      controlResistDieSize: "D8",
+      controlResistAttribute: "Fortitude",
       actions: [
         basicAttack({
           id: "defender-basic",
@@ -1057,13 +1221,16 @@ function createFixtures(): SmokeMonsterFixture[] {
     {
       id: "controller",
       name: "Controller",
-      role: "Lower damage with a denial power",
+      role: "Lower damage with a slot-control power",
       level: LEVEL,
       tier: TIER,
       legendary: false,
       physicalHp: 34,
       physicalProtection: 1,
       dodgeChance: 0.15,
+      controlResistDice: 1,
+      controlResistDieSize: "D8",
+      controlResistAttribute: "Fortitude",
       actions: [
         basicAttack({
           id: "controller-basic",
@@ -1082,6 +1249,9 @@ function createFixtures(): SmokeMonsterFixture[] {
           dieSize: "D10",
           potency: 0,
           controlTurns: 1,
+          controlEffectType: "forceNoPowerAction",
+          controlTheme: "Lockdown",
+          controlResistAttribute: "Fortitude",
           lifespanTurns: 1,
           intention: "CONTROL",
           sortOrder: 0,
@@ -1122,6 +1292,7 @@ function printCooldownLifecycleSemantics(): void {
   console.log("- If a cooldown die showing 1 would tick, it is removed; the power is ready on the owner's next turn or legal Response window.");
   console.log("- Therefore cooldown 1 does not mean available on the next own turn in this smoke model.");
   console.log("- v0.1 approximates 1v1 final-resolution-window closure after the opponent completes the relevant turn in the final lifespan round.");
+  console.log("- Control powers use legal action-slot restrictions and a smoke Resist gate; they do not skip an entire turn.");
   console.log("- Passive powers are not exercised; they do not enter cooldown from time passing.");
   console.log("- Counters/Assists follow the same lifecycle but Response simulation is out of scope.");
   console.log("- Charge is front-loaded and out of scope for these fixtures.");
@@ -1135,7 +1306,10 @@ function printSimplifications(): void {
   console.log("- no response economy");
   console.log("- no defence degradation");
   console.log("- no full ongoing effect engine");
-  console.log("- simplified control and no Cleanse/Resist ending active effects yet");
+  console.log("- legal action-slot control only; no full control engine");
+  console.log("- no Cleanse, ally intervention, immunity windows, or diminishing returns yet");
+  console.log("- Force Move and Force Specific action control options are not exercised by these fixtures");
+  console.log("- basic attacks use the Main Action slot; v0.1 does not spend unused Power Action slots on basic attacks");
   console.log("- deterministic expected-value AI with seeded stochastic resolution");
   console.log("- synthetic smoke dummies, not final balance exemplars");
   console.log("- final-resolution-window handling is an explicit 1v1 approximation");
@@ -1149,7 +1323,7 @@ function printFixtureSummary(
   for (const fixture of fixtures) {
     const actions = resolved.get(fixture.id) ?? [];
     console.log(
-      `- ${fixture.name}: L${fixture.level} ${fixture.tier}, HP ${fixture.physicalHp}, PP ${fixture.physicalProtection}, dodge ${round(fixture.dodgeChance * 100, 1)}%`,
+      `- ${fixture.name}: L${fixture.level} ${fixture.tier}, HP ${fixture.physicalHp}, PP ${fixture.physicalProtection}, dodge ${round(fixture.dodgeChance * 100, 1)}%, control resist ${fixture.controlResistDice}${fixture.controlResistDieSize} ${fixture.controlResistAttribute}`,
     );
     console.log(`  role: ${fixture.role}`);
     for (const action of actions) {
@@ -1158,7 +1332,9 @@ function printFixtureSummary(
           ? `${action.derivedCooldownTurns} turn(s), derived from BPV ${action.basePowerValue}`
           : "none";
       const control =
-        action.controlTurns > 0 ? `, control ${action.controlTurns} turn(s)` : "";
+        action.controlTurns > 0
+          ? `, control ${action.controlEffectType ?? "unsupported"} ${action.controlTurns} turn(s), theme ${action.controlTheme ?? "n/a"}, resist ${action.controlResistAttribute ?? "n/a"}`
+          : "";
       const lifespan =
         action.lifecycle === "lifespan"
           ? `, lifespan ${action.lifespanTurns} turn(s)`
@@ -1198,10 +1374,16 @@ function printMatchup(aggregate: MatchupAggregate): void {
     `power uses ${aggregate.first.name}: ${JSON.stringify(aggregate.firstPowerUses)} | ${aggregate.second.name}: ${JSON.stringify(aggregate.secondPowerUses)}`,
   );
   console.log(
-    `control attempts/successes ${aggregate.first.name}: ${aggregate.firstControlAttempts}/${aggregate.firstControlSuccesses} | ${aggregate.second.name}: ${aggregate.secondControlAttempts}/${aggregate.secondControlSuccesses}`,
+    `control attempts/resisted/landed ${aggregate.first.name}: ${aggregate.firstControlAttempts}/${aggregate.firstControlResisted}/${aggregate.firstControlLanded} | ${aggregate.second.name}: ${aggregate.secondControlAttempts}/${aggregate.secondControlResisted}/${aggregate.secondControlLanded}`,
   );
   console.log(
-    `control denied turns inflicted ${aggregate.first.name}: ${aggregate.firstControlInflicted} | ${aggregate.second.name}: ${aggregate.secondControlInflicted}`,
+    `control main slot blocks ${aggregate.first.name}: ${aggregate.firstMainActionsBlocked} | ${aggregate.second.name}: ${aggregate.secondMainActionsBlocked}`,
+  );
+  console.log(
+    `control power slot blocks ${aggregate.first.name}: ${aggregate.firstPowerActionsBlocked} | ${aggregate.second.name}: ${aggregate.secondPowerActionsBlocked}`,
+  );
+  console.log(
+    `control move blocks ${aggregate.first.name}: ${aggregate.firstMoveBlocked} | ${aggregate.second.name}: ${aggregate.secondMoveBlocked}`,
   );
   console.log(
     `blocked by active state ${aggregate.first.name}: ${aggregate.firstActiveBlocked} | ${aggregate.second.name}: ${aggregate.secondActiveBlocked}`,
