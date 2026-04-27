@@ -950,8 +950,8 @@ function createFixtures(): SmokeMonsterFixture[] {
       level: LEVEL,
       tier: TIER,
       legendary: false,
-      physicalHp: 38,
-      physicalProtection: 2,
+      physicalHp: 34,
+      physicalProtection: 1,
       dodgeChance: 0.15,
       actions: [
         basicAttack({
@@ -959,7 +959,7 @@ function createFixtures(): SmokeMonsterFixture[] {
           name: "Heavy Maul",
           diceCount: 3,
           dieSize: "D8",
-          potency: 3,
+          potency: 2,
         }),
         powerAction({
           id: "bruiser-power",
@@ -969,7 +969,7 @@ function createFixtures(): SmokeMonsterFixture[] {
           lifecycleLabel: "Immediate",
           diceCount: 4,
           dieSize: "D8",
-          potency: 4,
+          potency: 3,
           intention: "ATTACK",
           sortOrder: 0,
           detailsJson: {
@@ -987,7 +987,7 @@ function createFixtures(): SmokeMonsterFixture[] {
       level: LEVEL,
       tier: TIER,
       legendary: false,
-      physicalHp: 24,
+      physicalHp: 28,
       physicalProtection: 0,
       dodgeChance: 0.1,
       actions: [
@@ -1024,8 +1024,8 @@ function createFixtures(): SmokeMonsterFixture[] {
       level: LEVEL,
       tier: TIER,
       legendary: false,
-      physicalHp: 58,
-      physicalProtection: 4,
+      physicalHp: 46,
+      physicalProtection: 3,
       dodgeChance: 0.2,
       actions: [
         basicAttack({
@@ -1043,7 +1043,7 @@ function createFixtures(): SmokeMonsterFixture[] {
           lifecycleLabel: "Immediate",
           diceCount: 3,
           dieSize: "D8",
-          potency: 3,
+          potency: 2,
           intention: "ATTACK",
           sortOrder: 0,
           detailsJson: {
@@ -1061,7 +1061,7 @@ function createFixtures(): SmokeMonsterFixture[] {
       level: LEVEL,
       tier: TIER,
       legendary: false,
-      physicalHp: 32,
+      physicalHp: 34,
       physicalProtection: 1,
       dodgeChance: 0.15,
       actions: [
@@ -1078,7 +1078,7 @@ function createFixtures(): SmokeMonsterFixture[] {
           type: "controlPower",
           lifecycle: "lifespan",
           lifecycleLabel: "Attached-style Lifespan Turns",
-          diceCount: 4,
+          diceCount: 3,
           dieSize: "D10",
           potency: 0,
           controlTurns: 1,
@@ -1096,7 +1096,7 @@ function createFixtures(): SmokeMonsterFixture[] {
           type: "powerAttack",
           lifecycle: "immediate",
           lifecycleLabel: "Immediate",
-          diceCount: 3,
+          diceCount: 4,
           dieSize: "D8",
           potency: 3,
           intention: "ATTACK",
