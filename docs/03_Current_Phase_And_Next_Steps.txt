@@ -106,6 +106,7 @@ The current implementation now includes:
 - a shared stripped Summoning Circle baseline so live editor and harness comparisons align
 - a cleaned monster radar pipeline where:
   - canonical power contribution is derived first
+  - first-pass derived cooldown is now resolver output after BasePowerValue
   - per-power availability/cooldown adjustment is applied for monster outcome contribution
   - non-power monster contribution is added second
   - outcome normalization is applied last
@@ -204,6 +205,7 @@ The following parts remain active work:
 - validating real authored monsters against the active Outcome Calculator
 - turning genuine repeated real-monster mismatches into new calibration fixtures
 - continuing focused Power Tuning only when a power-led raw mismatch survives fixture review
+- preparing Combat Lab to consume derived cooldown turns rather than assuming 1-turn cooldown
 - continuing focused Combat Tuning only when a non-power raw mismatch survives fixture review
 - continuing focused Outcome Normalization only when raw values look right but radar display is wrong
 - deciding which current costs should remain cost-only and which should create honest axis expression

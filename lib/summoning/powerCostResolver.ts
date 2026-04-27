@@ -1,10 +1,12 @@
 import type {
   EffectDurationType,
   EffectPacket,
+  MonsterTier,
   Power,
   PowerIntention,
 } from "@/lib/summoning/types";
 import type { RadarAxes } from "@/lib/calculators/monsterOutcomeCalculator";
+import type { PowerTuningFlatValues } from "@/lib/config/powerTuningShared";
 import {
   DEFAULT_POWER_TUNING_VALUES,
   getPowerTuningValue,
@@ -44,6 +46,8 @@ export type PowerCostBreakdown = {
   packetCountComplexityCost: number;
   crossPacketSynergyCost: number;
   basePowerValue: number;
+  derivedCooldownTurns: number;
+  derivedCooldown: DerivedPowerCooldown;
   axisVector: PowerCostAxisVector;
   debug: Record<string, unknown>;
 };
@@ -52,6 +56,43 @@ type PowerTuningSnapshotLike = {
   setId?: string | null;
   name?: string | null;
   values?: Record<string, number> | null;
+};
+
+export type PowerCostContext = {
+  level?: number | null;
+  tier?: MonsterTier | null;
+};
+
+export type DerivedPowerCooldownBracket =
+  | "light"
+  | "moderate"
+  | "heavy"
+  | "extreme"
+  | "overExtreme";
+
+export type DerivedPowerCooldown = {
+  derivedCooldownTurns: number;
+  basePowerValue: number;
+  cooldownCapacity: number;
+  cooldownLoad: number;
+  cooldownBracket: DerivedPowerCooldownBracket;
+  level: number;
+  tier: MonsterTier | null;
+  tierMultiplier: number;
+  minTurns: number;
+  maxTurns: number;
+  tuningKeys: {
+    baseCapacity: string;
+    perLevelCapacity: string;
+    lightThreshold: string;
+    moderateThreshold: string;
+    heavyThreshold: string;
+    extremeThreshold: string;
+    minTurns: string;
+    maxTurns: string;
+    tierMultiplier: string | null;
+  };
+  notes: string[];
 };
 
 type CanonicalRangeCategory = "self" | "melee" | "ranged" | "aoe";
@@ -64,6 +105,19 @@ type SelectedTuningValue = {
   value: number;
   note?: string;
 };
+
+const KNOWN_MONSTER_TIERS = new Set<MonsterTier>(["MINION", "SOLDIER", "ELITE", "BOSS"]);
+
+const COOLDOWN_TUNING_KEYS = {
+  baseCapacity: "cooldown.capacity.base",
+  perLevelCapacity: "cooldown.capacity.perLevel",
+  lightThreshold: "cooldown.load.lightMax",
+  moderateThreshold: "cooldown.load.moderateMax",
+  heavyThreshold: "cooldown.load.heavyMax",
+  extremeThreshold: "cooldown.load.extremeMax",
+  minTurns: "cooldown.minTurns",
+  maxTurns: "cooldown.maxTurns",
+} as const;
 
 const EMPTY_AXIS_VECTOR: PowerCostAxisVector = {
   physicalThreat: 0,
@@ -111,6 +165,11 @@ function cloneEmptyAxisVector(): PowerCostAxisVector {
 function roundCost(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.round(value * 100) / 100;
+}
+
+function roundRatio(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 10000) / 10000;
 }
 
 function addAxisVectors(
@@ -2098,9 +2157,142 @@ function getCrossPacketSynergyCost(
   };
 }
 
+function normalizePowerCostContext(context?: PowerCostContext): {
+  level: number;
+  tier: MonsterTier | null;
+  notes: string[];
+} {
+  const notes: string[] = [];
+  const rawLevel = context?.level;
+  const level =
+    typeof rawLevel === "number" && Number.isFinite(rawLevel) && rawLevel > 0
+      ? Math.max(1, Math.trunc(rawLevel))
+      : 1;
+
+  if (level === 1 && (typeof rawLevel !== "number" || !Number.isFinite(rawLevel) || rawLevel <= 0)) {
+    notes.push("Missing or invalid monster level; derived cooldown used level 1 fallback.");
+  }
+
+  const rawTier = context?.tier;
+  const tier =
+    typeof rawTier === "string" && KNOWN_MONSTER_TIERS.has(rawTier as MonsterTier)
+      ? (rawTier as MonsterTier)
+      : null;
+
+  if (rawTier && tier === null) {
+    notes.push("Unrecognized monster tier; derived cooldown used neutral tier multiplier.");
+  }
+
+  return { level, tier, notes };
+}
+
+function clampCooldownTurns(value: number, minTurns: number, maxTurns: number): number {
+  const normalizedMin = Math.max(1, Math.trunc(minTurns));
+  const normalizedMax = Math.max(normalizedMin, Math.trunc(maxTurns));
+  return Math.min(normalizedMax, Math.max(normalizedMin, Math.trunc(value)));
+}
+
+export function derivePowerCooldown(
+  basePowerValue: number,
+  tuningValuesInput?: PowerTuningFlatValues | null,
+  context?: PowerCostContext,
+): DerivedPowerCooldown {
+  const tuningValues = normalizePowerTuningValues(
+    tuningValuesInput ?? DEFAULT_POWER_TUNING_VALUES,
+  );
+  const { level, tier, notes } = normalizePowerCostContext(context);
+  const baseCapacity = getPowerTuningValue(
+    tuningValues,
+    COOLDOWN_TUNING_KEYS.baseCapacity,
+    DEFAULT_POWER_TUNING_VALUES[COOLDOWN_TUNING_KEYS.baseCapacity] ?? 18,
+  );
+  const perLevelCapacity = getPowerTuningValue(
+    tuningValues,
+    COOLDOWN_TUNING_KEYS.perLevelCapacity,
+    DEFAULT_POWER_TUNING_VALUES[COOLDOWN_TUNING_KEYS.perLevelCapacity] ?? 6,
+  );
+  const tierMultiplierKey = tier ? `cooldown.capacity.tierMultiplier.${tier}` : null;
+  const tierMultiplier = tierMultiplierKey
+    ? getPowerTuningValue(tuningValues, tierMultiplierKey, 1)
+    : 1;
+  const rawCapacity =
+    (baseCapacity + perLevelCapacity * Math.max(0, level - 1)) *
+    Math.max(0, tierMultiplier);
+  const cooldownCapacity = Math.max(1, rawCapacity);
+  const cooldownLoad = Math.max(0, basePowerValue) / cooldownCapacity;
+
+  const lightThreshold = getPowerTuningValue(
+    tuningValues,
+    COOLDOWN_TUNING_KEYS.lightThreshold,
+    DEFAULT_POWER_TUNING_VALUES[COOLDOWN_TUNING_KEYS.lightThreshold] ?? 0.35,
+  );
+  const moderateThreshold = getPowerTuningValue(
+    tuningValues,
+    COOLDOWN_TUNING_KEYS.moderateThreshold,
+    DEFAULT_POWER_TUNING_VALUES[COOLDOWN_TUNING_KEYS.moderateThreshold] ?? 0.65,
+  );
+  const heavyThreshold = getPowerTuningValue(
+    tuningValues,
+    COOLDOWN_TUNING_KEYS.heavyThreshold,
+    DEFAULT_POWER_TUNING_VALUES[COOLDOWN_TUNING_KEYS.heavyThreshold] ?? 0.95,
+  );
+  const extremeThreshold = getPowerTuningValue(
+    tuningValues,
+    COOLDOWN_TUNING_KEYS.extremeThreshold,
+    DEFAULT_POWER_TUNING_VALUES[COOLDOWN_TUNING_KEYS.extremeThreshold] ?? 1.3,
+  );
+
+  let cooldownBracket: DerivedPowerCooldownBracket = "overExtreme";
+  let unboundedTurns = 5;
+  if (cooldownLoad <= lightThreshold) {
+    cooldownBracket = "light";
+    unboundedTurns = 1;
+  } else if (cooldownLoad <= moderateThreshold) {
+    cooldownBracket = "moderate";
+    unboundedTurns = 2;
+  } else if (cooldownLoad <= heavyThreshold) {
+    cooldownBracket = "heavy";
+    unboundedTurns = 3;
+  } else if (cooldownLoad <= extremeThreshold) {
+    cooldownBracket = "extreme";
+    unboundedTurns = 4;
+  }
+
+  const minTurns = getPowerTuningValue(
+    tuningValues,
+    COOLDOWN_TUNING_KEYS.minTurns,
+    DEFAULT_POWER_TUNING_VALUES[COOLDOWN_TUNING_KEYS.minTurns] ?? 1,
+  );
+  const maxTurns = getPowerTuningValue(
+    tuningValues,
+    COOLDOWN_TUNING_KEYS.maxTurns,
+    DEFAULT_POWER_TUNING_VALUES[COOLDOWN_TUNING_KEYS.maxTurns] ?? 5,
+  );
+  const derivedCooldownTurns = clampCooldownTurns(unboundedTurns, minTurns, maxTurns);
+
+  return {
+    derivedCooldownTurns,
+    basePowerValue: roundCost(basePowerValue),
+    cooldownCapacity: roundCost(cooldownCapacity),
+    cooldownLoad: roundRatio(cooldownLoad),
+    cooldownBracket,
+    level,
+    tier,
+    tierMultiplier: roundRatio(tierMultiplier),
+    minTurns: Math.max(1, Math.trunc(minTurns)),
+    maxTurns: Math.max(Math.max(1, Math.trunc(minTurns)), Math.trunc(maxTurns)),
+    tuningKeys: {
+      ...COOLDOWN_TUNING_KEYS,
+      tierMultiplier: tierMultiplierKey,
+    },
+    notes,
+  };
+}
+
 export function resolvePowerCost(
   power: Power,
   tuningSnapshot?: PowerTuningSnapshotLike,
+  context?: PowerCostContext,
 ): PowerCostBreakdown {
   const tuningValues = normalizePowerTuningValues(
     tuningSnapshot?.values ?? DEFAULT_POWER_TUNING_VALUES,
@@ -2267,6 +2459,7 @@ export function resolvePowerCost(
       packetCountComplexity.cost +
       crossPacketSynergy.cost,
   );
+  const derivedCooldown = derivePowerCooldown(basePowerValue, tuningValues, context);
 
   return {
     tuningSetId: tuningSnapshot?.setId ?? null,
@@ -2278,9 +2471,12 @@ export function resolvePowerCost(
     packetCountComplexityCost: roundCost(packetCountComplexity.cost),
     crossPacketSynergyCost: roundCost(crossPacketSynergy.cost),
     basePowerValue,
+    derivedCooldownTurns: derivedCooldown.derivedCooldownTurns,
+    derivedCooldown,
     axisVector: normalizeAxisVector(axisVector),
     debug: {
       resolvedCanonicalRangeCategory: canonicalRangeCategory,
+      derivedCooldown,
       sharedContextBreakdown: shared.debug,
       structuralBreakdown: structural.debug,
       structuralPresenceBreakdown: structuralPresence.debug,
@@ -2322,12 +2518,15 @@ export function resolvePowerCost(
 export function resolvePowerCosts(
   powers: Power[],
   tuningSnapshot?: PowerTuningSnapshotLike,
+  context?: PowerCostContext,
 ): {
   powers: Array<{
     powerId?: string;
     name: string;
     cooldownTurns: number | null;
     cooldownReduction: number | null;
+    derivedCooldownTurns: number;
+    derivedCooldown: DerivedPowerCooldown;
     breakdown: PowerCostBreakdown;
   }>;
   totals: {
@@ -2340,19 +2539,24 @@ export function resolvePowerCosts(
     axisVector: PowerCostAxisVector;
   };
 } {
-  const resolvedPowers = powers.map((power) => ({
-    powerId: power.id,
-    name: power.name,
-    cooldownTurns:
-      typeof power.cooldownTurns === "number" && Number.isFinite(power.cooldownTurns)
-        ? power.cooldownTurns
-        : null,
-    cooldownReduction:
-      typeof power.cooldownReduction === "number" && Number.isFinite(power.cooldownReduction)
-        ? power.cooldownReduction
-        : null,
-    breakdown: resolvePowerCost(power, tuningSnapshot),
-  }));
+  const resolvedPowers = powers.map((power) => {
+    const breakdown = resolvePowerCost(power, tuningSnapshot, context);
+    return {
+      powerId: power.id,
+      name: power.name,
+      cooldownTurns:
+        typeof power.cooldownTurns === "number" && Number.isFinite(power.cooldownTurns)
+          ? power.cooldownTurns
+          : null,
+      cooldownReduction:
+        typeof power.cooldownReduction === "number" && Number.isFinite(power.cooldownReduction)
+          ? power.cooldownReduction
+          : null,
+      derivedCooldownTurns: breakdown.derivedCooldownTurns,
+      derivedCooldown: breakdown.derivedCooldown,
+      breakdown,
+    };
+  });
 
   const totalsAxisVector = resolvedPowers.reduce(
     (axis, row) => addAxisVectors(axis, row.breakdown.axisVector),

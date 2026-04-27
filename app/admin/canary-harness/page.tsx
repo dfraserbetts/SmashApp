@@ -189,6 +189,9 @@ function computeHarnessSide(params: {
     setId: params.powerSnapshot.setId,
     name: params.powerSnapshot.name,
     values: params.powerSnapshot.values,
+  }, {
+    level: params.level,
+    tier: params.tier,
   });
   const calculatorConfigForSide = applyCombatTuningToCalculatorConfig(
     outcomeNormalizationValuesToCalculatorConfig(params.outcomeSnapshot.values),
@@ -405,10 +408,16 @@ function HarnessSideCard(props: {
         <h3 className="mb-2 text-xs uppercase tracking-wide text-zinc-500">Per Power</h3>
         <div className="space-y-1">
           {result.powerOnly.powers.map((power) => (
-            <div key={power.name} className="flex items-center justify-between gap-3 text-xs">
+            <div key={power.name} className="grid gap-1 text-xs sm:grid-cols-[minmax(0,1fr)_auto]">
               <span className="text-zinc-400">{power.name}</span>
               <span className="font-mono text-zinc-100">
-                {formatNumber(power.breakdown.basePowerValue)}
+                BPV {formatNumber(power.breakdown.basePowerValue)}
+              </span>
+              <span className="text-[11px] text-zinc-500 sm:col-span-2">
+                Derived Cooldown: {power.derivedCooldownTurns}{" "}
+                {power.derivedCooldownTurns === 1 ? "turn" : "turns"} | Load{" "}
+                {formatNumber(power.derivedCooldown.cooldownLoad)} (
+                {power.derivedCooldown.cooldownBracket})
               </span>
             </div>
           ))}

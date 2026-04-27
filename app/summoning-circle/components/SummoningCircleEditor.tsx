@@ -3638,6 +3638,23 @@ function getExpectedIncomingAttackDiceForDodge(
   return rows[rows.length - 1].typical;
 }
 
+function getExpectedDodgeDiceForSurvivability(
+  level: number,
+  tier: MonsterTier | null | undefined,
+): number {
+  const normalizedLevel = Math.max(1, Math.trunc(level || 1));
+  const levelOffset = Math.floor((normalizedLevel - 1) / 5);
+  const tierOffset = tier === "BOSS" ? 1 : 0;
+  const baseExpectedDodgeDice = Math.max(1, 1 + levelOffset + tierOffset);
+  const lateLevelDodgeExpectationOffset = normalizedLevel >= 12 ? 1 : 0;
+  const highLevelDodgeExpectationOffset = normalizedLevel >= 16 ? 1 : 0;
+  return (
+    baseExpectedDodgeDice +
+    lateLevelDodgeExpectationOffset +
+    highLevelDodgeExpectationOffset
+  );
+}
+
 function getSmoothDodgeShare(
   rawValue: number,
   scale: number,
@@ -3649,16 +3666,16 @@ function getSmoothDodgeShare(
   return safeMax * (1 - Math.exp(-normalized / safeScale));
 }
 
-function getDodgeParityProgress(
+function getDodgeAboveExpectationRatio(
   currentDodgeDice: number,
-  expectedIncomingAttackDice: number,
+  expectedDodgeDice: number,
 ): number {
   const current = Math.max(0, Number.isFinite(currentDodgeDice) ? currentDodgeDice : 0);
   const expected = Math.max(
     1,
-    Number.isFinite(expectedIncomingAttackDice) ? expectedIncomingAttackDice : 1,
+    Number.isFinite(expectedDodgeDice) ? expectedDodgeDice : 1,
   );
-  return Math.min(1, current / expected);
+  return Math.max(0, current / expected - 1);
 }
 
 function getCappedEquipmentLineShare(
@@ -5638,6 +5655,17 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       totalPhysicalProtection,
     ],
   );
+  const previewResolvedPowerCosts = useMemo(() => {
+    if (!previewMonster || !powerTuning.snapshot) return null;
+    return resolvePowerCosts(previewMonster.powers ?? [], powerTuning.snapshot, {
+      level: previewMonster.level,
+      tier: previewMonster.tier,
+    });
+  }, [powerTuning.snapshot, previewMonster]);
+  const previewDerivedPowerCooldownTurns = useMemo(
+    () => previewResolvedPowerCosts?.powers.map((power) => power.derivedCooldownTurns) ?? undefined,
+    [previewResolvedPowerCosts],
+  );
   const equippedWeaponSources = useMemo(() => {
     if (!previewMonster) return [] as WeaponAttackSource[];
     const slotIds = [
@@ -5929,32 +5957,38 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       previewMonster.level,
       previewMonster.tier,
     );
+    const expectedDodgeDice = getExpectedDodgeDiceForSurvivability(
+      previewMonster.level,
+      previewMonster.tier,
+    );
+    const baselineDodgeDice =
+      level >= 16 ? Math.min(dodgeDice, Math.max(1, expectedDodgeDice - 1)) : dodgeDice;
+    const dodgeDiceAboveExpectation = Math.max(0, dodgeDice - expectedDodgeDice);
 
     const baselineDodgeShare = getSmoothDodgeShare(
-      dodgeDice,
+      baselineDodgeDice,
       protectionTuning.dodgeBaselineScale,
       protectionTuning.dodgeBaselineMaxShare,
     );
 
-    const dodgeParityProgress = getDodgeParityProgress(
+    const dodgeAboveExpectationRatio = getDodgeAboveExpectationRatio(
       dodgeDice,
-      expectedIncomingAttackDice,
+      expectedDodgeDice,
     );
 
     const parityDodgeShare = getSmoothDodgeShare(
-      dodgeParityProgress,
+      dodgeAboveExpectationRatio,
       protectionTuning.dodgeParityScale,
       protectionTuning.dodgeParityMaxShare,
     );
 
-    const dodgeAboveExpectedDice = Math.max(0, dodgeDice - expectedIncomingAttackDice);
     const aboveExpectedDodgeShare = getSmoothDodgeShare(
-      Math.min(1, dodgeAboveExpectedDice),
+      Math.min(1, dodgeDiceAboveExpectation),
       protectionTuning.dodgeAboveExpectedScale,
       protectionTuning.dodgeAboveExpectedMaxShare,
     );
 
-    const extremeAboveExpectedDice = Math.max(0, dodgeAboveExpectedDice - 1);
+    const extremeAboveExpectedDice = Math.max(0, dodgeDiceAboveExpectation - 1);
     const extremeAboveExpectedDodgeShare = getSmoothDodgeShare(
       extremeAboveExpectedDice,
       protectionTuning.dodgeExtremeAboveExpectedScale,
@@ -6010,10 +6044,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       dodge: {
         currentDodgeDice: dodgeDice,
         expectedIncomingAttackDice,
+        expectedDodgeDice,
+        baselineDodgeDice,
         baselineShare: baselineDodgeShare,
-        parityProgress: dodgeParityProgress,
+        aboveExpectationRatio: dodgeAboveExpectationRatio,
         parityShare: parityDodgeShare,
-        aboveExpectedDice: dodgeAboveExpectedDice,
+        aboveExpectedDice: dodgeDiceAboveExpectation,
         aboveExpectedShare: aboveExpectedDodgeShare,
         extremeAboveExpectedDice,
         extremeAboveExpectedShare: extremeAboveExpectedDodgeShare,
@@ -6064,10 +6100,12 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   const outcomeProfile = useMemo(() => {
     if (!previewMonster) return null;
 
-    const resolvedPowerCosts = resolvePowerCosts(
-      previewMonster.powers ?? [],
-      powerTuning.snapshot ?? undefined,
-    );
+    const resolvedPowerCosts =
+      previewResolvedPowerCosts ??
+      resolvePowerCosts(previewMonster.powers ?? [], powerTuning.snapshot ?? undefined, {
+        level: previewMonster.level,
+        tier: previewMonster.tier,
+      });
     const baseProfile = computeMonsterOutcomes(previewMonster, runtimeCalculatorConfig, {
       equippedWeaponSources,
       defensiveProfileSources: selectedDefensiveProfileSources,
@@ -6091,6 +6129,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           name: power.name,
           axisVector: power.breakdown.axisVector,
           basePowerValue: power.breakdown.basePowerValue,
+          derivedCooldownTurns: power.derivedCooldownTurns,
           cooldownTurns: power.cooldownTurns,
           cooldownReduction: power.cooldownReduction,
         })),
@@ -6109,6 +6148,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   }, [
     equippedWeaponSources,
     previewMonster,
+    previewResolvedPowerCosts,
     powerTuning.snapshot,
     runtimeCalculatorConfig,
     selectedDefensiveProfileSources,
@@ -6130,7 +6170,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   const powerCostPreview = useMemo(() => {
     if (!hasEditor) return null;
 
-    const resolvedPowerCosts = resolvePowerCosts(editorPowers, powerTuning.snapshot ?? undefined);
+    const resolvedPowerCosts = resolvePowerCosts(editorPowers, powerTuning.snapshot ?? undefined, {
+      level: editor?.level,
+      tier: editor?.tier,
+    });
 
     return {
       tuningSetId: powerTuning.snapshot?.setId ?? null,
@@ -6141,6 +6184,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       perPower: resolvedPowerCosts.powers.map((power) => ({
         name: power.name,
         basePowerValue: power.breakdown.basePowerValue,
+        derivedCooldownTurns: power.derivedCooldownTurns,
+        cooldownCapacity: power.derivedCooldown.cooldownCapacity,
+        cooldownLoad: power.derivedCooldown.cooldownLoad,
+        cooldownBracket: power.derivedCooldown.cooldownBracket,
       })),
       debug: {
         loading: powerTuning.loading,
@@ -6336,6 +6383,23 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       return {
         ...prev,
         attacks: next.map((attack, index) => ({ ...attack, sortOrder: index })),
+      };
+    });
+  }, []);
+
+  const movePower = useCallback((fromIndex: number, toIndex: number) => {
+    setEditor((prev) => {
+      if (!prev) return prev;
+      if (toIndex < 0 || toIndex >= prev.powers.length) return prev;
+
+      const next = [...prev.powers];
+      const [moved] = next.splice(fromIndex, 1);
+      if (!moved) return prev;
+      next.splice(toIndex, 0, moved);
+
+      return {
+        ...prev,
+        powers: next.map((power, index) => ({ ...power, sortOrder: index })),
       };
     });
   }, []);
@@ -7110,6 +7174,14 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                   weaponById={weaponById}
                   className="border-0"
                   protectionTuning={protectionTuning}
+                  derivedPowerCooldownTurns={
+                    powerTuning.snapshot
+                      ? resolvePowerCosts(monster.powers ?? [], powerTuning.snapshot, {
+                          level: monster.level,
+                          tier: monster.tier,
+                        }).powers.map((power) => power.derivedCooldownTurns)
+                      : undefined
+                  }
                 />
               </div>
             </article>
@@ -10158,6 +10230,25 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                     </button>
 
                     {!readOnly && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => movePower(i, i - 1)}
+                          disabled={i === 0}
+                          className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
+                          aria-label={`Move power ${i + 1} up`}
+                        >
+                          ^
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => movePower(i, i + 1)}
+                          disabled={i === editor.powers.length - 1}
+                          className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-50"
+                          aria-label={`Move power ${i + 1} down`}
+                        >
+                          v
+                        </button>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -10172,6 +10263,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       >
                         Remove
                       </button>
+                      </div>
                     )}
                   </div>
                   {!collapsed && (
@@ -12121,7 +12213,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         </section>
           </div>
 
-          <div className={`${previewMobileVisibility} lg:block lg:sticky lg:top-4 self-start space-y-3 min-w-0 w-full`}>
+          <div className={`${previewMobileVisibility} lg:sticky lg:top-0 lg:block lg:max-h-screen lg:overflow-y-auto self-start space-y-3 min-w-0 w-full`}>
             <MonsterCalculatorPanel
               profile={outcomeProfile}
               archetype={calculatorArchetype}
@@ -12172,6 +12264,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       printLayout={previewPrintLayout}
                       printPage="COMPACT"
                       protectionTuning={protectionTuning}
+                      derivedPowerCooldownTurns={previewDerivedPowerCooldownTurns}
                     />
                   )}
 
@@ -12186,6 +12279,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                           printLayout={previewPrintLayout}
                           printPage="PAGE1_MAIN"
                           protectionTuning={protectionTuning}
+                          derivedPowerCooldownTurns={previewDerivedPowerCooldownTurns}
                         />
                       </div>
                       <div className="space-y-1">
@@ -12197,6 +12291,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                           printLayout={previewPrintLayout}
                           printPage="PAGE2_POWER"
                           protectionTuning={protectionTuning}
+                          derivedPowerCooldownTurns={previewDerivedPowerCooldownTurns}
                         />
                       </div>
                     </div>

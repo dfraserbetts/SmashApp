@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { resolvePowerCost } from "../lib/summoning/powerCostResolver";
+import { derivePowerCooldown, resolvePowerCost } from "../lib/summoning/powerCostResolver";
 import { calculatorConfig } from "../lib/calculators/calculatorConfig";
 import { computeMonsterOutcomes } from "../lib/calculators/monsterOutcomeCalculator";
 import { DEFAULT_POWER_TUNING_VALUES } from "../lib/config/powerTuningShared";
@@ -334,6 +334,53 @@ assert.equal(
   ).magnitude?.movementTypeMultiplierKey,
   "packet.magnitude.movementTypeMultiplier.run",
 );
+
+const samePowerLowLevelCooldown = derivePowerCooldown(30, DEFAULT_POWER_TUNING_VALUES, {
+  level: 1,
+  tier: "SOLDIER",
+});
+const samePowerHighLevelCooldown = derivePowerCooldown(30, DEFAULT_POWER_TUNING_VALUES, {
+  level: 10,
+  tier: "SOLDIER",
+});
+const lowerPowerSameLevelCooldown = derivePowerCooldown(10, DEFAULT_POWER_TUNING_VALUES, {
+  level: 5,
+  tier: "SOLDIER",
+});
+const higherPowerSameLevelCooldown = derivePowerCooldown(40, DEFAULT_POWER_TUNING_VALUES, {
+  level: 5,
+  tier: "SOLDIER",
+});
+const maxClampedCooldown = derivePowerCooldown(
+  999,
+  {
+    ...DEFAULT_POWER_TUNING_VALUES,
+    "cooldown.maxTurns": 3,
+  },
+  { level: 1, tier: "SOLDIER" },
+);
+const minClampedCooldown = derivePowerCooldown(
+  0,
+  {
+    ...DEFAULT_POWER_TUNING_VALUES,
+    "cooldown.minTurns": 2,
+  },
+  { level: 1, tier: "SOLDIER" },
+);
+const fallbackCooldown = derivePowerCooldown(30, DEFAULT_POWER_TUNING_VALUES);
+
+assert.ok(
+  samePowerLowLevelCooldown.derivedCooldownTurns >=
+    samePowerHighLevelCooldown.derivedCooldownTurns,
+);
+assert.ok(
+  higherPowerSameLevelCooldown.derivedCooldownTurns >=
+    lowerPowerSameLevelCooldown.derivedCooldownTurns,
+);
+assert.equal(maxClampedCooldown.derivedCooldownTurns, 3);
+assert.equal(minClampedCooldown.derivedCooldownTurns, 2);
+assert.equal(fallbackCooldown.level, 1);
+assert.ok(fallbackCooldown.notes.some((note) => note.includes("level 1 fallback")));
 
 console.log(
   JSON.stringify(

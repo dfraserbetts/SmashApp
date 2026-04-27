@@ -146,7 +146,7 @@ function curveFromValues(
   values: OutcomeNormalizationFlatValues,
   axis: ScoringCurveAxis,
 ): LevelCurvePoint[] {
-  return calculatorConfig.scoringCurves[axis].map((point) => ({
+  const curve = calculatorConfig.scoringCurves[axis].map((point) => ({
     level: point.level,
     min: getOutcomeNormalizationValue(
       values,
@@ -159,6 +159,18 @@ function curveFromValues(
       point.max,
     ),
   }));
+
+  return enforceMonotonicCurveBounds(curve);
+}
+
+function enforceMonotonicCurveBounds(curve: LevelCurvePoint[]): LevelCurvePoint[] {
+  let runningMin = 0;
+  let runningMax = 0;
+  return curve.map((point, index) => {
+    runningMin = index === 0 ? point.min : Math.max(runningMin, point.min);
+    runningMax = index === 0 ? point.max : Math.max(runningMax, point.max, runningMin);
+    return { ...point, min: runningMin, max: runningMax };
+  });
 }
 
 export function outcomeNormalizationValuesToCalculatorConfig(

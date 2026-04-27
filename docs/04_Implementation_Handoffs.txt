@@ -131,6 +131,7 @@ Use this ownership rule:
 The current live implementation already uses:
 
 - canonical power contribution from the Phase 6 resolver
+- derived cooldown turns from BasePowerValue using level-adjusted load/capacity brackets
 - effective per-power availability/cooldown adjustment before final monster outcome
 - non-power contribution from stripped monster baseline and other monster systems
 - final outcome normalization on top
@@ -320,6 +321,7 @@ Phase 6 is active implementation and already includes:
 - versioned Power Tuning
 - versioned Outcome Normalization
 - versioned Combat Tuning / Monster Baseline Tuning
+- first-pass derived cooldown resolver output; Cooldown Reduction remains future work
 - active tuning snapshot export workflow
 - Outcome Calibration Harness with active/default modes
 - active snapshots as live balance truth

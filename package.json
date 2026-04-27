@@ -13,6 +13,8 @@
     "lint": "eslint",
     "prisma:migrate:dev:safe": "node scripts/prisma-migrate-dev-shadow-safe.mjs",
     "calibration:export-active-tuning": "npx --yes tsx scripts/exportActiveTuningSnapshots.ts",
+    "diagnostic:level-relative-radar": "npx --yes tsx scripts/levelRelativeRadarDiagnostic.ts",
+    "diagnostic:level-relative-decay": "npx --yes tsx scripts/levelRelativeRadarDecayReport.ts",
     "test:limit-break": "node scripts/limitBreak.smoke.mjs",
     "test:limit-break-templates": "node scripts/limitBreakTemplates.smoke.mjs",
     "postinstall": "prisma generate",

@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+
 import type {
   MonsterCalculatorArchetype,
   MonsterOutcomeProfile,
@@ -17,7 +20,14 @@ type Props = {
     totalBasePowerValue: number;
     powerCount: number;
     axisVector: RadarAxes;
-    perPower: Array<{ name: string; basePowerValue: number }>;
+    perPower: Array<{
+      name: string;
+      basePowerValue: number;
+      derivedCooldownTurns: number;
+      cooldownCapacity: number;
+      cooldownLoad: number;
+      cooldownBracket: string;
+    }>;
     debug?: Record<string, unknown>;
   } | null;
 };
@@ -41,18 +51,14 @@ const ARCHETYPE_TOOLTIPS: Record<MonsterCalculatorArchetype, string> = {
     "Aims for an even spread across offence, both survivability lanes, control, mobility, and presence.",
   GLASS_CANNON:
     "Aims for high threat and burst pressure with intentionally low physical and mental survivability.",
-  TANK:
-    "Aims for very high physical and mental survivability over raw offensive output.",
+  TANK: "Aims for very high physical and mental survivability over raw offensive output.",
   CONTROLLER:
     "Aims for disruption, manipulation, and encounter-shaping value over direct damage.",
   SCRAPPER:
     "Aims for high physical threat and pressure with average mobility and physical survivability, while leaving mental lanes and synergy intentionally low.",
 };
 
-const ARCHETYPE_TARGETS: Record<
-  MonsterCalculatorArchetype,
-  RadarAxes
-> = {
+const ARCHETYPE_TARGETS: Record<MonsterCalculatorArchetype, RadarAxes> = {
   BALANCED: {
     physicalThreat: 5,
     mentalThreat: 5,
@@ -127,155 +133,228 @@ export function MonsterCalculatorPanel({
   onArchetypeChangeAction,
   powerCostPreview = null,
 }: Props) {
+  const [isOutcomeCalculatorOpen, setIsOutcomeCalculatorOpen] = useState(true);
+  const OutcomeCalculatorChevron = isOutcomeCalculatorOpen
+    ? ChevronDown
+    : ChevronRight;
+
   return (
-    <section className="rounded border border-zinc-800 bg-zinc-900/30 p-4 space-y-3">
+    <section className="sticky top-12 lg:top-0 z-20 max-h-[calc(100vh-3rem)] lg:max-h-screen overflow-y-auto rounded border border-zinc-800 bg-zinc-900/95 p-4 space-y-3 shadow">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="font-semibold">Outcome Calculator</h3>
-        <label className="flex items-center gap-2 text-xs">
-          <span className="text-zinc-400">Archetype</span>
-          <select
-            value={archetype}
-            title={ARCHETYPE_TOOLTIPS[archetype]}
-            onChange={(event) =>
-              onArchetypeChangeAction(event.target.value as MonsterCalculatorArchetype)
+        <div className="flex min-w-0 items-center gap-1">
+          <button
+            type="button"
+            className="rounded p-0.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+            aria-controls="outcome-calculator-body"
+            aria-expanded={isOutcomeCalculatorOpen}
+            title={
+              isOutcomeCalculatorOpen
+                ? "Hide Outcome Calculator"
+                : "Show Outcome Calculator"
             }
-            className="rounded border border-zinc-700 bg-zinc-950/40 px-2 py-1 text-xs"
+            onClick={() => setIsOutcomeCalculatorOpen((isOpen) => !isOpen)}
           >
-            {ARCHETYPE_OPTIONS.map((option) => (
-              <option key={option} value={option} title={ARCHETYPE_TOOLTIPS[option]}>
-                {ARCHETYPE_LABELS[option]}
-              </option>
-            ))}
-          </select>
-        </label>
+            <OutcomeCalculatorChevron className="h-4 w-4" aria-hidden="true" />
+            <span className="sr-only">
+              {isOutcomeCalculatorOpen
+                ? "Hide Outcome Calculator"
+                : "Show Outcome Calculator"}
+            </span>
+          </button>
+          <h3 className="font-semibold">Outcome Calculator</h3>
+        </div>
+        {isOutcomeCalculatorOpen && (
+          <label className="flex items-center gap-2 text-xs">
+            <span className="text-zinc-400">Archetype</span>
+            <select
+              value={archetype}
+              title={ARCHETYPE_TOOLTIPS[archetype]}
+              onChange={(event) =>
+                onArchetypeChangeAction(
+                  event.target.value as MonsterCalculatorArchetype,
+                )
+              }
+              className="rounded border border-zinc-700 bg-zinc-950/40 px-2 py-1 text-xs"
+            >
+              {ARCHETYPE_OPTIONS.map((option) => (
+                <option
+                  key={option}
+                  value={option}
+                  title={ARCHETYPE_TOOLTIPS[option]}
+                >
+                  {ARCHETYPE_LABELS[option]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
-      {!profile && <p className="text-xs text-zinc-500">No preview monster selected.</p>}
-
-      {profile && (
-        <>
-          <div className="space-y-1">
-            <h4 className="text-sm font-semibold">Final Outcome</h4>
-          <p className="text-[11px] text-zinc-500">
-            Combined monster radar after non-power contributors, effective power availability,
-            and outcome normalization.
+      {isOutcomeCalculatorOpen && (
+        <div id="outcome-calculator-body" className="space-y-3">
+          {!profile && (
+            <p className="text-xs text-zinc-500">
+              No preview monster selected.
             </p>
-          </div>
-          <OutcomeRadar
-            axes={profile.radarAxes}
-            backgroundAxes={ARCHETYPE_TARGETS[archetype]}
-          />
+          )}
 
-          <details className="rounded border border-zinc-800 bg-zinc-950/30 p-2 text-[10px] text-zinc-400">
-            <summary className="cursor-pointer select-none text-zinc-500">Debug</summary>
-            <pre className="mt-2 overflow-auto">
-              {JSON.stringify(
-                {
-                  sustainedPhysical: profile.sustainedPhysical,
-                  sustainedMental: profile.sustainedMental,
-                  sustainedTotal: profile.sustainedTotal,
-                  spike: profile.spike,
-                  seuPerRound: profile.seuPerRound,
-                  tsuPerRound: profile.tsuPerRound,
-                  radarAxes: profile.radarAxes,
-                  debug: profile.debug ?? null,
-                },
-                null,
-                2,
-              )}
-            </pre>
-          </details>
-        </>
-      )}
-
-      {profile && (
-        <p className="text-[11px] text-zinc-500">
-          Net Success Multiplier: {formatDecimal(profile.netSuccessMultiplier)}
-        </p>
-      )}
-
-      <section className="rounded border border-zinc-800 bg-zinc-950/30 p-3 space-y-3">
-        <div className="space-y-1">
-          <h4 className="text-sm font-semibold">Power Contribution</h4>
-          <p className="text-[11px] text-zinc-500">
-            Canonical Phase 6 per-use power vector. Final outcome debug shows the effective
-            availability-adjusted contribution used by the monster radar.
-          </p>
-        </div>
-
-        {!powerCostPreview && (
-          <p className="text-xs text-zinc-500">No power preview available.</p>
-        )}
-
-        {powerCostPreview && (
-          <>
-            <dl className="grid gap-2 text-xs sm:grid-cols-3">
-              <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">
-                <dt className="text-zinc-500">Tuning Set</dt>
-                <dd className="mt-1 text-zinc-200">
-                  {powerCostPreview.tuningSetName ?? "Default values (loading or fallback)"}
-                </dd>
-              </div>
-              <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">
-                <dt className="text-zinc-500">Powers</dt>
-                <dd className="mt-1 text-zinc-200">{powerCostPreview.powerCount}</dd>
-              </div>
-              <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">
-                <dt className="text-zinc-500">Total Base Power Value</dt>
-                <dd className="mt-1 text-zinc-200">
-                  {formatDecimal(powerCostPreview.totalBasePowerValue)}
-                </dd>
-              </div>
-            </dl>
-
-            <div className="space-y-2">
-              <h5 className="text-xs font-medium text-zinc-300">Canonical Power Axis Vector</h5>
-              <div className="grid gap-2 text-xs sm:grid-cols-2">
-                {POWER_AXIS_ROWS.map((axis) => (
-                  <div
-                    key={axis.key}
-                    className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-900/40 px-2 py-1"
-                  >
-                    <span className="text-zinc-500">{axis.label}</span>
-                    <span className="text-zinc-200">
-                      {formatDecimal(powerCostPreview.axisVector[axis.key] ?? 0)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <h5 className="text-xs font-medium text-zinc-300">Per Power</h5>
+          {profile && (
+            <>
               <div className="space-y-1">
-                {powerCostPreview.perPower.length === 0 && (
-                  <p className="text-xs text-zinc-500">No powers authored yet.</p>
-                )}
-                {powerCostPreview.perPower.map((power, index) => (
-                  <div
-                    key={`${power.name}-${index}`}
-                    className="flex items-center justify-between gap-3 rounded border border-zinc-800 bg-zinc-900/40 px-2 py-1 text-xs"
-                  >
-                    <span className="truncate text-zinc-300">{power.name || `Power ${index + 1}`}</span>
-                    <span className="shrink-0 text-zinc-200">
-                      {formatDecimal(power.basePowerValue)}
-                    </span>
-                  </div>
-                ))}
+                <h4 className="text-sm font-semibold">Final Outcome</h4>
+                <p className="text-[11px] text-zinc-500">
+                  Combined monster radar after non-power contributors, effective
+                  power availability, and outcome normalization.
+                </p>
               </div>
-            </div>
+              <OutcomeRadar
+                axes={profile.radarAxes}
+                backgroundAxes={ARCHETYPE_TARGETS[archetype]}
+              />
 
-            <details className="rounded border border-zinc-800 bg-zinc-950/30 p-2 text-[10px] text-zinc-400">
-              <summary className="cursor-pointer select-none text-zinc-500">
-                Power Cost Debug
-              </summary>
-              <pre className="mt-2 overflow-auto">
-                {JSON.stringify(powerCostPreview.debug ?? null, null, 2)}
-              </pre>
-            </details>
-          </>
-        )}
-      </section>
+              <details className="rounded border border-zinc-800 bg-zinc-950/30 p-2 text-[10px] text-zinc-400">
+                <summary className="cursor-pointer select-none text-zinc-500">
+                  Debug
+                </summary>
+                <pre className="mt-2 overflow-auto">
+                  {JSON.stringify(
+                    {
+                      sustainedPhysical: profile.sustainedPhysical,
+                      sustainedMental: profile.sustainedMental,
+                      sustainedTotal: profile.sustainedTotal,
+                      spike: profile.spike,
+                      seuPerRound: profile.seuPerRound,
+                      tsuPerRound: profile.tsuPerRound,
+                      radarAxes: profile.radarAxes,
+                      debug: profile.debug ?? null,
+                    },
+                    null,
+                    2,
+                  )}
+                </pre>
+              </details>
+            </>
+          )}
+
+          {profile && (
+            <p className="text-[11px] text-zinc-500">
+              Net Success Multiplier:{" "}
+              {formatDecimal(profile.netSuccessMultiplier)}
+            </p>
+          )}
+
+          <details className="rounded border border-zinc-800 bg-zinc-950/30 p-3 text-xs">
+            <summary className="cursor-pointer select-none text-zinc-300">
+              Power Contribution
+            </summary>
+
+            <div className="mt-3 space-y-3">
+              <p className="text-[11px] text-zinc-500">
+                Canonical Phase 6 per-use power vector. Final outcome debug
+                shows the effective availability-adjusted contribution used by
+                the monster radar.
+              </p>
+
+              {!powerCostPreview && (
+                <p className="text-xs text-zinc-500">
+                  No power preview available.
+                </p>
+              )}
+
+              {powerCostPreview && (
+                <>
+                  <dl className="grid gap-2 text-xs sm:grid-cols-3">
+                    <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">
+                      <dt className="text-zinc-500">Tuning Set</dt>
+                      <dd className="mt-1 text-zinc-200">
+                        {powerCostPreview.tuningSetName ??
+                          "Default values (loading or fallback)"}
+                      </dd>
+                    </div>
+                    <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">
+                      <dt className="text-zinc-500">Powers</dt>
+                      <dd className="mt-1 text-zinc-200">
+                        {powerCostPreview.powerCount}
+                      </dd>
+                    </div>
+                    <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">
+                      <dt className="text-zinc-500">Total Base Power Value</dt>
+                      <dd className="mt-1 text-zinc-200">
+                        {formatDecimal(powerCostPreview.totalBasePowerValue)}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="space-y-2">
+                    <h5 className="text-xs font-medium text-zinc-300">
+                      Canonical Power Axis Vector
+                    </h5>
+                    <div className="grid gap-2 text-xs sm:grid-cols-2">
+                      {POWER_AXIS_ROWS.map((axis) => (
+                        <div
+                          key={axis.key}
+                          className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-900/40 px-2 py-1"
+                        >
+                          <span className="text-zinc-500">{axis.label}</span>
+                          <span className="text-zinc-200">
+                            {formatDecimal(
+                              powerCostPreview.axisVector[axis.key] ?? 0,
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h5 className="text-xs font-medium text-zinc-300">
+                      Per Power
+                    </h5>
+                    <div className="space-y-1">
+                      {powerCostPreview.perPower.length === 0 && (
+                        <p className="text-xs text-zinc-500">
+                          No powers authored yet.
+                        </p>
+                      )}
+                      {powerCostPreview.perPower.map((power, index) => (
+                        <div
+                          key={`${power.name}-${index}`}
+                          className="grid gap-1 rounded border border-zinc-800 bg-zinc-900/40 px-2 py-2 text-xs sm:grid-cols-[minmax(0,1fr)_auto]"
+                        >
+                          <span className="truncate text-zinc-300">
+                            {power.name || `Power ${index + 1}`}
+                          </span>
+                          <span className="text-zinc-200 sm:text-right">
+                            BPV {formatDecimal(power.basePowerValue)}
+                          </span>
+                          <span className="text-[11px] text-zinc-500 sm:col-span-2">
+                            Derived Cooldown: {power.derivedCooldownTurns}{" "}
+                            {power.derivedCooldownTurns === 1
+                              ? "turn"
+                              : "turns"}{" "}
+                            | Capacity {formatDecimal(power.cooldownCapacity)} |
+                            Load {formatDecimal(power.cooldownLoad)} (
+                            {power.cooldownBracket})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <details className="rounded border border-zinc-800 bg-zinc-950/30 p-2 text-[10px] text-zinc-400">
+                    <summary className="cursor-pointer select-none text-zinc-500">
+                      Power Cost Debug
+                    </summary>
+                    <pre className="mt-2 overflow-auto">
+                      {JSON.stringify(powerCostPreview.debug ?? null, null, 2)}
+                    </pre>
+                  </details>
+                </>
+              )}
+            </div>
+          </details>
+        </div>
+      )}
     </section>
   );
 }

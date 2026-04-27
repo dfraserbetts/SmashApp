@@ -16,6 +16,26 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
     commitment: { channel: 2, charge: 2, standard: 0 },
     counter: { no: 0, yes: 1.5 },
   },
+  cooldown: {
+    capacity: {
+      base: 18,
+      perLevel: 6,
+      tierMultiplier: {
+        MINION: 1,
+        SOLDIER: 1,
+        ELITE: 1,
+        BOSS: 1,
+      },
+    },
+    load: {
+      lightMax: 0.35,
+      moderateMax: 0.65,
+      heavyMax: 0.95,
+      extremeMax: 1.3,
+    },
+    minTurns: 1,
+    maxTurns: 5,
+  },
   axis: {
     presence: { passive: 0.4, turns: 0.2, recurringTurnTiming: 0.1 },
     structural: {

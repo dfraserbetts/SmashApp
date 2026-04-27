@@ -87,6 +87,7 @@ type MonsterBlockCardProps = {
   printLayout?: PrintLayoutMode;
   printPage?: PrintPageMode;
   protectionTuning?: ProtectionTuningValues;
+  derivedPowerCooldownTurns?: Array<number | null | undefined>;
 };
 type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
 type PrintPageMode = "COMPACT" | "PAGE1_MAIN" | "PAGE2_POWER";
@@ -679,6 +680,7 @@ export function MonsterBlockCard({
   printLayout = "COMPACT_1P",
   printPage = "COMPACT",
   protectionTuning,
+  derivedPowerCooldownTurns,
 }: MonsterBlockCardProps) {
   const inPrint = Boolean(isPrint);
   const is2Page = inPrint && printLayout === "LEGENDARY_2P";
@@ -1753,6 +1755,15 @@ export function MonsterBlockCard({
           const isLast = idx === powerCount - 1;
           const isOddCount = powerCount % 2 === 1;
           const spanFull = powerCount > 1 && isOddCount && isLast;
+          const derivedCooldownTurns = derivedPowerCooldownTurns?.[idx];
+          const displayCooldownTurns =
+            typeof derivedCooldownTurns === "number" && Number.isFinite(derivedCooldownTurns)
+              ? Math.max(1, Math.trunc(derivedCooldownTurns))
+              : effectiveCooldownTurns(power);
+          const cooldownDisplaySource =
+            typeof derivedCooldownTurns === "number" && Number.isFinite(derivedCooldownTurns)
+              ? "Derived cooldown from Phase 6 power-cost resolver."
+              : "Fallback cooldown from authored manual cooldown fields.";
 
           return (
           <div
@@ -1773,9 +1784,9 @@ export function MonsterBlockCard({
             {renderPowerDescriptorLines(power).map((line, i) => (
               <p key={i}>{highlightMechanics(line)}</p>
             ))}
-            <p>
+            <p title={cooldownDisplaySource}>
               {highlightMechanics(
-                `Cooldown: ${effectiveCooldownTurns(power)} | Counter: ${
+                `Cooldown: ${displayCooldownTurns} | Counter: ${
                   power.counterMode === "YES"
                     ? "Yes"
                     : "No"

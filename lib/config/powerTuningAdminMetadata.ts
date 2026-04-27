@@ -4,6 +4,7 @@ export const POWER_TUNING_ADMIN_GROUPS = [
   "Shared Context",
   "Structural",
   "Access",
+  "Derived Cooldown",
   "Packet Identity",
   "Packet Axis Emission",
   "Packet Magnitude",
@@ -53,12 +54,14 @@ const SEGMENT_LABELS: Record<string, string> = {
   chargeTurns: "Charge Turns",
   chargeType: "Charge Type",
   coneLength: "Cone Length",
+  cooldown: "Cooldown",
   damageOverTime: "Damage Over Time",
   damageTypeCount: "Damage Type Count",
   delayedCast: "Delayed Release",
   effectOverTime: "Effect Over Time",
   endOfTurn: "End of Turn",
   endOfTurnWhileChannelled: "End of Turn While Channelled",
+  extremeMax: "Extreme Load Max",
   fieldPressure: "Field Pressure",
   forceFly: "Force Fly",
   forceMove: "Force Move",
@@ -68,11 +71,14 @@ const SEGMENT_LABELS: Record<string, string> = {
   forceSpecificMainAction: "Force Specific Main Action",
   forceSpecificPowerAction: "Force Specific Power Action",
   forceTeleport: "Force Teleport",
+  heavyMax: "Heavy Load Max",
   hostileToBeneficial: "Hostile Hit into Beneficial Rider",
   latchToPayload: "Attach-then-Payload Interaction",
   lineLength: "Line Length",
   lineWidth: "Line Width",
+  lightMax: "Light Load Max",
   meleeTargets: "Melee Targets",
+  moderateMax: "Moderate Load Max",
   onAttach: "On Attach",
   onCast: "On Cast",
   onExpiry: "On Expiry",
@@ -84,6 +90,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   packet3plus: "Third Packet and Beyond",
   packetCount: "Packet Count",
   passive: "Passive",
+  perLevel: "Per Level Capacity",
   primaryTargets: "Primary Targets",
   rangeCategory: "Range Category",
   rangedDistance: "Ranged Distance",
@@ -97,6 +104,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   startOfTurn: "Start of Turn",
   startOfTurnWhileChannelled: "Start of Turn While Channelled",
   targetThenArm: "Target, Then Arm",
+  tierMultiplier: "Tier Multiplier",
   triggerMethod: "Trigger Setup Method",
   triggerPressure: "Trigger Pressure",
   untilNextTurn: "Until Next Turn",
@@ -146,6 +154,16 @@ function labelForKey(configKey: string): string {
     if (family === "chargeType") return `${formatSegment(detail ?? "")} Charge Cost`;
     if (family === "commitment") return `${formatSegment(detail ?? "")} Commitment Cost`;
     if (family === "counter") return `Counterplay ${formatSegment(detail ?? "")}`;
+  }
+
+  if (section === "cooldown") {
+    if (family === "capacity" && detail === "tierMultiplier") {
+      return `Cooldown Capacity Tier Multiplier - ${formatSegment(value ?? "")}`;
+    }
+    if (family === "capacity") return `Cooldown Capacity - ${formatSegment(detail ?? "")}`;
+    if (family === "load") return `Cooldown Load - ${formatSegment(detail ?? "")}`;
+    if (family === "minTurns") return "Minimum Derived Cooldown Turns";
+    if (family === "maxTurns") return "Maximum Derived Cooldown Turns";
   }
 
   if (section === "packet") {
@@ -201,6 +219,7 @@ function groupForKey(configKey: string): PowerTuningAdminGroup {
   if (configKey.startsWith("shared.")) return "Shared Context";
   if (configKey.startsWith("structural.")) return "Structural";
   if (configKey.startsWith("access.")) return "Access";
+  if (configKey.startsWith("cooldown.")) return "Derived Cooldown";
   if (configKey.startsWith("packet.identity.")) return "Packet Identity";
   if (configKey.startsWith("packet.axisEmission.")) return "Packet Axis Emission";
   if (configKey.startsWith("packet.axisRouting.")) return "Packet Axis Emission";
@@ -229,8 +248,10 @@ function affectsForKey(configKey: string): PowerTuningAffects {
 }
 
 function formatForKey(configKey: string): PowerTuningValueFormat {
+  if (configKey.startsWith("cooldown.capacity.tierMultiplier.")) return "multiplier";
   if (
     configKey.startsWith("system.secondaryContingency.") ||
+    configKey.startsWith("cooldown.load.") ||
     configKey.endsWith("recurringCarrierTurnShare") ||
     configKey.startsWith("packet.axisRouting.")
   ) {
@@ -257,6 +278,11 @@ function descriptionForKey(configKey: string): string {
   if (configKey.startsWith("structural.attachedHostileEntry.")) return "Raises or lowers the cost of whether an Attached hostile event happens on attach or later payload.";
   if (configKey.startsWith("access.chargeTurns.")) return "Raises or lowers the extra cost for longer charge times.";
   if (configKey.startsWith("access.")) return "Raises or lowers the cost of commitment, counterplay, and charge access.";
+  if (configKey.startsWith("cooldown.capacity.tierMultiplier.")) return "Multiplies the level-adjusted cooldown capacity for this monster tier. First-pass defaults are neutral.";
+  if (configKey.startsWith("cooldown.capacity.")) return "Sets the expected power capacity used after BasePowerValue when deriving cooldown.";
+  if (configKey.startsWith("cooldown.load.")) return "Sets a load bracket threshold for deriving cooldown turns from BasePowerValue divided by cooldown capacity.";
+  if (configKey.startsWith("cooldown.minTurns")) return "Clamps derived cooldown turns to this minimum.";
+  if (configKey.startsWith("cooldown.maxTurns")) return "Clamps derived cooldown turns to this maximum.";
   if (configKey.startsWith("packet.identity.")) return "Raises or lowers the base cost of this packet intention.";
   if (configKey.startsWith("packet.axisEmission.intention.")) return "Multiplies only this packet intention's emitted behaviour-axis contribution. Scalar packet cost, BasePowerValue, and cooldown/cost truth are unchanged.";
   if (configKey.startsWith("packet.axisRouting.hostileForcedMovement.")) return "Controls how hostile forced movement's emitted movement-axis value is routed between Manipulation and Mobility. Scalar packet cost, BasePowerValue, and friendly movement are unchanged.";
@@ -322,6 +348,11 @@ function aliasesForKey(configKey: string): string[] {
   if (lowerKey.includes("synergy")) aliases.add("Cross-Packet");
   if (lowerKey.includes("structural")) aliases.add("Structural Presence");
   if (lowerKey.includes("commitment")) aliases.add("Access");
+  if (lowerKey.includes("cooldown")) {
+    aliases.add("Derived Cooldown");
+    aliases.add("Cooldown Capacity");
+    aliases.add("Cooldown Load");
+  }
 
   return Array.from(aliases);
 }

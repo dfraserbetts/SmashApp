@@ -166,6 +166,7 @@ export type CanonicalPowerContribution = {
     name?: string | null;
     axisVector?: Partial<RadarAxes> | null;
     basePowerValue?: number | null;
+    derivedCooldownTurns?: number | null;
     cooldownTurns?: number | null;
     cooldownReduction?: number | null;
   }> | null;
@@ -224,6 +225,8 @@ type NormalizedAtWillAttackSegment = {
   authoredStrength: number;
   damageTypeCount: number;
   woundsPerSuccess: number;
+  levelAdjustedWoundsPerSuccess: number;
+  levelWoundBonus: number;
   targetCount: number;
   targetMultiplier: number;
   aoeContributionInput: number;
@@ -267,6 +270,11 @@ type DefensiveContribution = {
   totals: {
     physicalBlockPerSuccess: number;
     mentalBlockPerSuccess: number;
+    expectedIncomingAttackDice: number;
+    expectedDodgeDice: number;
+    baselineDodgeDice: number;
+    dodgeDiceAboveExpectation: number;
+    dodgeAboveExpectationRatio: number;
     physicalDodgeRawBonus: number;
     mentalDodgeRawBonus: number;
     physicalDefenceRawBonus: number;
@@ -326,6 +334,7 @@ const EMPTY_TRAIT_AXIS_BONUSES: TraitAxisBonuses = {
   mobility: 0,
   presence: 0,
 };
+const RAW_NUMERATOR_REFERENCE_LEVEL = 1;
 
 function clampNonNegative(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -1075,7 +1084,10 @@ function pushNormalizedAtWillSegments(
       successChance,
       authoredStrength,
       damageTypeCount,
-      woundsPerSuccess: authoredStrength + levelWoundBonus,
+      // Radar normalization is level-relative, so the numerator keeps authored attack strength level-neutral.
+      woundsPerSuccess: authoredStrength,
+      levelAdjustedWoundsPerSuccess: authoredStrength + levelWoundBonus,
+      levelWoundBonus,
       targetCount,
       targetMultiplier,
       aoeContributionInput: attackKind === "aoe" ? targetCount : 0,
@@ -1191,14 +1203,25 @@ function getExpectedIncomingAttackDiceForDodge(level: number, tier: MonsterTier)
   return Math.max(1, 1 + levelOffset + tierOffset);
 }
 
+function getExpectedDodgeDiceForSurvivability(level: number, tier: MonsterTier): number {
+  const normalizedLevel = Math.max(1, Math.trunc(level || 1));
+  const lateLevelDodgeExpectationOffset = normalizedLevel >= 12 ? 1 : 0;
+  const highLevelDodgeExpectationOffset = normalizedLevel >= 16 ? 1 : 0;
+  return (
+    getExpectedIncomingAttackDiceForDodge(level, tier) +
+    lateLevelDodgeExpectationOffset +
+    highLevelDodgeExpectationOffset
+  );
+}
+
 function getSmoothDodgeShare(value: number, scale: number, maxShare: number): number {
   if (!(value > 0) || !(scale > 0) || !(maxShare > 0)) return 0;
   return maxShare * (1 - Math.exp(-value / scale));
 }
 
-function getDodgeParityProgress(currentDodgeDice: number, expectedIncomingAttackDice: number): number {
-  if (!(currentDodgeDice > 0) || !(expectedIncomingAttackDice > 0)) return 0;
-  return Math.min(1, currentDodgeDice / expectedIncomingAttackDice);
+function getDodgeAboveExpectationRatio(currentDodgeDice: number, expectedDodgeDice: number): number {
+  if (!(currentDodgeDice > 0) || !(expectedDodgeDice > 0)) return 0;
+  return Math.max(0, currentDodgeDice / expectedDodgeDice - 1);
 }
 
 function getSmoothDefenceShare(value: number, scale: number, maxShare: number): number {
@@ -1318,23 +1341,33 @@ function computeDefensiveContributionFromProfiles(
   axisBudgetTargets: Pick<RadarAxes, "physicalSurvivability" | "mentalSurvivability">,
 ): DefensiveContribution {
   const expectedIncomingAttackDice = getExpectedIncomingAttackDiceForDodge(level, tier);
-  const baselineDodgeShare = getSmoothDodgeShare(
+  const expectedDodgeDice = getExpectedDodgeDiceForSurvivability(level, tier);
+  const normalizedLevel = Math.max(1, Math.trunc(level || 1));
+  const baselineDodgeDice =
+    normalizedLevel >= 16
+      ? Math.min(context.dodgeDice, Math.max(1, expectedDodgeDice - 1))
+      : context.dodgeDice;
+  const dodgeDiceAboveExpectation = Math.max(0, context.dodgeDice - expectedDodgeDice);
+  const dodgeAboveExpectationRatio = getDodgeAboveExpectationRatio(
     context.dodgeDice,
+    expectedDodgeDice,
+  );
+  const baselineDodgeShare = getSmoothDodgeShare(
+    baselineDodgeDice,
     tuning.dodgeBaselineScale,
     tuning.dodgeBaselineMaxShare,
   );
   const parityDodgeShare = getSmoothDodgeShare(
-    getDodgeParityProgress(context.dodgeDice, expectedIncomingAttackDice),
+    dodgeAboveExpectationRatio,
     tuning.dodgeParityScale,
     tuning.dodgeParityMaxShare,
   );
-  const dodgeAboveExpectedDice = Math.max(0, context.dodgeDice - expectedIncomingAttackDice);
   const aboveExpectedDodgeShare = getSmoothDodgeShare(
-    Math.min(1, dodgeAboveExpectedDice),
+    Math.min(1, dodgeDiceAboveExpectation),
     tuning.dodgeAboveExpectedScale,
     tuning.dodgeAboveExpectedMaxShare,
   );
-  const extremeAboveExpectedDice = Math.max(0, dodgeAboveExpectedDice - 1);
+  const extremeAboveExpectedDice = Math.max(0, dodgeDiceAboveExpectation - 1);
   const extremeAboveExpectedDodgeShare = getSmoothDodgeShare(
     extremeAboveExpectedDice,
     tuning.dodgeExtremeAboveExpectedScale,
@@ -1426,6 +1459,11 @@ function computeDefensiveContributionFromProfiles(
     totals: {
       physicalBlockPerSuccess,
       mentalBlockPerSuccess,
+      expectedIncomingAttackDice,
+      expectedDodgeDice,
+      baselineDodgeDice,
+      dodgeDiceAboveExpectation,
+      dodgeAboveExpectationRatio,
       physicalDodgeRawBonus,
       mentalDodgeRawBonus,
       physicalDefenceRawBonus,
@@ -1642,14 +1680,14 @@ export function computeMonsterOutcomes(
   const physicalSurvivabilityRawBudgetTarget = getRawSurvivabilityBudgetTarget(
     rawSurvivabilityBudgetTuning,
     "physical",
-    level,
+    RAW_NUMERATOR_REFERENCE_LEVEL,
     monster.tier,
     Boolean(monster.legendary),
   );
   const mentalSurvivabilityRawBudgetTarget = getRawSurvivabilityBudgetTarget(
     rawSurvivabilityBudgetTuning,
     "mental",
-    level,
+    RAW_NUMERATOR_REFERENCE_LEVEL,
     monster.tier,
     Boolean(monster.legendary),
   );
@@ -2046,7 +2084,8 @@ export function computeMonsterOutcomes(
           traitAxisBonuses,
           customLimitBreakAxisBonuses,
           rawSurvivabilityBudgetTargets: {
-            source: "combat_tuning.raw_survivability_budget",
+            source: "combat_tuning.raw_survivability_budget_level_neutral_numerator",
+            referenceLevel: RAW_NUMERATOR_REFERENCE_LEVEL,
             physicalSurvivability: physicalSurvivabilityRawBudgetTarget,
             mentalSurvivability: mentalSurvivabilityRawBudgetTarget,
           },

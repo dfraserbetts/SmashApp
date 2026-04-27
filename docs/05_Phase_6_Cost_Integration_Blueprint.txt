@@ -50,6 +50,7 @@ The current implementation already includes:
 - a live Phase 6 power-cost resolver exists
 - packet-level and total power breakdowns are inspectable
 - canonical power contribution now feeds the monster-side calculator through a cleaned integration path
+- derived cooldown turns now exist as first-pass resolver output after BasePowerValue
 
 2. Versioned Power Tuning
 
@@ -171,7 +172,15 @@ Cooldown and Availability Rule For Phase 6
 
 Cooldown is not a base cost input.
 
-Cooldown is a derived output from BasePowerValue, with authored cooldown fields currently used by Summoning Circle as the live implementation truth.
+Cooldown is a derived output from BasePowerValue.
+
+The first-pass implementation derives cooldown turns with a level-adjusted load/capacity model:
+
+- CooldownCapacity = (baseCapacity + perLevelCapacity * max(0, level - 1)) * tierMultiplier
+- CooldownLoad = BasePowerValue / max(1, CooldownCapacity)
+- CooldownTurns is selected from Power Tuning load brackets and clamped to configured min/max turns
+
+The derived cooldown output is canonical Phase 6 resolver truth for this pass. Existing authored cooldown fields still exist and currently feed the monster outcome availability adjustment until the Combat Lab / availability path is refactored.
 
 The intended long-term sequence remains:
 
@@ -187,6 +196,7 @@ For current Summoning Circle monster outcome calculation:
 
 - canonical per-use power contribution is preserved
 - effective monster contribution applies a first-pass availability factor based on current cooldown data
+- Combat Lab and future availability refactors should consume derived cooldown turns rather than assuming 1-turn cooldown
 - debug exposes canonicalPowerAxisVector and effectivePowerAxisVector separately
 - Power Cost Preview should continue to show canonical power truth
 - final monster radar should use effective contribution
