@@ -129,6 +129,21 @@ type RunResult = {
   second: CombatantStats;
 };
 
+type RoundLengthStats = {
+  totalFights: number;
+  averageRounds: number;
+  medianRounds: number;
+  minRounds: number;
+  maxRounds: number;
+  timeoutCount: number;
+  timeoutPercent: number;
+  rounds1To2Percent: number;
+  rounds3To5Percent: number;
+  rounds6To8Percent: number;
+  rounds9To12Percent: number;
+  rounds13PlusPercent: number;
+};
+
 type MatchupAggregate = {
   first: SmokeMonsterFixture;
   second: SmokeMonsterFixture;
@@ -137,6 +152,8 @@ type MatchupAggregate = {
   secondWins: number;
   draws: number;
   averageRounds: number;
+  roundLengths: number[];
+  roundLengthStats: RoundLengthStats;
   firstAverageWounds: number;
   secondAverageWounds: number;
   firstAverageWoundsPerRound: number;
@@ -233,6 +250,41 @@ function round(value: number, digits = 2): number {
 
 function percent(value: number): string {
   return `${round(value * 100, 1)}%`;
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const midpoint = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[midpoint];
+  return (sorted[midpoint - 1] + sorted[midpoint]) / 2;
+}
+
+function computeRoundLengthStats(
+  roundLengths: number[],
+  timeoutCount: number,
+): RoundLengthStats {
+  const totalFights = roundLengths.length;
+  const denominator = Math.max(1, totalFights);
+  const countInRange = (min: number, max: number) =>
+    roundLengths.filter((rounds) => rounds >= min && rounds <= max).length;
+
+  return {
+    totalFights,
+    averageRounds:
+      roundLengths.reduce((sum, rounds) => sum + rounds, 0) / denominator,
+    medianRounds: median(roundLengths),
+    minRounds: totalFights > 0 ? Math.min(...roundLengths) : 0,
+    maxRounds: totalFights > 0 ? Math.max(...roundLengths) : 0,
+    timeoutCount,
+    timeoutPercent: timeoutCount / denominator,
+    rounds1To2Percent: countInRange(1, 2) / denominator,
+    rounds3To5Percent: countInRange(3, 5) / denominator,
+    rounds6To8Percent: countInRange(6, 8) / denominator,
+    rounds9To12Percent: countInRange(9, 12) / denominator,
+    rounds13PlusPercent:
+      roundLengths.filter((rounds) => rounds >= 13).length / denominator,
+  };
 }
 
 function createPacket(
@@ -816,6 +868,7 @@ function aggregateMatchup(
   let secondWins = 0;
   let draws = 0;
   let rounds = 0;
+  let timeoutCount = 0;
   let firstWounds = 0;
   let secondWounds = 0;
   let largestSingleTurnSpike = 0;
@@ -845,6 +898,7 @@ function aggregateMatchup(
   const secondActionUses: Record<string, number> = {};
   const firstPowerUses: Record<string, number> = {};
   const secondPowerUses: Record<string, number> = {};
+  const roundLengths: number[] = [];
 
   for (let run = 0; run < RUNS_PER_MATCHUP; run += 1) {
     const firstActsFirst = run % 2 === 0;
@@ -865,6 +919,8 @@ function aggregateMatchup(
     else draws += 1;
 
     rounds += result.rounds;
+    roundLengths.push(result.rounds);
+    if (result.timedOut) timeoutCount += 1;
     firstWounds += firstStats.woundsDealt;
     secondWounds += secondStats.woundsDealt;
     largestSingleTurnSpike = Math.max(
@@ -901,6 +957,7 @@ function aggregateMatchup(
   }
 
   const averageRounds = rounds / RUNS_PER_MATCHUP;
+  const roundLengthStats = computeRoundLengthStats(roundLengths, timeoutCount);
   const firstAverageWounds = firstWounds / RUNS_PER_MATCHUP;
   const secondAverageWounds = secondWounds / RUNS_PER_MATCHUP;
   const firstAverageWoundsPerRound = firstWounds / Math.max(1, rounds);
@@ -920,6 +977,8 @@ function aggregateMatchup(
     secondWins,
     draws,
     averageRounds,
+    roundLengths,
+    roundLengthStats,
     firstAverageWounds,
     secondAverageWounds,
     firstAverageWoundsPerRound,
@@ -973,6 +1032,17 @@ function actionUsePercentages(actions: Record<string, number>): Record<string, s
   return Object.fromEntries(
     Object.entries(actions).map(([name, count]) => [name, percent(count / total)]),
   );
+}
+
+function formatRoundDistribution(stats: RoundLengthStats): string {
+  return [
+    `1-2 ${percent(stats.rounds1To2Percent)}`,
+    `3-5 ${percent(stats.rounds3To5Percent)}`,
+    `6-8 ${percent(stats.rounds6To8Percent)}`,
+    `9-12 ${percent(stats.rounds9To12Percent)}`,
+    `13+ ${percent(stats.rounds13PlusPercent)}`,
+    `timeouts ${stats.timeoutCount}/${stats.totalFights} (${percent(stats.timeoutPercent)})`,
+  ].join(" | ");
 }
 
 function buildWarnings(matchup: MatchupAggregate): string[] {
@@ -1359,6 +1429,10 @@ function printMatchup(aggregate: MatchupAggregate): void {
     `avg rounds ${round(aggregate.averageRounds)} | avg wounds ${aggregate.first.name} ${round(aggregate.firstAverageWounds)} / ${aggregate.second.name} ${round(aggregate.secondAverageWounds)}`,
   );
   console.log(
+    `rounds median ${round(aggregate.roundLengthStats.medianRounds)} | min ${aggregate.roundLengthStats.minRounds} | max ${aggregate.roundLengthStats.maxRounds} | draws/timeouts ${aggregate.draws}/${aggregate.roundLengthStats.timeoutCount} (${percent(aggregate.roundLengthStats.timeoutPercent)})`,
+  );
+  console.log(`round distribution ${formatRoundDistribution(aggregate.roundLengthStats)}`);
+  console.log(
     `avg wounds/round ${aggregate.first.name} ${round(aggregate.firstAverageWoundsPerRound)} / ${aggregate.second.name} ${round(aggregate.secondAverageWoundsPerRound)} | largest spike ${aggregate.largestSingleTurnSpike}`,
   );
   console.log(
@@ -1411,6 +1485,53 @@ function formatRate(value: number | null): string {
   return value === null ? "n/a" : percent(value);
 }
 
+function buildLethalityWarnings(stats: RoundLengthStats): string[] {
+  const warnings: string[] = [];
+  if (stats.medianRounds > 8) {
+    warnings.push("overall median rounds exceeds 8");
+  }
+  if (stats.averageRounds > 10) {
+    warnings.push("overall average rounds exceeds 10");
+  }
+  if (stats.rounds13PlusPercent > 0.25) {
+    warnings.push("more than 25% of fights reach 13+ rounds");
+  }
+  if (stats.timeoutPercent > 0.1) {
+    warnings.push("more than 10% of fights hit max-round timeout");
+  }
+  if (stats.rounds1To2Percent > 0.3) {
+    warnings.push("more than 30% of fights end in 1-2 rounds");
+  }
+  return warnings;
+}
+
+function printOverallRoundSummary(aggregates: MatchupAggregate[]): string[] {
+  const roundLengths = aggregates.flatMap((aggregate) => aggregate.roundLengths);
+  const timeoutCount = aggregates.reduce(
+    (sum, aggregate) => sum + aggregate.roundLengthStats.timeoutCount,
+    0,
+  );
+  const stats = computeRoundLengthStats(roundLengths, timeoutCount);
+  const warnings = buildLethalityWarnings(stats);
+
+  console.log("\n## Overall Round-Length / Lethality Summary");
+  console.log(`total fights ${stats.totalFights}`);
+  console.log(
+    `average rounds ${round(stats.averageRounds)} | median ${round(stats.medianRounds)} | min ${stats.minRounds} | max ${stats.maxRounds}`,
+  );
+  console.log(`round distribution ${formatRoundDistribution(stats)}`);
+  if (warnings.length > 0) {
+    console.log("lethality warnings:");
+    for (const warning of warnings) {
+      console.log(`- ${warning}`);
+    }
+  } else {
+    console.log("lethality warnings: none");
+  }
+
+  return warnings;
+}
+
 function main(): void {
   const powerTuning = readSnapshot(ACTIVE_POWER_TUNING_PATH);
   const fixtures = createFixtures();
@@ -1448,6 +1569,7 @@ function main(): void {
     }
   }
 
+  const lethalityWarnings = printOverallRoundSummary(aggregates);
   const warnings = aggregates.flatMap((aggregate) =>
     aggregate.warnings.map(
       (warning) => `${aggregate.first.name} vs ${aggregate.second.name}: ${warning}`,
@@ -1460,6 +1582,12 @@ function main(): void {
   console.log(`Outlier warnings: ${warnings.length}`);
   if (warnings.length > 0) {
     for (const warning of warnings) {
+      console.log(`- ${warning}`);
+    }
+  }
+  console.log(`Lethality warnings: ${lethalityWarnings.length}`);
+  if (lethalityWarnings.length > 0) {
+    for (const warning of lethalityWarnings) {
       console.log(`- ${warning}`);
     }
   }
