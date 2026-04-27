@@ -739,6 +739,80 @@ Ongoing-damage cleanup uses the following first-pass model:
 - same-source reapplication may refresh duration without adding potency unless explicitly authored otherwise
 
 
+6.8 Cooldown lifecycle and complete resolution
+
+Cooldown does not begin when a power is merely declared, cast, armed, attached, placed, held, or released.
+
+Cooldown begins only after the power has completely resolved.
+
+Once a power has completely resolved, place a cooldown die on that power equal to the derived or authored cooldown value currently being used by the implementation.
+
+At the end of each subsequent turn the owning character takes, reduce the cooldown die by 1.
+
+If the cooldown die is showing 1 when it would be reduced, remove the die instead.
+
+Once the die is removed, the power is ready and may be used on the owner's next turn or legal Response window, subject to the power's normal permissions.
+
+Immediate chassis cooldown timing
+
+An Immediate chassis power completely resolves once:
+
+- the caster has rolled to determine application successes
+- any required Dodge, Protection, or Resist resolution has occurred
+- results have been compared
+- unblocked effects, wounds, successes, stacks, heals, or other result units have been applied
+- any continuing Effect Duration tracking has been noted separately
+
+An Immediate power may create an effect with a continuing Effect Duration. That continuing effect is tracked separately. It does not prevent the Immediate power itself from resolving and entering cooldown once its immediate resolution sequence is complete.
+
+Non-Immediate Lifespan Turns cooldown timing
+
+For Field, Attached, Trigger, and Reserve powers with Lifespan Turns X, the cast, execution, or release turn is Turn 0.
+
+The power remains active through X subsequent caster-turn rounds.
+
+The power completely resolves and enters cooldown only after the final resolution window of its last lifespan turn has closed.
+
+The final resolution window closes once the last legal target has finished the relevant turn, trigger, entry, expiry, or interaction that could be affected by the power during that final lifespan turn.
+
+For Field powers, the caster rolls on cast and at the start of each caster turn while the field persists where the authored timing requires that roll. Those rolls determine the successes applied by the field for that round.
+
+For Attached powers, authored Effect Timing determines whether dice are rolled on cast, at the start of the caster's turn, at the end of the caster's turn, on expiry, or when a legal trigger condition occurs during the lifespan.
+
+For Trigger and Reserve powers, the same final-resolution-window rule applies. Once the last legal target has resolved on the final turn of the lifespan, the power completely resolves and enters cooldown.
+
+Passive Lifespan cooldown timing
+
+A Passive Lifespan power does not enter cooldown merely because time passes.
+
+A Passive Lifespan power enters cooldown only when:
+
+- the caster chooses to end the power as a Response
+- the caster chooses to end the power as a Power Action on their turn
+- a Cleanse Power or Resist Action reduces the power's currently active successes to 0
+
+When one of those events occurs, the power immediately completely resolves and the cooldown die is placed.
+
+Counters and Assists
+
+Counters and Assists use the same cooldown lifecycle as other executions of the same power.
+
+The Response used to execute the Counter or Assist is treated as Turn 0 for lifespan tracking.
+
+The power enters cooldown only when it completely resolves under the normal Immediate, Lifespan Turns, Passive, Charge, and final-resolution-window rules.
+
+Charge and cooldown lifecycle
+
+Charge is front-loaded before the power's release or cast.
+
+After the authored Charge Value has been completed, the power becomes Primed.
+
+Once Primed, the power must be used as a Response or Power Action before the end of the subsequent turn unless a more specific Reserve rule says otherwise.
+
+The release or cast of the primed power is Turn 0 for lifespan tracking.
+
+Charge does not cause the lifespan clock to begin until the power is actually released, cast, or otherwise executed.
+
 7. Defence Gating
 
 Only the Primary Packet is defended against.
@@ -1350,6 +1424,18 @@ Trigger powers may distinguish Trigger Method as Arm and then target versus Targ
 Secondary Packet timing is further narrowed by Packet 1 carrier legality; Instant or Until the target's next turn do not support later recurring Secondary timings
 
 Immediate remains the only chassis that can honestly have no Lifespan requirement in the current builder surface; Field, Attached, Trigger, and Reserve require Turns or Passive and default to Turns
+
+Cooldown begins only after the power has completely resolved, not merely when it is cast, armed, attached, placed, held, or released
+
+Immediate powers enter cooldown after their immediate resolution sequence is complete and any continuing Effect Duration is noted separately
+
+Non-Immediate powers with Lifespan Turns X treat cast / execution / release as Turn 0 and enter cooldown only after the final resolution window of the last lifespan turn closes
+
+Passive Lifespan powers enter cooldown only when voluntarily ended by the caster or when Cleanse / Resist reduces currently active successes to 0
+
+Counters and Assists use the same cooldown lifecycle, treating the executing Response as Turn 0
+
+Charge is front-loaded; lifespan tracking begins only when the charged power is released, cast, or otherwise executed
 
 Self-origin sphere wording must distinguish static areas centered on the user's current space from Attached areas attached to the user
 

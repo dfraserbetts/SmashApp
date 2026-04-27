@@ -286,9 +286,9 @@ Reserve + Charge delayed-cast:
 
 becomes primed after the required charge turns
 
-must be released with a Power Action or with a Response before the end of the user’s next turn
+once primed, may be held in reserve for up to its authored Reserve Lifespan
 
-if not released, is lost and goes on cooldown
+if not released before that Reserve hold window ends, it is lost and goes on cooldown
 
 Non-Reserve delayed-cast:
 
@@ -530,3 +530,15 @@ Where the area is hosted through an Attached structure on the user, the wording 
 If multiple distinct areas from the same packet affect the same target at the same timing, the power rolls once, determines the packet's hostile result once, multiplies that hostile result by the number of overlapping authored areas affecting that target, and then resolves one defence roll against that multiplied result.
 
 This preserves one defended entry point while allowing focused overlap from the same packet to matter.
+
+51. Packet-local recipient classes must remain legal within shared cast context
+
+Packet-local recipient classes must be legal within the power's shared cast context unless an explicit advanced local targeting override truthfully authorizes a different recipient lane.
+
+In the current builder surface:
+
+Self-range powers collapse packet-local recipient selection to Self only.
+
+Single-target Melee and single-target Ranged powers collapse packet-local recipient selection to Primary Targets or Self only unless an explicit advanced local targeting override is present.
+
+If a legally authored packet has no legal recipient when it would resolve, that packet does not apply to that recipient.
