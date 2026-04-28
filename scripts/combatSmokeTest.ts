@@ -17,7 +17,6 @@ const LEVEL = 5;
 const TIER = "SOLDIER" satisfies MonsterTier;
 const RUNS_PER_MATCHUP = 200;
 const MAX_ROUNDS = 20;
-const SUCCESS_THRESHOLD = 4;
 const BASE_SEED = 0x5a17c0de;
 
 type SnapshotPayload = {
@@ -85,8 +84,14 @@ type SmokeMonsterFixture = {
   tier: MonsterTier;
   legendary: boolean;
   physicalHp: number;
-  physicalProtection: number;
-  dodgeChance: number;
+  dodgeDice: number;
+  dodgeDieSize: DiceSize;
+  guardDice: number;
+  guardDieSize: DiceSize;
+  physicalDefenceStringValue: number;
+  willpowerDice: number;
+  willpowerDieSize: DiceSize;
+  mentalDefenceStringValue: number;
   controlResistDice: number;
   controlResistDieSize: DiceSize;
   controlResistAttribute: string;
@@ -94,10 +99,19 @@ type SmokeMonsterFixture = {
   actions: ActionDefinition[];
 };
 
+type DefenceChoice = "dodge" | "defend";
+
+type RoundDefenceState = {
+  dodgeDegradation: number;
+  defendDegradation: number;
+  mentalDefenceDegradation: number;
+};
+
 type CombatantRuntime = {
   fixture: SmokeMonsterFixture;
   currentHp: number;
   controlRestrictions: ControlRestrictions;
+  roundDefenceState: RoundDefenceState;
   actions: ResolvedAction[];
   powerActionWeaponAttack: ResolvedAction | null;
   actionStates: Record<string, ActionRuntimeState>;
@@ -117,7 +131,14 @@ type CombatantStats = {
   controlMoveBlocked: number;
   dodgesAttempted: number;
   dodgesSucceeded: number;
-  protectionPrevented: number;
+  dodgesFailed: number;
+  defendAttempts: number;
+  defendWoundsPrevented: number;
+  dodgeDegradationUses: number;
+  defendDegradationUses: number;
+  mentalDefenceAttempts: number;
+  mentalDefenceWoundsPrevented: number;
+  mentalDefenceDegradationUses: number;
   blockedByActiveState: number;
   blockedByCooldown: number;
   powerActionWeaponFallbackUses: number;
@@ -191,8 +212,22 @@ type MatchupAggregate = {
   secondPowerActionsBlocked: number;
   firstMoveBlocked: number;
   secondMoveBlocked: number;
-  firstDefensiveSuccessRate: number | null;
-  secondDefensiveSuccessRate: number | null;
+  firstDodgeSuccessRate: number | null;
+  secondDodgeSuccessRate: number | null;
+  firstDodgeAttempts: number;
+  secondDodgeAttempts: number;
+  firstDodgeSuccesses: number;
+  secondDodgeSuccesses: number;
+  firstDodgeFailures: number;
+  secondDodgeFailures: number;
+  firstDefendAttempts: number;
+  secondDefendAttempts: number;
+  firstDefendWoundsPrevented: number;
+  secondDefendWoundsPrevented: number;
+  firstDodgeDegradationUses: number;
+  secondDodgeDegradationUses: number;
+  firstDefendDegradationUses: number;
+  secondDefendDegradationUses: number;
   firstActiveBlocked: number;
   secondActiveBlocked: number;
   firstCooldownBlocked: number;
@@ -251,11 +286,21 @@ function diceSides(dieSize: DiceSize): number {
   return Number(dieSize.slice(1));
 }
 
+function successesForRoll(value: number): number {
+  if (value >= 11) return 3;
+  if (value >= 8) return 2;
+  if (value >= 4) return 1;
+  return 0;
+}
+
 function pSuccess(dieSize: DiceSize): number {
   const sides = diceSides(dieSize);
   if (!Number.isFinite(sides) || sides <= 0) return 0;
-  const winningFaces = Math.max(0, sides - SUCCESS_THRESHOLD + 1);
-  return Math.min(1, winningFaces / sides);
+  let totalSuccesses = 0;
+  for (let value = 1; value <= sides; value += 1) {
+    totalSuccesses += successesForRoll(value);
+  }
+  return totalSuccesses / sides;
 }
 
 function round(value: number, digits = 2): number {
@@ -395,11 +440,26 @@ function emptyStats(): CombatantStats {
     controlMoveBlocked: 0,
     dodgesAttempted: 0,
     dodgesSucceeded: 0,
-    protectionPrevented: 0,
+    dodgesFailed: 0,
+    defendAttempts: 0,
+    defendWoundsPrevented: 0,
+    dodgeDegradationUses: 0,
+    defendDegradationUses: 0,
+    mentalDefenceAttempts: 0,
+    mentalDefenceWoundsPrevented: 0,
+    mentalDefenceDegradationUses: 0,
     blockedByActiveState: 0,
     blockedByCooldown: 0,
     powerActionWeaponFallbackUses: 0,
     cooldownViolations: 0,
+  };
+}
+
+function emptyRoundDefenceState(): RoundDefenceState {
+  return {
+    dodgeDegradation: 0,
+    defendDegradation: 0,
+    mentalDefenceDegradation: 0,
   };
 }
 
@@ -466,9 +526,105 @@ function expectedActionScore(action: ResolvedAction): number {
 }
 
 function expectedDamage(action: ResolvedAction, target: CombatantRuntime): number {
-  const raw = expectedUnmitigatedWounds(action);
-  const afterDodge = raw * (1 - target.fixture.dodgeChance);
-  return Math.max(0, afterDodge - target.fixture.physicalProtection);
+  const expectedAttackSuccesses = action.diceCount * pSuccess(action.dieSize);
+  const raw = expectedAttackSuccesses * action.potency;
+  const effectiveDodgeDice = effectiveDefenceDice(
+    target.fixture.dodgeDice,
+    target.roundDefenceState.dodgeDegradation,
+  );
+  const effectiveDefendDice = effectiveDefenceDice(
+    target.fixture.guardDice,
+    target.roundDefenceState.defendDegradation,
+  );
+  const dodgeAvoidChance = chanceToMatchOrExceed(
+    effectiveDodgeDice,
+    target.fixture.dodgeDieSize,
+    Math.ceil(expectedAttackSuccesses),
+  );
+  const expectedDodgePrevention = raw * dodgeAvoidChance;
+  const expectedDefendPrevention = Math.min(
+    raw,
+    effectiveDefendDice *
+      pSuccess(target.fixture.guardDieSize) *
+      target.fixture.physicalDefenceStringValue,
+  );
+  return Math.max(0, raw - Math.max(expectedDodgePrevention, expectedDefendPrevention));
+}
+
+function effectiveDefenceDice(baseDice: number, degradation: number): number {
+  return Math.max(1, baseDice - degradation);
+}
+
+function singleDieSuccessDistribution(dieSize: DiceSize): Map<number, number> {
+  const sides = diceSides(dieSize);
+  const distribution = new Map<number, number>();
+  for (let value = 1; value <= sides; value += 1) {
+    const successes = successesForRoll(value);
+    distribution.set(successes, (distribution.get(successes) ?? 0) + 1 / sides);
+  }
+  return distribution;
+}
+
+function successDistribution(diceCount: number, dieSize: DiceSize): Map<number, number> {
+  let distribution = new Map<number, number>([[0, 1]]);
+  const dieDistribution = singleDieSuccessDistribution(dieSize);
+  for (let die = 0; die < diceCount; die += 1) {
+    const next = new Map<number, number>();
+    for (const [currentSuccesses, currentProbability] of distribution) {
+      for (const [dieSuccesses, dieProbability] of dieDistribution) {
+        const totalSuccesses = currentSuccesses + dieSuccesses;
+        next.set(
+          totalSuccesses,
+          (next.get(totalSuccesses) ?? 0) +
+            currentProbability * dieProbability,
+        );
+      }
+    }
+    distribution = next;
+  }
+  return distribution;
+}
+
+function chanceToMatchOrExceed(
+  diceCount: number,
+  dieSize: DiceSize,
+  targetSuccesses: number,
+): number {
+  if (targetSuccesses <= 0) return 1;
+  let chance = 0;
+  for (const [successes, probability] of successDistribution(diceCount, dieSize)) {
+    if (successes >= targetSuccesses) chance += probability;
+  }
+  return chance;
+}
+
+function choosePhysicalDefence(
+  target: CombatantRuntime,
+  attackSuccesses: number,
+  incomingWounds: number,
+): DefenceChoice {
+  const effectiveDodgeDice = effectiveDefenceDice(
+    target.fixture.dodgeDice,
+    target.roundDefenceState.dodgeDegradation,
+  );
+  const effectiveDefendDice = effectiveDefenceDice(
+    target.fixture.guardDice,
+    target.roundDefenceState.defendDegradation,
+  );
+  const expectedDodgePrevention =
+    incomingWounds *
+    chanceToMatchOrExceed(
+      effectiveDodgeDice,
+      target.fixture.dodgeDieSize,
+      attackSuccesses,
+    );
+  const expectedDefendPrevention = Math.min(
+    incomingWounds,
+    effectiveDefendDice *
+      pSuccess(target.fixture.guardDieSize) *
+      target.fixture.physicalDefenceStringValue,
+  );
+  return expectedDodgePrevention > expectedDefendPrevention ? "dodge" : "defend";
 }
 
 function isActiveBlocked(state: ActionRuntimeState): boolean {
@@ -545,7 +701,7 @@ function rollDiceSuccesses(
   let successes = 0;
   const sides = diceSides(dieSize);
   for (let i = 0; i < diceCount; i += 1) {
-    if (rng.intInclusive(1, sides) >= SUCCESS_THRESHOLD) successes += 1;
+    successes += successesForRoll(rng.intInclusive(1, sides));
   }
   return successes;
 }
@@ -701,17 +857,46 @@ function useAction(
 
   let wounds = successes * action.potency;
   if (wounds > 0) {
-    target.stats.dodgesAttempted += 1;
-    if (rng.next() < target.fixture.dodgeChance) {
-      target.stats.dodgesSucceeded += 1;
-      wounds = 0;
+    const defenceChoice = choosePhysicalDefence(target, successes, wounds);
+    if (defenceChoice === "dodge") {
+      target.stats.dodgesAttempted += 1;
+      const dodgeDice = effectiveDefenceDice(
+        target.fixture.dodgeDice,
+        target.roundDefenceState.dodgeDegradation,
+      );
+      const dodgeSuccesses = rollDiceSuccesses(
+        dodgeDice,
+        target.fixture.dodgeDieSize,
+        rng,
+      );
+      target.roundDefenceState.dodgeDegradation += 1;
+      target.stats.dodgeDegradationUses += 1;
+      if (dodgeSuccesses >= successes) {
+        target.stats.dodgesSucceeded += 1;
+        wounds = 0;
+      } else {
+        target.stats.dodgesFailed += 1;
+      }
+    } else {
+      target.stats.defendAttempts += 1;
+      const defendDice = effectiveDefenceDice(
+        target.fixture.guardDice,
+        target.roundDefenceState.defendDegradation,
+      );
+      const defenceSuccesses = rollDiceSuccesses(
+        defendDice,
+        target.fixture.guardDieSize,
+        rng,
+      );
+      target.roundDefenceState.defendDegradation += 1;
+      target.stats.defendDegradationUses += 1;
+      const beforeDefend = wounds;
+      wounds = Math.max(
+        0,
+        wounds - defenceSuccesses * target.fixture.physicalDefenceStringValue,
+      );
+      target.stats.defendWoundsPrevented += beforeDefend - wounds;
     }
-  }
-
-  if (wounds > 0) {
-    const beforeProtection = wounds;
-    wounds = Math.max(0, wounds - target.fixture.physicalProtection);
-    target.stats.protectionPrevented += beforeProtection - wounds;
   }
 
   if (wounds > 0) {
@@ -811,11 +996,16 @@ function makeRuntime(
     fixture,
     currentHp: fixture.physicalHp,
     controlRestrictions: emptyControlRestrictions(),
+    roundDefenceState: emptyRoundDefenceState(),
     actions: resolvedActions,
     powerActionWeaponAttack,
     actionStates,
     stats: emptyStats(),
   };
+}
+
+function resetRoundDefenceState(combatant: CombatantRuntime): void {
+  combatant.roundDefenceState = emptyRoundDefenceState();
 }
 
 function simulateRun(
@@ -830,6 +1020,9 @@ function simulateRun(
   let rounds = 0;
 
   for (rounds = 1; rounds <= MAX_ROUNDS; rounds += 1) {
+    resetRoundDefenceState(firstRuntime);
+    resetRoundDefenceState(secondRuntime);
+
     takeTurn(firstRuntime, secondRuntime, rng);
     if (secondRuntime.currentHp <= 0) {
       return {
@@ -935,8 +1128,18 @@ function aggregateMatchup(
   let secondCooldownViolations = 0;
   let firstDodgesAttempted = 0;
   let firstDodgesSucceeded = 0;
+  let firstDodgesFailed = 0;
   let secondDodgesAttempted = 0;
   let secondDodgesSucceeded = 0;
+  let secondDodgesFailed = 0;
+  let firstDefendAttempts = 0;
+  let secondDefendAttempts = 0;
+  let firstDefendWoundsPrevented = 0;
+  let secondDefendWoundsPrevented = 0;
+  let firstDodgeDegradationUses = 0;
+  let secondDodgeDegradationUses = 0;
+  let firstDefendDegradationUses = 0;
+  let secondDefendDegradationUses = 0;
   const firstActionUses: Record<string, number> = {};
   const secondActionUses: Record<string, number> = {};
   const firstPowerUses: Record<string, number> = {};
@@ -995,8 +1198,18 @@ function aggregateMatchup(
     secondCooldownViolations += secondStats.cooldownViolations;
     firstDodgesAttempted += firstStats.dodgesAttempted;
     firstDodgesSucceeded += firstStats.dodgesSucceeded;
+    firstDodgesFailed += firstStats.dodgesFailed;
     secondDodgesAttempted += secondStats.dodgesAttempted;
     secondDodgesSucceeded += secondStats.dodgesSucceeded;
+    secondDodgesFailed += secondStats.dodgesFailed;
+    firstDefendAttempts += firstStats.defendAttempts;
+    secondDefendAttempts += secondStats.defendAttempts;
+    firstDefendWoundsPrevented += firstStats.defendWoundsPrevented;
+    secondDefendWoundsPrevented += secondStats.defendWoundsPrevented;
+    firstDodgeDegradationUses += firstStats.dodgeDegradationUses;
+    secondDodgeDegradationUses += secondStats.dodgeDegradationUses;
+    firstDefendDegradationUses += firstStats.defendDegradationUses;
+    secondDefendDegradationUses += secondStats.defendDegradationUses;
     addStatMap(firstActionUses, firstStats.actionUses);
     addStatMap(secondActionUses, secondStats.actionUses);
     addStatMap(firstPowerUses, firstStats.powerUses);
@@ -1009,9 +1222,9 @@ function aggregateMatchup(
   const secondAverageWounds = secondWounds / RUNS_PER_MATCHUP;
   const firstAverageWoundsPerRound = firstWounds / Math.max(1, rounds);
   const secondAverageWoundsPerRound = secondWounds / Math.max(1, rounds);
-  const firstDefensiveSuccessRate =
+  const firstDodgeSuccessRate =
     firstDodgesAttempted > 0 ? firstDodgesSucceeded / firstDodgesAttempted : null;
-  const secondDefensiveSuccessRate =
+  const secondDodgeSuccessRate =
     secondDodgesAttempted > 0
       ? secondDodgesSucceeded / secondDodgesAttempted
       : null;
@@ -1050,8 +1263,22 @@ function aggregateMatchup(
     secondPowerActionsBlocked,
     firstMoveBlocked,
     secondMoveBlocked,
-    firstDefensiveSuccessRate,
-    secondDefensiveSuccessRate,
+    firstDodgeSuccessRate,
+    secondDodgeSuccessRate,
+    firstDodgeAttempts: firstDodgesAttempted,
+    secondDodgeAttempts: secondDodgesAttempted,
+    firstDodgeSuccesses: firstDodgesSucceeded,
+    secondDodgeSuccesses: secondDodgesSucceeded,
+    firstDodgeFailures: firstDodgesFailed,
+    secondDodgeFailures: secondDodgesFailed,
+    firstDefendAttempts,
+    secondDefendAttempts,
+    firstDefendWoundsPrevented,
+    secondDefendWoundsPrevented,
+    firstDodgeDegradationUses,
+    secondDodgeDegradationUses,
+    firstDefendDegradationUses,
+    secondDefendDegradationUses,
     firstActiveBlocked,
     secondActiveBlocked,
     firstCooldownBlocked,
@@ -1390,8 +1617,14 @@ function createFixtures(): SmokeMonsterFixture[] {
       tier: TIER,
       legendary: false,
       physicalHp: 34,
-      physicalProtection: 1,
-      dodgeChance: 0.15,
+      dodgeDice: 1,
+      dodgeDieSize: "D8",
+      guardDice: 1,
+      guardDieSize: "D8",
+      physicalDefenceStringValue: 1,
+      willpowerDice: 1,
+      willpowerDieSize: "D8",
+      mentalDefenceStringValue: 1,
       controlResistDice: 1,
       controlResistDieSize: "D8",
       controlResistAttribute: "Fortitude",
@@ -1438,8 +1671,14 @@ function createFixtures(): SmokeMonsterFixture[] {
       tier: TIER,
       legendary: false,
       physicalHp: 28,
-      physicalProtection: 0,
-      dodgeChance: 0.1,
+      dodgeDice: 1,
+      dodgeDieSize: "D6",
+      guardDice: 1,
+      guardDieSize: "D6",
+      physicalDefenceStringValue: 0,
+      willpowerDice: 1,
+      willpowerDieSize: "D6",
+      mentalDefenceStringValue: 0,
       controlResistDice: 1,
       controlResistDieSize: "D6",
       controlResistAttribute: "Fortitude",
@@ -1479,8 +1718,14 @@ function createFixtures(): SmokeMonsterFixture[] {
       tier: TIER,
       legendary: false,
       physicalHp: 46,
-      physicalProtection: 3,
-      dodgeChance: 0.2,
+      dodgeDice: 2,
+      dodgeDieSize: "D8",
+      guardDice: 2,
+      guardDieSize: "D8",
+      physicalDefenceStringValue: 3,
+      willpowerDice: 2,
+      willpowerDieSize: "D8",
+      mentalDefenceStringValue: 3,
       controlResistDice: 2,
       controlResistDieSize: "D8",
       controlResistAttribute: "Fortitude",
@@ -1521,8 +1766,14 @@ function createFixtures(): SmokeMonsterFixture[] {
       tier: TIER,
       legendary: false,
       physicalHp: 34,
-      physicalProtection: 1,
-      dodgeChance: 0.2,
+      dodgeDice: 2,
+      dodgeDieSize: "D8",
+      guardDice: 1,
+      guardDieSize: "D8",
+      physicalDefenceStringValue: 1,
+      willpowerDice: 1,
+      willpowerDieSize: "D8",
+      mentalDefenceStringValue: 1,
       controlResistDice: 1,
       controlResistDieSize: "D8",
       controlResistAttribute: "Fortitude",
@@ -1563,8 +1814,14 @@ function createFixtures(): SmokeMonsterFixture[] {
       tier: TIER,
       legendary: false,
       physicalHp: 50,
-      physicalProtection: 1,
-      dodgeChance: 0.1,
+      dodgeDice: 1,
+      dodgeDieSize: "D6",
+      guardDice: 2,
+      guardDieSize: "D8",
+      physicalDefenceStringValue: 1,
+      willpowerDice: 2,
+      willpowerDieSize: "D8",
+      mentalDefenceStringValue: 1,
       controlResistDice: 2,
       controlResistDieSize: "D8",
       controlResistAttribute: "Fortitude",
@@ -1604,8 +1861,14 @@ function createFixtures(): SmokeMonsterFixture[] {
       tier: TIER,
       legendary: false,
       physicalHp: 34,
-      physicalProtection: 1,
-      dodgeChance: 0.15,
+      dodgeDice: 1,
+      dodgeDieSize: "D8",
+      guardDice: 1,
+      guardDieSize: "D8",
+      physicalDefenceStringValue: 1,
+      willpowerDice: 1,
+      willpowerDieSize: "D8",
+      mentalDefenceStringValue: 1,
       controlResistDice: 1,
       controlResistDieSize: "D8",
       controlResistAttribute: "Fortitude",
@@ -1672,6 +1935,7 @@ function printCooldownLifecycleSemantics(): void {
   console.log("- Therefore cooldown 1 does not mean available on the next own turn in this smoke model.");
   console.log("- v0.1 approximates 1v1 final-resolution-window closure after the opponent completes the relevant turn in the final lifespan round.");
   console.log("- Control powers use legal action-slot restrictions and a smoke Resist gate; they do not skip an entire turn.");
+  console.log("- All success rolls use SMASH tiers: 1-3 = 0, 4-7 = 1, 8-10 = 2, 11+ = 3.");
   console.log("- Passive powers are not exercised; they do not enter cooldown from time passing.");
   console.log("- Counters/Assists follow the same lifecycle but Response simulation is out of scope.");
   console.log("- Charge is front-loaded and out of scope for these fixtures.");
@@ -1683,7 +1947,9 @@ function printSimplifications(): void {
   console.log("- no Major Injury");
   console.log("- no terrain, range, objectives, or party logic");
   console.log("- no response economy");
-  console.log("- no defence degradation");
+  console.log("- physical defence chooses Dodge or Defend deterministically by expected prevention");
+  console.log("- Dodge/Defend dice degrade after use for the rest of the round, minimum 1 die");
+  console.log("- mental defence fields exist on fixtures but no mental wound packets are exercised yet");
   console.log("- no full ongoing effect engine");
   console.log("- legal action-slot control only; no full control engine");
   console.log("- no Cleanse, ally intervention, immunity windows, or diminishing returns yet");
@@ -1703,7 +1969,7 @@ function printFixtureSummary(
   for (const fixture of fixtures) {
     const actions = resolved.get(fixture.id) ?? [];
     console.log(
-      `- ${fixture.name}: L${fixture.level} ${fixture.tier}, HP ${fixture.physicalHp}, PP ${fixture.physicalProtection}, dodge ${round(fixture.dodgeChance * 100, 1)}%, control resist ${fixture.controlResistDice}${fixture.controlResistDieSize} ${fixture.controlResistAttribute}`,
+      `- ${fixture.name}: L${fixture.level} ${fixture.tier}, HP ${fixture.physicalHp}, dodge ${fixture.dodgeDice}${fixture.dodgeDieSize}, defend ${fixture.guardDice}${fixture.guardDieSize} x DSV ${fixture.physicalDefenceStringValue}, mental defence ${fixture.willpowerDice}${fixture.willpowerDieSize} x DSV ${fixture.mentalDefenceStringValue}, control resist ${fixture.controlResistDice}${fixture.controlResistDieSize} ${fixture.controlResistAttribute}`,
     );
     console.log(`  role: ${fixture.role}`);
     const fallbackAction = fixture.powerActionWeaponAttackId
@@ -1793,7 +2059,13 @@ function printMatchup(aggregate: MatchupAggregate): void {
     `blocked by cooldown ${aggregate.first.name}: ${aggregate.firstCooldownBlocked} | ${aggregate.second.name}: ${aggregate.secondCooldownBlocked}`,
   );
   console.log(
-    `defensive dodge success ${aggregate.first.name}: ${formatRate(aggregate.firstDefensiveSuccessRate)} | ${aggregate.second.name}: ${formatRate(aggregate.secondDefensiveSuccessRate)}`,
+    `dodge attempts/success/fail ${aggregate.first.name}: ${aggregate.firstDodgeAttempts}/${aggregate.firstDodgeSuccesses}/${aggregate.firstDodgeFailures} (${formatRate(aggregate.firstDodgeSuccessRate)}) | ${aggregate.second.name}: ${aggregate.secondDodgeAttempts}/${aggregate.secondDodgeSuccesses}/${aggregate.secondDodgeFailures} (${formatRate(aggregate.secondDodgeSuccessRate)})`,
+  );
+  console.log(
+    `defend attempts/wounds prevented ${aggregate.first.name}: ${aggregate.firstDefendAttempts}/${round(aggregate.firstDefendWoundsPrevented)} | ${aggregate.second.name}: ${aggregate.secondDefendAttempts}/${round(aggregate.secondDefendWoundsPrevented)}`,
+  );
+  console.log(
+    `defence degradation uses dodge/defend ${aggregate.first.name}: ${aggregate.firstDodgeDegradationUses}/${aggregate.firstDefendDegradationUses} | ${aggregate.second.name}: ${aggregate.secondDodgeDegradationUses}/${aggregate.secondDefendDegradationUses}`,
   );
   console.log(
     `cooldown violations ${aggregate.first.name}: ${aggregate.firstCooldownViolations} | ${aggregate.second.name}: ${aggregate.secondCooldownViolations}`,
