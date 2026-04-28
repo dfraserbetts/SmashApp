@@ -41,6 +41,12 @@ type ControlRestrictions = {
   noMoveTurns: number;
 };
 
+type ActionAttributionType =
+  | "main weapon"
+  | "Power Action weapon fallback"
+  | "power attack"
+  | "control power";
+
 type ActionDefinition = {
   id: string;
   name: string;
@@ -122,6 +128,7 @@ type CombatantStats = {
   woundsDealt: number;
   largestSpike: number;
   actionUses: Record<string, number>;
+  actionSpikeStats: Record<string, ActionSpikeStats>;
   powerUses: Record<string, number>;
   controlAttempts: number;
   controlResisted: number;
@@ -143,6 +150,18 @@ type CombatantStats = {
   blockedByCooldown: number;
   powerActionWeaponFallbackUses: number;
   cooldownViolations: number;
+};
+
+type ActionSpikeStats = {
+  actionName: string;
+  actionType: ActionAttributionType;
+  uses: number;
+  totalWounds: number;
+  maxWounds: number;
+  spike25PercentHpUses: number;
+  spike50PercentHpUses: number;
+  spike75PercentHpUses: number;
+  lethalHits: number;
 };
 
 type RunResult = {
@@ -196,6 +215,8 @@ type MatchupAggregate = {
   largestSingleTurnSpike: number;
   firstActionUses: Record<string, number>;
   secondActionUses: Record<string, number>;
+  firstActionSpikeStats: Record<string, ActionSpikeStats>;
+  secondActionSpikeStats: Record<string, ActionSpikeStats>;
   firstPowerUses: Record<string, number>;
   secondPowerUses: Record<string, number>;
   firstMostUsedAction: string | null;
@@ -431,6 +452,7 @@ function emptyStats(): CombatantStats {
     woundsDealt: 0,
     largestSpike: 0,
     actionUses: {},
+    actionSpikeStats: {},
     powerUses: {},
     controlAttempts: 0,
     controlResisted: 0,
@@ -452,6 +474,23 @@ function emptyStats(): CombatantStats {
     blockedByCooldown: 0,
     powerActionWeaponFallbackUses: 0,
     cooldownViolations: 0,
+  };
+}
+
+function emptyActionSpikeStats(
+  actionName: string,
+  actionType: ActionAttributionType,
+): ActionSpikeStats {
+  return {
+    actionName,
+    actionType,
+    uses: 0,
+    totalWounds: 0,
+    maxWounds: 0,
+    spike25PercentHpUses: 0,
+    spike50PercentHpUses: 0,
+    spike75PercentHpUses: 0,
+    lethalHits: 0,
   };
 }
 
@@ -492,6 +531,77 @@ function addStatMap(
   for (const [key, value] of Object.entries(source)) {
     target[key] = (target[key] ?? 0) + value;
   }
+}
+
+function addActionSpikeStats(
+  target: Record<string, ActionSpikeStats>,
+  source: Record<string, ActionSpikeStats>,
+): void {
+  for (const [key, value] of Object.entries(source)) {
+    const existing =
+      target[key] ?? emptyActionSpikeStats(value.actionName, value.actionType);
+    existing.uses += value.uses;
+    existing.totalWounds += value.totalWounds;
+    existing.maxWounds = Math.max(existing.maxWounds, value.maxWounds);
+    existing.spike25PercentHpUses += value.spike25PercentHpUses;
+    existing.spike50PercentHpUses += value.spike50PercentHpUses;
+    existing.spike75PercentHpUses += value.spike75PercentHpUses;
+    existing.lethalHits += value.lethalHits;
+    target[key] = existing;
+  }
+}
+
+function prefixedActionSpikeStats(
+  fixture: SmokeMonsterFixture,
+  source: Record<string, ActionSpikeStats>,
+): Record<string, ActionSpikeStats> {
+  return Object.fromEntries(
+    Object.entries(source).map(([key, value]) => [
+      `${fixture.name}: ${key}`,
+      {
+        ...value,
+        actionName: `${fixture.name}: ${value.actionName}`,
+      },
+    ]),
+  );
+}
+
+function actionAttributionType(
+  action: ResolvedAction,
+  slot: ActionSlot,
+): ActionAttributionType {
+  if (action.type === "controlPower") return "control power";
+  if (action.type === "powerAttack") return "power attack";
+  if (slot === "power") return "Power Action weapon fallback";
+  return "main weapon";
+}
+
+function recordActionSpikeStats(
+  stats: Record<string, ActionSpikeStats>,
+  actionName: string,
+  actionType: ActionAttributionType,
+  wounds: number,
+  targetMaxHp: number,
+  lethalHit: boolean,
+): void {
+  const entry =
+    stats[actionName] ?? emptyActionSpikeStats(actionName, actionType);
+  entry.uses += 1;
+  entry.totalWounds += wounds;
+  entry.maxWounds = Math.max(entry.maxWounds, wounds);
+  if (targetMaxHp > 0 && wounds >= targetMaxHp * 0.25) {
+    entry.spike25PercentHpUses += 1;
+  }
+  if (targetMaxHp > 0 && wounds >= targetMaxHp * 0.5) {
+    entry.spike50PercentHpUses += 1;
+  }
+  if (targetMaxHp > 0 && wounds >= targetMaxHp * 0.75) {
+    entry.spike75PercentHpUses += 1;
+  }
+  if (lethalHit) {
+    entry.lethalHits += 1;
+  }
+  stats[actionName] = entry;
 }
 
 function topEntry(input: Record<string, number>): string | null {
@@ -900,9 +1010,27 @@ function useAction(
   }
 
   if (wounds > 0) {
+    const lethalHit = wounds >= target.currentHp;
+    recordActionSpikeStats(
+      actor.stats.actionSpikeStats,
+      actionName,
+      actionAttributionType(action, slot),
+      wounds,
+      target.fixture.physicalHp,
+      lethalHit,
+    );
     target.currentHp = Math.max(0, target.currentHp - wounds);
     actor.stats.woundsDealt += wounds;
     actor.stats.largestSpike = Math.max(actor.stats.largestSpike, wounds);
+  } else {
+    recordActionSpikeStats(
+      actor.stats.actionSpikeStats,
+      actionName,
+      actionAttributionType(action, slot),
+      0,
+      target.fixture.physicalHp,
+      false,
+    );
   }
 
   if (action.type === "controlPower" && successes > 0 && action.controlTurns > 0) {
@@ -1142,6 +1270,8 @@ function aggregateMatchup(
   let secondDefendDegradationUses = 0;
   const firstActionUses: Record<string, number> = {};
   const secondActionUses: Record<string, number> = {};
+  const firstActionSpikeStats: Record<string, ActionSpikeStats> = {};
+  const secondActionSpikeStats: Record<string, ActionSpikeStats> = {};
   const firstPowerUses: Record<string, number> = {};
   const secondPowerUses: Record<string, number> = {};
   const roundLengths: number[] = [];
@@ -1212,6 +1342,8 @@ function aggregateMatchup(
     secondDefendDegradationUses += secondStats.defendDegradationUses;
     addStatMap(firstActionUses, firstStats.actionUses);
     addStatMap(secondActionUses, secondStats.actionUses);
+    addActionSpikeStats(firstActionSpikeStats, firstStats.actionSpikeStats);
+    addActionSpikeStats(secondActionSpikeStats, secondStats.actionSpikeStats);
     addStatMap(firstPowerUses, firstStats.powerUses);
     addStatMap(secondPowerUses, secondStats.powerUses);
   }
@@ -1247,6 +1379,8 @@ function aggregateMatchup(
     largestSingleTurnSpike,
     firstActionUses,
     secondActionUses,
+    firstActionSpikeStats,
+    secondActionSpikeStats,
     firstPowerUses,
     secondPowerUses,
     firstMostUsedAction: topEntry(firstActionUses),
@@ -1309,6 +1443,110 @@ function actionUsePercentages(actions: Record<string, number>): Record<string, s
   return Object.fromEntries(
     Object.entries(actions).map(([name, count]) => [name, percent(count / total)]),
   );
+}
+
+function averageWoundsPerUse(action: ActionSpikeStats): number {
+  return action.uses > 0 ? action.totalWounds / action.uses : 0;
+}
+
+function actionSpikeSummary(action: ActionSpikeStats): string {
+  return [
+    `${action.actionName} [${action.actionType}]`,
+    `uses ${action.uses}`,
+    `avg ${round(averageWoundsPerUse(action))}`,
+    `max ${round(action.maxWounds)}`,
+    `>=25% ${action.spike25PercentHpUses}`,
+    `>=50% ${action.spike50PercentHpUses}`,
+    `>=75% ${action.spike75PercentHpUses}`,
+    `lethal ${action.lethalHits}`,
+  ].join(" | ");
+}
+
+function combinedMatchupActionSpikes(
+  aggregate: MatchupAggregate,
+): ActionSpikeStats[] {
+  const combined: Record<string, ActionSpikeStats> = {};
+  addActionSpikeStats(
+    combined,
+    prefixedActionSpikeStats(aggregate.first, aggregate.firstActionSpikeStats),
+  );
+  addActionSpikeStats(
+    combined,
+    prefixedActionSpikeStats(aggregate.second, aggregate.secondActionSpikeStats),
+  );
+  return Object.values(combined);
+}
+
+function topActionSpikesByMax(
+  actions: ActionSpikeStats[],
+  limit: number,
+): ActionSpikeStats[] {
+  return [...actions]
+    .sort(
+      (a, b) =>
+        b.maxWounds - a.maxWounds ||
+        b.spike50PercentHpUses - a.spike50PercentHpUses ||
+        averageWoundsPerUse(b) - averageWoundsPerUse(a),
+    )
+    .slice(0, limit);
+}
+
+function topActionSpikesByAverage(
+  actions: ActionSpikeStats[],
+  limit: number,
+  minUses = 1,
+): ActionSpikeStats[] {
+  return [...actions]
+    .filter((action) => action.uses >= minUses)
+    .sort(
+      (a, b) =>
+        averageWoundsPerUse(b) - averageWoundsPerUse(a) ||
+        b.maxWounds - a.maxWounds ||
+        b.uses - a.uses,
+    )
+    .slice(0, limit);
+}
+
+function topActionSpikesByFiftyPercentCount(
+  actions: ActionSpikeStats[],
+  limit: number,
+): ActionSpikeStats[] {
+  return [...actions]
+    .sort(
+      (a, b) =>
+        b.spike50PercentHpUses - a.spike50PercentHpUses ||
+        b.maxWounds - a.maxWounds ||
+        averageWoundsPerUse(b) - averageWoundsPerUse(a),
+    )
+    .slice(0, limit);
+}
+
+function printActionSpikeList(
+  label: string,
+  actions: ActionSpikeStats[],
+): void {
+  console.log(label);
+  if (actions.length === 0) {
+    console.log("- none");
+    return;
+  }
+  for (const action of actions) {
+    console.log(`- ${actionSpikeSummary(action)}`);
+  }
+}
+
+function formatFiftyPercentSpikeCounts(
+  actions: ActionSpikeStats[],
+): string {
+  const entries = actions
+    .filter((action) => action.spike50PercentHpUses > 0)
+    .sort(
+      (a, b) =>
+        b.spike50PercentHpUses - a.spike50PercentHpUses ||
+        b.maxWounds - a.maxWounds,
+    )
+    .map((action) => `${action.actionName}: ${action.spike50PercentHpUses}`);
+  return entries.length > 0 ? entries.join(", ") : "none";
 }
 
 function formatRoundDistribution(stats: RoundLengthStats): string {
@@ -2031,6 +2269,18 @@ function printMatchup(aggregate: MatchupAggregate): void {
   console.log(
     `action use % ${aggregate.first.name}: ${JSON.stringify(actionUsePercentages(aggregate.firstActionUses))} | ${aggregate.second.name}: ${JSON.stringify(actionUsePercentages(aggregate.secondActionUses))}`,
   );
+  const matchupActionSpikes = combinedMatchupActionSpikes(aggregate);
+  printActionSpikeList(
+    "top spike actions by max single-use wounds",
+    topActionSpikesByMax(matchupActionSpikes, 3),
+  );
+  printActionSpikeList(
+    "top spike actions by average wounds/use",
+    topActionSpikesByAverage(matchupActionSpikes, 3),
+  );
+  console.log(
+    `>50% HP spike counts by action ${formatFiftyPercentSpikeCounts(matchupActionSpikes)}`,
+  );
   console.log(
     `most-used action ${aggregate.first.name}: ${aggregate.firstMostUsedAction ?? "none"} | ${aggregate.second.name}: ${aggregate.secondMostUsedAction ?? "none"}`,
   );
@@ -2204,6 +2454,42 @@ function printBurstVsDefenderProbeSummary(
   }
 }
 
+function allActionSpikeStats(
+  aggregates: MatchupAggregate[],
+): ActionSpikeStats[] {
+  const combined: Record<string, ActionSpikeStats> = {};
+  for (const aggregate of aggregates) {
+    addActionSpikeStats(
+      combined,
+      prefixedActionSpikeStats(aggregate.first, aggregate.firstActionSpikeStats),
+    );
+    addActionSpikeStats(
+      combined,
+      prefixedActionSpikeStats(aggregate.second, aggregate.secondActionSpikeStats),
+    );
+  }
+  return Object.values(combined);
+}
+
+function printOverallActionSpikeAttribution(
+  aggregates: MatchupAggregate[],
+): void {
+  const actions = allActionSpikeStats(aggregates);
+  console.log("\n## Action Spike Attribution");
+  printActionSpikeList(
+    "Top 10 by max single-use wounds",
+    topActionSpikesByMax(actions, 10),
+  );
+  printActionSpikeList(
+    "Top 10 by >50% target HP spike count",
+    topActionSpikesByFiftyPercentCount(actions, 10),
+  );
+  printActionSpikeList(
+    "Top 10 by average wounds/use (minimum 10 uses)",
+    topActionSpikesByAverage(actions, 10, 10),
+  );
+}
+
 function computeAggregateRoundLengthStats(
   aggregates: MatchupAggregate[],
 ): RoundLengthStats {
@@ -2261,6 +2547,7 @@ function printOverallRoundSummary(aggregates: MatchupAggregate[]): string[] {
 
   printLongTailAttribution(aggregates);
   printBurstVsDefenderProbeSummary(aggregates);
+  printOverallActionSpikeAttribution(aggregates);
 
   return warnings;
 }
