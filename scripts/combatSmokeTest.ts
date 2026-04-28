@@ -1935,7 +1935,7 @@ function createFixtures(): SmokeMonsterFixture[] {
           type: "powerAttack",
           lifecycle: "immediate",
           lifecycleLabel: "Immediate",
-          diceCount: 5,
+          diceCount: 4,
           dieSize: "D10",
           potency: 4,
           intention: "ATTACK",
@@ -2015,7 +2015,7 @@ function createFixtures(): SmokeMonsterFixture[] {
       controlResistDice: 1,
       controlResistDieSize: "D8",
       controlResistAttribute: "Fortitude",
-      powerActionWeaponAttackId: "precision-basic",
+      powerActionWeaponAttackId: "precision-fallback",
       actions: [
         basicAttack({
           id: "precision-basic",
@@ -2023,6 +2023,13 @@ function createFixtures(): SmokeMonsterFixture[] {
           diceCount: 3,
           dieSize: "D8",
           potency: 3,
+        }),
+        basicAttack({
+          id: "precision-fallback",
+          name: "Quick Cut",
+          diceCount: 2,
+          dieSize: "D8",
+          potency: 2,
         }),
         powerAction({
           id: "precision-power",
