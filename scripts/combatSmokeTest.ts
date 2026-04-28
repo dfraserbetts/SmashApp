@@ -55,6 +55,7 @@ type ActionDefinition = {
   lifecycleLabel: string;
   diceCount: number;
   dieSize: DiceSize;
+  authoredWeaponStrength: number | null;
   potency: number;
   controlTurns: number;
   controlEffectType: ControlEffectType | null;
@@ -101,6 +102,10 @@ type SmokeMonsterFixture = {
   controlResistDice: number;
   controlResistDieSize: DiceSize;
   controlResistAttribute: string;
+  /**
+   * Explicit smoke override for the weapon used in the Power Action slot.
+   * When omitted/null, v0.1 uses the first legal basic weapon action.
+   */
   powerActionWeaponAttackId: string | null;
   actions: ActionDefinition[];
 };
@@ -614,8 +619,37 @@ function topEntry(input: Record<string, number>): string | null {
   return best ? `${best.key} (${best.value})` : null;
 }
 
+function authoredStrengthToWoundsPerSuccess(authoredStrength: number): number {
+  return Math.max(0, authoredStrength) * 2;
+}
+
+function tableWoundsPerSuccess(
+  action: Pick<ResolvedAction, "authoredWeaponStrength" | "potency" | "type">,
+): number {
+  if (
+    action.type === "basicAttack" &&
+    typeof action.authoredWeaponStrength === "number" &&
+    Number.isFinite(action.authoredWeaponStrength)
+  ) {
+    return authoredStrengthToWoundsPerSuccess(action.authoredWeaponStrength);
+  }
+  return action.potency;
+}
+
+function formatWoundsPerSuccess(action: ResolvedAction): string {
+  const tableWounds = tableWoundsPerSuccess(action);
+  if (
+    action.type === "basicAttack" &&
+    typeof action.authoredWeaponStrength === "number" &&
+    Number.isFinite(action.authoredWeaponStrength)
+  ) {
+    return `Strength ${action.authoredWeaponStrength} => ${tableWounds} wounds/success`;
+  }
+  return `${tableWounds} wounds/success`;
+}
+
 function expectedUnmitigatedWounds(action: ResolvedAction): number {
-  return action.diceCount * pSuccess(action.dieSize) * action.potency;
+  return action.diceCount * pSuccess(action.dieSize) * tableWoundsPerSuccess(action);
 }
 
 function expectedControlTurns(
@@ -637,7 +671,7 @@ function expectedActionScore(action: ResolvedAction): number {
 
 function expectedDamage(action: ResolvedAction, target: CombatantRuntime): number {
   const expectedAttackSuccesses = action.diceCount * pSuccess(action.dieSize);
-  const raw = expectedAttackSuccesses * action.potency;
+  const raw = expectedAttackSuccesses * tableWoundsPerSuccess(action);
   const effectiveDodgeDice = effectiveDefenceDice(
     target.fixture.dodgeDice,
     target.roundDefenceState.dodgeDegradation,
@@ -965,7 +999,7 @@ function useAction(
     actor.stats.controlAttempts += 1;
   }
 
-  let wounds = successes * action.potency;
+  let wounds = successes * tableWoundsPerSuccess(action);
   if (wounds > 0) {
     const defenceChoice = choosePhysicalDefence(target, successes, wounds);
     if (defenceChoice === "dodge") {
@@ -1110,11 +1144,10 @@ function makeRuntime(
   fixture: SmokeMonsterFixture,
   resolvedActions: ResolvedAction[],
 ): CombatantRuntime {
-  const powerActionWeaponAttack = fixture.powerActionWeaponAttackId
-    ? (resolvedActions.find(
-        (action) => action.id === fixture.powerActionWeaponAttackId,
-      ) ?? null)
-    : null;
+  const powerActionWeaponAttack = resolvePowerActionWeaponAttack(
+    fixture,
+    resolvedActions,
+  );
   const actionStates = Object.fromEntries(
     resolvedActions
       .filter((action) => action.lifecycle !== "basic")
@@ -1130,6 +1163,23 @@ function makeRuntime(
     actionStates,
     stats: emptyStats(),
   };
+}
+
+function firstBasicWeaponAction(actions: ResolvedAction[]): ResolvedAction | null {
+  return actions.find((action) => action.type === "basicAttack") ?? null;
+}
+
+function resolvePowerActionWeaponAttack(
+  fixture: SmokeMonsterFixture,
+  actions: ResolvedAction[],
+): ResolvedAction | null {
+  if (fixture.powerActionWeaponAttackId) {
+    return (
+      actions.find((action) => action.id === fixture.powerActionWeaponAttackId) ??
+      firstBasicWeaponAction(actions)
+    );
+  }
+  return firstBasicWeaponAction(actions);
 }
 
 function resetRoundDefenceState(combatant: CombatantRuntime): void {
@@ -1806,6 +1856,7 @@ function powerAction(config: {
     lifecycleLabel: config.lifecycleLabel,
     diceCount: config.diceCount,
     dieSize: config.dieSize,
+    authoredWeaponStrength: null,
     potency: config.potency,
     controlTurns: config.controlTurns ?? 0,
     controlEffectType: config.controlEffectType ?? null,
@@ -1830,10 +1881,12 @@ function basicAttack(config: {
   name: string;
   diceCount: number;
   dieSize: DiceSize;
+  authoredWeaponStrength?: number | null;
   potency: number;
 }): ActionDefinition {
   return {
     ...config,
+    authoredWeaponStrength: config.authoredWeaponStrength ?? null,
     type: "basicAttack",
     lifecycle: "basic",
     lifecycleLabel: "At-will basic action",
@@ -2199,8 +2252,9 @@ function printSimplifications(): void {
   console.log("- legal action-slot control only; no full control engine");
   console.log("- no Cleanse, ally intervention, immunity windows, or diminishing returns yet");
   console.log("- Force Move and Force Specific action control options are not exercised by these fixtures");
-  console.log("- Power Action weapon fallback is modeled explicitly per fixture; it is not automatic");
-  console.log("- v0.1 does not model complex weapon restrictions, Slow traits, hand occupancy, reload, ammo, or multiweapon legality beyond fixture metadata");
+  console.log("- every fixture may use the Power Action slot for a weapon attack; explicit metadata can choose a weaker or different fallback");
+  console.log("- weapon attacks may provide authored Strength, which v0.1 translates to table wounds per success as Strength x 2");
+  console.log("- v0.1 does not model complex weapon restrictions, Slow traits, hand occupancy, reload, ammo, or multiweapon legality beyond fixture metadata/default weapon selection");
   console.log("- deterministic expected-value AI with seeded stochastic resolution");
   console.log("- synthetic smoke dummies, not final balance exemplars");
   console.log("- final-resolution-window handling is an explicit 1v1 approximation");
@@ -2217,12 +2271,16 @@ function printFixtureSummary(
       `- ${fixture.name}: L${fixture.level} ${fixture.tier}, HP ${fixture.physicalHp}, dodge ${fixture.dodgeDice}${fixture.dodgeDieSize}, defend ${fixture.guardDice}${fixture.guardDieSize} x DSV ${fixture.physicalDefenceStringValue}, mental defence ${fixture.willpowerDice}${fixture.willpowerDieSize} x DSV ${fixture.mentalDefenceStringValue}, control resist ${fixture.controlResistDice}${fixture.controlResistDieSize} ${fixture.controlResistAttribute}`,
     );
     console.log(`  role: ${fixture.role}`);
-    const fallbackAction = fixture.powerActionWeaponAttackId
-      ? actions.find((action) => action.id === fixture.powerActionWeaponAttackId)
-      : null;
+    const fallbackAction = resolvePowerActionWeaponAttack(fixture, actions);
     if (fallbackAction) {
+      const defaultWeapon = firstBasicWeaponAction(actions);
+      const fallbackMode = fixture.powerActionWeaponAttackId
+        ? fallbackAction.id === defaultWeapon?.id
+          ? "explicit same weapon"
+          : "explicit alternate weapon"
+        : "default weapon";
       console.log(
-        `  Power Action weapon fallback: ${fallbackAction.name}, ${fallbackAction.diceCount}${fallbackAction.dieSize} x ${fallbackAction.potency} wounds/success, expected wounds ${round(expectedUnmitigatedWounds(fallbackAction))}`,
+        `  Power Action weapon fallback: ${fallbackAction.name} (${fallbackMode}), ${fallbackAction.diceCount}${fallbackAction.dieSize} x ${formatWoundsPerSuccess(fallbackAction)}, expected wounds ${round(expectedUnmitigatedWounds(fallbackAction))}`,
       );
     } else {
       console.log("  Power Action weapon fallback: unavailable");
@@ -2241,7 +2299,7 @@ function printFixtureSummary(
           ? `, lifespan ${action.lifespanTurns} turn(s)`
           : "";
       console.log(
-        `  action: ${action.name} [${action.type}], lifecycle ${action.lifecycleLabel}${lifespan}, ${action.diceCount}${action.dieSize} x ${action.potency} wounds/success${control}, cooldown ${cooldown}, expected wounds ${round(expectedUnmitigatedWounds(action))}, expected score ${round(expectedActionScore(action))}`,
+        `  action: ${action.name} [${action.type}], lifecycle ${action.lifecycleLabel}${lifespan}, ${action.diceCount}${action.dieSize} x ${formatWoundsPerSuccess(action)}${control}, cooldown ${cooldown}, expected wounds ${round(expectedUnmitigatedWounds(action))}, expected score ${round(expectedActionScore(action))}`,
       );
     }
   }

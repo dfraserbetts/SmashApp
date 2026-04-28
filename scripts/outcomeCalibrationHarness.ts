@@ -696,6 +696,7 @@ function withPower(fixture: Omit<CalibrationFixture, "powerContribution">): Cali
           axisVector: breakdown.axisVector,
           basePowerValue: breakdown.basePowerValue,
           derivedCooldownTurns: breakdown.derivedCooldownTurns,
+          derivedCooldownLoad: breakdown.derivedCooldown.cooldownLoad,
           cooldownTurns: fixture.power.cooldownTurns,
           cooldownReduction: fixture.power.cooldownReduction,
         },
@@ -1066,6 +1067,9 @@ const fixtures: CalibrationFixture[] = [
   withPower({
     id: "weak-self-movement",
     title: "weak self movement",
+    notes: [
+      "Future candidate: movement Power Tuning/raw-value review after derived-cooldown radar availability.",
+    ],
     monster: createBaseMonster({ name: "Weak Self Movement" }),
     power: createPower({
       name: "Short Hop",
@@ -1077,7 +1081,7 @@ const fixtures: CalibrationFixture[] = [
       }),
     }),
     expected: {
-      mobility: "LOW",
+      mobility: "TRACE",
       manipulation: "NONE",
       synergy: "NONE",
     },
@@ -1085,6 +1089,9 @@ const fixtures: CalibrationFixture[] = [
   withPower({
     id: "level-1-minion-self-run-1-1",
     title: "level 1 minion self run 1/1",
+    notes: [
+      "Future candidate: movement Power Tuning/raw-value ladder review after derived-cooldown radar availability.",
+    ],
     monster: createBaseMonster({ name: "Level 1 Minion Self Run 1/1" }),
     power: createPower({
       name: "Short Run",
@@ -1096,7 +1103,7 @@ const fixtures: CalibrationFixture[] = [
       }),
     }),
     expected: {
-      mobility: "LOW",
+      mobility: "TRACE",
       manipulation: "NONE",
       synergy: "NONE",
     },
@@ -1104,6 +1111,9 @@ const fixtures: CalibrationFixture[] = [
   withPower({
     id: "level-1-minion-self-run-2-2",
     title: "level 1 minion self run 2/2",
+    notes: [
+      "Future candidate: movement Power Tuning/raw-value ladder review after derived-cooldown radar availability.",
+    ],
     monster: createBaseMonster({ name: "Level 1 Minion Self Run 2/2" }),
     power: createPower({
       name: "Battle Run",
@@ -1115,7 +1125,7 @@ const fixtures: CalibrationFixture[] = [
       }),
     }),
     expected: {
-      mobility: "MEDIUM",
+      mobility: "TRACE",
       manipulation: "NONE",
       synergy: "NONE",
     },
@@ -1123,6 +1133,9 @@ const fixtures: CalibrationFixture[] = [
   withPower({
     id: "level-1-minion-self-run-3-2",
     title: "level 1 minion self run 3/2",
+    notes: [
+      "Future candidate: movement Power Tuning/raw-value ladder review after derived-cooldown radar availability.",
+    ],
     monster: createBaseMonster({ name: "Level 1 Minion Self Run 3/2" }),
     power: createPower({
       name: "Surging Run",
@@ -1134,7 +1147,7 @@ const fixtures: CalibrationFixture[] = [
       }),
     }),
     expected: {
-      mobility: "HIGH",
+      mobility: "LOW",
       manipulation: "NONE",
       synergy: "NONE",
     },
@@ -1156,8 +1169,8 @@ const fixtures: CalibrationFixture[] = [
       rangedTargets: 1,
     }),
     expected: {
-      manipulation: "LOW",
-      mobility: "TRACE",
+      manipulation: "TRACE",
+      mobility: "NONE",
       presence: "NONE",
     },
   }),
@@ -1175,7 +1188,7 @@ const fixtures: CalibrationFixture[] = [
       }),
     }),
     expected: {
-      physicalSurvivability: "LOW",
+      physicalSurvivability: "TRACE",
       synergy: "NONE",
     },
   }),
@@ -1195,7 +1208,7 @@ const fixtures: CalibrationFixture[] = [
       rangedTargets: 1,
     }),
     expected: {
-      physicalSurvivability: "LOW",
+      physicalSurvivability: "TRACE",
       synergy: "TRACE",
     },
   }),
@@ -1213,13 +1226,16 @@ const fixtures: CalibrationFixture[] = [
       }),
     }),
     expected: {
-      physicalSurvivability: "LOW",
+      physicalSurvivability: "TRACE",
       synergy: "NONE",
     },
   }),
   withPower({
     id: "ally-augment",
     title: "ally augment",
+    notes: [
+      "Future candidate: support/synergy Power Tuning review after derived-cooldown radar availability.",
+    ],
     monster: createBaseMonster({ name: "Ally Augment" }),
     power: createPower({
       name: "Bolster Ally",
@@ -1233,8 +1249,8 @@ const fixtures: CalibrationFixture[] = [
       rangedTargets: 1,
     }),
     expected: {
-      synergy: "LOW",
-      physicalSurvivability: "LOW",
+      synergy: "TRACE",
+      physicalSurvivability: "TRACE",
     },
   }),
   withPower({
@@ -1262,6 +1278,9 @@ const fixtures: CalibrationFixture[] = [
   withPower({
     id: "basic-control",
     title: "basic control",
+    notes: [
+      "Future candidate: control Power Tuning/raw-value review after derived-cooldown radar availability.",
+    ],
     monster: createBaseMonster({ name: "Basic Control" }),
     power: createPower({
       name: "Pin",
@@ -1278,7 +1297,7 @@ const fixtures: CalibrationFixture[] = [
       rangedTargets: 1,
     }),
     expected: {
-      manipulation: "MEDIUM",
+      manipulation: "TRACE",
       presence: "TRACE",
     },
   }),
@@ -1358,8 +1377,8 @@ const fixtures: CalibrationFixture[] = [
       mentalThreat: "NONE",
       physicalSurvivability: "TRACE",
       mentalSurvivability: "NONE",
-      manipulation: "LOW",
-      presence: "TRACE",
+      manipulation: "TRACE",
+      presence: "NONE",
       mobility: "NONE",
       synergy: "NONE",
     },
@@ -1567,6 +1586,9 @@ const fixtures: CalibrationFixture[] = [
     id: "high-mobility-skirmisher",
     title: "high mobility skirmisher",
     group: expandedFixtureGroup,
+    notes: [
+      "Future candidate: mobility Outcome Normalization/display review after derived-cooldown radar availability.",
+    ],
     monster: createBaseMonster({
       name: "High Mobility Skirmisher",
       level: 8,
@@ -1602,7 +1624,7 @@ const fixtures: CalibrationFixture[] = [
       cooldownTurns: 1,
     }),
     expected: {
-      mobility: "LOW",
+      mobility: "NONE",
       physicalThreat: "TRACE",
       physicalSurvivability: "TRACE",
       mentalSurvivability: "NONE",
@@ -1634,7 +1656,7 @@ const fixtures: CalibrationFixture[] = [
       }),
     }),
     expected: {
-      mobility: "TRACE",
+      mobility: "NONE",
       manipulation: "NONE",
       synergy: "NONE",
     },
@@ -1643,6 +1665,9 @@ const fixtures: CalibrationFixture[] = [
     id: "support-commander",
     title: "support commander",
     group: expandedFixtureGroup,
+    notes: [
+      "Future candidate: support/synergy Power Tuning review after derived-cooldown radar availability.",
+    ],
     monster: createBaseMonster({
       name: "Support Commander",
       level: 8,
@@ -1670,7 +1695,7 @@ const fixtures: CalibrationFixture[] = [
       rangedTargets: 3,
     }),
     expected: {
-      synergy: "HIGH",
+      synergy: "TRACE",
       physicalThreat: "NONE",
       mentalThreat: "NONE",
       physicalSurvivability: "NONE",
@@ -1717,6 +1742,9 @@ const fixtures: CalibrationFixture[] = [
     id: "glass-cannon-with-power",
     title: "glass cannon with power",
     group: expandedFixtureGroup,
+    notes: [
+      "Future candidate: physicalThreat/presence Outcome Normalization display review after derived-cooldown radar availability.",
+    ],
     monster: createBaseMonster({
       name: "Glass Cannon With Power",
       level: 10,
@@ -1762,12 +1790,12 @@ const fixtures: CalibrationFixture[] = [
       cooldownTurns: 1,
     }),
     expected: {
-      physicalThreat: "LOW",
+      physicalThreat: "TRACE",
       mentalThreat: "NONE",
       physicalSurvivability: "NONE",
       mentalSurvivability: "NONE",
       mobility: "NONE",
-      presence: "TRACE",
+      presence: "NONE",
       manipulation: "NONE",
       synergy: "NONE",
     },

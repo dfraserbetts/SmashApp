@@ -477,6 +477,7 @@ function buildPowerContribution(
       axisVector: power.breakdown.axisVector,
       basePowerValue: power.breakdown.basePowerValue,
       derivedCooldownTurns: power.derivedCooldownTurns,
+      derivedCooldownLoad: power.derivedCooldown.cooldownLoad,
       cooldownTurns: power.cooldownTurns,
       cooldownReduction: power.cooldownReduction,
     })),

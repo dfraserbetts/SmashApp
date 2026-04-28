@@ -167,6 +167,7 @@ export type CanonicalPowerContribution = {
     axisVector?: Partial<RadarAxes> | null;
     basePowerValue?: number | null;
     derivedCooldownTurns?: number | null;
+    derivedCooldownLoad?: number | null;
     cooldownTurns?: number | null;
     cooldownReduction?: number | null;
   }> | null;
@@ -619,7 +620,20 @@ function getPowerAvailabilityFactor(cooldownTurns: number): number {
   return 0.3;
 }
 
+const DEFAULT_RADAR_COOLDOWN_LOAD_EXPONENT = 1.2;
+
+function getRadarCooldownLoadExponent(): number {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+    .process?.env?.SMASH_RADAR_COOLDOWN_LOAD_EXPONENT;
+  const parsed = env ? Number(env) : null;
+  return parsed !== null && Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_RADAR_COOLDOWN_LOAD_EXPONENT;
+}
+
 function resolvePowerAvailability(power: {
+  derivedCooldownTurns?: number | null;
+  derivedCooldownLoad?: number | null;
   cooldownTurns?: number | null;
   cooldownReduction?: number | null;
 }): {
@@ -628,6 +642,30 @@ function resolvePowerAvailability(power: {
   cooldownTurns: number | null;
   cooldownSource: string;
 } {
+  const derivedCooldown = readFiniteNumber(power.derivedCooldownTurns);
+  if (derivedCooldown !== null) {
+    const resolvedCooldown = Math.max(1, Math.trunc(derivedCooldown));
+    const tableAvailabilityFactor = getPowerAvailabilityFactor(resolvedCooldown);
+    const cooldownLoad = readFiniteNumber(power.derivedCooldownLoad);
+    const normalizedCooldownLoad =
+      cooldownLoad === null ? null : Math.max(0, Math.min(1, cooldownLoad));
+    const radarCooldownLoadExponent = getRadarCooldownLoadExponent();
+    const radarRelativeLoadFactor =
+      normalizedCooldownLoad === null
+        ? 1
+        : Math.pow(normalizedCooldownLoad, radarCooldownLoadExponent);
+    const availabilityFactor = tableAvailabilityFactor * radarRelativeLoadFactor;
+    return {
+      availabilityFactor,
+      availabilityReason:
+        cooldownLoad === null
+          ? `Resolver-derived cooldown ${resolvedCooldown} was used for Phase 6 power availability; authored cooldown fields are fallback only. No cooldown load was provided, so table availability factor ${tableAvailabilityFactor} was applied directly.`
+          : `Resolver-derived cooldown ${resolvedCooldown} was used for Phase 6 table availability; authored cooldown fields are fallback only. Radar availability applied table factor ${tableAvailabilityFactor} against level-relative cooldown load exponent ${radarCooldownLoadExponent} for load factor ${radarRelativeLoadFactor}, producing factor ${availabilityFactor}.`,
+      cooldownTurns: resolvedCooldown,
+      cooldownSource: "resolver_derived_cooldown",
+    };
+  }
+
   const authoredCooldown = readFiniteNumber(power.cooldownTurns);
   const authoredReduction = readFiniteNumber(power.cooldownReduction) ?? 0;
 
@@ -652,12 +690,12 @@ function resolvePowerAvailability(power: {
     availabilityReason:
       resolvedCooldown <= 0
         ? "Authored cooldown resolved to at-will/0, so full canonical axis contribution is used."
-        : `Authored cooldownTurns (${Math.trunc(authoredCooldown)}) minus cooldownReduction (${Math.max(
+        : `No resolver-derived cooldown was available; authored cooldownTurns (${Math.trunc(authoredCooldown)}) minus cooldownReduction (${Math.max(
             0,
             Math.trunc(authoredReduction),
-          )}) resolved to cooldown ${resolvedCooldown}; first-pass monster availability factor ${availabilityFactor} applied.`,
+          )}) was used as fallback and resolved to cooldown ${resolvedCooldown}; first-pass monster availability factor ${availabilityFactor} applied.`,
     cooldownTurns: resolvedCooldown,
-    cooldownSource: "authored_power.cooldownTurns_minus_cooldownReduction",
+    cooldownSource: "authored_power.cooldownTurns_minus_cooldownReduction_fallback",
   };
 }
 
@@ -680,6 +718,7 @@ function resolveEffectivePowerAxisContribution(
     cooldownTurns: number | null;
     cooldownSource: string;
     basePowerValue: number | null;
+    derivedCooldownLoad: number | null;
   }>;
   warnings: string[];
 } {
@@ -731,6 +770,7 @@ function resolveEffectivePowerAxisContribution(
         typeof power.basePowerValue === "number" && Number.isFinite(power.basePowerValue)
           ? power.basePowerValue
           : null,
+      derivedCooldownLoad: readFiniteNumber(power.derivedCooldownLoad),
     };
   });
 
@@ -747,6 +787,13 @@ function resolveEffectivePowerAxisContribution(
     );
     return sum + powerWeight * power.availabilityFactor;
   }, 0);
+  const cooldownSources = new Set(perPower.map((power) => power.cooldownSource));
+  const aggregateCooldownSource =
+    cooldownSources.size === 1
+      ? (perPower[0]?.cooldownSource ?? "none")
+      : cooldownSources.has("resolver_derived_cooldown")
+        ? "mixed_resolver_derived_and_fallback_cooldown"
+        : "mixed_fallback_cooldown";
 
   return {
     canonicalPowerAxisVector,
@@ -756,9 +803,11 @@ function resolveEffectivePowerAxisContribution(
         ? weightedAvailabilityNumerator / weightedAvailabilityDenominator
         : 0,
     availabilityReason:
-      "Per-power authored cooldown availability applied before final monster outcome axes.",
+      cooldownSources.has("resolver_derived_cooldown")
+        ? "Per-power resolver-derived cooldown availability applied before final monster outcome axes; authored cooldown fields are fallback only."
+        : "Per-power fallback cooldown availability applied before final monster outcome axes.",
     cooldownTurns: null,
-    cooldownSource: "per_power_authored_cooldown",
+    cooldownSource: aggregateCooldownSource,
     perPower,
     warnings,
   };
