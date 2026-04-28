@@ -90,6 +90,7 @@ type SmokeMonsterFixture = {
   controlResistDice: number;
   controlResistDieSize: DiceSize;
   controlResistAttribute: string;
+  powerActionWeaponAttackId: string | null;
   actions: ActionDefinition[];
 };
 
@@ -98,6 +99,7 @@ type CombatantRuntime = {
   currentHp: number;
   controlRestrictions: ControlRestrictions;
   actions: ResolvedAction[];
+  powerActionWeaponAttack: ResolvedAction | null;
   actionStates: Record<string, ActionRuntimeState>;
   stats: CombatantStats;
 };
@@ -118,6 +120,7 @@ type CombatantStats = {
   protectionPrevented: number;
   blockedByActiveState: number;
   blockedByCooldown: number;
+  powerActionWeaponFallbackUses: number;
   cooldownViolations: number;
 };
 
@@ -194,6 +197,8 @@ type MatchupAggregate = {
   secondActiveBlocked: number;
   firstCooldownBlocked: number;
   secondCooldownBlocked: number;
+  firstPowerActionWeaponFallbackUses: number;
+  secondPowerActionWeaponFallbackUses: number;
   firstCooldownViolations: number;
   secondCooldownViolations: number;
   warnings: string[];
@@ -393,6 +398,7 @@ function emptyStats(): CombatantStats {
     protectionPrevented: 0,
     blockedByActiveState: 0,
     blockedByCooldown: 0,
+    powerActionWeaponFallbackUses: 0,
     cooldownViolations: 0,
   };
 }
@@ -499,6 +505,13 @@ function recordBlockedActions(actor: CombatantRuntime): void {
       actor.stats.blockedByCooldown += 1;
     }
   }
+}
+
+function actionUseName(action: ResolvedAction, slot: ActionSlot): string {
+  if (slot === "power" && action.lifecycle === "basic") {
+    return `${action.name} (Power Action weapon)`;
+  }
+  return action.name;
 }
 
 function chooseAction(
@@ -660,6 +673,7 @@ function useAction(
   target: CombatantRuntime,
   action: ResolvedAction,
   rng: SeededRng,
+  slot: ActionSlot,
 ): void {
   const state = actor.actionStates[action.id];
   if (state) {
@@ -670,11 +684,14 @@ function useAction(
     state.uses += 1;
   }
 
-  actor.stats.actionUses[action.name] =
-    (actor.stats.actionUses[action.name] ?? 0) + 1;
+  const actionName = actionUseName(action, slot);
+  actor.stats.actionUses[actionName] =
+    (actor.stats.actionUses[actionName] ?? 0) + 1;
   if (action.lifecycle !== "basic") {
     actor.stats.powerUses[action.name] =
       (actor.stats.powerUses[action.name] ?? 0) + 1;
+  } else if (slot === "power") {
+    actor.stats.powerActionWeaponFallbackUses += 1;
   }
 
   const successes = rollSuccesses(action, rng);
@@ -748,7 +765,7 @@ function takeTurn(
       target,
       actor.actions.filter((action) => action.lifecycle === "basic"),
     );
-    if (mainAction) useAction(actor, target, mainAction, rng);
+    if (mainAction) useAction(actor, target, mainAction, rng, "main");
   }
 
   if (target.currentHp > 0) {
@@ -759,9 +776,16 @@ function takeTurn(
       const powerActionChoice = chooseAction(
         actor,
         target,
-        actor.actions.filter((action) => action.lifecycle !== "basic"),
+        [
+          ...actor.actions.filter((action) => action.lifecycle !== "basic"),
+          ...(actor.powerActionWeaponAttack
+            ? [actor.powerActionWeaponAttack]
+            : []),
+        ],
       );
-      if (powerActionChoice) useAction(actor, target, powerActionChoice, rng);
+      if (powerActionChoice) {
+        useAction(actor, target, powerActionChoice, rng, "power");
+      }
     }
   }
 
@@ -773,6 +797,11 @@ function makeRuntime(
   fixture: SmokeMonsterFixture,
   resolvedActions: ResolvedAction[],
 ): CombatantRuntime {
+  const powerActionWeaponAttack = fixture.powerActionWeaponAttackId
+    ? (resolvedActions.find(
+        (action) => action.id === fixture.powerActionWeaponAttackId,
+      ) ?? null)
+    : null;
   const actionStates = Object.fromEntries(
     resolvedActions
       .filter((action) => action.lifecycle !== "basic")
@@ -783,6 +812,7 @@ function makeRuntime(
     currentHp: fixture.physicalHp,
     controlRestrictions: emptyControlRestrictions(),
     actions: resolvedActions,
+    powerActionWeaponAttack,
     actionStates,
     stats: emptyStats(),
   };
@@ -899,6 +929,8 @@ function aggregateMatchup(
   let secondActiveBlocked = 0;
   let firstCooldownBlocked = 0;
   let secondCooldownBlocked = 0;
+  let firstPowerActionWeaponFallbackUses = 0;
+  let secondPowerActionWeaponFallbackUses = 0;
   let firstCooldownViolations = 0;
   let secondCooldownViolations = 0;
   let firstDodgesAttempted = 0;
@@ -955,6 +987,10 @@ function aggregateMatchup(
     secondActiveBlocked += secondStats.blockedByActiveState;
     firstCooldownBlocked += firstStats.blockedByCooldown;
     secondCooldownBlocked += secondStats.blockedByCooldown;
+    firstPowerActionWeaponFallbackUses +=
+      firstStats.powerActionWeaponFallbackUses;
+    secondPowerActionWeaponFallbackUses +=
+      secondStats.powerActionWeaponFallbackUses;
     firstCooldownViolations += firstStats.cooldownViolations;
     secondCooldownViolations += secondStats.cooldownViolations;
     firstDodgesAttempted += firstStats.dodgesAttempted;
@@ -1020,6 +1056,8 @@ function aggregateMatchup(
     secondActiveBlocked,
     firstCooldownBlocked,
     secondCooldownBlocked,
+    firstPowerActionWeaponFallbackUses,
+    secondPowerActionWeaponFallbackUses,
     firstCooldownViolations,
     secondCooldownViolations,
     warnings: [],
@@ -1066,6 +1104,10 @@ function pacingLabel(stats: RoundLengthStats): string {
   return "explosive";
 }
 
+function isDefenderRole(fixture: SmokeMonsterFixture): boolean {
+  return fixture.id === "defender" || fixture.id === "bulwark-defender";
+}
+
 function getMatchupExpectation(
   first: SmokeMonsterFixture,
   second: SmokeMonsterFixture,
@@ -1091,11 +1133,35 @@ function getMatchupExpectation(
         reason:
           "Control should disrupt but still needs enough follow-through to survive pressure.",
       };
+    case "bruiser|precision-striker":
+      return {
+        classification: "representative",
+        reason:
+          "Sustained pressure versus consistent striker checks whether offence pacing stays readable.",
+      };
+    case "bruiser|bulwark-defender":
+      return {
+        classification: "expected-role-friction",
+        reason:
+          "Sustained damage dealer versus high-pool survivor is expected to run longer.",
+      };
     case "defender|glass-cannon":
       return {
         classification: "representative",
         reason:
           "Fragile burst into a durable target is a useful check for whether burst can threaten defence.",
+      };
+    case "bulwark-defender|glass-cannon":
+      return {
+        classification: "representative",
+        reason:
+          "Fragile burst into an alternate defender profile helps separate fixture artifact from defender-wide pressure.",
+      };
+    case "glass-cannon|precision-striker":
+      return {
+        classification: "representative",
+        reason:
+          "Fragile spike versus steadier offence checks whether burst ceiling beats consistency.",
       };
     case "controller|glass-cannon":
       return {
@@ -1103,11 +1169,41 @@ function getMatchupExpectation(
         reason:
           "Burst versus disruption is a useful pacing and pressure check.",
       };
+    case "defender|precision-striker":
+      return {
+        classification: "representative",
+        reason:
+          "Consistent burst/offence into the original defender checks whether Glass Cannon was uniquely fragile.",
+      };
+    case "bulwark-defender|precision-striker":
+      return {
+        classification: "representative",
+        reason:
+          "Consistent burst/offence into the alternate defender checks whether defender profiles broadly suppress offence.",
+      };
+    case "controller|precision-striker":
+      return {
+        classification: "representative",
+        reason:
+          "Consistent striker versus disruption checks whether the new offence profile handles control pressure.",
+      };
     case "controller|defender":
       return {
         classification: "party-dependent-edge-case",
         reason:
           "Controller is often a party-enabling role and may not be expected to solo-kill a Defender efficiently.",
+      };
+    case "bulwark-defender|controller":
+      return {
+        classification: "party-dependent-edge-case",
+        reason:
+          "Controller is often party-enabling and may not solo-kill a high-pool defender efficiently.",
+      };
+    case "bulwark-defender|defender":
+      return {
+        classification: "expected-role-friction",
+        reason:
+          "Two defender profiles fighting each other are expected to produce slow pressure checks.",
       };
     default:
       return {
@@ -1152,7 +1248,7 @@ function buildWarnings(matchup: MatchupAggregate): string[] {
     matchup.firstMoveBlocked +
     matchup.secondMoveBlocked;
   const defenderInvolved =
-    matchup.first.id === "defender" || matchup.second.id === "defender";
+    isDefenderRole(matchup.first) || isDefenderRole(matchup.second);
 
   if (firstWinRate > 0.7) {
     warnings.push(`${matchup.first.name} win rate exceeds 70%`);
@@ -1299,6 +1395,7 @@ function createFixtures(): SmokeMonsterFixture[] {
       controlResistDice: 1,
       controlResistDieSize: "D8",
       controlResistAttribute: "Fortitude",
+      powerActionWeaponAttackId: "bruiser-shoulder-check",
       actions: [
         basicAttack({
           id: "bruiser-basic",
@@ -1306,6 +1403,13 @@ function createFixtures(): SmokeMonsterFixture[] {
           diceCount: 3,
           dieSize: "D8",
           potency: 2,
+        }),
+        basicAttack({
+          id: "bruiser-shoulder-check",
+          name: "Shoulder Check",
+          diceCount: 2,
+          dieSize: "D8",
+          potency: 1,
         }),
         powerAction({
           id: "bruiser-power",
@@ -1339,6 +1443,7 @@ function createFixtures(): SmokeMonsterFixture[] {
       controlResistDice: 1,
       controlResistDieSize: "D6",
       controlResistAttribute: "Fortitude",
+      powerActionWeaponAttackId: null,
       actions: [
         basicAttack({
           id: "glass-basic",
@@ -1379,6 +1484,7 @@ function createFixtures(): SmokeMonsterFixture[] {
       controlResistDice: 2,
       controlResistDieSize: "D8",
       controlResistAttribute: "Fortitude",
+      powerActionWeaponAttackId: "defender-basic",
       actions: [
         basicAttack({
           id: "defender-basic",
@@ -1407,6 +1513,90 @@ function createFixtures(): SmokeMonsterFixture[] {
       ],
     },
     {
+      id: "precision-striker",
+      name: "Precision Striker",
+      role:
+        "Second offence profile with moderate durability, lower spike ceiling, and steadier damage",
+      level: LEVEL,
+      tier: TIER,
+      legendary: false,
+      physicalHp: 34,
+      physicalProtection: 1,
+      dodgeChance: 0.2,
+      controlResistDice: 1,
+      controlResistDieSize: "D8",
+      controlResistAttribute: "Fortitude",
+      powerActionWeaponAttackId: "precision-basic",
+      actions: [
+        basicAttack({
+          id: "precision-basic",
+          name: "Measured Cut",
+          diceCount: 3,
+          dieSize: "D8",
+          potency: 3,
+        }),
+        powerAction({
+          id: "precision-power",
+          name: "Exploit Opening",
+          type: "powerAttack",
+          lifecycle: "immediate",
+          lifecycleLabel: "Immediate",
+          diceCount: 4,
+          dieSize: "D8",
+          potency: 3,
+          intention: "ATTACK",
+          sortOrder: 0,
+          detailsJson: {
+            attackMode: "PHYSICAL",
+            damageTypes: ["Piercing"],
+            rangeCategory: "MELEE",
+          },
+        }),
+      ],
+    },
+    {
+      id: "bulwark-defender",
+      name: "Bulwark Defender",
+      role:
+        "Second defender profile with high HP, lower protection, and modest offence",
+      level: LEVEL,
+      tier: TIER,
+      legendary: false,
+      physicalHp: 50,
+      physicalProtection: 1,
+      dodgeChance: 0.1,
+      controlResistDice: 2,
+      controlResistDieSize: "D8",
+      controlResistAttribute: "Fortitude",
+      powerActionWeaponAttackId: "bulwark-basic",
+      actions: [
+        basicAttack({
+          id: "bulwark-basic",
+          name: "Weighty Guard Strike",
+          diceCount: 2,
+          dieSize: "D8",
+          potency: 2,
+        }),
+        powerAction({
+          id: "bulwark-power",
+          name: "Brace and Shove",
+          type: "powerAttack",
+          lifecycle: "immediate",
+          lifecycleLabel: "Immediate",
+          diceCount: 3,
+          dieSize: "D6",
+          potency: 2,
+          intention: "ATTACK",
+          sortOrder: 0,
+          detailsJson: {
+            attackMode: "PHYSICAL",
+            damageTypes: ["Bludgeoning"],
+            rangeCategory: "MELEE",
+          },
+        }),
+      ],
+    },
+    {
       id: "controller",
       name: "Controller",
       role: "Lower damage with a slot-control power",
@@ -1419,6 +1609,7 @@ function createFixtures(): SmokeMonsterFixture[] {
       controlResistDice: 1,
       controlResistDieSize: "D8",
       controlResistAttribute: "Fortitude",
+      powerActionWeaponAttackId: null,
       actions: [
         basicAttack({
           id: "controller-basic",
@@ -1497,7 +1688,8 @@ function printSimplifications(): void {
   console.log("- legal action-slot control only; no full control engine");
   console.log("- no Cleanse, ally intervention, immunity windows, or diminishing returns yet");
   console.log("- Force Move and Force Specific action control options are not exercised by these fixtures");
-  console.log("- basic attacks use the Main Action slot; v0.1 does not spend unused Power Action slots on basic attacks");
+  console.log("- Power Action weapon fallback is modeled explicitly per fixture; it is not automatic");
+  console.log("- v0.1 does not model complex weapon restrictions, Slow traits, hand occupancy, reload, ammo, or multiweapon legality beyond fixture metadata");
   console.log("- deterministic expected-value AI with seeded stochastic resolution");
   console.log("- synthetic smoke dummies, not final balance exemplars");
   console.log("- final-resolution-window handling is an explicit 1v1 approximation");
@@ -1514,6 +1706,16 @@ function printFixtureSummary(
       `- ${fixture.name}: L${fixture.level} ${fixture.tier}, HP ${fixture.physicalHp}, PP ${fixture.physicalProtection}, dodge ${round(fixture.dodgeChance * 100, 1)}%, control resist ${fixture.controlResistDice}${fixture.controlResistDieSize} ${fixture.controlResistAttribute}`,
     );
     console.log(`  role: ${fixture.role}`);
+    const fallbackAction = fixture.powerActionWeaponAttackId
+      ? actions.find((action) => action.id === fixture.powerActionWeaponAttackId)
+      : null;
+    if (fallbackAction) {
+      console.log(
+        `  Power Action weapon fallback: ${fallbackAction.name}, ${fallbackAction.diceCount}${fallbackAction.dieSize} x ${fallbackAction.potency} wounds/success, expected wounds ${round(expectedUnmitigatedWounds(fallbackAction))}`,
+      );
+    } else {
+      console.log("  Power Action weapon fallback: unavailable");
+    }
     for (const action of actions) {
       const cooldown =
         action.cooldownSource === "derived"
@@ -1568,6 +1770,9 @@ function printMatchup(aggregate: MatchupAggregate): void {
   );
   console.log(
     `power uses ${aggregate.first.name}: ${JSON.stringify(aggregate.firstPowerUses)} | ${aggregate.second.name}: ${JSON.stringify(aggregate.secondPowerUses)}`,
+  );
+  console.log(
+    `Power Action weapon fallback uses ${aggregate.first.name}: ${aggregate.firstPowerActionWeaponFallbackUses} | ${aggregate.second.name}: ${aggregate.secondPowerActionWeaponFallbackUses}`,
   );
   console.log(
     `control attempts/resisted/landed ${aggregate.first.name}: ${aggregate.firstControlAttempts}/${aggregate.firstControlResisted}/${aggregate.firstControlLanded} | ${aggregate.second.name}: ${aggregate.secondControlAttempts}/${aggregate.secondControlResisted}/${aggregate.secondControlLanded}`,
@@ -1656,6 +1861,77 @@ function printLongTailAttribution(aggregates: MatchupAggregate[]): void {
   }
 }
 
+function findMatchup(
+  aggregates: MatchupAggregate[],
+  firstId: string,
+  secondId: string,
+): MatchupAggregate | null {
+  return (
+    aggregates.find(
+      (aggregate) =>
+        (aggregate.first.id === firstId && aggregate.second.id === secondId) ||
+        (aggregate.first.id === secondId && aggregate.second.id === firstId),
+    ) ?? null
+  );
+}
+
+function fixtureNameInMatchup(aggregate: MatchupAggregate, fixtureId: string): string {
+  if (aggregate.first.id === fixtureId) return aggregate.first.name;
+  if (aggregate.second.id === fixtureId) return aggregate.second.name;
+  return fixtureId;
+}
+
+function winRateForFixture(aggregate: MatchupAggregate, fixtureId: string): number {
+  if (aggregate.first.id === fixtureId) return aggregate.firstWins / aggregate.runs;
+  if (aggregate.second.id === fixtureId) return aggregate.secondWins / aggregate.runs;
+  return 0;
+}
+
+function printBurstVsDefenderProbeSummary(
+  aggregates: MatchupAggregate[],
+): void {
+  const probePairs = [
+    {
+      offenseId: "glass-cannon",
+      defenderId: "defender",
+      label: "Glass Cannon vs Defender",
+    },
+    {
+      offenseId: "glass-cannon",
+      defenderId: "bulwark-defender",
+      label: "Glass Cannon vs Bulwark Defender",
+    },
+    {
+      offenseId: "precision-striker",
+      defenderId: "defender",
+      label: "Precision Striker vs Defender",
+    },
+    {
+      offenseId: "precision-striker",
+      defenderId: "bulwark-defender",
+      label: "Precision Striker vs Bulwark Defender",
+    },
+  ];
+
+  console.log("\n## Burst vs Defender Probe Summary");
+  console.log(
+    "Probe purpose: compare fragile spike and steadier offence into two defender profiles before treating any one pairing as a tuning signal.",
+  );
+  for (const pair of probePairs) {
+    const aggregate = findMatchup(aggregates, pair.offenseId, pair.defenderId);
+    if (!aggregate) {
+      console.log(`- ${pair.label}: missing from smoke suite`);
+      continue;
+    }
+
+    const offenseName = fixtureNameInMatchup(aggregate, pair.offenseId);
+    const defenderName = fixtureNameInMatchup(aggregate, pair.defenderId);
+    console.log(
+      `- ${pair.label}: ${offenseName} win ${percent(winRateForFixture(aggregate, pair.offenseId))} | ${defenderName} win ${percent(winRateForFixture(aggregate, pair.defenderId))} | avg ${round(aggregate.roundLengthStats.averageRounds)} | median ${round(aggregate.roundLengthStats.medianRounds)} | 13+ ${percent(aggregate.roundLengthStats.rounds13PlusPercent)} | largest spike ${aggregate.largestSingleTurnSpike}`,
+    );
+  }
+}
+
 function computeAggregateRoundLengthStats(
   aggregates: MatchupAggregate[],
 ): RoundLengthStats {
@@ -1712,6 +1988,7 @@ function printOverallRoundSummary(aggregates: MatchupAggregate[]): string[] {
   );
 
   printLongTailAttribution(aggregates);
+  printBurstVsDefenderProbeSummary(aggregates);
 
   return warnings;
 }
