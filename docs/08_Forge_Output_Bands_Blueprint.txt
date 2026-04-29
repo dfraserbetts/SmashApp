@@ -1,0 +1,551 @@
+Forge Output Bands Blueprint v1
+===============================
+
+Status: Phase 6 source document.
+Scope: first-pass Forge output targets after Natural Baseline v1, before Forge implementation starts.
+Not scope: Forge code, item schemas, Forge UI, tuning changes, full armour slot weighting, or final canon.
+
+1. Purpose
+----------
+
+This blueprint translates the accepted natural-only monster baseline into first-pass Forge item output expectations.
+
+The document exists so Forge implementation can begin from table-facing output bands rather than from backend field names, item origin, rarity assumptions, or ad hoc item stats.
+
+This is a design/output-band document. It does not implement Forge and does not change Power Tuning, Combat Tuning / Monster Baseline Tuning, or Outcome Normalization.
+
+2. Inputs
+---------
+
+Primary source:
+
+- docs/07_Natural_Baseline_Output_Bands.txt
+
+Accepted Level 5 Soldier natural-only fixture inputs:
+
+- scripts/fixtures/monsters/natural-baseline/01-natural-bruiser.raw.json
+- scripts/fixtures/monsters/natural-baseline/01-natural-bruiser.power.json
+- scripts/fixtures/monsters/natural-baseline/01-natural-bruiser.calculator.json
+- scripts/fixtures/monsters/natural-baseline/02-glass-cannon.raw.json
+- scripts/fixtures/monsters/natural-baseline/02-glass-cannon.power.json
+- scripts/fixtures/monsters/natural-baseline/02-glass-cannon.calculator.json
+- scripts/fixtures/monsters/natural-baseline/03-natural-defender.raw.json
+- scripts/fixtures/monsters/natural-baseline/03-natural-defender.power.json
+- scripts/fixtures/monsters/natural-baseline/03-natural-defender.calculator.json
+- scripts/fixtures/monsters/natural-baseline/04-natural-controller.raw.json
+- scripts/fixtures/monsters/natural-baseline/04-natural-controller.power.json
+- scripts/fixtures/monsters/natural-baseline/04-natural-controller.calculator.json
+
+Accepted baseline monsters:
+
+- Natural Bruiser
+- Glass Cannon
+- Natural Defender
+- Natural Controller
+
+Role-friction diagnostic:
+
+- scripts/naturalBaselineRoleFrictionReport.ts
+
+Output-first design law:
+
+- Equivalent final table-facing output should compare equivalently regardless of whether it comes from a natural source, equipped item, shield, modifier, or power.
+
+Natural Baseline -> Forge bridge context:
+
+- This blueprint follows the Natural Baseline -> Forge bridge plan used during the Phase 6 natural baseline pass.
+- Stage 1: establish accepted natural-only baseline fixtures and table-facing output bands.
+- Stage 2: translate those output bands into Forge item-output expectations before implementation.
+- Stage 3: validate equipped monsters against natural-only monsters with equivalent final table-facing output.
+
+Source-file note:
+
+- docs/06_Natural_Baseline_Forge_Bridge_Plan.txt is not present in the current repo state used to author this document. This blueprint does not claim to quote or read that missing file.
+
+3. Core Law: Output First, Origin Second
+---------------------------------------
+
+Forge must price and validate items by final table-facing output profile, not raw backend values and not source origin.
+
+Equivalent final output should compare equivalently whether it comes from:
+
+- natural weapon
+- equipped weapon
+- natural armour
+- equipped armour
+- shield
+- item modifier
+- power
+
+Origin remains visible for debug and authoring clarity. Origin must not create separate hidden balance math when final output is the same.
+
+Important consequences:
+
+- Authored Strength is not the table output. Strength x 2 is table-facing wounds per success.
+- Total wounds per success is Strength x 2 x damage type count when each listed damage type receives the output.
+- Damage type count consumes output budget.
+- Target count, area geometry, and range consume output budget.
+- Rarity must not become a raw damage loophole.
+- Item level drives core throughput.
+- Rarity mostly drives breadth, geometry, versatility, profile complexity, and premium features.
+
+4. Weapon Core Functionality Bands
+----------------------------------
+
+These first-pass bands are Soldier-equivalent item-level core weapon expectations. They are inherited from Natural Baseline Output Bands v1 and are intended to guide Forge item output reads, not to become final code constants yet.
+
+Single-target total wounds per success:
+
+Level  Low   Standard  High   Extreme
+1      2     4         6      8+
+2      2     4         6-8    10+
+3      2     6         8      12+
+4      4     6         10     14+
+5      4     6-8       10-12  14+
+6      4     8         12     18+
+7      4     8-10      14     20+
+8      6     10        16     22+
+9      6     10-12     18     24+
+10     6     12        18     26+
+11     8     12-14     20     28+
+12     8     14        22     30+
+13     8     14-16     24     32+
+14     10    16        24     34+
+15     10    16-18     26     36+
+16     10    18        28     38+
+17     12    18-20     30     40+
+18     12    20        30     42+
+19     12    20-22     32     44+
+20     14    22        34     46+
+
+Melee vs ranged expectation:
+
+- Melee may sit at the band center more easily because it pays positional risk.
+- Ranged should usually pay for reach, target safety, or flexible engagement by reducing some other budget component.
+- A ranged profile at the same wounds per success as a melee profile should be checked for range, target count, rider, reload, and profile breadth.
+
+Single-target vs multi-target pressure:
+
+- Single-target band reads total wounds per success against one target.
+- Multi-target pressure reads per-target wounds first, then total pressure across targets.
+- A two-target weapon at Standard per-target output may create High or Extreme total pressure and must pay for that breadth.
+- Area and multi-target output should not be judged only by one target's wounds.
+
+AoE / target-count budget:
+
+- Additional targets consume output budget even if per-target damage is Standard.
+- Small AoE can be appropriate as an Uncommon or Rare breadth feature if per-target output remains controlled.
+- Large AoE, flexible placement, or repeated area pressure should be Rare+ or Legendary/Mythic-style feature budget, not Common core throughput.
+
+Damage type count budget:
+
+- Each damage type that receives full Strength x 2 output increases total wounds per success.
+- Multiple damage types may be allowed, but they consume the same core budget as raw damage.
+- Damage-type flexibility can also live in Features & Versatility when it changes options rather than stacking simultaneous wounds.
+
+5. Weapon Profile Rules
+-----------------------
+
+One profile vs multiple profiles:
+
+- One main profile is the Common baseline.
+- Multiple profiles are breadth, not free extra core throughput.
+- A mixed melee/ranged weapon should usually lower one or both profiles, or spend rarity/feature budget.
+
+Melee profile:
+
+- Reads against the single-target wounds per success table.
+- Can sit closer to Standard or High for combat-focused items.
+- Riders, reach, or extra damage types still consume budget.
+
+Ranged profile:
+
+- Reads against the same table, then pays for distance and safety.
+- Longer range, multiple targets, or strong riders should lower raw wounds or increase rarity/read as over-band.
+
+Mixed melee/ranged item:
+
+- May be acceptable when each profile is modest.
+- Should not be a full-strength melee weapon plus a full-strength ranged weapon at the same item level without a clear rarity/feature cost.
+
+Alternate damage type profiles:
+
+- Alternate damage type profiles are versatility if they are options.
+- Simultaneous damage types are core output if they all deal wounds on the same attack.
+
+Greater Success / rider effects:
+
+- Riders consume feature budget.
+- Riders that add wounds, control, action denial, forced movement, protection bypass, or repeat damage may also consume core pressure budget.
+- Minor descriptive or narrow riders can remain lower-cost features.
+
+Target count:
+
+- More targets means more total pressure.
+- A multi-target weapon should be checked on both per-target output and total-pressure output.
+
+AoE geometry:
+
+- Geometry matters. Cone, line, sphere, burst, and placement flexibility are not interchangeable.
+- Simple/small geometry can be a modest feature.
+- Large/flexible geometry is a premium feature and may push effective profile level above item level.
+
+Range distance:
+
+- Range is a safety and coverage feature.
+- Long range plus high damage plus multi-target pressure is a likely over-budget combination.
+
+Examples at Level 5:
+
+Acceptable Common one-profile weapon:
+
+- Melee, 1 target, one damage type, Strength 3.
+- Table output: 6 wounds per success.
+- Read: Standard Level 5 core output, narrow profile.
+
+Acceptable Uncommon multi-target weapon:
+
+- Ranged, 2 targets, one damage type, Strength 3 or 4 depending on other features.
+- Table output: 6-8 wounds per target, 12-16 total pressure.
+- Read: acceptable if this spends breadth budget and does not also carry premium riders/large AoE.
+
+Bad over-budget Level 5 weapon:
+
+- Ranged, 2 targets, two simultaneous damage types, Strength 4, strong rider.
+- Table output: 16 wounds per target, 32 total pressure before rider.
+- Read: over-band for Level 5 unless deliberately flagged as higher effective profile level.
+
+Acceptable lower-damage flexible weapon:
+
+- One melee profile and one ranged profile, each Strength 2, one damage type.
+- Table output: 4 wounds per success per profile.
+- Read: Low damage, but acceptable breadth/versatility.
+
+6. Rarity as Breadth / Feature Budget
+-------------------------------------
+
+First-pass rarity meaning:
+
+Common:
+
+- Narrow.
+- One main profile.
+- Minimal rider or no rider.
+- Core output should sit around Low to Standard for item level unless the item is deliberately narrow and combat-focused.
+
+Uncommon:
+
+- Modest breadth.
+- Extra target, reach, alternate damage type option, minor rider, or slightly more flexible profile.
+- Should not simply jump raw damage without tradeoff.
+
+Rare:
+
+- Meaningful breadth.
+- Alternate profile, small AoE, useful rider package, or meaningful tactical hook.
+- Core throughput should remain item-level appropriate unless effective profile level is flagged.
+
+Legendary:
+
+- Broad tactical profile.
+- Larger AoE, stronger rider budget, multiple profiles, or premium features.
+- May feel exceptional through options and reliability rather than simply bigger single-target damage.
+
+Mythic:
+
+- Exceptional breadth, geometry, and features.
+- May bend normal profile rules, but should still surface effective profile level when raw output behaves above item level.
+- Should not be treated as "same item, more damage" by default.
+
+Core principle:
+
+- Item level drives core throughput.
+- Rarity mostly drives breadth, geometry, versatility, profile complexity, and premium features.
+
+7. Armour Core Functionality Bands
+----------------------------------
+
+These first-pass armour expectations are monster-side anchors translated into Forge reads. They are package-level expectations unless a per-piece assumption is explicitly stated.
+
+PPV:
+
+Level  Low   Standard  High    Extreme
+1      0-2   4         6       8+
+2      0-2   4         6-8     10+
+3      0-2   4-6       8-10    12+
+4      0-4   6-8       10-12   14+
+5      0-4   6-10      12-16   18+
+6      0-4   8-10      14-16   20+
+7      0-6   8-12      16-18   22+
+8      0-6   10-12     18-20   24+
+9      0-6   10-14     20-22   26+
+10     0-8   12-14     20-24   28+
+11     0-8   12-16     22-26   30+
+12     0-8   14-16     24-28   32+
+13     0-10  14-18     26-30   34+
+14     0-10  16-18     28-32   36+
+15     0-10  16-20     30-34   38+
+16     0-12  18-20     32-36   40+
+17     0-12  18-22     34-38   42+
+18     0-12  20-22     36-40   44+
+19     0-14  20-24     38-42   46+
+20     0-14  22-24     40-44   48+
+
+MPV:
+
+Level  Low   Standard  High    Extreme
+1      0-2   2-4       6       8+
+2      0-2   4         6       8+
+3      0-2   4-6       8       10+
+4      0-4   6         8-10    12+
+5      0-4   6-8       9-12    14+
+6      0-4   8         10-12   16+
+7      0-4   8-10      12-14   18+
+8      0-6   10        14-16   20+
+9      0-6   10-12     16-18   22+
+10     0-6   12        18-20   24+
+11     0-8   12-14     20-22   26+
+12     0-8   14        22-24   28+
+13     0-8   14-16     24-26   30+
+14     0-10  16        26-28   32+
+15     0-10  16-18     28-30   34+
+16     0-10  18        30-32   36+
+17     0-12  18-20     32-34   38+
+18     0-12  20        34-36   40+
+19     0-12  20-22     36-38   42+
+20     0-14  22        38-40   44+
+
+Physical Defence String Value:
+
+Level  Low   Standard  High  Extreme
+1      0-1   2         3     4+
+2      0-1   2         3     4+
+3      0-1   2-3       4     5+
+4      0-2   3         4-5   6+
+5      0-2   3-4       5-6   7+
+6      0-2   4         6     8+
+7      0-2   4-5       6-7   9+
+8      0-3   5         7-8   10+
+9      0-3   5-6       8-9   11+
+10     0-3   6         9-10  12+
+11     0-4   6-7       10-11 13+
+12     0-4   7         11-12 14+
+13     0-4   7-8       12-13 15+
+14     0-5   8         13-14 16+
+15     0-5   8-9       14-15 17+
+16     0-5   9         15-16 18+
+17     0-6   9-10      16-17 19+
+18     0-6   10        17-18 20+
+19     0-6   10-11     18-19 21+
+20     0-7   11        19-20 22+
+
+Mental Defence String Value:
+
+Level  Low   Standard  High  Extreme
+1      0     1         2     3+
+2      0     1         2     3+
+3      0-1   1-2       2-3   4+
+4      0-1   2         3     4+
+5      0-1   2         3-4   5+
+6      0-1   2-3       4     6+
+7      0-1   3         4-5   7+
+8      0-2   3-4       5     8+
+9      0-2   4         5-6   9+
+10     0-2   4-5       6     10+
+11     0-2   5         6-7   11+
+12     0-3   5-6       7     12+
+13     0-3   6         7-8   13+
+14     0-3   6-7       8     14+
+15     0-3   7         8-9   15+
+16     0-4   7-8       9     16+
+17     0-4   8         9-10  17+
+18     0-4   8-9       10    18+
+19     0-4   9         10-11 19+
+20     0-5   9-10      11    20+
+
+Guard / Armour Skill interaction:
+
+- PPV is not the whole physical defence story.
+- Physical Defence String Value is the table-facing result after PPV and Guard / Armour Skill interaction.
+- Forge should eventually show both raw protection and resulting defence-string output.
+- High PPV with weak Guard / Armour Skill may be less efficient than moderate PPV with strong defence dice.
+
+Dodge interaction:
+
+- Physical defence includes Dodge.
+- Dodge is not PPV and should not be converted directly into PPV.
+- Heavy physical protection can interact with Dodge expectations; this belongs to Combat Tuning / Monster Baseline Tuning and later Forge diagnostics, not to a hidden item rarity rule.
+
+Mental asymmetry:
+
+- Do not invent mental Dodge.
+- MPV may be narrower or more efficient than PPV because the mental lane has fewer baseline defence components.
+- Mental Defence String Value should be read through MPV plus the relevant mental defence dice.
+
+8. Armour Piece Assumptions
+---------------------------
+
+First-pass simple model:
+
+- Expected full equipment package assumes around 4 meaningful equipped protection contributors.
+- A rough per-piece PPV/MPV estimate can be made from total expected package output divided by 4.
+- A 5-piece package can be above expectation and should be visible in diagnostics.
+- Slot weighting is deferred.
+
+Level 5 example:
+
+- Standard PPV package: 6-10 total PPV.
+- Rough 4-piece estimate: about 2 PPV per meaningful piece, with rounding and slot identity deferred.
+- High PPV package: 12-16 total PPV.
+- Rough 4-piece estimate: about 3-4 PPV per meaningful piece.
+- Standard MPV package: 6-8 total MPV.
+- Rough 4-piece estimate: about 1-2 MPV per meaningful piece.
+- High MPV package: 9-12 total MPV.
+- Rough 4-piece estimate: about 2-3 MPV per meaningful piece.
+
+Deferred slot weighting:
+
+- Head, torso, legs, feet, shoulders, shield, accessories, and special items are not weighted here.
+- This document only establishes package-output expectations and a temporary divide-by-4 mental model.
+- Slot weighting should be a separate Forge implementation/design pass.
+
+9. Shield Split-Function Model
+------------------------------
+
+Shield is a hybrid item, not a free second full item.
+
+A shield may be:
+
+- defence-heavy / low attack
+- balanced defence / minor attack
+- attack-biased / low defence
+- pure defence
+
+Hard rule:
+
+- A shield should not get strong defence and strong attack for free.
+
+Shield attack expectations:
+
+- Shield attack output should usually sit below true weapon output unless defence is sacrificed.
+- If a shield has Standard weapon output, its defence should be modest or the item should read as higher effective profile level.
+- If a shield has High or Extreme defence, its attack should usually be minor, conditional, or rider-focused rather than raw damage-focused.
+
+10. Core Functionality vs Features & Versatility
+------------------------------------------------
+
+Forge should reason with two budget lanes.
+
+Core Functionality:
+
+- weapon wounds per success
+- target count
+- range category
+- AoE geometry
+- PPV / MPV
+- defence string output
+- shield core defence/attack split
+
+Features & Versatility:
+
+- extra profiles
+- damage type flexibility
+- Greater Success effects
+- attribute modifiers
+- resist/protection special cases
+- returning / reach / reload / tags
+- conditional effects
+- special triggers
+- premium traits
+
+Design rule:
+
+- Core Functionality establishes the item's table-facing throughput.
+- Features & Versatility explain why the item is tactically interesting.
+- Rarity should buy Features & Versatility more often than raw throughput.
+
+11. Effective Profile Level / Over-Budget Readout
+-------------------------------------------------
+
+Forge should eventually show when an item's final output behaves like a higher-level item.
+
+Concept:
+
+- Item level is the authored item level.
+- Effective profile level is the level implied by final table-facing output.
+- The UI should make over-band output visible without automatically forbidding it.
+
+Examples:
+
+- A Level 5 item with Level 8 damage output should read as over-band or effective Level 8 damage.
+- A Rare Level 5 item with broad features but correct Level 5 core throughput should not automatically read as over-damage.
+- A Legendary Level 5 weapon with Standard damage, alternate profiles, and a rider package may be healthy.
+- A Common Level 5 weapon with Extreme damage and no tradeoff should read as suspect.
+
+12. Equipped Monster Validation Plan
+------------------------------------
+
+Stage 3 after Forge bands:
+
+1. Build equipped monsters using expected item packages.
+2. Compare against natural-only monsters with similar final output.
+3. Test item-carried monsters that lean on weapons/armour rather than natural output.
+4. Test over-budget stress monsters.
+5. Verify output-origin parity remains true in practice.
+6. Confirm natural/equipped source labels remain visible in debug.
+7. Confirm final calculator/radar contribution converges when final table-facing output converges.
+
+Validation examples to create later:
+
+- Natural Bruiser-style monster versus equipped weapon/armour bruiser with equivalent table output.
+- Glass Cannon-style monster versus equipped burst weapon user with equivalent table output.
+- Natural Defender-style monster versus equipped armour/shield defender with equivalent PPV/MPV/defence strings.
+- Natural Controller-style monster versus item-carried control/mental survivability profile.
+- Over-budget Level 5 weapon that reads as Level 8+ effective profile.
+
+13. Non-Goals
+-------------
+
+This document does not:
+
+- implement Forge
+- define full armour slot weighting
+- rewrite item schemas
+- finalize player-facing Forge UI
+- permit rarity-as-damage loopholes
+- collapse Power Tuning, Combat Tuning / Monster Baseline Tuning, and Outcome Normalization
+- replace Natural Baseline Output Bands v1
+- replace output-origin parity diagnostics
+- tune any numeric config values
+
+14. Open Questions
+------------------
+
+- Exact per-level numeric bands may need iteration after equipped-monster validation.
+- Exact armour slot weighting remains open.
+- MPV may need a discount/efficiency rule relative to PPV, but the amount is not settled.
+- Shield attack/defence exchange rate remains open.
+- Item features need a cost model relative to core output.
+- Effective profile level needs a UI representation.
+- Damage type flexibility versus simultaneous multi-type damage needs explicit Forge authoring language.
+- Reload, reach, returning, slow weapons, hand occupancy, and other tags need budget treatment.
+- Rarity and item level need a clear interaction model that preserves item-level throughput truth.
+
+15. Next Implementation Step
+----------------------------
+
+Next work after this blueprint:
+
+1. Review docs/08 manually.
+2. Create a Forge implementation plan.
+3. Only then start Forge code changes.
+
+The next implementation plan should specify:
+
+- required data shape
+- UI changes
+- output normalization helpers
+- effective profile level diagnostics
+- validation fixtures
+- output-origin parity checks for equipped monsters
+- explicit non-goals for the first Forge implementation tranche
