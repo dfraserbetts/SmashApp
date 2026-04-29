@@ -185,6 +185,7 @@ export type ForgeOutputProfile = {
     rarity: string | null;
     type: string | null;
     size: string | null;
+    normalizedSize: WeaponSize | null;
     shieldHasAttack: boolean | null;
   };
   attackProfiles: ForgeAttackProfileOutput[];
@@ -353,6 +354,14 @@ function normalizeTags(tags: string[] | null | undefined): string[] {
   return Array.from(byName.values()).sort((a, b) => a.localeCompare(b));
 }
 
+function normalizeWeaponSize(size: string | null | undefined): WeaponSize | null {
+  const normalized = String(size ?? "").trim().toUpperCase();
+  if (normalized === "SMALL" || normalized === "ONE_HANDED" || normalized === "TWO_HANDED") {
+    return normalized;
+  }
+  return null;
+}
+
 function strengthToTableWoundsPerSuccess(strength: number): number {
   return Math.max(0, strength) * 2;
 }
@@ -503,6 +512,7 @@ export function buildForgeOutputProfile(input: ForgeOutputProfileInput): ForgeOu
       rarity: input.rarity ? String(input.rarity) : null,
       type: input.type ? String(input.type) : null,
       size: input.size ? String(input.size) : null,
+      normalizedSize: normalizeWeaponSize(input.size),
       shieldHasAttack: typeof input.shieldHasAttack === "boolean" ? input.shieldHasAttack : null,
     },
     attackProfiles,

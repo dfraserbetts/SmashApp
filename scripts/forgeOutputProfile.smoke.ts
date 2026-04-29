@@ -13,6 +13,15 @@ function getProfile(profile: ForgeOutputProfile, kind: "melee" | "ranged" | "aoe
   return found;
 }
 
+const BAND_RANK = {
+  below: 0,
+  low: 1,
+  standard: 2,
+  high: 3,
+  extreme: 4,
+  "over-band": 5,
+} as const;
+
 function runCase(name: string, input: ForgeOutputProfileInput): ForgeOutputProfile {
   const profile = buildForgeOutputProfile(input);
   assert.equal(profile.debug.source, "forge_output_profile_v1", `${name}: debug source`);
@@ -46,6 +55,8 @@ assert.equal(simpleMeleeBands.debug.source, "forge_output_bands_v1");
 assert.equal(simpleMeleeBands.debug.bandSet, "natural_baseline_v1");
 assert.equal(simpleMeleeBands.debug.reportOnly, true);
 assert.equal(simpleMeleeBands.debug.noSaveBlocking, true);
+assert.equal(simpleMeleeBand?.bandSize, "ONE_HANDED");
+assert.equal(simpleMeleeBand?.bandSizeSource, "item_size");
 assert.equal(simpleMeleeBand?.classification, "standard");
 assert.equal(simpleMeleeBands.lanes.debug.source, "forge_output_lanes_v1");
 assert.equal(simpleMeleeBands.lanes.debug.reportOnly, true);
@@ -54,6 +65,80 @@ assert.equal(simpleMeleeBands.lanes.featuresVersatility.status, "narrow");
 assert.ok(
   simpleMeleeBands.lanes.coreFunctionality.mainDrivers.some((entry) => entry.includes("weapon throughput")),
   "simple melee should read as core-focused",
+);
+
+const smallMelee = runCase("small melee", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Piercing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+});
+const smallMeleeBand = compareForgeOutputToBands(smallMelee).weaponProfiles.find(
+  (entry) => entry.profileKind === "melee",
+);
+assert.equal(getProfile(smallMelee, "melee").totalWoundsPerSuccess, 6);
+assert.equal(smallMeleeBand?.bandSize, "SMALL");
+assert.equal(smallMeleeBand?.classification, "high");
+assert.ok(
+  BAND_RANK[smallMeleeBand?.classification ?? "below"] >
+    BAND_RANK[simpleMeleeBand?.classification ?? "below"],
+  "Level 5 Small total 6 should classify higher than the same One-Handed output",
+);
+
+const twoHandedMelee = runCase("two-handed melee", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "TWO_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+});
+const twoHandedMeleeBand = compareForgeOutputToBands(twoHandedMelee).weaponProfiles.find(
+  (entry) => entry.profileKind === "melee",
+);
+assert.equal(getProfile(twoHandedMelee, "melee").totalWoundsPerSuccess, 6);
+assert.equal(twoHandedMeleeBand?.bandSize, "TWO_HANDED");
+assert.equal(twoHandedMeleeBand?.classification, "low");
+
+const twoHandedStandardMelee = runCase("two-handed standard melee", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "TWO_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 5,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+});
+const twoHandedStandardBand = compareForgeOutputToBands(twoHandedStandardMelee).weaponProfiles.find(
+  (entry) => entry.profileKind === "melee",
+);
+assert.equal(getProfile(twoHandedStandardMelee, "melee").totalWoundsPerSuccess, 10);
+assert.equal(twoHandedStandardBand?.classification, "standard");
+
+const missingSizeMelee = runCase("missing size melee", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+});
+const missingSizeBand = compareForgeOutputToBands(missingSizeMelee).weaponProfiles.find(
+  (entry) => entry.profileKind === "melee",
+);
+assert.equal(missingSizeBand?.bandSize, "ONE_HANDED");
+assert.equal(missingSizeBand?.bandSizeSource, "default_one_handed");
+assert.ok(
+  missingSizeBand?.debugNotes.includes("missing size, defaulted to one-handed band"),
+  "missing size should report one-handed fallback debug note",
 );
 
 const dualDamageMelee = runCase("dual damage melee", {
@@ -95,6 +180,28 @@ assert.ok(
   "dual damage type item should warn that simultaneous damage types add pressure",
 );
 
+const smallDualDamageMelee = runCase("small dual damage melee", {
+  level: 5,
+  rarity: "UNCOMMON",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [
+    { damageType: { name: "Piercing", attackMode: "PHYSICAL" } },
+    { damageType: { name: "Poison", attackMode: "PHYSICAL" } },
+  ],
+  meleeTargets: 1,
+});
+const smallDualDamageBand = compareForgeOutputToBands(smallDualDamageMelee).weaponProfiles.find(
+  (entry) => entry.profileKind === "melee",
+);
+assert.equal(getProfile(smallDualDamageMelee, "melee").totalWoundsPerSuccess, 12);
+assert.ok(
+  smallDualDamageBand?.classification === "extreme" || smallDualDamageBand?.classification === "over-band",
+  "Level 5 Small dual-type Strength 3 should classify as extreme or over-band",
+);
+
 const rangedMental = runCase("ranged mental", {
   level: 5,
   rarity: "RARE",
@@ -116,7 +223,7 @@ const rangedMentalBand = compareForgeOutputToBands(rangedMental).weaponProfiles.
   (entry) => entry.profileKind === "ranged",
 );
 assert.equal(rangedMentalBand?.perTargetClassification, "standard");
-assert.equal(rangedMentalBand?.totalPressureClassification, "extreme");
+assert.equal(rangedMentalBand?.totalPressureClassification, "high");
 assert.equal(rangedMentalBand?.totalPressure, 16);
 
 const aoeProfile = runCase("aoe", {
@@ -186,20 +293,23 @@ const shield = runCase("shield", {
   level: 5,
   rarity: "UNCOMMON",
   type: "SHIELD",
-  size: "ONE_HANDED",
+  size: "SMALL",
   shieldHasAttack: true,
   rangeCategories: ["MELEE"],
-  meleePhysicalStrength: 2,
+  meleePhysicalStrength: 3,
   meleeDamageTypes: [{ damageType: { name: "Bludgeoning", attackMode: "PHYSICAL" } }],
   ppv: 1,
   mpv: 1,
   shieldAttributes: [{ shieldAttribute: { name: "Bulwark" } }],
 });
-assert.equal(getProfile(shield, "melee").totalWoundsPerSuccess, 4);
+assert.equal(getProfile(shield, "melee").totalWoundsPerSuccess, 6);
 assert.equal(shield.shieldCoPresence.hasShieldAttack, true);
 assert.equal(shield.shieldCoPresence.hasDefenceOutput, true);
 assert.equal(shield.shieldCoPresence.hasAttackAndDefence, true);
 const shieldBands = compareForgeOutputToBands(shield);
+const shieldWeaponBand = shieldBands.weaponProfiles.find((entry) => entry.profileKind === "melee");
+assert.equal(shieldWeaponBand?.bandSize, "SMALL");
+assert.equal(shieldWeaponBand?.classification, "high");
 assert.equal(shieldBands.shield.hasAttackAndDefence, true);
 assert.equal(shieldBands.shield.shieldSplitWarningLevel, "watch");
 assert.ok(
@@ -270,10 +380,16 @@ assert.ok(
 
 const summary = [
   ["simple melee", getProfile(simpleMelee, "melee").totalWoundsPerSuccess],
+  ["small melee band", smallMeleeBand?.classification ?? "missing"],
+  ["two-handed melee band", twoHandedMeleeBand?.classification ?? "missing"],
+  ["two-handed Strength 5 band", twoHandedStandardBand?.classification ?? "missing"],
+  ["missing size fallback", missingSizeBand?.bandSizeSource ?? "missing"],
   ["dual damage melee", getProfile(dualDamageMelee, "melee").totalWoundsPerSuccess],
+  ["small dual damage melee band", smallDualDamageBand?.classification ?? "missing"],
   ["ranged mental", getProfile(rangedMental, "ranged").totalWoundsPerSuccess],
   ["aoe", getProfile(aoeProfile, "aoe").totalWoundsPerSuccess],
   ["shield attack+defence", shield.shieldCoPresence.hasAttackAndDefence ? "yes" : "no"],
+  ["shield size-aware attack band", shieldWeaponBand?.classification ?? "missing"],
   ["mixed melee", getProfile(mixedMeleeRanged, "melee").totalWoundsPerSuccess],
   ["mixed ranged", getProfile(mixedMeleeRanged, "ranged").totalWoundsPerSuccess],
   ["simple melee band", simpleMeleeBand?.classification ?? "missing"],

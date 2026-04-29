@@ -92,9 +92,44 @@ Important consequences:
 4. Weapon Core Functionality Bands
 ----------------------------------
 
-These first-pass bands are Soldier-equivalent item-level core weapon expectations. They are inherited from Natural Baseline Output Bands v1 and are intended to guide Forge item output reads, not to become final code constants yet.
+These first-pass bands are Soldier-equivalent item-level core weapon and
+shield-attack expectations. They are inherited from Natural Baseline Output
+Bands v1 and split by Forge size because the current Forge economy already
+prices damage differently by size:
 
-Single-target total wounds per success:
+- Small weapons/shields treat raw wounds as more expensive than One-Handed.
+- One-Handed weapons/shields are the middle reference band.
+- Two-Handed weapons can carry higher core damage output.
+
+Item level still drives core throughput. Rarity does not increase raw damage
+allowance by itself. Damage type count still consumes output budget, and
+target count, AoE, and range still consume output or breadth budget.
+
+Small single-target total wounds per success:
+
+Level  Low   Standard  High   Extreme
+1      2     2         4      6+
+2      2     2         4-4    6+
+3      2     4         4      8+
+4      2     4         6      8+
+5      2     4-4       6-8    8+
+6      2     4         8      10+
+7      2     4-6       8      12+
+8      4     6         10     14+
+9      4     6-8       10     14+
+10     4     8         10     16+
+11     4     8-8       12     16+
+12     4     8         14     18+
+13     4     8-10      14     20+
+14     6     10        14     20+
+15     6     10-10     16     22+
+16     6     10        18     22+
+17     8     10-12     18     24+
+18     8     12        18     26+
+19     8     12-14     20     26+
+20     8     14        20     28+
+
+One-Handed single-target total wounds per success:
 
 Level  Low   Standard  High   Extreme
 1      2     4         6      8+
@@ -117,6 +152,30 @@ Level  Low   Standard  High   Extreme
 18     12    20        30     42+
 19     12    20-22     32     44+
 20     14    22        34     46+
+
+Two-Handed single-target total wounds per success:
+
+Level  Low   Standard  High   Extreme
+1      4     6         8      10+
+2      4     6         8-10   14+
+3      4     8         10     16+
+4      6     8         14     18+
+5      6     8-10      14-16  18+
+6      6     10        16     24+
+7      6     10-14     18     26+
+8      8     14        20     28+
+9      8     14-16     24     32+
+10     8     16        24     34+
+11     10    16-18     26     36+
+12     10    18        28     40+
+13     10    18-20     32     42+
+14     14    20        32     44+
+15     14    20-24     34     46+
+16     14    24        36     50+
+17     16    24-26     40     52+
+18     16    26        40     54+
+19     16    26-28     42     58+
+20     18    28        44     60+
 
 Melee vs ranged expectation:
 

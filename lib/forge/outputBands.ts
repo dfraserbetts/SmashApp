@@ -2,6 +2,7 @@ import type {
   ForgeAttackProfileOutput,
   ForgeOutputProfile,
 } from "./outputProfile";
+import type { WeaponSize } from "./types";
 
 export type ForgeOutputBandClassification =
   | "below"
@@ -25,6 +26,8 @@ export type ForgeBandThresholds = {
 export type ForgeWeaponProfileBandComparison = {
   profileKind: ForgeAttackProfileOutput["profileKind"];
   enabled: boolean;
+  bandSize: WeaponSize;
+  bandSizeSource: "item_size" | "default_one_handed";
   rangeCategory: ForgeAttackProfileOutput["rangeCategory"];
   totalWoundsPerSuccess: number;
   perTargetWounds: number;
@@ -118,7 +121,30 @@ type SourceBandRow = {
 
 // First-pass diagnostic constants copied from docs/07 and docs/08.
 // These are output-band readout helpers, not final tuning law or save validation.
-const WEAPON_WOUNDS_PER_SUCCESS_BANDS: SourceBandRow[] = [
+const WEAPON_WOUNDS_PER_SUCCESS_BANDS_BY_SIZE: Record<WeaponSize, SourceBandRow[]> = {
+  SMALL: [
+    { level: 1, lowMax: 2, standardMax: 2, highMax: 4, extremeMin: 6 },
+    { level: 2, lowMax: 2, standardMax: 2, highMax: 4, extremeMin: 6 },
+    { level: 3, lowMax: 2, standardMax: 4, highMax: 4, extremeMin: 8 },
+    { level: 4, lowMax: 2, standardMax: 4, highMax: 6, extremeMin: 8 },
+    { level: 5, lowMax: 2, standardMax: 4, highMax: 8, extremeMin: 8 },
+    { level: 6, lowMax: 2, standardMax: 4, highMax: 8, extremeMin: 10 },
+    { level: 7, lowMax: 2, standardMax: 6, highMax: 8, extremeMin: 12 },
+    { level: 8, lowMax: 4, standardMax: 6, highMax: 10, extremeMin: 14 },
+    { level: 9, lowMax: 4, standardMax: 8, highMax: 10, extremeMin: 14 },
+    { level: 10, lowMax: 4, standardMax: 8, highMax: 10, extremeMin: 16 },
+    { level: 11, lowMax: 4, standardMax: 8, highMax: 12, extremeMin: 16 },
+    { level: 12, lowMax: 4, standardMax: 8, highMax: 14, extremeMin: 18 },
+    { level: 13, lowMax: 4, standardMax: 10, highMax: 14, extremeMin: 20 },
+    { level: 14, lowMax: 6, standardMax: 10, highMax: 14, extremeMin: 20 },
+    { level: 15, lowMax: 6, standardMax: 10, highMax: 16, extremeMin: 22 },
+    { level: 16, lowMax: 6, standardMax: 10, highMax: 18, extremeMin: 22 },
+    { level: 17, lowMax: 8, standardMax: 12, highMax: 18, extremeMin: 24 },
+    { level: 18, lowMax: 8, standardMax: 12, highMax: 18, extremeMin: 26 },
+    { level: 19, lowMax: 8, standardMax: 14, highMax: 20, extremeMin: 26 },
+    { level: 20, lowMax: 8, standardMax: 14, highMax: 20, extremeMin: 28 },
+  ],
+  ONE_HANDED: [
   { level: 1, lowMax: 2, standardMax: 4, highMax: 6, extremeMin: 8 },
   { level: 2, lowMax: 2, standardMax: 4, highMax: 8, extremeMin: 10 },
   { level: 3, lowMax: 2, standardMax: 6, highMax: 8, extremeMin: 12 },
@@ -139,7 +165,30 @@ const WEAPON_WOUNDS_PER_SUCCESS_BANDS: SourceBandRow[] = [
   { level: 18, lowMax: 12, standardMax: 20, highMax: 30, extremeMin: 42 },
   { level: 19, lowMax: 12, standardMax: 22, highMax: 32, extremeMin: 44 },
   { level: 20, lowMax: 14, standardMax: 22, highMax: 34, extremeMin: 46 },
-];
+  ],
+  TWO_HANDED: [
+    { level: 1, lowMax: 4, standardMax: 6, highMax: 8, extremeMin: 10 },
+    { level: 2, lowMax: 4, standardMax: 6, highMax: 10, extremeMin: 14 },
+    { level: 3, lowMax: 4, standardMax: 8, highMax: 10, extremeMin: 16 },
+    { level: 4, lowMax: 6, standardMax: 8, highMax: 14, extremeMin: 18 },
+    { level: 5, lowMax: 6, standardMax: 10, highMax: 16, extremeMin: 18 },
+    { level: 6, lowMax: 6, standardMax: 10, highMax: 16, extremeMin: 24 },
+    { level: 7, lowMax: 6, standardMax: 14, highMax: 18, extremeMin: 26 },
+    { level: 8, lowMax: 8, standardMax: 14, highMax: 20, extremeMin: 28 },
+    { level: 9, lowMax: 8, standardMax: 16, highMax: 24, extremeMin: 32 },
+    { level: 10, lowMax: 8, standardMax: 16, highMax: 24, extremeMin: 34 },
+    { level: 11, lowMax: 10, standardMax: 18, highMax: 26, extremeMin: 36 },
+    { level: 12, lowMax: 10, standardMax: 18, highMax: 28, extremeMin: 40 },
+    { level: 13, lowMax: 10, standardMax: 20, highMax: 32, extremeMin: 42 },
+    { level: 14, lowMax: 14, standardMax: 20, highMax: 32, extremeMin: 44 },
+    { level: 15, lowMax: 14, standardMax: 24, highMax: 34, extremeMin: 46 },
+    { level: 16, lowMax: 14, standardMax: 24, highMax: 36, extremeMin: 50 },
+    { level: 17, lowMax: 16, standardMax: 26, highMax: 40, extremeMin: 52 },
+    { level: 18, lowMax: 16, standardMax: 26, highMax: 40, extremeMin: 54 },
+    { level: 19, lowMax: 16, standardMax: 28, highMax: 42, extremeMin: 58 },
+    { level: 20, lowMax: 18, standardMax: 28, highMax: 44, extremeMin: 60 },
+  ],
+};
 
 const PPV_BANDS: SourceBandRow[] = [
   { level: 1, lowMax: 2, standardMax: 4, highMax: 6, extremeMin: 8 },
@@ -209,11 +258,43 @@ function withOverBand(row: SourceBandRow): ForgeBandThresholds {
   };
 }
 
+function resolveWeaponBandSize(size: WeaponSize | null): {
+  bandSize: WeaponSize;
+  bandSizeSource: "item_size" | "default_one_handed";
+  debugNotes: string[];
+} {
+  if (size === "SMALL" || size === "ONE_HANDED" || size === "TWO_HANDED") {
+    return { bandSize: size, bandSizeSource: "item_size", debugNotes: [] };
+  }
+
+  return {
+    bandSize: "ONE_HANDED",
+    bandSizeSource: "default_one_handed",
+    debugNotes: ["missing size, defaulted to one-handed band"],
+  };
+}
+
+function getWeaponBand(level: number | null, size: WeaponSize | null): {
+  thresholds: ForgeBandThresholds;
+  bandSize: WeaponSize;
+  bandSizeSource: "item_size" | "default_one_handed";
+  debugNotes: string[];
+} {
+  const normalizedLevel = normalizeLevel(level);
+  const resolvedSize = resolveWeaponBandSize(size);
+  const rows = WEAPON_WOUNDS_PER_SUCCESS_BANDS_BY_SIZE[resolvedSize.bandSize];
+  const row = rows.find((entry) => entry.level === normalizedLevel) ?? rows[0];
+  return {
+    ...resolvedSize,
+    thresholds: withOverBand(row),
+  };
+}
+
 function getBand(metric: ForgeBandMetric, level: number | null): ForgeBandThresholds {
   const normalizedLevel = normalizeLevel(level);
   const rows =
     metric === "weaponWoundsPerSuccess"
-      ? WEAPON_WOUNDS_PER_SUCCESS_BANDS
+      ? WEAPON_WOUNDS_PER_SUCCESS_BANDS_BY_SIZE.ONE_HANDED
       : metric === "ppv"
         ? PPV_BANDS
         : MPV_BANDS;
@@ -241,14 +322,20 @@ function maxClassification(
 
 function compareWeaponProfile(
   profile: ForgeAttackProfileOutput,
-  thresholds: ForgeBandThresholds,
+  weaponBand: {
+    thresholds: ForgeBandThresholds;
+    bandSize: WeaponSize;
+    bandSizeSource: "item_size" | "default_one_handed";
+    debugNotes: string[];
+  },
 ): ForgeWeaponProfileBandComparison {
+  const { thresholds } = weaponBand;
   const perTargetWounds = profile.totalWoundsPerSuccess;
   const totalPressure = profile.totalWoundsPerSuccess * profile.targetCount;
   const perTargetClassification = classifyValue(perTargetWounds, thresholds);
   const totalPressureClassification = classifyValue(totalPressure, thresholds);
   const classification = maxClassification([perTargetClassification, totalPressureClassification]);
-  const debugNotes: string[] = [];
+  const debugNotes: string[] = [...weaponBand.debugNotes];
 
   if (profile.damageTypeCount > 1) {
     debugNotes.push("multiple simultaneous damage types consume core output budget");
@@ -263,6 +350,8 @@ function compareWeaponProfile(
   return {
     profileKind: profile.profileKind,
     enabled: profile.enabled,
+    bandSize: weaponBand.bandSize,
+    bandSizeSource: weaponBand.bandSizeSource,
     rangeCategory: profile.rangeCategory,
     totalWoundsPerSuccess: profile.totalWoundsPerSuccess,
     perTargetWounds,
@@ -511,12 +600,12 @@ export function classifyForgeOutputLanes(
 }
 
 export function compareForgeOutputToBands(profile: ForgeOutputProfile): ForgeOutputBandComparison {
-  const weaponThresholds = getBand("weaponWoundsPerSuccess", profile.common.level);
+  const weaponBand = getWeaponBand(profile.common.level, profile.common.normalizedSize);
   const ppvThresholds = getBand("ppv", profile.common.level);
   const mpvThresholds = getBand("mpv", profile.common.level);
   const weaponProfiles = profile.attackProfiles
     .filter((entry) => entry.enabled)
-    .map((entry) => compareWeaponProfile(entry, weaponThresholds));
+    .map((entry) => compareWeaponProfile(entry, weaponBand));
   const ppvClassification = classifyValue(profile.defensiveProfile.ppv, ppvThresholds);
   const mpvClassification = classifyValue(profile.defensiveProfile.mpv, mpvThresholds);
 
@@ -544,6 +633,7 @@ export function compareForgeOutputToBands(profile: ForgeOutputProfile): ForgeOut
       noSaveBlocking: true,
       notes: [
         "v1 constants are copied from docs/07 and docs/08 as diagnostic readout bands",
+        "weapon and shield attack wound bands are size-aware; missing size defaults to one-handed",
         "rarity does not increase raw damage bands in this comparator",
         "armour slot weighting is deferred",
       ],
