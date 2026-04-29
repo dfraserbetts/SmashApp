@@ -14,7 +14,8 @@ type ForgeValueCategory =
   | "PPV_COSTS"
   | "MPV_COSTS"
   | "ITEM_MODIFIER_COSTS"
-  | "GLOBAL_ATTRIBUTE_MODIFIER_COSTS";
+  | "GLOBAL_ATTRIBUTE_MODIFIER_COSTS"
+  | "FORGE_OUTPUT_EXPECTATIONS";
 
 type AttributePlacement = "ATTACK" | "GUARD" | "TRAITS" | "GENERAL";
 type AttackMode = "PHYSICAL" | "MENTAL";
@@ -97,6 +98,120 @@ const ITEM_MODIFIER_COST_STATS: ItemModifierCostStat[] = [
   "Weapon Skill",
   "Willpower",
   "Dodge",
+];
+const FORGE_OUTPUT_EXPECTATION_SELECTOR = "ForgeOutputExpectation";
+const FORGE_OUTPUT_EXPECTATIONS: Array<{
+  key: string;
+  label: string;
+  description: string;
+  defaultValue: number;
+  group: "Features & Versatility" | "Core Functionality";
+}> = [
+  {
+    key: "features.budget.COMMON",
+    label: "Common Feature Budget",
+    description: "Expected Features & Versatility budget for Common items before level scaling.",
+    defaultValue: 10,
+    group: "Features & Versatility",
+  },
+  {
+    key: "features.budget.UNCOMMON",
+    label: "Uncommon Feature Budget",
+    description: "Expected Features & Versatility budget for Uncommon items before level scaling.",
+    defaultValue: 14,
+    group: "Features & Versatility",
+  },
+  {
+    key: "features.budget.RARE",
+    label: "Rare Feature Budget",
+    description: "Expected Features & Versatility budget for Rare items before level scaling.",
+    defaultValue: 22,
+    group: "Features & Versatility",
+  },
+  {
+    key: "features.budget.LEGENDARY",
+    label: "Legendary Feature Budget",
+    description: "Expected Features & Versatility budget for Legendary items before level scaling.",
+    defaultValue: 30,
+    group: "Features & Versatility",
+  },
+  {
+    key: "features.budget.MYTHIC",
+    label: "Mythic Feature Budget",
+    description: "Expected Features & Versatility budget for Mythic items before level scaling.",
+    defaultValue: 40,
+    group: "Features & Versatility",
+  },
+  {
+    key: "features.levelScale.perLevel",
+    label: "Feature Budget Per-Level Increase",
+    description: "Added feature budget per item level, if used.",
+    defaultValue: 0,
+    group: "Features & Versatility",
+  },
+  {
+    key: "features.levelScale.perFiveLevels",
+    label: "Feature Budget Per-5-Levels Increase",
+    description: "Added feature budget every five item levels, if used.",
+    defaultValue: 2,
+    group: "Features & Versatility",
+  },
+  {
+    key: "features.status.moderateRatio",
+    label: "Features Moderate Threshold",
+    description: "Feature pressure ratio where the bar becomes Moderate.",
+    defaultValue: 0.36,
+    group: "Features & Versatility",
+  },
+  {
+    key: "features.status.broadRatio",
+    label: "Features Broad Threshold",
+    description: "Feature pressure ratio where the bar becomes Broad.",
+    defaultValue: 0.61,
+    group: "Features & Versatility",
+  },
+  {
+    key: "features.status.heavyRatio",
+    label: "Features Heavy Threshold",
+    description: "Feature pressure ratio where the bar becomes Heavy.",
+    defaultValue: 0.8,
+    group: "Features & Versatility",
+  },
+  {
+    key: "core.weapon.size.SMALL.multiplier",
+    label: "Small Weapon Core Multiplier",
+    description: "Multiplies expected core damage bands for Small weapons/shields.",
+    defaultValue: 1,
+    group: "Core Functionality",
+  },
+  {
+    key: "core.weapon.size.ONE_HANDED.multiplier",
+    label: "One-Handed Weapon Core Multiplier",
+    description: "Multiplies expected core damage bands for One-Handed weapons/shields.",
+    defaultValue: 1,
+    group: "Core Functionality",
+  },
+  {
+    key: "core.weapon.size.TWO_HANDED.multiplier",
+    label: "Two-Handed Weapon Core Multiplier",
+    description: "Multiplies expected core damage bands for Two-Handed weapons/shields.",
+    defaultValue: 1,
+    group: "Core Functionality",
+  },
+  {
+    key: "core.defence.ppv.multiplier",
+    label: "PPV Core Multiplier",
+    description: "Multiplies expected PPV core defence bands.",
+    defaultValue: 1,
+    group: "Core Functionality",
+  },
+  {
+    key: "core.defence.mpv.multiplier",
+    label: "MPV Core Multiplier",
+    description: "Multiplies expected MPV core defence bands.",
+    defaultValue: 1,
+    group: "Core Functionality",
+  },
 ];
 
 function parseTieredName(name: string): { base: string; tier: number | null } {
@@ -183,6 +298,11 @@ export default function AdminForgeValuesPage() {
     Record<number, { value: string; notes: string }>
   >({});
   const [savingGlobalAttributeLevel, setSavingGlobalAttributeLevel] = useState<number | null>(null);
+  const [forgeOutputExpectationEdits, setForgeOutputExpectationEdits] = useState<
+    Record<string, { value: string; notes: string }>
+  >({});
+  const [savingForgeOutputExpectationKey, setSavingForgeOutputExpectationKey] =
+    useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -245,9 +365,13 @@ export default function AdminForgeValuesPage() {
   const isMpvCosts = category === "MPV_COSTS";
   const isItemModifierCosts = category === "ITEM_MODIFIER_COSTS";
   const isGlobalAttributeModifierCosts = category === "GLOBAL_ATTRIBUTE_MODIFIER_COSTS";
+  const isForgeOutputExpectations = category === "FORGE_OUTPUT_EXPECTATIONS";
   const isStatCostCategory = isPpvCosts || isMpvCosts;
   const isStandaloneCostCategory =
-    isStatCostCategory || isItemModifierCosts || isGlobalAttributeModifierCosts;
+    isStatCostCategory ||
+    isItemModifierCosts ||
+    isGlobalAttributeModifierCosts ||
+    isForgeOutputExpectations;
 
   useEffect(() => {
     if (isPpvCosts) {
@@ -1014,6 +1138,17 @@ function renderTemplatePreview(
     }
     return out;
   }, [costs, globalAttributeCostItemType]);
+  const forgeOutputExpectationEntryByKey = useMemo(() => {
+    const out = new Map<string, ForgeCostEntry>();
+    for (const row of costs) {
+      if (String(row.category ?? "").trim().toLowerCase() !== "itemmodifiers") continue;
+      if (String(row.selector1 ?? "").trim() !== FORGE_OUTPUT_EXPECTATION_SELECTOR) continue;
+      const key = String(row.selector2 ?? "").trim();
+      if (!key) continue;
+      out.set(key, row);
+    }
+    return out;
+  }, [costs]);
 
   useEffect(() => {
     const next: Record<number, { value: string; notes: string }> = {};
@@ -1048,6 +1183,17 @@ function renderTemplatePreview(
     }
     setGlobalAttributeCostEdits(next);
   }, [globalAttributeCostEntryByLevel]);
+  useEffect(() => {
+    const next: Record<string, { value: string; notes: string }> = {};
+    for (const expectation of FORGE_OUTPUT_EXPECTATIONS) {
+      const existing = forgeOutputExpectationEntryByKey.get(expectation.key) ?? null;
+      next[expectation.key] = {
+        value: existing ? String(existing.value) : String(expectation.defaultValue),
+        notes: existing?.notes ?? "",
+      };
+    }
+    setForgeOutputExpectationEdits(next);
+  }, [forgeOutputExpectationEntryByKey]);
 
   async function saveStatCost(level: number) {
     const edit = statCostEdits[level] ?? { value: "", notes: "" };
@@ -1257,6 +1403,78 @@ function renderTemplatePreview(
     }
   }
 
+  async function saveForgeOutputExpectation(key: string) {
+    const definition = FORGE_OUTPUT_EXPECTATIONS.find((entry) => entry.key === key);
+    if (!definition) return;
+
+    const edit = forgeOutputExpectationEdits[key] ?? {
+      value: String(definition.defaultValue),
+      notes: "",
+    };
+    const parsedValue = Number.parseFloat(edit.value);
+    if (!Number.isFinite(parsedValue)) {
+      setErr("Expectation value must be a number.");
+      return;
+    }
+
+    setErr(null);
+    setSavingForgeOutputExpectationKey(key);
+
+    try {
+      const existing = forgeOutputExpectationEntryByKey.get(key) ?? null;
+
+      if (existing) {
+        const res = await fetch("/api/admin/forge-costs", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: existing.id,
+            value: parsedValue,
+            notes: edit.notes.trim() || null,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error ?? "Update failed");
+
+        const savedRow = data?.row as ForgeCostEntry | undefined;
+        if (savedRow?.id) {
+          setCosts((prev) => prev.map((row) => (row.id === savedRow.id ? savedRow : row)));
+        }
+      } else {
+        const res = await fetch("/api/admin/forge-costs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            category: "ItemModifiers",
+            selector1: FORGE_OUTPUT_EXPECTATION_SELECTOR,
+            selector2: key,
+            value: parsedValue,
+            notes: edit.notes.trim() || null,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error ?? "Create failed");
+
+        const savedRow = data?.row as ForgeCostEntry | undefined;
+        if (savedRow?.id) {
+          setCosts((prev) => {
+            if (prev.some((row) => row.id === savedRow.id)) {
+              return prev.map((row) => (row.id === savedRow.id ? savedRow : row));
+            }
+            return [savedRow, ...prev];
+          });
+        }
+      }
+
+      setFlash(`Saved ${definition.label}.`);
+      setTimeout(() => setFlash(null), 2000);
+    } catch (e: any) {
+      setErr(String(e?.message ?? "Save failed"));
+    } finally {
+      setSavingForgeOutputExpectationKey(null);
+    }
+  }
+
 
   return (
     <div className="space-y-6">
@@ -1284,6 +1502,7 @@ function renderTemplatePreview(
           <option value="MPV_COSTS">MPV Costs</option>
           <option value="ITEM_MODIFIER_COSTS">Item Modifiers</option>
           <option value="GLOBAL_ATTRIBUTE_MODIFIER_COSTS">Global Attribute Modifiers</option>
+          <option value="FORGE_OUTPUT_EXPECTATIONS">Forge Output Expectations</option>
           </select>
         </div>
 
@@ -1389,6 +1608,8 @@ function renderTemplatePreview(
             <div className="p-3 text-sm opacity-80">
               {isStatCostCategory
                 ? "PPV/MPV stat costs are edited below."
+                : isForgeOutputExpectations
+                  ? "Forge Output Expectations are edited below."
                 : "Select a value on the left."}
             </div>
           ) : (
@@ -2556,6 +2777,108 @@ function renderTemplatePreview(
                   })}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+        {isForgeOutputExpectations && (
+          <div className="rounded-lg border lg:col-span-2">
+            <div className="border-b p-3 text-sm font-medium">
+              Forge Output Expectations
+            </div>
+
+            <div className="space-y-4 p-3">
+              <div className="text-xs opacity-70">
+                These report-only rows tune Forge Output Bars. They are stored as
+                ItemModifiers / ForgeOutputExpectation rows and do not change Forge Point
+                cost formulas or item save behaviour.
+              </div>
+
+              {(["Features & Versatility", "Core Functionality"] as const).map((group) => (
+                <div key={group} className="rounded border border-zinc-800">
+                  <div className="border-b border-zinc-800 p-2 text-xs font-medium uppercase tracking-wide opacity-80">
+                    {group}
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead className="text-xs opacity-70">
+                      <tr>
+                        <th className="p-2 text-left">Expectation</th>
+                        <th className="p-2 text-left">Key</th>
+                        <th className="p-2 text-left">Value</th>
+                        <th className="p-2 text-left">Notes</th>
+                        <th className="p-2 text-left"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {FORGE_OUTPUT_EXPECTATIONS.filter((entry) => entry.group === group).map(
+                        (expectation) => {
+                          const existing =
+                            forgeOutputExpectationEntryByKey.get(expectation.key) ?? null;
+                          const edit = forgeOutputExpectationEdits[expectation.key] ?? {
+                            value: String(expectation.defaultValue),
+                            notes: "",
+                          };
+                          const isSaving = savingForgeOutputExpectationKey === expectation.key;
+
+                          return (
+                            <tr key={expectation.key}>
+                              <td className="p-2 align-top">
+                                <div className="font-medium">{expectation.label}</div>
+                                <div className="mt-1 text-xs opacity-70">
+                                  {expectation.description}
+                                </div>
+                                {!existing && (
+                                  <div className="mt-1 text-[11px] opacity-60">
+                                    Default fallback: {expectation.defaultValue}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2 align-top font-mono text-xs opacity-80">
+                                {expectation.key}
+                              </td>
+                              <td className="p-2 align-top">
+                                <input
+                                  className="w-28 rounded border bg-transparent p-2 text-sm"
+                                  value={edit.value}
+                                  onChange={(e) =>
+                                    setForgeOutputExpectationEdits((prev) => ({
+                                      ...prev,
+                                      [expectation.key]: { ...edit, value: e.target.value },
+                                    }))
+                                  }
+                                  placeholder={String(expectation.defaultValue)}
+                                />
+                              </td>
+                              <td className="p-2 align-top">
+                                <input
+                                  className="w-full rounded border bg-transparent p-2 text-sm"
+                                  value={edit.notes}
+                                  onChange={(e) =>
+                                    setForgeOutputExpectationEdits((prev) => ({
+                                      ...prev,
+                                      [expectation.key]: { ...edit, notes: e.target.value },
+                                    }))
+                                  }
+                                  placeholder="optional"
+                                />
+                              </td>
+                              <td className="p-2 align-top">
+                                <button
+                                  className="rounded border px-3 py-2 text-sm"
+                                  disabled={isSaving || edit.value.trim() === ""}
+                                  onClick={() => void saveForgeOutputExpectation(expectation.key)}
+                                  title={edit.value.trim() === "" ? "Enter a value to save" : "Save"}
+                                >
+                                  {isSaving ? "Saving..." : existing ? "Save" : "Create"}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        },
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
             </div>
           </div>
         )}

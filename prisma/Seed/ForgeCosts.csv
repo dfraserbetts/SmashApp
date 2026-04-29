@@ -911,6 +911,21 @@ VRPOptions,Item,Protection 2 Slashing,,4,
 VRPOptions,Item,Protection 3 Slashing,,6,
 VRPOptions,Item,Protection 4 Slashing,,8,
 VRPOptions,Item,Protection 5 Slashing,,10,
+ItemModifiers,ForgeOutputExpectation,features.budget.COMMON,,10,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.budget.UNCOMMON,,14,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.budget.RARE,,22,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.budget.LEGENDARY,,30,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.budget.MYTHIC,,40,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.levelScale.perLevel,,0,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.levelScale.perFiveLevels,,2,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.status.moderateRatio,,0.36,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.status.broadRatio,,0.61,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.status.heavyRatio,,0.8,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,core.weapon.size.SMALL.multiplier,,1,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,core.weapon.size.ONE_HANDED.multiplier,,1,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,core.weapon.size.TWO_HANDED.multiplier,,1,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,core.defence.ppv.multiplier,,1,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,core.defence.mpv.multiplier,,1,Forge Output Expectations default
 VRPOptions,Item,Protection 1 Fear,,2,
 VRPOptions,Item,Protection 2 Fear,,4,
 VRPOptions,Item,Protection 3 Fear,,6,

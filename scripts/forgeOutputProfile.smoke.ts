@@ -54,6 +54,24 @@ const COMMON_HIGH_BUDGET_CONTEXT = buildForgeExpectationContext([
   { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.budget.COMMON", value: 50 },
 ], undefined, 1);
 
+const COMMON_LOW_MODERATE_THRESHOLD_CONTEXT = buildForgeExpectationContext([
+  ...FEATURE_WEIGHT_CONTEXT.costs,
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.status.moderateRatio", value: 0.25 },
+], undefined, 1);
+
+const COMMON_LOW_BROAD_THRESHOLD_CONTEXT = buildForgeExpectationContext([
+  ...FEATURE_WEIGHT_CONTEXT.costs,
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.status.moderateRatio", value: 0.1 },
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.status.broadRatio", value: 0.25 },
+], undefined, 1);
+
+const COMMON_LOW_HEAVY_THRESHOLD_CONTEXT = buildForgeExpectationContext([
+  ...FEATURE_WEIGHT_CONTEXT.costs,
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.status.moderateRatio", value: 0.1 },
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.status.broadRatio", value: 0.2 },
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.status.heavyRatio", value: 0.25 },
+], undefined, 1);
+
 const CORE_MULTIPLIER_CONTEXT = buildForgeExpectationContext([
   { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "core.weapon.size.SMALL.multiplier", value: 2 },
 ], undefined, 1);
@@ -115,6 +133,7 @@ assert.equal(weightedSimpleMeleeBands.lanes.debug.featureStatusSource, "forge_va
 assert.equal(weightedSimpleMeleeBands.lanes.debug.expectedFeatureBudget, 10);
 assert.equal(weightedSimpleMeleeBands.lanes.debug.featurePressureRatio, 0);
 assert.equal(weightedSimpleMeleeBands.lanes.debug.featureBudgetSource, "default");
+assert.equal(weightedSimpleMeleeBands.lanes.debug.coreExpectationSource, "default");
 assert.equal(weightedSimpleMeleeBands.lanes.debug.expectationFallbackUsed, true);
 
 const cheapParryAttribute = runCase("cheap parry attribute", {
@@ -175,7 +194,17 @@ assert.ok(
 );
 
 const expensiveHighBudgetCommonBands = compareForgeOutputToBands(expensiveSingleAttribute, COMMON_HIGH_BUDGET_CONTEXT);
+assert.ok(
+  COMMON_HIGH_BUDGET_CONTEXT.costs.some((row) =>
+    row.category === "ItemModifiers" &&
+    row.selector1 === "ForgeOutputExpectation" &&
+    row.selector2 === "features.budget.COMMON" &&
+    row.value === 50,
+  ),
+  "Forge Output Expectation rows should use the same ItemModifiers/ForgeOutputExpectation shape as Admin Forge Values",
+);
 assert.equal(expensiveHighBudgetCommonBands.lanes.debug.expectedFeatureBudget, 50);
+assert.equal(expensiveHighBudgetCommonBands.lanes.debug.featureBudgetSource, "forge_expectation_config");
 assert.ok(
   expensiveHighBudgetCommonBands.lanes.debug.featurePressureRatio <
     expensiveSingleAttributeBands.lanes.debug.featurePressureRatio,
@@ -223,6 +252,22 @@ assert.ok(
     LANE_STATUS_PERCENT[twoCheapAttributeBands.lanes.featuresVersatility.status],
   "One expensive attribute should push Features higher than two cheap attributes",
 );
+assert.equal(
+  compareForgeOutputToBands(twoCheapAttributes, COMMON_LOW_MODERATE_THRESHOLD_CONTEXT).lanes.featuresVersatility.status,
+  "moderate",
+  "Lowering features.status.moderateRatio should move the same feature ratio to Moderate",
+);
+assert.equal(
+  compareForgeOutputToBands(twoCheapAttributes, COMMON_LOW_BROAD_THRESHOLD_CONTEXT).lanes.featuresVersatility.status,
+  "broad",
+  "Lowering features.status.broadRatio should move the same feature ratio to Broad",
+);
+assert.equal(
+  compareForgeOutputToBands(twoCheapAttributes, COMMON_LOW_HEAVY_THRESHOLD_CONTEXT).lanes.featuresVersatility.status,
+  "heavy",
+  "Lowering features.status.heavyRatio should move the same feature ratio to Heavy",
+);
+
 const positiveAndNegativeAttributes = runCase("positive and negative attributes", {
   level: 1,
   rarity: "COMMON",
@@ -490,6 +535,7 @@ assert.ok(
 );
 const smallLevelOneConfiguredBands = compareForgeOutputToBands(smallLevelOneMelee, CORE_MULTIPLIER_CONTEXT);
 assert.equal(smallLevelOneConfiguredBands.lanes.debug.coreExpectationSource, "forge_expectation_config");
+assert.equal(smallLevelOneConfiguredBands.lanes.debug.coreExpectedValue, 4);
 assert.ok(
   smallLevelOneConfiguredBands.lanes.debug.corePressureRatio <
     compareForgeOutputToBands(smallLevelOneMelee).lanes.debug.corePressureRatio,
