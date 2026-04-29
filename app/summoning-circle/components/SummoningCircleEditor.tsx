@@ -169,7 +169,7 @@ const ITEM_SLOTS = [
   { key: "beltItemId", label: "Belt Item" },
 ] as const;
 const LEVEL_OPTIONS = Array.from({ length: 20 }, (_, i) => i + 1);
-const STRENGTH_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
+const STRENGTH_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 const TARGET_OPTIONS = [1, 2, 3, 4, 5] as const;
 const DICE_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 const POTENCY_OPTIONS = [1, 2, 3, 4, 5] as const;
