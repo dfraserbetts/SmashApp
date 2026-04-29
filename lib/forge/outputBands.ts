@@ -106,6 +106,9 @@ export type ForgeOutputLaneComparison = {
     source: "forge_output_lanes_v1";
     reportOnly: true;
     featureWeightTotal: number;
+    featureWeightBudget: number;
+    featureWeightRatio: number;
+    featureStatusSource: "forge_values_weighted";
     featureWeightDrivers: ForgeFeatureWeightDriver[];
     missingFeatureWeightDrivers: ForgeMissingFeatureWeightDriver[];
     costSource: "forge_values" | "fallback";
@@ -288,8 +291,7 @@ const CLASSIFICATION_RANK: Record<ForgeOutputBandClassification, number> = {
   "over-band": 5,
 };
 
-const DEFAULT_FEATURE_FALLBACK_WEIGHT = 5;
-const FEATURE_WEIGHT_SCORE_UNIT = 5;
+const DEFAULT_FEATURE_FALLBACK_WEIGHT = 1;
 
 const LANE_STATUS_RANK: Record<ForgeLaneStatus, number> = {
   narrow: 0,
@@ -549,6 +551,25 @@ function statusFromScore(score: number, overloaded: boolean): ForgeLaneStatus {
   return "narrow";
 }
 
+function getFeatureWeightBudget(profile: ForgeOutputProfile): number {
+  const level = normalizeLevel(profile.common.level);
+  const levelBump = Math.floor((level - 1) / 5) * 2;
+  const rarity = String(profile.common.rarity ?? "").trim().toUpperCase();
+  if (rarity === "MYTHIC") return 40 + levelBump;
+  if (rarity === "LEGENDARY") return 30 + levelBump;
+  if (rarity === "RARE") return 22 + levelBump;
+  if (rarity === "UNCOMMON") return 14 + levelBump;
+  return 10 + levelBump;
+}
+
+function statusFromFeatureWeightRatio(ratio: number, overloaded: boolean): ForgeLaneStatus {
+  if (overloaded) return "likely overloaded";
+  if (ratio >= 2) return "heavy";
+  if (ratio >= 1.5) return "broad";
+  if (ratio >= 1) return "moderate";
+  return "narrow";
+}
+
 function coreStatusFloorForBand(classification: ForgeOutputBandClassification): ForgeLaneStatus {
   if (classification === "over-band") return "likely overloaded";
   if (classification === "extreme") return "heavy";
@@ -609,7 +630,7 @@ function addFeatureWeight(
     );
     if (weight !== null && weight > 0) {
       state.total += weight;
-      state.score += weight / FEATURE_WEIGHT_SCORE_UNIT;
+      state.score += weight;
       state.drivers.push({
         label,
         source: `${lookup.category}/${[lookup.selector1, lookup.selector2, lookup.selector3]
@@ -624,7 +645,7 @@ function addFeatureWeight(
 
   const fallbackWeight = context?.fallbackWeight ?? DEFAULT_FEATURE_FALLBACK_WEIGHT;
   state.total += fallbackWeight;
-  state.score += fallbackWeight / FEATURE_WEIGHT_SCORE_UNIT;
+  state.score += fallbackWeight;
   state.fallbackUsed = true;
   state.drivers.push({
     label,
@@ -656,7 +677,7 @@ function addAttributeFeatureWeight(
 ): void {
   if (detail.pricingWeight !== null && detail.pricingWeight > 0) {
     state.total += detail.pricingWeight;
-    state.score += detail.pricingWeight / FEATURE_WEIGHT_SCORE_UNIT;
+    state.score += detail.pricingWeight;
     state.drivers.push({
       label: `${labelPrefix}: ${detail.name}`,
       source: `attribute_scalar/${detail.pricingMode ?? "UNKNOWN"}`,
@@ -899,7 +920,9 @@ export function classifyForgeOutputLanes(
   const featureWarnings: string[] = [];
   const coreDrivers: string[] = [];
   const coreWarnings: string[] = [];
-  const featureScore = featureWeightState.score;
+  const featureWeightBudget = getFeatureWeightBudget(profile);
+  const featureWeightRatio =
+    featureWeightBudget > 0 ? featureWeightState.total / featureWeightBudget : 0;
   let coreScore = 0;
   let coreStatusFloor: ForgeLaneStatus = "narrow";
 
@@ -953,7 +976,7 @@ export function classifyForgeOutputLanes(
     "rarity is interpretive context only and does not increase raw damage allowance",
   ];
 
-  if (profile.common.rarity === "COMMON" && featureScore >= 3) {
+  if (profile.common.rarity === "COMMON" && featureWeightRatio >= 1) {
     featureWarnings.push("Common item carries moderate-or-broader feature load");
     rarityNotes.push("Common should usually remain narrow unless deliberately flagged");
   }
@@ -985,7 +1008,7 @@ export function classifyForgeOutputLanes(
       warnings: coreWarnings,
     },
     featuresVersatility: {
-      status: statusFromScore(featureScore, featureWarnings.length > 2),
+      status: statusFromFeatureWeightRatio(featureWeightRatio, featureWarnings.length > 2),
       mainDrivers: featureDrivers,
       warnings: featureWarnings,
     },
@@ -997,6 +1020,9 @@ export function classifyForgeOutputLanes(
       source: "forge_output_lanes_v1",
       reportOnly: true,
       featureWeightTotal: featureWeightState.total,
+      featureWeightBudget,
+      featureWeightRatio,
+      featureStatusSource: "forge_values_weighted",
       featureWeightDrivers: featureWeightState.drivers,
       missingFeatureWeightDrivers: featureWeightState.missing,
       costSource: featureWeightState.hasForgeValues ? "forge_values" : "fallback",

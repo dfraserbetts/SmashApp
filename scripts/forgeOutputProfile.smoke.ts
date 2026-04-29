@@ -33,9 +33,11 @@ const LANE_STATUS_PERCENT = {
 const FEATURE_WEIGHT_CONTEXT = buildForgeFeatureWeightContext([
   { category: "GS_AttackEffects", selector1: "Weapon", selector2: "Melee", selector3: "Stagger", value: 15 },
   { category: "Attribute", selector1: "Weapon", selector2: "Attack", selector3: "2", value: 20 },
+  { category: "WeaponAttributes", selector1: "Weapon", selector2: "Parry", value: 1 },
+  { category: "WeaponAttributes", selector1: "Weapon", selector2: "Quick", value: 2 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Returning", value: 12 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Expensive", value: 25 },
-], 4);
+], 1);
 
 function runCase(name: string, input: ForgeOutputProfileInput): ForgeOutputProfile {
   const profile = buildForgeOutputProfile(input);
@@ -89,6 +91,72 @@ assert.equal(
 );
 assert.equal(weightedSimpleMeleeBands.lanes.coreFunctionality.status, simpleMeleeBands.lanes.coreFunctionality.status);
 assert.equal(weightedSimpleMeleeBands.lanes.featuresVersatility.status, "narrow");
+assert.equal(weightedSimpleMeleeBands.lanes.debug.featureWeightTotal, 0);
+assert.equal(weightedSimpleMeleeBands.lanes.debug.featureStatusSource, "forge_values_weighted");
+
+const cheapParryAttribute = runCase("cheap parry attribute", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Parry"],
+});
+const cheapParryBands = compareForgeOutputToBands(cheapParryAttribute, FEATURE_WEIGHT_CONTEXT);
+assert.equal(cheapParryBands.lanes.debug.featureWeightTotal, 1);
+assert.equal(cheapParryBands.lanes.featuresVersatility.status, "narrow");
+
+const expensiveSingleAttribute = runCase("expensive single attribute", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Expensive"],
+});
+const expensiveSingleAttributeBands = compareForgeOutputToBands(expensiveSingleAttribute, FEATURE_WEIGHT_CONTEXT);
+assert.equal(expensiveSingleAttributeBands.lanes.debug.featureWeightTotal, 25);
+assert.ok(
+  LANE_STATUS_PERCENT[expensiveSingleAttributeBands.lanes.featuresVersatility.status] >= 75,
+  "A single expensive attribute should move Features & Versatility by saved weight",
+);
+
+const twoCheapAttributes = runCase("two cheap attributes", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Parry", "Quick"],
+});
+const twoCheapAttributeBands = compareForgeOutputToBands(twoCheapAttributes, FEATURE_WEIGHT_CONTEXT);
+assert.equal(twoCheapAttributeBands.lanes.debug.featureWeightTotal, 3);
+assert.equal(
+  twoCheapAttributeBands.lanes.featuresVersatility.status,
+  "narrow",
+  "Two cheap attributes should not automatically become Moderate by count",
+);
+assert.ok(
+  twoCheapAttributeBands.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Parry") && entry.weight === 1,
+  ),
+  "Parry should expose its saved Forge-Values weight",
+);
+assert.ok(
+  twoCheapAttributeBands.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Quick") && entry.weight === 2,
+  ),
+  "Quick should expose its saved Forge-Values weight",
+);
 
 const greaterSuccessFeature = runCase("weighted greater success", {
   level: 5,
@@ -177,6 +245,7 @@ assert.ok(
   ),
   "Scalar-priced weapon attribute should use pricingScalar x resolved magnitude",
 );
+assert.equal(scalarWeaponAttributeBands.lanes.debug.featureWeightTotal, 9);
 
 const missingWeightedFeature = runCase("missing weighted feature", {
   level: 5,
@@ -196,6 +265,8 @@ assert.ok(
   ),
   "Missing Forge-Values cost should be exposed in missingFeatureWeightDrivers",
 );
+assert.equal(missingWeightedFeatureBands.lanes.debug.featureWeightTotal, 1);
+assert.equal(missingWeightedFeatureBands.lanes.featuresVersatility.status, "narrow");
 
 const expensiveCommonFeature = runCase("expensive common feature", {
   level: 5,
