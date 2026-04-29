@@ -974,6 +974,16 @@ function getPacketApplyTo(
   return "PRIMARY_TARGET";
 }
 
+function isSelfTargetedBeneficialMovementPacket(
+  effectPacket:
+    | Pick<MonsterPower["effectPackets"][number], "intention" | "type" | "applyTo" | "detailsJson">
+    | undefined,
+): boolean {
+  if (!effectPacket) return false;
+  const intention = effectPacket.intention ?? effectPacket.type ?? "ATTACK";
+  return intention === "MOVEMENT" && getPacketApplyTo(effectPacket) === "SELF";
+}
+
 function getAllowedPacketApplyToOptions(
   powerRangeState: Pick<PowerRangeState, "category" | "meleeTargets" | "rangedTargets">,
   localTargetingOverride: MonsterPower["effectPackets"][number]["localTargetingOverride"] | null | undefined,
@@ -1537,6 +1547,7 @@ function inferPrimaryPacketHostility(
   effectPacket: MonsterPower["effectPackets"][number] | undefined,
 ): boolean {
   if (!effectPacket) return false;
+  if (isSelfTargetedBeneficialMovementPacket(effectPacket)) return false;
   if (effectPacket.hostility === "HOSTILE") return true;
   if (effectPacket.hostility === "NON_HOSTILE") return false;
   const intention = effectPacket.intention ?? effectPacket.type ?? "ATTACK";
@@ -1963,11 +1974,14 @@ function normalizePowerEffectPacket(
   delete nextDetails.applyTo;
   delete nextDetails.triggerConditionText;
   delete nextDetails[LEGACY_TRIGGER_CONDITION_TEXT_KEY];
+  const normalizedHostility =
+    intention === "MOVEMENT" && normalizedApplyTo === "SELF" ? "NON_HOSTILE" : packet?.hostility;
   return {
     ...createDefaultPowerPacket(intention, sortOrder),
     ...packet,
     sortOrder,
     packetIndex: packet?.packetIndex ?? sortOrder,
+    hostility: normalizedHostility,
     intention,
     type: intention,
     diceCount: Number(packet?.diceCount ?? power?.diceCount ?? 1),
@@ -2033,6 +2047,17 @@ function derivePrimaryDefenceGateFromEffectPacket(
 
   const intention = effectPacket.intention ?? effectPacket.type ?? "ATTACK";
   const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
+
+  if (isSelfTargetedBeneficialMovementPacket(effectPacket)) {
+    return {
+      sourcePacketIndex: effectPacket.packetIndex ?? 0,
+      gateResult: "NONE",
+      protectionChannel: null,
+      resistAttribute: null,
+      hostileEntryPattern: null,
+      resolutionSource: "INFERRED",
+    };
+  }
 
   if (intention === "ATTACK") {
     const attackMode = String(details.attackMode ?? "PHYSICAL").toUpperCase();

@@ -392,6 +392,13 @@ function readPacketApplyTo(
   return normalizeEffectPacketApplyTo(packet?.applyTo ?? details?.applyTo);
 }
 
+function isSelfTargetedBeneficialMovement(
+  intention: PowerIntention,
+  applyTo: "PRIMARY_TARGET" | "ALLIES" | "SELF",
+): boolean {
+  return intention === "MOVEMENT" && applyTo === "SELF";
+}
+
 function readPacketTriggerConditionText(
   packet:
     | Pick<EffectPacket, "triggerConditionText" | "detailsJson">
@@ -968,14 +975,16 @@ function normalizePacketIntention(
     effectDurationType === "TURNS"
       ? Math.max(1, Math.min(4, asInt(raw.effectDurationTurns ?? raw.durationTurns, fallbackDurationTurns ?? 1)))
       : null;
+  const applyTo = normalizeEffectPacketApplyTo(raw.applyTo ?? rawDetails.applyTo);
   const hostilityRaw = asString(raw.hostility, "");
   const hostility =
-    hostilityRaw === "HOSTILE" || hostilityRaw === "NON_HOSTILE"
+    isSelfTargetedBeneficialMovement(intention, applyTo)
+      ? "NON_HOSTILE"
+      : hostilityRaw === "HOSTILE" || hostilityRaw === "NON_HOSTILE"
       ? hostilityRaw
       : intention === "ATTACK" || intention === "CONTROL" || intention === "DEBUFF" || intention === "MOVEMENT"
         ? "HOSTILE"
         : "NON_HOSTILE";
-  const applyTo = normalizeEffectPacketApplyTo(raw.applyTo ?? rawDetails.applyTo);
   const triggerConditionText = asNullableString(
     raw.triggerConditionText ??
       raw[LEGACY_TRIGGER_CONDITION_KEY] ??
@@ -1060,6 +1069,19 @@ function derivePrimaryDefenceGate(
   raw: Record<string, unknown>,
   effectPackets: EffectPacket[],
 ): PrimaryDefenceGate | null {
+  const firstPacket = effectPackets[0];
+  if (!firstPacket) return null;
+  if (isSelfTargetedBeneficialMovement(firstPacket.intention, readPacketApplyTo(firstPacket))) {
+    return {
+      sourcePacketIndex: 0,
+      gateResult: "NONE",
+      protectionChannel: null,
+      resistAttribute: null,
+      hostileEntryPattern: null,
+      resolutionSource: "INFERRED",
+    };
+  }
+
   const explicit = raw.primaryDefenceGate;
   if (explicit && typeof explicit === "object") {
     const gate = explicit as Record<string, unknown>;
@@ -1083,8 +1105,6 @@ function derivePrimaryDefenceGate(
   }
 
   const legacyDefenceRequirement = asString(raw.defenceRequirement, "NONE");
-  const firstPacket = effectPackets[0];
-  if (!firstPacket) return null;
   if (legacyDefenceRequirement === "PROTECTION") {
     return {
       sourcePacketIndex: 0,

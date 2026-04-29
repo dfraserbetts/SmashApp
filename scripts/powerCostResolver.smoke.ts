@@ -4,6 +4,7 @@ import { derivePowerCooldown, resolvePowerCost } from "../lib/summoning/powerCos
 import { calculatorConfig } from "../lib/calculators/calculatorConfig";
 import { computeMonsterOutcomes } from "../lib/calculators/monsterOutcomeCalculator";
 import { DEFAULT_POWER_TUNING_VALUES } from "../lib/config/powerTuningShared";
+import { normalizeMonsterUpsertInput } from "../lib/summoning/validation";
 import type { EffectPacket, Power } from "../lib/summoning/types";
 
 function createPacket(
@@ -317,6 +318,61 @@ assert.equal(
 assert.equal(
   (weakestMovementAfterPacket.debug as { hostility?: string }).hostility,
   "NON_HOSTILE_OR_UNKNOWN",
+);
+
+const staleSelfRunPacket = {
+  ...selfRunMovementPacket,
+  hostility: "HOSTILE" as const,
+};
+const staleSelfRunPower = {
+  ...selfRunMovementPower,
+  primaryDefenceGate: {
+    sourcePacketIndex: 0,
+    gateResult: "RESIST" as const,
+    protectionChannel: null,
+    resistAttribute: "FORTITUDE" as const,
+    hostileEntryPattern: null,
+    resolutionSource: "INFERRED" as const,
+  },
+  defenceRequirement: "RESIST" as const,
+  effectPackets: [staleSelfRunPacket],
+  intentions: [staleSelfRunPacket],
+};
+const normalizedStaleSelfRun = normalizeMonsterUpsertInput({
+  ...createBaseMonster(),
+  powers: [staleSelfRunPower],
+});
+if (!normalizedStaleSelfRun.ok) throw new Error(normalizedStaleSelfRun.error);
+assert.equal(normalizedStaleSelfRun.data.powers[0].effectPackets[0].hostility, "NON_HOSTILE");
+assert.equal(normalizedStaleSelfRun.data.powers[0].primaryDefenceGate?.gateResult, "NONE");
+assert.equal(normalizedStaleSelfRun.data.powers[0].primaryDefenceGate?.protectionChannel, null);
+assert.equal(normalizedStaleSelfRun.data.powers[0].primaryDefenceGate?.resistAttribute, null);
+
+const hostileForcedMovementPacket = createPacket("MOVEMENT", {
+  hostility: "HOSTILE",
+  applyTo: "PRIMARY_TARGET",
+  detailsJson: {
+    movementMode: "Force Push",
+    movementTheme: "BODY_ENDURANCE",
+    rangeCategory: "RANGED",
+  },
+});
+const normalizedHostileForcedMovement = normalizeMonsterUpsertInput({
+  ...createBaseMonster(),
+  powers: [
+    createPower({
+      name: "Force Push Smoke",
+      rangeCategories: ["RANGED"],
+      packet: hostileForcedMovementPacket,
+    }),
+  ],
+});
+if (!normalizedHostileForcedMovement.ok) throw new Error(normalizedHostileForcedMovement.error);
+assert.equal(normalizedHostileForcedMovement.data.powers[0].effectPackets[0].hostility, "HOSTILE");
+assert.equal(normalizedHostileForcedMovement.data.powers[0].primaryDefenceGate?.gateResult, "RESIST");
+assert.equal(
+  normalizedHostileForcedMovement.data.powers[0].primaryDefenceGate?.resistAttribute,
+  "FORTITUDE",
 );
 assert.equal(
   (
