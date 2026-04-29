@@ -108,8 +108,8 @@ target count, AoE, and range still consume output or breadth budget.
 Small single-target total wounds per success:
 
 Level  Low   Standard  High   Extreme
-1      2     2         4      6+
-2      2     2         4-4    6+
+1      0     2         4      6+
+2      0     2         4-4    6+
 3      2     4         4      8+
 4      2     4         6      8+
 5      2     4-4       6-8    8+

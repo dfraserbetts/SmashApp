@@ -67,6 +67,26 @@ assert.ok(
   "simple melee should read as core-focused",
 );
 
+const smallLevelOneMelee = runCase("small level 1 melee", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+});
+const smallLevelOneMeleeBand = compareForgeOutputToBands(smallLevelOneMelee).weaponProfiles.find(
+  (entry) => entry.profileKind === "melee",
+);
+assert.equal(getProfile(smallLevelOneMelee, "melee").totalWoundsPerSuccess, 2);
+assert.equal(
+  smallLevelOneMeleeBand?.classification,
+  "standard",
+  "Level 1 Small Strength 1 should classify 2 wounds as standard",
+);
+
 const smallMelee = runCase("small melee", {
   level: 5,
   rarity: "COMMON",
@@ -380,6 +400,7 @@ assert.ok(
 
 const summary = [
   ["simple melee", getProfile(simpleMelee, "melee").totalWoundsPerSuccess],
+  ["small level 1 Strength 1 band", smallLevelOneMeleeBand?.classification ?? "missing"],
   ["small melee band", smallMeleeBand?.classification ?? "missing"],
   ["two-handed melee band", twoHandedMeleeBand?.classification ?? "missing"],
   ["two-handed Strength 5 band", twoHandedStandardBand?.classification ?? "missing"],

@@ -123,8 +123,8 @@ type SourceBandRow = {
 // These are output-band readout helpers, not final tuning law or save validation.
 const WEAPON_WOUNDS_PER_SUCCESS_BANDS_BY_SIZE: Record<WeaponSize, SourceBandRow[]> = {
   SMALL: [
-    { level: 1, lowMax: 2, standardMax: 2, highMax: 4, extremeMin: 6 },
-    { level: 2, lowMax: 2, standardMax: 2, highMax: 4, extremeMin: 6 },
+    { level: 1, lowMax: 0, standardMax: 2, highMax: 4, extremeMin: 6 },
+    { level: 2, lowMax: 0, standardMax: 2, highMax: 4, extremeMin: 6 },
     { level: 3, lowMax: 2, standardMax: 4, highMax: 4, extremeMin: 8 },
     { level: 4, lowMax: 2, standardMax: 4, highMax: 6, extremeMin: 8 },
     { level: 5, lowMax: 2, standardMax: 4, highMax: 8, extremeMin: 8 },
