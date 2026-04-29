@@ -16,6 +16,7 @@
     "diagnostic:level-relative-radar": "npx --yes tsx scripts/levelRelativeRadarDiagnostic.ts",
     "diagnostic:level-relative-decay": "npx --yes tsx scripts/levelRelativeRadarDecayReport.ts",
     "diagnostic:combat-smoke": "npx --yes tsx scripts/combatSmokeTest.ts",
+    "diagnostic:output-origin-parity": "npx --yes tsx scripts/monsterOutcomeCalculator.smoke.ts",
     "test:limit-break": "node scripts/limitBreak.smoke.mjs",
     "test:limit-break-templates": "node scripts/limitBreakTemplates.smoke.mjs",
     "postinstall": "prisma generate",
