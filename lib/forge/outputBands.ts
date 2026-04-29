@@ -41,6 +41,7 @@ export type ForgeWeaponProfileBandComparison = {
   totalPressureClassification: ForgeOutputBandClassification;
   classification: ForgeOutputBandClassification;
   greaterSuccessEffectCount: number;
+  thresholds: ForgeBandThresholds;
   debugNotes: string[];
 };
 
@@ -105,14 +106,20 @@ export type ForgeOutputLaneComparison = {
   debug: {
     source: "forge_output_lanes_v1";
     reportOnly: true;
+    coreActualValue: number;
+    coreExpectedValue: number;
+    corePressureRatio: number;
+    coreExpectationSource: "forge_expectation_config" | "default";
     featureWeightTotal: number;
-    featureWeightBudget: number;
-    featureWeightRatio: number;
+    expectedFeatureBudget: number;
+    featurePressureRatio: number;
     featureStatusSource: "forge_values_weighted";
+    featureBudgetSource: "forge_expectation_config" | "default";
     featureWeightDrivers: ForgeFeatureWeightDriver[];
     missingFeatureWeightDrivers: ForgeMissingFeatureWeightDriver[];
     costSource: "forge_values" | "fallback";
     fallbackUsed: boolean;
+    expectationFallbackUsed: boolean;
   };
 };
 
@@ -151,9 +158,40 @@ export type ForgeFeatureWeightCostRow = {
   notes?: string | null;
 };
 
+export type ForgeExpectationConfigRow = {
+  category?: string | null;
+  selector1?: string | null;
+  selector2?: string | null;
+  value?: number | null;
+};
+
 export type ForgeFeatureWeightContext = {
   costs: ForgeFeatureWeightCostRow[];
+  config: ForgeExpectationConfigRow[];
   fallbackWeight: number;
+};
+
+type ForgeExpectationValue = {
+  value: number;
+  source: "forge_expectation_config" | "default";
+};
+
+type ForgeExpectationContextDebug = {
+  fallbackUsed: boolean;
+};
+
+type ForgeFeatureStatusThresholds = {
+  moderate: ForgeExpectationValue;
+  broad: ForgeExpectationValue;
+  heavy: ForgeExpectationValue;
+};
+
+type CorePressureCandidate = {
+  actual: number;
+  expected: number;
+  ratio: number;
+  source: "forge_expectation_config" | "default";
+  label: string;
 };
 
 type FeatureWeightState = {
@@ -323,8 +361,17 @@ export function buildForgeFeatureWeightContext(
   costs: ForgeFeatureWeightCostRow[] | null | undefined,
   fallbackWeight = DEFAULT_FEATURE_FALLBACK_WEIGHT,
 ): ForgeFeatureWeightContext {
+  return buildForgeExpectationContext(costs, undefined, fallbackWeight);
+}
+
+export function buildForgeExpectationContext(
+  costs: ForgeFeatureWeightCostRow[] | null | undefined,
+  config?: ForgeExpectationConfigRow[] | null,
+  fallbackWeight = DEFAULT_FEATURE_FALLBACK_WEIGHT,
+): ForgeFeatureWeightContext {
   return {
     costs: costs ?? [],
+    config: config ?? [],
     fallbackWeight,
   };
 }
@@ -351,6 +398,72 @@ function findFeatureWeight(
   });
 
   return toFiniteCost(found?.value);
+}
+
+function findExpectationCost(
+  context: ForgeFeatureWeightContext | null | undefined,
+  key: string,
+): number | null {
+  if (!context) return null;
+  const keyValue = normalizeCostKey(key);
+  const found = context.costs.find((row) => {
+    if (normalizeCostKey(row.category) !== "itemmodifiers") return false;
+    const selector1 = normalizeCostKey(row.selector1);
+    const selector2 = normalizeCostKey(row.selector2);
+    const selector3 = normalizeCostKey(row.selector3);
+    return (
+      (selector1 === "forgeoutputexpectation" && selector2 === keyValue) ||
+      selector1 === `forgeoutputexpectation.${keyValue}` ||
+      selector1 === keyValue ||
+      selector2 === keyValue ||
+      selector3 === keyValue
+    );
+  });
+
+  return toFiniteCost(found?.value);
+}
+
+function findExpectationConfig(
+  context: ForgeFeatureWeightContext | null | undefined,
+  category: string,
+  selector1: string,
+  selector2?: string | null,
+): number | null {
+  if (!context) return null;
+  const categoryKey = normalizeCostKey(category);
+  const selector1Key = normalizeCostKey(selector1);
+  const selector2Key = selector2 === undefined ? "" : normalizeCostKey(selector2);
+  const found = context.config.find((row) => {
+    if (normalizeCostKey(row.category) !== categoryKey) return false;
+    if (normalizeCostKey(row.selector1) !== selector1Key) return false;
+    if (selector2 !== undefined && normalizeCostKey(row.selector2) !== selector2Key) return false;
+    return true;
+  });
+
+  return toFiniteCost(found?.value);
+}
+
+function getExpectationValue(
+  context: ForgeFeatureWeightContext | null | undefined,
+  debug: ForgeExpectationContextDebug,
+  key: string,
+  fallback: number,
+  configLookups: Array<{ category: string; selector1: string; selector2?: string | null }> = [],
+): ForgeExpectationValue {
+  const costValue = findExpectationCost(context, key);
+  if (costValue !== null && costValue > 0) {
+    return { value: costValue, source: "forge_expectation_config" };
+  }
+
+  for (const lookup of configLookups) {
+    const configValue = findExpectationConfig(context, lookup.category, lookup.selector1, lookup.selector2);
+    if (configValue !== null && configValue > 0) {
+      return { value: configValue, source: "forge_expectation_config" };
+    }
+  }
+
+  debug.fallbackUsed = true;
+  return { value: fallback, source: "default" };
 }
 
 function getItemTypeLabel(profile: ForgeOutputProfile): "Weapon" | "Armor" | "Shield" | "Item" {
@@ -385,6 +498,18 @@ function withOverBand(row: SourceBandRow): ForgeBandThresholds {
   return {
     ...row,
     overBandMin: row.extremeMin + overBandOffset,
+  };
+}
+
+function scaledBand(row: ForgeBandThresholds, multiplier: number): ForgeBandThresholds {
+  if (!Number.isFinite(multiplier) || multiplier <= 0 || multiplier === 1) return row;
+  return {
+    level: row.level,
+    lowMax: Math.max(0, Math.round(row.lowMax * multiplier)),
+    standardMax: Math.max(0, Math.round(row.standardMax * multiplier)),
+    highMax: Math.max(0, Math.round(row.highMax * multiplier)),
+    extremeMin: Math.max(0, Math.round(row.extremeMin * multiplier)),
+    overBandMin: Math.max(0, Math.round(row.overBandMin * multiplier)),
   };
 }
 
@@ -430,6 +555,22 @@ function getBand(metric: ForgeBandMetric, level: number | null): ForgeBandThresh
         : MPV_BANDS;
   const row = rows.find((entry) => entry.level === normalizedLevel) ?? rows[0];
   return withOverBand(row);
+}
+
+function getSizeExpectationLabel(size: WeaponSize): string {
+  if (size === "SMALL") return "SMALL";
+  if (size === "TWO_HANDED") return "TWO_HANDED";
+  return "ONE_HANDED";
+}
+
+function getCoreMultiplier(
+  context: ForgeFeatureWeightContext | null | undefined,
+  debug: ForgeExpectationContextDebug,
+  key: string,
+  fallback: number,
+  configLookups: Array<{ category: string; selector1: string; selector2?: string | null }> = [],
+): ForgeExpectationValue {
+  return getExpectationValue(context, debug, key, fallback, configLookups);
 }
 
 function classifyValue(value: number, thresholds: ForgeBandThresholds): ForgeOutputBandClassification {
@@ -494,6 +635,7 @@ function compareWeaponProfile(
     totalPressureClassification,
     classification,
     greaterSuccessEffectCount: profile.greaterSuccessEffectCount,
+    thresholds,
     debugNotes,
   };
 }
@@ -551,22 +693,94 @@ function statusFromScore(score: number, overloaded: boolean): ForgeLaneStatus {
   return "narrow";
 }
 
-function getFeatureWeightBudget(profile: ForgeOutputProfile): number {
+function getFeatureWeightBudget(
+  profile: ForgeOutputProfile,
+  context: ForgeFeatureWeightContext | null | undefined,
+  debug: ForgeExpectationContextDebug,
+): ForgeExpectationValue {
   const level = normalizeLevel(profile.common.level);
-  const levelBump = Math.floor((level - 1) / 5) * 2;
   const rarity = String(profile.common.rarity ?? "").trim().toUpperCase();
-  if (rarity === "MYTHIC") return 40 + levelBump;
-  if (rarity === "LEGENDARY") return 30 + levelBump;
-  if (rarity === "RARE") return 22 + levelBump;
-  if (rarity === "UNCOMMON") return 14 + levelBump;
-  return 10 + levelBump;
+  const baseFallback =
+    rarity === "MYTHIC" ? 40 :
+    rarity === "LEGENDARY" ? 30 :
+    rarity === "RARE" ? 22 :
+    rarity === "UNCOMMON" ? 14 :
+    10;
+  const base = getExpectationValue(
+    context,
+    debug,
+    `features.budget.${rarity || "COMMON"}`,
+    baseFallback,
+    [{ category: "RARITY", selector1: "features.budget", selector2: rarity || "COMMON" }],
+  );
+  const perLevel = getExpectationValue(
+    context,
+    debug,
+    "features.levelScale.perLevel",
+    0,
+    [{ category: "RARITY", selector1: "features.levelScale", selector2: "perLevel" }],
+  );
+  const perFiveLevels = getExpectationValue(
+    context,
+    debug,
+    "features.levelScale.perFiveLevels",
+    2,
+    [{ category: "RARITY", selector1: "features.levelScale", selector2: "perFiveLevels" }],
+  );
+  const levelBump =
+    perLevel.source === "forge_expectation_config" && perLevel.value > 0
+      ? (level - 1) * perLevel.value
+      : Math.floor((level - 1) / 5) * perFiveLevels.value;
+
+  return {
+    value: Math.max(1, base.value + levelBump),
+    source:
+      base.source === "forge_expectation_config" ||
+      perLevel.source === "forge_expectation_config" ||
+      perFiveLevels.source === "forge_expectation_config"
+        ? "forge_expectation_config"
+        : "default",
+  };
 }
 
-function statusFromFeatureWeightRatio(ratio: number, overloaded: boolean): ForgeLaneStatus {
+function getFeatureStatusThresholds(
+  context: ForgeFeatureWeightContext | null | undefined,
+  debug: ForgeExpectationContextDebug,
+): ForgeFeatureStatusThresholds {
+  return {
+    moderate: getExpectationValue(
+      context,
+      debug,
+      "features.status.moderateRatio",
+      0.36,
+      [{ category: "RARITY", selector1: "features.status", selector2: "moderateRatio" }],
+    ),
+    broad: getExpectationValue(
+      context,
+      debug,
+      "features.status.broadRatio",
+      0.61,
+      [{ category: "RARITY", selector1: "features.status", selector2: "broadRatio" }],
+    ),
+    heavy: getExpectationValue(
+      context,
+      debug,
+      "features.status.heavyRatio",
+      0.8,
+      [{ category: "RARITY", selector1: "features.status", selector2: "heavyRatio" }],
+    ),
+  };
+}
+
+function statusFromFeatureWeightRatio(
+  ratio: number,
+  thresholds: ForgeFeatureStatusThresholds,
+  overloaded: boolean,
+): ForgeLaneStatus {
   if (overloaded) return "likely overloaded";
-  if (ratio >= 2) return "heavy";
-  if (ratio >= 1.5) return "broad";
-  if (ratio >= 1) return "moderate";
+  if (ratio >= thresholds.heavy.value) return "heavy";
+  if (ratio >= thresholds.broad.value) return "broad";
+  if (ratio >= thresholds.moderate.value) return "moderate";
   return "narrow";
 }
 
@@ -594,6 +808,29 @@ function isExtremeOrMore(classification: ForgeOutputBandClassification): boolean
 
 function isStandardOrMore(classification: ForgeOutputBandClassification): boolean {
   return CLASSIFICATION_RANK[classification] >= CLASSIFICATION_RANK.standard;
+}
+
+function getCorePressureCandidate(
+  label: string,
+  actual: number,
+  expected: number,
+  source: "forge_expectation_config" | "default",
+): CorePressureCandidate {
+  const safeExpected = expected > 0 ? expected : 1;
+  return {
+    label,
+    actual,
+    expected: safeExpected,
+    ratio: actual / safeExpected,
+    source,
+  };
+}
+
+function getHighestCorePressureCandidate(candidates: CorePressureCandidate[]): CorePressureCandidate {
+  return candidates.reduce<CorePressureCandidate>(
+    (highest, current) => (current.ratio > highest.ratio ? current : highest),
+    getCorePressureCandidate("no core output", 0, 1, "default"),
+  );
 }
 
 function createFeatureWeightState(context: ForgeFeatureWeightContext | null | undefined): FeatureWeightState {
@@ -904,6 +1141,7 @@ export function classifyForgeOutputLanes(
   profile: ForgeOutputProfile,
   bandComparison: ForgeOutputBandComparisonCore,
   featureWeightContext?: ForgeFeatureWeightContext | null,
+  expectationDebug: ForgeExpectationContextDebug = { fallbackUsed: false },
 ): ForgeOutputLaneComparison {
   const enabledWeaponProfiles = bandComparison.weaponProfiles.filter((entry) => entry.enabled);
   const primaryWeaponProfile = enabledWeaponProfiles.reduce<ForgeWeaponProfileBandComparison | null>(
@@ -920,9 +1158,11 @@ export function classifyForgeOutputLanes(
   const featureWarnings: string[] = [];
   const coreDrivers: string[] = [];
   const coreWarnings: string[] = [];
-  const featureWeightBudget = getFeatureWeightBudget(profile);
+  const featureWeightBudget = getFeatureWeightBudget(profile, featureWeightContext, expectationDebug);
+  const featureStatusThresholds = getFeatureStatusThresholds(featureWeightContext, expectationDebug);
   const featureWeightRatio =
-    featureWeightBudget > 0 ? featureWeightState.total / featureWeightBudget : 0;
+    featureWeightBudget.value > 0 ? featureWeightState.total / featureWeightBudget.value : 0;
+  const corePressureCandidates: CorePressureCandidate[] = [];
   let coreScore = 0;
   let coreStatusFloor: ForgeLaneStatus = "narrow";
 
@@ -936,6 +1176,16 @@ export function classifyForgeOutputLanes(
     if (primaryWeaponProfile.targetCount > 1) {
       coreDrivers.push(`${primaryWeaponProfile.totalPressure} total pressure across ${primaryWeaponProfile.targetCount} targets`);
     }
+    corePressureCandidates.push(
+      getCorePressureCandidate(
+        `${primaryWeaponProfile.profileKind} weapon throughput`,
+        primaryWeaponProfile.totalWoundsPerSuccess,
+        primaryWeaponProfile.thresholds.standardMax,
+        primaryWeaponProfile.debugNotes.some((entry) => entry.includes("expectation config"))
+          ? "forge_expectation_config"
+          : "default",
+      ),
+    );
     if (isExtremeOrMore(primaryWeaponProfile.classification)) {
       coreWarnings.push("weapon throughput is extreme-or-higher for item level");
     }
@@ -947,11 +1197,31 @@ export function classifyForgeOutputLanes(
     coreScore += Math.max(1, CLASSIFICATION_RANK[ppvClass]);
     coreStatusFloor = maxLaneStatus(coreStatusFloor, coreStatusFloorForBand(ppvClass));
     coreDrivers.push(`PPV ${profile.defensiveProfile.ppv} (${ppvClass})`);
+    corePressureCandidates.push(
+      getCorePressureCandidate(
+        "PPV defensive output",
+        profile.defensiveProfile.ppv,
+        bandComparison.defensive.ppv.thresholds.standardMax,
+        bandComparison.debug.notes.some((entry) => entry.includes("PPV core expectation multiplier"))
+          ? "forge_expectation_config"
+          : "default",
+      ),
+    );
   }
   if (profile.defensiveProfile.mpv > 0) {
     coreScore += Math.max(1, CLASSIFICATION_RANK[mpvClass]);
     coreStatusFloor = maxLaneStatus(coreStatusFloor, coreStatusFloorForBand(mpvClass));
     coreDrivers.push(`MPV ${profile.defensiveProfile.mpv} (${mpvClass})`);
+    corePressureCandidates.push(
+      getCorePressureCandidate(
+        "MPV defensive output",
+        profile.defensiveProfile.mpv,
+        bandComparison.defensive.mpv.thresholds.standardMax,
+        bandComparison.debug.notes.some((entry) => entry.includes("MPV core expectation multiplier"))
+          ? "forge_expectation_config"
+          : "default",
+      ),
+    );
   }
   if (profile.defensiveProfile.auraPhysical) {
     coreScore += 1;
@@ -976,7 +1246,7 @@ export function classifyForgeOutputLanes(
     "rarity is interpretive context only and does not increase raw damage allowance",
   ];
 
-  if (profile.common.rarity === "COMMON" && featureWeightRatio >= 1) {
+  if (profile.common.rarity === "COMMON" && featureWeightRatio >= featureStatusThresholds.moderate.value) {
     featureWarnings.push("Common item carries moderate-or-broader feature load");
     rarityNotes.push("Common should usually remain narrow unless deliberately flagged");
   }
@@ -995,6 +1265,13 @@ export function classifyForgeOutputLanes(
   if (enabledWeaponProfiles.some((entry) => entry.damageTypeCount > 1 && isStandardOrMore(entry.classification))) {
     featureWarnings.push("simultaneous damage type count is contributing to core pressure");
   }
+  const corePressure = getHighestCorePressureCandidate(corePressureCandidates);
+  if (corePressure.actual > 0) {
+    coreDrivers.push(`${corePressure.label} ${corePressure.actual}/${corePressure.expected} expected`);
+  }
+  featureDrivers.unshift(
+    `feature load ${featureWeightState.total}/${featureWeightBudget.value} expected`,
+  );
 
   const scoredCoreStatus = statusFromScore(
     coreScore,
@@ -1008,7 +1285,11 @@ export function classifyForgeOutputLanes(
       warnings: coreWarnings,
     },
     featuresVersatility: {
-      status: statusFromFeatureWeightRatio(featureWeightRatio, featureWarnings.length > 2),
+      status: statusFromFeatureWeightRatio(
+        featureWeightRatio,
+        featureStatusThresholds,
+        featureWarnings.length > 2,
+      ),
       mainDrivers: featureDrivers,
       warnings: featureWarnings,
     },
@@ -1019,14 +1300,20 @@ export function classifyForgeOutputLanes(
     debug: {
       source: "forge_output_lanes_v1",
       reportOnly: true,
+      coreActualValue: corePressure.actual,
+      coreExpectedValue: corePressure.expected,
+      corePressureRatio: corePressure.ratio,
+      coreExpectationSource: corePressure.source,
       featureWeightTotal: featureWeightState.total,
-      featureWeightBudget,
-      featureWeightRatio,
+      expectedFeatureBudget: featureWeightBudget.value,
+      featurePressureRatio: featureWeightRatio,
       featureStatusSource: "forge_values_weighted",
+      featureBudgetSource: featureWeightBudget.source,
       featureWeightDrivers: featureWeightState.drivers,
       missingFeatureWeightDrivers: featureWeightState.missing,
       costSource: featureWeightState.hasForgeValues ? "forge_values" : "fallback",
       fallbackUsed: featureWeightState.fallbackUsed,
+      expectationFallbackUsed: expectationDebug.fallbackUsed,
     },
   };
 }
@@ -1035,9 +1322,40 @@ export function compareForgeOutputToBands(
   profile: ForgeOutputProfile,
   featureWeightContext?: ForgeFeatureWeightContext | null,
 ): ForgeOutputBandComparison {
-  const weaponBand = getWeaponBand(profile.common.level, profile.common.normalizedSize);
-  const ppvThresholds = getBand("ppv", profile.common.level);
-  const mpvThresholds = getBand("mpv", profile.common.level);
+  const expectationDebug: ForgeExpectationContextDebug = { fallbackUsed: false };
+  const baseWeaponBand = getWeaponBand(profile.common.level, profile.common.normalizedSize);
+  const weaponSizeLabel = getSizeExpectationLabel(baseWeaponBand.bandSize);
+  const weaponMultiplier = getCoreMultiplier(
+    featureWeightContext,
+    expectationDebug,
+    `core.weapon.size.${weaponSizeLabel}.multiplier`,
+    1,
+    [{ category: "SIZE", selector1: "core.weapon.size", selector2: weaponSizeLabel }],
+  );
+  const weaponBand = {
+    ...baseWeaponBand,
+    thresholds: scaledBand(baseWeaponBand.thresholds, weaponMultiplier.value),
+    debugNotes:
+      weaponMultiplier.source === "forge_expectation_config"
+        ? [...baseWeaponBand.debugNotes, `weapon expectation config multiplier ${weaponMultiplier.value}`]
+        : baseWeaponBand.debugNotes,
+  };
+  const ppvMultiplier = getCoreMultiplier(
+    featureWeightContext,
+    expectationDebug,
+    "core.defence.ppv.multiplier",
+    1,
+    [{ category: "SIZE", selector1: "core.defence", selector2: "PPV" }],
+  );
+  const mpvMultiplier = getCoreMultiplier(
+    featureWeightContext,
+    expectationDebug,
+    "core.defence.mpv.multiplier",
+    1,
+    [{ category: "SIZE", selector1: "core.defence", selector2: "MPV" }],
+  );
+  const ppvThresholds = scaledBand(getBand("ppv", profile.common.level), ppvMultiplier.value);
+  const mpvThresholds = scaledBand(getBand("mpv", profile.common.level), mpvMultiplier.value);
   const weaponProfiles = profile.attackProfiles
     .filter((entry) => entry.enabled)
     .map((entry) => compareWeaponProfile(entry, weaponBand));
@@ -1071,12 +1389,21 @@ export function compareForgeOutputToBands(
         "weapon and shield attack wound bands are size-aware; missing size defaults to one-handed",
         "rarity does not increase raw damage bands in this comparator",
         "armour slot weighting is deferred",
+        weaponMultiplier.source === "forge_expectation_config"
+          ? `weapon core expectation multiplier ${weaponMultiplier.value}`
+          : "weapon core expectation default multiplier 1",
+        ppvMultiplier.source === "forge_expectation_config"
+          ? `PPV core expectation multiplier ${ppvMultiplier.value}`
+          : "PPV core expectation default multiplier 1",
+        mpvMultiplier.source === "forge_expectation_config"
+          ? `MPV core expectation multiplier ${mpvMultiplier.value}`
+          : "MPV core expectation default multiplier 1",
       ],
     },
   };
 
   return {
     ...comparisonCore,
-    lanes: classifyForgeOutputLanes(profile, comparisonCore, featureWeightContext),
+    lanes: classifyForgeOutputLanes(profile, comparisonCore, featureWeightContext, expectationDebug),
   };
 }

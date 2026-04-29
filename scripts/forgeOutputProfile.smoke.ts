@@ -5,7 +5,11 @@ import {
   type ForgeOutputProfile,
   type ForgeOutputProfileInput,
 } from "../lib/forge/outputProfile";
-import { buildForgeFeatureWeightContext, compareForgeOutputToBands } from "../lib/forge/outputBands";
+import {
+  buildForgeExpectationContext,
+  buildForgeFeatureWeightContext,
+  compareForgeOutputToBands,
+} from "../lib/forge/outputBands";
 
 function getProfile(profile: ForgeOutputProfile, kind: "melee" | "ranged" | "aoe") {
   const found = profile.attackProfiles.find((entry) => entry.profileKind === kind);
@@ -38,6 +42,20 @@ const FEATURE_WEIGHT_CONTEXT = buildForgeFeatureWeightContext([
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Returning", value: 12 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Expensive", value: 25 },
 ], 1);
+
+const RARE_LENIENT_EXPECTATION_CONTEXT = buildForgeExpectationContext([
+  ...FEATURE_WEIGHT_CONTEXT.costs,
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.budget.RARE", value: 40 },
+], undefined, 1);
+
+const COMMON_HIGH_BUDGET_CONTEXT = buildForgeExpectationContext([
+  ...FEATURE_WEIGHT_CONTEXT.costs,
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.budget.COMMON", value: 50 },
+], undefined, 1);
+
+const CORE_MULTIPLIER_CONTEXT = buildForgeExpectationContext([
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "core.weapon.size.SMALL.multiplier", value: 2 },
+], undefined, 1);
 
 function runCase(name: string, input: ForgeOutputProfileInput): ForgeOutputProfile {
   const profile = buildForgeOutputProfile(input);
@@ -93,6 +111,10 @@ assert.equal(weightedSimpleMeleeBands.lanes.coreFunctionality.status, simpleMele
 assert.equal(weightedSimpleMeleeBands.lanes.featuresVersatility.status, "narrow");
 assert.equal(weightedSimpleMeleeBands.lanes.debug.featureWeightTotal, 0);
 assert.equal(weightedSimpleMeleeBands.lanes.debug.featureStatusSource, "forge_values_weighted");
+assert.equal(weightedSimpleMeleeBands.lanes.debug.expectedFeatureBudget, 10);
+assert.equal(weightedSimpleMeleeBands.lanes.debug.featurePressureRatio, 0);
+assert.equal(weightedSimpleMeleeBands.lanes.debug.featureBudgetSource, "default");
+assert.equal(weightedSimpleMeleeBands.lanes.debug.expectationFallbackUsed, true);
 
 const cheapParryAttribute = runCase("cheap parry attribute", {
   level: 1,
@@ -127,6 +149,43 @@ assert.ok(
   "A single expensive attribute should move Features & Versatility by saved weight",
 );
 
+const expensiveRareAttribute = runCase("expensive rare attribute", {
+  level: 1,
+  rarity: "RARE",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Expensive"],
+});
+const expensiveRareBands = compareForgeOutputToBands(expensiveRareAttribute, RARE_LENIENT_EXPECTATION_CONTEXT);
+assert.equal(expensiveRareBands.lanes.debug.featureWeightTotal, 25);
+assert.equal(expensiveRareBands.lanes.debug.expectedFeatureBudget, 40);
+assert.ok(
+  expensiveSingleAttributeBands.lanes.debug.featurePressureRatio > expensiveRareBands.lanes.debug.featurePressureRatio,
+  "Same feature weight should read as higher pressure on Common than Rare",
+);
+assert.ok(
+  LANE_STATUS_PERCENT[expensiveSingleAttributeBands.lanes.featuresVersatility.status] >
+    LANE_STATUS_PERCENT[expensiveRareBands.lanes.featuresVersatility.status],
+  "Common feature pressure should classify higher than Rare for the same weight",
+);
+
+const expensiveHighBudgetCommonBands = compareForgeOutputToBands(expensiveSingleAttribute, COMMON_HIGH_BUDGET_CONTEXT);
+assert.equal(expensiveHighBudgetCommonBands.lanes.debug.expectedFeatureBudget, 50);
+assert.ok(
+  expensiveHighBudgetCommonBands.lanes.debug.featurePressureRatio <
+    expensiveSingleAttributeBands.lanes.debug.featurePressureRatio,
+  "Raising expectedFeatureBudget should lower featurePressureRatio",
+);
+assert.ok(
+  LANE_STATUS_PERCENT[expensiveHighBudgetCommonBands.lanes.featuresVersatility.status] <
+    LANE_STATUS_PERCENT[expensiveSingleAttributeBands.lanes.featuresVersatility.status],
+  "Feature status should respond when fake Forge-Values budget changes",
+);
+
 const twoCheapAttributes = runCase("two cheap attributes", {
   level: 1,
   rarity: "COMMON",
@@ -156,6 +215,11 @@ assert.ok(
     entry.label.includes("Quick") && entry.weight === 2,
   ),
   "Quick should expose its saved Forge-Values weight",
+);
+assert.ok(
+  LANE_STATUS_PERCENT[expensiveSingleAttributeBands.lanes.featuresVersatility.status] >
+    LANE_STATUS_PERCENT[twoCheapAttributeBands.lanes.featuresVersatility.status],
+  "One expensive attribute should push Features higher than two cheap attributes",
 );
 
 const greaterSuccessFeature = runCase("weighted greater success", {
@@ -307,6 +371,33 @@ assert.equal(
   smallLevelOneMeleeBand?.classification,
   "standard",
   "Level 1 Small Strength 1 should classify 2 wounds as standard",
+);
+const smallLevelOneRareBand = compareForgeOutputToBands({
+  ...smallLevelOneMelee,
+  common: {
+    ...smallLevelOneMelee.common,
+    rarity: "RARE",
+  },
+}).weaponProfiles.find((entry) => entry.profileKind === "melee");
+assert.equal(
+  smallLevelOneRareBand?.classification,
+  smallLevelOneMeleeBand?.classification,
+  "Core Functionality damage band should not increase by rarity alone",
+);
+const smallLevelOneConfiguredBand = compareForgeOutputToBands(
+  smallLevelOneMelee,
+  CORE_MULTIPLIER_CONTEXT,
+).weaponProfiles.find((entry) => entry.profileKind === "melee");
+assert.ok(
+  smallLevelOneConfiguredBand?.debugNotes.some((entry) => entry.includes("expectation config multiplier")),
+  "Core Functionality damage band should expose tunable size expectation multiplier",
+);
+const smallLevelOneConfiguredBands = compareForgeOutputToBands(smallLevelOneMelee, CORE_MULTIPLIER_CONTEXT);
+assert.equal(smallLevelOneConfiguredBands.lanes.debug.coreExpectationSource, "forge_expectation_config");
+assert.ok(
+  smallLevelOneConfiguredBands.lanes.debug.corePressureRatio <
+    compareForgeOutputToBands(smallLevelOneMelee).lanes.debug.corePressureRatio,
+  "Core pressure ratio should fall when expected core output is raised",
 );
 
 const smallLevelOneMultiTargetMelee = runCase("small level 1 multi-target melee", {

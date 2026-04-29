@@ -82,10 +82,12 @@ export type SanctifiedOption = {
 };
 
 export type ForgeConfigEntry = {
-  id: number;
-  selector1: string;
+  id?: number;
+  category?: string | null;
+  selector1?: string | null;
   selector2?: string | null;
-  multiplier: number;
+  value?: number | null;
+  multiplier?: number | null;
 };
 
 export type ForgeCostEntry = {

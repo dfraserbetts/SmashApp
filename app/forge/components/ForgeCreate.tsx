@@ -32,10 +32,12 @@ import { buildDescriptorResult } from '@/lib/descriptors/descriptorEngine';
 import { renderForgeResult } from '@/lib/descriptors/renderers/forgeRenderer';
 import { getForgeRarityPalette } from '@/lib/forge/itemRarityPalette';
 import { buildForgeOutputProfile } from '@/lib/forge/outputProfile';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
-  buildForgeFeatureWeightContext,
+  buildForgeExpectationContext,
   compareForgeOutputToBands,
   type ForgeOutputBandComparison,
+  type ForgeExpectationConfigRow,
   type ForgeFeatureWeightCostRow,
 } from '@/lib/forge/outputBands';
 import { interpolateText, safeParseJson } from '@/lib/textInterpolation';
@@ -1749,6 +1751,7 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   const [recentForgeItemIds, setRecentForgeItemIds] = useState<string[]>([]);
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const pickerFiltersRef = useRef<HTMLDivElement | null>(null);
+  const [itemDetailsExpanded, setItemDetailsExpanded] = useState(true);
 
   // Used by preview + "last forged" banner
   const [, setCreatedItem] = useState<LoadedItem | null>(null);
@@ -1955,14 +1958,6 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     return map;
   }, [forgeItems]);
   const hasPickerQuery = pickerQuery.trim().length > 0;
-  const hasPickerFilters =
-    (forgePickerSupportsLevel && pickerLevelSelected.length > 0) ||
-    pickerItemTypesSelected.length > 0 ||
-    pickerRaritiesSelected.length > 0 ||
-    pickerExcludeLegendary ||
-    pickerExcludeMythic;
-  const pickerTotalCount = (forgeItems ?? []).length;
-  const pickerFilteredCount = filteredForgeItems.length;
   const activePickerFilterPills = useMemo(() => {
     const pills: Array<{ id: 'level' | 'itemType' | 'rarity' | 'noLegendary' | 'noMythic'; label: string }> = [];
     if (forgePickerSupportsLevel && pickerLevelSelected.length > 0) {
@@ -2022,7 +2017,6 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     () => filteredForgeItems.filter((row) => !recentForgeIdSet.has(row.id)),
     [filteredForgeItems, recentForgeIdSet],
   );
-  const selectedItemSummary = (forgeItems ?? []).find((row) => row.id === selectedItemId) ?? null;
   const togglePickerLevel = (level: number) => {
     setPickerLevelSelected((prev) =>
       prev.includes(level)
@@ -2759,9 +2753,12 @@ function handleResetForge() {
     () =>
       compareForgeOutputToBands(
         forgeOutputProfile,
-        buildForgeFeatureWeightContext((data?.costs ?? []) as ForgeFeatureWeightCostRow[]),
+        buildForgeExpectationContext(
+          (data?.costs ?? []) as ForgeFeatureWeightCostRow[],
+          (data?.config ?? []) as ForgeExpectationConfigRow[],
+        ),
       ),
-    [data?.costs, forgeOutputProfile],
+    [data?.config, data?.costs, forgeOutputProfile],
   );
   const itemRarityPalette = getForgeRarityPalette(watchedValues.rarity);
 
@@ -5727,10 +5724,6 @@ useEffect(() => {
         <h1 className={`mb-4 text-2xl font-bold ${itemRarityPalette.nameTextClass}`}>Forge Item Creator</h1>
 
         <div className="mb-6 space-y-2">
-          <label className="block text-sm font-medium">
-            Edit existing item (optional)
-          </label>
-
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <div ref={pickerRef} className="relative min-w-0 flex-1">
@@ -5753,7 +5746,7 @@ useEffect(() => {
                       setPickerQuery(e.target.value);
                       setPickerOpen(true);
                     }}
-                    placeholder="Click to search campaign items"
+                    placeholder="Click to search campaign items for editing"
                     className="h-10 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 pl-9 text-sm leading-tight focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
@@ -6064,19 +6057,8 @@ useEffect(() => {
                   </button>
                 ))}
               </div>
-              <p className="pt-1 text-right text-[11px] text-zinc-500">
-                {hasPickerQuery || hasPickerFilters
-                  ? `Showing ${pickerFilteredCount} of ${pickerTotalCount}`
-                  : `Showing ${pickerTotalCount}`}
-              </p>
             </div>
           </div>
-
-          {selectedItemSummary && (
-            <p className="text-xs text-zinc-500">
-              Editing: {selectedItemSummary.name ?? '(Unnamed)'} ({selectedItemSummary.id})
-            </p>
-          )}
 
           {itemsLoading && (
             <p className="text-xs text-zinc-500">Loading campaign items...</p>
@@ -6142,254 +6124,271 @@ useEffect(() => {
         >
                     {/* BASIC SECTION */}
           <div className="space-y-4">
-            {/* Name */}
-            <div className="space-y-1">
-              <label className="block text-sm font-medium">Item Name</label>
-              <input
-                className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                placeholder="e.g. Holy Avenger"
-                {...register('name', { required: 'Name is required' })}
-              />
-              {errors.name && (
-                <p className="text-xs text-red-400">{errors.name.message}</p>
+            <button
+              type="button"
+              aria-expanded={itemDetailsExpanded}
+              aria-controls="forge-item-details"
+              onClick={() => setItemDetailsExpanded((prev) => !prev)}
+              className="flex w-full items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-left text-sm font-semibold text-zinc-100 hover:border-zinc-700 hover:bg-zinc-900"
+            >
+              {itemDetailsExpanded ? (
+                <ChevronDown className="h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
+              ) : (
+                <ChevronRight className="h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
               )}
-            </div>
+              <span>Item Details</span>
+            </button>
 
-            <div className="space-y-2">
-              <label className="block text-sm font-medium">Tags</label>
-              <div className="flex flex-wrap items-center gap-2">
-                {currentTags.map((tag, index) => (
-                  <span
-                    key={`${tag}-${index}`}
-                    className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setValue(
-                          'tags',
-                          currentTags.filter((_tag, idx) => idx !== index),
-                          { shouldDirty: true, shouldValidate: false },
-                        )
-                      }
-                      className="text-zinc-400 hover:text-zinc-200"
-                      aria-label={`Remove tag ${tag}`}
-                    >
-                      x
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="relative">
+            <div id="forge-item-details" hidden={!itemDetailsExpanded} className="space-y-4">
+              {/* Name */}
+              <div className="space-y-1">
+                <label className="block text-sm font-medium">Item Name</label>
                 <input
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onFocus={() => setTagsFocused(true)}
-                  onBlur={() => {
-                    setTagsFocused(false);
-                    commitTagInput();
-                  }}
-                  onKeyDown={(e) => {
-                    if (isTagDropdownOpen && filteredTagSuggestions.length > 0) {
-                      if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        setActiveTagIndex((prev) =>
-                          Math.min(
-                            filteredTagSuggestions.length - 1,
-                            prev < 0 ? 0 : prev + 1,
-                          ),
-                        );
-                        return;
-                      }
-                      if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        setActiveTagIndex((prev) => Math.max(0, prev <= 0 ? 0 : prev - 1));
-                        return;
-                      }
-                      if (e.key === 'Enter') {
-                        if (activeTagIndex >= 0) {
+                  className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="e.g. Holy Avenger"
+                  {...register('name', { required: 'Name is required' })}
+                />
+                {errors.name && (
+                  <p className="text-xs text-red-400">{errors.name.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">Tags</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {currentTags.map((tag, index) => (
+                    <span
+                      key={`${tag}-${index}`}
+                      className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setValue(
+                            'tags',
+                            currentTags.filter((_tag, idx) => idx !== index),
+                            { shouldDirty: true, shouldValidate: false },
+                          )
+                        }
+                        className="text-zinc-400 hover:text-zinc-200"
+                        aria-label={`Remove tag ${tag}`}
+                      >
+                        x
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="relative">
+                  <input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onFocus={() => setTagsFocused(true)}
+                    onBlur={() => {
+                      setTagsFocused(false);
+                      commitTagInput();
+                    }}
+                    onKeyDown={(e) => {
+                      if (isTagDropdownOpen && filteredTagSuggestions.length > 0) {
+                        if (e.key === 'ArrowDown') {
                           e.preventDefault();
-                          const pick = filteredTagSuggestions[activeTagIndex];
+                          setActiveTagIndex((prev) =>
+                            Math.min(
+                              filteredTagSuggestions.length - 1,
+                              prev < 0 ? 0 : prev + 1,
+                            ),
+                          );
+                          return;
+                        }
+                        if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setActiveTagIndex((prev) => Math.max(0, prev <= 0 ? 0 : prev - 1));
+                          return;
+                        }
+                        if (e.key === 'Enter') {
+                          if (activeTagIndex >= 0) {
+                            e.preventDefault();
+                            const pick = filteredTagSuggestions[activeTagIndex];
+                            if (pick) {
+                              commitTagInput(pick.value);
+                            }
+                            return;
+                          }
+                          e.preventDefault();
+                          commitTagInput();
+                          return;
+                        }
+                        if (e.key === 'Tab') {
+                          const pickIndex = activeTagIndex >= 0 ? activeTagIndex : 0;
+                          const pick = filteredTagSuggestions[pickIndex];
                           if (pick) {
+                            e.preventDefault();
                             commitTagInput(pick.value);
                           }
                           return;
                         }
+                        if (e.key === 'Escape') {
+                          e.preventDefault();
+                          setTagSuggestions([]);
+                          setActiveTagIndex(-1);
+                          return;
+                        }
+                      }
+
+                      if (e.key === 'Enter' || e.key === ',') {
                         e.preventDefault();
                         commitTagInput();
                         return;
                       }
-                      if (e.key === 'Tab') {
-                        const pickIndex = activeTagIndex >= 0 ? activeTagIndex : 0;
-                        const pick = filteredTagSuggestions[pickIndex];
-                        if (pick) {
-                          e.preventDefault();
-                          commitTagInput(pick.value);
-                        }
-                        return;
+                      if (e.key === 'Backspace' && tagInput.trim().length === 0) {
+                        setValue('tags', currentTags.slice(0, -1), {
+                          shouldDirty: true,
+                          shouldValidate: false,
+                        });
                       }
-                      if (e.key === 'Escape') {
-                        e.preventDefault();
-                        setTagSuggestions([]);
-                        setActiveTagIndex(-1);
-                        return;
-                      }
-                    }
-
-                    if (e.key === 'Enter' || e.key === ',') {
-                      e.preventDefault();
-                      commitTagInput();
-                      return;
-                    }
-                    if (e.key === 'Backspace' && tagInput.trim().length === 0) {
-                      setValue('tags', currentTags.slice(0, -1), {
-                        shouldDirty: true,
-                        shouldValidate: false,
-                      });
-                    }
-                  }}
-                  placeholder="Add tag (Enter or comma)"
-                  className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                {isTagDropdownOpen && (
-                  <div className="absolute z-20 mt-1 w-full rounded border border-zinc-700 bg-zinc-950 shadow-lg">
-                    {tagsLoading ? (
-                      <p className="px-2 py-1 text-xs text-zinc-400">Loading...</p>
-                    ) : filteredTagSuggestions.length === 0 ? (
-                      <p className="px-2 py-1 text-xs text-zinc-500">No suggestions</p>
-                    ) : (
-                      <ul className="max-h-56 overflow-auto py-1">
-                        {filteredTagSuggestions.map((suggestion, idx) => (
-                          <li key={`${suggestion.source}-${suggestion.value}`}>
-                            <button
-                              type="button"
-                              onMouseEnter={() => setActiveTagIndex(idx)}
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                commitTagInput(suggestion.value);
-                              }}
-                              className={`flex w-full items-center justify-between px-2 py-1 text-left text-sm hover:bg-zinc-800 ${
-                                idx === activeTagIndex ? 'bg-zinc-800' : ''
-                              }`}
-                            >
-                              <span>{suggestion.value}</span>
-                              <span className="text-[11px] uppercase tracking-wide text-zinc-500">
-                                {suggestion.source}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-                        {/* Item Image URL */}
-            <div className="space-y-1">
-              <label className="block text-sm font-medium">Item Image URL</label>
-              <input
-                className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                placeholder="https://example.com/image.png"
-                {...register('itemUrl', {
-                  validate: (v) => {
-                    const value = (v ?? '').toString().trim();
-                    if (!value) return true; // optional
-                    try {
-                      const u = new URL(value);
-                      if (u.protocol !== 'http:' && u.protocol !== 'https:') {
-                        return 'URL must start with http:// or https://';
-                      }
-                      return true;
-                    } catch {
-                      return 'Please enter a valid URL';
-                    }
-                  },
-                })}
-              />
-              {errors.itemUrl && (
-                <p className="text-xs text-red-400">
-                  {errors.itemUrl.message as string}
-                </p>
-              )}
-              <p className="text-[11px] text-zinc-500">
-                Must be a direct URL. Hotlinks can break if the host blocks them.
-              </p>
-            </div>
-
-            {/* Rarity + Level */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Rarity */}
-              <div className="space-y-1">
-                <TooltipLabel
-                  label="Rarity"
-                  tooltip={FORGE_LABEL_TOOLTIPS.itemRarity}
-                  className="block"
-                  textClassName="text-sm font-medium"
-                />
-                <select
-                  className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  {...register('rarity', {
-                    required: 'Rarity is required',
-                  })}
-                >
-                  {ITEM_RARITIES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-                {errors.rarity && (
-                  <p className="text-xs text-red-400">
-                    {errors.rarity.message as string}
-                  </p>
-                )}
+                    }}
+                    placeholder="Add tag (Enter or comma)"
+                    className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  {isTagDropdownOpen && (
+                    <div className="absolute z-20 mt-1 w-full rounded border border-zinc-700 bg-zinc-950 shadow-lg">
+                      {tagsLoading ? (
+                        <p className="px-2 py-1 text-xs text-zinc-400">Loading...</p>
+                      ) : filteredTagSuggestions.length === 0 ? (
+                        <p className="px-2 py-1 text-xs text-zinc-500">No suggestions</p>
+                      ) : (
+                        <ul className="max-h-56 overflow-auto py-1">
+                          {filteredTagSuggestions.map((suggestion, idx) => (
+                            <li key={`${suggestion.source}-${suggestion.value}`}>
+                              <button
+                                type="button"
+                                onMouseEnter={() => setActiveTagIndex(idx)}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  commitTagInput(suggestion.value);
+                                }}
+                                className={`flex w-full items-center justify-between px-2 py-1 text-left text-sm hover:bg-zinc-800 ${
+                                  idx === activeTagIndex ? 'bg-zinc-800' : ''
+                                }`}
+                              >
+                                <span>{suggestion.value}</span>
+                                <span className="text-[11px] uppercase tracking-wide text-zinc-500">
+                                  {suggestion.source}
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Item Level */}
+                          {/* Item Image URL */}
               <div className="space-y-1">
-                <label className="block text-sm font-medium">Item Level</label>
+                <label className="block text-sm font-medium">Item Image URL</label>
                 <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  step={1}
                   className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  {...register('level', {
-                    required: 'Level is required',
-                    valueAsNumber: true,
-                    min: { value: 1, message: 'Minimum level is 1' },
-                    max: { value: 20, message: 'Maximum level is 20' },
+                  placeholder="https://example.com/image.png"
+                  {...register('itemUrl', {
+                    validate: (v) => {
+                      const value = (v ?? '').toString().trim();
+                      if (!value) return true; // optional
+                      try {
+                        const u = new URL(value);
+                        if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+                          return 'URL must start with http:// or https://';
+                        }
+                        return true;
+                      } catch {
+                        return 'Please enter a valid URL';
+                      }
+                    },
                   })}
                 />
-                {errors.level && (
+                {errors.itemUrl && (
                   <p className="text-xs text-red-400">
-                    {errors.level.message}
+                    {errors.itemUrl.message as string}
+                  </p>
+                )}
+                <p className="text-[11px] text-zinc-500">
+                  Must be a direct URL. Hotlinks can break if the host blocks them.
+                </p>
+              </div>
+
+              {/* Rarity + Level */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Rarity */}
+                <div className="space-y-1">
+                  <TooltipLabel
+                    label="Rarity"
+                    tooltip={FORGE_LABEL_TOOLTIPS.itemRarity}
+                    className="block"
+                    textClassName="text-sm font-medium"
+                  />
+                  <select
+                    className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    {...register('rarity', {
+                      required: 'Rarity is required',
+                    })}
+                  >
+                    {ITEM_RARITIES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.rarity && (
+                    <p className="text-xs text-red-400">
+                      {errors.rarity.message as string}
+                    </p>
+                  )}
+                </div>
+
+                {/* Item Level */}
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium">Item Level</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    step={1}
+                    className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    {...register('level', {
+                      required: 'Level is required',
+                      valueAsNumber: true,
+                      min: { value: 1, message: 'Minimum level is 1' },
+                      max: { value: 20, message: 'Maximum level is 20' },
+                    })}
+                  />
+                  {errors.level && (
+                    <p className="text-xs text-red-400">
+                      {errors.level.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1">
+                <label className="block text-sm font-medium">
+                  General Description
+                </label>
+                <textarea
+                  rows={4}
+                  className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Short flavour and function description."
+                  {...register('generalDescription', {
+                    required: 'Description is required',
+                  })}
+                />
+                {errors.generalDescription && (
+                  <p className="text-xs text-red-400">
+                    {errors.generalDescription.message}
                   </p>
                 )}
               </div>
-            </div>
-
-            {/* Description */}
-            <div className="space-y-1">
-              <label className="block text-sm font-medium">
-                General Description
-              </label>
-              <textarea
-                rows={4}
-                className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                placeholder="Short flavour and function description."
-                {...register('generalDescription', {
-                  required: 'Description is required',
-                })}
-              />
-              {errors.generalDescription && (
-                <p className="text-xs text-red-400">
-                  {errors.generalDescription.message}
-                </p>
-              )}
             </div>
 
             {hasSelectedRarity && (
@@ -7037,7 +7036,7 @@ useEffect(() => {
                 {itemLocationOptions.map((entry) => (
                   <option
                     key={entry.id}
-                    value={entry.selector1.toUpperCase() as ItemLocation}
+                    value={String(entry.selector1 ?? '').toUpperCase() as ItemLocation}
                   >
                     {entry.selector1}
                   </option>
@@ -8266,6 +8265,9 @@ function ForgeCalculatorPanel({
           </p>
           <p className="mt-1 text-[11px] text-zinc-500">
             Bars show output pressure, not completion; standard/healthy is the usual target. Forge Points are legacy/admin diagnostics.
+          </p>
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Core compares output against level/size expectations; Features compares Forge-Values weight against rarity/level budget.
           </p>
         </div>
       </div>
