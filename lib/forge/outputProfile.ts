@@ -358,7 +358,7 @@ function extractAttributePricing(input: ForgeNamedInput): ForgeAttributePricingO
   const pricingMagnitude = toNullableNumber(source.pricingMagnitude);
   const pricingWeight =
     pricingScalar !== null && pricingMagnitude !== null
-      ? Math.max(0, pricingScalar * pricingMagnitude)
+      ? pricingScalar * pricingMagnitude
       : null;
 
   return {

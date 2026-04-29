@@ -111,6 +111,8 @@ export type ForgeOutputLaneComparison = {
     corePressureRatio: number;
     coreExpectationSource: "forge_expectation_config" | "default";
     featureWeightTotal: number;
+    featureWeightTotalRaw: number;
+    featureWeightTotalClamped: number;
     expectedFeatureBudget: number;
     featurePressureRatio: number;
     featureStatusSource: "forge_values_weighted";
@@ -195,8 +197,7 @@ type CorePressureCandidate = {
 };
 
 type FeatureWeightState = {
-  total: number;
-  score: number;
+  totalRaw: number;
   drivers: ForgeFeatureWeightDriver[];
   missing: ForgeMissingFeatureWeightDriver[];
   fallbackUsed: boolean;
@@ -835,8 +836,7 @@ function getHighestCorePressureCandidate(candidates: CorePressureCandidate[]): C
 
 function createFeatureWeightState(context: ForgeFeatureWeightContext | null | undefined): FeatureWeightState {
   return {
-    total: 0,
-    score: 0,
+    totalRaw: 0,
     drivers: [],
     missing: [],
     fallbackUsed: false,
@@ -865,9 +865,8 @@ function addFeatureWeight(
       lookup.selector2,
       lookup.selector3,
     );
-    if (weight !== null && weight > 0) {
-      state.total += weight;
-      state.score += weight;
+    if (weight !== null) {
+      state.totalRaw += weight;
       state.drivers.push({
         label,
         source: `${lookup.category}/${[lookup.selector1, lookup.selector2, lookup.selector3]
@@ -875,14 +874,14 @@ function addFeatureWeight(
           .join("/")}`,
         weight,
         fallbackUsed: false,
+        note: weight < 0 ? "Negative Forge-Values contribution reduces feature pressure" : undefined,
       });
       return;
     }
   }
 
   const fallbackWeight = context?.fallbackWeight ?? DEFAULT_FEATURE_FALLBACK_WEIGHT;
-  state.total += fallbackWeight;
-  state.score += fallbackWeight;
+  state.totalRaw += fallbackWeight;
   state.fallbackUsed = true;
   state.drivers.push({
     label,
@@ -912,9 +911,8 @@ function addAttributeFeatureWeight(
   }>,
   fallbackNote: string,
 ): void {
-  if (detail.pricingWeight !== null && detail.pricingWeight > 0) {
-    state.total += detail.pricingWeight;
-    state.score += detail.pricingWeight;
+  if (detail.pricingWeight !== null) {
+    state.totalRaw += detail.pricingWeight;
     state.drivers.push({
       label: `${labelPrefix}: ${detail.name}`,
       source: `attribute_scalar/${detail.pricingMode ?? "UNKNOWN"}`,
@@ -922,7 +920,9 @@ function addAttributeFeatureWeight(
       fallbackUsed: false,
       note:
         detail.pricingScalar !== null && detail.pricingMagnitude !== null
-          ? `${detail.pricingScalar} x ${detail.pricingMagnitude}`
+          ? `${detail.pricingScalar} x ${detail.pricingMagnitude}${
+              detail.pricingWeight < 0 ? "; negative contribution reduces feature pressure" : ""
+            }`
           : undefined,
     });
     return;
@@ -1160,8 +1160,10 @@ export function classifyForgeOutputLanes(
   const coreWarnings: string[] = [];
   const featureWeightBudget = getFeatureWeightBudget(profile, featureWeightContext, expectationDebug);
   const featureStatusThresholds = getFeatureStatusThresholds(featureWeightContext, expectationDebug);
+  const featureWeightTotalRaw = featureWeightState.totalRaw;
+  const featureWeightTotalClamped = Math.max(0, featureWeightTotalRaw);
   const featureWeightRatio =
-    featureWeightBudget.value > 0 ? featureWeightState.total / featureWeightBudget.value : 0;
+    featureWeightBudget.value > 0 ? featureWeightTotalClamped / featureWeightBudget.value : 0;
   const corePressureCandidates: CorePressureCandidate[] = [];
   let coreScore = 0;
   let coreStatusFloor: ForgeLaneStatus = "narrow";
@@ -1253,6 +1255,9 @@ export function classifyForgeOutputLanes(
   if (featureWeightState.fallbackUsed) {
     featureWarnings.push("Some feature weights are using fallback diagnostic values");
   }
+  if (featureWeightState.drivers.some((entry) => entry.weight < 0)) {
+    featureWarnings.push("Negative Forge-Values reduce feature pressure");
+  }
   if ((profile.common.rarity === "COMMON" || profile.common.rarity === "UNCOMMON") && coreScore >= 6) {
     coreWarnings.push("core output is heavy for a low-rarity item; rarity does not excuse raw throughput");
   }
@@ -1270,8 +1275,11 @@ export function classifyForgeOutputLanes(
     coreDrivers.push(`${corePressure.label} ${corePressure.actual}/${corePressure.expected} expected`);
   }
   featureDrivers.unshift(
-    `feature load ${featureWeightState.total}/${featureWeightBudget.value} expected`,
+    `feature load ${featureWeightTotalClamped}/${featureWeightBudget.value} expected`,
   );
+  if (featureWeightTotalRaw < featureWeightTotalClamped) {
+    featureDrivers.push(`signed feature load ${featureWeightTotalRaw} before display clamp`);
+  }
 
   const scoredCoreStatus = statusFromScore(
     coreScore,
@@ -1304,7 +1312,9 @@ export function classifyForgeOutputLanes(
       coreExpectedValue: corePressure.expected,
       corePressureRatio: corePressure.ratio,
       coreExpectationSource: corePressure.source,
-      featureWeightTotal: featureWeightState.total,
+      featureWeightTotal: featureWeightTotalClamped,
+      featureWeightTotalRaw,
+      featureWeightTotalClamped,
       expectedFeatureBudget: featureWeightBudget.value,
       featurePressureRatio: featureWeightRatio,
       featureStatusSource: "forge_values_weighted",

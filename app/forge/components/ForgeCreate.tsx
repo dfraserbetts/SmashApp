@@ -8010,13 +8010,18 @@ function ForgeOutputLaneBlock({
   status,
   drivers,
   warnings,
+  percentOverride,
 }: {
   title: string;
   status: string;
   drivers: string[];
   warnings: string[];
+  percentOverride?: number;
 }) {
-  const percent = getLaneStatusPercent(status);
+  const percent =
+    typeof percentOverride === 'number' && Number.isFinite(percentOverride)
+      ? Math.max(0, Math.min(100, percentOverride))
+      : getLaneStatusPercent(status);
   const tone = getClassificationTone(status);
   const pressureState = getLanePressureState(percent);
   const fillClass = getLanePressureFillClass(pressureState);
@@ -8072,7 +8077,6 @@ function ForgeOutputProfilePanel({
 
   return (
     <details
-      open
       className="mb-4 rounded-lg border border-zinc-700 bg-zinc-950/80 p-3 shadow"
     >
       <summary className="cursor-pointer text-sm font-semibold text-zinc-100">
@@ -8219,6 +8223,7 @@ function ForgeOutputProfilePanel({
               status={comparison.lanes.featuresVersatility.status}
               drivers={comparison.lanes.featuresVersatility.mainDrivers}
               warnings={comparison.lanes.featuresVersatility.warnings}
+              percentOverride={comparison.lanes.debug.featurePressureRatio * 100}
             />
           </div>
 
@@ -8284,6 +8289,7 @@ function ForgeCalculatorPanel({
           status={comparison.lanes.featuresVersatility.status}
           drivers={comparison.lanes.featuresVersatility.mainDrivers}
           warnings={comparison.lanes.featuresVersatility.warnings}
+          percentOverride={comparison.lanes.debug.featurePressureRatio * 100}
         />
       </div>
 

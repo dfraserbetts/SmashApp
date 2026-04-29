@@ -41,6 +41,7 @@ const FEATURE_WEIGHT_CONTEXT = buildForgeFeatureWeightContext([
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Quick", value: 2 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Returning", value: 12 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Expensive", value: 25 },
+  { category: "WeaponAttributes", selector1: "Weapon", selector2: "Thrown", value: -10 },
 ], 1);
 
 const RARE_LENIENT_EXPECTATION_CONTEXT = buildForgeExpectationContext([
@@ -199,6 +200,7 @@ const twoCheapAttributes = runCase("two cheap attributes", {
 });
 const twoCheapAttributeBands = compareForgeOutputToBands(twoCheapAttributes, FEATURE_WEIGHT_CONTEXT);
 assert.equal(twoCheapAttributeBands.lanes.debug.featureWeightTotal, 3);
+assert.equal(twoCheapAttributeBands.lanes.debug.featureWeightTotalRaw, 3);
 assert.equal(
   twoCheapAttributeBands.lanes.featuresVersatility.status,
   "narrow",
@@ -220,6 +222,67 @@ assert.ok(
   LANE_STATUS_PERCENT[expensiveSingleAttributeBands.lanes.featuresVersatility.status] >
     LANE_STATUS_PERCENT[twoCheapAttributeBands.lanes.featuresVersatility.status],
   "One expensive attribute should push Features higher than two cheap attributes",
+);
+const positiveAndNegativeAttributes = runCase("positive and negative attributes", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Parry", "Quick", "Thrown"],
+});
+const positiveAndNegativeAttributeBands = compareForgeOutputToBands(
+  positiveAndNegativeAttributes,
+  FEATURE_WEIGHT_CONTEXT,
+);
+assert.equal(
+  positiveAndNegativeAttributeBands.lanes.debug.featureWeightTotalRaw,
+  -7,
+  "A mapped negative feature should reduce signed featureWeightTotalRaw",
+);
+assert.equal(
+  positiveAndNegativeAttributeBands.lanes.debug.featureWeightTotal,
+  0,
+  "A negative signed total should clamp the display featureWeightTotal to zero",
+);
+assert.equal(positiveAndNegativeAttributeBands.lanes.debug.featureWeightTotalClamped, 0);
+assert.equal(
+  positiveAndNegativeAttributeBands.lanes.debug.featurePressureRatio,
+  0,
+  "Feature pressure ratio should use the clamped total, not abs(raw)",
+);
+assert.equal(
+  positiveAndNegativeAttributeBands.lanes.featuresVersatility.status,
+  "narrow",
+  "A clamped zero feature total should stay low/narrow",
+);
+assert.ok(
+  positiveAndNegativeAttributeBands.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Thrown") &&
+    entry.weight === -10 &&
+    !entry.fallbackUsed &&
+    entry.note?.includes("Negative Forge-Values"),
+  ),
+  "Mapped -10 feature should remain signed and should not become +10 or fallback +1",
+);
+assert.ok(
+  !positiveAndNegativeAttributeBands.lanes.debug.missingFeatureWeightDrivers.some((entry) =>
+    entry.label.includes("Thrown"),
+  ),
+  "Mapped negative feature should not be reported as missing",
+);
+assert.ok(
+  positiveAndNegativeAttributeBands.lanes.debug.featureWeightTotalRaw <
+    twoCheapAttributeBands.lanes.debug.featureWeightTotalRaw,
+  "Negative feature should decrease raw feature weight below positive-only features",
+);
+assert.equal(
+  positiveAndNegativeAttributeBands.lanes.coreFunctionality.status,
+  twoCheapAttributeBands.lanes.coreFunctionality.status,
+  "Negative feature weights must not reduce Core Functionality",
 );
 
 const greaterSuccessFeature = runCase("weighted greater success", {
@@ -310,6 +373,39 @@ assert.ok(
   "Scalar-priced weapon attribute should use pricingScalar x resolved magnitude",
 );
 assert.equal(scalarWeaponAttributeBands.lanes.debug.featureWeightTotal, 9);
+
+const scalarNegativeWeaponAttribute = runCase("negative scalar weapon attribute", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributes: [{
+    name: "Restrictive Grip",
+    pricingMode: "MELEE_PHYSICAL_STRENGTH",
+    pricingScalar: -3,
+    pricingMagnitude: 3,
+  }],
+});
+const scalarNegativeWeaponAttributeBands = compareForgeOutputToBands(
+  scalarNegativeWeaponAttribute,
+  FEATURE_WEIGHT_CONTEXT,
+);
+assert.ok(
+  scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Restrictive Grip") &&
+    entry.source === "attribute_scalar/MELEE_PHYSICAL_STRENGTH" &&
+    entry.weight === -9 &&
+    !entry.fallbackUsed,
+  ),
+  "Negative scalar-priced weapon attribute should preserve pricingScalar x magnitude",
+);
+assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightTotalRaw, -9);
+assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightTotal, 0);
+assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featurePressureRatio, 0);
 
 const missingWeightedFeature = runCase("missing weighted feature", {
   level: 5,
@@ -741,6 +837,28 @@ assert.ok(
     entry.includes("regardless of rarity"),
   ),
   "over-band output should not be excused by rarity alone",
+);
+const overBudgetWithNegativeFeature = runCase("over-budget with negative feature", {
+  level: 1,
+  rarity: "LEGENDARY",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 10,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Thrown"],
+});
+const overBudgetWithNegativeFeatureBands = compareForgeOutputToBands(
+  overBudgetWithNegativeFeature,
+  FEATURE_WEIGHT_CONTEXT,
+);
+assert.equal(overBudgetWithNegativeFeatureBands.lanes.debug.featureWeightTotalRaw, -10);
+assert.equal(overBudgetWithNegativeFeatureBands.lanes.debug.featureWeightTotal, 0);
+assert.equal(
+  overBudgetWithNegativeFeatureBands.lanes.coreFunctionality.status,
+  "likely overloaded",
+  "Negative features must not excuse over-band Core output",
 );
 
 const summary = [
