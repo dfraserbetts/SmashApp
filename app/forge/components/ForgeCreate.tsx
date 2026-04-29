@@ -33,8 +33,10 @@ import { renderForgeResult } from '@/lib/descriptors/renderers/forgeRenderer';
 import { getForgeRarityPalette } from '@/lib/forge/itemRarityPalette';
 import { buildForgeOutputProfile } from '@/lib/forge/outputProfile';
 import {
+  buildForgeFeatureWeightContext,
   compareForgeOutputToBands,
   type ForgeOutputBandComparison,
+  type ForgeFeatureWeightCostRow,
 } from '@/lib/forge/outputBands';
 import { interpolateText, safeParseJson } from '@/lib/textInterpolation';
 import { InfoTooltip, TooltipLabel } from '@/app/components/HoverTooltip';
@@ -2654,6 +2656,47 @@ function handleResetForge() {
         .filter((entry): entry is T => Boolean(entry?.name))
         .map((entry) => ({ name: String(entry.name) }));
 
+    const attributeRowsByIds = <
+      T extends {
+        id: number;
+        name?: string | null;
+        pricingMode?: string | null;
+        pricingScalar?: number | string | null;
+      },
+    >(
+      rows: T[],
+      ids: number[] | undefined,
+    ) =>
+      (ids ?? [])
+        .map((id) => rows.find((entry) => entry.id === id))
+        .filter((entry): entry is T => Boolean(entry?.name))
+        .map((entry) => {
+          const pricingMode = String(entry.pricingMode ?? '').trim().toUpperCase();
+          const pricingScalar =
+            typeof entry.pricingScalar === 'number'
+              ? entry.pricingScalar
+              : typeof entry.pricingScalar === 'string'
+                ? Number(entry.pricingScalar)
+                : null;
+          const pricingMagnitude =
+            pricingMode && Number.isFinite(pricingScalar)
+              ? pricingMode === 'ATTRIBUTE_VALUE'
+                ? getAttributeValueMagnitude(entry.name)
+                : getAttributeDynamicPricingMagnitude(
+                    watchedValues,
+                    entry.id,
+                    pricingMode as AttributePricingMode,
+                  )
+              : null;
+
+          return {
+            name: String(entry.name),
+            pricingMode: pricingMode || null,
+            pricingScalar: Number.isFinite(pricingScalar) ? pricingScalar : null,
+            pricingMagnitude,
+          };
+        });
+
     const vrpOutputEntries = (vrpEntries ?? [])
       .map((entry) => {
         const damageType = damageTypeRows.find((row) => row.id === entry.damageTypeId);
@@ -2700,9 +2743,9 @@ function handleResetForge() {
       auraPhysical: toNullableNumber(watchedValues.auraPhysical),
       auraMental: toNullableNumber(watchedValues.auraMental),
       defEffects: namedRowsByIds(defEffectRows, watchedValues.defEffectIds),
-      armorAttributes: namedRowsByIds(armorAttributeRows, watchedValues.armorAttributeIds),
-      shieldAttributes: namedRowsByIds(shieldAttributeRows, watchedValues.shieldAttributeIds),
-      weaponAttributes: namedRowsByIds(weaponAttributeRows, watchedValues.weaponAttributeIds),
+      armorAttributes: attributeRowsByIds(armorAttributeRows, watchedValues.armorAttributeIds),
+      shieldAttributes: attributeRowsByIds(shieldAttributeRows, watchedValues.shieldAttributeIds),
+      weaponAttributes: attributeRowsByIds(weaponAttributeRows, watchedValues.weaponAttributeIds),
       vrpEntries: vrpOutputEntries,
       customWeaponAttributes: watchedValues.customWeaponAttributes,
       customArmorAttributes: watchedValues.customArmorAttributes,
@@ -2713,8 +2756,12 @@ function handleResetForge() {
     });
   }, [currentTags, data, vrpEntries, watchedValues]);
   const forgeOutputBandComparison = useMemo(
-    () => compareForgeOutputToBands(forgeOutputProfile),
-    [forgeOutputProfile],
+    () =>
+      compareForgeOutputToBands(
+        forgeOutputProfile,
+        buildForgeFeatureWeightContext((data?.costs ?? []) as ForgeFeatureWeightCostRow[]),
+      ),
+    [data?.costs, forgeOutputProfile],
   );
   const itemRarityPalette = getForgeRarityPalette(watchedValues.rarity);
 
@@ -7943,6 +7990,22 @@ function getLaneStatusPercent(status: string): number {
   return 25;
 }
 
+type ForgeOutputPressureState = 'lowPressure' | 'healthy' | 'watch' | 'overloaded';
+
+function getLanePressureState(percent: number): ForgeOutputPressureState {
+  if (percent <= 35) return 'lowPressure';
+  if (percent <= 60) return 'healthy';
+  if (percent <= 79) return 'watch';
+  return 'overloaded';
+}
+
+function getLanePressureFillClass(state: ForgeOutputPressureState): string {
+  if (state === 'lowPressure') return 'bg-sky-500';
+  if (state === 'healthy') return 'bg-emerald-500';
+  if (state === 'watch') return 'bg-orange-700';
+  return 'bg-red-600';
+}
+
 function ForgeOutputLaneBlock({
   title,
   status,
@@ -7956,14 +8019,8 @@ function ForgeOutputLaneBlock({
 }) {
   const percent = getLaneStatusPercent(status);
   const tone = getClassificationTone(status);
-  const fillClass =
-    tone === 'red'
-      ? 'bg-red-500'
-      : tone === 'amber'
-        ? 'bg-amber-500'
-        : tone === 'emerald'
-          ? 'bg-emerald-500'
-          : 'bg-zinc-500';
+  const pressureState = getLanePressureState(percent);
+  const fillClass = getLanePressureFillClass(pressureState);
 
   return (
     <div className="rounded border border-zinc-800 bg-black/20 p-3">
@@ -8205,13 +8262,12 @@ function ForgeCalculatorPanel({
         <div>
           <h2 className="text-sm font-semibold text-zinc-100">Forge Summary</h2>
           <p className="text-xs text-zinc-400">
-            Output bands are diagnostic only. Forge Points still control spend.
+            Core and Features are the primary balance guide.
+          </p>
+          <p className="mt-1 text-[11px] text-zinc-500">
+            Bars show output pressure, not completion; standard/healthy is the usual target. Forge Points are legacy/admin diagnostics.
           </p>
         </div>
-        <ForgeOutputPill
-          label={overspent ? 'Overspent' : `${safePercent.toFixed(0)}% spent`}
-          tone={overspent ? 'red' : 'zinc'}
-        />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
@@ -8229,28 +8285,42 @@ function ForgeCalculatorPanel({
         />
       </div>
 
-      <div className="mt-3 grid gap-2 rounded border border-zinc-800 bg-black/20 p-3 text-center sm:grid-cols-4">
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Total FP</div>
-          <div className="text-sm font-semibold text-zinc-50">{total.toFixed(2)}</div>
+      <details className="mt-3 rounded border border-zinc-800 bg-black/10 p-3 text-xs text-zinc-400">
+        <summary className="cursor-pointer select-none text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+          Advanced: Forge Points Diagnostic
+        </summary>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[11px] text-zinc-500">
+            Legacy FP diagnostic: {overspent ? 'overspent' : 'within budget'}.
+          </p>
+          <ForgeOutputPill
+            label={`${safePercent.toFixed(0)}% spent`}
+            tone={overspent ? 'amber' : 'zinc'}
+          />
         </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Spent FP</div>
-          <div className="text-sm font-semibold text-zinc-50">{spent.toFixed(2)}</div>
-        </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Remaining FP</div>
-          <div className={'text-sm font-semibold ' + (overspent ? 'text-red-400' : 'text-zinc-50')}>
-            {remaining.toFixed(2)}
+        <div className="mt-3 grid gap-2 text-center sm:grid-cols-4">
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Total FP</div>
+            <div className="text-sm font-semibold text-zinc-200">{total.toFixed(2)}</div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Spent FP</div>
+            <div className="text-sm font-semibold text-zinc-200">{spent.toFixed(2)}</div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Remaining FP</div>
+            <div className={'text-sm font-semibold ' + (overspent ? 'text-amber-400' : 'text-zinc-200')}>
+              {remaining.toFixed(2)}
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wide text-zinc-500">Percent Spent</div>
+            <div className="text-sm font-semibold text-zinc-200">
+              {total > 0 ? `${safePercent.toFixed(0)}%` : '0%'}
+            </div>
           </div>
         </div>
-        <div>
-          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Percent Spent</div>
-          <div className="text-sm font-semibold text-zinc-50">
-            {total > 0 ? `${safePercent.toFixed(0)}%` : '0%'}
-          </div>
-        </div>
-      </div>
+      </details>
     </div>
   );
 }
