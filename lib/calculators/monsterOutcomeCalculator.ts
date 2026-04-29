@@ -590,6 +590,35 @@ function scaleRawAxisBonuses(bonuses: RadarAxes, weight: number): RadarAxes {
   };
 }
 
+function scalePowerAxisBonusesByFactors(bonuses: RadarAxes, factors: RadarAxes): RadarAxes {
+  return {
+    physicalThreat: bonuses.physicalThreat * clampNonNegative(factors.physicalThreat),
+    mentalThreat: bonuses.mentalThreat * clampNonNegative(factors.mentalThreat),
+    physicalSurvivability:
+      bonuses.physicalSurvivability * clampNonNegative(factors.physicalSurvivability),
+    mentalSurvivability:
+      bonuses.mentalSurvivability * clampNonNegative(factors.mentalSurvivability),
+    manipulation: bonuses.manipulation * clampNonNegative(factors.manipulation),
+    synergy: bonuses.synergy * clampNonNegative(factors.synergy),
+    mobility: bonuses.mobility * clampNonNegative(factors.mobility),
+    presence: bonuses.presence * clampNonNegative(factors.presence),
+  };
+}
+
+function createUniformAxisFactors(factor: number): RadarAxes {
+  const safeFactor = clampNonNegative(factor);
+  return {
+    physicalThreat: safeFactor,
+    mentalThreat: safeFactor,
+    physicalSurvivability: safeFactor,
+    mentalSurvivability: safeFactor,
+    manipulation: safeFactor,
+    synergy: safeFactor,
+    mobility: safeFactor,
+    presence: safeFactor,
+  };
+}
+
 function addRawAxisBonuses(left: RadarAxes, right: RadarAxes): RadarAxes {
   return {
     physicalThreat: left.physicalThreat + right.physicalThreat,
@@ -621,6 +650,7 @@ function getPowerAvailabilityFactor(cooldownTurns: number): number {
 }
 
 const DEFAULT_RADAR_COOLDOWN_LOAD_EXPONENT = 1.2;
+const UTILITY_EFFECTIVE_POWER_EXPONENT = 0.75;
 
 function getRadarCooldownLoadExponent(): number {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } })
@@ -638,6 +668,17 @@ function resolvePowerAvailability(power: {
   cooldownReduction?: number | null;
 }): {
   availabilityFactor: number;
+  effectivePowerFactor: number;
+  threatEffectivePowerFactor: number;
+  utilityEffectivePowerFactor: number;
+  utilityEffectivePowerExponent: number | null;
+  utilityFactorFormulaLabel: string;
+  axisEffectivePowerFactors: RadarAxes;
+  tableCooldownAvailabilityFactor: number;
+  radarLoadExpressionFactor: number;
+  radarCooldownLoadExponent: number | null;
+  derivedCooldownLoadClamped: number | null;
+  factorFormulaLabel: string;
   availabilityReason: string;
   cooldownTurns: number | null;
   cooldownSource: string;
@@ -655,12 +696,44 @@ function resolvePowerAvailability(power: {
         ? 1
         : Math.pow(normalizedCooldownLoad, radarCooldownLoadExponent);
     const availabilityFactor = tableAvailabilityFactor * radarRelativeLoadFactor;
+    const utilityEffectivePowerFactor =
+      normalizedCooldownLoad === null
+        ? availabilityFactor
+        : Math.pow(Math.max(0, Math.min(1, availabilityFactor)), UTILITY_EFFECTIVE_POWER_EXPONENT);
+    const utilityEffectivePowerExponent =
+      normalizedCooldownLoad === null ? null : UTILITY_EFFECTIVE_POWER_EXPONENT;
+    const utilityFactorFormulaLabel =
+      normalizedCooldownLoad === null
+        ? "tableCooldownAvailabilityFactor"
+        : "pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)";
+    const axisEffectivePowerFactors: RadarAxes = {
+      physicalThreat: availabilityFactor,
+      mentalThreat: availabilityFactor,
+      physicalSurvivability: utilityEffectivePowerFactor,
+      mentalSurvivability: utilityEffectivePowerFactor,
+      manipulation: utilityEffectivePowerFactor,
+      synergy: utilityEffectivePowerFactor,
+      mobility: utilityEffectivePowerFactor,
+      presence: utilityEffectivePowerFactor,
+    };
     return {
       availabilityFactor,
+      effectivePowerFactor: availabilityFactor,
+      threatEffectivePowerFactor: availabilityFactor,
+      utilityEffectivePowerFactor,
+      utilityEffectivePowerExponent,
+      utilityFactorFormulaLabel,
+      axisEffectivePowerFactors,
+      tableCooldownAvailabilityFactor: tableAvailabilityFactor,
+      radarLoadExpressionFactor: radarRelativeLoadFactor,
+      radarCooldownLoadExponent,
+      derivedCooldownLoadClamped: normalizedCooldownLoad,
+      factorFormulaLabel:
+        "threat axes: tableCooldownAvailabilityFactor * radarLoadExpressionFactor; utility axes: pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
       availabilityReason:
         cooldownLoad === null
-          ? `Resolver-derived cooldown ${resolvedCooldown} was used for Phase 6 power availability; authored cooldown fields are fallback only. No cooldown load was provided, so table availability factor ${tableAvailabilityFactor} was applied directly.`
-          : `Resolver-derived cooldown ${resolvedCooldown} was used for Phase 6 table availability; authored cooldown fields are fallback only. Radar availability applied table factor ${tableAvailabilityFactor} against level-relative cooldown load exponent ${radarCooldownLoadExponent} for load factor ${radarRelativeLoadFactor}, producing factor ${availabilityFactor}.`,
+          ? `Resolver-derived cooldown ${resolvedCooldown} was used for Phase 6 table availability; authored cooldown fields are fallback only. No cooldown load was provided, so threat and utility axes both use table cooldown availability factor ${tableAvailabilityFactor}.`
+          : `Resolver-derived cooldown ${resolvedCooldown} was used for Phase 6 table availability; authored cooldown fields are fallback only. Threat axes use table cooldown availability factor ${tableAvailabilityFactor} times radar load expression factor ${radarRelativeLoadFactor} from level-relative cooldown load ${normalizedCooldownLoad} and exponent ${radarCooldownLoadExponent}, producing factor ${availabilityFactor}. Utility axes use pow(threat factor ${availabilityFactor}, exponent ${UTILITY_EFFECTIVE_POWER_EXPONENT}), producing factor ${utilityEffectivePowerFactor}.`,
       cooldownTurns: resolvedCooldown,
       cooldownSource: "resolver_derived_cooldown",
     };
@@ -672,6 +745,17 @@ function resolvePowerAvailability(power: {
   if (authoredCooldown === null) {
     return {
       availabilityFactor: 1,
+      effectivePowerFactor: 1,
+      threatEffectivePowerFactor: 1,
+      utilityEffectivePowerFactor: 1,
+      utilityEffectivePowerExponent: null,
+      utilityFactorFormulaLabel: "tableCooldownAvailabilityFactor",
+      axisEffectivePowerFactors: createUniformAxisFactors(1),
+      tableCooldownAvailabilityFactor: 1,
+      radarLoadExpressionFactor: 1,
+      radarCooldownLoadExponent: null,
+      derivedCooldownLoadClamped: null,
+      factorFormulaLabel: "tableCooldownAvailabilityFactor * radarLoadExpressionFactor",
       availabilityReason:
         "No per-power cooldownTurns was provided at the monster outcome merge point; canonical axis contribution was left unchanged.",
       cooldownTurns: null,
@@ -687,13 +771,24 @@ function resolvePowerAvailability(power: {
 
   return {
     availabilityFactor,
+    effectivePowerFactor: availabilityFactor,
+    threatEffectivePowerFactor: availabilityFactor,
+    utilityEffectivePowerFactor: availabilityFactor,
+    utilityEffectivePowerExponent: null,
+    utilityFactorFormulaLabel: "tableCooldownAvailabilityFactor",
+    axisEffectivePowerFactors: createUniformAxisFactors(availabilityFactor),
+    tableCooldownAvailabilityFactor: availabilityFactor,
+    radarLoadExpressionFactor: 1,
+    radarCooldownLoadExponent: null,
+    derivedCooldownLoadClamped: null,
+    factorFormulaLabel: "tableCooldownAvailabilityFactor * radarLoadExpressionFactor",
     availabilityReason:
       resolvedCooldown <= 0
         ? "Authored cooldown resolved to at-will/0, so full canonical axis contribution is used."
         : `No resolver-derived cooldown was available; authored cooldownTurns (${Math.trunc(authoredCooldown)}) minus cooldownReduction (${Math.max(
             0,
             Math.trunc(authoredReduction),
-          )}) was used as fallback and resolved to cooldown ${resolvedCooldown}; first-pass monster availability factor ${availabilityFactor} applied.`,
+          )}) was used as fallback and resolved to cooldown ${resolvedCooldown}; effective power factor ${availabilityFactor} uses table cooldown availability only because no resolver-derived load was available.`,
     cooldownTurns: resolvedCooldown,
     cooldownSource: "authored_power.cooldownTurns_minus_cooldownReduction_fallback",
   };
@@ -705,6 +800,8 @@ function resolveEffectivePowerAxisContribution(
   canonicalPowerAxisVector: RadarAxes;
   effectivePowerAxisVector: RadarAxes;
   availabilityFactor: number | null;
+  effectivePowerFactor: number | null;
+  factorFormulaLabel: string;
   availabilityReason: string;
   cooldownTurns: number | null;
   cooldownSource: string;
@@ -714,6 +811,17 @@ function resolveEffectivePowerAxisContribution(
     canonicalPowerAxisVector: RadarAxes;
     effectivePowerAxisVector: RadarAxes;
     availabilityFactor: number;
+    effectivePowerFactor: number;
+    threatEffectivePowerFactor: number;
+    utilityEffectivePowerFactor: number;
+    utilityEffectivePowerExponent: number | null;
+    utilityFactorFormulaLabel: string;
+    axisEffectivePowerFactors: RadarAxes;
+    tableCooldownAvailabilityFactor: number;
+    radarLoadExpressionFactor: number;
+    radarCooldownLoadExponent: number | null;
+    derivedCooldownLoadClamped: number | null;
+    factorFormulaLabel: string;
     availabilityReason: string;
     cooldownTurns: number | null;
     cooldownSource: string;
@@ -736,6 +844,8 @@ function resolveEffectivePowerAxisContribution(
       canonicalPowerAxisVector,
       effectivePowerAxisVector: canonicalPowerAxisVector,
       availabilityFactor: contribution ? 1 : null,
+      effectivePowerFactor: contribution ? 1 : null,
+      factorFormulaLabel: "tableCooldownAvailabilityFactor * radarLoadExpressionFactor",
       availabilityReason: contribution
         ? "Aggregate canonical power contribution had no per-power cooldown data, so no availability factor could be honestly applied."
         : "No canonical power contribution was provided.",
@@ -750,7 +860,10 @@ function resolveEffectivePowerAxisContribution(
   const perPower = powers.map((power, index) => {
     const canonicalAxis = normalizeRawAxisBonuses(power.axisVector);
     const availability = resolvePowerAvailability(power);
-    const effectiveAxis = scaleRawAxisBonuses(canonicalAxis, availability.availabilityFactor);
+    const effectiveAxis = scalePowerAxisBonusesByFactors(
+      canonicalAxis,
+      availability.axisEffectivePowerFactors,
+    );
     effectivePowerAxisVector = addRawAxisBonuses(effectivePowerAxisVector, effectiveAxis);
     if (availability.cooldownSource === "missing") {
       warnings.push(
@@ -763,6 +876,17 @@ function resolveEffectivePowerAxisContribution(
       canonicalPowerAxisVector: canonicalAxis,
       effectivePowerAxisVector: effectiveAxis,
       availabilityFactor: availability.availabilityFactor,
+      effectivePowerFactor: availability.effectivePowerFactor,
+      threatEffectivePowerFactor: availability.threatEffectivePowerFactor,
+      utilityEffectivePowerFactor: availability.utilityEffectivePowerFactor,
+      utilityEffectivePowerExponent: availability.utilityEffectivePowerExponent,
+      utilityFactorFormulaLabel: availability.utilityFactorFormulaLabel,
+      axisEffectivePowerFactors: availability.axisEffectivePowerFactors,
+      tableCooldownAvailabilityFactor: availability.tableCooldownAvailabilityFactor,
+      radarLoadExpressionFactor: availability.radarLoadExpressionFactor,
+      radarCooldownLoadExponent: availability.radarCooldownLoadExponent,
+      derivedCooldownLoadClamped: availability.derivedCooldownLoadClamped,
+      factorFormulaLabel: availability.factorFormulaLabel,
       availabilityReason: availability.availabilityReason,
       cooldownTurns: availability.cooldownTurns,
       cooldownSource: availability.cooldownSource,
@@ -787,6 +911,12 @@ function resolveEffectivePowerAxisContribution(
     );
     return sum + powerWeight * power.availabilityFactor;
   }, 0);
+  const weightedEffectivePowerNumerator = perPower.reduce(
+    (sum, power) =>
+      sum +
+      Object.values(power.effectivePowerAxisVector).reduce((axisSum, value) => axisSum + value, 0),
+    0,
+  );
   const cooldownSources = new Set(perPower.map((power) => power.cooldownSource));
   const aggregateCooldownSource =
     cooldownSources.size === 1
@@ -794,18 +924,26 @@ function resolveEffectivePowerAxisContribution(
       : cooldownSources.has("resolver_derived_cooldown")
         ? "mixed_resolver_derived_and_fallback_cooldown"
         : "mixed_fallback_cooldown";
+  const aggregateAvailabilityFactor =
+    weightedAvailabilityDenominator > 0
+      ? weightedAvailabilityNumerator / weightedAvailabilityDenominator
+      : 0;
+  const aggregateEffectivePowerFactor =
+    weightedAvailabilityDenominator > 0
+      ? weightedEffectivePowerNumerator / weightedAvailabilityDenominator
+      : 0;
 
   return {
     canonicalPowerAxisVector,
     effectivePowerAxisVector,
-    availabilityFactor:
-      weightedAvailabilityDenominator > 0
-        ? weightedAvailabilityNumerator / weightedAvailabilityDenominator
-        : 0,
+    availabilityFactor: aggregateAvailabilityFactor,
+    effectivePowerFactor: aggregateEffectivePowerFactor,
+    factorFormulaLabel:
+      "per-power threat axes use tableCooldownAvailabilityFactor * radarLoadExpressionFactor; utility axes use pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
     availabilityReason:
       cooldownSources.has("resolver_derived_cooldown")
-        ? "Per-power resolver-derived cooldown availability applied before final monster outcome axes; authored cooldown fields are fallback only."
-        : "Per-power fallback cooldown availability applied before final monster outcome axes.",
+        ? "Per-power resolver-derived effective power factors applied before final monster outcome axes. Threat axes combine table cooldown availability and radar load expression; utility axes use a monotonic exponent transform of the threat factor. Authored cooldown fields are fallback only."
+        : "Per-power fallback cooldown availability applied before final monster outcome axes; no resolver-derived load expression was available.",
     cooldownTurns: null,
     cooldownSource: aggregateCooldownSource,
     perPower,
@@ -2091,6 +2229,8 @@ export function computeMonsterOutcomes(
         canonicalPowerAxisVector,
         effectivePowerAxisVector,
         availabilityFactor: powerAvailability.availabilityFactor,
+        effectivePowerFactor: powerAvailability.effectivePowerFactor,
+        factorFormulaLabel: powerAvailability.factorFormulaLabel,
         availabilityReason: powerAvailability.availabilityReason,
         cooldownTurns: powerAvailability.cooldownTurns,
         cooldownSource: powerAvailability.cooldownSource,
