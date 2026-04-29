@@ -1,0 +1,821 @@
+Forge Implementation Plan
+=========================
+
+Purpose
+-------
+
+This document plans the first Forge implementation tranche after Natural
+Baseline v1. It translates the Natural Baseline output-band work into a
+minimal, ordered Forge plan without starting Forge code changes.
+
+This plan is based on the current repo state and the committed source docs:
+
+- docs/07_Natural_Baseline_Output_Bands.txt
+- docs/08_Forge_Output_Bands_Blueprint.txt
+- docs/05_Phase_6_Cost_Integration_Blueprint.txt
+- docs/03_Current_Phase_And_Next_Steps.txt
+- docs/04_Implementation_Handoffs.txt
+
+Core constraints:
+
+- Output first, origin second.
+- Item level drives core throughput.
+- Rarity mostly buys breadth, geometry, alternate profiles, riders,
+  versatility, and premium features.
+- Strength x 2 is the table-facing wounds per success rule.
+- Total wounds per success = Strength x 2 x damage type count.
+- Damage type count consumes output budget.
+- Shields split budget between attack and defence.
+- Armour slot weighting is deferred.
+- Power Tuning, Combat Tuning / Monster Baseline Tuning, and Outcome
+  Normalization remain separate layers.
+- Summoned Item, Summoned Creature, Transformation, and other deferred
+  builders are not part of this plan.
+
+
+Current Forge Inventory
+-----------------------
+
+### App routes, pages, and components
+
+Current Forge surfaces are already present:
+
+- app/campaign/[id]/forge/page.tsx
+  - Campaign Forge entry point.
+  - Searchable anchor: `ForgeCreate`.
+- app/campaign/[id]/forge/library/page.tsx
+  - Campaign item library.
+  - Searchable anchor: `Forge Library`.
+- app/campaign/[id]/forge/print/page.tsx
+  - Print-mode item rendering.
+  - Searchable anchor: `ForgePrintMode`.
+- app/forge/components/ForgeCreate.tsx
+  - Main Forge authoring UI and FP calculation surface.
+  - Searchable anchors:
+    - `calculateTotalFp`
+    - `calculateItemMultiplier`
+    - `calculateForgeTotals`
+    - `getAttributeDynamicPricingMagnitude`
+    - `meleePhysicalStrength`
+    - `rangedPhysicalStrength`
+    - `aoePhysicalStrength`
+    - `ppv`
+    - `mpv`
+    - `shieldHasAttack`
+- app/forge/components/ForgePrintMode.tsx
+  - Builds descriptor input for item print output.
+  - Searchable anchors:
+    - `buildForgeDescriptorInput`
+    - `renderForgeDescriptor`
+- app/forge/edit/[id]/page.tsx
+  - Basic edit surface for item metadata.
+  - Searchable anchor: `Update item`.
+- app/forge/library/page.tsx
+  - Redirect surface.
+  - Searchable anchor: `redirect`.
+- app/admin/forge-values/page.tsx
+  - Admin surface for Forge cost/config values.
+  - Searchable anchor: `Forge Costs`.
+- app/admin/weapon-attributes/page.tsx
+  - Admin surface for weapon attributes.
+  - Searchable anchor: `Weapon Attributes`.
+
+### API routes
+
+- app/api/forge/_shared.ts
+  - Shared Forge API helpers.
+- app/api/forge/items/route.ts
+  - Item creation and list route.
+  - Searchable anchors:
+    - `ItemTemplateInput`
+    - `POST`
+    - `ppv`
+    - `mpv`
+    - `meleePhysicalStrength`
+    - `rangedPhysicalStrength`
+    - `aoePhysicalStrength`
+- app/api/forge/items/[id]/route.ts
+  - Item update/delete/detail route.
+  - Searchable anchors:
+    - `PUT`
+    - `ppv`
+    - `mpv`
+    - `meleePhysicalStrength`
+    - `rangedPhysicalStrength`
+    - `aoePhysicalStrength`
+- app/api/forge/items/vrp-utils.ts
+  - Vulnerability / Resistance / Protection normalization helpers.
+  - Searchable anchor: `normalizeVrpEntries`.
+- app/api/forge/picklists/route.ts
+  - Forge picklist/config/cost payload.
+  - Searchable anchors:
+    - `damageTypes`
+    - `attackEffects`
+    - `forgeConfig`
+    - `forgeCosts`
+- app/api/forge/tags/route.ts
+  - Forge tag route.
+- app/api/forge/limit-break-templates/route.ts
+  - Mythic limit-break template route.
+- app/api/admin/forge-costs/route.ts
+  - Admin cost/config route.
+- app/api/admin/forge-costs/migrate/route.ts
+  - Cost migration helper.
+- app/api/admin/weapon-attributes/route.ts
+- app/api/admin/armor-attributes/route.ts
+- app/api/admin/shield-attributes/route.ts
+- app/api/summoning-circle/weapons/route.ts
+  - Summoning Circle weapon lookup route.
+
+### Lib modules
+
+- lib/forge/types.ts
+  - Lightweight Forge enum/type definitions.
+  - Searchable anchors:
+    - `ItemType`
+    - `ItemRarity`
+    - `WeaponSize`
+    - `RangeCategory`
+    - `AoEShape`
+    - `ArmorLocation`
+    - `VRPEffectKind`
+- lib/forge/useForgeItems.ts
+  - Forge item data hook.
+- lib/forge/useForgePicklists.ts
+  - Forge picklist data hook.
+- lib/forge/itemRarityPalette.ts
+  - Rarity colour/palette helper.
+- lib/descriptors/descriptorEngine.ts
+  - Shared descriptor output engine.
+  - Searchable anchors:
+    - `toDamageAmount`
+    - `strength * 2`
+    - `defenseParts`
+- lib/descriptors/renderers/forgeRenderer.ts
+  - Forge descriptor renderer.
+  - Searchable anchors:
+    - `FORGE_STRENGTH_TO_WOUNDS_V1`
+    - `renderForgeDescriptor`.
+
+### Prisma schema and seed data
+
+- prisma/schema.prisma
+  - Main item models and Forge enums.
+  - Searchable anchors:
+    - `model ItemTemplate`
+    - `model DamageType`
+    - `model AttackEffect`
+    - `model WeaponAttribute`
+    - `model ArmorAttribute`
+    - `model ShieldAttribute`
+    - `model ForgeCostEntry`
+    - `enum ItemRarity`
+    - `enum ItemType`
+    - `enum WeaponSize`
+    - `enum RangeCategory`
+    - `enum ArmorLocation`
+    - `enum ForgeCostCategory`
+- prisma/Seed/ForgeConfig.csv
+  - Rarity, size, armour location, item location, and consumable scalar data.
+- prisma/Seed/ForgeCosts.csv
+  - Current FP cost rows, including Strength, item type, range, target count,
+    damage type count, effects, attributes, auras, VRP, and geometry.
+- prisma/Seed/ForgePicklists.csv
+  - Picklist options such as item types, rarities, sizes, damage types, range
+    categories, attributes, VRP options, and shield/armour/weapon attributes.
+
+### Tests and diagnostics
+
+- scripts/monsterOutcomeCalculator.smoke.ts
+  - Contains current output-origin parity diagnostics for natural/equipped
+    monster outcome paths.
+  - Searchable anchors:
+    - `output-origin parity`
+    - `natural`
+    - `equipped`.
+
+No dedicated Forge output-band diagnostic currently exists in the repo.
+
+
+Current Item Model Summary
+--------------------------
+
+The existing `ItemTemplate` model already supports a broad Forge item shape.
+
+### Common item fields
+
+- `level`
+- `rarity`
+- `type`
+- `size`
+- descriptive fields
+- campaign ownership
+- tags
+- custom item attributes
+- global attribute modifiers
+
+### Weapon attack profile fields
+
+The model supports separate melee, ranged, and AoE attack profiles:
+
+- melee:
+  - `meleeTargets`
+  - `meleePhysicalStrength`
+  - `meleeMentalStrength`
+  - melee damage type join rows
+  - melee greater-success attack effects
+- ranged:
+  - `rangedTargets`
+  - `rangedDistanceFeet`
+  - `rangedPhysicalStrength`
+  - `rangedMentalStrength`
+  - ranged damage type join rows
+  - ranged greater-success attack effects
+- AoE:
+  - `aoeCenterRangeFeet`
+  - `aoeCount`
+  - `aoeShape`
+  - shape-specific dimensions
+  - `aoePhysicalStrength`
+  - `aoeMentalStrength`
+  - AoE damage type join rows
+  - AoE greater-success attack effects
+
+Legacy/global strength fields also exist:
+
+- `physicalStrength`
+- `mentalStrength`
+
+The newer per-profile strength fields are the clearer output-profile source
+for Forge output-band work.
+
+### Armour and shield fields
+
+The current model supports:
+
+- `armorLocation`
+- `ppv`
+- `mpv`
+- `auraPhysical`
+- `auraMental`
+- armour attributes
+- defence effects
+- shield attack flag:
+  - `shieldHasAttack`
+- shield attributes
+- VRP entries
+
+The current Forge item model stores PPV/MPV directly, but it does not expose a
+standalone item output profile for Physical Defence String Value or Mental
+Defence String Value. Those values are currently better understood when an item
+is evaluated as part of a monster/character output path.
+
+### Current budget/spend fields
+
+The repo currently calculates Forge Points rather than output-band profile
+levels:
+
+- `calculateTotalFp` combines item level, rarity scalar, and item multiplier.
+- `calculateItemMultiplier` handles item type, weapon size, armour location,
+  item location, and consumable settings.
+- `calculateForgeTotals` reports:
+  - total FP
+  - spent FP
+  - remaining FP
+  - percent spent
+  - multiplier
+
+There is no current stored or calculated field for:
+
+- total wounds per success by profile
+- total pressure by target count / AoE
+- damage type budget classification
+- effective item profile level
+- over-band readout
+- Core Functionality vs Features & Versatility lane split
+
+
+Current Forge / Output Calculation Path
+---------------------------------------
+
+### What already exists
+
+The current Forge UI prices authored selections through Forge Point costs:
+
+- Strength has cost rows in `ForgeCosts.csv`.
+- Range category, target count, range distance, AoE geometry, and damage type
+  count have cost categories.
+- Greater-success effects and defensive effects have cost categories.
+- PPV/MPV are priced as Stat category rows.
+- Attributes and VRP options have cost/readout paths.
+- Rarity and item size/location influence the total budget through config
+  multipliers/scalars.
+
+The current descriptor output path already renders table-facing damage using
+Strength x 2:
+
+- `lib/descriptors/descriptorEngine.ts`
+  - `toDamageAmount = (strength) => strength * 2`
+- `lib/descriptors/renderers/forgeRenderer.ts`
+  - consumes the descriptor-engine damage output and labels the conversion as
+    `FORGE_STRENGTH_TO_WOUNDS_V1`.
+
+### What does not yet exist
+
+The current Forge path does not yet calculate or display the output-band data
+defined by docs/07 and docs/08:
+
+- weapon total wounds per success
+- damage type count multiplier readout
+- single-target vs multi-target pressure readout
+- AoE / geometry output pressure readout
+- PPV/MPV package context
+- defence string output or package contribution estimate
+- shield attack/defence tradeoff readout
+- Core Functionality vs Features & Versatility lane split
+- effective profile level
+- over-band / under-band status
+
+The current Forge cost model may still be useful as an authoring budget, but it
+is not the same thing as an output-first table-facing profile check.
+
+
+Gap Analysis Against docs/08
+----------------------------
+
+### 1. Data / schema gaps
+
+Mostly present for v1:
+
+- item level
+- rarity
+- item type
+- weapon profiles
+- damage types
+- target counts
+- range / AoE geometry
+- PPV / MPV
+- shield attack flag
+- attributes / riders / effects
+- VRP entries
+
+Potential future gaps:
+
+- persisted effective profile level
+- persisted Core Functionality vs Features & Versatility split
+- explicit per-profile over-band status
+- explicit slot-weighting metadata
+
+These should not be added until the read-only output profile proves stable.
+No Prisma migration is needed for the first implementation patch.
+
+### 2. Calculator / output-profile gaps
+
+Missing:
+
+- reusable Forge table-facing output profile helper
+- total wounds per success calculation by profile
+- total pressure calculation from target count and damage type count
+- level-band comparison against docs/07/docs/08 output bands
+- shield split-function output evaluation
+- armour package / per-piece expectation readout
+- item effective profile level estimate
+
+This is the most important first gap to close.
+
+### 3. UI / readout gaps
+
+Missing:
+
+- item output profile preview
+- core throughput readout
+- over-band / under-band readout
+- damage type count budget warning
+- rarity-as-breadth readout
+- shield split budget warning
+- package-level armour context
+
+This should come after the helper exists and has smoke coverage.
+
+### 4. Validation gaps
+
+Missing:
+
+- Forge output profile smoke fixtures
+- equivalent natural/equipped item output examples at the item level
+- Level 5 Common/Uncommon/Rare examples from docs/08
+- over-budget stress examples
+- shield attack/defence split examples
+- armour package examples
+
+Do not add these to the active monster harness yet. Start with a focused Forge
+diagnostic or smoke script.
+
+### 5. Test / fixture gaps
+
+Current natural monster fixtures exist under:
+
+- scripts/fixtures/monsters/natural-baseline/
+
+No equivalent repo-local Forge item fixture set was found during inventory.
+Forge output-band implementation should introduce a small item fixture set only
+after the output-profile helper shape is agreed.
+
+### 6. Later / deferred gaps
+
+Deferred by docs/08 and this plan:
+
+- full armour slot weighting
+- full Forge economy rewrite
+- persisted effective item profile levels
+- player-facing final Forge UI design
+- Summoned Item builder
+- Summoned Creature builder
+- Transformation builder
+- rarity-as-raw-damage loopholes
+
+
+Implementation Sequence
+-----------------------
+
+### Step 1: Add a read-only Forge item output profile helper
+
+Likely files:
+
+- new `lib/forge/outputProfile.ts`
+- optional new `scripts/forgeOutputProfile.smoke.ts`
+
+Purpose:
+
+- Normalize existing Forge item data into table-facing output descriptors.
+- Calculate output facts without changing saved item data or FP costs.
+- Establish the output bottleneck that later UI and diagnostics can share.
+
+Initial helper should report:
+
+- item level
+- rarity
+- item type
+- per attack profile:
+  - profile kind: melee, ranged, AoE
+  - physical authored Strength
+  - mental authored Strength
+  - table-facing wounds per success by lane
+  - damage type count
+  - total wounds per success
+  - target count
+  - range category
+  - AoE shape / dimensions where relevant
+  - greater-success rider count/labels
+- defensive profile:
+  - PPV
+  - MPV
+  - aura values
+  - defensive effects
+  - shieldHasAttack
+- debug source:
+  - values are table-facing calculations from Forge item data
+  - no balance tuning applied
+
+Non-goals:
+
+- no schema migration
+- no UI readout yet
+- no FP cost rewrite
+- no slot weighting
+- no effective profile level yet
+
+Validation:
+
+- `npx tsc --noEmit`
+- `npx --yes tsx scripts/forgeOutputProfile.smoke.ts` if the smoke script is
+  added
+
+Rollback risk:
+
+- low; helper-only and report-only.
+
+Prisma migration:
+
+- no.
+
+### Step 2: Add Forge output profile smoke examples
+
+Likely files:
+
+- `scripts/forgeOutputProfile.smoke.ts`
+- possibly `scripts/fixtures/items/forge-output-bands/` after helper shape is
+  stable
+
+Purpose:
+
+- Prove Strength x 2 output.
+- Prove damage type count consumes total wounds budget.
+- Prove melee/ranged/AoE profiles report comparable output facts.
+- Prove shield attack and defence both appear in the same output profile.
+
+Non-goals:
+
+- no active harness rebaseline
+- no natural monster fixture changes
+- no item economy tuning
+
+Validation:
+
+- `npx --yes tsx scripts/forgeOutputProfile.smoke.ts`
+- `npx tsc --noEmit`
+
+Rollback risk:
+
+- low.
+
+Prisma migration:
+
+- no.
+
+### Step 3: Compare item output against v1 bands
+
+Likely files:
+
+- `lib/forge/outputProfile.ts`
+- optional `lib/forge/outputBands.ts`
+- `scripts/forgeOutputProfile.smoke.ts`
+
+Purpose:
+
+- Add read-only band comparison:
+  - below band
+  - in band
+  - above band
+  - over-band stress
+- Use docs/07/docs/08 as the source for first-pass code constants only after
+  the band shape is reviewed.
+
+Non-goals:
+
+- no Forge UI warnings yet
+- no changing item save validation
+- no rarity tuning
+
+Validation:
+
+- `npx tsc --noEmit`
+- Forge output profile smoke script
+
+Rollback risk:
+
+- low to medium, depending on how many constants are introduced.
+
+Prisma migration:
+
+- no.
+
+### Step 4: Add Core Functionality vs Features & Versatility readout
+
+Likely files:
+
+- `lib/forge/outputProfile.ts`
+- optional `lib/forge/outputBands.ts`
+- later `app/forge/components/ForgeCreate.tsx`
+
+Purpose:
+
+- Split what the item is doing into two debug lanes:
+  - Core Functionality
+  - Features & Versatility
+- Keep rarity mostly in the breadth/feature lane.
+
+Non-goals:
+
+- no final player-facing UI design
+- no cost rewrite
+- no hard blocking save rules
+
+Validation:
+
+- Forge output profile smoke script
+- `npx tsc --noEmit`
+
+Rollback risk:
+
+- medium if surfaced in UI; low if helper-only.
+
+Prisma migration:
+
+- no.
+
+### Step 5: Armour/protection output profile calculation
+
+Likely files:
+
+- `lib/forge/outputProfile.ts`
+- optional `lib/forge/outputBands.ts`
+
+Purpose:
+
+- Report PPV and MPV against v1 item expectations.
+- Add first-pass package context:
+  - full equipment package assumes about four meaningful equipped protection
+    contributors
+  - per-piece readout is total expected package output divided by four
+- Keep slot weighting deferred.
+
+Non-goals:
+
+- no slot weighting system
+- no MPV discount finalization
+- no armour economy rewrite
+
+Validation:
+
+- Forge output profile smoke script
+- output-origin parity diagnostic once equipped monsters are involved
+
+Rollback risk:
+
+- low if helper-only.
+
+Prisma migration:
+
+- no.
+
+### Step 6: Shield split-function calculation
+
+Likely files:
+
+- `lib/forge/outputProfile.ts`
+- Forge output profile smoke script
+
+Purpose:
+
+- Treat shield as a hybrid profile.
+- Report attack output and defence output together.
+- Flag shields that combine strong attack and strong defence without an
+  obvious tradeoff.
+
+Non-goals:
+
+- no shield exchange-rate finalization
+- no automatic save blocking
+
+Validation:
+
+- Forge output profile smoke script
+
+Rollback risk:
+
+- low if report-only.
+
+Prisma migration:
+
+- no.
+
+### Step 7: Add optional Forge UI diagnostic readout
+
+Likely files:
+
+- `app/forge/components/ForgeCreate.tsx`
+- `lib/forge/outputProfile.ts`
+
+Purpose:
+
+- Show the output profile while authoring an item.
+- Make over-band reads visible without changing save behaviour.
+
+Non-goals:
+
+- no giant Forge UI refactor
+- no schema changes
+- no hard validation gates
+
+Validation:
+
+- `npx tsc --noEmit`
+- manual UI smoke if needed
+
+Rollback risk:
+
+- medium because it touches the main Forge authoring UI.
+
+Prisma migration:
+
+- no.
+
+### Step 8: Equipped monster validation
+
+Likely files:
+
+- future equipped monster fixtures
+- existing monster outcome calculator diagnostics
+- possible new script under `scripts/`
+
+Purpose:
+
+- Build equipped monsters with expected item packages.
+- Compare them against natural-only monsters with equivalent final outputs.
+- Verify output-origin parity in practical equipped scenarios.
+- Add over-budget stress monsters only after baseline equipped cases pass.
+
+Non-goals:
+
+- no Forge implementation start before the output profile helper is stable
+- no tuning from one equipped monster
+
+Validation:
+
+- output-origin parity diagnostic
+- active harness
+- level-relative radar diagnostic
+- combat smoke only when fixture adaptation is honest
+
+Rollback risk:
+
+- medium; test data and diagnostics can influence later tuning decisions.
+
+Prisma migration:
+
+- no, unless persisted equipped fixture storage is introduced later.
+
+
+Recommended First Patch
+-----------------------
+
+The smallest useful first patch is:
+
+1. Add `lib/forge/outputProfile.ts`.
+2. Add a focused report-only smoke script, for example
+   `scripts/forgeOutputProfile.smoke.ts`.
+3. Do not change Forge save behaviour, schema, FP costs, or UI.
+
+The helper should calculate table-facing output from current Forge item-shaped
+data:
+
+- Strength x 2 wounds per success
+- damage type count
+- total wounds per success
+- target count and range/AoE facts
+- PPV/MPV defensive facts
+- shield attack/defence co-presence
+
+This first patch creates the output bottleneck that docs/08 requires, while
+leaving the existing Forge cost economy untouched.
+
+
+Validation Strategy
+-------------------
+
+For helper-only work:
+
+- `npx tsc --noEmit`
+- `npx --yes tsx scripts/forgeOutputProfile.smoke.ts`
+
+For any later UI work:
+
+- `npx tsc --noEmit`
+- existing Forge route/component smoke by manual browser check if needed
+
+For equipped monster validation:
+
+- `npm run calibration:export-active-tuning`
+- `npx --yes tsx scripts/outcomeCalibrationHarness.ts --tuning active`
+- `npm run diagnostic:level-relative-radar`
+- `npm run diagnostic:level-relative-decay`
+- `npm run diagnostic:output-origin-parity`
+- `npm run diagnostic:combat-smoke` only when the fixture adapter honestly
+  supports the tested monsters.
+
+
+Non-Goals
+---------
+
+- No Forge implementation in this document.
+- No gameplay code changes.
+- No tuning value changes.
+- No Power Tuning, Combat Tuning, or Outcome Normalization changes.
+- No docs/01 or docs/02 changes.
+- No full armour slot weighting.
+- No item schema rewrite.
+- No rarity-as-damage loophole.
+- No player-facing final Forge UI design.
+- No Summoned Item, Summoned Creature, Transformation, or other deferred
+  builder work.
+- No collapse of Power Tuning, Combat Tuning / Monster Baseline Tuning, and
+  Outcome Normalization.
+
+
+Open Questions
+--------------
+
+- Should Forge output bands live as code constants, tuning data, or a
+  diagnostic-only table for the first implementation pass?
+- How much should ranged and AoE profiles discount direct wounds per success
+  compared with melee?
+- What is the first-pass exchange rate between shield attack output and shield
+  defence output?
+- How much MPV efficiency should be allowed relative to PPV?
+- When should effective profile level become a persistent field, if ever?
+- Should over-band status be report-only forever, or should it eventually block
+  save/export for certain authoring modes?
+- What item fixture format should be used for Forge output diagnostics?
+- How should existing Forge Point spend percentage relate to output-band
+  status once both readouts exist?
