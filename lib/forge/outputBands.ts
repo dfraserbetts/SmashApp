@@ -62,7 +62,35 @@ export type ForgeShieldBandComparison = {
   notes: string[];
 };
 
-export type ForgeOutputBandComparison = {
+export type ForgeLaneStatus = "narrow" | "moderate" | "broad" | "heavy" | "likely overloaded";
+export type ForgeRarityRole =
+  | "Common should usually be narrow"
+  | "Uncommon may have modest breadth"
+  | "Rare may have meaningful breadth, riders, or alternate profiles"
+  | "Legendary/Mythic may have broad tactical features";
+
+export type ForgeOutputLaneSummary = {
+  status: ForgeLaneStatus;
+  mainDrivers: string[];
+  warnings: string[];
+};
+
+export type ForgeRarityPressureSummary = {
+  expectedRarityRole: ForgeRarityRole;
+  notes: string[];
+};
+
+export type ForgeOutputLaneComparison = {
+  coreFunctionality: ForgeOutputLaneSummary;
+  featuresVersatility: ForgeOutputLaneSummary;
+  rarityPressure: ForgeRarityPressureSummary;
+  debug: {
+    source: "forge_output_lanes_v1";
+    reportOnly: true;
+  };
+};
+
+export type ForgeOutputBandComparisonCore = {
   common: ForgeOutputProfile["common"];
   weaponProfiles: ForgeWeaponProfileBandComparison[];
   defensive: ForgeDefensiveBandComparison;
@@ -74,6 +102,10 @@ export type ForgeOutputBandComparison = {
     noSaveBlocking: true;
     notes: string[];
   };
+};
+
+export type ForgeOutputBandComparison = ForgeOutputBandComparisonCore & {
+  lanes: ForgeOutputLaneComparison;
 };
 
 type SourceBandRow = {
@@ -282,6 +314,202 @@ function resolveShieldWarning(
   return { hasAttackAndDefence, shieldSplitWarningLevel: "watch", notes };
 }
 
+function getRarityRole(rarity: string | null): ForgeRarityRole {
+  const normalized = String(rarity ?? "").trim().toUpperCase();
+  if (normalized === "UNCOMMON") return "Uncommon may have modest breadth";
+  if (normalized === "RARE") return "Rare may have meaningful breadth, riders, or alternate profiles";
+  if (normalized === "LEGENDARY" || normalized === "MYTHIC") {
+    return "Legendary/Mythic may have broad tactical features";
+  }
+  return "Common should usually be narrow";
+}
+
+function statusFromScore(score: number, overloaded: boolean): ForgeLaneStatus {
+  if (overloaded) return "likely overloaded";
+  if (score >= 6) return "heavy";
+  if (score >= 4) return "broad";
+  if (score >= 2) return "moderate";
+  return "narrow";
+}
+
+function isHighOrMore(classification: ForgeOutputBandClassification): boolean {
+  return CLASSIFICATION_RANK[classification] >= CLASSIFICATION_RANK.high;
+}
+
+function isExtremeOrMore(classification: ForgeOutputBandClassification): boolean {
+  return CLASSIFICATION_RANK[classification] >= CLASSIFICATION_RANK.extreme;
+}
+
+function isStandardOrMore(classification: ForgeOutputBandClassification): boolean {
+  return CLASSIFICATION_RANK[classification] >= CLASSIFICATION_RANK.standard;
+}
+
+export function classifyForgeOutputLanes(
+  profile: ForgeOutputProfile,
+  bandComparison: ForgeOutputBandComparisonCore,
+): ForgeOutputLaneComparison {
+  const enabledWeaponProfiles = bandComparison.weaponProfiles.filter((entry) => entry.enabled);
+  const primaryWeaponProfile = enabledWeaponProfiles.reduce<ForgeWeaponProfileBandComparison | null>(
+    (highest, current) => {
+      if (!highest) return current;
+      return CLASSIFICATION_RANK[current.classification] > CLASSIFICATION_RANK[highest.classification]
+        ? current
+        : highest;
+    },
+    null,
+  );
+  const featureDrivers: string[] = [];
+  const featureWarnings: string[] = [];
+  const coreDrivers: string[] = [];
+  const coreWarnings: string[] = [];
+  let featureScore = 0;
+  let coreScore = 0;
+
+  if (primaryWeaponProfile) {
+    coreScore += Math.max(1, CLASSIFICATION_RANK[primaryWeaponProfile.classification]);
+    coreDrivers.push(
+      `${primaryWeaponProfile.profileKind} ${primaryWeaponProfile.classification} weapon throughput`,
+    );
+    coreDrivers.push(`${primaryWeaponProfile.totalWoundsPerSuccess} wounds/success`);
+    if (primaryWeaponProfile.targetCount > 1) {
+      coreDrivers.push(`${primaryWeaponProfile.totalPressure} total pressure across ${primaryWeaponProfile.targetCount} targets`);
+    }
+    if (isExtremeOrMore(primaryWeaponProfile.classification)) {
+      coreWarnings.push("weapon throughput is extreme-or-higher for item level");
+    }
+  }
+
+  if (enabledWeaponProfiles.length > 1) {
+    featureScore += enabledWeaponProfiles.length;
+    featureDrivers.push(`${enabledWeaponProfiles.length} attack profiles`);
+    const rangeKinds = new Set(enabledWeaponProfiles.map((entry) => entry.rangeCategory));
+    if (rangeKinds.has("MELEE") && rangeKinds.has("RANGED")) {
+      featureScore += 1;
+      featureDrivers.push("mixed melee/ranged access");
+    }
+  }
+
+  for (const weaponProfile of enabledWeaponProfiles) {
+    if (weaponProfile.damageTypeCount > 1) {
+      featureScore += weaponProfile.damageTypeCount - 1;
+      featureDrivers.push(`${weaponProfile.profileKind} simultaneous damage type flexibility`);
+    }
+    if (weaponProfile.greaterSuccessEffectCount > 0) {
+      featureScore += weaponProfile.greaterSuccessEffectCount;
+      featureDrivers.push(`${weaponProfile.profileKind} Greater Success effects`);
+    }
+    if (weaponProfile.hasAoe) {
+      featureScore += 2;
+      featureDrivers.push("AoE geometry");
+    }
+    if (weaponProfile.targetCount > 1) {
+      featureScore += weaponProfile.targetCount - 1;
+      featureDrivers.push(`${weaponProfile.profileKind} multi-target access`);
+    }
+  }
+
+  const ppvClass = bandComparison.defensive.ppv.classification;
+  const mpvClass = bandComparison.defensive.mpv.classification;
+  if (profile.defensiveProfile.ppv > 0) {
+    coreScore += Math.max(1, CLASSIFICATION_RANK[ppvClass]);
+    coreDrivers.push(`PPV ${profile.defensiveProfile.ppv} (${ppvClass})`);
+  }
+  if (profile.defensiveProfile.mpv > 0) {
+    coreScore += Math.max(1, CLASSIFICATION_RANK[mpvClass]);
+    coreDrivers.push(`MPV ${profile.defensiveProfile.mpv} (${mpvClass})`);
+  }
+  if (profile.defensiveProfile.auraPhysical) {
+    coreScore += 1;
+    coreDrivers.push(`physical aura ${profile.defensiveProfile.auraPhysical}`);
+  }
+  if (profile.defensiveProfile.auraMental) {
+    coreScore += 1;
+    coreDrivers.push(`mental aura ${profile.defensiveProfile.auraMental}`);
+  }
+
+  if (profile.defensiveProfile.defensiveEffectCount > 0) {
+    featureScore += profile.defensiveProfile.defensiveEffectCount;
+    featureDrivers.push("defensive effects");
+  }
+  if (profile.defensiveProfile.armourAttributeCount > 0) {
+    featureScore += profile.defensiveProfile.armourAttributeCount;
+    featureDrivers.push("armour attributes");
+  }
+  if (profile.defensiveProfile.shieldAttributeCount > 0) {
+    featureScore += profile.defensiveProfile.shieldAttributeCount;
+    featureDrivers.push("shield attributes");
+  }
+  if (profile.defensiveProfile.vrpCount > 0) {
+    featureScore += profile.defensiveProfile.vrpCount;
+    featureDrivers.push("VRP entries");
+  }
+  if (profile.featureProfile.weaponAttributeCount > 0) {
+    featureScore += profile.featureProfile.weaponAttributeCount;
+    featureDrivers.push("weapon attributes");
+  }
+  if (profile.featureProfile.customTextLabels.length > 0) {
+    featureScore += profile.featureProfile.customTextLabels.length;
+    featureDrivers.push(...profile.featureProfile.customTextLabels);
+  }
+  if (profile.featureProfile.globalAttributeModifierCount > 0) {
+    featureScore += profile.featureProfile.globalAttributeModifierCount;
+    featureDrivers.push("global attribute modifiers");
+  }
+  if (profile.featureProfile.tagCount > 0) {
+    featureScore += 1;
+    featureDrivers.push("tags/special properties");
+  }
+
+  if (bandComparison.shield.hasAttackAndDefence) {
+    coreScore += 1;
+    coreDrivers.push("shield split attack/defence output");
+    coreWarnings.push(`shield split-function ${bandComparison.shield.shieldSplitWarningLevel}`);
+  }
+
+  const rarityRole = getRarityRole(profile.common.rarity);
+  const rarityNotes = [
+    "rarity is interpretive context only and does not increase raw damage allowance",
+  ];
+
+  if (profile.common.rarity === "COMMON" && featureScore >= 3) {
+    featureWarnings.push("Common item carries moderate-or-broader feature load");
+    rarityNotes.push("Common should usually remain narrow unless deliberately flagged");
+  }
+  if ((profile.common.rarity === "COMMON" || profile.common.rarity === "UNCOMMON") && coreScore >= 6) {
+    coreWarnings.push("core output is heavy for a low-rarity item; rarity does not excuse raw throughput");
+  }
+  if (enabledWeaponProfiles.some((entry) => entry.classification === "over-band")) {
+    coreWarnings.push("over-band weapon output remains over-band regardless of rarity");
+  }
+  if (enabledWeaponProfiles.some((entry) => isHighOrMore(entry.totalPressureClassification) && entry.targetCount > 1)) {
+    coreWarnings.push("multi-target total pressure should spend breadth/feature budget");
+  }
+  if (enabledWeaponProfiles.some((entry) => entry.damageTypeCount > 1 && isStandardOrMore(entry.classification))) {
+    featureWarnings.push("simultaneous damage type count is contributing to core pressure");
+  }
+
+  return {
+    coreFunctionality: {
+      status: statusFromScore(coreScore, coreWarnings.some((entry) => entry.includes("over-band"))),
+      mainDrivers: coreDrivers,
+      warnings: coreWarnings,
+    },
+    featuresVersatility: {
+      status: statusFromScore(featureScore, featureWarnings.length > 2),
+      mainDrivers: featureDrivers,
+      warnings: featureWarnings,
+    },
+    rarityPressure: {
+      expectedRarityRole: rarityRole,
+      notes: rarityNotes,
+    },
+    debug: {
+      source: "forge_output_lanes_v1",
+      reportOnly: true,
+    },
+  };
+}
+
 export function compareForgeOutputToBands(profile: ForgeOutputProfile): ForgeOutputBandComparison {
   const weaponThresholds = getBand("weaponWoundsPerSuccess", profile.common.level);
   const ppvThresholds = getBand("ppv", profile.common.level);
@@ -292,7 +520,7 @@ export function compareForgeOutputToBands(profile: ForgeOutputProfile): ForgeOut
   const ppvClassification = classifyValue(profile.defensiveProfile.ppv, ppvThresholds);
   const mpvClassification = classifyValue(profile.defensiveProfile.mpv, mpvThresholds);
 
-  return {
+  const comparisonCore: ForgeOutputBandComparisonCore = {
     common: profile.common,
     weaponProfiles,
     defensive: {
@@ -320,5 +548,10 @@ export function compareForgeOutputToBands(profile: ForgeOutputProfile): ForgeOut
         "armour slot weighting is deferred",
       ],
     },
+  };
+
+  return {
+    ...comparisonCore,
+    lanes: classifyForgeOutputLanes(profile, comparisonCore),
   };
 }

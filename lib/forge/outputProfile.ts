@@ -39,6 +39,11 @@ export type ForgeVrpInput = {
   damageType?: { name?: string | null } | string | null;
 };
 
+export type ForgeGlobalAttributeModifierInput = {
+  attribute?: string | null;
+  amount?: number | null;
+};
+
 export type ForgeOutputProfileInput = {
   level?: number | null;
   rarity?: ItemRarity | string | null;
@@ -97,6 +102,13 @@ export type ForgeOutputProfileInput = {
   weaponAttributes?: ForgeNamedInput[] | null;
   weaponAttributeNames?: string[] | null;
   vrpEntries?: ForgeVrpInput[] | null;
+
+  customWeaponAttributes?: string | null;
+  customArmorAttributes?: string | null;
+  customShieldAttributes?: string | null;
+  customItemAttributes?: string | null;
+  globalAttributeModifiers?: ForgeGlobalAttributeModifierInput[] | null;
+  tags?: string[] | null;
 };
 
 export type ForgeDamageTypeOutput = {
@@ -157,6 +169,16 @@ export type ForgeShieldCoPresenceOutput = {
   hasAttackAndDefence: boolean;
 };
 
+export type ForgeFeatureProfileOutput = {
+  weaponAttributeCount: number;
+  weaponAttributeLabels: string[];
+  customTextLabels: string[];
+  globalAttributeModifierCount: number;
+  globalAttributeModifierSummary: string[];
+  tagCount: number;
+  tags: string[];
+};
+
 export type ForgeOutputProfile = {
   common: {
     level: number | null;
@@ -168,6 +190,7 @@ export type ForgeOutputProfile = {
   attackProfiles: ForgeAttackProfileOutput[];
   defensiveProfile: ForgeDefensiveProfileOutput;
   shieldCoPresence: ForgeShieldCoPresenceOutput;
+  featureProfile: ForgeFeatureProfileOutput;
   debug: {
     source: "forge_output_profile_v1";
     strengthRule: "Strength x 2 table-facing wounds per success";
@@ -298,6 +321,38 @@ function summarizeVrpEntries(entries: ForgeVrpInput[] | null | undefined): strin
     .filter((entry): entry is string => Boolean(entry));
 }
 
+function normalizeCustomTextLabels(input: ForgeOutputProfileInput): string[] {
+  const labels: string[] = [];
+  if (String(input.customWeaponAttributes ?? "").trim()) labels.push("custom weapon attributes");
+  if (String(input.customArmorAttributes ?? "").trim()) labels.push("custom armour attributes");
+  if (String(input.customShieldAttributes ?? "").trim()) labels.push("custom shield attributes");
+  if (String(input.customItemAttributes ?? "").trim()) labels.push("custom item attributes");
+  return labels;
+}
+
+function summarizeGlobalAttributeModifiers(
+  entries: ForgeGlobalAttributeModifierInput[] | null | undefined,
+): string[] {
+  return (entries ?? [])
+    .map((entry) => {
+      const attribute = String(entry.attribute ?? "").trim();
+      const amount = toNumber(entry.amount, 0);
+      if (!attribute || amount === 0) return null;
+      const prefix = amount > 0 ? "+" : "";
+      return `${attribute} ${prefix}${amount}`;
+    })
+    .filter((entry): entry is string => Boolean(entry));
+}
+
+function normalizeTags(tags: string[] | null | undefined): string[] {
+  const byName = new Map<string, string>();
+  for (const tag of tags ?? []) {
+    const trimmed = String(tag ?? "").trim();
+    if (trimmed) byName.set(trimmed.toLowerCase(), trimmed);
+  }
+  return Array.from(byName.values()).sort((a, b) => a.localeCompare(b));
+}
+
 function strengthToTableWoundsPerSuccess(strength: number): number {
   return Math.max(0, strength) * 2;
 }
@@ -420,7 +475,11 @@ export function buildForgeOutputProfile(input: ForgeOutputProfileInput): ForgeOu
   const defensiveEffectLabels = normalizeLabels(input.defEffects, input.defEffectNames);
   const armourAttributeLabels = normalizeLabels(input.armorAttributes, input.armorAttributeNames);
   const shieldAttributeLabels = normalizeLabels(input.shieldAttributes, input.shieldAttributeNames);
+  const weaponAttributeLabels = normalizeLabels(input.weaponAttributes, input.weaponAttributeNames);
   const vrpSummary = summarizeVrpEntries(input.vrpEntries);
+  const customTextLabels = normalizeCustomTextLabels(input);
+  const globalAttributeModifierSummary = summarizeGlobalAttributeModifiers(input.globalAttributeModifiers);
+  const tags = normalizeTags(input.tags);
   const ppv = toNumber(input.ppv, 0);
   const mpv = toNumber(input.mpv, 0);
 
@@ -465,6 +524,15 @@ export function buildForgeOutputProfile(input: ForgeOutputProfileInput): ForgeOu
       hasShieldAttack,
       hasDefenceOutput,
       hasAttackAndDefence: hasShieldAttack && hasDefenceOutput,
+    },
+    featureProfile: {
+      weaponAttributeCount: weaponAttributeLabels.length,
+      weaponAttributeLabels,
+      customTextLabels,
+      globalAttributeModifierCount: globalAttributeModifierSummary.length,
+      globalAttributeModifierSummary,
+      tagCount: tags.length,
+      tags,
     },
     debug: {
       source: "forge_output_profile_v1",

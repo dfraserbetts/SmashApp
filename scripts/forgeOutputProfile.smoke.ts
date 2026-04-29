@@ -47,6 +47,14 @@ assert.equal(simpleMeleeBands.debug.bandSet, "natural_baseline_v1");
 assert.equal(simpleMeleeBands.debug.reportOnly, true);
 assert.equal(simpleMeleeBands.debug.noSaveBlocking, true);
 assert.equal(simpleMeleeBand?.classification, "standard");
+assert.equal(simpleMeleeBands.lanes.debug.source, "forge_output_lanes_v1");
+assert.equal(simpleMeleeBands.lanes.debug.reportOnly, true);
+assert.equal(simpleMeleeBands.lanes.coreFunctionality.status, "moderate");
+assert.equal(simpleMeleeBands.lanes.featuresVersatility.status, "narrow");
+assert.ok(
+  simpleMeleeBands.lanes.coreFunctionality.mainDrivers.some((entry) => entry.includes("weapon throughput")),
+  "simple melee should read as core-focused",
+);
 
 const dualDamageMelee = runCase("dual damage melee", {
   level: 5,
@@ -72,6 +80,19 @@ assert.equal(dualDamageMeleeBand?.classification, "high");
 assert.ok(
   (dualDamageMeleeBand?.totalPressure ?? 0) > (simpleMeleeBand?.totalPressure ?? 0),
   "dual damage type pressure should exceed one-type melee pressure",
+);
+const dualDamageMeleeBands = compareForgeOutputToBands(dualDamageMelee);
+assert.ok(
+  dualDamageMeleeBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
+    entry.includes("damage type"),
+  ),
+  "dual damage type item should report damage type flexibility/pressure",
+);
+assert.ok(
+  dualDamageMeleeBands.lanes.featuresVersatility.warnings.some((entry) =>
+    entry.includes("damage type"),
+  ),
+  "dual damage type item should warn that simultaneous damage types add pressure",
 );
 
 const rangedMental = runCase("ranged mental", {
@@ -117,6 +138,17 @@ assert.equal(aoeAttack.targetCount, 3);
 assert.equal(aoeAttack.aoe?.shape, "SPHERE");
 assert.equal(aoeAttack.aoe?.sphereRadiusFeet, 10);
 assert.equal(aoeAttack.greaterSuccessEffectCount, 1);
+const aoeBands = compareForgeOutputToBands(aoeProfile);
+assert.ok(
+  aoeBands.lanes.featuresVersatility.mainDrivers.includes("AoE geometry"),
+  "AoE item should report AoE geometry as feature breadth",
+);
+assert.ok(
+  aoeBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
+    entry.includes("Greater Success"),
+  ),
+  "Greater Success effects should contribute to Features & Versatility",
+);
 
 const armour = runCase("armour", {
   level: 5,
@@ -137,6 +169,18 @@ const armourBands = compareForgeOutputToBands(armour);
 assert.equal(armourBands.defensive.ppv.classification, "low");
 assert.equal(armourBands.defensive.mpv.classification, "low");
 assert.equal(armourBands.defensive.debugNote, "package/per-piece context deferred");
+assert.ok(
+  armourBands.lanes.coreFunctionality.mainDrivers.some((entry) => entry.includes("PPV")),
+  "armour should report PPV as core defensive functionality",
+);
+assert.ok(
+  armourBands.lanes.coreFunctionality.mainDrivers.some((entry) => entry.includes("MPV")),
+  "armour should report MPV as core defensive functionality",
+);
+assert.ok(
+  armourBands.lanes.featuresVersatility.mainDrivers.includes("defensive effects"),
+  "defensive effects should contribute to Features & Versatility",
+);
 
 const shield = runCase("shield", {
   level: 5,
@@ -158,6 +202,14 @@ assert.equal(shield.shieldCoPresence.hasAttackAndDefence, true);
 const shieldBands = compareForgeOutputToBands(shield);
 assert.equal(shieldBands.shield.hasAttackAndDefence, true);
 assert.equal(shieldBands.shield.shieldSplitWarningLevel, "watch");
+assert.ok(
+  shieldBands.lanes.coreFunctionality.mainDrivers.includes("shield split attack/defence output"),
+  "shield should report split-function core output",
+);
+assert.ok(
+  shieldBands.lanes.coreFunctionality.warnings.some((entry) => entry.includes("shield split-function")),
+  "shield with attack and defence should report split-function watch",
+);
 
 const mixedMeleeRanged = runCase("mixed melee/ranged", {
   level: 5,
@@ -176,6 +228,15 @@ const mixedMeleeRanged = runCase("mixed melee/ranged", {
 assert.equal(getProfile(mixedMeleeRanged, "melee").totalWoundsPerSuccess, 6);
 assert.equal(getProfile(mixedMeleeRanged, "ranged").totalWoundsPerSuccess, 4);
 assert.equal(getProfile(mixedMeleeRanged, "ranged").targetCount, 2);
+const mixedMeleeRangedBands = compareForgeOutputToBands(mixedMeleeRanged);
+assert.ok(
+  mixedMeleeRangedBands.lanes.featuresVersatility.mainDrivers.includes("2 attack profiles"),
+  "mixed item should report extra attack profile breadth",
+);
+assert.ok(
+  mixedMeleeRangedBands.lanes.featuresVersatility.mainDrivers.includes("mixed melee/ranged access"),
+  "mixed item should report mixed melee/ranged versatility",
+);
 
 const overBudgetWeapon = runCase("over-budget level 5 weapon", {
   level: 5,
@@ -198,6 +259,14 @@ const overBudgetBand = compareForgeOutputToBands(overBudgetWeapon).weaponProfile
 assert.equal(getProfile(overBudgetWeapon, "ranged").totalWoundsPerSuccess, 16);
 assert.equal(overBudgetBand?.totalPressure, 32);
 assert.equal(overBudgetBand?.classification, "over-band");
+const overBudgetBands = compareForgeOutputToBands(overBudgetWeapon);
+assert.equal(overBudgetBands.lanes.coreFunctionality.status, "likely overloaded");
+assert.ok(
+  overBudgetBands.lanes.coreFunctionality.warnings.some((entry) =>
+    entry.includes("regardless of rarity"),
+  ),
+  "over-band output should not be excused by rarity alone",
+);
 
 const summary = [
   ["simple melee", getProfile(simpleMelee, "melee").totalWoundsPerSuccess],
@@ -212,6 +281,9 @@ const summary = [
   ["ranged mental pressure band", rangedMentalBand?.totalPressureClassification ?? "missing"],
   ["over-budget ranged band", overBudgetBand?.classification ?? "missing"],
   ["shield split warning", shieldBands.shield.shieldSplitWarningLevel],
+  ["simple melee core lane", simpleMeleeBands.lanes.coreFunctionality.status],
+  ["mixed item feature lane", mixedMeleeRangedBands.lanes.featuresVersatility.status],
+  ["over-budget core lane", overBudgetBands.lanes.coreFunctionality.status],
 ];
 
 console.log("Forge output profile smoke passed.");
