@@ -24,6 +24,14 @@ export type ForgeBandThresholds = {
   overBandMin: number;
 };
 
+export type ForgeRangedDistancePressure = {
+  distanceFeet: number;
+  tier: "none" | "watch" | "moderate" | "heavy";
+  score: number;
+  ratio: number;
+  note: string;
+};
+
 export type ForgeWeaponProfileBandComparison = {
   profileKind: ForgeAttackProfileOutput["profileKind"];
   enabled: boolean;
@@ -37,6 +45,9 @@ export type ForgeWeaponProfileBandComparison = {
   damageTypeCount: number;
   damageTypeNames: string[];
   hasAoe: boolean;
+  rangedDistanceFeet: number | null;
+  rangedDistancePressure: ForgeRangedDistancePressure | null;
+  aoe: ForgeAttackProfileOutput["aoe"];
   perTargetClassification: ForgeOutputBandClassification;
   totalPressureClassification: ForgeOutputBandClassification;
   classification: ForgeOutputBandClassification;
@@ -110,6 +121,8 @@ export type ForgeOutputLaneComparison = {
     coreExpectedValue: number;
     corePressureRatio: number;
     coreExpectationSource: "forge_expectation_config" | "default";
+    rangePressureScore: number;
+    rangePressureDrivers: string[];
     featureWeightTotal: number;
     featureWeightTotalRaw: number;
     featureWeightTotalClamped: number;
@@ -482,6 +495,48 @@ function formatRangeLabel(rangeCategory: string): "Melee" | "Ranged" | "AoE" {
   return "Melee";
 }
 
+function formatEnabledRangeLabels(profile: ForgeOutputProfile): Set<"Melee" | "Ranged" | "AoE"> {
+  return new Set(profile.attackAccess.enabledRangeCategories.map((entry) => formatRangeLabel(entry)));
+}
+
+function getRangedDistancePressure(distanceFeet: number | null): ForgeRangedDistancePressure | null {
+  if (!distanceFeet || distanceFeet <= 0) return null;
+  if (distanceFeet <= 30) {
+    return {
+      distanceFeet,
+      tier: "none",
+      score: 0,
+      ratio: 0,
+      note: `${distanceFeet} ft ranged distance is baseline reach`,
+    };
+  }
+  if (distanceFeet <= 60) {
+    return {
+      distanceFeet,
+      tier: "watch",
+      score: 1,
+      ratio: 0.25,
+      note: `${distanceFeet} ft ranged distance adds watch-level core pressure`,
+    };
+  }
+  if (distanceFeet <= 120) {
+    return {
+      distanceFeet,
+      tier: "moderate",
+      score: 2,
+      ratio: 0.5,
+      note: `${distanceFeet} ft ranged distance adds moderate core pressure`,
+    };
+  }
+  return {
+    distanceFeet,
+    tier: "heavy",
+    score: 3,
+    ratio: 0.75,
+    note: `${distanceFeet} ft ranged distance adds heavy core pressure`,
+  };
+}
+
 function parseMagnitudeLabel(label: string): { baseName: string; magnitude: number | null } {
   const match = label.trim().match(/^(.*\D)\s+(-?\d+)$/);
   if (!match) return { baseName: label.trim(), magnitude: null };
@@ -608,6 +663,8 @@ function compareWeaponProfile(
   const totalPressureClassification = classifyValue(totalPressure, thresholds);
   const classification = maxClassification([perTargetClassification, totalPressureClassification]);
   const debugNotes: string[] = [...weaponBand.debugNotes];
+  const rangedDistancePressure =
+    profile.profileKind === "ranged" ? getRangedDistancePressure(profile.rangedDistanceFeet) : null;
 
   if (profile.damageTypeCount > 1) {
     debugNotes.push("multiple simultaneous damage types consume core output budget");
@@ -617,6 +674,9 @@ function compareWeaponProfile(
   }
   if (profile.aoe) {
     debugNotes.push("AoE geometry is feature/breadth pressure and remains report-only");
+  }
+  if (rangedDistancePressure) {
+    debugNotes.push(rangedDistancePressure.note);
   }
 
   return {
@@ -632,6 +692,9 @@ function compareWeaponProfile(
     damageTypeCount: profile.damageTypeCount,
     damageTypeNames: profile.damageTypeNames,
     hasAoe: Boolean(profile.aoe),
+    rangedDistanceFeet: profile.rangedDistanceFeet,
+    rangedDistancePressure,
+    aoe: profile.aoe,
     perTargetClassification,
     totalPressureClassification,
     classification,
@@ -953,7 +1016,7 @@ function collectFeatureWeights(
       addFeatureWeight(
         state,
         context,
-        `${enabledWeaponProfiles.length} attack profiles`,
+        `${rangeLabel} attack access (${enabledWeaponProfiles.length} attack profiles)`,
         "extra_profile",
         [{ category: "RangeCategory", selector1: itemTypeLabel, selector2: rangeLabel }],
         "extra profile breadth has no direct Forge-Values feature row",
@@ -983,7 +1046,12 @@ function collectFeatureWeights(
         `${rangeLabel} ${weaponProfile.targetCount} targets`,
         "target_count",
         [{
-          category: weaponProfile.rangeCategory === "RANGED" ? "RangedTargets" : "MeleeTargets",
+          category:
+            weaponProfile.rangeCategory === "RANGED"
+              ? "RangedTargets"
+              : weaponProfile.rangeCategory === "AOE"
+                ? "AoECount"
+                : "MeleeTargets",
           selector1: itemTypeLabel,
           selector2: String(weaponProfile.targetCount),
         }],
@@ -991,7 +1059,32 @@ function collectFeatureWeights(
       );
     }
 
+    if (weaponProfile.rangedDistanceFeet) {
+      addFeatureWeight(
+        state,
+        context,
+        `Ranged distance ${weaponProfile.rangedDistanceFeet} ft`,
+        "ranged_distance",
+        [{
+          category: "RangedDistanceFt",
+          selector1: itemTypeLabel,
+          selector2: String(weaponProfile.rangedDistanceFeet),
+        }],
+        "ranged distance has no matching Forge-Values row",
+      );
+    }
+
     if (weaponProfile.hasAoe) {
+      if (weaponProfile.profileKind === primaryProfileKind) {
+        addFeatureWeight(
+          state,
+          context,
+          "AoE attack access",
+          "aoe_access",
+          [{ category: "RangeCategory", selector1: itemTypeLabel, selector2: "AoE" }],
+          "AoE access has no direct Forge-Values feature row",
+        );
+      }
       addFeatureWeight(
         state,
         context,
@@ -1000,10 +1093,82 @@ function collectFeatureWeights(
         [],
         "AoE geometry has no single direct Forge-Values row",
       );
+      if (weaponProfile.aoe?.centerRangeFeet) {
+        addFeatureWeight(
+          state,
+          context,
+          `AoE center range ${weaponProfile.aoe.centerRangeFeet} ft`,
+          "aoe_center_range",
+          [{
+            category: "AoECenterRangeFt",
+            selector1: itemTypeLabel,
+            selector2: String(weaponProfile.aoe.centerRangeFeet),
+          }],
+          "AoE center range has no matching Forge-Values row",
+        );
+      }
+      if (weaponProfile.aoe?.shape === "SPHERE" && weaponProfile.aoe.sphereRadiusFeet) {
+        addFeatureWeight(
+          state,
+          context,
+          `AoE sphere radius ${weaponProfile.aoe.sphereRadiusFeet} ft`,
+          "aoe_shape_size",
+          [{
+            category: "SphereSizeFt",
+            selector1: itemTypeLabel,
+            selector2: String(weaponProfile.aoe.sphereRadiusFeet),
+          }],
+          "AoE sphere size has no matching Forge-Values row",
+        );
+      }
+      if (weaponProfile.aoe?.shape === "CONE" && weaponProfile.aoe.coneLengthFeet) {
+        addFeatureWeight(
+          state,
+          context,
+          `AoE cone length ${weaponProfile.aoe.coneLengthFeet} ft`,
+          "aoe_shape_size",
+          [{
+            category: "ConeLengthFt",
+            selector1: itemTypeLabel,
+            selector2: String(weaponProfile.aoe.coneLengthFeet),
+          }],
+          "AoE cone size has no matching Forge-Values row",
+        );
+      }
+      if (weaponProfile.aoe?.shape === "LINE") {
+        if (weaponProfile.aoe.lineWidthFeet) {
+          addFeatureWeight(
+            state,
+            context,
+            `AoE line width ${weaponProfile.aoe.lineWidthFeet} ft`,
+            "aoe_shape_size",
+            [{
+              category: "LineWidthFt",
+              selector1: itemTypeLabel,
+              selector2: String(weaponProfile.aoe.lineWidthFeet),
+            }],
+            "AoE line width has no matching Forge-Values row",
+          );
+        }
+        if (weaponProfile.aoe.lineLengthFeet) {
+          addFeatureWeight(
+            state,
+            context,
+            `AoE line length ${weaponProfile.aoe.lineLengthFeet} ft`,
+            "aoe_shape_size",
+            [{
+              category: "LineLengthFt",
+              selector1: itemTypeLabel,
+              selector2: String(weaponProfile.aoe.lineLengthFeet),
+            }],
+            "AoE line length has no matching Forge-Values row",
+          );
+        }
+      }
     }
   }
 
-  const enabledRangeLabels = new Set(enabledWeaponProfiles.map((entry) => formatRangeLabel(entry.rangeCategory)));
+  const enabledRangeLabels = formatEnabledRangeLabels(profile);
   if (enabledRangeLabels.has("Melee") && enabledRangeLabels.has("Ranged")) {
     addFeatureWeight(
       state,
@@ -1012,6 +1177,36 @@ function collectFeatureWeights(
       "mixed_profile_access",
       [],
       "mixed melee/ranged access has no direct Forge-Values row",
+    );
+  }
+  if (enabledRangeLabels.has("Melee") && enabledRangeLabels.has("AoE")) {
+    addFeatureWeight(
+      state,
+      context,
+      "mixed melee/AoE access",
+      "mixed_profile_access",
+      [],
+      "mixed melee/AoE access has no direct Forge-Values row",
+    );
+  }
+  if (enabledRangeLabels.has("Ranged") && enabledRangeLabels.has("AoE")) {
+    addFeatureWeight(
+      state,
+      context,
+      "mixed ranged/AoE access",
+      "mixed_profile_access",
+      [],
+      "mixed ranged/AoE access has no direct Forge-Values row",
+    );
+  }
+  if (enabledRangeLabels.has("Melee") && enabledRangeLabels.has("Ranged") && enabledRangeLabels.has("AoE")) {
+    addFeatureWeight(
+      state,
+      context,
+      "all three attack modes",
+      "mixed_profile_access",
+      [],
+      "all three attack modes have no direct Forge-Values row",
     );
   }
 
@@ -1165,7 +1360,9 @@ export function classifyForgeOutputLanes(
   const featureWeightRatio =
     featureWeightBudget.value > 0 ? featureWeightTotalClamped / featureWeightBudget.value : 0;
   const corePressureCandidates: CorePressureCandidate[] = [];
+  const rangePressureDrivers: string[] = [];
   let coreScore = 0;
+  let rangePressureScore = 0;
   let coreStatusFloor: ForgeLaneStatus = "narrow";
 
   if (primaryWeaponProfile) {
@@ -1191,6 +1388,53 @@ export function classifyForgeOutputLanes(
     if (isExtremeOrMore(primaryWeaponProfile.classification)) {
       coreWarnings.push("weapon throughput is extreme-or-higher for item level");
     }
+  }
+
+  for (const secondaryWeaponProfile of enabledWeaponProfiles) {
+    if (!primaryWeaponProfile || secondaryWeaponProfile.profileKind === primaryWeaponProfile.profileKind) continue;
+    if (secondaryWeaponProfile.totalWoundsPerSuccess <= 0) continue;
+
+    coreScore += Math.max(1, CLASSIFICATION_RANK[secondaryWeaponProfile.classification]);
+    coreStatusFloor = maxLaneStatus(coreStatusFloor, coreStatusFloorForBand(secondaryWeaponProfile.classification));
+    coreDrivers.push(
+      `${secondaryWeaponProfile.profileKind} ${secondaryWeaponProfile.classification} secondary weapon throughput`,
+    );
+    if (secondaryWeaponProfile.targetCount > 1) {
+      coreDrivers.push(
+        `${secondaryWeaponProfile.profileKind} ${secondaryWeaponProfile.totalPressure} total pressure across ${secondaryWeaponProfile.targetCount} targets`,
+      );
+    }
+    corePressureCandidates.push(
+      getCorePressureCandidate(
+        `${secondaryWeaponProfile.profileKind} secondary weapon throughput`,
+        secondaryWeaponProfile.totalWoundsPerSuccess,
+        secondaryWeaponProfile.thresholds.standardMax,
+        secondaryWeaponProfile.debugNotes.some((entry) => entry.includes("expectation config"))
+          ? "forge_expectation_config"
+          : "default",
+      ),
+    );
+    if (isExtremeOrMore(secondaryWeaponProfile.classification)) {
+      coreWarnings.push(`${secondaryWeaponProfile.profileKind} secondary weapon throughput is extreme-or-higher for item level`);
+    }
+  }
+
+  for (const weaponProfile of enabledWeaponProfiles) {
+    const pressure = weaponProfile.rangedDistancePressure;
+    if (!pressure || pressure.score <= 0 || weaponProfile.totalWoundsPerSuccess <= 0) continue;
+
+    coreScore += pressure.score;
+    rangePressureScore += pressure.score;
+    rangePressureDrivers.push(`ranged distance ${pressure.distanceFeet} ft (${pressure.tier})`);
+    coreDrivers.push(`ranged distance ${pressure.distanceFeet} ft (${pressure.tier} range pressure)`);
+    corePressureCandidates.push(
+      getCorePressureCandidate(
+        "ranged distance pressure",
+        pressure.score,
+        4,
+        "default",
+      ),
+    );
   }
 
   const ppvClass = bandComparison.defensive.ppv.classification;
@@ -1312,6 +1556,8 @@ export function classifyForgeOutputLanes(
       coreExpectedValue: corePressure.expected,
       corePressureRatio: corePressure.ratio,
       coreExpectationSource: corePressure.source,
+      rangePressureScore,
+      rangePressureDrivers,
       featureWeightTotal: featureWeightTotalClamped,
       featureWeightTotalRaw,
       featureWeightTotalClamped,

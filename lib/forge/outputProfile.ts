@@ -216,6 +216,27 @@ export type ForgeFeatureProfileOutput = {
   tags: string[];
 };
 
+export type ForgeAttackAccessFacts = {
+  enabledRangeCategories: RangeCategory[];
+  activeProfileKinds: ForgeOutputProfileKind[];
+  extraProfileCount: number;
+  hasMixedMeleeRangedAccess: boolean;
+  hasAoeAccess: boolean;
+  hasRangedAccess: boolean;
+  rangedDistanceFeet: number | null;
+  aoe: {
+    enabled: boolean;
+    hasOutput: boolean;
+    centerRangeFeet: number | null;
+    count: number | null;
+    shape: AoEShape | null;
+    sphereRadiusFeet: number | null;
+    coneLengthFeet: number | null;
+    lineWidthFeet: number | null;
+    lineLengthFeet: number | null;
+  } | null;
+};
+
 export type ForgeOutputProfile = {
   common: {
     level: number | null;
@@ -226,6 +247,7 @@ export type ForgeOutputProfile = {
     shieldHasAttack: boolean | null;
   };
   attackProfiles: ForgeAttackProfileOutput[];
+  attackAccess: ForgeAttackAccessFacts;
   defensiveProfile: ForgeDefensiveProfileOutput;
   shieldCoPresence: ForgeShieldCoPresenceOutput;
   featureProfile: ForgeFeatureProfileOutput;
@@ -272,6 +294,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function getRangeCategories(input: ForgeOutputProfileInput): Set<string> {
   return new Set((input.rangeCategories ?? []).map(normalizeRangeCategory).filter(Boolean));
+}
+
+function getEnabledRangeCategories(rangeCategories: Set<string>): RangeCategory[] {
+  return (["MELEE", "RANGED", "AOE"] as const).filter((category) => rangeCategories.has(category));
 }
 
 function getDamageTypeName(input: ForgeDamageTypeInput): string {
@@ -589,6 +615,12 @@ export function buildForgeOutputProfile(input: ForgeOutputProfileInput): ForgeOu
   const attackProfiles = (["melee", "ranged", "aoe"] as const).map((profileKind) =>
     buildAttackProfile(input, profileKind, rangeCategories.has(PROFILE_RANGE_CATEGORY[profileKind])),
   );
+  const enabledRangeCategories = getEnabledRangeCategories(rangeCategories);
+  const activeProfileKinds = attackProfiles
+    .filter((entry) => entry.enabled && entry.totalWoundsPerSuccess > 0)
+    .map((entry) => entry.profileKind);
+  const rangedProfile = attackProfiles.find((entry) => entry.profileKind === "ranged");
+  const aoeProfile = attackProfiles.find((entry) => entry.profileKind === "aoe");
 
   const defensiveEffectLabels = normalizeLabels(input.defEffects, input.defEffectNames);
   const armourAttributeDetails = normalizeAttributeDetails(input.armorAttributes, input.armorAttributeNames);
@@ -628,6 +660,29 @@ export function buildForgeOutputProfile(input: ForgeOutputProfileInput): ForgeOu
       shieldHasAttack: typeof input.shieldHasAttack === "boolean" ? input.shieldHasAttack : null,
     },
     attackProfiles,
+    attackAccess: {
+      enabledRangeCategories,
+      activeProfileKinds,
+      extraProfileCount: Math.max(0, enabledRangeCategories.length - 1),
+      hasMixedMeleeRangedAccess: enabledRangeCategories.includes("MELEE") && enabledRangeCategories.includes("RANGED"),
+      hasAoeAccess: enabledRangeCategories.includes("AOE"),
+      hasRangedAccess: enabledRangeCategories.includes("RANGED"),
+      rangedDistanceFeet: rangedProfile?.rangedDistanceFeet ?? null,
+      aoe:
+        aoeProfile?.enabled || enabledRangeCategories.includes("AOE")
+          ? {
+              enabled: Boolean(aoeProfile?.enabled || enabledRangeCategories.includes("AOE")),
+              hasOutput: Boolean(aoeProfile && aoeProfile.totalWoundsPerSuccess > 0),
+              centerRangeFeet: aoeProfile?.aoe?.centerRangeFeet ?? null,
+              count: aoeProfile?.aoe?.count ?? null,
+              shape: aoeProfile?.aoe?.shape ?? null,
+              sphereRadiusFeet: aoeProfile?.aoe?.sphereRadiusFeet ?? null,
+              coneLengthFeet: aoeProfile?.aoe?.coneLengthFeet ?? null,
+              lineWidthFeet: aoeProfile?.aoe?.lineWidthFeet ?? null,
+              lineLengthFeet: aoeProfile?.aoe?.lineLengthFeet ?? null,
+            }
+          : null,
+    },
     defensiveProfile: {
       ppv,
       mpv,

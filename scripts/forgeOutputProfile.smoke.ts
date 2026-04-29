@@ -42,6 +42,14 @@ const FEATURE_WEIGHT_CONTEXT = buildForgeFeatureWeightContext([
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Returning", value: 12 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Expensive", value: 25 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Thrown", value: -10 },
+  { category: "RangeCategory", selector1: "Weapon", selector2: "Ranged", value: 2 },
+  { category: "RangeCategory", selector1: "Weapon", selector2: "AoE", value: 5 },
+  { category: "RangedDistanceFt", selector1: "Weapon", selector2: "30", value: 0 },
+  { category: "RangedDistanceFt", selector1: "Weapon", selector2: "60", value: 1 },
+  { category: "RangedDistanceFt", selector1: "Weapon", selector2: "120", value: 2 },
+  { category: "AoECount", selector1: "Weapon", selector2: "3", value: 3 },
+  { category: "AoECenterRangeFt", selector1: "Weapon", selector2: "30", value: 1 },
+  { category: "SphereSizeFt", selector1: "Weapon", selector2: "10", value: 2.25 },
 ], 1);
 
 const RARE_LENIENT_EXPECTATION_CONTEXT = buildForgeExpectationContext([
@@ -103,6 +111,9 @@ assert.equal(simpleMeleeProfile.physicalWoundsPerSuccess, 6, "Strength 3 should 
 assert.equal(simpleMeleeProfile.totalPhysicalWoundsPerSuccess, 6);
 assert.equal(simpleMeleeProfile.totalWoundsPerSuccess, 6);
 assert.equal(simpleMeleeProfile.targetCount, 1);
+assert.deepEqual(simpleMelee.attackAccess.enabledRangeCategories, ["MELEE"]);
+assert.deepEqual(simpleMelee.attackAccess.activeProfileKinds, ["melee"]);
+assert.equal(simpleMelee.attackAccess.extraProfileCount, 0);
 const simpleMeleeBands = compareForgeOutputToBands(simpleMelee);
 const simpleMeleeBand = simpleMeleeBands.weaponProfiles.find((entry) => entry.profileKind === "melee");
 assert.equal(simpleMeleeBands.debug.source, "forge_output_bands_v1");
@@ -128,6 +139,7 @@ assert.equal(
 );
 assert.equal(weightedSimpleMeleeBands.lanes.coreFunctionality.status, simpleMeleeBands.lanes.coreFunctionality.status);
 assert.equal(weightedSimpleMeleeBands.lanes.featuresVersatility.status, "narrow");
+const simpleMeleeFeatureRatio = weightedSimpleMeleeBands.lanes.debug.featurePressureRatio;
 assert.equal(weightedSimpleMeleeBands.lanes.debug.featureWeightTotal, 0);
 assert.equal(weightedSimpleMeleeBands.lanes.debug.featureStatusSource, "forge_values_weighted");
 assert.equal(weightedSimpleMeleeBands.lanes.debug.expectedFeatureBudget, 10);
@@ -741,7 +753,7 @@ const aoeProfile = runCase("aoe", {
   aoePhysicalStrength: 2,
   aoeDamageTypes: [{ damageType: { name: "Force", attackMode: "PHYSICAL" } }],
   aoeCount: 3,
-  aoeCenterRangeFeet: 40,
+  aoeCenterRangeFeet: 30,
   aoeShape: "SPHERE",
   aoeSphereRadiusFeet: 10,
   attackEffectsAoE: [{ attackEffect: { name: "Knockdown" } }],
@@ -752,10 +764,32 @@ assert.equal(aoeAttack.targetCount, 3);
 assert.equal(aoeAttack.aoe?.shape, "SPHERE");
 assert.equal(aoeAttack.aoe?.sphereRadiusFeet, 10);
 assert.equal(aoeAttack.greaterSuccessEffectCount, 1);
-const aoeBands = compareForgeOutputToBands(aoeProfile);
+assert.equal(aoeProfile.attackAccess.hasAoeAccess, true);
+assert.deepEqual(aoeProfile.attackAccess.activeProfileKinds, ["aoe"]);
+assert.equal(aoeProfile.attackAccess.aoe?.shape, "SPHERE");
+assert.equal(aoeProfile.attackAccess.aoe?.centerRangeFeet, 30);
+const aoeBands = compareForgeOutputToBands(aoeProfile, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  aoeBands.lanes.featuresVersatility.mainDrivers.includes("AoE attack access"),
+  "AoE access should contribute to feature pressure even when it is the primary attack mode",
+);
 assert.ok(
   aoeBands.lanes.featuresVersatility.mainDrivers.includes("AoE geometry"),
   "AoE item should report AoE geometry as feature breadth",
+);
+assert.ok(
+  aoeBands.lanes.featuresVersatility.mainDrivers.includes("AoE center range 30 ft"),
+  "AoE center range should use Forge-Values feature rows when present",
+);
+assert.ok(
+  aoeBands.lanes.featuresVersatility.mainDrivers.includes("AoE sphere radius 10 ft"),
+  "AoE shape dimensions should use Forge-Values feature rows when present",
+);
+assert.ok(
+  aoeBands.lanes.coreFunctionality.mainDrivers.some((entry) =>
+    entry.includes("aoe") && entry.includes("weapon throughput"),
+  ),
+  "AoE output should contribute to Core when wounds exist",
 );
 assert.ok(
   aoeBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
@@ -828,6 +862,37 @@ assert.ok(
   "shield with attack and defence should report split-function watch",
 );
 
+const meleeRangedAccessOnly = runCase("melee/ranged access without ranged output", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE", "RANGED"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  rangedDistanceFeet: 30,
+});
+assert.deepEqual(meleeRangedAccessOnly.attackAccess.enabledRangeCategories, ["MELEE", "RANGED"]);
+assert.deepEqual(meleeRangedAccessOnly.attackAccess.activeProfileKinds, ["melee"]);
+assert.equal(meleeRangedAccessOnly.attackAccess.extraProfileCount, 1);
+assert.equal(meleeRangedAccessOnly.attackAccess.hasMixedMeleeRangedAccess, true);
+const meleeRangedAccessOnlyBands = compareForgeOutputToBands(meleeRangedAccessOnly, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  meleeRangedAccessOnlyBands.lanes.debug.featurePressureRatio > simpleMeleeFeatureRatio,
+  "Melee + Ranged access without ranged output should still increase feature pressure",
+);
+assert.equal(
+  meleeRangedAccessOnlyBands.lanes.coreFunctionality.status,
+  weightedSimpleMeleeBands.lanes.coreFunctionality.status,
+  "Ranged access alone should not increase Core when no ranged output exists",
+);
+assert.ok(
+  meleeRangedAccessOnlyBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
+    entry.includes("Ranged attack access") || entry.includes("mixed melee/ranged access"),
+  ),
+  "Melee + Ranged access should expose feature drivers",
+);
+
 const mixedMeleeRanged = runCase("mixed melee/ranged", {
   level: 5,
   rarity: "RARE",
@@ -845,14 +910,67 @@ const mixedMeleeRanged = runCase("mixed melee/ranged", {
 assert.equal(getProfile(mixedMeleeRanged, "melee").totalWoundsPerSuccess, 6);
 assert.equal(getProfile(mixedMeleeRanged, "ranged").totalWoundsPerSuccess, 4);
 assert.equal(getProfile(mixedMeleeRanged, "ranged").targetCount, 2);
-const mixedMeleeRangedBands = compareForgeOutputToBands(mixedMeleeRanged);
+assert.deepEqual(mixedMeleeRanged.attackAccess.activeProfileKinds, ["melee", "ranged"]);
+assert.equal(mixedMeleeRanged.attackAccess.rangedDistanceFeet, 45);
+const mixedMeleeRangedBands = compareForgeOutputToBands(mixedMeleeRanged, FEATURE_WEIGHT_CONTEXT);
 assert.ok(
-  mixedMeleeRangedBands.lanes.featuresVersatility.mainDrivers.includes("2 attack profiles"),
+  mixedMeleeRangedBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
+    entry.includes("Ranged attack access"),
+  ),
   "mixed item should report extra attack profile breadth",
 );
 assert.ok(
   mixedMeleeRangedBands.lanes.featuresVersatility.mainDrivers.includes("mixed melee/ranged access"),
   "mixed item should report mixed melee/ranged versatility",
+);
+assert.ok(
+  mixedMeleeRangedBands.lanes.coreFunctionality.mainDrivers.some((entry) =>
+    entry.includes("secondary weapon throughput"),
+  ),
+  "mixed item with ranged output should report secondary Core throughput",
+);
+assert.ok(
+  mixedMeleeRangedBands.lanes.debug.missingFeatureWeightDrivers.some((entry) =>
+    entry.label.includes("mixed melee/ranged access"),
+  ),
+  "unmapped mixed access should be listed as a fallback feature driver",
+);
+
+const rangedThirtyFeet = runCase("ranged 30 ft", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["RANGED"],
+  rangedPhysicalStrength: 3,
+  rangedDamageTypes: [{ damageType: { name: "Piercing", attackMode: "PHYSICAL" } }],
+  rangedDistanceFeet: 30,
+});
+const rangedOneTwentyFeet = runCase("ranged 120 ft", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["RANGED"],
+  rangedPhysicalStrength: 3,
+  rangedDamageTypes: [{ damageType: { name: "Piercing", attackMode: "PHYSICAL" } }],
+  rangedDistanceFeet: 120,
+});
+const rangedThirtyFeetBands = compareForgeOutputToBands(rangedThirtyFeet, FEATURE_WEIGHT_CONTEXT);
+const rangedOneTwentyFeetBands = compareForgeOutputToBands(rangedOneTwentyFeet, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  rangedOneTwentyFeetBands.lanes.debug.rangePressureScore > rangedThirtyFeetBands.lanes.debug.rangePressureScore,
+  "120 ft ranged output should carry more Core range pressure than 30 ft",
+);
+assert.ok(
+  rangedOneTwentyFeetBands.lanes.debug.featureWeightTotalRaw > rangedThirtyFeetBands.lanes.debug.featureWeightTotalRaw,
+  "120 ft ranged output should carry more feature weight than 30 ft when Forge-Values rows exist",
+);
+assert.ok(
+  rangedOneTwentyFeetBands.lanes.coreFunctionality.mainDrivers.some((entry) =>
+    entry.includes("ranged distance 120 ft"),
+  ),
+  "ranged distance should be visible in Core drivers",
 );
 
 const overBudgetWeapon = runCase("over-budget level 5 weapon", {
