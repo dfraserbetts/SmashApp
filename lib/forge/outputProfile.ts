@@ -26,12 +26,38 @@ export type ForgeDamageTypeInput =
 
 export type ForgeNamedInput =
   | string
-  | { name?: string | null }
+  | {
+      name?: string | null;
+      pricingMode?: string | null;
+      pricingScalar?: number | string | null;
+      pricingMagnitude?: number | null;
+    }
   | { attackEffect?: { name?: string | null } | null }
   | { defEffect?: { name?: string | null } | null }
-  | { armorAttribute?: { name?: string | null } | null }
-  | { shieldAttribute?: { name?: string | null } | null }
-  | { weaponAttribute?: { name?: string | null } | null };
+  | {
+      armorAttribute?: {
+        name?: string | null;
+        pricingMode?: string | null;
+        pricingScalar?: number | string | null;
+        pricingMagnitude?: number | null;
+      } | null;
+    }
+  | {
+      shieldAttribute?: {
+        name?: string | null;
+        pricingMode?: string | null;
+        pricingScalar?: number | string | null;
+        pricingMagnitude?: number | null;
+      } | null;
+    }
+  | {
+      weaponAttribute?: {
+        name?: string | null;
+        pricingMode?: string | null;
+        pricingScalar?: number | string | null;
+        pricingMagnitude?: number | null;
+      } | null;
+    };
 
 export type ForgeVrpInput = {
   effectKind?: string | null;
@@ -116,6 +142,14 @@ export type ForgeDamageTypeOutput = {
   mode: ForgeDamageMode;
 };
 
+export type ForgeAttributePricingOutput = {
+  name: string;
+  pricingMode: string | null;
+  pricingScalar: number | null;
+  pricingMagnitude: number | null;
+  pricingWeight: number | null;
+};
+
 export type ForgeAttackProfileOutput = {
   profileKind: ForgeOutputProfileKind;
   enabled: boolean;
@@ -157,8 +191,10 @@ export type ForgeDefensiveProfileOutput = {
   defensiveEffectLabels: string[];
   armourAttributeCount: number;
   armourAttributeLabels: string[];
+  armourAttributeDetails: ForgeAttributePricingOutput[];
   shieldAttributeCount: number;
   shieldAttributeLabels: string[];
+  shieldAttributeDetails: ForgeAttributePricingOutput[];
   vrpCount: number;
   vrpSummary: string[];
 };
@@ -172,6 +208,7 @@ export type ForgeShieldCoPresenceOutput = {
 export type ForgeFeatureProfileOutput = {
   weaponAttributeCount: number;
   weaponAttributeLabels: string[];
+  weaponAttributeDetails: ForgeAttributePricingOutput[];
   customTextLabels: string[];
   globalAttributeModifierCount: number;
   globalAttributeModifierSummary: string[];
@@ -287,6 +324,52 @@ function extractName(input: ForgeNamedInput): string {
   return String(nested?.name ?? row.name ?? "").trim();
 }
 
+function toNullableNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function extractAttributePricing(input: ForgeNamedInput): ForgeAttributePricingOutput | null {
+  const name = extractName(input);
+  if (!name) return null;
+  if (typeof input === "string") {
+    return {
+      name,
+      pricingMode: null,
+      pricingScalar: null,
+      pricingMagnitude: null,
+      pricingWeight: null,
+    };
+  }
+
+  const row = input as Record<string, unknown>;
+  const nested =
+    (isRecord(row.armorAttribute) && row.armorAttribute) ||
+    (isRecord(row.shieldAttribute) && row.shieldAttribute) ||
+    (isRecord(row.weaponAttribute) && row.weaponAttribute) ||
+    null;
+  const source = nested ?? row;
+  const pricingMode = String(source.pricingMode ?? "").trim().toUpperCase() || null;
+  const pricingScalar = toNullableNumber(source.pricingScalar);
+  const pricingMagnitude = toNullableNumber(source.pricingMagnitude);
+  const pricingWeight =
+    pricingScalar !== null && pricingMagnitude !== null
+      ? Math.max(0, pricingScalar * pricingMagnitude)
+      : null;
+
+  return {
+    name,
+    pricingMode,
+    pricingScalar,
+    pricingMagnitude,
+    pricingWeight,
+  };
+}
+
 function normalizeLabels(
   rows: ForgeNamedInput[] | null | undefined,
   fallbackNames: string[] | null | undefined,
@@ -304,6 +387,32 @@ function normalizeLabels(
   }
 
   return Array.from(byName.values()).sort((a, b) => a.localeCompare(b));
+}
+
+function normalizeAttributeDetails(
+  rows: ForgeNamedInput[] | null | undefined,
+  fallbackNames: string[] | null | undefined,
+): ForgeAttributePricingOutput[] {
+  const byName = new Map<string, ForgeAttributePricingOutput>();
+
+  for (const row of rows ?? []) {
+    const details = extractAttributePricing(row);
+    if (details) byName.set(details.name.toLowerCase(), details);
+  }
+
+  for (const name of fallbackNames ?? []) {
+    const trimmed = String(name ?? "").trim();
+    if (!trimmed || byName.has(trimmed.toLowerCase())) continue;
+    byName.set(trimmed.toLowerCase(), {
+      name: trimmed,
+      pricingMode: null,
+      pricingScalar: null,
+      pricingMagnitude: null,
+      pricingWeight: null,
+    });
+  }
+
+  return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function summarizeVrpEntries(entries: ForgeVrpInput[] | null | undefined): string[] {
@@ -482,9 +591,12 @@ export function buildForgeOutputProfile(input: ForgeOutputProfileInput): ForgeOu
   );
 
   const defensiveEffectLabels = normalizeLabels(input.defEffects, input.defEffectNames);
-  const armourAttributeLabels = normalizeLabels(input.armorAttributes, input.armorAttributeNames);
-  const shieldAttributeLabels = normalizeLabels(input.shieldAttributes, input.shieldAttributeNames);
-  const weaponAttributeLabels = normalizeLabels(input.weaponAttributes, input.weaponAttributeNames);
+  const armourAttributeDetails = normalizeAttributeDetails(input.armorAttributes, input.armorAttributeNames);
+  const armourAttributeLabels = armourAttributeDetails.map((entry) => entry.name);
+  const shieldAttributeDetails = normalizeAttributeDetails(input.shieldAttributes, input.shieldAttributeNames);
+  const shieldAttributeLabels = shieldAttributeDetails.map((entry) => entry.name);
+  const weaponAttributeDetails = normalizeAttributeDetails(input.weaponAttributes, input.weaponAttributeNames);
+  const weaponAttributeLabels = weaponAttributeDetails.map((entry) => entry.name);
   const vrpSummary = summarizeVrpEntries(input.vrpEntries);
   const customTextLabels = normalizeCustomTextLabels(input);
   const globalAttributeModifierSummary = summarizeGlobalAttributeModifiers(input.globalAttributeModifiers);
@@ -525,8 +637,10 @@ export function buildForgeOutputProfile(input: ForgeOutputProfileInput): ForgeOu
       defensiveEffectLabels,
       armourAttributeCount: armourAttributeLabels.length,
       armourAttributeLabels,
+      armourAttributeDetails,
       shieldAttributeCount: shieldAttributeLabels.length,
       shieldAttributeLabels,
+      shieldAttributeDetails,
       vrpCount: vrpSummary.length,
       vrpSummary,
     },
@@ -538,6 +652,7 @@ export function buildForgeOutputProfile(input: ForgeOutputProfileInput): ForgeOu
     featureProfile: {
       weaponAttributeCount: weaponAttributeLabels.length,
       weaponAttributeLabels,
+      weaponAttributeDetails,
       customTextLabels,
       globalAttributeModifierCount: globalAttributeModifierSummary.length,
       globalAttributeModifierSummary,

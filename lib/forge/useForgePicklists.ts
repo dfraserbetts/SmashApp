@@ -89,8 +89,13 @@ export type ForgeConfigEntry = {
 };
 
 export type ForgeCostEntry = {
-  key: string;
-  cost: number;
+  id?: number;
+  category?: string | null;
+  selector1?: string | null;
+  selector2?: string | null;
+  selector3?: string | null;
+  value?: number | null;
+  notes?: string | null;
 };
 
 export type ForgePicklists = {

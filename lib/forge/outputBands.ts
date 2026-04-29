@@ -1,4 +1,5 @@
 import type {
+  ForgeAttributePricingOutput,
   ForgeAttackProfileOutput,
   ForgeOutputProfile,
 } from "./outputProfile";
@@ -78,6 +79,20 @@ export type ForgeOutputLaneSummary = {
   warnings: string[];
 };
 
+export type ForgeFeatureWeightDriver = {
+  label: string;
+  source: string;
+  weight: number;
+  fallbackUsed: boolean;
+  note?: string;
+};
+
+export type ForgeMissingFeatureWeightDriver = {
+  label: string;
+  source: string;
+  note: string;
+};
+
 export type ForgeRarityPressureSummary = {
   expectedRarityRole: ForgeRarityRole;
   notes: string[];
@@ -90,6 +105,11 @@ export type ForgeOutputLaneComparison = {
   debug: {
     source: "forge_output_lanes_v1";
     reportOnly: true;
+    featureWeightTotal: number;
+    featureWeightDrivers: ForgeFeatureWeightDriver[];
+    missingFeatureWeightDrivers: ForgeMissingFeatureWeightDriver[];
+    costSource: "forge_values" | "fallback";
+    fallbackUsed: boolean;
   };
 };
 
@@ -117,6 +137,29 @@ type SourceBandRow = {
   standardMax: number;
   highMax: number;
   extremeMin: number;
+};
+
+export type ForgeFeatureWeightCostRow = {
+  category?: string | null;
+  selector1?: string | null;
+  selector2?: string | null;
+  selector3?: string | number | null;
+  value?: number | null;
+  notes?: string | null;
+};
+
+export type ForgeFeatureWeightContext = {
+  costs: ForgeFeatureWeightCostRow[];
+  fallbackWeight: number;
+};
+
+type FeatureWeightState = {
+  total: number;
+  score: number;
+  drivers: ForgeFeatureWeightDriver[];
+  missing: ForgeMissingFeatureWeightDriver[];
+  fallbackUsed: boolean;
+  hasForgeValues: boolean;
 };
 
 // First-pass diagnostic constants copied from docs/07 and docs/08.
@@ -245,6 +288,9 @@ const CLASSIFICATION_RANK: Record<ForgeOutputBandClassification, number> = {
   "over-band": 5,
 };
 
+const DEFAULT_FEATURE_FALLBACK_WEIGHT = 5;
+const FEATURE_WEIGHT_SCORE_UNIT = 5;
+
 const LANE_STATUS_RANK: Record<ForgeLaneStatus, number> = {
   narrow: 0,
   moderate: 1,
@@ -256,6 +302,80 @@ const LANE_STATUS_RANK: Record<ForgeLaneStatus, number> = {
 function normalizeLevel(level: number | null): number {
   if (typeof level !== "number" || !Number.isFinite(level)) return 1;
   return Math.max(1, Math.min(20, Math.round(level)));
+}
+
+function normalizeCostKey(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function toFiniteCost(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+export function buildForgeFeatureWeightContext(
+  costs: ForgeFeatureWeightCostRow[] | null | undefined,
+  fallbackWeight = DEFAULT_FEATURE_FALLBACK_WEIGHT,
+): ForgeFeatureWeightContext {
+  return {
+    costs: costs ?? [],
+    fallbackWeight,
+  };
+}
+
+function findFeatureWeight(
+  context: ForgeFeatureWeightContext | null | undefined,
+  category: string,
+  selector1?: string | null,
+  selector2?: string | null,
+  selector3?: string | number | null,
+): number | null {
+  if (!context) return null;
+  const categoryKey = normalizeCostKey(category);
+  const s1Key = normalizeCostKey(selector1);
+  const s2Key = normalizeCostKey(selector2);
+  const s3Key = selector3 === undefined ? "" : normalizeCostKey(selector3);
+
+  const found = context.costs.find((row) => {
+    if (normalizeCostKey(row.category) !== categoryKey) return false;
+    if (selector1 !== undefined && normalizeCostKey(row.selector1) !== s1Key) return false;
+    if (selector2 !== undefined && normalizeCostKey(row.selector2) !== s2Key) return false;
+    if (selector3 !== undefined && normalizeCostKey(row.selector3) !== s3Key) return false;
+    return true;
+  });
+
+  return toFiniteCost(found?.value);
+}
+
+function getItemTypeLabel(profile: ForgeOutputProfile): "Weapon" | "Armor" | "Shield" | "Item" {
+  const normalized = String(profile.common.type ?? "").trim().toUpperCase();
+  if (normalized === "ARMOR") return "Armor";
+  if (normalized === "SHIELD") return "Shield";
+  if (normalized === "ITEM" || normalized === "CONSUMABLE") return "Item";
+  return "Weapon";
+}
+
+function formatRangeLabel(rangeCategory: string): "Melee" | "Ranged" | "AoE" {
+  const normalized = String(rangeCategory ?? "").trim().toUpperCase();
+  if (normalized === "RANGED") return "Ranged";
+  if (normalized === "AOE") return "AoE";
+  return "Melee";
+}
+
+function parseMagnitudeLabel(label: string): { baseName: string; magnitude: number | null } {
+  const match = label.trim().match(/^(.*\D)\s+(-?\d+)$/);
+  if (!match) return { baseName: label.trim(), magnitude: null };
+  return { baseName: match[1].trim(), magnitude: Number(match[2]) };
+}
+
+function parseGlobalAttributeSummary(label: string): { attribute: string; magnitude: number | null } {
+  const match = label.trim().match(/^(.*?)\s+([+-]?\d+)$/);
+  if (!match) return { attribute: label.trim(), magnitude: null };
+  return { attribute: match[1].trim(), magnitude: Math.abs(Number(match[2])) };
 }
 
 function withOverBand(row: SourceBandRow): ForgeBandThresholds {
@@ -455,9 +575,314 @@ function isStandardOrMore(classification: ForgeOutputBandClassification): boolea
   return CLASSIFICATION_RANK[classification] >= CLASSIFICATION_RANK.standard;
 }
 
+function createFeatureWeightState(context: ForgeFeatureWeightContext | null | undefined): FeatureWeightState {
+  return {
+    total: 0,
+    score: 0,
+    drivers: [],
+    missing: [],
+    fallbackUsed: false,
+    hasForgeValues: Boolean(context && context.costs.length > 0),
+  };
+}
+
+function addFeatureWeight(
+  state: FeatureWeightState,
+  context: ForgeFeatureWeightContext | null | undefined,
+  label: string,
+  source: string,
+  lookups: Array<{
+    category: string;
+    selector1?: string | null;
+    selector2?: string | null;
+    selector3?: string | number | null;
+  }>,
+  fallbackNote: string,
+): void {
+  for (const lookup of lookups) {
+    const weight = findFeatureWeight(
+      context,
+      lookup.category,
+      lookup.selector1,
+      lookup.selector2,
+      lookup.selector3,
+    );
+    if (weight !== null && weight > 0) {
+      state.total += weight;
+      state.score += weight / FEATURE_WEIGHT_SCORE_UNIT;
+      state.drivers.push({
+        label,
+        source: `${lookup.category}/${[lookup.selector1, lookup.selector2, lookup.selector3]
+          .filter((entry) => entry !== undefined && entry !== null && String(entry).trim())
+          .join("/")}`,
+        weight,
+        fallbackUsed: false,
+      });
+      return;
+    }
+  }
+
+  const fallbackWeight = context?.fallbackWeight ?? DEFAULT_FEATURE_FALLBACK_WEIGHT;
+  state.total += fallbackWeight;
+  state.score += fallbackWeight / FEATURE_WEIGHT_SCORE_UNIT;
+  state.fallbackUsed = true;
+  state.drivers.push({
+    label,
+    source,
+    weight: fallbackWeight,
+    fallbackUsed: true,
+    note: fallbackNote,
+  });
+  state.missing.push({
+    label,
+    source,
+    note: "No matching Forge-Values cost row found; fallback diagnostic weight used",
+  });
+}
+
+function addAttributeFeatureWeight(
+  state: FeatureWeightState,
+  context: ForgeFeatureWeightContext | null | undefined,
+  detail: ForgeAttributePricingOutput,
+  labelPrefix: string,
+  source: string,
+  lookups: Array<{
+    category: string;
+    selector1?: string | null;
+    selector2?: string | null;
+    selector3?: string | number | null;
+  }>,
+  fallbackNote: string,
+): void {
+  if (detail.pricingWeight !== null && detail.pricingWeight > 0) {
+    state.total += detail.pricingWeight;
+    state.score += detail.pricingWeight / FEATURE_WEIGHT_SCORE_UNIT;
+    state.drivers.push({
+      label: `${labelPrefix}: ${detail.name}`,
+      source: `attribute_scalar/${detail.pricingMode ?? "UNKNOWN"}`,
+      weight: detail.pricingWeight,
+      fallbackUsed: false,
+      note:
+        detail.pricingScalar !== null && detail.pricingMagnitude !== null
+          ? `${detail.pricingScalar} x ${detail.pricingMagnitude}`
+          : undefined,
+    });
+    return;
+  }
+
+  addFeatureWeight(
+    state,
+    context,
+    `${labelPrefix}: ${detail.name}`,
+    source,
+    lookups,
+    fallbackNote,
+  );
+}
+
+function collectFeatureWeights(
+  profile: ForgeOutputProfile,
+  enabledWeaponProfiles: ForgeWeaponProfileBandComparison[],
+  context: ForgeFeatureWeightContext | null | undefined,
+): FeatureWeightState {
+  const state = createFeatureWeightState(context);
+  const itemTypeLabel = getItemTypeLabel(profile);
+
+  const primaryProfileKind = enabledWeaponProfiles[0]?.profileKind ?? null;
+  for (const weaponProfile of enabledWeaponProfiles) {
+    const rangeLabel = formatRangeLabel(weaponProfile.rangeCategory);
+    if (primaryProfileKind && weaponProfile.profileKind !== primaryProfileKind) {
+      addFeatureWeight(
+        state,
+        context,
+        `${enabledWeaponProfiles.length} attack profiles`,
+        "extra_profile",
+        [{ category: "RangeCategory", selector1: itemTypeLabel, selector2: rangeLabel }],
+        "extra profile breadth has no direct Forge-Values feature row",
+      );
+    }
+
+    if (weaponProfile.damageTypeCount > 1) {
+      addFeatureWeight(
+        state,
+        context,
+        `${rangeLabel} ${weaponProfile.damageTypeCount} damage types`,
+        "damage_type_flexibility",
+        [{
+          category: "DmgType_Count",
+          selector1: itemTypeLabel,
+          selector2: rangeLabel,
+          selector3: weaponProfile.damageTypeCount,
+        }],
+        "simultaneous damage type breadth has no matching Forge-Values row",
+      );
+    }
+
+    if (weaponProfile.targetCount > 1) {
+      addFeatureWeight(
+        state,
+        context,
+        `${rangeLabel} ${weaponProfile.targetCount} targets`,
+        "target_count",
+        [{
+          category: weaponProfile.rangeCategory === "RANGED" ? "RangedTargets" : "MeleeTargets",
+          selector1: itemTypeLabel,
+          selector2: String(weaponProfile.targetCount),
+        }],
+        "multi-target breadth has no matching Forge-Values row",
+      );
+    }
+
+    if (weaponProfile.hasAoe) {
+      addFeatureWeight(
+        state,
+        context,
+        "AoE geometry",
+        "aoe_geometry",
+        [],
+        "AoE geometry has no single direct Forge-Values row",
+      );
+    }
+  }
+
+  const enabledRangeLabels = new Set(enabledWeaponProfiles.map((entry) => formatRangeLabel(entry.rangeCategory)));
+  if (enabledRangeLabels.has("Melee") && enabledRangeLabels.has("Ranged")) {
+    addFeatureWeight(
+      state,
+      context,
+      "mixed melee/ranged access",
+      "mixed_profile_access",
+      [],
+      "mixed melee/ranged access has no direct Forge-Values row",
+    );
+  }
+
+  for (const attackProfile of profile.attackProfiles.filter((entry) => entry.enabled)) {
+    const rangeLabel = formatRangeLabel(attackProfile.rangeCategory);
+    for (const label of attackProfile.greaterSuccessEffectLabels) {
+      addFeatureWeight(
+        state,
+        context,
+        `${rangeLabel} Greater Success: ${label}`,
+        "greater_success_attack_effect",
+        [{ category: "GS_AttackEffects", selector1: itemTypeLabel, selector2: rangeLabel, selector3: label }],
+        "Greater Success attack effect has no matching Forge-Values row",
+      );
+    }
+  }
+
+  for (const detail of profile.featureProfile.weaponAttributeDetails) {
+    const parsed = parseMagnitudeLabel(detail.name);
+    addAttributeFeatureWeight(
+      state,
+      context,
+      detail,
+      "Weapon attribute",
+      "weapon_attribute",
+      [
+        {
+          category: "WeaponAttributes",
+          selector1: "Weapon",
+          selector2: parsed.baseName,
+          selector3: parsed.magnitude ?? undefined,
+        },
+        { category: "WeaponAttributes", selector1: "Weapon", selector2: detail.name },
+      ],
+      "weapon attribute has no matching Forge-Values row",
+    );
+  }
+
+  for (const detail of profile.defensiveProfile.armourAttributeDetails) {
+    addAttributeFeatureWeight(
+      state,
+      context,
+      detail,
+      "Armour attribute",
+      "armour_attribute",
+      [{ category: "ArmorAttributes", selector1: "Armor", selector2: detail.name }],
+      "armour attribute has no matching Forge-Values row",
+    );
+  }
+
+  for (const detail of profile.defensiveProfile.shieldAttributeDetails) {
+    addAttributeFeatureWeight(
+      state,
+      context,
+      detail,
+      "Shield attribute",
+      "shield_attribute",
+      [{ category: "ShieldAttributes", selector1: "Shield", selector2: detail.name }],
+      "shield attribute has no matching Forge-Values row",
+    );
+  }
+
+  for (const label of profile.defensiveProfile.defensiveEffectLabels) {
+    addFeatureWeight(
+      state,
+      context,
+      "defensive effects",
+      "greater_success_defensive_effect",
+      [{ category: "GS_DefEffects", selector1: itemTypeLabel, selector2: label }],
+      "defensive Greater Success effect has no matching Forge-Values row",
+    );
+  }
+
+  for (const label of profile.defensiveProfile.vrpSummary) {
+    addFeatureWeight(
+      state,
+      context,
+      `VRP: ${label}`,
+      "vrp",
+      [{ category: "VRPOptions", selector1: itemTypeLabel, selector2: label }],
+      "VRP entry has no matching Forge-Values row",
+    );
+  }
+
+  for (const label of profile.featureProfile.globalAttributeModifierSummary) {
+    const parsed = parseGlobalAttributeSummary(label);
+    addFeatureWeight(
+      state,
+      context,
+      `Global modifier: ${label}`,
+      "global_attribute_modifier",
+      [
+        {
+          category: "Attribute",
+          selector1: itemTypeLabel,
+          selector2: parsed.attribute,
+          selector3: parsed.magnitude ?? undefined,
+        },
+        {
+          category: "Attribute",
+          selector1: parsed.attribute,
+          selector2: itemTypeLabel,
+          selector3: parsed.magnitude ?? undefined,
+        },
+        { category: "Attribute", selector1: itemTypeLabel, selector2: parsed.attribute },
+        { category: "Attribute", selector1: parsed.attribute, selector2: itemTypeLabel },
+      ],
+      "global attribute modifier has no matching Forge-Values row",
+    );
+  }
+
+  for (const label of profile.featureProfile.customTextLabels) {
+    addFeatureWeight(
+      state,
+      context,
+      label,
+      "custom_text_feature",
+      [],
+      "custom text feature has no direct Forge-Values row",
+    );
+  }
+
+  return state;
+}
+
 export function classifyForgeOutputLanes(
   profile: ForgeOutputProfile,
   bandComparison: ForgeOutputBandComparisonCore,
+  featureWeightContext?: ForgeFeatureWeightContext | null,
 ): ForgeOutputLaneComparison {
   const enabledWeaponProfiles = bandComparison.weaponProfiles.filter((entry) => entry.enabled);
   const primaryWeaponProfile = enabledWeaponProfiles.reduce<ForgeWeaponProfileBandComparison | null>(
@@ -469,11 +894,12 @@ export function classifyForgeOutputLanes(
     },
     null,
   );
-  const featureDrivers: string[] = [];
+  const featureWeightState = collectFeatureWeights(profile, enabledWeaponProfiles, featureWeightContext);
+  const featureDrivers = featureWeightState.drivers.map((entry) => entry.label);
   const featureWarnings: string[] = [];
   const coreDrivers: string[] = [];
   const coreWarnings: string[] = [];
-  let featureScore = 0;
+  const featureScore = featureWeightState.score;
   let coreScore = 0;
   let coreStatusFloor: ForgeLaneStatus = "narrow";
 
@@ -489,35 +915,6 @@ export function classifyForgeOutputLanes(
     }
     if (isExtremeOrMore(primaryWeaponProfile.classification)) {
       coreWarnings.push("weapon throughput is extreme-or-higher for item level");
-    }
-  }
-
-  if (enabledWeaponProfiles.length > 1) {
-    featureScore += enabledWeaponProfiles.length;
-    featureDrivers.push(`${enabledWeaponProfiles.length} attack profiles`);
-    const rangeKinds = new Set(enabledWeaponProfiles.map((entry) => entry.rangeCategory));
-    if (rangeKinds.has("MELEE") && rangeKinds.has("RANGED")) {
-      featureScore += 1;
-      featureDrivers.push("mixed melee/ranged access");
-    }
-  }
-
-  for (const weaponProfile of enabledWeaponProfiles) {
-    if (weaponProfile.damageTypeCount > 1) {
-      featureScore += weaponProfile.damageTypeCount - 1;
-      featureDrivers.push(`${weaponProfile.profileKind} simultaneous damage type flexibility`);
-    }
-    if (weaponProfile.greaterSuccessEffectCount > 0) {
-      featureScore += weaponProfile.greaterSuccessEffectCount;
-      featureDrivers.push(`${weaponProfile.profileKind} Greater Success effects`);
-    }
-    if (weaponProfile.hasAoe) {
-      featureScore += 2;
-      featureDrivers.push("AoE geometry");
-    }
-    if (weaponProfile.targetCount > 1) {
-      featureScore += weaponProfile.targetCount - 1;
-      featureDrivers.push(`${weaponProfile.profileKind} multi-target access`);
     }
   }
 
@@ -542,39 +939,6 @@ export function classifyForgeOutputLanes(
     coreDrivers.push(`mental aura ${profile.defensiveProfile.auraMental}`);
   }
 
-  if (profile.defensiveProfile.defensiveEffectCount > 0) {
-    featureScore += profile.defensiveProfile.defensiveEffectCount;
-    featureDrivers.push("defensive effects");
-  }
-  if (profile.defensiveProfile.armourAttributeCount > 0) {
-    featureScore += profile.defensiveProfile.armourAttributeCount;
-    featureDrivers.push("armour attributes");
-  }
-  if (profile.defensiveProfile.shieldAttributeCount > 0) {
-    featureScore += profile.defensiveProfile.shieldAttributeCount;
-    featureDrivers.push("shield attributes");
-  }
-  if (profile.defensiveProfile.vrpCount > 0) {
-    featureScore += profile.defensiveProfile.vrpCount;
-    featureDrivers.push("VRP entries");
-  }
-  if (profile.featureProfile.weaponAttributeCount > 0) {
-    featureScore += profile.featureProfile.weaponAttributeCount;
-    featureDrivers.push("weapon attributes");
-  }
-  if (profile.featureProfile.customTextLabels.length > 0) {
-    featureScore += profile.featureProfile.customTextLabels.length;
-    featureDrivers.push(...profile.featureProfile.customTextLabels);
-  }
-  if (profile.featureProfile.globalAttributeModifierCount > 0) {
-    featureScore += profile.featureProfile.globalAttributeModifierCount;
-    featureDrivers.push("global attribute modifiers");
-  }
-  if (profile.featureProfile.tagCount > 0) {
-    featureScore += 1;
-    featureDrivers.push("tags/special properties");
-  }
-
   if (bandComparison.shield.hasAttackAndDefence) {
     coreScore += 1;
     coreDrivers.push("shield split attack/defence output");
@@ -592,6 +956,9 @@ export function classifyForgeOutputLanes(
   if (profile.common.rarity === "COMMON" && featureScore >= 3) {
     featureWarnings.push("Common item carries moderate-or-broader feature load");
     rarityNotes.push("Common should usually remain narrow unless deliberately flagged");
+  }
+  if (featureWeightState.fallbackUsed) {
+    featureWarnings.push("Some feature weights are using fallback diagnostic values");
   }
   if ((profile.common.rarity === "COMMON" || profile.common.rarity === "UNCOMMON") && coreScore >= 6) {
     coreWarnings.push("core output is heavy for a low-rarity item; rarity does not excuse raw throughput");
@@ -629,11 +996,19 @@ export function classifyForgeOutputLanes(
     debug: {
       source: "forge_output_lanes_v1",
       reportOnly: true,
+      featureWeightTotal: featureWeightState.total,
+      featureWeightDrivers: featureWeightState.drivers,
+      missingFeatureWeightDrivers: featureWeightState.missing,
+      costSource: featureWeightState.hasForgeValues ? "forge_values" : "fallback",
+      fallbackUsed: featureWeightState.fallbackUsed,
     },
   };
 }
 
-export function compareForgeOutputToBands(profile: ForgeOutputProfile): ForgeOutputBandComparison {
+export function compareForgeOutputToBands(
+  profile: ForgeOutputProfile,
+  featureWeightContext?: ForgeFeatureWeightContext | null,
+): ForgeOutputBandComparison {
   const weaponBand = getWeaponBand(profile.common.level, profile.common.normalizedSize);
   const ppvThresholds = getBand("ppv", profile.common.level);
   const mpvThresholds = getBand("mpv", profile.common.level);
@@ -676,6 +1051,6 @@ export function compareForgeOutputToBands(profile: ForgeOutputProfile): ForgeOut
 
   return {
     ...comparisonCore,
-    lanes: classifyForgeOutputLanes(profile, comparisonCore),
+    lanes: classifyForgeOutputLanes(profile, comparisonCore, featureWeightContext),
   };
 }

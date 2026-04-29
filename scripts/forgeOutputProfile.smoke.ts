@@ -5,7 +5,7 @@ import {
   type ForgeOutputProfile,
   type ForgeOutputProfileInput,
 } from "../lib/forge/outputProfile";
-import { compareForgeOutputToBands } from "../lib/forge/outputBands";
+import { buildForgeFeatureWeightContext, compareForgeOutputToBands } from "../lib/forge/outputBands";
 
 function getProfile(profile: ForgeOutputProfile, kind: "melee" | "ranged" | "aoe") {
   const found = profile.attackProfiles.find((entry) => entry.profileKind === kind);
@@ -29,6 +29,13 @@ const LANE_STATUS_PERCENT = {
   heavy: 100,
   "likely overloaded": 100,
 } as const;
+
+const FEATURE_WEIGHT_CONTEXT = buildForgeFeatureWeightContext([
+  { category: "GS_AttackEffects", selector1: "Weapon", selector2: "Melee", selector3: "Stagger", value: 15 },
+  { category: "Attribute", selector1: "Weapon", selector2: "Attack", selector3: "2", value: 20 },
+  { category: "WeaponAttributes", selector1: "Weapon", selector2: "Returning", value: 12 },
+  { category: "WeaponAttributes", selector1: "Weapon", selector2: "Expensive", value: 25 },
+], 4);
 
 function runCase(name: string, input: ForgeOutputProfileInput): ForgeOutputProfile {
   const profile = buildForgeOutputProfile(input);
@@ -73,6 +80,142 @@ assert.equal(simpleMeleeBands.lanes.featuresVersatility.status, "narrow");
 assert.ok(
   simpleMeleeBands.lanes.coreFunctionality.mainDrivers.some((entry) => entry.includes("weapon throughput")),
   "simple melee should read as core-focused",
+);
+const weightedSimpleMeleeBands = compareForgeOutputToBands(simpleMelee, FEATURE_WEIGHT_CONTEXT);
+assert.equal(
+  weightedSimpleMeleeBands.weaponProfiles.find((entry) => entry.profileKind === "melee")?.classification,
+  simpleMeleeBand?.classification,
+  "Feature weights must not change Core Functionality weapon bands",
+);
+assert.equal(weightedSimpleMeleeBands.lanes.coreFunctionality.status, simpleMeleeBands.lanes.coreFunctionality.status);
+assert.equal(weightedSimpleMeleeBands.lanes.featuresVersatility.status, "narrow");
+
+const greaterSuccessFeature = runCase("weighted greater success", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  attackEffectsMelee: [{ attackEffect: { name: "Stagger" } }],
+});
+const greaterSuccessWeighted = compareForgeOutputToBands(greaterSuccessFeature, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  greaterSuccessWeighted.lanes.debug.featureWeightTotal >= 15,
+  "Greater Success effect should use Forge-Values weight",
+);
+assert.ok(
+  greaterSuccessWeighted.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Stagger") && entry.weight === 15 && !entry.fallbackUsed,
+  ),
+  "Greater Success driver should expose Forge-Values weight",
+);
+
+const globalAttackModifier = runCase("weighted global attack modifier", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  globalAttributeModifiers: [{ attribute: "Attack", amount: 2 }],
+});
+const globalAttackWeighted = compareForgeOutputToBands(globalAttackModifier, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  globalAttackWeighted.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Attack +2") && entry.weight === 20 && !entry.fallbackUsed,
+  ),
+  "Global Attack modifier should use Forge-Values weight",
+);
+
+const weightedWeaponAttribute = runCase("weighted weapon attribute", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Returning"],
+});
+const weightedWeaponAttributeBands = compareForgeOutputToBands(weightedWeaponAttribute, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  weightedWeaponAttributeBands.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Returning") && entry.weight === 12 && !entry.fallbackUsed,
+  ),
+  "Weapon attribute should use Forge-Values weight",
+);
+
+const scalarWeaponAttribute = runCase("scalar weapon attribute", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributes: [{
+    name: "Scalar Bite",
+    pricingMode: "MELEE_PHYSICAL_STRENGTH",
+    pricingScalar: 3,
+    pricingMagnitude: 3,
+  }],
+});
+const scalarWeaponAttributeBands = compareForgeOutputToBands(scalarWeaponAttribute, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  scalarWeaponAttributeBands.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Scalar Bite") &&
+    entry.source === "attribute_scalar/MELEE_PHYSICAL_STRENGTH" &&
+    entry.weight === 9 &&
+    !entry.fallbackUsed,
+  ),
+  "Scalar-priced weapon attribute should use pricingScalar x resolved magnitude",
+);
+
+const missingWeightedFeature = runCase("missing weighted feature", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Unmapped Feature"],
+});
+const missingWeightedFeatureBands = compareForgeOutputToBands(missingWeightedFeature, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  missingWeightedFeatureBands.lanes.debug.missingFeatureWeightDrivers.some((entry) =>
+    entry.label.includes("Unmapped Feature"),
+  ),
+  "Missing Forge-Values cost should be exposed in missingFeatureWeightDrivers",
+);
+
+const expensiveCommonFeature = runCase("expensive common feature", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Expensive"],
+});
+const expensiveCommonFeatureBands = compareForgeOutputToBands(expensiveCommonFeature, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  LANE_STATUS_PERCENT[expensiveCommonFeatureBands.lanes.featuresVersatility.status] >= 75,
+  "Expensive Common feature should escalate Features & Versatility pressure",
+);
+assert.ok(
+  expensiveCommonFeatureBands.lanes.rarityPressure.notes.some((entry) => entry.includes("Common should usually")),
+  "Expensive Common feature load should affect Rarity Pressure notes",
 );
 
 const smallLevelOneMelee = runCase("small level 1 melee", {
