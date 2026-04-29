@@ -31,6 +31,11 @@ import { useForgeItems, type ForgeItemSummary } from '../../../lib/forge/useForg
 import { buildDescriptorResult } from '@/lib/descriptors/descriptorEngine';
 import { renderForgeResult } from '@/lib/descriptors/renderers/forgeRenderer';
 import { getForgeRarityPalette } from '@/lib/forge/itemRarityPalette';
+import { buildForgeOutputProfile } from '@/lib/forge/outputProfile';
+import {
+  compareForgeOutputToBands,
+  type ForgeOutputBandComparison,
+} from '@/lib/forge/outputBands';
 import { interpolateText, safeParseJson } from '@/lib/textInterpolation';
 import { InfoTooltip, TooltipLabel } from '@/app/components/HoverTooltip';
 
@@ -2619,6 +2624,97 @@ function handleResetForge() {
     (data?.config ?? []) as ForgeConfigRow[],
     (data?.costs ?? []) as ForgeCostRow[],
     calculatorContext,
+  );
+  const forgeOutputProfile = useMemo(() => {
+    const damageTypeRows = data?.damageTypes ?? [];
+    const attackEffectRows = data?.attackEffects ?? [];
+    const weaponAttributeRows = data?.weaponAttributes ?? [];
+    const armorAttributeRows = data?.armorAttributes ?? [];
+    const shieldAttributeRows = data?.shieldAttributes ?? [];
+    const defEffectRows = data?.defEffects ?? [];
+
+    const damageTypesByIds = (ids: number[] | undefined) =>
+      (ids ?? [])
+        .map((id) => {
+          const damageType = damageTypeRows.find((entry) => entry.id === id);
+          if (!damageType?.name) return null;
+          return {
+            name: damageType.name,
+            attackMode: getDamageTypeMode(damageType as any) === 'MENTAL' ? 'MENTAL' : 'PHYSICAL',
+          };
+        })
+        .filter((entry): entry is { name: string; attackMode: 'PHYSICAL' | 'MENTAL' } => Boolean(entry));
+
+    const namedRowsByIds = <T extends { id: number; name?: string | null }>(
+      rows: T[],
+      ids: number[] | undefined,
+    ) =>
+      (ids ?? [])
+        .map((id) => rows.find((entry) => entry.id === id))
+        .filter((entry): entry is T => Boolean(entry?.name))
+        .map((entry) => ({ name: String(entry.name) }));
+
+    const vrpOutputEntries = (vrpEntries ?? [])
+      .map((entry) => {
+        const damageType = damageTypeRows.find((row) => row.id === entry.damageTypeId);
+        if (!damageType?.name) return null;
+        return {
+          effectKind: entry.effectKind,
+          magnitude: entry.magnitude,
+          damageType: { name: damageType.name },
+        };
+      })
+      .filter((entry): entry is { effectKind: VRPEffectKind; magnitude: number; damageType: { name: string } } => Boolean(entry));
+
+    return buildForgeOutputProfile({
+      level: Number(watchedValues.level ?? 1),
+      rarity: watchedValues.rarity,
+      type: watchedValues.type,
+      size: watchedValues.size,
+      shieldHasAttack: watchedValues.shieldHasAttack ?? false,
+      rangeCategories: (watchedValues.rangeCategories ?? []) as RangeCategory[],
+      meleePhysicalStrength: toNullableNumber(watchedValues.meleePhysicalStrength) ?? 0,
+      meleeMentalStrength: toNullableNumber(watchedValues.meleeMentalStrength) ?? 0,
+      rangedPhysicalStrength: toNullableNumber(watchedValues.rangedPhysicalStrength) ?? 0,
+      rangedMentalStrength: toNullableNumber(watchedValues.rangedMentalStrength) ?? 0,
+      aoePhysicalStrength: toNullableNumber(watchedValues.aoePhysicalStrength) ?? 0,
+      aoeMentalStrength: toNullableNumber(watchedValues.aoeMentalStrength) ?? 0,
+      meleeTargets: toNullableNumber(watchedValues.meleeTargets) ?? 1,
+      rangedTargets: toNullableNumber(watchedValues.rangedTargets) ?? 1,
+      rangedDistanceFeet: toNullableNumber(watchedValues.rangedDistanceFeet),
+      aoeCenterRangeFeet: toNullableNumber(watchedValues.aoeCenterRangeFeet),
+      aoeCount: toNullableNumber(watchedValues.aoeCount) ?? 1,
+      aoeShape: toNullableEnum<AoEShape>(watchedValues.aoeShape as any),
+      aoeSphereRadiusFeet: toNullableNumber(watchedValues.aoeSphereRadiusFeet),
+      aoeConeLengthFeet: toNullableNumber(watchedValues.aoeConeLengthFeet),
+      aoeLineWidthFeet: toNullableNumber(watchedValues.aoeLineWidthFeet),
+      aoeLineLengthFeet: toNullableNumber(watchedValues.aoeLineLengthFeet),
+      meleeDamageTypes: damageTypesByIds(watchedValues.meleeDamageTypeIds),
+      rangedDamageTypes: damageTypesByIds(watchedValues.rangedDamageTypeIds),
+      aoeDamageTypes: damageTypesByIds(watchedValues.aoeDamageTypeIds),
+      attackEffectsMelee: namedRowsByIds(attackEffectRows, watchedValues.attackEffectMeleeIds),
+      attackEffectsRanged: namedRowsByIds(attackEffectRows, watchedValues.attackEffectRangedIds),
+      attackEffectsAoE: namedRowsByIds(attackEffectRows, watchedValues.attackEffectAoEIds),
+      ppv: toNullableNumber(watchedValues.ppv) ?? 0,
+      mpv: toNullableNumber(watchedValues.mpv) ?? 0,
+      auraPhysical: toNullableNumber(watchedValues.auraPhysical),
+      auraMental: toNullableNumber(watchedValues.auraMental),
+      defEffects: namedRowsByIds(defEffectRows, watchedValues.defEffectIds),
+      armorAttributes: namedRowsByIds(armorAttributeRows, watchedValues.armorAttributeIds),
+      shieldAttributes: namedRowsByIds(shieldAttributeRows, watchedValues.shieldAttributeIds),
+      weaponAttributes: namedRowsByIds(weaponAttributeRows, watchedValues.weaponAttributeIds),
+      vrpEntries: vrpOutputEntries,
+      customWeaponAttributes: watchedValues.customWeaponAttributes,
+      customArmorAttributes: watchedValues.customArmorAttributes,
+      customShieldAttributes: watchedValues.customShieldAttributes,
+      customItemAttributes: watchedValues.customItemAttributes,
+      globalAttributeModifiers: watchedValues.globalAttributeModifiers,
+      tags: currentTags,
+    });
+  }, [currentTags, data, vrpEntries, watchedValues]);
+  const forgeOutputBandComparison = useMemo(
+    () => compareForgeOutputToBands(forgeOutputProfile),
+    [forgeOutputProfile],
   );
   const itemRarityPalette = getForgeRarityPalette(watchedValues.rarity);
 
@@ -5991,6 +6087,7 @@ useEffect(() => {
 
         {/* Forge Calculator */}
         <ForgeCalculatorPanel totals={calculatorTotals} />
+        <ForgeOutputProfilePanel comparison={forgeOutputBandComparison} />
 
         <form
           onSubmit={handleSubmit(onSubmit)}
@@ -7780,6 +7877,258 @@ useEffect(() => {
         </div>
       </div>
     </div>
+  );
+}
+
+
+function formatOutputLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function formatOutputList(items: string[], empty = 'None'): string {
+  if (!items.length) return empty;
+  return items.slice(0, 4).join(', ') + (items.length > 4 ? ` +${items.length - 4}` : '');
+}
+
+function ForgeOutputPill({
+  label,
+  tone = 'zinc',
+}: {
+  label: string;
+  tone?: 'zinc' | 'emerald' | 'amber' | 'red';
+}) {
+  const toneClass =
+    tone === 'emerald'
+      ? 'border-emerald-500/40 bg-emerald-950/30 text-emerald-200'
+      : tone === 'amber'
+        ? 'border-amber-500/40 bg-amber-950/30 text-amber-200'
+        : tone === 'red'
+          ? 'border-red-500/40 bg-red-950/30 text-red-200'
+          : 'border-zinc-700 bg-zinc-900 text-zinc-300';
+  return (
+    <span className={`inline-flex rounded border px-2 py-0.5 text-[11px] ${toneClass}`}>
+      {label}
+    </span>
+  );
+}
+
+function getClassificationTone(
+  classification: string,
+): 'zinc' | 'emerald' | 'amber' | 'red' {
+  if (classification === 'standard' || classification === 'low') return 'emerald';
+  if (classification === 'high' || classification === 'extreme' || classification === 'watch') return 'amber';
+  if (classification === 'over-band' || classification === 'likely overloaded' || classification === 'likelyOverloaded') return 'red';
+  return 'zinc';
+}
+
+function ForgeOutputLaneBlock({
+  title,
+  status,
+  drivers,
+  warnings,
+}: {
+  title: string;
+  status: string;
+  drivers: string[];
+  warnings: string[];
+}) {
+  return (
+    <div className="rounded border border-zinc-800 bg-black/20 p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-300">{title}</h4>
+        <ForgeOutputPill label={formatOutputLabel(status)} tone={getClassificationTone(status)} />
+      </div>
+      <p className="text-[11px] text-zinc-400">
+        Drivers: {formatOutputList(drivers, 'No major drivers yet')}
+      </p>
+      {warnings.length > 0 && (
+        <p className="mt-1 text-[11px] text-amber-200">
+          Watch: {formatOutputList(warnings)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ForgeOutputProfilePanel({
+  comparison,
+}: {
+  comparison: ForgeOutputBandComparison;
+}) {
+  const weaponProfiles = comparison.weaponProfiles.filter(
+    (profile) => profile.totalWoundsPerSuccess > 0 || profile.targetCount > 1,
+  );
+  const hasDefence =
+    comparison.defensive.ppv.value > 0 ||
+    comparison.defensive.mpv.value > 0 ||
+    comparison.shield.hasAttackAndDefence;
+  const hasAnyOutput = weaponProfiles.length > 0 || hasDefence;
+
+  return (
+    <details
+      open
+      className="mb-4 rounded-lg border border-zinc-700 bg-zinc-950/80 p-3 shadow"
+    >
+      <summary className="cursor-pointer text-sm font-semibold text-zinc-100">
+        Output Profile
+      </summary>
+      <p className="mt-2 text-xs text-zinc-400">
+        Diagnostic only. Does not block saving.
+      </p>
+
+      {!hasAnyOutput ? (
+        <p className="mt-3 rounded border border-zinc-800 bg-black/20 px-3 py-2 text-xs text-zinc-500">
+          No weapon or defence output detected yet.
+        </p>
+      ) : (
+        <div className="mt-3 space-y-3">
+          {weaponProfiles.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Weapon Profiles
+              </h3>
+              <div className="grid gap-2 lg:grid-cols-3">
+                {weaponProfiles.map((profile) => (
+                  <div
+                    key={profile.profileKind}
+                    className="rounded border border-zinc-800 bg-black/20 p-3 text-xs"
+                  >
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-zinc-100">
+                        {formatOutputLabel(profile.profileKind)}
+                      </span>
+                      <ForgeOutputPill
+                        label={formatOutputLabel(profile.classification)}
+                        tone={getClassificationTone(profile.classification)}
+                      />
+                    </div>
+                    <dl className="space-y-1 text-zinc-300">
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-zinc-500">Wounds/success</dt>
+                        <dd>{profile.totalWoundsPerSuccess}</dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-zinc-500">Per target</dt>
+                        <dd>{profile.perTargetWounds}</dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-zinc-500">Targets</dt>
+                        <dd>{profile.targetCount}</dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-zinc-500">Pressure</dt>
+                        <dd>{profile.totalPressure}</dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-zinc-500">Range</dt>
+                        <dd>{profile.rangeCategory}</dd>
+                      </div>
+                      {profile.hasAoe && (
+                        <div className="flex justify-between gap-3">
+                          <dt className="text-zinc-500">AoE</dt>
+                          <dd>Geometry set</dd>
+                        </div>
+                      )}
+                    </dl>
+                    {profile.damageTypeNames.length > 0 && (
+                      <p className="mt-2 text-[11px] text-zinc-500">
+                        Types: {formatOutputList(profile.damageTypeNames)}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="grid gap-2 md:grid-cols-2">
+            <div className="rounded border border-zinc-800 bg-black/20 p-3 text-xs">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Defence
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-zinc-500">PPV</div>
+                  <div className="text-zinc-100">{comparison.defensive.ppv.value}</div>
+                  <ForgeOutputPill
+                    label={formatOutputLabel(comparison.defensive.ppv.classification)}
+                    tone={getClassificationTone(comparison.defensive.ppv.classification)}
+                  />
+                </div>
+                <div>
+                  <div className="text-zinc-500">MPV</div>
+                  <div className="text-zinc-100">{comparison.defensive.mpv.value}</div>
+                  <ForgeOutputPill
+                    label={formatOutputLabel(comparison.defensive.mpv.classification)}
+                    tone={getClassificationTone(comparison.defensive.mpv.classification)}
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-zinc-500">
+                {comparison.defensive.debugNote}.
+              </p>
+            </div>
+
+            <div className="rounded border border-zinc-800 bg-black/20 p-3 text-xs">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Shield
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                <ForgeOutputPill
+                  label={
+                    comparison.shield.hasAttackAndDefence
+                      ? 'Attack + Defence'
+                      : 'No split output'
+                  }
+                  tone={comparison.shield.hasAttackAndDefence ? 'amber' : 'zinc'}
+                />
+                <ForgeOutputPill
+                  label={formatOutputLabel(comparison.shield.shieldSplitWarningLevel)}
+                  tone={getClassificationTone(comparison.shield.shieldSplitWarningLevel)}
+                />
+              </div>
+              {comparison.shield.notes.length > 0 && (
+                <p className="mt-2 text-[11px] text-zinc-500">
+                  {formatOutputList(comparison.shield.notes)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid gap-2 lg:grid-cols-2">
+            <ForgeOutputLaneBlock
+              title="Core Functionality"
+              status={comparison.lanes.coreFunctionality.status}
+              drivers={comparison.lanes.coreFunctionality.mainDrivers}
+              warnings={comparison.lanes.coreFunctionality.warnings}
+            />
+            <ForgeOutputLaneBlock
+              title="Features & Versatility"
+              status={comparison.lanes.featuresVersatility.status}
+              drivers={comparison.lanes.featuresVersatility.mainDrivers}
+              warnings={comparison.lanes.featuresVersatility.warnings}
+            />
+          </div>
+
+          <div className="rounded border border-zinc-800 bg-black/20 p-3 text-xs">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Rarity Pressure
+            </h3>
+            <p className="text-zinc-300">
+              {comparison.lanes.rarityPressure.expectedRarityRole}
+            </p>
+            <p className="mt-1 text-[11px] text-zinc-500">
+              {formatOutputList(comparison.lanes.rarityPressure.notes)}
+            </p>
+          </div>
+        </div>
+      )}
+    </details>
   );
 }
 
