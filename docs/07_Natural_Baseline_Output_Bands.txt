@@ -1,0 +1,427 @@
+Natural Baseline Output Bands v1
+================================
+
+Status: Phase 6 source document.
+Scope: Level 5 Soldier natural-only monster output expectations and first-pass Level 1-20 output-band proposal.
+Not scope: Forge implementation, item balance, global tuning changes, or final canon.
+
+1. Purpose
+----------
+
+This document establishes v1 natural-only monster output expectations before Forge item balancing.
+
+The goal is to preserve the three-layer split:
+
+- Power Tuning is canonical power truth.
+- Combat Tuning / Monster Baseline Tuning is non-power monster baseline contribution.
+- Outcome Normalization is downstream radar interpretation and display.
+
+The calculator and later smoke adapters should compare final table-facing output against level and tier expectations, regardless of whether the output came from natural biology, equipped items, or another source. Source origin remains debug metadata, not separate balance law.
+
+Strength rule for this document:
+
+- Authored Strength is multiplied by 2 for table-facing wounds per success.
+- If an attack has multiple damage types and each type receives the authored Strength output, total wounds per success is the sum across those damage types.
+- Total pressure for multi-target or area attacks must be read separately from per-target wounds.
+
+2. Inputs
+---------
+
+Fixture directory:
+
+scripts/fixtures/monsters/natural-baseline/
+
+Accepted Level 5 Soldier natural-only fixtures:
+
+- 01 Natural Bruiser
+- 02 Glass Cannon
+- 03 Natural Defender
+- 04 Natural Controller
+
+Fixture files used:
+
+- *.raw.json for raw authoring values, natural-only compliance, attacks, traits, and powers.
+- *.power.json for resolver-derived power values and cooldown truth.
+- *.calculator.json for final radar/debug exports, non-power contribution, effective power contribution, and defence-string debug values.
+
+Relevant existing repo anchors:
+
+- lib/calculators/calculatorConfig.ts - level-relative radar scoring curves and baseline party assumptions.
+- lib/config/combatTuningShared.ts - combat baseline and survivability expectation plumbing.
+- lib/calculators/monsterOutcomeCalculator.ts - current non-power contribution, defence-string, dodge, and effective power translation debug.
+- lib/summoning/powerCostResolver.ts - derived cooldown and canonical power contribution.
+
+No existing repo table was found that directly defines table-facing Level 1-20 natural damage, PPV, MPV, Physical Defence String Value, or Mental Defence String Value bands. The Level 1-20 tables below are therefore v1 proposals, extrapolated transparently from the Level 5 Soldier anchors and should not be treated as final canon.
+
+3. Level 5 Soldier Anchor Table
+-------------------------------
+
+Natural Bruiser
+
+- Role read: natural bruiser; high physical threat, strong physical survivability, weak mental profile, modest mobility/control from powers.
+- Physical Resilience: 35.
+- Mental Perseverance: 21.
+- Traits: Tough, Dangerous.
+- Natural attack: Natural Weapon.
+- Attack mode: melee natural.
+- Attack die: D8.
+- Targets: 1.
+- Range: melee.
+- Damage types: Blunt physical, Fire physical.
+- Authored physical Strength: 3.
+- Authored mental Strength: 0.
+- Table-facing wounds per success: 6 physical wounds per damage type.
+- Total wounds per success across damage types: 12 physical.
+- Greater Success / riders: none on the natural attack.
+- PPV: 16.
+- MPV: 4.
+- Physical Defence String Value: 6.
+- Mental Defence String Value: 2.
+- Dodge dice: 1.
+- Physical Resilience / Mental Perseverance posture: physical-heavy, mental-light.
+- Key powers: Sidestep, Shoulder Ram, Brace.
+- Power notes: Sidestep is self movement; Shoulder Ram is physical damage plus hostile forced movement; Brace is self physical defence.
+
+Glass Cannon
+
+- Role read: fragile burst/offence monster; high physical and mental pressure, low protection, high Dodge.
+- Physical Resilience: 29.
+- Mental Perseverance: 25.
+- Traits: none.
+- Natural attack 1: Natural Slash.
+- Attack mode: melee natural.
+- Attack die: D10.
+- Targets: 1.
+- Range: melee.
+- Damage types: Slashing physical, Lightning physical.
+- Authored physical Strength: 4.
+- Table-facing wounds per success: 8 physical wounds per damage type.
+- Total wounds per success across damage types: 16 physical.
+- Greater Success / riders: none on Natural Slash.
+- Natural attack 2: Natural Psionic.
+- Attack mode: ranged natural.
+- Attack die: D10.
+- Targets: 2.
+- Range: 60 ft.
+- Damage types: Psychic mental.
+- Authored mental Strength: 4.
+- Table-facing wounds per success: 8 mental per target.
+- Total wounds per success across damage types: 8 mental per target; 16 total pressure across 2 targets.
+- Greater Success / riders: none on Natural Psionic.
+- PPV: 0.
+- MPV: 4.
+- Physical Defence String Value: 0.
+- Mental Defence String Value: 2.
+- Dodge dice: 3.
+- Physical Resilience / Mental Perseverance posture: low physical/mental pools relative to Level 5 Soldier expectation.
+- Key powers: Cause Bleeding, Flash Step, Slice Tendon.
+- Power notes: physical wound pressure, self teleport mobility, and physical/control rider pressure.
+
+Natural Defender
+
+- Role read: durable defender; strong physical and mental defence, low direct damage, support/control utility.
+- Physical Resilience: 34.
+- Mental Perseverance: 23.
+- Traits: Tough.
+- Natural attack: Natural Headbutt.
+- Attack mode: melee natural.
+- Attack die: D4.
+- Targets: 1.
+- Range: melee.
+- Damage types: Blunt physical.
+- Authored physical Strength: 3.
+- Table-facing wounds per success: 6 physical.
+- Total wounds per success across damage types: 6 physical.
+- Greater Success / riders: Shaken.
+- PPV: 12.
+- MPV: 11.
+- Physical Defence String Value: 5.
+- Mental Defence String Value: 4.
+- Dodge dice: 1.
+- Physical Resilience / Mental Perseverance posture: moderate pools backed by high protection/defence strings.
+- Key powers: Bolstering Shout, Iron Skin, Hamstring, Redeploy.
+- Power notes: ally/self defence, physical defence burst, debuff plus physical rider, and self movement.
+
+Natural Controller
+
+- Role read: natural controller; mental/control pressure, high mental survivability, low physical profile.
+- Physical Resilience: 21.
+- Mental Perseverance: 34.
+- Traits: Cunning.
+- Natural attack: Mind Invasion.
+- Attack mode: ranged natural.
+- Attack die: D6.
+- Targets: 1.
+- Range: 30 ft.
+- Damage types: Holy mental.
+- Authored mental Strength: 4.
+- Table-facing wounds per success: 8 mental.
+- Total wounds per success across damage types: 8 mental.
+- Greater Success / riders: Smite.
+- PPV: 0.
+- MPV: 9.
+- Physical Defence String Value: 0.
+- Mental Defence String Value: 4.
+- Dodge dice: 4.
+- Physical Resilience / Mental Perseverance posture: physically fragile, mentally durable.
+- Key powers: Mind Shield, Lockdown Ward, Enemies abound, Brain Spike.
+- Power notes: self mental/physical defence, hostile force-no-move attached control with self teleport rider, hostile force-specific-main-action control, and mental wound pressure.
+
+4. Damage Output Bands at Level 5
+---------------------------------
+
+These bands use table-facing total wounds per success for a single target. They are output bands, not radar bands.
+
+Level 5 Soldier single-target wounds per success:
+
+Band      Table-facing total wounds per success   Fixture anchors
+Low       2-4                                      below current accepted natural attacks
+Standard  6-8                                      Defender 6, Controller 8, Glass ranged per-target 8
+High      10-12                                    Bruiser 12
+Extreme   14+                                      Glass melee 16
+
+Multi-target / area pressure:
+
+- Read per-target wounds first.
+- Then multiply by targets or affected bodies for total pressure.
+- Glass Cannon Natural Psionic is Standard per target at 8, but 16 total pressure across 2 targets.
+- Multi-type damage can behave like higher total pressure because each listed damage type receives the table-facing wound output where authored that way.
+
+5. Defence Output Bands at Level 5
+----------------------------------
+
+PPV Level 5 Soldier bands:
+
+Band      PPV
+Low       0-4
+Standard  6-10
+High      12-16
+Extreme   18+
+
+MPV Level 5 Soldier bands:
+
+Band      MPV
+Low       0-4
+Standard  6-8
+High      9-12
+Extreme   14+
+
+Physical Defence String Value Level 5 Soldier bands:
+
+Band      Physical Defence String Value
+Low       0-2
+Standard  3-4
+High      5-6
+Extreme   7+
+
+Mental Defence String Value Level 5 Soldier bands:
+
+Band      Mental Defence String Value
+Low       0-1
+Standard  2
+High      3-4
+Extreme   5+
+
+Dodge dice Level 5 Soldier bands:
+
+Band      Dodge dice
+Low       1
+Standard  2
+High      3
+Extreme   4+
+
+Asymmetry to preserve:
+
+- Physical defence has Dodge and broader baseline defence expression.
+- Mental defence is narrower, usually via MPV/Bravery/Willpower style output, but can be efficient when a role invests in it.
+- Do not invent mental Dodge as a separate table-facing lane.
+
+6. Proposed Level 1-20 Output Bands
+-----------------------------------
+
+These are v1 Soldier-equivalent natural output proposals. They are not final canon.
+
+The tables intentionally use even values where possible because authored Strength maps to table wounds by Strength x 2.
+
+6.1 Damage wounds per success, single target
+
+Level  Low   Standard  High   Extreme
+1      2     4         6      8+
+2      2     4         6-8    10+
+3      2     6         8      12+
+4      4     6         10     14+
+5      4     6-8       10-12  14+
+6      4     8         12     18+
+7      4     8-10      14     20+
+8      6     10        16     22+
+9      6     10-12     18     24+
+10     6     12        18     26+
+11     8     12-14     20     28+
+12     8     14        22     30+
+13     8     14-16     24     32+
+14     10    16        24     34+
+15     10    16-18     26     36+
+16     10    18        28     38+
+17     12    18-20     30     40+
+18     12    20        30     42+
+19     12    20-22     32     44+
+20     14    22        34     46+
+
+6.2 PPV
+
+Level  Low   Standard  High    Extreme
+1      0-2   4         6       8+
+2      0-2   4         6-8     10+
+3      0-2   4-6       8-10    12+
+4      0-4   6-8       10-12   14+
+5      0-4   6-10      12-16   18+
+6      0-4   8-10      14-16   20+
+7      0-6   8-12      16-18   22+
+8      0-6   10-12     18-20   24+
+9      0-6   10-14     20-22   26+
+10     0-8   12-14     20-24   28+
+11     0-8   12-16     22-26   30+
+12     0-8   14-16     24-28   32+
+13     0-10  14-18     26-30   34+
+14     0-10  16-18     28-32   36+
+15     0-10  16-20     30-34   38+
+16     0-12  18-20     32-36   40+
+17     0-12  18-22     34-38   42+
+18     0-12  20-22     36-40   44+
+19     0-14  20-24     38-42   46+
+20     0-14  22-24     40-44   48+
+
+6.3 MPV
+
+Level  Low   Standard  High    Extreme
+1      0-2   2-4       6       8+
+2      0-2   4         6       8+
+3      0-2   4-6       8       10+
+4      0-4   6         8-10    12+
+5      0-4   6-8       9-12    14+
+6      0-4   8         10-12   16+
+7      0-4   8-10      12-14   18+
+8      0-6   10        14-16   20+
+9      0-6   10-12     16-18   22+
+10     0-6   12        18-20   24+
+11     0-8   12-14     20-22   26+
+12     0-8   14        22-24   28+
+13     0-8   14-16     24-26   30+
+14     0-10  16        26-28   32+
+15     0-10  16-18     28-30   34+
+16     0-10  18        30-32   36+
+17     0-12  18-20     32-34   38+
+18     0-12  20        34-36   40+
+19     0-12  20-22     36-38   42+
+20     0-14  22        38-40   44+
+
+6.4 Physical Defence String Value
+
+Level  Low   Standard  High  Extreme
+1      0-1   2         3     4+
+2      0-1   2         3     4+
+3      0-1   2-3       4     5+
+4      0-2   3         4-5   6+
+5      0-2   3-4       5-6   7+
+6      0-2   4         6     8+
+7      0-2   4-5       6-7   9+
+8      0-3   5         7-8   10+
+9      0-3   5-6       8-9   11+
+10     0-3   6         9-10  12+
+11     0-4   6-7       10-11 13+
+12     0-4   7         11-12 14+
+13     0-4   7-8       12-13 15+
+14     0-5   8         13-14 16+
+15     0-5   8-9       14-15 17+
+16     0-5   9         15-16 18+
+17     0-6   9-10      16-17 19+
+18     0-6   10        17-18 20+
+19     0-6   10-11     18-19 21+
+20     0-7   11        19-20 22+
+
+6.5 Mental Defence String Value
+
+Level  Low   Standard  High  Extreme
+1      0     1         2     3+
+2      0     1         2     3+
+3      0-1   1-2       2-3   4+
+4      0-1   2         3     4+
+5      0-1   2         3-4   5+
+6      0-1   2-3       4     6+
+7      0-1   3         4-5   7+
+8      0-2   3-4       5     8+
+9      0-2   4         5-6   9+
+10     0-2   4-5       6     10+
+11     0-2   5         6-7   11+
+12     0-3   5-6       7     12+
+13     0-3   6         7-8   13+
+14     0-3   6-7       8     14+
+15     0-3   7         8-9   15+
+16     0-4   7-8       9     16+
+17     0-4   8         9-10  17+
+18     0-4   8-9       10    18+
+19     0-4   9         10-11 19+
+20     0-5   9-10      11    20+
+
+7. Role Modifiers
+-----------------
+
+Bruiser:
+
+- May sit above Standard in physical damage and physical defence.
+- Should not also carry strong mental profile unless that is the monster's explicit identity.
+- Natural Bruiser anchor: High physical output, High PPV, High Physical Defence String Value, Low MPV/Mental Defence String Value.
+
+Glass Cannon / Burst:
+
+- May sit at High or Extreme damage.
+- Should sit below Standard defence, especially PPV and physical pool resilience.
+- May use Dodge or mobility to survive, but should not become broadly safe.
+- Natural Glass Cannon anchor: Extreme melee physical output, Standard ranged mental per-target output with multi-target pressure, Low PPV, Low Physical Defence String Value, High Dodge.
+
+Defender:
+
+- May exceed defence bands, especially PPV/MPV and defence strings.
+- Should sit below damage bands unless its role is hybrid defender/bruiser.
+- Can carry support or debuff powers without those being read as direct table damage.
+- Natural Defender anchor: Standard damage with rider, High PPV/MPV, High defence strings, Low Dodge.
+
+Controller:
+
+- May have lower direct damage if manipulation/control is meaningful.
+- Can sit above Standard mental survivability.
+- Should not be judged only by direct wound output.
+- Natural Controller anchor: Standard mental damage, High MPV/Mental Defence String Value, Extreme Dodge, control-heavy power kit, low physical defence.
+
+8. Forge Implications
+---------------------
+
+These natural bands imply the following for Forge later:
+
+- Item level should drive core damage and defence output.
+- Rarity should mostly drive breadth, geometry, alternate profiles, riders, and versatility rather than raw mandatory damage.
+- Damage type count consumes output budget because total wounds per success matters more than raw Strength.
+- Multi-target and area attacks need separate pressure accounting from single-target wounds.
+- PPV and MPV item bands should be calibrated against these monster defence expectations.
+- Equipped and natural origin should converge through shared output bottlenecks before radar interpretation.
+- Forge should not use synthetic combat smoke fixtures as substitutes for accepted natural baseline monsters.
+
+9. Known Limitations
+--------------------
+
+- v1 is based on four accepted Level 5 Soldier natural-only fixtures only.
+- This does not validate every level or tier.
+- The Level 1-20 tables are transparent extrapolations, not final canon.
+- Combat smoke is pre-playtest evidence only.
+- Radar display is improved, but radar is still not the source of table-facing output truth.
+- Fixture calculator exports reflect the export state at fixture creation time; later calculator debug improvements may display the same table-facing truth differently.
+- Forge implementation has not started.
+
+10. Next Step
+-------------
+
+The next source document should be:
+
+08_Forge_Output_Bands_Blueprint.txt
+
+That blueprint should consume these v1 natural output bands and define Forge item output expectations without collapsing item level, rarity, damage type breadth, riders, and origin metadata into one balance knob.
