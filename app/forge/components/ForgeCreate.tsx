@@ -6086,7 +6086,7 @@ useEffect(() => {
         )}
 
         {/* Forge Calculator */}
-        <ForgeCalculatorPanel totals={calculatorTotals} />
+        <ForgeCalculatorPanel totals={calculatorTotals} comparison={forgeOutputBandComparison} />
         <ForgeOutputProfilePanel comparison={forgeOutputBandComparison} />
 
         <form
@@ -8184,7 +8184,13 @@ function ForgeOutputProfilePanel({
 }
 
 
-function ForgeCalculatorPanel({ totals }: { totals: ForgeCalculatorTotals }) {
+function ForgeCalculatorPanel({
+  totals,
+  comparison,
+}: {
+  totals: ForgeCalculatorTotals;
+  comparison: ForgeOutputBandComparison;
+}) {
   const total = totals.totalFp;
   const spent = totals.spentFp;
   const remaining = totals.remainingFp;
@@ -8192,113 +8198,58 @@ function ForgeCalculatorPanel({ totals }: { totals: ForgeCalculatorTotals }) {
   const overspent = remaining < 0;
 
   const safePercent = total > 0 ? Math.max(0, Math.min(100, percent)) : 0;
-  let lavaTexture =
-    'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 960 96\' preserveAspectRatio=\'none\'%3E%3Cdefs%3E%3Cfilter id=\'glow\' x=\'-15%25\' y=\'-120%25\' width=\'130%25\' height=\'340%25\'%3E%3CfeGaussianBlur stdDeviation=\'3.2\' result=\'b\'/%3E%3CfeMerge%3E%3CfeMergeNode in=\'b\'/%3E%3CfeMergeNode in=\'SourceGraphic\'/%3E%3C/feMerge%3E%3C/filter%3E%3ClinearGradient id=\'rock\' x1=\'0\' x2=\'1\'%3E%3Cstop offset=\'0\' stop-color=\'%23030101\'/%3E%3Cstop offset=\'.24\' stop-color=\'%23100604\'/%3E%3Cstop offset=\'.5\' stop-color=\'%23070201\'/%3E%3Cstop offset=\'.76\' stop-color=\'%23170a06\'/%3E%3Cstop offset=\'1\' stop-color=\'%23040101\'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width=\'960\' height=\'96\' fill=\'url(%23rock)\'/%3E%3Cg opacity=\'.42\'%3E%3Cellipse cx=\'78\' cy=\'70\' rx=\'64\' ry=\'24\' fill=\'%23230b05\'/%3E%3Cellipse cx=\'242\' cy=\'30\' rx=\'95\' ry=\'30\' fill=\'%23150a07\'/%3E%3Cellipse cx=\'410\' cy=\'66\' rx=\'122\' ry=\'26\' fill=\'%23230f08\'/%3E%3Cellipse cx=\'650\' cy=\'34\' rx=\'138\' ry=\'31\' fill=\'%23110908\'/%3E%3Cellipse cx=\'826\' cy=\'72\' rx=\'92\' ry=\'24\' fill=\'%23210c05\'/%3E%3C/g%3E%3Cg fill=\'none\' stroke-linecap=\'round\' stroke-linejoin=\'round\' filter=\'url(%23glow)\'%3E%3Cpath d=\'M-8 58 C36 55 55 44 86 47 S143 66 181 50 S236 16 285 29 S341 61 392 44 S473 24 529 37 S604 71 662 52 S760 24 813 39 S899 78 969 45\' stroke=\'%23ff3b10\' stroke-width=\'5.1\' opacity=\'.88\'/%3E%3Cpath d=\'M-8 58 C36 55 55 44 86 47 S143 66 181 50 S236 16 285 29 S341 61 392 44 S473 24 529 37 S604 71 662 52 S760 24 813 39 S899 78 969 45\' stroke=\'%23ffd36a\' stroke-width=\'1.65\' opacity=\'.92\'/%3E%3Cpath d=\'M121 48 C136 35 146 23 165 7\' stroke=\'%23ff4314\' stroke-width=\'3.2\' opacity=\'.74\'/%3E%3Cpath d=\'M121 48 C136 35 146 23 165 7\' stroke=\'%23ffcf62\' stroke-width=\'1.05\' opacity=\'.82\'/%3E%3Cpath d=\'M228 38 C220 56 215 66 200 91\' stroke=\'%23ff330b\' stroke-width=\'2.7\' opacity=\'.66\'/%3E%3Cpath d=\'M228 38 C220 56 215 66 200 91\' stroke=\'%23ffc04c\' stroke-width=\'.85\' opacity=\'.72\'/%3E%3Cpath d=\'M392 44 C410 51 431 58 452 88\' stroke=\'%23ff3b10\' stroke-width=\'3.2\' opacity=\'.72\'/%3E%3Cpath d=\'M392 44 C410 51 431 58 452 88\' stroke=\'%23ffd36a\' stroke-width=\'.95\' opacity=\'.76\'/%3E%3Cpath d=\'M528 37 C553 23 558 14 572 1\' stroke=\'%23ff4c16\' stroke-width=\'2.9\' opacity=\'.66\'/%3E%3Cpath d=\'M662 52 C681 40 695 34 720 13\' stroke=\'%23ff3b10\' stroke-width=\'3.5\' opacity=\'.72\'/%3E%3Cpath d=\'M662 52 C681 40 695 34 720 13\' stroke=\'%23ffd071\' stroke-width=\'1.05\' opacity=\'.78\'/%3E%3Cpath d=\'M813 39 C808 55 797 71 793 94\' stroke=\'%23ff2f0a\' stroke-width=\'2.6\' opacity=\'.62\'/%3E%3Cpath d=\'M870 53 C892 46 910 38 936 18\' stroke=\'%23ff4512\' stroke-width=\'3.1\' opacity=\'.7\'/%3E%3Cpath d=\'M870 53 C892 46 910 38 936 18\' stroke=\'%23ffc65a\' stroke-width=\'.9\' opacity=\'.72\'/%3E%3C/g%3E%3Cg fill=\'none\' stroke=\'%23ff1900\' stroke-width=\'.9\' stroke-linecap=\'round\' opacity=\'.48\'%3E%3Cpath d=\'M34 24 C66 33 79 39 101 47\'/%3E%3Cpath d=\'M310 12 C330 28 355 32 392 44\'/%3E%3Cpath d=\'M495 82 C507 63 517 48 529 37\'/%3E%3Cpath d=\'M625 16 C641 29 651 40 662 52\'/%3E%3Cpath d=\'M730 78 C760 62 779 51 813 39\'/%3E%3C/g%3E%3C/svg%3E")';
-  lavaTexture = `url("data:image/svg+xml,${encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 96" preserveAspectRatio="none">
-      <defs>
-        <filter id="glow" x="-18%" y="-130%" width="136%" height="360%">
-          <feGaussianBlur stdDeviation="3.4" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-        <linearGradient id="rock" x1="0" x2="1">
-          <stop offset="0" stop-color="#030101" />
-          <stop offset=".24" stop-color="#100604" />
-          <stop offset=".5" stop-color="#070201" />
-          <stop offset=".76" stop-color="#170a06" />
-          <stop offset="1" stop-color="#040101" />
-        </linearGradient>
-      </defs>
-      <rect width="960" height="96" fill="url(#rock)" />
-      <g opacity=".42">
-        <polygon points="0,0 148,0 92,36 15,58" fill="#0a0302" />
-        <polygon points="154,0 324,0 272,31 205,52 126,39" fill="#180905" />
-        <polygon points="327,0 520,0 469,29 390,53 318,37" fill="#0b0403" />
-        <polygon points="523,0 724,0 671,34 594,55 505,35" fill="#1b0b06" />
-        <polygon points="727,0 960,0 905,35 816,56 731,32" fill="#090302" />
-        <polygon points="0,96 140,96 101,62 23,55" fill="#1a0905" />
-        <polygon points="142,96 335,96 290,63 216,43 159,63" fill="#090302" />
-        <polygon points="337,96 548,96 497,58 414,47 361,67" fill="#1d0b06" />
-        <polygon points="550,96 760,96 704,59 612,44 561,70" fill="#080302" />
-        <polygon points="762,96 960,96 917,58 834,44 780,68" fill="#1b0a05" />
-      </g>
-      <g fill="none" stroke-linecap="butt" stroke-linejoin="miter" filter="url(#glow)">
-        <polyline points="-6,60 42,55 78,39 123,47 168,30 221,35 266,20 318,29 371,18 425,42 478,35 526,50 582,28 634,39 691,24 742,43 803,31 856,55 909,38 968,47" stroke="#ff3b10" stroke-width="5.2" opacity=".88" />
-        <polyline points="-6,60 42,55 78,39 123,47 168,30 221,35 266,20 318,29 371,18 425,42 478,35 526,50 582,28 634,39 691,24 742,43 803,31 856,55 909,38 968,47" stroke="#ffd36a" stroke-width="1.55" opacity=".94" />
-        <polyline points="78,39 92,18 119,9 132,-6" stroke="#ff4314" stroke-width="3.5" opacity=".76" />
-        <polyline points="78,39 92,18 119,9 132,-6" stroke="#ffcf62" stroke-width=".95" opacity=".86" />
-        <polyline points="168,30 154,50 161,73 145,99" stroke="#ff330b" stroke-width="3.1" opacity=".68" />
-        <polyline points="168,30 154,50 161,73 145,99" stroke="#ffc04c" stroke-width=".82" opacity=".74" />
-        <polyline points="318,29 344,45 333,62 360,86" stroke="#ff3b10" stroke-width="3.4" opacity=".74" />
-        <polyline points="318,29 344,45 333,62 360,86" stroke="#ffd36a" stroke-width=".92" opacity=".78" />
-        <polyline points="425,42 446,23 474,19 492,2" stroke="#ff4c16" stroke-width="3.2" opacity=".7" />
-        <polyline points="526,50 541,67 568,61 592,96" stroke="#ff2f0a" stroke-width="2.9" opacity=".64" />
-        <polyline points="634,39 660,23 682,28 714,5" stroke="#ff3b10" stroke-width="3.6" opacity=".74" />
-        <polyline points="634,39 660,23 682,28 714,5" stroke="#ffd071" stroke-width="1" opacity=".8" />
-        <polyline points="742,43 730,58 744,74 736,96" stroke="#ff2f0a" stroke-width="2.9" opacity=".64" />
-        <polyline points="856,55 884,44 896,24 934,13" stroke="#ff4512" stroke-width="3.4" opacity=".72" />
-        <polyline points="856,55 884,44 896,24 934,13" stroke="#ffc65a" stroke-width=".9" opacity=".76" />
-      </g>
-      <g fill="none" stroke="#ff1900" stroke-linecap="butt" stroke-linejoin="miter" opacity=".54">
-        <polyline points="18,22 50,28 78,39" stroke-width="1" />
-        <polyline points="221,35 236,54 261,61 286,78" stroke-width=".95" />
-        <polyline points="371,18 390,33 425,42" stroke-width="1.05" />
-        <polyline points="478,35 506,20 536,12" stroke-width=".9" />
-        <polyline points="582,28 604,41 634,39" stroke-width="1" />
-        <polyline points="803,31 822,44 856,55" stroke-width="1.05" />
-        <polyline points="909,38 930,50 957,58" stroke-width=".9" />
-      </g>
-    </svg>
-  `)}")`;
-  const forgePointFillStyle = {
-    width: `${safePercent}%`,
-    backgroundColor: overspent ? '#1a0201' : '#080302',
-    backgroundImage: `${lavaTexture}, linear-gradient(180deg, rgba(255, 102, 0, 0.28), transparent 34%, rgba(0, 0, 0, 0.72)), linear-gradient(90deg, #030101, #180704 45%, #050201)`,
-    backgroundRepeat: 'repeat-x, no-repeat, no-repeat',
-    backgroundPosition: '0 50%, 0 0, 0 0',
-    backgroundSize: '960px 100%, 100% 100%, 100% 100%',
-    boxShadow: overspent
-      ? 'inset 0 1px 0 rgba(255, 194, 92, 0.26), inset 0 -8px 16px rgba(0, 0, 0, 0.86), 0 0 16px rgba(220, 38, 38, 0.42)'
-      : 'inset 0 1px 0 rgba(255, 139, 42, 0.2), inset 0 -8px 16px rgba(0, 0, 0, 0.86), 0 0 12px rgba(194, 65, 12, 0.34)',
-  };
 
   return (
     <div className="sticky top-12 md:top-0 z-20 mb-4 w-full rounded-lg border border-zinc-700 bg-zinc-900 p-3 shadow">
-      <div className="mb-2 flex items-center justify-between gap-4">
-        <div className="flex-1 text-center">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">Total FP</div>
-          <div className="text-lg font-semibold text-zinc-50">{total.toFixed(2)}</div>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-100">Forge Summary</h2>
+          <p className="text-xs text-zinc-400">
+            Output bands are diagnostic only. Forge Points still control spend.
+          </p>
         </div>
-
-        <div className="flex-1 text-center">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">Spent</div>
-          <div className="text-lg font-semibold text-zinc-50">{spent.toFixed(2)}</div>
-        </div>
-
-        <div className="flex-1 text-center">
-          <div className="text-xs uppercase tracking-wide text-zinc-400">Remaining</div>
-          <div
-            className={
-              'text-lg font-semibold ' + (overspent ? 'text-red-400' : 'text-zinc-50')
-            }
-          >
-            {remaining.toFixed(2)}
-          </div>
-        </div>
-      </div>
-
-      <div className="mb-1 h-9 w-full overflow-hidden rounded-full border border-zinc-700 bg-black shadow-inner">
-        <div
-          className="relative h-full overflow-hidden rounded-full transition-[width] duration-300"
-          style={forgePointFillStyle}
+        <ForgeOutputPill
+          label={overspent ? 'Overspent' : `${safePercent.toFixed(0)}% spent`}
+          tone={overspent ? 'red' : 'zinc'}
         />
       </div>
 
-      <div className="text-right text-[11px] text-zinc-400">
-        {total > 0 ? `${safePercent.toFixed(0)}% spent` : '0% spent'}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ForgeOutputLaneBlock
+          title="Core Functionality"
+          status={comparison.lanes.coreFunctionality.status}
+          drivers={comparison.lanes.coreFunctionality.mainDrivers}
+          warnings={comparison.lanes.coreFunctionality.warnings}
+        />
+        <ForgeOutputLaneBlock
+          title="Features & Versatility"
+          status={comparison.lanes.featuresVersatility.status}
+          drivers={comparison.lanes.featuresVersatility.mainDrivers}
+          warnings={comparison.lanes.featuresVersatility.warnings}
+        />
+      </div>
+
+      <div className="mt-3 grid gap-2 rounded border border-zinc-800 bg-black/20 p-3 text-center sm:grid-cols-4">
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Total FP</div>
+          <div className="text-sm font-semibold text-zinc-50">{total.toFixed(2)}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Spent FP</div>
+          <div className="text-sm font-semibold text-zinc-50">{spent.toFixed(2)}</div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Remaining FP</div>
+          <div className={'text-sm font-semibold ' + (overspent ? 'text-red-400' : 'text-zinc-50')}>
+            {remaining.toFixed(2)}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase tracking-wide text-zinc-500">Percent Spent</div>
+          <div className="text-sm font-semibold text-zinc-50">
+            {total > 0 ? `${safePercent.toFixed(0)}%` : '0%'}
+          </div>
+        </div>
       </div>
     </div>
   );
