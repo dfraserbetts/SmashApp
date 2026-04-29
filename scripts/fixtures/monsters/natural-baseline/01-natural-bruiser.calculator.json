@@ -1,0 +1,1990 @@
+{
+  "sustainedPhysical": 2.625,
+  "sustainedMental": 0,
+  "sustainedTotal": 2.625,
+  "spike": 2.625,
+  "seuPerRound": 0,
+  "tsuPerRound": 0,
+  "radarAxes": {
+    "physicalThreat": 6.052668988446298,
+    "mentalThreat": 0,
+    "physicalSurvivability": 3.739537491585294,
+    "mentalSurvivability": 2.0332786150982955,
+    "manipulation": 0.4713131160229605,
+    "synergy": 0,
+    "mobility": 0.7679004480747471,
+    "presence": 4.385916273990885
+  },
+  "debug": {
+    "powerContribution": {
+      "axisVector": {
+        "physicalThreat": 3.94,
+        "mentalThreat": 0,
+        "physicalSurvivability": 4.24,
+        "mentalSurvivability": 0,
+        "manipulation": 4.55,
+        "synergy": 0,
+        "mobility": 5.68,
+        "presence": 0.7
+      },
+      "canonicalPowerAxisVector": {
+        "physicalThreat": 3.94,
+        "mentalThreat": 0,
+        "physicalSurvivability": 4.24,
+        "mentalSurvivability": 0,
+        "manipulation": 4.55,
+        "synergy": 0,
+        "mobility": 5.68,
+        "presence": 0.7
+      },
+      "effectivePowerAxisVector": {
+        "physicalThreat": 0.7527258508846726,
+        "mentalThreat": 0,
+        "physicalSurvivability": 0.41516628503581254,
+        "mentalSurvivability": 0,
+        "manipulation": 0.869264624752604,
+        "synergy": 0,
+        "mobility": 0.860048501843717,
+        "presence": 0.1337330191927083
+      },
+      "availabilityFactor": 0.15860482897485684,
+      "availabilityReason": "Per-power resolver-derived cooldown availability applied before final monster outcome axes; authored cooldown fields are fallback only.",
+      "cooldownTurns": null,
+      "cooldownSource": "resolver_derived_cooldown",
+      "perPowerAvailability": [
+        {
+          "id": null,
+          "name": "Sidestep",
+          "canonicalPowerAxisVector": {
+            "physicalThreat": 0,
+            "mentalThreat": 0,
+            "physicalSurvivability": 0,
+            "mentalSurvivability": 0,
+            "manipulation": 0,
+            "synergy": 0,
+            "mobility": 4.45,
+            "presence": 0
+          },
+          "effectivePowerAxisVector": {
+            "physicalThreat": 0,
+            "mentalThreat": 0,
+            "physicalSurvivability": 0,
+            "mentalSurvivability": 0,
+            "manipulation": 0,
+            "synergy": 0,
+            "mobility": 0.6250604824051009,
+            "presence": 0
+          },
+          "availabilityFactor": 0.14046302975395525,
+          "availabilityReason": "Resolver-derived cooldown 1 was used for Phase 6 table availability; authored cooldown fields are fallback only. Radar availability applied table factor 0.75 against level-relative cooldown load exponent 1.2 for load factor 0.18728403967194035, producing factor 0.14046302975395525.",
+          "cooldownTurns": 1,
+          "cooldownSource": "resolver_derived_cooldown",
+          "basePowerValue": 10.4,
+          "derivedCooldownLoad": 0.2476
+        },
+        {
+          "id": null,
+          "name": "Shoulder Ram",
+          "canonicalPowerAxisVector": {
+            "physicalThreat": 3.94,
+            "mentalThreat": 0,
+            "physicalSurvivability": 0,
+            "mentalSurvivability": 0,
+            "manipulation": 4.55,
+            "synergy": 0,
+            "mobility": 1.23,
+            "presence": 0.7
+          },
+          "effectivePowerAxisVector": {
+            "physicalThreat": 0.7527258508846726,
+            "mentalThreat": 0,
+            "physicalSurvivability": 0,
+            "mentalSurvivability": 0,
+            "manipulation": 0.869264624752604,
+            "synergy": 0,
+            "mobility": 0.23498801943861605,
+            "presence": 0.1337330191927083
+          },
+          "availabilityFactor": 0.1910471702752976,
+          "availabilityReason": "Resolver-derived cooldown 2 was used for Phase 6 table availability; authored cooldown fields are fallback only. Radar availability applied table factor 0.55 against level-relative cooldown load exponent 1.2 for load factor 0.347358491409632, producing factor 0.1910471702752976.",
+          "cooldownTurns": 2,
+          "cooldownSource": "resolver_derived_cooldown",
+          "basePowerValue": 17.4,
+          "derivedCooldownLoad": 0.4143
+        },
+        {
+          "id": null,
+          "name": "Brace",
+          "canonicalPowerAxisVector": {
+            "physicalThreat": 0,
+            "mentalThreat": 0,
+            "physicalSurvivability": 4.24,
+            "mentalSurvivability": 0,
+            "manipulation": 0,
+            "synergy": 0,
+            "mobility": 0,
+            "presence": 0
+          },
+          "effectivePowerAxisVector": {
+            "physicalThreat": 0,
+            "mentalThreat": 0,
+            "physicalSurvivability": 0.41516628503581254,
+            "mentalSurvivability": 0,
+            "manipulation": 0,
+            "synergy": 0,
+            "mobility": 0,
+            "presence": 0
+          },
+          "availabilityFactor": 0.09791657665938974,
+          "availabilityReason": "Resolver-derived cooldown 1 was used for Phase 6 table availability; authored cooldown fields are fallback only. Radar availability applied table factor 0.75 against level-relative cooldown load exponent 1.2 for load factor 0.130555435545853, producing factor 0.09791657665938974.",
+          "cooldownTurns": 1,
+          "cooldownSource": "resolver_derived_cooldown",
+          "basePowerValue": 7.7,
+          "derivedCooldownLoad": 0.1833
+        }
+      ],
+      "availabilityWarnings": [],
+      "basePowerValue": 35.5,
+      "powerCount": 3,
+      "resolverDebug": {
+        "powers": [
+          {
+            "name": "Sidestep",
+            "cooldownTurns": 1,
+            "cooldownReduction": 0,
+            "derivedCooldownTurns": 1,
+            "derivedCooldown": {
+              "derivedCooldownTurns": 1,
+              "basePowerValue": 10.4,
+              "cooldownCapacity": 42,
+              "cooldownLoad": 0.2476,
+              "cooldownBracket": "light",
+              "level": 5,
+              "tier": "SOLDIER",
+              "tierMultiplier": 1,
+              "minTurns": 1,
+              "maxTurns": 5,
+              "tuningKeys": {
+                "baseCapacity": "cooldown.capacity.base",
+                "perLevelCapacity": "cooldown.capacity.perLevel",
+                "lightThreshold": "cooldown.load.lightMax",
+                "moderateThreshold": "cooldown.load.moderateMax",
+                "heavyThreshold": "cooldown.load.heavyMax",
+                "extremeThreshold": "cooldown.load.extremeMax",
+                "minTurns": "cooldown.minTurns",
+                "maxTurns": "cooldown.maxTurns",
+                "tierMultiplier": "cooldown.capacity.tierMultiplier.SOLDIER"
+              },
+              "notes": []
+            },
+            "breakdown": {
+              "tuningSetId": "cmo9w500h00001wwchd9mginh",
+              "tuningSetName": "Augment Guard vs Bravery pass",
+              "sharedContextCost": 0,
+              "structuralCost": 0,
+              "accessCost": 1.5,
+              "packetCosts": [
+                {
+                  "packetIndex": 0,
+                  "intention": "MOVEMENT",
+                  "specific": "Run",
+                  "packetIdentityCost": 0.8,
+                  "packetMagnitudeCost": 6.6,
+                  "packetTimingCost": 0,
+                  "packetDurationCost": 0,
+                  "packetRecipientCost": 0.5,
+                  "packetSpecificCost": 1,
+                  "packetTotalBeforeContingency": 8.9,
+                  "contingencyMultiplier": 1,
+                  "packetTotalAfterContingency": 8.9,
+                  "scalarPacketValue": 8.9,
+                  "axisEmissionMultiplier": 0.5,
+                  "axisEmissionValue": 4.45,
+                  "axisEmissionTuningKey": "packet.axisEmission.intention.movement",
+                  "axisVector": {
+                    "physicalThreat": 0,
+                    "mentalThreat": 0,
+                    "physicalSurvivability": 0,
+                    "mentalSurvivability": 0,
+                    "manipulation": 0,
+                    "synergy": 0,
+                    "mobility": 4.45,
+                    "presence": 0
+                  },
+                  "debug": {
+                    "intention": "MOVEMENT",
+                    "specific": null,
+                    "timing": "ON_CAST",
+                    "duration": "INSTANT",
+                    "applyTo": "SELF",
+                    "hostility": "NON_HOSTILE_OR_UNKNOWN",
+                    "chosenTuningKeys": [
+                      "packet.identity.intention.movement",
+                      "packet.magnitude.dice.2",
+                      "packet.magnitude.potency.3",
+                      "packet.magnitude.movementTypeMultiplier.run",
+                      "packet.timing.onCast",
+                      "packet.duration.instant",
+                      "packet.recipient.self",
+                      "packet.movementType.run",
+                      "packet.axisEmission.intention.movement"
+                    ],
+                    "scalarPacketValue": 8.9,
+                    "axisEmissionMultiplier": 0.5,
+                    "axisEmissionValue": 4.45,
+                    "axisEmissionTuningKey": "packet.axisEmission.intention.movement",
+                    "deferredIntention": false,
+                    "localTargetingOverride": null,
+                    "axisRouting": {
+                      "baseLane": "mobility",
+                      "applyTo": "SELF",
+                      "hostile": false,
+                      "statTargetKey": null,
+                      "defenceAxis": "physicalSurvivability",
+                      "healingAxis": "physicalSurvivability",
+                      "defenceStatAxis": null,
+                      "movementMode": "Run",
+                      "hostileForcedMovementSplitFired": false,
+                      "friendlyMovementPathFired": true,
+                      "fallbackMovementPathFired": false,
+                      "movementAxisSplit": {
+                        "manipulation": 0,
+                        "mobility": 4.45,
+                        "hostileForcedMovementManipulationShare": 1,
+                        "hostileForcedMovementMobilityShare": 0.27,
+                        "hostileForcedMovementManipulationShareKey": "packet.axisRouting.hostileForcedMovement.manipulationShare",
+                        "hostileForcedMovementMobilityShareKey": "packet.axisRouting.hostileForcedMovement.mobilityShare"
+                      },
+                      "augmentRouting": null,
+                      "spillRules": [
+                        "friendlyMovementToMobility",
+                        "movementMode:Run"
+                      ]
+                    },
+                    "notes": [],
+                    "magnitude": {
+                      "baseDiceCost": 3,
+                      "basePotencyCost": 3,
+                      "movementTypeMultiplier": 1.1,
+                      "movementTypeMultiplierKey": "packet.magnitude.movementTypeMultiplier.run",
+                      "movementMagnitude": 6.6,
+                      "damageTypeCount": 0,
+                      "damageTypeMultiplier": 1,
+                      "damageTypeMultiplierKey": null,
+                      "buildPowerMultiplier": 1,
+                      "buildPowerMultiplierKey": null,
+                      "buildPowerBonusCost": 0,
+                      "resolvedMagnitude": 6.6
+                    },
+                    "recurringCadence": {
+                      "packetIndex": 0,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    }
+                  }
+                }
+              ],
+              "packetCountComplexityCost": 0,
+              "crossPacketSynergyCost": 0,
+              "basePowerValue": 10.4,
+              "derivedCooldownTurns": 1,
+              "derivedCooldown": {
+                "derivedCooldownTurns": 1,
+                "basePowerValue": 10.4,
+                "cooldownCapacity": 42,
+                "cooldownLoad": 0.2476,
+                "cooldownBracket": "light",
+                "level": 5,
+                "tier": "SOLDIER",
+                "tierMultiplier": 1,
+                "minTurns": 1,
+                "maxTurns": 5,
+                "tuningKeys": {
+                  "baseCapacity": "cooldown.capacity.base",
+                  "perLevelCapacity": "cooldown.capacity.perLevel",
+                  "lightThreshold": "cooldown.load.lightMax",
+                  "moderateThreshold": "cooldown.load.moderateMax",
+                  "heavyThreshold": "cooldown.load.heavyMax",
+                  "extremeThreshold": "cooldown.load.extremeMax",
+                  "minTurns": "cooldown.minTurns",
+                  "maxTurns": "cooldown.maxTurns",
+                  "tierMultiplier": "cooldown.capacity.tierMultiplier.SOLDIER"
+                },
+                "notes": []
+              },
+              "axisVector": {
+                "physicalThreat": 0,
+                "mentalThreat": 0,
+                "physicalSurvivability": 0,
+                "mentalSurvivability": 0,
+                "manipulation": 0,
+                "synergy": 0,
+                "mobility": 4.45,
+                "presence": 0
+              },
+              "debug": {
+                "resolvedCanonicalRangeCategory": "self",
+                "derivedCooldown": {
+                  "derivedCooldownTurns": 1,
+                  "basePowerValue": 10.4,
+                  "cooldownCapacity": 42,
+                  "cooldownLoad": 0.2476,
+                  "cooldownBracket": "light",
+                  "level": 5,
+                  "tier": "SOLDIER",
+                  "tierMultiplier": 1,
+                  "minTurns": 1,
+                  "maxTurns": 5,
+                  "tuningKeys": {
+                    "baseCapacity": "cooldown.capacity.base",
+                    "perLevelCapacity": "cooldown.capacity.perLevel",
+                    "lightThreshold": "cooldown.load.lightMax",
+                    "moderateThreshold": "cooldown.load.moderateMax",
+                    "heavyThreshold": "cooldown.load.heavyMax",
+                    "extremeThreshold": "cooldown.load.extremeMax",
+                    "minTurns": "cooldown.minTurns",
+                    "maxTurns": "cooldown.maxTurns",
+                    "tierMultiplier": "cooldown.capacity.tierMultiplier.SOLDIER"
+                  },
+                  "notes": []
+                },
+                "sharedContextBreakdown": {
+                  "canonicalRangeCategory": "self",
+                  "rangeCategoryKey": "shared.rangeCategory.self",
+                  "rangeCategoryContribution": 0,
+                  "rangedDistance": null,
+                  "aoeCastRange": null,
+                  "aoeCount": null,
+                  "aoeShape": null,
+                  "aoeGeometry": null
+                },
+                "structuralBreakdown": {
+                  "descriptorChassis": "IMMEDIATE",
+                  "chassisKey": "structural.chassis.immediate",
+                  "chassisContribution": 0,
+                  "lifespanType": "NONE",
+                  "lifespanKey": "structural.lifespan.none",
+                  "lifespanContribution": 0,
+                  "lifespanTurns": null,
+                  "lifespanTurnsKey": null,
+                  "lifespanTurnsContribution": 0,
+                  "derivedHostileEntryPattern": null
+                },
+                "structuralPresenceBreakdown": {
+                  "durationType": "NONE",
+                  "turnsPresenceContribution": 0,
+                  "passivePresenceContribution": 0,
+                  "structuralPresenceKey": null,
+                  "structuralPresenceContribution": 0
+                },
+                "recurringCadenceBreakdown": {
+                  "descriptorChassis": "IMMEDIATE",
+                  "lifespanType": "NONE",
+                  "lifespanTurns": null,
+                  "recurrenceCountModifier": 0,
+                  "packetDebug": [
+                    {
+                      "packetIndex": 0,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    }
+                  ]
+                },
+                "relevantThreatAxes": [],
+                "selectedSharedContextKeys": [
+                  "shared.rangeCategory.self"
+                ],
+                "selectedStructuralKeys": [
+                  "structural.chassis.immediate",
+                  "structural.lifespan.none"
+                ],
+                "selectedAccessKeys": [
+                  "access.counter.yes",
+                  "access.commitment.standard"
+                ],
+                "packetCountComplexityKeys": [
+                  "system.packetCount.base"
+                ],
+                "packetCountComplexityBreakdown": {
+                  "packetCount": 1,
+                  "axisEmitted": "none",
+                  "costOnly": true
+                },
+                "synergyTriggers": [],
+                "crossPacketSynergyBreakdown": {
+                  "hostileToBeneficial": {
+                    "fired": false,
+                    "primaryHostile": false,
+                    "hasBeneficialLaterPacket": false
+                  },
+                  "latchToPayload": {
+                    "fired": false,
+                    "descriptorChassis": "IMMEDIATE",
+                    "derivedHostileEntryPattern": null
+                  },
+                  "carrierRecurring": {
+                    "fired": false,
+                    "laterRecurringSecondary": false,
+                    "createsCarrier": false
+                  },
+                  "resultScalingFollowThrough": {
+                    "fired": false,
+                    "hasResultScalingFollowThrough": false
+                  },
+                  "overlapLeverage": {
+                    "fired": false,
+                    "canonicalRangeCategory": "self",
+                    "aoeCount": 1
+                  }
+                },
+                "synergySourceBreakdown": {
+                  "packetAxisSynergy": 0,
+                  "packetCountComplexityAxisSynergy": 0,
+                  "crossPacketSynergyAxisSynergy": 0,
+                  "structuralPresenceAxisSynergy": 0,
+                  "recurringCadenceAxisSynergy": 0
+                },
+                "attachedHostileEntryPattern": null,
+                "notes": [],
+                "packets": [
+                  {
+                    "intention": "MOVEMENT",
+                    "specific": null,
+                    "timing": "ON_CAST",
+                    "duration": "INSTANT",
+                    "applyTo": "SELF",
+                    "hostility": "NON_HOSTILE_OR_UNKNOWN",
+                    "chosenTuningKeys": [
+                      "packet.identity.intention.movement",
+                      "packet.magnitude.dice.2",
+                      "packet.magnitude.potency.3",
+                      "packet.magnitude.movementTypeMultiplier.run",
+                      "packet.timing.onCast",
+                      "packet.duration.instant",
+                      "packet.recipient.self",
+                      "packet.movementType.run",
+                      "packet.axisEmission.intention.movement"
+                    ],
+                    "scalarPacketValue": 8.9,
+                    "axisEmissionMultiplier": 0.5,
+                    "axisEmissionValue": 4.45,
+                    "axisEmissionTuningKey": "packet.axisEmission.intention.movement",
+                    "deferredIntention": false,
+                    "localTargetingOverride": null,
+                    "axisRouting": {
+                      "baseLane": "mobility",
+                      "applyTo": "SELF",
+                      "hostile": false,
+                      "statTargetKey": null,
+                      "defenceAxis": "physicalSurvivability",
+                      "healingAxis": "physicalSurvivability",
+                      "defenceStatAxis": null,
+                      "movementMode": "Run",
+                      "hostileForcedMovementSplitFired": false,
+                      "friendlyMovementPathFired": true,
+                      "fallbackMovementPathFired": false,
+                      "movementAxisSplit": {
+                        "manipulation": 0,
+                        "mobility": 4.45,
+                        "hostileForcedMovementManipulationShare": 1,
+                        "hostileForcedMovementMobilityShare": 0.27,
+                        "hostileForcedMovementManipulationShareKey": "packet.axisRouting.hostileForcedMovement.manipulationShare",
+                        "hostileForcedMovementMobilityShareKey": "packet.axisRouting.hostileForcedMovement.mobilityShare"
+                      },
+                      "augmentRouting": null,
+                      "spillRules": [
+                        "friendlyMovementToMobility",
+                        "movementMode:Run"
+                      ]
+                    },
+                    "notes": [],
+                    "magnitude": {
+                      "baseDiceCost": 3,
+                      "basePotencyCost": 3,
+                      "movementTypeMultiplier": 1.1,
+                      "movementTypeMultiplierKey": "packet.magnitude.movementTypeMultiplier.run",
+                      "movementMagnitude": 6.6,
+                      "damageTypeCount": 0,
+                      "damageTypeMultiplier": 1,
+                      "damageTypeMultiplierKey": null,
+                      "buildPowerMultiplier": 1,
+                      "buildPowerMultiplierKey": null,
+                      "buildPowerBonusCost": 0,
+                      "resolvedMagnitude": 6.6
+                    },
+                    "recurringCadence": {
+                      "packetIndex": 0,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "Shoulder Ram",
+            "cooldownTurns": 1,
+            "cooldownReduction": 0,
+            "derivedCooldownTurns": 2,
+            "derivedCooldown": {
+              "derivedCooldownTurns": 2,
+              "basePowerValue": 17.4,
+              "cooldownCapacity": 42,
+              "cooldownLoad": 0.4143,
+              "cooldownBracket": "moderate",
+              "level": 5,
+              "tier": "SOLDIER",
+              "tierMultiplier": 1,
+              "minTurns": 1,
+              "maxTurns": 5,
+              "tuningKeys": {
+                "baseCapacity": "cooldown.capacity.base",
+                "perLevelCapacity": "cooldown.capacity.perLevel",
+                "lightThreshold": "cooldown.load.lightMax",
+                "moderateThreshold": "cooldown.load.moderateMax",
+                "heavyThreshold": "cooldown.load.heavyMax",
+                "extremeThreshold": "cooldown.load.extremeMax",
+                "minTurns": "cooldown.minTurns",
+                "maxTurns": "cooldown.maxTurns",
+                "tierMultiplier": "cooldown.capacity.tierMultiplier.SOLDIER"
+              },
+              "notes": []
+            },
+            "breakdown": {
+              "tuningSetId": "cmo9w500h00001wwchd9mginh",
+              "tuningSetName": "Augment Guard vs Bravery pass",
+              "sharedContextCost": 1,
+              "structuralCost": 0,
+              "accessCost": 0,
+              "packetCosts": [
+                {
+                  "packetIndex": 0,
+                  "intention": "ATTACK",
+                  "specific": null,
+                  "packetIdentityCost": 1,
+                  "packetMagnitudeCost": 4.8,
+                  "packetTimingCost": 0,
+                  "packetDurationCost": 0,
+                  "packetRecipientCost": 0,
+                  "packetSpecificCost": 0,
+                  "packetTotalBeforeContingency": 5.8,
+                  "contingencyMultiplier": 1,
+                  "packetTotalAfterContingency": 5.8,
+                  "scalarPacketValue": 5.8,
+                  "axisEmissionMultiplier": 0.8,
+                  "axisEmissionValue": 4.64,
+                  "axisEmissionTuningKey": "packet.axisEmission.intention.attack",
+                  "axisVector": {
+                    "physicalThreat": 3.94,
+                    "mentalThreat": 0,
+                    "physicalSurvivability": 0,
+                    "mentalSurvivability": 0,
+                    "manipulation": 0,
+                    "synergy": 0,
+                    "mobility": 0,
+                    "presence": 0.7
+                  },
+                  "debug": {
+                    "intention": "ATTACK",
+                    "specific": null,
+                    "timing": "ON_CAST",
+                    "duration": "INSTANT",
+                    "applyTo": "PRIMARY_TARGET",
+                    "hostility": "HOSTILE",
+                    "chosenTuningKeys": [
+                      "packet.identity.intention.attack",
+                      "packet.magnitude.dice.3",
+                      "packet.magnitude.potency.2",
+                      "packet.magnitude.damageTypeCount.1",
+                      "packet.timing.onCast",
+                      "packet.duration.instant",
+                      "packet.recipient.primaryTargets",
+                      "packet.axisEmission.intention.attack"
+                    ],
+                    "scalarPacketValue": 5.8,
+                    "axisEmissionMultiplier": 0.8,
+                    "axisEmissionValue": 4.64,
+                    "axisEmissionTuningKey": "packet.axisEmission.intention.attack",
+                    "deferredIntention": false,
+                    "localTargetingOverride": null,
+                    "axisRouting": {
+                      "baseLane": "physicalThreat",
+                      "applyTo": "PRIMARY_TARGET",
+                      "hostile": true,
+                      "statTargetKey": null,
+                      "defenceAxis": "physicalSurvivability",
+                      "healingAxis": "physicalSurvivability",
+                      "defenceStatAxis": null,
+                      "movementMode": null,
+                      "hostileForcedMovementSplitFired": false,
+                      "friendlyMovementPathFired": false,
+                      "fallbackMovementPathFired": false,
+                      "movementAxisSplit": null,
+                      "augmentRouting": null,
+                      "spillRules": [
+                        "presenceFromAttackPressure"
+                      ]
+                    },
+                    "notes": [],
+                    "magnitude": {
+                      "baseDiceCost": 6,
+                      "basePotencyCost": 2,
+                      "movementTypeMultiplier": 1,
+                      "movementTypeMultiplierKey": null,
+                      "movementMagnitude": 8,
+                      "damageTypeCount": 1,
+                      "damageTypeMultiplier": 0.6,
+                      "damageTypeMultiplierKey": "packet.magnitude.damageTypeCount.1",
+                      "buildPowerMultiplier": 1,
+                      "buildPowerMultiplierKey": null,
+                      "buildPowerBonusCost": 0,
+                      "resolvedMagnitude": 4.8
+                    },
+                    "recurringCadence": {
+                      "packetIndex": 0,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    }
+                  }
+                },
+                {
+                  "packetIndex": 1,
+                  "intention": "MOVEMENT",
+                  "specific": "Force Push",
+                  "packetIdentityCost": 0.8,
+                  "packetMagnitudeCost": 8,
+                  "packetTimingCost": 0,
+                  "packetDurationCost": 0,
+                  "packetRecipientCost": 0,
+                  "packetSpecificCost": 2,
+                  "packetTotalBeforeContingency": 10.8,
+                  "contingencyMultiplier": 0.75,
+                  "packetTotalAfterContingency": 8.1,
+                  "scalarPacketValue": 8.1,
+                  "axisEmissionMultiplier": 0.5,
+                  "axisEmissionValue": 4.05,
+                  "axisEmissionTuningKey": "packet.axisEmission.intention.movement",
+                  "axisVector": {
+                    "physicalThreat": 0,
+                    "mentalThreat": 0,
+                    "physicalSurvivability": 0,
+                    "mentalSurvivability": 0,
+                    "manipulation": 4.05,
+                    "synergy": 0,
+                    "mobility": 1.09,
+                    "presence": 0
+                  },
+                  "debug": {
+                    "intention": "MOVEMENT",
+                    "specific": null,
+                    "timing": "ON_CAST",
+                    "duration": "INSTANT",
+                    "applyTo": "PRIMARY_TARGET",
+                    "hostility": "HOSTILE",
+                    "chosenTuningKeys": [
+                      "packet.identity.intention.movement",
+                      "packet.magnitude.dice.3",
+                      "packet.magnitude.potency.2",
+                      "packet.magnitude.movementTypeMultiplier.forcePush",
+                      "packet.timing.onCast",
+                      "packet.duration.instant",
+                      "packet.recipient.primaryTargets",
+                      "packet.movementType.forcePush",
+                      "system.secondaryContingency.packet2",
+                      "packet.axisEmission.intention.movement"
+                    ],
+                    "scalarPacketValue": 8.1,
+                    "axisEmissionMultiplier": 0.5,
+                    "axisEmissionValue": 4.05,
+                    "axisEmissionTuningKey": "packet.axisEmission.intention.movement",
+                    "deferredIntention": false,
+                    "localTargetingOverride": null,
+                    "axisRouting": {
+                      "baseLane": "manipulationMobilitySplit",
+                      "applyTo": "PRIMARY_TARGET",
+                      "hostile": true,
+                      "statTargetKey": null,
+                      "defenceAxis": "physicalSurvivability",
+                      "healingAxis": "physicalSurvivability",
+                      "defenceStatAxis": null,
+                      "movementMode": "Force Push",
+                      "hostileForcedMovementSplitFired": true,
+                      "friendlyMovementPathFired": false,
+                      "fallbackMovementPathFired": false,
+                      "movementAxisSplit": {
+                        "manipulation": 4.05,
+                        "mobility": 1.09,
+                        "hostileForcedMovementManipulationShare": 1,
+                        "hostileForcedMovementMobilityShare": 0.27,
+                        "hostileForcedMovementManipulationShareKey": "packet.axisRouting.hostileForcedMovement.manipulationShare",
+                        "hostileForcedMovementMobilityShareKey": "packet.axisRouting.hostileForcedMovement.mobilityShare"
+                      },
+                      "augmentRouting": null,
+                      "spillRules": [
+                        "hostileForcedMovementToManipulationAndMobility",
+                        "movementMode:Force Push"
+                      ]
+                    },
+                    "notes": [],
+                    "magnitude": {
+                      "baseDiceCost": 6,
+                      "basePotencyCost": 2,
+                      "movementTypeMultiplier": 1,
+                      "movementTypeMultiplierKey": "packet.magnitude.movementTypeMultiplier.forcePush",
+                      "movementMagnitude": 8,
+                      "damageTypeCount": 0,
+                      "damageTypeMultiplier": 1,
+                      "damageTypeMultiplierKey": null,
+                      "buildPowerMultiplier": 1,
+                      "buildPowerMultiplierKey": null,
+                      "buildPowerBonusCost": 0,
+                      "resolvedMagnitude": 8
+                    },
+                    "recurringCadence": {
+                      "packetIndex": 1,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    }
+                  }
+                }
+              ],
+              "packetCountComplexityCost": 2,
+              "crossPacketSynergyCost": 0.5,
+              "basePowerValue": 17.4,
+              "derivedCooldownTurns": 2,
+              "derivedCooldown": {
+                "derivedCooldownTurns": 2,
+                "basePowerValue": 17.4,
+                "cooldownCapacity": 42,
+                "cooldownLoad": 0.4143,
+                "cooldownBracket": "moderate",
+                "level": 5,
+                "tier": "SOLDIER",
+                "tierMultiplier": 1,
+                "minTurns": 1,
+                "maxTurns": 5,
+                "tuningKeys": {
+                  "baseCapacity": "cooldown.capacity.base",
+                  "perLevelCapacity": "cooldown.capacity.perLevel",
+                  "lightThreshold": "cooldown.load.lightMax",
+                  "moderateThreshold": "cooldown.load.moderateMax",
+                  "heavyThreshold": "cooldown.load.heavyMax",
+                  "extremeThreshold": "cooldown.load.extremeMax",
+                  "minTurns": "cooldown.minTurns",
+                  "maxTurns": "cooldown.maxTurns",
+                  "tierMultiplier": "cooldown.capacity.tierMultiplier.SOLDIER"
+                },
+                "notes": []
+              },
+              "axisVector": {
+                "physicalThreat": 3.94,
+                "mentalThreat": 0,
+                "physicalSurvivability": 0,
+                "mentalSurvivability": 0,
+                "manipulation": 4.55,
+                "synergy": 0,
+                "mobility": 1.23,
+                "presence": 0.7
+              },
+              "debug": {
+                "resolvedCanonicalRangeCategory": "melee",
+                "derivedCooldown": {
+                  "derivedCooldownTurns": 2,
+                  "basePowerValue": 17.4,
+                  "cooldownCapacity": 42,
+                  "cooldownLoad": 0.4143,
+                  "cooldownBracket": "moderate",
+                  "level": 5,
+                  "tier": "SOLDIER",
+                  "tierMultiplier": 1,
+                  "minTurns": 1,
+                  "maxTurns": 5,
+                  "tuningKeys": {
+                    "baseCapacity": "cooldown.capacity.base",
+                    "perLevelCapacity": "cooldown.capacity.perLevel",
+                    "lightThreshold": "cooldown.load.lightMax",
+                    "moderateThreshold": "cooldown.load.moderateMax",
+                    "heavyThreshold": "cooldown.load.heavyMax",
+                    "extremeThreshold": "cooldown.load.extremeMax",
+                    "minTurns": "cooldown.minTurns",
+                    "maxTurns": "cooldown.maxTurns",
+                    "tierMultiplier": "cooldown.capacity.tierMultiplier.SOLDIER"
+                  },
+                  "notes": []
+                },
+                "sharedContextBreakdown": {
+                  "canonicalRangeCategory": "melee",
+                  "rangeCategoryKey": "shared.rangeCategory.melee",
+                  "rangeCategoryContribution": 1,
+                  "rangedDistance": null,
+                  "aoeCastRange": null,
+                  "aoeCount": null,
+                  "aoeShape": null,
+                  "aoeGeometry": null
+                },
+                "structuralBreakdown": {
+                  "descriptorChassis": "IMMEDIATE",
+                  "chassisKey": "structural.chassis.immediate",
+                  "chassisContribution": 0,
+                  "lifespanType": "NONE",
+                  "lifespanKey": "structural.lifespan.none",
+                  "lifespanContribution": 0,
+                  "lifespanTurns": null,
+                  "lifespanTurnsKey": null,
+                  "lifespanTurnsContribution": 0,
+                  "derivedHostileEntryPattern": null
+                },
+                "structuralPresenceBreakdown": {
+                  "durationType": "NONE",
+                  "turnsPresenceContribution": 0,
+                  "passivePresenceContribution": 0,
+                  "structuralPresenceKey": null,
+                  "structuralPresenceContribution": 0
+                },
+                "recurringCadenceBreakdown": {
+                  "descriptorChassis": "IMMEDIATE",
+                  "lifespanType": "NONE",
+                  "lifespanTurns": null,
+                  "recurrenceCountModifier": 0,
+                  "packetDebug": [
+                    {
+                      "packetIndex": 0,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    },
+                    {
+                      "packetIndex": 1,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    }
+                  ]
+                },
+                "relevantThreatAxes": [
+                  "physicalThreat"
+                ],
+                "selectedSharedContextKeys": [
+                  "shared.rangeCategory.melee",
+                  "shared.meleeTargets.1"
+                ],
+                "selectedStructuralKeys": [
+                  "structural.chassis.immediate",
+                  "structural.lifespan.none"
+                ],
+                "selectedAccessKeys": [
+                  "access.counter.no",
+                  "access.commitment.standard"
+                ],
+                "packetCountComplexityKeys": [
+                  "system.packetCount.base",
+                  "system.packetCount.addPacket2"
+                ],
+                "packetCountComplexityBreakdown": {
+                  "packetCount": 2,
+                  "axisEmitted": "none",
+                  "costOnly": true
+                },
+                "synergyTriggers": [
+                  "resultScalingFollowThrough"
+                ],
+                "crossPacketSynergyBreakdown": {
+                  "hostileToBeneficial": {
+                    "fired": false,
+                    "primaryHostile": true,
+                    "hasBeneficialLaterPacket": false
+                  },
+                  "latchToPayload": {
+                    "fired": false,
+                    "descriptorChassis": "IMMEDIATE",
+                    "derivedHostileEntryPattern": null
+                  },
+                  "carrierRecurring": {
+                    "fired": false,
+                    "laterRecurringSecondary": false,
+                    "createsCarrier": false
+                  },
+                  "resultScalingFollowThrough": {
+                    "fired": true,
+                    "tuningKey": "system.synergy.resultScalingFollowThrough",
+                    "contribution": 0.5,
+                    "axisContribution": {
+                      "physicalThreat": 0,
+                      "mentalThreat": 0,
+                      "physicalSurvivability": 0,
+                      "mentalSurvivability": 0,
+                      "manipulation": 0.5,
+                      "synergy": 0,
+                      "mobility": 0.14,
+                      "presence": 0
+                    },
+                    "routedPackets": [
+                      {
+                        "intention": "MOVEMENT",
+                        "recipient": "PRIMARY_TARGET",
+                        "statTargetKey": null,
+                        "effect": "Force Push",
+                        "axisContribution": {
+                          "physicalThreat": 0,
+                          "mentalThreat": 0,
+                          "physicalSurvivability": 0,
+                          "mentalSurvivability": 0,
+                          "manipulation": 0.5,
+                          "synergy": 0,
+                          "mobility": 0.14,
+                          "presence": 0
+                        },
+                        "axisRouting": {
+                          "baseLane": "manipulationMobilitySplit",
+                          "applyTo": "PRIMARY_TARGET",
+                          "hostile": true,
+                          "statTargetKey": null,
+                          "defenceAxis": "physicalSurvivability",
+                          "healingAxis": "physicalSurvivability",
+                          "defenceStatAxis": null,
+                          "movementMode": "Force Push",
+                          "hostileForcedMovementSplitFired": true,
+                          "friendlyMovementPathFired": false,
+                          "fallbackMovementPathFired": false,
+                          "movementAxisSplit": {
+                            "manipulation": 0.5,
+                            "mobility": 0.14,
+                            "hostileForcedMovementManipulationShare": 1,
+                            "hostileForcedMovementMobilityShare": 0.27,
+                            "hostileForcedMovementManipulationShareKey": "packet.axisRouting.hostileForcedMovement.manipulationShare",
+                            "hostileForcedMovementMobilityShareKey": "packet.axisRouting.hostileForcedMovement.mobilityShare"
+                          },
+                          "augmentRouting": null,
+                          "spillRules": [
+                            "hostileForcedMovementToManipulationAndMobility",
+                            "movementMode:Force Push"
+                          ]
+                        }
+                      }
+                    ],
+                    "axisNote": "Combo axis follows the scaled follow-through packet lane instead of defaulting to Synergy."
+                  },
+                  "overlapLeverage": {
+                    "fired": false,
+                    "canonicalRangeCategory": "melee",
+                    "aoeCount": 1
+                  }
+                },
+                "synergySourceBreakdown": {
+                  "packetAxisSynergy": 0,
+                  "packetCountComplexityAxisSynergy": 0,
+                  "crossPacketSynergyAxisSynergy": 0,
+                  "structuralPresenceAxisSynergy": 0,
+                  "recurringCadenceAxisSynergy": 0
+                },
+                "attachedHostileEntryPattern": null,
+                "notes": [],
+                "packets": [
+                  {
+                    "intention": "ATTACK",
+                    "specific": null,
+                    "timing": "ON_CAST",
+                    "duration": "INSTANT",
+                    "applyTo": "PRIMARY_TARGET",
+                    "hostility": "HOSTILE",
+                    "chosenTuningKeys": [
+                      "packet.identity.intention.attack",
+                      "packet.magnitude.dice.3",
+                      "packet.magnitude.potency.2",
+                      "packet.magnitude.damageTypeCount.1",
+                      "packet.timing.onCast",
+                      "packet.duration.instant",
+                      "packet.recipient.primaryTargets",
+                      "packet.axisEmission.intention.attack"
+                    ],
+                    "scalarPacketValue": 5.8,
+                    "axisEmissionMultiplier": 0.8,
+                    "axisEmissionValue": 4.64,
+                    "axisEmissionTuningKey": "packet.axisEmission.intention.attack",
+                    "deferredIntention": false,
+                    "localTargetingOverride": null,
+                    "axisRouting": {
+                      "baseLane": "physicalThreat",
+                      "applyTo": "PRIMARY_TARGET",
+                      "hostile": true,
+                      "statTargetKey": null,
+                      "defenceAxis": "physicalSurvivability",
+                      "healingAxis": "physicalSurvivability",
+                      "defenceStatAxis": null,
+                      "movementMode": null,
+                      "hostileForcedMovementSplitFired": false,
+                      "friendlyMovementPathFired": false,
+                      "fallbackMovementPathFired": false,
+                      "movementAxisSplit": null,
+                      "augmentRouting": null,
+                      "spillRules": [
+                        "presenceFromAttackPressure"
+                      ]
+                    },
+                    "notes": [],
+                    "magnitude": {
+                      "baseDiceCost": 6,
+                      "basePotencyCost": 2,
+                      "movementTypeMultiplier": 1,
+                      "movementTypeMultiplierKey": null,
+                      "movementMagnitude": 8,
+                      "damageTypeCount": 1,
+                      "damageTypeMultiplier": 0.6,
+                      "damageTypeMultiplierKey": "packet.magnitude.damageTypeCount.1",
+                      "buildPowerMultiplier": 1,
+                      "buildPowerMultiplierKey": null,
+                      "buildPowerBonusCost": 0,
+                      "resolvedMagnitude": 4.8
+                    },
+                    "recurringCadence": {
+                      "packetIndex": 0,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    }
+                  },
+                  {
+                    "intention": "MOVEMENT",
+                    "specific": null,
+                    "timing": "ON_CAST",
+                    "duration": "INSTANT",
+                    "applyTo": "PRIMARY_TARGET",
+                    "hostility": "HOSTILE",
+                    "chosenTuningKeys": [
+                      "packet.identity.intention.movement",
+                      "packet.magnitude.dice.3",
+                      "packet.magnitude.potency.2",
+                      "packet.magnitude.movementTypeMultiplier.forcePush",
+                      "packet.timing.onCast",
+                      "packet.duration.instant",
+                      "packet.recipient.primaryTargets",
+                      "packet.movementType.forcePush",
+                      "system.secondaryContingency.packet2",
+                      "packet.axisEmission.intention.movement"
+                    ],
+                    "scalarPacketValue": 8.1,
+                    "axisEmissionMultiplier": 0.5,
+                    "axisEmissionValue": 4.05,
+                    "axisEmissionTuningKey": "packet.axisEmission.intention.movement",
+                    "deferredIntention": false,
+                    "localTargetingOverride": null,
+                    "axisRouting": {
+                      "baseLane": "manipulationMobilitySplit",
+                      "applyTo": "PRIMARY_TARGET",
+                      "hostile": true,
+                      "statTargetKey": null,
+                      "defenceAxis": "physicalSurvivability",
+                      "healingAxis": "physicalSurvivability",
+                      "defenceStatAxis": null,
+                      "movementMode": "Force Push",
+                      "hostileForcedMovementSplitFired": true,
+                      "friendlyMovementPathFired": false,
+                      "fallbackMovementPathFired": false,
+                      "movementAxisSplit": {
+                        "manipulation": 4.05,
+                        "mobility": 1.09,
+                        "hostileForcedMovementManipulationShare": 1,
+                        "hostileForcedMovementMobilityShare": 0.27,
+                        "hostileForcedMovementManipulationShareKey": "packet.axisRouting.hostileForcedMovement.manipulationShare",
+                        "hostileForcedMovementMobilityShareKey": "packet.axisRouting.hostileForcedMovement.mobilityShare"
+                      },
+                      "augmentRouting": null,
+                      "spillRules": [
+                        "hostileForcedMovementToManipulationAndMobility",
+                        "movementMode:Force Push"
+                      ]
+                    },
+                    "notes": [],
+                    "magnitude": {
+                      "baseDiceCost": 6,
+                      "basePotencyCost": 2,
+                      "movementTypeMultiplier": 1,
+                      "movementTypeMultiplierKey": "packet.magnitude.movementTypeMultiplier.forcePush",
+                      "movementMagnitude": 8,
+                      "damageTypeCount": 0,
+                      "damageTypeMultiplier": 1,
+                      "damageTypeMultiplierKey": null,
+                      "buildPowerMultiplier": 1,
+                      "buildPowerMultiplierKey": null,
+                      "buildPowerBonusCost": 0,
+                      "resolvedMagnitude": 8
+                    },
+                    "recurringCadence": {
+                      "packetIndex": 1,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "Brace",
+            "cooldownTurns": 1,
+            "cooldownReduction": 0,
+            "derivedCooldownTurns": 1,
+            "derivedCooldown": {
+              "derivedCooldownTurns": 1,
+              "basePowerValue": 7.7,
+              "cooldownCapacity": 42,
+              "cooldownLoad": 0.1833,
+              "cooldownBracket": "light",
+              "level": 5,
+              "tier": "SOLDIER",
+              "tierMultiplier": 1,
+              "minTurns": 1,
+              "maxTurns": 5,
+              "tuningKeys": {
+                "baseCapacity": "cooldown.capacity.base",
+                "perLevelCapacity": "cooldown.capacity.perLevel",
+                "lightThreshold": "cooldown.load.lightMax",
+                "moderateThreshold": "cooldown.load.moderateMax",
+                "heavyThreshold": "cooldown.load.heavyMax",
+                "extremeThreshold": "cooldown.load.extremeMax",
+                "minTurns": "cooldown.minTurns",
+                "maxTurns": "cooldown.maxTurns",
+                "tierMultiplier": "cooldown.capacity.tierMultiplier.SOLDIER"
+              },
+              "notes": []
+            },
+            "breakdown": {
+              "tuningSetId": "cmo9w500h00001wwchd9mginh",
+              "tuningSetName": "Augment Guard vs Bravery pass",
+              "sharedContextCost": 0,
+              "structuralCost": 0,
+              "accessCost": 0,
+              "packetCosts": [
+                {
+                  "packetIndex": 0,
+                  "intention": "DEFENCE",
+                  "specific": null,
+                  "packetIdentityCost": 1.2,
+                  "packetMagnitudeCost": 6,
+                  "packetTimingCost": 0,
+                  "packetDurationCost": 0,
+                  "packetRecipientCost": 0.5,
+                  "packetSpecificCost": 0,
+                  "packetTotalBeforeContingency": 7.7,
+                  "contingencyMultiplier": 1,
+                  "packetTotalAfterContingency": 7.7,
+                  "scalarPacketValue": 7.7,
+                  "axisEmissionMultiplier": 0.55,
+                  "axisEmissionValue": 4.24,
+                  "axisEmissionTuningKey": "packet.axisEmission.intention.defence",
+                  "axisVector": {
+                    "physicalThreat": 0,
+                    "mentalThreat": 0,
+                    "physicalSurvivability": 4.24,
+                    "mentalSurvivability": 0,
+                    "manipulation": 0,
+                    "synergy": 0,
+                    "mobility": 0,
+                    "presence": 0
+                  },
+                  "debug": {
+                    "intention": "DEFENCE",
+                    "specific": null,
+                    "timing": "ON_CAST",
+                    "duration": "INSTANT",
+                    "applyTo": "SELF",
+                    "hostility": "NON_HOSTILE_OR_UNKNOWN",
+                    "chosenTuningKeys": [
+                      "packet.identity.intention.defence",
+                      "packet.magnitude.dice.2",
+                      "packet.magnitude.potency.3",
+                      "packet.timing.onCast",
+                      "packet.duration.instant",
+                      "packet.recipient.self",
+                      "packet.axisEmission.intention.defence"
+                    ],
+                    "scalarPacketValue": 7.7,
+                    "axisEmissionMultiplier": 0.55,
+                    "axisEmissionValue": 4.24,
+                    "axisEmissionTuningKey": "packet.axisEmission.intention.defence",
+                    "deferredIntention": false,
+                    "localTargetingOverride": null,
+                    "axisRouting": {
+                      "baseLane": "physicalSurvivability",
+                      "applyTo": "SELF",
+                      "hostile": false,
+                      "statTargetKey": null,
+                      "defenceAxis": "physicalSurvivability",
+                      "healingAxis": "physicalSurvivability",
+                      "defenceStatAxis": null,
+                      "movementMode": null,
+                      "hostileForcedMovementSplitFired": false,
+                      "friendlyMovementPathFired": false,
+                      "fallbackMovementPathFired": false,
+                      "movementAxisSplit": null,
+                      "augmentRouting": null,
+                      "spillRules": []
+                    },
+                    "notes": [],
+                    "magnitude": {
+                      "baseDiceCost": 3,
+                      "basePotencyCost": 3,
+                      "movementTypeMultiplier": 1,
+                      "movementTypeMultiplierKey": null,
+                      "movementMagnitude": 6,
+                      "damageTypeCount": 0,
+                      "damageTypeMultiplier": 1,
+                      "damageTypeMultiplierKey": null,
+                      "buildPowerMultiplier": 1,
+                      "buildPowerMultiplierKey": null,
+                      "buildPowerBonusCost": 0,
+                      "resolvedMagnitude": 6
+                    },
+                    "recurringCadence": {
+                      "packetIndex": 0,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    }
+                  }
+                }
+              ],
+              "packetCountComplexityCost": 0,
+              "crossPacketSynergyCost": 0,
+              "basePowerValue": 7.7,
+              "derivedCooldownTurns": 1,
+              "derivedCooldown": {
+                "derivedCooldownTurns": 1,
+                "basePowerValue": 7.7,
+                "cooldownCapacity": 42,
+                "cooldownLoad": 0.1833,
+                "cooldownBracket": "light",
+                "level": 5,
+                "tier": "SOLDIER",
+                "tierMultiplier": 1,
+                "minTurns": 1,
+                "maxTurns": 5,
+                "tuningKeys": {
+                  "baseCapacity": "cooldown.capacity.base",
+                  "perLevelCapacity": "cooldown.capacity.perLevel",
+                  "lightThreshold": "cooldown.load.lightMax",
+                  "moderateThreshold": "cooldown.load.moderateMax",
+                  "heavyThreshold": "cooldown.load.heavyMax",
+                  "extremeThreshold": "cooldown.load.extremeMax",
+                  "minTurns": "cooldown.minTurns",
+                  "maxTurns": "cooldown.maxTurns",
+                  "tierMultiplier": "cooldown.capacity.tierMultiplier.SOLDIER"
+                },
+                "notes": []
+              },
+              "axisVector": {
+                "physicalThreat": 0,
+                "mentalThreat": 0,
+                "physicalSurvivability": 4.24,
+                "mentalSurvivability": 0,
+                "manipulation": 0,
+                "synergy": 0,
+                "mobility": 0,
+                "presence": 0
+              },
+              "debug": {
+                "resolvedCanonicalRangeCategory": "self",
+                "derivedCooldown": {
+                  "derivedCooldownTurns": 1,
+                  "basePowerValue": 7.7,
+                  "cooldownCapacity": 42,
+                  "cooldownLoad": 0.1833,
+                  "cooldownBracket": "light",
+                  "level": 5,
+                  "tier": "SOLDIER",
+                  "tierMultiplier": 1,
+                  "minTurns": 1,
+                  "maxTurns": 5,
+                  "tuningKeys": {
+                    "baseCapacity": "cooldown.capacity.base",
+                    "perLevelCapacity": "cooldown.capacity.perLevel",
+                    "lightThreshold": "cooldown.load.lightMax",
+                    "moderateThreshold": "cooldown.load.moderateMax",
+                    "heavyThreshold": "cooldown.load.heavyMax",
+                    "extremeThreshold": "cooldown.load.extremeMax",
+                    "minTurns": "cooldown.minTurns",
+                    "maxTurns": "cooldown.maxTurns",
+                    "tierMultiplier": "cooldown.capacity.tierMultiplier.SOLDIER"
+                  },
+                  "notes": []
+                },
+                "sharedContextBreakdown": {
+                  "canonicalRangeCategory": "self",
+                  "rangeCategoryKey": "shared.rangeCategory.self",
+                  "rangeCategoryContribution": 0,
+                  "rangedDistance": null,
+                  "aoeCastRange": null,
+                  "aoeCount": null,
+                  "aoeShape": null,
+                  "aoeGeometry": null
+                },
+                "structuralBreakdown": {
+                  "descriptorChassis": "IMMEDIATE",
+                  "chassisKey": "structural.chassis.immediate",
+                  "chassisContribution": 0,
+                  "lifespanType": "NONE",
+                  "lifespanKey": "structural.lifespan.none",
+                  "lifespanContribution": 0,
+                  "lifespanTurns": null,
+                  "lifespanTurnsKey": null,
+                  "lifespanTurnsContribution": 0,
+                  "derivedHostileEntryPattern": null
+                },
+                "structuralPresenceBreakdown": {
+                  "durationType": "NONE",
+                  "turnsPresenceContribution": 0,
+                  "passivePresenceContribution": 0,
+                  "structuralPresenceKey": null,
+                  "structuralPresenceContribution": 0
+                },
+                "recurringCadenceBreakdown": {
+                  "descriptorChassis": "IMMEDIATE",
+                  "lifespanType": "NONE",
+                  "lifespanTurns": null,
+                  "recurrenceCountModifier": 0,
+                  "packetDebug": [
+                    {
+                      "packetIndex": 0,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    }
+                  ]
+                },
+                "relevantThreatAxes": [],
+                "selectedSharedContextKeys": [
+                  "shared.rangeCategory.self"
+                ],
+                "selectedStructuralKeys": [
+                  "structural.chassis.immediate",
+                  "structural.lifespan.none"
+                ],
+                "selectedAccessKeys": [
+                  "access.counter.no",
+                  "access.commitment.standard"
+                ],
+                "packetCountComplexityKeys": [
+                  "system.packetCount.base"
+                ],
+                "packetCountComplexityBreakdown": {
+                  "packetCount": 1,
+                  "axisEmitted": "none",
+                  "costOnly": true
+                },
+                "synergyTriggers": [],
+                "crossPacketSynergyBreakdown": {
+                  "hostileToBeneficial": {
+                    "fired": false,
+                    "primaryHostile": false,
+                    "hasBeneficialLaterPacket": false
+                  },
+                  "latchToPayload": {
+                    "fired": false,
+                    "descriptorChassis": "IMMEDIATE",
+                    "derivedHostileEntryPattern": null
+                  },
+                  "carrierRecurring": {
+                    "fired": false,
+                    "laterRecurringSecondary": false,
+                    "createsCarrier": false
+                  },
+                  "resultScalingFollowThrough": {
+                    "fired": false,
+                    "hasResultScalingFollowThrough": false
+                  },
+                  "overlapLeverage": {
+                    "fired": false,
+                    "canonicalRangeCategory": "self",
+                    "aoeCount": 1
+                  }
+                },
+                "synergySourceBreakdown": {
+                  "packetAxisSynergy": 0,
+                  "packetCountComplexityAxisSynergy": 0,
+                  "crossPacketSynergyAxisSynergy": 0,
+                  "structuralPresenceAxisSynergy": 0,
+                  "recurringCadenceAxisSynergy": 0
+                },
+                "attachedHostileEntryPattern": null,
+                "notes": [],
+                "packets": [
+                  {
+                    "intention": "DEFENCE",
+                    "specific": null,
+                    "timing": "ON_CAST",
+                    "duration": "INSTANT",
+                    "applyTo": "SELF",
+                    "hostility": "NON_HOSTILE_OR_UNKNOWN",
+                    "chosenTuningKeys": [
+                      "packet.identity.intention.defence",
+                      "packet.magnitude.dice.2",
+                      "packet.magnitude.potency.3",
+                      "packet.timing.onCast",
+                      "packet.duration.instant",
+                      "packet.recipient.self",
+                      "packet.axisEmission.intention.defence"
+                    ],
+                    "scalarPacketValue": 7.7,
+                    "axisEmissionMultiplier": 0.55,
+                    "axisEmissionValue": 4.24,
+                    "axisEmissionTuningKey": "packet.axisEmission.intention.defence",
+                    "deferredIntention": false,
+                    "localTargetingOverride": null,
+                    "axisRouting": {
+                      "baseLane": "physicalSurvivability",
+                      "applyTo": "SELF",
+                      "hostile": false,
+                      "statTargetKey": null,
+                      "defenceAxis": "physicalSurvivability",
+                      "healingAxis": "physicalSurvivability",
+                      "defenceStatAxis": null,
+                      "movementMode": null,
+                      "hostileForcedMovementSplitFired": false,
+                      "friendlyMovementPathFired": false,
+                      "fallbackMovementPathFired": false,
+                      "movementAxisSplit": null,
+                      "augmentRouting": null,
+                      "spillRules": []
+                    },
+                    "notes": [],
+                    "magnitude": {
+                      "baseDiceCost": 3,
+                      "basePotencyCost": 3,
+                      "movementTypeMultiplier": 1,
+                      "movementTypeMultiplierKey": null,
+                      "movementMagnitude": 6,
+                      "damageTypeCount": 0,
+                      "damageTypeMultiplier": 1,
+                      "damageTypeMultiplierKey": null,
+                      "buildPowerMultiplier": 1,
+                      "buildPowerMultiplierKey": null,
+                      "buildPowerBonusCost": 0,
+                      "resolvedMagnitude": 6
+                    },
+                    "recurringCadence": {
+                      "packetIndex": 0,
+                      "timing": "ON_CAST",
+                      "fired": false,
+                      "hasRecurringTiming": false,
+                      "hasRealCarrier": false,
+                      "carrierSources": [],
+                      "lifespanType": "NONE",
+                      "lifespanTurns": null,
+                      "recurrenceCountModifier": 0
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "totals": {
+          "sharedContextCost": 1,
+          "structuralCost": 0,
+          "accessCost": 1.5,
+          "packetCountComplexityCost": 2,
+          "crossPacketSynergyCost": 0.5,
+          "basePowerValue": 35.5,
+          "axisVector": {
+            "physicalThreat": 3.94,
+            "mentalThreat": 0,
+            "physicalSurvivability": 4.24,
+            "mentalSurvivability": 0,
+            "manipulation": 4.55,
+            "synergy": 0,
+            "mobility": 5.68,
+            "presence": 0.7
+          }
+        }
+      },
+      "source": "canonical_phase6_resolver"
+    },
+    "nonPowerContribution": {
+      "axisVector": {
+        "physicalThreat": 16.5,
+        "mentalThreat": 0.75,
+        "physicalSurvivability": 7.502141073723805,
+        "mentalSurvivability": 1.7079540366825685,
+        "manipulation": 0,
+        "synergy": 0,
+        "mobility": 0,
+        "presence": 3.375
+      },
+      "sources": {
+        "atWillSummary": {
+          "bestPhysical": 2.625,
+          "bestMental": 0,
+          "bestTotal": 2.625,
+          "hasRanged": false,
+          "hasAoe": false
+        },
+        "atWillThreatAxisMultiplier": 6,
+        "sustainedPhysicalThreatAxis": 15.75,
+        "sustainedMentalThreatAxis": 0,
+        "attackResistContribution": 0,
+        "intellectResistContribution": 0,
+        "defenceResistContribution": 0,
+        "fortitudeResistContribution": 0,
+        "supportResistContribution": 0,
+        "braveryResistContribution": 0,
+        "suppressedOffensiveResistContributions": {
+          "attackResistContribution": 0,
+          "intellectResistContribution": 0,
+          "supportResistContribution": 0,
+          "braveryResistContribution": 0
+        },
+        "resistAxisContributionPolicy": "Resist dice are defensive capability and do not emit offensive radar axes by themselves.",
+        "defensiveProfileContribution": {
+          "physicalSurvivability": 6.395221850826389,
+          "mentalSurvivability": 0.9579540366825685
+        },
+        "defensiveSharedDodgeContribution": {
+          "physicalSurvivability": 0.35691922289741546,
+          "mentalSurvivability": 0
+        },
+        "defensiveProfileTotals": {
+          "physicalBlockPerSuccess": 6,
+          "mentalBlockPerSuccess": 2,
+          "expectedIncomingAttackDice": 1,
+          "expectedDodgeDice": 1,
+          "baselineDodgeDice": 1,
+          "dodgeDiceAboveExpectation": 0,
+          "dodgeAboveExpectationRatio": 0,
+          "physicalDodgeRawBonus": 0.35691922289741546,
+          "mentalDodgeRawBonus": 0,
+          "physicalDefenceRawBonus": 6.395221850826389,
+          "mentalDefenceRawBonus": 0.9579540366825685
+        },
+        "defensiveProfiles": [
+          {
+            "sourceKind": "natural",
+            "sourceId": null,
+            "sourceLabel": "Natural Protection",
+            "physicalProtection": 16,
+            "mentalProtection": 4,
+            "physicalProtectionShare": 1,
+            "mentalProtectionShare": 1,
+            "axisVector": {
+              "physicalSurvivability": 6.395221850826389,
+              "mentalSurvivability": 0.9579540366825685
+            }
+          }
+        ],
+        "equipmentModifierAxisBonuses": {
+          "physicalThreat": 0,
+          "mentalThreat": 0,
+          "physicalSurvivability": 0,
+          "mentalSurvivability": 0,
+          "manipulation": 0,
+          "synergy": 0,
+          "mobility": 0,
+          "presence": 0
+        },
+        "naturalAttackGsAxisBonuses": {
+          "physicalThreat": 0,
+          "mentalThreat": 0,
+          "physicalSurvivability": 0,
+          "mentalSurvivability": 0,
+          "manipulation": 0,
+          "synergy": 0,
+          "mobility": 0,
+          "presence": 0
+        },
+        "naturalAttackRangeAxisBonuses": {
+          "physicalThreat": 0,
+          "mentalThreat": 0,
+          "physicalSurvivability": 0,
+          "mentalSurvivability": 0,
+          "manipulation": 0,
+          "synergy": 0,
+          "mobility": 0,
+          "presence": 0
+        },
+        "atWillProfiles": [
+          {
+            "sourceKind": "natural",
+            "sourceId": null,
+            "sourceLabel": "Natural Weapon",
+            "segments": [
+              {
+                "attackKind": "melee",
+                "threatLane": "PHYSICAL",
+                "rangeCategory": "MELEE",
+                "diceCount": 1,
+                "dieSides": 8,
+                "successChance": 0.625,
+                "authoredStrength": 3,
+                "damageTypeCount": 2,
+                "woundsPerSuccess": 3,
+                "levelAdjustedWoundsPerSuccess": 4,
+                "levelWoundBonus": 1,
+                "targetCount": 1,
+                "targetMultiplier": 1,
+                "aoeContributionInput": 0
+              }
+            ],
+            "greaterSuccessAxisBonuses": {
+              "physicalThreat": 0,
+              "mentalThreat": 0,
+              "physicalSurvivability": 0,
+              "mentalSurvivability": 0,
+              "manipulation": 0,
+              "synergy": 0,
+              "mobility": 0,
+              "presence": 0
+            },
+            "rangeAxisBonuses": {
+              "physicalThreat": 0,
+              "mentalThreat": 0,
+              "physicalSurvivability": 0,
+              "mentalSurvivability": 0,
+              "manipulation": 0,
+              "synergy": 0,
+              "mobility": 0,
+              "presence": 0
+            }
+          }
+        ],
+        "naturalAttackTuning": {
+          "damageOutputWeight": 1,
+          "greaterSuccessEffectWeight": 1,
+          "rangeEffectWeight": 1,
+          "rawGreaterSuccessAxisBonuses": {
+            "physicalThreat": 0,
+            "mentalThreat": 0,
+            "physicalSurvivability": 0,
+            "mentalSurvivability": 0,
+            "manipulation": 0,
+            "synergy": 0,
+            "mobility": 0,
+            "presence": 0
+          },
+          "rawRangeAxisBonuses": {
+            "physicalThreat": 0,
+            "mentalThreat": 0,
+            "physicalSurvivability": 0,
+            "mentalSurvivability": 0,
+            "manipulation": 0,
+            "synergy": 0,
+            "mobility": 0,
+            "presence": 0
+          }
+        },
+        "traitAxisBonuses": {
+          "physicalThreat": 0.75,
+          "mentalThreat": 0.75,
+          "physicalSurvivability": 0.75,
+          "mentalSurvivability": 0.75,
+          "manipulation": 0,
+          "synergy": 0,
+          "mobility": 0,
+          "presence": 0.75
+        },
+        "customLimitBreakAxisBonuses": {
+          "physicalThreat": 0,
+          "mentalThreat": 0,
+          "physicalSurvivability": 0,
+          "mentalSurvivability": 0,
+          "manipulation": 0,
+          "synergy": 0,
+          "mobility": 0,
+          "presence": 0
+        },
+        "rawSurvivabilityBudgetTargets": {
+          "source": "combat_tuning.raw_survivability_budget_level_neutral_numerator",
+          "referenceLevel": 1,
+          "physicalSurvivability": 6.4,
+          "mentalSurvivability": 10.4
+        },
+        "displaySurvivabilityCurvePoints": {
+          "source": "outcome_normalization.scoring_curves",
+          "physicalSurvivability": {
+            "level": 5,
+            "min": 0.7,
+            "max": 25
+          },
+          "mentalSurvivability": {
+            "level": 5,
+            "min": 0,
+            "max": 10.5
+          }
+        },
+        "physicalPoolRawBonus": 0,
+        "mentalPoolRawBonus": 0,
+        "nonPowerPresenceBudget": 2.625
+      }
+    },
+    "finalPreNormalizationAxes": {
+      "physicalThreat": 17.252725850884673,
+      "mentalThreat": 0.75,
+      "physicalSurvivability": 7.917307358759618,
+      "mentalSurvivability": 1.7079540366825685,
+      "manipulation": 0.869264624752604,
+      "synergy": 0,
+      "mobility": 0.860048501843717,
+      "presence": 3.508733019192708
+    },
+    "normalizationBreakdown": {
+      "level": 5,
+      "tierKey": "SOLDIER",
+      "tierMultiplier": 0.8,
+      "displayCurvePoints": {
+        "physicalThreat": {
+          "level": 5,
+          "min": 2,
+          "max": 34
+        },
+        "mentalThreat": {
+          "level": 5,
+          "min": 0.8,
+          "max": 52
+        },
+        "physicalSurvivability": {
+          "level": 5,
+          "min": 0.7,
+          "max": 25
+        },
+        "mentalSurvivability": {
+          "level": 5,
+          "min": 0,
+          "max": 10.5
+        },
+        "manipulation": {
+          "level": 5,
+          "min": 0.2,
+          "max": 18
+        },
+        "synergy": {
+          "level": 5,
+          "min": 0.2,
+          "max": 7.6
+        },
+        "mobility": {
+          "level": 5,
+          "min": 0,
+          "max": 14
+        },
+        "presence": {
+          "level": 5,
+          "min": 0,
+          "max": 10
+        }
+      },
+      "curvePoints": {
+        "physicalThreat": {
+          "level": 5,
+          "min": 2,
+          "max": 34
+        },
+        "mentalThreat": {
+          "level": 5,
+          "min": 0.8,
+          "max": 52
+        },
+        "physicalSurvivability": {
+          "level": 5,
+          "min": 0.7,
+          "max": 25
+        },
+        "mentalSurvivability": {
+          "level": 5,
+          "min": 0,
+          "max": 10.5
+        },
+        "manipulation": {
+          "level": 5,
+          "min": 0.2,
+          "max": 18
+        },
+        "synergy": {
+          "level": 5,
+          "min": 0.2,
+          "max": 7.6
+        },
+        "mobility": {
+          "level": 5,
+          "min": 0,
+          "max": 14
+        },
+        "presence": {
+          "level": 5,
+          "min": 0,
+          "max": 10
+        }
+      },
+      "rawAxisBudgetTargets": {
+        "physicalThreat": 27.200000000000003,
+        "mentalThreat": 41.6,
+        "physicalSurvivability": 6.4,
+        "mentalSurvivability": 10.4,
+        "manipulation": 14.4,
+        "synergy": 6.08,
+        "mobility": 11.200000000000001,
+        "presence": 8
+      },
+      "axisBudgetTargets": {
+        "physicalThreat": 27.200000000000003,
+        "mentalThreat": 41.6,
+        "physicalSurvivability": 6.4,
+        "mentalSurvivability": 10.4,
+        "manipulation": 14.4,
+        "synergy": 6.08,
+        "mobility": 11.200000000000001,
+        "presence": 8
+      },
+      "radarAxes": {
+        "physicalThreat": 6.052668988446298,
+        "mentalThreat": 0,
+        "physicalSurvivability": 3.739537491585294,
+        "mentalSurvivability": 2.0332786150982955,
+        "manipulation": 0.4713131160229605,
+        "synergy": 0,
+        "mobility": 0.7679004480747471,
+        "presence": 4.385916273990885
+      }
+    },
+    "legacyPowerHeuristics": {
+      "active": false,
+      "removed": [
+        "power attack WPR/spike loop",
+        "power SEU/TSU loop",
+        "power intention-count synergy budget",
+        "power movement heuristic mobility/manipulation budget",
+        "power AoE pressure presence flag",
+        "power range/target impact multiplier"
+      ]
+    },
+    "poolHealthBreakdown": {
+      "expectedPhysicalResilience": 37.5,
+      "expectedMentalPerseverance": 37.5,
+      "currentPhysicalResilienceMax": 35,
+      "currentMentalPerseveranceMax": 21,
+      "physicalPoolRatio": 0.9333333333333333,
+      "mentalPoolRatio": 0.56,
+      "poolAtExpectedShare": 0,
+      "physicalLane": {
+        "signedDeltaShare": -0.08192508157237295,
+        "finalShare": 0,
+        "rawBudgetTarget": 6.4,
+        "rawBonus": 0
+      },
+      "mentalLane": {
+        "signedDeltaShare": -0.2897842976619323,
+        "finalShare": 0,
+        "rawBudgetTarget": 10.4,
+        "rawBonus": 0
+      },
+      "physicalRoundsToZero": 0.4069767441860465,
+      "mentalRoundsToZero": 0.2441860465116279
+    },
+    "survivabilityLaneBreakdown": {
+      "physicalSurvivabilityAxisBudgetTarget": 6.88,
+      "mentalSurvivabilityAxisBudgetTarget": 10.88,
+      "selectedEquipmentPhysicalSurvivabilityRawBonusTotal": 0,
+      "selectedEquipmentMentalSurvivabilityRawBonusTotal": 0,
+      "dodge": {
+        "currentDodgeDice": 1,
+        "expectedIncomingAttackDice": 3,
+        "expectedDodgeDice": 1,
+        "baselineDodgeDice": 1,
+        "baselineShare": 0.05576862857772116,
+        "aboveExpectationRatio": 0,
+        "parityShare": 0,
+        "aboveExpectedDice": 0,
+        "aboveExpectedShare": 0,
+        "extremeAboveExpectedDice": 0,
+        "extremeAboveExpectedShare": 0,
+        "totalShare": 0.05576862857772116,
+        "routing": "physical_survivability_only",
+        "physicalRawBonus": 0.3836881646147216,
+        "mentalRawBonus": 0
+      },
+      "physicalDefence": {
+        "armorSkillDice": 3,
+        "blockPerSuccess": 6,
+        "potential": 18,
+        "share": 0.9992534141916233,
+        "rawBonus": 6.8748634896383685,
+        "totalPhysicalProtection": 16
+      },
+      "mentalDefence": {
+        "willpowerDice": 1,
+        "blockPerSuccess": 2,
+        "potential": 2,
+        "share": 0.09211096506563159,
+        "rawBonus": 1.0021672999140718,
+        "totalMentalProtection": 4,
+        "tuning": {
+          "maxShare": 0.6,
+          "scale": 12
+        }
+      },
+      "laneTotals": {
+        "physicalRawBonus": 7.25855165425309,
+        "mentalRawBonus": 1.0021672999140718
+      }
+    }
+  }
+}
