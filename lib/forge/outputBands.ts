@@ -245,6 +245,14 @@ const CLASSIFICATION_RANK: Record<ForgeOutputBandClassification, number> = {
   "over-band": 5,
 };
 
+const LANE_STATUS_RANK: Record<ForgeLaneStatus, number> = {
+  narrow: 0,
+  moderate: 1,
+  broad: 2,
+  heavy: 3,
+  "likely overloaded": 4,
+};
+
 function normalizeLevel(level: number | null): number {
   if (typeof level !== "number" || !Number.isFinite(level)) return 1;
   return Math.max(1, Math.min(20, Math.round(level)));
@@ -421,6 +429,20 @@ function statusFromScore(score: number, overloaded: boolean): ForgeLaneStatus {
   return "narrow";
 }
 
+function coreStatusFloorForBand(classification: ForgeOutputBandClassification): ForgeLaneStatus {
+  if (classification === "over-band") return "likely overloaded";
+  if (classification === "extreme") return "heavy";
+  if (classification === "high") return "broad";
+  if (classification === "standard") return "moderate";
+  return "narrow";
+}
+
+function maxLaneStatus(...statuses: ForgeLaneStatus[]): ForgeLaneStatus {
+  return statuses.reduce<ForgeLaneStatus>((highest, current) =>
+    LANE_STATUS_RANK[current] > LANE_STATUS_RANK[highest] ? current : highest,
+  "narrow");
+}
+
 function isHighOrMore(classification: ForgeOutputBandClassification): boolean {
   return CLASSIFICATION_RANK[classification] >= CLASSIFICATION_RANK.high;
 }
@@ -453,9 +475,11 @@ export function classifyForgeOutputLanes(
   const coreWarnings: string[] = [];
   let featureScore = 0;
   let coreScore = 0;
+  let coreStatusFloor: ForgeLaneStatus = "narrow";
 
   if (primaryWeaponProfile) {
     coreScore += Math.max(1, CLASSIFICATION_RANK[primaryWeaponProfile.classification]);
+    coreStatusFloor = maxLaneStatus(coreStatusFloor, coreStatusFloorForBand(primaryWeaponProfile.classification));
     coreDrivers.push(
       `${primaryWeaponProfile.profileKind} ${primaryWeaponProfile.classification} weapon throughput`,
     );
@@ -501,10 +525,12 @@ export function classifyForgeOutputLanes(
   const mpvClass = bandComparison.defensive.mpv.classification;
   if (profile.defensiveProfile.ppv > 0) {
     coreScore += Math.max(1, CLASSIFICATION_RANK[ppvClass]);
+    coreStatusFloor = maxLaneStatus(coreStatusFloor, coreStatusFloorForBand(ppvClass));
     coreDrivers.push(`PPV ${profile.defensiveProfile.ppv} (${ppvClass})`);
   }
   if (profile.defensiveProfile.mpv > 0) {
     coreScore += Math.max(1, CLASSIFICATION_RANK[mpvClass]);
+    coreStatusFloor = maxLaneStatus(coreStatusFloor, coreStatusFloorForBand(mpvClass));
     coreDrivers.push(`MPV ${profile.defensiveProfile.mpv} (${mpvClass})`);
   }
   if (profile.defensiveProfile.auraPhysical) {
@@ -553,6 +579,9 @@ export function classifyForgeOutputLanes(
     coreScore += 1;
     coreDrivers.push("shield split attack/defence output");
     coreWarnings.push(`shield split-function ${bandComparison.shield.shieldSplitWarningLevel}`);
+    if (bandComparison.shield.shieldSplitWarningLevel === "likelyOverloaded") {
+      coreStatusFloor = "likely overloaded";
+    }
   }
 
   const rarityRole = getRarityRole(profile.common.rarity);
@@ -577,9 +606,14 @@ export function classifyForgeOutputLanes(
     featureWarnings.push("simultaneous damage type count is contributing to core pressure");
   }
 
+  const scoredCoreStatus = statusFromScore(
+    coreScore,
+    coreStatusFloor === "likely overloaded" || coreWarnings.some((entry) => entry.includes("over-band")),
+  );
+
   return {
     coreFunctionality: {
-      status: statusFromScore(coreScore, coreWarnings.some((entry) => entry.includes("over-band"))),
+      status: maxLaneStatus(scoredCoreStatus, coreStatusFloor),
       mainDrivers: coreDrivers,
       warnings: coreWarnings,
     },

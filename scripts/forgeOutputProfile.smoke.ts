@@ -22,6 +22,14 @@ const BAND_RANK = {
   "over-band": 5,
 } as const;
 
+const LANE_STATUS_PERCENT = {
+  narrow: 25,
+  moderate: 50,
+  broad: 75,
+  heavy: 100,
+  "likely overloaded": 100,
+} as const;
+
 function runCase(name: string, input: ForgeOutputProfileInput): ForgeOutputProfile {
   const profile = buildForgeOutputProfile(input);
   assert.equal(profile.debug.source, "forge_output_profile_v1", `${name}: debug source`);
@@ -85,6 +93,38 @@ assert.equal(
   smallLevelOneMeleeBand?.classification,
   "standard",
   "Level 1 Small Strength 1 should classify 2 wounds as standard",
+);
+
+const smallLevelOneMultiTargetMelee = runCase("small level 1 multi-target melee", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 2,
+});
+const smallLevelOneMultiTargetBands = compareForgeOutputToBands(smallLevelOneMultiTargetMelee);
+const smallLevelOneMultiTargetBand = smallLevelOneMultiTargetBands.weaponProfiles.find(
+  (entry) => entry.profileKind === "melee",
+);
+assert.equal(getProfile(smallLevelOneMultiTargetMelee, "melee").totalWoundsPerSuccess, 2);
+assert.equal(smallLevelOneMultiTargetBand?.totalPressure, 4);
+assert.equal(smallLevelOneMultiTargetBand?.classification, "high");
+assert.equal(
+  smallLevelOneMultiTargetBands.lanes.coreFunctionality.status,
+  "broad",
+  "High weapon output should floor Core Functionality at broad",
+);
+assert.notEqual(
+  smallLevelOneMultiTargetBands.lanes.coreFunctionality.status,
+  "moderate",
+  "High weapon output must not leave Core Functionality moderate",
+);
+assert.ok(
+  LANE_STATUS_PERCENT[smallLevelOneMultiTargetBands.lanes.coreFunctionality.status] >= 75,
+  "High weapon output should map to at least 75% Core Functionality fill",
 );
 
 const smallMelee = runCase("small melee", {
@@ -401,6 +441,7 @@ assert.ok(
 const summary = [
   ["simple melee", getProfile(simpleMelee, "melee").totalWoundsPerSuccess],
   ["small level 1 Strength 1 band", smallLevelOneMeleeBand?.classification ?? "missing"],
+  ["small level 1 multi-target core lane", smallLevelOneMultiTargetBands.lanes.coreFunctionality.status],
   ["small melee band", smallMeleeBand?.classification ?? "missing"],
   ["two-handed melee band", twoHandedMeleeBand?.classification ?? "missing"],
   ["two-handed Strength 5 band", twoHandedStandardBand?.classification ?? "missing"],
