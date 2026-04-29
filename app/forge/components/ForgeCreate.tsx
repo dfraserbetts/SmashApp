@@ -7926,6 +7926,23 @@ function getClassificationTone(
   return 'zinc';
 }
 
+function getLaneStatusPercent(status: string): number {
+  const normalized = status.trim().toLowerCase();
+  if (!normalized || normalized === 'none' || normalized === 'no output') return 0;
+  if (normalized === 'narrow' || normalized === 'low') return 25;
+  if (normalized === 'moderate' || normalized === 'standard') return 50;
+  if (normalized === 'broad' || normalized === 'high') return 75;
+  if (
+    normalized === 'heavy' ||
+    normalized === 'extreme' ||
+    normalized === 'likely overloaded' ||
+    normalized === 'likelyoverloaded'
+  ) {
+    return 100;
+  }
+  return 25;
+}
+
 function ForgeOutputLaneBlock({
   title,
   status,
@@ -7937,11 +7954,28 @@ function ForgeOutputLaneBlock({
   drivers: string[];
   warnings: string[];
 }) {
+  const percent = getLaneStatusPercent(status);
+  const tone = getClassificationTone(status);
+  const fillClass =
+    tone === 'red'
+      ? 'bg-red-500'
+      : tone === 'amber'
+        ? 'bg-amber-500'
+        : tone === 'emerald'
+          ? 'bg-emerald-500'
+          : 'bg-zinc-500';
+
   return (
     <div className="rounded border border-zinc-800 bg-black/20 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-300">{title}</h4>
-        <ForgeOutputPill label={formatOutputLabel(status)} tone={getClassificationTone(status)} />
+        <ForgeOutputPill label={formatOutputLabel(status)} tone={tone} />
+      </div>
+      <div className="mb-2 h-2 overflow-hidden rounded-full bg-zinc-900">
+        <div
+          className={`h-full rounded-full ${fillClass} transition-[width] duration-300`}
+          style={{ width: `${percent}%` }}
+        />
       </div>
       <p className="text-[11px] text-zinc-400">
         Drivers: {formatOutputList(drivers, 'No major drivers yet')}
@@ -7963,11 +7997,22 @@ function ForgeOutputProfilePanel({
   const weaponProfiles = comparison.weaponProfiles.filter(
     (profile) => profile.totalWoundsPerSuccess > 0 || profile.targetCount > 1,
   );
-  const hasDefence =
+  const itemType = String(comparison.common.type ?? '').trim().toUpperCase();
+  const hasDefensiveFeature =
+    comparison.lanes.coreFunctionality.mainDrivers.some((entry) =>
+      /PPV|MPV|aura|shield split/i.test(entry),
+    ) ||
+    comparison.lanes.featuresVersatility.mainDrivers.some((entry) =>
+      /defensive effects|armour attributes|shield attributes|VRP/i.test(entry),
+    );
+  const showDefenceCard =
+    itemType === 'ARMOR' ||
+    itemType === 'SHIELD' ||
     comparison.defensive.ppv.value > 0 ||
     comparison.defensive.mpv.value > 0 ||
-    comparison.shield.hasAttackAndDefence;
-  const hasAnyOutput = weaponProfiles.length > 0 || hasDefence;
+    hasDefensiveFeature;
+  const showShieldCard = itemType === 'SHIELD' || comparison.shield.hasAttackAndDefence;
+  const hasAnyOutput = weaponProfiles.length > 0 || showDefenceCard;
 
   return (
     <details
@@ -8046,59 +8091,65 @@ function ForgeOutputProfilePanel({
             </div>
           )}
 
-          <div className="grid gap-2 md:grid-cols-2">
-            <div className="rounded border border-zinc-800 bg-black/20 p-3 text-xs">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Defence
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="text-zinc-500">PPV</div>
-                  <div className="text-zinc-100">{comparison.defensive.ppv.value}</div>
-                  <ForgeOutputPill
-                    label={formatOutputLabel(comparison.defensive.ppv.classification)}
-                    tone={getClassificationTone(comparison.defensive.ppv.classification)}
-                  />
+          {(showDefenceCard || showShieldCard) && (
+            <div className="grid gap-2 md:grid-cols-2">
+              {showDefenceCard && (
+                <div className="rounded border border-zinc-800 bg-black/20 p-3 text-xs">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                    Defence
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <div className="text-zinc-500">PPV</div>
+                      <div className="text-zinc-100">{comparison.defensive.ppv.value}</div>
+                      <ForgeOutputPill
+                        label={formatOutputLabel(comparison.defensive.ppv.classification)}
+                        tone={getClassificationTone(comparison.defensive.ppv.classification)}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-zinc-500">MPV</div>
+                      <div className="text-zinc-100">{comparison.defensive.mpv.value}</div>
+                      <ForgeOutputPill
+                        label={formatOutputLabel(comparison.defensive.mpv.classification)}
+                        tone={getClassificationTone(comparison.defensive.mpv.classification)}
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[11px] text-zinc-500">
+                    {comparison.defensive.debugNote}.
+                  </p>
                 </div>
-                <div>
-                  <div className="text-zinc-500">MPV</div>
-                  <div className="text-zinc-100">{comparison.defensive.mpv.value}</div>
-                  <ForgeOutputPill
-                    label={formatOutputLabel(comparison.defensive.mpv.classification)}
-                    tone={getClassificationTone(comparison.defensive.mpv.classification)}
-                  />
-                </div>
-              </div>
-              <p className="mt-2 text-[11px] text-zinc-500">
-                {comparison.defensive.debugNote}.
-              </p>
-            </div>
+              )}
 
-            <div className="rounded border border-zinc-800 bg-black/20 p-3 text-xs">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Shield
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                <ForgeOutputPill
-                  label={
-                    comparison.shield.hasAttackAndDefence
-                      ? 'Attack + Defence'
-                      : 'No split output'
-                  }
-                  tone={comparison.shield.hasAttackAndDefence ? 'amber' : 'zinc'}
-                />
-                <ForgeOutputPill
-                  label={formatOutputLabel(comparison.shield.shieldSplitWarningLevel)}
-                  tone={getClassificationTone(comparison.shield.shieldSplitWarningLevel)}
-                />
-              </div>
-              {comparison.shield.notes.length > 0 && (
-                <p className="mt-2 text-[11px] text-zinc-500">
-                  {formatOutputList(comparison.shield.notes)}
-                </p>
+              {showShieldCard && (
+                <div className="rounded border border-zinc-800 bg-black/20 p-3 text-xs">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                    Shield
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    <ForgeOutputPill
+                      label={
+                        comparison.shield.hasAttackAndDefence
+                          ? 'Attack + Defence'
+                          : 'No split output'
+                      }
+                      tone={comparison.shield.hasAttackAndDefence ? 'amber' : 'zinc'}
+                    />
+                    <ForgeOutputPill
+                      label={formatOutputLabel(comparison.shield.shieldSplitWarningLevel)}
+                      tone={getClassificationTone(comparison.shield.shieldSplitWarningLevel)}
+                    />
+                  </div>
+                  {comparison.shield.notes.length > 0 && (
+                    <p className="mt-2 text-[11px] text-zinc-500">
+                      {formatOutputList(comparison.shield.notes)}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
-          </div>
+          )}
 
           <div className="grid gap-2 lg:grid-cols-2">
             <ForgeOutputLaneBlock
