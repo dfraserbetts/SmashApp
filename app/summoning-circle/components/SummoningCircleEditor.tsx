@@ -11791,49 +11791,6 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                       </div>
                     )}
                   </div>
-                  <div className="order-5 space-y-2 pt-2">
-                    <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Tuning</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <label className="space-y-1">
-                        <span className="text-[11px] text-zinc-500">Cooldown (Turns)</span>
-                        <input
-                          disabled={readOnly}
-                          type="number"
-                          min={1}
-                          value={power.cooldownTurns}
-                          onChange={(e) =>
-                            setEditor((p) =>
-                              p
-                                ? {
-                                    ...p,
-                                    powers: p.powers.map((x, idx) => {
-                                      if (idx !== i) return x;
-                                      const cd = Math.max(1, Number(e.target.value || 1));
-                                      return {
-                                        ...x,
-                                        cooldownTurns: cd,
-                                        cooldownReduction: Math.min(x.cooldownReduction, cd - 1),
-                                      };
-                                    }),
-                                  }
-                                : p,
-                            )
-                          }
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
-                        />
-                      </label>
-
-                      <label className="space-y-1">
-                        <span className="text-[11px] text-zinc-500">Cooldown Reduction (Coming soon)</span>
-                        <input
-                          disabled
-                          type="number"
-                          value={power.cooldownReduction}
-                          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm opacity-60 cursor-not-allowed"
-                        />
-                      </label>
-                    </div>
-                  </div>
                     </>
                   )}
                     </>
