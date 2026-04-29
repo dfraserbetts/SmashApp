@@ -5,6 +5,7 @@ import {
   type ForgeOutputProfile,
   type ForgeOutputProfileInput,
 } from "../lib/forge/outputProfile";
+import { compareForgeOutputToBands } from "../lib/forge/outputBands";
 
 function getProfile(profile: ForgeOutputProfile, kind: "melee" | "ranged" | "aoe") {
   const found = profile.attackProfiles.find((entry) => entry.profileKind === kind);
@@ -39,6 +40,13 @@ assert.equal(simpleMeleeProfile.physicalWoundsPerSuccess, 6, "Strength 3 should 
 assert.equal(simpleMeleeProfile.totalPhysicalWoundsPerSuccess, 6);
 assert.equal(simpleMeleeProfile.totalWoundsPerSuccess, 6);
 assert.equal(simpleMeleeProfile.targetCount, 1);
+const simpleMeleeBands = compareForgeOutputToBands(simpleMelee);
+const simpleMeleeBand = simpleMeleeBands.weaponProfiles.find((entry) => entry.profileKind === "melee");
+assert.equal(simpleMeleeBands.debug.source, "forge_output_bands_v1");
+assert.equal(simpleMeleeBands.debug.bandSet, "natural_baseline_v1");
+assert.equal(simpleMeleeBands.debug.reportOnly, true);
+assert.equal(simpleMeleeBands.debug.noSaveBlocking, true);
+assert.equal(simpleMeleeBand?.classification, "standard");
 
 const dualDamageMelee = runCase("dual damage melee", {
   level: 5,
@@ -57,6 +65,14 @@ const dualDamageMeleeProfile = getProfile(dualDamageMelee, "melee");
 assert.equal(dualDamageMeleeProfile.damageTypeCount, 2);
 assert.equal(dualDamageMeleeProfile.totalPhysicalWoundsPerSuccess, 12);
 assert.equal(dualDamageMeleeProfile.totalWoundsPerSuccess, 12);
+const dualDamageMeleeBand = compareForgeOutputToBands(dualDamageMelee).weaponProfiles.find(
+  (entry) => entry.profileKind === "melee",
+);
+assert.equal(dualDamageMeleeBand?.classification, "high");
+assert.ok(
+  (dualDamageMeleeBand?.totalPressure ?? 0) > (simpleMeleeBand?.totalPressure ?? 0),
+  "dual damage type pressure should exceed one-type melee pressure",
+);
 
 const rangedMental = runCase("ranged mental", {
   level: 5,
@@ -75,6 +91,12 @@ assert.equal(rangedMentalProfile.totalMentalWoundsPerSuccess, 8);
 assert.equal(rangedMentalProfile.totalWoundsPerSuccess, 8);
 assert.equal(rangedMentalProfile.targetCount, 2);
 assert.equal(rangedMentalProfile.rangedDistanceFeet, 60);
+const rangedMentalBand = compareForgeOutputToBands(rangedMental).weaponProfiles.find(
+  (entry) => entry.profileKind === "ranged",
+);
+assert.equal(rangedMentalBand?.perTargetClassification, "standard");
+assert.equal(rangedMentalBand?.totalPressureClassification, "extreme");
+assert.equal(rangedMentalBand?.totalPressure, 16);
 
 const aoeProfile = runCase("aoe", {
   level: 5,
@@ -111,6 +133,10 @@ assert.equal(armour.defensiveProfile.mpv, 1);
 assert.equal(armour.defensiveProfile.armourAttributeCount, 1);
 assert.equal(armour.defensiveProfile.defensiveEffectCount, 1);
 assert.equal(armour.defensiveProfile.vrpCount, 1);
+const armourBands = compareForgeOutputToBands(armour);
+assert.equal(armourBands.defensive.ppv.classification, "low");
+assert.equal(armourBands.defensive.mpv.classification, "low");
+assert.equal(armourBands.defensive.debugNote, "package/per-piece context deferred");
 
 const shield = runCase("shield", {
   level: 5,
@@ -129,6 +155,9 @@ assert.equal(getProfile(shield, "melee").totalWoundsPerSuccess, 4);
 assert.equal(shield.shieldCoPresence.hasShieldAttack, true);
 assert.equal(shield.shieldCoPresence.hasDefenceOutput, true);
 assert.equal(shield.shieldCoPresence.hasAttackAndDefence, true);
+const shieldBands = compareForgeOutputToBands(shield);
+assert.equal(shieldBands.shield.hasAttackAndDefence, true);
+assert.equal(shieldBands.shield.shieldSplitWarningLevel, "watch");
 
 const mixedMeleeRanged = runCase("mixed melee/ranged", {
   level: 5,
@@ -148,6 +177,28 @@ assert.equal(getProfile(mixedMeleeRanged, "melee").totalWoundsPerSuccess, 6);
 assert.equal(getProfile(mixedMeleeRanged, "ranged").totalWoundsPerSuccess, 4);
 assert.equal(getProfile(mixedMeleeRanged, "ranged").targetCount, 2);
 
+const overBudgetWeapon = runCase("over-budget level 5 weapon", {
+  level: 5,
+  rarity: "LEGENDARY",
+  type: "WEAPON",
+  size: "TWO_HANDED",
+  rangeCategories: ["RANGED"],
+  rangedPhysicalStrength: 4,
+  rangedDamageTypes: [
+    { damageType: { name: "Slashing", attackMode: "PHYSICAL" } },
+    { damageType: { name: "Fire", attackMode: "PHYSICAL" } },
+  ],
+  rangedTargets: 2,
+  rangedDistanceFeet: 90,
+  attackEffectsRanged: [{ attackEffect: { name: "Stagger" } }],
+});
+const overBudgetBand = compareForgeOutputToBands(overBudgetWeapon).weaponProfiles.find(
+  (entry) => entry.profileKind === "ranged",
+);
+assert.equal(getProfile(overBudgetWeapon, "ranged").totalWoundsPerSuccess, 16);
+assert.equal(overBudgetBand?.totalPressure, 32);
+assert.equal(overBudgetBand?.classification, "over-band");
+
 const summary = [
   ["simple melee", getProfile(simpleMelee, "melee").totalWoundsPerSuccess],
   ["dual damage melee", getProfile(dualDamageMelee, "melee").totalWoundsPerSuccess],
@@ -156,6 +207,11 @@ const summary = [
   ["shield attack+defence", shield.shieldCoPresence.hasAttackAndDefence ? "yes" : "no"],
   ["mixed melee", getProfile(mixedMeleeRanged, "melee").totalWoundsPerSuccess],
   ["mixed ranged", getProfile(mixedMeleeRanged, "ranged").totalWoundsPerSuccess],
+  ["simple melee band", simpleMeleeBand?.classification ?? "missing"],
+  ["dual damage melee band", dualDamageMeleeBand?.classification ?? "missing"],
+  ["ranged mental pressure band", rangedMentalBand?.totalPressureClassification ?? "missing"],
+  ["over-budget ranged band", overBudgetBand?.classification ?? "missing"],
+  ["shield split warning", shieldBands.shield.shieldSplitWarningLevel],
 ];
 
 console.log("Forge output profile smoke passed.");
