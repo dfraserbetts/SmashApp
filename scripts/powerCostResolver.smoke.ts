@@ -4,6 +4,7 @@ import { derivePowerCooldown, resolvePowerCost } from "../lib/summoning/powerCos
 import { calculatorConfig } from "../lib/calculators/calculatorConfig";
 import { computeMonsterOutcomes } from "../lib/calculators/monsterOutcomeCalculator";
 import { DEFAULT_POWER_TUNING_VALUES } from "../lib/config/powerTuningShared";
+import { renderPowerDescriptorLines } from "../lib/summoning/render";
 import { normalizeMonsterUpsertInput } from "../lib/summoning/validation";
 import type { EffectPacket, Power } from "../lib/summoning/types";
 
@@ -374,6 +375,85 @@ assert.equal(
   normalizedHostileForcedMovement.data.powers[0].primaryDefenceGate?.resistAttribute,
   "FORTITUDE",
 );
+
+const hostilePrimaryControlPacket = createPacket("CONTROL", {
+  hostility: "HOSTILE",
+  diceCount: 3,
+  potency: 2,
+  applyTo: "PRIMARY_TARGET",
+  effectDurationType: "TURNS",
+  effectDurationTurns: 1,
+  detailsJson: {
+    controlMode: "Force No Move",
+    controlTheme: "BODY_ENDURANCE",
+    rangeCategory: "RANGED",
+  },
+});
+const triggeredSelfTeleportPacket = createPacket("MOVEMENT", {
+  sortOrder: 1,
+  packetIndex: 1,
+  hostility: "NON_HOSTILE",
+  potency: 2,
+  applyTo: "SELF",
+  effectTimingType: "ON_TRIGGER",
+  effectDurationType: "INSTANT",
+  detailsJson: {
+    movementMode: "Teleport",
+    rangeCategory: "SELF",
+  },
+});
+const triggeredSelfAugmentPacket = createPacket("AUGMENT", {
+  sortOrder: 1,
+  packetIndex: 1,
+  hostility: "NON_HOSTILE",
+  potency: 1,
+  applyTo: "SELF",
+  effectTimingType: "ON_TRIGGER",
+  effectDurationType: "INSTANT",
+  detailsJson: {
+    statTarget: "Guard",
+    rangeCategory: "SELF",
+  },
+});
+const secondarySelfTeleportDescriptor = renderPowerDescriptorLines({
+  ...createPower({
+    name: "Secondary Self Teleport Descriptor Smoke",
+    rangeCategories: ["RANGED"],
+    packet: hostilePrimaryControlPacket,
+  }),
+  primaryDefenceGate: {
+    sourcePacketIndex: 0,
+    gateResult: "RESIST",
+    protectionChannel: null,
+    resistAttribute: "FORTITUDE",
+    hostileEntryPattern: null,
+    resolutionSource: "INFERRED",
+  },
+  effectPackets: [hostilePrimaryControlPacket, triggeredSelfTeleportPacket],
+  intentions: [hostilePrimaryControlPacket, triggeredSelfTeleportPacket],
+}).join("\n");
+assert.match(
+  secondarySelfTeleportDescriptor,
+  /For each applied success from the primary effect, it also teleports the caster 10 ft when triggered\./,
+);
+const secondarySelfAugmentDescriptor = renderPowerDescriptorLines({
+  ...createPower({
+    name: "Secondary Self Augment Descriptor Smoke",
+    rangeCategories: ["RANGED"],
+    packet: hostilePrimaryControlPacket,
+  }),
+  primaryDefenceGate: {
+    sourcePacketIndex: 0,
+    gateResult: "RESIST",
+    protectionChannel: null,
+    resistAttribute: "FORTITUDE",
+    hostileEntryPattern: null,
+    resolutionSource: "INFERRED",
+  },
+  effectPackets: [hostilePrimaryControlPacket, triggeredSelfAugmentPacket],
+  intentions: [hostilePrimaryControlPacket, triggeredSelfAugmentPacket],
+}).join("\n");
+assert.match(secondarySelfAugmentDescriptor, /applies 1 stack of \+1 Guard to the caster/);
 assert.equal(
   (
     weakestMovementAfterPacket.debug as {

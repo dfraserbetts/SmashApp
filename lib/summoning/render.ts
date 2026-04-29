@@ -159,7 +159,7 @@ function applyToEntity(
   power: Pick<Power, "descriptorChassis" | "descriptorChassisConfig" | "rangeCategories">,
   effectPacket: Pick<EffectPacket, "effectTimingType">,
 ): string {
-  if (applyTo === "SELF") return "the user";
+  if (applyTo === "SELF") return "the caster";
   if (applyTo === "PRIMARY_TARGET") {
     const primaryRangeCategory = getPrimaryRangeCategory(power);
     if (primaryRangeCategory === "AOE") return "targets within the area";
@@ -721,11 +721,9 @@ function formatSecondaryClause(
       return `pushes ${entity} ${feet} ft`;
     }
 
-    // Non-force movement should not mention entity here for secondary;
-    // the designer intent is that self-move is handled by the non-force version.
-    if (/teleport/i.test(movementMode)) return `teleports ${feet} ft`;
-    if (/fly/i.test(movementMode)) return `moves ${feet} ft by flying`;
-    return `moves ${feet} ft`;
+    if (/teleport/i.test(movementMode)) return `teleports ${entity} ${feet} ft`;
+    if (/fly/i.test(movementMode)) return `moves ${entity} ${feet} ft by flying`;
+    return `moves ${entity} ${feet} ft`;
   }
 
   // Default: preserve existing clause and append a minimal target phrase
