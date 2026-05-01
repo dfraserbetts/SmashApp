@@ -1075,11 +1075,102 @@ assert.equal(
   weightedSimpleMeleeBands.lanes.coreFunctionality.status,
   "Ranged access alone should not increase Core when no ranged output exists",
 );
+assert.equal(
+  meleeRangedAccessOnlyBands.lanes.debug.corePressureRatio,
+  weightedSimpleMeleeBands.lanes.debug.corePressureRatio,
+  "Ranged access alone should not increase Core pressure ratio when no ranged output exists",
+);
+assert.equal(
+  meleeRangedAccessOnlyBands.lanes.debug.secondaryProfileCoreContribution,
+  0,
+  "Ranged access alone should not add secondary Core contribution",
+);
 assert.ok(
   meleeRangedAccessOnlyBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
     entry.includes("Ranged attack access") || entry.includes("mixed melee/ranged access"),
   ),
   "Melee + Ranged access should expose feature drivers",
+);
+
+const meleeRangedLowSecondary = runCase("melee/ranged low secondary output", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE", "RANGED"],
+  meleePhysicalStrength: 3,
+  rangedPhysicalStrength: 2,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  rangedDamageTypes: [{ damageType: { name: "Lightning", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  rangedTargets: 1,
+  rangedDistanceFeet: 30,
+});
+const meleeRangedLowSecondaryBands = compareForgeOutputToBands(meleeRangedLowSecondary, FEATURE_WEIGHT_CONTEXT);
+assert.equal(getProfile(meleeRangedLowSecondary, "ranged").totalWoundsPerSuccess, 4);
+assert.equal(meleeRangedLowSecondaryBands.lanes.debug.secondaryProfileCoreMultiplier, 0.35);
+assert.equal(meleeRangedLowSecondaryBands.lanes.debug.secondaryProfileCoreContribution, 1.4);
+assert.ok(
+  meleeRangedLowSecondaryBands.lanes.debug.secondaryProfileCoreDrivers.some((entry) =>
+    entry.includes("ranged") && entry.includes("weighted core pressure"),
+  ),
+  "real secondary output should expose secondary Core contribution debug",
+);
+assert.ok(
+  meleeRangedLowSecondaryBands.lanes.coreFunctionality.mainDrivers.some((entry) =>
+    entry.includes("secondary profiles add 1.4 weighted core pressure"),
+  ),
+  "real secondary output should be visible in Core drivers",
+);
+assert.ok(
+  meleeRangedLowSecondaryBands.lanes.debug.corePressureRatio >
+    meleeRangedAccessOnlyBands.lanes.debug.corePressureRatio,
+  "Real secondary output should increase Core pressure ratio above access-only",
+);
+assert.equal(
+  meleeRangedLowSecondaryBands.lanes.coreFunctionality.status,
+  "broad",
+  "Low secondary output should visibly increase Core by one band",
+);
+assert.notEqual(
+  meleeRangedLowSecondaryBands.lanes.coreFunctionality.status,
+  "likely overloaded",
+  "Low secondary output should not explode Core to likely overloaded",
+);
+assert.ok(
+  meleeRangedLowSecondaryBands.lanes.debug.featurePressureRatio >
+    simpleMeleeFeatureRatio,
+  "Mixed access Features pressure should still increase independently of Core contribution",
+);
+
+const meleeRangedOverBandSecondary = runCase("melee/ranged over-band secondary output", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE", "RANGED"],
+  meleePhysicalStrength: 10,
+  rangedPhysicalStrength: 10,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  rangedDamageTypes: [{ damageType: { name: "Lightning", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  rangedTargets: 1,
+  rangedDistanceFeet: 30,
+});
+const meleeRangedOverBandSecondaryBands = compareForgeOutputToBands(
+  meleeRangedOverBandSecondary,
+  FEATURE_WEIGHT_CONTEXT,
+);
+assert.equal(
+  meleeRangedOverBandSecondaryBands.lanes.coreFunctionality.status,
+  "likely overloaded",
+  "Over-band secondary output should still trip the overloaded floor",
+);
+assert.ok(
+  meleeRangedOverBandSecondaryBands.lanes.coreFunctionality.warnings.some((entry) =>
+    entry.includes("ranged secondary weapon throughput is extreme-or-higher"),
+  ),
+  "Over-band secondary output should keep a secondary throughput warning",
 );
 
 const mixedMeleeRanged = runCase("mixed melee/ranged", {

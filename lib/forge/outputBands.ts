@@ -121,6 +121,9 @@ export type ForgeOutputLaneComparison = {
     coreExpectedValue: number;
     corePressureRatio: number;
     coreExpectationSource: "forge_expectation_config" | "default";
+    secondaryProfileCoreContribution: number;
+    secondaryProfileCoreDrivers: string[];
+    secondaryProfileCoreMultiplier: number;
     rangePressureScore: number;
     rangePressureDrivers: string[];
     featureWeightTotal: number;
@@ -344,6 +347,7 @@ const CLASSIFICATION_RANK: Record<ForgeOutputBandClassification, number> = {
 };
 
 const DEFAULT_FEATURE_FALLBACK_WEIGHT = 1;
+const SECONDARY_PROFILE_CORE_MULTIPLIER = 0.35;
 
 const FEATURE_WEIGHT_EXPECTATION_KEYS = {
   extraProfile: "features.weight.extraProfile",
@@ -914,6 +918,19 @@ function getHighestCorePressureCandidate(candidates: CorePressureCandidate[]): C
   );
 }
 
+function formatPressureValue(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  if (Number.isInteger(value)) return String(value);
+  return value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function coreStatusFromPressureRatio(ratio: number): ForgeLaneStatus {
+  if (ratio >= 1.5) return "heavy";
+  if (ratio >= 0.85) return "broad";
+  if (ratio >= 0.5) return "moderate";
+  return "narrow";
+}
+
 function createFeatureWeightState(context: ForgeFeatureWeightContext | null | undefined): FeatureWeightState {
   return {
     totalRaw: 0,
@@ -1467,8 +1484,11 @@ export function classifyForgeOutputLanes(
     featureWeightBudget.value > 0 ? featureWeightTotalClamped / featureWeightBudget.value : 0;
   const corePressureCandidates: CorePressureCandidate[] = [];
   const rangePressureDrivers: string[] = [];
+  const secondaryProfileCoreDrivers: string[] = [];
   let coreScore = 0;
   let rangePressureScore = 0;
+  let secondaryProfileCoreContribution = 0;
+  let secondaryAggregateStatus: ForgeLaneStatus = "narrow";
   let coreStatusFloor: ForgeLaneStatus = "narrow";
 
   if (primaryWeaponProfile) {
@@ -1500,29 +1520,58 @@ export function classifyForgeOutputLanes(
     if (!primaryWeaponProfile || secondaryWeaponProfile.profileKind === primaryWeaponProfile.profileKind) continue;
     if (secondaryWeaponProfile.totalWoundsPerSuccess <= 0) continue;
 
-    coreScore += Math.max(1, CLASSIFICATION_RANK[secondaryWeaponProfile.classification]);
+    const secondaryContribution =
+      secondaryWeaponProfile.totalWoundsPerSuccess * SECONDARY_PROFILE_CORE_MULTIPLIER;
+    secondaryProfileCoreContribution += secondaryContribution;
+    coreScore += Math.max(
+      SECONDARY_PROFILE_CORE_MULTIPLIER,
+      CLASSIFICATION_RANK[secondaryWeaponProfile.classification] * SECONDARY_PROFILE_CORE_MULTIPLIER,
+    );
     coreStatusFloor = maxLaneStatus(coreStatusFloor, coreStatusFloorForBand(secondaryWeaponProfile.classification));
     coreDrivers.push(
       `${secondaryWeaponProfile.profileKind} ${secondaryWeaponProfile.classification} secondary weapon throughput`,
+    );
+    secondaryProfileCoreDrivers.push(
+      `${secondaryWeaponProfile.profileKind} ${formatPressureValue(secondaryContribution)} weighted core pressure`,
     );
     if (secondaryWeaponProfile.targetCount > 1) {
       coreDrivers.push(
         `${secondaryWeaponProfile.profileKind} ${secondaryWeaponProfile.totalPressure} total pressure across ${secondaryWeaponProfile.targetCount} targets`,
       );
     }
-    corePressureCandidates.push(
-      getCorePressureCandidate(
-        `${secondaryWeaponProfile.profileKind} secondary weapon throughput`,
-        secondaryWeaponProfile.totalWoundsPerSuccess,
-        secondaryWeaponProfile.thresholds.standardMax,
-        secondaryWeaponProfile.debugNotes.some((entry) => entry.includes("expectation config"))
-          ? "forge_expectation_config"
-          : "default",
-      ),
-    );
+    if (secondaryWeaponProfile.classification === "over-band") {
+      corePressureCandidates.push(
+        getCorePressureCandidate(
+          `${secondaryWeaponProfile.profileKind} secondary weapon throughput`,
+          secondaryWeaponProfile.totalWoundsPerSuccess,
+          secondaryWeaponProfile.thresholds.standardMax,
+          secondaryWeaponProfile.debugNotes.some((entry) => entry.includes("expectation config"))
+            ? "forge_expectation_config"
+            : "default",
+        ),
+      );
+    }
     if (isExtremeOrMore(secondaryWeaponProfile.classification)) {
       coreWarnings.push(`${secondaryWeaponProfile.profileKind} secondary weapon throughput is extreme-or-higher for item level`);
     }
+  }
+
+  if (primaryWeaponProfile && secondaryProfileCoreContribution > 0) {
+    const primaryCoreSource = primaryWeaponProfile.debugNotes.some((entry) => entry.includes("expectation config"))
+      ? "forge_expectation_config"
+      : "default";
+    const combinedActual = primaryWeaponProfile.totalWoundsPerSuccess + secondaryProfileCoreContribution;
+    const combinedCandidate = getCorePressureCandidate(
+      "primary + secondary weapon throughput",
+      combinedActual,
+      primaryWeaponProfile.thresholds.standardMax,
+      primaryCoreSource,
+    );
+    corePressureCandidates.push(combinedCandidate);
+    secondaryAggregateStatus = coreStatusFromPressureRatio(combinedCandidate.ratio);
+    coreDrivers.push(
+      `secondary profiles add ${formatPressureValue(secondaryProfileCoreContribution)} weighted core pressure (${SECONDARY_PROFILE_CORE_MULTIPLIER}x)`,
+    );
   }
 
   for (const weaponProfile of enabledWeaponProfiles) {
@@ -1635,10 +1684,11 @@ export function classifyForgeOutputLanes(
     coreScore,
     coreStatusFloor === "likely overloaded" || coreWarnings.some((entry) => entry.includes("over-band")),
   );
+  const coreStatus = maxLaneStatus(scoredCoreStatus, coreStatusFloor, secondaryAggregateStatus);
 
   return {
     coreFunctionality: {
-      status: maxLaneStatus(scoredCoreStatus, coreStatusFloor),
+      status: coreStatus,
       mainDrivers: coreDrivers,
       warnings: coreWarnings,
     },
@@ -1662,6 +1712,9 @@ export function classifyForgeOutputLanes(
       coreExpectedValue: corePressure.expected,
       corePressureRatio: corePressure.ratio,
       coreExpectationSource: corePressure.source,
+      secondaryProfileCoreContribution,
+      secondaryProfileCoreDrivers,
+      secondaryProfileCoreMultiplier: SECONDARY_PROFILE_CORE_MULTIPLIER,
       rangePressureScore,
       rangePressureDrivers,
       featureWeightTotal: featureWeightTotalClamped,
