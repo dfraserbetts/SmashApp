@@ -345,6 +345,23 @@ const CLASSIFICATION_RANK: Record<ForgeOutputBandClassification, number> = {
 
 const DEFAULT_FEATURE_FALLBACK_WEIGHT = 1;
 
+const FEATURE_WEIGHT_EXPECTATION_KEYS = {
+  extraProfile: "features.weight.extraProfile",
+  mixedAccessMeleeRanged: "features.weight.mixedAccess.meleeRanged",
+  mixedAccessMeleeAoe: "features.weight.mixedAccess.meleeAoe",
+  mixedAccessRangedAoe: "features.weight.mixedAccess.rangedAoe",
+  mixedAccessAllThree: "features.weight.mixedAccess.allThree",
+  targetCountExtraTarget: "features.weight.targetCount.extraTarget",
+  damageTypeExtraType: "features.weight.damageType.extraType",
+  rangedDistance31To60: "features.weight.rangedDistance.31to60",
+  rangedDistance61To120: "features.weight.rangedDistance.61to120",
+  rangedDistance121Plus: "features.weight.rangedDistance.121plus",
+  aoeAccess: "features.weight.aoe.access",
+  aoeExtraCount: "features.weight.aoe.extraCount",
+  aoeCenterRange: "features.weight.aoe.centerRange",
+  aoeGeometry: "features.weight.aoe.geometry",
+} as const;
+
 const LANE_STATUS_RANK: Record<ForgeLaneStatus, number> = {
   narrow: 0,
   moderate: 1,
@@ -917,6 +934,7 @@ function addFeatureWeight(
     selector1?: string | null;
     selector2?: string | null;
     selector3?: string | number | null;
+    multiplier?: number;
   }>,
   fallbackNote: string,
 ): void {
@@ -929,15 +947,22 @@ function addFeatureWeight(
       lookup.selector3,
     );
     if (weight !== null) {
-      state.totalRaw += weight;
+      const multiplier = getPositiveMultiplier(lookup.multiplier);
+      const weightedValue = weight * multiplier;
+      state.totalRaw += weightedValue;
       state.drivers.push({
         label,
         source: `${lookup.category}/${[lookup.selector1, lookup.selector2, lookup.selector3]
           .filter((entry) => entry !== undefined && entry !== null && String(entry).trim())
           .join("/")}`,
-        weight,
+        weight: weightedValue,
         fallbackUsed: false,
-        note: weight < 0 ? "Negative Forge-Values contribution reduces feature pressure" : undefined,
+        note:
+          weight < 0
+            ? "Negative Forge-Values contribution reduces feature pressure"
+            : multiplier > 1
+              ? `${weight} x ${multiplier}`
+              : undefined,
       });
       return;
     }
@@ -958,6 +983,42 @@ function addFeatureWeight(
     source,
     note: "No matching Forge-Values cost row found; fallback diagnostic weight used",
   });
+}
+
+function getPositiveMultiplier(value: number | null | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 1;
+  return Math.max(1, value);
+}
+
+function forgeOutputExpectationLookup(
+  key: string,
+  multiplier?: number,
+): {
+  category: string;
+  selector1: string;
+  selector2: string;
+  multiplier?: number;
+} {
+  return {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: key,
+    multiplier,
+  };
+}
+
+function getRangedDistanceFeatureExpectationKey(distanceFeet: number): string | null {
+  if (distanceFeet <= 30) return null;
+  if (distanceFeet <= 60) return FEATURE_WEIGHT_EXPECTATION_KEYS.rangedDistance31To60;
+  if (distanceFeet <= 120) return FEATURE_WEIGHT_EXPECTATION_KEYS.rangedDistance61To120;
+  return FEATURE_WEIGHT_EXPECTATION_KEYS.rangedDistance121Plus;
+}
+
+function getAoeCenterRangeMultiplier(distanceFeet: number): number {
+  if (distanceFeet <= 30) return 1;
+  if (distanceFeet <= 60) return 2;
+  if (distanceFeet <= 120) return 3;
+  return 5;
 }
 
 function addAttributeFeatureWeight(
@@ -1018,58 +1079,82 @@ function collectFeatureWeights(
         context,
         `${rangeLabel} attack access (${enabledWeaponProfiles.length} attack profiles)`,
         "extra_profile",
-        [{ category: "RangeCategory", selector1: itemTypeLabel, selector2: rangeLabel }],
+        [
+          forgeOutputExpectationLookup(
+            rangeLabel === "AoE"
+              ? FEATURE_WEIGHT_EXPECTATION_KEYS.aoeAccess
+              : FEATURE_WEIGHT_EXPECTATION_KEYS.extraProfile,
+          ),
+          { category: "RangeCategory", selector1: itemTypeLabel, selector2: rangeLabel },
+        ],
         "extra profile breadth has no direct Forge-Values feature row",
       );
     }
 
     if (weaponProfile.damageTypeCount > 1) {
+      const extraDamageTypeCount = Math.max(1, weaponProfile.damageTypeCount - 1);
       addFeatureWeight(
         state,
         context,
         `${rangeLabel} ${weaponProfile.damageTypeCount} damage types`,
         "damage_type_flexibility",
-        [{
-          category: "DmgType_Count",
-          selector1: itemTypeLabel,
-          selector2: rangeLabel,
-          selector3: weaponProfile.damageTypeCount,
-        }],
+        [
+          forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.damageTypeExtraType, extraDamageTypeCount),
+          {
+            category: "DmgType_Count",
+            selector1: itemTypeLabel,
+            selector2: rangeLabel,
+            selector3: weaponProfile.damageTypeCount,
+          },
+        ],
         "simultaneous damage type breadth has no matching Forge-Values row",
       );
     }
 
     if (weaponProfile.targetCount > 1) {
+      const extraTargetCount = Math.max(1, weaponProfile.targetCount - 1);
       addFeatureWeight(
         state,
         context,
         `${rangeLabel} ${weaponProfile.targetCount} targets`,
         "target_count",
-        [{
-          category:
-            weaponProfile.rangeCategory === "RANGED"
-              ? "RangedTargets"
-              : weaponProfile.rangeCategory === "AOE"
-                ? "AoECount"
-                : "MeleeTargets",
-          selector1: itemTypeLabel,
-          selector2: String(weaponProfile.targetCount),
-        }],
+        [
+          forgeOutputExpectationLookup(
+            weaponProfile.rangeCategory === "AOE"
+              ? FEATURE_WEIGHT_EXPECTATION_KEYS.aoeExtraCount
+              : FEATURE_WEIGHT_EXPECTATION_KEYS.targetCountExtraTarget,
+            extraTargetCount,
+          ),
+          {
+            category:
+              weaponProfile.rangeCategory === "RANGED"
+                ? "RangedTargets"
+                : weaponProfile.rangeCategory === "AOE"
+                  ? "AoECount"
+                  : "MeleeTargets",
+            selector1: itemTypeLabel,
+            selector2: String(weaponProfile.targetCount),
+          },
+        ],
         "multi-target breadth has no matching Forge-Values row",
       );
     }
 
     if (weaponProfile.rangedDistanceFeet) {
+      const rangedDistanceExpectationKey = getRangedDistanceFeatureExpectationKey(weaponProfile.rangedDistanceFeet);
       addFeatureWeight(
         state,
         context,
         `Ranged distance ${weaponProfile.rangedDistanceFeet} ft`,
         "ranged_distance",
-        [{
-          category: "RangedDistanceFt",
-          selector1: itemTypeLabel,
-          selector2: String(weaponProfile.rangedDistanceFeet),
-        }],
+        [
+          ...(rangedDistanceExpectationKey ? [forgeOutputExpectationLookup(rangedDistanceExpectationKey)] : []),
+          {
+            category: "RangedDistanceFt",
+            selector1: itemTypeLabel,
+            selector2: String(weaponProfile.rangedDistanceFeet),
+          },
+        ],
         "ranged distance has no matching Forge-Values row",
       );
     }
@@ -1081,7 +1166,10 @@ function collectFeatureWeights(
           context,
           "AoE attack access",
           "aoe_access",
-          [{ category: "RangeCategory", selector1: itemTypeLabel, selector2: "AoE" }],
+          [
+            forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.aoeAccess),
+            { category: "RangeCategory", selector1: itemTypeLabel, selector2: "AoE" },
+          ],
           "AoE access has no direct Forge-Values feature row",
         );
       }
@@ -1090,7 +1178,7 @@ function collectFeatureWeights(
         context,
         "AoE geometry",
         "aoe_geometry",
-        [],
+        [forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry)],
         "AoE geometry has no single direct Forge-Values row",
       );
       if (weaponProfile.aoe?.centerRangeFeet) {
@@ -1099,11 +1187,17 @@ function collectFeatureWeights(
           context,
           `AoE center range ${weaponProfile.aoe.centerRangeFeet} ft`,
           "aoe_center_range",
-          [{
-            category: "AoECenterRangeFt",
-            selector1: itemTypeLabel,
-            selector2: String(weaponProfile.aoe.centerRangeFeet),
-          }],
+          [
+            forgeOutputExpectationLookup(
+              FEATURE_WEIGHT_EXPECTATION_KEYS.aoeCenterRange,
+              getAoeCenterRangeMultiplier(weaponProfile.aoe.centerRangeFeet),
+            ),
+            {
+              category: "AoECenterRangeFt",
+              selector1: itemTypeLabel,
+              selector2: String(weaponProfile.aoe.centerRangeFeet),
+            },
+          ],
           "AoE center range has no matching Forge-Values row",
         );
       }
@@ -1113,11 +1207,14 @@ function collectFeatureWeights(
           context,
           `AoE sphere radius ${weaponProfile.aoe.sphereRadiusFeet} ft`,
           "aoe_shape_size",
-          [{
-            category: "SphereSizeFt",
-            selector1: itemTypeLabel,
-            selector2: String(weaponProfile.aoe.sphereRadiusFeet),
-          }],
+          [
+            forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry),
+            {
+              category: "SphereSizeFt",
+              selector1: itemTypeLabel,
+              selector2: String(weaponProfile.aoe.sphereRadiusFeet),
+            },
+          ],
           "AoE sphere size has no matching Forge-Values row",
         );
       }
@@ -1127,11 +1224,14 @@ function collectFeatureWeights(
           context,
           `AoE cone length ${weaponProfile.aoe.coneLengthFeet} ft`,
           "aoe_shape_size",
-          [{
-            category: "ConeLengthFt",
-            selector1: itemTypeLabel,
-            selector2: String(weaponProfile.aoe.coneLengthFeet),
-          }],
+          [
+            forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry),
+            {
+              category: "ConeLengthFt",
+              selector1: itemTypeLabel,
+              selector2: String(weaponProfile.aoe.coneLengthFeet),
+            },
+          ],
           "AoE cone size has no matching Forge-Values row",
         );
       }
@@ -1142,11 +1242,14 @@ function collectFeatureWeights(
             context,
             `AoE line width ${weaponProfile.aoe.lineWidthFeet} ft`,
             "aoe_shape_size",
-            [{
-              category: "LineWidthFt",
-              selector1: itemTypeLabel,
-              selector2: String(weaponProfile.aoe.lineWidthFeet),
-            }],
+            [
+              forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry),
+              {
+                category: "LineWidthFt",
+                selector1: itemTypeLabel,
+                selector2: String(weaponProfile.aoe.lineWidthFeet),
+              },
+            ],
             "AoE line width has no matching Forge-Values row",
           );
         }
@@ -1156,11 +1259,14 @@ function collectFeatureWeights(
             context,
             `AoE line length ${weaponProfile.aoe.lineLengthFeet} ft`,
             "aoe_shape_size",
-            [{
-              category: "LineLengthFt",
-              selector1: itemTypeLabel,
-              selector2: String(weaponProfile.aoe.lineLengthFeet),
-            }],
+            [
+              forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry),
+              {
+                category: "LineLengthFt",
+                selector1: itemTypeLabel,
+                selector2: String(weaponProfile.aoe.lineLengthFeet),
+              },
+            ],
             "AoE line length has no matching Forge-Values row",
           );
         }
@@ -1175,7 +1281,7 @@ function collectFeatureWeights(
       context,
       "mixed melee/ranged access",
       "mixed_profile_access",
-      [],
+      [forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.mixedAccessMeleeRanged)],
       "mixed melee/ranged access has no direct Forge-Values row",
     );
   }
@@ -1185,7 +1291,7 @@ function collectFeatureWeights(
       context,
       "mixed melee/AoE access",
       "mixed_profile_access",
-      [],
+      [forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.mixedAccessMeleeAoe)],
       "mixed melee/AoE access has no direct Forge-Values row",
     );
   }
@@ -1195,7 +1301,7 @@ function collectFeatureWeights(
       context,
       "mixed ranged/AoE access",
       "mixed_profile_access",
-      [],
+      [forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.mixedAccessRangedAoe)],
       "mixed ranged/AoE access has no direct Forge-Values row",
     );
   }
@@ -1205,7 +1311,7 @@ function collectFeatureWeights(
       context,
       "all three attack modes",
       "mixed_profile_access",
-      [],
+      [forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.mixedAccessAllThree)],
       "all three attack modes have no direct Forge-Values row",
     );
   }

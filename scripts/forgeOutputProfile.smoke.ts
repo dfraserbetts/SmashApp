@@ -34,7 +34,85 @@ const LANE_STATUS_PERCENT = {
   "likely overloaded": 100,
 } as const;
 
+const FORGE_OUTPUT_BREADTH_WEIGHT_ROWS = [
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.weight.extraProfile", value: 2 },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.mixedAccess.meleeRanged",
+    value: 1,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.mixedAccess.meleeAoe",
+    value: 1,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.mixedAccess.rangedAoe",
+    value: 1,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.mixedAccess.allThree",
+    value: 1,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.targetCount.extraTarget",
+    value: 1,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.damageType.extraType",
+    value: 1,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.rangedDistance.31to60",
+    value: 1,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.rangedDistance.61to120",
+    value: 2,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.rangedDistance.121plus",
+    value: 3,
+  },
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.weight.aoe.access", value: 5 },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.aoe.extraCount",
+    value: 1,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.aoe.centerRange",
+    value: 1,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.aoe.geometry",
+    value: 1,
+  },
+] as const;
+
 const FEATURE_WEIGHT_CONTEXT = buildForgeFeatureWeightContext([
+  ...FORGE_OUTPUT_BREADTH_WEIGHT_ROWS,
   { category: "GS_AttackEffects", selector1: "Weapon", selector2: "Melee", selector3: "Stagger", value: 15 },
   { category: "Attribute", selector1: "Weapon", selector2: "Attack", selector3: "2", value: 20 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Parry", value: 1 },
@@ -84,6 +162,20 @@ const CORE_MULTIPLIER_CONTEXT = buildForgeExpectationContext([
   { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "core.weapon.size.SMALL.multiplier", value: 2 },
 ], undefined, 1);
 
+function withFeatureWeightOverride(key: string, value: number) {
+  return buildForgeExpectationContext(
+    FEATURE_WEIGHT_CONTEXT.costs.map((row) =>
+      row.category === "ItemModifiers" &&
+      row.selector1 === "ForgeOutputExpectation" &&
+      row.selector2 === key
+        ? { ...row, value }
+        : row,
+    ),
+    undefined,
+    1,
+  );
+}
+
 function runCase(name: string, input: ForgeOutputProfileInput): ForgeOutputProfile {
   const profile = buildForgeOutputProfile(input);
   assert.equal(profile.debug.source, "forge_output_profile_v1", `${name}: debug source`);
@@ -94,6 +186,24 @@ function runCase(name: string, input: ForgeOutputProfileInput): ForgeOutputProfi
   );
   assert.equal(profile.debug.noBandComparisonYet, true, `${name}: no band comparison flag`);
   return profile;
+}
+
+function assertFeatureDriver(
+  profileName: string,
+  bands: ReturnType<typeof compareForgeOutputToBands>,
+  labelPart: string,
+  expectedWeight: number,
+  expectedKey: string,
+) {
+  assert.ok(
+    bands.lanes.debug.featureWeightDrivers.some((entry) =>
+      entry.label.includes(labelPart) &&
+      entry.weight === expectedWeight &&
+      !entry.fallbackUsed &&
+      entry.source.includes(`ForgeOutputExpectation/${expectedKey}`),
+    ),
+    `${profileName} should read ${labelPart} weight from ${expectedKey}`,
+  );
 }
 
 const simpleMelee = runCase("simple melee", {
@@ -565,6 +675,10 @@ const smallLevelOneMultiTargetMelee = runCase("small level 1 multi-target melee"
   meleeTargets: 2,
 });
 const smallLevelOneMultiTargetBands = compareForgeOutputToBands(smallLevelOneMultiTargetMelee);
+const weightedSmallLevelOneMultiTargetBands = compareForgeOutputToBands(
+  smallLevelOneMultiTargetMelee,
+  FEATURE_WEIGHT_CONTEXT,
+);
 const smallLevelOneMultiTargetBand = smallLevelOneMultiTargetBands.weaponProfiles.find(
   (entry) => entry.profileKind === "melee",
 );
@@ -584,6 +698,43 @@ assert.notEqual(
 assert.ok(
   LANE_STATUS_PERCENT[smallLevelOneMultiTargetBands.lanes.coreFunctionality.status] >= 75,
   "High weapon output should map to at least 75% Core Functionality fill",
+);
+assertFeatureDriver(
+  "small level 1 multi-target melee",
+  weightedSmallLevelOneMultiTargetBands,
+  "Melee 2 targets",
+  1,
+  "features.weight.targetCount.extraTarget",
+);
+const tunedSmallLevelOneMultiTargetBands = compareForgeOutputToBands(
+  smallLevelOneMultiTargetMelee,
+  withFeatureWeightOverride("features.weight.targetCount.extraTarget", 4),
+);
+assert.ok(
+  tunedSmallLevelOneMultiTargetBands.lanes.debug.featureWeightTotal >
+    weightedSmallLevelOneMultiTargetBands.lanes.debug.featureWeightTotal,
+  "Changing target count expectation weight should change featureWeightTotal",
+);
+assert.ok(
+  tunedSmallLevelOneMultiTargetBands.lanes.debug.featurePressureRatio >
+    weightedSmallLevelOneMultiTargetBands.lanes.debug.featurePressureRatio,
+  "Changing target count expectation weight should change featurePressureRatio",
+);
+const missingBreadthRowsMultiTargetBands = compareForgeOutputToBands(
+  smallLevelOneMultiTargetMelee,
+  buildForgeFeatureWeightContext([], 1),
+);
+assert.ok(
+  missingBreadthRowsMultiTargetBands.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Melee 2 targets") && entry.fallbackUsed,
+  ),
+  "Missing target count expectation row should fall back with debug",
+);
+assert.ok(
+  missingBreadthRowsMultiTargetBands.lanes.debug.missingFeatureWeightDrivers.some((entry) =>
+    entry.label.includes("Melee 2 targets"),
+  ),
+  "Missing target count expectation row should be listed in missingFeatureWeightDrivers",
 );
 
 const smallMelee = runCase("small melee", {
@@ -686,6 +837,7 @@ assert.ok(
   "dual damage type pressure should exceed one-type melee pressure",
 );
 const dualDamageMeleeBands = compareForgeOutputToBands(dualDamageMelee);
+const weightedDualDamageMeleeBands = compareForgeOutputToBands(dualDamageMelee, FEATURE_WEIGHT_CONTEXT);
 assert.ok(
   dualDamageMeleeBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
     entry.includes("damage type"),
@@ -697,6 +849,22 @@ assert.ok(
     entry.includes("damage type"),
   ),
   "dual damage type item should warn that simultaneous damage types add pressure",
+);
+assertFeatureDriver(
+  "dual damage melee",
+  weightedDualDamageMeleeBands,
+  "Melee 2 damage types",
+  1,
+  "features.weight.damageType.extraType",
+);
+const tunedDualDamageMeleeBands = compareForgeOutputToBands(
+  dualDamageMelee,
+  withFeatureWeightOverride("features.weight.damageType.extraType", 5),
+);
+assert.ok(
+  tunedDualDamageMeleeBands.lanes.debug.featureWeightTotal >
+    weightedDualDamageMeleeBands.lanes.debug.featureWeightTotal,
+  "Changing damage type expectation weight should change featureWeightTotal",
 );
 
 const smallDualDamageMelee = runCase("small dual damage melee", {
@@ -796,6 +964,27 @@ assert.ok(
     entry.includes("Greater Success"),
   ),
   "Greater Success effects should contribute to Features & Versatility",
+);
+assertFeatureDriver("aoe", aoeBands, "AoE 3 targets", 2, "features.weight.aoe.extraCount");
+assertFeatureDriver("aoe", aoeBands, "AoE attack access", 5, "features.weight.aoe.access");
+assertFeatureDriver("aoe", aoeBands, "AoE geometry", 1, "features.weight.aoe.geometry");
+assertFeatureDriver("aoe", aoeBands, "AoE center range 30 ft", 1, "features.weight.aoe.centerRange");
+assertFeatureDriver("aoe", aoeBands, "AoE sphere radius 10 ft", 1, "features.weight.aoe.geometry");
+const tunedAoeAccessBands = compareForgeOutputToBands(
+  aoeProfile,
+  withFeatureWeightOverride("features.weight.aoe.access", 8),
+);
+assert.ok(
+  tunedAoeAccessBands.lanes.debug.featureWeightTotal > aoeBands.lanes.debug.featureWeightTotal,
+  "Changing AoE access expectation weight should change featureWeightTotal",
+);
+const tunedAoeGeometryBands = compareForgeOutputToBands(
+  aoeProfile,
+  withFeatureWeightOverride("features.weight.aoe.geometry", 3),
+);
+assert.ok(
+  tunedAoeGeometryBands.lanes.debug.featurePressureRatio > aoeBands.lanes.debug.featurePressureRatio,
+  "Changing AoE geometry expectation weight should change featurePressureRatio",
 );
 
 const armour = runCase("armour", {
@@ -929,11 +1118,27 @@ assert.ok(
   ),
   "mixed item with ranged output should report secondary Core throughput",
 );
+assertFeatureDriver(
+  "mixed melee/ranged",
+  mixedMeleeRangedBands,
+  "mixed melee/ranged access",
+  1,
+  "features.weight.mixedAccess.meleeRanged",
+);
 assert.ok(
-  mixedMeleeRangedBands.lanes.debug.missingFeatureWeightDrivers.some((entry) =>
+  !mixedMeleeRangedBands.lanes.debug.missingFeatureWeightDrivers.some((entry) =>
     entry.label.includes("mixed melee/ranged access"),
   ),
-  "unmapped mixed access should be listed as a fallback feature driver",
+  "mapped mixed access should not be listed as a fallback feature driver",
+);
+const tunedMixedMeleeRangedBands = compareForgeOutputToBands(
+  mixedMeleeRanged,
+  withFeatureWeightOverride("features.weight.mixedAccess.meleeRanged", 6),
+);
+assert.ok(
+  tunedMixedMeleeRangedBands.lanes.debug.featureWeightTotal >
+    mixedMeleeRangedBands.lanes.debug.featureWeightTotal,
+  "Changing mixed melee/ranged expectation weight should change featureWeightTotal",
 );
 
 const rangedThirtyFeet = runCase("ranged 30 ft", {
@@ -971,6 +1176,22 @@ assert.ok(
     entry.includes("ranged distance 120 ft"),
   ),
   "ranged distance should be visible in Core drivers",
+);
+assertFeatureDriver(
+  "ranged 120 ft",
+  rangedOneTwentyFeetBands,
+  "Ranged distance 120 ft",
+  2,
+  "features.weight.rangedDistance.61to120",
+);
+const tunedRangedOneTwentyFeetBands = compareForgeOutputToBands(
+  rangedOneTwentyFeet,
+  withFeatureWeightOverride("features.weight.rangedDistance.61to120", 5),
+);
+assert.ok(
+  tunedRangedOneTwentyFeetBands.lanes.debug.featureWeightTotal >
+    rangedOneTwentyFeetBands.lanes.debug.featureWeightTotal,
+  "Changing ranged distance expectation weight should change featureWeightTotal",
 );
 
 const overBudgetWeapon = runCase("over-budget level 5 weapon", {

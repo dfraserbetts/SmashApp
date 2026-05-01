@@ -105,7 +105,7 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
   label: string;
   description: string;
   defaultValue: number;
-  group: "Features & Versatility" | "Core Functionality";
+  group: "Features & Versatility" | "Features & Versatility Breadth Weights" | "Core Functionality";
 }> = [
   {
     key: "features.budget.COMMON",
@@ -176,6 +176,104 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     description: "Feature pressure ratio where the bar becomes Heavy.",
     defaultValue: 0.8,
     group: "Features & Versatility",
+  },
+  {
+    key: "features.weight.extraProfile",
+    label: "Extra Attack Profile Weight",
+    description: "Feature weight for each additional active attack profile, such as adding ranged output to a melee weapon.",
+    defaultValue: 2,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.mixedAccess.meleeRanged",
+    label: "Mixed Melee/Ranged Access Weight",
+    description: "Feature weight for an item that can be used in both melee and ranged modes.",
+    defaultValue: 1,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.mixedAccess.meleeAoe",
+    label: "Mixed Melee/AoE Access Weight",
+    description: "Feature weight for an item that combines melee and AoE access.",
+    defaultValue: 1,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.mixedAccess.rangedAoe",
+    label: "Mixed Ranged/AoE Access Weight",
+    description: "Feature weight for an item that combines ranged and AoE access.",
+    defaultValue: 1,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.mixedAccess.allThree",
+    label: "All Attack Modes Weight",
+    description: "Feature weight for items that expose melee, ranged, and AoE access together.",
+    defaultValue: 1,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.targetCount.extraTarget",
+    label: "Extra Target Weight",
+    description: "Feature weight per target beyond the first for melee or ranged target count.",
+    defaultValue: 1,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.damageType.extraType",
+    label: "Extra Damage Type Weight",
+    description: "Feature weight per simultaneous damage type beyond the first.",
+    defaultValue: 1,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.rangedDistance.31to60",
+    label: "Ranged Distance 31-60 ft Weight",
+    description: "Feature weight for ranged reach beyond baseline up to 60 ft.",
+    defaultValue: 1,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.rangedDistance.61to120",
+    label: "Ranged Distance 61-120 ft Weight",
+    description: "Feature weight for ranged reach above 60 ft and up to 120 ft.",
+    defaultValue: 2,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.rangedDistance.121plus",
+    label: "Ranged Distance 121+ ft Weight",
+    description: "Feature weight for very long ranged reach above 120 ft.",
+    defaultValue: 3,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.aoe.access",
+    label: "AoE Access Weight",
+    description: "Feature weight for AoE attack access.",
+    defaultValue: 5,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.aoe.extraCount",
+    label: "AoE Extra Target Weight",
+    description: "Feature weight per AoE target or area count beyond the first.",
+    defaultValue: 1,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.aoe.centerRange",
+    label: "AoE Center Range Weight",
+    description: "Base feature weight for AoE center range; longer ranges scale from this value.",
+    defaultValue: 1,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
+    key: "features.weight.aoe.geometry",
+    label: "AoE Geometry Weight",
+    description: "Feature weight for AoE shape and dimension breadth.",
+    defaultValue: 1,
+    group: "Features & Versatility Breadth Weights",
   },
   {
     key: "core.weapon.size.SMALL.multiplier",
@@ -2793,7 +2891,13 @@ function renderTemplatePreview(
                 cost formulas or item save behaviour.
               </div>
 
-              {(["Features & Versatility", "Core Functionality"] as const).map((group) => (
+              {(
+                [
+                  "Features & Versatility",
+                  "Features & Versatility Breadth Weights",
+                  "Core Functionality",
+                ] as const
+              ).map((group) => (
                 <div key={group} className="rounded border border-zinc-800">
                   <div className="border-b border-zinc-800 p-2 text-xs font-medium uppercase tracking-wide opacity-80">
                     {group}
