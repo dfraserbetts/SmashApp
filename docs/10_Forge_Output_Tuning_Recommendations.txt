@@ -1,0 +1,403 @@
+Forge Output Tuning Recommendations v1
+======================================
+
+Purpose
+-------
+
+This document converts the Forge Output-Band matrix findings into a tuning
+proposal for Admin -> Forge Values.
+
+This is not live configuration. It does not change ForgeCosts.csv, seed rows,
+code logic, Forge Point costs, schema, save behavior, or validation behavior.
+All values below are proposed test ranges for manual Admin tuning and follow-up
+verification.
+
+
+Current Healthy Findings
+------------------------
+
+These areas should probably remain unchanged for the first tuning pass:
+
+- Weapon Core Functionality size bands are generally behaving across Small,
+  One-Handed, and Two-Handed items.
+- Every level 1-20 weapon size row has at least one Strength value that lands
+  in Standard.
+- Early Small weapon Standard windows are narrow, but this follows from integer
+  Strength and Strength x 2 wounds. This is acceptable for v1 unless authoring
+  proves too brittle.
+- Negative drawbacks work: signed raw feature totals are preserved, displayed
+  feature pressure clamps at zero, and drawback warnings appear.
+- The Features & Versatility bar is weight-based rather than count-based.
+- Ranged 30 ft, 60 ft, and 120 ft distinctions are visible in range pressure
+  and feature weight.
+- PPV and MPV defensive bands are broadly stable across levels.
+- Core over-band output remains over-band even when negative feature weights
+  are present.
+- Real secondary attack profiles now lift Core pressure, while access-only
+  profiles remain primarily Features pressure.
+
+
+Tuning Candidates By Priority
+-----------------------------
+
+### Priority 1: AoE breadth and geometry
+
+Current key: features.weight.aoe.access
+Current default value: 5
+Observed issue: AoE access immediately creates meaningful Features pressure,
+which is good, but it currently does most of the work while geometry remains
+flat. Small, medium, large, cone, and line examples can feel too similar on the
+Features lane once access is present.
+Recommended direction: Keep access meaningful, but avoid using access as the
+only lever for all AoE complexity.
+Suggested test range: 4 to 6.
+Expected effect: AoE remains a premium access mode without making every AoE
+item automatically unusable at low rarity.
+Risk if overtuned: Common AoE items may become heavy before geometry, count, or
+range can express the real reason.
+
+Current key: features.weight.aoe.extraCount
+Current default value: 1
+Observed issue: Multiple AoE entries add only +1 each, which looks light
+relative to the tactical coverage added by repeated AoE options.
+Recommended direction: Increase modestly.
+Suggested test range: 2 to 3.
+Expected effect: Multiple AoE packages become visibly broader than one AoE
+package.
+Risk if overtuned: Items with alternate AoE shapes may become heavy even when
+their Core output is modest.
+
+Current key: features.weight.aoe.centerRange
+Current default value: 1
+Observed issue: Increased AoE center range is detected, but the current +1 is
+easy to miss beside the AoE access weight.
+Recommended direction: Increase slightly if 60 ft+ center placement should be
+meaningfully premium.
+Suggested test range: 2 to 3.
+Expected effect: Long-center AoE items separate from close placement AoE items.
+Risk if overtuned: Range and AoE may double-charge flexible casters or launcher
+style items.
+
+Current key: features.weight.aoe.geometry
+Current default value: 1
+Observed issue: AoE geometry is too flat. The report flagged large sphere,
+cone, and line geometry as using one broad geometry expectation rather than
+scaling cleanly by affected area or shape footprint.
+Recommended direction: Increase as a first Admin-only pressure test. If this is
+still too blunt, add more granular expectation rows later.
+Suggested test range: 2 to 4.
+Expected effect: Larger or more permissive AoE geometry moves the Features bar
+more clearly.
+Risk if overtuned: Small AoE and large AoE may both become too expensive if the
+single flat key is pushed too high.
+
+
+### Priority 2: Target count
+
+Current key: features.weight.targetCount.extraTarget
+Current default value: 1
+Observed issue: Multi-target output strongly affects Core through total wounds,
+but Features only adds +1 per extra target. The matrix suggests target count is
+currently priced mostly by Core.
+Recommended direction: Increase slightly so multi-target breadth is visible in
+Features as well as Core.
+Suggested test range: 2 to 3 per extra target.
+Expected effect: Two-target and three-target weapons show clearer breadth
+pressure without needing Core alone to carry the warning.
+Risk if overtuned: Legitimate cleave or small multi-target items may become
+heavy too quickly, especially at Common.
+
+
+### Priority 3: Ranged distance buckets
+
+Current key: features.weight.rangedDistance.31to60
+Current default value: 1
+Observed issue: 60 ft range is distinguishable and currently looks sane.
+Recommended direction: Leave unchanged initially.
+Suggested test range: 1 to 2.
+Expected effect: 60 ft remains a modest range upgrade.
+Risk if overtuned: Basic ranged weapons may feel too broad too early.
+
+Current key: features.weight.rangedDistance.61to120
+Current default value: 2
+Observed issue: 120 ft range is distinguishable and currently works.
+Recommended direction: Leave unchanged initially, or test +1 only if 120 ft
+continues to feel underpriced after target/AoE adjustments.
+Suggested test range: 2 to 3.
+Expected effect: 120 ft remains meaningfully above 60 ft.
+Risk if overtuned: Longbow-like items may become heavy on Features while still
+having standard Core output.
+
+Current key: features.weight.rangedDistance.121plus
+Current default value: 3
+Observed issue: 180 ft and 300 ft share the same 121+ bucket, so 300 ft may be
+underpriced relative to extreme table reach.
+Recommended direction: Keep the current key stable for v1, but consider a
+future separate 181plus or 241plus expectation row if 300 ft appears often.
+Suggested test range: 3 to 5.
+Expected effect: Very long range reads more premium if the existing single
+bucket is tuned upward.
+Risk if overtuned: 180 ft and 300 ft cannot be separated with this key, so
+raising it may overprice the lower end of the bucket.
+
+
+### Priority 4: Rarity and Features budgets
+
+Current key: features.budget.COMMON
+Current default value: 10
+Observed issue: Common becomes moderate/heavy at plausible feature totals and
+looks mostly healthy.
+Recommended direction: Leave unchanged initially.
+Suggested test range: 9 to 11.
+Expected effect: Common remains narrow by default and punishes breadth quickly.
+Risk if overtuned: Too high lets Common carry Rare-style breadth; too low makes
+ordinary utility features noisy.
+
+Current key: features.budget.UNCOMMON
+Current default value: 14
+Observed issue: Uncommon has a modest breadth allowance and generally looks
+usable.
+Recommended direction: Leave unchanged until AoE and target weights settle.
+Suggested test range: 12 to 15.
+Expected effect: Uncommon remains a small breadth step above Common.
+Risk if overtuned: Uncommon becomes the cheapest home for multi-mode items.
+
+Current key: features.budget.RARE
+Current default value: 22
+Observed issue: Rare has considerable headroom, especially at higher levels.
+Recommended direction: Test a small downward adjustment only after feature
+weights are tuned.
+Suggested test range: 18 to 22.
+Expected effect: Rare still supports meaningful breadth, but heavy flexible
+items show pressure earlier.
+Risk if overtuned: Rare loses its intended identity as the first meaningful
+versatility tier.
+
+Current key: features.budget.LEGENDARY
+Current default value: 30
+Observed issue: Legendary leaves large headroom for 25-weight examples and can
+make broad packages look calmer than expected.
+Recommended direction: Test a modest reduction after AoE/target/range weights
+are proven.
+Suggested test range: 24 to 30.
+Expected effect: Legendary remains broad but stops hiding very feature-dense
+items.
+Risk if overtuned: Legendary and Rare become too similar.
+
+Current key: features.budget.MYTHIC
+Current default value: 40
+Observed issue: Mythic allows very high feature totals before visible pressure,
+especially with level scaling.
+Recommended direction: Test a modest reduction only after lower rarities are
+settled.
+Suggested test range: 32 to 40.
+Expected effect: Mythic still has the largest breadth allowance, but 40+
+feature-weight items remain visibly heavy.
+Risk if overtuned: Mythic loses its narrative permission to be unusually broad.
+
+Current key: features.levelScale.perFiveLevels
+Current default value: 2
+Observed issue: Per-five-level scaling adds headroom at higher levels. This may
+be fine because level should mostly drive Core, not rarity breadth, but it may
+soften feature pressure at levels 15-20.
+Recommended direction: Leave unchanged in the first pass; revisit after rarity
+base budgets are tested.
+Suggested test range: 0 to 2.
+Expected effect: Lower values keep high-level rarity budgets tighter.
+Risk if overtuned: High-level items feel no more capable of carrying utility
+than low-level items.
+
+Current key: features.levelScale.perLevel
+Current default value: 0
+Observed issue: Not currently used for scaling. The per-five-level key is
+easier to reason about and produces fewer tiny increments.
+Recommended direction: Keep at 0 for v1.
+Suggested test range: 0 to 0.5.
+Expected effect: Per-level scaling would smooth budgets, but adds subtlety that
+may not be needed.
+Risk if overtuned: Feature budgets drift upward too fast and become harder to
+predict.
+
+
+### Priority 5: Damage type breadth
+
+Current key: features.weight.damageType.extraType
+Current default value: 1
+Observed issue: Extra simultaneous damage types already raise Core because
+total wounds per success multiply by damage type count. Features adds only +1
+per extra type. This may be acceptable if damage type count is primarily Core
+output pressure, but the breadth side is currently light.
+Recommended direction: Leave unchanged initially; test +1 only if dual-damage
+items still feel too cheap after Core pressure is reviewed in real Forge UI
+examples.
+Suggested test range: 1 to 2 per extra type.
+Expected effect: Dual and triple damage become slightly more visible on the
+Features lane.
+Risk if overtuned: Damage type count gets double-charged too hard because Core
+already sees the extra wounds.
+
+
+### Priority 6: Mixed access and extra profiles
+
+Current key: features.weight.extraProfile
+Current default value: 2
+Observed issue: Extra profile count is visible, and real secondary output now
+also affects Core. Access-only profiles correctly stay in Features.
+Recommended direction: Leave unchanged initially.
+Suggested test range: 2 to 3.
+Expected effect: Additional profiles remain meaningful without making flexible
+items impossible.
+Risk if overtuned: Simple alternate-use items become heavy even when the
+secondary profile has no real output.
+
+Current key: features.weight.mixedAccess.meleeRanged
+Current default value: 1
+Observed issue: Melee+ranged access adds breadth pressure and currently looks
+reasonable beside the extra profile weight.
+Recommended direction: Leave unchanged initially.
+Suggested test range: 1 to 2.
+Expected effect: Flexible melee/ranged access remains a light premium.
+Risk if overtuned: Hybrid weapons become too costly before secondary output is
+considered.
+
+Current key: features.weight.mixedAccess.meleeAoe
+Current default value: 1
+Observed issue: Melee+AoE items are already driven heavily by AoE access and
+geometry.
+Recommended direction: Leave unchanged initially.
+Suggested test range: 1 to 2.
+Expected effect: Mixed access remains a small additive signal.
+Risk if overtuned: AoE hybrid items are double-charged.
+
+Current key: features.weight.mixedAccess.rangedAoe
+Current default value: 1
+Observed issue: Ranged+AoE items already collect ranged distance, AoE access,
+AoE geometry, and extra profile weights.
+Recommended direction: Leave unchanged initially.
+Suggested test range: 1 to 2.
+Expected effect: Mixed access remains visible but not dominant.
+Risk if overtuned: Ranged AoE items become heavy from access alone.
+
+Current key: features.weight.mixedAccess.allThree
+Current default value: 1
+Observed issue: All-three items are feature-heavy already because they combine
+extra profiles, mixed access, range, and AoE weights.
+Recommended direction: Consider a small increase only if all-three access
+still feels underpriced after AoE and target weights are tuned.
+Suggested test range: 1 to 3.
+Expected effect: Full access packages stand out as unusually broad.
+Risk if overtuned: All-three items may become heavy even with modest output.
+
+
+### Priority 7: Shield split warning
+
+Current logic: shield split warning is code logic, not a ForgeOutputExpectation
+row. A shield with attack and defence gets:
+
+- none when attack+defence co-presence is absent.
+- likelyOverloaded when attack rank is high-or-better and defence rank is
+  high-or-better.
+- watch when attack rank is standard-or-better and defence rank is
+  standard-or-better.
+- watch when both attack and defence exist but one side is modest.
+
+Observed issue: Attack+defence shields mostly produce watch. High attack plus
+low/moderate defence can still create heavy Core without likelyOverloaded.
+Recommended direction: Do not tune with existing Admin values. Decide whether
+shield split strictness should become admin-tunable.
+Suggested test range: not applicable until a key exists.
+Expected effect: A future key or threshold could make shield split warnings
+stricter without changing wound or defence math.
+Risk if overtuned: Shields become noisy and authors ignore the warning.
+
+Possible future key: features.weight.shieldSplit.attackDefence or
+shield.split.strictness. If added, it should be a report/warning pressure key,
+not a hard validation gate.
+
+
+Suggested First Tuning Pass
+---------------------------
+
+Use a small, reversible Admin-only test pass:
+
+1. Leave weapon Core bands unchanged.
+2. Leave Strength x 2 unchanged.
+3. Leave Common budget unchanged initially.
+4. Increase AoE geometry pressure modestly:
+   - Test features.weight.aoe.geometry at 2, then 3.
+5. Increase AoE extra count pressure modestly:
+   - Test features.weight.aoe.extraCount at 2.
+6. Increase target extra count pressure slightly:
+   - Test features.weight.targetCount.extraTarget at 2.
+7. Leave damage type extra type at 1 until dual-damage Forge UI examples are
+   reviewed.
+8. Leave mixed access weights unchanged until AoE and target weights settle.
+9. Leave ranged 30/60/120 buckets unchanged initially.
+10. Test features.weight.rangedDistance.121plus at 4 only if 300 ft still
+    feels underpriced in real examples.
+11. Test Rare, Legendary, and Mythic budgets only after AoE and target weights
+    are adjusted, because heavier feature weights may naturally consume the
+    current headroom.
+
+
+Testing Plan After Manual Admin Tuning
+--------------------------------------
+
+After each Admin tuning pass, rebuild or check these examples in Forge UI:
+
+- Common Small dagger.
+- Common Small 2-target dagger.
+- One-Handed standard weapon.
+- Two-Handed standard weapon.
+- Dual-damage weapon.
+- Melee+ranged weapon with access only.
+- Melee+ranged weapon with real ranged output.
+- 120 ft ranged weapon.
+- 300 ft ranged weapon.
+- Small AoE weapon.
+- Large AoE weapon.
+- Multiple-AoE weapon.
+- Shield attack+defence.
+- Rare flexible weapon.
+- Legendary or Mythic flexible weapon.
+- Over-band stress weapon with negative drawback.
+
+For each example, record:
+
+- Core status and ratio.
+- Features status and ratio.
+- Key drivers.
+- Warnings.
+- Whether the result matches table expectation.
+
+
+Do-Not-Touch List
+-----------------
+
+Do not tune these yet:
+
+- Strength x 2.
+- Size-aware wound bands.
+- Negative feature handling.
+- Core over-band protection.
+- Forge Point costs.
+- Prisma schema.
+- Save validation.
+- Power Tuning.
+- Combat Tuning / Monster Baseline Tuning.
+- Outcome Normalization.
+- docs/01 or docs/02.
+
+
+Open Questions
+--------------
+
+- Should 300 ft have its own distance bucket, such as
+  features.weight.rangedDistance.181plus or 241plus?
+- Should shield split warning strictness be admin-tunable?
+- Should AoE shape weights split sphere, cone, line, and other geometry into
+  separate expectation rows?
+- Should target count be more Core, more Features, or both?
+- Should AoE output be compared as total pressure, per-target pressure, or both?
+- Should Rare, Legendary, and Mythic budgets be reduced, or should heavier AoE
+  and target feature weights consume the existing headroom naturally?
