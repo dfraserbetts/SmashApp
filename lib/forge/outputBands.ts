@@ -370,6 +370,7 @@ const FEATURE_WEIGHT_EXPECTATION_KEYS = {
   aoeExtraCount: "features.weight.aoe.extraCount",
   aoeCenterRange: "features.weight.aoe.centerRange",
   aoeGeometry: "features.weight.aoe.geometry",
+  shieldSplitAttackDefence: "features.weight.shieldSplit.attackDefence",
 } as const;
 
 const LANE_STATUS_RANK: Record<ForgeLaneStatus, number> = {
@@ -1388,6 +1389,17 @@ function collectFeatureWeights(
       "mixed_profile_access",
       [forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.mixedAccessAllThree)],
       "all three attack modes have no direct Forge-Values row",
+    );
+  }
+
+  if (profile.shieldCoPresence.hasAttackAndDefence) {
+    addFeatureWeight(
+      state,
+      context,
+      "shield attack + defence split",
+      "shield_split",
+      [forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.shieldSplitAttackDefence)],
+      "shield attack/defence split has no direct Forge-Values row",
     );
   }
 

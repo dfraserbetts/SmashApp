@@ -276,6 +276,13 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     group: "Features & Versatility Breadth Weights",
   },
   {
+    key: "features.weight.shieldSplit.attackDefence",
+    label: "Shield Attack + Defence Split Weight",
+    description: "Feature weight for shields that carry both attack and defensive output.",
+    defaultValue: 5,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
     key: "core.weapon.rangeMode.RANGED.multiplier",
     label: "Ranged Weapon Core Multiplier",
     description: "Multiplies expected core wound bands for ranged attack profiles. Lower values make ranged damage budget tighter than melee.",

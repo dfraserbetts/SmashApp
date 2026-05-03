@@ -112,6 +112,12 @@ const FORGE_OUTPUT_BREADTH_WEIGHT_ROWS = [
   {
     category: "ItemModifiers",
     selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.shieldSplit.attackDefence",
+    value: 5,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
     selector2: "core.weapon.rangeMode.RANGED.multiplier",
     value: 0.8,
   },
@@ -1151,6 +1157,7 @@ assert.equal(shield.shieldCoPresence.hasShieldAttack, true);
 assert.equal(shield.shieldCoPresence.hasDefenceOutput, true);
 assert.equal(shield.shieldCoPresence.hasAttackAndDefence, true);
 const shieldBands = compareForgeOutputToBands(shield);
+const weightedShieldBands = compareForgeOutputToBands(shield, FEATURE_WEIGHT_CONTEXT);
 const shieldWeaponBand = shieldBands.weaponProfiles.find((entry) => entry.profileKind === "melee");
 assert.equal(shieldWeaponBand?.bandSize, "SMALL");
 assert.equal(shieldWeaponBand?.classification, "high");
@@ -1163,6 +1170,18 @@ assert.ok(
 assert.ok(
   shieldBands.lanes.coreFunctionality.warnings.some((entry) => entry.includes("shield split-function")),
   "shield with attack and defence should report split-function watch",
+);
+assertFeatureDriver(
+  "shield",
+  weightedShieldBands,
+  "shield attack + defence split",
+  5,
+  "features.weight.shieldSplit.attackDefence",
+);
+assert.ok(
+  weightedShieldBands.lanes.debug.featureWeightTotalRaw >=
+    shieldBands.lanes.debug.featureWeightTotalRaw + 4,
+  "Configured shield attack + defence split weight should visibly increase Features pressure",
 );
 
 const meleeRangedAccessOnly = runCase("melee/ranged access without ranged output", {

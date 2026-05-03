@@ -13,9 +13,10 @@ All values below are proposed test ranges for manual Admin tuning and follow-up
 verification.
 
 Round 2 implementation note: the first-pass recommendations for ranged
-distance, AoE geometry/count, and ranged core expectations have now been
-promoted into Forge Output Expectation defaults. They remain report-only
-diagnostics and are still reversible through Admin Forge Values.
+distance, AoE geometry/count, shield split Features pressure, and ranged core
+expectations have now been promoted into Forge Output Expectation defaults.
+They remain report-only diagnostics and are still reversible through Admin
+Forge Values.
 
 
 Current Healthy Findings
@@ -334,6 +335,13 @@ Risk if overtuned: Shields become noisy and authors ignore the warning.
 Possible future key: features.weight.shieldSplit.attackDefence or
 shield.split.strictness. If added, it should be a report/warning pressure key,
 not a hard validation gate.
+
+Current key: features.weight.shieldSplit.attackDefence
+Current default value: 5
+Observed issue: Attack+defence shields were too quiet on Features when they
+only produced warning text.
+Recommended direction: Keep the Round 2 value and review real shield examples
+before changing warning strictness.
 
 
 Suggested First Tuning Pass
