@@ -1,6 +1,14 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, type ChangeEvent } from 'react';
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+  type ChangeEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
 import { useForm } from 'react-hook-form';
 import { useSearchParams } from 'next/navigation';
 
@@ -36,6 +44,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import {
   buildForgeExpectationContext,
   compareForgeOutputToBands,
+  getForgeLanePressureState,
   type ForgeOutputBandComparison,
   type ForgeExpectationConfigRow,
   type ForgeFeatureWeightCostRow,
@@ -1751,6 +1760,8 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
   const [recentForgeItemIds, setRecentForgeItemIds] = useState<string[]>([]);
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const pickerFiltersRef = useRef<HTMLDivElement | null>(null);
+  const pickerResultRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [activePickerResultIndex, setActivePickerResultIndex] = useState(0);
   const [itemDetailsExpanded, setItemDetailsExpanded] = useState(true);
 
   // Used by preview + "last forged" banner
@@ -2017,6 +2028,17 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     () => filteredForgeItems.filter((row) => !recentForgeIdSet.has(row.id)),
     [filteredForgeItems, recentForgeIdSet],
   );
+  const pickerResultRows = useMemo(
+    () => [...recentForgeItems, ...filteredForgeItemsWithoutRecent],
+    [filteredForgeItemsWithoutRecent, recentForgeItems],
+  );
+  useEffect(() => {
+    pickerResultRefs.current = pickerResultRefs.current.slice(0, pickerResultRows.length);
+    setActivePickerResultIndex((prev) => {
+      if (!pickerOpen || pickerResultRows.length === 0) return 0;
+      return Math.min(prev, pickerResultRows.length - 1);
+    });
+  }, [pickerOpen, pickerQuery, pickerResultRows.length]);
   const togglePickerLevel = (level: number) => {
     setPickerLevelSelected((prev) =>
       prev.includes(level)
@@ -2091,6 +2113,58 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
       persistRecentForgeItemIds(next);
       return next;
     });
+  };
+
+  const selectPickerResult = (row: ForgeItemSummary) => {
+    setSubmitSuccess(null);
+    setSelectedItemId(row.id);
+    markForgeItemAsRecent(row.id);
+    setPickerOpen(false);
+    setPickerQuery('');
+  };
+
+  const focusPickerResult = (index: number) => {
+    if (pickerResultRows.length === 0) return;
+    const nextIndex = Math.max(0, Math.min(index, pickerResultRows.length - 1));
+    setActivePickerResultIndex(nextIndex);
+    window.requestAnimationFrame(() => {
+      pickerResultRefs.current[nextIndex]?.focus();
+    });
+  };
+
+  const handlePickerSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      if (pickerResultRows.length === 0) return;
+      event.preventDefault();
+      setPickerOpen(true);
+      focusPickerResult(0);
+      return;
+    }
+    if (event.key === 'Tab' && pickerOpen && !event.shiftKey && pickerResultRows.length > 0) {
+      event.preventDefault();
+      focusPickerResult(activePickerResultIndex);
+    }
+  };
+
+  const handlePickerResultKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    index: number,
+    row: ForgeItemSummary,
+  ) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      focusPickerResult(index + 1);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusPickerResult(index - 1);
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      selectPickerResult(row);
+    }
   };
 
   const armorAttrsFromPicklist = useMemo(
@@ -2842,6 +2916,42 @@ function handleResetForge() {
     isWeapon ||
     (isShield && hasSize && shieldHasAttack);
 
+  const clearAttackFields = useCallback(
+    (options: { shouldDirty?: boolean; shouldValidate?: boolean } = {}) => {
+      const { shouldDirty = true, shouldValidate = true } = options;
+      const updateOptions = { shouldDirty, shouldValidate };
+
+      setValue('rangeCategories', [], updateOptions);
+      setValue('meleePhysicalStrength', 0 as any, updateOptions);
+      setValue('meleeMentalStrength', 0 as any, updateOptions);
+      setValue('rangedPhysicalStrength', 0 as any, updateOptions);
+      setValue('rangedMentalStrength', 0 as any, updateOptions);
+      setValue('aoePhysicalStrength', 0 as any, updateOptions);
+      setValue('aoeMentalStrength', 0 as any, updateOptions);
+      setValue('meleeTargets', null, updateOptions);
+      setValue('rangedTargets', null, updateOptions);
+      setValue('rangedDistanceFeet', null, updateOptions);
+      setValue('aoeCenterRangeFeet', null, updateOptions);
+      setValue('aoeCount', null, updateOptions);
+      setValue('aoeShape', null, updateOptions);
+      setValue('aoeSphereRadiusFeet', null, updateOptions);
+      setValue('aoeConeLengthFeet', null, updateOptions);
+      setValue('aoeLineWidthFeet', null, updateOptions);
+      setValue('aoeLineLengthFeet', null, updateOptions);
+      setValue('meleeDamageTypeIds', [], updateOptions);
+      setValue('rangedDamageTypeIds', [], updateOptions);
+      setValue('aoeDamageTypeIds', [], updateOptions);
+      setValue('attackEffectMeleeIds', [], updateOptions);
+      setValue('attackEffectRangedIds', [], updateOptions);
+      setValue('attackEffectAoEIds', [], updateOptions);
+      setValue('weaponAttributeIds', [], updateOptions);
+      setValue('weaponAttributeStrengthSources', {}, updateOptions);
+      setValue('weaponAttributeRangeSelections', {}, updateOptions);
+      setValue('customWeaponAttributes', '', updateOptions);
+    },
+    [setValue],
+  );
+
   // If item type changes, clear shared size + shield attack toggle
   // (but never during hydration, or it wipes loaded weapons/shields)
   useEffect(() => {
@@ -2873,6 +2983,14 @@ function handleResetForge() {
       setValue('shieldHasAttack', false, { shouldDirty: true });
     }
   }, [isShield, hasSize, shieldHasAttack, setValue]);
+
+  useEffect(() => {
+    if (isHydratingRef.current) return;
+    if (!isShield) return;
+    if (shieldHasAttack) return;
+
+    clearAttackFields();
+  }, [clearAttackFields, isShield, shieldHasAttack]);
 
   const armorAttributeIds = watch('armorAttributeIds') ?? [];
   const currentPpv = watch('ppv');
@@ -3612,6 +3730,34 @@ useEffect(() => {
     return value;
   }
 
+  function getFirstFormErrorMessage(errorTree: unknown): string | null {
+    if (!errorTree || typeof errorTree !== 'object') return null;
+    const maybeMessage = (errorTree as { message?: unknown }).message;
+    if (typeof maybeMessage === 'string' && maybeMessage.trim()) {
+      return maybeMessage;
+    }
+
+    for (const value of Object.values(errorTree as Record<string, unknown>)) {
+      const nestedMessage = getFirstFormErrorMessage(value);
+      if (nestedMessage) return nestedMessage;
+    }
+
+    return null;
+  }
+
+  function onInvalidSubmit(formErrors: unknown) {
+    const firstMessage = getFirstFormErrorMessage(formErrors);
+    setSubmitSuccess(null);
+    setSubmitError(firstMessage ? `Cannot forge yet: ${firstMessage}` : 'Cannot forge yet: check the highlighted fields.');
+    setItemDetailsExpanded(true);
+
+    window.requestAnimationFrame(() => {
+      document
+        .querySelector('[data-forge-submit-error="true"]')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
   async function onSubmit(values: ForgeFormValues) {
     setSubmitError(null);
     setSubmitSuccess(null);
@@ -3967,8 +4113,30 @@ useEffect(() => {
     selectedIds: number[],
     selectedRangeCategories: RangeCategory[],
     selectedAoeShape: AoEShape | null,
+    allDamageTypes: DamageType[],
+    selectedDamageTypeIdsByRange: Partial<Record<RangeCategory, number[]>>,
   ) {
     if (!attrs.length) return null;
+
+    const selectedDamageTypeModes = (
+      range: RangeCategory | 'ANY' | null | undefined,
+    ): Set<'PHYSICAL' | 'MENTAL'> => {
+      const ranges =
+        range && range !== 'ANY'
+          ? [range]
+          : selectedRangeCategories;
+      const modes = new Set<'PHYSICAL' | 'MENTAL'>();
+
+      for (const selectedRange of ranges) {
+        const ids = selectedDamageTypeIdsByRange[selectedRange] ?? [];
+        for (const id of ids) {
+          const damageType = allDamageTypes.find((entry) => entry.id === id);
+          modes.add(getDamageTypeMode(damageType as any));
+        }
+      }
+
+      return modes;
+    };
 
     return (
       <div className="flex flex-wrap gap-2 text-[11px] max-h-40 overflow-y-auto pr-1">
@@ -3982,6 +4150,7 @@ useEffect(() => {
             | undefined;
 
           const requiresAoeShape = Boolean((attr as any).requiresAoeShape);
+          const requiresStrengthKind = attr.requiresStrengthKind ?? null;
 
           let isAvailable = true;
           const reasons: string[] = [];
@@ -3999,6 +4168,15 @@ useEffect(() => {
             if (!ok) {
               isAvailable = false;
               reasons.push('Requires an AoE Shape');
+            }
+          }
+
+          if (requiresStrengthKind) {
+            const modes = selectedDamageTypeModes(requiresRange);
+            const ok = modes.has(requiresStrengthKind);
+            if (!ok) {
+              isAvailable = false;
+              reasons.push(`Requires ${formatOutputLabel(requiresStrengthKind)} damage`);
             }
           }
 
@@ -5341,6 +5519,12 @@ useEffect(() => {
               weaponAttributeIds,
               selectedRangeCategories as any,
               toNullableEnum<AoEShape>(selectedAoeShape as any),
+              data.damageTypes ?? [],
+              {
+                MELEE: meleeDamageTypeIds,
+                RANGED: rangedDamageTypeIds,
+                AOE: aoeDamageTypeIds,
+              },
             )}
 
             {weaponAttributeIds
@@ -5742,18 +5926,28 @@ useEffect(() => {
                     value={pickerQuery}
                     onFocus={() => setPickerOpen(true)}
                     onClick={() => setPickerOpen(true)}
+                    onKeyDown={handlePickerSearchKeyDown}
                     onChange={(e) => {
                       setPickerQuery(e.target.value);
+                      setActivePickerResultIndex(0);
                       setPickerOpen(true);
                     }}
                     placeholder="Click to search campaign items for editing"
+                    role="combobox"
+                    aria-expanded={pickerOpen}
+                    aria-controls="forge-item-picker-results"
+                    aria-activedescendant={
+                      pickerOpen && pickerResultRows[activePickerResultIndex]
+                        ? `forge-item-picker-result-${pickerResultRows[activePickerResultIndex].id}`
+                        : undefined
+                    }
                     className="h-10 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 pl-9 text-sm leading-tight focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
 
                 {pickerOpen && (
                   <div className="absolute z-30 mt-1 w-full rounded border border-zinc-800 bg-zinc-950/95 p-2 shadow-lg">
-                    <div className="max-h-80 overflow-auto space-y-1">
+                    <div id="forge-item-picker-results" role="listbox" className="max-h-80 overflow-auto space-y-1">
                       {recentForgeItems.length === 0 &&
                       filteredForgeItemsWithoutRecent.length === 0 ? (
                         <p className="px-2 py-2 text-sm text-zinc-500">No matches.</p>
@@ -5764,87 +5958,103 @@ useEffect(() => {
                               <p className="px-2 pt-1 text-[11px] uppercase tracking-wide text-zinc-500">
                                 Recently used
                               </p>
-                              {recentForgeItems.map((row) => (
-                                <button
-                                  key={`recent-${row.id}`}
-                                  type="button"
-                                  onClick={() => {
-                                    setSubmitSuccess(null);
-                                    setSelectedItemId(row.id);
-                                    markForgeItemAsRecent(row.id);
-                                    setPickerOpen(false);
-                                    setPickerQuery('');
-                                  }}
-                                  className={`w-full rounded border px-2 py-2 text-left ${
-                                    selectedItemId === row.id
-                                      ? 'border-emerald-500 bg-emerald-950/20'
-                                      : 'border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900'
-                                  }`}
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div>
-                                      <p className="text-sm font-medium">{row.name ?? '(Unnamed)'}</p>
-                                      <p className="text-xs text-zinc-500">
-                                        {row.rarity ?? '?'} L{row.level ?? '?'} - {row.type ?? '?'}
-                                      </p>
+                              {recentForgeItems.map((row, idx) => {
+                                const resultIndex = idx;
+                                const isActive = activePickerResultIndex === resultIndex;
+                                return (
+                                  <button
+                                    key={`recent-${row.id}`}
+                                    id={`forge-item-picker-result-${row.id}`}
+                                    ref={(node) => {
+                                      pickerResultRefs.current[resultIndex] = node;
+                                    }}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={isActive || selectedItemId === row.id}
+                                    onFocus={() => setActivePickerResultIndex(resultIndex)}
+                                    onKeyDown={(event) => handlePickerResultKeyDown(event, resultIndex, row)}
+                                    onClick={() => selectPickerResult(row)}
+                                    className={`w-full rounded border px-2 py-2 text-left focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                                      selectedItemId === row.id
+                                        ? 'border-emerald-500 bg-emerald-950/20'
+                                        : isActive
+                                          ? 'border-emerald-600 bg-zinc-900'
+                                          : 'border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <p className="text-sm font-medium">{row.name ?? '(Unnamed)'}</p>
+                                        <p className="text-xs text-zinc-500">
+                                          {row.rarity ?? '?'} L{row.level ?? '?'} - {row.type ?? '?'}
+                                        </p>
+                                      </div>
                                     </div>
-                                  </div>
-                                  {row.tags.length > 0 && (
-                                    <div className="mt-2 flex flex-wrap gap-1">
-                                      {row.tags.slice(0, 6).map((tag) => (
-                                        <span
-                                          key={`recent-${row.id}-${tag}`}
-                                          className="rounded border border-zinc-700 bg-zinc-900 px-2 py-[2px] text-[10px] text-zinc-300"
-                                        >
-                                          {tag}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                </button>
-                              ))}
+                                    {row.tags.length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-1">
+                                        {row.tags.slice(0, 6).map((tag) => (
+                                          <span
+                                            key={`recent-${row.id}-${tag}`}
+                                            className="rounded border border-zinc-700 bg-zinc-900 px-2 py-[2px] text-[10px] text-zinc-300"
+                                          >
+                                            {tag}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </button>
+                                );
+                              })}
                               <div className="my-1 border-t border-zinc-800" />
                             </>
                           )}
-                          {filteredForgeItemsWithoutRecent.map((row) => (
-                            <button
-                              key={row.id}
-                              type="button"
-                              onClick={() => {
-                                setSubmitSuccess(null);
-                                setSelectedItemId(row.id);
-                                markForgeItemAsRecent(row.id);
-                                setPickerOpen(false);
-                                setPickerQuery('');
-                              }}
-                              className={`w-full rounded border px-2 py-2 text-left ${
-                                selectedItemId === row.id
-                                  ? 'border-emerald-500 bg-emerald-950/20'
-                                  : 'border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900'
-                              }`}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <p className="text-sm font-medium">{row.name ?? '(Unnamed)'}</p>
-                                  <p className="text-xs text-zinc-500">
-                                    {row.rarity ?? '?'} L{row.level ?? '?'} - {row.type ?? '?'}
-                                  </p>
+                          {filteredForgeItemsWithoutRecent.map((row, idx) => {
+                            const resultIndex = recentForgeItems.length + idx;
+                            const isActive = activePickerResultIndex === resultIndex;
+                            return (
+                              <button
+                                key={row.id}
+                                id={`forge-item-picker-result-${row.id}`}
+                                ref={(node) => {
+                                  pickerResultRefs.current[resultIndex] = node;
+                                }}
+                                type="button"
+                                role="option"
+                                aria-selected={isActive || selectedItemId === row.id}
+                                onFocus={() => setActivePickerResultIndex(resultIndex)}
+                                onKeyDown={(event) => handlePickerResultKeyDown(event, resultIndex, row)}
+                                onClick={() => selectPickerResult(row)}
+                                className={`w-full rounded border px-2 py-2 text-left focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                                  selectedItemId === row.id
+                                    ? 'border-emerald-500 bg-emerald-950/20'
+                                    : isActive
+                                      ? 'border-emerald-600 bg-zinc-900'
+                                      : 'border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className="text-sm font-medium">{row.name ?? '(Unnamed)'}</p>
+                                    <p className="text-xs text-zinc-500">
+                                      {row.rarity ?? '?'} L{row.level ?? '?'} - {row.type ?? '?'}
+                                    </p>
+                                  </div>
                                 </div>
-                              </div>
-                              {row.tags.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-1">
-                                  {row.tags.slice(0, 6).map((tag) => (
-                                    <span
-                                      key={`${row.id}-${tag}`}
-                                      className="rounded border border-zinc-700 bg-zinc-900 px-2 py-[2px] text-[10px] text-zinc-300"
-                                    >
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </button>
-                          ))}
+                                {row.tags.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-1">
+                                    {row.tags.slice(0, 6).map((tag) => (
+                                      <span
+                                        key={`${row.id}-${tag}`}
+                                        className="rounded border border-zinc-700 bg-zinc-900 px-2 py-[2px] text-[10px] text-zinc-300"
+                                      >
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
                         </>
                       )}
                     </div>
@@ -6106,7 +6316,7 @@ useEffect(() => {
         )}
 
         {submitError && (
-          <p className="mb-2 text-sm text-red-400">
+          <p data-forge-submit-error="true" className="mb-2 text-sm text-red-400">
             Error creating item: {submitError}
           </p>
         )}
@@ -6119,7 +6329,7 @@ useEffect(() => {
         <ForgeOutputProfilePanel comparison={forgeOutputBandComparison} />
 
         <form
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={handleSubmit(onSubmit, onInvalidSubmit)}
           className={`space-y-4 rounded-xl border p-4 ${itemRarityPalette.panelBorderClass} ${itemRarityPalette.panelShadowClass} bg-black/30`}
         >
                     {/* BASIC SECTION */}
@@ -7941,6 +8151,12 @@ function formatOutputList(items: string[], empty = 'None'): string {
   return items.slice(0, 4).join(', ') + (items.length > 4 ? ` +${items.length - 4}` : '');
 }
 
+function formatOutputNumber(value: number): string {
+  if (!Number.isFinite(value)) return '0';
+  if (Number.isInteger(value)) return String(value);
+  return value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
 function ForgeOutputPill({
   label,
   tone = 'zinc',
@@ -7989,16 +8205,7 @@ function getLaneStatusPercent(status: string): number {
   return 25;
 }
 
-type ForgeOutputPressureState = 'lowPressure' | 'healthy' | 'watch' | 'overloaded';
-
-function getLanePressureState(percent: number): ForgeOutputPressureState {
-  if (percent <= 35) return 'lowPressure';
-  if (percent <= 60) return 'healthy';
-  if (percent <= 79) return 'watch';
-  return 'overloaded';
-}
-
-function getLanePressureFillClass(state: ForgeOutputPressureState): string {
+function getLanePressureFillClass(state: ReturnType<typeof getForgeLanePressureState>): string {
   if (state === 'lowPressure') return 'bg-sky-500';
   if (state === 'healthy') return 'bg-emerald-500';
   if (state === 'watch') return 'bg-orange-700';
@@ -8011,19 +8218,21 @@ function ForgeOutputLaneBlock({
   drivers,
   warnings,
   percentOverride,
+  pressureText,
 }: {
   title: string;
   status: string;
   drivers: string[];
   warnings: string[];
   percentOverride?: number;
+  pressureText?: string;
 }) {
   const percent =
     typeof percentOverride === 'number' && Number.isFinite(percentOverride)
       ? Math.max(0, Math.min(100, percentOverride))
       : getLaneStatusPercent(status);
   const tone = getClassificationTone(status);
-  const pressureState = getLanePressureState(percent);
+  const pressureState = getForgeLanePressureState(status);
   const fillClass = getLanePressureFillClass(pressureState);
 
   return (
@@ -8038,6 +8247,11 @@ function ForgeOutputLaneBlock({
           style={{ width: `${percent}%` }}
         />
       </div>
+      {pressureText && (
+        <p className="mb-1 text-[11px] font-medium text-zinc-300">
+          {pressureText}
+        </p>
+      )}
       <p className="text-[11px] text-zinc-400">
         Drivers: {formatOutputList(drivers, 'No major drivers yet')}
       </p>
@@ -8217,13 +8431,23 @@ function ForgeOutputProfilePanel({
               status={comparison.lanes.coreFunctionality.status}
               drivers={comparison.lanes.coreFunctionality.mainDrivers}
               warnings={comparison.lanes.coreFunctionality.warnings}
+              pressureText={`${formatOutputNumber(comparison.lanes.debug.coreActualValue)}/${formatOutputNumber(
+                comparison.lanes.debug.coreExpectedValue,
+              )} expected`}
             />
             <ForgeOutputLaneBlock
               title="Features & Versatility"
               status={comparison.lanes.featuresVersatility.status}
               drivers={comparison.lanes.featuresVersatility.mainDrivers}
               warnings={comparison.lanes.featuresVersatility.warnings}
-              percentOverride={comparison.lanes.debug.featurePressureRatio * 100}
+              percentOverride={
+                comparison.lanes.debug.featureExpectedValue > 0
+                  ? (comparison.lanes.debug.featureActualValue / comparison.lanes.debug.featureExpectedValue) * 100
+                  : 0
+              }
+              pressureText={`${formatOutputNumber(comparison.lanes.debug.featureActualValue)}/${formatOutputNumber(
+                comparison.lanes.debug.featureExpectedValue,
+              )} expected`}
             />
           </div>
 
@@ -8283,13 +8507,23 @@ function ForgeCalculatorPanel({
           status={comparison.lanes.coreFunctionality.status}
           drivers={comparison.lanes.coreFunctionality.mainDrivers}
           warnings={comparison.lanes.coreFunctionality.warnings}
+          pressureText={`${formatOutputNumber(comparison.lanes.debug.coreActualValue)}/${formatOutputNumber(
+            comparison.lanes.debug.coreExpectedValue,
+          )} expected`}
         />
         <ForgeOutputLaneBlock
           title="Features & Versatility"
           status={comparison.lanes.featuresVersatility.status}
           drivers={comparison.lanes.featuresVersatility.mainDrivers}
           warnings={comparison.lanes.featuresVersatility.warnings}
-          percentOverride={comparison.lanes.debug.featurePressureRatio * 100}
+          percentOverride={
+            comparison.lanes.debug.featureExpectedValue > 0
+              ? (comparison.lanes.debug.featureActualValue / comparison.lanes.debug.featureExpectedValue) * 100
+              : 0
+          }
+          pressureText={`${formatOutputNumber(comparison.lanes.debug.featureActualValue)}/${formatOutputNumber(
+            comparison.lanes.debug.featureExpectedValue,
+          )} expected`}
         />
       </div>
 

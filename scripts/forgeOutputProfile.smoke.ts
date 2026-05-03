@@ -9,6 +9,7 @@ import {
   buildForgeExpectationContext,
   buildForgeFeatureWeightContext,
   compareForgeOutputToBands,
+  getForgeLanePressureState,
 } from "../lib/forge/outputBands";
 
 function getProfile(profile: ForgeOutputProfile, kind: "melee" | "ranged" | "aoe") {
@@ -33,6 +34,20 @@ const LANE_STATUS_PERCENT = {
   heavy: 100,
   "likely overloaded": 100,
 } as const;
+
+assert.equal(getForgeLanePressureState("narrow"), "lowPressure");
+assert.equal(getForgeLanePressureState("low"), "lowPressure");
+assert.equal(getForgeLanePressureState("moderate"), "healthy");
+assert.equal(getForgeLanePressureState("standard"), "healthy");
+assert.equal(getForgeLanePressureState("broad"), "watch");
+assert.equal(getForgeLanePressureState("high"), "watch");
+assert.equal(getForgeLanePressureState("heavy"), "overloaded");
+assert.equal(getForgeLanePressureState("extreme"), "overloaded");
+assert.notEqual(
+  getForgeLanePressureState("moderate"),
+  getForgeLanePressureState("heavy"),
+  "A red/heavy bar cannot display a Moderate label when both share the lane status mapping",
+);
 
 const FORGE_OUTPUT_BREADTH_WEIGHT_ROWS = [
   { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.weight.extraProfile", value: 2 },
@@ -654,10 +669,23 @@ const smallLevelOneRareBand = compareForgeOutputToBands({
     rarity: "RARE",
   },
 }).weaponProfiles.find((entry) => entry.profileKind === "melee");
+const smallLevelOneCommonBands = compareForgeOutputToBands(smallLevelOneMelee);
+const smallLevelOneRareBands = compareForgeOutputToBands({
+  ...smallLevelOneMelee,
+  common: {
+    ...smallLevelOneMelee.common,
+    rarity: "RARE",
+  },
+});
 assert.equal(
   smallLevelOneRareBand?.classification,
   smallLevelOneMeleeBand?.classification,
   "Core Functionality damage band should not increase by rarity alone",
+);
+assert.equal(
+  smallLevelOneRareBands.lanes.debug.coreExpectedValue,
+  smallLevelOneCommonBands.lanes.debug.coreExpectedValue,
+  "Rarity should not increase Core raw damage allowance",
 );
 const smallLevelOneConfiguredBand = compareForgeOutputToBands(
   smallLevelOneMelee,
@@ -1430,7 +1458,6 @@ assert.ok(
     rangedOneTwentyFeetBands.lanes.debug.featureWeightTotal,
   "Changing ranged distance expectation weight should change featureWeightTotal",
 );
-
 const rangedTwoHundredFeetLowDamage = runCase("ranged 200 ft low damage", {
   level: 10,
   rarity: "RARE",

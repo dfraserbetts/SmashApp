@@ -99,6 +99,14 @@ const ITEM_MODIFIER_COST_STATS: ItemModifierCostStat[] = [
   "Willpower",
   "Dodge",
 ];
+const ATTACK_EFFECT_COST_TARGETS = [
+  { key: "Weapon::Melee", itemType: "Weapon", range: "Melee" },
+  { key: "Weapon::Ranged", itemType: "Weapon", range: "Ranged" },
+  { key: "Weapon::AoE", itemType: "Weapon", range: "AoE" },
+  { key: "Shield::Melee", itemType: "Shield", range: "Melee" },
+  { key: "Shield::Ranged", itemType: "Shield", range: "Ranged" },
+  { key: "Shield::AoE", itemType: "Shield", range: "AoE" },
+] as const;
 const FORGE_OUTPUT_EXPECTATION_SELECTOR = "ForgeOutputExpectation";
 const FORGE_OUTPUT_EXPECTATIONS: Array<{
   key: string;
@@ -1149,6 +1157,38 @@ function renderTemplatePreview(
         return;
       }
 
+      if (isAttackEffects && selected?.name.trim()) {
+        const effectName = selected.name.trim();
+        const rows = costs.filter(
+          (row) =>
+            String(row.category ?? "").trim() === "GS_AttackEffects" &&
+            String(row.selector3 ?? "").trim() === effectName &&
+            ATTACK_EFFECT_COST_TARGETS.some(
+              (target) =>
+                target.itemType === String(row.selector1 ?? "").trim() &&
+                target.range === String(row.selector2 ?? "").trim(),
+            ),
+        );
+        const nextEdits: Record<string, { value: string; notes: string }> = {};
+        for (const target of ATTACK_EFFECT_COST_TARGETS) {
+          const existing =
+            rows.find(
+              (row) =>
+                String(row.selector1 ?? "").trim() === target.itemType &&
+                String(row.selector2 ?? "").trim() === target.range,
+            ) ?? null;
+          nextEdits[target.key] = {
+            value: existing ? String(existing.value) : "",
+            notes: existing?.notes ?? "",
+          };
+        }
+
+        setCostContexts(ATTACK_EFFECT_COST_TARGETS.map((target) => target.key));
+        setCostRowsLive(rows);
+        setCostEdits(nextEdits);
+        return;
+      }
+
       params.set("category", costCategory);
       params.set("selector2", selectedParsed.base);
       if (tierStr !== null) params.set("selector3", tierStr);
@@ -1196,10 +1236,23 @@ function renderTemplatePreview(
       setCostEdits({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [costCategory, fixedCostContext, selectedParsed?.base, tierStr]);
+  }, [costCategory, fixedCostContext, selected?.name, selectedParsed?.base, tierStr, costs]);
 
   const costMatrix = useMemo(() => {
     if (!selectedParsed) return [];
+    if (isAttackEffects && selected?.name.trim()) {
+      const effectName = selected.name.trim();
+      return ATTACK_EFFECT_COST_TARGETS.map((target) => {
+        const existing =
+          costRowsLive.find(
+            (row) =>
+              String(row.selector1 ?? "").trim() === target.itemType &&
+              String(row.selector2 ?? "").trim() === target.range &&
+              String(row.selector3 ?? "").trim() === effectName,
+          ) ?? null;
+        return { context: target.key, existing };
+      });
+    }
     const visibleRows = fixedCostContext
       ? costRowsLive.filter((row) => String(row.selector1 ?? "").trim() === fixedCostContext)
       : costRowsLive;
@@ -1207,7 +1260,7 @@ function renderTemplatePreview(
       const existing = visibleRows.find((r) => r.selector1 === ctx) ?? null;
       return { context: ctx, existing };
     });
-  }, [costContexts, costRowsLive, fixedCostContext, selectedParsed]);
+  }, [costContexts, costRowsLive, fixedCostContext, isAttackEffects, selected?.name, selectedParsed]);
   const hasStaticCostRows = costRowsLive.length > 0;
   const statCostEntryByLevel = useMemo(() => {
     const out = new Map<number, ForgeCostEntry>();
@@ -2491,9 +2544,18 @@ function renderTemplatePreview(
                         {costMatrix.map(({ context, existing }) => {
                           const edit = costEdits[context] ?? { value: "", notes: "" };
                           const isSaving = savingContext === context;
+                          const attackEffectTarget = isAttackEffects
+                            ? ATTACK_EFFECT_COST_TARGETS.find((target) => target.key === context) ?? null
+                            : null;
+                          const contextLabel = attackEffectTarget
+                            ? `${attackEffectTarget.itemType} / ${attackEffectTarget.range}`
+                            : context;
 
                           async function save() {
                             if (!selectedParsed) return;
+                            const selector1 = attackEffectTarget?.itemType ?? fixedCostContext ?? context;
+                            const selector2 = attackEffectTarget?.range ?? selectedParsed.base;
+                            const selector3 = attackEffectTarget ? selected?.name.trim() || null : tierStr ?? null;
 
                             const v = Number.parseFloat(edit.value);
                             if (!Number.isFinite(v)) {
@@ -2532,9 +2594,9 @@ function renderTemplatePreview(
                                   headers: { "Content-Type": "application/json" },
                                   body: JSON.stringify({
                                     category: costCategory,
-                                    selector1: fixedCostContext ?? context,
-                                    selector2: selectedParsed.base,
-                                    selector3: tierStr ?? null,
+                                    selector1,
+                                    selector2,
+                                    selector3,
                                     value: v,
                                     notes: edit.notes.trim() || null,
                                   }),
@@ -2558,7 +2620,15 @@ function renderTemplatePreview(
 
                           return (
                             <tr key={context}>
-                              <td className="p-2">{context}</td>
+                              <td className="p-2">
+                                <div>{contextLabel}</div>
+                                {attackEffectTarget ? (
+                                  <div className="text-[11px] opacity-60">
+                                    selector1: {attackEffectTarget.itemType} / selector2: {attackEffectTarget.range} /
+                                    selector3: {selected?.name.trim()}
+                                  </div>
+                                ) : null}
+                              </td>
                               <td className="p-2">
                                 <input
                                   className="w-28 rounded border bg-transparent p-2 text-sm"

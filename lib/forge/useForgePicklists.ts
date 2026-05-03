@@ -39,6 +39,7 @@ export type WeaponAttribute = {
   requiresRange?: 'MELEE' | 'RANGED' | 'AOE' | null;
   requiresAoeShape?: 'SPHERE' | 'CONE' | 'LINE' | null;
   requiresStrengthSource?: boolean;
+  requiresStrengthKind?: 'PHYSICAL' | 'MENTAL' | null;
 
   // Parameterisation
   requiresRangeSelection?: boolean;

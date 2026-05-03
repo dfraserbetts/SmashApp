@@ -129,6 +129,8 @@ export type ForgeOutputLaneComparison = {
     secondaryProfileCoreMultiplier: number;
     rangePressureScore: number;
     rangePressureDrivers: string[];
+    featureActualValue: number;
+    featureExpectedValue: number;
     featureWeightTotal: number;
     featureWeightTotalRaw: number;
     featureWeightTotalClamped: number;
@@ -380,6 +382,22 @@ const LANE_STATUS_RANK: Record<ForgeLaneStatus, number> = {
   heavy: 3,
   "likely overloaded": 4,
 };
+
+export type ForgeLanePressureState = "lowPressure" | "healthy" | "watch" | "overloaded";
+
+export function getForgeLanePressureState(status: string): ForgeLanePressureState {
+  const normalized = status.trim().toLowerCase();
+  if (!normalized || normalized === "none" || normalized === "no output" || normalized === "narrow" || normalized === "low") {
+    return "lowPressure";
+  }
+  if (normalized === "moderate" || normalized === "standard" || normalized === "healthy") {
+    return "healthy";
+  }
+  if (normalized === "broad" || normalized === "high" || normalized === "watch") {
+    return "watch";
+  }
+  return "overloaded";
+}
 
 function normalizeLevel(level: number | null): number {
   if (typeof level !== "number" || !Number.isFinite(level)) return 1;
@@ -1735,11 +1753,15 @@ export function classifyForgeOutputLanes(
     featureWarnings.push("simultaneous damage type count is contributing to core pressure");
   }
   const corePressure = getHighestCorePressureCandidate(corePressureCandidates);
+  const featureExpectedValue = Math.max(
+    1,
+    featureWeightBudget.value * Math.max(0, featureStatusThresholds.heavy.value),
+  );
   if (corePressure.actual > 0) {
     coreDrivers.push(`${corePressure.label} ${corePressure.actual}/${corePressure.expected} expected`);
   }
   featureDrivers.unshift(
-    `feature load ${featureWeightTotalClamped}/${featureWeightBudget.value} expected`,
+    `feature load ${featureWeightTotalClamped}/${formatPressureValue(featureExpectedValue)} expected`,
   );
   if (featureWeightTotalRaw < featureWeightTotalClamped) {
     featureDrivers.push(`signed feature load ${featureWeightTotalRaw} before display clamp`);
@@ -1782,6 +1804,8 @@ export function classifyForgeOutputLanes(
       secondaryProfileCoreMultiplier: SECONDARY_PROFILE_CORE_MULTIPLIER,
       rangePressureScore,
       rangePressureDrivers,
+      featureActualValue: featureWeightTotalClamped,
+      featureExpectedValue,
       featureWeightTotal: featureWeightTotalClamped,
       featureWeightTotalRaw,
       featureWeightTotalClamped,
