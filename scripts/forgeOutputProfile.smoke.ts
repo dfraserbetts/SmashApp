@@ -109,6 +109,12 @@ const FORGE_OUTPUT_BREADTH_WEIGHT_ROWS = [
     selector2: "features.weight.aoe.geometry",
     value: 1,
   },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
+    selector2: "core.weapon.rangeMode.RANGED.multiplier",
+    value: 0.8,
+  },
 ] as const;
 
 const FEATURE_WEIGHT_CONTEXT = buildForgeFeatureWeightContext([
@@ -910,7 +916,7 @@ const rangedMentalBand = compareForgeOutputToBands(rangedMental).weaponProfiles.
   (entry) => entry.profileKind === "ranged",
 );
 assert.equal(rangedMentalBand?.perTargetClassification, "standard");
-assert.equal(rangedMentalBand?.totalPressureClassification, "high");
+assert.equal(rangedMentalBand?.totalPressureClassification, "extreme");
 assert.equal(rangedMentalBand?.totalPressure, 16);
 
 const aoeProfile = runCase("aoe", {
@@ -1254,6 +1260,19 @@ const rangedOneTwentyFeet = runCase("ranged 120 ft", {
 });
 const rangedThirtyFeetBands = compareForgeOutputToBands(rangedThirtyFeet, FEATURE_WEIGHT_CONTEXT);
 const rangedOneTwentyFeetBands = compareForgeOutputToBands(rangedOneTwentyFeet, FEATURE_WEIGHT_CONTEXT);
+const sameWoundsMeleeBands = compareForgeOutputToBands(simpleMelee, FEATURE_WEIGHT_CONTEXT);
+const sameWoundsMeleeBand = sameWoundsMeleeBands.weaponProfiles.find((entry) => entry.profileKind === "melee");
+const sameWoundsRangedBand = rangedThirtyFeetBands.weaponProfiles.find((entry) => entry.profileKind === "ranged");
+assert.equal(sameWoundsRangedBand?.rangeModeCoreMultiplier, 0.8);
+assert.ok(
+  (sameWoundsRangedBand?.rangeModeAdjustedExpectedValue ?? 0) <
+    (sameWoundsMeleeBand?.rangeModeAdjustedExpectedValue ?? Number.POSITIVE_INFINITY),
+  "Ranged profile should have a lower adjusted Core wound expectation than same-size melee",
+);
+assert.ok(
+  rangedThirtyFeetBands.lanes.debug.corePressureRatio > sameWoundsMeleeBands.lanes.debug.corePressureRatio,
+  "Same wounds and size should create higher Core pressure for ranged profiles than melee",
+);
 assert.ok(
   rangedOneTwentyFeetBands.lanes.debug.rangePressureScore > rangedThirtyFeetBands.lanes.debug.rangePressureScore,
   "120 ft ranged output should carry more Core range pressure than 30 ft",

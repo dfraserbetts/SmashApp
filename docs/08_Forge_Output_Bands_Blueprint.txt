@@ -182,6 +182,7 @@ Melee vs ranged expectation:
 - Melee may sit at the band center more easily because it pays positional risk.
 - Ranged should usually pay for reach, target safety, or flexible engagement by reducing some other budget component.
 - A ranged profile at the same wounds per success as a melee profile should be checked for range, target count, rider, reload, and profile breadth.
+- Forge Output-Band v1 applies a first-pass ranged core multiplier of 0.8 to ranged weapon profile wound expectations. Strength x 2 does not change, but the expected ranged damage allowance is lower than melee at the same item level and size.
 
 Single-target vs multi-target pressure:
 

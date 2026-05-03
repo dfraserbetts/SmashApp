@@ -48,6 +48,9 @@ export type ForgeWeaponProfileBandComparison = {
   rangedDistanceFeet: number | null;
   rangedDistancePressure: ForgeRangedDistancePressure | null;
   aoe: ForgeAttackProfileOutput["aoe"];
+  profileRangeMode: "MELEE" | "RANGED" | "AOE";
+  rangeModeCoreMultiplier: number;
+  rangeModeAdjustedExpectedValue: number;
   perTargetClassification: ForgeOutputBandClassification;
   totalPressureClassification: ForgeOutputBandClassification;
   classification: ForgeOutputBandClassification;
@@ -348,6 +351,8 @@ const CLASSIFICATION_RANK: Record<ForgeOutputBandClassification, number> = {
 
 const DEFAULT_FEATURE_FALLBACK_WEIGHT = 1;
 const SECONDARY_PROFILE_CORE_MULTIPLIER = 0.35;
+const RANGED_PROFILE_CORE_MULTIPLIER_KEY = "core.weapon.rangeMode.RANGED.multiplier";
+const DEFAULT_RANGED_PROFILE_CORE_MULTIPLIER = 0.8;
 
 const FEATURE_WEIGHT_EXPECTATION_KEYS = {
   extraProfile: "features.weight.extraProfile",
@@ -676,8 +681,9 @@ function compareWeaponProfile(
     bandSizeSource: "item_size" | "default_one_handed";
     debugNotes: string[];
   },
+  rangeModeMultiplier: ForgeExpectationValue,
 ): ForgeWeaponProfileBandComparison {
-  const { thresholds } = weaponBand;
+  const thresholds = scaledBand(weaponBand.thresholds, rangeModeMultiplier.value);
   const perTargetWounds = profile.totalWoundsPerSuccess;
   const totalPressure = profile.totalWoundsPerSuccess * profile.targetCount;
   const perTargetClassification = classifyValue(perTargetWounds, thresholds);
@@ -699,6 +705,11 @@ function compareWeaponProfile(
   if (rangedDistancePressure) {
     debugNotes.push(rangedDistancePressure.note);
   }
+  if (rangeModeMultiplier.value !== 1) {
+    debugNotes.push(
+      `range mode core multiplier ${rangeModeMultiplier.value} adjusted expected standard to ${thresholds.standardMax}`,
+    );
+  }
 
   return {
     profileKind: profile.profileKind,
@@ -716,6 +727,9 @@ function compareWeaponProfile(
     rangedDistanceFeet: profile.rangedDistanceFeet,
     rangedDistancePressure,
     aoe: profile.aoe,
+    profileRangeMode: profile.rangeCategory,
+    rangeModeCoreMultiplier: rangeModeMultiplier.value,
+    rangeModeAdjustedExpectedValue: thresholds.standardMax,
     perTargetClassification,
     totalPressureClassification,
     classification,
@@ -1773,7 +1787,19 @@ export function compareForgeOutputToBands(
   const mpvThresholds = scaledBand(getBand("mpv", profile.common.level), mpvMultiplier.value);
   const weaponProfiles = profile.attackProfiles
     .filter((entry) => entry.enabled)
-    .map((entry) => compareWeaponProfile(entry, weaponBand));
+    .map((entry) => {
+      const rangeModeMultiplier =
+        entry.rangeCategory === "RANGED"
+          ? getCoreMultiplier(
+              featureWeightContext,
+              expectationDebug,
+              RANGED_PROFILE_CORE_MULTIPLIER_KEY,
+              DEFAULT_RANGED_PROFILE_CORE_MULTIPLIER,
+              [{ category: "SIZE", selector1: "core.weapon.rangeMode", selector2: "RANGED" }],
+            )
+          : { value: 1, source: "default" as const };
+      return compareWeaponProfile(entry, weaponBand, rangeModeMultiplier);
+    });
   const ppvClassification = classifyValue(profile.defensiveProfile.ppv, ppvThresholds);
   const mpvClassification = classifyValue(profile.defensiveProfile.mpv, mpvThresholds);
 
@@ -1803,6 +1829,7 @@ export function compareForgeOutputToBands(
         "v1 constants are copied from docs/07 and docs/08 as diagnostic readout bands",
         "weapon and shield attack wound bands are size-aware; missing size defaults to one-handed",
         "rarity does not increase raw damage bands in this comparator",
+        "ranged profiles use a lower core damage allowance than melee because melee accepts tactical risk",
         "armour slot weighting is deferred",
         weaponMultiplier.source === "forge_expectation_config"
           ? `weapon core expectation multiplier ${weaponMultiplier.value}`

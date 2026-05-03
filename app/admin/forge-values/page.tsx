@@ -276,6 +276,13 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     group: "Features & Versatility Breadth Weights",
   },
   {
+    key: "core.weapon.rangeMode.RANGED.multiplier",
+    label: "Ranged Weapon Core Multiplier",
+    description: "Multiplies expected core wound bands for ranged attack profiles. Lower values make ranged damage budget tighter than melee.",
+    defaultValue: 0.8,
+    group: "Core Functionality",
+  },
+  {
     key: "core.weapon.size.SMALL.multiplier",
     label: "Small Weapon Core Multiplier",
     description: "Multiplies expected core damage bands for Small weapons/shields.",
