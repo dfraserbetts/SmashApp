@@ -113,7 +113,11 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
   label: string;
   description: string;
   defaultValue: number;
-  group: "Features & Versatility" | "Features & Versatility Breadth Weights" | "Core Functionality";
+  group:
+    | "Features & Versatility"
+    | "Features & Versatility Budget Scaling"
+    | "Features & Versatility Breadth Weights"
+    | "Core Functionality";
 }> = [
   {
     key: "features.budget.COMMON",
@@ -165,6 +169,27 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     group: "Features & Versatility",
   },
   {
+    key: "features.budget.size.SMALL.multiplier",
+    label: "Small Feature Budget Multiplier",
+    description: "Multiplies Features & Versatility budget for Small weapons and shields.",
+    defaultValue: 0.75,
+    group: "Features & Versatility Budget Scaling",
+  },
+  {
+    key: "features.budget.size.ONE_HANDED.multiplier",
+    label: "One-Handed Feature Budget Multiplier",
+    description: "Multiplies Features & Versatility budget for One-Handed weapons and shields.",
+    defaultValue: 1,
+    group: "Features & Versatility Budget Scaling",
+  },
+  {
+    key: "features.budget.size.TWO_HANDED.multiplier",
+    label: "Two-Handed Feature Budget Multiplier",
+    description: "Multiplies Features & Versatility budget for Two-Handed weapons.",
+    defaultValue: 1.25,
+    group: "Features & Versatility Budget Scaling",
+  },
+  {
     key: "features.status.moderateRatio",
     label: "Features Moderate Threshold",
     description: "Feature pressure ratio where the bar becomes Moderate.",
@@ -184,6 +209,14 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     description: "Feature pressure ratio where the bar becomes Heavy.",
     defaultValue: 0.8,
     group: "Features & Versatility",
+  },
+  {
+    key: "features.weight.featureCount.each",
+    label: "Feature Count Complexity Weight",
+    description:
+      "Adds unavoidable Features & Versatility pressure for each selected positive or negative feature.",
+    defaultValue: 1,
+    group: "Features & Versatility Breadth Weights",
   },
   {
     key: "features.weight.extraProfile",

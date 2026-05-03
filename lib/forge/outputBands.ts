@@ -134,9 +134,20 @@ export type ForgeOutputLaneComparison = {
     rangePressureDrivers: string[];
     featureActualValue: number;
     featureExpectedValue: number;
+    featureBudgetBeforeSizeMultiplier: number;
+    featureBudgetSizeMultiplier: number;
+    featureBudgetSizeMultiplierSource: "forge_expectation_config" | "default";
+    featureBudgetSizeDebugNotes: string[];
     featureWeightTotal: number;
     featureWeightTotalRaw: number;
     featureWeightTotalClamped: number;
+    featureCount: number;
+    featureCountComplexityWeight: number;
+    featureCountComplexityTotal: number;
+    breadthGeometryRangeProfileWeightTotal: number;
+    featureValueAndBreadthTotalRaw: number;
+    featureValueAndBreadthTotalClamped: number;
+    featurePressureTotal: number;
     expectedFeatureBudget: number;
     featurePressureRatio: number;
     featureStatusSource: "forge_values_weighted";
@@ -212,6 +223,12 @@ type ForgeFeatureStatusThresholds = {
   heavy: ForgeExpectationValue;
 };
 
+type ForgeFeatureWeightBudget = ForgeExpectationValue & {
+  beforeSizeMultiplier: number;
+  sizeMultiplier: ForgeExpectationValue;
+  sizeDebugNotes: string[];
+};
+
 type CorePressureCandidate = {
   actual: number;
   expected: number;
@@ -221,7 +238,9 @@ type CorePressureCandidate = {
 };
 
 type FeatureWeightState = {
-  totalRaw: number;
+  featureValueRaw: number;
+  breadthTotal: number;
+  featureCount: number;
   drivers: ForgeFeatureWeightDriver[];
   missing: ForgeMissingFeatureWeightDriver[];
   fallbackUsed: boolean;
@@ -361,6 +380,7 @@ const RANGED_PROFILE_CORE_MULTIPLIER_KEY = "core.weapon.rangeMode.RANGED.multipl
 const DEFAULT_RANGED_PROFILE_CORE_MULTIPLIER = 0.8;
 
 const FEATURE_WEIGHT_EXPECTATION_KEYS = {
+  featureCountEach: "features.weight.featureCount.each",
   extraProfile: "features.weight.extraProfile",
   mixedAccessMeleeRanged: "features.weight.mixedAccess.meleeRanged",
   mixedAccessMeleeAoe: "features.weight.mixedAccess.meleeAoe",
@@ -707,6 +727,38 @@ function getSizeExpectationLabel(size: WeaponSize): string {
   return "ONE_HANDED";
 }
 
+function getFeatureBudgetSizeExpectation(
+  profile: ForgeOutputProfile,
+): {
+  sizeLabel: WeaponSize;
+  fallbackMultiplier: number;
+  applies: boolean;
+  debugNotes: string[];
+} {
+  const itemType = String(profile.common.type ?? "").trim().toUpperCase();
+  const applies = itemType === "WEAPON" || itemType === "SHIELD";
+  if (!applies) {
+    return { sizeLabel: "ONE_HANDED", fallbackMultiplier: 1, applies, debugNotes: [] };
+  }
+
+  if (profile.common.normalizedSize === "SMALL") {
+    return { sizeLabel: "SMALL", fallbackMultiplier: 0.75, applies, debugNotes: [] };
+  }
+  if (profile.common.normalizedSize === "TWO_HANDED") {
+    return { sizeLabel: "TWO_HANDED", fallbackMultiplier: 1.25, applies, debugNotes: [] };
+  }
+  if (profile.common.normalizedSize === "ONE_HANDED") {
+    return { sizeLabel: "ONE_HANDED", fallbackMultiplier: 1, applies, debugNotes: [] };
+  }
+
+  return {
+    sizeLabel: "ONE_HANDED",
+    fallbackMultiplier: 1,
+    applies,
+    debugNotes: ["missing size, defaulted Features budget multiplier to one-handed"],
+  };
+}
+
 function getCoreMultiplier(
   context: ForgeFeatureWeightContext | null | undefined,
   debug: ForgeExpectationContextDebug,
@@ -865,7 +917,7 @@ function getFeatureWeightBudget(
   profile: ForgeOutputProfile,
   context: ForgeFeatureWeightContext | null | undefined,
   debug: ForgeExpectationContextDebug,
-): ForgeExpectationValue {
+): ForgeFeatureWeightBudget {
   const level = normalizeLevel(profile.common.level);
   const rarity = String(profile.common.rarity ?? "").trim().toUpperCase();
   const baseFallback =
@@ -899,15 +951,30 @@ function getFeatureWeightBudget(
     perLevel.source === "forge_expectation_config" && perLevel.value > 0
       ? (level - 1) * perLevel.value
       : Math.floor((level - 1) / 5) * perFiveLevels.value;
+  const beforeSizeMultiplier = Math.max(1, base.value + levelBump);
+  const sizeExpectation = getFeatureBudgetSizeExpectation(profile);
+  const sizeMultiplier = sizeExpectation.applies
+    ? getExpectationValue(
+        context,
+        debug,
+        `features.budget.size.${sizeExpectation.sizeLabel}.multiplier`,
+        sizeExpectation.fallbackMultiplier,
+        [{ category: "SIZE", selector1: "features.budget.size", selector2: sizeExpectation.sizeLabel }],
+      )
+    : { value: 1, source: "default" as const };
 
   return {
-    value: Math.max(1, base.value + levelBump),
+    value: Math.max(1, beforeSizeMultiplier * sizeMultiplier.value),
     source:
       base.source === "forge_expectation_config" ||
       perLevel.source === "forge_expectation_config" ||
-      perFiveLevels.source === "forge_expectation_config"
+      perFiveLevels.source === "forge_expectation_config" ||
+      sizeMultiplier.source === "forge_expectation_config"
         ? "forge_expectation_config"
         : "default",
+    beforeSizeMultiplier,
+    sizeMultiplier,
+    sizeDebugNotes: sizeExpectation.debugNotes,
   };
 }
 
@@ -1047,13 +1114,17 @@ function coreStatusFromPressureRatio(ratio: number): ForgeLaneStatus {
 
 function createFeatureWeightState(context: ForgeFeatureWeightContext | null | undefined): FeatureWeightState {
   return {
-    totalRaw: 0,
+    featureValueRaw: 0,
+    breadthTotal: 0,
+    featureCount: 0,
     drivers: [],
     missing: [],
     fallbackUsed: false,
     hasForgeValues: Boolean(context && context.costs.length > 0),
   };
 }
+
+type FeatureWeightRole = "featureValue" | "breadth";
 
 function addFeatureWeight(
   state: FeatureWeightState,
@@ -1068,6 +1139,7 @@ function addFeatureWeight(
     multiplier?: number;
   }>,
   fallbackNote: string,
+  role: FeatureWeightRole = "breadth",
 ): void {
   for (const lookup of lookups) {
     const weight = findFeatureWeight(
@@ -1086,7 +1158,11 @@ function addFeatureWeight(
       const sourceLabel = isForgeOutputExpectation
         ? String(lookup.selector2 ?? "").trim()
         : formatLookupPath(lookup.category, lookup.selector1, lookup.selector2, lookup.selector3);
-      state.totalRaw += weightedValue;
+      if (role === "featureValue") {
+        state.featureValueRaw += weightedValue;
+      } else {
+        state.breadthTotal += weightedValue;
+      }
       state.drivers.push({
         label,
         source: formatLookupPath(lookup.category, lookup.selector1, lookup.selector2, lookup.selector3),
@@ -1107,7 +1183,11 @@ function addFeatureWeight(
   }
 
   const fallbackWeight = context?.fallbackWeight ?? DEFAULT_FEATURE_FALLBACK_WEIGHT;
-  state.totalRaw += fallbackWeight;
+  if (role === "featureValue") {
+    state.featureValueRaw += fallbackWeight;
+  } else {
+    state.breadthTotal += fallbackWeight;
+  }
   state.fallbackUsed = true;
   state.drivers.push({
     label,
@@ -1124,6 +1204,10 @@ function addFeatureWeight(
     source,
     note: "No matching Forge-Values cost row found; fallback diagnostic weight used",
   });
+}
+
+function addFeatureCountEntry(state: FeatureWeightState): void {
+  state.featureCount += 1;
 }
 
 function getPositiveMultiplier(value: number | null | undefined): number {
@@ -1209,8 +1293,9 @@ function addAttributeFeatureWeight(
   }>,
   fallbackNote: string,
 ): void {
+  addFeatureCountEntry(state);
   if (detail.pricingWeight !== null) {
-    state.totalRaw += detail.pricingWeight;
+    state.featureValueRaw += detail.pricingWeight;
     state.drivers.push({
       label: `${labelPrefix}: ${detail.name}`,
       source: `attribute_scalar/${detail.pricingMode ?? "UNKNOWN"}`,
@@ -1236,6 +1321,7 @@ function addAttributeFeatureWeight(
     source,
     lookups,
     fallbackNote,
+    "featureValue",
   );
 }
 
@@ -1528,6 +1614,7 @@ function collectFeatureWeights(
   for (const attackProfile of profile.attackProfiles.filter((entry) => entry.enabled)) {
     const rangeLabel = formatRangeLabel(attackProfile.rangeCategory);
     for (const label of attackProfile.greaterSuccessEffectLabels) {
+      addFeatureCountEntry(state);
       addFeatureWeight(
         state,
         context,
@@ -1535,6 +1622,7 @@ function collectFeatureWeights(
         "greater_success_attack_effect",
         [{ category: "GS_AttackEffects", selector1: itemTypeLabel, selector2: rangeLabel, selector3: label }],
         "Greater Success attack effect has no matching Forge-Values row",
+        "featureValue",
       );
     }
   }
@@ -1585,6 +1673,7 @@ function collectFeatureWeights(
   }
 
   for (const label of profile.defensiveProfile.defensiveEffectLabels) {
+    addFeatureCountEntry(state);
     addFeatureWeight(
       state,
       context,
@@ -1592,10 +1681,12 @@ function collectFeatureWeights(
       "greater_success_defensive_effect",
       [{ category: "GS_DefEffects", selector1: itemTypeLabel, selector2: label }],
       "defensive Greater Success effect has no matching Forge-Values row",
+      "featureValue",
     );
   }
 
   for (const label of profile.defensiveProfile.vrpSummary) {
+    addFeatureCountEntry(state);
     addFeatureWeight(
       state,
       context,
@@ -1603,11 +1694,13 @@ function collectFeatureWeights(
       "vrp",
       [{ category: "VRPOptions", selector1: itemTypeLabel, selector2: label }],
       "VRP entry has no matching Forge-Values row",
+      "featureValue",
     );
   }
 
   for (const label of profile.featureProfile.globalAttributeModifierSummary) {
     const parsed = parseGlobalAttributeSummary(label);
+    addFeatureCountEntry(state);
     addFeatureWeight(
       state,
       context,
@@ -1630,10 +1723,12 @@ function collectFeatureWeights(
         { category: "Attribute", selector1: parsed.attribute, selector2: itemTypeLabel },
       ],
       "global attribute modifier has no matching Forge-Values row",
+      "featureValue",
     );
   }
 
   for (const label of profile.featureProfile.customTextLabels) {
+    addFeatureCountEntry(state);
     addFeatureWeight(
       state,
       context,
@@ -1641,6 +1736,7 @@ function collectFeatureWeights(
       "custom_text_feature",
       [],
       "custom text feature has no direct Forge-Values row",
+      "featureValue",
     );
   }
 
@@ -1670,10 +1766,24 @@ export function classifyForgeOutputLanes(
   const coreWarnings: string[] = [];
   const featureWeightBudget = getFeatureWeightBudget(profile, featureWeightContext, expectationDebug);
   const featureStatusThresholds = getFeatureStatusThresholds(featureWeightContext, expectationDebug);
-  const featureWeightTotalRaw = featureWeightState.totalRaw;
+  const featureWeightTotalRaw = featureWeightState.featureValueRaw;
+  const breadthGeometryRangeProfileWeightTotal = featureWeightState.breadthTotal;
   const featureWeightTotalClamped = Math.max(0, featureWeightTotalRaw);
+  const featureCountComplexityWeight = getExpectationValue(
+    featureWeightContext,
+    expectationDebug,
+    FEATURE_WEIGHT_EXPECTATION_KEYS.featureCountEach,
+    1,
+    [{ category: "FEATURE_COUNT", selector1: "features.weight.featureCount", selector2: "each" }],
+  );
+  const featureCount = featureWeightState.featureCount;
+  const featureCountComplexityTotal = featureCount * featureCountComplexityWeight.value;
+  const featureValueAndBreadthTotalRaw = featureWeightTotalRaw + breadthGeometryRangeProfileWeightTotal;
+  const featureValueAndBreadthTotalClamped = Math.max(0, featureValueAndBreadthTotalRaw);
+  const featurePressureTotal =
+    featureValueAndBreadthTotalClamped + featureCountComplexityTotal;
   const featureWeightRatio =
-    featureWeightBudget.value > 0 ? featureWeightTotalClamped / featureWeightBudget.value : 0;
+    featureWeightBudget.value > 0 ? featurePressureTotal / featureWeightBudget.value : 0;
   const corePressureCandidates: CorePressureCandidate[] = [];
   const rangePressureDrivers: string[] = [];
   const secondaryProfileCoreDrivers: string[] = [];
@@ -1857,18 +1967,30 @@ export function classifyForgeOutputLanes(
     featureWarnings.push("simultaneous damage type count is contributing to core pressure");
   }
   const corePressure = getHighestCorePressureCandidate(corePressureCandidates);
-  const featureExpectedValue = Math.max(
-    1,
-    featureWeightBudget.value * Math.max(0, featureStatusThresholds.heavy.value),
-  );
+  const featureExpectedValue = Math.max(1, featureWeightBudget.value);
   if (corePressure.actual > 0) {
     coreDrivers.push(`${corePressure.label} ${corePressure.actual}/${corePressure.expected} expected`);
   }
   featureDrivers.unshift(
-    `feature load ${featureWeightTotalClamped}/${formatPressureValue(featureExpectedValue)} expected`,
+    `feature pressure ${formatPressureValue(featurePressureTotal)}/${formatPressureValue(featureExpectedValue)} expected`,
   );
+  if (featureCount > 0) {
+    featureDrivers.push(
+      `Feature count complexity: ${featureCount} features x ${formatPressureValue(featureCountComplexityWeight.value)} = +${formatPressureValue(featureCountComplexityTotal)}`,
+    );
+  }
+  if (breadthGeometryRangeProfileWeightTotal > 0) {
+    featureDrivers.push(
+      `Breadth/range/profile pressure +${formatPressureValue(breadthGeometryRangeProfileWeightTotal)}`,
+    );
+  }
   if (featureWeightTotalRaw < featureWeightTotalClamped) {
     featureDrivers.push(`signed feature load ${featureWeightTotalRaw} before display clamp`);
+  }
+  if (featureValueAndBreadthTotalRaw !== featureValueAndBreadthTotalClamped) {
+    featureDrivers.push(
+      `feature value plus breadth ${formatPressureValue(featureValueAndBreadthTotalRaw)} before display clamp`,
+    );
   }
 
   const scoredCoreStatus = statusFromScore(
@@ -1908,11 +2030,22 @@ export function classifyForgeOutputLanes(
       secondaryProfileCoreMultiplier: SECONDARY_PROFILE_CORE_MULTIPLIER,
       rangePressureScore,
       rangePressureDrivers,
-      featureActualValue: featureWeightTotalClamped,
+      featureActualValue: featurePressureTotal,
       featureExpectedValue,
-      featureWeightTotal: featureWeightTotalClamped,
+      featureBudgetBeforeSizeMultiplier: featureWeightBudget.beforeSizeMultiplier,
+      featureBudgetSizeMultiplier: featureWeightBudget.sizeMultiplier.value,
+      featureBudgetSizeMultiplierSource: featureWeightBudget.sizeMultiplier.source,
+      featureBudgetSizeDebugNotes: featureWeightBudget.sizeDebugNotes,
+      featureWeightTotal: featurePressureTotal,
       featureWeightTotalRaw,
       featureWeightTotalClamped,
+      featureCount,
+      featureCountComplexityWeight: featureCountComplexityWeight.value,
+      featureCountComplexityTotal,
+      breadthGeometryRangeProfileWeightTotal,
+      featureValueAndBreadthTotalRaw,
+      featureValueAndBreadthTotalClamped,
+      featurePressureTotal,
       expectedFeatureBudget: featureWeightBudget.value,
       featurePressureRatio: featureWeightRatio,
       featureStatusSource: "forge_values_weighted",

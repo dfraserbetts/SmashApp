@@ -50,6 +50,7 @@ assert.notEqual(
 );
 
 const FORGE_OUTPUT_BREADTH_WEIGHT_ROWS = [
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.weight.featureCount.each", value: 1 },
   { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.weight.extraProfile", value: 2 },
   {
     category: "ItemModifiers",
@@ -147,6 +148,7 @@ const FEATURE_WEIGHT_CONTEXT = buildForgeFeatureWeightContext([
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Returning", value: 12 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Expensive", value: 25 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Thrown", value: -10 },
+  { category: "WeaponAttributes", selector1: "Weapon", selector2: "Reload", selector3: "1", value: -12 },
   { category: "RangeCategory", selector1: "Weapon", selector2: "Ranged", value: 2 },
   { category: "RangeCategory", selector1: "Weapon", selector2: "AoE", value: 5 },
   { category: "RangedDistanceFt", selector1: "Weapon", selector2: "30", value: 0 },
@@ -337,6 +339,14 @@ assert.equal(weightedSimpleMeleeBands.lanes.coreFunctionality.status, simpleMele
 assert.equal(weightedSimpleMeleeBands.lanes.featuresVersatility.status, "narrow");
 const simpleMeleeFeatureRatio = weightedSimpleMeleeBands.lanes.debug.featurePressureRatio;
 assert.equal(weightedSimpleMeleeBands.lanes.debug.featureWeightTotal, 0);
+assert.equal(weightedSimpleMeleeBands.lanes.debug.featureWeightTotalRaw, 0);
+assert.equal(weightedSimpleMeleeBands.lanes.debug.featureWeightTotalClamped, 0);
+assert.equal(weightedSimpleMeleeBands.lanes.debug.featureCount, 0);
+assert.equal(weightedSimpleMeleeBands.lanes.debug.featureCountComplexityTotal, 0);
+assert.equal(weightedSimpleMeleeBands.lanes.debug.breadthGeometryRangeProfileWeightTotal, 0);
+assert.equal(weightedSimpleMeleeBands.lanes.debug.featureValueAndBreadthTotalRaw, 0);
+assert.equal(weightedSimpleMeleeBands.lanes.debug.featureValueAndBreadthTotalClamped, 0);
+assert.equal(weightedSimpleMeleeBands.lanes.debug.featurePressureTotal, 0);
 assert.equal(weightedSimpleMeleeBands.lanes.debug.featureStatusSource, "forge_values_weighted");
 assert.equal(weightedSimpleMeleeBands.lanes.debug.expectedFeatureBudget, 10);
 assert.equal(weightedSimpleMeleeBands.lanes.debug.featurePressureRatio, 0);
@@ -356,7 +366,12 @@ const cheapParryAttribute = runCase("cheap parry attribute", {
   weaponAttributeNames: ["Parry"],
 });
 const cheapParryBands = compareForgeOutputToBands(cheapParryAttribute, FEATURE_WEIGHT_CONTEXT);
-assert.equal(cheapParryBands.lanes.debug.featureWeightTotal, 1);
+assert.equal(cheapParryBands.lanes.debug.featureWeightTotalRaw, 1);
+assert.equal(cheapParryBands.lanes.debug.featureWeightTotalClamped, 1);
+assert.equal(cheapParryBands.lanes.debug.featureCount, 1);
+assert.equal(cheapParryBands.lanes.debug.featureCountComplexityWeight, 1);
+assert.equal(cheapParryBands.lanes.debug.featureCountComplexityTotal, 1);
+assert.equal(cheapParryBands.lanes.debug.featureWeightTotal, 2);
 assert.equal(cheapParryBands.lanes.featuresVersatility.status, "narrow");
 
 const expensiveSingleAttribute = runCase("expensive single attribute", {
@@ -371,10 +386,90 @@ const expensiveSingleAttribute = runCase("expensive single attribute", {
   weaponAttributeNames: ["Expensive"],
 });
 const expensiveSingleAttributeBands = compareForgeOutputToBands(expensiveSingleAttribute, FEATURE_WEIGHT_CONTEXT);
-assert.equal(expensiveSingleAttributeBands.lanes.debug.featureWeightTotal, 25);
+assert.equal(expensiveSingleAttributeBands.lanes.debug.featureWeightTotalRaw, 25);
+assert.equal(expensiveSingleAttributeBands.lanes.debug.featureCount, 1);
+assert.equal(expensiveSingleAttributeBands.lanes.debug.featureCountComplexityTotal, 1);
+assert.equal(expensiveSingleAttributeBands.lanes.debug.featureWeightTotal, 26);
+assert.equal(expensiveSingleAttributeBands.lanes.debug.featureBudgetBeforeSizeMultiplier, 10);
+assert.equal(expensiveSingleAttributeBands.lanes.debug.featureBudgetSizeMultiplier, 0.75);
+assert.equal(expensiveSingleAttributeBands.lanes.debug.featureBudgetSizeMultiplierSource, "default");
+assert.equal(expensiveSingleAttributeBands.lanes.debug.expectedFeatureBudget, 7.5);
 assert.ok(
   LANE_STATUS_PERCENT[expensiveSingleAttributeBands.lanes.featuresVersatility.status] >= 75,
   "A single expensive attribute should move Features & Versatility by saved weight",
+);
+
+const expensiveOneHandedAttribute = runCase("expensive one-handed attribute", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Expensive"],
+});
+const expensiveTwoHandedAttribute = runCase("expensive two-handed attribute", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "TWO_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Expensive"],
+});
+const expensiveOneHandedAttributeBands = compareForgeOutputToBands(expensiveOneHandedAttribute, FEATURE_WEIGHT_CONTEXT);
+const expensiveTwoHandedAttributeBands = compareForgeOutputToBands(expensiveTwoHandedAttribute, FEATURE_WEIGHT_CONTEXT);
+assert.equal(expensiveOneHandedAttributeBands.lanes.debug.featureBudgetSizeMultiplier, 1);
+assert.equal(expensiveTwoHandedAttributeBands.lanes.debug.featureBudgetSizeMultiplier, 1.25);
+assert.ok(
+  expensiveSingleAttributeBands.lanes.debug.featurePressureRatio >
+    expensiveOneHandedAttributeBands.lanes.debug.featurePressureRatio,
+  "Same feature load should read as higher pressure on Small than One-Handed",
+);
+assert.ok(
+  expensiveTwoHandedAttributeBands.lanes.debug.featurePressureRatio <
+    expensiveOneHandedAttributeBands.lanes.debug.featurePressureRatio,
+  "Same feature load should read as lower pressure on Two-Handed than One-Handed",
+);
+const smallFeatureBudgetOverrideBands = compareForgeOutputToBands(
+  expensiveSingleAttribute,
+  withFeatureWeightOverride("features.budget.size.SMALL.multiplier", 2),
+);
+assert.equal(smallFeatureBudgetOverrideBands.lanes.debug.featureBudgetSizeMultiplier, 2);
+assert.equal(smallFeatureBudgetOverrideBands.lanes.debug.featureBudgetSizeMultiplierSource, "forge_expectation_config");
+assert.equal(
+  smallFeatureBudgetOverrideBands.lanes.coreFunctionality.status,
+  expensiveSingleAttributeBands.lanes.coreFunctionality.status,
+  "Feature budget size multiplier must not change Core Functionality",
+);
+assert.equal(
+  smallFeatureBudgetOverrideBands.weaponProfiles.find((entry) => entry.profileKind === "melee")?.classification,
+  expensiveSingleAttributeBands.weaponProfiles.find((entry) => entry.profileKind === "melee")?.classification,
+  "Feature budget size multiplier must not change size-aware Core wound bands",
+);
+
+const missingSizeFeatureBudget = runCase("missing size feature budget fallback", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  weaponAttributeNames: ["Expensive"],
+});
+const missingSizeFeatureBudgetBands = compareForgeOutputToBands(missingSizeFeatureBudget, FEATURE_WEIGHT_CONTEXT);
+assert.equal(missingSizeFeatureBudget.common.normalizedSize, null);
+assert.equal(missingSizeFeatureBudgetBands.lanes.debug.featureBudgetSizeMultiplier, 1);
+assert.equal(missingSizeFeatureBudgetBands.lanes.debug.expectedFeatureBudget, 10);
+assert.ok(
+  missingSizeFeatureBudgetBands.lanes.debug.featureBudgetSizeDebugNotes.some((entry) =>
+    entry.includes("defaulted Features budget multiplier to one-handed"),
+  ),
+  "Missing weapon size should report one-handed feature budget multiplier fallback",
 );
 
 const expensiveRareAttribute = runCase("expensive rare attribute", {
@@ -389,16 +484,18 @@ const expensiveRareAttribute = runCase("expensive rare attribute", {
   weaponAttributeNames: ["Expensive"],
 });
 const expensiveRareBands = compareForgeOutputToBands(expensiveRareAttribute, RARE_LENIENT_EXPECTATION_CONTEXT);
-assert.equal(expensiveRareBands.lanes.debug.featureWeightTotal, 25);
-assert.equal(expensiveRareBands.lanes.debug.expectedFeatureBudget, 40);
+assert.equal(expensiveRareBands.lanes.debug.featureWeightTotalRaw, 25);
+assert.equal(expensiveRareBands.lanes.debug.featureWeightTotal, 26);
+assert.equal(expensiveRareBands.lanes.debug.featureBudgetBeforeSizeMultiplier, 40);
+assert.equal(expensiveRareBands.lanes.debug.expectedFeatureBudget, 30);
 assert.ok(
   expensiveSingleAttributeBands.lanes.debug.featurePressureRatio > expensiveRareBands.lanes.debug.featurePressureRatio,
   "Same feature weight should read as higher pressure on Common than Rare",
 );
 assert.ok(
-  LANE_STATUS_PERCENT[expensiveSingleAttributeBands.lanes.featuresVersatility.status] >
+  LANE_STATUS_PERCENT[expensiveSingleAttributeBands.lanes.featuresVersatility.status] >=
     LANE_STATUS_PERCENT[expensiveRareBands.lanes.featuresVersatility.status],
-  "Common feature pressure should classify higher than Rare for the same weight",
+  "Common feature pressure should not classify lower than Rare for the same weight",
 );
 
 const expensiveHighBudgetCommonBands = compareForgeOutputToBands(expensiveSingleAttribute, COMMON_HIGH_BUDGET_CONTEXT);
@@ -420,7 +517,8 @@ assert.ok(
   ),
   "Expectation-row fixtures should use the same admin create shape for ranged distance keys",
 );
-assert.equal(expensiveHighBudgetCommonBands.lanes.debug.expectedFeatureBudget, 50);
+assert.equal(expensiveHighBudgetCommonBands.lanes.debug.featureBudgetBeforeSizeMultiplier, 50);
+assert.equal(expensiveHighBudgetCommonBands.lanes.debug.expectedFeatureBudget, 37.5);
 assert.equal(expensiveHighBudgetCommonBands.lanes.debug.featureBudgetSource, "forge_expectation_config");
 assert.ok(
   expensiveHighBudgetCommonBands.lanes.debug.featurePressureRatio <
@@ -437,7 +535,7 @@ const twoCheapAttributes = runCase("two cheap attributes", {
   level: 1,
   rarity: "COMMON",
   type: "WEAPON",
-  size: "SMALL",
+  size: "ONE_HANDED",
   rangeCategories: ["MELEE"],
   meleePhysicalStrength: 1,
   meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
@@ -445,12 +543,14 @@ const twoCheapAttributes = runCase("two cheap attributes", {
   weaponAttributeNames: ["Parry", "Quick"],
 });
 const twoCheapAttributeBands = compareForgeOutputToBands(twoCheapAttributes, FEATURE_WEIGHT_CONTEXT);
-assert.equal(twoCheapAttributeBands.lanes.debug.featureWeightTotal, 3);
+assert.equal(twoCheapAttributeBands.lanes.debug.featureWeightTotal, 5);
 assert.equal(twoCheapAttributeBands.lanes.debug.featureWeightTotalRaw, 3);
+assert.equal(twoCheapAttributeBands.lanes.debug.featureCount, 2);
+assert.equal(twoCheapAttributeBands.lanes.debug.featureCountComplexityTotal, 2);
 assert.equal(
   twoCheapAttributeBands.lanes.featuresVersatility.status,
-  "narrow",
-  "Two cheap attributes should not automatically become Moderate by count",
+  "moderate",
+  "Two cheap attributes should include count complexity in their Features pressure",
 );
 assert.ok(
   twoCheapAttributeBands.lanes.debug.featureWeightDrivers.some((entry) =>
@@ -507,19 +607,21 @@ assert.equal(
 );
 assert.equal(
   positiveAndNegativeAttributeBands.lanes.debug.featureWeightTotal,
-  0,
-  "A negative signed total should clamp the display featureWeightTotal to zero",
+  3,
+  "Positive and negative features should still carry count-complexity pressure even when signed value cancels below zero",
 );
 assert.equal(positiveAndNegativeAttributeBands.lanes.debug.featureWeightTotalClamped, 0);
+assert.equal(positiveAndNegativeAttributeBands.lanes.debug.featureCount, 3);
+assert.equal(positiveAndNegativeAttributeBands.lanes.debug.featureCountComplexityTotal, 3);
 assert.equal(
   positiveAndNegativeAttributeBands.lanes.debug.featurePressureRatio,
-  0,
-  "Feature pressure ratio should use the clamped total, not abs(raw)",
+  0.4,
+  "Feature pressure ratio should include feature-count complexity after the signed-value clamp",
 );
 assert.equal(
   positiveAndNegativeAttributeBands.lanes.featuresVersatility.status,
-  "narrow",
-  "A clamped zero feature total should stay low/narrow",
+  "moderate",
+  "Many cancelling features should still create visible complexity pressure",
 );
 assert.ok(
   positiveAndNegativeAttributeBands.lanes.debug.featureWeightDrivers.some((entry) =>
@@ -543,8 +645,118 @@ assert.ok(
 );
 assert.equal(
   positiveAndNegativeAttributeBands.lanes.coreFunctionality.status,
-  twoCheapAttributeBands.lanes.coreFunctionality.status,
+  cheapParryBands.lanes.coreFunctionality.status,
   "Negative feature weights must not reduce Core Functionality",
+);
+assert.ok(
+  positiveAndNegativeAttributeBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
+    entry.includes("Feature count complexity: 3 features x 1 = +3"),
+  ),
+  "Feature count complexity should be surfaced in feature drivers",
+);
+
+const singleNegativeFeature = runCase("single negative feature", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributes: [{ name: "Cursed", pricingMode: "FIXED", pricingScalar: -4, pricingMagnitude: 1 }],
+});
+const singleNegativeFeatureBands = compareForgeOutputToBands(singleNegativeFeature, FEATURE_WEIGHT_CONTEXT);
+assert.equal(singleNegativeFeatureBands.lanes.debug.featureWeightTotalRaw, -4);
+assert.equal(singleNegativeFeatureBands.lanes.debug.featureWeightTotalClamped, 0);
+assert.equal(singleNegativeFeatureBands.lanes.debug.featureCount, 1);
+assert.equal(singleNegativeFeatureBands.lanes.debug.featureCountComplexityTotal, 1);
+assert.equal(singleNegativeFeatureBands.lanes.debug.featureWeightTotal, 1);
+
+const reloadOneFeature = runCase("reload one feature", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Reload 1"],
+});
+const reloadOneFeatureBands = compareForgeOutputToBands(reloadOneFeature, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  reloadOneFeatureBands.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Reload 1") &&
+    entry.source === "WeaponAttributes/Weapon/Reload/1" &&
+    entry.weight === -12 &&
+    !entry.fallbackUsed,
+  ),
+  "Reload 1 should use the saved WeaponAttributes/Weapon/Reload/1 = -12 row",
+);
+assert.equal(reloadOneFeatureBands.lanes.debug.featureWeightTotalRaw, -12);
+assert.equal(reloadOneFeatureBands.lanes.debug.featureCount, 1);
+assert.equal(reloadOneFeatureBands.lanes.debug.featureCountComplexityTotal, 1);
+assert.equal(
+  reloadOneFeatureBands.lanes.debug.featureWeightTotal,
+  1,
+  "Reload 1 should apply -12 to signed value while still adding +1 feature-count complexity",
+);
+
+const expensiveWithReloadOneFeature = runCase("expensive with reload one feature", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "SMALL",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Expensive", "Reload 1"],
+});
+const expensiveWithReloadOneFeatureBands = compareForgeOutputToBands(
+  expensiveWithReloadOneFeature,
+  FEATURE_WEIGHT_CONTEXT,
+);
+assert.equal(expensiveWithReloadOneFeatureBands.lanes.debug.featureWeightTotalRaw, 13);
+assert.equal(expensiveWithReloadOneFeatureBands.lanes.debug.featureCount, 2);
+assert.equal(expensiveWithReloadOneFeatureBands.lanes.debug.featureCountComplexityTotal, 2);
+assert.equal(
+  expensiveWithReloadOneFeatureBands.lanes.debug.featureWeightTotal,
+  15,
+  "Reload 1 should reduce the expensive attribute by 12 while both selected features add count complexity",
+);
+assert.ok(
+  expensiveWithReloadOneFeatureBands.lanes.debug.featureWeightTotal <
+    expensiveSingleAttributeBands.lanes.debug.featureWeightTotal,
+  "Adding Reload 1 to a positive feature load should reduce final Features pressure",
+);
+
+const cancellingFeaturePile = runCase("cancelling feature pile", {
+  level: 1,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributes: [
+    { name: "Burst Rune", pricingMode: "FIXED", pricingScalar: 5, pricingMagnitude: 1 },
+    { name: "Hooked Edge", pricingMode: "FIXED", pricingScalar: 5, pricingMagnitude: 1 },
+    { name: "Self-Binding", pricingMode: "FIXED", pricingScalar: -5, pricingMagnitude: 1 },
+    { name: "Fragile Grip", pricingMode: "FIXED", pricingScalar: -5, pricingMagnitude: 1 },
+  ],
+});
+const cancellingFeaturePileBands = compareForgeOutputToBands(cancellingFeaturePile, FEATURE_WEIGHT_CONTEXT);
+assert.equal(cancellingFeaturePileBands.lanes.debug.featureWeightTotalRaw, 0);
+assert.equal(cancellingFeaturePileBands.lanes.debug.featureWeightTotalClamped, 0);
+assert.equal(cancellingFeaturePileBands.lanes.debug.featureCount, 4);
+assert.equal(cancellingFeaturePileBands.lanes.debug.featureCountComplexityTotal, 4);
+assert.equal(cancellingFeaturePileBands.lanes.debug.featureWeightTotal, 4);
+assert.ok(
+  cancellingFeaturePileBands.lanes.debug.featurePressureRatio > 0,
+  "Many positive and negative features should not cancel Features pressure to zero",
 );
 
 const greaterSuccessFeature = runCase("weighted greater success", {
@@ -560,7 +772,7 @@ const greaterSuccessFeature = runCase("weighted greater success", {
 });
 const greaterSuccessWeighted = compareForgeOutputToBands(greaterSuccessFeature, FEATURE_WEIGHT_CONTEXT);
 assert.ok(
-  greaterSuccessWeighted.lanes.debug.featureWeightTotal >= 15,
+  greaterSuccessWeighted.lanes.debug.featureWeightTotal >= 16,
   "Greater Success effect should use Forge-Values weight",
 );
 assert.ok(
@@ -634,7 +846,10 @@ assert.ok(
   ),
   "Scalar-priced weapon attribute should use pricingScalar x resolved magnitude",
 );
-assert.equal(scalarWeaponAttributeBands.lanes.debug.featureWeightTotal, 9);
+assert.equal(scalarWeaponAttributeBands.lanes.debug.featureWeightTotalRaw, 9);
+assert.equal(scalarWeaponAttributeBands.lanes.debug.featureCount, 1);
+assert.equal(scalarWeaponAttributeBands.lanes.debug.featureCountComplexityTotal, 1);
+assert.equal(scalarWeaponAttributeBands.lanes.debug.featureWeightTotal, 10);
 
 const scalarNegativeWeaponAttribute = runCase("negative scalar weapon attribute", {
   level: 5,
@@ -666,8 +881,9 @@ assert.ok(
   "Negative scalar-priced weapon attribute should preserve pricingScalar x magnitude",
 );
 assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightTotalRaw, -9);
-assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightTotal, 0);
-assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featurePressureRatio, 0);
+assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureCount, 1);
+assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightTotal, 1);
+assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featurePressureRatio, 0.1);
 
 const missingWeightedFeature = runCase("missing weighted feature", {
   level: 5,
@@ -687,7 +903,8 @@ assert.ok(
   ),
   "Missing Forge-Values cost should be exposed in missingFeatureWeightDrivers",
 );
-assert.equal(missingWeightedFeatureBands.lanes.debug.featureWeightTotal, 1);
+assert.equal(missingWeightedFeatureBands.lanes.debug.featureCount, 1);
+assert.equal(missingWeightedFeatureBands.lanes.debug.featureWeightTotal, 2);
 assert.equal(missingWeightedFeatureBands.lanes.featuresVersatility.status, "narrow");
 
 const expensiveCommonFeature = runCase("expensive common feature", {
@@ -1078,6 +1295,47 @@ assertFeatureDriver("aoe", aoeBands, "AoE attack access", 5, "features.weight.ao
 assertFeatureDriver("aoe", aoeBands, "AoE geometry", 3, "features.weight.aoe.geometry");
 assertFeatureDriver("aoe", aoeBands, "AoE center range 30 ft", 1, "features.weight.aoe.centerRange");
 assertFeatureDriver("aoe", aoeBands, "AoE sphere radius 10 ft", 3, "features.weight.aoe.geometry");
+
+const aoeWithReloadOneProfile = runCase("aoe with reload one", {
+  level: 5,
+  rarity: "RARE",
+  type: "WEAPON",
+  rangeCategories: ["AOE"],
+  aoePhysicalStrength: 2,
+  aoeDamageTypes: [{ damageType: { name: "Force", attackMode: "PHYSICAL" } }],
+  aoeCount: 3,
+  aoeCenterRangeFeet: 30,
+  aoeShape: "SPHERE",
+  aoeSphereRadiusFeet: 10,
+  attackEffectsAoE: [{ attackEffect: { name: "Knockdown" } }],
+  weaponAttributeNames: ["Reload 1"],
+});
+const aoeWithReloadOneBands = compareForgeOutputToBands(aoeWithReloadOneProfile, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  aoeWithReloadOneBands.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Reload 1") &&
+    entry.source === "WeaponAttributes/Weapon/Reload/1" &&
+    entry.weight === -12 &&
+    !entry.fallbackUsed,
+  ),
+  "Reload 1 should still use the saved -12 row when breadth pressure is present",
+);
+assert.equal(
+  aoeWithReloadOneBands.lanes.debug.featureValueAndBreadthTotalRaw,
+  aoeBands.lanes.debug.featureValueAndBreadthTotalRaw - 12,
+  "Negative attributes should reduce the combined feature-value and breadth subtotal",
+);
+assert.equal(
+  aoeWithReloadOneBands.lanes.debug.featureCount,
+  aoeBands.lanes.debug.featureCount + 1,
+  "Negative attributes should still add feature-count complexity",
+);
+assert.equal(
+  aoeWithReloadOneBands.lanes.debug.featurePressureTotal,
+  aoeBands.lanes.debug.featurePressureTotal - 11,
+  "Reload 1 should reduce AoE Features pressure by 12, then add 1 unavoidable count complexity",
+);
+
 const largeAoeProfile = runCase("large AoE geometry", {
   level: 5,
   rarity: "COMMON",
@@ -1276,8 +1534,8 @@ assertFeatureDriver(
   "features.weight.shieldSplit.attackDefence",
 );
 assert.ok(
-  weightedShieldBands.lanes.debug.featureWeightTotalRaw >=
-    shieldBands.lanes.debug.featureWeightTotalRaw + 9,
+  weightedShieldBands.lanes.debug.featureWeightTotal >=
+    shieldBands.lanes.debug.featureWeightTotal + 9,
   "Configured shield attack + defence split weight should visibly increase Features pressure",
 );
 assert.ok(
@@ -1535,7 +1793,7 @@ assert.ok(
   "120 ft ranged output should carry more Core range pressure than 30 ft",
 );
 assert.ok(
-  rangedOneTwentyFeetBands.lanes.debug.featureWeightTotalRaw > rangedThirtyFeetBands.lanes.debug.featureWeightTotalRaw,
+  rangedOneTwentyFeetBands.lanes.debug.featureWeightTotal > rangedThirtyFeetBands.lanes.debug.featureWeightTotal,
   "120 ft ranged output should carry more feature weight than 30 ft when Forge-Values rows exist",
 );
 assert.ok(
@@ -1672,8 +1930,8 @@ assert.ok(
   "200 ft should remain distinguishable as the practical extreme range bucket",
 );
 assert.ok(
-  rangedTwoHundredFeetLowDamageBands.lanes.debug.featureWeightTotalRaw >
-    rangedOneTwentyFeetBands.lanes.debug.featureWeightTotalRaw,
+  rangedTwoHundredFeetLowDamageBands.lanes.debug.featureWeightTotal >
+    rangedOneTwentyFeetBands.lanes.debug.featureWeightTotal,
   "200 ft should carry more Features pressure than 120 ft in the 121+ bucket",
 );
 assertFeatureDriver(
@@ -1756,7 +2014,8 @@ const overBudgetWithNegativeFeatureBands = compareForgeOutputToBands(
   FEATURE_WEIGHT_CONTEXT,
 );
 assert.equal(overBudgetWithNegativeFeatureBands.lanes.debug.featureWeightTotalRaw, -10);
-assert.equal(overBudgetWithNegativeFeatureBands.lanes.debug.featureWeightTotal, 0);
+assert.equal(overBudgetWithNegativeFeatureBands.lanes.debug.featureCount, 1);
+assert.equal(overBudgetWithNegativeFeatureBands.lanes.debug.featureWeightTotal, 1);
 assert.equal(
   overBudgetWithNegativeFeatureBands.lanes.coreFunctionality.status,
   "likely overloaded",

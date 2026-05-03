@@ -918,9 +918,13 @@ ItemModifiers,ForgeOutputExpectation,features.budget.LEGENDARY,,30,Forge Output 
 ItemModifiers,ForgeOutputExpectation,features.budget.MYTHIC,,40,Forge Output Expectations default
 ItemModifiers,ForgeOutputExpectation,features.levelScale.perLevel,,0,Forge Output Expectations default
 ItemModifiers,ForgeOutputExpectation,features.levelScale.perFiveLevels,,2,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.budget.size.SMALL.multiplier,,0.75,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.budget.size.ONE_HANDED.multiplier,,1,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.budget.size.TWO_HANDED.multiplier,,1.25,Forge Output Expectations default
 ItemModifiers,ForgeOutputExpectation,features.status.moderateRatio,,0.36,Forge Output Expectations default
 ItemModifiers,ForgeOutputExpectation,features.status.broadRatio,,0.61,Forge Output Expectations default
 ItemModifiers,ForgeOutputExpectation,features.status.heavyRatio,,0.8,Forge Output Expectations default
+ItemModifiers,ForgeOutputExpectation,features.weight.featureCount.each,,1,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.extraProfile,,2,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.mixedAccess.meleeRanged,,1,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.mixedAccess.meleeAoe,,1,Forge Output breadth weight default
