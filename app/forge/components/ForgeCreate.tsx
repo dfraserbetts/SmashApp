@@ -7504,6 +7504,37 @@ useEffect(() => {
                   return out;
                 };
 
+                const getAttributePricingForPreview = (attr: {
+                  id: number;
+                  name?: string | null;
+                  pricingMode?: string | null;
+                  pricingScalar?: number | string | null;
+                }) => {
+                  const pricingMode = String(attr.pricingMode ?? '').trim().toUpperCase();
+                  const pricingScalar =
+                    typeof attr.pricingScalar === 'number'
+                      ? attr.pricingScalar
+                      : typeof attr.pricingScalar === 'string'
+                        ? Number(attr.pricingScalar)
+                        : null;
+                  const pricingMagnitude =
+                    pricingMode && Number.isFinite(pricingScalar)
+                      ? pricingMode === 'ATTRIBUTE_VALUE'
+                        ? getAttributeValueMagnitude(attr.name)
+                        : getAttributeDynamicPricingMagnitude(
+                            watchedValues,
+                            attr.id,
+                            pricingMode as AttributePricingMode,
+                          )
+                      : null;
+
+                  return {
+                    pricingMode: pricingMode || null,
+                    pricingScalar: Number.isFinite(pricingScalar) ? pricingScalar : null,
+                    pricingMagnitude,
+                  };
+                };
+
                 const selectedWeaponAttributes = (watchedValues.weaponAttributeIds ?? [])
                   .map((id) => {
                     const a = (data.weaponAttributes ?? []).find((x: any) => x.id === id);
@@ -7528,6 +7559,7 @@ useEffect(() => {
                       descriptorTemplate: (a.descriptorTemplate ?? null) as string | null,
                       strengthSource,
                       rangeSource,
+                      ...getAttributePricingForPreview(a),
                     };
                   })
                   .filter(Boolean)
@@ -7541,6 +7573,7 @@ useEffect(() => {
                     return {
                       name: String(a.name ?? '').trim(),
                       descriptorTemplate: (a.descriptorTemplate ?? null) as string | null,
+                      ...getAttributePricingForPreview(a),
                     };
                   })
                   .filter(Boolean)
@@ -7577,6 +7610,7 @@ useEffect(() => {
                       name: baseName,
                       attributeValue: numericValue,
                       descriptorTemplate: (s.descriptorTemplate ?? null) as string | null,
+                      ...getAttributePricingForPreview(s),
                     };
 
                   })
@@ -8212,6 +8246,16 @@ function getLanePressureFillClass(state: ReturnType<typeof getForgeLanePressureS
   return 'bg-red-600';
 }
 
+function getFeaturePressureBreakdown(comparison: ForgeOutputBandComparison): string[] {
+  const debug = comparison.lanes.debug;
+  return [
+    `Signed feature value: ${formatOutputNumber(debug.featureWeightTotalRaw)}`,
+    `Breadth/range/profile pressure: +${formatOutputNumber(debug.breadthGeometryRangeProfileWeightTotal)}`,
+    `Feature value + breadth: ${formatOutputNumber(debug.featureValueAndBreadthTotalRaw)} -> ${formatOutputNumber(debug.featureValueAndBreadthTotalClamped)} after floor`,
+    `Feature count complexity: ${debug.featureCount} x ${formatOutputNumber(debug.featureCountComplexityWeight)} = +${formatOutputNumber(debug.featureCountComplexityTotal)}`,
+  ];
+}
+
 function ForgeOutputLaneBlock({
   title,
   status,
@@ -8219,6 +8263,7 @@ function ForgeOutputLaneBlock({
   warnings,
   percentOverride,
   pressureText,
+  detailLines,
 }: {
   title: string;
   status: string;
@@ -8226,6 +8271,7 @@ function ForgeOutputLaneBlock({
   warnings: string[];
   percentOverride?: number;
   pressureText?: string;
+  detailLines?: string[];
 }) {
   const percent =
     typeof percentOverride === 'number' && Number.isFinite(percentOverride)
@@ -8251,6 +8297,13 @@ function ForgeOutputLaneBlock({
         <p className="mb-1 text-[11px] font-medium text-zinc-300">
           {pressureText}
         </p>
+      )}
+      {detailLines && detailLines.length > 0 && (
+        <dl className="mb-1 space-y-0.5 text-[11px] text-zinc-500">
+          {detailLines.map((line) => (
+            <div key={line}>{line}</div>
+          ))}
+        </dl>
       )}
       <p className="text-[11px] text-zinc-400">
         Drivers: {formatOutputList(drivers, 'No major drivers yet')}
@@ -8448,6 +8501,7 @@ function ForgeOutputProfilePanel({
               pressureText={`${formatOutputNumber(comparison.lanes.debug.featureActualValue)}/${formatOutputNumber(
                 comparison.lanes.debug.featureExpectedValue,
               )} expected`}
+              detailLines={getFeaturePressureBreakdown(comparison)}
             />
           </div>
 
@@ -8524,6 +8578,7 @@ function ForgeCalculatorPanel({
           pressureText={`${formatOutputNumber(comparison.lanes.debug.featureActualValue)}/${formatOutputNumber(
             comparison.lanes.debug.featureExpectedValue,
           )} expected`}
+          detailLines={getFeaturePressureBreakdown(comparison)}
         />
       </div>
 
