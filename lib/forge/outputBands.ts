@@ -353,7 +353,7 @@ const CLASSIFICATION_RANK: Record<ForgeOutputBandClassification, number> = {
 
 const DEFAULT_FEATURE_FALLBACK_WEIGHT = 1;
 const SECONDARY_PROFILE_CORE_MULTIPLIER = 0.35;
-const RANGED_DISTANCE_CORE_SCORE_MULTIPLIER = 0.25;
+const RANGED_DISTANCE_CORE_SCORE_MULTIPLIER = 0.4;
 const RANGED_PROFILE_CORE_MULTIPLIER_KEY = "core.weapon.rangeMode.RANGED.multiplier";
 const DEFAULT_RANGED_PROFILE_CORE_MULTIPLIER = 0.8;
 
@@ -615,6 +615,45 @@ function scaledBand(row: ForgeBandThresholds, multiplier: number): ForgeBandThre
   };
 }
 
+function normalizeToLegalEvenWounds(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.max(2, Math.round(value / 2) * 2);
+}
+
+function scaledWeaponWoundBand(
+  row: ForgeBandThresholds,
+  multiplier: number,
+  debugNotes: string[],
+  debugLabel: string,
+): ForgeBandThresholds {
+  const safeMultiplier = Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+  const rawValues = {
+    lowMax: row.lowMax * safeMultiplier,
+    standardMax: row.standardMax * safeMultiplier,
+    highMax: row.highMax * safeMultiplier,
+    extremeMin: row.extremeMin * safeMultiplier,
+    overBandMin: row.overBandMin * safeMultiplier,
+  };
+  const normalized = {
+    level: row.level,
+    lowMax: normalizeToLegalEvenWounds(rawValues.lowMax),
+    standardMax: normalizeToLegalEvenWounds(rawValues.standardMax),
+    highMax: normalizeToLegalEvenWounds(rawValues.highMax),
+    extremeMin: normalizeToLegalEvenWounds(rawValues.extremeMin),
+    overBandMin: normalizeToLegalEvenWounds(rawValues.overBandMin),
+  };
+
+  for (const key of ["lowMax", "standardMax", "highMax", "extremeMin", "overBandMin"] as const) {
+    if (normalized[key] !== rawValues[key]) {
+      debugNotes.push(
+        `${debugLabel} normalized ${key} from ${formatPressureValue(rawValues[key])} to ${normalized[key]} legal even wounds`,
+      );
+    }
+  }
+
+  return normalized;
+}
+
 function resolveWeaponBandSize(size: WeaponSize | null): {
   bandSize: WeaponSize;
   bandSizeSource: "item_size" | "default_one_handed";
@@ -703,7 +742,13 @@ function compareWeaponProfile(
   },
   rangeModeMultiplier: ForgeExpectationValue,
 ): ForgeWeaponProfileBandComparison {
-  const thresholds = scaledBand(weaponBand.thresholds, rangeModeMultiplier.value);
+  const rangeModeNormalizationNotes: string[] = [];
+  const thresholds = scaledWeaponWoundBand(
+    weaponBand.thresholds,
+    rangeModeMultiplier.value,
+    rangeModeNormalizationNotes,
+    "range mode core expectation",
+  );
   const perTargetWounds = profile.totalWoundsPerSuccess;
   const totalPressure = profile.totalWoundsPerSuccess * profile.targetCount;
   const perTargetClassification = classifyValue(perTargetWounds, thresholds);
@@ -730,6 +775,7 @@ function compareWeaponProfile(
       `range mode core multiplier ${rangeModeMultiplier.value} adjusted expected standard to ${thresholds.standardMax}`,
     );
   }
+  debugNotes.push(...rangeModeNormalizationNotes);
 
   return {
     profileKind: profile.profileKind,
@@ -958,6 +1004,15 @@ function formatPressureValue(value: number): string {
   return value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
+function formatFeatureDriver(entry: ForgeFeatureWeightDriver): string {
+  const signedWeight = entry.weight >= 0
+    ? `+${formatPressureValue(entry.weight)}`
+    : formatPressureValue(entry.weight);
+  const fallback = entry.fallbackUsed ? " fallback" : "";
+  const note = entry.note ? `; ${entry.note}` : "";
+  return `${entry.label} (${signedWeight} Features${fallback}${note})`;
+}
+
 function coreStatusFromPressureRatio(ratio: number): ForgeLaneStatus {
   if (ratio >= 1.5) return "heavy";
   if (ratio >= 0.85) return "broad";
@@ -1063,6 +1118,13 @@ function getRangedDistanceFeatureExpectationKey(distanceFeet: number): string | 
   if (distanceFeet <= 60) return FEATURE_WEIGHT_EXPECTATION_KEYS.rangedDistance31To60;
   if (distanceFeet <= 120) return FEATURE_WEIGHT_EXPECTATION_KEYS.rangedDistance61To120;
   return FEATURE_WEIGHT_EXPECTATION_KEYS.rangedDistance121Plus;
+}
+
+function getRangedDistanceFeatureBucketLabel(distanceFeet: number): string {
+  if (distanceFeet <= 30) return "baseline";
+  if (distanceFeet <= 60) return "31-60 ft";
+  if (distanceFeet <= 120) return "61-120 ft";
+  return "121+ ft";
 }
 
 function getAoeCenterRangeMultiplier(distanceFeet: number): number {
@@ -1219,21 +1281,25 @@ function collectFeatureWeights(
 
     if (weaponProfile.rangedDistanceFeet) {
       const rangedDistanceExpectationKey = getRangedDistanceFeatureExpectationKey(weaponProfile.rangedDistanceFeet);
-      addFeatureWeight(
-        state,
-        context,
-        `Ranged distance ${weaponProfile.rangedDistanceFeet} ft`,
-        "ranged_distance",
-        [
-          ...(rangedDistanceExpectationKey ? [forgeOutputExpectationLookup(rangedDistanceExpectationKey)] : []),
-          {
-            category: "RangedDistanceFt",
-            selector1: itemTypeLabel,
-            selector2: String(weaponProfile.rangedDistanceFeet),
-          },
-        ],
-        "ranged distance has no matching Forge-Values row",
-      );
+      if (rangedDistanceExpectationKey) {
+        addFeatureWeight(
+          state,
+          context,
+          `Ranged distance ${weaponProfile.rangedDistanceFeet} ft (${getRangedDistanceFeatureBucketLabel(
+            weaponProfile.rangedDistanceFeet,
+          )} bucket)`,
+          "ranged_distance",
+          [
+            forgeOutputExpectationLookup(rangedDistanceExpectationKey),
+            {
+              category: "RangedDistanceFt",
+              selector1: itemTypeLabel,
+              selector2: String(weaponProfile.rangedDistanceFeet),
+            },
+          ],
+          "ranged distance has no matching Forge-Values row",
+        );
+      }
     }
 
     if (weaponProfile.hasAoe) {
@@ -1560,7 +1626,7 @@ export function classifyForgeOutputLanes(
     null,
   );
   const featureWeightState = collectFeatureWeights(profile, enabledWeaponProfiles, featureWeightContext);
-  const featureDrivers = featureWeightState.drivers.map((entry) => entry.label);
+  const featureDrivers = featureWeightState.drivers.map(formatFeatureDriver);
   const featureWarnings: string[] = [];
   const coreDrivers: string[] = [];
   const coreWarnings: string[] = [];
@@ -1838,12 +1904,18 @@ export function compareForgeOutputToBands(
   );
   const weaponBand = {
     ...baseWeaponBand,
-    thresholds: scaledBand(baseWeaponBand.thresholds, weaponMultiplier.value),
-    debugNotes:
-      weaponMultiplier.source === "forge_expectation_config"
-        ? [...baseWeaponBand.debugNotes, `weapon expectation config multiplier ${weaponMultiplier.value}`]
-        : baseWeaponBand.debugNotes,
+    thresholds: baseWeaponBand.thresholds,
+    debugNotes: [...baseWeaponBand.debugNotes],
   };
+  weaponBand.thresholds = scaledWeaponWoundBand(
+    baseWeaponBand.thresholds,
+    weaponMultiplier.value,
+    weaponBand.debugNotes,
+    "weapon core expectation",
+  );
+  if (weaponMultiplier.source === "forge_expectation_config") {
+    weaponBand.debugNotes.push(`weapon expectation config multiplier ${weaponMultiplier.value}`);
+  }
   const ppvMultiplier = getCoreMultiplier(
     featureWeightContext,
     expectationDebug,

@@ -928,14 +928,14 @@ ItemModifiers,ForgeOutputExpectation,features.weight.mixedAccess.rangedAoe,,1,Fo
 ItemModifiers,ForgeOutputExpectation,features.weight.mixedAccess.allThree,,1,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.targetCount.extraTarget,,1,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.damageType.extraType,,1,Forge Output breadth weight default
-ItemModifiers,ForgeOutputExpectation,features.weight.rangedDistance.31to60,,2,Forge Output breadth weight default
-ItemModifiers,ForgeOutputExpectation,features.weight.rangedDistance.61to120,,5,Forge Output breadth weight default
-ItemModifiers,ForgeOutputExpectation,features.weight.rangedDistance.121plus,,8,Forge Output breadth weight default
+ItemModifiers,ForgeOutputExpectation,features.weight.rangedDistance.31to60,,3,Forge Output breadth weight default
+ItemModifiers,ForgeOutputExpectation,features.weight.rangedDistance.61to120,,6,Forge Output breadth weight default
+ItemModifiers,ForgeOutputExpectation,features.weight.rangedDistance.121plus,,10,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.aoe.access,,5,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.aoe.extraCount,,3,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.aoe.centerRange,,1,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.aoe.geometry,,3,Forge Output breadth weight default
-ItemModifiers,ForgeOutputExpectation,features.weight.shieldSplit.attackDefence,,5,Forge Output breadth weight default
+ItemModifiers,ForgeOutputExpectation,features.weight.shieldSplit.attackDefence,,10,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,core.weapon.rangeMode.RANGED.multiplier,,0.8,Forge Output Expectations default
 ItemModifiers,ForgeOutputExpectation,core.weapon.size.SMALL.multiplier,,1,Forge Output Expectations default
 ItemModifiers,ForgeOutputExpectation,core.weapon.size.ONE_HANDED.multiplier,,1,Forge Output Expectations default

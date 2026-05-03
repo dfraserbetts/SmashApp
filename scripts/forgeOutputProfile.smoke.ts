@@ -91,19 +91,19 @@ const FORGE_OUTPUT_BREADTH_WEIGHT_ROWS = [
     category: "ItemModifiers",
     selector1: "ForgeOutputExpectation",
     selector2: "features.weight.rangedDistance.31to60",
-    value: 2,
+    value: 3,
   },
   {
     category: "ItemModifiers",
     selector1: "ForgeOutputExpectation",
     selector2: "features.weight.rangedDistance.61to120",
-    value: 5,
+    value: 6,
   },
   {
     category: "ItemModifiers",
     selector1: "ForgeOutputExpectation",
     selector2: "features.weight.rangedDistance.121plus",
-    value: 8,
+    value: 10,
   },
   { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.weight.aoe.access", value: 5 },
   {
@@ -128,7 +128,7 @@ const FORGE_OUTPUT_BREADTH_WEIGHT_ROWS = [
     category: "ItemModifiers",
     selector1: "ForgeOutputExpectation",
     selector2: "features.weight.shieldSplit.attackDefence",
-    value: 5,
+    value: 10,
   },
   {
     category: "ItemModifiers",
@@ -978,7 +978,7 @@ assert.equal(aoeProfile.attackAccess.aoe?.shape, "SPHERE");
 assert.equal(aoeProfile.attackAccess.aoe?.centerRangeFeet, 30);
 const aoeBands = compareForgeOutputToBands(aoeProfile, FEATURE_WEIGHT_CONTEXT);
 assert.ok(
-  aoeBands.lanes.featuresVersatility.mainDrivers.includes("AoE attack access"),
+  aoeBands.lanes.featuresVersatility.mainDrivers.some((entry) => entry.startsWith("AoE attack access")),
   "AoE access should contribute to feature pressure even when it is the primary attack mode",
 );
 assert.ok(
@@ -986,11 +986,11 @@ assert.ok(
   "AoE item should report AoE geometry as feature breadth",
 );
 assert.ok(
-  aoeBands.lanes.featuresVersatility.mainDrivers.includes("AoE center range 30 ft"),
+  aoeBands.lanes.featuresVersatility.mainDrivers.some((entry) => entry.startsWith("AoE center range 30 ft")),
   "AoE center range should use Forge-Values feature rows when present",
 );
 assert.ok(
-  aoeBands.lanes.featuresVersatility.mainDrivers.includes("AoE sphere radius 10 ft"),
+  aoeBands.lanes.featuresVersatility.mainDrivers.some((entry) => entry.startsWith("AoE sphere radius 10 ft")),
   "AoE shape dimensions should use Forge-Values feature rows when present",
 );
 assert.ok(
@@ -1163,7 +1163,7 @@ assert.ok(
   "armour should report MPV as core defensive functionality",
 );
 assert.ok(
-  armourBands.lanes.featuresVersatility.mainDrivers.includes("defensive effects"),
+  armourBands.lanes.featuresVersatility.mainDrivers.some((entry) => entry.startsWith("defensive effects")),
   "defensive effects should contribute to Features & Versatility",
 );
 
@@ -1203,13 +1203,19 @@ assertFeatureDriver(
   "shield",
   weightedShieldBands,
   "shield attack + defence split",
-  5,
+  10,
   "features.weight.shieldSplit.attackDefence",
 );
 assert.ok(
   weightedShieldBands.lanes.debug.featureWeightTotalRaw >=
-    shieldBands.lanes.debug.featureWeightTotalRaw + 4,
+    shieldBands.lanes.debug.featureWeightTotalRaw + 9,
   "Configured shield attack + defence split weight should visibly increase Features pressure",
+);
+assert.ok(
+  weightedShieldBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
+    entry.includes("shield attack + defence split") && entry.includes("+10 Features"),
+  ),
+  "Shield split feature driver should show the configured weight",
 );
 
 const meleeRangedAccessOnly = runCase("melee/ranged access without ranged output", {
@@ -1361,7 +1367,7 @@ assert.ok(
   "mixed item should report extra attack profile breadth",
 );
 assert.ok(
-  mixedMeleeRangedBands.lanes.featuresVersatility.mainDrivers.includes("mixed melee/ranged access"),
+  mixedMeleeRangedBands.lanes.featuresVersatility.mainDrivers.some((entry) => entry.startsWith("mixed melee/ranged access")),
   "mixed item should report mixed melee/ranged versatility",
 );
 assert.ok(
@@ -1419,6 +1425,17 @@ const sameWoundsMeleeBands = compareForgeOutputToBands(simpleMelee, FEATURE_WEIG
 const sameWoundsMeleeBand = sameWoundsMeleeBands.weaponProfiles.find((entry) => entry.profileKind === "melee");
 const sameWoundsRangedBand = rangedThirtyFeetBands.weaponProfiles.find((entry) => entry.profileKind === "ranged");
 assert.equal(sameWoundsRangedBand?.rangeModeCoreMultiplier, 0.8);
+for (const [label, band] of [
+  ["melee", sameWoundsMeleeBand],
+  ["ranged", sameWoundsRangedBand],
+] as const) {
+  assert.ok(band, `${label} band should exist`);
+  for (const [thresholdName, value] of Object.entries(band.thresholds)) {
+    if (thresholdName === "level") continue;
+    assert.equal(value % 2, 0, `${label} ${thresholdName} should be a legal even wound threshold`);
+    assert.equal(Number.isInteger(value), true, `${label} ${thresholdName} should not be fractional`);
+  }
+}
 assert.ok(
   (sameWoundsRangedBand?.rangeModeAdjustedExpectedValue ?? 0) <
     (sameWoundsMeleeBand?.rangeModeAdjustedExpectedValue ?? Number.POSITIVE_INFINITY),
@@ -1446,12 +1463,18 @@ assertFeatureDriver(
   "ranged 120 ft",
   rangedOneTwentyFeetBands,
   "Ranged distance 120 ft",
-  5,
+  6,
   "features.weight.rangedDistance.61to120",
+);
+assert.ok(
+  rangedOneTwentyFeetBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
+    entry.includes("Ranged distance 120 ft") && entry.includes("+6 Features"),
+  ),
+  "Ranged distance driver should show the applied 120 ft feature weight",
 );
 const tunedRangedOneTwentyFeetBands = compareForgeOutputToBands(
   rangedOneTwentyFeet,
-  withFeatureWeightOverride("features.weight.rangedDistance.61to120", 7),
+  withFeatureWeightOverride("features.weight.rangedDistance.61to120", 8),
 );
 assert.ok(
   tunedRangedOneTwentyFeetBands.lanes.debug.featureWeightTotal >
@@ -1472,6 +1495,54 @@ const rangedTwoHundredFeetLowDamageBands = compareForgeOutputToBands(
   rangedTwoHundredFeetLowDamage,
   FEATURE_WEIGHT_CONTEXT,
 );
+const rangedTwoHundredFeetLowDamageBand = rangedTwoHundredFeetLowDamageBands.weaponProfiles.find(
+  (entry) => entry.profileKind === "ranged",
+);
+assert.equal(
+  rangedTwoHundredFeetLowDamageBand?.rangeModeAdjustedExpectedValue,
+  10,
+  "Level 10 ranged standard expectation should normalize 9.6 to legal even 10",
+);
+assert.equal(
+  (rangedTwoHundredFeetLowDamageBand?.rangeModeAdjustedExpectedValue ?? 0) % 2,
+  0,
+  "200 ft ranged expected value must be even",
+);
+assert.equal(
+  Number.isInteger(rangedTwoHundredFeetLowDamageBand?.rangeModeAdjustedExpectedValue ?? 0),
+  true,
+  "200 ft ranged expected value must not be fractional",
+);
+assert.ok(
+  rangedTwoHundredFeetLowDamageBand?.debugNotes.some((entry) =>
+    entry.includes("range mode core expectation normalized standardMax"),
+  ),
+  "Adjusted ranged expectation should explain legal-even normalization in debug notes",
+);
+const rangedTwoHundredFeetOddExpectation = runCase("ranged 200 ft old odd expectation guard", {
+  level: 13,
+  rarity: "RARE",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["RANGED"],
+  rangedPhysicalStrength: 1,
+  rangedDamageTypes: [{ damageType: { name: "Piercing", attackMode: "PHYSICAL" } }],
+  rangedDistanceFeet: 200,
+});
+const rangedTwoHundredFeetOddExpectationBand = compareForgeOutputToBands(
+  rangedTwoHundredFeetOddExpectation,
+  FEATURE_WEIGHT_CONTEXT,
+).weaponProfiles.find((entry) => entry.profileKind === "ranged");
+assert.equal(
+  rangedTwoHundredFeetOddExpectationBand?.rangeModeAdjustedExpectedValue,
+  12,
+  "Old 16 x 0.8 => 12.8 => 13 case should normalize to legal even 12",
+);
+assert.equal(
+  (rangedTwoHundredFeetOddExpectationBand?.rangeModeAdjustedExpectedValue ?? 0) % 2,
+  0,
+  "Old odd ranged expectation guard must remain even",
+);
 assert.ok(
   ["narrow", "moderate"].includes(rangedTwoHundredFeetLowDamageBands.lanes.coreFunctionality.status),
   "200 ft floor-damage ranged output should not become Broad Core from range alone",
@@ -1485,6 +1556,19 @@ assert.ok(
   rangedTwoHundredFeetLowDamageBands.lanes.debug.featureWeightTotalRaw >
     rangedOneTwentyFeetBands.lanes.debug.featureWeightTotalRaw,
   "200 ft should carry more Features pressure than 120 ft in the 121+ bucket",
+);
+assertFeatureDriver(
+  "ranged 200 ft",
+  rangedTwoHundredFeetLowDamageBands,
+  "Ranged distance 200 ft",
+  10,
+  "features.weight.rangedDistance.121plus",
+);
+assert.ok(
+  rangedTwoHundredFeetLowDamageBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
+    entry.includes("Ranged distance 200 ft") && entry.includes("+10 Features"),
+  ),
+  "Ranged distance driver should show the applied 200 ft feature weight",
 );
 const rangedTwoHundredFeetHighDamage = runCase("ranged 200 ft high damage", {
   level: 10,

@@ -118,32 +118,33 @@ heavy too quickly, especially at Common.
 ### Priority 3: Ranged distance buckets
 
 Current key: features.weight.rangedDistance.31to60
-Current default value: 2
+Current default value: 3
 Observed issue: 60 ft range is distinguishable and currently looks sane.
-Recommended direction: Leave unchanged initially.
-Suggested test range: 1 to 2.
+Recommended direction: Keep the stronger value while range distance is under
+manual review.
+Suggested test range: 2 to 3.
 Expected effect: 60 ft remains a modest range upgrade.
 Risk if overtuned: Basic ranged weapons may feel too broad too early.
 
 Current key: features.weight.rangedDistance.61to120
-Current default value: 5
+Current default value: 6
 Observed issue: 120 ft range was distinguishable but too quiet in the bars.
 Recommended direction: Keep the stronger Round 2 value through the next manual
 pass.
-Suggested test range: 4 to 6.
+Suggested test range: 5 to 7.
 Expected effect: 120 ft remains meaningfully above 60 ft.
 Risk if overtuned: Longbow-like items may become heavy on Features while still
 having standard Core output.
 
 Current key: features.weight.rangedDistance.121plus
-Current default value: 8
+Current default value: 10
 Observed issue: 180 ft and 300 ft shared the same 121+ bucket. Round 2 uses
 200 ft as the practical extreme test ceiling and raises this bucket so it reads
 meaningfully above 120 ft.
 Recommended direction: Keep the current key stable for v1, but consider a
 future separate 181plus or 200plus expectation row if very long range appears
 often.
-Suggested test range: 6 to 10.
+Suggested test range: 8 to 12.
 Expected effect: Very long range reads more premium if the existing single
 bucket is tuned upward.
 Risk if overtuned: 121+ ft ranges cannot be separated with this key, so raising
@@ -161,6 +162,8 @@ Expected effect: Ranged raw damage has a tighter Core budget while Strength x 2
 remains unchanged.
 Risk if overtuned: Ranged weapons may feel unable to carry standard table
 damage even when their Features pressure is modest.
+Implementation note: Multiplied wound expectations are normalized to legal even
+values so displayed Core expectations remain compatible with Strength x 2.
 
 
 ### Priority 4: Rarity and Features budgets
@@ -337,11 +340,13 @@ shield.split.strictness. If added, it should be a report/warning pressure key,
 not a hard validation gate.
 
 Current key: features.weight.shieldSplit.attackDefence
-Current default value: 5
+Current default value: 10
 Observed issue: Attack+defence shields were too quiet on Features when they
-only produced warning text.
-Recommended direction: Keep the Round 2 value and review real shield examples
+only produced warning text, and the previous +5 feature weight remained too
+quiet in manual testing.
+Recommended direction: Keep the stronger value and review real shield examples
 before changing warning strictness.
+Suggested test range: 8 to 12.
 
 
 Suggested First Tuning Pass
@@ -360,7 +365,8 @@ Round 2 has applied the small, reversible Admin-visible test pass:
 8. Leave damage type extra type at 1 until dual-damage Forge UI examples are
    reviewed.
 9. Leave mixed access weights unchanged until AoE and range settle.
-10. Keep ranged 61-120 at 5 and 121+ at 8 through the next manual pass.
+10. Keep ranged 31-60 at 3, 61-120 at 6, and 121+ at 10 through
+    the next manual pass.
 11. Test Rare, Legendary, and Mythic budgets only after the stronger breadth
     weights are reviewed, because they may naturally consume the current
     headroom.

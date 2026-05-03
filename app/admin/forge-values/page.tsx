@@ -238,21 +238,21 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     key: "features.weight.rangedDistance.31to60",
     label: "Ranged Distance 31-60 ft Weight",
     description: "Feature weight for ranged reach beyond baseline up to 60 ft.",
-    defaultValue: 2,
+    defaultValue: 3,
     group: "Features & Versatility Breadth Weights",
   },
   {
     key: "features.weight.rangedDistance.61to120",
     label: "Ranged Distance 61-120 ft Weight",
     description: "Feature weight for ranged reach above 60 ft and up to 120 ft.",
-    defaultValue: 5,
+    defaultValue: 6,
     group: "Features & Versatility Breadth Weights",
   },
   {
     key: "features.weight.rangedDistance.121plus",
     label: "Ranged Distance 121+ ft Weight",
     description: "Feature weight for very long ranged reach above 120 ft, with 200 ft treated as the practical stress ceiling.",
-    defaultValue: 8,
+    defaultValue: 10,
     group: "Features & Versatility Breadth Weights",
   },
   {
@@ -287,7 +287,7 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     key: "features.weight.shieldSplit.attackDefence",
     label: "Shield Attack + Defence Split Weight",
     description: "Feature weight for shields that carry both attack and defensive output.",
-    defaultValue: 5,
+    defaultValue: 10,
     group: "Features & Versatility Breadth Weights",
   },
   {
