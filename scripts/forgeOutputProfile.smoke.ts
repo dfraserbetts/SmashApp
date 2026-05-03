@@ -76,26 +76,26 @@ const FORGE_OUTPUT_BREADTH_WEIGHT_ROWS = [
     category: "ItemModifiers",
     selector1: "ForgeOutputExpectation",
     selector2: "features.weight.rangedDistance.31to60",
-    value: 1,
-  },
-  {
-    category: "ItemModifiers",
-    selector1: "ForgeOutputExpectation",
-    selector2: "features.weight.rangedDistance.61to120",
     value: 2,
   },
   {
     category: "ItemModifiers",
     selector1: "ForgeOutputExpectation",
+    selector2: "features.weight.rangedDistance.61to120",
+    value: 5,
+  },
+  {
+    category: "ItemModifiers",
+    selector1: "ForgeOutputExpectation",
     selector2: "features.weight.rangedDistance.121plus",
-    value: 3,
+    value: 8,
   },
   { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.weight.aoe.access", value: 5 },
   {
     category: "ItemModifiers",
     selector1: "ForgeOutputExpectation",
     selector2: "features.weight.aoe.extraCount",
-    value: 1,
+    value: 3,
   },
   {
     category: "ItemModifiers",
@@ -107,7 +107,7 @@ const FORGE_OUTPUT_BREADTH_WEIGHT_ROWS = [
     category: "ItemModifiers",
     selector1: "ForgeOutputExpectation",
     selector2: "features.weight.aoe.geometry",
-    value: 1,
+    value: 3,
   },
   {
     category: "ItemModifiers",
@@ -948,7 +948,7 @@ assert.ok(
   "AoE access should contribute to feature pressure even when it is the primary attack mode",
 );
 assert.ok(
-  aoeBands.lanes.featuresVersatility.mainDrivers.includes("AoE geometry"),
+  aoeBands.lanes.featuresVersatility.mainDrivers.some((entry) => entry.startsWith("AoE geometry")),
   "AoE item should report AoE geometry as feature breadth",
 );
 assert.ok(
@@ -971,11 +971,119 @@ assert.ok(
   ),
   "Greater Success effects should contribute to Features & Versatility",
 );
-assertFeatureDriver("aoe", aoeBands, "AoE 3 targets", 2, "features.weight.aoe.extraCount");
+assertFeatureDriver("aoe", aoeBands, "AoE 3 targets", 6, "features.weight.aoe.extraCount");
 assertFeatureDriver("aoe", aoeBands, "AoE attack access", 5, "features.weight.aoe.access");
-assertFeatureDriver("aoe", aoeBands, "AoE geometry", 1, "features.weight.aoe.geometry");
+assertFeatureDriver("aoe", aoeBands, "AoE geometry", 3, "features.weight.aoe.geometry");
 assertFeatureDriver("aoe", aoeBands, "AoE center range 30 ft", 1, "features.weight.aoe.centerRange");
-assertFeatureDriver("aoe", aoeBands, "AoE sphere radius 10 ft", 1, "features.weight.aoe.geometry");
+assertFeatureDriver("aoe", aoeBands, "AoE sphere radius 10 ft", 3, "features.weight.aoe.geometry");
+const largeAoeProfile = runCase("large AoE geometry", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["AOE"],
+  aoePhysicalStrength: 2,
+  aoeDamageTypes: [{ damageType: { name: "Force", attackMode: "PHYSICAL" } }],
+  aoeCount: 3,
+  aoeCenterRangeFeet: 30,
+  aoeShape: "SPHERE",
+  aoeSphereRadiusFeet: 20,
+  attackEffectsAoE: [{ attackEffect: { name: "Knockdown" } }],
+});
+const largeAoeBands = compareForgeOutputToBands(largeAoeProfile, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  largeAoeBands.lanes.debug.featureWeightTotal > aoeBands.lanes.debug.featureWeightTotal,
+  "Changing AoE shape dimensions should change Features pressure",
+);
+assertFeatureDriver(
+  "large aoe",
+  largeAoeBands,
+  "AoE sphere radius 20 ft",
+  6,
+  "features.weight.aoe.geometry",
+);
+const coneFifteen = runCase("cone 15 ft", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["AOE"],
+  aoePhysicalStrength: 2,
+  aoeDamageTypes: [{ damageType: { name: "Force", attackMode: "PHYSICAL" } }],
+  aoeCount: 1,
+  aoeCenterRangeFeet: 30,
+  aoeShape: "CONE",
+  aoeConeLengthFeet: 15,
+});
+const coneThirty = runCase("cone 30 ft", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["AOE"],
+  aoePhysicalStrength: 2,
+  aoeDamageTypes: [{ damageType: { name: "Force", attackMode: "PHYSICAL" } }],
+  aoeCount: 1,
+  aoeCenterRangeFeet: 30,
+  aoeShape: "CONE",
+  aoeConeLengthFeet: 30,
+});
+const coneSixty = runCase("cone 60 ft", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["AOE"],
+  aoePhysicalStrength: 2,
+  aoeDamageTypes: [{ damageType: { name: "Force", attackMode: "PHYSICAL" } }],
+  aoeCount: 1,
+  aoeCenterRangeFeet: 30,
+  aoeShape: "CONE",
+  aoeConeLengthFeet: 60,
+});
+const coneFifteenBands = compareForgeOutputToBands(coneFifteen, FEATURE_WEIGHT_CONTEXT);
+const coneThirtyBands = compareForgeOutputToBands(coneThirty, FEATURE_WEIGHT_CONTEXT);
+const coneSixtyBands = compareForgeOutputToBands(coneSixty, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  coneFifteenBands.lanes.debug.featureWeightTotal <
+    coneThirtyBands.lanes.debug.featureWeightTotal &&
+    coneThirtyBands.lanes.debug.featureWeightTotal < coneSixtyBands.lanes.debug.featureWeightTotal,
+  "Cone 15/30/60 ft should scale Features pressure upward",
+);
+const aoeCountOne = runCase("AoE count 1", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["AOE"],
+  aoePhysicalStrength: 2,
+  aoeDamageTypes: [{ damageType: { name: "Force", attackMode: "PHYSICAL" } }],
+  aoeCount: 1,
+  aoeCenterRangeFeet: 30,
+  aoeShape: "SPHERE",
+  aoeSphereRadiusFeet: 10,
+});
+const aoeCountFive = runCase("AoE count 5", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["AOE"],
+  aoePhysicalStrength: 2,
+  aoeDamageTypes: [{ damageType: { name: "Force", attackMode: "PHYSICAL" } }],
+  aoeCount: 5,
+  aoeCenterRangeFeet: 30,
+  aoeShape: "SPHERE",
+  aoeSphereRadiusFeet: 10,
+});
+const aoeCountOneBands = compareForgeOutputToBands(aoeCountOne, FEATURE_WEIGHT_CONTEXT);
+const aoeCountFiveBands = compareForgeOutputToBands(aoeCountFive, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  aoeCountOneBands.lanes.debug.featureWeightTotal <
+    aoeBands.lanes.debug.featureWeightTotal &&
+    aoeBands.lanes.debug.featureWeightTotal < aoeCountFiveBands.lanes.debug.featureWeightTotal,
+  "AoE count 1/3/5 should scale Features pressure upward",
+);
 const tunedAoeAccessBands = compareForgeOutputToBands(
   aoeProfile,
   withFeatureWeightOverride("features.weight.aoe.access", 8),
@@ -986,7 +1094,7 @@ assert.ok(
 );
 const tunedAoeGeometryBands = compareForgeOutputToBands(
   aoeProfile,
-  withFeatureWeightOverride("features.weight.aoe.geometry", 3),
+  withFeatureWeightOverride("features.weight.aoe.geometry", 5),
 );
 assert.ok(
   tunedAoeGeometryBands.lanes.debug.featurePressureRatio > aoeBands.lanes.debug.featurePressureRatio,
@@ -1291,17 +1399,66 @@ assertFeatureDriver(
   "ranged 120 ft",
   rangedOneTwentyFeetBands,
   "Ranged distance 120 ft",
-  2,
+  5,
   "features.weight.rangedDistance.61to120",
 );
 const tunedRangedOneTwentyFeetBands = compareForgeOutputToBands(
   rangedOneTwentyFeet,
-  withFeatureWeightOverride("features.weight.rangedDistance.61to120", 5),
+  withFeatureWeightOverride("features.weight.rangedDistance.61to120", 7),
 );
 assert.ok(
   tunedRangedOneTwentyFeetBands.lanes.debug.featureWeightTotal >
     rangedOneTwentyFeetBands.lanes.debug.featureWeightTotal,
   "Changing ranged distance expectation weight should change featureWeightTotal",
+);
+
+const rangedTwoHundredFeetLowDamage = runCase("ranged 200 ft low damage", {
+  level: 10,
+  rarity: "RARE",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["RANGED"],
+  rangedPhysicalStrength: 1,
+  rangedDamageTypes: [{ damageType: { name: "Piercing", attackMode: "PHYSICAL" } }],
+  rangedDistanceFeet: 200,
+});
+const rangedTwoHundredFeetLowDamageBands = compareForgeOutputToBands(
+  rangedTwoHundredFeetLowDamage,
+  FEATURE_WEIGHT_CONTEXT,
+);
+assert.ok(
+  ["narrow", "moderate"].includes(rangedTwoHundredFeetLowDamageBands.lanes.coreFunctionality.status),
+  "200 ft floor-damage ranged output should not become Broad Core from range alone",
+);
+assert.ok(
+  rangedTwoHundredFeetLowDamageBands.lanes.debug.rangePressureScore >
+    rangedOneTwentyFeetBands.lanes.debug.rangePressureScore,
+  "200 ft should remain distinguishable as the practical extreme range bucket",
+);
+assert.ok(
+  rangedTwoHundredFeetLowDamageBands.lanes.debug.featureWeightTotalRaw >
+    rangedOneTwentyFeetBands.lanes.debug.featureWeightTotalRaw,
+  "200 ft should carry more Features pressure than 120 ft in the 121+ bucket",
+);
+const rangedTwoHundredFeetHighDamage = runCase("ranged 200 ft high damage", {
+  level: 10,
+  rarity: "RARE",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["RANGED"],
+  rangedPhysicalStrength: 6,
+  rangedDamageTypes: [{ damageType: { name: "Piercing", attackMode: "PHYSICAL" } }],
+  rangedDistanceFeet: 200,
+});
+const rangedTwoHundredFeetHighDamageBands = compareForgeOutputToBands(
+  rangedTwoHundredFeetHighDamage,
+  FEATURE_WEIGHT_CONTEXT,
+);
+assert.ok(
+  ["broad", "heavy", "likely overloaded"].includes(
+    rangedTwoHundredFeetHighDamageBands.lanes.coreFunctionality.status,
+  ),
+  "Level 10 Rare 200 ft high-damage ranged output should not read as under-pressured",
 );
 
 const overBudgetWeapon = runCase("over-budget level 5 weapon", {

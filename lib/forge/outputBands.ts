@@ -351,6 +351,7 @@ const CLASSIFICATION_RANK: Record<ForgeOutputBandClassification, number> = {
 
 const DEFAULT_FEATURE_FALLBACK_WEIGHT = 1;
 const SECONDARY_PROFILE_CORE_MULTIPLIER = 0.35;
+const RANGED_DISTANCE_CORE_SCORE_MULTIPLIER = 0.25;
 const RANGED_PROFILE_CORE_MULTIPLIER_KEY = "core.weapon.rangeMode.RANGED.multiplier";
 const DEFAULT_RANGED_PROFILE_CORE_MULTIPLIER = 0.8;
 
@@ -541,8 +542,8 @@ function getRangedDistancePressure(distanceFeet: number | null): ForgeRangedDist
       distanceFeet,
       tier: "watch",
       score: 1,
-      ratio: 0.25,
-      note: `${distanceFeet} ft ranged distance adds watch-level core pressure`,
+      ratio: 0.1,
+      note: `${distanceFeet} ft ranged distance adds watch-level reach pressure`,
     };
   }
   if (distanceFeet <= 120) {
@@ -550,16 +551,16 @@ function getRangedDistancePressure(distanceFeet: number | null): ForgeRangedDist
       distanceFeet,
       tier: "moderate",
       score: 2,
-      ratio: 0.5,
-      note: `${distanceFeet} ft ranged distance adds moderate core pressure`,
+      ratio: 0.2,
+      note: `${distanceFeet} ft ranged distance adds moderate reach pressure`,
     };
   }
   return {
     distanceFeet,
     tier: "heavy",
     score: 3,
-    ratio: 0.75,
-    note: `${distanceFeet} ft ranged distance adds heavy core pressure`,
+    ratio: 0.3,
+    note: `${distanceFeet} ft ranged distance adds heavy reach pressure`,
   };
 }
 
@@ -1052,6 +1053,32 @@ function getAoeCenterRangeMultiplier(distanceFeet: number): number {
   return 5;
 }
 
+function getAoeShapeGeometryMultiplier(shape: string | null | undefined): number {
+  if (shape === "CONE" || shape === "LINE") return 2;
+  return 1;
+}
+
+function getAoeDimensionMultiplier(kind: "sphereRadius" | "coneLength" | "lineWidth" | "lineLength", value: number): number {
+  if (kind === "sphereRadius") {
+    if (value <= 10) return 1;
+    if (value <= 20) return 2;
+    return 3;
+  }
+  if (kind === "coneLength") {
+    if (value <= 15) return 1;
+    if (value <= 30) return 2;
+    return 3;
+  }
+  if (kind === "lineWidth") {
+    if (value <= 5) return 1;
+    if (value <= 10) return 2;
+    return 3;
+  }
+  if (value <= 30) return 1;
+  if (value <= 60) return 2;
+  return 3;
+}
+
 function addAttributeFeatureWeight(
   state: FeatureWeightState,
   context: ForgeFeatureWeightContext | null | undefined,
@@ -1207,9 +1234,14 @@ function collectFeatureWeights(
       addFeatureWeight(
         state,
         context,
-        "AoE geometry",
+        weaponProfile.aoe?.shape ? `AoE geometry (${weaponProfile.aoe.shape.toLowerCase()})` : "AoE geometry",
         "aoe_geometry",
-        [forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry)],
+        [
+          forgeOutputExpectationLookup(
+            FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry,
+            getAoeShapeGeometryMultiplier(weaponProfile.aoe?.shape),
+          ),
+        ],
         "AoE geometry has no single direct Forge-Values row",
       );
       if (weaponProfile.aoe?.centerRangeFeet) {
@@ -1239,7 +1271,10 @@ function collectFeatureWeights(
           `AoE sphere radius ${weaponProfile.aoe.sphereRadiusFeet} ft`,
           "aoe_shape_size",
           [
-            forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry),
+            forgeOutputExpectationLookup(
+              FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry,
+              getAoeDimensionMultiplier("sphereRadius", weaponProfile.aoe.sphereRadiusFeet),
+            ),
             {
               category: "SphereSizeFt",
               selector1: itemTypeLabel,
@@ -1256,7 +1291,10 @@ function collectFeatureWeights(
           `AoE cone length ${weaponProfile.aoe.coneLengthFeet} ft`,
           "aoe_shape_size",
           [
-            forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry),
+            forgeOutputExpectationLookup(
+              FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry,
+              getAoeDimensionMultiplier("coneLength", weaponProfile.aoe.coneLengthFeet),
+            ),
             {
               category: "ConeLengthFt",
               selector1: itemTypeLabel,
@@ -1274,7 +1312,10 @@ function collectFeatureWeights(
             `AoE line width ${weaponProfile.aoe.lineWidthFeet} ft`,
             "aoe_shape_size",
             [
-              forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry),
+              forgeOutputExpectationLookup(
+                FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry,
+                getAoeDimensionMultiplier("lineWidth", weaponProfile.aoe.lineWidthFeet),
+              ),
               {
                 category: "LineWidthFt",
                 selector1: itemTypeLabel,
@@ -1291,7 +1332,10 @@ function collectFeatureWeights(
             `AoE line length ${weaponProfile.aoe.lineLengthFeet} ft`,
             "aoe_shape_size",
             [
-              forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry),
+              forgeOutputExpectationLookup(
+                FEATURE_WEIGHT_EXPECTATION_KEYS.aoeGeometry,
+                getAoeDimensionMultiplier("lineLength", weaponProfile.aoe.lineLengthFeet),
+              ),
               {
                 category: "LineLengthFt",
                 selector1: itemTypeLabel,
@@ -1592,17 +1636,12 @@ export function classifyForgeOutputLanes(
     const pressure = weaponProfile.rangedDistancePressure;
     if (!pressure || pressure.score <= 0 || weaponProfile.totalWoundsPerSuccess <= 0) continue;
 
-    coreScore += pressure.score;
+    const coreContribution = pressure.score * RANGED_DISTANCE_CORE_SCORE_MULTIPLIER;
+    coreScore += coreContribution;
     rangePressureScore += pressure.score;
     rangePressureDrivers.push(`ranged distance ${pressure.distanceFeet} ft (${pressure.tier})`);
-    coreDrivers.push(`ranged distance ${pressure.distanceFeet} ft (${pressure.tier} range pressure)`);
-    corePressureCandidates.push(
-      getCorePressureCandidate(
-        "ranged distance pressure",
-        pressure.score,
-        4,
-        "default",
-      ),
+    coreDrivers.push(
+      `ranged distance ${pressure.distanceFeet} ft (${pressure.tier} reach pressure, ${formatPressureValue(coreContribution)} core)`,
     );
   }
 

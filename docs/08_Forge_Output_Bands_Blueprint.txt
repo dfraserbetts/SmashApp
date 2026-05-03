@@ -183,6 +183,7 @@ Melee vs ranged expectation:
 - Ranged should usually pay for reach, target safety, or flexible engagement by reducing some other budget component.
 - A ranged profile at the same wounds per success as a melee profile should be checked for range, target count, rider, reload, and profile breadth.
 - Forge Output-Band v1 applies a first-pass ranged core multiplier of 0.8 to ranged weapon profile wound expectations. Strength x 2 does not change, but the expected ranged damage allowance is lower than melee at the same item level and size.
+- 200 ft is the current practical extreme range test ceiling for diagnostics. Longer ranges can still use the 121+ bucket until a separate 181+/200+ expectation row is justified.
 
 Single-target vs multi-target pressure:
 
@@ -196,6 +197,7 @@ AoE / target-count budget:
 - Additional targets consume output budget even if per-target damage is Standard.
 - Small AoE can be appropriate as an Uncommon or Rare breadth feature if per-target output remains controlled.
 - Large AoE, flexible placement, or repeated area pressure should be Rare+ or Legendary/Mythic-style feature budget, not Common core throughput.
+- AoE count, shape, and dimensions should produce visible Features & Versatility pressure. Cone length 15/30/60 and small/large spheres should not collapse to the same breadth readout.
 
 Damage type count budget:
 

@@ -12,6 +12,11 @@ code logic, Forge Point costs, schema, save behavior, or validation behavior.
 All values below are proposed test ranges for manual Admin tuning and follow-up
 verification.
 
+Round 2 implementation note: the first-pass recommendations for ranged
+distance, AoE geometry/count, and ranged core expectations have now been
+promoted into Forge Output Expectation defaults. They remain report-only
+diagnostics and are still reversible through Admin Forge Values.
+
 
 Current Healthy Findings
 ------------------------
@@ -57,11 +62,12 @@ Risk if overtuned: Common AoE items may become heavy before geometry, count, or
 range can express the real reason.
 
 Current key: features.weight.aoe.extraCount
-Current default value: 1
-Observed issue: Multiple AoE entries add only +1 each, which looks light
-relative to the tactical coverage added by repeated AoE options.
-Recommended direction: Increase modestly.
-Suggested test range: 2 to 3.
+Current default value: 3
+Observed issue: Multiple AoE entries were too light at +1 each. Round 2 raised
+the default so repeated AoE options are a major Features burden.
+Recommended direction: Keep at 3 for the next UI pass unless common AoE
+examples become too noisy.
+Suggested test range: 2 to 4.
 Expected effect: Multiple AoE packages become visibly broader than one AoE
 package.
 Risk if overtuned: Items with alternate AoE shapes may become heavy even when
@@ -79,13 +85,13 @@ Risk if overtuned: Range and AoE may double-charge flexible casters or launcher
 style items.
 
 Current key: features.weight.aoe.geometry
-Current default value: 1
-Observed issue: AoE geometry is too flat. The report flagged large sphere,
-cone, and line geometry as using one broad geometry expectation rather than
-scaling cleanly by affected area or shape footprint.
-Recommended direction: Increase as a first Admin-only pressure test. If this is
-still too blunt, add more granular expectation rows later.
-Suggested test range: 2 to 4.
+Current default value: 3
+Observed issue: AoE geometry was too flat. Round 2 raised the base geometry
+weight and added simple shape/dimension multipliers so cone 15/30/60 and
+small/large sphere examples separate visibly.
+Recommended direction: Keep the generic key for v1 unless shape-specific
+pricing is still needed after manual UI review.
+Suggested test range: 2 to 5.
 Expected effect: Larger or more permissive AoE geometry moves the Features bar
 more clearly.
 Risk if overtuned: Small AoE and large AoE may both become too expensive if the
@@ -111,7 +117,7 @@ heavy too quickly, especially at Common.
 ### Priority 3: Ranged distance buckets
 
 Current key: features.weight.rangedDistance.31to60
-Current default value: 1
+Current default value: 2
 Observed issue: 60 ft range is distinguishable and currently looks sane.
 Recommended direction: Leave unchanged initially.
 Suggested test range: 1 to 2.
@@ -119,26 +125,41 @@ Expected effect: 60 ft remains a modest range upgrade.
 Risk if overtuned: Basic ranged weapons may feel too broad too early.
 
 Current key: features.weight.rangedDistance.61to120
-Current default value: 2
-Observed issue: 120 ft range is distinguishable and currently works.
-Recommended direction: Leave unchanged initially, or test +1 only if 120 ft
-continues to feel underpriced after target/AoE adjustments.
-Suggested test range: 2 to 3.
+Current default value: 5
+Observed issue: 120 ft range was distinguishable but too quiet in the bars.
+Recommended direction: Keep the stronger Round 2 value through the next manual
+pass.
+Suggested test range: 4 to 6.
 Expected effect: 120 ft remains meaningfully above 60 ft.
 Risk if overtuned: Longbow-like items may become heavy on Features while still
 having standard Core output.
 
 Current key: features.weight.rangedDistance.121plus
-Current default value: 3
-Observed issue: 180 ft and 300 ft share the same 121+ bucket, so 300 ft may be
-underpriced relative to extreme table reach.
+Current default value: 8
+Observed issue: 180 ft and 300 ft shared the same 121+ bucket. Round 2 uses
+200 ft as the practical extreme test ceiling and raises this bucket so it reads
+meaningfully above 120 ft.
 Recommended direction: Keep the current key stable for v1, but consider a
-future separate 181plus or 241plus expectation row if 300 ft appears often.
-Suggested test range: 3 to 5.
+future separate 181plus or 200plus expectation row if very long range appears
+often.
+Suggested test range: 6 to 10.
 Expected effect: Very long range reads more premium if the existing single
 bucket is tuned upward.
-Risk if overtuned: 180 ft and 300 ft cannot be separated with this key, so
-raising it may overprice the lower end of the bucket.
+Risk if overtuned: 121+ ft ranges cannot be separated with this key, so raising
+it may overprice the lower end of the bucket.
+
+Current key: core.weapon.rangeMode.RANGED.multiplier
+Current default value: 0.8
+Observed issue: Ranged profiles previously used the same Core wound allowance
+as melee even though melee pays positional risk.
+Recommended direction: Keep the first-pass 0.8 multiplier and verify that
+same-wound ranged profiles read more pressured than melee without making low
+damage range look overloaded.
+Suggested test range: 0.75 to 0.85.
+Expected effect: Ranged raw damage has a tighter Core budget while Strength x 2
+remains unchanged.
+Risk if overtuned: Ranged weapons may feel unable to carry standard table
+damage even when their Features pressure is modest.
 
 
 ### Priority 4: Rarity and Features budgets
@@ -318,26 +339,23 @@ not a hard validation gate.
 Suggested First Tuning Pass
 ---------------------------
 
-Use a small, reversible Admin-only test pass:
+Round 2 has applied the small, reversible Admin-visible test pass:
 
 1. Leave weapon Core bands unchanged.
 2. Leave Strength x 2 unchanged.
 3. Leave Common budget unchanged initially.
-4. Increase AoE geometry pressure modestly:
-   - Test features.weight.aoe.geometry at 2, then 3.
-5. Increase AoE extra count pressure modestly:
-   - Test features.weight.aoe.extraCount at 2.
-6. Increase target extra count pressure slightly:
-   - Test features.weight.targetCount.extraTarget at 2.
-7. Leave damage type extra type at 1 until dual-damage Forge UI examples are
+4. Keep the ranged profile core multiplier at 0.8 for manual review.
+5. Keep AoE geometry pressure at 3 while checking cone/sphere examples.
+6. Keep AoE extra count pressure at 3 while checking count 1/3/5 examples.
+7. Keep target extra count pressure unchanged until weapon target examples are
+   reviewed again.
+8. Leave damage type extra type at 1 until dual-damage Forge UI examples are
    reviewed.
-8. Leave mixed access weights unchanged until AoE and target weights settle.
-9. Leave ranged 30/60/120 buckets unchanged initially.
-10. Test features.weight.rangedDistance.121plus at 4 only if 300 ft still
-    feels underpriced in real examples.
-11. Test Rare, Legendary, and Mythic budgets only after AoE and target weights
-    are adjusted, because heavier feature weights may naturally consume the
-    current headroom.
+9. Leave mixed access weights unchanged until AoE and range settle.
+10. Keep ranged 61-120 at 5 and 121+ at 8 through the next manual pass.
+11. Test Rare, Legendary, and Mythic budgets only after the stronger breadth
+    weights are reviewed, because they may naturally consume the current
+    headroom.
 
 
 Testing Plan After Manual Admin Tuning
@@ -353,7 +371,7 @@ After each Admin tuning pass, rebuild or check these examples in Forge UI:
 - Melee+ranged weapon with access only.
 - Melee+ranged weapon with real ranged output.
 - 120 ft ranged weapon.
-- 300 ft ranged weapon.
+- 200 ft ranged weapon.
 - Small AoE weapon.
 - Large AoE weapon.
 - Multiple-AoE weapon.
@@ -392,8 +410,8 @@ Do not tune these yet:
 Open Questions
 --------------
 
-- Should 300 ft have its own distance bucket, such as
-  features.weight.rangedDistance.181plus or 241plus?
+- Should 200 ft have its own distance bucket, such as
+  features.weight.rangedDistance.181plus or 200plus?
 - Should shield split warning strictness be admin-tunable?
 - Should AoE shape weights split sphere, cone, line, and other geometry into
   separate expectation rows?

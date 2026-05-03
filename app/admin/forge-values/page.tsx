@@ -230,21 +230,21 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     key: "features.weight.rangedDistance.31to60",
     label: "Ranged Distance 31-60 ft Weight",
     description: "Feature weight for ranged reach beyond baseline up to 60 ft.",
-    defaultValue: 1,
+    defaultValue: 2,
     group: "Features & Versatility Breadth Weights",
   },
   {
     key: "features.weight.rangedDistance.61to120",
     label: "Ranged Distance 61-120 ft Weight",
     description: "Feature weight for ranged reach above 60 ft and up to 120 ft.",
-    defaultValue: 2,
+    defaultValue: 5,
     group: "Features & Versatility Breadth Weights",
   },
   {
     key: "features.weight.rangedDistance.121plus",
     label: "Ranged Distance 121+ ft Weight",
-    description: "Feature weight for very long ranged reach above 120 ft.",
-    defaultValue: 3,
+    description: "Feature weight for very long ranged reach above 120 ft, with 200 ft treated as the practical stress ceiling.",
+    defaultValue: 8,
     group: "Features & Versatility Breadth Weights",
   },
   {
@@ -258,7 +258,7 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     key: "features.weight.aoe.extraCount",
     label: "AoE Extra Target Weight",
     description: "Feature weight per AoE target or area count beyond the first.",
-    defaultValue: 1,
+    defaultValue: 3,
     group: "Features & Versatility Breadth Weights",
   },
   {
@@ -272,7 +272,7 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     key: "features.weight.aoe.geometry",
     label: "AoE Geometry Weight",
     description: "Feature weight for AoE shape and dimension breadth.",
-    defaultValue: 1,
+    defaultValue: 3,
     group: "Features & Versatility Breadth Weights",
   },
   {
