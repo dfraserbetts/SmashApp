@@ -97,6 +97,9 @@ export type ForgeOutputLaneSummary = {
 export type ForgeFeatureWeightDriver = {
   label: string;
   source: string;
+  sourceKind: "forge_output_expectation" | "legacy" | "fallback";
+  sourceLabel: string;
+  sourceValue: number;
   weight: number;
   fallbackUsed: boolean;
   note?: string;
@@ -1004,13 +1007,35 @@ function formatPressureValue(value: number): string {
   return value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 
+function formatLookupPath(
+  category: string,
+  selector1?: string | null,
+  selector2?: string | null,
+  selector3?: string | number | null,
+): string {
+  return [category, selector1, selector2, selector3]
+    .filter((entry) => entry !== undefined && entry !== null && String(entry).trim())
+    .map((entry) => String(entry).trim())
+    .join("/");
+}
+
+function describeFeatureDriverSource(entry: ForgeFeatureWeightDriver): string {
+  if (entry.sourceKind === "forge_output_expectation") {
+    return `ForgeOutputExpectation ${entry.sourceLabel} = ${formatPressureValue(entry.sourceValue)}`;
+  }
+  if (entry.sourceKind === "legacy") {
+    return `legacy ${entry.sourceLabel} = ${formatPressureValue(entry.sourceValue)}`;
+  }
+  return `fallback ${entry.sourceLabel} = ${formatPressureValue(entry.sourceValue)}`;
+}
+
 function formatFeatureDriver(entry: ForgeFeatureWeightDriver): string {
   const signedWeight = entry.weight >= 0
     ? `+${formatPressureValue(entry.weight)}`
     : formatPressureValue(entry.weight);
-  const fallback = entry.fallbackUsed ? " fallback" : "";
+  const source = describeFeatureDriverSource(entry);
   const note = entry.note ? `; ${entry.note}` : "";
-  return `${entry.label} (${signedWeight} Features${fallback}${note})`;
+  return `${entry.label} (${signedWeight} Features from ${source}${note})`;
 }
 
 function coreStatusFromPressureRatio(ratio: number): ForgeLaneStatus {
@@ -1055,12 +1080,19 @@ function addFeatureWeight(
     if (weight !== null) {
       const multiplier = getPositiveMultiplier(lookup.multiplier);
       const weightedValue = weight * multiplier;
+      const isForgeOutputExpectation =
+        normalizeCostKey(lookup.category) === "itemmodifiers" &&
+        normalizeCostKey(lookup.selector1) === "forgeoutputexpectation";
+      const sourceLabel = isForgeOutputExpectation
+        ? String(lookup.selector2 ?? "").trim()
+        : formatLookupPath(lookup.category, lookup.selector1, lookup.selector2, lookup.selector3);
       state.totalRaw += weightedValue;
       state.drivers.push({
         label,
-        source: `${lookup.category}/${[lookup.selector1, lookup.selector2, lookup.selector3]
-          .filter((entry) => entry !== undefined && entry !== null && String(entry).trim())
-          .join("/")}`,
+        source: formatLookupPath(lookup.category, lookup.selector1, lookup.selector2, lookup.selector3),
+        sourceKind: isForgeOutputExpectation ? "forge_output_expectation" : "legacy",
+        sourceLabel,
+        sourceValue: weight,
         weight: weightedValue,
         fallbackUsed: false,
         note:
@@ -1080,6 +1112,9 @@ function addFeatureWeight(
   state.drivers.push({
     label,
     source,
+    sourceKind: "fallback",
+    sourceLabel: source,
+    sourceValue: fallbackWeight,
     weight: fallbackWeight,
     fallbackUsed: true,
     note: fallbackNote,
@@ -1179,6 +1214,9 @@ function addAttributeFeatureWeight(
     state.drivers.push({
       label: `${labelPrefix}: ${detail.name}`,
       source: `attribute_scalar/${detail.pricingMode ?? "UNKNOWN"}`,
+      sourceKind: "legacy",
+      sourceLabel: `attribute scalar ${detail.pricingMode ?? "UNKNOWN"}`,
+      sourceValue: detail.pricingWeight,
       weight: detail.pricingWeight,
       fallbackUsed: false,
       note:

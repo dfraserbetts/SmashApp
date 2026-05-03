@@ -333,6 +333,12 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     group: "Core Functionality",
   },
 ];
+const FORGE_OUTPUT_EXPECTATION_GROUPS = [
+  "Features & Versatility",
+  "Features & Versatility Budget Scaling",
+  "Features & Versatility Breadth Weights",
+  "Core Functionality",
+] as const;
 
 function parseTieredName(name: string): { base: string; tier: number | null } {
   const m = name.trim().match(/^(.*)\s(\d+)$/);
@@ -2974,14 +2980,13 @@ function renderTemplatePreview(
                 ItemModifiers / ForgeOutputExpectation rows and do not change Forge Point
                 cost formulas or item save behaviour.
               </div>
+              <div className="text-xs opacity-70">
+                Missing rows are not saved yet. Forge will use fallback/default behaviour
+                until you press Create for that key, and an open Forge page may need a refresh
+                to pick up newly saved expectation rows.
+              </div>
 
-              {(
-                [
-                  "Features & Versatility",
-                  "Features & Versatility Breadth Weights",
-                  "Core Functionality",
-                ] as const
-              ).map((group) => (
+              {FORGE_OUTPUT_EXPECTATION_GROUPS.map((group) => (
                 <div key={group} className="rounded border border-zinc-800">
                   <div className="border-b border-zinc-800 p-2 text-xs font-medium uppercase tracking-wide opacity-80">
                     {group}
@@ -3006,19 +3011,28 @@ function renderTemplatePreview(
                             notes: "",
                           };
                           const isSaving = savingForgeOutputExpectationKey === expectation.key;
+                          const statusLabel = existing ? "Saved" : "Missing, using default";
+                          const statusClass = existing
+                            ? "border-emerald-700 text-emerald-300"
+                            : "border-amber-700 text-amber-200";
 
                           return (
                             <tr key={expectation.key}>
                               <td className="p-2 align-top">
-                                <div className="font-medium">{expectation.label}</div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <div className="font-medium">{expectation.label}</div>
+                                  <span className={`rounded border px-2 py-[2px] text-[10px] uppercase tracking-wide ${statusClass}`}>
+                                    {statusLabel}
+                                  </span>
+                                </div>
                                 <div className="mt-1 text-xs opacity-70">
                                   {expectation.description}
                                 </div>
-                                {!existing && (
-                                  <div className="mt-1 text-[11px] opacity-60">
-                                    Default fallback: {expectation.defaultValue}
-                                  </div>
-                                )}
+                                <div className="mt-1 text-[11px] opacity-60">
+                                  {existing
+                                    ? `Saved row #${existing.id ?? "?"} • category ItemModifiers • selector1 ForgeOutputExpectation • selector2 ${expectation.key}`
+                                    : `Default fallback: ${expectation.defaultValue} • Create to save category ItemModifiers / selector1 ForgeOutputExpectation / selector2 ${expectation.key}`}
+                                </div>
                               </td>
                               <td className="p-2 align-top font-mono text-xs opacity-80">
                                 {expectation.key}
@@ -3054,7 +3068,13 @@ function renderTemplatePreview(
                                   className="rounded border px-3 py-2 text-sm"
                                   disabled={isSaving || edit.value.trim() === ""}
                                   onClick={() => void saveForgeOutputExpectation(expectation.key)}
-                                  title={edit.value.trim() === "" ? "Enter a value to save" : "Save"}
+                                  title={
+                                    edit.value.trim() === ""
+                                      ? "Enter a value to save"
+                                      : existing
+                                        ? "Save existing row"
+                                        : "Create saved ForgeOutputExpectation row"
+                                  }
                                 >
                                   {isSaving ? "Saving..." : existing ? "Save" : "Create"}
                                 </button>

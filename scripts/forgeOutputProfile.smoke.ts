@@ -185,19 +185,71 @@ const COMMON_LOW_HEAVY_THRESHOLD_CONTEXT = buildForgeExpectationContext([
   { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.status.heavyRatio", value: 0.25 },
 ], undefined, 1);
 
+const LEGACY_ONLY_RANGE_CONTEXT = buildForgeExpectationContext(
+  FEATURE_WEIGHT_CONTEXT.costs.filter((row) =>
+    !(
+      row.category === "ItemModifiers" &&
+      row.selector1 === "ForgeOutputExpectation" &&
+      (
+        row.selector2 === "features.weight.rangedDistance.31to60" ||
+        row.selector2 === "features.weight.rangedDistance.61to120" ||
+        row.selector2 === "features.weight.rangedDistance.121plus"
+      )
+    )
+  ),
+  undefined,
+  1,
+);
+
+const FALLBACK_ONLY_RANGE_CONTEXT = buildForgeExpectationContext(
+  FEATURE_WEIGHT_CONTEXT.costs.filter((row) =>
+    !(
+      (row.category === "ItemModifiers" &&
+        row.selector1 === "ForgeOutputExpectation" &&
+        (
+          row.selector2 === "features.weight.rangedDistance.31to60" ||
+          row.selector2 === "features.weight.rangedDistance.61to120" ||
+          row.selector2 === "features.weight.rangedDistance.121plus"
+        )) ||
+      row.category === "RangedDistanceFt"
+    )
+  ),
+  undefined,
+  1,
+);
+
+const SHIELD_SPLIT_MISSING_CONTEXT = buildForgeExpectationContext(
+  FEATURE_WEIGHT_CONTEXT.costs.filter((row) =>
+    !(
+      row.category === "ItemModifiers" &&
+      row.selector1 === "ForgeOutputExpectation" &&
+      row.selector2 === "features.weight.shieldSplit.attackDefence"
+    )
+  ),
+  undefined,
+  1,
+);
+
 const CORE_MULTIPLIER_CONTEXT = buildForgeExpectationContext([
   { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "core.weapon.size.SMALL.multiplier", value: 2 },
 ], undefined, 1);
 
 function withFeatureWeightOverride(key: string, value: number) {
-  return buildForgeExpectationContext(
-    FEATURE_WEIGHT_CONTEXT.costs.map((row) =>
+  let replaced = false;
+  const costs = FEATURE_WEIGHT_CONTEXT.costs.map((row) => {
+    const matches =
       row.category === "ItemModifiers" &&
       row.selector1 === "ForgeOutputExpectation" &&
-      row.selector2 === key
-        ? { ...row, value }
-        : row,
-    ),
+      row.selector2 === key;
+    if (!matches) return row;
+    replaced = true;
+    return { ...row, value };
+  });
+  if (!replaced) {
+    costs.push({ category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: key, value });
+  }
+  return buildForgeExpectationContext(
+    costs,
     undefined,
     1,
   );
@@ -231,6 +283,13 @@ function assertFeatureDriver(
     ),
     `${profileName} should read ${labelPart} weight from ${expectedKey}`,
   );
+}
+
+function findFeatureDriver(
+  bands: ReturnType<typeof compareForgeOutputToBands>,
+  labelPart: string,
+) {
+  return bands.lanes.debug.featureWeightDrivers.find((entry) => entry.label.includes(labelPart)) ?? null;
 }
 
 const simpleMelee = runCase("simple melee", {
@@ -351,6 +410,15 @@ assert.ok(
     row.value === 50,
   ),
   "Forge Output Expectation rows should use the same ItemModifiers/ForgeOutputExpectation shape as Admin Forge Values",
+);
+assert.ok(
+  FEATURE_WEIGHT_CONTEXT.costs.some((row) =>
+    row.category === "ItemModifiers" &&
+    row.selector1 === "ForgeOutputExpectation" &&
+    row.selector2 === "features.weight.rangedDistance.61to120" &&
+    row.selector3 === undefined,
+  ),
+  "Expectation-row fixtures should use the same admin create shape for ranged distance keys",
 );
 assert.equal(expensiveHighBudgetCommonBands.lanes.debug.expectedFeatureBudget, 50);
 assert.equal(expensiveHighBudgetCommonBands.lanes.debug.featureBudgetSource, "forge_expectation_config");
@@ -1186,6 +1254,7 @@ assert.equal(shield.shieldCoPresence.hasDefenceOutput, true);
 assert.equal(shield.shieldCoPresence.hasAttackAndDefence, true);
 const shieldBands = compareForgeOutputToBands(shield);
 const weightedShieldBands = compareForgeOutputToBands(shield, FEATURE_WEIGHT_CONTEXT);
+const missingShieldSplitBands = compareForgeOutputToBands(shield, SHIELD_SPLIT_MISSING_CONTEXT);
 const shieldWeaponBand = shieldBands.weaponProfiles.find((entry) => entry.profileKind === "melee");
 assert.equal(shieldWeaponBand?.bandSize, "SMALL");
 assert.equal(shieldWeaponBand?.classification, "high");
@@ -1213,9 +1282,23 @@ assert.ok(
 );
 assert.ok(
   weightedShieldBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
-    entry.includes("shield attack + defence split") && entry.includes("+10 Features"),
+    entry.includes("shield attack + defence split") &&
+    entry.includes("ForgeOutputExpectation features.weight.shieldSplit.attackDefence = 10"),
   ),
-  "Shield split feature driver should show the configured weight",
+  "Shield split feature driver should show the configured ForgeOutputExpectation source",
+);
+const missingShieldSplitDriver = findFeatureDriver(missingShieldSplitBands, "shield attack + defence split");
+assert.ok(
+  missingShieldSplitDriver?.fallbackUsed &&
+    missingShieldSplitDriver.sourceKind === "fallback" &&
+    missingShieldSplitDriver.sourceValue === 1,
+  "Missing shield split expectation should report fallback source",
+);
+assert.ok(
+  missingShieldSplitBands.lanes.debug.missingFeatureWeightDrivers.some((entry) =>
+    entry.label.includes("shield attack + defence split"),
+  ),
+  "Missing shield split expectation should be listed as missing",
 );
 
 const meleeRangedAccessOnly = runCase("melee/ranged access without ranged output", {
@@ -1421,6 +1504,8 @@ const rangedOneTwentyFeet = runCase("ranged 120 ft", {
 });
 const rangedThirtyFeetBands = compareForgeOutputToBands(rangedThirtyFeet, FEATURE_WEIGHT_CONTEXT);
 const rangedOneTwentyFeetBands = compareForgeOutputToBands(rangedOneTwentyFeet, FEATURE_WEIGHT_CONTEXT);
+const rangedOneTwentyFeetLegacyOnlyBands = compareForgeOutputToBands(rangedOneTwentyFeet, LEGACY_ONLY_RANGE_CONTEXT);
+const rangedOneTwentyFeetFallbackOnlyBands = compareForgeOutputToBands(rangedOneTwentyFeet, FALLBACK_ONLY_RANGE_CONTEXT);
 const sameWoundsMeleeBands = compareForgeOutputToBands(simpleMelee, FEATURE_WEIGHT_CONTEXT);
 const sameWoundsMeleeBand = sameWoundsMeleeBands.weaponProfiles.find((entry) => entry.profileKind === "melee");
 const sameWoundsRangedBand = rangedThirtyFeetBands.weaponProfiles.find((entry) => entry.profileKind === "ranged");
@@ -1466,11 +1551,45 @@ assertFeatureDriver(
   6,
   "features.weight.rangedDistance.61to120",
 );
+const rangedOneTwentyExpectationDriver = findFeatureDriver(rangedOneTwentyFeetBands, "Ranged distance 120 ft");
+assert.ok(
+  rangedOneTwentyExpectationDriver?.sourceKind === "forge_output_expectation" &&
+    rangedOneTwentyExpectationDriver.sourceLabel === "features.weight.rangedDistance.61to120" &&
+    rangedOneTwentyExpectationDriver.sourceValue === 6,
+  "Present expectation row should report ForgeOutputExpectation source for 120 ft",
+);
 assert.ok(
   rangedOneTwentyFeetBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
-    entry.includes("Ranged distance 120 ft") && entry.includes("+6 Features"),
+    entry.includes("Ranged distance 120 ft") &&
+    entry.includes("ForgeOutputExpectation features.weight.rangedDistance.61to120 = 6"),
   ),
   "Ranged distance driver should show the applied 120 ft feature weight",
+);
+const rangedOneTwentyLegacyDriver = findFeatureDriver(rangedOneTwentyFeetLegacyOnlyBands, "Ranged distance 120 ft");
+assert.ok(
+  rangedOneTwentyLegacyDriver?.sourceKind === "legacy" &&
+    rangedOneTwentyLegacyDriver.sourceLabel === "RangedDistanceFt/Weapon/120" &&
+    rangedOneTwentyLegacyDriver.sourceValue === 2,
+  "Legacy row should be used only when 120 ft expectation row is missing",
+);
+assert.ok(
+  rangedOneTwentyFeetLegacyOnlyBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
+    entry.includes("legacy RangedDistanceFt/Weapon/120 = 2"),
+  ),
+  "Legacy driver text should be visible when expectation row is missing",
+);
+const rangedOneTwentyFallbackDriver = findFeatureDriver(rangedOneTwentyFeetFallbackOnlyBands, "Ranged distance 120 ft");
+assert.ok(
+  rangedOneTwentyFallbackDriver?.fallbackUsed &&
+    rangedOneTwentyFallbackDriver.sourceKind === "fallback" &&
+    rangedOneTwentyFallbackDriver.sourceValue === 1,
+  "Missing expectation and legacy rows should report fallback source for 120 ft",
+);
+assert.ok(
+  rangedOneTwentyFeetFallbackOnlyBands.lanes.debug.missingFeatureWeightDrivers.some((entry) =>
+    entry.label.includes("Ranged distance 120 ft"),
+  ),
+  "Missing 120 ft expectation should be listed in missing feature drivers",
 );
 const tunedRangedOneTwentyFeetBands = compareForgeOutputToBands(
   rangedOneTwentyFeet,
@@ -1566,7 +1685,8 @@ assertFeatureDriver(
 );
 assert.ok(
   rangedTwoHundredFeetLowDamageBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
-    entry.includes("Ranged distance 200 ft") && entry.includes("+10 Features"),
+    entry.includes("Ranged distance 200 ft") &&
+    entry.includes("ForgeOutputExpectation features.weight.rangedDistance.121plus = 10"),
   ),
   "Ranged distance driver should show the applied 200 ft feature weight",
 );
