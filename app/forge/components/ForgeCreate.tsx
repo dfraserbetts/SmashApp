@@ -3124,21 +3124,24 @@ function handleResetForge() {
         .map((entry: any) => (entry.selector2 as string).trim()),
     ),
   ).sort((a, b) => a.localeCompare(b));
+  const globalAttributeOptionNames = attributeNames.filter(
+    (name) => name !== 'Defence' && name !== 'Support',
+  );
 
   useEffect(() => {
-    if (!attributeNames.length) return;
+    if (!globalAttributeOptionNames.length) return;
 
     setGlobalAttributeSelection((current) => {
-      if (attributeNames.includes(current)) return current;
-      if (attributeNames.includes('Attack')) return 'Attack';
-      return attributeNames[0];
+      if (globalAttributeOptionNames.includes(current)) return current;
+      if (globalAttributeOptionNames.includes('Attack')) return 'Attack';
+      return globalAttributeOptionNames[0];
     });
 
     setGlobalAttributeAmount((current) => {
       if (current >= 1 && current <= 5) return current;
       return 1;
     });
-  }, [attributeNames]);
+  }, [globalAttributeOptionNames]);
 
   useEffect(() => {
     setItemModifierSelection((current) => {
@@ -4183,6 +4186,10 @@ useEffect(() => {
           // Important UX rule:
           // If it's already selected, never disable it (so the user can always remove it).
           const isDisabled = !isSelected && !isAvailable;
+
+          if (isDisabled) {
+            return null;
+          }
 
           const detailTitle = [attr.tooltip?.trim(), isDisabled ? `Unavailable: ${reasons.join(' + ')}` : null]
             .filter(Boolean)
@@ -6611,7 +6618,7 @@ useEffect(() => {
                     textClassName="text-sm font-medium"
                   />
 
-                  {attributeNames.length > 0 ? (
+                  {globalAttributeOptionNames.length > 0 ? (
                     <>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                         <select
@@ -6621,7 +6628,7 @@ useEffect(() => {
                             setGlobalAttributeSelection(e.target.value)
                           }
                         >
-                          {attributeNames.map((name) => (
+                          {globalAttributeOptionNames.map((name) => (
                             <option key={name} value={name}>
                               {name}
                             </option>
@@ -6649,6 +6656,7 @@ useEffect(() => {
                           className="inline-flex items-center rounded-md bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-100 hover:bg-zinc-700"
                           onClick={() => {
                             if (!globalAttributeSelection) return;
+                            if (!globalAttributeOptionNames.includes(globalAttributeSelection)) return;
                             if (
                               globalAttributeAmount < 1 ||
                               globalAttributeAmount > 5
