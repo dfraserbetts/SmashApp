@@ -2108,6 +2108,124 @@ assert.ok(
 assert.equal(armourDualLaneBands.lanes.debug.coreActualValue, 3);
 assert.equal(armourDualLaneBands.lanes.debug.coreExpectedValue, 2.8);
 
+const pureDefensiveShield = runCase("pure defensive shield", {
+  level: 5,
+  rarity: "COMMON",
+  type: "SHIELD",
+  size: "SMALL",
+  ppv: 2,
+});
+const pureDefensiveShieldBands = compareForgeOutputToBands(pureDefensiveShield);
+assert.equal(pureDefensiveShieldBands.defensive.debugNote, "shield overlay expectation");
+assert.equal(pureDefensiveShieldBands.defensive.ppv.armourSlotWeight, 0.2);
+assert.equal(pureDefensiveShieldBands.defensive.ppv.classification, "standard");
+assert.equal(pureDefensiveShieldBands.lanes.coreFunctionality.status, "moderate");
+assert.ok(
+  pureDefensiveShieldBands.lanes.coreFunctionality.mainDrivers.some((entry) =>
+    entry.includes("PPV 2 vs Shield expected 1.2-2 from package band 6-10 x 20%"),
+  ),
+  "Shield PPV should compare against the optional Shield 20% overlay expectation",
+);
+assert.ok(
+  !pureDefensiveShieldBands.lanes.coreFunctionality.mainDrivers.some((entry) =>
+    entry.includes("PPV 2 vs package expected 6-10"),
+  ),
+  "Shield PPV should no longer compare against the full package expectation",
+);
+
+const strongDefensiveShield = runCase("strong defensive shield", {
+  level: 5,
+  rarity: "COMMON",
+  type: "SHIELD",
+  size: "SMALL",
+  ppv: 4,
+});
+const strongDefensiveShieldBands = compareForgeOutputToBands(strongDefensiveShield);
+assert.equal(strongDefensiveShieldBands.defensive.ppv.classification, "extreme");
+assert.equal(strongDefensiveShieldBands.lanes.coreFunctionality.status, "heavy");
+
+const overbuiltDefensiveShield = runCase("overbuilt defensive shield", {
+  level: 5,
+  rarity: "COMMON",
+  type: "SHIELD",
+  size: "SMALL",
+  ppv: 6,
+});
+const overbuiltDefensiveShieldBands = compareForgeOutputToBands(overbuiltDefensiveShield);
+assert.equal(overbuiltDefensiveShieldBands.defensive.ppv.classification, "over-band");
+assert.equal(overbuiltDefensiveShieldBands.lanes.coreFunctionality.status, "likely overloaded");
+
+const mentalDefensiveShield = runCase("mental defensive shield", {
+  level: 5,
+  rarity: "COMMON",
+  type: "SHIELD",
+  size: "SMALL",
+  mpv: 2,
+});
+const mentalDefensiveShieldBands = compareForgeOutputToBands(mentalDefensiveShield);
+assert.equal(mentalDefensiveShieldBands.defensive.mpv.armourSlotWeight, 0.2);
+assert.equal(mentalDefensiveShieldBands.defensive.mpv.classification, "high");
+assert.ok(
+  mentalDefensiveShieldBands.lanes.coreFunctionality.mainDrivers.some((entry) =>
+    entry.includes("MPV 2 vs Shield expected 1.2-1.6 from package band 6-8 x 20%"),
+  ),
+  "Shield MPV should compare against the optional Shield 20% overlay expectation",
+);
+
+const dualLaneDefensiveShield = runCase("dual lane defensive shield", {
+  level: 5,
+  rarity: "COMMON",
+  type: "SHIELD",
+  size: "SMALL",
+  ppv: 2,
+  mpv: 2,
+});
+const dualLaneDefensiveShieldBands = compareForgeOutputToBands(dualLaneDefensiveShield);
+assert.equal(dualLaneDefensiveShieldBands.defensive.ppv.classification, "standard");
+assert.equal(dualLaneDefensiveShieldBands.defensive.mpv.classification, "high");
+assert.equal(dualLaneDefensiveShieldBands.lanes.coreFunctionality.status, "broad");
+assert.ok(
+  dualLaneDefensiveShieldBands.lanes.coreFunctionality.mainDrivers.some((entry) => entry.startsWith("PPV 2 vs Shield")),
+  "Dual-lane shield should show PPV shield overlay driver",
+);
+assert.ok(
+  dualLaneDefensiveShieldBands.lanes.coreFunctionality.mainDrivers.some((entry) => entry.startsWith("MPV 2 vs Shield")),
+  "Dual-lane shield should show MPV shield overlay driver",
+);
+
+const attackDefenceShield = runCase("attack defence shield weighted output", {
+  level: 5,
+  rarity: "COMMON",
+  type: "SHIELD",
+  size: "SMALL",
+  shieldHasAttack: true,
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 2,
+  meleeDamageTypes: [{ damageType: { name: "Bludgeoning", attackMode: "PHYSICAL" } }],
+  ppv: 4,
+});
+const attackDefenceShieldBands = compareForgeOutputToBands(attackDefenceShield, FEATURE_WEIGHT_CONTEXT);
+const attackDefenceShieldWeaponBand = attackDefenceShieldBands.weaponProfiles.find((entry) => entry.profileKind === "melee");
+assert.equal(attackDefenceShieldBands.defensive.ppv.classification, "extreme");
+assert.equal(attackDefenceShieldWeaponBand?.shieldAttackCoreMultiplier, 0.6);
+assert.ok(
+  attackDefenceShieldWeaponBand?.debugNotes.some((entry) => entry.includes("shield attack core multiplier 0.6")),
+  "Shield attack should expose the 60% same-size weapon expectation multiplier",
+);
+assert.ok(
+  attackDefenceShieldBands.lanes.coreFunctionality.mainDrivers.some((entry) =>
+    entry.includes("PPV 4 vs Shield expected 1.2-2 from package band 6-10 x 20%"),
+  ),
+  "Attack + defence shield should keep Shield 20% defensive driver",
+);
+assertFeatureDriver(
+  "attack defence shield",
+  attackDefenceShieldBands,
+  "shield attack + defence split",
+  10,
+  "features.weight.shieldSplit.attackDefence",
+);
+
 const shield = runCase("shield", {
   level: 5,
   rarity: "UNCOMMON",
@@ -2130,7 +2248,8 @@ const weightedShieldBands = compareForgeOutputToBands(shield, FEATURE_WEIGHT_CON
 const missingShieldSplitBands = compareForgeOutputToBands(shield, SHIELD_SPLIT_MISSING_CONTEXT);
 const shieldWeaponBand = shieldBands.weaponProfiles.find((entry) => entry.profileKind === "melee");
 assert.equal(shieldWeaponBand?.bandSize, "SMALL");
-assert.equal(shieldWeaponBand?.classification, "high");
+assert.equal(shieldWeaponBand?.classification, "extreme");
+assert.equal(shieldWeaponBand?.shieldAttackCoreMultiplier, 0.6);
 assert.equal(shieldBands.shield.hasAttackAndDefence, true);
 assert.equal(shieldBands.shield.shieldSplitWarningLevel, "watch");
 assert.ok(

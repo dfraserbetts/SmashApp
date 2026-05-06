@@ -50,6 +50,7 @@ export type ForgeWeaponProfileBandComparison = {
   aoe: ForgeAttackProfileOutput["aoe"];
   profileRangeMode: "MELEE" | "RANGED" | "AOE";
   rangeModeCoreMultiplier: number;
+  shieldAttackCoreMultiplier: number;
   rangeModeAdjustedExpectedValue: number;
   perTargetClassification: ForgeOutputBandClassification;
   totalPressureClassification: ForgeOutputBandClassification;
@@ -67,6 +68,7 @@ export type ForgeDefensiveBandComparison = {
     packageThresholds: ForgeBandThresholds;
     armourSlotWeight: number;
     armourLocation: ArmorLocation | null;
+    defensiveReferenceLabel: string | null;
   };
   mpv: {
     value: number;
@@ -75,10 +77,12 @@ export type ForgeDefensiveBandComparison = {
     packageThresholds: ForgeBandThresholds;
     armourSlotWeight: number;
     armourLocation: ArmorLocation | null;
+    defensiveReferenceLabel: string | null;
   };
   debugNote:
     | "package-level expectation"
     | "slot-weighted armour package expectation"
+    | "shield overlay expectation"
     | "missing armour slot, package-level expectation used";
 };
 
@@ -394,6 +398,8 @@ const SECONDARY_PROFILE_CORE_MULTIPLIER = 0.35;
 const RANGED_DISTANCE_CORE_SCORE_MULTIPLIER = 0.4;
 const RANGED_PROFILE_CORE_MULTIPLIER_KEY = "core.weapon.rangeMode.RANGED.multiplier";
 const DEFAULT_RANGED_PROFILE_CORE_MULTIPLIER = 0.8;
+const SHIELD_ATTACK_CORE_MULTIPLIER = 0.6;
+const SHIELD_DEFENSIVE_PACKAGE_WEIGHT = 0.2;
 const ARMOUR_SLOT_PACKAGE_WEIGHTS: Record<ArmorLocation, number> = {
   TORSO: 0.35,
   SHOULDERS: 0.2,
@@ -762,21 +768,37 @@ function scaleDefensiveBandBySlot(
 function resolveArmourSlotExpectation(profile: ForgeOutputProfile): {
   location: ArmorLocation | null;
   weight: number;
+  referenceLabel: string | null;
   debugNote: ForgeDefensiveBandComparison["debugNote"];
 } {
   const itemType = String(profile.common.type ?? "").trim().toUpperCase();
+  if (itemType === "SHIELD") {
+    return {
+      location: null,
+      weight: SHIELD_DEFENSIVE_PACKAGE_WEIGHT,
+      referenceLabel: "Shield",
+      debugNote: "shield overlay expectation",
+    };
+  }
+
   if (itemType !== "ARMOR") {
-    return { location: null, weight: 1, debugNote: "package-level expectation" };
+    return { location: null, weight: 1, referenceLabel: null, debugNote: "package-level expectation" };
   }
 
   const location = profile.common.normalizedArmorLocation;
   if (!location) {
-    return { location: null, weight: 1, debugNote: "missing armour slot, package-level expectation used" };
+    return {
+      location: null,
+      weight: 1,
+      referenceLabel: null,
+      debugNote: "missing armour slot, package-level expectation used",
+    };
   }
 
   return {
     location,
     weight: ARMOUR_SLOT_PACKAGE_WEIGHTS[location],
+    referenceLabel: formatArmourLocation(location),
     debugNote: "slot-weighted armour package expectation",
   };
 }
@@ -868,13 +890,16 @@ function compareWeaponProfile(
     debugNotes: string[];
   },
   rangeModeMultiplier: ForgeExpectationValue,
+  shieldAttackMultiplier: ForgeExpectationValue = { value: 1, source: "default" },
 ): ForgeWeaponProfileBandComparison {
   const rangeModeNormalizationNotes: string[] = [];
   const thresholds = scaledWeaponWoundBand(
     weaponBand.thresholds,
-    rangeModeMultiplier.value,
+    rangeModeMultiplier.value * shieldAttackMultiplier.value,
     rangeModeNormalizationNotes,
-    "range mode core expectation",
+    shieldAttackMultiplier.value !== 1
+      ? "shield attack core expectation"
+      : "range mode core expectation",
   );
   const perTargetWounds = profile.totalWoundsPerSuccess;
   const totalPressure = profile.totalWoundsPerSuccess * profile.targetCount;
@@ -902,6 +927,11 @@ function compareWeaponProfile(
       `range mode core multiplier ${rangeModeMultiplier.value} adjusted expected standard to ${thresholds.standardMax}`,
     );
   }
+  if (shieldAttackMultiplier.value !== 1) {
+    debugNotes.push(
+      `shield attack core multiplier ${shieldAttackMultiplier.value} adjusted expected standard to ${thresholds.standardMax}`,
+    );
+  }
   debugNotes.push(...rangeModeNormalizationNotes);
 
   return {
@@ -922,6 +952,7 @@ function compareWeaponProfile(
     aoe: profile.aoe,
     profileRangeMode: profile.rangeCategory,
     rangeModeCoreMultiplier: rangeModeMultiplier.value,
+    shieldAttackCoreMultiplier: shieldAttackMultiplier.value,
     rangeModeAdjustedExpectedValue: thresholds.standardMax,
     perTargetClassification,
     totalPressureClassification,
@@ -1180,6 +1211,11 @@ function formatDefensiveCoreDriver(
     const slotLabel = formatArmourLocation(comparison.armourLocation);
     const slotPercent = formatPressureValue(comparison.armourSlotWeight * 100);
     return `${label} ${value} vs ${slotLabel} expected ${formatPressureValue(expectedMin)}-${formatPressureValue(expectedMax)} from package band ${packageRange} x ${slotPercent}% (${comparison.classification})`;
+  }
+
+  if (comparison.defensiveReferenceLabel) {
+    const referencePercent = formatPressureValue(comparison.armourSlotWeight * 100);
+    return `${label} ${value} vs ${comparison.defensiveReferenceLabel} expected ${formatPressureValue(expectedMin)}-${formatPressureValue(expectedMax)} from package band ${packageRange} x ${referencePercent}% (${comparison.classification})`;
   }
 
   return `${label} ${value} vs package expected ${packageRange} (${comparison.classification})`;
@@ -2316,7 +2352,11 @@ export function compareForgeOutputToBands(
               [{ category: "SIZE", selector1: "core.weapon.rangeMode", selector2: "RANGED" }],
             )
           : { value: 1, source: "default" as const };
-      return compareWeaponProfile(entry, weaponBand, rangeModeMultiplier);
+      const shieldAttackMultiplier =
+        String(profile.common.type ?? "").trim().toUpperCase() === "SHIELD"
+          ? { value: SHIELD_ATTACK_CORE_MULTIPLIER, source: "default" as const }
+          : { value: 1, source: "default" as const };
+      return compareWeaponProfile(entry, weaponBand, rangeModeMultiplier, shieldAttackMultiplier);
     });
   const ppvClassification = classifyValue(profile.defensiveProfile.ppv, ppvThresholds);
   const mpvClassification = classifyValue(profile.defensiveProfile.mpv, mpvThresholds);
@@ -2332,6 +2372,7 @@ export function compareForgeOutputToBands(
         packageThresholds: ppvPackageThresholds,
         armourSlotWeight: armourSlotExpectation.weight,
         armourLocation: armourSlotExpectation.location,
+        defensiveReferenceLabel: armourSlotExpectation.referenceLabel,
       },
       mpv: {
         value: profile.defensiveProfile.mpv,
@@ -2340,6 +2381,7 @@ export function compareForgeOutputToBands(
         packageThresholds: mpvPackageThresholds,
         armourSlotWeight: armourSlotExpectation.weight,
         armourLocation: armourSlotExpectation.location,
+        defensiveReferenceLabel: armourSlotExpectation.referenceLabel,
       },
       debugNote: armourSlotExpectation.debugNote,
     },
@@ -2355,9 +2397,13 @@ export function compareForgeOutputToBands(
         "rarity does not increase raw damage bands in this comparator",
         "ranged profiles use a lower core damage allowance than melee because melee accepts tactical risk",
         "armour PPV/MPV uses slot-weighted package expectations for armour items",
+        "shield PPV/MPV uses 20% optional overlay expectations and is not part of the armour package",
+        "shield attack output uses 60% of same-size weapon core expectation",
         armourSlotExpectation.location
           ? `armour slot ${armourSlotExpectation.location} uses ${formatPressureValue(armourSlotExpectation.weight * 100)}% of package expectation`
-          : armourSlotExpectation.debugNote,
+          : armourSlotExpectation.referenceLabel
+            ? `${armourSlotExpectation.referenceLabel} uses ${formatPressureValue(armourSlotExpectation.weight * 100)}% of package expectation`
+            : armourSlotExpectation.debugNote,
         weaponMultiplier.source === "forge_expectation_config"
           ? `weapon core expectation multiplier ${weaponMultiplier.value}`
           : "weapon core expectation default multiplier 1",
