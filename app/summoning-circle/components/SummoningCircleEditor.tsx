@@ -7338,8 +7338,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
           ? `${config.targets} ranged ${config.distance || 0}ft`
           : `${config.targets} melee`
         : `${config.count || 1} ${config.shape.toLowerCase()}`;
-    const physicalStrength = Math.max(0, Math.trunc(config.physicalStrength ?? 0));
-    const mentalStrength = Math.max(0, Math.trunc(config.mentalStrength ?? 0));
+    const physicalStrength = Math.max(0, Number(config.physicalStrength ?? 0));
+    const mentalStrength = Math.max(0, Number(config.mentalStrength ?? 0));
 
     if (physicalStrength > 0) {
       bullets.push(

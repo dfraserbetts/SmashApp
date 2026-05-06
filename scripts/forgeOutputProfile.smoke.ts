@@ -330,6 +330,22 @@ assert.ok(
   "simple melee should read as core-focused",
 );
 
+const halfStepMelee = runCase("half-step melee strength", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 2.5,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+});
+const halfStepMeleeProfile = getProfile(halfStepMelee, "melee");
+assert.equal(halfStepMeleeProfile.physicalStrength, 2.5);
+assert.equal(halfStepMeleeProfile.physicalWoundsPerSuccess, 5);
+assert.equal(halfStepMeleeProfile.totalPhysicalWoundsPerSuccess, 5);
+
+
 const physicalOnlyStrengthOne = runCase("physical-only strength one", {
   level: 5,
   rarity: "COMMON",

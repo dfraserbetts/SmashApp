@@ -42,14 +42,14 @@ model ItemTemplate {
   meleeDamageTypeIds          Int[]
   rangedDamageTypeIds         Int[]
   aoeDamageTypeIds            Int[]
-  physicalStrength            Int?                             @map("PhysicalStrength")
-  mentalStrength              Int?                             @map("MentalStrength")
-  meleePhysicalStrength       Int?                             @map("meleePhysicalStrength")
-  meleeMentalStrength         Int?                             @map("meleeMentalStrength")
-  rangedPhysicalStrength      Int?                             @map("rangedPhysicalStrength")
-  rangedMentalStrength        Int?                             @map("rangedMentalStrength")
-  aoePhysicalStrength         Int?                             @map("aoePhysicalStrength")
-  aoeMentalStrength           Int?                             @map("aoeMentalStrength")
+  physicalStrength            Float?                           @map("PhysicalStrength")
+  mentalStrength              Float?                           @map("MentalStrength")
+  meleePhysicalStrength       Float?                           @map("meleePhysicalStrength")
+  meleeMentalStrength         Float?                           @map("meleeMentalStrength")
+  rangedPhysicalStrength      Float?                           @map("rangedPhysicalStrength")
+  rangedMentalStrength        Float?                           @map("rangedMentalStrength")
+  aoePhysicalStrength         Float?                           @map("aoePhysicalStrength")
+  aoeMentalStrength           Float?                           @map("aoeMentalStrength")
   mythicLbPushTemplateId      String?                          @map("MythicLbPushTemplateID")
   mythicLbBreakTemplateId     String?                          @map("MythicLbBreakTemplateID")
   mythicLbTranscendTemplateId String?                          @map("MythicLbTranscendTemplateID")
