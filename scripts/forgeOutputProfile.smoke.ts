@@ -329,6 +329,199 @@ assert.ok(
   simpleMeleeBands.lanes.coreFunctionality.mainDrivers.some((entry) => entry.includes("weapon throughput")),
   "simple melee should read as core-focused",
 );
+
+const physicalOnlyStrengthOne = runCase("physical-only strength one", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+});
+const physicalPlusMentalStrengthOne = runCase("physical plus mental strength one", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeMentalStrength: 1,
+  meleeDamageTypes: [
+    { damageType: { name: "Slashing", attackMode: "PHYSICAL" } },
+    { damageType: { name: "Psychic", attackMode: "MENTAL" } },
+  ],
+  meleeTargets: 1,
+});
+const physicalOnlyStrengthOneBands = compareForgeOutputToBands(physicalOnlyStrengthOne, FEATURE_WEIGHT_CONTEXT);
+const physicalPlusMentalStrengthOneBands = compareForgeOutputToBands(physicalPlusMentalStrengthOne, FEATURE_WEIGHT_CONTEXT);
+assert.equal(getProfile(physicalOnlyStrengthOne, "melee").totalWoundsPerSuccess, 2);
+assert.equal(getProfile(physicalPlusMentalStrengthOne, "melee").totalWoundsPerSuccess, 4);
+assert.ok(
+  physicalPlusMentalStrengthOneBands.lanes.debug.coreActualValue >=
+    physicalOnlyStrengthOneBands.lanes.debug.coreActualValue,
+  "Adding positive mental damage output must not reduce Core actual value",
+);
+assert.ok(
+  physicalPlusMentalStrengthOneBands.lanes.debug.corePressureRatio >=
+    physicalOnlyStrengthOneBands.lanes.debug.corePressureRatio,
+  "Adding positive mental damage output must not reduce Core pressure ratio",
+);
+assert.ok(
+  LANE_STATUS_PERCENT[physicalPlusMentalStrengthOneBands.lanes.coreFunctionality.status] >=
+    LANE_STATUS_PERCENT[physicalOnlyStrengthOneBands.lanes.coreFunctionality.status],
+  "Adding positive mental damage output must not lower Core status",
+);
+
+const oneDamageTypeStrengthTwo = runCase("one damage type strength two", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 2,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+});
+const threeDamageTypesStrengthTwo = runCase("three damage types strength two", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 2,
+  meleeDamageTypes: [
+    { damageType: { name: "Slashing", attackMode: "PHYSICAL" } },
+    { damageType: { name: "Fire", attackMode: "PHYSICAL" } },
+    { damageType: { name: "Ice", attackMode: "PHYSICAL" } },
+  ],
+  meleeTargets: 1,
+});
+const oneDamageTypeStrengthTwoBands = compareForgeOutputToBands(oneDamageTypeStrengthTwo, FEATURE_WEIGHT_CONTEXT);
+const threeDamageTypesStrengthTwoBands = compareForgeOutputToBands(threeDamageTypesStrengthTwo, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  threeDamageTypesStrengthTwoBands.lanes.debug.coreActualValue >=
+    oneDamageTypeStrengthTwoBands.lanes.debug.coreActualValue,
+  "Adding simultaneous damage types must not reduce Core actual value",
+);
+assert.ok(
+  threeDamageTypesStrengthTwoBands.lanes.debug.corePressureRatio >=
+    oneDamageTypeStrengthTwoBands.lanes.debug.corePressureRatio,
+  "Adding simultaneous damage types must not reduce Core pressure ratio",
+);
+
+let previousTargetCoreRatio = -Infinity;
+let previousTargetCoreActual = -Infinity;
+for (const targets of [1, 2, 3, 4, 5]) {
+  const targetedMelee = runCase(`target monotonic melee ${targets}`, {
+    level: 5,
+    rarity: "COMMON",
+    type: "WEAPON",
+    size: "ONE_HANDED",
+    rangeCategories: ["MELEE"],
+    meleePhysicalStrength: 2,
+    meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+    meleeTargets: targets,
+  });
+  const targetedMeleeBands = compareForgeOutputToBands(targetedMelee, FEATURE_WEIGHT_CONTEXT);
+  assert.ok(
+    targetedMeleeBands.lanes.debug.coreActualValue >= previousTargetCoreActual,
+    `Increasing targets to ${targets} must not reduce Core actual value`,
+  );
+  assert.ok(
+    targetedMeleeBands.lanes.debug.corePressureRatio >= previousTargetCoreRatio,
+    `Increasing targets to ${targets} must not reduce Core pressure ratio`,
+  );
+  previousTargetCoreActual = targetedMeleeBands.lanes.debug.coreActualValue;
+  previousTargetCoreRatio = targetedMeleeBands.lanes.debug.corePressureRatio;
+}
+
+const meleeRangedMonotonicAccessOnly = runCase("secondary monotonic access only", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE", "RANGED"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  rangedDistanceFeet: 30,
+});
+const meleeRangedMonotonicLow = runCase("secondary monotonic low output", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE", "RANGED"],
+  meleePhysicalStrength: 3,
+  rangedPhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  rangedDamageTypes: [{ damageType: { name: "Lightning", attackMode: "PHYSICAL" } }],
+  rangedDistanceFeet: 30,
+});
+const meleeRangedMonotonicHigh = runCase("secondary monotonic high output", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE", "RANGED"],
+  meleePhysicalStrength: 3,
+  rangedPhysicalStrength: 4,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  rangedDamageTypes: [{ damageType: { name: "Lightning", attackMode: "PHYSICAL" } }],
+  rangedDistanceFeet: 30,
+});
+const meleeRangedMonotonicAccessOnlyBands = compareForgeOutputToBands(meleeRangedMonotonicAccessOnly, FEATURE_WEIGHT_CONTEXT);
+const meleeRangedMonotonicLowBands = compareForgeOutputToBands(meleeRangedMonotonicLow, FEATURE_WEIGHT_CONTEXT);
+const meleeRangedMonotonicHighBands = compareForgeOutputToBands(meleeRangedMonotonicHigh, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  meleeRangedMonotonicLowBands.lanes.debug.corePressureRatio >=
+    meleeRangedMonotonicAccessOnlyBands.lanes.debug.corePressureRatio,
+  "Adding real secondary output must not reduce Core pressure ratio",
+);
+assert.ok(
+  meleeRangedMonotonicHighBands.lanes.debug.corePressureRatio >=
+    meleeRangedMonotonicLowBands.lanes.debug.corePressureRatio,
+  "Increasing secondary output must not reduce Core pressure ratio",
+);
+
+const warningRichModerateFeatureContext = buildForgeExpectationContext([
+  ...FEATURE_WEIGHT_CONTEXT.costs,
+  { category: "ItemModifiers", selector1: "ForgeOutputExpectation", selector2: "features.budget.COMMON", value: 42 },
+], undefined, 1);
+const warningRichModerateFeatureLoad = runCase("warning-rich moderate feature load", {
+  level: 5,
+  rarity: "COMMON",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 3,
+  meleeDamageTypes: [
+    { damageType: { name: "Slashing", attackMode: "PHYSICAL" } },
+    { damageType: { name: "Fire", attackMode: "PHYSICAL" } },
+  ],
+  meleeTargets: 1,
+  weaponAttributeNames: ["Expensive", "Thrown"],
+  customWeaponAttributes: "one unmapped feature",
+});
+const warningRichModerateFeatureBands = compareForgeOutputToBands(
+  warningRichModerateFeatureLoad,
+  warningRichModerateFeatureContext,
+);
+assert.ok(
+  warningRichModerateFeatureBands.lanes.debug.featurePressureRatio > 0.45 &&
+    warningRichModerateFeatureBands.lanes.debug.featurePressureRatio < 0.5,
+  "Warning-rich fixture should sit around a moderate feature ratio",
+);
+assert.ok(
+  warningRichModerateFeatureBands.lanes.featuresVersatility.warnings.length > 2,
+  "Warning-rich fixture should have enough warnings to prove warnings do not override status",
+);
+assert.equal(
+  warningRichModerateFeatureBands.lanes.featuresVersatility.status,
+  "moderate",
+  "Feature warnings must not force Likely Overloaded when ratio is moderate",
+);
 const weightedSimpleMeleeBands = compareForgeOutputToBands(simpleMelee, FEATURE_WEIGHT_CONTEXT);
 assert.equal(
   weightedSimpleMeleeBands.weaponProfiles.find((entry) => entry.profileKind === "melee")?.classification,

@@ -1017,9 +1017,7 @@ function getFeatureStatusThresholds(
 function statusFromFeatureWeightRatio(
   ratio: number,
   thresholds: ForgeFeatureStatusThresholds,
-  overloaded: boolean,
 ): ForgeLaneStatus {
-  if (overloaded) return "likely overloaded";
   if (ratio >= thresholds.heavy.value) return "heavy";
   if (ratio >= thresholds.broad.value) return "broad";
   if (ratio >= thresholds.moderate.value) return "moderate";
@@ -1072,6 +1070,28 @@ function getHighestCorePressureCandidate(candidates: CorePressureCandidate[]): C
   return candidates.reduce<CorePressureCandidate>(
     (highest, current) => (current.ratio > highest.ratio ? current : highest),
     getCorePressureCandidate("no core output", 0, 1, "default"),
+  );
+}
+
+function getWeaponProfileCoreActual(profile: ForgeWeaponProfileBandComparison): number {
+  return Math.max(profile.totalWoundsPerSuccess, profile.totalPressure);
+}
+
+function getWeaponProfileCoreSource(profile: ForgeWeaponProfileBandComparison): "forge_expectation_config" | "default" {
+  return profile.debugNotes.some((entry) => entry.includes("expectation config"))
+    ? "forge_expectation_config"
+    : "default";
+}
+
+function getWeaponProfileCoreCandidate(
+  profile: ForgeWeaponProfileBandComparison,
+  label: string,
+): CorePressureCandidate {
+  return getCorePressureCandidate(
+    label,
+    getWeaponProfileCoreActual(profile),
+    profile.thresholds.standardMax,
+    getWeaponProfileCoreSource(profile),
   );
 }
 
@@ -1910,13 +1930,9 @@ export function classifyForgeOutputLanes(
       coreDrivers.push(`${primaryWeaponProfile.totalPressure} total pressure across ${primaryWeaponProfile.targetCount} targets`);
     }
     corePressureCandidates.push(
-      getCorePressureCandidate(
+      getWeaponProfileCoreCandidate(
+        primaryWeaponProfile,
         `${primaryWeaponProfile.profileKind} weapon throughput`,
-        primaryWeaponProfile.totalWoundsPerSuccess,
-        primaryWeaponProfile.thresholds.standardMax,
-        primaryWeaponProfile.debugNotes.some((entry) => entry.includes("expectation config"))
-          ? "forge_expectation_config"
-          : "default",
       ),
     );
     if (isExtremeOrMore(primaryWeaponProfile.classification)) {
@@ -1929,7 +1945,7 @@ export function classifyForgeOutputLanes(
     if (secondaryWeaponProfile.totalWoundsPerSuccess <= 0) continue;
 
     const secondaryContribution =
-      secondaryWeaponProfile.totalWoundsPerSuccess * SECONDARY_PROFILE_CORE_MULTIPLIER;
+      getWeaponProfileCoreActual(secondaryWeaponProfile) * SECONDARY_PROFILE_CORE_MULTIPLIER;
     secondaryProfileCoreContribution += secondaryContribution;
     coreScore += Math.max(
       SECONDARY_PROFILE_CORE_MULTIPLIER,
@@ -1947,28 +1963,20 @@ export function classifyForgeOutputLanes(
         `${secondaryWeaponProfile.profileKind} ${secondaryWeaponProfile.totalPressure} total pressure across ${secondaryWeaponProfile.targetCount} targets`,
       );
     }
-    if (secondaryWeaponProfile.classification === "over-band") {
-      corePressureCandidates.push(
-        getCorePressureCandidate(
-          `${secondaryWeaponProfile.profileKind} secondary weapon throughput`,
-          secondaryWeaponProfile.totalWoundsPerSuccess,
-          secondaryWeaponProfile.thresholds.standardMax,
-          secondaryWeaponProfile.debugNotes.some((entry) => entry.includes("expectation config"))
-            ? "forge_expectation_config"
-            : "default",
-        ),
-      );
-    }
+    corePressureCandidates.push(
+      getWeaponProfileCoreCandidate(
+        secondaryWeaponProfile,
+        `${secondaryWeaponProfile.profileKind} secondary weapon throughput`,
+      ),
+    );
     if (isExtremeOrMore(secondaryWeaponProfile.classification)) {
       coreWarnings.push(`${secondaryWeaponProfile.profileKind} secondary weapon throughput is extreme-or-higher for item level`);
     }
   }
 
   if (primaryWeaponProfile && secondaryProfileCoreContribution > 0) {
-    const primaryCoreSource = primaryWeaponProfile.debugNotes.some((entry) => entry.includes("expectation config"))
-      ? "forge_expectation_config"
-      : "default";
-    const combinedActual = primaryWeaponProfile.totalWoundsPerSuccess + secondaryProfileCoreContribution;
+    const primaryCoreSource = getWeaponProfileCoreSource(primaryWeaponProfile);
+    const combinedActual = getWeaponProfileCoreActual(primaryWeaponProfile) + secondaryProfileCoreContribution;
     const combinedCandidate = getCorePressureCandidate(
       "primary + secondary weapon throughput",
       combinedActual,
@@ -2115,7 +2123,6 @@ export function classifyForgeOutputLanes(
       status: statusFromFeatureWeightRatio(
         featureWeightRatio,
         featureStatusThresholds,
-        featureWarnings.length > 2,
       ),
       mainDrivers: featureDrivers,
       warnings: featureWarnings,
