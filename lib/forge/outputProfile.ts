@@ -1,5 +1,6 @@
 import type {
   AoEShape,
+  ArmorLocation,
   ItemRarity,
   ItemType,
   RangeCategory,
@@ -75,6 +76,7 @@ export type ForgeOutputProfileInput = {
   rarity?: ItemRarity | string | null;
   type?: ItemType | string | null;
   size?: WeaponSize | string | null;
+  armorLocation?: ArmorLocation | string | null;
   shieldHasAttack?: boolean | null;
 
   rangeCategories?: Array<RangeCategory | string | { rangeCategory?: string | null }> | null;
@@ -244,6 +246,8 @@ export type ForgeOutputProfile = {
     type: string | null;
     size: string | null;
     normalizedSize: WeaponSize | null;
+    armorLocation: string | null;
+    normalizedArmorLocation: ArmorLocation | null;
     shieldHasAttack: boolean | null;
   };
   attackProfiles: ForgeAttackProfileOutput[];
@@ -497,6 +501,20 @@ function normalizeWeaponSize(size: string | null | undefined): WeaponSize | null
   return null;
 }
 
+function normalizeArmorLocation(location: string | null | undefined): ArmorLocation | null {
+  const normalized = String(location ?? "").trim().toUpperCase();
+  if (
+    normalized === "HEAD" ||
+    normalized === "SHOULDERS" ||
+    normalized === "TORSO" ||
+    normalized === "LEGS" ||
+    normalized === "FEET"
+  ) {
+    return normalized;
+  }
+  return null;
+}
+
 function strengthToTableWoundsPerSuccess(strength: number): number {
   return Math.max(0, strength) * 2;
 }
@@ -657,6 +675,8 @@ export function buildForgeOutputProfile(input: ForgeOutputProfileInput): ForgeOu
       type: input.type ? String(input.type) : null,
       size: input.size ? String(input.size) : null,
       normalizedSize: normalizeWeaponSize(input.size),
+      armorLocation: input.armorLocation ? String(input.armorLocation) : null,
+      normalizedArmorLocation: normalizeArmorLocation(input.armorLocation),
       shieldHasAttack: typeof input.shieldHasAttack === "boolean" ? input.shieldHasAttack : null,
     },
     attackProfiles,

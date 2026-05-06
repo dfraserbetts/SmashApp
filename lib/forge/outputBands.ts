@@ -3,7 +3,7 @@ import type {
   ForgeAttackProfileOutput,
   ForgeOutputProfile,
 } from "./outputProfile";
-import type { WeaponSize } from "./types";
+import type { ArmorLocation, WeaponSize } from "./types";
 
 export type ForgeOutputBandClassification =
   | "below"
@@ -64,13 +64,22 @@ export type ForgeDefensiveBandComparison = {
     value: number;
     classification: ForgeOutputBandClassification;
     thresholds: ForgeBandThresholds;
+    packageThresholds: ForgeBandThresholds;
+    armourSlotWeight: number;
+    armourLocation: ArmorLocation | null;
   };
   mpv: {
     value: number;
     classification: ForgeOutputBandClassification;
     thresholds: ForgeBandThresholds;
+    packageThresholds: ForgeBandThresholds;
+    armourSlotWeight: number;
+    armourLocation: ArmorLocation | null;
   };
-  debugNote: "package/per-piece context deferred";
+  debugNote:
+    | "package-level expectation"
+    | "slot-weighted armour package expectation"
+    | "missing armour slot, package-level expectation used";
 };
 
 export type ForgeShieldSplitWarningLevel = "none" | "watch" | "likelyOverloaded";
@@ -385,6 +394,13 @@ const SECONDARY_PROFILE_CORE_MULTIPLIER = 0.35;
 const RANGED_DISTANCE_CORE_SCORE_MULTIPLIER = 0.4;
 const RANGED_PROFILE_CORE_MULTIPLIER_KEY = "core.weapon.rangeMode.RANGED.multiplier";
 const DEFAULT_RANGED_PROFILE_CORE_MULTIPLIER = 0.8;
+const ARMOUR_SLOT_PACKAGE_WEIGHTS: Record<ArmorLocation, number> = {
+  TORSO: 0.35,
+  SHOULDERS: 0.2,
+  LEGS: 0.2,
+  HEAD: 0.125,
+  FEET: 0.125,
+};
 
 const FEATURE_WEIGHT_EXPECTATION_KEYS = {
   featureCountEach: "features.weight.featureCount.each",
@@ -726,6 +742,55 @@ function getBand(metric: ForgeBandMetric, level: number | null): ForgeBandThresh
         : MPV_BANDS;
   const row = rows.find((entry) => entry.level === normalizedLevel) ?? rows[0];
   return withOverBand(row);
+}
+
+function scaleDefensiveBandBySlot(
+  packageThresholds: ForgeBandThresholds,
+  slotWeight: number,
+): ForgeBandThresholds {
+  const safeWeight = Number.isFinite(slotWeight) && slotWeight > 0 ? slotWeight : 1;
+  return {
+    level: packageThresholds.level,
+    lowMax: packageThresholds.lowMax * safeWeight,
+    standardMax: packageThresholds.standardMax * safeWeight,
+    highMax: packageThresholds.highMax * safeWeight,
+    extremeMin: packageThresholds.extremeMin * safeWeight,
+    overBandMin: packageThresholds.overBandMin * safeWeight,
+  };
+}
+
+function resolveArmourSlotExpectation(profile: ForgeOutputProfile): {
+  location: ArmorLocation | null;
+  weight: number;
+  debugNote: ForgeDefensiveBandComparison["debugNote"];
+} {
+  const itemType = String(profile.common.type ?? "").trim().toUpperCase();
+  if (itemType !== "ARMOR") {
+    return { location: null, weight: 1, debugNote: "package-level expectation" };
+  }
+
+  const location = profile.common.normalizedArmorLocation;
+  if (!location) {
+    return { location: null, weight: 1, debugNote: "missing armour slot, package-level expectation used" };
+  }
+
+  return {
+    location,
+    weight: ARMOUR_SLOT_PACKAGE_WEIGHTS[location],
+    debugNote: "slot-weighted armour package expectation",
+  };
+}
+
+function getPackageStandardMin(thresholds: ForgeBandThresholds): number {
+  return thresholds.lowMax + 2;
+}
+
+function formatArmourLocation(location: ArmorLocation): string {
+  if (location === "HEAD") return "Head";
+  if (location === "SHOULDERS") return "Shoulders";
+  if (location === "TORSO") return "Torso";
+  if (location === "LEGS") return "Legs";
+  return "Feet";
 }
 
 function getSizeExpectationLabel(size: WeaponSize): string {
@@ -1099,6 +1164,25 @@ function formatPressureValue(value: number): string {
   if (!Number.isFinite(value)) return "0";
   if (Number.isInteger(value)) return String(value);
   return value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function formatDefensiveCoreDriver(
+  label: "PPV" | "MPV",
+  comparison: ForgeDefensiveBandComparison["ppv"] | ForgeDefensiveBandComparison["mpv"],
+): string {
+  const value = formatPressureValue(comparison.value);
+  const standardMin = getPackageStandardMin(comparison.packageThresholds);
+  const packageRange = `${formatPressureValue(standardMin)}-${formatPressureValue(comparison.packageThresholds.standardMax)}`;
+  const expectedMin = standardMin * comparison.armourSlotWeight;
+  const expectedMax = comparison.thresholds.standardMax;
+
+  if (comparison.armourLocation) {
+    const slotLabel = formatArmourLocation(comparison.armourLocation);
+    const slotPercent = formatPressureValue(comparison.armourSlotWeight * 100);
+    return `${label} ${value} vs ${slotLabel} expected ${formatPressureValue(expectedMin)}-${formatPressureValue(expectedMax)} from package band ${packageRange} x ${slotPercent}% (${comparison.classification})`;
+  }
+
+  return `${label} ${value} vs package expected ${packageRange} (${comparison.classification})`;
 }
 
 function formatLookupPath(
@@ -2008,7 +2092,7 @@ export function classifyForgeOutputLanes(
   if (profile.defensiveProfile.ppv > 0) {
     coreScore += Math.max(1, CLASSIFICATION_RANK[ppvClass]);
     coreStatusFloor = maxLaneStatus(coreStatusFloor, coreStatusFloorForBand(ppvClass));
-    coreDrivers.push(`PPV ${profile.defensiveProfile.ppv} (${ppvClass})`);
+    coreDrivers.push(formatDefensiveCoreDriver("PPV", bandComparison.defensive.ppv));
     corePressureCandidates.push(
       getCorePressureCandidate(
         "PPV defensive output",
@@ -2023,7 +2107,7 @@ export function classifyForgeOutputLanes(
   if (profile.defensiveProfile.mpv > 0) {
     coreScore += Math.max(1, CLASSIFICATION_RANK[mpvClass]);
     coreStatusFloor = maxLaneStatus(coreStatusFloor, coreStatusFloorForBand(mpvClass));
-    coreDrivers.push(`MPV ${profile.defensiveProfile.mpv} (${mpvClass})`);
+    coreDrivers.push(formatDefensiveCoreDriver("MPV", bandComparison.defensive.mpv));
     corePressureCandidates.push(
       getCorePressureCandidate(
         "MPV defensive output",
@@ -2214,8 +2298,11 @@ export function compareForgeOutputToBands(
     1,
     [{ category: "SIZE", selector1: "core.defence", selector2: "MPV" }],
   );
-  const ppvThresholds = scaledBand(getBand("ppv", profile.common.level), ppvMultiplier.value);
-  const mpvThresholds = scaledBand(getBand("mpv", profile.common.level), mpvMultiplier.value);
+  const armourSlotExpectation = resolveArmourSlotExpectation(profile);
+  const ppvPackageThresholds = scaledBand(getBand("ppv", profile.common.level), ppvMultiplier.value);
+  const mpvPackageThresholds = scaledBand(getBand("mpv", profile.common.level), mpvMultiplier.value);
+  const ppvThresholds = scaleDefensiveBandBySlot(ppvPackageThresholds, armourSlotExpectation.weight);
+  const mpvThresholds = scaleDefensiveBandBySlot(mpvPackageThresholds, armourSlotExpectation.weight);
   const weaponProfiles = profile.attackProfiles
     .filter((entry) => entry.enabled)
     .map((entry) => {
@@ -2242,13 +2329,19 @@ export function compareForgeOutputToBands(
         value: profile.defensiveProfile.ppv,
         classification: ppvClassification,
         thresholds: ppvThresholds,
+        packageThresholds: ppvPackageThresholds,
+        armourSlotWeight: armourSlotExpectation.weight,
+        armourLocation: armourSlotExpectation.location,
       },
       mpv: {
         value: profile.defensiveProfile.mpv,
         classification: mpvClassification,
         thresholds: mpvThresholds,
+        packageThresholds: mpvPackageThresholds,
+        armourSlotWeight: armourSlotExpectation.weight,
+        armourLocation: armourSlotExpectation.location,
       },
-      debugNote: "package/per-piece context deferred",
+      debugNote: armourSlotExpectation.debugNote,
     },
     shield: resolveShieldWarning(profile, weaponProfiles, ppvClassification, mpvClassification),
     debug: {
@@ -2261,7 +2354,10 @@ export function compareForgeOutputToBands(
         "weapon and shield attack wound bands are size-aware; missing size defaults to one-handed",
         "rarity does not increase raw damage bands in this comparator",
         "ranged profiles use a lower core damage allowance than melee because melee accepts tactical risk",
-        "armour slot weighting is deferred",
+        "armour PPV/MPV uses slot-weighted package expectations for armour items",
+        armourSlotExpectation.location
+          ? `armour slot ${armourSlotExpectation.location} uses ${formatPressureValue(armourSlotExpectation.weight * 100)}% of package expectation`
+          : armourSlotExpectation.debugNote,
         weaponMultiplier.source === "forge_expectation_config"
           ? `weapon core expectation multiplier ${weaponMultiplier.value}`
           : "weapon core expectation default multiplier 1",

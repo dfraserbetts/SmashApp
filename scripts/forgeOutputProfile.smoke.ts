@@ -345,7 +345,6 @@ assert.equal(halfStepMeleeProfile.physicalStrength, 2.5);
 assert.equal(halfStepMeleeProfile.physicalWoundsPerSuccess, 5);
 assert.equal(halfStepMeleeProfile.totalPhysicalWoundsPerSuccess, 5);
 
-
 const physicalOnlyStrengthOne = runCase("physical-only strength one", {
   level: 5,
   rarity: "COMMON",
@@ -1963,6 +1962,7 @@ const armour = runCase("armour", {
   level: 5,
   rarity: "COMMON",
   type: "ARMOR",
+  armorLocation: "TORSO",
   ppv: 2,
   mpv: 1,
   armorAttributes: [{ armorAttribute: { name: "Reinforced" } }],
@@ -1975,9 +1975,9 @@ assert.equal(armour.defensiveProfile.armourAttributeCount, 1);
 assert.equal(armour.defensiveProfile.defensiveEffectCount, 1);
 assert.equal(armour.defensiveProfile.vrpCount, 1);
 const armourBands = compareForgeOutputToBands(armour);
-assert.equal(armourBands.defensive.ppv.classification, "low");
+assert.equal(armourBands.defensive.ppv.classification, "standard");
 assert.equal(armourBands.defensive.mpv.classification, "low");
-assert.equal(armourBands.defensive.debugNote, "package/per-piece context deferred");
+assert.equal(armourBands.defensive.debugNote, "slot-weighted armour package expectation");
 assert.ok(
   armourBands.lanes.coreFunctionality.mainDrivers.some((entry) => entry.includes("PPV")),
   "armour should report PPV as core defensive functionality",
@@ -1990,6 +1990,123 @@ assert.ok(
   armourBands.lanes.featuresVersatility.mainDrivers.some((entry) => entry.startsWith("defensive effects")),
   "defensive effects should contribute to Features & Versatility",
 );
+
+const armourTorsoStandard = runCase("armour torso standard slot weighting", {
+  level: 5,
+  rarity: "COMMON",
+  type: "ARMOR",
+  armorLocation: "TORSO",
+  ppv: 3,
+  mpv: 2,
+});
+const armourTorsoStandardBands = compareForgeOutputToBands(armourTorsoStandard);
+assert.equal(armourTorsoStandardBands.defensive.ppv.armourSlotWeight, 0.35);
+assert.equal(armourTorsoStandardBands.defensive.ppv.classification, "standard");
+assert.equal(armourTorsoStandardBands.defensive.mpv.classification, "standard");
+assert.notEqual(armourTorsoStandardBands.lanes.coreFunctionality.status, "heavy");
+assert.notEqual(armourTorsoStandardBands.lanes.coreFunctionality.status, "likely overloaded");
+assert.ok(
+  armourTorsoStandardBands.lanes.coreFunctionality.mainDrivers.some((entry) =>
+    entry.includes("PPV 3 vs Torso expected 2.1-3.5 from package band 6-10 x 35%"),
+  ),
+  "Torso PPV driver should show slot-weighted package expectation math",
+);
+assert.ok(
+  armourTorsoStandardBands.lanes.coreFunctionality.mainDrivers.some((entry) =>
+    entry.includes("MPV 2 vs Torso expected 2.1-2.8 from package band 6-8 x 35%"),
+  ),
+  "Torso MPV driver should show MPV package band math",
+);
+
+const armourTorsoPpvFour = runCase("armour torso ppv four", {
+  level: 5,
+  rarity: "COMMON",
+  type: "ARMOR",
+  armorLocation: "TORSO",
+  ppv: 4,
+});
+const armourHeadOverbuilt = runCase("armour head overbuilt", {
+  level: 5,
+  rarity: "COMMON",
+  type: "ARMOR",
+  armorLocation: "HEAD",
+  ppv: 4,
+});
+const armourTorsoPpvFourBands = compareForgeOutputToBands(armourTorsoPpvFour);
+const armourHeadOverbuiltBands = compareForgeOutputToBands(armourHeadOverbuilt);
+assert.ok(
+  BAND_RANK[armourHeadOverbuiltBands.defensive.ppv.classification] >
+    BAND_RANK[armourTorsoPpvFourBands.defensive.ppv.classification],
+  "The same PPV should be heavier on Head than Torso because Head has a smaller slot budget",
+);
+assert.ok(
+  armourHeadOverbuiltBands.lanes.debug.corePressureRatio >
+    armourTorsoPpvFourBands.lanes.debug.corePressureRatio,
+  "Head PPV 4 should create higher Core pressure than Torso PPV 4",
+);
+
+const packageShareCases = [
+  { location: "HEAD", ppv: 1 },
+  { location: "SHOULDERS", ppv: 2 },
+  { location: "TORSO", ppv: 4 },
+  { location: "LEGS", ppv: 2 },
+  { location: "FEET", ppv: 1 },
+] as const;
+const packageShareBands = packageShareCases.map((entry) =>
+  compareForgeOutputToBands(
+    runCase(`armour package share ${entry.location}`, {
+      level: 5,
+      rarity: "COMMON",
+      type: "ARMOR",
+      armorLocation: entry.location,
+      ppv: entry.ppv,
+    }),
+  ),
+);
+assert.equal(packageShareCases.reduce((sum, entry) => sum + entry.ppv, 0), 10);
+assert.equal(
+  packageShareBands.reduce((sum, entry) => sum + entry.defensive.ppv.thresholds.standardMax, 0),
+  10,
+  "Slot standard maxima should add back to the Level 5 PPV package standard maximum",
+);
+
+const armourHeadMpv = runCase("armour head mpv slot weighting", {
+  level: 5,
+  rarity: "COMMON",
+  type: "ARMOR",
+  armorLocation: "HEAD",
+  mpv: 1,
+});
+const armourHeadMpvBands = compareForgeOutputToBands(armourHeadMpv);
+assert.equal(armourHeadMpvBands.defensive.mpv.classification, "standard");
+assert.equal(armourHeadMpvBands.defensive.mpv.thresholds.standardMax, 1);
+assert.equal(
+  armourHeadMpvBands.defensive.ppv.thresholds.standardMax,
+  1.25,
+  "MPV should compare against MPV package bands, not PPV package bands",
+);
+
+const armourDualLane = runCase("armour torso dual defensive lane", {
+  level: 5,
+  rarity: "COMMON",
+  type: "ARMOR",
+  armorLocation: "TORSO",
+  ppv: 3,
+  mpv: 3,
+});
+const armourDualLaneBands = compareForgeOutputToBands(armourDualLane);
+assert.equal(armourDualLaneBands.defensive.ppv.classification, "standard");
+assert.equal(armourDualLaneBands.defensive.mpv.classification, "high");
+assert.ok(
+  armourDualLaneBands.lanes.coreFunctionality.mainDrivers.some((entry) => entry.startsWith("PPV 3 vs Torso")),
+  "Dual-lane armour should show PPV driver",
+);
+assert.ok(
+  armourDualLaneBands.lanes.coreFunctionality.mainDrivers.some((entry) => entry.startsWith("MPV 3 vs Torso")),
+  "Dual-lane armour should show MPV driver",
+);
+assert.equal(armourDualLaneBands.lanes.debug.coreActualValue, 3);
+assert.equal(armourDualLaneBands.lanes.debug.coreExpectedValue, 2.8);
 
 const shield = runCase("shield", {
   level: 5,

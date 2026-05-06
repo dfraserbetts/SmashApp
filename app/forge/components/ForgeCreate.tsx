@@ -2782,6 +2782,7 @@ function handleResetForge() {
       rarity: watchedValues.rarity,
       type: watchedValues.type,
       size: watchedValues.size,
+      armorLocation: watchedValues.armorLocation,
       shieldHasAttack: watchedValues.shieldHasAttack ?? false,
       rangeCategories: (watchedValues.rangeCategories ?? []) as RangeCategory[],
       meleePhysicalStrength: toNullableNumber(watchedValues.meleePhysicalStrength) ?? 0,
