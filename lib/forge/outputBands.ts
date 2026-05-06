@@ -65,6 +65,7 @@ export type ForgeDefensiveBandComparison = {
     value: number;
     classification: ForgeOutputBandClassification;
     thresholds: ForgeBandThresholds;
+    rawThresholds: ForgeBandThresholds;
     packageThresholds: ForgeBandThresholds;
     armourSlotWeight: number;
     armourLocation: ArmorLocation | null;
@@ -74,6 +75,7 @@ export type ForgeDefensiveBandComparison = {
     value: number;
     classification: ForgeOutputBandClassification;
     thresholds: ForgeBandThresholds;
+    rawThresholds: ForgeBandThresholds;
     packageThresholds: ForgeBandThresholds;
     armourSlotWeight: number;
     armourLocation: ArmorLocation | null;
@@ -424,6 +426,7 @@ const FEATURE_WEIGHT_EXPECTATION_KEYS = {
   aoeExtraCount: "features.weight.aoe.extraCount",
   aoeCenterRange: "features.weight.aoe.centerRange",
   aoeGeometry: "features.weight.aoe.geometry",
+  dualPpvMpv: "features.weight.defence.dualPpvMpv",
   shieldSplitAttackDefence: "features.weight.shieldSplit.attackDefence",
 } as const;
 
@@ -753,9 +756,9 @@ function getBand(metric: ForgeBandMetric, level: number | null): ForgeBandThresh
 function scaleDefensiveBandBySlot(
   packageThresholds: ForgeBandThresholds,
   slotWeight: number,
-): ForgeBandThresholds {
+): { thresholds: ForgeBandThresholds; rawThresholds: ForgeBandThresholds } {
   const safeWeight = Number.isFinite(slotWeight) && slotWeight > 0 ? slotWeight : 1;
-  return {
+  const rawThresholds = {
     level: packageThresholds.level,
     lowMax: packageThresholds.lowMax * safeWeight,
     standardMax: packageThresholds.standardMax * safeWeight,
@@ -763,6 +766,26 @@ function scaleDefensiveBandBySlot(
     extremeMin: packageThresholds.extremeMin * safeWeight,
     overBandMin: packageThresholds.overBandMin * safeWeight,
   };
+  const thresholds = {
+    level: rawThresholds.level,
+    lowMax: normalizeDefensiveMax(rawThresholds.lowMax, "floor"),
+    standardMax: normalizeDefensiveMax(rawThresholds.standardMax, "ceil"),
+    highMax: normalizeDefensiveMax(rawThresholds.highMax, "ceil"),
+    extremeMin: normalizeDefensiveMax(rawThresholds.extremeMin, "ceil"),
+    overBandMin: normalizeDefensiveMax(rawThresholds.overBandMin, "ceil"),
+  };
+  return { thresholds, rawThresholds };
+}
+
+function normalizeDefensiveMax(value: number, direction: "floor" | "ceil"): number {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  const rounded = direction === "floor" ? Math.floor(value) : Math.ceil(value);
+  return Math.max(0, rounded);
+}
+
+function normalizeDefensiveExpectedMin(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.max(1, Math.floor(value));
 }
 
 function resolveArmourSlotExpectation(profile: ForgeOutputProfile): {
@@ -1204,18 +1227,21 @@ function formatDefensiveCoreDriver(
   const value = formatPressureValue(comparison.value);
   const standardMin = getPackageStandardMin(comparison.packageThresholds);
   const packageRange = `${formatPressureValue(standardMin)}-${formatPressureValue(comparison.packageThresholds.standardMax)}`;
-  const expectedMin = standardMin * comparison.armourSlotWeight;
+  const rawExpectedMin = standardMin * comparison.armourSlotWeight;
+  const rawExpectedMax = comparison.rawThresholds.standardMax;
+  const expectedMin = normalizeDefensiveExpectedMin(rawExpectedMin);
   const expectedMax = comparison.thresholds.standardMax;
+  const rawRange = ` (raw ${formatPressureValue(rawExpectedMin)}-${formatPressureValue(rawExpectedMax)})`;
 
   if (comparison.armourLocation) {
     const slotLabel = formatArmourLocation(comparison.armourLocation);
     const slotPercent = formatPressureValue(comparison.armourSlotWeight * 100);
-    return `${label} ${value} vs ${slotLabel} expected ${formatPressureValue(expectedMin)}-${formatPressureValue(expectedMax)} from package band ${packageRange} x ${slotPercent}% (${comparison.classification})`;
+    return `${label} ${value} vs ${slotLabel} expected ${formatPressureValue(expectedMin)}-${formatPressureValue(expectedMax)} from package band ${packageRange} x ${slotPercent}%${rawRange} (${comparison.classification})`;
   }
 
   if (comparison.defensiveReferenceLabel) {
     const referencePercent = formatPressureValue(comparison.armourSlotWeight * 100);
-    return `${label} ${value} vs ${comparison.defensiveReferenceLabel} expected ${formatPressureValue(expectedMin)}-${formatPressureValue(expectedMax)} from package band ${packageRange} x ${referencePercent}% (${comparison.classification})`;
+    return `${label} ${value} vs ${comparison.defensiveReferenceLabel} expected ${formatPressureValue(expectedMin)}-${formatPressureValue(expectedMax)} from package band ${packageRange} x ${referencePercent}%${rawRange} (${comparison.classification})`;
   }
 
   return `${label} ${value} vs package expected ${packageRange} (${comparison.classification})`;
@@ -1351,6 +1377,7 @@ function addFeatureWeight(
   }>,
   fallbackNote: string,
   role: FeatureWeightRole = "breadth",
+  fallbackWeightOverride?: number,
 ): void {
   for (const lookup of lookups) {
     const weight = findFeatureWeight(
@@ -1393,7 +1420,7 @@ function addFeatureWeight(
     }
   }
 
-  const fallbackWeight = context?.fallbackWeight ?? DEFAULT_FEATURE_FALLBACK_WEIGHT;
+  const fallbackWeight = fallbackWeightOverride ?? context?.fallbackWeight ?? DEFAULT_FEATURE_FALLBACK_WEIGHT;
   if (role === "featureValue") {
     state.featureValueRaw += fallbackWeight;
   } else {
@@ -1854,6 +1881,19 @@ function collectFeatureWeights(
       "shield_split",
       [forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.shieldSplitAttackDefence)],
       "shield attack/defence split has no direct Forge-Values row",
+    );
+  }
+
+  if (profile.defensiveProfile.ppv > 0 && profile.defensiveProfile.mpv > 0) {
+    addFeatureWeight(
+      state,
+      context,
+      "dual PPV/MPV defensive coverage",
+      "dual_defensive_lane",
+      [forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.dualPpvMpv)],
+      "dual PPV/MPV defensive coverage has no direct Forge-Values row",
+      "breadth",
+      3,
     );
   }
 
@@ -2337,8 +2377,10 @@ export function compareForgeOutputToBands(
   const armourSlotExpectation = resolveArmourSlotExpectation(profile);
   const ppvPackageThresholds = scaledBand(getBand("ppv", profile.common.level), ppvMultiplier.value);
   const mpvPackageThresholds = scaledBand(getBand("mpv", profile.common.level), mpvMultiplier.value);
-  const ppvThresholds = scaleDefensiveBandBySlot(ppvPackageThresholds, armourSlotExpectation.weight);
-  const mpvThresholds = scaleDefensiveBandBySlot(mpvPackageThresholds, armourSlotExpectation.weight);
+  const ppvSlotThresholds = scaleDefensiveBandBySlot(ppvPackageThresholds, armourSlotExpectation.weight);
+  const mpvSlotThresholds = scaleDefensiveBandBySlot(mpvPackageThresholds, armourSlotExpectation.weight);
+  const ppvThresholds = ppvSlotThresholds.thresholds;
+  const mpvThresholds = mpvSlotThresholds.thresholds;
   const weaponProfiles = profile.attackProfiles
     .filter((entry) => entry.enabled)
     .map((entry) => {
@@ -2369,6 +2411,7 @@ export function compareForgeOutputToBands(
         value: profile.defensiveProfile.ppv,
         classification: ppvClassification,
         thresholds: ppvThresholds,
+        rawThresholds: ppvSlotThresholds.rawThresholds,
         packageThresholds: ppvPackageThresholds,
         armourSlotWeight: armourSlotExpectation.weight,
         armourLocation: armourSlotExpectation.location,
@@ -2378,6 +2421,7 @@ export function compareForgeOutputToBands(
         value: profile.defensiveProfile.mpv,
         classification: mpvClassification,
         thresholds: mpvThresholds,
+        rawThresholds: mpvSlotThresholds.rawThresholds,
         packageThresholds: mpvPackageThresholds,
         armourSlotWeight: armourSlotExpectation.weight,
         armourLocation: armourSlotExpectation.location,

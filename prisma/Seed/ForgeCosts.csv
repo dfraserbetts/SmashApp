@@ -939,6 +939,7 @@ ItemModifiers,ForgeOutputExpectation,features.weight.aoe.access,,5,Forge Output 
 ItemModifiers,ForgeOutputExpectation,features.weight.aoe.extraCount,,3,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.aoe.centerRange,,1,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.aoe.geometry,,3,Forge Output breadth weight default
+ItemModifiers,ForgeOutputExpectation,features.weight.defence.dualPpvMpv,,3,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,features.weight.shieldSplit.attackDefence,,10,Forge Output breadth weight default
 ItemModifiers,ForgeOutputExpectation,core.weapon.rangeMode.RANGED.multiplier,,0.8,Forge Output Expectations default
 ItemModifiers,ForgeOutputExpectation,core.weapon.size.SMALL.multiplier,,1,Forge Output Expectations default

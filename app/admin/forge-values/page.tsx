@@ -323,6 +323,13 @@ const FORGE_OUTPUT_EXPECTATIONS: Array<{
     group: "Features & Versatility Breadth Weights",
   },
   {
+    key: "features.weight.defence.dualPpvMpv",
+    label: "Dual PPV/MPV Defensive Coverage Weight",
+    description: "Feature weight for armour or shields that carry both physical and mental protection.",
+    defaultValue: 3,
+    group: "Features & Versatility Breadth Weights",
+  },
+  {
     key: "features.weight.shieldSplit.attackDefence",
     label: "Shield Attack + Defence Split Weight",
     description: "Feature weight for shields that carry both attack and defensive output.",
