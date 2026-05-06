@@ -3,6 +3,7 @@ import { prisma } from "@/prisma/client";
 import { requireCampaignAccess, requireUserId } from "../_shared";
 import type { AttributePlacement } from "@/lib/summoning/types";
 import type { Prisma } from "@prisma/client";
+import { renderDescriptorTokenTemplate } from "@/lib/descriptors/tokenTemplate";
 
 type AttributeLine = { text: string; placement: AttributePlacement };
 type TokenMap = Record<string, string | number>;
@@ -109,13 +110,7 @@ function parseAttributeValueFromName(name: unknown): number {
 }
 
 function resolveAttributeText(template: string, tokens: TokenMap): string {
-  return template.replace(/\[([A-Za-z0-9_]+)\]/g, (full, rawToken: string) => {
-    const token = String(rawToken);
-    if (!(token in tokens)) return full;
-    const value = tokens[token];
-    if (value === null || value === undefined) return "0";
-    return String(value);
-  });
+  return renderDescriptorTokenTemplate(template, tokens).text;
 }
 
 function splitMultilineText(value: unknown): string[] {

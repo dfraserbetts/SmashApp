@@ -1,5 +1,6 @@
 // lib/descriptors/renderers/forgeRenderer.ts
 import type { AttackRangeSpec, DescriptorLine, DescriptorResult, DescriptorSection } from "../types";
+import { renderDescriptorTokenTemplate } from "../tokenTemplate";
 
 export type ForgeRenderOptions = {
   weaponSkillDiceOverride?: number;
@@ -121,15 +122,12 @@ export function renderForgeLine(
         RangedMentalStrength: String(legacyLine.rangedMentalStrength ?? 0),
         AoEPhysicalStrength: String(legacyLine.aoePhysicalStrength ?? 0),
         AoEMentalStrength: String(legacyLine.aoeMentalStrength ?? 0),
+        AoePhysicalStrength: String(legacyLine.aoePhysicalStrength ?? 0),
+        AoeMentalStrength: String(legacyLine.aoeMentalStrength ?? 0),
         AttributeValue: String(legacyLine.attributeValue ?? 0),
       };
 
-      const rendered = template.replace(
-        /\[([A-Za-z0-9_]+)\]/g,
-        (_match: string, token: string) => {
-          return tokenMap[token] ?? `[${token}]`;
-        },
-      );
+      const rendered = renderDescriptorTokenTemplate(template, tokenMap).text;
 
       return `${name}: ${rendered}`;
     }

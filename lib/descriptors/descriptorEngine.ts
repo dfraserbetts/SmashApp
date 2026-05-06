@@ -6,6 +6,7 @@ import type {
   DescriptorSection,
   WeaponAttributeLine,
 } from "./types";
+import { renderDescriptorTokenTemplate } from "./tokenTemplate";
 
 function normalizeMods(
   mods: DescriptorInput["globalAttributeModifiers"],
@@ -93,38 +94,38 @@ function applyWeaponAttributeTokens(
   const warnings: string[] = [];
 
   const replacements: Record<string, string> = {
-    "[ItemName]": String(ctx.itemName ?? ""),
-    "[AttributeValue]": ctx.attributeValue === null ? "?" : String(ctx.attributeValue),
+    ItemName: String(ctx.itemName ?? ""),
+    AttributeValue: ctx.attributeValue === null ? "?" : String(ctx.attributeValue),
 
     // Weapon context (selected on this weapon)
-    "[GS_AttackEffects]": String(ctx.gsAttackEffects ?? "?"),
-    "[DamageTypes]": String(ctx.damageTypes ?? "?"),
+    GS_AttackEffects: String(ctx.gsAttackEffects ?? "?"),
+    DamageTypes: String(ctx.damageTypes ?? "?"),
 
     // Range context
-    "[MeleeTargets]": safeNum(ctx.meleeTargets),
-    "[RangedTargets]": safeNum(ctx.rangedTargets),
-    "[RangedDistanceFeet]": safeNum(ctx.rangedDistanceFeet),
+    MeleeTargets: safeNum(ctx.meleeTargets),
+    RangedTargets: safeNum(ctx.rangedTargets),
+    RangedDistanceFeet: safeNum(ctx.rangedDistanceFeet),
 
-    "[AoeCount]": safeNum(ctx.aoeCount),
-    "[AoeCenterRangeFeet]": safeNum(ctx.aoeCenterRangeFeet),
-    "[AoeShape]": String(ctx.aoeShape ?? "?"),
-    "[AoeSphereRadiusFeet]": safeNum(ctx.aoeSphereRadiusFeet),
-    "[AoeConeLengthFeet]": safeNum(ctx.aoeConeLengthFeet),
-    "[AoeLineWidthFeet]": safeNum(ctx.aoeLineWidthFeet),
-    "[AoeLineLengthFeet]": safeNum(ctx.aoeLineLengthFeet),
+    AoeCount: safeNum(ctx.aoeCount),
+    AoeCenterRangeFeet: safeNum(ctx.aoeCenterRangeFeet),
+    AoeShape: String(ctx.aoeShape ?? "?"),
+    AoeSphereRadiusFeet: safeNum(ctx.aoeSphereRadiusFeet),
+    AoeConeLengthFeet: safeNum(ctx.aoeConeLengthFeet),
+    AoeLineWidthFeet: safeNum(ctx.aoeLineWidthFeet),
+    AoeLineLengthFeet: safeNum(ctx.aoeLineLengthFeet),
 
     // Strength tokens
-    "[MeleePhysicalStrength]": safeNum(ctx.meleePhysicalStrength),
-    "[MeleeMentalStrength]": safeNum(ctx.meleeMentalStrength),
+    MeleePhysicalStrength: safeNum(ctx.meleePhysicalStrength),
+    MeleeMentalStrength: safeNum(ctx.meleeMentalStrength),
 
-    "[RangedPhysicalStrength]": safeNum(ctx.rangedPhysicalStrength),
-    "[RangedMentalStrength]": safeNum(ctx.rangedMentalStrength),
+    RangedPhysicalStrength: safeNum(ctx.rangedPhysicalStrength),
+    RangedMentalStrength: safeNum(ctx.rangedMentalStrength),
 
-    "[AoePhysicalStrength]": safeNum(ctx.aoePhysicalStrength),
-    "[AoeMentalStrength]": safeNum(ctx.aoeMentalStrength),
+    AoePhysicalStrength: safeNum(ctx.aoePhysicalStrength),
+    AoeMentalStrength: safeNum(ctx.aoeMentalStrength),
 
     // Parameterised strength selection (chosen per attribute)
-    "[ChosenPhysicalStrength]":
+    ChosenPhysicalStrength:
       ctx.strengthSource === "MELEE"
         ? safeNum(ctx.meleePhysicalStrength)
         : ctx.strengthSource === "RANGED"
@@ -133,7 +134,7 @@ function applyWeaponAttributeTokens(
             ? safeNum(ctx.aoePhysicalStrength)
             : "?",
 
-    "[ChosenMentalStrength]":
+    ChosenMentalStrength:
       ctx.strengthSource === "MELEE"
         ? safeNum(ctx.meleeMentalStrength)
         : ctx.strengthSource === "RANGED"
@@ -142,7 +143,7 @@ function applyWeaponAttributeTokens(
             ? safeNum(ctx.aoeMentalStrength)
             : "?",
 
-    "[ChosenRange]":
+    ChosenRange:
       ctx.rangeSource === "MELEE"
         ? "Melee"
         : ctx.rangeSource === "RANGED"
@@ -152,22 +153,21 @@ function applyWeaponAttributeTokens(
             : "?",
   };
 
-  if (template.includes("[AttributeValue]") && ctx.attributeValue === null) {
+  if (/\[AttributeValue(?:\|[^\]]+)?\]/.test(template) && ctx.attributeValue === null) {
     warnings.push("Weapon Attribute template uses [AttributeValue] but no value was found in the attribute name.");
   }
 
-  let out = template;
-  for (const [k, v] of Object.entries(replacements)) {
-    out = out.split(k).join(v);
+  const rendered = renderDescriptorTokenTemplate(template, replacements);
+  if (rendered.unknownTokens.length > 0) {
+    warnings.push(`Weapon Attribute template contains unknown token(s): ${rendered.unknownTokens.join(", ")}`);
+  }
+  if (rendered.invalidModifierTokens.length > 0) {
+    warnings.push(
+      `Weapon Attribute template contains invalid token modifier(s): ${rendered.invalidModifierTokens.join(", ")}`,
+    );
   }
 
-  // If any bracket tokens remain, warn (authoring mistake)
-  const leftover = out.match(/\[[^\]]+\]/g) ?? [];
-  if (leftover.length > 0) {
-    warnings.push(`Weapon Attribute template contains unknown token(s): ${Array.from(new Set(leftover)).join(", ")}`);
-  }
-
-  return { text: out, warnings };
+  return { text: rendered.text, warnings };
 }
 
 function applyArmorAttributeTokens(
@@ -205,43 +205,40 @@ function applyArmorAttributeTokens(
     auraPhysical !== null ? auraPhysical : auraMental !== null ? auraMental : 0;
 
   const replacements: Record<string, string> = {
-    "[ItemName]": String(ctx.itemName ?? ""),
-    "[AttributeValue]": ctx.attributeValue === null ? "?" : String(ctx.attributeValue),
-    "[ChosenPV]":
+    ItemName: String(ctx.itemName ?? ""),
+    AttributeValue: ctx.attributeValue === null ? "?" : String(ctx.attributeValue),
+    ChosenPV:
       typeof ctx.chosenPv === "number" && Number.isFinite(ctx.chosenPv)
         ? String(ctx.chosenPv)
         : "?",
 
-    "[PPV]": safeNum(ctx.ppv),
-    "[MPV]": safeNum(ctx.mpv),
+    PPV: safeNum(ctx.ppv),
+    MPV: safeNum(ctx.mpv),
 
-    "[AuraPhysical]": auraPhysical === null ? "?" : String(auraPhysical),
-    "[AuraMental]": auraMental === null ? "?" : String(auraMental),
-    "[Aura]": String(aura),
+    AuraPhysical: auraPhysical === null ? "?" : String(auraPhysical),
+    AuraMental: auraMental === null ? "?" : String(auraMental),
+    Aura: String(aura),
   };
 
-  if (template.includes("[AttributeValue]") && ctx.attributeValue === null) {
+  if (/\[AttributeValue(?:\|[^\]]+)?\]/.test(template) && ctx.attributeValue === null) {
     warnings.push(
       'Armor Attribute template uses [AttributeValue] but no value was found in the attribute name.',
     );
   }
 
-  let out = template;
-  for (const [k, v] of Object.entries(replacements)) {
-    out = out.split(k).join(v);
-  }
-
-  // If any bracket tokens remain, warn (authoring mistake)
-  const leftover = out.match(/\[[^\]]+\]/g) ?? [];
-  if (leftover.length > 0) {
+  const rendered = renderDescriptorTokenTemplate(template, replacements);
+  if (rendered.unknownTokens.length > 0) {
     warnings.push(
-      `Armor Attribute template contains unknown token(s): ${Array.from(
-        new Set(leftover),
-      ).join(", ")}`,
+      `Armor Attribute template contains unknown token(s): ${rendered.unknownTokens.join(", ")}`,
+    );
+  }
+  if (rendered.invalidModifierTokens.length > 0) {
+    warnings.push(
+      `Armor Attribute template contains invalid token modifier(s): ${rendered.invalidModifierTokens.join(", ")}`,
     );
   }
 
-  return { text: out, warnings };
+  return { text: rendered.text, warnings };
 }
 
 export function buildDescriptorResult(input: DescriptorInput): DescriptorResult {

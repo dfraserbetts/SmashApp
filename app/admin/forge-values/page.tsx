@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  descriptorTokenBase,
+  descriptorTokenHasValidModifier,
+  extractDescriptorTokens,
+  renderDescriptorTokenTemplate,
+} from "@/lib/descriptors/tokenTemplate";
 
 type ForgeValueCategory =
   | "WEAPON_ATTRIBUTES"
@@ -604,16 +610,12 @@ export default function AdminForgeValuesPage() {
   }, [isWeaponAttributes, isArmorAttributes, isShieldAttributes]);
 
   function extractTokens(s: string): string[] {
-    const matches = s.match(/\[[^\]]+\]/g) ?? [];
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const t of matches) {
-      if (!seen.has(t)) {
-        seen.add(t);
-        out.push(t);
-      }
-    }
-    return out;
+    return extractDescriptorTokens(s);
+  }
+
+  function isAllowedTemplateToken(token: string): boolean {
+    const base = descriptorTokenBase(token);
+    return Boolean(base && TOKEN_WHITELIST.has(base) && descriptorTokenHasValidModifier(token));
   }
 
 function renderTemplatePreview(
@@ -641,49 +643,44 @@ function renderTemplatePreview(
 
   const sample: Record<string, string> = {
     // Common
-    "[ItemName]": "Sample Item",
-    "[AttributeValue]": attributeValueSample,
+    ItemName: "Sample Item",
+    AttributeValue: attributeValueSample,
 
     // Weapon-ish samples
-    "[MeleePhysicalStrength]": "2",
-    "[MeleeMentalStrength]": "1",
-    "[RangedPhysicalStrength]": "3",
-    "[RangedMentalStrength]": "0",
-    "[AoePhysicalStrength]": "2",
-    "[AoeMentalStrength]": "2",
+    MeleePhysicalStrength: "2.5",
+    MeleeMentalStrength: "1.5",
+    RangedPhysicalStrength: "3.5",
+    RangedMentalStrength: "0",
+    AoePhysicalStrength: "2.5",
+    AoeMentalStrength: "2.5",
 
-    "[GS_AttackEffects]": "Laceration, Burn",
-    "[DamageTypes]": "Slashing, Psychic",
+    GS_AttackEffects: "Laceration, Burn",
+    DamageTypes: "Slashing, Psychic",
 
-    "[MeleeTargets]": "1",
-    "[RangedTargets]": "1",
-    "[RangedDistanceFeet]": "30",
+    MeleeTargets: "1",
+    RangedTargets: "1",
+    RangedDistanceFeet: "30",
 
-    "[AoeCount]": "3",
-    "[AoeCenterRangeFeet]": "60",
-    "[AoeShape]": "Sphere",
-    "[AoeSphereRadiusFeet]": "10",
-    "[AoeConeLengthFeet]": "15",
-    "[AoeLineWidthFeet]": "5",
-    "[AoeLineLengthFeet]": "30",
+    AoeCount: "3",
+    AoeCenterRangeFeet: "60",
+    AoeShape: "Sphere",
+    AoeSphereRadiusFeet: "10",
+    AoeConeLengthFeet: "15",
+    AoeLineWidthFeet: "5",
+    AoeLineLengthFeet: "30",
 
     // Armor-ish samples
-    "[PPV]": ppv,
-    "[MPV]": mpv,
-    "[ChosenPV]": chosenPv,
-    "[AuraPhysical]": "1",
-    "[AuraMental]": "2",
-    "[Aura]": "1",
+    PPV: ppv,
+    MPV: mpv,
+    ChosenPV: chosenPv,
+    AuraPhysical: "1",
+    AuraMental: "2",
+    Aura: "1",
   };
-
-  let out = tpl ?? "";
-  for (const [k, v] of Object.entries(sample)) {
-    out = out.split(k).join(v);
-  }
 
   // Tiny nicety: if someone previews a weapon template while editing armor, they still get reasonable values.
   // (No additional logic needed; sample covers both.)
-  return out;
+  return renderDescriptorTokenTemplate(tpl ?? "", sample).text;
 }
   
   async function loadAll() {
@@ -2021,7 +2018,7 @@ function renderTemplatePreview(
                           setErr(null);
 
                           const tokens = extractTokens(descriptorTemplate);
-                          const unknown = tokens.filter((t) => !TOKEN_WHITELIST.has(t));
+                          const unknown = tokens.filter((t) => !isAllowedTemplateToken(t));
                           if (unknown.length) {
                             setErr(
                               `Unknown token(s): ${unknown.join(", ")}. Use the token buttons.`,
@@ -2123,6 +2120,9 @@ function renderTemplatePreview(
                           </button>
                         ))}
                       </div>
+                      <p className="text-[11px] opacity-70">
+                        Numeric tokens support modifiers: <code>[Token|floor]</code>, <code>[Token|ceil]</code>, <code>[Token|round]</code>, or <code>[Token|fixed:1]</code>.
+                      </p>
 
                       {(isWeaponAttributes || isArmorAttributes || isShieldAttributes) && (
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -2299,7 +2299,7 @@ function renderTemplatePreview(
                         const tokens = extractTokens(descriptorTemplate);
                         if (!tokens.length) return null;
 
-                        const unknown = tokens.filter((t) => !TOKEN_WHITELIST.has(t));
+                        const unknown = tokens.filter((t) => !isAllowedTemplateToken(t));
 
                         return (
                           <div className="text-xs">
