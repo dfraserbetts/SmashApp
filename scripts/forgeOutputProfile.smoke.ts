@@ -2268,6 +2268,78 @@ assertFeatureDriver(
   10,
   "features.weight.shieldSplit.attackDefence",
 );
+assert.equal(attackDefenceShieldBands.shield.shieldSplitWarningLevel, "likelyOverloaded");
+
+const weakHybridShield = runCase("weak attack defence shield", {
+  level: 5,
+  rarity: "COMMON",
+  type: "SHIELD",
+  size: "SMALL",
+  shieldHasAttack: true,
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Bludgeoning", attackMode: "PHYSICAL" } }],
+  ppv: 1,
+});
+const weakHybridShieldBands = compareForgeOutputToBands(weakHybridShield, FEATURE_WEIGHT_CONTEXT);
+assert.equal(weakHybridShieldBands.weaponProfiles[0]?.classification, "low");
+assert.equal(weakHybridShieldBands.defensive.ppv.classification, "standard");
+assert.equal(weakHybridShieldBands.shield.shieldSplitWarningLevel, "none");
+assert.equal(weakHybridShieldBands.lanes.coreFunctionality.status, "moderate");
+assert.ok(
+  !weakHybridShieldBands.lanes.coreFunctionality.warnings.some((entry) => entry.includes("shield split-function")),
+  "Weak hybrid shield should not emit a severe shield split warning",
+);
+assertFeatureDriver(
+  "weak attack defence shield",
+  weakHybridShieldBands,
+  "shield attack + defence split",
+  2,
+  "features.weight.shieldSplit.attackDefence",
+);
+assert.equal(weakHybridShieldBands.lanes.featuresVersatility.status, "narrow");
+
+const standardHybridShield = runCase("standard attack defence shield", {
+  level: 5,
+  rarity: "COMMON",
+  type: "SHIELD",
+  size: "SMALL",
+  shieldHasAttack: true,
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 2,
+  meleeDamageTypes: [{ damageType: { name: "Bludgeoning", attackMode: "PHYSICAL" } }],
+  ppv: 2,
+});
+const standardHybridShieldBands = compareForgeOutputToBands(standardHybridShield, FEATURE_WEIGHT_CONTEXT);
+assert.equal(standardHybridShieldBands.shield.shieldSplitWarningLevel, "watch");
+assert.ok(
+  standardHybridShieldBands.lanes.coreFunctionality.warnings.some((entry) => entry.includes("shield split-function watch")),
+  "Meaningful hybrid shield should emit a watch-level shield split warning",
+);
+assert.ok(
+  findFeatureDriver(standardHybridShieldBands, "shield attack + defence split")?.weight ?? 0 >= 5,
+  "Standard-or-better hybrid shield should apply scaled shield split feature pressure",
+);
+
+const strongDefenceHybridShield = runCase("strong defence hybrid shield", {
+  level: 5,
+  rarity: "COMMON",
+  type: "SHIELD",
+  size: "SMALL",
+  shieldHasAttack: true,
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 1,
+  meleeDamageTypes: [{ damageType: { name: "Bludgeoning", attackMode: "PHYSICAL" } }],
+  ppv: 4,
+});
+const strongDefenceHybridShieldBands = compareForgeOutputToBands(strongDefenceHybridShield, FEATURE_WEIGHT_CONTEXT);
+assert.equal(strongDefenceHybridShieldBands.defensive.ppv.classification, "extreme");
+assert.equal(strongDefenceHybridShieldBands.lanes.coreFunctionality.status, "heavy");
+assert.equal(strongDefenceHybridShieldBands.shield.shieldSplitWarningLevel, "watch");
+assert.ok(
+  findFeatureDriver(strongDefenceHybridShieldBands, "shield attack + defence split")?.weight ?? 0 >= 5,
+  "Strong-defence hybrid shield should keep visible split feature pressure",
+);
 
 const shield = runCase("shield", {
   level: 5,
@@ -2307,26 +2379,27 @@ assertFeatureDriver(
   "shield",
   weightedShieldBands,
   "shield attack + defence split",
-  10,
+  3,
   "features.weight.shieldSplit.attackDefence",
 );
 assert.ok(
   weightedShieldBands.lanes.debug.featureWeightTotal >=
-    shieldBands.lanes.debug.featureWeightTotal + 9,
-  "Configured shield attack + defence split weight should visibly increase Features pressure",
+    shieldBands.lanes.debug.featureWeightTotal + 2,
+  "Configured shield attack + defence split weight should visibly increase Features pressure after severity scaling",
 );
 assert.ok(
   weightedShieldBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
     entry.includes("shield attack + defence split") &&
-    entry.includes("ForgeOutputExpectation features.weight.shieldSplit.attackDefence = 10"),
+    entry.includes("ForgeOutputExpectation features.weight.shieldSplit.attackDefence = 10") &&
+    entry.includes("10 x 0.3"),
   ),
-  "Shield split feature driver should show the configured ForgeOutputExpectation source",
+  "Shield split feature driver should show the configured ForgeOutputExpectation source and severity multiplier",
 );
 const missingShieldSplitDriver = findFeatureDriver(missingShieldSplitBands, "shield attack + defence split");
 assert.ok(
   missingShieldSplitDriver?.fallbackUsed &&
     missingShieldSplitDriver.sourceKind === "fallback" &&
-    missingShieldSplitDriver.sourceValue === 1,
+    missingShieldSplitDriver.sourceValue === 0.3,
   "Missing shield split expectation should report fallback source",
 );
 assert.ok(

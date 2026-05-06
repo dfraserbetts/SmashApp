@@ -93,6 +93,12 @@ export type ForgeShieldSplitWarningLevel = "none" | "watch" | "likelyOverloaded"
 export type ForgeShieldBandComparison = {
   hasAttackAndDefence: boolean;
   shieldSplitWarningLevel: ForgeShieldSplitWarningLevel;
+  attackClassification: ForgeOutputBandClassification;
+  defenceClassification: ForgeOutputBandClassification;
+  attackRatio: number;
+  defenceRatio: number;
+  featureWeightMultiplier: number;
+  coreScoreContribution: number;
   notes: string[];
 };
 
@@ -989,36 +995,119 @@ function compareWeaponProfile(
 function resolveShieldWarning(
   profile: ForgeOutputProfile,
   weaponComparisons: ForgeWeaponProfileBandComparison[],
-  ppvClassification: ForgeOutputBandClassification,
-  mpvClassification: ForgeOutputBandClassification,
+  ppvComparison: ForgeDefensiveBandComparison["ppv"],
+  mpvComparison: ForgeDefensiveBandComparison["mpv"],
 ): ForgeShieldBandComparison {
   const hasAttackAndDefence = profile.shieldCoPresence.hasAttackAndDefence;
   const notes: string[] = [];
+  const empty = {
+    hasAttackAndDefence,
+    shieldSplitWarningLevel: "none" as const,
+    attackClassification: "below" as ForgeOutputBandClassification,
+    defenceClassification: "below" as ForgeOutputBandClassification,
+    attackRatio: 0,
+    defenceRatio: 0,
+    featureWeightMultiplier: 0,
+    coreScoreContribution: 0,
+    notes,
+  };
 
   if (!hasAttackAndDefence) {
-    return { hasAttackAndDefence, shieldSplitWarningLevel: "none", notes };
+    return empty;
   }
 
-  const attackRank = Math.max(
-    ...weaponComparisons
-      .filter((entry) => entry.enabled)
-      .map((entry) => CLASSIFICATION_RANK[entry.classification]),
-    0,
-  );
-  const defenceRank = Math.max(CLASSIFICATION_RANK[ppvClassification], CLASSIFICATION_RANK[mpvClassification]);
+  const attackComparison = weaponComparisons
+    .filter((entry) => entry.enabled)
+    .reduce<ForgeWeaponProfileBandComparison | null>((highest, current) => {
+      if (!highest) return current;
+      if (CLASSIFICATION_RANK[current.classification] > CLASSIFICATION_RANK[highest.classification]) return current;
+      const currentRatio = current.thresholds.standardMax > 0
+        ? getWeaponProfileCoreActual(current) / current.thresholds.standardMax
+        : 0;
+      const highestRatio = highest.thresholds.standardMax > 0
+        ? getWeaponProfileCoreActual(highest) / highest.thresholds.standardMax
+        : 0;
+      return currentRatio > highestRatio ? current : highest;
+    }, null);
+  const attackClassification = attackComparison?.classification ?? "below";
+  const attackRatio =
+    attackComparison && attackComparison.thresholds.standardMax > 0
+      ? getWeaponProfileCoreActual(attackComparison) / attackComparison.thresholds.standardMax
+      : 0;
+  const ppvRatio = ppvComparison.thresholds.standardMax > 0
+    ? ppvComparison.value / ppvComparison.thresholds.standardMax
+    : 0;
+  const mpvRatio = mpvComparison.thresholds.standardMax > 0
+    ? mpvComparison.value / mpvComparison.thresholds.standardMax
+    : 0;
+  const defenceClassification =
+    CLASSIFICATION_RANK[mpvComparison.classification] > CLASSIFICATION_RANK[ppvComparison.classification]
+      ? mpvComparison.classification
+      : ppvComparison.classification;
+  const defenceRatio = Math.max(ppvRatio, mpvRatio);
+  const attackRank = CLASSIFICATION_RANK[attackClassification];
+  const defenceRank = CLASSIFICATION_RANK[defenceClassification];
+  const attackMeaningful = attackRank >= CLASSIFICATION_RANK.standard;
+  const attackStrong = attackRank >= CLASSIFICATION_RANK.high || attackRatio >= 1.5;
+  const defenceMeaningful = defenceRatio >= 0.75 || defenceRank >= CLASSIFICATION_RANK.high;
+  const defenceStrong = defenceRank >= CLASSIFICATION_RANK.high || defenceRatio >= 1.5;
 
-  if (attackRank >= CLASSIFICATION_RANK.high && defenceRank >= CLASSIFICATION_RANK.high) {
-    notes.push("shield combines high-or-better attack and defence output");
-    return { hasAttackAndDefence, shieldSplitWarningLevel: "likelyOverloaded", notes };
+  const resultBase = {
+    hasAttackAndDefence,
+    attackClassification,
+    defenceClassification,
+    attackRatio,
+    defenceRatio,
+    notes,
+  };
+
+  if (!attackMeaningful && !defenceMeaningful) {
+    notes.push("shield combines minor attack and minor defence output");
+    return {
+      ...resultBase,
+      shieldSplitWarningLevel: "none",
+      featureWeightMultiplier: 0.2,
+      coreScoreContribution: 0,
+    };
   }
 
-  if (attackRank >= CLASSIFICATION_RANK.standard && defenceRank >= CLASSIFICATION_RANK.standard) {
-    notes.push("shield combines standard-or-better attack and defence output");
-    return { hasAttackAndDefence, shieldSplitWarningLevel: "watch", notes };
+  if (attackStrong && defenceStrong) {
+    notes.push("shield combines strong attack and strong defence output");
+    return {
+      ...resultBase,
+      shieldSplitWarningLevel: "likelyOverloaded",
+      featureWeightMultiplier: 1,
+      coreScoreContribution: 1,
+    };
   }
 
-  notes.push("shield has both attack and defence output, but one side is modest");
-  return { hasAttackAndDefence, shieldSplitWarningLevel: "watch", notes };
+  if ((attackStrong && defenceMeaningful) || (!attackMeaningful && defenceStrong)) {
+    notes.push("shield combines one strong side with meaningful attack/defence split output");
+    return {
+      ...resultBase,
+      shieldSplitWarningLevel: "watch",
+      featureWeightMultiplier: 0.75,
+      coreScoreContribution: 0.5,
+    };
+  }
+
+  if (attackMeaningful && defenceMeaningful) {
+    notes.push("shield combines meaningful attack and defence output");
+    return {
+      ...resultBase,
+      shieldSplitWarningLevel: "watch",
+      featureWeightMultiplier: 0.5,
+      coreScoreContribution: 0.5,
+    };
+  }
+
+  notes.push("shield has attack and defence output, but one side is modest");
+  return {
+    ...resultBase,
+    shieldSplitWarningLevel: "watch",
+    featureWeightMultiplier: 0.3,
+    coreScoreContribution: 0,
+  };
 }
 
 function getRarityRole(rarity: string | null): ForgeRarityRole {
@@ -1412,8 +1501,8 @@ function addFeatureWeight(
         note:
           weight < 0
             ? "Negative Forge-Values contribution reduces feature pressure"
-            : multiplier > 1
-              ? `${weight} x ${multiplier}`
+            : multiplier !== 1
+              ? `${formatPressureValue(weight)} x ${formatPressureValue(multiplier)}`
               : undefined,
       });
       return;
@@ -1450,7 +1539,7 @@ function addFeatureCountEntry(state: FeatureWeightState): void {
 
 function getPositiveMultiplier(value: number | null | undefined): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return 1;
-  return Math.max(1, value);
+  return value > 0 ? value : 1;
 }
 
 function forgeOutputExpectationLookup(
@@ -1602,6 +1691,7 @@ function collectFeatureWeights(
   profile: ForgeOutputProfile,
   enabledWeaponProfiles: ForgeWeaponProfileBandComparison[],
   context: ForgeFeatureWeightContext | null | undefined,
+  shieldComparison?: ForgeShieldBandComparison,
 ): FeatureWeightState {
   const state = createFeatureWeightState(context);
   const itemTypeLabel = getItemTypeLabel(profile);
@@ -1879,8 +1969,15 @@ function collectFeatureWeights(
       context,
       "shield attack + defence split",
       "shield_split",
-      [forgeOutputExpectationLookup(FEATURE_WEIGHT_EXPECTATION_KEYS.shieldSplitAttackDefence)],
+      [
+        forgeOutputExpectationLookup(
+          FEATURE_WEIGHT_EXPECTATION_KEYS.shieldSplitAttackDefence,
+          shieldComparison?.featureWeightMultiplier ?? 1,
+        ),
+      ],
       "shield attack/defence split has no direct Forge-Values row",
+      "breadth",
+      (shieldComparison?.featureWeightMultiplier ?? 1) * 1,
     );
   }
 
@@ -2045,7 +2142,12 @@ export function classifyForgeOutputLanes(
     },
     null,
   );
-  const featureWeightState = collectFeatureWeights(profile, enabledWeaponProfiles, featureWeightContext);
+  const featureWeightState = collectFeatureWeights(
+    profile,
+    enabledWeaponProfiles,
+    featureWeightContext,
+    bandComparison.shield,
+  );
   const featureDrivers = featureWeightState.drivers.map(formatFeatureDriver);
   const featureWarnings: string[] = [];
   const coreDrivers: string[] = [];
@@ -2205,9 +2307,11 @@ export function classifyForgeOutputLanes(
   }
 
   if (bandComparison.shield.hasAttackAndDefence) {
-    coreScore += 1;
+    coreScore += bandComparison.shield.coreScoreContribution;
     coreDrivers.push("shield split attack/defence output");
-    coreWarnings.push(`shield split-function ${bandComparison.shield.shieldSplitWarningLevel}`);
+    if (bandComparison.shield.shieldSplitWarningLevel !== "none") {
+      coreWarnings.push(`shield split-function ${bandComparison.shield.shieldSplitWarningLevel}`);
+    }
     if (bandComparison.shield.shieldSplitWarningLevel === "likelyOverloaded") {
       coreStatusFloor = "likely overloaded";
     }
@@ -2429,7 +2533,30 @@ export function compareForgeOutputToBands(
       },
       debugNote: armourSlotExpectation.debugNote,
     },
-    shield: resolveShieldWarning(profile, weaponProfiles, ppvClassification, mpvClassification),
+    shield: resolveShieldWarning(
+      profile,
+      weaponProfiles,
+      {
+        value: profile.defensiveProfile.ppv,
+        classification: ppvClassification,
+        thresholds: ppvThresholds,
+        rawThresholds: ppvSlotThresholds.rawThresholds,
+        packageThresholds: ppvPackageThresholds,
+        armourSlotWeight: armourSlotExpectation.weight,
+        armourLocation: armourSlotExpectation.location,
+        defensiveReferenceLabel: armourSlotExpectation.referenceLabel,
+      },
+      {
+        value: profile.defensiveProfile.mpv,
+        classification: mpvClassification,
+        thresholds: mpvThresholds,
+        rawThresholds: mpvSlotThresholds.rawThresholds,
+        packageThresholds: mpvPackageThresholds,
+        armourSlotWeight: armourSlotExpectation.weight,
+        armourLocation: armourSlotExpectation.location,
+        defensiveReferenceLabel: armourSlotExpectation.referenceLabel,
+      },
+    ),
     debug: {
       source: "forge_output_bands_v1",
       bandSet: "natural_baseline_v1",
