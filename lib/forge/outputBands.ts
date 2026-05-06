@@ -103,6 +103,13 @@ export type ForgeFeatureWeightDriver = {
   weight: number;
   fallbackUsed: boolean;
   note?: string;
+  pricingMode?: string | null;
+  pricingScalar?: number | null;
+  pricingMagnitude?: number | null;
+  pricingWeight?: number | null;
+  scalarBasisKind?: string;
+  scalarBasisLabel?: string;
+  scalarFormulaLabel?: string;
 };
 
 export type ForgeMissingFeatureWeightDriver = {
@@ -1087,6 +1094,9 @@ function formatLookupPath(
 }
 
 function describeFeatureDriverSource(entry: ForgeFeatureWeightDriver): string {
+  if (entry.scalarFormulaLabel) {
+    return entry.scalarFormulaLabel;
+  }
   if (entry.sourceKind === "forge_output_expectation") {
     return `ForgeOutputExpectation ${entry.sourceLabel} = ${formatPressureValue(entry.sourceValue)}`;
   }
@@ -1103,6 +1113,48 @@ function formatFeatureDriver(entry: ForgeFeatureWeightDriver): string {
   const source = describeFeatureDriverSource(entry);
   const note = entry.note ? `; ${entry.note}` : "";
   return `${entry.label} (${signedWeight} Features from ${source}${note})`;
+}
+
+function getScalarBasis(mode: string | null): { kind: string; label: string } {
+  switch (mode) {
+    case "MELEE_PHYSICAL_STRENGTH":
+      return { kind: "raw_primary_strength", label: "raw melee physical Strength" };
+    case "MELEE_MENTAL_STRENGTH":
+      return { kind: "raw_primary_strength", label: "raw melee mental Strength" };
+    case "RANGED_PHYSICAL_STRENGTH":
+      return { kind: "raw_primary_strength", label: "raw ranged physical Strength" };
+    case "RANGED_MENTAL_STRENGTH":
+      return { kind: "raw_primary_strength", label: "raw ranged mental Strength" };
+    case "AOE_PHYSICAL_STRENGTH":
+      return { kind: "raw_primary_strength", label: "raw AoE physical Strength" };
+    case "AOE_MENTAL_STRENGTH":
+      return { kind: "raw_primary_strength", label: "raw AoE mental Strength" };
+    case "AURA_PHYSICAL":
+      return { kind: "aura", label: "Aura Physical" };
+    case "AURA_MENTAL":
+      return { kind: "aura", label: "Aura Mental" };
+    case "PPV":
+      return { kind: "ppv", label: "PPV" };
+    case "MPV":
+      return { kind: "mpv", label: "MPV" };
+    case "ATTRIBUTE_VALUE":
+      return { kind: "attribute_value", label: "Attribute Value" };
+    case "FIXED":
+      return { kind: "fixed_weight", label: "fixed feature weight" };
+    default:
+      return { kind: "unknown_needs_design", label: mode ? `pricing mode ${mode}` : "missing pricing mode" };
+  }
+}
+
+function formatScalarFormulaLabel(
+  pricingScalar: number,
+  pricingMagnitude: number,
+  pricingWeight: number,
+  scalarBasisLabel: string,
+): string {
+  return `${formatPressureValue(pricingScalar)} x ${scalarBasisLabel} ${formatPressureValue(
+    pricingMagnitude,
+  )} = ${formatPressureValue(pricingWeight)}`;
 }
 
 function coreStatusFromPressureRatio(ratio: number): ForgeLaneStatus {
@@ -1295,6 +1347,16 @@ function addAttributeFeatureWeight(
 ): void {
   addFeatureCountEntry(state);
   if (detail.pricingWeight !== null) {
+    const scalarBasis = getScalarBasis(detail.pricingMode);
+    const scalarFormulaLabel =
+      detail.pricingScalar !== null && detail.pricingMagnitude !== null
+        ? formatScalarFormulaLabel(
+            detail.pricingScalar,
+            detail.pricingMagnitude,
+            detail.pricingWeight,
+            scalarBasis.label,
+          )
+        : undefined;
     state.featureValueRaw += detail.pricingWeight;
     state.drivers.push({
       label: `${labelPrefix}: ${detail.name}`,
@@ -1304,14 +1366,36 @@ function addAttributeFeatureWeight(
       sourceValue: detail.pricingWeight,
       weight: detail.pricingWeight,
       fallbackUsed: false,
+      pricingMode: detail.pricingMode,
+      pricingScalar: detail.pricingScalar,
+      pricingMagnitude: detail.pricingMagnitude,
+      pricingWeight: detail.pricingWeight,
+      scalarBasisKind: scalarBasis.kind,
+      scalarBasisLabel: scalarBasis.label,
+      scalarFormulaLabel,
       note:
-        detail.pricingScalar !== null && detail.pricingMagnitude !== null
-          ? `${detail.pricingScalar} x ${detail.pricingMagnitude}${
-              detail.pricingWeight < 0 ? "; negative contribution reduces feature pressure" : ""
-            }`
-          : undefined,
+        detail.pricingWeight < 0 ? "negative contribution reduces feature pressure" : undefined,
     });
     return;
+  }
+
+  if (detail.pricingScalar !== null && !detail.pricingMode) {
+    state.drivers.push({
+      label: `${labelPrefix}: ${detail.name} scalar ignored`,
+      source: "attribute_scalar/IGNORED",
+      sourceKind: "legacy",
+      sourceLabel: "attribute scalar ignored",
+      sourceValue: 0,
+      weight: 0,
+      fallbackUsed: false,
+      pricingMode: detail.pricingMode,
+      pricingScalar: detail.pricingScalar,
+      pricingMagnitude: detail.pricingMagnitude,
+      pricingWeight: null,
+      scalarBasisKind: "unknown_needs_design",
+      scalarBasisLabel: "missing pricing mode",
+      note: `pricingScalar ${formatPressureValue(detail.pricingScalar)} present but no pricingMode; scalar ignored`,
+    });
   }
 
   addFeatureWeight(

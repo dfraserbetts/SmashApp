@@ -837,14 +837,27 @@ const scalarWeaponAttribute = runCase("scalar weapon attribute", {
   }],
 });
 const scalarWeaponAttributeBands = compareForgeOutputToBands(scalarWeaponAttribute, FEATURE_WEIGHT_CONTEXT);
+const scalarWeaponAttributeDriver = findFeatureDriver(scalarWeaponAttributeBands, "Scalar Bite");
 assert.ok(
-  scalarWeaponAttributeBands.lanes.debug.featureWeightDrivers.some((entry) =>
-    entry.label.includes("Scalar Bite") &&
-    entry.source === "attribute_scalar/MELEE_PHYSICAL_STRENGTH" &&
-    entry.weight === 9 &&
-    !entry.fallbackUsed,
-  ),
+  scalarWeaponAttributeDriver &&
+    scalarWeaponAttributeDriver.source === "attribute_scalar/MELEE_PHYSICAL_STRENGTH" &&
+    scalarWeaponAttributeDriver.weight === 9 &&
+    !scalarWeaponAttributeDriver.fallbackUsed &&
+    scalarWeaponAttributeDriver.pricingMode === "MELEE_PHYSICAL_STRENGTH" &&
+    scalarWeaponAttributeDriver.pricingScalar === 3 &&
+    scalarWeaponAttributeDriver.pricingMagnitude === 3 &&
+    scalarWeaponAttributeDriver.pricingWeight === 9 &&
+    scalarWeaponAttributeDriver.scalarBasisKind === "raw_primary_strength" &&
+    scalarWeaponAttributeDriver.scalarBasisLabel === "raw melee physical Strength" &&
+    scalarWeaponAttributeDriver.scalarFormulaLabel === "3 x raw melee physical Strength 3 = 9",
   "Scalar-priced weapon attribute should use pricingScalar x resolved magnitude",
+);
+assert.ok(
+  scalarWeaponAttributeBands.lanes.featuresVersatility.mainDrivers.some((entry) =>
+    entry.includes("Scalar Bite") &&
+    entry.includes("3 x raw melee physical Strength 3 = 9"),
+  ),
+  "Scalar-priced weapon attribute driver text should show the scalar basis",
 );
 assert.equal(scalarWeaponAttributeBands.lanes.debug.featureWeightTotalRaw, 9);
 assert.equal(scalarWeaponAttributeBands.lanes.debug.featureCount, 1);
@@ -884,6 +897,177 @@ assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightTotalRa
 assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureCount, 1);
 assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightTotal, 1);
 assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featurePressureRatio, 0.1);
+
+const parryRawSixOneType = runCase("parry raw strength six one type", {
+  level: 10,
+  rarity: "RARE",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 6,
+  meleeDamageTypes: [{ damageType: { name: "Slashing", attackMode: "PHYSICAL" } }],
+  meleeTargets: 1,
+  weaponAttributes: [{
+    name: "Parry",
+    pricingMode: "MELEE_PHYSICAL_STRENGTH",
+    pricingScalar: 7,
+    pricingMagnitude: 6,
+  }],
+});
+const parryRawTwoThreeTypes = runCase("parry raw strength two three types", {
+  level: 10,
+  rarity: "RARE",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["MELEE"],
+  meleePhysicalStrength: 2,
+  meleeDamageTypes: [
+    { damageType: { name: "Slashing", attackMode: "PHYSICAL" } },
+    { damageType: { name: "Fire", attackMode: "PHYSICAL" } },
+    { damageType: { name: "Ice", attackMode: "PHYSICAL" } },
+  ],
+  meleeTargets: 1,
+  weaponAttributes: [{
+    name: "Parry",
+    pricingMode: "MELEE_PHYSICAL_STRENGTH",
+    pricingScalar: 7,
+    pricingMagnitude: 2,
+  }],
+});
+const parryRawSixOneTypeBands = compareForgeOutputToBands(parryRawSixOneType, FEATURE_WEIGHT_CONTEXT);
+const parryRawTwoThreeTypesBands = compareForgeOutputToBands(parryRawTwoThreeTypes, FEATURE_WEIGHT_CONTEXT);
+const parryRawSixDriver = findFeatureDriver(parryRawSixOneTypeBands, "Parry");
+const parryRawTwoDriver = findFeatureDriver(parryRawTwoThreeTypesBands, "Parry");
+assert.equal(getProfile(parryRawSixOneType, "melee").totalWoundsPerSuccess, 12);
+assert.equal(getProfile(parryRawTwoThreeTypes, "melee").totalWoundsPerSuccess, 12);
+assert.equal(parryRawSixDriver?.weight, 42);
+assert.equal(parryRawTwoDriver?.weight, 14);
+assert.equal(parryRawSixDriver?.scalarBasisLabel, "raw melee physical Strength");
+assert.equal(parryRawTwoDriver?.scalarBasisLabel, "raw melee physical Strength");
+assert.ok(
+  parryRawSixOneTypeBands.lanes.debug.featureWeightTotalRaw >
+    parryRawTwoThreeTypesBands.lanes.debug.featureWeightTotalRaw,
+  "Parry should currently scale from raw melee physical Strength, not total table-facing wound output",
+);
+
+const rivitedShieldAttribute = runCase("rivited shield attribute scalar", {
+  level: 5,
+  rarity: "UNCOMMON",
+  type: "SHIELD",
+  size: "SMALL",
+  ppv: 8,
+  mpv: 0,
+  shieldAttributes: [{
+    shieldAttribute: {
+      name: "Rivited",
+      pricingMode: "PPV",
+      pricingScalar: 2,
+      pricingMagnitude: 8,
+    },
+  }],
+});
+const rivitedShieldBands = compareForgeOutputToBands(rivitedShieldAttribute, FEATURE_WEIGHT_CONTEXT);
+const rivitedDriver = findFeatureDriver(rivitedShieldBands, "Rivited");
+assert.equal(rivitedDriver?.weight, 16);
+assert.equal(rivitedDriver?.scalarBasisKind, "ppv");
+assert.equal(rivitedDriver?.scalarBasisLabel, "PPV");
+assert.equal(rivitedDriver?.scalarFormulaLabel, "2 x PPV 8 = 16");
+
+const resonatingArmourAttribute = runCase("resonating armour attribute scalar", {
+  level: 5,
+  rarity: "UNCOMMON",
+  type: "ARMOR",
+  ppv: 0,
+  mpv: 4,
+  armorAttributes: [{
+    armorAttribute: {
+      name: "Resonating",
+      pricingMode: "MPV",
+      pricingScalar: 5,
+      pricingMagnitude: 4,
+    },
+  }],
+});
+const resonatingArmourBands = compareForgeOutputToBands(resonatingArmourAttribute, FEATURE_WEIGHT_CONTEXT);
+const resonatingDriver = findFeatureDriver(resonatingArmourBands, "Resonating");
+assert.equal(resonatingDriver?.weight, 20);
+assert.equal(resonatingDriver?.scalarBasisKind, "mpv");
+assert.equal(resonatingDriver?.scalarBasisLabel, "MPV");
+assert.equal(resonatingDriver?.scalarFormulaLabel, "5 x MPV 4 = 20");
+
+const auraArmourAttributes = runCase("aura armour attribute scalars", {
+  level: 5,
+  rarity: "UNCOMMON",
+  type: "ARMOR",
+  ppv: 0,
+  mpv: 1,
+  auraPhysical: 2,
+  auraMental: 2,
+  armorAttributes: [
+    {
+      armorAttribute: {
+        name: "Aura (Physical)",
+        pricingMode: "AURA_PHYSICAL",
+        pricingScalar: 5,
+        pricingMagnitude: 2,
+      },
+    },
+    {
+      armorAttribute: {
+        name: "Aura (Mental)",
+        pricingMode: "AURA_MENTAL",
+        pricingScalar: 5,
+        pricingMagnitude: 2,
+      },
+    },
+  ],
+});
+const auraArmourBands = compareForgeOutputToBands(auraArmourAttributes, FEATURE_WEIGHT_CONTEXT);
+const auraPhysicalDriver = findFeatureDriver(auraArmourBands, "Aura (Physical)");
+const auraMentalDriver = findFeatureDriver(auraArmourBands, "Aura (Mental)");
+assert.equal(auraPhysicalDriver?.weight, 10);
+assert.equal(auraPhysicalDriver?.scalarBasisKind, "aura");
+assert.equal(auraPhysicalDriver?.scalarBasisLabel, "Aura Physical");
+assert.equal(auraPhysicalDriver?.scalarFormulaLabel, "5 x Aura Physical 2 = 10");
+assert.equal(auraMentalDriver?.weight, 10);
+assert.equal(auraMentalDriver?.scalarBasisKind, "aura");
+assert.equal(auraMentalDriver?.scalarBasisLabel, "Aura Mental");
+assert.equal(auraMentalDriver?.scalarFormulaLabel, "5 x Aura Mental 2 = 10");
+
+const scalarWithoutPricingModeAttribute = runCase("scalar without pricing mode", {
+  level: 5,
+  rarity: "COMMON",
+  type: "ARMOR",
+  ppv: 1,
+  mpv: 0,
+  armorAttributes: [{
+    armorAttribute: {
+      name: "Stealthy",
+      pricingScalar: 15,
+    },
+  }],
+});
+const scalarWithoutPricingModeBands = compareForgeOutputToBands(
+  scalarWithoutPricingModeAttribute,
+  FEATURE_WEIGHT_CONTEXT,
+);
+const scalarIgnoredDriver = findFeatureDriver(scalarWithoutPricingModeBands, "Stealthy scalar ignored");
+assert.ok(
+  scalarIgnoredDriver &&
+    scalarIgnoredDriver.weight === 0 &&
+    scalarIgnoredDriver.pricingScalar === 15 &&
+    scalarIgnoredDriver.pricingMode === null &&
+    scalarIgnoredDriver.note?.includes("pricingScalar 15 present but no pricingMode; scalar ignored"),
+  "Attribute with pricingScalar but no pricingMode should warn that scalar is ignored",
+);
+assert.ok(
+  !scalarWithoutPricingModeBands.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Stealthy") &&
+    entry.source === "attribute_scalar/UNKNOWN" &&
+    entry.weight === 15,
+  ),
+  "Attribute with pricingScalar but no pricingMode should not silently apply scalar pricing",
+);
 
 const missingWeightedFeature = runCase("missing weighted feature", {
   level: 5,
