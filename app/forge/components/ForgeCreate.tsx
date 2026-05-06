@@ -128,6 +128,7 @@ type TagSuggestion = {
 };
 const PICKER_LEVEL_OPTIONS = Array.from({ length: 20 }, (_, idx) => idx + 1);
 const MAX_RECENT_PICKER_ITEMS = 5;
+const PROTECTION_STAT_MAX = 10;
 
 function listFromCsv(value: string): string[] {
   return value
@@ -6619,9 +6620,7 @@ useEffect(() => {
                   rows={4}
                   className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   placeholder="Short flavour and function description."
-                  {...register('generalDescription', {
-                    required: 'Description is required',
-                  })}
+                  {...register('generalDescription')}
                 />
                 {errors.generalDescription && (
                   <p className="text-xs text-red-400">
@@ -6834,14 +6833,14 @@ useEffect(() => {
                       <input
                       type="number"
                       min={0}
-                      max={5}
+                      max={PROTECTION_STAT_MAX}
                       step={1}
                       className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       {...register('ppv', {
                         valueAsNumber: true,
                         validate: {
                           inRange: (v) =>
-                            validateOptionalInRange(v, 0, 5, 'PPV'),
+                            validateOptionalInRange(v, 0, PROTECTION_STAT_MAX, 'PPV'),
                           ppvOrMpvRequiredArmor: (v) => {
                             if (!isArmor) return true;
                             const values = getValues();
@@ -6874,14 +6873,14 @@ useEffect(() => {
                       <input
                       type="number"
                       min={0}
-                      max={5}
+                      max={PROTECTION_STAT_MAX}
                       step={1}
                       className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       {...register('mpv', {
                         valueAsNumber: true,
                         validate: {
                           inRange: (v) =>
-                            validateOptionalInRange(v, 0, 5, 'MPV'),
+                            validateOptionalInRange(v, 0, PROTECTION_STAT_MAX, 'MPV'),
                           ppvOrMpvRequiredArmor: (v) => {
                             if (!isArmor) return true;
                             const values = getValues();
@@ -7132,14 +7131,14 @@ useEffect(() => {
                     <input
                       type="number"
                       min={0}
-                      max={5}
+                      max={PROTECTION_STAT_MAX}
                       step={1}
                       className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       {...register('ppv', {
                         valueAsNumber: true,
                         validate: {
                           inRange: (v) =>
-                            validateOptionalInRange(v, 0, 5, 'PPV'),
+                            validateOptionalInRange(v, 0, PROTECTION_STAT_MAX, 'PPV'),
                           ppvOrMpvRequiredShield: (v) => {
                             if (!isShield) return true;
                             const values = getValues();
@@ -7173,14 +7172,14 @@ useEffect(() => {
                     <input
                       type="number"
                       min={0}
-                      max={5}
+                      max={PROTECTION_STAT_MAX}
                       step={1}
                       className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       {...register('mpv', {
                         valueAsNumber: true,
                         validate: {
                           inRange: (v) =>
-                            validateOptionalInRange(v, 0, 5, 'MPV'),
+                            validateOptionalInRange(v, 0, PROTECTION_STAT_MAX, 'MPV'),
                           ppvOrMpvRequiredShield: (v) => {
                             if (!isShield) return true;
                             const values = getValues();

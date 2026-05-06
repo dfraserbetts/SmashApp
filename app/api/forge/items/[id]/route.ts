@@ -61,7 +61,7 @@ function countSelectedMythicLimitBreaks(value: {
 function isValidProtectionStatValue(value: unknown): boolean {
   if (value === null || value === undefined) return true;
   if (typeof value !== 'number' || !Number.isFinite(value)) return false;
-  return Number.isInteger(value) && value >= 0 && value <= 5;
+  return Number.isInteger(value) && value >= 0 && value <= 10;
 }
 
 function withTagStrings<T extends { tags?: Array<{ tag: string }> }>(
@@ -302,13 +302,13 @@ export async function PUT(
     }
     if (!isValidProtectionStatValue(body.ppv)) {
       return NextResponse.json(
-        { error: 'PPV must be an integer between 0 and 5.' },
+        { error: 'PPV must be an integer between 0 and 10.' },
         { status: 400 },
       );
     }
     if (!isValidProtectionStatValue(body.mpv)) {
       return NextResponse.json(
-        { error: 'MPV must be an integer between 0 and 5.' },
+        { error: 'MPV must be an integer between 0 and 10.' },
         { status: 400 },
       );
     }
