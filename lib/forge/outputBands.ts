@@ -2308,7 +2308,12 @@ export function classifyForgeOutputLanes(
 
   if (bandComparison.shield.hasAttackAndDefence) {
     coreScore += bandComparison.shield.coreScoreContribution;
-    coreDrivers.push("shield split attack/defence output");
+    if (
+      bandComparison.shield.coreScoreContribution > 0 ||
+      bandComparison.shield.shieldSplitWarningLevel !== "none"
+    ) {
+      coreDrivers.push("shield split attack/defence output");
+    }
     if (bandComparison.shield.shieldSplitWarningLevel !== "none") {
       coreWarnings.push(`shield split-function ${bandComparison.shield.shieldSplitWarningLevel}`);
     }

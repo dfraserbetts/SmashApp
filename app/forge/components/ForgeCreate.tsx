@@ -8491,7 +8491,11 @@ function ForgeOutputProfilePanel({
                           ? 'Attack + Defence'
                           : 'No split output'
                       }
-                      tone={comparison.shield.hasAttackAndDefence ? 'amber' : 'zinc'}
+                      tone={
+                        comparison.shield.shieldSplitWarningLevel === 'none'
+                          ? 'zinc'
+                          : getClassificationTone(comparison.shield.shieldSplitWarningLevel)
+                      }
                     />
                     <ForgeOutputPill
                       label={formatOutputLabel(comparison.shield.shieldSplitWarningLevel)}

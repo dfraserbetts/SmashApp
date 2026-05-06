@@ -2290,6 +2290,10 @@ assert.ok(
   !weakHybridShieldBands.lanes.coreFunctionality.warnings.some((entry) => entry.includes("shield split-function")),
   "Weak hybrid shield should not emit a severe shield split warning",
 );
+assert.ok(
+  !weakHybridShieldBands.lanes.coreFunctionality.mainDrivers.includes("shield split attack/defence output"),
+  "Weak hybrid shield should not report shield split as a Core escalation driver",
+);
 assertFeatureDriver(
   "weak attack defence shield",
   weakHybridShieldBands,
