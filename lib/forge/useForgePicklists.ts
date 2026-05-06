@@ -124,11 +124,12 @@ type ForgePicklistsState = {
 let cachedPicklists: ForgePicklists | null = null;
 let cachedPromise: Promise<ForgePicklists> | null = null;
 
-async function fetchPicklists(): Promise<ForgePicklists> {
-  if (cachedPicklists) return cachedPicklists;
-  if (cachedPromise) return cachedPromise;
+async function fetchPicklists(options: { force?: boolean } = {}): Promise<ForgePicklists> {
+  const force = options.force ?? false;
+  if (!force && cachedPicklists) return cachedPicklists;
+  if (!force && cachedPromise) return cachedPromise;
 
-  cachedPromise = fetch('/api/forge/picklists')
+  cachedPromise = fetch('/api/forge/picklists', { cache: 'no-store' })
     .then(async (res) => {
       if (!res.ok) {
         throw new Error(`Picklists request failed: ${res.status}`);
@@ -168,14 +169,9 @@ export function useForgePicklists(): ForgePicklistsState {
   });
 
   useEffect(() => {
-    if (cachedPicklists) {
-      // already have data, nothing to do
-      return;
-    }
-
     let cancelled = false;
 
-    fetchPicklists()
+    fetchPicklists({ force: Boolean(cachedPicklists) })
       .then((data) => {
         if (cancelled) return;
         setState({ data, loading: false, error: null });
