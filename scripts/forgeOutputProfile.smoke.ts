@@ -888,16 +888,121 @@ assert.ok(
   scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightDrivers.some((entry) =>
     entry.label.includes("Restrictive Grip") &&
     entry.source === "attribute_scalar/MELEE_PHYSICAL_STRENGTH" &&
-    entry.weight === -9 &&
+    entry.weight === -3 &&
+    entry.pricingWeight === -9 &&
+    entry.note?.includes("negative scalar discount capped to base scalar -3") &&
     !entry.fallbackUsed,
   ),
-  "Negative scalar-priced weapon attribute should preserve pricingScalar x magnitude",
+  "Negative scalar-priced weapon attribute should cap Features discount to base scalar",
 );
-assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightTotalRaw, -9);
+assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightTotalRaw, -3);
 assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureCount, 1);
 assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featureWeightTotal, 1);
 assert.equal(scalarNegativeWeaponAttributeBands.lanes.debug.featurePressureRatio, 0.1);
 
+const negativeScalarLowOutput = runCase("negative scalar low output", {
+  level: 10,
+  rarity: "RARE",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["RANGED"],
+  rangedPhysicalStrength: 1,
+  rangedDamageTypes: [{ damageType: { name: "Piercing", attackMode: "PHYSICAL" } }],
+  rangedTargets: 1,
+  rangedDistanceFeet: 120,
+  weaponAttributes: [{
+    name: "Unstable Draw",
+    pricingMode: "RANGED_PHYSICAL_STRENGTH",
+    pricingScalar: -5,
+    pricingMagnitude: 1,
+  }],
+});
+const negativeScalarHighOutput = runCase("negative scalar high output", {
+  level: 10,
+  rarity: "RARE",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["RANGED"],
+  rangedPhysicalStrength: 6,
+  rangedDamageTypes: [{ damageType: { name: "Piercing", attackMode: "PHYSICAL" } }],
+  rangedTargets: 1,
+  rangedDistanceFeet: 120,
+  weaponAttributes: [{
+    name: "Unstable Draw",
+    pricingMode: "RANGED_PHYSICAL_STRENGTH",
+    pricingScalar: -5,
+    pricingMagnitude: 6,
+  }],
+});
+const negativeScalarLowOutputBands = compareForgeOutputToBands(negativeScalarLowOutput, FEATURE_WEIGHT_CONTEXT);
+const negativeScalarHighOutputBands = compareForgeOutputToBands(negativeScalarHighOutput, FEATURE_WEIGHT_CONTEXT);
+const negativeScalarLowDriver = findFeatureDriver(negativeScalarLowOutputBands, "Unstable Draw");
+const negativeScalarHighDriver = findFeatureDriver(negativeScalarHighOutputBands, "Unstable Draw");
+assert.equal(negativeScalarLowDriver?.weight, -5);
+assert.equal(negativeScalarLowDriver?.pricingWeight, -5);
+assert.equal(negativeScalarHighDriver?.weight, -5);
+assert.equal(negativeScalarHighDriver?.pricingWeight, -30);
+assert.ok(
+  negativeScalarHighDriver?.note?.includes("raw scalar would be -30"),
+  "Negative scalar driver should expose the uncapped raw scalar for debug",
+);
+assert.equal(
+  negativeScalarHighOutputBands.lanes.debug.featureWeightTotalRaw,
+  negativeScalarLowOutputBands.lanes.debug.featureWeightTotalRaw,
+  "Negative scalar feature should not become a larger Features discount when output magnitude increases",
+);
+
+const minMaxReducedLowOutput = runCase("reduced min-max low output", {
+  level: 10,
+  rarity: "RARE",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["RANGED"],
+  rangedPhysicalStrength: 2,
+  rangedDamageTypes: [{ damageType: { name: "Piercing", attackMode: "PHYSICAL" } }],
+  rangedTargets: 1,
+  rangedDistanceFeet: 120,
+  weaponAttributes: [
+    { name: "Parry", pricingMode: "RANGED_PHYSICAL_STRENGTH", pricingScalar: 4, pricingMagnitude: 2 },
+    { name: "Unstable Draw", pricingMode: "RANGED_PHYSICAL_STRENGTH", pricingScalar: -5, pricingMagnitude: 2 },
+    { name: "Quick", pricingMode: "FIXED", pricingScalar: 2, pricingMagnitude: 1 },
+  ],
+});
+const minMaxReducedHighOutput = runCase("reduced min-max high output", {
+  level: 10,
+  rarity: "RARE",
+  type: "WEAPON",
+  size: "ONE_HANDED",
+  rangeCategories: ["RANGED"],
+  rangedPhysicalStrength: 6,
+  rangedDamageTypes: [
+    { damageType: { name: "Piercing", attackMode: "PHYSICAL" } },
+    { damageType: { name: "Fire", attackMode: "PHYSICAL" } },
+  ],
+  rangedTargets: 1,
+  rangedDistanceFeet: 120,
+  weaponAttributes: [
+    { name: "Parry", pricingMode: "RANGED_PHYSICAL_STRENGTH", pricingScalar: 4, pricingMagnitude: 6 },
+    { name: "Unstable Draw", pricingMode: "RANGED_PHYSICAL_STRENGTH", pricingScalar: -5, pricingMagnitude: 6 },
+    { name: "Quick", pricingMode: "FIXED", pricingScalar: 2, pricingMagnitude: 1 },
+  ],
+});
+const minMaxReducedLowOutputBands = compareForgeOutputToBands(minMaxReducedLowOutput, FEATURE_WEIGHT_CONTEXT);
+const minMaxReducedHighOutputBands = compareForgeOutputToBands(minMaxReducedHighOutput, FEATURE_WEIGHT_CONTEXT);
+const minMaxLowNegativeDriver = findFeatureDriver(minMaxReducedLowOutputBands, "Unstable Draw");
+const minMaxHighNegativeDriver = findFeatureDriver(minMaxReducedHighOutputBands, "Unstable Draw");
+assert.equal(minMaxLowNegativeDriver?.weight, -5);
+assert.equal(minMaxHighNegativeDriver?.weight, -5);
+assert.ok(
+  minMaxReducedHighOutputBands.lanes.debug.breadthGeometryRangeProfileWeightTotal >
+    minMaxReducedLowOutputBands.lanes.debug.breadthGeometryRangeProfileWeightTotal,
+  "Extra damage type breadth should still increase breadth pressure",
+);
+assert.ok(
+  minMaxReducedHighOutputBands.lanes.debug.featurePressureTotal >=
+    minMaxReducedLowOutputBands.lanes.debug.featurePressureTotal,
+  "Same features plus higher output/breadth must not reduce Features pressure through negative scalar scaling",
+);
 const parryRawSixOneType = runCase("parry raw strength six one type", {
   level: 10,
   rarity: "RARE",

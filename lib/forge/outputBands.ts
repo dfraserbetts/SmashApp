@@ -1157,6 +1157,25 @@ function formatScalarFormulaLabel(
   )} = ${formatPressureValue(pricingWeight)}`;
 }
 
+function getScalarFeaturePressureWeight(detail: ForgeAttributePricingOutput): {
+  weight: number | null;
+  note?: string;
+} {
+  if (detail.pricingWeight === null) return { weight: null };
+  if (detail.pricingWeight >= 0 || detail.pricingScalar === null) {
+    return { weight: detail.pricingWeight };
+  }
+
+  const cappedWeight = Math.max(detail.pricingWeight, -Math.abs(detail.pricingScalar));
+  if (cappedWeight === detail.pricingWeight) {
+    return { weight: detail.pricingWeight };
+  }
+
+  return {
+    weight: cappedWeight,
+    note: `negative scalar discount capped to base scalar ${formatPressureValue(cappedWeight)}; raw scalar would be ${formatPressureValue(detail.pricingWeight)}`,
+  };
+}
 function coreStatusFromPressureRatio(ratio: number): ForgeLaneStatus {
   if (ratio >= 1.5) return "heavy";
   if (ratio >= 0.85) return "broad";
@@ -1348,6 +1367,7 @@ function addAttributeFeatureWeight(
   addFeatureCountEntry(state);
   if (detail.pricingWeight !== null) {
     const scalarBasis = getScalarBasis(detail.pricingMode);
+    const featurePressureWeight = getScalarFeaturePressureWeight(detail);
     const scalarFormulaLabel =
       detail.pricingScalar !== null && detail.pricingMagnitude !== null
         ? formatScalarFormulaLabel(
@@ -1357,14 +1377,15 @@ function addAttributeFeatureWeight(
             scalarBasis.label,
           )
         : undefined;
-    state.featureValueRaw += detail.pricingWeight;
+    const appliedWeight = featurePressureWeight.weight ?? detail.pricingWeight;
+    state.featureValueRaw += appliedWeight;
     state.drivers.push({
       label: `${labelPrefix}: ${detail.name}`,
       source: `attribute_scalar/${detail.pricingMode ?? "UNKNOWN"}`,
       sourceKind: "legacy",
       sourceLabel: `attribute scalar ${detail.pricingMode ?? "UNKNOWN"}`,
-      sourceValue: detail.pricingWeight,
-      weight: detail.pricingWeight,
+      sourceValue: appliedWeight,
+      weight: appliedWeight,
       fallbackUsed: false,
       pricingMode: detail.pricingMode,
       pricingScalar: detail.pricingScalar,
@@ -1374,7 +1395,8 @@ function addAttributeFeatureWeight(
       scalarBasisLabel: scalarBasis.label,
       scalarFormulaLabel,
       note:
-        detail.pricingWeight < 0 ? "negative contribution reduces feature pressure" : undefined,
+        featurePressureWeight.note ??
+        (appliedWeight < 0 ? "negative contribution reduces feature pressure" : undefined),
     });
     return;
   }
