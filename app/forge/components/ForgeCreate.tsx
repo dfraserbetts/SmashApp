@@ -3717,6 +3717,16 @@ useEffect(() => {
     );
   }
 
+  function validateOptionalHalfStep(
+    value: number | null | undefined,
+    label: string,
+  ) {
+    if (value === undefined || value === null || Number.isNaN(value)) {
+      return true;
+    }
+    return Number.isInteger(value * 2) || `${label} must be a whole number or end in .5`;
+  }
+
    function toNullableNumber(value: unknown): number | null {
     if (value === null || value === undefined || value === '') return null;
     if (typeof value === 'number') {
@@ -4770,13 +4780,15 @@ useEffect(() => {
                 type="number"
                 min={0}
                 max={10}
-                step={1}
+                step={0.5}
                 className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 {...register('meleePhysicalStrength', {
                   valueAsNumber: true,
                   validate: {
                     inRange: (v) =>
                       validateOptionalInRange(v, 0, 10, 'Melee physical strength'),
+                    halfStep: (v) =>
+                      validateOptionalHalfStep(v, 'Melee physical strength'),
                     strengthRequired: (v) => {
                       if (!isWeaponLike || !isRangeCategorySelected('MELEE')) return true;
                       const values = getValues();
@@ -4806,13 +4818,15 @@ useEffect(() => {
                 type="number"
                 min={0}
                 max={10}
-                step={1}
+                step={0.5}
                 className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 {...register('meleeMentalStrength', {
                   valueAsNumber: true,
                   validate: {
                     inRange: (v) =>
                       validateOptionalInRange(v, 0, 10, 'Melee mental strength'),
+                    halfStep: (v) =>
+                      validateOptionalHalfStep(v, 'Melee mental strength'),
                     strengthRequired: (v) => {
                       if (!isWeaponLike || !isRangeCategorySelected('MELEE')) return true;
                       const values = getValues();
@@ -4986,13 +5000,15 @@ useEffect(() => {
                 type="number"
                 min={0}
                 max={10}
-                step={1}
+                step={0.5}
                 className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 {...register('rangedPhysicalStrength', {
                   valueAsNumber: true,
                   validate: {
                     inRange: (v) =>
                       validateOptionalInRange(v, 0, 10, 'Ranged physical strength'),
+                    halfStep: (v) =>
+                      validateOptionalHalfStep(v, 'Ranged physical strength'),
                     strengthRequired: (v) => {
                       if (!isWeaponLike || !isRangeCategorySelected('RANGED')) return true;
                       const values = getValues();
@@ -5022,13 +5038,15 @@ useEffect(() => {
                 type="number"
                 min={0}
                 max={10}
-                step={1}
+                step={0.5}
                 className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 {...register('rangedMentalStrength', {
                   valueAsNumber: true,
                   validate: {
                     inRange: (v) =>
                       validateOptionalInRange(v, 0, 10, 'Ranged mental strength'),
+                    halfStep: (v) =>
+                      validateOptionalHalfStep(v, 'Ranged mental strength'),
                     strengthRequired: (v) => {
                       if (!isWeaponLike || !isRangeCategorySelected('RANGED')) return true;
                       const values = getValues();
@@ -5442,13 +5460,15 @@ useEffect(() => {
                 type="number"
                 min={0}
                 max={10}
-                step={1}
+                step={0.5}
                 className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 {...register('aoePhysicalStrength', {
                   valueAsNumber: true,
                   validate: {
                     inRange: (v) =>
                       validateOptionalInRange(v, 0, 10, 'AoE physical strength'),
+                    halfStep: (v) =>
+                      validateOptionalHalfStep(v, 'AoE physical strength'),
                     strengthRequired: (v) => {
                       if (!isWeaponLike || !isRangeCategorySelected('AOE')) return true;
                       const values = getValues();
@@ -5478,13 +5498,15 @@ useEffect(() => {
                 type="number"
                 min={0}
                 max={10}
-                step={1}
+                step={0.5}
                 className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
                 {...register('aoeMentalStrength', {
                   valueAsNumber: true,
                   validate: {
                     inRange: (v) =>
                       validateOptionalInRange(v, 0, 10, 'AoE mental strength'),
+                    halfStep: (v) =>
+                      validateOptionalHalfStep(v, 'AoE mental strength'),
                     strengthRequired: (v) => {
                       if (!isWeaponLike || !isRangeCategorySelected('AOE')) return true;
                       const values = getValues();
