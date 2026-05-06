@@ -229,6 +229,40 @@ function getDefensiveProfileTotals(result: ReturnType<typeof computeMonsterOutco
   };
 }
 
+function getDefensivePackageDiagnostics(result: ReturnType<typeof computeMonsterOutcomes>) {
+  const debug = result.debug as {
+    nonPowerContribution?: {
+      sources?: {
+        defensivePackageDiagnostics?: {
+          source?: string;
+          physical?: {
+            naturalPackage?: { value?: number; classification?: string; packageBand?: { standardMax?: number } };
+            equippedArmourPackage?: { value?: number; classification?: string; packageBand?: { standardMax?: number } };
+            shieldOverlay?: { value?: number; classification?: string };
+            combinedEquipped?: { value?: number; classification?: string };
+          };
+          mental?: {
+            naturalPackage?: { value?: number; classification?: string; packageBand?: { standardMax?: number } };
+            equippedArmourPackage?: { value?: number; classification?: string; packageBand?: { standardMax?: number } };
+            shieldOverlay?: { value?: number; classification?: string };
+            combinedEquipped?: { value?: number; classification?: string };
+          };
+          armourPackageSlots?: Record<
+            string,
+            { physicalProtection?: number; mentalProtection?: number; sources?: unknown[] }
+          >;
+          shieldExpected?: {
+            share?: number;
+            physicalStandardMax?: number;
+            mentalStandardMax?: number;
+          };
+        };
+      };
+    };
+  };
+  return debug.nonPowerContribution?.sources?.defensivePackageDiagnostics;
+}
+
 function getRawDefensivePackage(result: ReturnType<typeof computeMonsterOutcomes>) {
   const direct = getDefensiveProfileContribution(result);
   const dodge = getDefensiveSharedDodgeContribution(result);
@@ -429,6 +463,43 @@ function createDefensiveParityCase(
   );
 }
 
+function createDefensivePackageCase(
+  sources: DefensiveProfileSource[],
+  protection: { physicalProtection: number; mentalProtection: number },
+) {
+  const naturalPhysicalProtection = sources.reduce(
+    (sum, source) => sum + (source.sourceKind === "natural" ? Number(source.physicalProtection ?? 0) : 0),
+    0,
+  );
+  const naturalMentalProtection = sources.reduce(
+    (sum, source) => sum + (source.sourceKind === "natural" ? Number(source.mentalProtection ?? 0) : 0),
+    0,
+  );
+  return computeMonsterOutcomes(
+    {
+      ...createBaseMonster(),
+      level: 5,
+      tier: "SOLDIER",
+      physicalProtection: protection.physicalProtection,
+      mentalProtection: protection.mentalProtection,
+      naturalPhysicalProtection,
+      naturalMentalProtection,
+    },
+    calculatorConfig,
+    {
+      defensiveProfileSources: sources,
+      defensiveProfileContext: {
+        dodgeDice: 1,
+        armorSkillDice: 2,
+        willpowerDice: 2,
+        totalPhysicalProtection: protection.physicalProtection,
+        totalMentalProtection: protection.mentalProtection,
+      },
+      protectionTuning: DEFAULT_COMBAT_TUNING_VALUES,
+    },
+  );
+}
+
 function buildProtectionLadder(
   lane: "physical" | "mental",
   values: number[],
@@ -551,6 +622,137 @@ assert.equal(
 assert.equal(
   getNonPowerMentalSurvivability(tunedNaturalMentalDefence),
   getNonPowerMentalSurvivability(tunedEquippedMentalDefence),
+);
+
+const naturalPpvPackage = createDefensivePackageCase(
+  [
+    {
+      sourceKind: "natural",
+      sourceId: "natural-ppv-10",
+      sourceLabel: "Natural PPV Package",
+      physicalProtection: 10,
+      mentalProtection: 0,
+    },
+  ],
+  { physicalProtection: 10, mentalProtection: 0 },
+);
+const armourPpvPackageSources: DefensiveProfileSource[] = [
+  ["HEAD", 1],
+  ["SHOULDERS", 2],
+  ["TORSO", 4],
+  ["LEGS", 2],
+  ["FEET", 1],
+].map(([armorLocation, physicalProtection]) => ({
+  sourceKind: "equipped",
+  sourceId: `ppv-${armorLocation}`,
+  sourceLabel: `${armorLocation} PPV`,
+  physicalProtection: Number(physicalProtection),
+  mentalProtection: 0,
+  equippedItemType: "ARMOR",
+  armorLocation: String(armorLocation),
+}));
+const equippedPpvPackage = createDefensivePackageCase(
+  armourPpvPackageSources,
+  { physicalProtection: 10, mentalProtection: 0 },
+);
+const equippedPpvPackageWithShield = createDefensivePackageCase(
+  [
+    ...armourPpvPackageSources,
+    {
+      sourceKind: "equipped",
+      sourceId: "shield-ppv-2",
+      sourceLabel: "Shield PPV",
+      physicalProtection: 2,
+      mentalProtection: 0,
+      equippedItemType: "SHIELD",
+      armorLocation: null,
+    },
+  ],
+  { physicalProtection: 12, mentalProtection: 0 },
+);
+const naturalMpvPackage = createDefensivePackageCase(
+  [
+    {
+      sourceKind: "natural",
+      sourceId: "natural-mpv-8",
+      sourceLabel: "Natural MPV Package",
+      physicalProtection: 0,
+      mentalProtection: 8,
+    },
+  ],
+  { physicalProtection: 0, mentalProtection: 8 },
+);
+const armourMpvPackageSources: DefensiveProfileSource[] = [
+  ["HEAD", 1],
+  ["SHOULDERS", 2],
+  ["TORSO", 2],
+  ["LEGS", 2],
+  ["FEET", 1],
+].map(([armorLocation, mentalProtection]) => ({
+  sourceKind: "equipped",
+  sourceId: `mpv-${armorLocation}`,
+  sourceLabel: `${armorLocation} MPV`,
+  physicalProtection: 0,
+  mentalProtection: Number(mentalProtection),
+  equippedItemType: "ARMOR",
+  armorLocation: String(armorLocation),
+}));
+const equippedMpvPackage = createDefensivePackageCase(
+  armourMpvPackageSources,
+  { physicalProtection: 0, mentalProtection: 8 },
+);
+const equippedMpvPackageWithShield = createDefensivePackageCase(
+  [
+    ...armourMpvPackageSources,
+    {
+      sourceKind: "equipped",
+      sourceId: "shield-mpv-2",
+      sourceLabel: "Shield MPV",
+      physicalProtection: 0,
+      mentalProtection: 2,
+      equippedItemType: "SHIELD",
+      armorLocation: null,
+    },
+  ],
+  { physicalProtection: 0, mentalProtection: 10 },
+);
+const naturalPpvDiagnostics = getDefensivePackageDiagnostics(naturalPpvPackage);
+const equippedPpvDiagnostics = getDefensivePackageDiagnostics(equippedPpvPackage);
+const equippedPpvShieldDiagnostics = getDefensivePackageDiagnostics(equippedPpvPackageWithShield);
+const naturalMpvDiagnostics = getDefensivePackageDiagnostics(naturalMpvPackage);
+const equippedMpvDiagnostics = getDefensivePackageDiagnostics(equippedMpvPackage);
+const equippedMpvShieldDiagnostics = getDefensivePackageDiagnostics(equippedMpvPackageWithShield);
+assert.equal(naturalPpvDiagnostics?.source, "defensive_package_parity_v1");
+assert.equal(naturalPpvDiagnostics?.physical?.naturalPackage?.value, 10);
+assert.equal(naturalPpvDiagnostics?.physical?.naturalPackage?.classification, "standard");
+assert.equal(naturalPpvDiagnostics?.physical?.naturalPackage?.packageBand?.standardMax, 10);
+assert.equal(equippedPpvDiagnostics?.physical?.equippedArmourPackage?.value, 10);
+assert.equal(equippedPpvDiagnostics?.physical?.equippedArmourPackage?.classification, "standard");
+assert.equal(equippedPpvDiagnostics?.armourPackageSlots?.HEAD?.physicalProtection, 1);
+assert.equal(equippedPpvDiagnostics?.armourPackageSlots?.TORSO?.physicalProtection, 4);
+assert.equal(equippedPpvShieldDiagnostics?.physical?.shieldOverlay?.value, 2);
+assert.equal(equippedPpvShieldDiagnostics?.physical?.combinedEquipped?.value, 12);
+assert.equal(equippedPpvShieldDiagnostics?.physical?.combinedEquipped?.classification, "high");
+assert.equal(equippedPpvShieldDiagnostics?.shieldExpected?.share, 0.2);
+assert.equal(equippedPpvShieldDiagnostics?.shieldExpected?.physicalStandardMax, 2);
+assert.equal(naturalMpvDiagnostics?.mental?.naturalPackage?.value, 8);
+assert.equal(naturalMpvDiagnostics?.mental?.naturalPackage?.classification, "standard");
+assert.equal(naturalMpvDiagnostics?.mental?.naturalPackage?.packageBand?.standardMax, 8);
+assert.equal(equippedMpvDiagnostics?.mental?.equippedArmourPackage?.value, 8);
+assert.equal(equippedMpvDiagnostics?.mental?.equippedArmourPackage?.classification, "standard");
+assert.equal(equippedMpvDiagnostics?.armourPackageSlots?.HEAD?.mentalProtection, 1);
+assert.equal(equippedMpvDiagnostics?.armourPackageSlots?.TORSO?.mentalProtection, 2);
+assert.equal(equippedMpvShieldDiagnostics?.mental?.shieldOverlay?.value, 2);
+assert.equal(equippedMpvShieldDiagnostics?.mental?.combinedEquipped?.value, 10);
+assert.equal(equippedMpvShieldDiagnostics?.mental?.combinedEquipped?.classification, "high");
+assert.equal(equippedMpvShieldDiagnostics?.shieldExpected?.mentalStandardMax, 1.6);
+assert.equal(
+  getNonPowerPhysicalSurvivability(naturalPpvPackage),
+  getNonPowerPhysicalSurvivability(equippedPpvPackage),
+);
+assert.equal(
+  getNonPowerMentalSurvivability(naturalMpvPackage),
+  getNonPowerMentalSurvivability(equippedMpvPackage),
 );
 
 const ppvOnlyContribution = getDefensiveProfileContribution(naturalPhysicalDefence);
@@ -789,6 +991,14 @@ console.log(
       defensiveProfileRouting: {
         ppvOnly: ppvOnlyContribution,
         mpvOnly: mpvOnlyContribution,
+      },
+      defensivePackageParity: {
+        naturalPpvPackage: naturalPpvDiagnostics?.physical?.naturalPackage,
+        equippedPpvPackage: equippedPpvDiagnostics?.physical?.equippedArmourPackage,
+        equippedPpvWithShield: equippedPpvShieldDiagnostics?.physical?.combinedEquipped,
+        naturalMpvPackage: naturalMpvDiagnostics?.mental?.naturalPackage,
+        equippedMpvPackage: equippedMpvDiagnostics?.mental?.equippedArmourPackage,
+        equippedMpvWithShield: equippedMpvShieldDiagnostics?.mental?.combinedEquipped,
       },
       defensiveDodgeRouting: {
         baseline: baselineDodgeContribution,

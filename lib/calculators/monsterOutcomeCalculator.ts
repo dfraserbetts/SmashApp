@@ -100,6 +100,8 @@ export type DefensiveProfileSource = {
   sourceLabel: string;
   physicalProtection?: number | null;
   mentalProtection?: number | null;
+  equippedItemType?: "ARMOR" | "SHIELD" | string | null;
+  armorLocation?: "HEAD" | "SHOULDERS" | "TORSO" | "LEGS" | "FEET" | string | null;
 };
 
 export type MonsterOutcomeProfile = {
@@ -248,6 +250,8 @@ type NormalizedDefensiveProfile = {
   sourceLabel: string;
   physicalProtection: number;
   mentalProtection: number;
+  equippedItemType: string | null;
+  armorLocation: string | null;
 };
 
 type DefensiveProfileContext = {
@@ -282,6 +286,65 @@ type DefensiveContribution = {
     mentalDefenceRawBonus: number;
   };
 };
+
+type DefensivePackageBand = {
+  level: number;
+  lowMax: number;
+  standardMax: number;
+  highMax: number;
+  extremeMin: number;
+};
+
+const DEFENSIVE_PACKAGE_BANDS: Record<"physical" | "mental", DefensivePackageBand[]> = {
+  physical: [
+    { level: 1, lowMax: 2, standardMax: 4, highMax: 6, extremeMin: 8 },
+    { level: 2, lowMax: 2, standardMax: 4, highMax: 8, extremeMin: 10 },
+    { level: 3, lowMax: 2, standardMax: 6, highMax: 10, extremeMin: 12 },
+    { level: 4, lowMax: 4, standardMax: 8, highMax: 12, extremeMin: 14 },
+    { level: 5, lowMax: 4, standardMax: 10, highMax: 16, extremeMin: 18 },
+    { level: 6, lowMax: 4, standardMax: 10, highMax: 16, extremeMin: 20 },
+    { level: 7, lowMax: 6, standardMax: 12, highMax: 18, extremeMin: 22 },
+    { level: 8, lowMax: 6, standardMax: 12, highMax: 20, extremeMin: 24 },
+    { level: 9, lowMax: 6, standardMax: 14, highMax: 22, extremeMin: 26 },
+    { level: 10, lowMax: 8, standardMax: 14, highMax: 24, extremeMin: 28 },
+    { level: 11, lowMax: 8, standardMax: 16, highMax: 26, extremeMin: 30 },
+    { level: 12, lowMax: 8, standardMax: 16, highMax: 28, extremeMin: 32 },
+    { level: 13, lowMax: 10, standardMax: 18, highMax: 30, extremeMin: 34 },
+    { level: 14, lowMax: 10, standardMax: 18, highMax: 32, extremeMin: 36 },
+    { level: 15, lowMax: 10, standardMax: 20, highMax: 34, extremeMin: 38 },
+    { level: 16, lowMax: 12, standardMax: 20, highMax: 36, extremeMin: 40 },
+    { level: 17, lowMax: 12, standardMax: 22, highMax: 38, extremeMin: 42 },
+    { level: 18, lowMax: 12, standardMax: 22, highMax: 40, extremeMin: 44 },
+    { level: 19, lowMax: 14, standardMax: 24, highMax: 42, extremeMin: 46 },
+    { level: 20, lowMax: 14, standardMax: 24, highMax: 44, extremeMin: 48 },
+  ],
+  mental: [
+    { level: 1, lowMax: 2, standardMax: 4, highMax: 6, extremeMin: 8 },
+    { level: 2, lowMax: 2, standardMax: 4, highMax: 6, extremeMin: 8 },
+    { level: 3, lowMax: 2, standardMax: 6, highMax: 8, extremeMin: 10 },
+    { level: 4, lowMax: 4, standardMax: 6, highMax: 10, extremeMin: 12 },
+    { level: 5, lowMax: 4, standardMax: 8, highMax: 12, extremeMin: 14 },
+    { level: 6, lowMax: 4, standardMax: 8, highMax: 12, extremeMin: 16 },
+    { level: 7, lowMax: 4, standardMax: 10, highMax: 14, extremeMin: 18 },
+    { level: 8, lowMax: 6, standardMax: 10, highMax: 16, extremeMin: 20 },
+    { level: 9, lowMax: 6, standardMax: 12, highMax: 18, extremeMin: 22 },
+    { level: 10, lowMax: 6, standardMax: 12, highMax: 20, extremeMin: 24 },
+    { level: 11, lowMax: 8, standardMax: 14, highMax: 22, extremeMin: 26 },
+    { level: 12, lowMax: 8, standardMax: 14, highMax: 24, extremeMin: 28 },
+    { level: 13, lowMax: 8, standardMax: 16, highMax: 26, extremeMin: 30 },
+    { level: 14, lowMax: 10, standardMax: 16, highMax: 28, extremeMin: 32 },
+    { level: 15, lowMax: 10, standardMax: 18, highMax: 30, extremeMin: 34 },
+    { level: 16, lowMax: 10, standardMax: 18, highMax: 32, extremeMin: 36 },
+    { level: 17, lowMax: 12, standardMax: 20, highMax: 34, extremeMin: 38 },
+    { level: 18, lowMax: 12, standardMax: 20, highMax: 36, extremeMin: 40 },
+    { level: 19, lowMax: 12, standardMax: 22, highMax: 38, extremeMin: 42 },
+    { level: 20, lowMax: 14, standardMax: 22, highMax: 40, extremeMin: 44 },
+  ],
+};
+
+const ARMOUR_PACKAGE_SLOT_ORDER = ["HEAD", "SHOULDERS", "TORSO", "LEGS", "FEET"] as const;
+
+const SHIELD_DEFENSIVE_OVERLAY_SHARE = 0.2;
 
 type AtWillSummary = {
   bestPhysical: number;
@@ -1426,6 +1489,162 @@ function normalizeDefensiveProfile(source: DefensiveProfileSource): NormalizedDe
     sourceLabel: String(source.sourceLabel ?? "").trim() || "Defensive Source",
     physicalProtection,
     mentalProtection,
+    equippedItemType: source.equippedItemType ? String(source.equippedItemType).trim().toUpperCase() : null,
+    armorLocation: source.armorLocation ? String(source.armorLocation).trim().toUpperCase() : null,
+  };
+}
+
+function getDefensivePackageBand(
+  lane: "physical" | "mental",
+  level: number,
+): DefensivePackageBand {
+  const normalizedLevel = Math.max(1, Math.min(20, Math.trunc(level || 1)));
+  return DEFENSIVE_PACKAGE_BANDS[lane].find((entry) => entry.level === normalizedLevel) ??
+    DEFENSIVE_PACKAGE_BANDS[lane][0];
+}
+
+function classifyDefensivePackageValue(value: number, band: DefensivePackageBand): string {
+  if (!(value > 0)) return "none";
+  if (value <= band.lowMax) return "low";
+  if (value <= band.standardMax) return "standard";
+  if (value <= band.highMax) return "high";
+  if (value < band.extremeMin) return "high";
+  return "extreme";
+}
+
+function buildDefensiveLaneDiagnostic(
+  value: number,
+  band: DefensivePackageBand,
+): {
+  value: number;
+  packageBand: DefensivePackageBand;
+  classification: string;
+} {
+  return {
+    value,
+    packageBand: band,
+    classification: classifyDefensivePackageValue(value, band),
+  };
+}
+
+function buildDefensivePackageDiagnostics(
+  profiles: NormalizedDefensiveProfile[],
+  level: number,
+) {
+  const armourSlots = Object.fromEntries(
+    ARMOUR_PACKAGE_SLOT_ORDER.map((location) => [
+      location,
+      {
+        location,
+        physicalProtection: 0,
+        mentalProtection: 0,
+        sources: [] as Array<{ sourceId: string | null; sourceLabel: string }>,
+      },
+    ]),
+  ) as Record<
+    (typeof ARMOUR_PACKAGE_SLOT_ORDER)[number],
+    {
+      location: (typeof ARMOUR_PACKAGE_SLOT_ORDER)[number];
+      physicalProtection: number;
+      mentalProtection: number;
+      sources: Array<{ sourceId: string | null; sourceLabel: string }>;
+    }
+  >;
+  const shieldSources: Array<{
+    sourceId: string | null;
+    sourceLabel: string;
+    physicalProtection: number;
+    mentalProtection: number;
+  }> = [];
+  const uncategorizedEquippedSources: Array<{
+    sourceId: string | null;
+    sourceLabel: string;
+    physicalProtection: number;
+    mentalProtection: number;
+  }> = [];
+
+  let naturalPhysicalProtection = 0;
+  let naturalMentalProtection = 0;
+  let armourPhysicalProtection = 0;
+  let armourMentalProtection = 0;
+  let shieldPhysicalProtection = 0;
+  let shieldMentalProtection = 0;
+
+  for (const profile of profiles) {
+    if (profile.sourceKind === "natural") {
+      naturalPhysicalProtection += profile.physicalProtection;
+      naturalMentalProtection += profile.mentalProtection;
+      continue;
+    }
+
+    if (profile.sourceKind !== "equipped") continue;
+
+    if (
+      profile.equippedItemType === "ARMOR" &&
+      ARMOUR_PACKAGE_SLOT_ORDER.includes(profile.armorLocation as (typeof ARMOUR_PACKAGE_SLOT_ORDER)[number])
+    ) {
+      const slot = armourSlots[profile.armorLocation as (typeof ARMOUR_PACKAGE_SLOT_ORDER)[number]];
+      slot.physicalProtection += profile.physicalProtection;
+      slot.mentalProtection += profile.mentalProtection;
+      slot.sources.push({ sourceId: profile.sourceId, sourceLabel: profile.sourceLabel });
+      armourPhysicalProtection += profile.physicalProtection;
+      armourMentalProtection += profile.mentalProtection;
+      continue;
+    }
+
+    if (profile.equippedItemType === "SHIELD") {
+      shieldPhysicalProtection += profile.physicalProtection;
+      shieldMentalProtection += profile.mentalProtection;
+      shieldSources.push({
+        sourceId: profile.sourceId,
+        sourceLabel: profile.sourceLabel,
+        physicalProtection: profile.physicalProtection,
+        mentalProtection: profile.mentalProtection,
+      });
+      continue;
+    }
+
+    uncategorizedEquippedSources.push({
+      sourceId: profile.sourceId,
+      sourceLabel: profile.sourceLabel,
+      physicalProtection: profile.physicalProtection,
+      mentalProtection: profile.mentalProtection,
+    });
+  }
+
+  const physicalPackageBand = getDefensivePackageBand("physical", level);
+  const mentalPackageBand = getDefensivePackageBand("mental", level);
+  const shieldExpected = {
+    share: SHIELD_DEFENSIVE_OVERLAY_SHARE,
+    physicalStandardMax: physicalPackageBand.standardMax * SHIELD_DEFENSIVE_OVERLAY_SHARE,
+    mentalStandardMax: mentalPackageBand.standardMax * SHIELD_DEFENSIVE_OVERLAY_SHARE,
+  };
+
+  return {
+    source: "defensive_package_parity_v1",
+    reportOnly: true,
+    armourPackageSlots: armourSlots,
+    shieldSources,
+    uncategorizedEquippedSources,
+    shieldExpected,
+    physical: {
+      naturalPackage: buildDefensiveLaneDiagnostic(naturalPhysicalProtection, physicalPackageBand),
+      equippedArmourPackage: buildDefensiveLaneDiagnostic(armourPhysicalProtection, physicalPackageBand),
+      shieldOverlay: buildDefensiveLaneDiagnostic(shieldPhysicalProtection, physicalPackageBand),
+      combinedEquipped: buildDefensiveLaneDiagnostic(
+        armourPhysicalProtection + shieldPhysicalProtection,
+        physicalPackageBand,
+      ),
+    },
+    mental: {
+      naturalPackage: buildDefensiveLaneDiagnostic(naturalMentalProtection, mentalPackageBand),
+      equippedArmourPackage: buildDefensiveLaneDiagnostic(armourMentalProtection, mentalPackageBand),
+      shieldOverlay: buildDefensiveLaneDiagnostic(shieldMentalProtection, mentalPackageBand),
+      combinedEquipped: buildDefensiveLaneDiagnostic(
+        armourMentalProtection + shieldMentalProtection,
+        mentalPackageBand,
+      ),
+    },
   };
 }
 
@@ -1454,6 +1673,8 @@ function buildDefaultDefensiveProfiles(
       sourceLabel: "Natural Protection",
       physicalProtection: naturalPhysicalProtection,
       mentalProtection: naturalMentalProtection,
+      equippedItemType: null,
+      armorLocation: null,
     });
   }
   if (equippedPhysicalProtection > 0 || equippedMentalProtection > 0) {
@@ -1463,6 +1684,8 @@ function buildDefaultDefensiveProfiles(
       sourceLabel: "Equipped Protection",
       physicalProtection: equippedPhysicalProtection,
       mentalProtection: equippedMentalProtection,
+      equippedItemType: null,
+      armorLocation: null,
     });
   }
   return profiles;
@@ -2261,6 +2484,7 @@ export function computeMonsterOutcomes(
           defensiveSharedDodgeContribution: defensiveContribution.sharedDodgeAxisVector,
           defensiveProfileTotals: defensiveContribution.totals,
           defensiveProfiles: defensiveContribution.profileBreakdown,
+          defensivePackageDiagnostics: buildDefensivePackageDiagnostics(defensiveProfiles, level),
           equipmentModifierAxisBonuses,
           naturalAttackGsAxisBonuses,
           naturalAttackRangeAxisBonuses,

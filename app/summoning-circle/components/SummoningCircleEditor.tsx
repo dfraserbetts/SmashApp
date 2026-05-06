@@ -5401,6 +5401,8 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         sourceLabel: item.name,
         physicalProtection,
         mentalProtection,
+        equippedItemType: item.type,
+        armorLocation: item.armorLocation,
       });
     }
     return profiles;
