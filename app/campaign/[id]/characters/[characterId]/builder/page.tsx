@@ -47,6 +47,7 @@ import {
   buildCharacterDerivedCombatStats,
   type CharacterBuilderDerivedBackpackItem,
 } from "@/lib/characterBuilder/derivedStats";
+import { getForgeRarityPalette } from "@/lib/forge/itemRarityPalette";
 
 type CharacterBuilderRecord = {
   id: string;
@@ -93,6 +94,7 @@ type BuilderBackpackItem = {
   quantity: number;
   itemTemplate: {
     id: string;
+    itemUrl: string | null;
     name: string | null;
     rarity: string | null;
     level: number | null;
@@ -178,6 +180,144 @@ function normalizeAgeInput(value: string) {
   return value.replace(/\D/g, "");
 }
 
+function isHttpUrl(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return /^https?:\/\//i.test(value.trim());
+}
+
+function formatBackpackItemMeta(item: BuilderBackpackItem) {
+  const template = item.itemTemplate;
+  return [
+    template.type,
+    template.rarity,
+    template.level !== null && template.level !== undefined ? `Level ${template.level}` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+}
+
+function formatLocationLabel(item: BuilderBackpackItem) {
+  const template = item.itemTemplate;
+  return template.size ?? template.armorLocation ?? template.itemLocation ?? "Unassigned";
+}
+
+function renderForgeStyleLine(line: string, key: string, bodyTextClass: string, attackLabelClass: string) {
+  const parts = String(line).split("||");
+  const hasHeader = parts.length > 1;
+  const header = (hasHeader ? parts[0] : "").trim();
+  const text = (hasHeader ? parts.slice(1).join("||") : parts[0]).trim();
+
+  if (!hasHeader) {
+    return (
+      <p key={key} className={`text-sm leading-5 ${bodyTextClass}`}>
+        {text}
+      </p>
+    );
+  }
+
+  return (
+    <div key={key} className="grid grid-cols-[72px_1fr] gap-x-2 text-sm leading-5">
+      <div className={`font-semibold ${attackLabelClass}`}>{header}</div>
+      <div className={bodyTextClass}>{text}</div>
+    </div>
+  );
+}
+
+function BackpackItemPreview({ item }: { item: BuilderBackpackItem }) {
+  const template = item.itemTemplate;
+  const palette = getForgeRarityPalette(template.rarity);
+  const displayName = template.name?.trim() ? template.name : "(Unnamed item)";
+  const meta = formatBackpackItemMeta(item);
+  const locationLabel = formatLocationLabel(item);
+  const safeItemUrl = template.itemUrl?.trim() ?? "";
+  const imageSrc = isHttpUrl(safeItemUrl) ? safeItemUrl : "/item-placeholder.png";
+
+  return (
+    <article
+      className={`rounded-lg border p-1.5 ${palette.outerBorderClass} ${palette.outerShadowClass}`}
+      style={{ backgroundImage: palette.backgroundImage }}
+    >
+      <div
+        className={`rounded-md border p-4 ${palette.innerBorderClass} ${palette.innerShadowClass}`}
+      >
+        <div className={`border-b pb-3 ${palette.dividerBorderClass}`}>
+          <div
+            className={`font-serif text-xs uppercase tracking-[0.22em] ${palette.headerTextClass}`}
+          >
+            {template.rarity ?? "COMMON"} {template.type ?? "ITEM"} - {locationLabel}
+          </div>
+          <div
+            className={`mt-1 font-serif text-xl font-semibold uppercase tracking-[0.16em] ${palette.nameTextClass}`}
+          >
+            {displayName}
+          </div>
+          {template.generalDescription ? (
+            <p className={`mt-2 text-sm ${palette.descriptionTextClass}`}>
+              {template.generalDescription}
+            </p>
+          ) : null}
+          {meta ? <p className="mt-2 text-xs text-zinc-300">{meta}</p> : null}
+        </div>
+
+        <div
+          className={`mt-3 aspect-[4/3] overflow-hidden rounded-lg border ${palette.imageBorderClass} bg-black/35 shadow-[inset_0_0_18px_rgba(0,0,0,0.55)]`}
+        >
+          <img
+            src={imageSrc}
+            alt={displayName}
+            className="h-full w-full bg-black/20 object-cover"
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={(event) => {
+              event.currentTarget.onerror = null;
+              event.currentTarget.src = "/item-placeholder.png";
+            }}
+          />
+        </div>
+
+        {template.descriptorSections.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            {template.descriptorSections.map((section) => (
+              <section
+                key={section.title}
+                className={`rounded-lg border p-3 ${palette.panelBorderClass} bg-black/30 ${palette.panelShadowClass}`}
+              >
+                <div
+                  className={`font-serif text-xs uppercase tracking-[0.18em] ${palette.headerTextClass}`}
+                >
+                  {section.title}
+                </div>
+                <div className="mt-2 space-y-1">
+                  {section.lines.map((line, index) =>
+                    renderForgeStyleLine(
+                      line,
+                      `${section.title}-${index}`,
+                      palette.bodyTextClass,
+                      palette.attackLabelClass,
+                    ),
+                  )}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-lg border border-zinc-800 bg-black/40 p-3 text-sm text-zinc-300">
+            No detailed equipment output is available for this item yet.
+          </p>
+        )}
+
+        {template.descriptorWarnings.length > 0 ? (
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-amber-200">
+            {template.descriptorWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
 function normalizeWholeNumberInput(value: string) {
   return value.replace(/\D/g, "");
 }
@@ -215,6 +355,7 @@ export default function CharacterBuilderPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"editor" | "preview">("editor");
   const [attributeSwapDrafts, setAttributeSwapDrafts] = useState<Record<string, string>>({});
+  const [selectedBackpackItemId, setSelectedBackpackItemId] = useState("");
   const protectionTuning = useProtectionTuning();
 
   const previewName = displayName(draft?.name ?? payload?.character.name);
@@ -236,6 +377,10 @@ export default function CharacterBuilderPage() {
   );
   const traitCatalog = payload?.traitCatalog ?? [];
   const backpackItems = payload?.backpackItems ?? EMPTY_BACKPACK_ITEMS;
+  const selectedBackpackItem = useMemo(
+    () => backpackItems.find((item) => item.id === selectedBackpackItemId) ?? null,
+    [backpackItems, selectedBackpackItemId],
+  );
   const activeTraitCatalog = traitCatalog.filter((trait) => trait.isActive !== false);
   const traitSummary = selectedTraitSummary(
     builderData.selectedTraitKeys,
@@ -340,6 +485,15 @@ export default function CharacterBuilderPage() {
     void loadBuilder();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [builderApiUrl]);
+
+  useEffect(() => {
+    if (
+      selectedBackpackItemId &&
+      !backpackItems.some((item) => item.id === selectedBackpackItemId)
+    ) {
+      setSelectedBackpackItemId("");
+    }
+  }, [backpackItems, selectedBackpackItemId]);
 
   function updateDraft(patch: Partial<BuilderDraft>) {
     setDraft((current) => ({
@@ -1281,55 +1435,63 @@ export default function CharacterBuilderPage() {
             <p className="rounded-lg border border-zinc-800 bg-black p-3 text-sm text-zinc-500">
               No Backpack items assigned to this character yet.
             </p>
-          ) : null}
-          {backpackItems.map((item) => (
-              <article
-                key={item.id}
-                className="rounded-lg border border-zinc-800 bg-black p-3"
-              >
-                <div className="min-w-0">
-                  <div className="font-medium text-zinc-200">
-                    {item.itemTemplate.name ?? "(Unnamed item)"}
-                  </div>
-                  <div className="mt-1 text-xs text-zinc-500">
-                    {item.itemTemplate.details} - Backpack quantity {item.quantity}; used in{" "}
-                    {equippedUseCounts.get(item.id) ?? 0} slot(s).
-                  </div>
-                  {item.itemTemplate.generalDescription ? (
-                    <p className="mt-2 text-sm text-zinc-400">
-                      {item.itemTemplate.generalDescription}
-                    </p>
-                  ) : null}
-                </div>
-                {item.itemTemplate.descriptorSections.length > 0 ? (
-                  <div className="mt-3 space-y-2 border-t border-zinc-900 pt-3">
-                    {item.itemTemplate.descriptorSections.map((section) => (
-                      <div key={section.title}>
-                        <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                          {section.title}
+          ) : (
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.95fr)]">
+              <div className="space-y-2">
+                {backpackItems.map((item) => {
+                  const usedCount = equippedUseCounts.get(item.id) ?? 0;
+                  const selected = selectedBackpackItemId === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setSelectedBackpackItemId(item.id)}
+                      className={`w-full rounded-lg border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                        selected
+                          ? "border-emerald-500 bg-emerald-950/20"
+                          : "border-zinc-800 bg-black hover:border-zinc-700 hover:bg-zinc-950"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-zinc-100">
+                            {item.itemTemplate.name ?? "(Unnamed item)"}
+                          </div>
+                          <div className="mt-1 text-xs text-zinc-500">
+                            {formatBackpackItemMeta(item) || "No item details"}
+                          </div>
                         </div>
-                        <ul className="mt-1 space-y-1 text-sm text-zinc-300">
-                          {section.lines.map((line, index) => (
-                            <li key={`${section.title}-${index}`}>{line.replace("||", " ")}</li>
-                          ))}
-                        </ul>
+                        <div className="flex shrink-0 flex-wrap gap-1 text-[11px] text-zinc-300">
+                          <span className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1">
+                            Qty {item.quantity}
+                          </span>
+                          <span className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1">
+                            Used {usedCount}
+                          </span>
+                          {selected ? (
+                            <span className="rounded border border-emerald-600 bg-emerald-950/40 px-2 py-1 text-emerald-100">
+                              Selected
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="min-w-0">
+                {selectedBackpackItem ? (
+                  <BackpackItemPreview item={selectedBackpackItem} />
                 ) : (
-                  <p className="mt-3 border-t border-zinc-900 pt-3 text-sm text-zinc-500">
-                    No detailed equipment output is available for this item yet.
-                  </p>
+                  <div className="rounded-lg border border-dashed border-zinc-800 bg-black p-4 text-sm text-zinc-500">
+                    Select a Backpack item to preview its details.
+                  </div>
                 )}
-                {item.itemTemplate.descriptorWarnings.length > 0 ? (
-                  <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-amber-300">
-                    {item.itemTemplate.descriptorWarnings.map((warning) => (
-                      <li key={warning}>{warning}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </article>
-          ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -1481,26 +1643,6 @@ export default function CharacterBuilderPage() {
                 <div className="mt-1 text-xs text-zinc-500">
                   {backpackItem.itemTemplate.details}
                 </div>
-                {backpackItem.itemTemplate.descriptorSections.length > 0 ? (
-                  <div className="mt-2 space-y-2">
-                    {backpackItem.itemTemplate.descriptorSections.map((section) => (
-                      <div key={section.title}>
-                        <div className="text-xs font-medium text-zinc-500">
-                          {section.title}
-                        </div>
-                        <ul className="mt-1 space-y-1 text-xs text-zinc-300">
-                          {section.lines.map((line, index) => (
-                            <li key={`${section.title}-${index}`}>{line.replace("||", " ")}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-zinc-500">
-                    Summary only; detailed item output is not available yet.
-                  </p>
-                )}
               </div>
             ))}
           </div>

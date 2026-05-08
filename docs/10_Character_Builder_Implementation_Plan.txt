@@ -900,6 +900,10 @@ Character Builder equipment slots should mirror the current Summoning Circle / F
 
 Most equipment slots hold one item. Multiple copies only matter when multiple legal slots can reference the same Backpack assignment, such as two hand slots using two one-handed weapons, and only when the Backpack quantity supports it.
 
+The Backpack editor should use a compact selectable list instead of rendering full item details for every assigned item at once. Each row should show concise identifying information such as item name, type, rarity, level, quantity, and equipped/used count.
+
+Selecting a Backpack item should show a single detailed Forge-style item preview for that item, reusing existing Forge descriptor rendering helpers where possible. Live Preview should stay concise and should not dump every Backpack item detail; detailed Backpack reading belongs in the editor selection panel and later Inventory Sheet work.
+
 Avoid temporary fake assignment fields unless implementation reality forces a very small scaffold. If a temporary bridge is used, it must be clearly marked as a bridge and removed once Party Inventory is live.
 
 Equipment Calculations
