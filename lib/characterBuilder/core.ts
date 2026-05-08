@@ -47,16 +47,36 @@ export type CharacterBuilderData = {
 export const EQUIPMENT_SLOTS = [
   "mainHand",
   "offHand",
-  "head",
-  "shoulders",
-  "torso",
-  "legs",
-  "feet",
+  "smallSlot",
+  "headArmor",
+  "shoulderArmor",
+  "torsoArmor",
+  "legsArmor",
+  "feetArmor",
+  "headItem",
+  "neckItem",
+  "armsItem",
+  "beltItem",
 ] as const;
 
 export type EquipmentSlotKey = (typeof EQUIPMENT_SLOTS)[number];
 
 export type EquippedSlotsState = Partial<Record<EquipmentSlotKey, string>>;
+
+export const EQUIPMENT_SLOT_GROUPS = [
+  {
+    label: "Weapons / Hands",
+    slots: ["mainHand", "offHand", "smallSlot"],
+  },
+  {
+    label: "Armor",
+    slots: ["headArmor", "shoulderArmor", "torsoArmor", "legsArmor", "feetArmor"],
+  },
+  {
+    label: "Items",
+    slots: ["headItem", "neckItem", "armsItem", "beltItem"],
+  },
+] as const satisfies Array<{ label: string; slots: EquipmentSlotKey[] }>;
 
 export type EquipmentBackpackItemForRules = {
   id: string;
@@ -65,17 +85,23 @@ export type EquipmentBackpackItemForRules = {
     type: string | null;
     size: string | null;
     armorLocation: string | null;
+    itemLocation: string | null;
   };
 };
 
 export const EQUIPMENT_SLOT_LABELS: Record<EquipmentSlotKey, string> = {
   mainHand: "Main Hand",
   offHand: "Off Hand",
-  head: "Head",
-  shoulders: "Shoulders",
-  torso: "Torso",
-  legs: "Legs",
-  feet: "Feet",
+  smallSlot: "Small Slot",
+  headArmor: "Head Armor",
+  shoulderArmor: "Shoulder Armor",
+  torsoArmor: "Torso Armor",
+  legsArmor: "Legs Armor",
+  feetArmor: "Feet Armor",
+  headItem: "Head Item",
+  neckItem: "Neck Item",
+  armsItem: "Arms Item",
+  beltItem: "Belt Item",
 };
 
 export type TraitClassification = "POSITIVE" | "NEGATIVE";
@@ -566,11 +592,24 @@ function normalizeEquippedSlots(value: unknown, legacyEquippedBackpackItems?: un
     if (backpackItemId) equippedSlots[slot] = backpackItemId;
   }
 
+  const legacySlotKeys: Array<[string, EquipmentSlotKey]> = [
+    ["head", "headArmor"],
+    ["shoulders", "shoulderArmor"],
+    ["torso", "torsoArmor"],
+    ["legs", "legsArmor"],
+    ["feet", "feetArmor"],
+  ];
+  for (const [legacyKey, slot] of legacySlotKeys) {
+    if (equippedSlots[slot]) continue;
+    const backpackItemId = readString(record[legacyKey], 120);
+    if (backpackItemId) equippedSlots[slot] = backpackItemId;
+  }
+
   if (Object.keys(equippedSlots).length > 0 || !Array.isArray(legacyEquippedBackpackItems)) {
     return equippedSlots;
   }
 
-  const legacySlots: EquipmentSlotKey[] = ["mainHand", "offHand"];
+  const legacySlots: EquipmentSlotKey[] = ["mainHand", "offHand", "smallSlot"];
   let slotIndex = 0;
   for (const row of legacyEquippedBackpackItems) {
     const legacyRecord = readRecord(row);
@@ -618,23 +657,39 @@ export function isBackpackItemLegalForEquipmentSlot(
   const itemType = item.itemTemplate.type;
   const itemSize = item.itemTemplate.size;
   const armorLocation = item.itemTemplate.armorLocation;
+  const itemLocation = item.itemTemplate.itemLocation;
 
   if (slot === "mainHand") {
-    return itemType === "WEAPON" || itemType === "SHIELD";
+    return (
+      (itemType === "WEAPON" || itemType === "SHIELD") &&
+      (itemSize === "ONE_HANDED" || itemSize === "TWO_HANDED")
+    );
   }
   if (slot === "offHand") {
-    return (itemType === "WEAPON" && itemSize !== "TWO_HANDED") || itemType === "SHIELD";
+    return (itemType === "WEAPON" || itemType === "SHIELD") && itemSize === "ONE_HANDED";
+  }
+  if (slot === "smallSlot") {
+    return (itemType === "WEAPON" || itemType === "SHIELD") && itemSize === "SMALL";
   }
 
-  if (itemType !== "ARMOR") return false;
-  const slotArmorLocation: Record<Exclude<EquipmentSlotKey, "mainHand" | "offHand">, string> = {
-    head: "HEAD",
-    shoulders: "SHOULDERS",
-    torso: "TORSO",
-    legs: "LEGS",
-    feet: "FEET",
+  const slotArmorLocation: Partial<Record<EquipmentSlotKey, string>> = {
+    headArmor: "HEAD",
+    shoulderArmor: "SHOULDERS",
+    torsoArmor: "TORSO",
+    legsArmor: "LEGS",
+    feetArmor: "FEET",
   };
-  return armorLocation === slotArmorLocation[slot];
+  if (slotArmorLocation[slot]) {
+    return itemType === "ARMOR" && armorLocation === slotArmorLocation[slot];
+  }
+
+  const slotItemLocation: Partial<Record<EquipmentSlotKey, string>> = {
+    headItem: "HEAD",
+    neckItem: "NECK",
+    armsItem: "ARMS",
+    beltItem: "BELT",
+  };
+  return itemType === "ITEM" && itemLocation === slotItemLocation[slot];
 }
 
 export function getEquipmentSlotUseCounts(equippedSlots: EquippedSlotsState) {

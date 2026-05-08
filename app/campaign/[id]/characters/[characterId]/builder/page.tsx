@@ -4,8 +4,10 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { CampaignNav } from "@/app/components/CampaignNav";
+import { useProtectionTuning } from "@/app/summoning-circle/components/useProtectionTuning";
 import {
   CHARACTER_ATTRIBUTES,
+  EQUIPMENT_SLOT_GROUPS,
   EQUIPMENT_SLOT_LABELS,
   EQUIPMENT_SLOTS,
   GREAT_SECRET_TEMPLATES,
@@ -41,6 +43,10 @@ import {
   type EquipmentSlotKey,
   type PlayerTraitDefinition,
 } from "@/lib/characterBuilder/core";
+import {
+  buildCharacterDerivedCombatStats,
+  type CharacterBuilderDerivedBackpackItem,
+} from "@/lib/characterBuilder/derivedStats";
 
 type CharacterBuilderRecord = {
   id: string;
@@ -94,6 +100,33 @@ type BuilderBackpackItem = {
     size: string | null;
     armorLocation: string | null;
     itemLocation: string | null;
+    ppv: number | null;
+    mpv: number | null;
+    globalAttributeModifiers: Array<{ attribute?: string; amount?: number }> | null;
+    meleeTargets: number | null;
+    rangedTargets: number | null;
+    rangedDistanceFeet: number | null;
+    aoeCenterRangeFeet: number | null;
+    aoeCount: number | null;
+    aoeShape: "SPHERE" | "CONE" | "LINE" | null;
+    aoeSphereRadiusFeet: number | null;
+    aoeConeLengthFeet: number | null;
+    aoeLineWidthFeet: number | null;
+    aoeLineLengthFeet: number | null;
+    physicalStrength: number | null;
+    mentalStrength: number | null;
+    meleePhysicalStrength: number | null;
+    meleeMentalStrength: number | null;
+    rangedPhysicalStrength: number | null;
+    rangedMentalStrength: number | null;
+    aoePhysicalStrength: number | null;
+    aoeMentalStrength: number | null;
+    meleeDamageTypes: Array<{ name: string; mode: "PHYSICAL" | "MENTAL" }>;
+    rangedDamageTypes: Array<{ name: string; mode: "PHYSICAL" | "MENTAL" }>;
+    aoeDamageTypes: Array<{ name: string; mode: "PHYSICAL" | "MENTAL" }>;
+    attackEffectsMelee: string[];
+    attackEffectsRanged: string[];
+    attackEffectsAoE: string[];
     generalDescription: string | null;
     details: string;
     descriptorSections: Array<{ title: string; lines: string[] }>;
@@ -121,6 +154,8 @@ const PLACEHOLDER_SECTIONS = [
     status: "Coming in Step 9",
   },
 ];
+
+const EMPTY_BACKPACK_ITEMS: BuilderBackpackItem[] = [];
 
 function displayName(name: string | null | undefined) {
   const trimmed = name?.trim();
@@ -180,6 +215,7 @@ export default function CharacterBuilderPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"editor" | "preview">("editor");
   const [attributeSwapDrafts, setAttributeSwapDrafts] = useState<Record<string, string>>({});
+  const protectionTuning = useProtectionTuning();
 
   const previewName = displayName(draft?.name ?? payload?.character.name);
   const previewLevel = Number(draft?.level ?? payload?.character.level ?? 1) || 1;
@@ -199,7 +235,7 @@ export default function CharacterBuilderPage() {
     0,
   );
   const traitCatalog = payload?.traitCatalog ?? [];
-  const backpackItems = payload?.backpackItems ?? [];
+  const backpackItems = payload?.backpackItems ?? EMPTY_BACKPACK_ITEMS;
   const activeTraitCatalog = traitCatalog.filter((trait) => trait.isActive !== false);
   const traitSummary = selectedTraitSummary(
     builderData.selectedTraitKeys,
@@ -241,6 +277,16 @@ export default function CharacterBuilderPage() {
   const isOffHandLocked =
     mainHandItem?.itemTemplate.type === "WEAPON" &&
     mainHandItem.itemTemplate.size === "TWO_HANDED";
+  const derivedCombatStats = useMemo(
+    () =>
+      buildCharacterDerivedCombatStats({
+        level: currentLevel,
+        builderData,
+        backpackItems: backpackItems as CharacterBuilderDerivedBackpackItem[],
+        protectionTuning,
+      }),
+    [backpackItems, builderData, currentLevel, protectionTuning],
+  );
 
   const builderApiUrl = useMemo(() => {
     if (!campaignId || !characterId) return "";
@@ -1177,41 +1223,56 @@ export default function CharacterBuilderPage() {
           Equip only from this character&apos;s assigned Backpack. A Game Director manages
           Party Inventory and Backpack quantities.
         </p>
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          {EQUIPMENT_SLOTS.map((slot) => {
-            const legalItems = getLegalBackpackItemsForSlot(slot);
-            const selectedItemId = builderData.equippedSlots[slot] ?? "";
-            const selectedItem = backpackItems.find((item) => item.id === selectedItemId);
-            const disabledByTwoHanded = slot === "offHand" && isOffHandLocked;
-            return (
-              <label key={slot} className="block rounded-lg border border-zinc-800 bg-black p-3">
-                <span className="text-sm font-medium text-zinc-200">
-                  {EQUIPMENT_SLOT_LABELS[slot]}
-                </span>
-                <select
-                  value={selectedItemId}
-                  onChange={(event) => updateEquipmentSlot(slot, event.target.value)}
-                  disabled={!canEdit || saving || disabledByTwoHanded}
-                  className="mt-2 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                >
-                  <option value="">
-                    {disabledByTwoHanded ? "Unavailable - two-handed weapon equipped" : "Empty"}
-                  </option>
-                  {legalItems.map((item) => {
-                    const usedCount = equippedUseCounts.get(item.id) ?? 0;
-                    return (
-                      <option key={item.id} value={item.id}>
-                        {item.itemTemplate.name ?? "(Unnamed item)"} ({usedCount}/{item.quantity} used)
-                      </option>
-                    );
-                  })}
-                </select>
-                {selectedItem ? (
-                  <p className="mt-2 text-xs text-zinc-500">{selectedItem.itemTemplate.details}</p>
-                ) : null}
-              </label>
-            );
-          })}
+        <div className="mt-4 space-y-5">
+          {EQUIPMENT_SLOT_GROUPS.map((group) => (
+            <div key={group.label}>
+              <h3 className="text-sm font-medium text-zinc-200">{group.label}</h3>
+              <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                {group.slots.map((slot) => {
+                  const legalItems = getLegalBackpackItemsForSlot(slot);
+                  const selectedItemId = builderData.equippedSlots[slot] ?? "";
+                  const selectedItem = backpackItems.find((item) => item.id === selectedItemId);
+                  const disabledByTwoHanded = slot === "offHand" && isOffHandLocked;
+                  return (
+                    <label
+                      key={slot}
+                      className="block rounded-lg border border-zinc-800 bg-black p-3"
+                    >
+                      <span className="text-sm font-medium text-zinc-200">
+                        {EQUIPMENT_SLOT_LABELS[slot]}
+                      </span>
+                      <select
+                        value={selectedItemId}
+                        onChange={(event) => updateEquipmentSlot(slot, event.target.value)}
+                        disabled={!canEdit || saving || disabledByTwoHanded}
+                        className="mt-2 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                      >
+                        <option value="">
+                          {disabledByTwoHanded
+                            ? "Unavailable - two-handed weapon equipped"
+                            : "Empty"}
+                        </option>
+                        {legalItems.map((item) => {
+                          const usedCount = equippedUseCounts.get(item.id) ?? 0;
+                          return (
+                            <option key={item.id} value={item.id}>
+                              {item.itemTemplate.name ?? "(Unnamed item)"} ({usedCount}/
+                              {item.quantity} used)
+                            </option>
+                          );
+                        })}
+                      </select>
+                      {selectedItem ? (
+                        <p className="mt-2 text-xs text-zinc-500">
+                          {selectedItem.itemTemplate.details}
+                        </p>
+                      ) : null}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="mt-5 space-y-3">
@@ -1446,7 +1507,125 @@ export default function CharacterBuilderPage() {
         )}
       </div>
 
-      {["Main Sheet", "Character Sheet", "Power Sheet(s)", "Inventory Sheet"].map((label) => (
+      <div className="rounded-lg border border-zinc-800 bg-black p-3">
+        <div className="text-xs text-zinc-500">Main Sheet - Combat Output</div>
+        <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-zinc-200">
+          <div className="rounded border border-zinc-900 p-2">
+            <div className="text-xs text-zinc-500">Physical Health</div>
+            <div className="text-lg font-semibold">{derivedCombatStats.physicalHealth}</div>
+          </div>
+          <div className="rounded border border-zinc-900 p-2">
+            <div className="text-xs text-zinc-500">Mental Health</div>
+            <div className="text-lg font-semibold">{derivedCombatStats.mentalHealth}</div>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-zinc-200">
+          <div className="flex justify-between gap-3">
+            <span>Weapon Skill</span>
+            <span>{derivedCombatStats.weaponSkill}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Armor Skill</span>
+            <span>{derivedCombatStats.armorSkill}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Willpower</span>
+            <span>{derivedCombatStats.willpower}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span>Dodge</span>
+            <span>{derivedCombatStats.dodgeDice} dice</span>
+          </div>
+        </div>
+        <div className="mt-3 grid gap-2 text-sm text-zinc-200 sm:grid-cols-2">
+          <div className="rounded border border-zinc-900 p-2">
+            <div className="text-xs text-zinc-500">Physical Protection</div>
+            <div>{derivedCombatStats.physicalProtection} PPV</div>
+            <div className="text-xs text-zinc-500">
+              Blocks {derivedCombatStats.physicalBlockPerSuccess} wounds per success
+            </div>
+          </div>
+          <div className="rounded border border-zinc-900 p-2">
+            <div className="text-xs text-zinc-500">Mental Protection</div>
+            <div>{derivedCombatStats.mentalProtection} MPV</div>
+            <div className="text-xs text-zinc-500">
+              Blocks {derivedCombatStats.mentalBlockPerSuccess} wounds per success
+            </div>
+          </div>
+        </div>
+        <div className="mt-3">
+          <div className="text-xs text-zinc-500">Defences</div>
+          <ul className="mt-1 space-y-1 text-xs text-zinc-300">
+            {derivedCombatStats.defenceStrings.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+        {derivedCombatStats.attacks.length > 0 ? (
+          <div className="mt-3">
+            <div className="text-xs text-zinc-500">Attacks</div>
+            <div className="mt-1 space-y-2">
+              {derivedCombatStats.attacks.map((attack) => (
+                <div key={`${attack.slot}-${attack.label}`}>
+                  <div className="text-xs font-medium text-zinc-400">{attack.label}</div>
+                  <ul className="mt-1 space-y-1 text-xs text-zinc-300">
+                    {attack.lines.map((line, index) => (
+                      <li key={`${attack.label}-${index}`}>{line.replace("||", " ")}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-zinc-500">
+            No equipped weapon attack strings available.
+          </p>
+        )}
+        {derivedCombatStats.protectionSources.length > 0 ? (
+          <div className="mt-3">
+            <div className="text-xs text-zinc-500">Protections</div>
+            <ul className="mt-1 space-y-1 text-xs text-zinc-300">
+              {derivedCombatStats.protectionSources.map((source) => (
+                <li key={`${source.slot}-${source.itemName}`}>
+                  {EQUIPMENT_SLOT_LABELS[source.slot]}: {source.itemName} - PPV{" "}
+                  {source.physicalProtection}, MPV {source.mentalProtection}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {derivedCombatStats.itemOutputSections.length > 0 ? (
+          <div className="mt-3">
+            <div className="text-xs text-zinc-500">Item Output</div>
+            <div className="mt-1 space-y-2">
+              {derivedCombatStats.itemOutputSections.map((section, index) => (
+                <div key={`${section.slot}-${section.itemName}-${section.title}-${index}`}>
+                  <div className="text-xs font-medium text-zinc-400">
+                    {EQUIPMENT_SLOT_LABELS[section.slot]}: {section.itemName} -{" "}
+                    {section.title}
+                  </div>
+                  <ul className="mt-1 space-y-1 text-xs text-zinc-300">
+                    {section.lines.map((line, lineIndex) => (
+                      <li key={`${section.title}-${lineIndex}`}>{line.replace("||", " ")}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <details className="mt-3 text-xs text-zinc-500">
+          <summary>Formula notes</summary>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {derivedCombatStats.notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </details>
+      </div>
+
+      {["Character Sheet", "Power Sheet(s)", "Inventory Sheet"].map((label) => (
         <div key={label} className="rounded-lg border border-dashed border-zinc-800 p-4">
           <h3 className="font-medium text-zinc-300">{label}</h3>
           <p className="mt-1 text-sm text-zinc-500">Preview structure reserved for Step 9.</p>
@@ -1494,8 +1673,8 @@ export default function CharacterBuilderPage() {
             </div>
             <h1 className="text-2xl font-semibold">Character Builder</h1>
             <p className="mt-1 max-w-3xl text-sm text-zinc-500">
-              Step 6 core sections: character identity, narrative details,
-              Characteristics, Attributes, Resist Points, and player Traits.
+              Character identity, narrative details, Characteristics, Attributes,
+              Resist Points, player Traits, Backpack equipment, and derived combat stats.
             </p>
           </div>
           <button

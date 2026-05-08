@@ -896,6 +896,8 @@ For V1, Backpack integration should be built on real ownership if the prerequisi
 
 Equipped selections should be slot-based references to character Backpack assignment rows, not copied item data and not generic equipped-quantity rows. The Builder should hydrate current item details from Party Inventory / Forge item templates and sanitize slot selections against current Backpack quantities on load/save.
 
+Character Builder equipment slots should mirror the current Summoning Circle / Forge item-location model: Main Hand, Off Hand, Small Slot, Head Armor, Shoulder Armor, Torso Armor, Legs Armor, Feet Armor, Head Item, Neck Item, Arms Item, and Belt Item.
+
 Most equipment slots hold one item. Multiple copies only matter when multiple legal slots can reference the same Backpack assignment, such as two hand slots using two one-handed weapons, and only when the Backpack quantity supports it.
 
 Avoid temporary fake assignment fields unless implementation reality forces a very small scaffold. If a temporary bridge is used, it must be clearly marked as a bridge and removed once Party Inventory is live.
@@ -925,6 +927,32 @@ This includes, but may not be limited to:
 Do not fork player and monster formulas casually.
 
 If a divergence becomes necessary later, it should be explicit, documented, and tested.
+
+Derived Combat Stats
+--------------------
+
+The Character Builder should derive combat stats from authored Character data instead of
+persisting calculated outputs.
+
+Derived character combat stats should reuse the Summoning Circle helper formulas for:
+
+- health pools / resilience
+- Weapon Skill
+- Armor Skill
+- Willpower
+- Dodge
+- PPV / MPV totals
+- protection block strings
+- equipped weapon attack strings
+- equipped item modifiers and descriptor output
+
+The inputs are Character attributes, Character level, and equipped Backpack gear. Unequipped
+Backpack items must not affect derived combat stats.
+
+Until a separate player-character tier field exists, the V1 derived health-pool adapter may use
+the non-legendary Soldier branch of the existing Summoning Circle resilience formula. If future
+playtest needs a distinct player health curve, that divergence must be documented and tested
+instead of silently forking the formula.
 
 Character Power Builder
 -----------------------

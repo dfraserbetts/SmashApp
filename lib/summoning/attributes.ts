@@ -258,6 +258,51 @@ export function calculateMonsterResilienceValues(
   physicalResilienceMax: number;
   mentalPerseveranceMax: number;
 } {
+  return calculateResilienceValuesFromAttributeNumbers(
+    {
+      level: monster.level,
+      tier: monster.tier,
+      legendary: monster.legendary,
+      attackValue: getAttributeNumericValue(monster.attackDie),
+      guardValue: getAttributeNumericValue(monster.guardDie),
+      fortitudeValue: getAttributeNumericValue(monster.fortitudeDie),
+      intellectValue: getAttributeNumericValue(monster.intellectDie),
+      synergyValue: getAttributeNumericValue(monster.synergyDie),
+      braveryValue: getAttributeNumericValue(monster.braveryDie),
+    },
+    tuning,
+  );
+}
+
+export function calculateResilienceValuesFromAttributeNumbers(
+  monster: {
+    level: number;
+    tier: MonsterTier;
+    legendary: boolean;
+    attackValue: number;
+    guardValue: number;
+    fortitudeValue: number;
+    intellectValue: number;
+    synergyValue: number;
+    braveryValue: number;
+  },
+  tuning: Pick<
+    ProtectionTuningValues,
+    | "attackWeight"
+    | "guardWeight"
+    | "fortitudeWeight"
+    | "intellectWeight"
+    | "synergyWeight"
+    | "braveryWeight"
+    | "minionTierMultiplier"
+    | "soldierTierMultiplier"
+    | "eliteTierMultiplier"
+    | "bossTierMultiplier"
+  >,
+): {
+  physicalResilienceMax: number;
+  mentalPerseveranceMax: number;
+} {
   const tierMultiplierByTier: Record<MonsterTier, number> = {
     MINION: tuning.minionTierMultiplier,
     SOLDIER: tuning.soldierTierMultiplier,
@@ -270,15 +315,15 @@ export function calculateMonsterResilienceValues(
 
   const prBase =
     monster.level +
-    getAttributeNumericValue(monster.attackDie) * tuning.attackWeight +
-    getAttributeNumericValue(monster.guardDie) * tuning.guardWeight +
-    getAttributeNumericValue(monster.fortitudeDie) * tuning.fortitudeWeight;
+    monster.attackValue * tuning.attackWeight +
+    monster.guardValue * tuning.guardWeight +
+    monster.fortitudeValue * tuning.fortitudeWeight;
 
   const mpBase =
     monster.level +
-    getAttributeNumericValue(monster.intellectDie) * tuning.intellectWeight +
-    getAttributeNumericValue(monster.synergyDie) * tuning.synergyWeight +
-    getAttributeNumericValue(monster.braveryDie) * tuning.braveryWeight;
+    monster.intellectValue * tuning.intellectWeight +
+    monster.synergyValue * tuning.synergyWeight +
+    monster.braveryValue * tuning.braveryWeight;
 
   const physicalResilienceMax = Math.round(prBase * tierMultiplier + prBase * legendaryBonus);
   const mentalPerseveranceMax = Math.round(mpBase * tierMultiplier + mpBase * legendaryBonus);
