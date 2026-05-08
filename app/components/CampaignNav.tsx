@@ -53,6 +53,9 @@ export function CampaignNav({ campaignId }: CampaignNavProps) {
         <Link href={`/campaign/${campaignId}/characters`}>
           Character Management
         </Link>
+        <Link href={`/campaign/${campaignId}/inventory`}>
+          Party Inventory
+        </Link>
       </div>
       <hr style={{ marginTop: "0.75rem" }} />
     </nav>

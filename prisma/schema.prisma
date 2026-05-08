@@ -69,6 +69,7 @@ model ItemTemplate {
   sanctifiedOptions           ItemTemplateSanctifiedOption[]
   shieldAttributes            ItemTemplateShieldAttribute[]
   tags                        ItemTag[]
+  partyInventoryItems         CampaignPartyInventoryItem[]
   vrpEntries                  ItemTemplateVRPEntry[]
   wardingOptions              ItemTemplateWardingOption[]
   weaponAttributes            ItemTemplateWeaponAttribute[]
@@ -522,6 +523,8 @@ model Campaign {
   descriptorVersionTag String         @default("v0")
   members              CampaignUser[]
   characters           CampaignCharacter[]
+  partyInventoryItems  CampaignPartyInventoryItem[]
+  characterBackpackItems CampaignCharacterBackpackItem[]
   ItemTemplate         ItemTemplate[]
   monsters             Monster[]
 
@@ -553,11 +556,48 @@ model CampaignCharacter {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @default(now()) @updatedAt
   campaign         Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  backpackItems    CampaignCharacterBackpackItem[]
 
   @@index([campaignId])
   @@index([assignedUserId])
   @@index([archivedAt])
   @@map("CampaignCharacter")
+}
+
+model CampaignPartyInventoryItem {
+  id              String                         @id @default(cuid())
+  campaignId      String
+  itemTemplateId  String
+  quantity        Int
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @default(now()) @updatedAt
+  campaign        Campaign                       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  itemTemplate    ItemTemplate                   @relation(fields: [itemTemplateId], references: [id], onDelete: Restrict)
+  backpackItems   CampaignCharacterBackpackItem[]
+
+  @@unique([campaignId, itemTemplateId])
+  @@index([campaignId])
+  @@index([itemTemplateId])
+  @@map("CampaignPartyInventoryItem")
+}
+
+model CampaignCharacterBackpackItem {
+  id                    String                     @id @default(cuid())
+  campaignId            String
+  characterId           String
+  partyInventoryItemId  String
+  quantity              Int
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @default(now()) @updatedAt
+  campaign              Campaign                   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  character             CampaignCharacter          @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  partyInventoryItem    CampaignPartyInventoryItem @relation(fields: [partyInventoryItemId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, partyInventoryItemId])
+  @@index([campaignId])
+  @@index([characterId])
+  @@index([partyInventoryItemId])
+  @@map("CampaignCharacterBackpackItem")
 }
 
 model DescriptorRule {

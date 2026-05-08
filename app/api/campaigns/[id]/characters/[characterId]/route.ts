@@ -267,6 +267,12 @@ export async function DELETE(
     }
 
     await prisma.$transaction([
+      prisma.campaignCharacterBackpackItem.deleteMany({
+        where: {
+          campaignId,
+          characterId: targetCharacterId,
+        },
+      }),
       prisma.campaignCharacter.delete({
         where: { id: targetCharacterId },
       }),

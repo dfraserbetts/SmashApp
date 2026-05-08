@@ -300,9 +300,9 @@ export default function CampaignHomePage() {
         allowed: Boolean(roleRow?.canManageCampaign),
       },
       {
-        label: "Inventory",
+        label: "Party Inventory",
         href: `/campaign/${campaignId}/inventory`,
-        allowed: Boolean(roleRow?.canManageCampaign),
+        allowed: Boolean(roleRow?.canManageCampaign) || role === "PLAYER",
       },
     ];
 
