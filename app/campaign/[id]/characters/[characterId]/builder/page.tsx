@@ -95,6 +95,10 @@ function makeDraft(character: CharacterBuilderRecord): BuilderDraft {
   };
 }
 
+function normalizeAgeInput(value: string) {
+  return value.replace(/\D/g, "");
+}
+
 async function readApiError(res: Response, fallback: string) {
   try {
     const payload = (await res.json()) as { error?: unknown };
@@ -295,8 +299,22 @@ export default function CharacterBuilderPage() {
               <span className="text-xs text-zinc-400">Age</span>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={draft?.age ?? ""}
-                onChange={(event) => updateDraft({ age: event.target.value })}
+                onBeforeInput={(event) => {
+                  if (event.data && /\D/.test(event.data)) {
+                    event.preventDefault();
+                  }
+                }}
+                onPaste={(event) => {
+                  const text = event.clipboardData.getData("text");
+                  if (/\D/.test(text)) {
+                    event.preventDefault();
+                    updateDraft({ age: normalizeAgeInput(text) });
+                  }
+                }}
+                onChange={(event) => updateDraft({ age: normalizeAgeInput(event.target.value) })}
                 disabled={!canEdit || saving}
                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
               />

@@ -53,6 +53,17 @@ function normalizeOptionalString(
   return trimmed.slice(0, maxLength);
 }
 
+function normalizeAge(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error("INVALID_AGE");
+  }
+  return trimmed;
+}
+
 function normalizeLevel(value: unknown): number | undefined {
   if (value === undefined) return undefined;
   const numeric = typeof value === "number" ? value : Number(value);
@@ -174,7 +185,18 @@ export async function PATCH(
     const body = (await req.json().catch(() => ({}))) as BuilderPayload;
     const name = normalizeDisplayName(body.name);
     const imageUrl = normalizeOptionalString(body.imageUrl, 500);
-    const age = normalizeOptionalString(body.age, 80);
+    let age: string | null | undefined;
+    try {
+      age = normalizeAge(body.age);
+    } catch (error) {
+      if (error instanceof Error && error.message === "INVALID_AGE") {
+        return NextResponse.json(
+          { error: "Age must use digits only or be blank." },
+          { status: 400 },
+        );
+      }
+      throw error;
+    }
     const race = normalizeOptionalString(body.race, 120);
     const description = normalizeOptionalString(body.description, 4000);
     const level = normalizeLevel(body.level);
