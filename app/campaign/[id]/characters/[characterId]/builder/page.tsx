@@ -260,12 +260,12 @@ function BackpackItemPreview({ item }: { item: BuilderBackpackItem }) {
         </div>
 
         <div
-          className={`mt-3 aspect-[4/3] overflow-hidden rounded-lg border ${palette.imageBorderClass} bg-black/35 shadow-[inset_0_0_18px_rgba(0,0,0,0.55)]`}
+          className={`mt-3 overflow-hidden rounded-lg border ${palette.imageBorderClass} bg-black/35 shadow-[inset_0_0_18px_rgba(0,0,0,0.55)]`}
         >
           <img
             src={imageSrc}
             alt={displayName}
-            className="h-full w-full bg-black/20 object-cover"
+            className="w-full max-h-[520px] bg-black/20 object-contain"
             loading="lazy"
             referrerPolicy="no-referrer"
             onError={(event) => {
@@ -318,6 +318,166 @@ function BackpackItemPreview({ item }: { item: BuilderBackpackItem }) {
   );
 }
 
+function stripForgeLineLabel(line: string) {
+  const parts = String(line).split("||");
+  return (parts.length > 1 ? parts.slice(1).join("||") : parts[0]).trim();
+}
+
+function formatCompactModifier(attribute: string | undefined, amount: number | undefined) {
+  if (!attribute || !Number.isFinite(amount)) return null;
+  const normalizedAmount = Math.trunc(amount ?? 0);
+  if (normalizedAmount === 0) return null;
+  return `${normalizedAmount > 0 ? "+" : ""}${normalizedAmount} ${attribute}`;
+}
+
+function buildEquippedItemBullets(item: BuilderBackpackItem) {
+  const template = item.itemTemplate;
+  const bullets: string[] = [];
+  if (template.ppv && template.ppv > 0) bullets.push(`${template.ppv} PPV`);
+  if (template.mpv && template.mpv > 0) bullets.push(`${template.mpv} MPV`);
+
+  for (const modifier of template.globalAttributeModifiers ?? []) {
+    const bullet = formatCompactModifier(modifier.attribute, modifier.amount);
+    if (bullet) bullets.push(bullet);
+  }
+
+  for (const section of template.descriptorSections) {
+    for (const line of section.lines) {
+      const bullet = stripForgeLineLabel(line);
+      if (bullet) bullets.push(bullet);
+    }
+  }
+
+  if (bullets.length === 0 && template.generalDescription) {
+    bullets.push(template.generalDescription);
+  }
+
+  return Array.from(new Set(bullets)).slice(0, 8);
+}
+
+function EquippedItemMiniCard({
+  slot,
+  item,
+  canEdit,
+  saving,
+  onClear,
+}: {
+  slot: EquipmentSlotKey;
+  item: BuilderBackpackItem;
+  canEdit: boolean;
+  saving: boolean;
+  onClear: () => void;
+}) {
+  const template = item.itemTemplate;
+  const palette = getForgeRarityPalette(template.rarity);
+  const slotLabel = EQUIPMENT_SLOT_LABELS[slot];
+  const itemName = template.name?.trim() || "(Unnamed item)";
+  const meta = formatBackpackItemMeta(item);
+  const imageUrl = isHttpUrl(template.itemUrl) ? template.itemUrl?.trim() : null;
+  const bullets = buildEquippedItemBullets(item);
+
+  return (
+    <article
+      className={`space-y-2 overflow-hidden rounded border p-2 ${palette.panelBorderClass} ${palette.panelShadowClass}`}
+      style={{
+        backgroundImage: palette.backgroundImage,
+        borderColor: palette.panelBorderColor,
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] text-zinc-500">{slotLabel}</p>
+          <p
+            className={`truncate text-sm ${palette.nameTextClass}`}
+            style={{ color: palette.headerColor }}
+          >
+            {itemName}
+            {meta ? ` - ${meta}` : ""}
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={!canEdit || saving}
+          onClick={onClear}
+          className={`shrink-0 rounded border px-2 py-1 text-xs transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 ${palette.panelBorderClass} ${palette.panelShadowClass} ${palette.attackLabelClass}`}
+          style={{
+            borderColor: palette.panelBorderColor,
+            color: palette.attackLabelColor,
+            backgroundColor: "rgba(3, 7, 18, 0.58)",
+          }}
+        >
+          Unequip
+        </button>
+      </div>
+      <div
+        className={`grid h-[180px] grid-cols-[minmax(92px,42%)_1fr] gap-3 overflow-hidden rounded border p-2 ${palette.panelBorderClass} ${palette.panelShadowClass}`}
+        style={{
+          borderColor: palette.panelBorderColor,
+          backgroundColor: "rgba(3, 7, 18, 0.34)",
+        }}
+      >
+        <div
+          className={`flex min-w-0 items-center justify-center overflow-hidden rounded border bg-black/20 ${palette.imageBorderClass}`}
+          style={{
+            borderColor: palette.panelBorderColor,
+            boxShadow: `inset 0 0 18px rgba(0,0,0,0.35), 0 0 14px ${palette.outerBorderColor.replace(
+              "/",
+              "",
+            )}`,
+          }}
+        >
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={`${slotLabel} item preview`}
+              className="max-h-full max-w-full object-contain"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <p className={`text-xs ${palette.descriptionTextClass}`} style={{ color: palette.bodyColor }}>
+              No image
+            </p>
+          )}
+        </div>
+        <div
+          className={`min-h-0 min-w-0 overflow-y-auto overflow-x-hidden rounded border p-2 pr-3 ${palette.panelBorderClass} ${palette.panelShadowClass}`}
+          style={{
+            borderColor: palette.panelBorderColor,
+            backgroundColor: "rgba(3, 7, 18, 0.58)",
+          }}
+        >
+          <p
+            className={`mb-1 truncate text-[10px] uppercase tracking-wide ${palette.headerTextClass}`}
+            style={{ color: palette.headerColor }}
+          >
+            Values
+          </p>
+          {bullets.length > 0 ? (
+            <ul
+              className={`list-disc space-y-0.5 pl-4 text-[11px] leading-snug ${palette.bodyTextClass}`}
+              style={{ color: palette.bodyColor }}
+            >
+              {bullets.map((bullet) => (
+                <li key={bullet} className="break-words">
+                  {bullet}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p
+              className={`text-[11px] leading-snug ${palette.descriptionTextClass}`}
+              style={{ color: palette.bodyColor }}
+            >
+              No listed values.
+            </p>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function normalizeWholeNumberInput(value: string) {
   return value.replace(/\D/g, "");
 }
@@ -356,6 +516,7 @@ export default function CharacterBuilderPage() {
   const [mobileView, setMobileView] = useState<"editor" | "preview">("editor");
   const [attributeSwapDrafts, setAttributeSwapDrafts] = useState<Record<string, string>>({});
   const [selectedBackpackItemId, setSelectedBackpackItemId] = useState("");
+  const [pendingHandEquipItemId, setPendingHandEquipItemId] = useState("");
   const protectionTuning = useProtectionTuning();
 
   const previewName = displayName(draft?.name ?? payload?.character.name);
@@ -380,6 +541,10 @@ export default function CharacterBuilderPage() {
   const selectedBackpackItem = useMemo(
     () => backpackItems.find((item) => item.id === selectedBackpackItemId) ?? null,
     [backpackItems, selectedBackpackItemId],
+  );
+  const pendingHandEquipItem = useMemo(
+    () => backpackItems.find((item) => item.id === pendingHandEquipItemId) ?? null,
+    [backpackItems, pendingHandEquipItemId],
   );
   const activeTraitCatalog = traitCatalog.filter((trait) => trait.isActive !== false);
   const traitSummary = selectedTraitSummary(
@@ -493,7 +658,13 @@ export default function CharacterBuilderPage() {
     ) {
       setSelectedBackpackItemId("");
     }
-  }, [backpackItems, selectedBackpackItemId]);
+    if (
+      pendingHandEquipItemId &&
+      !backpackItems.some((item) => item.id === pendingHandEquipItemId)
+    ) {
+      setPendingHandEquipItemId("");
+    }
+  }, [backpackItems, pendingHandEquipItemId, selectedBackpackItemId]);
 
   function updateDraft(patch: Partial<BuilderDraft>) {
     setDraft((current) => ({
@@ -694,6 +865,55 @@ export default function CharacterBuilderPage() {
         (useCounts.get(item.id) ?? 0) - (currentBackpackItemId === item.id ? 1 : 0);
       return usedByOtherSlots < item.quantity || currentBackpackItemId === item.id;
     });
+  }
+
+  function getShortcutLegalSlots(item: BuilderBackpackItem): EquipmentSlotKey[] {
+    return EQUIPMENT_SLOTS.filter((slot) =>
+      getLegalBackpackItemsForSlot(slot).some((candidate) => candidate.id === item.id),
+    );
+  }
+
+  function equipBackpackItemToSlot(item: BuilderBackpackItem, slot: EquipmentSlotKey) {
+    setError(null);
+    setPendingHandEquipItemId("");
+    setSelectedBackpackItemId(item.id);
+    updateEquipmentSlot(slot, item.id);
+  }
+
+  function handleEquipBackpackItem(item: BuilderBackpackItem) {
+    if (!canEdit || saving) return;
+    const legalSlots = getShortcutLegalSlots(item);
+    if (legalSlots.length === 0) {
+      setError("No legal equipment slot is currently available for this item.");
+      return;
+    }
+
+    const targetSlot = legalSlots[0];
+    const isOneHandedHandItem =
+      (item.itemTemplate.type === "WEAPON" || item.itemTemplate.type === "SHIELD") &&
+      item.itemTemplate.size === "ONE_HANDED";
+    const handChoices = legalSlots.filter((slot) => slot === "mainHand" || slot === "offHand");
+
+    if (isOneHandedHandItem && handChoices.length > 1) {
+      setError(null);
+      setSelectedBackpackItemId(item.id);
+      setPendingHandEquipItemId(item.id);
+      return;
+    }
+
+    equipBackpackItemToSlot(item, targetSlot);
+  }
+
+  function handleUnequipBackpackItem(item: BuilderBackpackItem) {
+    if (!canEdit || saving) return;
+    const next = { ...builderData.equippedSlots };
+    for (const slot of EQUIPMENT_SLOTS) {
+      if (next[slot] === item.id) {
+        delete next[slot];
+      }
+    }
+    setSelectedBackpackItemId(item.id);
+    updateBuilderData({ equippedSlots: next });
   }
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
@@ -1387,6 +1607,19 @@ export default function CharacterBuilderPage() {
                   const selectedItemId = builderData.equippedSlots[slot] ?? "";
                   const selectedItem = backpackItems.find((item) => item.id === selectedItemId);
                   const disabledByTwoHanded = slot === "offHand" && isOffHandLocked;
+                  if (selectedItem) {
+                    return (
+                      <EquippedItemMiniCard
+                        key={slot}
+                        slot={slot}
+                        item={selectedItem}
+                        canEdit={canEdit}
+                        saving={saving}
+                        onClear={() => updateEquipmentSlot(slot, "")}
+                      />
+                    );
+                  }
+
                   return (
                     <label
                       key={slot}
@@ -1416,11 +1649,6 @@ export default function CharacterBuilderPage() {
                           );
                         })}
                       </select>
-                      {selectedItem ? (
-                        <p className="mt-2 text-xs text-zinc-500">
-                          {selectedItem.itemTemplate.details}
-                        </p>
-                      ) : null}
                     </label>
                   );
                 })}
@@ -1441,28 +1669,33 @@ export default function CharacterBuilderPage() {
                 {backpackItems.map((item) => {
                   const usedCount = equippedUseCounts.get(item.id) ?? 0;
                   const selected = selectedBackpackItemId === item.id;
+                  const isEquipped = usedCount > 0;
                   return (
-                    <button
+                    <article
                       key={item.id}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => setSelectedBackpackItemId(item.id)}
-                      className={`w-full rounded-lg border p-3 text-left transition focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
+                      className={`rounded-lg border p-2 transition ${
                         selected
                           ? "border-emerald-500 bg-emerald-950/20"
                           : "border-zinc-800 bg-black hover:border-zinc-700 hover:bg-zinc-950"
                       }`}
                     >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium text-zinc-100">
-                            {item.itemTemplate.name ?? "(Unnamed item)"}
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <button
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => setSelectedBackpackItemId(item.id)}
+                          className="min-w-0 flex-1 rounded-md px-1 py-1 text-left focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-zinc-100">
+                              {item.itemTemplate.name ?? "(Unnamed item)"}
+                            </div>
+                            <div className="mt-1 text-xs text-zinc-500">
+                              {formatBackpackItemMeta(item) || "No item details"}
+                            </div>
                           </div>
-                          <div className="mt-1 text-xs text-zinc-500">
-                            {formatBackpackItemMeta(item) || "No item details"}
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 flex-wrap gap-1 text-[11px] text-zinc-300">
+                        </button>
+                        <div className="flex shrink-0 flex-wrap items-center gap-1 text-[11px] text-zinc-300">
                           <span className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1">
                             Qty {item.quantity}
                           </span>
@@ -1474,9 +1707,25 @@ export default function CharacterBuilderPage() {
                               Selected
                             </span>
                           ) : null}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              isEquipped
+                                ? handleUnequipBackpackItem(item)
+                                : handleEquipBackpackItem(item)
+                            }
+                            disabled={!canEdit || saving}
+                            className={`rounded border px-2 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-60 ${
+                              isEquipped
+                                ? "border-amber-700 text-amber-200 hover:bg-amber-950/30"
+                                : "border-emerald-700 text-emerald-100 hover:bg-emerald-950/30"
+                            }`}
+                          >
+                            {isEquipped ? "Unequip" : "Equip"}
+                          </button>
                         </div>
                       </div>
-                    </button>
+                    </article>
                   );
                 })}
               </div>
@@ -1878,6 +2127,50 @@ export default function CharacterBuilderPage() {
           </div>
         </div>
       </div>
+      {pendingHandEquipItem ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="hand-equip-title"
+        >
+          <div className="w-full max-w-sm space-y-4 rounded-xl border border-zinc-700 bg-zinc-950 p-5 shadow-2xl">
+            <div>
+              <h2 id="hand-equip-title" className="text-lg font-semibold text-zinc-100">
+                Equip in which hand?
+              </h2>
+              <p className="mt-1 text-sm text-zinc-400">
+                {pendingHandEquipItem.itemTemplate.name ?? "(Unnamed item)"}
+              </p>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => equipBackpackItemToSlot(pendingHandEquipItem, "mainHand")}
+                disabled={!getShortcutLegalSlots(pendingHandEquipItem).includes("mainHand")}
+                className="rounded-lg border border-emerald-700 px-3 py-2 text-sm font-medium text-emerald-100 hover:bg-emerald-950/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Main Hand
+              </button>
+              <button
+                type="button"
+                onClick={() => equipBackpackItemToSlot(pendingHandEquipItem, "offHand")}
+                disabled={!getShortcutLegalSlots(pendingHandEquipItem).includes("offHand")}
+                className="rounded-lg border border-emerald-700 px-3 py-2 text-sm font-medium text-emerald-100 hover:bg-emerald-950/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Off Hand
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPendingHandEquipItemId("")}
+              className="w-full rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-900"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

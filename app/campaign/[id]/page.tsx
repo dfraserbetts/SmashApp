@@ -17,6 +17,7 @@ type CampaignRow = {
 
 type CampaignMemberRow = {
   userId: string;
+  playerName: string | null;
   email: string | null;
   identityLabel: string;
   confirmationValue: string;
@@ -59,9 +60,16 @@ export default function CampaignHomePage() {
   const [deleting, setDeleting] = useState(false);
   const [members, setMembers] = useState<CampaignMemberRow[]>([]);
   const [addPlayerUserId, setAddPlayerUserId] = useState("");
+  const [addPlayerName, setAddPlayerName] = useState("");
+  const [memberNameDrafts, setMemberNameDrafts] = useState<Record<string, string>>({});
   const [memberErr, setMemberErr] = useState<string | null>(null);
   const [addingPlayer, setAddingPlayer] = useState(false);
   const [memberActionErr, setMemberActionErr] = useState<string | null>(null);
+  const [memberActionMessage, setMemberActionMessage] = useState<{
+    userId: string;
+    text: string;
+  } | null>(null);
+  const [savingMemberNameUserId, setSavingMemberNameUserId] = useState<string | null>(null);
   const [removingMember, setRemovingMember] = useState<CampaignMemberRow | null>(null);
   const [removeStep, setRemoveStep] = useState<"IDLE" | "WARNING" | "CONFIRM">("IDLE");
   const [removeConfirmInput, setRemoveConfirmInput] = useState("");
@@ -113,6 +121,11 @@ export default function CampaignHomePage() {
           });
           setCampaign(data.campaign);
           setMembers(data.members ?? []);
+          setMemberNameDrafts(
+            Object.fromEntries(
+              (data.members ?? []).map((member) => [member.userId, member.playerName ?? ""]),
+            ),
+          );
         }
       } catch (e: unknown) {
         if (!cancelled) {
@@ -139,6 +152,11 @@ export default function CampaignHomePage() {
     const reloaded = (await reload.json().catch(() => ({}))) as CampaignMembersPayload;
     if (reload.ok) {
       setMembers(reloaded.members ?? []);
+      setMemberNameDrafts(
+        Object.fromEntries(
+          (reloaded.members ?? []).map((member) => [member.userId, member.playerName ?? ""]),
+        ),
+      );
     }
   }
 
@@ -157,7 +175,7 @@ export default function CampaignHomePage() {
       const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ userId, playerName: addPlayerName }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -167,6 +185,7 @@ export default function CampaignHomePage() {
       }
 
       setAddPlayerUserId("");
+      setAddPlayerName("");
       await reloadMembers();
     } catch (e: unknown) {
       setMemberErr(e instanceof Error ? e.message : "Failed to add player.");
@@ -178,6 +197,7 @@ export default function CampaignHomePage() {
   async function handleToggleHistoricCharacters(member: CampaignMemberRow, value: boolean) {
     if (!campaignId) return;
     setMemberActionErr(null);
+    setMemberActionMessage(null);
 
     try {
       const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/members`, {
@@ -200,10 +220,45 @@ export default function CampaignHomePage() {
     }
   }
 
+  async function handleSavePlayerName(member: CampaignMemberRow) {
+    if (!campaignId) return;
+    setMemberActionErr(null);
+    setMemberActionMessage(null);
+    setSavingMemberNameUserId(member.userId);
+
+    try {
+      const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: member.userId,
+          playerName: memberNameDrafts[member.userId] ?? "",
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to update Player Name.");
+      }
+      await reloadMembers();
+      setMemberActionMessage({
+        userId: member.userId,
+        text:
+          member.role === "GAME_DIRECTOR"
+            ? "Game Director name updated"
+            : "Player name updated",
+      });
+    } catch (error: unknown) {
+      setMemberActionErr(error instanceof Error ? error.message : "Failed to update Player Name.");
+    } finally {
+      setSavingMemberNameUserId(null);
+    }
+  }
+
   async function handleRemovePlayer() {
     if (!campaignId || !removingMember) return;
     setRemovingPlayer(true);
     setMemberActionErr(null);
+    setMemberActionMessage(null);
 
     try {
       const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/members`, {
@@ -421,11 +476,25 @@ export default function CampaignHomePage() {
                     {addingPlayer ? "Adding..." : "Add"}
                   </button>
                 </div>
+                <label className="block text-xs text-zinc-400" htmlFor="player-display-name">
+                  Player Name
+                </label>
+                <input
+                  id="player-display-name"
+                  type="text"
+                  value={addPlayerName}
+                  onChange={(event) => setAddPlayerName(event.target.value)}
+                  className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+                  placeholder="e.g. Dani"
+                />
                 <p className="text-[11px] text-zinc-500">
                   Temporary dev bridge: email delivery is not wired yet, so adding still uses the player&apos;s account ID.
                 </p>
                 {memberErr ? <p className="text-sm text-red-400">{memberErr}</p> : null}
                 {memberActionErr ? <p className="text-sm text-red-400">{memberActionErr}</p> : null}
+                {memberActionMessage ? (
+                  <p className="text-sm text-emerald-400">{memberActionMessage.text}</p>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -456,8 +525,50 @@ export default function CampaignHomePage() {
                   members.map((member) => (
                     <tr key={`${member.userId}-${member.role}`} className="border-b border-zinc-900 last:border-0">
                       <td className="py-2 pr-3">
-                        <div>{member.email ?? "Email unavailable"}</div>
-                        <div className="font-mono text-[11px] text-zinc-500">{member.userId}</div>
+                        {canManageMembers ? (
+                          <div className="space-y-2">
+                            <label className="block text-[11px] text-zinc-500">
+                              {member.role === "GAME_DIRECTOR" ? "GD Name" : "Player Name"}
+                            </label>
+                            <input
+                              type="text"
+                              value={memberNameDrafts[member.userId] ?? ""}
+                              onChange={(event) => {
+                                setMemberActionMessage(null);
+                                setMemberNameDrafts((current) => ({
+                                  ...current,
+                                  [member.userId]: event.target.value,
+                                }));
+                              }}
+                              className="w-full rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100 outline-none focus:border-zinc-500"
+                              placeholder={
+                                member.role === "GAME_DIRECTOR"
+                                  ? "Game Director Name"
+                                  : "Player Name"
+                              }
+                            />
+                            <div className="text-xs text-zinc-400">
+                              Email: {member.email ?? "Email unavailable"}
+                            </div>
+                            <div className="font-mono text-[11px] text-zinc-500">
+                              {member.userId}
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div>{member.identityLabel}</div>
+                            {canManageMembers ? (
+                              <>
+                                <div className="text-xs text-zinc-400">
+                                  Email: {member.email ?? "Email unavailable"}
+                                </div>
+                                <div className="font-mono text-[11px] text-zinc-500">
+                                  {member.userId}
+                                </div>
+                              </>
+                            ) : null}
+                          </div>
+                        )}
                       </td>
                       <td className="py-2 pr-3">{member.role}</td>
                       <td className="py-2 pr-3 text-zinc-400">
@@ -483,23 +594,43 @@ export default function CampaignHomePage() {
                         </td>
                       ) : null}
                       {canManageMembers ? (
-                        <td className="py-2 pr-3">
-                          {member.role === "PLAYER" ? (
+                        <td className="space-y-2 py-2 pr-3">
+                          <>
                             <button
                               type="button"
-                              onClick={() => {
-                                setMemberActionErr(null);
-                                setRemovingMember(member);
-                                setRemoveConfirmInput("");
-                                setRemoveStep("WARNING");
-                              }}
-                              className="rounded-lg border border-red-700 px-3 py-1 text-xs text-red-200 hover:bg-red-950/30"
+                              onClick={() => void handleSavePlayerName(member)}
+                              disabled={savingMemberNameUserId === member.userId}
+                              className="block rounded-lg border border-zinc-700 px-3 py-1 text-xs text-zinc-200 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                              Remove Player
+                              {savingMemberNameUserId === member.userId
+                                ? "Saving..."
+                                : member.role === "GAME_DIRECTOR"
+                                  ? "Save GD Name"
+                                  : "Save Name"}
                             </button>
-                          ) : (
-                            <span className="text-zinc-500">Protected</span>
-                          )}
+                            {memberActionMessage?.userId === member.userId ? (
+                              <p className="text-xs text-emerald-400">
+                                {memberActionMessage.text}
+                              </p>
+                            ) : null}
+                            {member.role === "PLAYER" ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMemberActionErr(null);
+                                  setMemberActionMessage(null);
+                                  setRemovingMember(member);
+                                  setRemoveConfirmInput("");
+                                  setRemoveStep("WARNING");
+                                }}
+                                className="block rounded-lg border border-red-700 px-3 py-1 text-xs text-red-200 hover:bg-red-950/30"
+                              >
+                                Remove Player
+                              </button>
+                            ) : (
+                              <span className="block text-xs text-zinc-500">Protected</span>
+                            )}
+                          </>
                         </td>
                       ) : null}
                     </tr>
@@ -561,7 +692,8 @@ export default function CampaignHomePage() {
               This player will be removed from the campaign. Their character will be archived. Are you sure?
             </p>
             <div className="rounded-lg border border-zinc-800 bg-black p-3 text-sm">
-              <div>{removingMember.email ?? "Email unavailable"}</div>
+              <div>{removingMember.identityLabel}</div>
+              {removingMember.email ? <div className="text-zinc-400">{removingMember.email}</div> : null}
               <div className="font-mono text-xs text-zinc-500">{removingMember.userId}</div>
             </div>
             <div className="flex justify-end gap-3">

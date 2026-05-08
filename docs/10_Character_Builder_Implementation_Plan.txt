@@ -189,9 +189,12 @@ Supabase User ID entry is acceptable only as a temporary internal development br
 Long-term Campaign Members UI should support:
 
 - inviting or adding a player by email address
+- a campaign-level Player Name / display name for each Player member
 - displaying member email address in the member list
 - showing role and status beside a human-readable identity
 - avoiding raw Supabase User ID display except in debug/admin details
+
+Campaign memberships should have authored display names for Players and Game Directors. Player email addresses are Game Director administration data. Game Directors may see them for member management, but non-GD Players should see authored names only and must not see other players' or Game Directors' email addresses in shared campaign UI.
 
 If the current app cannot reliably access or store email addresses from Supabase auth, implementation should add the smallest safe account/profile mirror required to make campaign membership understandable to Game Directors. Do not leave UUID-only membership management as final UX.
 
@@ -903,6 +906,10 @@ Most equipment slots hold one item. Multiple copies only matter when multiple le
 The Backpack editor should use a compact selectable list instead of rendering full item details for every assigned item at once. Each row should show concise identifying information such as item name, type, rarity, level, quantity, and equipped/used count.
 
 Selecting a Backpack item should show a single detailed Forge-style item preview for that item, reusing existing Forge descriptor rendering helpers where possible. Live Preview should stay concise and should not dump every Backpack item detail; detailed Backpack reading belongs in the editor selection panel and later Inventory Sheet work.
+
+Backpack rows may include Equip / Unequip shortcuts for faster table use, but the slot dropdowns remain the authoritative manual equipment controls. One-handed hand-slot shortcuts should use in-app hand selection controls rather than browser prompts.
+
+The Equipped Gear editor section should match Summoning Circle slot behaviour: empty slots show dropdowns, and occupied slots replace the dropdown with a compact equipped item card and Unequip action.
 
 Avoid temporary fake assignment fields unless implementation reality forces a very small scaffold. If a temporary bridge is used, it must be clearly marked as a bridge and removed once Party Inventory is live.
 
