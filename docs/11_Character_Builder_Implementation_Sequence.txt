@@ -1,0 +1,600 @@
+Character Builder Implementation Sequence
+=========================================
+
+Purpose
+-------
+
+This document records the recommended nine-step implementation sequence for the SMASH TTRPG Character Builder.
+
+It is designed to be used as the source for future Codex prompts.
+
+The Character Builder should not be implemented as one giant patch. The scope crosses campaign access, permissions, character records, inventory ownership, player-safe traits, equipment hydration, shared power-building, live preview, and exact printable sheet output.
+
+Trying to do that in one prompt is technically possible, but not recommended. It creates a high risk of brittle code, hidden permission mistakes, schema drift, and large debugging fallout.
+
+Use this as a phased prompt chain.
+
+Primary Dependencies
+--------------------
+
+Use this document with:
+
+- 10_Character_Builder_Implementation_Plan
+- 00_Master_Implementation_Plan
+- 01_Locked_Decisions_Log
+- 02_Power_System_Spec
+- 03_Current_Phase_And_Next_Steps
+- 04_Implementation_Handoffs
+- 05_Phase_6_Cost_Integration_Blueprint
+- 06_Natural_Baseline_Forge_Bridge_Plan
+- 09_Forge_Implementation_Plan
+- Power_implementation_steps
+
+Global Implementation Rules
+---------------------------
+
+Every implementation prompt must obey these rules:
+
+- Work from current repo files only.
+- Do not assume unseen code.
+- If current files are missing, request them or inspect the current repo before patching.
+- Keep changes minimal and reversible.
+- Do not re-architect unrelated systems.
+- Do not introduce conditional React hooks.
+- Preserve the current shared power architecture.
+- Preserve Summoning Circle as the mechanical bible for current character calculations unless explicitly overridden.
+- Use Guard and Synergy, not Defence and Support.
+- Do not implement Spark in V1.
+- Do not implement Restrictions in V1.
+- Do not implement Archetypes in V1.
+- Do not touch Transformation, Summoned Item, Summoned Creature, Object, Structure, Machine, or Mount builders.
+- Include exact searchable anchors in Codex prompts.
+- Include validation commands in every Codex prompt.
+
+V1 Target Scope
+---------------
+
+Character Builder V1 includes:
+
+- Character Details
+- Narrative Details
+- Characteristics
+- Attributes / Resist Points
+- Player Traits
+- Equipped Gear / Backpack integration
+- Character Power Builder using Power Pool
+- Exact printable preview / sheet output
+
+Character Builder V1 excludes:
+
+- Spark system
+- Restrictions system
+- Archetypes
+- Signature Move as a full Spark-gated feature unless explicitly reopened
+- Transformation / Summoning / object creation systems
+
+Step 1 - Source Document Update
+-------------------------------
+
+Goal:
+
+Land the clarified Character Builder source documents before code begins.
+
+Scope:
+
+- Replace doc 10 with the clarified Character Builder Implementation Plan.
+- Add this doc 11 implementation sequence.
+- Ensure source docs state the current V1 scope and deferred systems clearly.
+
+Non-goals:
+
+- No app code changes.
+- No schema changes.
+- No UI changes.
+
+Why first:
+
+The Character Builder has too many connected systems to rely on chat memory. The source docs must carry the decisions before implementation starts.
+
+Expected validation:
+
+- Review docs for consistency.
+- Confirm no stale Defence / Support terminology remains except where explicitly described as legacy.
+
+Step 2 - Campaign Membership, Roles, and Player Invites
+-------------------------------------------------------
+
+Goal:
+
+Create the access foundation required before players can safely use campaign-bound Character Builder tools.
+
+Scope:
+
+- Add or verify campaign membership model.
+- Support campaign roles:
+  - Game Director
+  - Player
+- Add or verify player invitation flow.
+- Ensure invited players can access the campaign with Player permissions.
+- Ensure Game Director permissions are distinct from Player permissions.
+- Add basic route/API guards where needed.
+
+Non-goals:
+
+- Do not build the full Character Builder yet.
+- Do not build Party Inventory yet unless current code structure makes a tiny shared permission helper necessary.
+- Do not implement character powers, traits, or printable sheets.
+
+Implementation notes:
+
+This step may need to inspect existing campaign, user, auth, and campaign-member code before any patch is proposed.
+
+Acceptance criteria:
+
+- A campaign can distinguish Game Director users from Player users.
+- A Player can be associated with a campaign.
+- Permission checks exist or are clearly established for later campaign tools.
+- The implementation does not grant player write access to Game Director-only controls.
+
+Validation:
+
+- TypeScript check.
+- Relevant auth/campaign tests if present.
+- Manual smoke of campaign access if feasible.
+
+Step 3 - Character Management Page
+----------------------------------
+
+Goal:
+
+Create the Game Director-facing control surface for campaign characters.
+
+Scope:
+
+- Add a campaign Character Management page.
+- Show campaign characters.
+- Create / edit basic character records or placeholders as needed.
+- Assign invited players to characters.
+- Provide the future home for Game Director-assigned Bonds.
+- Display basic character ownership and access state.
+- Add navigation to Character Builder where appropriate.
+
+Non-goals:
+
+- Do not build the full player Character Builder editor in this step.
+- Do not build the full printable sheet system.
+- Do not implement Spark, Restrictions, or Archetypes.
+
+Bonds direction:
+
+Bonds are Game Director-assigned and player-read-only. The Character Management page is the preferred assignment surface.
+
+Acceptance criteria:
+
+- Game Director can see campaign characters.
+- Game Director can associate a player with a character.
+- Player cannot assign themselves arbitrary campaign characters unless explicitly permitted.
+- Bonds have a clear future location even if full Bond mechanics are minimal in this step.
+
+Validation:
+
+- TypeScript check.
+- Manual route smoke.
+- Permission smoke for Game Director vs Player if possible.
+
+Step 4 - Party Inventory and Character Backpack Ownership
+---------------------------------------------------------
+
+Goal:
+
+Create the item ownership path required for Character Builder equipment selection.
+
+Scope:
+
+- Extend existing campaign inventory so the Game Director can assign item quantities to Party Inventory.
+- Allow items from Party Inventory to be assigned to legal characters in the campaign.
+- Track quantity where relevant.
+- Create the character Backpack concept as character-owned assigned items.
+- Ensure Character Builder can later hydrate equipment choices from Backpack, not from all campaign items.
+
+Non-goals:
+
+- Do not build final Character Builder equipment UI yet.
+- Do not rewrite Forge item creation.
+- Do not rebalance item calculations.
+- Do not implement trading/economy/shop systems unless already present and required.
+
+Important rule:
+
+Character Builder should not let a player equip every legal campaign item. It should equip from the character's Backpack.
+
+Acceptance criteria:
+
+- Game Director can assign an item and quantity to Party Inventory.
+- Game Director or permitted flow can assign Party Inventory items to a character.
+- Character Backpack can be queried for a given character.
+- Assignment respects campaign ownership.
+
+Validation:
+
+- TypeScript check.
+- Relevant API route smoke if routes are added.
+- Manual campaign inventory smoke if UI is added.
+
+Step 5 - Character Builder Shell and Character Schema
+----------------------------------------------------
+
+Goal:
+
+Create the stable Character Builder page, data model, and save/load shell before wiring every mechanic.
+
+Scope:
+
+- Add character schema/model fields required for V1 scaffolding.
+- Add Character Builder route/page.
+- Implement desktop layout:
+  - editor left
+  - live preview right
+- Implement narrow/mobile behaviour:
+  - Editor / Preview toggle
+- Add basic save/load for character records.
+- Add section containers for V1 sections.
+- Keep sections initially shallow where needed.
+
+V1 sections to scaffold:
+
+- Character Details
+- Narrative Details
+- Characteristics
+- Attributes / Resist Points
+- Traits
+- Equipped Gear / Backpack
+- Powers
+- Printable Preview
+
+Non-goals:
+
+- Do not implement full power builder wiring yet.
+- Do not implement exact final print layout yet.
+- Do not implement Spark, Restrictions, or Archetypes.
+
+Acceptance criteria:
+
+- Character Builder route loads for a legal character.
+- Character data can be saved and reloaded.
+- Editor/Preview layout works.
+- Player access is permissioned through campaign membership.
+- Game Director access remains possible where appropriate.
+
+Validation:
+
+- TypeScript check.
+- Lint if available.
+- Manual route smoke.
+- Save/load smoke.
+
+Step 6 - Core Character Sections
+--------------------------------
+
+Goal:
+
+Implement the player-authored core character sections before equipment and powers.
+
+Scope:
+
+Character Details:
+
+- Name
+- Image / portrait
+- Age
+- Race
+- Description / backstory
+- Level
+
+Narrative Details:
+
+- Great Secret template selection
+- Great Secret free-text completions
+- generated Great Secret descriptor
+- read-only Bonds display if Bond data exists
+
+Characteristics:
+
+- CharacterPoints = CharacterLevel * 5
+- multiple Characteristics
+- name
+- keyword
+- effect selections
+- one selection per effect family
+- higher family values replace lower family values
+- cumulative family costs
+- max 15 points per Characteristic
+- total Character Point spend tracking
+- descriptor generation
+
+Characteristic effect families:
+
+- Additional dice
+- Result modifier
+- Reroll results of 1
+- Attribute swap
+
+Attribute swap options:
+
+- Attack
+- Guard
+- Fortitude
+- Intellect
+- Synergy
+- Bravery
+
+Attributes:
+
+- Heroic method
+- Destiny method
+- Rolled method
+- legal even values only: 4, 6, 8, 10, 12
+- Destiny total 48
+- Heroic array: 12, 10, 8, 8, 6, 4
+- Rolled manual legal values only
+
+Resist Points:
+
+- ResistPoints = 3 + floor(CharacterLevel / 3)
+- manual allocation across attributes
+- no overspend
+
+Player Traits:
+
+- player-safe Trait catalog
+- TraitPoints = 2 + floor(CharacterLevel / 4)
+- positive traits cost points
+- negative traits grant points
+- MaxNegativeTraits = 2
+- MaxBonusTraitPointsFromNegativeTraits = 2
+
+Non-goals:
+
+- Do not wire equipped item calculations here unless already trivial.
+- Do not wire the power builder here.
+- Do not implement Spark, Restrictions, or Archetypes.
+
+Acceptance criteria:
+
+- Character sections save and reload.
+- Characteristic costs match cumulative rules.
+- Same-family Characteristic stacking is prevented.
+- Trait point overspend is prevented.
+- Negative trait bonus caps are enforced.
+- Attribute generation methods enforce legal values.
+- Resist Point formula and allocation work.
+- Live preview reflects current data.
+
+Validation:
+
+- TypeScript check.
+- Unit/helper tests where helper logic is created.
+- Manual UI smoke.
+
+Step 7 - Equipment Integration
+------------------------------
+
+Goal:
+
+Wire Character Builder equipped gear to Backpack and reuse current Summoning Circle-style output calculations.
+
+Scope:
+
+- Character equipment slots.
+- Equipment selection from character Backpack only.
+- Hydrate item data into character outputs.
+- Reuse existing item descriptor / attack / defence logic where possible.
+- Show equipped attack strings.
+- Show equipped defence strings.
+- Apply equipment attribute modifiers.
+- Apply protections / vulnerabilities / resistances where relevant.
+- Apply item-derived limit breaks or features where already supported.
+
+Non-goals:
+
+- Do not rewrite Forge.
+- Do not rebalance item outputs.
+- Do not create a separate player-only equipment calculation unless necessary and documented.
+- Do not use all campaign items as equippable options.
+
+Important rule:
+
+Player calculations currently match Summoning Circle calculations unless playtest later proves a divergence is needed.
+
+Acceptance criteria:
+
+- A character can equip legal assigned Backpack items.
+- Equipped items update preview outputs.
+- Attack and defence strings are mechanically consistent with existing descriptor logic.
+- Unequipped Backpack items remain visible but do not apply equipped effects.
+
+Validation:
+
+- TypeScript check.
+- Manual equipment smoke.
+- Existing descriptor/Forge/Summoning smoke where relevant.
+
+Step 8 - Character Power Builder
+--------------------------------
+
+Goal:
+
+Reuse the Summoning Circle Power Builder for player characters with scalar Power Point spend instead of monster Outcome Calculator output.
+
+Scope:
+
+- Embed or adapt the current shared power builder for characters.
+- Preserve shared power architecture:
+  - Power-Level Fields
+  - Descriptor Chassis
+  - Effect Packets
+  - Primary Packet defence gate
+  - shared cooldown lifecycle
+- Remove or hide monster Outcome Calculator dependencies.
+- Use BasePowerValue as player Power Point spend in V1.
+- Use PowerPool = CharacterLevel * 50.
+- Show total, spent, and remaining Power Points.
+- Show per-power cost.
+- Show derived cooldown from current shared cost/cooldown path.
+- Include future discount seams defaulted to zero:
+  - SparkDiscountPercent = 0
+  - RestrictionDiscountPercent = 0
+- Ensure final spend reflects current zero discounts.
+
+Non-goals:
+
+- Do not implement Spark profile or evaluator.
+- Do not implement Restrictions.
+- Do not implement Archetypes.
+- Do not implement Signature Move as a full Spark-gated feature unless explicitly reopened.
+- Do not create a second independent power-cost model.
+
+Cooldown direction:
+
+V1 shows derived cooldown from BasePowerValue.
+
+Restrictions later reduce player spend only, not cooldown, unless explicitly reopened.
+
+Acceptance criteria:
+
+- Character can author powers using the shared builder.
+- Character Power Pool updates in real time.
+- Overspending is visible and/or prevented according to selected UX.
+- Power descriptors match shared power rendering expectations.
+- Monster Outcome Calculator is not shown as a player-facing dependency.
+- Discount fields exist only as zeroed future seams, not functional systems.
+
+Validation:
+
+- TypeScript check.
+- Existing power-builder smoke if present.
+- Manual power authoring smoke.
+- Confirm Summoning Circle power builder remains unaffected.
+
+Step 9 - Exact Printable Sheet System
+-------------------------------------
+
+Goal:
+
+Implement exact screen-to-print Character Sheet output.
+
+Scope:
+
+- Build print/export flow from Character Builder preview.
+- Match Forge and Summoning Circle philosophy:
+  - what is shown on screen is what prints
+- Add print type selector:
+  1. Full Colour Sheet
+  2. Full Print Friendly Sheet
+  3. Compact Colour Sheet
+  4. Compact Print Friendly Sheet
+- Add page selection checkboxes, all checked by default:
+  - Main Sheet
+  - Character Sheet
+  - Power Sheet(s)
+  - Inventory Sheet
+- Omit unchecked sheets from print/export.
+- Support multiple Power Sheet pages when power count/length requires it.
+
+Sheet responsibilities:
+
+Main Sheet:
+
+- combat-facing character essentials
+- attributes
+- health pools
+- defence strings
+- attack strings
+- equipped gear summary
+- table-facing combat outputs
+
+Character Sheet:
+
+- character details
+- description/backstory
+- Great Secret
+- Characteristics
+- Bonds
+- Traits
+- narrative identity
+
+Power Sheet(s):
+
+- power descriptors
+- costs/cooldowns where useful
+- readable table reference output
+- additional pages as needed
+
+Inventory Sheet:
+
+- equipped items
+- Backpack items
+- quantities
+- item summaries/descriptors where appropriate
+
+Non-goals:
+
+- Do not implement a separate PDF engine that diverges from on-screen preview unless current app architecture already requires it.
+- Do not implement Spark/Restrictions/Archetypes.
+- Do not redesign the entire visual identity unless explicitly requested.
+
+Acceptance criteria:
+
+- User can select print type.
+- User can include/exclude sheets.
+- Printed/exported output matches preview closely.
+- Print-friendly variants reduce ink/visual density.
+- Compact variants reduce page density/scale appropriately.
+- Power pages expand as needed.
+
+Validation:
+
+- TypeScript check.
+- Manual print preview smoke.
+- Browser print/export smoke.
+- Visual check of all four print types if feasible.
+
+Recommended Codex Prompt Pattern
+--------------------------------
+
+Each implementation step should be turned into its own Codex prompt using this pattern:
+
+1. State the exact step number and goal.
+2. List source docs to obey.
+3. List current scope.
+4. List explicit non-goals.
+5. Tell Codex to inspect current files before patching.
+6. Tell Codex not to assume unseen code.
+7. Provide likely file/path anchors only after current repo files are known.
+8. Require minimal reversible changes.
+9. Require validation output.
+10. Require a final summary of changed files, validation status, and any follow-up risks.
+
+Do not combine steps unless the previous step has landed cleanly and the code structure makes the next step trivial.
+
+Project Risk Notes
+------------------
+
+The main risk is not that the Character Builder is conceptually unclear.
+
+The main risk is implementation sprawl.
+
+The Character Builder touches too many systems to safely build as one giant feature. The disciplined path is to land stable foundations in order:
+
+1. docs
+2. access
+3. character management
+4. inventory ownership
+5. builder shell/schema
+6. core sections
+7. equipment integration
+8. power builder
+9. printable output
+
+This order avoids building player-facing UI on top of missing permissions, avoids fake Backpack logic, and avoids creating a power-builder fork before the shared core is cleanly reused.
+

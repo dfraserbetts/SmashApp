@@ -1,0 +1,1074 @@
+Character Builder Implementation Plan
+=====================================
+
+Purpose
+-------
+
+This document replaces the previous Character Builder implementation plan.
+
+It records the current agreed design, scope, boundaries, mechanics, and implementation-facing direction for the SMASH TTRPG Character Builder.
+
+The end goal of this document is to support later Codex implementation prompts. It is not itself a code patch. It should be used with the wider project source docs and the current repo state when implementation begins.
+
+Primary source set:
+
+- 00_Master_Implementation_Plan
+- 01_Locked_Decisions_Log
+- 02_Power_System_Spec
+- 03_Current_Phase_And_Next_Steps
+- 04_Implementation_Handoffs
+- 05_Phase_6_Cost_Integration_Blueprint
+- 06_Natural_Baseline_Forge_Bridge_Plan
+- 09_Forge_Implementation_Plan
+- Power_implementation_steps
+
+Mechanical Bible
+----------------
+
+The Summoning Circle is the mechanical bible for all current attribute, stat, health pool, descriptor, attack string, defence string, equipment, protection, and power-core logic unless a later source document explicitly overrides player-side behaviour.
+
+The older Google Sheets proof of concept contains useful layout and workflow reference, but much of its calculation logic is legacy. It should not be treated as authoritative mechanical truth.
+
+If the proof-of-concept spreadsheet is later used, use it only for layout reference, authoring flow reference, and examples of player-facing presentation. Do not copy formulas from it unless they have been separately checked against current Summoning Circle rules.
+
+Core Mission
+------------
+
+The Character Builder exists to let players create their imagined character in a mechanically legal, readable, printable, and campaign-usable form.
+
+The builder should preserve the core SMASH design truth:
+
+Players imagine the character first. The system then helps express that imagination in balanced mechanical language.
+
+The Character Builder must therefore:
+
+- feel creative rather than like a tax return
+- produce mechanically honest outputs
+- reuse current proven systems where possible
+- avoid rebuilding existing mechanics from scratch
+- keep live preview central
+- support exact printable output for paper play
+- support campaign ownership and Game Director control where required
+- avoid scope creep into deferred systems
+
+Canonical Attribute Names
+-------------------------
+
+The Character Builder must use the current canonical attribute names everywhere.
+
+Physical side:
+
+- Attack
+- Guard
+- Fortitude
+
+Mental side:
+
+- Intellect
+- Synergy
+- Bravery
+
+Legacy names are not to be used in new Character Builder UI, descriptors, schemas, or source docs:
+
+- Defence is legacy. Use Guard.
+- Support is legacy. Use Synergy.
+
+If existing source examples still contain Defence or Support, those examples should be translated to Guard and Synergy during implementation.
+
+High-Level Builder Layout
+-------------------------
+
+The Character Builder follows the same broad app pattern as Forge and Summoning Circle.
+
+Desktop / wide layout:
+
+- Editor on the left
+- Live Render / Preview on the right
+
+Narrow / mobile layout:
+
+- Toggle between Editor and Preview views
+
+Live preview is mandatory.
+
+The preview is not decorative. It is the player-facing character sheet output. What appears on screen must correspond to what can be printed later.
+
+V1 Scope
+--------
+
+Character Builder V1 includes:
+
+1. Character Details
+2. Narrative Details
+3. Characteristics
+4. Attributes and Resist Points
+5. Player Traits
+6. Equipped Gear / Backpack integration
+7. Character Power Builder using Power Points
+8. Exact printable preview / sheet output
+
+Character Builder V1 excludes:
+
+- Spark implementation
+- Spark alignment discounts
+- Restrictions implementation
+- Restriction discounts
+- Archetypes
+- Transformation tooling
+- Summoned Item tooling
+- Summoned Creature tooling
+- Object / Structure / Machine / Mount creation tooling
+- full runtime encounter tracking
+
+Spark is expected to be V2.
+
+Restrictions are expected to be V3.
+
+Archetypes are optional and deferred until their design is mature enough to implement without guessing.
+
+Implementation Strategy
+-----------------------
+
+Do not attempt the entire Character Builder as one giant implementation patch.
+
+The Character Builder depends on several foundation systems:
+
+- campaign membership and roles
+- player invitation / access
+- character management
+- Party Inventory ownership
+- character backpack assignment
+- character schema
+- live preview
+- printable sheet output
+- player-safe Traits
+- reused power builder logic
+
+These should be implemented in a phased prompt chain rather than a single monster patch.
+
+The recommended implementation sequence is recorded separately in:
+
+- 11_Character_Builder_Implementation_Sequence
+
+Campaign Roles and Access
+-------------------------
+
+The Character Builder should be built on proper campaign role access.
+
+Campaign roles required for this plan:
+
+- Game Director
+- Player
+
+Game Director responsibilities include:
+
+- managing the campaign
+- inviting players
+- assigning players to characters
+- assigning or approving certain read-only character relationships such as Bonds
+- managing Party Inventory
+- assigning inventory items to characters
+- managing player-safe Trait catalog entries through admin tooling
+
+Player responsibilities include:
+
+- accessing campaigns they have been invited to
+- creating or editing their own character where permissions allow
+- selecting legal player-authored character options
+- equipping items assigned to their character's Backpack
+- building powers against their Power Point pool
+- printing or exporting their character sheets
+
+Character Management
+--------------------
+
+A Game Director-facing Character Management page should exist before or alongside the Character Builder.
+
+The Character Management page should provide the campaign-level control surface for:
+
+- viewing campaign characters
+- creating placeholder characters if needed
+- assigning invited players to characters
+- viewing character ownership
+- assigning Bonds
+- reviewing basic character status
+- potentially navigating to a character's builder or printable output
+
+Bonds belong here, not in the normal player editor.
+
+Character Details
+-----------------
+
+Character Details should include:
+
+- Name
+- Image / portrait
+- Age
+- Race
+- Description / backstory
+- Level
+
+Level is mechanically significant. It feeds several downstream resource pools and calculations.
+
+Spark note:
+
+The previous plan listed Spark inside Character Details. Spark is deferred from V1. V1 should not implement the Spark Profile system, Spark alignment evaluator, Spark discount logic, or Spark option catalog.
+
+If a future-placeholder is needed, it should be minimal and non-mechanical. Do not create a fake Spark system in V1.
+
+Narrative Details
+-----------------
+
+Narrative Details include:
+
+- Great Secret
+- Characteristics
+- Character Bonds
+
+The purpose of this section is to support roleplay, Game Director hooks, and non-combat identity without losing mechanical clarity.
+
+Great Secret
+------------
+
+A Great Secret is selected from a dropdown list of templates.
+
+The selected template produces a structured sentence or paragraph with one or more free-text completion fields.
+
+Example pattern:
+
+Great Secret: Historic Bloodline
+
+Template:
+
+Importance runs through my bloodline. My family were once [free text]. Due to this, those who recognise my family name may [free text].
+
+Completed example:
+
+Importance runs through my bloodline. My family were once great military leaders, however they were accused of betrayal during the last great war. Due to this, those who recognise my family name may treat me with respect or disgust.
+
+Design purpose:
+
+- make story hook authoring easy for players
+- give the Game Director usable hooks
+- avoid blank-page paralysis
+- produce clean narrative sheet output
+
+Great Secrets are narrative-first unless later rules explicitly attach mechanics to them.
+
+Characteristics
+---------------
+
+Characteristics are self-authored non-combat skills.
+
+They represent character-specific competence such as:
+
+- Professional Gambler
+- Courtly Etiquette
+- Street Doctor
+- Ancient Ruins Scholar
+- Black-Market Negotiator
+- Siege Engineer
+
+A Characteristic applies when:
+
+- the player is making a Trial or Clash
+- the Characteristic keyword is relevant
+- the Game Director agrees it applies
+
+Characteristics use Character Points.
+
+Character Point Formula
+-----------------------
+
+Initial formula:
+
+CharacterPoints = CharacterLevel * 5
+
+A character may divide Character Points across one or more Characteristics.
+
+This supports:
+
+- many weak Characteristics
+- a few strong Characteristics
+- a mixed spread
+
+Characteristic Structure
+------------------------
+
+Each Characteristic has:
+
+- Name
+- Keyword
+- one or more Effect selections
+- calculated Character Point cost
+- generated descriptor
+
+Keyword:
+
+The keyword decides whether the Characteristic may apply.
+
+Example:
+
+Name: Professional Gambler
+Keyword: Gambling
+
+If the player is attempting a Trial or Clash where Gambling is relevant, and the Game Director agrees, the Characteristic may apply.
+
+Characteristic Effect Families
+------------------------------
+
+Each Characteristic may select effects from these families:
+
+1. Additional dice
+2. Result modifier
+3. Reroll results of 1
+4. Attribute swap
+
+Each family may be selected only once per Characteristic.
+
+Higher values in a family replace lower values. They do not stack with each other.
+
+Example:
+
+- selecting +4 dice replaces +1 dice
+- it does not add to +1 dice
+- the Characteristic has +4 dice total from that family, not +5
+
+Different families may be combined, subject to the total Characteristic cap.
+
+Characteristic Cost Cap
+-----------------------
+
+Each individual Characteristic may spend a maximum of 15 Character Points.
+
+This is a per-Characteristic cap, not the total character-wide Character Point pool.
+
+Characteristic Family Costs
+---------------------------
+
+Additional Dice family:
+
+- gain 1 additional die: 1 total cost
+- gain 2 additional dice: 3 total cost
+- gain 3 additional dice: 6 total cost
+- gain 4 additional dice: 10 total cost
+- gain 5 additional dice: 15 total cost
+
+Result Modifier family:
+
+- gain +1 to the result of any dice rolled: 1 total cost
+- gain +2 to the result of any dice rolled: 3 total cost
+- gain +3 to the result of any dice rolled: 6 total cost
+- gain +4 to the result of any dice rolled: 10 total cost
+- gain +5 to the result of any dice rolled: 15 total cost
+
+Reroll Ones family:
+
+- reroll a single result of 1, keeping the second result: 1 total cost
+- reroll up to two results of 1, keeping the second results: 3 total cost
+- reroll up to three results of 1, keeping the second results: 6 total cost
+- reroll up to four results of 1, keeping the second results: 10 total cost
+- reroll up to five results of 1, keeping the second results: 15 total cost
+
+Attribute Swap family:
+
+- may use Intellect instead of the Game Director specified core attribute: 1 total cost
+- may use Attack instead of the Game Director specified core attribute: 1 total cost
+- may use Fortitude instead of the Game Director specified core attribute: 1 total cost
+- may use Guard instead of the Game Director specified core attribute: 1 total cost
+- may use Bravery instead of the Game Director specified core attribute: 1 total cost
+- may use Synergy instead of the Game Director specified core attribute: 1 total cost
+
+Cumulative Cost Rule
+--------------------
+
+For magnitude-based families, the displayed selection uses cumulative cost.
+
+Formula:
+
+CumulativeFamilyCost = N * (N + 1) / 2
+
+Examples:
+
+- +1 die costs 1
+- +3 dice costs 6
+- +5 dice costs 15
+
+The UI should display the final cost only.
+
+Do not show the full ladder breakdown in normal authoring UI unless hidden in helper text or debug detail. The player needs clean output, not spreadsheet archaeology.
+
+Characteristic Descriptor Example
+---------------------------------
+
+Input:
+
+Name: Professional Gambler
+Keyword: Gambling
+Effect 1: gain 1 additional die
+Effect 2: gain +1 to the result of any dice rolled
+Cost: 2
+
+Descriptor:
+
+Professional Gambler
+When you make a Trial or Clash regarding Gambling, you gain 1 additional die and +1 to the result of any dice rolled.
+
+Descriptor Rules:
+
+- use Trial and Clash consistently
+- use Guard and Synergy, not Defence and Support
+- combine effects into readable prose
+- avoid implementation terms
+- include enough mechanical truth for table use
+
+Character Bonds
+---------------
+
+Bonds are optional narrative/mechanical relationships between characters.
+
+Bonds are not player-authored in V1.
+
+A Bond can be allocated only by the Game Director.
+
+This may happen:
+
+- during Session 0
+- when players agree how their characters know each other
+- during relevant campaign moments
+- when relationship development justifies it
+
+Because Bonds are Game Director assigned, they should be omitted from the normal player editor or shown only as read-only.
+
+The player-facing Character Builder / Render may display Bonds, but players should not be able to create or upgrade them directly.
+
+The Game Director should assign Bonds through Character Management.
+
+Bond Example
+------------
+
+Type: Positive
+Bond Selection: Equals
+Level: 1
+Bonded Character: selected from campaign characters
+
+Descriptor:
+
+Anytime you and [BondedCharacterName] work together on a Trial or Clash, you gain [BondLevel] additional dice. Anytime you show each other disrespect, you lose [BondLevel] dice anytime you perform a Trial or Clash until your next rest.
+
+Bond Economy Decision
+---------------------
+
+Bonds do not currently consume player-authored build resources.
+
+They are controlled by Game Director assignment rather than player purchase.
+
+This prevents players from freely converting build optimisation into relationship bonuses.
+
+Open future design questions may include:
+
+- maximum Bonds per character
+- maximum Bond level
+- whether multiple Bonds can apply to one roll
+- whether positive and negative Bonds have different progression rules
+- whether a Bond must be symmetrical
+
+For V1, implement only the minimal read-only display and Game Director assignment needed to support current play.
+
+Attributes
+----------
+
+Attributes are selected based on the campaign's configured attribute generation method.
+
+All attributes are limited to even values from 4 to 12 inclusive.
+
+Legal values:
+
+- 4
+- 6
+- 8
+- 10
+- 12
+
+This is because attributes map to die sizes.
+
+Attribute Generation Methods
+----------------------------
+
+Campaign setup should define one of the following methods:
+
+1. Heroic
+2. Destiny
+3. Rolled
+
+Heroic Method
+-------------
+
+Heroic provides the fixed array:
+
+- 12
+- 10
+- 8
+- 8
+- 6
+- 4
+
+The player assigns these values to their six attributes.
+
+Each value may only be used the number of times it appears in the array.
+
+Example:
+
+- 8 may be used twice
+- 12 may be used once
+- 10 may be used once
+- 6 may be used once
+- 4 may be used once
+
+As attributes are assigned, the remaining dropdowns should only offer remaining legal values.
+
+Destiny Method
+--------------
+
+Destiny provides a pool of 48 Attribute Points.
+
+The player assigns values to all six attributes using legal even values from 4 to 12.
+
+Every attribute has a minimum of 4.
+
+The total across all six attributes must equal 48.
+
+The builder should show remaining Attribute Points and gate dropdown values based on:
+
+- current assigned values
+- remaining unassigned attributes
+- minimum value of 4 per unassigned attribute
+- maximum value of 12 per attribute
+- legal even values only
+
+Example:
+
+If the player assigns 12, 12, and 12 to the first three attributes, the remaining total is 12 across three attributes. The remaining legal allocation is therefore 4, 4, 4.
+
+Rolled Method
+-------------
+
+Rolled is the chaotic/manual method.
+
+The tabletop roll concept is:
+
+- roll 4D4
+- drop the lowest die
+- round down where needed
+- minimum value is 4
+
+For the digital builder, do not implement dice enforcement in V1.
+
+The builder should trust Game Director / table process, but only allow legal even attribute values from 4 to 12.
+
+The Game Director is responsible for managing the legitimacy of the rolls.
+
+Resist Points
+-------------
+
+Resist Points are assigned manually across attributes.
+
+Initial formula:
+
+ResistPoints = 3 + floor(CharacterLevel / 3)
+
+Interpretation:
+
+- characters start with 3 Resist Points
+- they gain +1 additional Resist Point every 3 levels
+
+This formula is accepted as the initial implementation and may be tuned later through playtest.
+
+When a character rolls a Resist roll against an attribute, they add additional dice equal to their assigned Resist Points in that attribute.
+
+The UI should:
+
+- show total Resist Points available
+- show points spent
+- show points remaining
+- prevent overspending
+- allow manual distribution across the six attributes
+
+Archetypes
+----------
+
+Archetypes are deferred.
+
+They are optional future features representing major narrative commitments with positive benefits and harsh restrictions.
+
+They are not part of Character Builder V1.
+
+Do not implement Archetypes until their design is complete enough to avoid guessing.
+
+Future Archetype concept:
+
+- optional character path / oath / code / identity
+- grants meaningful benefits
+- imposes strict behavioural or mechanical restrictions
+- may be earned, chosen, lost, transformed, or forced through story
+- may have fallen or corrupted variants
+
+But this is future design work only.
+
+Player Traits
+-------------
+
+Player Traits are part of V1.
+
+Player Traits should not directly reuse the full Summoning Circle monster trait catalog without review.
+
+Characters need a player-safe Trait catalog.
+
+The player-safe Trait catalog should be authorable in the admin UI, similar in spirit to monster traits.
+
+Trait Catalog Shape
+-------------------
+
+Use one maintainable admin-managed catalog unless code reality strongly favours separation.
+
+Each Trait should include at least:
+
+- name
+- descriptor
+- classification
+- point value
+- active / inactive status
+- player-safe flag or player catalog ownership
+- optional tags/categories
+- optional notes
+
+Trait classification should support:
+
+- Positive
+- Negative
+- Mixed, if later needed
+
+Positive Traits cost Trait Points.
+
+Negative Traits grant bonus Trait Points, subject to caps.
+
+Trait Point Formula
+-------------------
+
+Initial formula:
+
+TraitPoints = 2 + floor(CharacterLevel / 4)
+
+Examples:
+
+- Level 1: 2 Trait Points
+- Level 4: 3 Trait Points
+- Level 8: 4 Trait Points
+- Level 12: 5 Trait Points
+- Level 16: 6 Trait Points
+- Level 20: 7 Trait Points
+
+Negative Trait Caps
+-------------------
+
+Initial caps:
+
+MaxNegativeTraits = 2
+MaxBonusTraitPointsFromNegativeTraits = 2
+
+This lets characters take meaningful flaws without opening an exploit path where players stack many small drawbacks for a large mechanical advantage.
+
+Design Rule
+-----------
+
+Traits should use their own Trait Point economy in V1.
+
+Do not make Traits compete with Power Points or Resist Points in the first implementation.
+
+Reason:
+
+Traits are expressive character options. If they compete directly with core combat resources too early, new players may accidentally build underpowered characters while optimisers avoid fun flavour options.
+
+A separate economy is safer for V1 and easier to tune later.
+
+Equipped Gear / Inventory
+-------------------------
+
+Equipped Gear is part of V1, but it depends on campaign inventory ownership.
+
+The long-term flow is:
+
+1. Campaign contains legal items.
+2. Game Director adds quantities of items to Party Inventory.
+3. Player is invited to the campaign and receives the Player role.
+4. Player creates a character in that campaign.
+5. The character becomes a legal item-assignment target.
+6. Game Director or permitted inventory controls assign item quantities from Party Inventory to the character.
+7. Assigned items appear in that character's Backpack.
+8. Character Builder allows the player to equip legal items from the Backpack.
+9. Equipped items hydrate character attack strings, defence strings, protections, modifiers, limit breaks, and other item-derived outputs.
+
+Backpack
+--------
+
+The Backpack is the character-owned inventory list.
+
+The Character Builder should not show every campaign item as directly equippable.
+
+It should show items assigned to the character.
+
+For V1, Backpack integration should be built on real ownership if the prerequisite Party Inventory work has been completed.
+
+Avoid temporary fake assignment fields unless implementation reality forces a very small scaffold. If a temporary bridge is used, it must be clearly marked as a bridge and removed once Party Inventory is live.
+
+Equipment Calculations
+----------------------
+
+Equipment calculations should reuse Summoning Circle logic wherever possible.
+
+The current design assumption is that player-side calculations match Summoning Circle calculations across the board unless playtest later proves players feel underwhelming or overpowered.
+
+This includes, but may not be limited to:
+
+- equipped item hydration
+- attack strings
+- defence strings
+- health pools
+- protection values
+- resistance / vulnerability / protection output
+- attribute modifiers
+- item modifiers
+- limit breaks where applicable
+- descriptor output
+
+Do not fork player and monster formulas casually.
+
+If a divergence becomes necessary later, it should be explicit, documented, and tested.
+
+Character Power Builder
+-----------------------
+
+The Character Power Builder is part of V1.
+
+It should reuse the Summoning Circle Power Builder and shared power core.
+
+Do not rebuild the power system from scratch.
+
+Key difference from Summoning Circle:
+
+- Character Builder does not use the monster Outcome Calculator.
+- Character Builder consumes a scalar player Power Point pool.
+
+Power Point Formula
+-------------------
+
+Initial formula:
+
+PowerPool = CharacterLevel * 50
+
+The player may spend this pool across powers.
+
+The system should support:
+
+- one expensive signature-style normal power
+- many smaller powers
+- any legal spread between those extremes
+
+Base Power Spend
+----------------
+
+For V1, player power spend should use the raw BasePowerValue from the canonical Phase 6 power-cost resolver.
+
+If this translates poorly in playtest, later work may:
+
+- adjust the Level * 50 pool formula
+- add a player-side scalar / rounding layer
+- tune the underlying power-cost values
+
+Do not introduce a second independent power-cost truth in V1.
+
+Power Cost Display
+------------------
+
+The Character Builder should show:
+
+- total Power Pool
+- spent Power Points
+- remaining Power Points
+- per-power BasePowerValue spend
+- any future discounts, defaulting to zero in V1
+- final spend after discounts
+
+Discount Fields
+---------------
+
+Spark and Restrictions are deferred, but the V1 Power Builder may include internal fields or reserved calculation seams for future discounts.
+
+V1 default:
+
+SparkDiscountPercent = 0
+RestrictionDiscountPercent = 0
+
+V1 should not expose a functional Spark or Restriction authoring system.
+
+V2 Spark Direction
+------------------
+
+Spark will later define character identity and evaluate whether powers are thematically aligned.
+
+Spark discount may later reduce player-facing Power Point spend.
+
+Whether Spark also affects cooldown remains a later design decision and should not be assumed in V1.
+
+V3 Restriction Direction
+------------------------
+
+Restrictions will later allow players to narrow when or how a power works in exchange for reduced player-facing spend.
+
+Hard direction:
+
+Restrictions reduce player Power Point spend only.
+
+Restrictions do not reduce derived cooldown in V3 unless this rule is explicitly reopened.
+
+Reason:
+
+A restricted power is still just as potent when it works. The restriction narrows ownership/use opportunity; it does not make the resolved power less impactful at the table.
+
+Allowing Restrictions to reduce both spend and cooldown risks highly efficient niche nukes.
+
+Cooldown
+--------
+
+For V1, derived cooldown should be shown exactly as the shared power-cost/cooldown pipeline currently derives it from BasePowerValue.
+
+Cooldown lifecycle rules remain those in the shared power source docs.
+
+Do not treat cooldown as starting on cast unless the power fully resolves on cast under the existing cooldown lifecycle rules.
+
+Signature Move
+--------------
+
+Signature Move is not fully implemented in Character Builder V1 unless explicitly added later.
+
+The existing design direction remains:
+
+SignatureMovePool = CharacterLevel * 20
+
+Signature Move uses a separate pool from normal powers.
+
+Signature Move must eventually be Spark-aligned.
+
+Because Spark is deferred from V1, Signature Move should not be implemented as a full feature in V1 unless the scope is explicitly reopened.
+
+Printable Preview / Sheet Output
+--------------------------------
+
+The Character Builder must produce exact printable sheet output.
+
+This should match the Forge and Summoning Circle philosophy:
+
+What you see on screen is what you get when you print.
+
+The preview should support digital use and paper-based table play.
+
+Print Types
+-----------
+
+Before printing, the user should select a print type:
+
+1. Full Colour Sheet
+2. Full Print Friendly Sheet
+3. Compact Colour Sheet
+4. Compact Print Friendly Sheet
+
+These choices affect:
+
+- colour treatment
+- ink usage
+- visual density
+- scale
+- layout compression
+
+Sheet Selection
+---------------
+
+After selecting print type, show page/sheet choices with checkboxes.
+
+Default all checked:
+
+- Main Sheet
+- Character Sheet
+- Power Sheet(s)
+- Inventory Sheet
+
+If a checkbox is unticked, that page is omitted from print/export.
+
+This allows players to print only the sheets they need.
+
+V1 Sheet Set
+------------
+
+Main Sheet:
+
+Primary combat sheet.
+
+Expected contents include:
+
+- name and key identity summary
+- level
+- attributes
+- health pools
+- core combat stats
+- defence strings
+- attack strings
+- equipped gear summary
+- key protections / resistances / vulnerabilities where relevant
+- other table-facing combat essentials
+
+Character Sheet:
+
+Narrative and character identity sheet.
+
+Expected contents include:
+
+- character details
+- description / backstory
+- Great Secret
+- Characteristics
+- Bonds
+- Traits
+- other non-combat identity output
+
+Power Sheet(s):
+
+Power reference sheets.
+
+Expected contents include:
+
+- powers built by the character
+- power descriptors
+- costs / cooldowns where useful
+- packet/resolution text as already rendered by shared power descriptor logic
+- additional pages as needed depending on number and complexity of powers
+
+Inventory Sheet:
+
+Gear and Backpack sheet.
+
+Expected contents include:
+
+- equipped items
+- backpack items
+- quantities
+- relevant item descriptors or summaries
+- limit breaks or item features where appropriate
+
+Deferred Systems
+----------------
+
+Spark
+~~~~~
+
+Spark is deferred from V1.
+
+Future Spark goals:
+
+- structured character identity
+- source, motif, mechanical affinity, expression affinity, manifestation affinity
+- alignment evaluator
+- no-discount / Spark-aligned / strongly Spark-aligned / Signature Move eligible tiers
+- fake reskin prevention
+- normal power discount support
+- Signature Move eligibility
+
+Do not implement Spark in V1.
+
+Restrictions
+~~~~~~~~~~~~
+
+Restrictions are deferred to V3.
+
+Future Restrictions goals:
+
+- structured power-specific limitations
+- discount based on real lost opportunity
+- Game Director review for campaign-dependent restrictions
+- maximum priced restrictions per power
+- scope-aware discounting
+- no cooldown reduction from restrictions
+
+Do not implement Restrictions in V1.
+
+Archetypes
+~~~~~~~~~~
+
+Archetypes are deferred.
+
+They require further design.
+
+Do not implement Archetypes in V1.
+
+Transformation / Summoning / Object Creation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Do not touch Transformation, Summoned Item, Summoned Creature, Object, Structure, Machine, or Mount creation tooling as part of Character Builder V1.
+
+These depend on later dedicated builders and must not be smuggled into the Character Builder scope.
+
+Validation Principles
+---------------------
+
+Implementation prompts should require validation appropriate to the touched files.
+
+Expected validation usually includes:
+
+- TypeScript check
+- lint where available
+- relevant smoke scripts
+- manual UI smoke for major page work
+- print/export smoke for printable sheet work
+
+Implementation chats must request current files or inspect current repo state before producing patches.
+
+Do not assume unseen code.
+
+Do not reference stale file versions.
+
+Do not make schema assumptions without current schema.
+
+Do not create conditional React hooks.
+
+Prefer minimal, reversible patches.
+
+Use exact searchable anchors in Codex prompts.
+
+Acceptance Criteria For Character Builder V1
+--------------------------------------------
+
+Character Builder V1 succeeds if:
+
+- Game Director / Player access rules exist before player character access depends on them
+- campaign characters can be managed
+- players can access their assigned character builder
+- players can enter character details
+- players can author narrative details
+- Great Secrets generate clean descriptors
+- Characteristics calculate cost correctly
+- Characteristic family selection prevents same-family stacking
+- attributes obey selected campaign generation method
+- attributes use legal even values from 4 to 12
+- Resist Points calculate and allocate correctly
+- player Traits use a player-safe catalog and Trait Point economy
+- negative Trait exploitation is capped
+- character Backpack/equipment is based on assigned items
+- equipped items hydrate character outputs using Summoning Circle mechanical logic
+- player powers use the shared power builder and BasePowerValue spend
+- Power Pool uses CharacterLevel * 50
+- Spark and Restriction discounts default to 0 and do not expose unfinished systems
+- derived cooldown is displayed from the shared power cost pipeline
+- exact printable preview exists
+- print type selection exists
+- page inclusion checkboxes exist
+- Spark, Restrictions, Archetypes, Transformation, Summoning, and object creation remain out of V1 scope
+
