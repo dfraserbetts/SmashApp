@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 
 import { requireUserId } from "@/lib/auth/server";
 import {
@@ -6,6 +7,7 @@ import {
   requireCampaignAccess,
 } from "@/lib/campaign/access";
 import { getMemberIdentities, getMemberIdentityLabel } from "@/lib/campaign/memberIdentity";
+import { normalizeBuilderData, validateBuilderData } from "@/lib/characterBuilder/core";
 import { prisma } from "@/prisma/client";
 
 const DEFAULT_CHARACTER_NAME = "UNNAMED";
@@ -17,6 +19,7 @@ type BuilderPayload = {
   race?: unknown;
   description?: unknown;
   level?: unknown;
+  builderData?: unknown;
 };
 
 function toErrorResponse(error: unknown) {
@@ -89,6 +92,7 @@ async function loadBuilderContext(campaignId: string, characterId: string, userI
         race: true,
         description: true,
         level: true,
+        builderData: true,
         assignedUserId: true,
         archivedAt: true,
         archiveReason: true,
@@ -118,7 +122,10 @@ async function loadBuilderContext(campaignId: string, characterId: string, userI
 
   return {
     campaign,
-    character,
+    character: {
+      ...character,
+      builderData: normalizeBuilderData(character.builderData),
+    },
     access: {
       userId,
       role: access.effectiveRole,
@@ -200,6 +207,12 @@ export async function PATCH(
     const race = normalizeOptionalString(body.race, 120);
     const description = normalizeOptionalString(body.description, 4000);
     const level = normalizeLevel(body.level);
+    const builderData = normalizeBuilderData(body.builderData);
+    const validationLevel = level ?? builderContext.character.level;
+    const validationErrors = validateBuilderData(builderData, validationLevel);
+    if (validationErrors.length > 0) {
+      return NextResponse.json({ error: validationErrors.join(" ") }, { status: 400 });
+    }
 
     const data: {
       name?: string;
@@ -208,6 +221,7 @@ export async function PATCH(
       race?: string | null;
       description?: string | null;
       level?: number;
+      builderData?: Prisma.InputJsonValue;
     } = {};
     if (name !== undefined) data.name = name.slice(0, 120);
     if (imageUrl !== undefined) data.imageUrl = imageUrl;
@@ -215,6 +229,7 @@ export async function PATCH(
     if (race !== undefined) data.race = race;
     if (description !== undefined) data.description = description;
     if (level !== undefined) data.level = level;
+    data.builderData = builderData;
 
     const character = await prisma.campaignCharacter.update({
       where: { id: targetCharacterId },
@@ -228,6 +243,7 @@ export async function PATCH(
         race: true,
         description: true,
         level: true,
+        builderData: true,
         assignedUserId: true,
         archivedAt: true,
         archiveReason: true,
@@ -236,7 +252,13 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ ok: true, character });
+    return NextResponse.json({
+      ok: true,
+      character: {
+        ...character,
+        builderData: normalizeBuilderData(character.builderData),
+      },
+    });
   } catch (error) {
     return toErrorResponse(error);
   }

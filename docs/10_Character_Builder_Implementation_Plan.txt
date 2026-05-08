@@ -410,6 +410,10 @@ This supports:
 - a few strong Characteristics
 - a mixed spread
 
+Total Characteristic spend across all Characteristics must not exceed
+CharacterPoints. Authoring UI and server validation must block global overspend;
+red warning text alone is not enough.
+
 Characteristic Structure
 ------------------------
 
@@ -452,65 +456,88 @@ Example:
 - it does not add to +1 dice
 - the Characteristic has +4 dice total from that family, not +5
 
-Different families may be combined, subject to the total Characteristic cap.
+Different families may be combined, subject to the total Characteristic unit cap.
 
 Characteristic Cost Cap
 -----------------------
 
-Each individual Characteristic may spend a maximum of 15 Character Points.
+Each individual Characteristic may use a maximum of 5 total choice-units.
 
-This is a per-Characteristic cap, not the total character-wide Character Point pool.
+The Characteristic's final Character Point cost is the triangular cost of its
+total choice-units:
 
-Characteristic Family Costs
+TotalCharacteristicCost = TotalChoiceUnits * (TotalChoiceUnits + 1) / 2
+
+At 5 units, the maximum per-Characteristic cost is 15 Character Points.
+
+This is a per-Characteristic cap, not the total character-wide Character Point
+pool.
+
+Characteristic Choice-Units
 ---------------------------
 
 Additional Dice family:
 
-- gain 1 additional die: 1 total cost
-- gain 2 additional dice: 3 total cost
-- gain 3 additional dice: 6 total cost
-- gain 4 additional dice: 10 total cost
-- gain 5 additional dice: 15 total cost
+- gain 1 additional die: 1 choice-unit
+- gain 2 additional dice: 2 choice-units
+- gain 3 additional dice: 3 choice-units
+- gain 4 additional dice: 4 choice-units
+- gain 5 additional dice: 5 choice-units
 
 Result Modifier family:
 
-- gain +1 to the result of any dice rolled: 1 total cost
-- gain +2 to the result of any dice rolled: 3 total cost
-- gain +3 to the result of any dice rolled: 6 total cost
-- gain +4 to the result of any dice rolled: 10 total cost
-- gain +5 to the result of any dice rolled: 15 total cost
+- gain +1 to the result of any dice rolled: 1 choice-unit
+- gain +2 to the result of any dice rolled: 2 choice-units
+- gain +3 to the result of any dice rolled: 3 choice-units
+- gain +4 to the result of any dice rolled: 4 choice-units
+- gain +5 to the result of any dice rolled: 5 choice-units
 
 Reroll Ones family:
 
-- reroll a single result of 1, keeping the second result: 1 total cost
-- reroll up to two results of 1, keeping the second results: 3 total cost
-- reroll up to three results of 1, keeping the second results: 6 total cost
-- reroll up to four results of 1, keeping the second results: 10 total cost
-- reroll up to five results of 1, keeping the second results: 15 total cost
+- reroll a single result of 1, keeping the second result: 1 choice-unit
+- reroll up to two results of 1, keeping the second results: 2 choice-units
+- reroll up to three results of 1, keeping the second results: 3 choice-units
+- reroll up to four results of 1, keeping the second results: 4 choice-units
+- reroll up to five results of 1, keeping the second results: 5 choice-units
 
 Attribute Swap family:
 
-- may use Intellect instead of the Game Director specified core attribute: 1 total cost
-- may use Attack instead of the Game Director specified core attribute: 1 total cost
-- may use Fortitude instead of the Game Director specified core attribute: 1 total cost
-- may use Guard instead of the Game Director specified core attribute: 1 total cost
-- may use Bravery instead of the Game Director specified core attribute: 1 total cost
-- may use Synergy instead of the Game Director specified core attribute: 1 total cost
+- may use your Intellect instead of the GD specified core attribute: 1 choice-unit
+- may use your Attack instead of the GD specified core attribute: 1 choice-unit
+- may use your Fortitude instead of the GD specified core attribute: 1 choice-unit
+- may use your Guard instead of the GD specified core attribute: 1 choice-unit
+- may use your Bravery instead of the GD specified core attribute: 1 choice-unit
+- may use your Synergy instead of the GD specified core attribute: 1 choice-unit
+
+Attribute Swap supports multiple selected attribute chips, with a maximum of one
+chip per attribute. Duplicate Attribute Swap chips are not legal.
 
 Cumulative Cost Rule
 --------------------
 
-For magnitude-based families, the displayed selection uses cumulative cost.
+The displayed Characteristic cost uses the cumulative triangular cost of total
+choice-units across all selected effects.
 
 Formula:
 
-CumulativeFamilyCost = N * (N + 1) / 2
+CumulativeCharacteristicCost = N * (N + 1) / 2
 
 Examples:
 
-- +1 die costs 1
-- +3 dice costs 6
-- +5 dice costs 15
+- +1 die = 1 unit = cost 1
+- +1 die and +1 result modifier = 2 units = cost 3
+- +1 die, +1 result modifier, and reroll one result of 1 = 3 units = cost 6
+- +3 dice = 3 units = cost 6
+- +3 dice and +1 result modifier = 4 units = cost 10
+- +3 dice and +2 result modifier = 5 units = cost 15
+- +5 dice = 5 units = cost 15
+
+Authoring UI should gate effect options by remaining units. If +3 dice is
+selected, only 2 units remain for result modifier, reroll ones, and Attribute
+Swap chips unless the player first lowers or removes another selection.
+It should also account for remaining global Character Points after the cost of
+other Characteristics, while allowing the current Characteristic to be lowered
+or changed safely.
 
 The UI should display the final cost only.
 
@@ -525,7 +552,7 @@ Name: Professional Gambler
 Keyword: Gambling
 Effect 1: gain 1 additional die
 Effect 2: gain +1 to the result of any dice rolled
-Cost: 2
+Cost: 3
 
 Descriptor:
 
@@ -536,6 +563,8 @@ Descriptor Rules:
 
 - use Trial and Clash consistently
 - use Guard and Synergy, not Defence and Support
+- join effect clauses with "and" only before the final clause
+- describe Attribute Swap as "you may use your [Attribute] instead of the GD specified core attribute"
 - combine effects into readable prose
 - avoid implementation terms
 - include enough mechanical truth for table use
@@ -634,6 +663,8 @@ Heroic provides the fixed array:
 The player assigns these values to their six attributes.
 
 Each value may only be used the number of times it appears in the array.
+The authoring UI may use an Unassigned / Choose value state before the
+character is valid to save.
 
 Example:
 
@@ -644,6 +675,7 @@ Example:
 - 4 may be used once
 
 As attributes are assigned, the remaining dropdowns should only offer remaining legal values.
+Save is blocked until the full Heroic multiset is assigned exactly.
 
 Destiny Method
 --------------
@@ -1197,4 +1229,3 @@ Character Builder V1 succeeds if:
 - print type selection exists
 - page inclusion checkboxes exist
 - Spark, Restrictions, Archetypes, Transformation, Summoning, and object creation remain out of V1 scope
-
