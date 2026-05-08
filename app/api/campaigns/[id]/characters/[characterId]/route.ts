@@ -233,3 +233,47 @@ export async function PATCH(
     return toErrorResponse(error);
   }
 }
+
+export async function DELETE(
+  _req: Request,
+  context: { params: Promise<{ id: string; characterId: string }> },
+) {
+  try {
+    const { id, characterId } = await context.params;
+    const campaignId = String(id ?? "").trim();
+    const targetCharacterId = String(characterId ?? "").trim();
+    if (!campaignId || !targetCharacterId) {
+      return NextResponse.json(
+        { error: "Campaign id and character id are required" },
+        { status: 400 },
+      );
+    }
+
+    const userId = await requireUserId();
+    const access = await requireCampaignAccess(campaignId, userId);
+    if (!getCampaignPermissions(access).canManageCampaignCharacters) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const existing = await prisma.campaignCharacter.findFirst({
+      where: {
+        id: targetCharacterId,
+        campaignId,
+      },
+      select: { id: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Character not found" }, { status: 404 });
+    }
+
+    await prisma.$transaction([
+      prisma.campaignCharacter.delete({
+        where: { id: targetCharacterId },
+      }),
+    ]);
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}

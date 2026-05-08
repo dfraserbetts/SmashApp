@@ -64,6 +64,14 @@ function getCampaignCharacterDisplayName(character: CampaignCharacterRow): strin
   return character.name.trim() || "UNNAMED";
 }
 
+function getCampaignCharacterDeletePhrase(character: CampaignCharacterRow): string {
+  const displayName = getCampaignCharacterDisplayName(character);
+  if (displayName === "UNNAMED") {
+    return `DELETE UNNAMED ${character.id.slice(0, 8)}`;
+  }
+  return displayName;
+}
+
 export default function CampaignCharactersPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -80,6 +88,10 @@ export default function CampaignCharactersPage() {
   const [newAssignedUserId, setNewAssignedUserId] = useState("");
   const [formErr, setFormErr] = useState<string | null>(null);
   const [confirmArchiveCharacter, setConfirmArchiveCharacter] = useState<CampaignCharacterRow | null>(null);
+  const [deleteCharacter, setDeleteCharacter] = useState<CampaignCharacterRow | null>(null);
+  const [deleteStep, setDeleteStep] = useState<"IDLE" | "WARNING" | "CONFIRM">("IDLE");
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   const canManageCharacters = Boolean(access?.permissions.canManageCampaignCharacters);
 
@@ -244,6 +256,34 @@ export default function CampaignCharactersPage() {
     }
   }
 
+  async function handleDeleteCharacter() {
+    if (!campaignId || !deleteCharacter) return;
+    setDeleting(true);
+    setFormErr(null);
+
+    try {
+      const res = await fetch(
+        `/api/campaigns/${encodeURIComponent(campaignId)}/characters/${encodeURIComponent(deleteCharacter.id)}`,
+        {
+          method: "DELETE",
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to delete character.");
+      }
+
+      setDeleteCharacter(null);
+      setDeleteStep("IDLE");
+      setDeleteConfirmInput("");
+      await loadCharacters();
+    } catch (error: unknown) {
+      setFormErr(error instanceof Error ? error.message : "Failed to delete character.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   function updateDraft(characterId: string, patch: Partial<CharacterDraft>) {
     setDrafts((current) => ({
       ...current,
@@ -255,6 +295,7 @@ export default function CampaignCharactersPage() {
   }
 
   const campaignName = campaign?.name ?? "Campaign";
+  const deletePhrase = deleteCharacter ? getCampaignCharacterDeletePhrase(deleteCharacter) : "";
 
   if (loading) {
     return (
@@ -439,6 +480,19 @@ export default function CampaignCharactersPage() {
                             >
                               Archive
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormErr(null);
+                                setDeleteCharacter(character);
+                                setDeleteConfirmInput("");
+                                setDeleteStep("WARNING");
+                              }}
+                              disabled={saving}
+                              className="ml-2 rounded-lg border border-red-700 px-3 py-2 text-sm text-red-200 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Delete
+                            </button>
                           </td>
                         ) : isAssignedToCurrentUser ? (
                           <td className="py-2 pr-3">
@@ -519,6 +573,19 @@ export default function CampaignCharactersPage() {
                           >
                             Unarchive
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormErr(null);
+                              setDeleteCharacter(character);
+                              setDeleteConfirmInput("");
+                              setDeleteStep("WARNING");
+                            }}
+                            disabled={saving}
+                            className="rounded-lg border border-red-700 px-3 py-2 text-sm text-red-200 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
                         </td>
                       </tr>
                     );
@@ -560,6 +627,92 @@ export default function CampaignCharactersPage() {
                 disabled={saving}
               >
                 {saving ? "Archiving..." : "Archive"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteStep === "WARNING" && deleteCharacter ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">
+          <div className="w-full max-w-xl space-y-4 rounded-xl border-2 border-red-700 bg-zinc-950 p-6">
+            <h2 className="text-xl font-semibold text-red-200">Delete Character</h2>
+            <p className="text-sm text-zinc-300">
+              This will permanently delete this character and cannot be undone. Archived characters can be restored, deleted characters cannot.
+            </p>
+            <div className="rounded-lg border border-zinc-800 bg-black p-3 text-sm">
+              <div>{getCampaignCharacterDisplayName(deleteCharacter)}</div>
+              <div className="font-mono text-xs text-zinc-500">{deleteCharacter.id}</div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteCharacter(null);
+                  setDeleteConfirmInput("");
+                  setDeleteStep("IDLE");
+                }}
+                className="rounded-lg border border-zinc-700 px-4 py-2 hover:bg-zinc-900"
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmInput("");
+                  setDeleteStep("CONFIRM");
+                }}
+                className="rounded-lg border-2 border-red-600 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30"
+                disabled={deleting}
+              >
+                I understand
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteStep === "CONFIRM" && deleteCharacter ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">
+          <div className="w-full max-w-xl space-y-4 rounded-xl border-2 border-red-700 bg-zinc-950 p-6">
+            <h2 className="text-xl font-semibold text-red-200">Confirm Character Deletion</h2>
+            <p className="text-sm text-zinc-300">
+              Type the required confirmation exactly to permanently delete this character.
+            </p>
+            <div className="rounded-lg border border-zinc-800 bg-black p-3 text-sm">
+              <div className="text-zinc-400">Required confirmation</div>
+              <div className="font-mono text-xs text-zinc-200">{deletePhrase}</div>
+            </div>
+            <input
+              type="text"
+              value={deleteConfirmInput}
+              onChange={(event) => setDeleteConfirmInput(event.target.value)}
+              className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-zinc-100 outline-none focus:border-red-500"
+              placeholder={deletePhrase}
+              autoFocus
+            />
+            {formErr ? <p className="text-sm text-red-400">{formErr}</p> : null}
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteCharacter(null);
+                  setDeleteConfirmInput("");
+                  setDeleteStep("IDLE");
+                }}
+                className="rounded-lg border border-zinc-700 px-4 py-2 hover:bg-zinc-900"
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteCharacter()}
+                className="rounded-lg border-2 border-red-600 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={deleting || deleteConfirmInput !== deletePhrase}
+              >
+                {deleting ? "Deleting..." : "Delete Character"}
               </button>
             </div>
           </div>
