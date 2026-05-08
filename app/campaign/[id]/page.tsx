@@ -213,7 +213,7 @@ export default function CampaignHomePage() {
 
     const base = [
       {
-        label: "Character Builder",
+        label: Boolean(roleRow?.canManageCampaign) ? "Character Management" : "Character Builder",
         href: `/campaign/${campaignId}/characters`,
         allowed: Boolean(roleRow?.canManageCampaign) || role === "PLAYER",
       },

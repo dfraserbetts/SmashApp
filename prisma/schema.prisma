@@ -521,6 +521,7 @@ model Campaign {
   ownerUserId          String
   descriptorVersionTag String         @default("v0")
   members              CampaignUser[]
+  characters           CampaignCharacter[]
   ItemTemplate         ItemTemplate[]
   monsters             Monster[]
 
@@ -538,6 +539,20 @@ model CampaignUser {
   @@id([campaignId, userId])
   @@index([userId])
   @@map("CampaignUser")
+}
+
+model CampaignCharacter {
+  id             String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  campaignId     String
+  name           String
+  assignedUserId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([assignedUserId])
+  @@map("CampaignCharacter")
 }
 
 model DescriptorRule {

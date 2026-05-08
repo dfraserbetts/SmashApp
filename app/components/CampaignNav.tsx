@@ -50,8 +50,8 @@ export function CampaignNav({ campaignId }: CampaignNavProps) {
         <Link href={`/campaign/${campaignId}/summoning-circle`}>
           The Summoning Circle
         </Link>
-        <Link href={`/campaign/${campaignId}/character-creator`}>
-          Character Creator
+        <Link href={`/campaign/${campaignId}/characters`}>
+          Character Management
         </Link>
       </div>
       <hr style={{ marginTop: "0.75rem" }} />
