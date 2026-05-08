@@ -6,6 +6,7 @@ import {
   requireCampaignAccess,
   requireCampaignGameDirector,
 } from "@/lib/campaign/access";
+import { getMemberIdentities, getMemberIdentityLabel } from "@/lib/campaign/memberIdentity";
 import { prisma } from "@/prisma/client";
 
 type CharacterPayload = {
@@ -13,9 +14,7 @@ type CharacterPayload = {
   assignedUserId?: unknown;
 };
 
-function normalizeName(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
+const DEFAULT_CHARACTER_NAME = "UNNAMED";
 
 function normalizeAssignedUserId(value: unknown): string | null {
   if (value === null || value === undefined) return null;
@@ -55,7 +54,7 @@ async function validateAssignedPlayer(campaignId: string, assignedUserId: string
 }
 
 async function getPlayerMembers(campaignId: string) {
-  return prisma.campaignUser.findMany({
+  const rows = await prisma.campaignUser.findMany({
     where: {
       campaignId,
       role: "PLAYER",
@@ -64,9 +63,16 @@ async function getPlayerMembers(campaignId: string) {
     select: {
       userId: true,
       role: true,
+      allowHistoricCharacters: true,
       createdAt: true,
     },
   });
+  const identities = await getMemberIdentities(rows.map((row) => row.userId));
+  return rows.map((row) => ({
+    ...row,
+    email: identities.get(row.userId)?.email ?? null,
+    identityLabel: getMemberIdentityLabel(identities.get(row.userId)),
+  }));
 }
 
 export async function GET(
@@ -94,13 +100,22 @@ export async function GET(
         },
       }),
       prisma.campaignCharacter.findMany({
-        where: { campaignId },
+        where: getCampaignPermissions(access).canManageCampaignCharacters
+          ? { campaignId }
+          : {
+              campaignId,
+              assignedUserId: userId,
+              archivedAt: null,
+            },
         orderBy: [{ createdAt: "asc" }, { name: "asc" }],
         select: {
           id: true,
           campaignId: true,
           name: true,
           assignedUserId: true,
+          archivedAt: true,
+          archivedByUserId: true,
+          archiveReason: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -145,13 +160,6 @@ export async function POST(
     await requireCampaignGameDirector(campaignId, userId);
 
     const body = (await req.json().catch(() => ({}))) as CharacterPayload;
-    const name = normalizeName(body.name);
-    if (!name) {
-      return NextResponse.json({ error: "Character name is required" }, { status: 400 });
-    }
-    if (name.length > 120) {
-      return NextResponse.json({ error: "Character name is too long" }, { status: 400 });
-    }
 
     const assignedUserId = normalizeAssignedUserId(body.assignedUserId);
     try {
@@ -169,7 +177,7 @@ export async function POST(
     const character = await prisma.campaignCharacter.create({
       data: {
         campaignId,
-        name,
+        name: DEFAULT_CHARACTER_NAME,
         assignedUserId,
       },
       select: {

@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { requireUserId } from "@/lib/auth/server";
-import { requireCampaignGameDirector } from "@/lib/campaign/access";
+import {
+  getCampaignPermissions,
+  requireCampaignAccess,
+} from "@/lib/campaign/access";
 import { prisma } from "@/prisma/client";
 
 type CharacterUpdatePayload = {
+  action?: unknown;
   name?: unknown;
   assignedUserId?: unknown;
 };
@@ -66,20 +70,110 @@ export async function PATCH(
     }
 
     const userId = await requireUserId();
-    await requireCampaignGameDirector(campaignId, userId);
+    const access = await requireCampaignAccess(campaignId, userId);
+    const canManageCharacters = getCampaignPermissions(access).canManageCampaignCharacters;
 
     const existing = await prisma.campaignCharacter.findFirst({
       where: {
         id: targetCharacterId,
         campaignId,
       },
-      select: { id: true },
+      select: {
+        id: true,
+        assignedUserId: true,
+        archivedAt: true,
+      },
     });
     if (!existing) {
       return NextResponse.json({ error: "Character not found" }, { status: 404 });
     }
 
     const body = (await req.json().catch(() => ({}))) as CharacterUpdatePayload;
+    const action = typeof body.action === "string" ? body.action : "update";
+
+    if (action === "archiveSelf") {
+      if (existing.assignedUserId !== userId || existing.archivedAt) {
+        return NextResponse.json(
+          { error: "You can only archive your own active assigned character" },
+          { status: 403 },
+        );
+      }
+
+      const character = await prisma.campaignCharacter.update({
+        where: { id: targetCharacterId },
+        data: {
+          archivedAt: new Date(),
+          archivedByUserId: userId,
+          archiveReason: "PLAYER_SELF_ARCHIVE",
+        },
+        select: {
+          id: true,
+          campaignId: true,
+          name: true,
+          assignedUserId: true,
+          archivedAt: true,
+          archivedByUserId: true,
+          archiveReason: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      return NextResponse.json({ ok: true, character });
+    }
+
+    if (!canManageCharacters) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (action === "archive") {
+      const character = await prisma.campaignCharacter.update({
+        where: { id: targetCharacterId },
+        data: {
+          archivedAt: new Date(),
+          archivedByUserId: userId,
+          archiveReason: "GAME_DIRECTOR_ARCHIVE",
+        },
+        select: {
+          id: true,
+          campaignId: true,
+          name: true,
+          assignedUserId: true,
+          archivedAt: true,
+          archivedByUserId: true,
+          archiveReason: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      return NextResponse.json({ ok: true, character });
+    }
+
+    if (action === "unarchive") {
+      const character = await prisma.campaignCharacter.update({
+        where: { id: targetCharacterId },
+        data: {
+          archivedAt: null,
+          archivedByUserId: null,
+          archiveReason: null,
+        },
+        select: {
+          id: true,
+          campaignId: true,
+          name: true,
+          assignedUserId: true,
+          archivedAt: true,
+          archivedByUserId: true,
+          archiveReason: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      return NextResponse.json({ ok: true, character });
+    }
+
     const name = normalizeName(body.name);
     if (name !== undefined && !name) {
       return NextResponse.json({ error: "Character name is required" }, { status: 400 });
@@ -104,9 +198,19 @@ export async function PATCH(
     const data: {
       name?: string;
       assignedUserId?: string | null;
+      archivedAt?: Date | null;
+      archivedByUserId?: string | null;
+      archiveReason?: string | null;
     } = {};
     if (name !== undefined) data.name = name;
-    if (assignedUserId !== undefined) data.assignedUserId = assignedUserId;
+    if (assignedUserId !== undefined) {
+      data.assignedUserId = assignedUserId;
+      if (assignedUserId) {
+        data.archivedAt = null;
+        data.archivedByUserId = null;
+        data.archiveReason = null;
+      }
+    }
 
     const character = await prisma.campaignCharacter.update({
       where: { id: targetCharacterId },
@@ -116,6 +220,9 @@ export async function PATCH(
         campaignId: true,
         name: true,
         assignedUserId: true,
+        archivedAt: true,
+        archivedByUserId: true,
+        archiveReason: true,
         createdAt: true,
         updatedAt: true,
       },

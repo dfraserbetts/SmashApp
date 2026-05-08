@@ -17,7 +17,11 @@ type CampaignRow = {
 
 type CampaignMemberRow = {
   userId: string;
+  email: string | null;
+  identityLabel: string;
+  confirmationValue: string;
   role: string;
+  allowHistoricCharacters: boolean;
   createdAt: string;
   isOwner?: boolean;
   isSyntheticOwner?: boolean;
@@ -57,6 +61,11 @@ export default function CampaignHomePage() {
   const [addPlayerUserId, setAddPlayerUserId] = useState("");
   const [memberErr, setMemberErr] = useState<string | null>(null);
   const [addingPlayer, setAddingPlayer] = useState(false);
+  const [memberActionErr, setMemberActionErr] = useState<string | null>(null);
+  const [removingMember, setRemovingMember] = useState<CampaignMemberRow | null>(null);
+  const [removeStep, setRemoveStep] = useState<"IDLE" | "WARNING" | "CONFIRM">("IDLE");
+  const [removeConfirmInput, setRemoveConfirmInput] = useState("");
+  const [removingPlayer, setRemovingPlayer] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,6 +131,17 @@ export default function CampaignHomePage() {
     };
   }, [campaignId, router]);
 
+  async function reloadMembers() {
+    if (!campaignId) return;
+    const reload = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/members`, {
+      cache: "no-store",
+    });
+    const reloaded = (await reload.json().catch(() => ({}))) as CampaignMembersPayload;
+    if (reload.ok) {
+      setMembers(reloaded.members ?? []);
+    }
+  }
+
   async function handleAddPlayer() {
     if (!campaignId) return;
     const userId = addPlayerUserId.trim();
@@ -147,17 +167,66 @@ export default function CampaignHomePage() {
       }
 
       setAddPlayerUserId("");
-      const reload = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/members`, {
-        cache: "no-store",
-      });
-      const reloaded = (await reload.json().catch(() => ({}))) as CampaignMembersPayload;
-      if (reload.ok) {
-        setMembers(reloaded.members ?? []);
-      }
+      await reloadMembers();
     } catch (e: unknown) {
       setMemberErr(e instanceof Error ? e.message : "Failed to add player.");
     } finally {
       setAddingPlayer(false);
+    }
+  }
+
+  async function handleToggleHistoricCharacters(member: CampaignMemberRow, value: boolean) {
+    if (!campaignId) return;
+    setMemberActionErr(null);
+
+    try {
+      const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: member.userId,
+          allowHistoricCharacters: value,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to update historic character policy.");
+      }
+      await reloadMembers();
+    } catch (error: unknown) {
+      setMemberActionErr(
+        error instanceof Error ? error.message : "Failed to update historic character policy.",
+      );
+    }
+  }
+
+  async function handleRemovePlayer() {
+    if (!campaignId || !removingMember) return;
+    setRemovingPlayer(true);
+    setMemberActionErr(null);
+
+    try {
+      const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/members`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: removingMember.userId,
+          confirmation: removeConfirmInput.trim(),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to remove player.");
+      }
+
+      setRemovingMember(null);
+      setRemoveStep("IDLE");
+      setRemoveConfirmInput("");
+      await reloadMembers();
+    } catch (error: unknown) {
+      setMemberActionErr(error instanceof Error ? error.message : "Failed to remove player.");
+    } finally {
+      setRemovingPlayer(false);
     }
   }
 
@@ -353,9 +422,10 @@ export default function CampaignHomePage() {
                   </button>
                 </div>
                 <p className="text-[11px] text-zinc-500">
-                  Email delivery is not wired yet; share or collect the player&apos;s account ID manually.
+                  Temporary dev bridge: email delivery is not wired yet, so adding still uses the player&apos;s account ID.
                 </p>
                 {memberErr ? <p className="text-sm text-red-400">{memberErr}</p> : null}
+                {memberActionErr ? <p className="text-sm text-red-400">{memberActionErr}</p> : null}
               </div>
             ) : null}
           </div>
@@ -364,27 +434,74 @@ export default function CampaignHomePage() {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-800 text-left text-zinc-400">
-                  <th className="py-2 pr-3 font-medium">User ID</th>
+                  <th className="py-2 pr-3 font-medium">Player</th>
                   <th className="py-2 pr-3 font-medium">Role</th>
                   <th className="py-2 pr-3 font-medium">Status</th>
+                  {canManageMembers ? (
+                    <th className="py-2 pr-3 font-medium">Historic Characters</th>
+                  ) : null}
+                  {canManageMembers ? (
+                    <th className="py-2 pr-3 font-medium">Actions</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
                 {members.length === 0 ? (
                   <tr>
-                    <td className="py-3 text-zinc-500" colSpan={3}>
+                    <td className="py-3 text-zinc-500" colSpan={canManageMembers ? 5 : 3}>
                       No campaign members found.
                     </td>
                   </tr>
                 ) : (
                   members.map((member) => (
                     <tr key={`${member.userId}-${member.role}`} className="border-b border-zinc-900 last:border-0">
-                      <td className="py-2 pr-3 font-mono text-xs">{member.userId}</td>
+                      <td className="py-2 pr-3">
+                        <div>{member.email ?? "Email unavailable"}</div>
+                        <div className="font-mono text-[11px] text-zinc-500">{member.userId}</div>
+                      </td>
                       <td className="py-2 pr-3">{member.role}</td>
                       <td className="py-2 pr-3 text-zinc-400">
                         {member.isOwner ? "Owner" : "Member"}
                         {member.isSyntheticOwner ? " (owner fallback)" : ""}
                       </td>
+                      {canManageMembers ? (
+                        <td className="py-2 pr-3">
+                          {member.role === "PLAYER" ? (
+                            <label className="inline-flex items-center gap-2 text-xs text-zinc-300">
+                              <input
+                                type="checkbox"
+                                checked={member.allowHistoricCharacters}
+                                onChange={(event) => {
+                                  void handleToggleHistoricCharacters(member, event.target.checked);
+                                }}
+                              />
+                              Allow
+                            </label>
+                          ) : (
+                            <span className="text-zinc-500">n/a</span>
+                          )}
+                        </td>
+                      ) : null}
+                      {canManageMembers ? (
+                        <td className="py-2 pr-3">
+                          {member.role === "PLAYER" ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMemberActionErr(null);
+                                setRemovingMember(member);
+                                setRemoveConfirmInput("");
+                                setRemoveStep("WARNING");
+                              }}
+                              className="rounded-lg border border-red-700 px-3 py-1 text-xs text-red-200 hover:bg-red-950/30"
+                            >
+                              Remove Player
+                            </button>
+                          ) : (
+                            <span className="text-zinc-500">Protected</span>
+                          )}
+                        </td>
+                      ) : null}
                     </tr>
                   ))
                 )}
@@ -430,6 +547,90 @@ export default function CampaignHomePage() {
                 className="rounded-lg border-2 border-red-600 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30"
               >
                 Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {removeStep === "WARNING" && removingMember ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">
+          <div className="w-full max-w-xl space-y-4 rounded-xl border-2 border-red-700 bg-zinc-950 p-6">
+            <h2 className="text-xl font-semibold text-red-200">Remove Player</h2>
+            <p className="text-sm text-zinc-300">
+              This player will be removed from the campaign. Their character will be archived. Are you sure?
+            </p>
+            <div className="rounded-lg border border-zinc-800 bg-black p-3 text-sm">
+              <div>{removingMember.email ?? "Email unavailable"}</div>
+              <div className="font-mono text-xs text-zinc-500">{removingMember.userId}</div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setRemovingMember(null);
+                  setRemoveStep("IDLE");
+                  setRemoveConfirmInput("");
+                }}
+                className="rounded-lg border border-zinc-700 px-4 py-2 hover:bg-zinc-900"
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRemoveStep("CONFIRM");
+                  setRemoveConfirmInput("");
+                }}
+                className="rounded-lg border-2 border-red-600 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30"
+              >
+                Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {removeStep === "CONFIRM" && removingMember ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">
+          <div className="w-full max-w-xl space-y-4 rounded-xl border-2 border-red-700 bg-zinc-950 p-6">
+            <h2 className="text-xl font-semibold text-red-200">Confirm Player Removal</h2>
+            <p className="text-sm text-zinc-300">
+              Type the player identity in full to remove them and archive their assigned characters.
+            </p>
+            <div className="rounded-lg border border-zinc-800 bg-black p-3 text-sm">
+              <div className="text-zinc-400">Required confirmation</div>
+              <div className="font-mono text-xs text-zinc-200">{removingMember.confirmationValue}</div>
+            </div>
+            <input
+              type="text"
+              value={removeConfirmInput}
+              onChange={(event) => setRemoveConfirmInput(event.target.value)}
+              className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-zinc-100 outline-none focus:border-red-500"
+              placeholder={removingMember.confirmationValue}
+              autoFocus
+            />
+            {memberActionErr ? <p className="text-sm text-red-400">{memberActionErr}</p> : null}
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setRemovingMember(null);
+                  setRemoveStep("IDLE");
+                  setRemoveConfirmInput("");
+                }}
+                className="rounded-lg border border-zinc-700 px-4 py-2 hover:bg-zinc-900"
+                disabled={removingPlayer}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRemovePlayer()}
+                className="rounded-lg border-2 border-red-600 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={removingPlayer || removeConfirmInput.trim() !== removingMember.confirmationValue}
+              >
+                {removingPlayer ? "Removing..." : "Remove Player"}
               </button>
             </div>
           </div>

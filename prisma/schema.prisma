@@ -530,11 +530,12 @@ model Campaign {
 }
 
 model CampaignUser {
-  campaignId String
-  userId     String
-  role       CampaignRole @default(PLAYER)
-  createdAt  DateTime     @default(now())
-  campaign   Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId               String
+  userId                   String
+  role                     CampaignRole @default(PLAYER)
+  allowHistoricCharacters  Boolean      @default(false)
+  createdAt                DateTime     @default(now())
+  campaign                 Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@id([campaignId, userId])
   @@index([userId])
@@ -542,16 +543,20 @@ model CampaignUser {
 }
 
 model CampaignCharacter {
-  id             String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  campaignId     String
-  name           String
-  assignedUserId String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now()) @updatedAt
-  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  id               String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  campaignId       String
+  name             String
+  assignedUserId   String?
+  archivedAt       DateTime?
+  archivedByUserId String?
+  archiveReason    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+  campaign         Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@index([campaignId])
   @@index([assignedUserId])
+  @@index([archivedAt])
   @@map("CampaignCharacter")
 }
 
