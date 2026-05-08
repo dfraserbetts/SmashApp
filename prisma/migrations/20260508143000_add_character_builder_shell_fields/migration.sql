@@ -1,0 +1,6 @@
+ALTER TABLE "CampaignCharacter"
+ADD COLUMN "imageUrl" TEXT,
+ADD COLUMN "age" TEXT,
+ADD COLUMN "race" TEXT,
+ADD COLUMN "description" TEXT,
+ADD COLUMN "level" INTEGER NOT NULL DEFAULT 1;

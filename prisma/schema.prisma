@@ -549,6 +549,11 @@ model CampaignCharacter {
   id               String    @id @default(dbgenerated("(gen_random_uuid())::text"))
   campaignId       String
   name             String
+  imageUrl         String?
+  age              String?
+  race             String?
+  description      String?   @db.Text
+  level            Int       @default(1)
   assignedUserId   String?
   archivedAt       DateTime?
   archivedByUserId String?

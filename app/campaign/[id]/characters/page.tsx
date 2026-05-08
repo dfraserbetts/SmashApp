@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+
+import { CampaignNav } from "@/app/components/CampaignNav";
 
 type CampaignRow = {
   id: string;
@@ -309,6 +312,7 @@ export default function CampaignCharactersPage() {
     return (
       <main className="min-h-screen bg-black text-zinc-100 p-6">
         <div className="mx-auto max-w-2xl space-y-4">
+          {campaignId ? <CampaignNav campaignId={campaignId} /> : null}
           <h1 className="text-xl font-semibold">Character Management</h1>
           <p className="text-red-400">{err}</p>
           <button
@@ -326,6 +330,8 @@ export default function CampaignCharactersPage() {
   return (
     <main className="min-h-screen bg-black p-6 text-zinc-100">
       <div className="mx-auto max-w-5xl space-y-6">
+        <CampaignNav campaignId={campaignId ?? ""} />
+
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <div className="text-sm text-zinc-400">
@@ -455,12 +461,16 @@ export default function CampaignCharactersPage() {
                           )}
                         </td>
                         <td className="py-2 pr-3 text-zinc-400">
-                          <div className="text-xs">
-                            Reserved route:
-                            <span className="ml-1 font-mono text-zinc-300">
-                              /campaign/{campaignId}/characters/{character.id}
-                            </span>
-                          </div>
+                          {canManageCharacters || isAssignedToCurrentUser ? (
+                            <Link
+                              href={`/campaign/${campaignId}/characters/${character.id}/builder`}
+                              className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-900"
+                            >
+                              Open Builder
+                            </Link>
+                          ) : (
+                            <span className="text-zinc-500">Unavailable</span>
+                          )}
                         </td>
                         {canManageCharacters ? (
                           <td className="space-y-2 py-2 pr-3">
@@ -557,6 +567,12 @@ export default function CampaignCharactersPage() {
                           </select>
                         </td>
                         <td className="space-x-2 py-2 pr-3">
+                          <Link
+                            href={`/campaign/${campaignId}/characters/${character.id}/builder`}
+                            className="inline-flex rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-900"
+                          >
+                            Open Builder
+                          </Link>
                           <button
                             type="button"
                             onClick={() => void handleSaveCharacter(character.id)}
