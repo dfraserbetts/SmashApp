@@ -179,6 +179,30 @@ Player responsibilities include:
 - building powers against their Power Point pool
 - printing or exporting their character sheets
 
+Campaign Member Identity And Invites
+------------------------------------
+
+The Game Director-facing Campaign Members UI should identify players by email address, not by Supabase User ID.
+
+Supabase User ID entry is acceptable only as a temporary internal development bridge. It is not a long-term player-facing or Game Director-facing invite experience.
+
+Long-term Campaign Members UI should support:
+
+- inviting or adding a player by email address
+- displaying member email address in the member list
+- showing role and status beside a human-readable identity
+- avoiding raw Supabase User ID display except in debug/admin details
+
+If the current app cannot reliably access or store email addresses from Supabase auth, implementation should add the smallest safe account/profile mirror required to make campaign membership understandable to Game Directors. Do not leave UUID-only membership management as final UX.
+
+Per-player campaign policy flags may live on the campaign membership record where they control what that player may do inside that campaign.
+
+The first agreed per-player campaign policy flag is:
+
+- Allow Historic Characters
+
+When Allow Historic Characters is enabled for a player, the player may access a future Resurrect Existing Character flow when creating a campaign character. When disabled, the player should only see the normal New Character flow.
+
 Character Management
 --------------------
 
@@ -195,6 +219,100 @@ The Character Management page should provide the campaign-level control surface 
 - potentially navigating to a character's builder or printable output
 
 Bonds belong here, not in the normal player editor.
+
+Character Removal, Archiving, And Reassignment
+----------------------------------------------
+
+Campaign characters are campaign-owned records. Player assignment grants access; it does not make the campaign character disappear from Game Director control.
+
+Character Management should support an archived character state.
+
+An archived character:
+
+- remains attached to the campaign
+- is hidden from the assigned player's normal active character UI
+- is not editable by a Player while archived
+- remains visible to the Game Director
+- may later be assigned to any active Player in the campaign
+- may be assigned to a newly invited Player
+- automatically unarchives when reassigned to an active Player by the Game Director
+
+Player removal rule:
+
+When a Game Director removes a Player from a campaign, any campaign characters assigned to that Player are archived. The Player is removed from the campaign and loses access. The archived characters remain available to the Game Director for later reassignment.
+
+The preferred implementation is to clear the removed player's assignment from those archived characters unless current code requires retaining a historical assignment reference. If historical ownership is retained, it must not grant access.
+
+Remove Player confirmation rule:
+
+Removing a Player is destructive enough to require hard confirmation. The Game Director flow should be:
+
+1. Game Director clicks Remove Player.
+2. UI displays: This player will be removed from the campaign. Their character will be archived. Are you sure?
+3. Game Director clicks Yes.
+4. Game Director must type the player's email address in full.
+5. Confirm remains locked until the exact email matches.
+6. On confirm, remove the Player from campaign membership and archive assigned campaign characters.
+
+Until email identity is fully available, exact Supabase User ID confirmation is acceptable only as a temporary dev bridge. The intended final confirmation identity is email address.
+
+Player archive rule:
+
+A Player may archive one of their own assigned active characters. This removes that character from their active player UI. It does not delete the character and does not remove campaign membership.
+
+Only a Game Director may unarchive an archived campaign character.
+
+Player archive confirmation text should make the consequence clear:
+
+Archiving this character will remove it from your active character list. A Game Director can restore it later.
+
+Do not confuse archiving with deleting, committing to historic records, or removing a Player from the campaign. These are separate actions.
+
+Historic Character Records
+--------------------------
+
+Historic Character Records are deferred until the Character Builder has meaningful saved character data.
+
+A Historic Character Record is an account-owned character snapshot/template created by a player from one of their characters. It is not the original live campaign character.
+
+The purpose is to let a player preserve a former character and later use that character as the starting point for a new campaign character where the Game Director allows it.
+
+A future Commit Character to Historic Records action should snapshot player-authored character data such as:
+
+- character details
+- narrative details
+- Great Secret
+- Characteristics
+- attributes
+- Resist Point allocation
+- player Traits
+- powers once the Character Power Builder exists
+- other player-authored sheet data that is not campaign-bound
+
+It should exclude campaign-bound data such as:
+
+- Bonds
+- Backpack items
+- equipped campaign-owned items
+- Party Inventory links
+- campaign permissions
+- Game Director-only notes
+- campaign-specific assignment data
+
+Historic records should include version metadata such as:
+
+- original character level
+- original campaign reference or name where safe
+- committed date
+- ruleset version
+- character-builder schema version
+
+The future character creation flow should show:
+
+- New Character
+- Resurrect Existing Character
+
+Resurrect Existing Character should appear only when the Game Director has enabled Allow Historic Characters for that specific campaign member.
 
 Character Details
 -----------------
@@ -708,6 +826,10 @@ The long-term flow is:
 8. Character Builder allows the player to equip legal items from the Backpack.
 9. Equipped items hydrate character attack strings, defence strings, protections, modifiers, limit breaks, and other item-derived outputs.
 
+If a Player is removed from the campaign, Backpack and equipment access should not travel with that Player. Campaign-owned items remain campaign-owned and should be governed by Party Inventory / Backpack ownership rules.
+
+Historic Character Records must not copy Backpack items or equipped campaign-owned items.
+
 Backpack
 --------
 
@@ -1049,7 +1171,10 @@ Acceptance Criteria For Character Builder V1
 Character Builder V1 succeeds if:
 
 - Game Director / Player access rules exist before player character access depends on them
+- Campaign Members UI uses email identity for long-term invite/display rather than raw Supabase User IDs
 - campaign characters can be managed
+- campaign characters can be archived, hidden from player UI, and restored by Game Director reassignment
+- removing a Player archives their assigned campaign characters
 - players can access their assigned character builder
 - players can enter character details
 - players can author narrative details
@@ -1066,6 +1191,7 @@ Character Builder V1 succeeds if:
 - player powers use the shared power builder and BasePowerValue spend
 - Power Pool uses CharacterLevel * 50
 - Spark and Restriction discounts default to 0 and do not expose unfinished systems
+- Historic Character Records remain gated by Game Director Allow Historic Characters policy and are not implemented before real character data exists
 - derived cooldown is displayed from the shared power cost pipeline
 - exact printable preview exists
 - print type selection exists

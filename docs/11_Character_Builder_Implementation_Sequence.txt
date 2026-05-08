@@ -44,6 +44,8 @@ Every implementation prompt must obey these rules:
 - Preserve the current shared power architecture.
 - Preserve Summoning Circle as the mechanical bible for current character calculations unless explicitly overridden.
 - Use Guard and Synergy, not Defence and Support.
+- Campaign member management should use email identity for long-term invite/display UX, not raw Supabase User IDs except as a temporary internal bridge.
+- Character archiving is distinct from deleting, player removal, and Historic Character Records.
 - Do not implement Spark in V1.
 - Do not implement Restrictions in V1.
 - Do not implement Archetypes in V1.
@@ -72,6 +74,10 @@ Character Builder V1 excludes:
 - Archetypes
 - Signature Move as a full Spark-gated feature unless explicitly reopened
 - Transformation / Summoning / object creation systems
+
+Supporting foundation work around campaign access, member identity, character management, character archiving, and Party Inventory may happen before the player-facing builder UI because the builder depends on those systems.
+
+Historic Character Records are deferred until after real Character Builder data exists. They should not be implemented during the early management/scaffold steps.
 
 Step 1 - Source Document Update
 -------------------------------
@@ -115,6 +121,8 @@ Scope:
   - Game Director
   - Player
 - Add or verify player invitation flow.
+- Treat raw Supabase User ID invite/add as temporary internal bridge only.
+- Long-term Campaign Members UI should invite/add and display players by email address.
 - Ensure invited players can access the campaign with Player permissions.
 - Ensure Game Director permissions are distinct from Player permissions.
 - Add basic route/API guards where needed.
@@ -158,6 +166,7 @@ Scope:
 - Provide the future home for Game Director-assigned Bonds.
 - Display basic character ownership and access state.
 - Add navigation to Character Builder where appropriate.
+- Establish or leave clean seams for character archived/live state.
 
 Non-goals:
 
@@ -181,6 +190,66 @@ Validation:
 - TypeScript check.
 - Manual route smoke.
 - Permission smoke for Game Director vs Player if possible.
+
+Step 3b - Campaign Member Removal And Character Archiving
+----------------------------------------------------------
+
+Goal:
+
+Add the campaign-management lifecycle around removing Players, archiving characters, unarchiving by reassignment, and preparing the later Historic Character policy gate.
+
+Scope:
+
+- Replace or prepare to replace raw Supabase User ID display in Campaign Members with email-based identity where current auth/profile data allows.
+- Add Remove Player action for Game Directors.
+- Require hard confirmation before removing a Player.
+- Archive any campaign characters assigned to the removed Player.
+- Remove the Player from campaign membership.
+- Ensure removed Players lose campaign access.
+- Allow Players to archive their own assigned active character, hiding it from their active UI.
+- Ensure only Game Directors can unarchive archived campaign characters.
+- Allow Game Directors to assign archived campaign characters to any active Player in the campaign.
+- Auto-unarchive an archived character when assigned by a Game Director.
+- Add the per-player campaign policy seam for Allow Historic Characters if membership identity/schema work is already being touched, but do not build the Historic Records import/export feature yet.
+
+Remove Player confirmation:
+
+The intended final flow is:
+
+1. Game Director clicks Remove Player.
+2. UI warns: This player will be removed from the campaign. Their character will be archived. Are you sure?
+3. Game Director clicks Yes.
+4. Game Director enters the player's email address in full.
+5. Confirm unlocks only on exact match.
+6. Player membership is removed and assigned characters are archived.
+
+If email identity is not yet safely available, exact Supabase User ID confirmation is acceptable only as a temporary bridge. The implementation should clearly mark email identity as the target UX.
+
+Non-goals:
+
+- Do not implement full email delivery if it is not already present.
+- Do not implement Historic Character Records yet.
+- Do not build the full Character Builder editor.
+- Do not implement Party Inventory.
+- Do not delete campaign characters.
+
+Acceptance criteria:
+
+- Game Director can remove a Player from a campaign through hard confirmation.
+- Removed Player loses campaign access.
+- Characters assigned to removed Player become archived.
+- Archived characters are not editable by Players.
+- Game Director can assign an archived character to any active Player.
+- Assignment automatically unarchives the character.
+- Player can archive their own active character.
+- Only Game Director can unarchive.
+- Campaign member identity is moved toward email display/invite rather than raw UUID UX, or the blocker is explicitly reported.
+
+Validation:
+
+- TypeScript check.
+- Prisma validation/generation if schema changes.
+- Manual permission smoke for Game Director, active Player, removed Player, and non-member where possible.
 
 Step 4 - Party Inventory and Character Backpack Ownership
 ---------------------------------------------------------
@@ -476,6 +545,69 @@ Validation:
 - Manual power authoring smoke.
 - Confirm Summoning Circle power builder remains unaffected.
 
+Step 8b - Historic Character Records And Resurrection Gate
+-----------------------------------------------------------
+
+Goal:
+
+Allow players to preserve completed/retired characters as account-owned snapshots and reuse them as the starting point for a future campaign character when the Game Director permits it.
+
+Timing:
+
+This step should not happen until the Character Builder has meaningful saved character data. It is best placed after the core sections and Character Power Builder exist, because the snapshot should preserve the real character template rather than an empty shell.
+
+Scope:
+
+- Add Commit Character to Historic Records action for eligible player-owned/assigned characters.
+- Store an account-owned historic character snapshot/template.
+- Exclude campaign-bound data from the snapshot.
+- Add per-campaign-member Allow Historic Characters policy controlled by the Game Director if not already added.
+- Show Resurrect Existing Character during character creation only when Allow Historic Characters is enabled for that player in that campaign.
+- Import selected historic character data into a new campaign character as a starting template.
+
+Snapshot should include:
+
+- character details
+- narrative details
+- Great Secret
+- Characteristics
+- attributes
+- Resist Point allocation
+- player Traits
+- powers, once implemented
+- schema/ruleset version metadata
+
+Snapshot should exclude:
+
+- Bonds
+- Backpack items
+- equipped campaign-owned items
+- Party Inventory links
+- campaign permissions
+- Game Director-only notes
+- campaign assignment state
+
+Non-goals:
+
+- Do not allow Historic Records to bypass Game Director campaign policy.
+- Do not clone campaign inventory.
+- Do not clone Bonds.
+- Do not implement before real character data exists.
+
+Acceptance criteria:
+
+- Player can commit an eligible character to Historic Records.
+- Historic snapshot belongs to the player's account, not the original campaign.
+- Game Director can enable/disable Allow Historic Characters per Player campaign member.
+- Resurrect Existing Character appears only when allowed.
+- Imported character starts as a new campaign character and does not carry excluded campaign-bound data.
+
+Validation:
+
+- TypeScript check.
+- Prisma validation/generation if schema changes.
+- Manual smoke for allowed and disallowed campaign members.
+
 Step 9 - Exact Printable Sheet System
 -------------------------------------
 
@@ -589,11 +721,13 @@ The Character Builder touches too many systems to safely build as one giant feat
 1. docs
 2. access
 3. character management
+3b. member removal / character archiving
 4. inventory ownership
 5. builder shell/schema
 6. core sections
 7. equipment integration
 8. power builder
+8b. historic character records, once real character data exists
 9. printable output
 
 This order avoids building player-facing UI on top of missing permissions, avoids fake Backpack logic, and avoids creating a power-builder fork before the shared core is cleanly reused.
