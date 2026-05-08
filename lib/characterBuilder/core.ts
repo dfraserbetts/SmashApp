@@ -41,6 +41,41 @@ export type CharacterBuilderData = {
   attributes: Record<CharacterAttribute, CharacterAttributeValue>;
   resistPoints: Record<CharacterAttribute, number>;
   selectedTraitKeys: string[];
+  equippedSlots: EquippedSlotsState;
+};
+
+export const EQUIPMENT_SLOTS = [
+  "mainHand",
+  "offHand",
+  "head",
+  "shoulders",
+  "torso",
+  "legs",
+  "feet",
+] as const;
+
+export type EquipmentSlotKey = (typeof EQUIPMENT_SLOTS)[number];
+
+export type EquippedSlotsState = Partial<Record<EquipmentSlotKey, string>>;
+
+export type EquipmentBackpackItemForRules = {
+  id: string;
+  quantity: number;
+  itemTemplate: {
+    type: string | null;
+    size: string | null;
+    armorLocation: string | null;
+  };
+};
+
+export const EQUIPMENT_SLOT_LABELS: Record<EquipmentSlotKey, string> = {
+  mainHand: "Main Hand",
+  offHand: "Off Hand",
+  head: "Head",
+  shoulders: "Shoulders",
+  torso: "Torso",
+  legs: "Legs",
+  feet: "Feet",
 };
 
 export type TraitClassification = "POSITIVE" | "NEGATIVE";
@@ -124,6 +159,7 @@ export function defaultBuilderData(): CharacterBuilderData {
     attributes: { ...DEFAULT_ATTRIBUTES },
     resistPoints: { ...DEFAULT_RESIST_POINTS },
     selectedTraitKeys: [],
+    equippedSlots: {},
   };
 }
 
@@ -522,6 +558,34 @@ function normalizeSelectedTraitKeys(value: unknown) {
   );
 }
 
+function normalizeEquippedSlots(value: unknown, legacyEquippedBackpackItems?: unknown) {
+  const record = readRecord(value);
+  const equippedSlots: EquippedSlotsState = {};
+  for (const slot of EQUIPMENT_SLOTS) {
+    const backpackItemId = readString(record[slot], 120);
+    if (backpackItemId) equippedSlots[slot] = backpackItemId;
+  }
+
+  if (Object.keys(equippedSlots).length > 0 || !Array.isArray(legacyEquippedBackpackItems)) {
+    return equippedSlots;
+  }
+
+  const legacySlots: EquipmentSlotKey[] = ["mainHand", "offHand"];
+  let slotIndex = 0;
+  for (const row of legacyEquippedBackpackItems) {
+    const legacyRecord = readRecord(row);
+    const backpackItemId = readString(legacyRecord.backpackItemId, 120);
+    const quantity = readStrictInteger(legacyRecord.quantity, 0);
+    if (!backpackItemId || !Number.isInteger(quantity) || quantity <= 0) continue;
+    for (let index = 0; index < quantity && slotIndex < legacySlots.length; index += 1) {
+      equippedSlots[legacySlots[slotIndex]] = backpackItemId;
+      slotIndex += 1;
+    }
+    if (slotIndex >= legacySlots.length) break;
+  }
+  return equippedSlots;
+}
+
 export function normalizeBuilderData(value: unknown): CharacterBuilderData {
   const defaults = defaultBuilderData();
   const record = readRecord(value);
@@ -533,7 +597,82 @@ export function normalizeBuilderData(value: unknown): CharacterBuilderData {
     attributes: normalizeAttributes(record.attributes),
     resistPoints: normalizeResistPoints(record.resistPoints),
     selectedTraitKeys: normalizeSelectedTraitKeys(record.selectedTraitKeys ?? defaults.selectedTraitKeys),
+    equippedSlots: normalizeEquippedSlots(record.equippedSlots, record.equippedBackpackItems),
   };
+}
+
+export function sanitizeBuilderEquipment(
+  data: CharacterBuilderData,
+  backpackItems: EquipmentBackpackItemForRules[],
+) {
+  return {
+    ...data,
+    equippedSlots: sanitizeEquippedSlots(data.equippedSlots, backpackItems),
+  };
+}
+
+export function isBackpackItemLegalForEquipmentSlot(
+  slot: EquipmentSlotKey,
+  item: EquipmentBackpackItemForRules,
+) {
+  const itemType = item.itemTemplate.type;
+  const itemSize = item.itemTemplate.size;
+  const armorLocation = item.itemTemplate.armorLocation;
+
+  if (slot === "mainHand") {
+    return itemType === "WEAPON" || itemType === "SHIELD";
+  }
+  if (slot === "offHand") {
+    return (itemType === "WEAPON" && itemSize !== "TWO_HANDED") || itemType === "SHIELD";
+  }
+
+  if (itemType !== "ARMOR") return false;
+  const slotArmorLocation: Record<Exclude<EquipmentSlotKey, "mainHand" | "offHand">, string> = {
+    head: "HEAD",
+    shoulders: "SHOULDERS",
+    torso: "TORSO",
+    legs: "LEGS",
+    feet: "FEET",
+  };
+  return armorLocation === slotArmorLocation[slot];
+}
+
+export function getEquipmentSlotUseCounts(equippedSlots: EquippedSlotsState) {
+  const counts = new Map<string, number>();
+  for (const slot of EQUIPMENT_SLOTS) {
+    const backpackItemId = equippedSlots[slot];
+    if (!backpackItemId) continue;
+    counts.set(backpackItemId, (counts.get(backpackItemId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+export function sanitizeEquippedSlots(
+  equippedSlots: EquippedSlotsState,
+  backpackItems: EquipmentBackpackItemForRules[],
+) {
+  const byId = new Map(backpackItems.map((item) => [item.id, item]));
+  const used = new Map<string, number>();
+  const next: EquippedSlotsState = {};
+
+  for (const slot of EQUIPMENT_SLOTS) {
+    const backpackItemId = equippedSlots[slot];
+    if (!backpackItemId) continue;
+    const backpackItem = byId.get(backpackItemId);
+    if (!backpackItem || !isBackpackItemLegalForEquipmentSlot(slot, backpackItem)) continue;
+    if (slot === "offHand") {
+      const mainHandItem = next.mainHand ? byId.get(next.mainHand) : null;
+      if (mainHandItem?.itemTemplate.type === "WEAPON" && mainHandItem.itemTemplate.size === "TWO_HANDED") {
+        continue;
+      }
+    }
+    const currentUseCount = used.get(backpackItemId) ?? 0;
+    if (currentUseCount >= backpackItem.quantity) continue;
+    next[slot] = backpackItemId;
+    used.set(backpackItemId, currentUseCount + 1);
+  }
+
+  return next;
 }
 
 export function validateBuilderData(

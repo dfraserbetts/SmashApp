@@ -10,9 +10,11 @@ import { getMemberIdentities, getMemberIdentityLabel } from "@/lib/campaign/memb
 import {
   cleanBuilderTraits,
   normalizeBuilderData,
+  sanitizeBuilderEquipment,
   validateBuilderData,
   type PlayerTraitDefinition,
 } from "@/lib/characterBuilder/core";
+import { summarizeEquipmentItem } from "@/lib/characterBuilder/equipment";
 import { prisma } from "@/prisma/client";
 
 const DEFAULT_CHARACTER_NAME = "UNNAMED";
@@ -125,8 +127,14 @@ async function loadBuilderContext(campaignId: string, characterId: string, userI
     ? identities.get(character.assignedUserId)
     : undefined;
 
-  const traitCatalog = await loadBuilderTraitCatalog();
-  const builderData = cleanBuilderTraits(normalizeBuilderData(character.builderData), traitCatalog);
+  const [traitCatalog, backpackItems] = await Promise.all([
+    loadBuilderTraitCatalog(),
+    loadBuilderBackpackItems(campaignId, characterId),
+  ]);
+  const builderData = sanitizeBuilderEquipment(
+    cleanBuilderTraits(normalizeBuilderData(character.builderData), traitCatalog),
+    backpackItems,
+  );
 
   return {
     campaign,
@@ -144,6 +152,7 @@ async function loadBuilderContext(campaignId: string, characterId: string, userI
     canEdit: canManage || isAssignedActivePlayer,
     assignedPlayerLabel: getMemberIdentityLabel(assignedIdentity),
     traitCatalog,
+    backpackItems,
   };
 }
 
@@ -168,6 +177,62 @@ async function loadBuilderTraitCatalog(): Promise<PlayerTraitDefinition[]> {
     pointValue: row.pointValue,
     isActive: row.isActive,
   }));
+}
+
+async function loadBuilderBackpackItems(campaignId: string, characterId: string) {
+  const rows = await prisma.campaignCharacterBackpackItem.findMany({
+    where: { campaignId, characterId },
+    orderBy: { createdAt: "asc" },
+    include: {
+      partyInventoryItem: {
+        include: {
+          itemTemplate: {
+            include: {
+              meleeDamageTypes: { include: { damageType: true } },
+              rangedDamageTypes: { include: { damageType: true } },
+              aoeDamageTypes: { include: { damageType: true } },
+              attackEffectsMelee: { include: { attackEffect: true } },
+              attackEffectsRanged: { include: { attackEffect: true } },
+              attackEffectsAoE: { include: { attackEffect: true } },
+              weaponAttributes: { include: { weaponAttribute: true } },
+              armorAttributes: { include: { armorAttribute: true } },
+              shieldAttributes: { include: { shieldAttribute: true } },
+              defEffects: { include: { defEffect: true } },
+              wardingOptions: { include: { wardingOption: true } },
+              sanctifiedOptions: { include: { sanctifiedOption: true } },
+              vrpEntries: { include: { damageType: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return rows.map((row) => {
+    const itemTemplate = row.partyInventoryItem.itemTemplate;
+    const summary = summarizeEquipmentItem(itemTemplate);
+    return {
+      id: row.id,
+      campaignId: row.campaignId,
+      characterId: row.characterId,
+      partyInventoryItemId: row.partyInventoryItemId,
+      quantity: row.quantity,
+      itemTemplate: {
+        id: itemTemplate.id,
+        name: itemTemplate.name,
+        rarity: itemTemplate.rarity,
+        level: itemTemplate.level,
+        type: itemTemplate.type,
+        size: itemTemplate.size,
+        armorLocation: itemTemplate.armorLocation,
+        itemLocation: itemTemplate.itemLocation,
+        generalDescription: itemTemplate.generalDescription,
+        details: summary.details,
+        descriptorSections: summary.descriptorSections,
+        descriptorWarnings: summary.descriptorWarnings,
+      },
+    };
+  });
 }
 
 export async function GET(
@@ -239,8 +304,14 @@ export async function PATCH(
     const race = normalizeOptionalString(body.race, 120);
     const description = normalizeOptionalString(body.description, 4000);
     const level = normalizeLevel(body.level);
-    const traitCatalog = await loadBuilderTraitCatalog();
-    const builderData = cleanBuilderTraits(normalizeBuilderData(body.builderData), traitCatalog);
+    const [traitCatalog, backpackItems] = await Promise.all([
+      loadBuilderTraitCatalog(),
+      loadBuilderBackpackItems(campaignId, targetCharacterId),
+    ]);
+    const builderData = sanitizeBuilderEquipment(
+      cleanBuilderTraits(normalizeBuilderData(body.builderData), traitCatalog),
+      backpackItems,
+    );
     const validationLevel = level ?? builderContext.character.level;
     const validationErrors = validateBuilderData(builderData, validationLevel, traitCatalog);
     if (validationErrors.length > 0) {
@@ -292,6 +363,7 @@ export async function PATCH(
         builderData: normalizeBuilderData(character.builderData),
       },
       traitCatalog: await loadBuilderTraitCatalog(),
+      backpackItems: await loadBuilderBackpackItems(campaignId, targetCharacterId),
     });
   } catch (error) {
     return toErrorResponse(error);

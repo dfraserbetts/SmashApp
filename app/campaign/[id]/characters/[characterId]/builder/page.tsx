@@ -6,6 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { CampaignNav } from "@/app/components/CampaignNav";
 import {
   CHARACTER_ATTRIBUTES,
+  EQUIPMENT_SLOT_LABELS,
+  EQUIPMENT_SLOTS,
   GREAT_SECRET_TEMPLATES,
   HEROIC_ATTRIBUTE_ARRAY,
   LEGAL_ATTRIBUTE_VALUES,
@@ -15,7 +17,9 @@ import {
   defaultBuilderData,
   getCanAddAttributeSwapForBudget,
   getCharacteristicUnits,
+  getEquipmentSlotUseCounts,
   getLegalMagnitudeOptionsForBudget,
+  isBackpackItemLegalForEquipmentSlot,
   normalizeBuilderData,
   renderCharacteristicDescriptor,
   renderGreatSecret,
@@ -34,6 +38,7 @@ import {
   type CharacterBuilderData,
   type CharacteristicEffectFamily,
   type CharacteristicState,
+  type EquipmentSlotKey,
   type PlayerTraitDefinition,
 } from "@/lib/characterBuilder/core";
 
@@ -70,7 +75,30 @@ type BuilderPayload = {
   canEdit: boolean;
   assignedPlayerLabel: string;
   traitCatalog: PlayerTraitDefinition[];
+  backpackItems: BuilderBackpackItem[];
   error?: string;
+};
+
+type BuilderBackpackItem = {
+  id: string;
+  campaignId: string;
+  characterId: string;
+  partyInventoryItemId: string;
+  quantity: number;
+  itemTemplate: {
+    id: string;
+    name: string | null;
+    rarity: string | null;
+    level: number | null;
+    type: string | null;
+    size: string | null;
+    armorLocation: string | null;
+    itemLocation: string | null;
+    generalDescription: string | null;
+    details: string;
+    descriptorSections: Array<{ title: string; lines: string[] }>;
+    descriptorWarnings: string[];
+  };
 };
 
 type BuilderDraft = {
@@ -84,10 +112,6 @@ type BuilderDraft = {
 };
 
 const PLACEHOLDER_SECTIONS = [
-  {
-    title: "Equipped Gear / Backpack",
-    status: "Coming in Step 7 from Backpack ownership",
-  },
   {
     title: "Powers",
     status: "Coming in Step 8",
@@ -175,6 +199,7 @@ export default function CharacterBuilderPage() {
     0,
   );
   const traitCatalog = payload?.traitCatalog ?? [];
+  const backpackItems = payload?.backpackItems ?? [];
   const activeTraitCatalog = traitCatalog.filter((trait) => trait.isActive !== false);
   const traitSummary = selectedTraitSummary(
     builderData.selectedTraitKeys,
@@ -201,6 +226,21 @@ export default function CharacterBuilderPage() {
   );
   const resistValidationErrors = validateResistPoints(currentLevel, builderData.resistPoints);
   const canSave = canEdit && !saving && builderValidationErrors.length === 0;
+  const equippedUseCounts = getEquipmentSlotUseCounts(builderData.equippedSlots);
+  const equippedSlotItems = EQUIPMENT_SLOTS.map((slot) => {
+    const backpackItemId = builderData.equippedSlots[slot];
+    const backpackItem = backpackItems.find((item) => item.id === backpackItemId) ?? null;
+    return { slot, backpackItem };
+  }).filter(
+    (entry): entry is { slot: EquipmentSlotKey; backpackItem: BuilderBackpackItem } =>
+      Boolean(entry.backpackItem),
+  );
+  const mainHandItem = builderData.equippedSlots.mainHand
+    ? backpackItems.find((item) => item.id === builderData.equippedSlots.mainHand)
+    : null;
+  const isOffHandLocked =
+    mainHandItem?.itemTemplate.type === "WEAPON" &&
+    mainHandItem.itemTemplate.size === "TWO_HANDED";
 
   const builderApiUrl = useMemo(() => {
     if (!campaignId || !characterId) return "";
@@ -421,6 +461,39 @@ export default function CharacterBuilderPage() {
       selected.add(trait.id);
     }
     updateBuilderData({ selectedTraitKeys: Array.from(selected) });
+  }
+
+  function updateEquipmentSlot(slot: EquipmentSlotKey, backpackItemId: string) {
+    const next = {
+      ...builderData.equippedSlots,
+      [slot]: backpackItemId || undefined,
+    };
+    if (!backpackItemId) {
+      delete next[slot];
+    }
+    const selectedItem = backpackItems.find((item) => item.id === backpackItemId);
+    if (
+      slot === "mainHand" &&
+      selectedItem?.itemTemplate.type === "WEAPON" &&
+      selectedItem.itemTemplate.size === "TWO_HANDED"
+    ) {
+      delete next.offHand;
+    }
+    updateBuilderData({ equippedSlots: next });
+  }
+
+  function getLegalBackpackItemsForSlot(slot: EquipmentSlotKey) {
+    const currentBackpackItemId = builderData.equippedSlots[slot];
+    const useCounts = getEquipmentSlotUseCounts(builderData.equippedSlots);
+    return backpackItems.filter((item) => {
+      if (!isBackpackItemLegalForEquipmentSlot(slot, item)) return false;
+      if (slot === "offHand" && isOffHandLocked && currentBackpackItemId !== item.id) {
+        return false;
+      }
+      const usedByOtherSlots =
+        (useCounts.get(item.id) ?? 0) - (currentBackpackItemId === item.id ? 1 : 0);
+      return usedByOtherSlots < item.quantity || currentBackpackItemId === item.id;
+    });
   }
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
@@ -1098,6 +1171,107 @@ export default function CharacterBuilderPage() {
         </div>
       </section>
 
+      <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <h2 className="text-lg font-semibold">Equipped Gear / Backpack</h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Equip only from this character&apos;s assigned Backpack. A Game Director manages
+          Party Inventory and Backpack quantities.
+        </p>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {EQUIPMENT_SLOTS.map((slot) => {
+            const legalItems = getLegalBackpackItemsForSlot(slot);
+            const selectedItemId = builderData.equippedSlots[slot] ?? "";
+            const selectedItem = backpackItems.find((item) => item.id === selectedItemId);
+            const disabledByTwoHanded = slot === "offHand" && isOffHandLocked;
+            return (
+              <label key={slot} className="block rounded-lg border border-zinc-800 bg-black p-3">
+                <span className="text-sm font-medium text-zinc-200">
+                  {EQUIPMENT_SLOT_LABELS[slot]}
+                </span>
+                <select
+                  value={selectedItemId}
+                  onChange={(event) => updateEquipmentSlot(slot, event.target.value)}
+                  disabled={!canEdit || saving || disabledByTwoHanded}
+                  className="mt-2 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                >
+                  <option value="">
+                    {disabledByTwoHanded ? "Unavailable - two-handed weapon equipped" : "Empty"}
+                  </option>
+                  {legalItems.map((item) => {
+                    const usedCount = equippedUseCounts.get(item.id) ?? 0;
+                    return (
+                      <option key={item.id} value={item.id}>
+                        {item.itemTemplate.name ?? "(Unnamed item)"} ({usedCount}/{item.quantity} used)
+                      </option>
+                    );
+                  })}
+                </select>
+                {selectedItem ? (
+                  <p className="mt-2 text-xs text-zinc-500">{selectedItem.itemTemplate.details}</p>
+                ) : null}
+              </label>
+            );
+          })}
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <h3 className="font-medium text-zinc-200">Backpack</h3>
+          {backpackItems.length === 0 ? (
+            <p className="rounded-lg border border-zinc-800 bg-black p-3 text-sm text-zinc-500">
+              No Backpack items assigned to this character yet.
+            </p>
+          ) : null}
+          {backpackItems.map((item) => (
+              <article
+                key={item.id}
+                className="rounded-lg border border-zinc-800 bg-black p-3"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium text-zinc-200">
+                    {item.itemTemplate.name ?? "(Unnamed item)"}
+                  </div>
+                  <div className="mt-1 text-xs text-zinc-500">
+                    {item.itemTemplate.details} - Backpack quantity {item.quantity}; used in{" "}
+                    {equippedUseCounts.get(item.id) ?? 0} slot(s).
+                  </div>
+                  {item.itemTemplate.generalDescription ? (
+                    <p className="mt-2 text-sm text-zinc-400">
+                      {item.itemTemplate.generalDescription}
+                    </p>
+                  ) : null}
+                </div>
+                {item.itemTemplate.descriptorSections.length > 0 ? (
+                  <div className="mt-3 space-y-2 border-t border-zinc-900 pt-3">
+                    {item.itemTemplate.descriptorSections.map((section) => (
+                      <div key={section.title}>
+                        <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                          {section.title}
+                        </div>
+                        <ul className="mt-1 space-y-1 text-sm text-zinc-300">
+                          {section.lines.map((line, index) => (
+                            <li key={`${section.title}-${index}`}>{line.replace("||", " ")}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 border-t border-zinc-900 pt-3 text-sm text-zinc-500">
+                    No detailed equipment output is available for this item yet.
+                  </p>
+                )}
+                {item.itemTemplate.descriptorWarnings.length > 0 ? (
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-amber-300">
+                    {item.itemTemplate.descriptorWarnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </article>
+          ))}
+        </div>
+      </section>
+
       {PLACEHOLDER_SECTIONS.map((section) => (
         <section
           key={section.title}
@@ -1224,6 +1398,51 @@ export default function CharacterBuilderPage() {
               </li>
             ))}
           </ul>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-zinc-800 bg-black p-3">
+        <div className="text-xs text-zinc-500">Equipped Gear</div>
+        {equippedSlotItems.length === 0 ? (
+          <p className="mt-1 text-sm text-zinc-500">No Backpack items equipped.</p>
+        ) : (
+          <div className="mt-2 space-y-3">
+            {equippedSlotItems.map(({ slot, backpackItem }) => (
+              <div key={slot} className="rounded border border-zinc-900 p-2">
+                <div className="text-xs font-medium text-zinc-500">
+                  {EQUIPMENT_SLOT_LABELS[slot]}
+                </div>
+                <div className="flex justify-between gap-3 text-sm text-zinc-200">
+                  <span className="font-medium">
+                    {backpackItem.itemTemplate.name ?? "(Unnamed item)"}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-zinc-500">
+                  {backpackItem.itemTemplate.details}
+                </div>
+                {backpackItem.itemTemplate.descriptorSections.length > 0 ? (
+                  <div className="mt-2 space-y-2">
+                    {backpackItem.itemTemplate.descriptorSections.map((section) => (
+                      <div key={section.title}>
+                        <div className="text-xs font-medium text-zinc-500">
+                          {section.title}
+                        </div>
+                        <ul className="mt-1 space-y-1 text-xs text-zinc-300">
+                          {section.lines.map((line, index) => (
+                            <li key={`${section.title}-${index}`}>{line.replace("||", " ")}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-zinc-500">
+                    Summary only; detailed item output is not available yet.
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

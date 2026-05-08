@@ -894,12 +894,18 @@ It should show items assigned to the character.
 
 For V1, Backpack integration should be built on real ownership if the prerequisite Party Inventory work has been completed.
 
+Equipped selections should be slot-based references to character Backpack assignment rows, not copied item data and not generic equipped-quantity rows. The Builder should hydrate current item details from Party Inventory / Forge item templates and sanitize slot selections against current Backpack quantities on load/save.
+
+Most equipment slots hold one item. Multiple copies only matter when multiple legal slots can reference the same Backpack assignment, such as two hand slots using two one-handed weapons, and only when the Backpack quantity supports it.
+
 Avoid temporary fake assignment fields unless implementation reality forces a very small scaffold. If a temporary bridge is used, it must be clearly marked as a bridge and removed once Party Inventory is live.
 
 Equipment Calculations
 ----------------------
 
 Equipment calculations should reuse Summoning Circle logic wherever possible.
+
+Where existing Forge or Summoning descriptor helpers can produce table-facing item output, the Character Builder should reuse those helpers. Missing output helpers are follow-up work, not a reason to invent duplicate item math inside the Builder.
 
 The current design assumption is that player-side calculations match Summoning Circle calculations across the board unless playtest later proves players feel underwhelming or overpowered.
 
