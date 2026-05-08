@@ -774,12 +774,14 @@ Player Traits should not directly reuse the full Summoning Circle monster trait 
 
 Characters need a player-safe Trait catalog.
 
-The player-safe Trait catalog should be authorable in the admin UI, similar in spirit to monster traits.
+The player-safe Trait catalog is authorable in the admin UI as Character Traits,
+similar in spirit to monster traits but separate from the Summoning Circle
+monster trait catalog.
 
 Trait Catalog Shape
 -------------------
 
-Use one maintainable admin-managed catalog unless code reality strongly favours separation.
+Use one maintainable admin-managed player Trait catalog.
 
 Each Trait should include at least:
 
@@ -792,6 +794,14 @@ Each Trait should include at least:
 - optional tags/categories
 - optional notes
 
+The early hardcoded Step 6 scaffold list was temporary. The first-pass examples
+should live in the Character Traits catalog instead:
+
+- Keen Eye
+- Steady Nerves
+- Oathbound
+- Known Rival
+
 Trait classification should support:
 
 - Positive
@@ -801,6 +811,14 @@ Trait classification should support:
 Positive Traits cost Trait Points.
 
 Negative Traits grant bonus Trait Points, subject to caps.
+
+Builder display should show Positive Traits as N because they add Trait Point
+cost, and Negative Traits as -N because they grant/refund Trait Points.
+
+Inactive Traits remain visible and manageable in the admin Character Traits
+catalog, but they are hidden from Character Builder selection. If a saved
+character had selected a Trait that is later deactivated, the Builder should
+remove it from the current selection on load/save and recalculate Trait Points.
 
 Trait Point Formula
 -------------------
@@ -827,6 +845,9 @@ MaxNegativeTraits = 2
 MaxBonusTraitPointsFromNegativeTraits = 2
 
 This lets characters take meaningful flaws without opening an exploit path where players stack many small drawbacks for a large mechanical advantage.
+
+The Character Builder should gate Negative Trait options when the cap is
+reached, not merely warn after the player has selected too many.
 
 Design Rule
 -----------

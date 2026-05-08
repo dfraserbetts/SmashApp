@@ -606,6 +606,21 @@ model CampaignCharacterBackpackItem {
   @@map("CampaignCharacterBackpackItem")
 }
 
+model PlayerTrait {
+  id             String                    @id @default(cuid())
+  name           String                    @unique
+  descriptor     String                    @db.Text
+  classification PlayerTraitClassification @default(POSITIVE)
+  pointValue     Int                       @default(1)
+  isActive       Boolean                   @default(true)
+  notes          String?                   @db.Text
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @default(now()) @updatedAt
+
+  @@index([isActive, name])
+  @@map("PlayerTrait")
+}
+
 model DescriptorRule {
   id             Int             @id @default(autoincrement())
   versionTag     String
@@ -1328,6 +1343,11 @@ enum VRPEffectKind {
 enum CampaignRole {
   GAME_DIRECTOR
   PLAYER
+}
+
+enum PlayerTraitClassification {
+  POSITIVE
+  NEGATIVE
 }
 
 enum DescriptorScope {

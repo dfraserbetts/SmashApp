@@ -10,7 +10,6 @@ import {
   HEROIC_ATTRIBUTE_ARRAY,
   LEGAL_ATTRIBUTE_VALUES,
   MAX_CHARACTERISTIC_UNITS,
-  PLAYER_TRAIT_CATALOG,
   characteristicCost,
   characterPoints,
   defaultBuilderData,
@@ -22,6 +21,7 @@ import {
   renderGreatSecret,
   resistPointBudget,
   selectedTraitSummary,
+  signedTraitPointDisplay,
   totalCharacteristicCost,
   traitPointBudget,
   validateAttributes,
@@ -34,6 +34,7 @@ import {
   type CharacterBuilderData,
   type CharacteristicEffectFamily,
   type CharacteristicState,
+  type PlayerTraitDefinition,
 } from "@/lib/characterBuilder/core";
 
 type CharacterBuilderRecord = {
@@ -68,6 +69,7 @@ type BuilderPayload = {
   };
   canEdit: boolean;
   assignedPlayerLabel: string;
+  traitCatalog: PlayerTraitDefinition[];
   error?: string;
 };
 
@@ -172,8 +174,27 @@ export default function CharacterBuilderPage() {
     (sum, attribute) => sum + builderData.resistPoints[attribute],
     0,
   );
-  const traitSummary = selectedTraitSummary(builderData.selectedTraitKeys, currentLevel);
-  const builderValidationErrors = validateBuilderData(builderData, currentLevel);
+  const traitCatalog = payload?.traitCatalog ?? [];
+  const activeTraitCatalog = traitCatalog.filter((trait) => trait.isActive !== false);
+  const traitSummary = selectedTraitSummary(
+    builderData.selectedTraitKeys,
+    currentLevel,
+    activeTraitCatalog,
+  );
+  const selectedNegativeTraitCount = activeTraitCatalog.filter(
+    (trait) =>
+      trait.classification === "NEGATIVE" &&
+      builderData.selectedTraitKeys.includes(trait.id),
+  ).length;
+  const positiveTraits = activeTraitCatalog.filter(
+    (trait) => trait.classification === "POSITIVE",
+  );
+  const visibleNegativeTraits = activeTraitCatalog.filter(
+    (trait) =>
+      trait.classification === "NEGATIVE" &&
+      (selectedNegativeTraitCount < 2 || builderData.selectedTraitKeys.includes(trait.id)),
+  );
+  const builderValidationErrors = validateBuilderData(builderData, currentLevel, activeTraitCatalog);
   const attributeValidationErrors = validateAttributes(
     builderData.attributeMethod,
     builderData.attributes,
@@ -383,12 +404,21 @@ export default function CharacterBuilderPage() {
     return (used.get(value) ?? 0) < (required.get(value) ?? 0);
   }
 
-  function toggleTrait(traitKey: string) {
+  function toggleTrait(trait: PlayerTraitDefinition) {
+    if (trait.isActive === false) return;
     const selected = new Set(builderData.selectedTraitKeys);
-    if (selected.has(traitKey)) {
-      selected.delete(traitKey);
+    if (selected.has(trait.id)) {
+      selected.delete(trait.id);
     } else {
-      selected.add(traitKey);
+      const negativeSelectedCount = activeTraitCatalog.filter(
+        (candidate) =>
+          candidate.classification === "NEGATIVE" &&
+          selected.has(candidate.id),
+      ).length;
+      if (trait.classification === "NEGATIVE" && negativeSelectedCount >= 2) {
+        return;
+      }
+      selected.add(trait.id);
     }
     updateBuilderData({ selectedTraitKeys: Array.from(selected) });
   }
@@ -422,6 +452,7 @@ export default function CharacterBuilderPage() {
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
         character?: CharacterBuilderRecord;
+        traitCatalog?: PlayerTraitDefinition[];
         error?: string;
       };
       if (!res.ok || !data.character) {
@@ -434,6 +465,7 @@ export default function CharacterBuilderPage() {
           ? {
               ...current,
               character: savedCharacter,
+              traitCatalog: data.traitCatalog ?? current.traitCatalog,
             }
           : current,
       );
@@ -978,30 +1010,91 @@ export default function CharacterBuilderPage() {
           Trait Points: {traitSummary.positiveCost}/{traitSummary.available} spent
           ({traitPointBudget(currentLevel)} base + {traitSummary.negativeBonusAllowed} allowed negative bonus).
         </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          {PLAYER_TRAIT_CATALOG.map((trait) => {
-            const selected = builderData.selectedTraitKeys.includes(trait.key);
-            return (
-              <label
-                key={trait.key}
-                className="flex gap-3 rounded-lg border border-zinc-800 bg-black p-3"
-              >
-                <input
-                  type="checkbox"
-                  checked={selected}
-                  onChange={() => toggleTrait(trait.key)}
-                  disabled={!canEdit || saving}
-                  className="mt-1 h-4 w-4"
-                />
-                <span>
-                  <span className="block font-medium text-zinc-200">
-                    {trait.name} ({trait.classification === "POSITIVE" ? `-${trait.pointValue}` : `+${trait.pointValue}`})
-                  </span>
-                  <span className="mt-1 block text-sm text-zinc-500">{trait.descriptor}</span>
-                </span>
-              </label>
-            );
-          })}
+        <div className="mt-4 space-y-5">
+          {activeTraitCatalog.length === 0 ? (
+            <p className="text-sm text-zinc-500">
+              No active Character Traits are available yet.
+            </p>
+          ) : null}
+          <div>
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 className="font-medium text-zinc-200">Positive Traits</h3>
+              <span className="text-xs text-zinc-500">These cost Trait Points.</span>
+            </div>
+            <div className="mt-2 space-y-2">
+              {positiveTraits.length === 0 ? (
+                <p className="text-sm text-zinc-500">No active Positive Traits.</p>
+              ) : null}
+              {positiveTraits.map((trait) => {
+                const selected = builderData.selectedTraitKeys.includes(trait.id);
+                return (
+                  <label
+                    key={trait.id}
+                    className="flex w-full gap-3 rounded-lg border border-zinc-800 bg-black px-3 py-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleTrait(trait)}
+                      disabled={!canEdit || saving}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-zinc-200">
+                        {trait.name} ({signedTraitPointDisplay(trait)})
+                      </span>
+                      <span className="mt-0.5 block text-xs text-zinc-500">
+                        {trait.descriptor}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+              <h3 className="font-medium text-zinc-200">Negative Traits</h3>
+              <span className="text-xs text-zinc-500">
+                These grant bonus Trait Points, up to 2 total bonus points and 2 Negative Traits.
+              </span>
+            </div>
+            <div className="mt-2 space-y-2">
+              {visibleNegativeTraits.length === 0 ? (
+                <p className="text-sm text-zinc-500">
+                  {selectedNegativeTraitCount >= 2
+                    ? "Negative Trait cap reached."
+                    : "No active Negative Traits."}
+                </p>
+              ) : null}
+              {visibleNegativeTraits.map((trait) => {
+                const selected = builderData.selectedTraitKeys.includes(trait.id);
+                return (
+                  <label
+                    key={trait.id}
+                    className="flex w-full gap-3 rounded-lg border border-zinc-800 bg-black px-3 py-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleTrait(trait)}
+                      disabled={!canEdit || saving}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-zinc-200">
+                        {trait.name} ({signedTraitPointDisplay(trait)})
+                      </span>
+                      <span className="mt-0.5 block text-xs text-zinc-500">
+                        {trait.descriptor}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1126,7 +1219,7 @@ export default function CharacterBuilderPage() {
         ) : (
           <ul className="mt-2 space-y-2 text-sm text-zinc-200">
             {traitSummary.selected.map((trait) => (
-              <li key={trait.key}>
+              <li key={trait.id}>
                 <span className="font-medium">{trait.name}:</span> {trait.descriptor}
               </li>
             ))}

@@ -81,6 +81,9 @@ export default async function AdminLayout({
                 <Link className="underline" href="/admin/monster-traits">
                   Monster Traits
                 </Link>
+                <Link className="underline" href="/admin/character-traits">
+                  Character Traits
+                </Link>
                 <Link className="underline" href="/admin/limit-break-templates">
                   Limit Break Templates
                 </Link>

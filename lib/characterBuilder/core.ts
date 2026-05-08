@@ -46,11 +46,12 @@ export type CharacterBuilderData = {
 export type TraitClassification = "POSITIVE" | "NEGATIVE";
 
 export type PlayerTraitDefinition = {
-  key: string;
+  id: string;
   name: string;
   descriptor: string;
   classification: TraitClassification;
   pointValue: number;
+  isActive?: boolean;
 };
 
 export const LEGAL_ATTRIBUTE_VALUES = [4, 6, 8, 10, 12] as const;
@@ -89,37 +90,6 @@ export const GREAT_SECRET_TEMPLATES = [
     },
   },
 ] as const;
-
-export const PLAYER_TRAIT_CATALOG: PlayerTraitDefinition[] = [
-  {
-    key: "keen_eye",
-    name: "Keen Eye",
-    descriptor: "You notice small details others miss and are quick to spot hidden opportunities.",
-    classification: "POSITIVE",
-    pointValue: 1,
-  },
-  {
-    key: "steady_nerves",
-    name: "Steady Nerves",
-    descriptor: "Pressure rarely shakes you; your calm presence is obvious in tense moments.",
-    classification: "POSITIVE",
-    pointValue: 1,
-  },
-  {
-    key: "oathbound",
-    name: "Oathbound",
-    descriptor: "A serious promise limits your choices and can complicate travel, alliances, or rewards.",
-    classification: "NEGATIVE",
-    pointValue: 1,
-  },
-  {
-    key: "known_rival",
-    name: "Known Rival",
-    descriptor: "Someone capable has a personal reason to oppose you and may appear at difficult times.",
-    classification: "NEGATIVE",
-    pointValue: 1,
-  },
-];
 
 export function characterPoints(level: number) {
   return Math.max(1, Math.floor(level)) * 5;
@@ -392,9 +362,14 @@ function formatCharacteristicEffects(
   return joinWithAnd([...gainClauses, ...mayClauses, ...youMayClauses]);
 }
 
-export function selectedTraitSummary(selectedTraitKeys: string[], level: number) {
+export function selectedTraitSummary(
+  selectedTraitKeys: string[],
+  level: number,
+  traitCatalog: PlayerTraitDefinition[],
+) {
   const selected = selectedTraitKeys
-    .map((key) => PLAYER_TRAIT_CATALOG.find((trait) => trait.key === key))
+    .map((key) => traitCatalog.find((trait) => trait.id === key))
+    .filter((trait) => trait?.isActive !== false)
     .filter((trait): trait is PlayerTraitDefinition => Boolean(trait));
   const positiveCost = selected
     .filter((trait) => trait.classification === "POSITIVE")
@@ -412,6 +387,34 @@ export function selectedTraitSummary(selectedTraitKeys: string[], level: number)
     negativeBonusAllowed,
     available: budget + negativeBonusAllowed,
     remaining: budget + negativeBonusAllowed - positiveCost,
+  };
+}
+
+export function signedTraitPointDisplay(trait: PlayerTraitDefinition) {
+  return `${trait.classification === "POSITIVE" ? "" : "-"}${trait.pointValue}`;
+}
+
+export function activeTraitIds(traitCatalog: PlayerTraitDefinition[]) {
+  return new Set(
+    traitCatalog.filter((trait) => trait.isActive !== false).map((trait) => trait.id),
+  );
+}
+
+export function cleanSelectedTraitKeys(
+  selectedTraitKeys: string[],
+  traitCatalog: PlayerTraitDefinition[],
+) {
+  const activeIds = activeTraitIds(traitCatalog);
+  return selectedTraitKeys.filter((traitKey) => activeIds.has(traitKey));
+}
+
+export function cleanBuilderTraits(
+  data: CharacterBuilderData,
+  traitCatalog: PlayerTraitDefinition[],
+) {
+  return {
+    ...data,
+    selectedTraitKeys: cleanSelectedTraitKeys(data.selectedTraitKeys, traitCatalog),
   };
 }
 
@@ -510,12 +513,11 @@ function normalizeAttributeMethod(value: unknown): AttributeMethod {
 
 function normalizeSelectedTraitKeys(value: unknown) {
   if (!Array.isArray(value)) return [];
-  const legalKeys = new Set(PLAYER_TRAIT_CATALOG.map((trait) => trait.key));
   return Array.from(
     new Set(
       value
         .map((key) => readString(key, 80))
-        .filter((key) => legalKeys.has(key)),
+        .filter((key) => key.length > 0),
     ),
   );
 }
@@ -534,7 +536,11 @@ export function normalizeBuilderData(value: unknown): CharacterBuilderData {
   };
 }
 
-export function validateBuilderData(data: CharacterBuilderData, level: number) {
+export function validateBuilderData(
+  data: CharacterBuilderData,
+  level: number,
+  traitCatalog: PlayerTraitDefinition[] = [],
+) {
   const errors: string[] = [];
 
   const characteristicErrors = data.characteristics.flatMap(validateCharacteristic);
@@ -549,7 +555,13 @@ export function validateBuilderData(data: CharacterBuilderData, level: number) {
   errors.push(...validateAttributes(data.attributeMethod, data.attributes));
   errors.push(...validateResistPoints(level, data.resistPoints));
 
-  const traitSummary = selectedTraitSummary(data.selectedTraitKeys, level);
+  const traitIds = activeTraitIds(traitCatalog);
+  const missingTrait = data.selectedTraitKeys.find((traitKey) => !traitIds.has(traitKey));
+  if (missingTrait) {
+    errors.push("One or more selected Character Traits are no longer available.");
+  }
+
+  const traitSummary = selectedTraitSummary(data.selectedTraitKeys, level, traitCatalog);
   if (traitSummary.negativeTraitCount > 2) {
     errors.push("A character may select at most 2 Negative Traits.");
   }

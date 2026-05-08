@@ -7,7 +7,12 @@ import {
   requireCampaignAccess,
 } from "@/lib/campaign/access";
 import { getMemberIdentities, getMemberIdentityLabel } from "@/lib/campaign/memberIdentity";
-import { normalizeBuilderData, validateBuilderData } from "@/lib/characterBuilder/core";
+import {
+  cleanBuilderTraits,
+  normalizeBuilderData,
+  validateBuilderData,
+  type PlayerTraitDefinition,
+} from "@/lib/characterBuilder/core";
 import { prisma } from "@/prisma/client";
 
 const DEFAULT_CHARACTER_NAME = "UNNAMED";
@@ -120,11 +125,14 @@ async function loadBuilderContext(campaignId: string, characterId: string, userI
     ? identities.get(character.assignedUserId)
     : undefined;
 
+  const traitCatalog = await loadBuilderTraitCatalog();
+  const builderData = cleanBuilderTraits(normalizeBuilderData(character.builderData), traitCatalog);
+
   return {
     campaign,
     character: {
       ...character,
-      builderData: normalizeBuilderData(character.builderData),
+      builderData,
     },
     access: {
       userId,
@@ -135,7 +143,31 @@ async function loadBuilderContext(campaignId: string, characterId: string, userI
     },
     canEdit: canManage || isAssignedActivePlayer,
     assignedPlayerLabel: getMemberIdentityLabel(assignedIdentity),
+    traitCatalog,
   };
+}
+
+async function loadBuilderTraitCatalog(): Promise<PlayerTraitDefinition[]> {
+  const rows = await prisma.playerTrait.findMany({
+    where: { isActive: true },
+    orderBy: [{ name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      descriptor: true,
+      classification: true,
+      pointValue: true,
+      isActive: true,
+    },
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    descriptor: row.descriptor,
+    classification: row.classification,
+    pointValue: row.pointValue,
+    isActive: row.isActive,
+  }));
 }
 
 export async function GET(
@@ -207,9 +239,10 @@ export async function PATCH(
     const race = normalizeOptionalString(body.race, 120);
     const description = normalizeOptionalString(body.description, 4000);
     const level = normalizeLevel(body.level);
-    const builderData = normalizeBuilderData(body.builderData);
+    const traitCatalog = await loadBuilderTraitCatalog();
+    const builderData = cleanBuilderTraits(normalizeBuilderData(body.builderData), traitCatalog);
     const validationLevel = level ?? builderContext.character.level;
-    const validationErrors = validateBuilderData(builderData, validationLevel);
+    const validationErrors = validateBuilderData(builderData, validationLevel, traitCatalog);
     if (validationErrors.length > 0) {
       return NextResponse.json({ error: validationErrors.join(" ") }, { status: 400 });
     }
@@ -258,6 +291,7 @@ export async function PATCH(
         ...character,
         builderData: normalizeBuilderData(character.builderData),
       },
+      traitCatalog: await loadBuilderTraitCatalog(),
     });
   } catch (error) {
     return toErrorResponse(error);
