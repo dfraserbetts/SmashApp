@@ -18,6 +18,7 @@ import { summarizeEquipmentItem } from "@/lib/characterBuilder/equipment";
 import { prisma } from "@/prisma/client";
 
 const DEFAULT_CHARACTER_NAME = "UNNAMED";
+const PARTY_STASH_TRANSFER_TARGET_ID = "__PARTY_STASH__";
 
 type BuilderPayload = {
   name?: unknown;
@@ -42,6 +43,25 @@ function toErrorResponse(error: unknown) {
   }
   console.error("[CHARACTER_BUILDER]", error);
   return NextResponse.json({ error: "Server error" }, { status: 500 });
+}
+
+function getVisibleAssignedPlayerLabel(args: {
+  userId: string;
+  playerName: string | null;
+  email: string | null;
+  canViewEmail: boolean;
+}) {
+  const playerName = args.playerName?.trim();
+  if (playerName) {
+    return args.canViewEmail && args.email ? `${playerName} (${args.email})` : playerName;
+  }
+  if (args.canViewEmail && args.email) return args.email;
+  return `Player ${args.userId.slice(0, 8)}`;
+}
+
+function getTransferPlayerLabel(playerName: string | null | undefined) {
+  const trimmed = playerName?.trim();
+  return trimmed || "Player";
 }
 
 function normalizeDisplayName(value: unknown): string | undefined {
@@ -120,16 +140,28 @@ async function loadBuilderContext(campaignId: string, characterId: string, userI
     throw new Error("FORBIDDEN");
   }
 
-  const identities = character.assignedUserId
-    ? await getMemberIdentities([character.assignedUserId])
-    : new Map();
+  const [identities, assignedMembership] = character.assignedUserId
+    ? await Promise.all([
+        getMemberIdentities([character.assignedUserId]),
+        prisma.campaignUser.findUnique({
+          where: {
+            campaignId_userId: {
+              campaignId,
+              userId: character.assignedUserId,
+            },
+          },
+          select: { playerName: true },
+        }),
+      ])
+    : ([new Map(), null] as const);
   const assignedIdentity = character.assignedUserId
     ? identities.get(character.assignedUserId)
     : undefined;
 
-  const [traitCatalog, backpackItems] = await Promise.all([
+  const [traitCatalog, backpackItems, transferTargets] = await Promise.all([
     loadBuilderTraitCatalog(),
     loadBuilderBackpackItems(campaignId, characterId),
+    loadBackpackTransferTargets(campaignId, characterId),
   ]);
   const builderData = sanitizeBuilderEquipment(
     cleanBuilderTraits(normalizeBuilderData(character.builderData), traitCatalog),
@@ -150,9 +182,17 @@ async function loadBuilderContext(campaignId: string, characterId: string, userI
       permissions,
     },
     canEdit: canManage || isAssignedActivePlayer,
-    assignedPlayerLabel: getMemberIdentityLabel(assignedIdentity),
+    assignedPlayerLabel: character.assignedUserId
+      ? getVisibleAssignedPlayerLabel({
+          userId: character.assignedUserId,
+          playerName: assignedMembership?.playerName ?? null,
+          email: assignedIdentity?.email ?? null,
+          canViewEmail: canManage,
+        })
+      : getMemberIdentityLabel(assignedIdentity),
     traitCatalog,
     backpackItems,
+    transferTargets,
   };
 }
 
@@ -219,6 +259,7 @@ async function loadBuilderBackpackItems(campaignId: string, characterId: string)
       quantity: row.quantity,
       itemTemplate: {
         id: itemTemplate.id,
+        itemUrl: itemTemplate.itemUrl,
         name: itemTemplate.name,
         rarity: itemTemplate.rarity,
         level: itemTemplate.level,
@@ -273,6 +314,55 @@ async function loadBuilderBackpackItems(campaignId: string, characterId: string)
       },
     };
   });
+}
+
+async function loadBackpackTransferTargets(campaignId: string, sourceCharacterId: string) {
+  const characters = await prisma.campaignCharacter.findMany({
+    where: {
+      campaignId,
+      archivedAt: null,
+      id: { not: sourceCharacterId },
+    },
+    orderBy: [{ name: "asc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      assignedUserId: true,
+    },
+  });
+  const assignedUserIds = Array.from(
+    new Set(characters.map((character) => character.assignedUserId).filter(Boolean)),
+  ) as string[];
+  const memberships =
+    assignedUserIds.length > 0
+      ? await prisma.campaignUser.findMany({
+          where: { campaignId, userId: { in: assignedUserIds } },
+          select: { userId: true, playerName: true },
+        })
+      : [];
+  const membershipByUserId = new Map(memberships.map((row) => [row.userId, row]));
+
+  const characterTargets = characters.map((character) => {
+    const characterName = character.name?.trim() || "(Unnamed character)";
+    const assignedPlayerLabel = character.assignedUserId
+      ? getTransferPlayerLabel(membershipByUserId.get(character.assignedUserId)?.playerName)
+      : "Unassigned";
+    return {
+      characterId: character.id,
+      characterName,
+      assignedPlayerLabel,
+      label: `${characterName} - ${assignedPlayerLabel}`,
+    };
+  });
+  return [
+    {
+      characterId: PARTY_STASH_TRANSFER_TARGET_ID,
+      characterName: "Party Stash",
+      assignedPlayerLabel: "Unassigned",
+      label: "Party Stash",
+    },
+    ...characterTargets,
+  ];
 }
 
 export async function GET(

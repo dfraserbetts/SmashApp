@@ -909,7 +909,19 @@ Selecting a Backpack item should show a single detailed Forge-style item preview
 
 Backpack rows may include Equip / Unequip shortcuts for faster table use, but the slot dropdowns remain the authoritative manual equipment controls. One-handed hand-slot shortcuts should use in-app hand selection controls rather than browser prompts.
 
+Players may transfer unequipped quantities from their own active character Backpack to other active campaign characters when ownership and quantity checks pass. Player transfers must not draw directly from Party Inventory. Backpack Give may also target Party Stash, which returns the quantity to the unassigned campaign stash by reducing the source Backpack assignment.
+
+Backpack Give should respect the current editor equipment state without requiring a manual Save Character click after unequipping. If the local equipped slot state is newer than the persisted Builder state, the Builder should sync that state before attempting the transfer and block the transfer with a clear error if sync fails.
+
 The Equipped Gear editor section should match Summoning Circle slot behaviour: empty slots show dropdowns, and occupied slots replace the dropdown with a compact equipped item card and Unequip action.
+
+Character Builder editor sections should be collapsible so long forms can be navigated without losing unsaved form state.
+
+For non-GD Players, Party Inventory should appear as Party Stash showing only unassigned campaign-owned items and available quantities. Normal Players cannot take, assign, give, or manage Party Stash items; Game Directors control Party Inventory assignment, while Players use Backpack Give only for their own assigned Backpack items.
+
+Delegated Party Stash management is a per-campaign-member permission flag, not a campaign role. Members with canManagePartyStash may assign unassigned Party Stash quantities to active campaign characters, but cannot create or delete campaign inventory items, change total Party Inventory quantities, manage campaign members, pull items back from other characters' Backpacks, assign to archived characters, or see player emails.
+
+Player-facing Character Management identity should use authored Player Names / display names, not email addresses or Supabase UUIDs. Game Directors may retain admin identity context where useful.
 
 Avoid temporary fake assignment fields unless implementation reality forces a very small scaffold. If a temporary bridge is used, it must be clearly marked as a bridge and removed once Party Inventory is live.
 
@@ -921,6 +933,8 @@ Equipment calculations should reuse Summoning Circle logic wherever possible.
 Where existing Forge or Summoning descriptor helpers can produce table-facing item output, the Character Builder should reuse those helpers. Missing output helpers are follow-up work, not a reason to invent duplicate item math inside the Builder.
 
 The current design assumption is that player-side calculations match Summoning Circle calculations across the board unless playtest later proves players feel underwhelming or overpowered.
+
+Equipped item global attribute modifiers should display in the Character Builder Attributes section using the Summoning Circle highest-only per-attribute rule. Multiple equipped items that modify the same attribute do not stack for display; show the highest modifier only. Unequipped Backpack items must not count.
 
 This includes, but may not be limited to:
 

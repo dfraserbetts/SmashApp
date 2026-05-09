@@ -9,6 +9,7 @@ export type CampaignAccess = {
   isOwner: boolean;
   role: CampaignRole | null;
   effectiveRole: CampaignRole | null;
+  canManagePartyStash: boolean;
 };
 
 export type CampaignPermissionSet = {
@@ -17,11 +18,13 @@ export type CampaignPermissionSet = {
   canUsePlayerCampaignTools: boolean;
   canManageCampaignCharacters: boolean;
   canManageCampaignInventory: boolean;
+  canManagePartyStash: boolean;
 };
 
 export function getCampaignPermissions(access: CampaignAccess | null): CampaignPermissionSet {
   const canViewCampaign = Boolean(access?.isAdmin || access?.effectiveRole);
   const canManageCampaign = Boolean(access?.isAdmin || access?.effectiveRole === "GAME_DIRECTOR");
+  const canManagePartyStash = Boolean(canManageCampaign || access?.canManagePartyStash);
 
   return {
     canViewCampaign,
@@ -29,6 +32,7 @@ export function getCampaignPermissions(access: CampaignAccess | null): CampaignP
     canUsePlayerCampaignTools: canViewCampaign,
     canManageCampaignCharacters: canManageCampaign,
     canManageCampaignInventory: canManageCampaign,
+    canManagePartyStash,
   };
 }
 
@@ -52,6 +56,10 @@ export function canManageCampaignInventory(access: CampaignAccess | null): boole
   return getCampaignPermissions(access).canManageCampaignInventory;
 }
 
+export function canManagePartyStash(access: CampaignAccess | null): boolean {
+  return getCampaignPermissions(access).canManagePartyStash;
+}
+
 export async function getCampaignMembership(
   campaignId: string,
   userId: string,
@@ -63,7 +71,7 @@ export async function getCampaignMembership(
     }),
     prisma.campaignUser.findUnique({
       where: { campaignId_userId: { campaignId, userId } },
-      select: { role: true },
+      select: { role: true, canManagePartyStash: true },
     }),
     prisma.userProfile.findUnique({
       where: { userId },
@@ -77,6 +85,7 @@ export async function getCampaignMembership(
   const isOwner = campaign.ownerUserId === userId;
   const role = membership?.role ?? null;
   const effectiveRole: CampaignRole | null = isOwner ? "GAME_DIRECTOR" : role;
+  const canManagePartyStashFlag = Boolean(membership?.canManagePartyStash && role);
 
   return {
     campaignId,
@@ -85,6 +94,7 @@ export async function getCampaignMembership(
     isOwner,
     role,
     effectiveRole,
+    canManagePartyStash: canManagePartyStashFlag,
   };
 }
 
@@ -123,4 +133,3 @@ export async function requireCampaignMemberRole(
   }
   return access.effectiveRole;
 }
-

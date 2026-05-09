@@ -536,6 +536,8 @@ model CampaignUser {
   campaignId               String
   userId                   String
   role                     CampaignRole @default(PLAYER)
+  playerName               String?
+  canManagePartyStash      Boolean      @default(false)
   allowHistoricCharacters  Boolean      @default(false)
   createdAt                DateTime     @default(now())
   campaign                 Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)

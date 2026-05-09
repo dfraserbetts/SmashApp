@@ -40,6 +40,16 @@ function summarizeAssignedQuantity(
   return backpackItems.reduce((sum, row) => sum + row.quantity, 0);
 }
 
+function withTagStrings<T extends { tags?: Array<{ tag: string }> }>(
+  row: T,
+): Omit<T, "tags"> & { tags: string[] } {
+  const tags = Array.isArray(row.tags) ? row.tags.map((entry) => entry.tag) : [];
+  return {
+    ...(row as Omit<T, "tags">),
+    tags,
+  };
+}
+
 export async function GET(
   _req: Request,
   context: { params: Promise<{ id: string }> },
@@ -55,6 +65,7 @@ export async function GET(
     const access = await requireCampaignAccess(campaignId, userId);
     const permissions = getCampaignPermissions(access);
     const isManager = permissions.canManageCampaignInventory;
+    const canAssignPartyStash = permissions.canManagePartyStash;
 
     const [campaign, rawPartyItems, itemTemplates, characters] = await Promise.all([
       prisma.campaign.findUnique({
@@ -62,19 +73,7 @@ export async function GET(
         select: { id: true, name: true },
       }),
       prisma.campaignPartyInventoryItem.findMany({
-        where: isManager
-          ? { campaignId }
-          : {
-              campaignId,
-              backpackItems: {
-                some: {
-                  character: {
-                    assignedUserId: userId,
-                    archivedAt: null,
-                  },
-                },
-              },
-            },
+        where: { campaignId },
         orderBy: { createdAt: "asc" },
         include: {
           itemTemplate: {
@@ -87,17 +86,13 @@ export async function GET(
               size: true,
               armorLocation: true,
               itemLocation: true,
+              tags: {
+                select: { tag: true },
+                orderBy: { tag: "asc" },
+              },
             },
           },
           backpackItems: {
-            where: isManager
-              ? {}
-              : {
-                  character: {
-                    assignedUserId: userId,
-                    archivedAt: null,
-                  },
-                },
             include: {
               character: {
                 select: {
@@ -125,12 +120,16 @@ export async function GET(
               size: true,
               armorLocation: true,
               itemLocation: true,
+              tags: {
+                select: { tag: true },
+                orderBy: { tag: "asc" },
+              },
             },
           })
         : Promise.resolve([]),
-      isManager
+      canAssignPartyStash
         ? prisma.campaignCharacter.findMany({
-            where: { campaignId },
+            where: isManager ? { campaignId } : { campaignId, archivedAt: null },
             orderBy: [{ archivedAt: "asc" }, { createdAt: "asc" }],
             select: {
               id: true,
@@ -139,20 +138,7 @@ export async function GET(
               archivedAt: true,
             },
           })
-        : prisma.campaignCharacter.findMany({
-            where: {
-              campaignId,
-              assignedUserId: userId,
-              archivedAt: null,
-            },
-            orderBy: { createdAt: "asc" },
-            select: {
-              id: true,
-              name: true,
-              assignedUserId: true,
-              archivedAt: true,
-            },
-          }),
+        : Promise.resolve([]),
     ]);
 
     if (!campaign) {
@@ -161,19 +147,20 @@ export async function GET(
 
     const partyItems = rawPartyItems.map((row) => {
       const assignedQuantity = summarizeAssignedQuantity(row.backpackItems);
+      const availableQuantity = Math.max(0, row.quantity - assignedQuantity);
       return {
         id: row.id,
         campaignId: row.campaignId,
         itemTemplateId: row.itemTemplateId,
-        quantity: isManager ? row.quantity : assignedQuantity,
-        assignedQuantity,
-        availableQuantity: isManager ? Math.max(0, row.quantity - assignedQuantity) : 0,
-        itemTemplate: row.itemTemplate,
-        backpackItems: row.backpackItems,
+        quantity: isManager ? row.quantity : availableQuantity,
+        assignedQuantity: isManager ? assignedQuantity : 0,
+        availableQuantity,
+        itemTemplate: withTagStrings(row.itemTemplate),
+        backpackItems: isManager ? row.backpackItems : [],
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       };
-    });
+    }).filter((item) => isManager || item.availableQuantity > 0);
 
     return NextResponse.json({
       campaign,
@@ -182,7 +169,7 @@ export async function GET(
         role: access.effectiveRole,
         permissions,
       },
-      itemTemplates,
+      itemTemplates: itemTemplates.map((item) => withTagStrings(item)),
       partyItems,
       characters,
     });

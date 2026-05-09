@@ -48,6 +48,7 @@ import {
   type CharacterBuilderDerivedBackpackItem,
 } from "@/lib/characterBuilder/derivedStats";
 import { getForgeRarityPalette } from "@/lib/forge/itemRarityPalette";
+import type { MonsterModifierField } from "@/lib/summoning/equipment";
 
 type CharacterBuilderRecord = {
   id: string;
@@ -83,7 +84,15 @@ type BuilderPayload = {
   assignedPlayerLabel: string;
   traitCatalog: PlayerTraitDefinition[];
   backpackItems: BuilderBackpackItem[];
+  transferTargets: BackpackTransferTarget[];
   error?: string;
+};
+
+type BackpackTransferTarget = {
+  characterId: string;
+  characterName: string;
+  assignedPlayerLabel: string;
+  label: string;
 };
 
 type BuilderBackpackItem = {
@@ -158,6 +167,15 @@ const PLACEHOLDER_SECTIONS = [
 ];
 
 const EMPTY_BACKPACK_ITEMS: BuilderBackpackItem[] = [];
+const EMPTY_TRANSFER_TARGETS: BackpackTransferTarget[] = [];
+const ATTRIBUTE_MODIFIER_FIELDS: Record<CharacterAttribute, MonsterModifierField> = {
+  Attack: "attackModifier",
+  Guard: "guardModifier",
+  Fortitude: "fortitudeModifier",
+  Intellect: "intellectModifier",
+  Synergy: "synergyModifier",
+  Bravery: "braveryModifier",
+};
 
 function displayName(name: string | null | undefined) {
   const trimmed = name?.trim();
@@ -328,6 +346,15 @@ function formatCompactModifier(attribute: string | undefined, amount: number | u
   const normalizedAmount = Math.trunc(amount ?? 0);
   if (normalizedAmount === 0) return null;
   return `${normalizedAmount > 0 ? "+" : ""}${normalizedAmount} ${attribute}`;
+}
+
+function formatSignedModifierValue(value: number) {
+  const normalized = Math.trunc(value);
+  return normalized > 0 ? `+${normalized}` : String(normalized);
+}
+
+function equippedSlotsSignature(equippedSlots: CharacterBuilderData["equippedSlots"]) {
+  return EQUIPMENT_SLOTS.map((slot) => `${slot}:${equippedSlots[slot] ?? ""}`).join("|");
 }
 
 function buildEquippedItemBullets(item: BuilderBackpackItem) {
@@ -517,6 +544,12 @@ export default function CharacterBuilderPage() {
   const [attributeSwapDrafts, setAttributeSwapDrafts] = useState<Record<string, string>>({});
   const [selectedBackpackItemId, setSelectedBackpackItemId] = useState("");
   const [pendingHandEquipItemId, setPendingHandEquipItemId] = useState("");
+  const [transferDraft, setTransferDraft] = useState<{
+    backpackItemId: string;
+    targetCharacterId: string;
+    quantity: string;
+  } | null>(null);
+  const [transferringBackpackItem, setTransferringBackpackItem] = useState(false);
   const protectionTuning = useProtectionTuning();
 
   const previewName = displayName(draft?.name ?? payload?.character.name);
@@ -538,6 +571,7 @@ export default function CharacterBuilderPage() {
   );
   const traitCatalog = payload?.traitCatalog ?? [];
   const backpackItems = payload?.backpackItems ?? EMPTY_BACKPACK_ITEMS;
+  const transferTargets = payload?.transferTargets ?? EMPTY_TRANSFER_TARGETS;
   const selectedBackpackItem = useMemo(
     () => backpackItems.find((item) => item.id === selectedBackpackItemId) ?? null,
     [backpackItems, selectedBackpackItemId],
@@ -545,6 +579,13 @@ export default function CharacterBuilderPage() {
   const pendingHandEquipItem = useMemo(
     () => backpackItems.find((item) => item.id === pendingHandEquipItemId) ?? null,
     [backpackItems, pendingHandEquipItemId],
+  );
+  const transferBackpackItem = useMemo(
+    () =>
+      transferDraft
+        ? backpackItems.find((item) => item.id === transferDraft.backpackItemId) ?? null
+        : null,
+    [backpackItems, transferDraft],
   );
   const activeTraitCatalog = traitCatalog.filter((trait) => trait.isActive !== false);
   const traitSummary = selectedTraitSummary(
@@ -597,6 +638,12 @@ export default function CharacterBuilderPage() {
       }),
     [backpackItems, builderData, currentLevel, protectionTuning],
   );
+  const persistedEquippedSlots = payload?.character.builderData.equippedSlots ?? {};
+  const hasUnsavedEquipmentChanges =
+    equippedSlotsSignature(builderData.equippedSlots) !==
+    equippedSlotsSignature(persistedEquippedSlots);
+  const getAttributeModifierValue = (attribute: CharacterAttribute) =>
+    derivedCombatStats.itemModifiers[ATTRIBUTE_MODIFIER_FIELDS[attribute]] ?? 0;
 
   const builderApiUrl = useMemo(() => {
     if (!campaignId || !characterId) return "";
@@ -664,7 +711,14 @@ export default function CharacterBuilderPage() {
     ) {
       setPendingHandEquipItemId("");
     }
-  }, [backpackItems, pendingHandEquipItemId, selectedBackpackItemId]);
+    if (
+      transferDraft &&
+      (!backpackItems.some((item) => item.id === transferDraft.backpackItemId) ||
+        !transferTargets.some((target) => target.characterId === transferDraft.targetCharacterId))
+    ) {
+      setTransferDraft(null);
+    }
+  }, [backpackItems, pendingHandEquipItemId, selectedBackpackItemId, transferDraft, transferTargets]);
 
   function updateDraft(patch: Partial<BuilderDraft>) {
     setDraft((current) => ({
@@ -916,6 +970,143 @@ export default function CharacterBuilderPage() {
     updateBuilderData({ equippedSlots: next });
   }
 
+  function getTransferableBackpackQuantity(item: BuilderBackpackItem) {
+    const usedCount = equippedUseCounts.get(item.id) ?? 0;
+    return Math.max(0, item.quantity - usedCount);
+  }
+
+  function openBackpackTransfer(item: BuilderBackpackItem) {
+    if (!canEdit || saving || transferringBackpackItem) return;
+    const targetCharacterId = transferTargets[0]?.characterId ?? "";
+    if (!targetCharacterId) {
+      setError("No active recipient characters are available.");
+      return;
+    }
+    if (getTransferableBackpackQuantity(item) <= 0) {
+      setError("Unequip this item before transferring the equipped quantity.");
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    setSelectedBackpackItemId(item.id);
+    setTransferDraft({
+      backpackItemId: item.id,
+      targetCharacterId,
+      quantity: "1",
+    });
+  }
+
+  async function reloadBackpackAfterTransfer() {
+    if (!builderApiUrl) return;
+    const res = await fetch(builderApiUrl, { cache: "no-store" });
+    const data = (await res.json().catch(() => ({}))) as BuilderPayload;
+    if (!res.ok) {
+      throw new Error(data.error ?? "Item transferred, but Backpack refresh failed.");
+    }
+    setPayload((current) =>
+      current
+        ? {
+            ...current,
+            backpackItems: data.backpackItems ?? current.backpackItems,
+            transferTargets: data.transferTargets ?? current.transferTargets,
+          }
+        : data,
+    );
+  }
+
+  async function syncDraftBeforeBackpackTransfer() {
+    if (!builderApiUrl || !draft || !canEdit) {
+      throw new Error("Character Builder is not ready to sync equipment.");
+    }
+    if (!hasUnsavedEquipmentChanges) return;
+    if (builderValidationErrors.length > 0) {
+      throw new Error("Resolve blocking Character Builder validation errors before giving items.");
+    }
+
+    const res = await fetch(builderApiUrl, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        name: draft.name,
+        imageUrl: draft.imageUrl,
+        age: draft.age,
+        race: draft.race,
+        description: draft.description,
+        level: Number(draft.level),
+        builderData: draft.builderData,
+      }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      character?: CharacterBuilderRecord;
+      traitCatalog?: PlayerTraitDefinition[];
+      backpackItems?: BuilderBackpackItem[];
+      error?: string;
+    };
+    if (!res.ok || !data.character) {
+      throw new Error(data.error ?? (await readApiError(res, "Failed to sync equipment.")));
+    }
+    const savedCharacter = data.character;
+
+    setPayload((current) =>
+      current
+        ? {
+            ...current,
+            character: savedCharacter,
+            traitCatalog: data.traitCatalog ?? current.traitCatalog,
+            backpackItems: data.backpackItems ?? current.backpackItems,
+          }
+        : current,
+    );
+    setDraft(makeDraft(savedCharacter));
+  }
+
+  async function handleBackpackTransfer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!builderApiUrl || !transferDraft || !transferBackpackItem) return;
+    const quantity = Number(transferDraft.quantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      setError("Transfer quantity must be a positive whole number.");
+      return;
+    }
+    if (quantity > getTransferableBackpackQuantity(transferBackpackItem)) {
+      setError("Transfer quantity exceeds unequipped Backpack quantity.");
+      return;
+    }
+
+    setTransferringBackpackItem(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await syncDraftBeforeBackpackTransfer();
+      const res = await fetch(
+        `/api/campaigns/${encodeURIComponent(campaignId)}/characters/${encodeURIComponent(
+          characterId,
+        )}/backpack-transfer`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceBackpackItemId: transferDraft.backpackItemId,
+            targetCharacterId: transferDraft.targetCharacterId,
+            quantity,
+          }),
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? (await readApiError(res, "Failed to transfer item.")));
+      }
+      await reloadBackpackAfterTransfer();
+      setTransferDraft(null);
+      setMessage("Item transferred.");
+    } catch (transferError) {
+      setError(transferError instanceof Error ? transferError.message : "Failed to transfer item.");
+    } finally {
+      setTransferringBackpackItem(false);
+    }
+  }
+
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!builderApiUrl || !draft || !canEdit) return;
@@ -1004,13 +1195,15 @@ export default function CharacterBuilderPage() {
         ) : null}
       </div>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-        <div>
-          <h2 className="text-lg font-semibold">Character Details</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Basic identity only. Character mechanics arrive in later steps.
-          </p>
-        </div>
+      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <summary className="cursor-pointer">
+          <div>
+            <h2 className="text-lg font-semibold">Character Details</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Basic identity only. Character mechanics arrive in later steps.
+            </p>
+          </div>
+        </summary>
 
         <div className="mt-4 grid gap-4">
           <label className="block">
@@ -1098,13 +1291,15 @@ export default function CharacterBuilderPage() {
           </label>
         </div>
 
-      </section>
+      </details>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-        <h2 className="text-lg font-semibold">Narrative Details</h2>
-        <p className="mt-1 text-sm text-zinc-500">
-          Great Secret and narrative notes. Bonds remain Game Director-assigned later.
-        </p>
+      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Narrative Details</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Great Secret and narrative notes. Bonds remain Game Director-assigned later.
+          </p>
+        </summary>
         <div className="mt-4 grid gap-4">
           <label className="block">
             <span className="text-xs text-zinc-400">Great Secret Template</span>
@@ -1166,16 +1361,18 @@ export default function CharacterBuilderPage() {
             Bonds are assigned by the Game Director in a later Character Management step.
           </div>
         </div>
-      </section>
+      </details>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <summary className="cursor-pointer">
           <div>
             <h2 className="text-lg font-semibold">Characteristics</h2>
             <p className="mt-1 text-sm text-zinc-500">
               Character Points: {characteristicSpent}/{characteristicBudget} spent.
             </p>
           </div>
+        </summary>
+        <div className="mt-4 flex justify-end">
           <button
             type="button"
             onClick={addCharacteristic}
@@ -1357,10 +1554,12 @@ export default function CharacterBuilderPage() {
             </p>
           ) : null}
         </div>
-      </section>
+      </details>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-        <h2 className="text-lg font-semibold">Attributes / Resist Points</h2>
+      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Attributes / Resist Points</h2>
+        </summary>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <div className="rounded-lg border border-zinc-800 bg-black p-3">
             <label className="block">
@@ -1379,34 +1578,52 @@ export default function CharacterBuilderPage() {
             <p className="mt-2 text-xs text-zinc-500">
               Heroic uses 12, 10, 8, 8, 6, 4. Destiny must total 48. Rolled allows legal table values.
             </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {CHARACTER_ATTRIBUTES.map((attribute) => (
-                <label key={attribute} className="block">
-                  <span className="text-xs text-zinc-400">{attribute}</span>
-                  <select
-                    value={builderData.attributes[attribute]}
-                    onChange={(event) =>
-                      updateAttribute(
-                        attribute,
-                        event.target.value ? Number(event.target.value) : "",
-                      )
-                    }
-                    disabled={!canEdit || saving}
-                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+            <div className="mt-4 space-y-2">
+              <div className="grid grid-cols-[1fr_minmax(92px,120px)_72px] gap-2 text-xs uppercase text-zinc-500">
+                <div>Attribute</div>
+                <div className="text-center">Base</div>
+                <div className="text-center">Modifier</div>
+              </div>
+              {CHARACTER_ATTRIBUTES.map((attribute) => {
+                const modifier = getAttributeModifierValue(attribute);
+                return (
+                  <div
+                    key={attribute}
+                    className="grid grid-cols-[1fr_minmax(92px,120px)_72px] items-center gap-2"
                   >
-                    <option value="">Choose value...</option>
-                    {LEGAL_ATTRIBUTE_VALUES.map((value) => (
-                      <option
-                        key={value}
-                        value={value}
-                        disabled={!isHeroicValueAvailable(attribute, value)}
-                      >
-                        {value}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ))}
+                    <span className="text-sm text-zinc-300">{attribute}</span>
+                    <select
+                      value={builderData.attributes[attribute]}
+                      onChange={(event) =>
+                        updateAttribute(
+                          attribute,
+                          event.target.value ? Number(event.target.value) : "",
+                        )
+                      }
+                      disabled={!canEdit || saving}
+                      className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-center text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                    >
+                      <option value="">Choose...</option>
+                      {LEGAL_ATTRIBUTE_VALUES.map((value) => (
+                        <option
+                          key={value}
+                          value={value}
+                          disabled={!isHeroicValueAvailable(attribute, value)}
+                        >
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      readOnly
+                      type="text"
+                      value={formatSignedModifierValue(modifier)}
+                      className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-2 text-center text-sm text-zinc-200 opacity-80"
+                      aria-label={`${attribute} equipped item modifier`}
+                    />
+                  </div>
+                );
+              })}
             </div>
             <div className="mt-3 text-sm text-zinc-400">
               Attribute total:{" "}
@@ -1495,14 +1712,16 @@ export default function CharacterBuilderPage() {
             ) : null}
           </div>
         </div>
-      </section>
+      </details>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-        <h2 className="text-lg font-semibold">Player Traits</h2>
-        <p className="mt-1 text-sm text-zinc-500">
-          Trait Points: {traitSummary.positiveCost}/{traitSummary.available} spent
-          ({traitPointBudget(currentLevel)} base + {traitSummary.negativeBonusAllowed} allowed negative bonus).
-        </p>
+      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Player Traits</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Trait Points: {traitSummary.positiveCost}/{traitSummary.available} spent
+            ({traitPointBudget(currentLevel)} base + {traitSummary.negativeBonusAllowed} allowed negative bonus).
+          </p>
+        </summary>
         <div className="mt-4 space-y-5">
           {activeTraitCatalog.length === 0 ? (
             <p className="text-sm text-zinc-500">
@@ -1589,14 +1808,16 @@ export default function CharacterBuilderPage() {
             </div>
           </div>
         </div>
-      </section>
+      </details>
 
-      <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-        <h2 className="text-lg font-semibold">Equipped Gear / Backpack</h2>
-        <p className="mt-1 text-sm text-zinc-500">
-          Equip only from this character&apos;s assigned Backpack. A Game Director manages
-          Party Inventory and Backpack quantities.
-        </p>
+      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Equipped Gear / Backpack</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Equip only from this character&apos;s assigned Backpack. A Game Director manages
+            Party Inventory and Backpack quantities.
+          </p>
+        </summary>
         <div className="mt-4 space-y-5">
           {EQUIPMENT_SLOT_GROUPS.map((group) => (
             <div key={group.label}>
@@ -1670,6 +1891,7 @@ export default function CharacterBuilderPage() {
                   const usedCount = equippedUseCounts.get(item.id) ?? 0;
                   const selected = selectedBackpackItemId === item.id;
                   const isEquipped = usedCount > 0;
+                  const transferableQuantity = getTransferableBackpackQuantity(item);
                   return (
                     <article
                       key={item.id}
@@ -1723,6 +1945,20 @@ export default function CharacterBuilderPage() {
                           >
                             {isEquipped ? "Unequip" : "Equip"}
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => openBackpackTransfer(item)}
+                            disabled={
+                              !canEdit ||
+                              saving ||
+                              transferringBackpackItem ||
+                              transferTargets.length === 0 ||
+                              transferableQuantity <= 0
+                            }
+                            className="rounded border border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-100 hover:bg-sky-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Give
+                          </button>
                         </div>
                       </div>
                     </article>
@@ -1742,16 +1978,19 @@ export default function CharacterBuilderPage() {
             </div>
           )}
         </div>
-      </section>
+      </details>
 
       {PLACEHOLDER_SECTIONS.map((section) => (
-        <section
+        <details
+          open
           key={section.title}
           className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4"
         >
-          <h2 className="font-semibold">{section.title}</h2>
+          <summary className="cursor-pointer">
+            <h2 className="font-semibold">{section.title}</h2>
+          </summary>
           <p className="mt-1 text-sm text-zinc-500">{section.status}</p>
-        </section>
+        </details>
       ))}
     </form>
   );
@@ -1837,12 +2076,18 @@ export default function CharacterBuilderPage() {
       <div className="rounded-lg border border-zinc-800 bg-black p-3">
         <div className="text-xs text-zinc-500">Attributes</div>
         <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-zinc-200">
-          {CHARACTER_ATTRIBUTES.map((attribute) => (
-            <div key={attribute} className="flex justify-between gap-3">
-              <span>{attribute}</span>
-              <span>{builderData.attributes[attribute] || "Unassigned"}</span>
-            </div>
-          ))}
+          {CHARACTER_ATTRIBUTES.map((attribute) => {
+            const modifier = getAttributeModifierValue(attribute);
+            return (
+              <div key={attribute} className="flex justify-between gap-3">
+                <span>{attribute}</span>
+                <span>
+                  {builderData.attributes[attribute] || "Unassigned"}
+                  {modifier !== 0 ? ` (${formatSignedModifierValue(modifier)})` : ""}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -2169,6 +2414,84 @@ export default function CharacterBuilderPage() {
               Cancel
             </button>
           </div>
+        </div>
+      ) : null}
+      {transferDraft && transferBackpackItem ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="backpack-transfer-title"
+        >
+          <form
+            onSubmit={handleBackpackTransfer}
+            className="w-full max-w-md space-y-4 rounded-xl border border-zinc-700 bg-zinc-950 p-5 shadow-2xl"
+          >
+            <div>
+              <h2 id="backpack-transfer-title" className="text-lg font-semibold text-zinc-100">
+                Give Backpack item
+              </h2>
+              <p className="mt-1 text-sm text-zinc-400">
+                {transferBackpackItem.itemTemplate.name ?? "(Unnamed item)"}
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Available to give: {getTransferableBackpackQuantity(transferBackpackItem)}
+              </p>
+            </div>
+            <label className="block">
+              <span className="text-xs text-zinc-400">Recipient</span>
+              <select
+                value={transferDraft.targetCharacterId}
+                onChange={(event) =>
+                  setTransferDraft((current) =>
+                    current ? { ...current, targetCharacterId: event.target.value } : current,
+                  )
+                }
+                disabled={transferringBackpackItem}
+                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+              >
+                {transferTargets.map((target) => (
+                  <option key={target.characterId} value={target.characterId}>
+                    {target.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-zinc-400">Quantity</span>
+              <input
+                type="number"
+                min={1}
+                max={getTransferableBackpackQuantity(transferBackpackItem)}
+                step={1}
+                value={transferDraft.quantity}
+                onChange={(event) =>
+                  setTransferDraft((current) =>
+                    current ? { ...current, quantity: event.target.value } : current,
+                  )
+                }
+                disabled={transferringBackpackItem}
+                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+              />
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setTransferDraft(null)}
+                disabled={transferringBackpackItem}
+                className="rounded-lg border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={transferringBackpackItem}
+                className="rounded-lg border border-sky-700 px-3 py-2 text-sm font-medium text-sky-100 hover:bg-sky-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {transferringBackpackItem ? "Giving..." : "Confirm Give"}
+              </button>
+            </div>
+          </form>
         </div>
       ) : null}
     </main>

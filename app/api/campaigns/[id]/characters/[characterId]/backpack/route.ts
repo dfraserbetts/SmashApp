@@ -4,7 +4,6 @@ import { requireUserId } from "@/lib/auth/server";
 import {
   getCampaignPermissions,
   requireCampaignAccess,
-  requireCampaignGameDirector,
 } from "@/lib/campaign/access";
 import { prisma } from "@/prisma/client";
 
@@ -125,7 +124,11 @@ export async function POST(
     }
 
     const userId = await requireUserId();
-    await requireCampaignGameDirector(campaignId, userId);
+    const access = await requireCampaignAccess(campaignId, userId);
+    const permissions = getCampaignPermissions(access);
+    if (!permissions.canManagePartyStash) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const body = (await req.json().catch(() => ({}))) as BackpackPayload;
     const partyInventoryItemId =
@@ -141,7 +144,7 @@ export async function POST(
     const [character, partyItem] = await Promise.all([
       prisma.campaignCharacter.findFirst({
         where: { id: targetCharacterId, campaignId },
-        select: { id: true },
+        select: { id: true, archivedAt: true },
       }),
       prisma.campaignPartyInventoryItem.findFirst({
         where: { id: partyInventoryItemId, campaignId },
@@ -155,6 +158,12 @@ export async function POST(
 
     if (!character) {
       return NextResponse.json({ error: "Character not found" }, { status: 404 });
+    }
+    if (character.archivedAt) {
+      return NextResponse.json(
+        { error: "Archived characters cannot receive Party Stash assignments" },
+        { status: 400 },
+      );
     }
     if (!partyItem) {
       return NextResponse.json({ error: "Party inventory item not found" }, { status: 404 });

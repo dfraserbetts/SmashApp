@@ -22,6 +22,7 @@ type CampaignMemberRow = {
   identityLabel: string;
   confirmationValue: string;
   role: string;
+  canManagePartyStash: boolean;
   allowHistoricCharacters: boolean;
   createdAt: string;
   isOwner?: boolean;
@@ -70,6 +71,9 @@ export default function CampaignHomePage() {
     text: string;
   } | null>(null);
   const [savingMemberNameUserId, setSavingMemberNameUserId] = useState<string | null>(null);
+  const [savingPartyStashPermissionUserId, setSavingPartyStashPermissionUserId] = useState<
+    string | null
+  >(null);
   const [removingMember, setRemovingMember] = useState<CampaignMemberRow | null>(null);
   const [removeStep, setRemoveStep] = useState<"IDLE" | "WARNING" | "CONFIRM">("IDLE");
   const [removeConfirmInput, setRemoveConfirmInput] = useState("");
@@ -217,6 +221,39 @@ export default function CampaignHomePage() {
       setMemberActionErr(
         error instanceof Error ? error.message : "Failed to update historic character policy.",
       );
+    }
+  }
+
+  async function handleTogglePartyStashManagement(member: CampaignMemberRow, value: boolean) {
+    if (!campaignId) return;
+    setMemberActionErr(null);
+    setMemberActionMessage(null);
+    setSavingPartyStashPermissionUserId(member.userId);
+
+    try {
+      const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: member.userId,
+          canManagePartyStash: value,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to update Party Stash permission.");
+      }
+      await reloadMembers();
+      setMemberActionMessage({
+        userId: member.userId,
+        text: value ? "Party Stash permission enabled" : "Party Stash permission disabled",
+      });
+    } catch (error: unknown) {
+      setMemberActionErr(
+        error instanceof Error ? error.message : "Failed to update Party Stash permission.",
+      );
+    } finally {
+      setSavingPartyStashPermissionUserId(null);
     }
   }
 
@@ -505,9 +542,14 @@ export default function CampaignHomePage() {
                 <tr className="border-b border-zinc-800 text-left text-zinc-400">
                   <th className="py-2 pr-3 font-medium">Player</th>
                   <th className="py-2 pr-3 font-medium">Role</th>
-                  <th className="py-2 pr-3 font-medium">Status</th>
+                  {canManageMembers ? (
+                    <th className="py-2 pr-3 font-medium">Status</th>
+                  ) : null}
                   {canManageMembers ? (
                     <th className="py-2 pr-3 font-medium">Historic Characters</th>
+                  ) : null}
+                  {canManageMembers ? (
+                    <th className="py-2 pr-3 font-medium">Party Stash</th>
                   ) : null}
                   {canManageMembers ? (
                     <th className="py-2 pr-3 font-medium">Actions</th>
@@ -517,7 +559,7 @@ export default function CampaignHomePage() {
               <tbody>
                 {members.length === 0 ? (
                   <tr>
-                    <td className="py-3 text-zinc-500" colSpan={canManageMembers ? 5 : 3}>
+                    <td className="py-3 text-zinc-500" colSpan={canManageMembers ? 6 : 2}>
                       No campaign members found.
                     </td>
                   </tr>
@@ -571,10 +613,12 @@ export default function CampaignHomePage() {
                         )}
                       </td>
                       <td className="py-2 pr-3">{member.role}</td>
-                      <td className="py-2 pr-3 text-zinc-400">
-                        {member.isOwner ? "Owner" : "Member"}
-                        {member.isSyntheticOwner ? " (owner fallback)" : ""}
-                      </td>
+                      {canManageMembers ? (
+                        <td className="py-2 pr-3 text-zinc-400">
+                          {member.isOwner ? "Owner" : "Member"}
+                          {member.isSyntheticOwner ? " (owner fallback)" : ""}
+                        </td>
+                      ) : null}
                       {canManageMembers ? (
                         <td className="py-2 pr-3">
                           {member.role === "PLAYER" ? (
@@ -587,6 +631,30 @@ export default function CampaignHomePage() {
                                 }}
                               />
                               Allow
+                            </label>
+                          ) : (
+                            <span className="text-zinc-500">n/a</span>
+                          )}
+                        </td>
+                      ) : null}
+                      {canManageMembers ? (
+                        <td className="py-2 pr-3">
+                          {member.role === "PLAYER" ? (
+                            <label className="inline-flex items-center gap-2 text-xs text-zinc-300">
+                              <input
+                                type="checkbox"
+                                checked={member.canManagePartyStash}
+                                disabled={savingPartyStashPermissionUserId === member.userId}
+                                onChange={(event) => {
+                                  void handleTogglePartyStashManagement(
+                                    member,
+                                    event.target.checked,
+                                  );
+                                }}
+                              />
+                              {savingPartyStashPermissionUserId === member.userId
+                                ? "Saving..."
+                                : "Can assign"}
                             </label>
                           ) : (
                             <span className="text-zinc-500">n/a</span>

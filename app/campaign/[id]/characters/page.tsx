@@ -27,6 +27,7 @@ type CampaignCharacterRow = {
 
 type PlayerMemberRow = {
   userId: string;
+  playerName: string | null;
   email: string | null;
   identityLabel: string;
   allowHistoricCharacters: boolean;
@@ -115,6 +116,10 @@ export default function CampaignCharactersPage() {
   const archivedCharacters = useMemo(
     () => characters.filter((character) => Boolean(character.archivedAt)),
     [characters],
+  );
+  const playerMemberByUserId = useMemo(
+    () => new Map(playerMembers.map((member) => [member.userId, member])),
+    [playerMembers],
   );
 
   async function loadCharacters() {
@@ -297,6 +302,11 @@ export default function CampaignCharactersPage() {
     }));
   }
 
+  function getAssignedPlayerLabel(assignedUserId: string | null) {
+    if (!assignedUserId) return "Unassigned";
+    return playerMemberByUserId.get(assignedUserId)?.identityLabel ?? "Assigned Player";
+  }
+
   const campaignName = campaign?.name ?? "Campaign";
   const deletePhrase = deleteCharacter ? getCampaignCharacterDeletePhrase(deleteCharacter) : "";
 
@@ -454,8 +464,8 @@ export default function CampaignCharactersPage() {
                               ))}
                             </select>
                           ) : (
-                            <span className="font-mono text-xs text-zinc-300">
-                              {character.assignedUserId ?? "Unassigned"}
+                            <span className="text-sm text-zinc-300">
+                              {getAssignedPlayerLabel(character.assignedUserId)}
                               {isAssignedToCurrentUser ? " (you)" : ""}
                             </span>
                           )}

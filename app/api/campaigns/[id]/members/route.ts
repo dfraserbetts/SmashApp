@@ -14,6 +14,7 @@ type CampaignMemberPayload = {
   playerName?: unknown;
   confirmation?: unknown;
   allowHistoricCharacters?: unknown;
+  canManagePartyStash?: unknown;
 };
 
 function normalizeUserId(value: unknown): string {
@@ -108,6 +109,7 @@ export async function GET(
         userId: true,
         playerName: true,
         role: true,
+        canManagePartyStash: true,
         allowHistoricCharacters: true,
         createdAt: true,
       },
@@ -137,6 +139,7 @@ export async function GET(
                 email: identities.get(campaign.ownerUserId)?.email ?? null,
               }),
               role: "GAME_DIRECTOR" as const,
+              canManagePartyStash: false,
               allowHistoricCharacters: false,
               createdAt: campaign.createdAt,
               isOwner: true,
@@ -216,6 +219,12 @@ export async function PATCH(
         { status: 400 },
       );
     }
+    if (body.canManagePartyStash !== undefined && typeof body.canManagePartyStash !== "boolean") {
+      return NextResponse.json(
+        { error: "canManagePartyStash must be a boolean" },
+        { status: 400 },
+      );
+    }
 
     const [campaign, member] = await Promise.all([
       prisma.campaign.findUnique({
@@ -242,20 +251,31 @@ export async function PATCH(
         { status: 400 },
       );
     }
+    if (body.canManagePartyStash !== undefined && effectiveRole !== "PLAYER") {
+      return NextResponse.json(
+        { error: "Party Stash management can only be delegated to Player members" },
+        { status: 400 },
+      );
+    }
 
     const data: {
       playerName?: string | null;
       allowHistoricCharacters?: boolean;
+      canManagePartyStash?: boolean;
     } = {};
     if (playerName !== undefined) data.playerName = playerName;
     if (typeof body.allowHistoricCharacters === "boolean") {
       data.allowHistoricCharacters = body.allowHistoricCharacters;
+    }
+    if (typeof body.canManagePartyStash === "boolean") {
+      data.canManagePartyStash = body.canManagePartyStash;
     }
 
     const memberSelect = {
       userId: true,
       playerName: true,
       role: true,
+      canManagePartyStash: true,
       allowHistoricCharacters: true,
       createdAt: true,
     } as const;
@@ -274,6 +294,7 @@ export async function PATCH(
             userId: targetUserId,
             role: "GAME_DIRECTOR",
             playerName: data.playerName ?? null,
+            canManagePartyStash: false,
           },
           select: memberSelect,
         });
@@ -334,11 +355,13 @@ export async function POST(
         userId: targetUserId,
         role,
         playerName,
+        canManagePartyStash: false,
       },
       select: {
         userId: true,
         playerName: true,
         role: true,
+        canManagePartyStash: true,
         allowHistoricCharacters: true,
         createdAt: true,
       },

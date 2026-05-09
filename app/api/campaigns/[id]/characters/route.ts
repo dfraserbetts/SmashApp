@@ -6,7 +6,7 @@ import {
   requireCampaignAccess,
   requireCampaignGameDirector,
 } from "@/lib/campaign/access";
-import { getMemberIdentities, getMemberIdentityLabel } from "@/lib/campaign/memberIdentity";
+import { getMemberIdentities } from "@/lib/campaign/memberIdentity";
 import { prisma } from "@/prisma/client";
 
 type CharacterPayload = {
@@ -21,6 +21,20 @@ function normalizeAssignedUserId(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function getPlayerMemberLabel(args: {
+  userId: string;
+  playerName: string | null;
+  email: string | null;
+  canViewEmail: boolean;
+}) {
+  const playerName = args.playerName?.trim();
+  if (playerName) {
+    return args.canViewEmail && args.email ? `${playerName} (${args.email})` : playerName;
+  }
+  if (args.canViewEmail && args.email) return args.email;
+  return args.canViewEmail ? `Player ${args.userId.slice(0, 8)}` : "Player";
 }
 
 function toErrorResponse(error: unknown) {
@@ -53,7 +67,7 @@ async function validateAssignedPlayer(campaignId: string, assignedUserId: string
   return assignedUserId;
 }
 
-async function getPlayerMembers(campaignId: string) {
+async function getPlayerMembers(campaignId: string, canViewEmail: boolean) {
   const rows = await prisma.campaignUser.findMany({
     where: {
       campaignId,
@@ -62,6 +76,7 @@ async function getPlayerMembers(campaignId: string) {
     orderBy: { createdAt: "asc" },
     select: {
       userId: true,
+      playerName: true,
       role: true,
       allowHistoricCharacters: true,
       createdAt: true,
@@ -70,8 +85,13 @@ async function getPlayerMembers(campaignId: string) {
   const identities = await getMemberIdentities(rows.map((row) => row.userId));
   return rows.map((row) => ({
     ...row,
-    email: identities.get(row.userId)?.email ?? null,
-    identityLabel: getMemberIdentityLabel(identities.get(row.userId)),
+    email: canViewEmail ? identities.get(row.userId)?.email ?? null : null,
+    identityLabel: getPlayerMemberLabel({
+      userId: row.userId,
+      playerName: row.playerName,
+      email: identities.get(row.userId)?.email ?? null,
+      canViewEmail,
+    }),
   }));
 }
 
@@ -88,6 +108,7 @@ export async function GET(
 
     const userId = await requireUserId();
     const access = await requireCampaignAccess(campaignId, userId);
+    const permissions = getCampaignPermissions(access);
 
     const [campaign, characters, playerMembers] = await Promise.all([
       prisma.campaign.findUnique({
@@ -120,7 +141,7 @@ export async function GET(
           updatedAt: true,
         },
       }),
-      getPlayerMembers(campaignId),
+      getPlayerMembers(campaignId, permissions.canManageCampaignCharacters),
     ]);
 
     if (!campaign) {
@@ -134,7 +155,7 @@ export async function GET(
         role: access.effectiveRole,
         isAdmin: access.isAdmin,
         isOwner: access.isOwner,
-        permissions: getCampaignPermissions(access),
+        permissions,
       },
       characters,
       playerMembers,
