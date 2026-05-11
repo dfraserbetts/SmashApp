@@ -836,6 +836,79 @@ export function CharacterSheetPreview({
       {selectedSheets.inventory ? (
         <InventorySheet backpackItems={backpackItems} equipped={equipped} compact={compact} />
       ) : null}
+
+      <style jsx global>{`
+        .cb-sheet-preview {
+          color: #111111;
+        }
+
+        .cb-sheet-preview .cb-sheet-page {
+          border-color: #3f3f46;
+          background: #ffffff;
+          color: #111111;
+        }
+
+        .cb-sheet-preview .cb-sheet-title-band,
+        .cb-sheet-preview .cb-identity-band,
+        .cb-sheet-preview .cb-power-card,
+        .cb-sheet-preview .cb-stat-tile,
+        .cb-sheet-preview .cb-attribute-card,
+        .cb-sheet-preview .cb-sheet-panel {
+          border-color: #71717a;
+          background: #e4e4e7;
+          color: #111111;
+        }
+
+        .cb-sheet-preview .cb-main-hero,
+        .cb-sheet-preview .cb-portrait {
+          border-color: #71717a;
+          background: #f4f4f5;
+          color: #111111;
+        }
+
+        .cb-sheet-preview .border-zinc-800,
+        .cb-sheet-preview .border-zinc-800\\/80 {
+          border-color: #71717a;
+        }
+
+        .cb-sheet-preview .bg-black,
+        .cb-sheet-preview .bg-black\\/40,
+        .cb-sheet-preview .bg-black\\/50,
+        .cb-sheet-preview .bg-black\\/60,
+        .cb-sheet-preview .bg-zinc-900\\/70,
+        .cb-sheet-preview .bg-zinc-950\\/50,
+        .cb-sheet-preview .bg-zinc-950\\/60,
+        .cb-sheet-preview .bg-zinc-950\\/70 {
+          background: #e4e4e7;
+        }
+
+        .cb-sheet-preview .text-zinc-100,
+        .cb-sheet-preview .text-zinc-200,
+        .cb-sheet-preview .text-zinc-300,
+        .cb-sheet-preview .text-cyan-200,
+        .cb-sheet-preview .text-emerald-200 {
+          color: #111111;
+        }
+
+        .cb-sheet-preview .text-zinc-400,
+        .cb-sheet-preview .text-zinc-500 {
+          color: #52525b;
+        }
+
+        .cb-sheet-preview .border-cyan-900\\/70,
+        .cb-sheet-preview .border-emerald-900\\/70 {
+          border-color: #71717a;
+        }
+
+        .cb-sheet-preview .bg-cyan-950\\/15,
+        .cb-sheet-preview .bg-emerald-950\\/15 {
+          background: #e4e4e7;
+        }
+
+        .cb-sheet-preview .ring-emerald-700\\/50 {
+          --tw-ring-color: #71717a;
+        }
+      `}</style>
     </div>
   );
 }
