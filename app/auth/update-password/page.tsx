@@ -3,71 +3,159 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 import { supabaseClient } from '@/lib/supabaseClient';
 
 const MIN_PASSWORD_LENGTH = 6;
 const INVALID_RESET_LINK_MESSAGE =
   'Invalid or expired reset link. Please request a new reset email.';
+const RECOVERY_CHECK_TIMEOUT_MS = 1500;
 
 export default function UpdatePasswordPage() {
   const router = useRouter();
   const [err, setErr] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [diagnostic, setDiagnostic] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [hasRecoverySession, setHasRecoverySession] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    let recoveryEstablished = false;
+    let fallbackTimer: number | null = null;
+    let unsubscribeRecoveryListener: (() => void) | null = null;
+
+    function cleanupRecoveryListener() {
+      unsubscribeRecoveryListener?.();
+      unsubscribeRecoveryListener = null;
+    }
+
+    function clearRecoveryUrl() {
+      window.history.replaceState({}, document.title, '/auth/update-password');
+    }
+
+    function acceptRecoverySession(reason: string) {
+      recoveryEstablished = true;
+      if (cancelled) return;
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+      cleanupRecoveryListener();
+      setDiagnostic(reason);
+      setHasRecoverySession(true);
+      setErr(null);
+      setCheckingSession(false);
+    }
+
+    function rejectRecoverySession(reason: string) {
+      if (cancelled || recoveryEstablished) return;
+      setDiagnostic(reason);
+      setHasRecoverySession(false);
+      setErr(INVALID_RESET_LINK_MESSAGE);
+      setCheckingSession(false);
+    }
 
     async function prepareRecoverySession() {
       setErr(null);
+      setDiagnostic(null);
       setCheckingSession(true);
 
       try {
-        const searchParams = new URLSearchParams(window.location.search);
-        const code = searchParams.get('code');
-        let recoveryLinkAccepted = false;
-
-        if (code) {
-          const { error } = await supabaseClient.auth.exchangeCodeForSession(code);
-          if (error) throw error;
-          recoveryLinkAccepted = true;
-          window.history.replaceState({}, document.title, '/auth/update-password');
+        const {
+          data: { subscription },
+        } = supabaseClient.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+          if (event === 'PASSWORD_RECOVERY' && session) {
+            acceptRecoverySession('Password recovery session established.');
+          }
+        });
+        unsubscribeRecoveryListener = () => subscription.unsubscribe();
+        if (cancelled) {
+          cleanupRecoveryListener();
+          return;
         }
 
+        const searchParams = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const code = searchParams.get('code');
+        const tokenHash = searchParams.get('token_hash');
+        const queryType = searchParams.get('type');
         const accessToken = hashParams.get('access_token');
         const refreshToken = hashParams.get('refresh_token');
         const hashType = hashParams.get('type');
-        if (accessToken && refreshToken && hashType === 'recovery') {
-          const { error } = await supabaseClient.auth.setSession({
+        const hashError = hashParams.get('error') ?? searchParams.get('error');
+
+        if (hashError) {
+          clearRecoveryUrl();
+          cleanupRecoveryListener();
+          rejectRecoverySession('Recovery link returned an auth error.');
+          return;
+        }
+
+        let handledRecoveryParam = false;
+        if (code) {
+          handledRecoveryParam = true;
+          setDiagnostic('Recovery code detected.');
+          const { data, error } = await supabaseClient.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+          clearRecoveryUrl();
+          if (data.session) {
+            acceptRecoverySession('Recovery code accepted.');
+          } else {
+            const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+            if (sessionError) throw sessionError;
+            if (sessionData.session) acceptRecoverySession('Recovery code accepted.');
+          }
+        }
+
+        if (!recoveryEstablished && tokenHash && queryType === 'recovery') {
+          handledRecoveryParam = true;
+          setDiagnostic('Recovery token detected.');
+          const { data, error } = await supabaseClient.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: 'recovery',
+          });
+          if (error) throw error;
+          clearRecoveryUrl();
+          if (data.session) {
+            acceptRecoverySession('Recovery token accepted.');
+          }
+        }
+
+        if (!recoveryEstablished && accessToken && refreshToken && hashType === 'recovery') {
+          handledRecoveryParam = true;
+          setDiagnostic('Recovery hash detected.');
+          const { data, error } = await supabaseClient.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           });
           if (error) throw error;
-          recoveryLinkAccepted = true;
-          window.history.replaceState({}, document.title, '/auth/update-password');
-        }
-
-        const { data, error } = await supabaseClient.auth.getSession();
-        if (error) throw error;
-
-        if (!cancelled) {
-          const validRecoverySession = recoveryLinkAccepted && Boolean(data.session);
-          setHasRecoverySession(validRecoverySession);
-          if (!validRecoverySession) {
-            setErr(INVALID_RESET_LINK_MESSAGE);
+          clearRecoveryUrl();
+          if (data.session) {
+            acceptRecoverySession('Recovery hash accepted.');
           }
         }
-      } catch {
-        if (!cancelled) {
-          setHasRecoverySession(false);
-          setErr(INVALID_RESET_LINK_MESSAGE);
+
+        if (recoveryEstablished) {
+          cleanupRecoveryListener();
+          return;
         }
-      } finally {
-        if (!cancelled) setCheckingSession(false);
+
+        fallbackTimer = window.setTimeout(() => {
+          cleanupRecoveryListener();
+          rejectRecoverySession(
+            handledRecoveryParam
+              ? 'Recovery parameters were detected, but no recovery session was established.'
+              : 'No recovery params detected.',
+          );
+        }, RECOVERY_CHECK_TIMEOUT_MS);
+      } catch (error) {
+        if (window.location.hash || window.location.search) {
+          clearRecoveryUrl();
+        }
+        if (!cancelled) {
+          setDiagnostic(error instanceof Error ? error.message : 'Recovery link could not be verified.');
+          rejectRecoverySession('Recovery link could not be verified.');
+        }
       }
     }
 
@@ -75,6 +163,8 @@ export default function UpdatePasswordPage() {
 
     return () => {
       cancelled = true;
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+      cleanupRecoveryListener();
     };
   }, []);
 
@@ -114,6 +204,7 @@ export default function UpdatePasswordPage() {
     }
 
     setMessage('Password updated. You can now log in with your new password.');
+    setHasRecoverySession(false);
     await supabaseClient.auth.signOut();
     window.setTimeout(() => router.replace('/login'), 1500);
   }
@@ -127,7 +218,10 @@ export default function UpdatePasswordPage() {
         </p>
 
         {checkingSession ? (
-          <p className="text-sm text-zinc-400">Checking reset link...</p>
+          <div className="space-y-2">
+            <p className="text-sm text-zinc-400">Checking reset link...</p>
+            {diagnostic ? <p className="text-xs text-zinc-500">{diagnostic}</p> : null}
+          </div>
         ) : hasRecoverySession ? (
           <form onSubmit={handleSubmit} className="grid gap-3">
             <label className="grid gap-1">
@@ -168,6 +262,10 @@ export default function UpdatePasswordPage() {
               </p>
             )}
 
+            {diagnostic && !message ? (
+              <p className="text-xs text-zinc-500">{diagnostic}</p>
+            ) : null}
+
             <button
               type="submit"
               disabled={!hasRecoverySession || loading}
@@ -177,9 +275,12 @@ export default function UpdatePasswordPage() {
             </button>
           </form>
         ) : (
-          <p className="text-sm text-red-400 border border-red-900/40 bg-red-950/20 rounded-lg p-2">
-            {err ?? INVALID_RESET_LINK_MESSAGE}
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-red-400 border border-red-900/40 bg-red-950/20 rounded-lg p-2">
+              {err ?? INVALID_RESET_LINK_MESSAGE}
+            </p>
+            {diagnostic ? <p className="text-xs text-zinc-500">{diagnostic}</p> : null}
+          </div>
         )}
 
         <p className="text-sm text-zinc-400 mt-4">
