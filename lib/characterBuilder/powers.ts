@@ -5,19 +5,35 @@ import type {
   EffectPacket,
   EffectPacketApplyTo,
   EffectTimingType,
-  HostileEntryPattern,
   Power,
   PowerIntention,
   PrimaryDefenceGate,
   RangeCategory,
   ResistTheme,
-  TriggerConditionKey,
 } from "@/lib/summoning/types";
 import {
   RESIST_THEME_VALUES,
   TRIGGER_CONDITION_KEYS,
   MAX_POWER_PACKET_DAMAGE_TYPES as MAX_DAMAGE_TYPES,
 } from "@/lib/summoning/types";
+import {
+  CHARACTER_BUILDER_V1_POWER_INTENTIONS,
+  POWER_AUTHORING_MAX_PACKET_DURATION_TURNS,
+  POWER_TRIGGER_AREA_PRESENCE_KEYS,
+  getPowerAllowedCommitmentOptions,
+  getPowerAllowedCounterOptions,
+  getPowerAllowedDurationOptions,
+  getPowerAllowedLifespanOptions,
+  getPowerAllowedRangeCategories,
+  getPowerAllowedTimingOptions,
+  getPowerAllowedTriggerConditionOptions,
+  getPowerPrimaryTimingForDescriptorChassis,
+  isCharacterBuilderV1PowerIntention,
+  isPowerAreaTriggerCondition,
+  isPowerSecondaryDiceAuthored,
+  normalizePowerCommitmentModifier,
+  readPowerTriggerCondition,
+} from "@/lib/powers/authoringRules";
 import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
 import {
   calculateCharacterPlayerPowerSpend,
@@ -71,6 +87,8 @@ const POWER_INTENTIONS: PowerIntention[] = [
   "SUPPORT",
   "AUGMENT",
   "DEBUFF",
+  "SUMMONING",
+  "TRANSFORMATION",
 ];
 const EFFECT_TIMINGS: EffectTimingType[] = [
   "ON_CAST",
@@ -154,9 +172,19 @@ export const CHARACTER_POWER_MOVEMENT_MODES = MOVEMENT_MODES;
 export const CHARACTER_POWER_CONTROL_THEME_OPTIONS = CONTROL_THEME_OPTIONS;
 export const CHARACTER_POWER_ATTRIBUTE_OPTIONS = ATTRIBUTE_LABEL_OPTIONS;
 export const CHARACTER_POWER_TRIGGER_CONDITION_OPTIONS = TRIGGER_CONDITION_KEYS;
+export const CHARACTER_POWER_INTENTION_OPTIONS = CHARACTER_BUILDER_V1_POWER_INTENTIONS;
 export const CHARACTER_POWER_MAX_DAMAGE_TYPES: typeof MAX_DAMAGE_TYPES = MAX_DAMAGE_TYPES;
 export const CHARACTER_POWER_MAX_DICE_COUNT = 20;
 export const CHARACTER_POWER_MAX_POTENCY = 20;
+export const CHARACTER_POWER_MAX_PACKET_DURATION_TURNS = POWER_AUTHORING_MAX_PACKET_DURATION_TURNS;
+export const getCharacterPowerAllowedCommitmentOptions = getPowerAllowedCommitmentOptions;
+export const getCharacterPowerAllowedCounterOptions = getPowerAllowedCounterOptions;
+export const getCharacterPowerAllowedLifespanOptions = getPowerAllowedLifespanOptions;
+export const isCharacterPowerSecondaryDiceAuthored = isPowerSecondaryDiceAuthored;
+export const getCharacterPowerAllowedRangeCategories = getPowerAllowedRangeCategories;
+export const getCharacterPowerAllowedTriggerConditionOptions = getPowerAllowedTriggerConditionOptions;
+export const getCharacterPowerAllowedTimingOptions = getPowerAllowedTimingOptions;
+export const getCharacterPowerAllowedDurationOptions = getPowerAllowedDurationOptions;
 export const CHARACTER_POWER_FALLBACK_DAMAGE_TYPES = [
   { id: -101, name: "Slash", attackMode: "PHYSICAL" as const },
   { id: -102, name: "Pierce", attackMode: "PHYSICAL" as const },
@@ -224,17 +252,19 @@ function getThemeResistAttribute(value: unknown): CoreAttribute | null {
   return theme ? CONTROL_THEME_TO_RESIST_ATTRIBUTE[theme] : null;
 }
 
-function isChannelAllowedForChassis(descriptorChassis: DescriptorChassisType) {
-  return descriptorChassis === "IMMEDIATE" ||
-    descriptorChassis === "FIELD" ||
-    descriptorChassis === "ATTACHED";
+function normalizeCommitmentModifier(value: unknown) {
+  return normalizePowerCommitmentModifier(value);
 }
 
-function normalizeCommitmentModifier(value: unknown, descriptorChassis: DescriptorChassisType) {
-  const normalized = oneOf(value, ["STANDARD", "CHANNEL", "CHARGE"] as const, "STANDARD");
-  return normalized === "CHANNEL" && !isChannelAllowedForChassis(descriptorChassis)
-    ? "STANDARD"
-    : normalized;
+function normalizeLifespanType(
+  value: unknown,
+  descriptorChassis: DescriptorChassisType,
+  commitmentModifier?: Power["commitmentModifier"],
+): NonNullable<Power["lifespanType"]> {
+  const allowedOptions = getCharacterPowerAllowedLifespanOptions(descriptorChassis, commitmentModifier);
+  return allowedOptions.includes(value as NonNullable<Power["lifespanType"]>)
+    ? (value as NonNullable<Power["lifespanType"]>)
+    : allowedOptions[0] ?? "NONE";
 }
 
 function normalizeControlMode(value: unknown) {
@@ -251,132 +281,6 @@ function cleanseEffectNeedsTheme(cleanseEffectType: string) {
 
 function controlModeNeedsTheme(controlMode: string) {
   return CONTROL_MODES.includes(controlMode as (typeof CONTROL_MODES)[number]);
-}
-
-function doesPacketCreateBeyondTurnCarrier(effectPacket: EffectPacket | undefined) {
-  const durationType = effectPacket?.effectDurationType ?? "INSTANT";
-  return durationType === "TURNS" ||
-    durationType === "PASSIVE" ||
-    durationType === "UNTIL_TARGET_NEXT_TURN";
-}
-
-function restrictSecondaryTimingOptionsByPrimaryDuration(
-  allowedOptions: EffectTimingType[],
-  primaryEffectPacket: EffectPacket | undefined,
-) {
-  const primaryDurationType = primaryEffectPacket?.effectDurationType ?? "INSTANT";
-  if (primaryDurationType !== "INSTANT" && primaryDurationType !== "UNTIL_TARGET_NEXT_TURN") {
-    return allowedOptions;
-  }
-  const narrowedOptions = allowedOptions.filter((option) =>
-    option === "ON_CAST" ||
-    option === "ON_ATTACH" ||
-    option === "ON_TRIGGER" ||
-    option === "ON_EXPIRY" ||
-    option === "ON_RELEASE",
-  );
-  return narrowedOptions.length > 0 ? narrowedOptions : allowedOptions;
-}
-
-function getHostileEntryPattern(power: Pick<CharacterPower, "primaryDefenceGate" | "descriptorChassisConfig">) {
-  const config = asRecord(power.descriptorChassisConfig);
-  return oneOf(
-    power.primaryDefenceGate?.hostileEntryPattern ?? config.hostileEntryPattern,
-    ["DIRECT", "ON_ATTACH", "ON_PAYLOAD"] as const,
-    "DIRECT",
-  ) as HostileEntryPattern;
-}
-
-function getPrimaryTimingForDescriptorChassis(
-  descriptorChassis: DescriptorChassisType,
-  hostileEntryPattern: HostileEntryPattern | null,
-): EffectTimingType {
-  if (descriptorChassis === "TRIGGER") return "ON_TRIGGER";
-  if (descriptorChassis === "RESERVE") return "ON_RELEASE";
-  if (descriptorChassis === "ATTACHED") {
-    return hostileEntryPattern === "ON_PAYLOAD" ? "ON_TRIGGER" : "ON_ATTACH";
-  }
-  if (descriptorChassis === "FIELD") return "START_OF_TURN";
-  return "ON_CAST";
-}
-
-export function getCharacterPowerAllowedTimingOptions(
-  power: Pick<CharacterPower, "descriptorChassis" | "commitmentModifier" | "primaryDefenceGate" | "descriptorChassisConfig" | "effectPackets">,
-  packetIndex: number,
-): EffectTimingType[] {
-  const descriptorChassis = power.descriptorChassis ?? "IMMEDIATE";
-  const commitmentModifier = normalizeCommitmentModifier(power.commitmentModifier, descriptorChassis);
-  const hostileEntryPattern = getHostileEntryPattern(power);
-  const primaryEffectPacket = power.effectPackets[0];
-  const channelRecurringOptions =
-    commitmentModifier === "CHANNEL" && isChannelAllowedForChassis(descriptorChassis)
-      ? (["START_OF_TURN_WHILST_CHANNELLED", "END_OF_TURN_WHILST_CHANNELLED"] as EffectTimingType[])
-      : [];
-  const immediateRecurringOptions = [
-    "ON_CAST",
-    "ON_TRIGGER",
-    "START_OF_TURN",
-    "END_OF_TURN",
-    ...channelRecurringOptions,
-    "ON_EXPIRY",
-  ] as EffectTimingType[];
-
-  if (packetIndex > 0) {
-    let secondaryTimingOptions: EffectTimingType[];
-    if (descriptorChassis === "IMMEDIATE") {
-      const primaryTimingType = primaryEffectPacket?.effectTimingType ?? "ON_CAST";
-      if (primaryTimingType === "ON_CAST" && !doesPacketCreateBeyondTurnCarrier(primaryEffectPacket)) {
-        return ["ON_CAST"];
-      }
-      secondaryTimingOptions = [...immediateRecurringOptions];
-    } else if (descriptorChassis === "RESERVE") {
-      secondaryTimingOptions = ["ON_RELEASE"];
-    } else if (descriptorChassis === "ATTACHED") {
-      const primaryTimingType = primaryEffectPacket?.effectTimingType;
-      const primaryResolvesOnAttach =
-        hostileEntryPattern === "ON_ATTACH" || primaryTimingType === "ON_ATTACH";
-      secondaryTimingOptions = [
-        ...(primaryResolvesOnAttach ? (["ON_ATTACH"] as EffectTimingType[]) : []),
-        "ON_TRIGGER",
-        "START_OF_TURN",
-        "END_OF_TURN",
-        ...channelRecurringOptions,
-        "ON_EXPIRY",
-      ];
-    } else {
-      secondaryTimingOptions = [
-        "ON_TRIGGER",
-        "START_OF_TURN",
-        "END_OF_TURN",
-        ...channelRecurringOptions,
-        "ON_EXPIRY",
-      ];
-    }
-    return restrictSecondaryTimingOptionsByPrimaryDuration(secondaryTimingOptions, primaryEffectPacket);
-  }
-
-  if (descriptorChassis === "IMMEDIATE" && commitmentModifier === "STANDARD") return ["ON_CAST"];
-  if (descriptorChassis === "FIELD") {
-    return ["ON_TRIGGER", "START_OF_TURN", "END_OF_TURN", ...channelRecurringOptions, "ON_EXPIRY"];
-  }
-  if (descriptorChassis === "ATTACHED") {
-    if (hostileEntryPattern === "ON_ATTACH") return ["ON_ATTACH"];
-    if (hostileEntryPattern === "ON_PAYLOAD") {
-      return ["ON_TRIGGER", "START_OF_TURN", "END_OF_TURN", ...channelRecurringOptions, "ON_EXPIRY"];
-    }
-    return ["ON_ATTACH", "ON_TRIGGER", "START_OF_TURN", "END_OF_TURN", ...channelRecurringOptions, "ON_EXPIRY"];
-  }
-  if (descriptorChassis === "TRIGGER") return ["ON_TRIGGER"];
-  if (descriptorChassis === "RESERVE") return ["ON_RELEASE"];
-  return [...immediateRecurringOptions];
-}
-
-export function getCharacterPowerAllowedDurationOptions(effectTimingType: EffectTimingType | undefined) {
-  const timing = effectTimingType ?? "ON_CAST";
-  if (timing === "START_OF_TURN" || timing === "END_OF_TURN") {
-    return ["INSTANT", "TURNS", "PASSIVE"] as EffectDurationType[];
-  }
-  return ["INSTANT", "UNTIL_TARGET_NEXT_TURN", "TURNS", "PASSIVE"] as EffectDurationType[];
 }
 
 export function getCharacterPowerAllowedApplyToOptions(power: CharacterPower, packet: EffectPacket): EffectPacketApplyTo[] {
@@ -721,7 +625,7 @@ function normalizePacket(
   const effectTimingType = oneOf(
     raw.effectTimingType === "ON_HIT" ? "ON_TRIGGER" : raw.effectTimingType,
     EFFECT_TIMINGS,
-    getPrimaryTimingForDescriptorChassis(
+    getPowerPrimaryTimingForDescriptorChassis(
       context.descriptorChassis,
       oneOf(context.descriptorChassisConfig.hostileEntryPattern, ["DIRECT", "ON_ATTACH", "ON_PAYLOAD"] as const, "DIRECT"),
     ),
@@ -752,14 +656,21 @@ function normalizePacket(
     intention,
     type: intention,
     specific: asString(raw.specific, "") || null,
-    diceCount: asInteger(raw.diceCount, 1, 1, CHARACTER_POWER_MAX_DICE_COUNT),
+    diceCount: asInteger(
+      raw.diceCount,
+      1,
+      1,
+      CHARACTER_POWER_MAX_DICE_COUNT,
+    ),
     potency: asInteger(raw.potency, 1, 1, CHARACTER_POWER_MAX_POTENCY),
     effectTimingType: normalizedEffectTimingType,
     effectTimingTurns:
       normalizedEffectTimingType === "ON_TRIGGER" ? asInteger(raw.effectTimingTurns, 1, 1, 20) : null,
     effectDurationType: normalizedEffectDurationType,
     effectDurationTurns:
-      normalizedEffectDurationType === "TURNS" ? asInteger(raw.effectDurationTurns, 1, 1, 20) : null,
+      normalizedEffectDurationType === "TURNS"
+        ? asInteger(raw.effectDurationTurns, 1, 1, Number.MAX_SAFE_INTEGER)
+        : null,
     dealsWounds: Boolean(raw.dealsWounds ?? intention === "ATTACK"),
     woundChannel: oneOf(raw.woundChannel ?? details.attackMode ?? details.healingMode, ATTACK_MODES, "PHYSICAL"),
     targetedAttribute: normalizeCoreAttribute(raw.targetedAttribute ?? details.statTarget),
@@ -781,7 +692,7 @@ function normalizePacket(
 export function normalizeCharacterPower(value: unknown, sortOrder: number): CharacterPower {
   const raw = asRecord(value);
   const descriptorChassis = oneOf(raw.descriptorChassis, DESCRIPTOR_CHASSIS, "IMMEDIATE");
-  const commitmentModifier = normalizeCommitmentModifier(raw.commitmentModifier, descriptorChassis);
+  const commitmentModifier = normalizeCommitmentModifier(raw.commitmentModifier);
   const rawDescriptorChassisConfig = asRecord(raw.descriptorChassisConfig);
   const descriptorChassisConfig: Record<string, unknown> = {
     ...rawDescriptorChassisConfig,
@@ -835,6 +746,7 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
   const rangeCategories =
     range.rangeCategory === "SELF" ? [] : [range.rangeCategory as RangeCategory];
   const effectDurationType = oneOf(raw.effectDurationType ?? raw.durationType, EFFECT_DURATIONS, "INSTANT");
+  const lifespanType = normalizeLifespanType(raw.lifespanType, descriptorChassis, commitmentModifier);
   const primaryDefenceGate = derivePrimaryDefenceGateForPower(
     descriptorChassis,
     descriptorChassisConfig,
@@ -869,14 +781,11 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
       commitmentModifier === "CHARGE" ? asInteger(raw.chargeTurns, 1, 1, 5) : null,
     chargeBonusDicePerTurn:
       commitmentModifier === "CHARGE" && raw.chargeType === "BUILD_POWER"
-        ? asInteger(raw.chargeBonusDicePerTurn, 1, 1, 5)
+        ? asInteger(raw.chargeBonusDicePerTurn, 1, 1, 10)
         : null,
-    lifespanType:
-      descriptorChassis !== "IMMEDIATE" || commitmentModifier === "CHANNEL"
-        ? oneOf(raw.lifespanType, ["TURNS", "PASSIVE"] as const, "TURNS")
-        : oneOf(raw.lifespanType, ["NONE", "TURNS", "PASSIVE"] as const, "NONE"),
+    lifespanType,
     lifespanTurns:
-      raw.lifespanType === "TURNS" ? asInteger(raw.lifespanTurns, 1, 1, 10) : null,
+      lifespanType === "TURNS" ? asInteger(raw.lifespanTurns, 1, 1, 10) : null,
     primaryDefenceGate,
     defenceRequirement: gateResult,
     diceCount: asInteger(
@@ -893,10 +802,14 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
     ),
     effectDurationType,
     effectDurationTurns:
-      effectDurationType === "TURNS" ? asInteger(raw.effectDurationTurns, 1, 1, 20) : null,
+      effectDurationType === "TURNS"
+        ? asInteger(raw.effectDurationTurns, 1, 1, CHARACTER_POWER_MAX_PACKET_DURATION_TURNS)
+        : null,
     durationType: effectDurationType,
     durationTurns:
-      effectDurationType === "TURNS" ? asInteger(raw.effectDurationTurns, 1, 1, 20) : null,
+      effectDurationType === "TURNS"
+        ? asInteger(raw.effectDurationTurns, 1, 1, CHARACTER_POWER_MAX_PACKET_DURATION_TURNS)
+        : null,
     rangeCategories,
     meleeTargets: range.rangeCategory === "MELEE" ? Math.max(1, range.rangeValue) : null,
     rangedTargets:
@@ -945,6 +858,28 @@ export function powerPointPool(level: number) {
 
 function collectCharacterPowerValidationErrors(power: CharacterPower) {
   const errors: string[] = [];
+  const primaryPacket = power.effectPackets[0];
+  const primaryDetails = asRecord(primaryPacket?.detailsJson);
+  const primaryRangeCategory = oneOf(
+    primaryDetails.rangeCategory,
+    ["SELF", ...RANGE_CATEGORIES] as const,
+    power.rangeCategories?.[0] ?? "MELEE",
+  );
+  const primaryRangeExtra = asRecord(primaryDetails.rangeExtra);
+  const allowedCommitments = getCharacterPowerAllowedCommitmentOptions(power.descriptorChassis ?? "IMMEDIATE");
+  const allowedCounters = getCharacterPowerAllowedCounterOptions({
+    descriptorChassis: power.descriptorChassis ?? "IMMEDIATE",
+    commitmentModifier: power.commitmentModifier,
+    chargeType: power.chargeType,
+  });
+  const allowedLifespans = getCharacterPowerAllowedLifespanOptions(
+    power.descriptorChassis ?? "IMMEDIATE",
+    power.commitmentModifier,
+  );
+  const allowedRangeCategories = getCharacterPowerAllowedRangeCategories({
+    descriptorChassis: power.descriptorChassis ?? "IMMEDIATE",
+    attachedHostAnchorType: power.attachedHostAnchorType,
+  });
 
   if (!power.name.trim()) errors.push("Power name is required.");
   if ((power.sparkDiscountPercent ?? 0) !== 0) {
@@ -953,9 +888,58 @@ function collectCharacterPowerValidationErrors(power: CharacterPower) {
   if ((power.restrictionDiscountPercent ?? 0) !== 0) {
     errors.push("Restriction discounts are not implemented yet.");
   }
+  if (!allowedCommitments.includes((power.commitmentModifier ?? "STANDARD") as NonNullable<Power["commitmentModifier"]>)) {
+    errors.push(`${power.commitmentModifier} commitment is not legal for ${power.descriptorChassis} powers.`);
+  }
+  if (!allowedCounters.includes((power.counterMode ?? "NO") as NonNullable<Power["counterMode"]>)) {
+    errors.push("Counter is not legal for this chassis/commitment combination.");
+  }
+  if (!allowedLifespans.includes((power.lifespanType ?? "NONE") as NonNullable<Power["lifespanType"]>)) {
+    errors.push("Lifespan is not legal for this chassis/commitment combination.");
+  }
+  if (!allowedRangeCategories.includes(primaryRangeCategory)) {
+    errors.push("Range category is not legal for this attached host/anchor.");
+  }
+  if ((power.descriptorChassis ?? "IMMEDIATE") === "FIELD") {
+    if (primaryRangeCategory !== "AOE") {
+      errors.push("Field powers must use AoE range.");
+    }
+    const aoeShape = oneOf(primaryRangeExtra.shape, ["SPHERE", "CONE", "LINE"] as const, "SPHERE");
+    const hasAoeCount = Number(primaryRangeExtra.count ?? power.aoeCount) >= 1;
+    const hasGeometry =
+      aoeShape === "SPHERE"
+        ? Number(primaryRangeExtra.sphereRadiusFeet ?? power.aoeSphereRadiusFeet) >= 0
+        : aoeShape === "CONE"
+          ? Number(primaryRangeExtra.coneLengthFeet ?? power.aoeConeLengthFeet) >= 0
+          : Number(primaryRangeExtra.lineWidthFeet ?? power.aoeLineWidthFeet) >= 0 &&
+            Number(primaryRangeExtra.lineLengthFeet ?? power.aoeLineLengthFeet) >= 0;
+    if (!hasAoeCount || !hasGeometry) {
+      errors.push("Field powers require AoE count, shape, and geometry.");
+    }
+  }
+  if ((power.descriptorChassis ?? "IMMEDIATE") === "TRIGGER") {
+    const triggerCondition = readPowerTriggerCondition(
+      primaryPacket?.triggerConditionText ?? asRecord(power.descriptorChassisConfig).triggerConditionText,
+    );
+    if (!triggerCondition) {
+      errors.push("Trigger powers require a trigger condition.");
+    } else if (
+      power.triggerMethod === "TARGET_AND_THEN_ARM" &&
+      primaryRangeCategory !== "AOE" &&
+      POWER_TRIGGER_AREA_PRESENCE_KEYS.has(triggerCondition)
+    ) {
+      errors.push("Area trigger conditions require AoE range when using Target and then arm.");
+    }
+  }
 
   for (const [packetIndex, packet] of power.effectPackets.entries()) {
     const packetLabel = `Packet ${packetIndex + 1}`;
+    if (!isCharacterBuilderV1PowerIntention(packet.intention)) {
+      errors.push(`${packetLabel} ${packet.intention} is not supported by the Character Builder power authoring surface.`);
+    }
+    if (packetIndex > 0 && (packet.diceCount ?? 1) !== 1) {
+      errors.push(`${packetLabel} secondary packet dice are derived by the shared power authoring surface and cannot be independently authored.`);
+    }
     const allowedTimings = getCharacterPowerAllowedTimingOptions(power, packetIndex);
     if (!allowedTimings.includes((packet.effectTimingType ?? "ON_CAST") as EffectTimingType)) {
       errors.push(`${packetLabel} timing is not legal for this chassis.`);
@@ -963,6 +947,12 @@ function collectCharacterPowerValidationErrors(power: CharacterPower) {
     const allowedDurations = getCharacterPowerAllowedDurationOptions(packet.effectTimingType);
     if (!allowedDurations.includes((packet.effectDurationType ?? "INSTANT") as EffectDurationType)) {
       errors.push(`${packetLabel} duration is not legal for this timing.`);
+    }
+    if (
+      (packet.effectDurationType ?? "INSTANT") === "TURNS" &&
+      (packet.effectDurationTurns ?? 1) > CHARACTER_POWER_MAX_PACKET_DURATION_TURNS
+    ) {
+      errors.push(`${packetLabel} duration turns cannot exceed ${CHARACTER_POWER_MAX_PACKET_DURATION_TURNS}.`);
     }
     const details = asRecord(packet.detailsJson);
     if (packet.intention === "ATTACK") {
@@ -979,8 +969,12 @@ function collectCharacterPowerValidationErrors(power: CharacterPower) {
     }
     if (packet.effectTimingType === "ON_TRIGGER") {
       const triggerCondition = asString(packet.triggerConditionText, "");
-      if (triggerCondition && !TRIGGER_CONDITION_KEYS.includes(triggerCondition as TriggerConditionKey)) {
+      if (!triggerCondition) {
+        errors.push(`${packetLabel} On Trigger timing requires a trigger condition.`);
+      } else if (!readPowerTriggerCondition(triggerCondition)) {
         errors.push(`${packetLabel} trigger condition is not supported.`);
+      } else if (isPowerAreaTriggerCondition(triggerCondition) && primaryRangeCategory !== "AOE") {
+        errors.push(`${packetLabel} area trigger condition requires an AoE range.`);
       }
     }
   }

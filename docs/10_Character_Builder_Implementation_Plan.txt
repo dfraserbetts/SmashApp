@@ -994,6 +994,10 @@ The Character Builder authoring surface must keep parity with Summoning Circle l
 
 Character Builder must not expose dice or potency values that are not covered by explicit Power Tuning keys. The shared resolver may use bucket fallback for continuous/range-style tuning keys, but supported discrete magnitude authoring values such as packet dice count and packet potency must have explicit keys so high values do not silently flatten to the highest lower configured value.
 
+Step 8b parity cleanup keeps Summoning Circle as the reference authoring surface. Character Builder V1 must not independently author secondary packet dice; only Packet 1 owns Dice Count, while secondary packets retain Potency and shared secondary scaling behaviour. Packet duration turns cap at 4. Field powers require AoE range with required geometry. Counter, Channel, lifespan, Trigger, and Attached timing options must match the options that validation accepts, including valid Trigger / On Trigger and Attached / On Attach combinations. Summoning, Transformation, Signature Move, Spark, Restrictions, and unsupported intentions such as SUPPORT remain deferred and must not appear as V1 authoring options.
+
+Phase 1 unified authoring extraction moves reusable Character Builder legality checks into shared pure power authoring-rule helpers. Summoning Circle remains the reference implementation, and broad Summoning Circle UI migration to consume those helpers is deferred to a later controlled pass.
+
 Key difference from Summoning Circle:
 
 - Character Builder does not use the monster Outcome Calculator.
