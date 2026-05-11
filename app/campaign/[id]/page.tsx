@@ -482,7 +482,10 @@ export default function CampaignHomePage() {
           ))}
         </section>
 
-        <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <section
+          className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+          data-testid="campaign-members-panel"
+        >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="font-semibold">Campaign Members</h2>
@@ -565,7 +568,11 @@ export default function CampaignHomePage() {
                   </tr>
                 ) : (
                   members.map((member) => (
-                    <tr key={`${member.userId}-${member.role}`} className="border-b border-zinc-900 last:border-0">
+                    <tr
+                      key={`${member.userId}-${member.role}`}
+                      className="border-b border-zinc-900 last:border-0"
+                      data-testid="campaign-member-row"
+                    >
                       <td className="py-2 pr-3">
                         {canManageMembers ? (
                           <div className="space-y-2">

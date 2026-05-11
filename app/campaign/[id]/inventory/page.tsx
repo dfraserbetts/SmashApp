@@ -741,7 +741,10 @@ export default function CampaignInventoryPage() {
   }
 
   return (
-    <main className="min-h-screen w-full bg-black text-zinc-100">
+    <main
+      className="min-h-screen w-full bg-black text-zinc-100"
+      data-testid="party-inventory-page"
+    >
       <div className="mx-auto flex max-w-6xl flex-col gap-6 p-6">
         <CampaignNav campaignId={campaignId} />
 
@@ -777,7 +780,10 @@ export default function CampaignInventoryPage() {
         {!loading && !error && payload && (
           <>
             {canManageInventory ? (
-              <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+              <section
+                className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
+                data-testid="party-inventory-manager-panel"
+              >
                 <h2 className="text-lg font-semibold">Add to Party Inventory</h2>
                 <p className="mt-1 text-sm text-zinc-500">
                   Choose an existing legal campaign item. Adding the same item again increases
@@ -1117,8 +1123,14 @@ export default function CampaignInventoryPage() {
                 </form>
               </section>
             ) : (
-              <section className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
-                <h2 className="text-lg font-semibold">
+              <section
+                className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4"
+                data-testid="party-stash-panel"
+              >
+                <h2
+                  className="text-lg font-semibold"
+                  data-testid={canAssignPartyStash ? "party-stash-manager-indicator" : undefined}
+                >
                   {canAssignPartyStash ? "Party Stash Manager" : "Party Stash"}
                 </h2>
                 <p className="mt-1 text-sm text-zinc-500">
@@ -1150,7 +1162,12 @@ export default function CampaignInventoryPage() {
                         </th>
                       )}
                       {canAssignPartyStash && (
-                        <th className="px-4 py-3 text-left font-medium text-zinc-300">Assign</th>
+                        <th
+                          className="px-4 py-3 text-left font-medium text-zinc-300"
+                          data-testid="party-stash-assign-column"
+                        >
+                          Assign
+                        </th>
                       )}
                     </tr>
                   </thead>
@@ -1275,7 +1292,7 @@ export default function CampaignInventoryPage() {
                           </td>
                         )}
                         {canAssignPartyStash && (
-                          <td className="px-4 py-4">
+                          <td className="px-4 py-4" data-testid="party-stash-assignment-controls">
                             {assignmentTargets.length === 0 ? (
                               <span className="text-zinc-500">No active characters available.</span>
                             ) : (

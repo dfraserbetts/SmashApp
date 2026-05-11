@@ -1568,6 +1568,7 @@ export default function CharacterBuilderPage() {
           <button
             type="submit"
             disabled={!canSave}
+            data-testid="save-character-button"
             className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? "Saving..." : "Save Character"}
@@ -1685,14 +1686,17 @@ export default function CharacterBuilderPage() {
 
       </details>
 
-      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+      <details
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-narrative"
+      >
         <summary className="cursor-pointer">
           <h2 className="text-lg font-semibold">Narrative Details</h2>
           <p className="mt-1 text-sm text-zinc-500">
             Great Secret and narrative notes. Bonds remain Game Director-assigned later.
           </p>
         </summary>
-        <div className="mt-4 grid gap-4">
+        <div className="mt-4 grid gap-4" data-testid="character-builder-section-narrative-body">
           <label className="block">
             <span className="text-xs text-zinc-400">Great Secret Template</span>
             <select
@@ -1948,7 +1952,10 @@ export default function CharacterBuilderPage() {
         </div>
       </details>
 
-      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+      <details
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-attributes"
+      >
         <summary className="cursor-pointer">
           <h2 className="text-lg font-semibold">Attributes / Resist Points</h2>
         </summary>
@@ -2106,7 +2113,10 @@ export default function CharacterBuilderPage() {
         </div>
       </details>
 
-      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+      <details
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-traits"
+      >
         <summary className="cursor-pointer">
           <h2 className="text-lg font-semibold">Player Traits</h2>
           <p className="mt-1 text-sm text-zinc-500">
@@ -2202,7 +2212,10 @@ export default function CharacterBuilderPage() {
         </div>
       </details>
 
-      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+      <details
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-equipment"
+      >
         <summary className="cursor-pointer">
           <h2 className="text-lg font-semibold">Equipped Gear / Backpack</h2>
           <p className="mt-1 text-sm text-zinc-500">
@@ -2372,7 +2385,10 @@ export default function CharacterBuilderPage() {
         </div>
       </details>
 
-      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+      <details
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-powers"
+      >
         <summary className="cursor-pointer">
           <h2 className="text-lg font-semibold">Powers</h2>
         </summary>
@@ -2488,6 +2504,7 @@ export default function CharacterBuilderPage() {
                   <article
                     key={`${power.sortOrder}-${powerIndex}`}
                     className="rounded-lg border border-zinc-800 bg-black p-3"
+                    data-testid="character-power-card"
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
@@ -2510,7 +2527,10 @@ export default function CharacterBuilderPage() {
                             </span>
                           </div>
                         ) : (
-                          <div className="mt-1 flex flex-wrap gap-2 text-xs text-red-300">
+                          <div
+                            className="mt-1 flex flex-wrap gap-2 text-xs text-red-300"
+                            data-testid="character-power-invalid-summary"
+                          >
                             <span className="rounded border border-red-900 bg-red-950/20 px-2 py-1">
                               Invalid
                             </span>
@@ -3565,7 +3585,10 @@ export default function CharacterBuilderPage() {
                         <p className="mt-2 text-sm text-zinc-500">No descriptor output yet.</p>
                       )}
                       {summary?.errors.length ? (
-                        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
+                      <ul
+                        className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300"
+                        data-testid="character-power-errors"
+                      >
                           {summary.errors.map((powerError) => (
                             <li key={powerError}>{powerError}</li>
                           ))}
@@ -3967,7 +3990,10 @@ export default function CharacterBuilderPage() {
   }
 
   return (
-    <main className="min-h-screen bg-black p-6 text-zinc-100">
+    <main
+      className="min-h-screen bg-black p-6 text-zinc-100"
+      data-testid="character-builder-root"
+    >
       <div className="mx-auto max-w-7xl space-y-6">
         <CampaignNav campaignId={campaignId} />
 
