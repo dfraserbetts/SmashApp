@@ -969,6 +969,44 @@ function renderAttachedAnchorText(
   return legacyAnchorText || "the chosen host";
 }
 
+function renderAttachedAnchorTextForRange(params: {
+  anchorType: Power["attachedHostAnchorType"];
+  legacyAnchorText: string;
+  rangeCategory: string;
+  meleeTargets: number;
+  rangedTargets: number;
+}): string {
+  const isSelfRange = params.rangeCategory === "SELF";
+  const isMultiTarget =
+    params.rangeCategory === "AOE" ||
+    (params.rangeCategory === "MELEE" && params.meleeTargets > 1) ||
+    (params.rangeCategory === "RANGED" && params.rangedTargets > 1);
+
+  if (params.anchorType === "AREA") return "the area";
+
+  if (params.anchorType === "TARGET" || params.anchorType === "SELF") {
+    if (isSelfRange) return "yourself";
+    return isMultiTarget ? "all targets" : "the target";
+  }
+
+  const ownedAnchorLabels: Partial<Record<NonNullable<Power["attachedHostAnchorType"]>, string>> = {
+    OBJECT: "object",
+    WEAPON: "weapon",
+    ARMOR: "armor",
+  };
+  const ownedAnchorLabel = params.anchorType ? ownedAnchorLabels[params.anchorType] : null;
+  if (ownedAnchorLabel) {
+    if (isSelfRange) return `your ${ownedAnchorLabel}`;
+    if (isMultiTarget) {
+      const pluralLabel = ownedAnchorLabel === "armor" ? "armor" : `${ownedAnchorLabel}s`;
+      return `all targets' ${pluralLabel}`;
+    }
+    return `the target's ${ownedAnchorLabel}`;
+  }
+
+  return renderAttachedAnchorText(params.anchorType, params.legacyAnchorText);
+}
+
 function isAttachedSelfHost(
   anchorType: Power["attachedHostAnchorType"],
   anchorText: string,
@@ -2494,10 +2532,14 @@ export function renderPowerDescriptorLines(
 
     if (power.descriptorChassis === "ATTACHED") {
       const attachedHostAnchorType = normalizeAttachedHostAnchorType(power.attachedHostAnchorType);
-      const anchorText = renderAttachedAnchorText(
-        attachedHostAnchorType,
-        readLegacyAttachedAnchorText(descriptorChassisConfig),
-      );
+      const legacyAnchorText = readLegacyAttachedAnchorText(descriptorChassisConfig);
+      const anchorText = renderAttachedAnchorTextForRange({
+        anchorType: attachedHostAnchorType,
+        legacyAnchorText,
+        rangeCategory,
+        meleeTargets,
+        rangedTargets,
+      });
       const targetPhrase = anchorText || "the chosen host";
       const attachedLifespanText =
         power.lifespanType === "TURNS"

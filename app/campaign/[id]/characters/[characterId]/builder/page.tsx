@@ -54,17 +54,24 @@ import {
   CHARACTER_POWER_CONTROL_MODES,
   CHARACTER_POWER_CONTROL_THEME_OPTIONS,
   CHARACTER_POWER_FALLBACK_DAMAGE_TYPES,
+  CHARACTER_POWER_INTENTION_OPTIONS,
   CHARACTER_POWER_MAX_DAMAGE_TYPES,
   CHARACTER_POWER_MAX_DICE_COUNT,
+  CHARACTER_POWER_MAX_PACKET_DURATION_TURNS,
   CHARACTER_POWER_MAX_POTENCY,
   CHARACTER_POWER_MOVEMENT_MODES,
-  CHARACTER_POWER_TRIGGER_CONDITION_OPTIONS,
   createDefaultCharacterPower,
   createDefaultCharacterPowerPacket,
+  getCharacterPowerAllowedCommitmentOptions,
+  getCharacterPowerAllowedCounterOptions,
   getCharacterPowerAllowedApplyToOptions,
   getCharacterPowerAllowedDurationOptions,
+  getCharacterPowerAllowedLifespanOptions,
+  getCharacterPowerAllowedRangeCategories,
   getCharacterPowerAllowedTimingOptions,
+  getCharacterPowerAllowedTriggerConditionOptions,
   getCharacterPowerPrimaryDefenceLabel,
+  isCharacterPowerSecondaryDiceAuthored,
   summarizeCharacterPowers,
   validateCharacterPowers,
   type CharacterPower,
@@ -79,6 +86,7 @@ import type {
   EffectTimingType,
   EffectPacketApplyTo,
   PowerIntention,
+  TriggerConditionKey,
 } from "@/lib/summoning/types";
 
 type CharacterBuilderRecord = {
@@ -210,17 +218,74 @@ const POWER_CHASSIS_OPTIONS: DescriptorChassisType[] = [
   "TRIGGER",
   "RESERVE",
 ];
-const POWER_INTENTION_OPTIONS: PowerIntention[] = [
-  "ATTACK",
-  "DEFENCE",
-  "HEALING",
-  "CLEANSE",
-  "CONTROL",
-  "MOVEMENT",
-  "SUPPORT",
-  "AUGMENT",
-  "DEBUFF",
-];
+const POWER_INTENTION_OPTIONS: PowerIntention[] = [...CHARACTER_POWER_INTENTION_OPTIONS];
+const POWER_CHARGE_TYPE_LABELS: Record<NonNullable<CharacterPower["chargeType"]>, string> = {
+  DELAYED_RELEASE: "Delayed Cast",
+  BUILD_POWER: "Build Power",
+};
+const POWER_TRIGGER_METHOD_LABELS: Record<NonNullable<CharacterPower["triggerMethod"]>, string> = {
+  ARM_AND_THEN_TARGET: "Arm and then target",
+  TARGET_AND_THEN_ARM: "Target and then arm",
+};
+const POWER_TRIGGER_CONDITION_LABELS: Record<TriggerConditionKey, string> = {
+  AREA_ENTERS: "Enters the area",
+  AREA_LEAVES: "Leaves the area",
+  AREA_STARTS_TURN: "Starts turn in the area",
+  AREA_ENDS_TURN: "Ends turn in the area",
+  MOVES: "Moves",
+  MAKES_ATTACK: "Makes an attack",
+  ACTIVATES_POWER: "Activates a power",
+  SUFFERS_WOUNDS: "Suffers wounds",
+  HEALS_WOUNDS: "Heals wounds",
+  SUFFERS_EFFECT: "Suffers an effect",
+  GAINS_EFFECT: "Gains an effect",
+  USES_ITEM: "Uses an item",
+  MAKES_DEFENCE_ROLL: "Makes a Defence roll",
+  MAKES_RESIST_ROLL: "Makes a Resist roll",
+};
+const POWER_EFFECT_TIMING_LABELS: Partial<Record<EffectTimingType, string>> = {
+  ON_CAST: "On Cast",
+  ON_TRIGGER: "On Trigger",
+  ON_ATTACH: "On Attach",
+  START_OF_TURN: "Start of Turn",
+  END_OF_TURN: "End of Turn",
+  START_OF_TURN_WHILST_CHANNELLED: "Start of Turn Whilst Channelled",
+  END_OF_TURN_WHILST_CHANNELLED: "End of Turn Whilst Channelled",
+  ON_RELEASE: "On Release",
+  ON_EXPIRY: "On Expiry",
+};
+const POWER_EFFECT_DURATION_LABELS: Record<EffectDurationType, string> = {
+  INSTANT: "Instant",
+  UNTIL_TARGET_NEXT_TURN: "Until target's next turn",
+  TURNS: "Turns",
+  PASSIVE: "Passive",
+};
+const POWER_ATTACK_MODE_LABELS: Record<(typeof CHARACTER_POWER_ATTACK_MODES)[number], string> = {
+  PHYSICAL: "Physical",
+  MENTAL: "Mental",
+};
+const POWER_APPLY_TO_LABELS: Record<EffectPacketApplyTo, string> = {
+  PRIMARY_TARGET: "Primary Targets",
+  ALLIES: "Allies",
+  SELF: "Self",
+};
+const POWER_ATTACHED_HOST_ANCHOR_LABELS: Record<NonNullable<CharacterPower["attachedHostAnchorType"]>, string> = {
+  TARGET: "Target",
+  OBJECT: "Object",
+  WEAPON: "Weapon",
+  ARMOR: "Armor",
+  SELF: "Self",
+  AREA: "Area",
+};
+const POWER_ATTACHED_HOST_ANCHOR_TEXT: Record<NonNullable<CharacterPower["attachedHostAnchorType"]>, string> = {
+  TARGET: "the target",
+  OBJECT: "the object",
+  WEAPON: "your weapon",
+  ARMOR: "your armor",
+  SELF: "self",
+  AREA: "the area",
+};
+type CharacterPowerRangeCategory = "SELF" | "MELEE" | "RANGED" | "AOE";
 const ATTRIBUTE_MODIFIER_FIELDS: Record<CharacterAttribute, MonsterModifierField> = {
   Attack: "attackModifier",
   Guard: "guardModifier",
@@ -229,6 +294,99 @@ const ATTRIBUTE_MODIFIER_FIELDS: Record<CharacterAttribute, MonsterModifierField
   Synergy: "synergyModifier",
   Bravery: "braveryModifier",
 };
+
+function createCharacterPowerRangeDetails(category: CharacterPowerRangeCategory) {
+  if (category === "SELF") {
+    return { rangeCategory: "SELF", rangeValue: 0, rangeExtra: {} };
+  }
+  if (category === "MELEE") {
+    return { rangeCategory: "MELEE", rangeValue: 1, rangeExtra: {} };
+  }
+  if (category === "RANGED") {
+    return { rangeCategory: "RANGED", rangeValue: 30, rangeExtra: { targets: 1 } };
+  }
+  return {
+    rangeCategory: "AOE",
+    rangeValue: 30,
+    rangeExtra: {
+      count: 1,
+      shape: "SPHERE",
+      sphereRadiusFeet: 10,
+      coneLengthFeet: 15,
+      lineWidthFeet: 5,
+      lineLengthFeet: 30,
+    },
+  };
+}
+
+function reconcilePowerRangeForUi(power: CharacterPower): CharacterPower {
+  const packets = power.effectPackets.length > 0
+    ? [...power.effectPackets]
+    : [createDefaultCharacterPowerPacket("ATTACK", 0)];
+  const primaryPacket = packets[0];
+  const primaryDetails =
+    primaryPacket?.detailsJson && typeof primaryPacket.detailsJson === "object"
+      ? (primaryPacket.detailsJson as Record<string, unknown>)
+      : {};
+  const currentRangeCategory = String(primaryDetails.rangeCategory ?? "MELEE").toUpperCase() as CharacterPowerRangeCategory;
+  const allowedRangeCategories = getCharacterPowerAllowedRangeCategories({
+    descriptorChassis: power.descriptorChassis ?? "IMMEDIATE",
+    attachedHostAnchorType: power.attachedHostAnchorType,
+  }) as CharacterPowerRangeCategory[];
+  const nextRangeCategory = allowedRangeCategories.includes(currentRangeCategory)
+    ? currentRangeCategory
+    : allowedRangeCategories[0] ?? currentRangeCategory;
+
+  if (primaryPacket && nextRangeCategory !== currentRangeCategory) {
+    packets[0] = {
+      ...primaryPacket,
+      detailsJson: {
+        ...primaryDetails,
+        ...createCharacterPowerRangeDetails(nextRangeCategory),
+      },
+    };
+  }
+
+  return { ...power, effectPackets: packets, intentions: packets };
+}
+
+function reconcilePowerPacketTimingForUi(power: CharacterPower): CharacterPower {
+  const rangeReconciledPower = reconcilePowerRangeForUi(power);
+  const packets = rangeReconciledPower.effectPackets.length > 0
+    ? [...rangeReconciledPower.effectPackets]
+    : [createDefaultCharacterPowerPacket("ATTACK", 0)];
+
+  for (let packetIndex = 0; packetIndex < packets.length; packetIndex += 1) {
+    const packet = packets[packetIndex];
+    const timingProbe = { ...rangeReconciledPower, effectPackets: packets, intentions: packets };
+    const allowedTimings = getCharacterPowerAllowedTimingOptions(timingProbe, packetIndex);
+    const currentTiming = packet.effectTimingType ?? "ON_CAST";
+    const nextTiming = allowedTimings.includes(currentTiming)
+      ? currentTiming
+      : allowedTimings[0] ?? currentTiming;
+    const allowedDurations = getCharacterPowerAllowedDurationOptions(nextTiming);
+    const currentDuration = packet.effectDurationType ?? "INSTANT";
+    const nextDuration = allowedDurations.includes(currentDuration)
+      ? currentDuration
+      : "INSTANT";
+
+    packets[packetIndex] = {
+      ...packet,
+      sortOrder: packetIndex,
+      packetIndex,
+      effectTimingType: nextTiming,
+      effectTimingTurns: nextTiming === "ON_TRIGGER" ? packet.effectTimingTurns ?? 1 : null,
+      effectDurationType: nextDuration,
+      effectDurationTurns: nextDuration === "TURNS" ? packet.effectDurationTurns ?? 1 : null,
+    };
+  }
+
+  return {
+    ...rangeReconciledPower,
+    effectPackets: packets,
+    intentions: packets,
+  };
+}
 
 function displayName(name: string | null | undefined) {
   const trimmed = name?.trim();
@@ -413,6 +571,10 @@ function formatPowerOptionLabel(value: string) {
     .replace(/\bSUPPORT\b/g, "SYNERGY")
     .toLowerCase()
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatPowerTimingOptionLabel(value: EffectTimingType) {
+  return POWER_EFFECT_TIMING_LABELS[value] ?? formatPowerOptionLabel(value);
 }
 
 function formatPowerNumber(value: number) {
@@ -885,9 +1047,10 @@ export default function CharacterBuilderPage() {
 
   function updatePower(index: number, patch: Partial<CharacterPower>) {
     updatePowers(
-      builderData.powers.map((power, candidateIndex) =>
-        candidateIndex === index ? ({ ...power, ...patch } as CharacterPower) : power,
-      ),
+      builderData.powers.map((power, candidateIndex) => {
+        if (candidateIndex !== index) return power;
+        return reconcilePowerPacketTimingForUi({ ...power, ...patch } as CharacterPower);
+      }),
     );
   }
 
@@ -2255,6 +2418,35 @@ export default function CharacterBuilderPage() {
                   !Array.isArray(primaryDetails.rangeExtra)
                     ? (primaryDetails.rangeExtra as Record<string, unknown>)
                     : {};
+                const descriptorChassis = power.descriptorChassis ?? "IMMEDIATE";
+                const commitmentModifier = power.commitmentModifier ?? "STANDARD";
+                const allowedCommitmentOptions = getCharacterPowerAllowedCommitmentOptions(descriptorChassis);
+                const displayedCommitment = allowedCommitmentOptions.includes(commitmentModifier)
+                  ? commitmentModifier
+                  : allowedCommitmentOptions[0] ?? "STANDARD";
+                const allowedCounterOptions = getCharacterPowerAllowedCounterOptions({
+                  descriptorChassis,
+                  commitmentModifier: displayedCommitment,
+                  chargeType: power.chargeType,
+                });
+                const displayedCounter = allowedCounterOptions.includes(power.counterMode ?? "NO")
+                  ? power.counterMode ?? "NO"
+                  : "NO";
+                const allowedLifespanOptions = getCharacterPowerAllowedLifespanOptions(
+                  descriptorChassis,
+                  displayedCommitment,
+                );
+                const showLifespanControls = descriptorChassis !== "IMMEDIATE" || displayedCommitment !== "STANDARD";
+                const displayedLifespan = allowedLifespanOptions.includes(power.lifespanType ?? "NONE")
+                  ? power.lifespanType ?? "NONE"
+                  : allowedLifespanOptions[0] ?? "NONE";
+                const rangeOptions = getCharacterPowerAllowedRangeCategories({
+                  descriptorChassis,
+                  attachedHostAnchorType: power.attachedHostAnchorType,
+                });
+                const displayedRangeCategory = rangeOptions.includes(rangeCategory as CharacterPowerRangeCategory)
+                  ? rangeCategory
+                  : rangeOptions[0] ?? rangeCategory;
                 return (
                   <article
                     key={`${power.sortOrder}-${powerIndex}`}
@@ -2316,55 +2508,115 @@ export default function CharacterBuilderPage() {
                         <span className="text-xs text-zinc-400">Descriptor Chassis</span>
                         <select
                           value={power.descriptorChassis ?? "IMMEDIATE"}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const nextChassis = event.target.value as DescriptorChassisType;
+                            const nextCommitmentOptions = getCharacterPowerAllowedCommitmentOptions(nextChassis);
+                            const nextCommitment = nextCommitmentOptions.includes(power.commitmentModifier ?? "STANDARD")
+                              ? power.commitmentModifier ?? "STANDARD"
+                              : nextCommitmentOptions[0] ?? "STANDARD";
+                            const nextPackets =
+                              nextChassis === "FIELD"
+                                ? power.effectPackets.map((packet, packetIndex) =>
+                                    packetIndex === 0
+                                      ? {
+                                          ...packet,
+                                          detailsJson: {
+                                            ...(packet.detailsJson ?? {}),
+                                            rangeCategory: "AOE",
+                                            rangeValue: Number(primaryDetails.rangeValue ?? 0),
+                                            rangeExtra: {
+                                              ...rangeExtra,
+                                              count: Number(rangeExtra.count ?? 1),
+                                              shape: String(rangeExtra.shape ?? "SPHERE"),
+                                              sphereRadiusFeet: Number(rangeExtra.sphereRadiusFeet ?? 10),
+                                              coneLengthFeet: Number(rangeExtra.coneLengthFeet ?? 15),
+                                              lineWidthFeet: Number(rangeExtra.lineWidthFeet ?? 5),
+                                              lineLengthFeet: Number(rangeExtra.lineLengthFeet ?? 30),
+                                            },
+                                          },
+                                        }
+                                      : packet,
+                                  )
+                                : power.effectPackets;
                             updatePower(powerIndex, {
-                              descriptorChassis: event.target.value as DescriptorChassisType,
-                            })
-                          }
+                              descriptorChassis: nextChassis,
+                              commitmentModifier: nextCommitment,
+                              counterMode: getCharacterPowerAllowedCounterOptions({
+                                descriptorChassis: nextChassis,
+                                commitmentModifier: nextCommitment,
+                                chargeType: power.chargeType,
+                              }).includes(power.counterMode ?? "NO")
+                                ? power.counterMode ?? "NO"
+                                : "NO",
+                              lifespanType: getCharacterPowerAllowedLifespanOptions(nextChassis, nextCommitment).includes(power.lifespanType ?? "NONE")
+                                ? power.lifespanType ?? "NONE"
+                                : getCharacterPowerAllowedLifespanOptions(nextChassis, nextCommitment)[0] ?? "NONE",
+                              effectPackets: nextPackets,
+                              intentions: nextPackets,
+                            });
+                          }}
                           disabled={!canEdit || saving}
                           className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                         >
                           {POWER_CHASSIS_OPTIONS.map((option) => (
                             <option key={option} value={option}>
-                              {formatPowerOptionLabel(option)}
+                              {option}
                             </option>
                           ))}
                         </select>
                       </label>
-                      <label className="block">
-                        <span className="text-xs text-zinc-400">Counter</span>
-                        <select
-                          value={power.counterMode ?? "NO"}
-                          onChange={(event) =>
-                            updatePower(powerIndex, {
-                              counterMode: event.target.value as CharacterPower["counterMode"],
-                            })
-                          }
-                          disabled={!canEdit || saving}
-                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                        >
-                          <option value="NO">No</option>
-                          <option value="YES">Yes</option>
-                        </select>
-                      </label>
+                      {descriptorChassis !== "TRIGGER" ? (
+                        <label className="block">
+                          <span className="text-xs text-zinc-400">Counter</span>
+                          <select
+                            value={displayedCounter}
+                            onChange={(event) =>
+                              updatePower(powerIndex, {
+                                counterMode: event.target.value as CharacterPower["counterMode"],
+                              })
+                            }
+                            disabled={!canEdit || saving || allowedCounterOptions.length <= 1}
+                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                          >
+                            {allowedCounterOptions.map((option) => (
+                              <option key={option} value={option}>
+                                {option === "YES" ? "Yes" : "No"}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
                       <label className="block">
                         <span className="text-xs text-zinc-400">Commitment</span>
                         <select
-                          value={power.commitmentModifier ?? "STANDARD"}
-                          onChange={(event) =>
+                          value={displayedCommitment}
+                          onChange={(event) => {
+                            const nextCommitment = event.target.value as CharacterPower["commitmentModifier"];
                             updatePower(powerIndex, {
-                              commitmentModifier: event.target.value as CharacterPower["commitmentModifier"],
-                            })
-                          }
+                              commitmentModifier: nextCommitment,
+                              counterMode: getCharacterPowerAllowedCounterOptions({
+                                descriptorChassis,
+                                commitmentModifier: nextCommitment,
+                                chargeType: power.chargeType,
+                              }).includes(power.counterMode ?? "NO")
+                                ? power.counterMode ?? "NO"
+                                : "NO",
+                              lifespanType: getCharacterPowerAllowedLifespanOptions(descriptorChassis, nextCommitment).includes(power.lifespanType ?? "NONE")
+                                ? power.lifespanType ?? "NONE"
+                                : getCharacterPowerAllowedLifespanOptions(descriptorChassis, nextCommitment)[0] ?? "NONE",
+                            });
+                          }}
                           disabled={!canEdit || saving}
                           className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                         >
-                          <option value="STANDARD">Standard</option>
-                          <option value="CHANNEL">Channel</option>
-                          <option value="CHARGE">Charge</option>
+                          {allowedCommitmentOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
                         </select>
                       </label>
-                      {power.commitmentModifier === "CHARGE" ? (
+                      {displayedCommitment === "CHARGE" ? (
                         <>
                           <label className="block">
                             <span className="text-xs text-zinc-400">Charge Type</span>
@@ -2373,13 +2625,14 @@ export default function CharacterBuilderPage() {
                               onChange={(event) =>
                                 updatePower(powerIndex, {
                                   chargeType: event.target.value as CharacterPower["chargeType"],
+                                  counterMode: event.target.value === "DELAYED_RELEASE" ? "NO" : power.counterMode,
                                 })
                               }
                               disabled={!canEdit || saving}
                               className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                             >
-                              <option value="DELAYED_RELEASE">Delayed Release</option>
-                              <option value="BUILD_POWER">Build Power</option>
+                              <option value="DELAYED_RELEASE">{POWER_CHARGE_TYPE_LABELS.DELAYED_RELEASE}</option>
+                              <option value="BUILD_POWER">{POWER_CHARGE_TYPE_LABELS.BUILD_POWER}</option>
                             </select>
                           </label>
                           <label className="block">
@@ -2404,6 +2657,7 @@ export default function CharacterBuilderPage() {
                               <input
                                 type="number"
                                 min={1}
+                                max={10}
                                 step={1}
                                 value={power.chargeBonusDicePerTurn ?? 1}
                                 onChange={(event) =>
@@ -2431,8 +2685,8 @@ export default function CharacterBuilderPage() {
                             disabled={!canEdit || saving}
                             className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                           >
-                            <option value="ARM_AND_THEN_TARGET">Arm and then target</option>
-                            <option value="TARGET_AND_THEN_ARM">Target and then arm</option>
+                            <option value="ARM_AND_THEN_TARGET">{POWER_TRIGGER_METHOD_LABELS.ARM_AND_THEN_TARGET}</option>
+                            <option value="TARGET_AND_THEN_ARM">{POWER_TRIGGER_METHOD_LABELS.TARGET_AND_THEN_ARM}</option>
                           </select>
                         </label>
                       ) : null}
@@ -2448,49 +2702,56 @@ export default function CharacterBuilderPage() {
                                     event.target.value as CharacterPower["attachedHostAnchorType"],
                                   descriptorChassisConfig: {
                                     ...(power.descriptorChassisConfig ?? {}),
-                                    anchorText: formatPowerOptionLabel(event.target.value).toLowerCase(),
+                                    anchorText:
+                                      POWER_ATTACHED_HOST_ANCHOR_TEXT[
+                                        event.target.value as NonNullable<CharacterPower["attachedHostAnchorType"]>
+                                      ],
                                   },
                                 })
                               }
                               disabled={!canEdit || saving}
                               className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                             >
-                              <option value="TARGET">Target</option>
-                              <option value="OBJECT">Object</option>
-                              <option value="WEAPON">Weapon</option>
-                              <option value="ARMOR">Armor</option>
-                              <option value="SELF">Self</option>
-                              <option value="AREA">Area</option>
+                              {Object.entries(POWER_ATTACHED_HOST_ANCHOR_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>
+                                  {label}
+                                </option>
+                              ))}
                             </select>
                           </label>
                           <label className="block">
                             <span className="text-xs text-zinc-400">Attached Payload Gate</span>
                             <select
-                              value={String(power.descriptorChassisConfig?.hostileEntryPattern ?? "DIRECT")}
+                              value={
+                                power.descriptorChassisConfig?.hostileEntryPattern === "ON_ATTACH" ||
+                                power.descriptorChassisConfig?.hostileEntryPattern === "ON_PAYLOAD"
+                                  ? power.descriptorChassisConfig.hostileEntryPattern
+                                  : ""
+                              }
                               onChange={(event) =>
                                 updatePower(powerIndex, {
                                   descriptorChassisConfig: {
                                     ...(power.descriptorChassisConfig ?? {}),
-                                    hostileEntryPattern: event.target.value,
+                                    hostileEntryPattern: event.target.value || null,
                                   },
                                 })
                               }
                               disabled={!canEdit || saving}
                               className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                             >
-                              <option value="DIRECT">Direct</option>
-                              <option value="ON_ATTACH">Gate on attach</option>
-                              <option value="ON_PAYLOAD">Gate payload later</option>
+                              <option value="">Choose...</option>
+                              <option value="ON_ATTACH">ON_ATTACH</option>
+                              <option value="ON_PAYLOAD">ON_PAYLOAD</option>
                             </select>
                           </label>
                         </div>
                       ) : null}
-                      {power.descriptorChassis !== "IMMEDIATE" ? (
+                      {showLifespanControls ? (
                         <>
                           <label className="block">
                             <span className="text-xs text-zinc-400">Lifespan</span>
                             <select
-                              value={power.lifespanType ?? "NONE"}
+                              value={displayedLifespan}
                               onChange={(event) =>
                                 updatePower(powerIndex, {
                                   lifespanType: event.target.value as CharacterPower["lifespanType"],
@@ -2501,12 +2762,14 @@ export default function CharacterBuilderPage() {
                               disabled={!canEdit || saving}
                               className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                             >
-                              <option value="NONE">None</option>
-                              <option value="TURNS">Turns</option>
-                              <option value="PASSIVE">Passive</option>
+                              {allowedLifespanOptions.map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
                             </select>
                           </label>
-                          {power.lifespanType === "TURNS" ? (
+                          {displayedLifespan === "TURNS" ? (
                             <label className="block">
                               <span className="text-xs text-zinc-400">Lifespan Turns</span>
                               <input
@@ -2557,8 +2820,14 @@ export default function CharacterBuilderPage() {
                               ? (packet.detailsJson as Record<string, unknown>)
                               : {};
                           const timingOptions = getCharacterPowerAllowedTimingOptions(power, packetIndex);
+                          const currentTiming = packet.effectTimingType ?? "ON_CAST";
+                          const currentTimingIsLegal = timingOptions.includes(currentTiming);
                           const durationOptions = getCharacterPowerAllowedDurationOptions(packet.effectTimingType);
                           const applyToOptions = getCharacterPowerAllowedApplyToOptions(power, packet);
+                          const triggerConditionOptions = getCharacterPowerAllowedTriggerConditionOptions({
+                            triggerMethod: power.triggerMethod,
+                            rangeCategory: displayedRangeCategory as "SELF" | "MELEE" | "RANGED" | "AOE",
+                          });
                           const selectedDamageTypes = Array.isArray(packetDetails.damageTypes)
                             ? packetDetails.damageTypes.map((entry) => String(entry)).filter(Boolean)
                             : [];
@@ -2602,28 +2871,30 @@ export default function CharacterBuilderPage() {
                                 >
                                   {POWER_INTENTION_OPTIONS.map((option) => (
                                     <option key={option} value={option}>
-                                      {formatPowerOptionLabel(option)}
+                                      {option}
                                     </option>
                                   ))}
                                 </select>
                               </label>
-                              <label className="block">
-                                <span className="text-xs text-zinc-400">Dice</span>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={CHARACTER_POWER_MAX_DICE_COUNT}
-                                  step={1}
-                                  value={packet.diceCount ?? power.diceCount}
-                                  onChange={(event) =>
-                                    updatePowerPacket(powerIndex, packetIndex, {
-                                      diceCount: Number(event.target.value),
-                                    })
-                                  }
-                                  disabled={!canEdit || saving}
-                                  className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                                />
-                              </label>
+                              {isCharacterPowerSecondaryDiceAuthored(packetIndex) ? (
+                                <label className="block">
+                                  <span className="text-xs text-zinc-400">Dice</span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={CHARACTER_POWER_MAX_DICE_COUNT}
+                                    step={1}
+                                    value={packet.diceCount ?? power.diceCount}
+                                    onChange={(event) =>
+                                      updatePowerPacket(powerIndex, packetIndex, {
+                                        diceCount: Number(event.target.value),
+                                      })
+                                    }
+                                    disabled={!canEdit || saving}
+                                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                  />
+                                </label>
+                              ) : null}
                               <label className="block">
                                 <span className="text-xs text-zinc-400">Potency</span>
                                 <input
@@ -2653,9 +2924,14 @@ export default function CharacterBuilderPage() {
                                   disabled={!canEdit || saving}
                                   className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                                 >
+                                  {!currentTimingIsLegal ? (
+                                    <option value={currentTiming}>
+                                      Illegal: {formatPowerTimingOptionLabel(currentTiming)}
+                                    </option>
+                                  ) : null}
                                   {timingOptions.map((option) => (
                                     <option key={option} value={option}>
-                                      {formatPowerOptionLabel(option)}
+                                      {formatPowerTimingOptionLabel(option)}
                                     </option>
                                   ))}
                                 </select>
@@ -2674,7 +2950,7 @@ export default function CharacterBuilderPage() {
                                 >
                                   {durationOptions.map((option) => (
                                     <option key={option} value={option}>
-                                      {formatPowerOptionLabel(option)}
+                                      {POWER_EFFECT_DURATION_LABELS[option]}
                                     </option>
                                   ))}
                                 </select>
@@ -2685,6 +2961,7 @@ export default function CharacterBuilderPage() {
                                   <input
                                     type="number"
                                     min={1}
+                                    max={CHARACTER_POWER_MAX_PACKET_DURATION_TURNS}
                                     step={1}
                                     value={packet.effectDurationTurns ?? 1}
                                     onChange={(event) =>
@@ -2717,7 +2994,7 @@ export default function CharacterBuilderPage() {
                                     >
                                       {applyToOptions.map((option) => (
                                         <option key={option} value={option}>
-                                          {option === "PRIMARY_TARGET" ? "Primary Target" : formatPowerOptionLabel(option)}
+                                          {POWER_APPLY_TO_LABELS[option]}
                                         </option>
                                       ))}
                                     </select>
@@ -2749,7 +3026,7 @@ export default function CharacterBuilderPage() {
                                       className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                                     >
                                       {CHARACTER_POWER_ATTACK_MODES.map((option) => (
-                                        <option key={option} value={option}>{formatPowerOptionLabel(option)}</option>
+                                        <option key={option} value={option}>{POWER_ATTACK_MODE_LABELS[option]}</option>
                                       ))}
                                     </select>
                                   </label>
@@ -2810,9 +3087,9 @@ export default function CharacterBuilderPage() {
                                       className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                                     >
                                       <option value="">Choose...</option>
-                                      {CHARACTER_POWER_TRIGGER_CONDITION_OPTIONS.map((option) => (
+                                      {triggerConditionOptions.map((option) => (
                                         <option key={option} value={option}>
-                                          {formatPowerOptionLabel(option)}
+                                          {POWER_TRIGGER_CONDITION_LABELS[option]}
                                         </option>
                                       ))}
                                     </select>
@@ -2975,7 +3252,7 @@ export default function CharacterBuilderPage() {
                                       className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                                     >
                                       {CHARACTER_POWER_ATTACK_MODES.map((option) => (
-                                        <option key={option} value={option}>{formatPowerOptionLabel(option)}</option>
+                                        <option key={option} value={option}>{POWER_ATTACK_MODE_LABELS[option]}</option>
                                       ))}
                                     </select>
                                   </label>
@@ -2992,31 +3269,30 @@ export default function CharacterBuilderPage() {
                       <label className="block">
                         <span className="text-xs text-zinc-400">Range</span>
                         <select
-                          value={rangeCategory}
+                          value={displayedRangeCategory}
                           onChange={(event) =>
                             updatePowerPacketDetails(powerIndex, 0, {
-                              rangeCategory: event.target.value,
-                              rangeValue: event.target.value === "MELEE" ? 1 : 30,
-                              rangeExtra: {},
+                              ...createCharacterPowerRangeDetails(event.target.value as CharacterPowerRangeCategory),
                             })
                           }
                           disabled={!canEdit || saving}
                           className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                         >
-                          <option value="SELF">Self</option>
-                          <option value="MELEE">Melee</option>
-                          <option value="RANGED">Ranged</option>
-                          <option value="AOE">Area</option>
+                          {rangeOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
                         </select>
                       </label>
-                      {rangeCategory !== "SELF" ? (
+                      {displayedRangeCategory !== "SELF" ? (
                         <label className="block">
                           <span className="text-xs text-zinc-400">
-                            {rangeCategory === "MELEE" ? "Targets" : "Feet"}
+                            {displayedRangeCategory === "MELEE" ? "Targets" : "Feet"}
                           </span>
                           <input
                             type="number"
-                            min={rangeCategory === "MELEE" ? 1 : 0}
+                            min={displayedRangeCategory === "MELEE" ? 1 : 0}
                             step={1}
                             value={Number(primaryDetails.rangeValue ?? 1)}
                             onChange={(event) =>
@@ -3029,7 +3305,7 @@ export default function CharacterBuilderPage() {
                           />
                         </label>
                       ) : null}
-                      {rangeCategory === "RANGED" ? (
+                      {displayedRangeCategory === "RANGED" ? (
                         <label className="block">
                           <span className="text-xs text-zinc-400">Targets</span>
                           <input
@@ -3047,7 +3323,7 @@ export default function CharacterBuilderPage() {
                           />
                         </label>
                       ) : null}
-                      {rangeCategory === "AOE" ? (
+                      {displayedRangeCategory === "AOE" ? (
                         <label className="block">
                           <span className="text-xs text-zinc-400">Area Count</span>
                           <input
@@ -3064,6 +3340,99 @@ export default function CharacterBuilderPage() {
                             className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                           />
                         </label>
+                      ) : null}
+                      {displayedRangeCategory === "AOE" ? (
+                        <>
+                          <label className="block">
+                            <span className="text-xs text-zinc-400">Area Shape</span>
+                            <select
+                              value={String(rangeExtra.shape ?? "SPHERE")}
+                              onChange={(event) =>
+                                updatePowerPacketDetails(powerIndex, 0, {
+                                  rangeExtra: { ...rangeExtra, shape: event.target.value },
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                            >
+                              <option value="SPHERE">SPHERE</option>
+                              <option value="CONE">CONE</option>
+                              <option value="LINE">LINE</option>
+                            </select>
+                          </label>
+                          {String(rangeExtra.shape ?? "SPHERE") === "SPHERE" ? (
+                            <label className="block">
+                              <span className="text-xs text-zinc-400">Sphere Radius</span>
+                              <input
+                                type="number"
+                                min={0}
+                                step={1}
+                                value={Number(rangeExtra.sphereRadiusFeet ?? 10)}
+                                onChange={(event) =>
+                                  updatePowerPacketDetails(powerIndex, 0, {
+                                    rangeExtra: { ...rangeExtra, sphereRadiusFeet: Number(event.target.value) },
+                                  })
+                                }
+                                disabled={!canEdit || saving}
+                                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                              />
+                            </label>
+                          ) : null}
+                          {String(rangeExtra.shape ?? "SPHERE") === "CONE" ? (
+                            <label className="block">
+                              <span className="text-xs text-zinc-400">Cone Length</span>
+                              <input
+                                type="number"
+                                min={0}
+                                step={1}
+                                value={Number(rangeExtra.coneLengthFeet ?? 15)}
+                                onChange={(event) =>
+                                  updatePowerPacketDetails(powerIndex, 0, {
+                                    rangeExtra: { ...rangeExtra, coneLengthFeet: Number(event.target.value) },
+                                  })
+                                }
+                                disabled={!canEdit || saving}
+                                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                              />
+                            </label>
+                          ) : null}
+                          {String(rangeExtra.shape ?? "SPHERE") === "LINE" ? (
+                            <>
+                              <label className="block">
+                                <span className="text-xs text-zinc-400">Line Width</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  value={Number(rangeExtra.lineWidthFeet ?? 5)}
+                                  onChange={(event) =>
+                                    updatePowerPacketDetails(powerIndex, 0, {
+                                      rangeExtra: { ...rangeExtra, lineWidthFeet: Number(event.target.value) },
+                                    })
+                                  }
+                                  disabled={!canEdit || saving}
+                                  className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                />
+                              </label>
+                              <label className="block">
+                                <span className="text-xs text-zinc-400">Line Length</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  value={Number(rangeExtra.lineLengthFeet ?? 30)}
+                                  onChange={(event) =>
+                                    updatePowerPacketDetails(powerIndex, 0, {
+                                      rangeExtra: { ...rangeExtra, lineLengthFeet: Number(event.target.value) },
+                                    })
+                                  }
+                                  disabled={!canEdit || saving}
+                                  className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                />
+                              </label>
+                            </>
+                          ) : null}
+                        </>
                       ) : null}
                     </div>
 

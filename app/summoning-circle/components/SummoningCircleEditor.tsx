@@ -257,6 +257,54 @@ type ImageDragState = {
 };
 
 const POWER_RANGE_CATEGORIES: PowerRangeCategory[] = ["SELF", "MELEE", "RANGED", "AOE"];
+function getAllowedPowerRangeCategoriesForHost(
+  descriptorChassis: NonNullable<MonsterPower["descriptorChassis"]>,
+  attachedHostAnchorType: MonsterPower["attachedHostAnchorType"],
+): PowerRangeCategory[] {
+  if (descriptorChassis === "FIELD") return ["AOE"];
+  if (descriptorChassis !== "ATTACHED") return POWER_RANGE_CATEGORIES;
+  if (attachedHostAnchorType === "SELF") return ["SELF"];
+  if (attachedHostAnchorType === "TARGET") return ["MELEE", "RANGED", "AOE"];
+  if (attachedHostAnchorType === "AREA") return ["AOE"];
+  return POWER_RANGE_CATEGORIES;
+}
+
+function createPowerRangePatchForCategory(category: PowerRangeCategory): Record<string, unknown> {
+  if (category === "SELF") {
+    return {
+      rangeCategory: "SELF",
+      rangeValue: 0,
+      rangeExtra: {},
+    };
+  }
+  if (category === "MELEE") {
+    return {
+      rangeCategory: "MELEE",
+      rangeValue: 1,
+      rangeExtra: {},
+    };
+  }
+  if (category === "RANGED") {
+    return {
+      rangeCategory: "RANGED",
+      rangeValue: 30,
+      rangeExtra: { targets: 1 },
+    };
+  }
+  return {
+    rangeCategory: "AOE",
+    rangeValue: 30,
+    rangeExtra: {
+      count: 1,
+      shape: "SPHERE",
+      sphereRadiusFeet: 10,
+      coneLengthFeet: 15,
+      lineWidthFeet: 5,
+      lineLengthFeet: 30,
+    },
+  };
+}
+
 const POWER_RANGE_TARGET_OPTIONS = [1, 2, 3, 4, 5] as const;
 const POWER_RANGE_RANGED_DISTANCE_OPTIONS = [30, 60, 120, 200] as const;
 const POWER_RANGE_AOE_CENTER_RANGE_OPTIONS = [0, 30, 60, 120, 200] as const;
@@ -1819,6 +1867,20 @@ function analyzePowerIntegrity(power: MonsterPower): {
       (normalizeAttachedHostAnchorTypeValue(power.attachedHostAnchorType) ??
         normalizeAttachedHostAnchorOption(descriptorChassisConfig.anchorText)),
   )?.anchorText ?? "";
+  const attachedHostAnchorType =
+    normalizeAttachedHostAnchorTypeValue(power.attachedHostAnchorType) ??
+    (normalizeAttachedHostAnchorOption(descriptorChassisConfig.anchorText) || null);
+  const allowedRangeCategories = getAllowedPowerRangeCategoriesForHost(
+    descriptorChassis,
+    attachedHostAnchorType,
+  );
+  if (
+    descriptorChassis === "ATTACHED" &&
+    powerRangeState.category !== null &&
+    !allowedRangeCategories.includes(powerRangeState.category)
+  ) {
+    errors.push("Range category is not legal for this attached host/anchor.");
+  }
   if (descriptorChassis === "ATTACHED" && looksLikeAreaOrPluralAnchorText(anchorText)) {
     warnings.push("Attached host/anchor text should name one host or anchor, not an area or plural group.");
   }
@@ -9634,11 +9696,6 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 primaryEffectPacket,
                 power.primaryDefenceGate,
               );
-              const descriptorChassisConfig = normalizeChargeDescriptorChassisConfig(
-                power.descriptorChassisConfig,
-                commitmentModifier,
-                descriptorChassis,
-              );
               const rawDescriptorChassisConfig =
                 power.descriptorChassisConfig &&
                   typeof power.descriptorChassisConfig === "object" &&
@@ -9660,10 +9717,13 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                 descriptorChassis,
                 commitmentModifier,
               );
-              const visibleRangeCategories =
-                descriptorChassis === "FIELD"
-                  ? (["AOE"] as PowerRangeCategory[])
-                  : POWER_RANGE_CATEGORIES;
+              const selectedAttachedHostAnchorType = normalizeAttachedHostAnchorTypeValue(
+                power.attachedHostAnchorType,
+              );
+              const visibleRangeCategories = getAllowedPowerRangeCategoriesForHost(
+                descriptorChassis,
+                selectedAttachedHostAnchorType,
+              );
               const powerRangeState = toPowerRangeState(power);
               const authoredTriggerMethod = coerceOptionValue(
                 power.triggerMethod,
@@ -10823,27 +10883,60 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                               <select
                                 disabled={readOnly}
                                 value={normalizeAttachedHostAnchorTypeValue(power.attachedHostAnchorType) ?? ""}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  const nextAttachedHostAnchorType =
+                                    normalizeAttachedHostAnchorTypeValue(e.target.value);
                                   setEditor((p) =>
                                     p
                                       ? {
                                           ...p,
-                                          powers: p.powers.map((x, idx) =>
-                                            idx === i
-                                              ? syncPowerFromEffectPackets(
-                                                  {
-                                                    ...x,
-                                                    attachedHostAnchorType:
-                                                      normalizeAttachedHostAnchorTypeValue(e.target.value),
-                                                  },
-                                                  getPowerEffectPackets(x),
-                                                )
-                                              : x,
-                                          ),
+                                          powers: p.powers.map((x, idx) => {
+                                            if (idx !== i) return x;
+                                            const nextDescriptorChassis = normalizePowerDescriptorChassis(
+                                              x.descriptorChassis,
+                                            );
+                                            const allowedRangeCategories = getAllowedPowerRangeCategoriesForHost(
+                                              nextDescriptorChassis,
+                                              nextAttachedHostAnchorType,
+                                            );
+                                            const currentRangeCategory = toPowerRangeState(x).category;
+                                            const nextRangeCategory =
+                                              currentRangeCategory !== null &&
+                                              allowedRangeCategories.includes(currentRangeCategory)
+                                                ? currentRangeCategory
+                                                : allowedRangeCategories[0] ?? "SELF";
+                                            const effectPackets = getPowerEffectPackets(x);
+                                            const nextEffectPackets =
+                                              currentRangeCategory !== null &&
+                                              nextRangeCategory === currentRangeCategory
+                                                ? effectPackets
+                                                : effectPackets.map((packet, packetIndex) =>
+                                                    packetIndex === 0
+                                                      ? {
+                                                          ...packet,
+                                                          detailsJson: {
+                                                            ...(packet.detailsJson &&
+                                                            typeof packet.detailsJson === "object" &&
+                                                            !Array.isArray(packet.detailsJson)
+                                                              ? packet.detailsJson
+                                                              : {}),
+                                                            ...createPowerRangePatchForCategory(nextRangeCategory),
+                                                          },
+                                                        }
+                                                      : packet,
+                                                  );
+                                            return syncPowerFromEffectPackets(
+                                              {
+                                                ...x,
+                                                attachedHostAnchorType: nextAttachedHostAnchorType,
+                                              },
+                                              nextEffectPackets,
+                                            );
+                                          }),
                                         }
                                       : p,
-                                  )
-                                }
+                                  );
+                                }}
                                 className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                               >
                                 <option value="">Choose...</option>

@@ -1,8 +1,11 @@
 import {
   createDefaultCharacterPower,
   createDefaultCharacterPowerPacket,
+  CHARACTER_POWER_INTENTION_OPTIONS,
   CHARACTER_POWER_MAX_DICE_COUNT,
+  CHARACTER_POWER_MAX_PACKET_DURATION_TURNS,
   CHARACTER_POWER_MAX_POTENCY,
+  getCharacterPowerAllowedCommitmentOptions,
   getCharacterPowerAllowedTimingOptions,
   getCharacterPowerPrimaryDefenceLabel,
   normalizeCharacterPower,
@@ -14,6 +17,15 @@ import {
 import { resolvePowerCosts } from "../lib/summoning/powerCostResolver";
 import { DEFAULT_CHARACTER_POWER_SPEND_SCALAR } from "../lib/config/characterBuilderTuningShared";
 import { normalizePowerTuningValues } from "../lib/config/powerTuningShared";
+import {
+  CHARACTER_BUILDER_V1_POWER_INTENTIONS,
+  POWER_AUTHORING_MAX_PACKET_DURATION_TURNS,
+  getPowerAllowedCommitmentOptions,
+  getPowerAllowedCounterOptions,
+  getPowerAllowedRangeCategories,
+  getPowerAllowedTimingOptions,
+  isPowerSecondaryDiceAuthored,
+} from "../lib/powers/authoringRules";
 import type { Power } from "../lib/summoning/types";
 
 function assert(condition: unknown, message: string) {
@@ -72,6 +84,60 @@ assert(
   !getCharacterPowerAllowedTimingOptions(levelOnePower, 0).includes("ON_TRIGGER"),
   "Immediate standard Packet 1 should not allow On Trigger.",
 );
+assert(
+  POWER_AUTHORING_MAX_PACKET_DURATION_TURNS === CHARACTER_POWER_MAX_PACKET_DURATION_TURNS,
+  "Character Builder should consume the shared packet duration turn cap.",
+);
+assert(
+  !isPowerSecondaryDiceAuthored(1),
+  "Shared authoring rules should prohibit secondary packet dice authoring.",
+);
+assert(
+  !CHARACTER_BUILDER_V1_POWER_INTENTIONS.includes("SUPPORT"),
+  "Shared Character Builder V1 intention allowlist should exclude SUPPORT.",
+);
+assert(
+  getPowerAllowedRangeCategories({ descriptorChassis: "FIELD" }).join(",") === "AOE",
+  "Shared authoring rules should lock Field powers to AoE range.",
+);
+assert(
+  !getPowerAllowedCommitmentOptions("TRIGGER").includes("CHANNEL") &&
+    !getPowerAllowedCommitmentOptions("RESERVE").includes("CHANNEL"),
+  "Shared authoring rules should reject Channel for Trigger and Reserve powers.",
+);
+assert(
+  !getPowerAllowedCounterOptions({ descriptorChassis: "TRIGGER" }).includes("YES"),
+  "Shared authoring rules should reject Counter for Trigger powers.",
+);
+assert(
+  !getPowerAllowedCounterOptions({
+    descriptorChassis: "IMMEDIATE",
+    commitmentModifier: "CHARGE",
+    chargeType: "DELAYED_RELEASE",
+  }).includes("YES"),
+  "Shared authoring rules should reject Counter for delayed-release Charge powers.",
+);
+assert(
+  getPowerAllowedRangeCategories({
+    descriptorChassis: "ATTACHED",
+    attachedHostAnchorType: "SELF",
+  }).join(",") === "SELF",
+  "Shared authoring rules should allow only Self range for Attached Self host.",
+);
+assert(
+  !getPowerAllowedRangeCategories({
+    descriptorChassis: "ATTACHED",
+    attachedHostAnchorType: "TARGET",
+  }).includes("SELF"),
+  "Shared authoring rules should reject Self range for Attached Target host.",
+);
+assert(
+  getPowerAllowedRangeCategories({
+    descriptorChassis: "ATTACHED",
+    attachedHostAnchorType: "AREA",
+  }).join(",") === "AOE",
+  "Shared authoring rules should allow only AoE range for Attached Area host.",
+);
 
 const illegalTimingPower = {
   ...levelOnePower,
@@ -126,12 +192,394 @@ assert(
   "Missing Attack damage type should not contribute player spend.",
 );
 
+const secondaryDicePower = normalizeCharacterPower({
+  ...levelOnePower,
+  name: "Secondary Dice Probe",
+  effectPackets: [
+    { ...levelOnePower.effectPackets[0], diceCount: 5, potency: 2 },
+    {
+      ...createDefaultCharacterPowerPacket("ATTACK", 1),
+      diceCount: 3,
+      potency: 2,
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        damageTypes: ["Slash"],
+        rangeCategory: "MELEE",
+        rangeValue: 1,
+        rangeExtra: {},
+      },
+    },
+  ],
+}, 0);
+secondaryDicePower.intentions = secondaryDicePower.effectPackets;
+assert(
+  validateCharacterPowers({ level: 1, powers: [secondaryDicePower] }).some((error) =>
+    error.includes("secondary packet dice"),
+  ),
+  "Secondary packet dice should not be independently authorable.",
+);
+
+const longDurationPower = normalizeCharacterPower({
+  ...levelOnePower,
+  name: "Long Duration Probe",
+  effectPackets: [
+    {
+      ...levelOnePower.effectPackets[0],
+      effectDurationType: "TURNS" as const,
+      effectDurationTurns: CHARACTER_POWER_MAX_PACKET_DURATION_TURNS + 1,
+    },
+  ],
+}, 0);
+assert(
+  validateCharacterPowers({ level: 1, powers: [longDurationPower] }).some((error) =>
+    error.includes("duration turns cannot exceed"),
+  ),
+  "Packet duration turns above 4 should be rejected.",
+);
+
+const triggerPower = normalizeCharacterPower({
+  ...levelOnePower,
+  name: "Trigger Probe",
+  descriptorChassis: "TRIGGER" as const,
+  triggerMethod: "ARM_AND_THEN_TARGET" as const,
+  lifespanType: "TURNS" as const,
+  lifespanTurns: 1,
+  effectPackets: [
+    {
+      ...levelOnePower.effectPackets[0],
+      effectTimingType: "ON_TRIGGER" as const,
+      triggerConditionText: "MOVES",
+    },
+  ],
+}, 0);
+assert(
+  !validateCharacterPowers({ level: 20, powers: [triggerPower] }).some((error) =>
+    error.includes("timing is not legal") || error.includes("trigger condition"),
+  ),
+  "Trigger Packet 1 On Trigger with a trigger condition should be legal.",
+);
+assert(
+  getPowerAllowedTimingOptions(triggerPower, 0).includes("ON_TRIGGER"),
+  "Shared authoring rules should allow Trigger Packet 1 On Trigger timing.",
+);
+
+const blankTriggerPower = normalizeCharacterPower({
+  ...triggerPower,
+  effectPackets: [{ ...triggerPower.effectPackets[0], triggerConditionText: null }],
+}, 0);
+assert(
+  validateCharacterPowers({ level: 20, powers: [blankTriggerPower] }).some((error) =>
+    error.includes("requires a trigger condition") || error.includes("On Trigger timing requires"),
+  ),
+  "Trigger without a trigger condition should be rejected.",
+);
+
+const attachedPower = normalizeCharacterPower({
+  ...levelOnePower,
+  name: "Attached Probe",
+  descriptorChassis: "ATTACHED" as const,
+  attachedHostAnchorType: "TARGET" as const,
+  descriptorChassisConfig: { hostileEntryPattern: "ON_ATTACH", anchorText: "target" },
+  lifespanType: "TURNS" as const,
+  lifespanTurns: 1,
+  effectPackets: [
+    {
+      ...levelOnePower.effectPackets[0],
+      effectTimingType: "ON_ATTACH" as const,
+    },
+  ],
+}, 0);
+assert(
+  !validateCharacterPowers({ level: 20, powers: [attachedPower] }).some((error) =>
+    error.includes("timing is not legal"),
+  ),
+  "Attached Packet 1 On Attach should be legal.",
+);
+assert(
+  getPowerAllowedTimingOptions(attachedPower, 0).includes("ON_ATTACH"),
+  "Shared authoring rules should allow Attached Packet 1 On Attach timing.",
+);
+
+function renderSinglePowerDescriptor(power: CharacterPower) {
+  return summarizeCharacterPowers({ level: 20, powers: [power] }).powers[0]?.descriptorLines.join(" ") ?? "";
+}
+
+function createAttachedHostPower(
+  label: string,
+  attachedHostAnchorType: NonNullable<CharacterPower["attachedHostAnchorType"]>,
+  rangeCategory: string,
+  rangeValue: number,
+  rangeExtra: Record<string, unknown> = {},
+) {
+  return normalizeCharacterPower({
+    ...attachedPower,
+    name: label,
+    attachedHostAnchorType,
+    descriptorChassisConfig: { hostileEntryPattern: "ON_ATTACH", anchorText: attachedHostAnchorType.toLowerCase() },
+    effectPackets: [
+      {
+        ...attachedPower.effectPackets[0],
+        detailsJson: {
+          ...(attachedPower.effectPackets[0].detailsJson ?? {}),
+          rangeCategory,
+          rangeValue,
+          rangeExtra,
+        },
+      },
+    ],
+  }, 0);
+}
+
+const attachedWeaponSelfDescriptor = renderSinglePowerDescriptor(
+  createAttachedHostPower("Attached Weapon Self", "WEAPON", "SELF", 0),
+);
+assert(
+  /attach Attached Weapon Self to your weapon/i.test(attachedWeaponSelfDescriptor),
+  "Attached Weapon with Self range should attach to your weapon.",
+);
+
+const attachedWeaponSingleTargetDescriptor = renderSinglePowerDescriptor(
+  createAttachedHostPower("Attached Weapon Single Target", "WEAPON", "MELEE", 1),
+);
+assert(
+  /attach Attached Weapon Single Target to the target's weapon/i.test(attachedWeaponSingleTargetDescriptor),
+  "Attached Weapon with one melee/ranged target should attach to the target's weapon.",
+);
+
+const attachedWeaponMultiTargetDescriptor = renderSinglePowerDescriptor(
+  createAttachedHostPower("Attached Weapon Multi Target", "WEAPON", "MELEE", 2),
+);
+assert(
+  /attach Attached Weapon Multi Target to all targets' weapons/i.test(attachedWeaponMultiTargetDescriptor),
+  "Attached Weapon with multiple melee/ranged targets should attach to all targets' weapons.",
+);
+
+const attachedWeaponAoeDescriptor = renderSinglePowerDescriptor(
+  createAttachedHostPower("Attached Weapon AOE", "WEAPON", "AOE", 30, {
+    count: 1,
+    shape: "SPHERE",
+    sphereRadiusFeet: 10,
+  }),
+);
+assert(
+  /attach Attached Weapon AOE to all targets' weapons/i.test(attachedWeaponAoeDescriptor),
+  "Attached Weapon with AoE range should attach to all targets' weapons.",
+);
+
+const attachedObjectSingleTargetDescriptor = renderSinglePowerDescriptor(
+  createAttachedHostPower("Attached Object Single Target", "OBJECT", "RANGED", 30, { targets: 1 }),
+);
+assert(
+  /attach Attached Object Single Target to the target's object/i.test(attachedObjectSingleTargetDescriptor),
+  "Attached Object with one melee/ranged target should attach to the target's object.",
+);
+
+const attachedObjectMultiTargetDescriptor = renderSinglePowerDescriptor(
+  createAttachedHostPower("Attached Object Multi Target", "OBJECT", "RANGED", 30, { targets: 2 }),
+);
+assert(
+  /attach Attached Object Multi Target to all targets' objects/i.test(attachedObjectMultiTargetDescriptor),
+  "Attached Object with multiple melee/ranged targets should attach to all targets' objects.",
+);
+
+const attachedArmorSingleTargetDescriptor = renderSinglePowerDescriptor(
+  createAttachedHostPower("Attached Armor Single Target", "ARMOR", "MELEE", 1),
+);
+assert(
+  /attach Attached Armor Single Target to the target's armor/i.test(attachedArmorSingleTargetDescriptor),
+  "Attached Armor with one melee/ranged target should attach to the target's armor.",
+);
+
+const attachedArmorMultiTargetDescriptor = renderSinglePowerDescriptor(
+  createAttachedHostPower("Attached Armor Multi Target", "ARMOR", "MELEE", 2),
+);
+assert(
+  /attach Attached Armor Multi Target to all targets' armor/i.test(attachedArmorMultiTargetDescriptor),
+  "Attached Armor with multiple melee/ranged targets should attach to all targets' armor.",
+);
+
+const attachedSelfDescriptor = renderSinglePowerDescriptor(
+  createAttachedHostPower("Attached Self", "SELF", "SELF", 0),
+);
+assert(
+  /attach Attached Self to yourself/i.test(attachedSelfDescriptor),
+  "Attached Self should only attach to yourself.",
+);
+
+const attachedTargetMultiTargetDescriptor = renderSinglePowerDescriptor(
+  createAttachedHostPower("Attached Target Multi Target", "TARGET", "MELEE", 2),
+);
+assert(
+  /attach Attached Target Multi Target to all targets/i.test(attachedTargetMultiTargetDescriptor),
+  "Attached Target with multiple melee/ranged targets should attach to all targets.",
+);
+
+const attachedAreaDescriptor = renderSinglePowerDescriptor(
+  createAttachedHostPower("Attached Area", "AREA", "AOE", 30, {
+    count: 1,
+    shape: "SPHERE",
+    sphereRadiusFeet: 10,
+  }),
+);
+assert(
+  /attach Attached Area to the area/i.test(attachedAreaDescriptor),
+  "Attached Area should attach to the area rather than target-owned anchors.",
+);
+
+const attachedTargetSelfRangeErrors = validateCharacterPowers({
+  level: 20,
+  powers: [createAttachedHostPower("Attached Target Self Illegal", "TARGET", "SELF", 0)],
+});
+assert(
+  attachedTargetSelfRangeErrors.some((error) =>
+    error.includes("Range category is not legal for this attached host/anchor"),
+  ),
+  "Attached Target should not allow Self range.",
+);
+
+const attachedSelfMeleeRangeErrors = validateCharacterPowers({
+  level: 20,
+  powers: [createAttachedHostPower("Attached Self Melee Illegal", "SELF", "MELEE", 1)],
+});
+assert(
+  attachedSelfMeleeRangeErrors.some((error) =>
+    error.includes("Range category is not legal for this attached host/anchor"),
+  ),
+  "Attached Self should only allow Self range.",
+);
+
+const attachedAreaMeleeRangeErrors = validateCharacterPowers({
+  level: 20,
+  powers: [createAttachedHostPower("Attached Area Melee Illegal", "AREA", "MELEE", 1)],
+});
+assert(
+  attachedAreaMeleeRangeErrors.some((error) =>
+    error.includes("Range category is not legal for this attached host/anchor"),
+  ),
+  "Attached Area should only allow AoE range.",
+);
+
+assert(
+  !validateCharacterPowers({
+    level: 20,
+    powers: [createAttachedHostPower("Attached Target Melee Legal", "TARGET", "MELEE", 1)],
+  }).some((error) => error.includes("Range category is not legal for this attached host/anchor")),
+  "Attached Target should allow melee/ranged target ranges.",
+);
+
+assert(
+  !validateCharacterPowers({
+    level: 20,
+    powers: [createAttachedHostPower("Attached Area AOE Legal", "AREA", "AOE", 30, {
+      count: 1,
+      shape: "SPHERE",
+      sphereRadiusFeet: 10,
+    })],
+  }).some((error) => error.includes("Range category is not legal for this attached host/anchor")),
+  "Attached Area should allow AoE range.",
+);
+
+const channelTriggerPower = normalizeCharacterPower({
+  ...triggerPower,
+  commitmentModifier: "CHANNEL" as const,
+}, 0);
+assert(
+  validateCharacterPowers({ level: 20, powers: [channelTriggerPower] }).some((error) =>
+    error.includes("CHANNEL commitment is not legal"),
+  ),
+  "Channel should not be legal for Trigger powers.",
+);
+assert(
+  !getCharacterPowerAllowedCommitmentOptions("TRIGGER").includes("CHANNEL"),
+  "Character Builder UI options should omit Channel for Trigger powers.",
+);
+
+const counterTriggerPower = normalizeCharacterPower({
+  ...triggerPower,
+  counterMode: "YES" as const,
+}, 0);
+assert(
+  validateCharacterPowers({ level: 20, powers: [counterTriggerPower] }).some((error) =>
+    error.includes("Counter is not legal"),
+  ),
+  "Counter should not be legal for Trigger powers.",
+);
+
+const fieldMeleePower = normalizeCharacterPower({
+  ...levelOnePower,
+  name: "Field Melee Probe",
+  descriptorChassis: "FIELD" as const,
+  lifespanType: "TURNS" as const,
+  lifespanTurns: 1,
+}, 0);
+assert(
+  validateCharacterPowers({ level: 20, powers: [fieldMeleePower] }).some((error) =>
+    error.includes("Field powers must use AoE"),
+  ),
+  "Field powers should require AoE range.",
+);
+
+const fieldAoePower = normalizeCharacterPower({
+  ...levelOnePower,
+  name: "Field AoE Probe",
+  descriptorChassis: "FIELD" as const,
+  lifespanType: "TURNS" as const,
+  lifespanTurns: 1,
+  effectPackets: [
+    {
+      ...levelOnePower.effectPackets[0],
+      effectTimingType: "START_OF_TURN" as const,
+      detailsJson: {
+        ...levelOnePower.effectPackets[0].detailsJson,
+        rangeCategory: "AOE",
+        rangeValue: 0,
+        rangeExtra: {
+          count: 1,
+          shape: "SPHERE",
+          sphereRadiusFeet: 10,
+        },
+      },
+    },
+  ],
+}, 0);
+assert(
+  !validateCharacterPowers({ level: 20, powers: [fieldAoePower] }).some((error) =>
+    error.includes("Field powers must use AoE") || error.includes("AoE count"),
+  ),
+  "Field powers with AoE count, shape, and geometry should pass Field range validation.",
+);
+
+const supportPower = normalizeCharacterPower({
+  ...levelOnePower,
+  name: "Support Probe",
+  effectPackets: [
+    {
+      ...createDefaultCharacterPowerPacket("SUPPORT", 0),
+      detailsJson: {
+        rangeCategory: "SELF",
+        rangeValue: 0,
+        rangeExtra: {},
+      },
+    },
+  ],
+}, 0);
+assert(
+  !CHARACTER_POWER_INTENTION_OPTIONS.includes("SUPPORT"),
+  "Character Builder V1 UI options should not include SUPPORT.",
+);
+assert(
+  validateCharacterPowers({ level: 1, powers: [supportPower] }).some((error) =>
+    error.includes("SUPPORT is not supported"),
+  ),
+  "Unsupported SUPPORT intention should be rejected.",
+);
+
 const expensivePacket = {
   ...createDefaultCharacterPowerPacket("ATTACK", 0),
   diceCount: 20,
   potency: 20,
   effectDurationType: "TURNS" as const,
-  effectDurationTurns: 20,
+  effectDurationTurns: CHARACTER_POWER_MAX_PACKET_DURATION_TURNS,
   detailsJson: {
     attackMode: "PHYSICAL",
     damageTypes: ["Slash", "Pierce", "Bludgeon", "Crush"],
