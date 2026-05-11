@@ -47,8 +47,39 @@ import {
   buildCharacterDerivedCombatStats,
   type CharacterBuilderDerivedBackpackItem,
 } from "@/lib/characterBuilder/derivedStats";
+import {
+  CHARACTER_POWER_ATTACK_MODES,
+  CHARACTER_POWER_ATTRIBUTE_OPTIONS,
+  CHARACTER_POWER_CLEANSE_EFFECTS,
+  CHARACTER_POWER_CONTROL_MODES,
+  CHARACTER_POWER_CONTROL_THEME_OPTIONS,
+  CHARACTER_POWER_FALLBACK_DAMAGE_TYPES,
+  CHARACTER_POWER_MAX_DAMAGE_TYPES,
+  CHARACTER_POWER_MAX_DICE_COUNT,
+  CHARACTER_POWER_MAX_POTENCY,
+  CHARACTER_POWER_MOVEMENT_MODES,
+  CHARACTER_POWER_TRIGGER_CONDITION_OPTIONS,
+  createDefaultCharacterPower,
+  createDefaultCharacterPowerPacket,
+  getCharacterPowerAllowedApplyToOptions,
+  getCharacterPowerAllowedDurationOptions,
+  getCharacterPowerAllowedTimingOptions,
+  getCharacterPowerPrimaryDefenceLabel,
+  summarizeCharacterPowers,
+  validateCharacterPowers,
+  type CharacterPower,
+} from "@/lib/characterBuilder/powers";
+import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
+import type { CharacterBuilderTuningSnapshot } from "@/lib/config/characterBuilderTuningShared";
 import { getForgeRarityPalette } from "@/lib/forge/itemRarityPalette";
 import type { MonsterModifierField } from "@/lib/summoning/equipment";
+import type {
+  DescriptorChassisType,
+  EffectDurationType,
+  EffectTimingType,
+  EffectPacketApplyTo,
+  PowerIntention,
+} from "@/lib/summoning/types";
 
 type CharacterBuilderRecord = {
   id: string;
@@ -85,6 +116,8 @@ type BuilderPayload = {
   traitCatalog: PlayerTraitDefinition[];
   backpackItems: BuilderBackpackItem[];
   transferTargets: BackpackTransferTarget[];
+  powerTuning: PowerTuningSnapshot;
+  characterBuilderTuning: CharacterBuilderTuningSnapshot;
   error?: string;
 };
 
@@ -93,6 +126,12 @@ type BackpackTransferTarget = {
   characterName: string;
   assignedPlayerLabel: string;
   label: string;
+};
+
+type PowerDamageTypeOption = {
+  id: number;
+  name: string;
+  attackMode: "PHYSICAL" | "MENTAL";
 };
 
 type BuilderBackpackItem = {
@@ -157,10 +196,6 @@ type BuilderDraft = {
 
 const PLACEHOLDER_SECTIONS = [
   {
-    title: "Powers",
-    status: "Coming in Step 8",
-  },
-  {
     title: "Printable Preview",
     status: "Coming in Step 9",
   },
@@ -168,6 +203,24 @@ const PLACEHOLDER_SECTIONS = [
 
 const EMPTY_BACKPACK_ITEMS: BuilderBackpackItem[] = [];
 const EMPTY_TRANSFER_TARGETS: BackpackTransferTarget[] = [];
+const POWER_CHASSIS_OPTIONS: DescriptorChassisType[] = [
+  "IMMEDIATE",
+  "FIELD",
+  "ATTACHED",
+  "TRIGGER",
+  "RESERVE",
+];
+const POWER_INTENTION_OPTIONS: PowerIntention[] = [
+  "ATTACK",
+  "DEFENCE",
+  "HEALING",
+  "CLEANSE",
+  "CONTROL",
+  "MOVEMENT",
+  "SUPPORT",
+  "AUGMENT",
+  "DEBUFF",
+];
 const ATTRIBUTE_MODIFIER_FIELDS: Record<CharacterAttribute, MonsterModifierField> = {
   Attack: "attackModifier",
   Guard: "guardModifier",
@@ -351,6 +404,29 @@ function formatCompactModifier(attribute: string | undefined, amount: number | u
 function formatSignedModifierValue(value: number) {
   const normalized = Math.trunc(value);
   return normalized > 0 ? `+${normalized}` : String(normalized);
+}
+
+function formatPowerOptionLabel(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\bDEFENCE\b/g, "GUARD")
+    .replace(/\bSUPPORT\b/g, "SYNERGY")
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatPowerNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function toggleStringValue(values: unknown, value: string) {
+  const current = Array.isArray(values)
+    ? values.map((entry) => String(entry)).filter(Boolean)
+    : [];
+  const lower = value.toLowerCase();
+  return current.some((entry) => entry.toLowerCase() === lower)
+    ? current.filter((entry) => entry.toLowerCase() !== lower)
+    : [...current, value];
 }
 
 function equippedSlotsSignature(equippedSlots: CharacterBuilderData["equippedSlots"]) {
@@ -550,6 +626,7 @@ export default function CharacterBuilderPage() {
     quantity: string;
   } | null>(null);
   const [transferringBackpackItem, setTransferringBackpackItem] = useState(false);
+  const [powerDamageTypes, setPowerDamageTypes] = useState<PowerDamageTypeOption[]>([]);
   const protectionTuning = useProtectionTuning();
 
   const previewName = displayName(draft?.name ?? payload?.character.name);
@@ -612,7 +689,6 @@ export default function CharacterBuilderPage() {
     builderData.attributes,
   );
   const resistValidationErrors = validateResistPoints(currentLevel, builderData.resistPoints);
-  const canSave = canEdit && !saving && builderValidationErrors.length === 0;
   const equippedUseCounts = getEquipmentSlotUseCounts(builderData.equippedSlots);
   const equippedSlotItems = EQUIPMENT_SLOTS.map((slot) => {
     const backpackItemId = builderData.equippedSlots[slot];
@@ -644,6 +720,31 @@ export default function CharacterBuilderPage() {
     equippedSlotsSignature(persistedEquippedSlots);
   const getAttributeModifierValue = (attribute: CharacterAttribute) =>
     derivedCombatStats.itemModifiers[ATTRIBUTE_MODIFIER_FIELDS[attribute]] ?? 0;
+  const powerBudget = useMemo(
+    () =>
+      summarizeCharacterPowers({
+        level: currentLevel,
+        powers: builderData.powers,
+        tuningSnapshot: payload?.powerTuning ?? null,
+        playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
+      }),
+    [builderData.powers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
+  );
+  const powerValidationErrors = useMemo(
+    () =>
+      validateCharacterPowers({
+        level: currentLevel,
+        powers: builderData.powers,
+        tuningSnapshot: payload?.powerTuning ?? null,
+        playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
+      }),
+    [builderData.powers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
+  );
+  const canSave =
+    canEdit &&
+    !saving &&
+    builderValidationErrors.length === 0 &&
+    powerValidationErrors.length === 0;
 
   const builderApiUrl = useMemo(() => {
     if (!campaignId || !characterId) return "";
@@ -699,6 +800,32 @@ export default function CharacterBuilderPage() {
   }, [builderApiUrl]);
 
   useEffect(() => {
+    let cancelled = false;
+    async function loadPowerPicklists() {
+      try {
+        const res = await fetch("/api/summoning-circle/picklists", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = (await res.json()) as { damageTypes?: Array<{ id?: unknown; name?: unknown; attackMode?: unknown }> };
+        const rows = Array.isArray(json.damageTypes) ? json.damageTypes : [];
+        const next = rows
+          .map((row) => ({
+            id: typeof row.id === "number" ? row.id : Number(row.id),
+            name: typeof row.name === "string" ? row.name : "",
+            attackMode: String(row.attackMode ?? "").toUpperCase() === "MENTAL" ? "MENTAL" as const : "PHYSICAL" as const,
+          }))
+          .filter((row): row is PowerDamageTypeOption => Number.isFinite(row.id) && row.name.trim().length > 0);
+        if (!cancelled) setPowerDamageTypes(next);
+      } catch {
+        if (!cancelled) setPowerDamageTypes([]);
+      }
+    }
+    void loadPowerPicklists();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (
       selectedBackpackItemId &&
       !backpackItems.some((item) => item.id === selectedBackpackItemId)
@@ -740,6 +867,76 @@ export default function CharacterBuilderPage() {
         ...patch,
       },
     });
+  }
+
+  function updatePowers(powers: CharacterPower[]) {
+    updateBuilderData({
+      powers: powers.map((power, index) => ({ ...power, sortOrder: index })),
+    });
+  }
+
+  function addPower() {
+    updatePowers([...builderData.powers, createDefaultCharacterPower(builderData.powers.length)]);
+  }
+
+  function removePower(index: number) {
+    updatePowers(builderData.powers.filter((_, candidateIndex) => candidateIndex !== index));
+  }
+
+  function updatePower(index: number, patch: Partial<CharacterPower>) {
+    updatePowers(
+      builderData.powers.map((power, candidateIndex) =>
+        candidateIndex === index ? ({ ...power, ...patch } as CharacterPower) : power,
+      ),
+    );
+  }
+
+  function updatePowerPacket(
+    powerIndex: number,
+    packetIndex: number,
+    patch: Partial<CharacterPower["effectPackets"][number]>,
+  ) {
+    const power = builderData.powers[powerIndex];
+    if (!power) return;
+    const packets = power.effectPackets.length > 0 ? power.effectPackets : [
+      createDefaultCharacterPowerPacket("ATTACK", 0),
+    ];
+    const nextPackets = packets.map((packet, candidateIndex) =>
+      candidateIndex === packetIndex ? { ...packet, ...patch } : packet,
+    );
+    updatePower(powerIndex, { effectPackets: nextPackets, intentions: nextPackets });
+  }
+
+  function updatePowerPacketDetails(
+    powerIndex: number,
+    packetIndex: number,
+    detailsPatch: Record<string, unknown>,
+  ) {
+    const packet = builderData.powers[powerIndex]?.effectPackets[packetIndex];
+    if (!packet) return;
+    updatePowerPacket(powerIndex, packetIndex, {
+      detailsJson: {
+        ...(packet.detailsJson ?? {}),
+        ...detailsPatch,
+      },
+    });
+  }
+
+  function addPowerPacket(powerIndex: number) {
+    const power = builderData.powers[powerIndex];
+    if (!power || power.effectPackets.length >= 4) return;
+    const nextPacket = createDefaultCharacterPowerPacket("ATTACK", power.effectPackets.length);
+    const nextPackets = [...power.effectPackets, nextPacket];
+    updatePower(powerIndex, { effectPackets: nextPackets, intentions: nextPackets });
+  }
+
+  function removePowerPacket(powerIndex: number, packetIndex: number) {
+    const power = builderData.powers[powerIndex];
+    if (!power || power.effectPackets.length <= 1) return;
+    const nextPackets = power.effectPackets
+      .filter((_, candidateIndex) => candidateIndex !== packetIndex)
+      .map((packet, index) => ({ ...packet, sortOrder: index, packetIndex: index }));
+    updatePower(powerIndex, { effectPackets: nextPackets, intentions: nextPackets });
   }
 
   function updateGreatSecretField(index: number, value: string) {
@@ -1019,7 +1216,7 @@ export default function CharacterBuilderPage() {
       throw new Error("Character Builder is not ready to sync equipment.");
     }
     if (!hasUnsavedEquipmentChanges) return;
-    if (builderValidationErrors.length > 0) {
+    if (builderValidationErrors.length > 0 || powerValidationErrors.length > 0) {
       throw new Error("Resolve blocking Character Builder validation errors before giving items.");
     }
 
@@ -1037,12 +1234,14 @@ export default function CharacterBuilderPage() {
         builderData: draft.builderData,
       }),
     });
-    const data = (await res.json().catch(() => ({}))) as {
-      character?: CharacterBuilderRecord;
-      traitCatalog?: PlayerTraitDefinition[];
-      backpackItems?: BuilderBackpackItem[];
-      error?: string;
-    };
+      const data = (await res.json().catch(() => ({}))) as {
+        character?: CharacterBuilderRecord;
+        traitCatalog?: PlayerTraitDefinition[];
+        backpackItems?: BuilderBackpackItem[];
+        powerTuning?: PowerTuningSnapshot;
+        characterBuilderTuning?: CharacterBuilderTuningSnapshot;
+        error?: string;
+      };
     if (!res.ok || !data.character) {
       throw new Error(data.error ?? (await readApiError(res, "Failed to sync equipment.")));
     }
@@ -1055,6 +1254,8 @@ export default function CharacterBuilderPage() {
             character: savedCharacter,
             traitCatalog: data.traitCatalog ?? current.traitCatalog,
             backpackItems: data.backpackItems ?? current.backpackItems,
+            powerTuning: data.powerTuning ?? current.powerTuning,
+            characterBuilderTuning: data.characterBuilderTuning ?? current.characterBuilderTuning,
           }
         : current,
     );
@@ -1110,7 +1311,7 @@ export default function CharacterBuilderPage() {
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!builderApiUrl || !draft || !canEdit) return;
-    if (builderValidationErrors.length > 0) {
+    if (builderValidationErrors.length > 0 || powerValidationErrors.length > 0) {
       setError("Resolve blocking Character Builder validation errors before saving.");
       return;
     }
@@ -1137,6 +1338,8 @@ export default function CharacterBuilderPage() {
         ok?: boolean;
         character?: CharacterBuilderRecord;
         traitCatalog?: PlayerTraitDefinition[];
+        powerTuning?: PowerTuningSnapshot;
+        characterBuilderTuning?: CharacterBuilderTuningSnapshot;
         error?: string;
       };
       if (!res.ok || !data.character) {
@@ -1150,6 +1353,8 @@ export default function CharacterBuilderPage() {
               ...current,
               character: savedCharacter,
               traitCatalog: data.traitCatalog ?? current.traitCatalog,
+              powerTuning: data.powerTuning ?? current.powerTuning,
+              characterBuilderTuning: data.characterBuilderTuning ?? current.characterBuilderTuning,
             }
           : current,
       );
@@ -1293,7 +1498,7 @@ export default function CharacterBuilderPage() {
 
       </details>
 
-      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
         <summary className="cursor-pointer">
           <h2 className="text-lg font-semibold">Narrative Details</h2>
           <p className="mt-1 text-sm text-zinc-500">
@@ -1363,7 +1568,7 @@ export default function CharacterBuilderPage() {
         </div>
       </details>
 
-      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
         <summary className="cursor-pointer">
           <div>
             <h2 className="text-lg font-semibold">Characteristics</h2>
@@ -1556,7 +1761,7 @@ export default function CharacterBuilderPage() {
         </div>
       </details>
 
-      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
         <summary className="cursor-pointer">
           <h2 className="text-lg font-semibold">Attributes / Resist Points</h2>
         </summary>
@@ -1714,7 +1919,7 @@ export default function CharacterBuilderPage() {
         </div>
       </details>
 
-      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
         <summary className="cursor-pointer">
           <h2 className="text-lg font-semibold">Player Traits</h2>
           <p className="mt-1 text-sm text-zinc-500">
@@ -1810,7 +2015,7 @@ export default function CharacterBuilderPage() {
         </div>
       </details>
 
-      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
         <summary className="cursor-pointer">
           <h2 className="text-lg font-semibold">Equipped Gear / Backpack</h2>
           <p className="mt-1 text-sm text-zinc-500">
@@ -1980,9 +2185,931 @@ export default function CharacterBuilderPage() {
         </div>
       </details>
 
+      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Powers</h2>
+        </summary>
+        <div className="mt-4 space-y-4">
+          <div
+            className={`rounded-lg border p-3 ${
+              powerBudget.overspent
+                ? "border-red-800 bg-red-950/20"
+                : "border-zinc-800 bg-black"
+            }`}
+          >
+            <div className="grid gap-3 text-sm sm:grid-cols-4">
+              <div>
+                <div className="text-xs text-zinc-500">Power Pool</div>
+                <div className="text-lg font-semibold">{powerBudget.powerPool}</div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">Spend Scalar</div>
+                <div className="text-lg font-semibold">x{formatPowerNumber(powerBudget.playerPowerSpendScalar)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">Spent</div>
+                <div className="text-lg font-semibold">{formatPowerNumber(powerBudget.totalSpent)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">Remaining</div>
+                <div className={powerBudget.overspent ? "text-lg font-semibold text-red-300" : "text-lg font-semibold"}>
+                  {formatPowerNumber(powerBudget.remaining)}
+                </div>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-zinc-500">
+              Player powers spend BasePowerValue from the shared Phase 6 resolver. Spark and
+              Restrictions are reserved at 0% in this version.
+            </p>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={addPower}
+              disabled={!canEdit || saving}
+              className="rounded-lg border border-emerald-700 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Add Power
+            </button>
+          </div>
+
+          {builderData.powers.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-zinc-800 bg-black p-4 text-sm text-zinc-500">
+              No powers authored yet.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {builderData.powers.map((power, powerIndex) => {
+                const summary = powerBudget.powers[powerIndex];
+                const primaryPacket =
+                  power.effectPackets[0] ?? createDefaultCharacterPowerPacket("ATTACK", 0);
+                const primaryDetails =
+                  primaryPacket.detailsJson && typeof primaryPacket.detailsJson === "object"
+                    ? (primaryPacket.detailsJson as Record<string, unknown>)
+                    : {};
+                const rangeCategory = String(primaryDetails.rangeCategory ?? "MELEE");
+                const rangeExtra =
+                  primaryDetails.rangeExtra &&
+                  typeof primaryDetails.rangeExtra === "object" &&
+                  !Array.isArray(primaryDetails.rangeExtra)
+                    ? (primaryDetails.rangeExtra as Record<string, unknown>)
+                    : {};
+                return (
+                  <article
+                    key={`${power.sortOrder}-${powerIndex}`}
+                    className="rounded-lg border border-zinc-800 bg-black p-3"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="font-semibold">
+                          {power.name.trim() || `Power ${powerIndex + 1}`}
+                        </h3>
+                        {summary?.costValid ? (
+                          <div className="mt-1 flex flex-wrap gap-2 text-xs text-zinc-400">
+                            <span className="rounded border border-zinc-800 px-2 py-1">
+                              Player Spend {formatPowerNumber(summary.spend ?? 0)}
+                            </span>
+                            <span className="rounded border border-zinc-800 px-2 py-1">
+                              Base Value {formatPowerNumber(summary.basePowerValue ?? 0)}
+                            </span>
+                            <span className="rounded border border-zinc-800 px-2 py-1">
+                              Spend Scalar x{formatPowerNumber(summary.playerPowerSpendScalar)}
+                            </span>
+                            <span className="rounded border border-zinc-800 px-2 py-1">
+                              Cooldown {summary.derivedCooldownTurns ?? 1}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="mt-1 flex flex-wrap gap-2 text-xs text-red-300">
+                            <span className="rounded border border-red-900 bg-red-950/20 px-2 py-1">
+                              Invalid
+                            </span>
+                            <span className="rounded border border-red-900 bg-red-950/20 px-2 py-1">
+                              {summary?.invalidCostReason ?? "Power is invalid."}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removePower(powerIndex)}
+                        disabled={!canEdit || saving}
+                        className="rounded-lg border border-red-900 px-3 py-1 text-xs text-red-300 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Remove Power
+                      </button>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <label className="block">
+                        <span className="text-xs text-zinc-400">Power Name</span>
+                        <input
+                          type="text"
+                          value={power.name}
+                          onChange={(event) => updatePower(powerIndex, { name: event.target.value })}
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs text-zinc-400">Descriptor Chassis</span>
+                        <select
+                          value={power.descriptorChassis ?? "IMMEDIATE"}
+                          onChange={(event) =>
+                            updatePower(powerIndex, {
+                              descriptorChassis: event.target.value as DescriptorChassisType,
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          {POWER_CHASSIS_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {formatPowerOptionLabel(option)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="text-xs text-zinc-400">Counter</span>
+                        <select
+                          value={power.counterMode ?? "NO"}
+                          onChange={(event) =>
+                            updatePower(powerIndex, {
+                              counterMode: event.target.value as CharacterPower["counterMode"],
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          <option value="NO">No</option>
+                          <option value="YES">Yes</option>
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="text-xs text-zinc-400">Commitment</span>
+                        <select
+                          value={power.commitmentModifier ?? "STANDARD"}
+                          onChange={(event) =>
+                            updatePower(powerIndex, {
+                              commitmentModifier: event.target.value as CharacterPower["commitmentModifier"],
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          <option value="STANDARD">Standard</option>
+                          <option value="CHANNEL">Channel</option>
+                          <option value="CHARGE">Charge</option>
+                        </select>
+                      </label>
+                      {power.commitmentModifier === "CHARGE" ? (
+                        <>
+                          <label className="block">
+                            <span className="text-xs text-zinc-400">Charge Type</span>
+                            <select
+                              value={power.chargeType ?? "DELAYED_RELEASE"}
+                              onChange={(event) =>
+                                updatePower(powerIndex, {
+                                  chargeType: event.target.value as CharacterPower["chargeType"],
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                            >
+                              <option value="DELAYED_RELEASE">Delayed Release</option>
+                              <option value="BUILD_POWER">Build Power</option>
+                            </select>
+                          </label>
+                          <label className="block">
+                            <span className="text-xs text-zinc-400">Charge Turns</span>
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={power.chargeTurns ?? 1}
+                              onChange={(event) =>
+                                updatePower(powerIndex, {
+                                  chargeTurns: Number(event.target.value),
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                            />
+                          </label>
+                          {power.chargeType === "BUILD_POWER" ? (
+                            <label className="block">
+                              <span className="text-xs text-zinc-400">Bonus Dice / Turn</span>
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={power.chargeBonusDicePerTurn ?? 1}
+                                onChange={(event) =>
+                                  updatePower(powerIndex, {
+                                    chargeBonusDicePerTurn: Number(event.target.value),
+                                  })
+                                }
+                                disabled={!canEdit || saving}
+                                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                              />
+                            </label>
+                          ) : null}
+                        </>
+                      ) : null}
+                      {power.descriptorChassis === "TRIGGER" ? (
+                        <label className="block">
+                          <span className="text-xs text-zinc-400">Trigger Method</span>
+                          <select
+                            value={power.triggerMethod ?? "ARM_AND_THEN_TARGET"}
+                            onChange={(event) =>
+                              updatePower(powerIndex, {
+                                triggerMethod: event.target.value as CharacterPower["triggerMethod"],
+                              })
+                            }
+                            disabled={!canEdit || saving}
+                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                          >
+                            <option value="ARM_AND_THEN_TARGET">Arm and then target</option>
+                            <option value="TARGET_AND_THEN_ARM">Target and then arm</option>
+                          </select>
+                        </label>
+                      ) : null}
+                      {power.descriptorChassis === "ATTACHED" ? (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <label className="block">
+                            <span className="text-xs text-zinc-400">Attached Host</span>
+                            <select
+                              value={power.attachedHostAnchorType ?? "TARGET"}
+                              onChange={(event) =>
+                                updatePower(powerIndex, {
+                                  attachedHostAnchorType:
+                                    event.target.value as CharacterPower["attachedHostAnchorType"],
+                                  descriptorChassisConfig: {
+                                    ...(power.descriptorChassisConfig ?? {}),
+                                    anchorText: formatPowerOptionLabel(event.target.value).toLowerCase(),
+                                  },
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                            >
+                              <option value="TARGET">Target</option>
+                              <option value="OBJECT">Object</option>
+                              <option value="WEAPON">Weapon</option>
+                              <option value="ARMOR">Armor</option>
+                              <option value="SELF">Self</option>
+                              <option value="AREA">Area</option>
+                            </select>
+                          </label>
+                          <label className="block">
+                            <span className="text-xs text-zinc-400">Attached Payload Gate</span>
+                            <select
+                              value={String(power.descriptorChassisConfig?.hostileEntryPattern ?? "DIRECT")}
+                              onChange={(event) =>
+                                updatePower(powerIndex, {
+                                  descriptorChassisConfig: {
+                                    ...(power.descriptorChassisConfig ?? {}),
+                                    hostileEntryPattern: event.target.value,
+                                  },
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                            >
+                              <option value="DIRECT">Direct</option>
+                              <option value="ON_ATTACH">Gate on attach</option>
+                              <option value="ON_PAYLOAD">Gate payload later</option>
+                            </select>
+                          </label>
+                        </div>
+                      ) : null}
+                      {power.descriptorChassis !== "IMMEDIATE" ? (
+                        <>
+                          <label className="block">
+                            <span className="text-xs text-zinc-400">Lifespan</span>
+                            <select
+                              value={power.lifespanType ?? "NONE"}
+                              onChange={(event) =>
+                                updatePower(powerIndex, {
+                                  lifespanType: event.target.value as CharacterPower["lifespanType"],
+                                  lifespanTurns:
+                                    event.target.value === "TURNS" ? (power.lifespanTurns ?? 1) : null,
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                            >
+                              <option value="NONE">None</option>
+                              <option value="TURNS">Turns</option>
+                              <option value="PASSIVE">Passive</option>
+                            </select>
+                          </label>
+                          {power.lifespanType === "TURNS" ? (
+                            <label className="block">
+                              <span className="text-xs text-zinc-400">Lifespan Turns</span>
+                              <input
+                                type="number"
+                                min={1}
+                                step={1}
+                                value={power.lifespanTurns ?? 1}
+                                onChange={(event) =>
+                                  updatePower(powerIndex, {
+                                    lifespanTurns: Number(event.target.value),
+                                  })
+                                }
+                                disabled={!canEdit || saving}
+                                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                              />
+                            </label>
+                          ) : null}
+                        </>
+                      ) : null}
+                      <label className="block md:col-span-2">
+                        <span className="text-xs text-zinc-400">Description</span>
+                        <textarea
+                          value={power.description ?? ""}
+                          onChange={(event) => updatePower(powerIndex, { description: event.target.value })}
+                          disabled={!canEdit || saving}
+                          className="mt-1 min-h-20 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/60 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="text-sm font-semibold">Primary Packet</h4>
+                        <button
+                          type="button"
+                          onClick={() => addPowerPacket(powerIndex)}
+                          disabled={!canEdit || saving || power.effectPackets.length >= 4}
+                          className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Add Packet
+                        </button>
+                      </div>
+
+                      <div className="mt-3 space-y-3">
+                        {power.effectPackets.map((packet, packetIndex) => {
+                          const packetDetails =
+                            packet.detailsJson && typeof packet.detailsJson === "object"
+                              ? (packet.detailsJson as Record<string, unknown>)
+                              : {};
+                          const timingOptions = getCharacterPowerAllowedTimingOptions(power, packetIndex);
+                          const durationOptions = getCharacterPowerAllowedDurationOptions(packet.effectTimingType);
+                          const applyToOptions = getCharacterPowerAllowedApplyToOptions(power, packet);
+                          const selectedDamageTypes = Array.isArray(packetDetails.damageTypes)
+                            ? packetDetails.damageTypes.map((entry) => String(entry)).filter(Boolean)
+                            : [];
+                          const attackMode = String(packetDetails.attackMode ?? "PHYSICAL").toUpperCase() === "MENTAL"
+                            ? "MENTAL"
+                            : "PHYSICAL";
+                          const damageTypeOptions =
+                            (powerDamageTypes.length > 0 ? powerDamageTypes : CHARACTER_POWER_FALLBACK_DAMAGE_TYPES)
+                              .filter((row) => row.attackMode === attackMode);
+                          return (
+                          <div key={`${powerIndex}-${packetIndex}`} className="rounded border border-zinc-800 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="text-xs uppercase text-zinc-500">
+                                Packet {packetIndex + 1}
+                              </div>
+                              {packetIndex > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => removePowerPacket(powerIndex, packetIndex)}
+                                  disabled={!canEdit || saving}
+                                  className="rounded border border-red-900 px-2 py-1 text-xs text-red-300 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Remove
+                                </button>
+                              ) : null}
+                            </div>
+                            <div className="mt-3 grid gap-3 md:grid-cols-3">
+                              <label className="block">
+                                <span className="text-xs text-zinc-400">Packet Intention</span>
+                                <select
+                                  value={packet.intention}
+                                  onChange={(event) => {
+                                    const nextPacket = createDefaultCharacterPowerPacket(
+                                      event.target.value as PowerIntention,
+                                      packetIndex,
+                                    );
+                                    updatePowerPacket(powerIndex, packetIndex, nextPacket);
+                                  }}
+                                  disabled={!canEdit || saving}
+                                  className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                >
+                                  {POWER_INTENTION_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>
+                                      {formatPowerOptionLabel(option)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="block">
+                                <span className="text-xs text-zinc-400">Dice</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={CHARACTER_POWER_MAX_DICE_COUNT}
+                                  step={1}
+                                  value={packet.diceCount ?? power.diceCount}
+                                  onChange={(event) =>
+                                    updatePowerPacket(powerIndex, packetIndex, {
+                                      diceCount: Number(event.target.value),
+                                    })
+                                  }
+                                  disabled={!canEdit || saving}
+                                  className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                />
+                              </label>
+                              <label className="block">
+                                <span className="text-xs text-zinc-400">Potency</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={CHARACTER_POWER_MAX_POTENCY}
+                                  step={1}
+                                  value={packet.potency ?? power.potency}
+                                  onChange={(event) =>
+                                    updatePowerPacket(powerIndex, packetIndex, {
+                                      potency: Number(event.target.value),
+                                    })
+                                  }
+                                  disabled={!canEdit || saving}
+                                  className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                />
+                              </label>
+                              <label className="block">
+                                <span className="text-xs text-zinc-400">Timing</span>
+                                <select
+                                  value={packet.effectTimingType ?? "ON_CAST"}
+                                  onChange={(event) =>
+                                    updatePowerPacket(powerIndex, packetIndex, {
+                                      effectTimingType: event.target.value as EffectTimingType,
+                                    })
+                                  }
+                                  disabled={!canEdit || saving}
+                                  className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                >
+                                  {timingOptions.map((option) => (
+                                    <option key={option} value={option}>
+                                      {formatPowerOptionLabel(option)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="block">
+                                <span className="text-xs text-zinc-400">Duration</span>
+                                <select
+                                  value={packet.effectDurationType ?? "INSTANT"}
+                                  onChange={(event) =>
+                                    updatePowerPacket(powerIndex, packetIndex, {
+                                      effectDurationType: event.target.value as EffectDurationType,
+                                    })
+                                  }
+                                  disabled={!canEdit || saving}
+                                  className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                >
+                                  {durationOptions.map((option) => (
+                                    <option key={option} value={option}>
+                                      {formatPowerOptionLabel(option)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              {packet.effectDurationType === "TURNS" ? (
+                                <label className="block">
+                                  <span className="text-xs text-zinc-400">Duration Turns</span>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    step={1}
+                                    value={packet.effectDurationTurns ?? 1}
+                                    onChange={(event) =>
+                                      updatePowerPacket(powerIndex, packetIndex, {
+                                        effectDurationTurns: Number(event.target.value),
+                                      })
+                                    }
+                                    disabled={!canEdit || saving}
+                                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                  />
+                                </label>
+                              ) : null}
+                            </div>
+
+                            <div className="mt-3 rounded-lg border border-zinc-900 bg-zinc-950/60 p-3">
+                              <div className="text-xs uppercase text-zinc-500">Packet Specifics</div>
+                              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                {packetIndex > 0 ? (
+                                  <label className="block">
+                                    <span className="text-xs text-zinc-400">Apply To</span>
+                                    <select
+                                      value={packet.applyTo ?? "PRIMARY_TARGET"}
+                                      onChange={(event) =>
+                                        updatePowerPacket(powerIndex, packetIndex, {
+                                          applyTo: event.target.value as EffectPacketApplyTo,
+                                        })
+                                      }
+                                      disabled={!canEdit || saving}
+                                      className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                    >
+                                      {applyToOptions.map((option) => (
+                                        <option key={option} value={option}>
+                                          {option === "PRIMARY_TARGET" ? "Primary Target" : formatPowerOptionLabel(option)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                ) : (
+                                  <label className="block">
+                                    <span className="text-xs text-zinc-400">Defence Check</span>
+                                    <input
+                                      value={getCharacterPowerPrimaryDefenceLabel(power)}
+                                      readOnly
+                                      disabled
+                                      className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-200 disabled:opacity-100"
+                                    />
+                                  </label>
+                                )}
+
+                                {(packet.intention === "ATTACK" || packet.intention === "DEFENCE") ? (
+                                  <label className="block">
+                                    <span className="text-xs text-zinc-400">Mode</span>
+                                    <select
+                                      value={attackMode}
+                                      onChange={(event) =>
+                                        updatePowerPacketDetails(powerIndex, packetIndex, {
+                                          attackMode: event.target.value,
+                                          ...(packet.intention === "ATTACK" ? { damageTypes: [] } : {}),
+                                        })
+                                      }
+                                      disabled={!canEdit || saving}
+                                      className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                    >
+                                      {CHARACTER_POWER_ATTACK_MODES.map((option) => (
+                                        <option key={option} value={option}>{formatPowerOptionLabel(option)}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                ) : null}
+
+                                {packet.intention === "ATTACK" ? (
+                                  <div className="md:col-span-2">
+                                    <div className="text-xs text-zinc-400">Damage Types</div>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {damageTypeOptions.map((damageType) => {
+                                        const selected = selectedDamageTypes.some(
+                                          (entry) => entry.toLowerCase() === damageType.name.toLowerCase(),
+                                        );
+                                        const disabled =
+                                          !canEdit ||
+                                          saving ||
+                                          (!selected && selectedDamageTypes.length >= CHARACTER_POWER_MAX_DAMAGE_TYPES);
+                                        return (
+                                          <button
+                                            key={damageType.id}
+                                            type="button"
+                                            onClick={() =>
+                                              updatePowerPacketDetails(powerIndex, packetIndex, {
+                                                damageTypes: toggleStringValue(selectedDamageTypes, damageType.name),
+                                              })
+                                            }
+                                            disabled={disabled}
+                                            className={[
+                                              "rounded border px-2 py-1 text-xs",
+                                              selected
+                                                ? "border-emerald-600 bg-emerald-950/40 text-emerald-100"
+                                                : "border-zinc-700 text-zinc-200 hover:bg-zinc-900",
+                                              disabled ? "cursor-not-allowed opacity-60" : "",
+                                            ].join(" ")}
+                                          >
+                                            {damageType.name}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                    <p className="mt-1 text-[11px] text-zinc-500">
+                                      Filtered by mode. Select up to {CHARACTER_POWER_MAX_DAMAGE_TYPES}.
+                                    </p>
+                                  </div>
+                                ) : null}
+
+                                {packet.effectTimingType === "ON_TRIGGER" ? (
+                                  <label className="block">
+                                    <span className="text-xs text-zinc-400">Trigger Condition</span>
+                                    <select
+                                      value={packet.triggerConditionText ?? ""}
+                                      onChange={(event) =>
+                                        updatePowerPacket(powerIndex, packetIndex, {
+                                          triggerConditionText: event.target.value || null,
+                                        })
+                                      }
+                                      disabled={!canEdit || saving}
+                                      className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                    >
+                                      <option value="">Choose...</option>
+                                      {CHARACTER_POWER_TRIGGER_CONDITION_OPTIONS.map((option) => (
+                                        <option key={option} value={option}>
+                                          {formatPowerOptionLabel(option)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                ) : null}
+
+                                {packet.intention === "CONTROL" ? (
+                                  <>
+                                    <label className="block">
+                                      <span className="text-xs text-zinc-400">Control Mode</span>
+                                      <select
+                                        value={String(packetDetails.controlMode ?? "Force move")}
+                                        onChange={(event) =>
+                                          updatePowerPacketDetails(powerIndex, packetIndex, {
+                                            controlMode: event.target.value,
+                                          })
+                                        }
+                                        disabled={!canEdit || saving}
+                                        className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                      >
+                                        {CHARACTER_POWER_CONTROL_MODES.map((option) => (
+                                          <option key={option} value={option}>{option}</option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <label className="block">
+                                      <span className="text-xs text-zinc-400">Control Theme</span>
+                                      <select
+                                        value={String(packetDetails.controlTheme ?? "")}
+                                        onChange={(event) =>
+                                          updatePowerPacketDetails(powerIndex, packetIndex, {
+                                            controlTheme: event.target.value || null,
+                                          })
+                                        }
+                                        disabled={!canEdit || saving}
+                                        className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                      >
+                                        <option value="">Select...</option>
+                                        {CHARACTER_POWER_CONTROL_THEME_OPTIONS.map((option) => (
+                                          <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                  </>
+                                ) : null}
+
+                                {packet.intention === "CLEANSE" ? (
+                                  <>
+                                    <label className="block">
+                                      <span className="text-xs text-zinc-400">Cleanse Effect</span>
+                                      <select
+                                        value={String(packetDetails.cleanseEffectType ?? "Active Power")}
+                                        onChange={(event) =>
+                                          updatePowerPacketDetails(powerIndex, packetIndex, {
+                                            cleanseEffectType: event.target.value,
+                                          })
+                                        }
+                                        disabled={!canEdit || saving}
+                                        className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                      >
+                                        {CHARACTER_POWER_CLEANSE_EFFECTS.map((option) => (
+                                          <option key={option} value={option}>{option}</option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <label className="block">
+                                      <span className="text-xs text-zinc-400">Cleanse Theme</span>
+                                      <select
+                                        value={String(packetDetails.cleanseTheme ?? "")}
+                                        onChange={(event) =>
+                                          updatePowerPacketDetails(powerIndex, packetIndex, {
+                                            cleanseTheme: event.target.value || null,
+                                          })
+                                        }
+                                        disabled={!canEdit || saving}
+                                        className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                      >
+                                        <option value="">Select...</option>
+                                        {CHARACTER_POWER_CONTROL_THEME_OPTIONS.map((option) => (
+                                          <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                  </>
+                                ) : null}
+
+                                {packet.intention === "MOVEMENT" ? (
+                                  <>
+                                    <label className="block">
+                                      <span className="text-xs text-zinc-400">Movement Type</span>
+                                      <select
+                                        value={String(packetDetails.movementMode ?? "Force Push")}
+                                        onChange={(event) =>
+                                          updatePowerPacketDetails(powerIndex, packetIndex, {
+                                            movementMode: event.target.value,
+                                          })
+                                        }
+                                        disabled={!canEdit || saving}
+                                        className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                      >
+                                        {CHARACTER_POWER_MOVEMENT_MODES.map((option) => (
+                                          <option key={option} value={option}>{option}</option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <label className="block">
+                                      <span className="text-xs text-zinc-400">Movement Theme</span>
+                                      <select
+                                        value={String(packetDetails.movementTheme ?? "")}
+                                        onChange={(event) =>
+                                          updatePowerPacketDetails(powerIndex, packetIndex, {
+                                            movementTheme: event.target.value || null,
+                                          })
+                                        }
+                                        disabled={!canEdit || saving}
+                                        className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                      >
+                                        <option value="">Select...</option>
+                                        {CHARACTER_POWER_CONTROL_THEME_OPTIONS.map((option) => (
+                                          <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                  </>
+                                ) : null}
+
+                                {(packet.intention === "AUGMENT" || packet.intention === "DEBUFF") ? (
+                                  <label className="block">
+                                    <span className="text-xs text-zinc-400">
+                                      {packet.intention === "AUGMENT" ? "Augment Stat" : "Debuff Stat"}
+                                    </span>
+                                    <select
+                                      value={String(packetDetails.statTarget ?? "Attack")}
+                                      onChange={(event) =>
+                                        updatePowerPacketDetails(powerIndex, packetIndex, {
+                                          statTarget: event.target.value,
+                                        })
+                                      }
+                                      disabled={!canEdit || saving}
+                                      className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                    >
+                                      {CHARACTER_POWER_ATTRIBUTE_OPTIONS.map((option) => (
+                                        <option key={option} value={option}>{option}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                ) : null}
+
+                                {packet.intention === "HEALING" ? (
+                                  <label className="block">
+                                    <span className="text-xs text-zinc-400">Healing Mode</span>
+                                    <select
+                                      value={String(packetDetails.healingMode ?? "PHYSICAL")}
+                                      onChange={(event) =>
+                                        updatePowerPacketDetails(powerIndex, packetIndex, {
+                                          healingMode: event.target.value,
+                                        })
+                                      }
+                                      disabled={!canEdit || saving}
+                                      className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                    >
+                                      {CHARACTER_POWER_ATTACK_MODES.map((option) => (
+                                        <option key={option} value={option}>{formatPowerOptionLabel(option)}</option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-4">
+                      <label className="block">
+                        <span className="text-xs text-zinc-400">Range</span>
+                        <select
+                          value={rangeCategory}
+                          onChange={(event) =>
+                            updatePowerPacketDetails(powerIndex, 0, {
+                              rangeCategory: event.target.value,
+                              rangeValue: event.target.value === "MELEE" ? 1 : 30,
+                              rangeExtra: {},
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          <option value="SELF">Self</option>
+                          <option value="MELEE">Melee</option>
+                          <option value="RANGED">Ranged</option>
+                          <option value="AOE">Area</option>
+                        </select>
+                      </label>
+                      {rangeCategory !== "SELF" ? (
+                        <label className="block">
+                          <span className="text-xs text-zinc-400">
+                            {rangeCategory === "MELEE" ? "Targets" : "Feet"}
+                          </span>
+                          <input
+                            type="number"
+                            min={rangeCategory === "MELEE" ? 1 : 0}
+                            step={1}
+                            value={Number(primaryDetails.rangeValue ?? 1)}
+                            onChange={(event) =>
+                              updatePowerPacketDetails(powerIndex, 0, {
+                                rangeValue: Number(event.target.value),
+                              })
+                            }
+                            disabled={!canEdit || saving}
+                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                          />
+                        </label>
+                      ) : null}
+                      {rangeCategory === "RANGED" ? (
+                        <label className="block">
+                          <span className="text-xs text-zinc-400">Targets</span>
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={Number(rangeExtra.targets ?? 1)}
+                            onChange={(event) =>
+                              updatePowerPacketDetails(powerIndex, 0, {
+                                rangeExtra: { ...rangeExtra, targets: Number(event.target.value) },
+                              })
+                            }
+                            disabled={!canEdit || saving}
+                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                          />
+                        </label>
+                      ) : null}
+                      {rangeCategory === "AOE" ? (
+                        <label className="block">
+                          <span className="text-xs text-zinc-400">Area Count</span>
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            value={Number(rangeExtra.count ?? 1)}
+                            onChange={(event) =>
+                              updatePowerPacketDetails(powerIndex, 0, {
+                                rangeExtra: { ...rangeExtra, count: Number(event.target.value) },
+                              })
+                            }
+                            disabled={!canEdit || saving}
+                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/70 p-3">
+                      <div className="text-xs uppercase text-zinc-500">Descriptor</div>
+                      {summary?.descriptorLines.length ? (
+                        <ul className="mt-2 space-y-1 text-sm text-zinc-200">
+                          {summary.descriptorLines.map((line, index) => (
+                            <li key={`${powerIndex}-descriptor-${index}`}>{line}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-sm text-zinc-500">No descriptor output yet.</p>
+                      )}
+                      {summary?.errors.length ? (
+                        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
+                          {summary.errors.map((powerError) => (
+                            <li key={powerError}>{powerError}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      {summary?.warnings.length ? (
+                        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-200">
+                          {summary.warnings.map((powerWarning) => (
+                            <li key={powerWarning}>{powerWarning}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+          {powerValidationErrors.length > 0 ? (
+            <ul className="list-disc space-y-1 pl-5 text-sm text-red-300">
+              {powerValidationErrors.map((validationError) => (
+                <li key={validationError}>{validationError}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </details>
+
       {PLACEHOLDER_SECTIONS.map((section) => (
         <details
-          open
           key={section.title}
           className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4"
         >
@@ -2101,6 +3228,62 @@ export default function CharacterBuilderPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="rounded-lg border border-zinc-800 bg-black p-3">
+        <div className="text-xs text-zinc-500">Powers</div>
+        <div className="mt-2 grid grid-cols-4 gap-2 text-xs text-zinc-300">
+          <div>
+            <span className="text-zinc-500">Pool </span>
+            {powerBudget.powerPool}
+          </div>
+          <div>
+            <span className="text-zinc-500">Scalar </span>
+            x{formatPowerNumber(powerBudget.playerPowerSpendScalar)}
+          </div>
+          <div>
+            <span className="text-zinc-500">Spent </span>
+            {formatPowerNumber(powerBudget.totalSpent)}
+          </div>
+          <div className={powerBudget.overspent ? "text-red-300" : ""}>
+            <span className="text-zinc-500">Remaining </span>
+            {formatPowerNumber(powerBudget.remaining)}
+          </div>
+        </div>
+        {powerBudget.powers.length === 0 ? (
+          <p className="mt-2 text-sm text-zinc-500">No powers authored yet.</p>
+        ) : (
+          <div className="mt-3 space-y-3">
+            {powerBudget.powers.map((powerSummary, index) => (
+              <div key={`${powerSummary.power.name}-${index}`} className="rounded border border-zinc-900 p-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm font-medium text-zinc-200">
+                    {powerSummary.power.name || `Power ${index + 1}`}
+                  </div>
+                  <div className={powerSummary.costValid ? "text-xs text-zinc-500" : "text-xs text-red-300"}>
+                    {powerSummary.costValid
+                      ? `Player Spend ${formatPowerNumber(powerSummary.spend ?? 0)} / Base ${formatPowerNumber(powerSummary.basePowerValue ?? 0)} / Cooldown ${powerSummary.derivedCooldownTurns ?? 1}`
+                      : `Invalid: ${powerSummary.invalidCostReason ?? "Power is invalid."}`}
+                  </div>
+                </div>
+                {powerSummary.descriptorLines.length > 0 ? (
+                  <ul className="mt-2 space-y-1 text-xs text-zinc-300">
+                    {powerSummary.descriptorLines.map((line, lineIndex) => (
+                      <li key={`${powerSummary.power.name}-${lineIndex}`}>{line}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {powerSummary.errors.length > 0 ? (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-red-300">
+                    {powerSummary.errors.map((powerError) => (
+                      <li key={powerError}>{powerError}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="rounded-lg border border-zinc-800 bg-black p-3">

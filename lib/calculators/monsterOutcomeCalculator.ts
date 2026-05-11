@@ -714,6 +714,7 @@ function getPowerAvailabilityFactor(cooldownTurns: number): number {
 
 const DEFAULT_RADAR_COOLDOWN_LOAD_EXPONENT = 1.2;
 const UTILITY_EFFECTIVE_POWER_EXPONENT = 0.75;
+const RESOLVER_DERIVED_POWER_RADAR_AVAILABILITY_FACTOR = 0.3;
 
 function getRadarCooldownLoadExponent(): number {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } })
@@ -758,17 +759,11 @@ function resolvePowerAvailability(power: {
       normalizedCooldownLoad === null
         ? 1
         : Math.pow(normalizedCooldownLoad, radarCooldownLoadExponent);
-    const availabilityFactor = tableAvailabilityFactor * radarRelativeLoadFactor;
+    const availabilityFactor = RESOLVER_DERIVED_POWER_RADAR_AVAILABILITY_FACTOR;
     const utilityEffectivePowerFactor =
-      normalizedCooldownLoad === null
-        ? availabilityFactor
-        : Math.pow(Math.max(0, Math.min(1, availabilityFactor)), UTILITY_EFFECTIVE_POWER_EXPONENT);
-    const utilityEffectivePowerExponent =
-      normalizedCooldownLoad === null ? null : UTILITY_EFFECTIVE_POWER_EXPONENT;
-    const utilityFactorFormulaLabel =
-      normalizedCooldownLoad === null
-        ? "tableCooldownAvailabilityFactor"
-        : "pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)";
+      Math.pow(Math.max(0, Math.min(1, availabilityFactor)), UTILITY_EFFECTIVE_POWER_EXPONENT);
+    const utilityEffectivePowerExponent = UTILITY_EFFECTIVE_POWER_EXPONENT;
+    const utilityFactorFormulaLabel = "pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)";
     const axisEffectivePowerFactors: RadarAxes = {
       physicalThreat: availabilityFactor,
       mentalThreat: availabilityFactor,
@@ -792,11 +787,11 @@ function resolvePowerAvailability(power: {
       radarCooldownLoadExponent,
       derivedCooldownLoadClamped: normalizedCooldownLoad,
       factorFormulaLabel:
-        "threat axes: tableCooldownAvailabilityFactor * radarLoadExpressionFactor; utility axes: pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
+        "threat axes: resolverDerivedPowerRadarAvailabilityFactor; utility axes: pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
       availabilityReason:
         cooldownLoad === null
-          ? `Resolver-derived cooldown ${resolvedCooldown} was used for Phase 6 table availability; authored cooldown fields are fallback only. No cooldown load was provided, so threat and utility axes both use table cooldown availability factor ${tableAvailabilityFactor}.`
-          : `Resolver-derived cooldown ${resolvedCooldown} was used for Phase 6 table availability; authored cooldown fields are fallback only. Threat axes use table cooldown availability factor ${tableAvailabilityFactor} times radar load expression factor ${radarRelativeLoadFactor} from level-relative cooldown load ${normalizedCooldownLoad} and exponent ${radarCooldownLoadExponent}, producing factor ${availabilityFactor}. Utility axes use pow(threat factor ${availabilityFactor}, exponent ${UTILITY_EFFECTIVE_POWER_EXPONENT}), producing factor ${utilityEffectivePowerFactor}.`,
+          ? `Resolver-derived cooldown ${resolvedCooldown} is present; authored cooldown fields are fallback only. Threat axes use uniform resolver-derived radar availability factor ${availabilityFactor} so increasing canonical power value cannot reduce radar threat at cooldown bracket boundaries.`
+          : `Resolver-derived cooldown ${resolvedCooldown} and cooldown load ${normalizedCooldownLoad} are present; authored cooldown fields are fallback only. Threat axes use uniform resolver-derived radar availability factor ${availabilityFactor} so increasing canonical power value cannot reduce radar threat at cooldown bracket boundaries. The legacy table cooldown factor ${tableAvailabilityFactor} and load expression factor ${radarRelativeLoadFactor} are retained as diagnostics only.`,
       cooldownTurns: resolvedCooldown,
       cooldownSource: "resolver_derived_cooldown",
     };
@@ -1002,10 +997,10 @@ function resolveEffectivePowerAxisContribution(
     availabilityFactor: aggregateAvailabilityFactor,
     effectivePowerFactor: aggregateEffectivePowerFactor,
     factorFormulaLabel:
-      "per-power threat axes use tableCooldownAvailabilityFactor * radarLoadExpressionFactor; utility axes use pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
+      "per-power resolver-derived threat axes use resolverDerivedPowerRadarAvailabilityFactor; utility axes use pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
     availabilityReason:
       cooldownSources.has("resolver_derived_cooldown")
-        ? "Per-power resolver-derived effective power factors applied before final monster outcome axes. Threat axes combine table cooldown availability and radar load expression; utility axes use a monotonic exponent transform of the threat factor. Authored cooldown fields are fallback only."
+        ? "Per-power resolver-derived effective power factors applied before final monster outcome axes. Threat axes use a uniform resolver-derived radar availability factor so increasing canonical power value cannot reduce threat at cooldown bracket boundaries; utility axes use a monotonic exponent transform of the threat factor. Authored cooldown fields are fallback only."
         : "Per-power fallback cooldown availability applied before final monster outcome axes; no resolver-derived load expression was available.",
     cooldownTurns: null,
     cooldownSource: aggregateCooldownSource,

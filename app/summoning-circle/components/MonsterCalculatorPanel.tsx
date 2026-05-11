@@ -19,6 +19,7 @@ type Props = {
     tuningSetName: string | null;
     totalBasePowerValue: number;
     powerCount: number;
+    invalidPowerCount?: number;
     axisVector: RadarAxes;
     perPower: Array<{
       name: string;
@@ -275,6 +276,11 @@ export function MonsterCalculatorPanel({
                       <dt className="text-zinc-500">Powers</dt>
                       <dd className="mt-1 text-zinc-200">
                         {powerCostPreview.powerCount}
+                        {powerCostPreview.invalidPowerCount ? (
+                          <span className="ml-2 text-amber-300">
+                            ({powerCostPreview.invalidPowerCount} invalid excluded)
+                          </span>
+                        ) : null}
                       </dd>
                     </div>
                     <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">

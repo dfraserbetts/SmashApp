@@ -183,8 +183,9 @@ const STRENGTH_OPTIONS = [
   10,
 ] as const;
 const TARGET_OPTIONS = [1, 2, 3, 4, 5] as const;
-const DICE_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
-const POTENCY_OPTIONS = [1, 2, 3, 4, 5] as const;
+const CHARGE_BONUS_DICE_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+const DICE_COUNT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
+const POTENCY_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
 const PICKER_LEVEL_OPTIONS = Array.from({ length: 20 }, (_, idx) => idx + 1);
 const MONSTER_TIER_OPTIONS: MonsterTier[] = ["MINION", "SOLDIER", "ELITE", "BOSS"];
 const MONSTER_TIER_LABELS: Record<MonsterTier, string> = {
@@ -1219,7 +1220,7 @@ function normalizeChargeTurns(value: unknown): number {
 }
 
 function normalizeChargeBonusDicePerTurn(value: unknown): number {
-  return clampToOptions(getPositiveWholeNumber(value), DICE_COUNT_OPTIONS, 1);
+  return clampToOptions(getPositiveWholeNumber(value), CHARGE_BONUS_DICE_OPTIONS, 1);
 }
 
 function coerceReserveReleaseBehaviour(
@@ -1851,6 +1852,10 @@ function analyzePowerIntegrity(power: MonsterPower): {
     const selectedDamageTypes = getDetailsStringArray(details, "damageTypes")
       .map((entry) => entry.trim())
       .filter(Boolean);
+    if (selectedDamageTypes.length < 1) {
+      errors.push("Attack packets require at least one damage type.");
+      break;
+    }
     if (selectedDamageTypes.length > MAX_POWER_PACKET_DAMAGE_TYPES) {
       errors.push(`Attack packets can select at most ${MAX_POWER_PACKET_DAMAGE_TYPES} damage types.`);
       break;
@@ -5696,7 +5701,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   );
   const previewResolvedPowerCosts = useMemo(() => {
     if (!previewMonster || !powerTuning.snapshot) return null;
-    return resolvePowerCosts(previewMonster.powers ?? [], powerTuning.snapshot, {
+    const validPowers = (previewMonster.powers ?? []).filter(
+      (power) => analyzePowerIntegrity(power).errors.length === 0,
+    );
+    return resolvePowerCosts(validPowers, powerTuning.snapshot, {
       level: previewMonster.level,
       tier: previewMonster.tier,
     });
@@ -6141,10 +6149,16 @@ export function SummoningCircleEditor({ campaignId }: Props) {
 
     const resolvedPowerCosts =
       previewResolvedPowerCosts ??
-      resolvePowerCosts(previewMonster.powers ?? [], powerTuning.snapshot ?? undefined, {
+      resolvePowerCosts(
+        (previewMonster.powers ?? []).filter(
+          (power) => analyzePowerIntegrity(power).errors.length === 0,
+        ),
+        powerTuning.snapshot ?? undefined,
+        {
         level: previewMonster.level,
         tier: previewMonster.tier,
-      });
+        },
+      );
     const baseProfile = computeMonsterOutcomes(previewMonster, runtimeCalculatorConfig, {
       equippedWeaponSources,
       defensiveProfileSources: selectedDefensiveProfileSources,
@@ -6207,10 +6221,14 @@ export function SummoningCircleEditor({ campaignId }: Props) {
 
   const hasEditor = !!editor;
   const editorPowers = useMemo(() => editor?.powers ?? [], [editor?.powers]);
+  const validEditorPowers = useMemo(
+    () => editorPowers.filter((power) => analyzePowerIntegrity(power).errors.length === 0),
+    [editorPowers],
+  );
   const powerCostPreview = useMemo(() => {
     if (!hasEditor) return null;
 
-    const resolvedPowerCosts = resolvePowerCosts(editorPowers, powerTuning.snapshot ?? undefined, {
+    const resolvedPowerCosts = resolvePowerCosts(validEditorPowers, powerTuning.snapshot ?? undefined, {
       level: editor?.level,
       tier: editor?.tier,
     });
@@ -6220,6 +6238,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
       tuningSetName: powerTuning.snapshot?.name ?? null,
       totalBasePowerValue: resolvedPowerCosts.totals.basePowerValue,
       powerCount: resolvedPowerCosts.powers.length,
+      invalidPowerCount: editorPowers.length - validEditorPowers.length,
       axisVector: resolvedPowerCosts.totals.axisVector,
       perPower: resolvedPowerCosts.powers.map((power) => ({
         name: power.name,
@@ -6243,7 +6262,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
         resolverOutput: resolvedPowerCosts,
       },
     };
-  }, [editorPowers, hasEditor, powerTuning.loading, powerTuning.snapshot]);
+  }, [editor?.level, editor?.tier, editorPowers.length, hasEditor, powerTuning.loading, powerTuning.snapshot, validEditorPowers]);
 
   const loadSingleCanary = useCallback((power: MonsterPower) => {
     setEditor((prev) => (prev ? { ...prev, powers: [cloneApprovedCanaryPower(power)] } : prev));
@@ -10598,7 +10617,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                 }
                                 className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
                               >
-                                {DICE_COUNT_OPTIONS.map((option) => (
+                                {CHARGE_BONUS_DICE_OPTIONS.map((option) => (
                                   <option key={option} value={String(option)}>
                                     {option}
                                   </option>

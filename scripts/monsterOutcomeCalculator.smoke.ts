@@ -889,7 +889,7 @@ assert.equal(cooldownThreeDebug.effectivePowerFactor, 0.4);
 assert.equal(cooldownThreeDebug.basePowerValue, 10);
 assert.equal(cooldownThreeDebug.perPowerAvailability?.[0]?.cooldownTurns, 3);
 assert.equal(cooldownThreeFinalDebug.finalPreNormalizationAxes?.mobility, 1.6);
-const expectedDerivedCooldownFactor = 0.75 * Math.pow(0.25, 1.2);
+const expectedDerivedCooldownFactor = 0.3;
 const expectedDerivedUtilityFactor = Math.pow(expectedDerivedCooldownFactor, 0.75);
 assert.equal(derivedCooldownDebug.perPowerAvailability?.[0]?.cooldownTurns, 1);
 assert.equal(
@@ -926,11 +926,11 @@ assert.equal(
 assert.equal(derivedCooldownDebug.effectivePowerFactor, expectedDerivedUtilityFactor);
 assert.equal(
   derivedCooldownDebug.factorFormulaLabel,
-  "per-power threat axes use tableCooldownAvailabilityFactor * radarLoadExpressionFactor; utility axes use pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
+  "per-power resolver-derived threat axes use resolverDerivedPowerRadarAvailabilityFactor; utility axes use pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
 );
 assert.equal(
   derivedCooldownDebug.perPowerAvailability?.[0]?.factorFormulaLabel,
-  "threat axes: tableCooldownAvailabilityFactor * radarLoadExpressionFactor; utility axes: pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
+  "threat axes: resolverDerivedPowerRadarAvailabilityFactor; utility axes: pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
 );
 assert.equal(
   derivedCooldownFinalDebug.finalPreNormalizationAxes?.mobility,

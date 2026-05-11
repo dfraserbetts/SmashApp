@@ -960,7 +960,7 @@ function normalizePacketIntention(
     raw.targetedAttribute ?? details.statTarget ?? details.statChoice,
   );
   const diceCount = Math.max(1, Math.min(20, asInt(raw.diceCount, fallbackDiceCount)));
-  const potency = Math.max(1, Math.min(5, asInt(raw.potency, fallbackPotency)));
+  const potency = Math.max(1, Math.min(20, asInt(raw.potency, fallbackPotency)));
   const effectDurationTypeRaw = asString(
     raw.effectDurationType ?? raw.durationType,
     fallbackDurationType,
@@ -1205,7 +1205,7 @@ function normalizePower(value: unknown, sortOrder: number): Power {
   const rawReduction = Math.max(0, asInt(raw.cooldownReduction, 0));
   const cooldownReduction = Math.min(rawReduction, cooldownTurns - 1);
   const diceCount = Math.max(1, Math.min(20, asInt(raw.diceCount, 1)));
-  const potency = Math.max(1, Math.min(5, asInt(raw.potency, 1)));
+  const potency = Math.max(1, Math.min(20, asInt(raw.potency, 1)));
   const effectDurationTurns =
     effectDurationType === "TURNS"
       ? Math.max(1, Math.min(4, asInt(raw.effectDurationTurns ?? raw.durationTurns, 1)))
@@ -1606,7 +1606,14 @@ export function normalizeMonsterUpsertInput(body: unknown): {
         packet.detailsJson && typeof packet.detailsJson === "object" && !Array.isArray(packet.detailsJson)
           ? (packet.detailsJson as Record<string, unknown>)
           : {};
-      if (countSelectedAttackDamageTypes(details) > MAX_POWER_PACKET_DAMAGE_TYPES) {
+      const damageTypeCount = countSelectedAttackDamageTypes(details);
+      if (damageTypeCount < 1) {
+        return {
+          ok: false,
+          error: "Attack packets require at least one damage type",
+        };
+      }
+      if (damageTypeCount > MAX_POWER_PACKET_DAMAGE_TYPES) {
         return {
           ok: false,
           error: `Attack packets can select at most ${MAX_POWER_PACKET_DAMAGE_TYPES} damage types`,

@@ -102,6 +102,9 @@ export default async function AdminLayout({
                 <Link className="underline" href="/admin/power-tuning">
                   Power Tuning
                 </Link>
+                <Link className="underline" href="/admin/character-builder-tuning">
+                  Character Builder Tuning
+                </Link>
                 <Link className="underline" href="/admin/outcome-normalization">
                   Outcome Normalization
                 </Link>

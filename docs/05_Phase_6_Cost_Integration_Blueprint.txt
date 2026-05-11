@@ -267,6 +267,12 @@ PrimaryPacketFormula contains:
 - PersistenceCleanupFormula
 - ScalingFormula where relevant
 
+MagnitudeFormula uses explicit Power Tuning keys for each supported discrete authoring value. Dice count and potency are discrete magnitude controls, so every legal authored value must be represented by a key such as packet.magnitude.dice.N or packet.magnitude.potency.N. Authoring surfaces must not expose unpriced dice/potency values, because bucket fallback is intended for continuous/range-style tuning lookups, not for flattening legal packet magnitude.
+
+Required packet fields are validity gates, not alternate pricing branches. For example, Attack packets without a selected damage type are incomplete and must not produce a valid monster threat/radar output or player spend comparison.
+
+For a fixed legal power shape, increasing supported dice count or potency must not reduce BasePowerValue, the canonical power-axis contribution, or the final normalized radar output unless the output is already clamped at its documented cap. Player level-sensitive spend scaling remains deferred until canonical cost and radar monotonicity are stable.
+
 
 SecondaryPacketFormula
 

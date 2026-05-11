@@ -1,3 +1,5 @@
+import { normalizeCharacterPowers, type CharacterPower } from "@/lib/characterBuilder/powers";
+
 export const CHARACTER_ATTRIBUTES = [
   "Attack",
   "Guard",
@@ -42,6 +44,7 @@ export type CharacterBuilderData = {
   resistPoints: Record<CharacterAttribute, number>;
   selectedTraitKeys: string[];
   equippedSlots: EquippedSlotsState;
+  powers: CharacterPower[];
 };
 
 export const EQUIPMENT_SLOTS = [
@@ -186,6 +189,7 @@ export function defaultBuilderData(): CharacterBuilderData {
     resistPoints: { ...DEFAULT_RESIST_POINTS },
     selectedTraitKeys: [],
     equippedSlots: {},
+    powers: [],
   };
 }
 
@@ -637,6 +641,7 @@ export function normalizeBuilderData(value: unknown): CharacterBuilderData {
     resistPoints: normalizeResistPoints(record.resistPoints),
     selectedTraitKeys: normalizeSelectedTraitKeys(record.selectedTraitKeys ?? defaults.selectedTraitKeys),
     equippedSlots: normalizeEquippedSlots(record.equippedSlots, record.equippedBackpackItems),
+    powers: normalizeCharacterPowers(record.powers),
   };
 }
 

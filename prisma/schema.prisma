@@ -505,6 +505,15 @@ model OutcomeNormalizationConfigEntry {
   @@map("OutcomeNormalizationConfigEntry")
 }
 
+model CharacterBuilderTuning {
+  id                     String   @id @default("default")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  playerPowerSpendScalar Float    @default(3)
+
+  @@map("CharacterBuilderTuning")
+}
+
 model UserProfile {
   userId          String          @id @db.Uuid
   entitlementTier EntitlementTier @default(FREE)

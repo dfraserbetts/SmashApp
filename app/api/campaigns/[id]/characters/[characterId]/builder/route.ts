@@ -7,6 +7,8 @@ import {
   requireCampaignAccess,
 } from "@/lib/campaign/access";
 import { getMemberIdentities, getMemberIdentityLabel } from "@/lib/campaign/memberIdentity";
+import { ensureSeedPowerTuningSet } from "@/lib/config/powerTuning";
+import { ensureCharacterBuilderTuning } from "@/lib/config/characterBuilderTuning";
 import {
   cleanBuilderTraits,
   normalizeBuilderData,
@@ -15,6 +17,7 @@ import {
   type PlayerTraitDefinition,
 } from "@/lib/characterBuilder/core";
 import { summarizeEquipmentItem } from "@/lib/characterBuilder/equipment";
+import { validateCharacterPowers } from "@/lib/characterBuilder/powers";
 import { prisma } from "@/prisma/client";
 
 const DEFAULT_CHARACTER_NAME = "UNNAMED";
@@ -158,10 +161,12 @@ async function loadBuilderContext(campaignId: string, characterId: string, userI
     ? identities.get(character.assignedUserId)
     : undefined;
 
-  const [traitCatalog, backpackItems, transferTargets] = await Promise.all([
+  const [traitCatalog, backpackItems, transferTargets, powerTuning, characterBuilderTuning] = await Promise.all([
     loadBuilderTraitCatalog(),
     loadBuilderBackpackItems(campaignId, characterId),
     loadBackpackTransferTargets(campaignId, characterId),
+    ensureSeedPowerTuningSet(),
+    ensureCharacterBuilderTuning(),
   ]);
   const builderData = sanitizeBuilderEquipment(
     cleanBuilderTraits(normalizeBuilderData(character.builderData), traitCatalog),
@@ -193,6 +198,8 @@ async function loadBuilderContext(campaignId: string, characterId: string, userI
     traitCatalog,
     backpackItems,
     transferTargets,
+    powerTuning,
+    characterBuilderTuning,
   };
 }
 
@@ -434,16 +441,26 @@ export async function PATCH(
     const race = normalizeOptionalString(body.race, 120);
     const description = normalizeOptionalString(body.description, 4000);
     const level = normalizeLevel(body.level);
-    const [traitCatalog, backpackItems] = await Promise.all([
+    const [traitCatalog, backpackItems, powerTuning, characterBuilderTuning] = await Promise.all([
       loadBuilderTraitCatalog(),
       loadBuilderBackpackItems(campaignId, targetCharacterId),
+      ensureSeedPowerTuningSet(),
+      ensureCharacterBuilderTuning(),
     ]);
     const builderData = sanitizeBuilderEquipment(
       cleanBuilderTraits(normalizeBuilderData(body.builderData), traitCatalog),
       backpackItems,
     );
     const validationLevel = level ?? builderContext.character.level;
-    const validationErrors = validateBuilderData(builderData, validationLevel, traitCatalog);
+    const validationErrors = [
+      ...validateBuilderData(builderData, validationLevel, traitCatalog),
+      ...validateCharacterPowers({
+        level: validationLevel,
+        powers: builderData.powers,
+        tuningSnapshot: powerTuning,
+        playerPowerSpendScalar: characterBuilderTuning.playerPowerSpendScalar,
+      }),
+    ];
     if (validationErrors.length > 0) {
       return NextResponse.json({ error: validationErrors.join(" ") }, { status: 400 });
     }
@@ -463,7 +480,7 @@ export async function PATCH(
     if (race !== undefined) data.race = race;
     if (description !== undefined) data.description = description;
     if (level !== undefined) data.level = level;
-    data.builderData = builderData;
+    data.builderData = JSON.parse(JSON.stringify(builderData)) as Prisma.InputJsonValue;
 
     const character = await prisma.campaignCharacter.update({
       where: { id: targetCharacterId },
@@ -494,6 +511,8 @@ export async function PATCH(
       },
       traitCatalog: await loadBuilderTraitCatalog(),
       backpackItems: await loadBuilderBackpackItems(campaignId, targetCharacterId),
+      powerTuning,
+      characterBuilderTuning,
     });
   } catch (error) {
     return toErrorResponse(error);

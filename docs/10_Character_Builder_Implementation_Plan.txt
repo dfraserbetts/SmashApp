@@ -982,11 +982,17 @@ instead of silently forking the formula.
 Character Power Builder
 -----------------------
 
-The Character Power Builder is part of V1.
+The Character Power Builder is part of V1 and is implemented in Step 8.
 
-It should reuse the Summoning Circle Power Builder and shared power core.
+It should reuse the Summoning Circle shared power core.
 
 Do not rebuild the power system from scratch.
+
+Current implementation stores player-authored powers in CampaignCharacter.builderData.powers using the shared Power shape. Character Builder uses the shared power descriptor renderer and canonical Phase 6 power-cost resolver, but a thin Character Builder adapter owns the player-facing editor surface so monster-only Outcome/Radar controls stay out of the character UI.
+
+The Character Builder authoring surface must keep parity with Summoning Circle legality rather than using simplified fake controls. Timing and duration options are gated by descriptor chassis, commitment, packet order, and carrier legality; Attack packets require damage type selection; packet-specific controls such as apply-to, augment/debuff stat, control theme, cleanse theme, movement type/theme, healing mode, trigger conditions, and attached payload gate controls must feed the shared Power / EffectPacket shape before BasePowerValue is calculated. The Primary Defence Gate is derived from Packet 1 and shown as a readout, not chosen freely by default.
+
+Character Builder must not expose dice or potency values that are not covered by explicit Power Tuning keys. The shared resolver may use bucket fallback for continuous/range-style tuning keys, but supported discrete magnitude authoring values such as packet dice count and packet potency must have explicit keys so high values do not silently flatten to the highest lower configured value.
 
 Key difference from Summoning Circle:
 
@@ -1011,12 +1017,24 @@ The system should support:
 Base Power Spend
 ----------------
 
-For V1, player power spend should use the raw BasePowerValue from the canonical Phase 6 power-cost resolver.
+For V1, player power spend is derived from the raw BasePowerValue from the canonical Phase 6 power-cost resolver.
+
+BasePowerValue remains the canonical Phase 6 power-cost truth.
+
+PlayerPowerSpendScalar is an admin-authorable Character Builder player economy knob.
+
+Default:
+
+PlayerPowerSpendScalar = 3
+
+PlayerPowerSpend = ceil(BasePowerValue * PlayerPowerSpendScalar)
+
+Cooldown still derives from BasePowerValue, not PlayerPowerSpend.
 
 If this translates poorly in playtest, later work may:
 
 - adjust the Level * 50 pool formula
-- add a player-side scalar / rounding layer
+- adjust the player-side scalar / rounding layer
 - tune the underlying power-cost values
 
 Do not introduce a second independent power-cost truth in V1.
@@ -1029,9 +1047,14 @@ The Character Builder should show:
 - total Power Pool
 - spent Power Points
 - remaining Power Points
-- per-power BasePowerValue spend
+- per-power PlayerPowerSpend
+- per-power BasePowerValue for transparency
+- active PlayerPowerSpendScalar
+- Invalid instead of BasePowerValue / cooldown when a power is not legally authorable, such as an Attack packet with no damage type
 - any future discounts, defaulting to zero in V1
 - final spend after discounts
+
+Invalid powers do not have a valid comparable player spend. The UI and server validation must block save until the invalid fields are corrected rather than presenting the resolver's raw fallback cost as a legal alternate build.
 
 Discount Fields
 ---------------
@@ -1044,6 +1067,8 @@ SparkDiscountPercent = 0
 RestrictionDiscountPercent = 0
 
 V1 should not expose a functional Spark or Restriction authoring system.
+
+These discount seams default to zero and do not change BasePowerValue or derived cooldown.
 
 V2 Spark Direction
 ------------------
@@ -1064,6 +1089,8 @@ Hard direction:
 Restrictions reduce player Power Point spend only.
 
 Restrictions do not reduce derived cooldown in V3 unless this rule is explicitly reopened.
+
+Restrictions later reduce player-facing spend only; they must not reduce cooldown.
 
 Reason:
 

@@ -1,0 +1,520 @@
+import {
+  createDefaultCharacterPower,
+  createDefaultCharacterPowerPacket,
+  CHARACTER_POWER_MAX_DICE_COUNT,
+  CHARACTER_POWER_MAX_POTENCY,
+  getCharacterPowerAllowedTimingOptions,
+  getCharacterPowerPrimaryDefenceLabel,
+  normalizeCharacterPower,
+  powerPointPool,
+  summarizeCharacterPowers,
+  validateCharacterPowers,
+  type CharacterPower,
+} from "../lib/characterBuilder/powers";
+import { resolvePowerCosts } from "../lib/summoning/powerCostResolver";
+import { DEFAULT_CHARACTER_POWER_SPEND_SCALAR } from "../lib/config/characterBuilderTuningShared";
+import { normalizePowerTuningValues } from "../lib/config/powerTuningShared";
+import type { Power } from "../lib/summoning/types";
+
+function assert(condition: unknown, message: string) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+const levelOnePower = {
+  ...createDefaultCharacterPower(0),
+  name: "Practice Strike",
+  effectPackets: [
+    {
+      ...createDefaultCharacterPowerPacket("ATTACK", 0),
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        damageTypes: ["Slash"],
+        rangeCategory: "MELEE",
+        rangeValue: 1,
+        rangeExtra: {},
+      },
+    },
+  ],
+};
+levelOnePower.intentions = levelOnePower.effectPackets;
+const levelOneSummary = summarizeCharacterPowers({
+  level: 1,
+  powers: [levelOnePower],
+});
+
+assert(powerPointPool(1) === 50, "Level 1 PowerPool should equal 50.");
+assert(
+  levelOneSummary.playerPowerSpendScalar === DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
+  "Default player power spend scalar should be 3.",
+);
+assert(levelOneSummary.totalSpent > 0, "Power spend should be positive.");
+assert(levelOneSummary.remaining === 50 - levelOneSummary.totalSpent, "Spend should deduct from pool.");
+assert(
+  levelOneSummary.powers[0]?.derivedCooldownTurns,
+  "Derived cooldown should be present.",
+);
+assert(
+  (levelOneSummary.powers[0]?.descriptorLines.length ?? 0) > 0,
+  "Descriptor should render.",
+);
+assert(
+  levelOneSummary.powers[0]?.descriptorLines.some((line) => /slash/i.test(line)),
+  "Attack descriptor should include selected damage type.",
+);
+assert(
+  getCharacterPowerPrimaryDefenceLabel(levelOnePower).includes("Dodge") ||
+    getCharacterPowerPrimaryDefenceLabel(levelOnePower).includes("Defence"),
+  "Primary defence gate should be derived from Packet 1.",
+);
+assert(
+  !getCharacterPowerAllowedTimingOptions(levelOnePower, 0).includes("ON_TRIGGER"),
+  "Immediate standard Packet 1 should not allow On Trigger.",
+);
+
+const illegalTimingPower = {
+  ...levelOnePower,
+  effectPackets: [
+    {
+      ...levelOnePower.effectPackets[0],
+      effectTimingType: "ON_TRIGGER" as const,
+    },
+  ],
+};
+illegalTimingPower.intentions = illegalTimingPower.effectPackets;
+const illegalTimingErrors = validateCharacterPowers({
+  level: 1,
+  powers: [illegalTimingPower],
+});
+assert(
+  illegalTimingErrors.some((error) => error.includes("timing is not legal")),
+  "Illegal timing should be rejected.",
+);
+
+const missingDamageTypePower = {
+  ...levelOnePower,
+  effectPackets: [
+    {
+      ...levelOnePower.effectPackets[0],
+      detailsJson: {
+        ...levelOnePower.effectPackets[0].detailsJson,
+        damageTypes: [],
+      },
+    },
+  ],
+};
+missingDamageTypePower.intentions = missingDamageTypePower.effectPackets;
+const missingDamageErrors = validateCharacterPowers({
+  level: 1,
+  powers: [missingDamageTypePower],
+});
+assert(
+  missingDamageErrors.some((error) => error.includes("requires at least one damage type")),
+  "Missing Attack damage type should be rejected.",
+);
+const missingDamageSummary = summarizeCharacterPowers({
+  level: 1,
+  powers: [missingDamageTypePower],
+});
+assert(
+  missingDamageSummary.powers[0]?.costValid === false,
+  "Missing Attack damage type should not have a valid comparable cost.",
+);
+assert(
+  missingDamageSummary.powers[0]?.spend === null,
+  "Missing Attack damage type should not contribute player spend.",
+);
+
+const expensivePacket = {
+  ...createDefaultCharacterPowerPacket("ATTACK", 0),
+  diceCount: 20,
+  potency: 20,
+  effectDurationType: "TURNS" as const,
+  effectDurationTurns: 20,
+  detailsJson: {
+    attackMode: "PHYSICAL",
+    damageTypes: ["Slash", "Pierce", "Bludgeon", "Crush"],
+    rangeCategory: "AOE",
+    rangeValue: 500,
+    rangeExtra: {
+      count: 20,
+      shape: "SPHERE",
+      sphereRadiusFeet: 500,
+    },
+  },
+};
+const expensivePowers = Array.from({ length: 6 }, (_, index) => ({
+  ...createDefaultCharacterPower(index),
+  name: `Expensive Power ${index + 1}`,
+  effectPackets: [expensivePacket],
+  intentions: [expensivePacket],
+}));
+const overspendErrors = validateCharacterPowers({
+  level: 1,
+  powers: expensivePowers,
+});
+
+assert(
+  overspendErrors.some((error) => error.includes("Power Point spend")),
+  "Overspend should be rejected.",
+);
+
+function makeDiagnosticPower(params: {
+  name: string;
+  diceCount: number;
+  potency: number;
+  damageTypes: string[];
+}): CharacterPower {
+  const packet = {
+    ...createDefaultCharacterPowerPacket("ATTACK", 0),
+    diceCount: params.diceCount,
+    potency: params.potency,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      damageTypes: params.damageTypes,
+      rangeCategory: "MELEE",
+      rangeValue: 1,
+      rangeExtra: {},
+    },
+  };
+  const power = {
+    ...createDefaultCharacterPower(0),
+    name: params.name,
+    diceCount: params.diceCount,
+    potency: params.potency,
+    effectPackets: [packet],
+    intentions: [packet],
+  };
+  return normalizeCharacterPower(power, 0);
+}
+
+function makeSummoningCircleShapedAttackPower(params: {
+  name: string;
+  diceCount: number;
+  potency: number;
+}): Power {
+  const packet = {
+    ...createDefaultCharacterPowerPacket("ATTACK", 0),
+    diceCount: params.diceCount,
+    potency: params.potency,
+    effectTimingType: "ON_CAST" as const,
+    effectDurationType: "INSTANT" as const,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      damageTypes: ["Slash"],
+      rangeCategory: "MELEE",
+      rangeValue: 1,
+      rangeExtra: {},
+    },
+  };
+  return {
+    ...createDefaultCharacterPower(0),
+    name: params.name,
+    diceCount: params.diceCount,
+    potency: params.potency,
+    rangeCategories: ["MELEE"],
+    meleeTargets: 1,
+    rangedTargets: null,
+    rangedDistanceFeet: null,
+    aoeCenterRangeFeet: null,
+    aoeCount: null,
+    aoeShape: null,
+    aoeSphereRadiusFeet: null,
+    aoeConeLengthFeet: null,
+    aoeLineWidthFeet: null,
+    aoeLineLengthFeet: null,
+    effectPackets: [packet],
+    intentions: [packet],
+  };
+}
+
+function makeSummoningCircleShapedPowerForCaseB(): Power {
+  return makeSummoningCircleShapedAttackPower({
+    name: "Case E - Summoning Circle shape",
+    diceCount: 6,
+    potency: 12,
+  });
+}
+
+function printPowerCostDiagnostic(label: string, power: Power) {
+  const resolved = resolvePowerCosts([power], undefined, { level: 1, tier: "SOLDIER" }).powers[0];
+  const summary = summarizeCharacterPowers({
+    level: 1,
+    powers: [normalizeCharacterPower(power, 0)],
+  }).powers[0];
+  const packet = power.effectPackets[0];
+  const details = packet?.detailsJson ?? {};
+  const validationErrors = validateCharacterPowers({
+    level: 1,
+    powers: [normalizeCharacterPower(power, 0)],
+  });
+  const diagnostic = {
+    label,
+    normalizedPowerPassedToResolver: power,
+    resolverTotalBasePowerValue: resolved?.breakdown.basePowerValue ?? null,
+    resolverBreakdown: resolved?.breakdown ?? null,
+    characterBuilderPlayerSpend: summary?.spend ?? null,
+    characterBuilderSpendScalar: summary?.playerPowerSpendScalar ?? null,
+    derivedCooldown: resolved?.derivedCooldown ?? null,
+    validationResult: {
+      ok: validationErrors.length === 0,
+      errors: validationErrors,
+    },
+    damageTypeFieldPath: "effectPackets[0].detailsJson.damageTypes",
+    damageTypeFieldValue: (details as Record<string, unknown>).damageTypes,
+    diceFieldPath: "effectPackets[0].diceCount",
+    diceFieldValue: packet?.diceCount,
+    potencyFieldPath: "effectPackets[0].potency",
+    potencyFieldValue: packet?.potency,
+    topLevelDiceFieldPath: "diceCount",
+    topLevelDiceFieldValue: power.diceCount,
+    topLevelPotencyFieldPath: "potency",
+    topLevelPotencyFieldValue: power.potency,
+    timingFields: {
+      descriptorChassis: power.descriptorChassis,
+      commitmentModifier: power.commitmentModifier,
+      packetEffectTimingType: packet?.effectTimingType,
+      packetEffectTimingTurns: packet?.effectTimingTurns,
+    },
+    durationFields: {
+      lifespanType: power.lifespanType,
+      lifespanTurns: power.lifespanTurns,
+      powerEffectDurationType: power.effectDurationType,
+      powerEffectDurationTurns: power.effectDurationTurns,
+      packetEffectDurationType: packet?.effectDurationType,
+      packetEffectDurationTurns: packet?.effectDurationTurns,
+    },
+    packetSpecificFields: {
+      intention: packet?.intention,
+      type: packet?.type,
+      hostility: packet?.hostility,
+      dealsWounds: packet?.dealsWounds,
+      woundChannel: packet?.woundChannel,
+      applyTo: packet?.applyTo,
+      specific: packet?.specific ?? null,
+      detailsJson: details,
+    },
+  };
+
+  console.log(`\n[Character Power Cost Diagnostic] ${label}`);
+  console.log(JSON.stringify(diagnostic, null, 2));
+  return diagnostic;
+}
+
+const diagnosticCases = {
+  caseA: makeDiagnosticPower({
+    name: "Case A - 1 dice potency 1 one physical damage",
+    diceCount: 1,
+    potency: 1,
+    damageTypes: ["Slash"],
+  }),
+  caseB: makeDiagnosticPower({
+    name: "Case B - 6 dice potency 12 one physical damage",
+    diceCount: 6,
+    potency: 12,
+    damageTypes: ["Slash"],
+  }),
+  caseC: makeDiagnosticPower({
+    name: "Case C - 6 dice potency 12 no damage",
+    diceCount: 6,
+    potency: 12,
+    damageTypes: [],
+  }),
+  caseD: makeDiagnosticPower({
+    name: "Case D - 6 dice potency 12 two physical damage",
+    diceCount: 6,
+    potency: 12,
+    damageTypes: ["Slash", "Pierce"],
+  }),
+  caseE: makeSummoningCircleShapedPowerForCaseB(),
+};
+
+const diagnosticOutputs = {
+  caseA: printPowerCostDiagnostic("Case A", diagnosticCases.caseA),
+  caseB: printPowerCostDiagnostic("Case B", diagnosticCases.caseB),
+  caseC: printPowerCostDiagnostic("Case C", diagnosticCases.caseC),
+  caseD: printPowerCostDiagnostic("Case D", diagnosticCases.caseD),
+  caseE: printPowerCostDiagnostic("Case E", diagnosticCases.caseE),
+};
+
+function basePowerValueForMagnitude(diceCount: number, potency: number): number {
+  const power = makeDiagnosticPower({
+    name: `Magnitude ${diceCount} dice potency ${potency}`,
+    diceCount,
+    potency,
+    damageTypes: ["Slash"],
+  });
+  const resolved = resolvePowerCosts([power], undefined, { level: 1, tier: "SOLDIER" }).powers[0];
+  return resolved?.breakdown.basePowerValue ?? 0;
+}
+
+function chosenTuningKeysForDiagnostic(diagnostic: {
+  resolverBreakdown: { packetCosts: Array<{ debug: Record<string, unknown> }> } | null;
+}): string[] {
+  const chosenKeys = diagnostic.resolverBreakdown?.packetCosts[0]?.debug.chosenTuningKeys;
+  return Array.isArray(chosenKeys) ? chosenKeys.filter((key): key is string => typeof key === "string") : [];
+}
+
+function resolveChosenTuningKeys(power: Power): string[] {
+  const resolved = resolvePowerCosts([power], undefined, { level: 1, tier: "SOLDIER" }).powers[0];
+  const chosenKeys = resolved?.breakdown.packetCosts[0]?.debug.chosenTuningKeys;
+  return Array.isArray(chosenKeys) ? chosenKeys.filter((key): key is string => typeof key === "string") : [];
+}
+
+function resolveBasePowerValue(power: Power): number {
+  return resolvePowerCosts([power], undefined, { level: 1, tier: "SOLDIER" }).powers[0]
+    ?.breakdown.basePowerValue ?? 0;
+}
+
+assert(
+  !diagnosticOutputs.caseB.validationResult.errors.some((error: string) =>
+    error.includes("requires at least one damage type"),
+  ),
+  "Case B should satisfy required damage type validation.",
+);
+assert(
+  !diagnosticOutputs.caseC.validationResult.ok,
+  "Case C should be invalid without a damage type.",
+);
+assert(
+  diagnosticCases.caseB.effectPackets[0]?.diceCount === 6 &&
+    diagnosticCases.caseB.effectPackets[0]?.potency === 12,
+  "Case B dice and potency should reach the resolver packet fields.",
+);
+assert(
+  diagnosticOutputs.caseB.resolverTotalBasePowerValue === diagnosticOutputs.caseE.resolverTotalBasePowerValue,
+  "Character Builder and equivalent Summoning Circle-shaped Case B should resolve to the same BasePowerValue.",
+);
+assert(
+  diagnosticOutputs.caseB.resolverTotalBasePowerValue === 32,
+  "Case B BasePowerValue should be 32 after potency 12 is priced explicitly.",
+);
+assert(
+  chosenTuningKeysForDiagnostic(diagnosticOutputs.caseB).includes("packet.magnitude.potency.12"),
+  "Case B should use exact packet.magnitude.potency.12 tuning instead of falling back to potency.5.",
+);
+assert(
+  chosenTuningKeysForDiagnostic(diagnosticOutputs.caseB).includes("packet.magnitude.dice.6"),
+  "Case B should use exact packet.magnitude.dice.6 tuning.",
+);
+assert(
+  diagnosticOutputs.caseB.characterBuilderSpendScalar === DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
+  "Case B should use default player spend scalar 3.",
+);
+assert(
+  diagnosticOutputs.caseB.characterBuilderPlayerSpend === 96,
+  "Case B PlayerPowerSpend should be ceil(32 * 3) = 96.",
+);
+assert(
+  diagnosticOutputs.caseB.derivedCooldown?.derivedCooldownTurns === 5,
+  "Case B cooldown should still derive from BasePowerValue.",
+);
+const caseBScalarTwoSummary = summarizeCharacterPowers({
+  level: 1,
+  powers: [diagnosticCases.caseB],
+  playerPowerSpendScalar: 2,
+});
+assert(
+  caseBScalarTwoSummary.powers[0]?.spend === 64,
+  "Changing scalar to 2 should change Case B PlayerPowerSpend to 64.",
+);
+const caseBOverspendErrors = validateCharacterPowers({
+  level: 1,
+  powers: [diagnosticCases.caseB],
+});
+assert(
+  caseBOverspendErrors.some((error) => error.includes("Power Point spend")),
+  "Level 1 Case B should overspend with default scalar 3.",
+);
+assert(
+  Number(diagnosticOutputs.caseB.resolverTotalBasePowerValue) >=
+    Number(diagnosticOutputs.caseC.resolverTotalBasePowerValue),
+  "Adding one damage type should not lower raw resolver cost.",
+);
+assert(
+  Number(diagnosticOutputs.caseD.resolverTotalBasePowerValue) >
+    Number(diagnosticOutputs.caseB.resolverTotalBasePowerValue),
+  "Adding a second damage type should increase raw resolver cost.",
+);
+
+const potency5BaseValue = basePowerValueForMagnitude(6, 5);
+const potency6BaseValue = basePowerValueForMagnitude(6, 6);
+const potency12BaseValue = basePowerValueForMagnitude(6, 12);
+assert(
+  potency5BaseValue < potency6BaseValue && potency6BaseValue < potency12BaseValue,
+  "Potency should be monotonic across 5, 6, and 12.",
+);
+
+const dice10BaseValue = basePowerValueForMagnitude(10, 5);
+const dice11BaseValue = basePowerValueForMagnitude(11, 5);
+const maxDiceBaseValue = basePowerValueForMagnitude(CHARACTER_POWER_MAX_DICE_COUNT, 5);
+assert(
+  dice10BaseValue < dice11BaseValue && dice11BaseValue <= maxDiceBaseValue,
+  "Dice count should increase past 10 through the highest Character Builder legal dice value.",
+);
+
+const maxPotencyBaseValue = basePowerValueForMagnitude(6, CHARACTER_POWER_MAX_POTENCY);
+assert(
+  potency12BaseValue <= maxPotencyBaseValue,
+  "Potency 12 should not exceed the highest Character Builder legal potency value.",
+);
+
+const summoningHighMagnitudePower = makeSummoningCircleShapedAttackPower({
+  name: "Summoning Circle shape - high magnitude",
+  diceCount: 11,
+  potency: 12,
+});
+const summoningHighMagnitudeKeys = resolveChosenTuningKeys(summoningHighMagnitudePower);
+assert(
+  summoningHighMagnitudeKeys.includes("packet.magnitude.dice.11") &&
+    summoningHighMagnitudeKeys.includes("packet.magnitude.potency.12"),
+  "Summoning Circle-shaped high magnitude power should use exact dice.11 and potency.12 keys.",
+);
+assert(
+  resolveBasePowerValue(summoningHighMagnitudePower) > diagnosticOutputs.caseB.resolverTotalBasePowerValue,
+  "Summoning Circle-shaped dice 11 potency 12 power should cost more than dice 6 potency 12.",
+);
+
+const summoningMaxMagnitudePower = makeSummoningCircleShapedAttackPower({
+  name: "Summoning Circle shape - max priced magnitude",
+  diceCount: CHARACTER_POWER_MAX_DICE_COUNT,
+  potency: CHARACTER_POWER_MAX_POTENCY,
+});
+const summoningMaxMagnitudeKeys = resolveChosenTuningKeys(summoningMaxMagnitudePower);
+assert(
+  summoningMaxMagnitudeKeys.includes(`packet.magnitude.dice.${CHARACTER_POWER_MAX_DICE_COUNT}`) &&
+    summoningMaxMagnitudeKeys.includes(`packet.magnitude.potency.${CHARACTER_POWER_MAX_POTENCY}`),
+  "Summoning Circle-shaped max magnitude power should use exact max dice and potency keys.",
+);
+assert(
+  resolveBasePowerValue(summoningMaxMagnitudePower) > resolveBasePowerValue(summoningHighMagnitudePower),
+  "Summoning Circle-shaped max magnitude power should cost more than dice 11 potency 12.",
+);
+
+const legacyActiveTuningShape = normalizePowerTuningValues({
+  "packet.magnitude.dice.1": 1,
+  "packet.magnitude.dice.2": 3,
+  "packet.magnitude.dice.3": 6,
+  "packet.magnitude.dice.4": 10,
+  "packet.magnitude.dice.5": 14,
+  "packet.magnitude.dice.6": 19,
+  "packet.magnitude.dice.7": 24,
+  "packet.magnitude.dice.8": 30,
+  "packet.magnitude.dice.9": 37,
+  "packet.magnitude.dice.10": 45,
+  "packet.magnitude.potency.1": 1,
+  "packet.magnitude.potency.2": 2,
+  "packet.magnitude.potency.3": 3,
+  "packet.magnitude.potency.4": 4,
+  "packet.magnitude.potency.5": 5,
+});
+assert(
+  legacyActiveTuningShape["packet.magnitude.dice.11"] >
+    legacyActiveTuningShape["packet.magnitude.dice.10"] &&
+    legacyActiveTuningShape["packet.magnitude.potency.6"] >
+      legacyActiveTuningShape["packet.magnitude.potency.5"],
+  "Missing high magnitude keys should continue from an existing active tuning shape without flattening.",
+);
+
+console.log("Character Power Builder smoke passed.");

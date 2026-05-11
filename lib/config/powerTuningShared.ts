@@ -143,6 +143,16 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
         "8": 24,
         "9": 27,
         "10": 30,
+        "11": 33,
+        "12": 36,
+        "13": 39,
+        "14": 42,
+        "15": 45,
+        "16": 48,
+        "17": 51,
+        "18": 54,
+        "19": 57,
+        "20": 60,
       },
       movementTypeMultiplier: {
         fly: 0.3,
@@ -152,7 +162,28 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
         run: 0.3,
         teleport: 0.5,
       },
-      potency: { "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
+      potency: {
+        "1": 1,
+        "2": 2,
+        "3": 3,
+        "4": 4,
+        "5": 5,
+        "6": 6,
+        "7": 7,
+        "8": 8,
+        "9": 9,
+        "10": 10,
+        "11": 11,
+        "12": 12,
+        "13": 13,
+        "14": 14,
+        "15": 15,
+        "16": 16,
+        "17": 17,
+        "18": 18,
+        "19": 19,
+        "20": 20,
+      },
     },
     movementType: {
       fly: 1.5,
@@ -241,6 +272,42 @@ function toNonNegativeNumber(value: unknown, fallback: number): number {
   return fallback;
 }
 
+function hasOwnKey(input: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(input, key);
+}
+
+function continueMissingMagnitudeKeys(
+  values: PowerTuningFlatValues,
+  sourceInput: Record<string, unknown>,
+  prefix: string,
+  minimumStep: number,
+) {
+  const suffixes = POWER_TUNING_CONFIG_KEY_ORDER
+    .filter((key) => key.startsWith(`${prefix}.`))
+    .map((key) => Number(key.slice(prefix.length + 1)))
+    .filter(Number.isFinite)
+    .sort((left, right) => left - right);
+
+  let previousValue: number | null = null;
+  let lastPositiveStep = minimumStep;
+
+  for (const suffix of suffixes) {
+    const key = `${prefix}.${suffix}`;
+    if (previousValue === null) {
+      previousValue = values[key] ?? 0;
+      continue;
+    }
+
+    if (!hasOwnKey(sourceInput, key) && (values[key] ?? 0) <= previousValue) {
+      values[key] = previousValue + lastPositiveStep;
+    }
+
+    const step = (values[key] ?? previousValue) - previousValue;
+    if (step > 0) lastPositiveStep = step;
+    previousValue = values[key] ?? previousValue;
+  }
+}
+
 export function flattenNestedPowerTuningDefaults(
   input: Record<string, unknown>,
 ): PowerTuningFlatValues {
@@ -285,6 +352,8 @@ export function normalizePowerTuningValues(
   for (const key of POWER_TUNING_CONFIG_KEY_ORDER) {
     normalized[key] = toNonNegativeNumber(canonicalInput[key], DEFAULT_POWER_TUNING_VALUES[key]);
   }
+  continueMissingMagnitudeKeys(normalized, canonicalInput, "packet.magnitude.dice", 1);
+  continueMissingMagnitudeKeys(normalized, canonicalInput, "packet.magnitude.potency", 1);
   return normalized;
 }
 
