@@ -56,6 +56,27 @@ import {
 } from "@/lib/summoning/equipment";
 import { renderAttackActionLines } from "@/lib/summoning/render";
 import {
+  POWER_AUTHORING_MAX_PACKET_DURATION_TURNS,
+  POWER_RANGE_AOE_CENTER_RANGE_OPTIONS,
+  POWER_RANGE_AOE_CONE_LENGTH_OPTIONS,
+  POWER_RANGE_AOE_LINE_LENGTH_OPTIONS,
+  POWER_RANGE_AOE_LINE_WIDTH_OPTIONS,
+  POWER_RANGE_AOE_SHAPES,
+  POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS,
+  POWER_RANGE_RANGED_DISTANCE_OPTIONS,
+  POWER_RANGE_TARGET_OPTIONS,
+  POWER_TRIGGER_AREA_PRESENCE_KEYS as TRIGGER_AREA_PRESENCE_KEYS,
+  getPowerAllowedCommitmentOptions as getSharedPowerAllowedCommitmentOptions,
+  getPowerAllowedCounterOptions as getSharedPowerAllowedCounterOptions,
+  getPowerAllowedDurationOptions as getSharedPowerAllowedDurationOptions,
+  getPowerAllowedLifespanOptions as getSharedPowerAllowedLifespanOptions,
+  getPowerAllowedRangeCategories as getSharedPowerAllowedRangeCategories,
+  getPowerAllowedTimingOptions as getSharedPowerAllowedTimingOptions,
+  getPowerAllowedTriggerConditionOptions as getSharedPowerAllowedTriggerConditionOptions,
+  getPowerPrimaryTimingForDescriptorChassis as getSharedPowerPrimaryTimingForDescriptorChassis,
+  isPowerChannelAllowedForChassis as isChannelAllowedForChassis,
+} from "@/lib/powers/authoringRules";
+import {
   MonsterBlockCard,
   buildMonsterTraitRenderContext,
   renderTraitTemplate,
@@ -261,12 +282,10 @@ function getAllowedPowerRangeCategoriesForHost(
   descriptorChassis: NonNullable<MonsterPower["descriptorChassis"]>,
   attachedHostAnchorType: MonsterPower["attachedHostAnchorType"],
 ): PowerRangeCategory[] {
-  if (descriptorChassis === "FIELD") return ["AOE"];
-  if (descriptorChassis !== "ATTACHED") return POWER_RANGE_CATEGORIES;
-  if (attachedHostAnchorType === "SELF") return ["SELF"];
-  if (attachedHostAnchorType === "TARGET") return ["MELEE", "RANGED", "AOE"];
-  if (attachedHostAnchorType === "AREA") return ["AOE"];
-  return POWER_RANGE_CATEGORIES;
+  return getSharedPowerAllowedRangeCategories({
+    descriptorChassis,
+    attachedHostAnchorType,
+  }) as PowerRangeCategory[];
 }
 
 function createPowerRangePatchForCategory(category: PowerRangeCategory): Record<string, unknown> {
@@ -305,14 +324,7 @@ function createPowerRangePatchForCategory(category: PowerRangeCategory): Record<
   };
 }
 
-const POWER_RANGE_TARGET_OPTIONS = [1, 2, 3, 4, 5] as const;
-const POWER_RANGE_RANGED_DISTANCE_OPTIONS = [30, 60, 120, 200] as const;
-const POWER_RANGE_AOE_CENTER_RANGE_OPTIONS = [0, 30, 60, 120, 200] as const;
-const POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS = [10, 20, 30] as const;
-const POWER_RANGE_AOE_CONE_LENGTH_OPTIONS = [15, 30, 60] as const;
-const POWER_RANGE_AOE_LINE_WIDTH_OPTIONS = [5, 10, 15, 20] as const;
-const POWER_RANGE_AOE_LINE_LENGTH_OPTIONS = [30, 60, 90, 120] as const;
-const POWER_RANGE_AOE_SHAPES: PowerRangeAoeShape[] = ["SPHERE", "CONE", "LINE"];
+const POWER_RANGE_AOE_SHAPE_OPTIONS = POWER_RANGE_AOE_SHAPES as readonly PowerRangeAoeShape[];
 const TRAIT_AXIS_WEIGHT_KEYS = [
   "physicalThreatWeight",
   "mentalThreatWeight",
@@ -371,12 +383,6 @@ const TRIGGER_CONDITION_LABELS: Record<TriggerConditionKey, string> = {
   MAKES_DEFENCE_ROLL: "Makes a Defence roll",
   MAKES_RESIST_ROLL: "Makes a Resist roll",
 };
-const TRIGGER_AREA_PRESENCE_KEYS = new Set<TriggerConditionKey>([
-  "AREA_ENTERS",
-  "AREA_LEAVES",
-  "AREA_STARTS_TURN",
-  "AREA_ENDS_TURN",
-]);
 const TRIGGER_CONDITION_SET = new Set<TriggerConditionKey>(TRIGGER_CONDITION_KEYS);
 const CHARGE_TYPE_LABELS: Record<ChargeTypeOption, string> = {
   DELAYED_RELEASE: "Delayed Cast",
@@ -628,32 +634,6 @@ function getSecondaryScalingMode(details: Record<string, unknown>): SecondarySca
   return "PER_SUCCESS";
 }
 
-function doesPacketCreateBeyondTurnCarrier(
-  effectPacket: MonsterPower["effectPackets"][number] | undefined,
-): boolean {
-  if (!effectPacket) return false;
-  const durationType = effectPacket.effectDurationType ?? "INSTANT";
-  return durationType === "TURNS" || durationType === "PASSIVE" || durationType === "UNTIL_TARGET_NEXT_TURN";
-}
-
-function restrictSecondaryTimingOptionsByPrimaryDuration(
-  allowedOptions: SupportedEffectTimingType[],
-  primaryEffectPacket: MonsterPower["effectPackets"][number] | undefined,
-): SupportedEffectTimingType[] {
-  const primaryDurationType = primaryEffectPacket?.effectDurationType ?? "INSTANT";
-  if (primaryDurationType !== "INSTANT" && primaryDurationType !== "UNTIL_TARGET_NEXT_TURN") {
-    return allowedOptions;
-  }
-  const narrowedOptions = allowedOptions.filter((option) =>
-    option === "ON_CAST" ||
-    option === "ON_ATTACH" ||
-    option === "ON_TRIGGER" ||
-    option === "ON_EXPIRY" ||
-    option === "ON_RELEASE",
-  );
-  return narrowedOptions.length > 0 ? narrowedOptions : allowedOptions;
-}
-
 function deriveSecondaryScalingModeFromPrimaryPacket(
   primaryEffectPacket: MonsterPower["effectPackets"][number] | undefined,
 ): Exclude<SecondaryScalingMode, "PER_SUCCESS"> {
@@ -797,11 +777,10 @@ function getAllowedTriggerConditionOptions(
   triggerMethod: TriggerMethodOption,
   powerRangeCategory: PowerRangeCategory | null,
 ): TriggerConditionKey[] {
-  return TRIGGER_CONDITION_KEYS.filter((key) =>
-    triggerMethod === "TARGET_AND_THEN_ARM" && powerRangeCategory !== "AOE"
-      ? !TRIGGER_AREA_PRESENCE_KEYS.has(key)
-      : true,
-  );
+  return getSharedPowerAllowedTriggerConditionOptions({
+    triggerMethod,
+    rangeCategory: powerRangeCategory,
+  });
 }
 
 function localTargetingOverrideCreatesArea(
@@ -857,7 +836,9 @@ function getAllowedPacketTriggerConditionOptions(
     localTargetingOverride,
   );
   return TRIGGER_CONDITION_KEYS.filter(
-    (key) => hasAreaPresenceContext || !TRIGGER_AREA_PRESENCE_KEYS.has(key),
+    (key) =>
+      (powerRangeState.category === "AOE" || !TRIGGER_AREA_PRESENCE_KEYS.has(key)) &&
+      (hasAreaPresenceContext || !TRIGGER_AREA_PRESENCE_KEYS.has(key)),
   );
 }
 
@@ -1343,13 +1324,10 @@ function getPrimaryTimingForDescriptorChassis(
   descriptorChassis: NonNullable<MonsterPower["descriptorChassis"]>,
   hostileEntryPattern: HostileEntryPatternValue,
 ): SupportedEffectTimingType {
-  if (descriptorChassis === "TRIGGER") return "ON_TRIGGER";
-  if (descriptorChassis === "RESERVE") return "ON_RELEASE";
-  if (descriptorChassis === "ATTACHED") {
-    return hostileEntryPattern === "ON_PAYLOAD" ? "ON_TRIGGER" : "ON_ATTACH";
-  }
-  if (descriptorChassis === "FIELD") return "START_OF_TURN";
-  return "ON_CAST";
+  return getSharedPowerPrimaryTimingForDescriptorChassis(
+    descriptorChassis,
+    hostileEntryPattern ?? null,
+  ) as SupportedEffectTimingType;
 }
 
 function getAllowedEffectTimingOptions(
@@ -1359,86 +1337,23 @@ function getAllowedEffectTimingOptions(
   commitmentModifier: NonNullable<MonsterPower["commitmentModifier"]>,
   primaryEffectPacket?: MonsterPower["effectPackets"][number],
 ): SupportedEffectTimingType[] {
-  const channelRecurringOptions =
-    commitmentModifier === "CHANNEL" && isChannelAllowedForChassis(descriptorChassis)
-      ? ([
-          "START_OF_TURN_WHILST_CHANNELLED",
-          "END_OF_TURN_WHILST_CHANNELLED",
-        ] as const satisfies SupportedEffectTimingType[])
-      : [];
-  const immediateRecurringOptions = [
-    "ON_CAST",
-    "ON_TRIGGER",
-    "START_OF_TURN",
-    "END_OF_TURN",
-    ...channelRecurringOptions,
-    "ON_EXPIRY",
-  ] as const satisfies SupportedEffectTimingType[];
-
-  if (packetIndex > 0) {
-    let secondaryTimingOptions: SupportedEffectTimingType[];
-    if (descriptorChassis === "IMMEDIATE") {
-      const primaryTimingType = primaryEffectPacket?.effectTimingType ?? "ON_CAST";
-      if (primaryTimingType === "ON_CAST" && !doesPacketCreateBeyondTurnCarrier(primaryEffectPacket)) {
-        return ["ON_CAST"];
-      }
-      secondaryTimingOptions = [...immediateRecurringOptions];
-    } else if (descriptorChassis === "RESERVE") {
-      secondaryTimingOptions = ["ON_RELEASE"];
-    } else if (descriptorChassis === "ATTACHED") {
-      const primaryTimingType = primaryEffectPacket?.effectTimingType;
-      const primaryResolvesOnAttach =
-        hostileEntryPattern === "ON_ATTACH" || primaryTimingType === "ON_ATTACH";
-      secondaryTimingOptions = [
-        ...(primaryResolvesOnAttach ? (["ON_ATTACH"] as const satisfies SupportedEffectTimingType[]) : []),
-        "ON_TRIGGER",
-        "START_OF_TURN",
-        "END_OF_TURN",
-        ...channelRecurringOptions,
-        "ON_EXPIRY",
-      ];
-    } else {
-      secondaryTimingOptions = ["ON_TRIGGER", "START_OF_TURN", "END_OF_TURN", ...channelRecurringOptions, "ON_EXPIRY"];
-    }
-    return restrictSecondaryTimingOptionsByPrimaryDuration(secondaryTimingOptions, primaryEffectPacket);
-  }
-  if (descriptorChassis === "IMMEDIATE" && commitmentModifier === "STANDARD") {
-    return ["ON_CAST"];
-  }
-  if (descriptorChassis === "FIELD") {
-    return ["ON_TRIGGER", "START_OF_TURN", "END_OF_TURN", ...channelRecurringOptions, "ON_EXPIRY"];
-  }
-  if (descriptorChassis === "ATTACHED") {
-    if (packetIndex === 0 && hostileEntryPattern === "ON_ATTACH") {
-      return ["ON_ATTACH"];
-    }
-    if (hostileEntryPattern === "ON_PAYLOAD") {
-      return [
-        "ON_TRIGGER",
-        "START_OF_TURN",
-        "END_OF_TURN",
-        ...channelRecurringOptions,
-        "ON_EXPIRY",
-      ];
-    }
-    return [
-      "ON_ATTACH",
-      "ON_TRIGGER",
-      "START_OF_TURN",
-      "END_OF_TURN",
-      ...channelRecurringOptions,
-      "ON_EXPIRY",
-    ];
-  }
-  if (descriptorChassis === "TRIGGER") {
-    return ["ON_TRIGGER"];
-  }
-  if (descriptorChassis === "RESERVE") {
-    return ["ON_RELEASE"];
-  }
-  return [
-    ...immediateRecurringOptions,
-  ];
+  return getSharedPowerAllowedTimingOptions(
+    {
+      descriptorChassis,
+      commitmentModifier,
+      descriptorChassisConfig: { hostileEntryPattern },
+      primaryDefenceGate: {
+        sourcePacketIndex: 0,
+        gateResult: "NONE",
+        protectionChannel: null,
+        resistAttribute: null,
+        hostileEntryPattern: hostileEntryPattern ?? null,
+        resolutionSource: "INFERRED",
+      },
+      effectPackets: primaryEffectPacket ? [primaryEffectPacket] : [],
+    },
+    packetIndex,
+  ) as SupportedEffectTimingType[];
 }
 
 function normalizeEffectTimingType(
@@ -1472,11 +1387,7 @@ function normalizeEffectTimingType(
 function getAllowedEffectDurationTypes(
   effectTimingType: MonsterPower["effectPackets"][number]["effectTimingType"] | undefined,
 ): ReadonlyArray<NonNullable<MonsterPower["effectPackets"][number]["effectDurationType"]>> {
-  const timing = effectTimingType ?? "ON_CAST";
-  if (timing === "START_OF_TURN" || timing === "END_OF_TURN") {
-    return ["INSTANT", "TURNS", "PASSIVE"];
-  }
-  return ["INSTANT", "UNTIL_TARGET_NEXT_TURN", "TURNS", "PASSIVE"];
+  return getSharedPowerAllowedDurationOptions(effectTimingType);
 }
 
 function normalizeEffectDurationTypeForTiming(
@@ -1495,14 +1406,6 @@ function normalizeEffectDurationTypeForTiming(
     : "INSTANT";
 }
 
-function isChannelAllowedForChassis(
-  descriptorChassis: NonNullable<MonsterPower["descriptorChassis"]>,
-): boolean {
-  return descriptorChassis === "IMMEDIATE" ||
-    descriptorChassis === "FIELD" ||
-    descriptorChassis === "ATTACHED";
-}
-
 function normalizeCommitmentModifier(
   value: unknown,
   descriptorChassis: NonNullable<MonsterPower["descriptorChassis"]>,
@@ -1512,10 +1415,9 @@ function normalizeCommitmentModifier(
   )
     ? (value as NonNullable<MonsterPower["commitmentModifier"]>)
     : "STANDARD";
-  if (normalized === "CHANNEL" && !isChannelAllowedForChassis(descriptorChassis)) {
-    return "STANDARD";
-  }
-  return normalized;
+  return getSharedPowerAllowedCommitmentOptions(descriptorChassis).includes(normalized)
+    ? normalized
+    : "STANDARD";
 }
 
 function normalizePowerLifespan(
@@ -1579,13 +1481,10 @@ function getAllowedPowerLifespanOptions(
   descriptorChassis: NonNullable<MonsterPower["descriptorChassis"]>,
   commitmentModifier: NonNullable<MonsterPower["commitmentModifier"]>,
 ): ReadonlyArray<PowerLifespanOption> {
-  if (descriptorChassis !== "IMMEDIATE") {
-    return ["TURNS", "PASSIVE"];
-  }
-  if (commitmentModifier === "CHANNEL") {
-    return ["TURNS", "PASSIVE"];
-  }
-  return POWER_LIFESPAN_OPTIONS;
+  return getSharedPowerAllowedLifespanOptions(
+    descriptorChassis,
+    commitmentModifier,
+  ) as ReadonlyArray<PowerLifespanOption>;
 }
 
 function normalizeCounterModeForChassis(
@@ -1594,14 +1493,13 @@ function normalizeCounterModeForChassis(
   commitmentModifier?: NonNullable<MonsterPower["commitmentModifier"]>,
   chargeType?: MonsterPower["chargeType"],
 ): NonNullable<MonsterPower["counterMode"]> {
-  if (descriptorChassis === "TRIGGER") return "NO";
-  if (
-    commitmentModifier === "CHARGE" &&
-    normalizeChargeType(chargeType) === "DELAYED_RELEASE"
-  ) {
-    return "NO";
-  }
-  return value === "YES" ? "YES" : "NO";
+  const normalized = value === "YES" ? "YES" : "NO";
+  const allowed = getSharedPowerAllowedCounterOptions({
+    descriptorChassis,
+    commitmentModifier,
+    chargeType: normalizeChargeType(chargeType),
+  });
+  return allowed.includes(normalized) ? normalized : "NO";
 }
 
 function inferPrimaryPacketHostility(
@@ -2425,7 +2323,7 @@ function toPowerRangeState(power: MonsterPower): PowerRangeState {
         ? Number(rangeExtra.lineLengthFeet)
         : null;
   const aoeShapeRaw = String(rangeExtra.shape ?? "SPHERE").toUpperCase();
-  const aoeShape = POWER_RANGE_AOE_SHAPES.includes(aoeShapeRaw as PowerRangeAoeShape)
+  const aoeShape = POWER_RANGE_AOE_SHAPE_OPTIONS.includes(aoeShapeRaw as PowerRangeAoeShape)
     ? (aoeShapeRaw as PowerRangeAoeShape)
     : "SPHERE";
 
@@ -2586,7 +2484,7 @@ function setPowerCanonicalPowerRange(
           aoeCount: coerceOptionValue(getPositiveWholeNumber(rangeExtra.count), POWER_RANGE_TARGET_OPTIONS),
           aoeShape: coerceOptionValue(
             String(rangeExtra.shape ?? "").toUpperCase(),
-            POWER_RANGE_AOE_SHAPES,
+            POWER_RANGE_AOE_SHAPE_OPTIONS,
           ),
           aoeSphereRadiusFeet: coerceOptionValue(
             getPositiveWholeNumber(rangeExtra.sphereRadiusFeet),
@@ -9753,7 +9651,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
               const selectedAoeCenterRangeFeet =
                 coerceOptionValue(power.aoeCenterRangeFeet, POWER_RANGE_AOE_CENTER_RANGE_OPTIONS) ?? 0;
               const selectedAoeCount = coerceOptionValue(power.aoeCount, POWER_RANGE_TARGET_OPTIONS);
-              const selectedAoeShape = coerceOptionValue(power.aoeShape, POWER_RANGE_AOE_SHAPES);
+              const selectedAoeShape = coerceOptionValue(power.aoeShape, POWER_RANGE_AOE_SHAPE_OPTIONS);
               const selectedAoeSphereRadiusFeet = coerceOptionValue(
                 power.aoeSphereRadiusFeet,
                 POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS,
@@ -10104,7 +10002,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                             disabled={readOnly}
                             value={selectedAoeShape ?? ""}
                             onChange={(e) => {
-                              const nextShape = coerceOptionValue(e.target.value, POWER_RANGE_AOE_SHAPES);
+                              const nextShape = coerceOptionValue(e.target.value, POWER_RANGE_AOE_SHAPE_OPTIONS);
 
                               setPowerCanonicalPowerRange(setEditor, i, {
                                 rangeCategory: "AOE",
@@ -10123,7 +10021,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                             className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm disabled:opacity-60"
                           >
                             <option value="">Choose...</option>
-                            {POWER_RANGE_AOE_SHAPES.map((shape) => (
+                            {POWER_RANGE_AOE_SHAPE_OPTIONS.map((shape) => (
                               <option key={shape} value={shape}>
                                 {shape}
                               </option>
@@ -11495,7 +11393,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                     disabled={readOnly || packetEffectDurationType !== "TURNS"}
                                     type="number"
                                     min={1}
-                                    max={4}
+                                    max={POWER_AUTHORING_MAX_PACKET_DURATION_TURNS}
                                     value={Number(it.effectDurationTurns ?? 1)}
                                     onChange={(e) =>
                                       setEditor((p) =>
@@ -11512,7 +11410,10 @@ export function SummoningCircleEditor({ campaignId }: Props) {
                                                               ...packet,
                                                               effectDurationTurns: Math.max(
                                                                 1,
-                                                                Math.min(4, Number(e.target.value || 1)),
+                                                                Math.min(
+                                                                  POWER_AUTHORING_MAX_PACKET_DURATION_TURNS,
+                                                                  Number(e.target.value || 1),
+                                                                ),
                                                               ),
                                                             }
                                                           : packet,

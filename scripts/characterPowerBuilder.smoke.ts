@@ -5,6 +5,9 @@ import {
   CHARACTER_POWER_MAX_DICE_COUNT,
   CHARACTER_POWER_MAX_PACKET_DURATION_TURNS,
   CHARACTER_POWER_MAX_POTENCY,
+  CHARACTER_POWER_RANGE_RANGED_DISTANCE_OPTIONS,
+  CHARACTER_POWER_RANGE_TARGET_OPTIONS,
+  CHARACTER_POWER_RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
   getCharacterPowerAllowedCommitmentOptions,
   getCharacterPowerAllowedTimingOptions,
   getCharacterPowerPrimaryDefenceLabel,
@@ -24,6 +27,7 @@ import {
   getPowerAllowedCounterOptions,
   getPowerAllowedRangeCategories,
   getPowerAllowedTimingOptions,
+  isPowerPacketTimingAuthorable,
   isPowerSecondaryDiceAuthored,
 } from "../lib/powers/authoringRules";
 import type { Power } from "../lib/summoning/types";
@@ -273,6 +277,64 @@ assert(
   ),
   "Trigger without a trigger condition should be rejected.",
 );
+assert(
+  CHARACTER_POWER_RANGE_TARGET_OPTIONS.join(",") === "1,2,3,4,5" &&
+    CHARACTER_POWER_RANGE_RANGED_DISTANCE_OPTIONS.join(",") === "30,60,120,200",
+  "Character Builder should use the shared Summoning Circle fixed range option sets.",
+);
+
+const illegalRangedDistancePower = normalizeCharacterPower({
+  ...levelOnePower,
+  name: "Illegal Ranged Distance",
+  effectPackets: [
+    {
+      ...levelOnePower.effectPackets[0],
+      detailsJson: {
+        ...levelOnePower.effectPackets[0].detailsJson,
+        rangeCategory: "RANGED",
+        rangeValue: 45,
+        rangeExtra: { targets: 1 },
+      },
+    },
+  ],
+}, 0);
+assert(
+  validateCharacterPowers({ level: 20, powers: [illegalRangedDistancePower] }).some((error) =>
+    error.includes("Ranged distance must use"),
+  ),
+  "Character Builder validation should reject ranged distances outside Summoning Circle options.",
+);
+
+const reserveWithoutReleasePower = normalizeCharacterPower({
+  ...levelOnePower,
+  name: "Reserve Without Release",
+  descriptorChassis: "RESERVE" as const,
+  lifespanType: "TURNS" as const,
+  lifespanTurns: 1,
+  effectPackets: [
+    {
+      ...levelOnePower.effectPackets[0],
+      effectTimingType: "ON_RELEASE" as const,
+    },
+  ],
+}, 0);
+assert(
+  validateCharacterPowers({ level: 20, powers: [reserveWithoutReleasePower] }).some((error) =>
+    error.includes("Release Behaviour"),
+  ),
+  "Reserve powers should be invalid until Release Behaviour is authored.",
+);
+
+const reserveWithReleasePower = normalizeCharacterPower({
+  ...reserveWithoutReleasePower,
+  descriptorChassisConfig: { releaseBehaviour: CHARACTER_POWER_RESERVE_RELEASE_BEHAVIOUR_OPTIONS[0] },
+}, 0);
+assert(
+  !validateCharacterPowers({ level: 20, powers: [reserveWithReleasePower] }).some((error) =>
+    error.includes("Release Behaviour") || error.includes("timing is not legal"),
+  ),
+  "Reserve powers should validate after Release Behaviour is authored.",
+);
 
 const attachedPower = normalizeCharacterPower({
   ...levelOnePower,
@@ -298,6 +360,33 @@ assert(
 assert(
   getPowerAllowedTimingOptions(attachedPower, 0).includes("ON_ATTACH"),
   "Shared authoring rules should allow Attached Packet 1 On Attach timing.",
+);
+
+const attachedWithoutEntryPower = normalizeCharacterPower({
+  ...attachedPower,
+  name: "Attached Without Entry",
+  primaryDefenceGate: null,
+  descriptorChassisConfig: { anchorText: "target" },
+}, 0);
+assert(
+  validateCharacterPowers({ level: 20, powers: [attachedWithoutEntryPower] }).some((error) =>
+    error.includes("Attached Hostile Entry"),
+  ),
+  "Hostile Attached powers should be invalid until Attached Hostile Entry is authored.",
+);
+assert(
+  validateCharacterPowers({ level: 20, powers: [attachedWithoutEntryPower] }).some((error) =>
+    error.includes("timing requires an Attached Hostile Entry"),
+  ),
+  "Hostile Attached Packet 1 timing should not validate until Attached Hostile Entry is authored.",
+);
+assert(
+  !isPowerPacketTimingAuthorable(attachedWithoutEntryPower, 0),
+  "Hostile Attached Packet 1 timing should not be authorable until Attached Hostile Entry is authored.",
+);
+assert(
+  isPowerPacketTimingAuthorable(attachedPower, 0),
+  "Hostile Attached Packet 1 timing should be authorable after Attached Hostile Entry is authored.",
 );
 
 function renderSinglePowerDescriptor(power: CharacterPower) {
@@ -582,13 +671,13 @@ const expensivePacket = {
   effectDurationTurns: CHARACTER_POWER_MAX_PACKET_DURATION_TURNS,
   detailsJson: {
     attackMode: "PHYSICAL",
-    damageTypes: ["Slash", "Pierce", "Bludgeon", "Crush"],
+    damageTypes: ["Slash", "Pierce", "Bludgeon"],
     rangeCategory: "AOE",
-    rangeValue: 500,
+    rangeValue: 200,
     rangeExtra: {
-      count: 20,
+      count: 5,
       shape: "SPHERE",
-      sphereRadiusFeet: 500,
+      sphereRadiusFeet: 30,
     },
   },
 };

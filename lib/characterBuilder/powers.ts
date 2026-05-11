@@ -19,6 +19,15 @@ import {
 import {
   CHARACTER_BUILDER_V1_POWER_INTENTIONS,
   POWER_AUTHORING_MAX_PACKET_DURATION_TURNS,
+  POWER_RANGE_AOE_CENTER_RANGE_OPTIONS,
+  POWER_RANGE_AOE_CONE_LENGTH_OPTIONS,
+  POWER_RANGE_AOE_LINE_LENGTH_OPTIONS,
+  POWER_RANGE_AOE_LINE_WIDTH_OPTIONS,
+  POWER_RANGE_AOE_SHAPES,
+  POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS,
+  POWER_RANGE_RANGED_DISTANCE_OPTIONS,
+  POWER_RANGE_TARGET_OPTIONS,
+  POWER_RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
   POWER_TRIGGER_AREA_PRESENCE_KEYS,
   getPowerAllowedCommitmentOptions,
   getPowerAllowedCounterOptions,
@@ -28,10 +37,15 @@ import {
   getPowerAllowedTimingOptions,
   getPowerAllowedTriggerConditionOptions,
   getPowerPrimaryTimingForDescriptorChassis,
+  isPowerAttachedHostileEntryReady,
+  isPowerPacketTimingAuthorable,
+  isPowerReserveReleaseBehaviourReady,
   isCharacterBuilderV1PowerIntention,
   isPowerAreaTriggerCondition,
   isPowerSecondaryDiceAuthored,
   normalizePowerCommitmentModifier,
+  readPowerAttachedHostileEntryPattern,
+  readPowerReserveReleaseBehaviour,
   readPowerTriggerCondition,
 } from "@/lib/powers/authoringRules";
 import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
@@ -177,10 +191,22 @@ export const CHARACTER_POWER_MAX_DAMAGE_TYPES: typeof MAX_DAMAGE_TYPES = MAX_DAM
 export const CHARACTER_POWER_MAX_DICE_COUNT = 20;
 export const CHARACTER_POWER_MAX_POTENCY = 20;
 export const CHARACTER_POWER_MAX_PACKET_DURATION_TURNS = POWER_AUTHORING_MAX_PACKET_DURATION_TURNS;
+export const CHARACTER_POWER_RANGE_TARGET_OPTIONS = POWER_RANGE_TARGET_OPTIONS;
+export const CHARACTER_POWER_RANGE_RANGED_DISTANCE_OPTIONS = POWER_RANGE_RANGED_DISTANCE_OPTIONS;
+export const CHARACTER_POWER_RANGE_AOE_CENTER_RANGE_OPTIONS = POWER_RANGE_AOE_CENTER_RANGE_OPTIONS;
+export const CHARACTER_POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS = POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS;
+export const CHARACTER_POWER_RANGE_AOE_CONE_LENGTH_OPTIONS = POWER_RANGE_AOE_CONE_LENGTH_OPTIONS;
+export const CHARACTER_POWER_RANGE_AOE_LINE_WIDTH_OPTIONS = POWER_RANGE_AOE_LINE_WIDTH_OPTIONS;
+export const CHARACTER_POWER_RANGE_AOE_LINE_LENGTH_OPTIONS = POWER_RANGE_AOE_LINE_LENGTH_OPTIONS;
+export const CHARACTER_POWER_RANGE_AOE_SHAPES = POWER_RANGE_AOE_SHAPES;
+export const CHARACTER_POWER_RESERVE_RELEASE_BEHAVIOUR_OPTIONS = POWER_RESERVE_RELEASE_BEHAVIOUR_OPTIONS;
 export const getCharacterPowerAllowedCommitmentOptions = getPowerAllowedCommitmentOptions;
 export const getCharacterPowerAllowedCounterOptions = getPowerAllowedCounterOptions;
 export const getCharacterPowerAllowedLifespanOptions = getPowerAllowedLifespanOptions;
 export const isCharacterPowerSecondaryDiceAuthored = isPowerSecondaryDiceAuthored;
+export const isCharacterPowerAttachedHostileEntryReady = isPowerAttachedHostileEntryReady;
+export const isCharacterPowerPacketTimingAuthorable = isPowerPacketTimingAuthorable;
+export const readCharacterPowerAttachedHostileEntryPattern = readPowerAttachedHostileEntryPattern;
 export const getCharacterPowerAllowedRangeCategories = getPowerAllowedRangeCategories;
 export const getCharacterPowerAllowedTriggerConditionOptions = getPowerAllowedTriggerConditionOptions;
 export const getCharacterPowerAllowedTimingOptions = getPowerAllowedTimingOptions;
@@ -211,6 +237,11 @@ function asInteger(value: unknown, fallback: number, min: number, max: number) {
 
 function oneOf<T extends string>(value: unknown, options: readonly T[], fallback: T): T {
   return options.includes(value as T) ? (value as T) : fallback;
+}
+
+function isNumberOption(value: unknown, options: readonly number[]) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && options.includes(numeric);
 }
 
 function uniqueStrings(values: unknown, limit = 100): string[] {
@@ -694,32 +725,32 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
   const descriptorChassis = oneOf(raw.descriptorChassis, DESCRIPTOR_CHASSIS, "IMMEDIATE");
   const commitmentModifier = normalizeCommitmentModifier(raw.commitmentModifier);
   const rawDescriptorChassisConfig = asRecord(raw.descriptorChassisConfig);
+  const rawTriggerCondition = readPowerTriggerCondition(rawDescriptorChassisConfig.triggerConditionText);
+  const rawAttachedHostileEntryPattern =
+    asRecord(raw.primaryDefenceGate).hostileEntryPattern === "ON_ATTACH" ||
+    asRecord(raw.primaryDefenceGate).hostileEntryPattern === "ON_PAYLOAD"
+      ? asRecord(raw.primaryDefenceGate).hostileEntryPattern
+      : rawDescriptorChassisConfig.hostileEntryPattern === "ON_ATTACH" ||
+          rawDescriptorChassisConfig.hostileEntryPattern === "ON_PAYLOAD"
+        ? rawDescriptorChassisConfig.hostileEntryPattern
+        : null;
+  const rawReserveReleaseBehaviour = readPowerReserveReleaseBehaviour(rawDescriptorChassisConfig.releaseBehaviour);
   const descriptorChassisConfig: Record<string, unknown> = {
     ...rawDescriptorChassisConfig,
-    ...(descriptorChassis === "TRIGGER"
+    ...(descriptorChassis === "TRIGGER" && rawTriggerCondition
       ? {
-          triggerConditionText:
-            asString(rawDescriptorChassisConfig.triggerConditionText, "") ||
-            oneOf(rawDescriptorChassisConfig.triggerConditionText, TRIGGER_CONDITION_KEYS, "MOVES"),
+          triggerConditionText: rawTriggerCondition,
         }
       : {}),
     ...(descriptorChassis === "ATTACHED"
       ? {
-          hostileEntryPattern: oneOf(
-            asRecord(raw.primaryDefenceGate).hostileEntryPattern ?? rawDescriptorChassisConfig.hostileEntryPattern,
-            ["DIRECT", "ON_ATTACH", "ON_PAYLOAD"] as const,
-            "DIRECT",
-          ),
+          ...(rawAttachedHostileEntryPattern ? { hostileEntryPattern: rawAttachedHostileEntryPattern } : {}),
           anchorText: asString(rawDescriptorChassisConfig.anchorText, "") || asString(raw.attachedHostAnchorType, "TARGET").toLowerCase(),
         }
       : {}),
-    ...(descriptorChassis === "RESERVE"
+    ...(descriptorChassis === "RESERVE" && rawReserveReleaseBehaviour
       ? {
-          releaseBehaviour: oneOf(
-            rawDescriptorChassisConfig.releaseBehaviour,
-            ["ACTION_OR_RESPONSE", "ACTION_ONLY", "RESPONSE_ONLY", "ON_EXPIRY"] as const,
-            "ACTION_OR_RESPONSE",
-          ),
+          releaseBehaviour: rawReserveReleaseBehaviour,
         }
       : {}),
   };
@@ -900,6 +931,49 @@ function collectCharacterPowerValidationErrors(power: CharacterPower) {
   if (!allowedRangeCategories.includes(primaryRangeCategory)) {
     errors.push("Range category is not legal for this attached host/anchor.");
   }
+  if (primaryRangeCategory === "MELEE" && !isNumberOption(primaryDetails.rangeValue ?? power.meleeTargets, POWER_RANGE_TARGET_OPTIONS)) {
+    errors.push("Melee target count must use the shared Summoning Circle target options.");
+  }
+  if (primaryRangeCategory === "RANGED") {
+    if (!isNumberOption(primaryDetails.rangeValue ?? power.rangedDistanceFeet, POWER_RANGE_RANGED_DISTANCE_OPTIONS)) {
+      errors.push("Ranged distance must use the shared Summoning Circle distance options.");
+    }
+    if (!isNumberOption(primaryRangeExtra.targets ?? power.rangedTargets, POWER_RANGE_TARGET_OPTIONS)) {
+      errors.push("Ranged target count must use the shared Summoning Circle target options.");
+    }
+  }
+  if (primaryRangeCategory === "AOE") {
+    const aoeShape = oneOf(primaryRangeExtra.shape, ["SPHERE", "CONE", "LINE"] as const, "SPHERE");
+    if (!isNumberOption(primaryDetails.rangeValue ?? power.aoeCenterRangeFeet, POWER_RANGE_AOE_CENTER_RANGE_OPTIONS)) {
+      errors.push("AoE cast range must use the shared Summoning Circle range options.");
+    }
+    if (!isNumberOption(primaryRangeExtra.count ?? power.aoeCount, POWER_RANGE_TARGET_OPTIONS)) {
+      errors.push("AoE count must use the shared Summoning Circle count options.");
+    }
+    if (!POWER_RANGE_AOE_SHAPES.includes(aoeShape)) {
+      errors.push("AoE shape must use the shared Summoning Circle shape options.");
+    }
+    if (
+      aoeShape === "SPHERE" &&
+      !isNumberOption(primaryRangeExtra.sphereRadiusFeet ?? power.aoeSphereRadiusFeet, POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS)
+    ) {
+      errors.push("AoE sphere radius must use the shared Summoning Circle radius options.");
+    }
+    if (
+      aoeShape === "CONE" &&
+      !isNumberOption(primaryRangeExtra.coneLengthFeet ?? power.aoeConeLengthFeet, POWER_RANGE_AOE_CONE_LENGTH_OPTIONS)
+    ) {
+      errors.push("AoE cone length must use the shared Summoning Circle length options.");
+    }
+    if (aoeShape === "LINE") {
+      if (!isNumberOption(primaryRangeExtra.lineWidthFeet ?? power.aoeLineWidthFeet, POWER_RANGE_AOE_LINE_WIDTH_OPTIONS)) {
+        errors.push("AoE line width must use the shared Summoning Circle width options.");
+      }
+      if (!isNumberOption(primaryRangeExtra.lineLengthFeet ?? power.aoeLineLengthFeet, POWER_RANGE_AOE_LINE_LENGTH_OPTIONS)) {
+        errors.push("AoE line length must use the shared Summoning Circle length options.");
+      }
+    }
+  }
   if ((power.descriptorChassis ?? "IMMEDIATE") === "FIELD") {
     if (primaryRangeCategory !== "AOE") {
       errors.push("Field powers must use AoE range.");
@@ -931,6 +1005,12 @@ function collectCharacterPowerValidationErrors(power: CharacterPower) {
       errors.push("Area trigger conditions require AoE range when using Target and then arm.");
     }
   }
+  if ((power.descriptorChassis ?? "IMMEDIATE") === "RESERVE" && !isPowerReserveReleaseBehaviourReady(power)) {
+    errors.push("Reserve powers require a Release Behaviour selection.");
+  }
+  if ((power.descriptorChassis ?? "IMMEDIATE") === "ATTACHED" && !isPowerAttachedHostileEntryReady(power)) {
+    errors.push("Attached hostile powers require an Attached Hostile Entry selection.");
+  }
 
   for (const [packetIndex, packet] of power.effectPackets.entries()) {
     const packetLabel = `Packet ${packetIndex + 1}`;
@@ -941,6 +1021,9 @@ function collectCharacterPowerValidationErrors(power: CharacterPower) {
       errors.push(`${packetLabel} secondary packet dice are derived by the shared power authoring surface and cannot be independently authored.`);
     }
     const allowedTimings = getCharacterPowerAllowedTimingOptions(power, packetIndex);
+    if (!isPowerPacketTimingAuthorable(power, packetIndex)) {
+      errors.push(`${packetLabel} timing requires an Attached Hostile Entry selection.`);
+    }
     if (!allowedTimings.includes((packet.effectTimingType ?? "ON_CAST") as EffectTimingType)) {
       errors.push(`${packetLabel} timing is not legal for this chassis.`);
     }

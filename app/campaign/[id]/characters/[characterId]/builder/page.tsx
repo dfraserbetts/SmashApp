@@ -60,6 +60,15 @@ import {
   CHARACTER_POWER_MAX_PACKET_DURATION_TURNS,
   CHARACTER_POWER_MAX_POTENCY,
   CHARACTER_POWER_MOVEMENT_MODES,
+  CHARACTER_POWER_RANGE_AOE_CENTER_RANGE_OPTIONS,
+  CHARACTER_POWER_RANGE_AOE_CONE_LENGTH_OPTIONS,
+  CHARACTER_POWER_RANGE_AOE_LINE_LENGTH_OPTIONS,
+  CHARACTER_POWER_RANGE_AOE_LINE_WIDTH_OPTIONS,
+  CHARACTER_POWER_RANGE_AOE_SHAPES,
+  CHARACTER_POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS,
+  CHARACTER_POWER_RANGE_RANGED_DISTANCE_OPTIONS,
+  CHARACTER_POWER_RANGE_TARGET_OPTIONS,
+  CHARACTER_POWER_RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
   createDefaultCharacterPower,
   createDefaultCharacterPowerPacket,
   getCharacterPowerAllowedCommitmentOptions,
@@ -71,7 +80,9 @@ import {
   getCharacterPowerAllowedTimingOptions,
   getCharacterPowerAllowedTriggerConditionOptions,
   getCharacterPowerPrimaryDefenceLabel,
+  isCharacterPowerPacketTimingAuthorable,
   isCharacterPowerSecondaryDiceAuthored,
+  readCharacterPowerAttachedHostileEntryPattern,
   summarizeCharacterPowers,
   validateCharacterPowers,
   type CharacterPower,
@@ -243,6 +254,12 @@ const POWER_TRIGGER_CONDITION_LABELS: Record<TriggerConditionKey, string> = {
   MAKES_DEFENCE_ROLL: "Makes a Defence roll",
   MAKES_RESIST_ROLL: "Makes a Resist roll",
 };
+const POWER_RESERVE_RELEASE_BEHAVIOUR_LABELS: Record<(typeof CHARACTER_POWER_RESERVE_RELEASE_BEHAVIOUR_OPTIONS)[number], string> = {
+  ACTION_OR_RESPONSE: "Power Action or Response",
+  ACTION_ONLY: "Power Action only",
+  RESPONSE_ONLY: "Response only",
+  ON_EXPIRY: "Release on expiry",
+};
 const POWER_EFFECT_TIMING_LABELS: Partial<Record<EffectTimingType, string>> = {
   ON_CAST: "On Cast",
   ON_TRIGGER: "On Trigger",
@@ -300,21 +317,25 @@ function createCharacterPowerRangeDetails(category: CharacterPowerRangeCategory)
     return { rangeCategory: "SELF", rangeValue: 0, rangeExtra: {} };
   }
   if (category === "MELEE") {
-    return { rangeCategory: "MELEE", rangeValue: 1, rangeExtra: {} };
+    return { rangeCategory: "MELEE", rangeValue: CHARACTER_POWER_RANGE_TARGET_OPTIONS[0], rangeExtra: {} };
   }
   if (category === "RANGED") {
-    return { rangeCategory: "RANGED", rangeValue: 30, rangeExtra: { targets: 1 } };
+    return {
+      rangeCategory: "RANGED",
+      rangeValue: CHARACTER_POWER_RANGE_RANGED_DISTANCE_OPTIONS[0],
+      rangeExtra: { targets: CHARACTER_POWER_RANGE_TARGET_OPTIONS[0] },
+    };
   }
   return {
     rangeCategory: "AOE",
-    rangeValue: 30,
+    rangeValue: CHARACTER_POWER_RANGE_AOE_CENTER_RANGE_OPTIONS[1],
     rangeExtra: {
-      count: 1,
-      shape: "SPHERE",
-      sphereRadiusFeet: 10,
-      coneLengthFeet: 15,
-      lineWidthFeet: 5,
-      lineLengthFeet: 30,
+      count: CHARACTER_POWER_RANGE_TARGET_OPTIONS[0],
+      shape: CHARACTER_POWER_RANGE_AOE_SHAPES[0],
+      sphereRadiusFeet: CHARACTER_POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS[0],
+      coneLengthFeet: CHARACTER_POWER_RANGE_AOE_CONE_LENGTH_OPTIONS[0],
+      lineWidthFeet: CHARACTER_POWER_RANGE_AOE_LINE_WIDTH_OPTIONS[0],
+      lineLengthFeet: CHARACTER_POWER_RANGE_AOE_LINE_LENGTH_OPTIONS[0],
     },
   };
 }
@@ -359,11 +380,14 @@ function reconcilePowerPacketTimingForUi(power: CharacterPower): CharacterPower 
   for (let packetIndex = 0; packetIndex < packets.length; packetIndex += 1) {
     const packet = packets[packetIndex];
     const timingProbe = { ...rangeReconciledPower, effectPackets: packets, intentions: packets };
+    const timingAuthorable = isCharacterPowerPacketTimingAuthorable(timingProbe, packetIndex);
     const allowedTimings = getCharacterPowerAllowedTimingOptions(timingProbe, packetIndex);
     const currentTiming = packet.effectTimingType ?? "ON_CAST";
-    const nextTiming = allowedTimings.includes(currentTiming)
+    const nextTiming = timingAuthorable && allowedTimings.includes(currentTiming)
       ? currentTiming
-      : allowedTimings[0] ?? currentTiming;
+      : timingAuthorable
+        ? allowedTimings[0] ?? currentTiming
+        : currentTiming;
     const allowedDurations = getCharacterPowerAllowedDurationOptions(nextTiming);
     const currentDuration = packet.effectDurationType ?? "INSTANT";
     const nextDuration = allowedDurations.includes(currentDuration)
@@ -2447,6 +2471,19 @@ export default function CharacterBuilderPage() {
                 const displayedRangeCategory = rangeOptions.includes(rangeCategory as CharacterPowerRangeCategory)
                   ? rangeCategory
                   : rangeOptions[0] ?? rangeCategory;
+                const triggerConditionOptions = getCharacterPowerAllowedTriggerConditionOptions({
+                  triggerMethod: power.triggerMethod,
+                  rangeCategory: displayedRangeCategory as CharacterPowerRangeCategory,
+                });
+                const selectedTriggerCondition =
+                  descriptorChassis === "TRIGGER"
+                    ? primaryPacket.triggerConditionText ?? ""
+                    : "";
+                const selectedAttachedHostileEntryPattern = readCharacterPowerAttachedHostileEntryPattern(power) ?? "";
+                const selectedReserveReleaseBehaviour =
+                  typeof power.descriptorChassisConfig?.releaseBehaviour === "string"
+                    ? power.descriptorChassisConfig.releaseBehaviour
+                    : "";
                 return (
                   <article
                     key={`${power.sortOrder}-${powerIndex}`}
@@ -2522,17 +2559,7 @@ export default function CharacterBuilderPage() {
                                           ...packet,
                                           detailsJson: {
                                             ...(packet.detailsJson ?? {}),
-                                            rangeCategory: "AOE",
-                                            rangeValue: Number(primaryDetails.rangeValue ?? 0),
-                                            rangeExtra: {
-                                              ...rangeExtra,
-                                              count: Number(rangeExtra.count ?? 1),
-                                              shape: String(rangeExtra.shape ?? "SPHERE"),
-                                              sphereRadiusFeet: Number(rangeExtra.sphereRadiusFeet ?? 10),
-                                              coneLengthFeet: Number(rangeExtra.coneLengthFeet ?? 15),
-                                              lineWidthFeet: Number(rangeExtra.lineWidthFeet ?? 5),
-                                              lineLengthFeet: Number(rangeExtra.lineLengthFeet ?? 30),
-                                            },
+                                            ...createCharacterPowerRangeDetails("AOE"),
                                           },
                                         }
                                       : packet,
@@ -2673,22 +2700,44 @@ export default function CharacterBuilderPage() {
                         </>
                       ) : null}
                       {power.descriptorChassis === "TRIGGER" ? (
-                        <label className="block">
-                          <span className="text-xs text-zinc-400">Trigger Method</span>
-                          <select
-                            value={power.triggerMethod ?? "ARM_AND_THEN_TARGET"}
-                            onChange={(event) =>
-                              updatePower(powerIndex, {
-                                triggerMethod: event.target.value as CharacterPower["triggerMethod"],
-                              })
-                            }
-                            disabled={!canEdit || saving}
-                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                          >
-                            <option value="ARM_AND_THEN_TARGET">{POWER_TRIGGER_METHOD_LABELS.ARM_AND_THEN_TARGET}</option>
-                            <option value="TARGET_AND_THEN_ARM">{POWER_TRIGGER_METHOD_LABELS.TARGET_AND_THEN_ARM}</option>
-                          </select>
-                        </label>
+                        <>
+                          <label className="block">
+                            <span className="text-xs text-zinc-400">Trigger Method</span>
+                            <select
+                              value={power.triggerMethod ?? "ARM_AND_THEN_TARGET"}
+                              onChange={(event) =>
+                                updatePower(powerIndex, {
+                                  triggerMethod: event.target.value as CharacterPower["triggerMethod"],
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                            >
+                              <option value="ARM_AND_THEN_TARGET">{POWER_TRIGGER_METHOD_LABELS.ARM_AND_THEN_TARGET}</option>
+                              <option value="TARGET_AND_THEN_ARM">{POWER_TRIGGER_METHOD_LABELS.TARGET_AND_THEN_ARM}</option>
+                            </select>
+                          </label>
+                          <label className="block">
+                            <span className="text-xs text-zinc-400">Trigger Condition</span>
+                            <select
+                              value={selectedTriggerCondition}
+                              onChange={(event) =>
+                                updatePowerPacket(powerIndex, 0, {
+                                  triggerConditionText: event.target.value || null,
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                            >
+                              <option value="">Choose...</option>
+                              {triggerConditionOptions.map((option) => (
+                                <option key={option} value={option}>
+                                  {POWER_TRIGGER_CONDITION_LABELS[option]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </>
                       ) : null}
                       {power.descriptorChassis === "ATTACHED" ? (
                         <div className="grid gap-3 md:grid-cols-2">
@@ -2723,10 +2772,7 @@ export default function CharacterBuilderPage() {
                             <span className="text-xs text-zinc-400">Attached Payload Gate</span>
                             <select
                               value={
-                                power.descriptorChassisConfig?.hostileEntryPattern === "ON_ATTACH" ||
-                                power.descriptorChassisConfig?.hostileEntryPattern === "ON_PAYLOAD"
-                                  ? power.descriptorChassisConfig.hostileEntryPattern
-                                  : ""
+                                selectedAttachedHostileEntryPattern
                               }
                               onChange={(event) =>
                                 updatePower(powerIndex, {
@@ -2745,6 +2791,31 @@ export default function CharacterBuilderPage() {
                             </select>
                           </label>
                         </div>
+                      ) : null}
+                      {power.descriptorChassis === "RESERVE" ? (
+                        <label className="block">
+                          <span className="text-xs text-zinc-400">Release Behaviour</span>
+                          <select
+                            value={selectedReserveReleaseBehaviour}
+                            onChange={(event) =>
+                              updatePower(powerIndex, {
+                                descriptorChassisConfig: {
+                                  ...(power.descriptorChassisConfig ?? {}),
+                                  releaseBehaviour: event.target.value || null,
+                                },
+                              })
+                            }
+                            disabled={!canEdit || saving}
+                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                          >
+                            <option value="">Choose...</option>
+                            {CHARACTER_POWER_RESERVE_RELEASE_BEHAVIOUR_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {POWER_RESERVE_RELEASE_BEHAVIOUR_LABELS[option]}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       ) : null}
                       {showLifespanControls ? (
                         <>
@@ -2819,9 +2890,13 @@ export default function CharacterBuilderPage() {
                             packet.detailsJson && typeof packet.detailsJson === "object"
                               ? (packet.detailsJson as Record<string, unknown>)
                               : {};
-                          const timingOptions = getCharacterPowerAllowedTimingOptions(power, packetIndex);
+                          const timingAuthorable = isCharacterPowerPacketTimingAuthorable(power, packetIndex);
+                          const timingOptions = timingAuthorable
+                            ? getCharacterPowerAllowedTimingOptions(power, packetIndex)
+                            : [];
                           const currentTiming = packet.effectTimingType ?? "ON_CAST";
                           const currentTimingIsLegal = timingOptions.includes(currentTiming);
+                          const requiresAttachedHostileEntryBeforeTiming = !timingAuthorable;
                           const durationOptions = getCharacterPowerAllowedDurationOptions(packet.effectTimingType);
                           const applyToOptions = getCharacterPowerAllowedApplyToOptions(power, packet);
                           const triggerConditionOptions = getCharacterPowerAllowedTriggerConditionOptions({
@@ -2879,11 +2954,7 @@ export default function CharacterBuilderPage() {
                               {isCharacterPowerSecondaryDiceAuthored(packetIndex) ? (
                                 <label className="block">
                                   <span className="text-xs text-zinc-400">Dice</span>
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    max={CHARACTER_POWER_MAX_DICE_COUNT}
-                                    step={1}
+                                  <select
                                     value={packet.diceCount ?? power.diceCount}
                                     onChange={(event) =>
                                       updatePowerPacket(powerIndex, packetIndex, {
@@ -2892,16 +2963,18 @@ export default function CharacterBuilderPage() {
                                     }
                                     disabled={!canEdit || saving}
                                     className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                                  />
+                                  >
+                                    {Array.from({ length: CHARACTER_POWER_MAX_DICE_COUNT }, (_, optionIndex) => optionIndex + 1).map((option) => (
+                                      <option key={option} value={option}>
+                                        {option}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </label>
                               ) : null}
                               <label className="block">
                                 <span className="text-xs text-zinc-400">Potency</span>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={CHARACTER_POWER_MAX_POTENCY}
-                                  step={1}
+                                <select
                                   value={packet.potency ?? power.potency}
                                   onChange={(event) =>
                                     updatePowerPacket(powerIndex, packetIndex, {
@@ -2910,7 +2983,13 @@ export default function CharacterBuilderPage() {
                                   }
                                   disabled={!canEdit || saving}
                                   className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                                />
+                                >
+                                  {Array.from({ length: CHARACTER_POWER_MAX_POTENCY }, (_, optionIndex) => optionIndex + 1).map((option) => (
+                                    <option key={option} value={option}>
+                                      {option}
+                                    </option>
+                                  ))}
+                                </select>
                               </label>
                               <label className="block">
                                 <span className="text-xs text-zinc-400">Timing</span>
@@ -2921,7 +3000,7 @@ export default function CharacterBuilderPage() {
                                       effectTimingType: event.target.value as EffectTimingType,
                                     })
                                   }
-                                  disabled={!canEdit || saving}
+                                  disabled={!canEdit || saving || requiresAttachedHostileEntryBeforeTiming}
                                   className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                                 >
                                   {!currentTimingIsLegal ? (
@@ -2935,6 +3014,11 @@ export default function CharacterBuilderPage() {
                                     </option>
                                   ))}
                                 </select>
+                                {requiresAttachedHostileEntryBeforeTiming ? (
+                                  <p className="mt-1 text-[11px] text-amber-300">
+                                    Choose Attached Payload Gate before authoring Packet 1 timing.
+                                  </p>
+                                ) : null}
                               </label>
                               <label className="block">
                                 <span className="text-xs text-zinc-400">Duration</span>
@@ -3073,7 +3157,8 @@ export default function CharacterBuilderPage() {
                                   </div>
                                 ) : null}
 
-                                {packet.effectTimingType === "ON_TRIGGER" ? (
+                                {packet.effectTimingType === "ON_TRIGGER" &&
+                                !(descriptorChassis === "TRIGGER" && packetIndex === 0) ? (
                                   <label className="block">
                                     <span className="text-xs text-zinc-400">Trigger Condition</span>
                                     <select
@@ -3288,12 +3373,13 @@ export default function CharacterBuilderPage() {
                       {displayedRangeCategory !== "SELF" ? (
                         <label className="block">
                           <span className="text-xs text-zinc-400">
-                            {displayedRangeCategory === "MELEE" ? "Targets" : "Feet"}
+                            {displayedRangeCategory === "MELEE"
+                              ? "Targets"
+                              : displayedRangeCategory === "RANGED"
+                                ? "Feet"
+                                : "Cast Range"}
                           </span>
-                          <input
-                            type="number"
-                            min={displayedRangeCategory === "MELEE" ? 1 : 0}
-                            step={1}
+                          <select
                             value={Number(primaryDetails.rangeValue ?? 1)}
                             onChange={(event) =>
                               updatePowerPacketDetails(powerIndex, 0, {
@@ -3302,16 +3388,24 @@ export default function CharacterBuilderPage() {
                             }
                             disabled={!canEdit || saving}
                             className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                          />
+                          >
+                            {(displayedRangeCategory === "MELEE"
+                              ? CHARACTER_POWER_RANGE_TARGET_OPTIONS
+                              : displayedRangeCategory === "RANGED"
+                                ? CHARACTER_POWER_RANGE_RANGED_DISTANCE_OPTIONS
+                                : CHARACTER_POWER_RANGE_AOE_CENTER_RANGE_OPTIONS
+                            ).map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </label>
                       ) : null}
                       {displayedRangeCategory === "RANGED" ? (
                         <label className="block">
                           <span className="text-xs text-zinc-400">Targets</span>
-                          <input
-                            type="number"
-                            min={1}
-                            step={1}
+                          <select
                             value={Number(rangeExtra.targets ?? 1)}
                             onChange={(event) =>
                               updatePowerPacketDetails(powerIndex, 0, {
@@ -3320,16 +3414,19 @@ export default function CharacterBuilderPage() {
                             }
                             disabled={!canEdit || saving}
                             className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                          />
+                          >
+                            {CHARACTER_POWER_RANGE_TARGET_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </label>
                       ) : null}
                       {displayedRangeCategory === "AOE" ? (
                         <label className="block">
                           <span className="text-xs text-zinc-400">Area Count</span>
-                          <input
-                            type="number"
-                            min={1}
-                            step={1}
+                          <select
                             value={Number(rangeExtra.count ?? 1)}
                             onChange={(event) =>
                               updatePowerPacketDetails(powerIndex, 0, {
@@ -3338,7 +3435,13 @@ export default function CharacterBuilderPage() {
                             }
                             disabled={!canEdit || saving}
                             className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                          />
+                          >
+                            {CHARACTER_POWER_RANGE_TARGET_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </label>
                       ) : null}
                       {displayedRangeCategory === "AOE" ? (
@@ -3355,18 +3458,17 @@ export default function CharacterBuilderPage() {
                               disabled={!canEdit || saving}
                               className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                             >
-                              <option value="SPHERE">SPHERE</option>
-                              <option value="CONE">CONE</option>
-                              <option value="LINE">LINE</option>
+                              {CHARACTER_POWER_RANGE_AOE_SHAPES.map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
                             </select>
                           </label>
                           {String(rangeExtra.shape ?? "SPHERE") === "SPHERE" ? (
                             <label className="block">
                               <span className="text-xs text-zinc-400">Sphere Radius</span>
-                              <input
-                                type="number"
-                                min={0}
-                                step={1}
+                              <select
                                 value={Number(rangeExtra.sphereRadiusFeet ?? 10)}
                                 onChange={(event) =>
                                   updatePowerPacketDetails(powerIndex, 0, {
@@ -3375,16 +3477,19 @@ export default function CharacterBuilderPage() {
                                 }
                                 disabled={!canEdit || saving}
                                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                              />
+                              >
+                                {CHARACTER_POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
                             </label>
                           ) : null}
                           {String(rangeExtra.shape ?? "SPHERE") === "CONE" ? (
                             <label className="block">
                               <span className="text-xs text-zinc-400">Cone Length</span>
-                              <input
-                                type="number"
-                                min={0}
-                                step={1}
+                              <select
                                 value={Number(rangeExtra.coneLengthFeet ?? 15)}
                                 onChange={(event) =>
                                   updatePowerPacketDetails(powerIndex, 0, {
@@ -3393,17 +3498,20 @@ export default function CharacterBuilderPage() {
                                 }
                                 disabled={!canEdit || saving}
                                 className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                              />
+                              >
+                                {CHARACTER_POWER_RANGE_AOE_CONE_LENGTH_OPTIONS.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
                             </label>
                           ) : null}
                           {String(rangeExtra.shape ?? "SPHERE") === "LINE" ? (
                             <>
                               <label className="block">
                                 <span className="text-xs text-zinc-400">Line Width</span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  step={1}
+                                <select
                                   value={Number(rangeExtra.lineWidthFeet ?? 5)}
                                   onChange={(event) =>
                                     updatePowerPacketDetails(powerIndex, 0, {
@@ -3412,14 +3520,17 @@ export default function CharacterBuilderPage() {
                                   }
                                   disabled={!canEdit || saving}
                                   className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                                />
+                                >
+                                  {CHARACTER_POWER_RANGE_AOE_LINE_WIDTH_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>
+                                      {option}
+                                    </option>
+                                  ))}
+                                </select>
                               </label>
                               <label className="block">
                                 <span className="text-xs text-zinc-400">Line Length</span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  step={1}
+                                <select
                                   value={Number(rangeExtra.lineLengthFeet ?? 30)}
                                   onChange={(event) =>
                                     updatePowerPacketDetails(powerIndex, 0, {
@@ -3428,7 +3539,13 @@ export default function CharacterBuilderPage() {
                                   }
                                   disabled={!canEdit || saving}
                                   className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                                />
+                                >
+                                  {CHARACTER_POWER_RANGE_AOE_LINE_LENGTH_OPTIONS.map((option) => (
+                                    <option key={option} value={option}>
+                                      {option}
+                                    </option>
+                                  ))}
+                                </select>
                               </label>
                             </>
                           ) : null}
