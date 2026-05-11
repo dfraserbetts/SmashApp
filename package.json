@@ -17,6 +17,9 @@
     "diagnostic:level-relative-decay": "npx --yes tsx scripts/levelRelativeRadarDecayReport.ts",
     "diagnostic:combat-smoke": "npx --yes tsx scripts/combatSmokeTest.ts",
     "diagnostic:output-origin-parity": "npx --yes tsx scripts/monsterOutcomeCalculator.smoke.ts",
+    "smoke:e2e": "playwright test",
+    "smoke:e2e:headed": "playwright test --headed",
+    "smoke:e2e:ui": "playwright test --ui",
     "test:limit-break": "node scripts/limitBreak.smoke.mjs",
     "test:limit-break-templates": "node scripts/limitBreakTemplates.smoke.mjs",
     "postinstall": "prisma generate",
@@ -34,6 +37,7 @@
     "react-hook-form": "^7.68.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
