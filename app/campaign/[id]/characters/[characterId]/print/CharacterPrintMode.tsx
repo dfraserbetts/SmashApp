@@ -1,0 +1,338 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import {
+  CHARACTER_SHEET_LABELS,
+  CHARACTER_SHEET_PRINT_TYPE_LABELS,
+  CharacterSheetPreview,
+  DEFAULT_CHARACTER_SHEETS,
+  type CharacterSheetKey,
+  type CharacterSheetPrintType,
+  type CharacterSheetSelection,
+} from "@/app/campaign/[id]/characters/[characterId]/components/CharacterSheetPreview";
+import { useProtectionTuning } from "@/app/summoning-circle/components/useProtectionTuning";
+import {
+  normalizeBuilderData,
+  selectedTraitSummary,
+  type CharacterBuilderData,
+  type PlayerTraitDefinition,
+} from "@/lib/characterBuilder/core";
+import {
+  buildCharacterDerivedCombatStats,
+  type CharacterBuilderDerivedBackpackItem,
+} from "@/lib/characterBuilder/derivedStats";
+import { summarizeCharacterPowers } from "@/lib/characterBuilder/powers";
+import type { CharacterBuilderTuningSnapshot } from "@/lib/config/characterBuilderTuningShared";
+import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
+
+type BuilderCharacter = {
+  id: string;
+  campaignId: string;
+  name: string;
+  imageUrl: string | null;
+  age: string | null;
+  race: string | null;
+  description: string | null;
+  level: number;
+  builderData: CharacterBuilderData;
+  archivedAt: string | null;
+  archiveReason: string | null;
+};
+
+type BuilderPayload = {
+  campaign: { id: string; name: string };
+  character: BuilderCharacter;
+  traitCatalog: PlayerTraitDefinition[];
+  backpackItems: CharacterBuilderDerivedBackpackItem[];
+  powerTuning: PowerTuningSnapshot;
+  characterBuilderTuning: CharacterBuilderTuningSnapshot;
+  error?: string;
+};
+
+export function CharacterPrintMode({
+  campaignId,
+  characterId,
+}: {
+  campaignId: string;
+  characterId: string;
+}) {
+  const [payload, setPayload] = useState<BuilderPayload | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [printType, setPrintType] = useState<CharacterSheetPrintType>("full-colour");
+  const [sheets, setSheets] = useState<CharacterSheetSelection>(DEFAULT_CHARACTER_SHEETS);
+  const protectionTuning = useProtectionTuning();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/campaigns/${encodeURIComponent(campaignId)}/characters/${encodeURIComponent(characterId)}/builder`,
+          { cache: "no-store" },
+        );
+        const data = (await res.json().catch(() => ({}))) as BuilderPayload;
+        if (!res.ok) {
+          throw new Error(data.error ?? "Failed to load character print data.");
+        }
+        if (!cancelled) {
+          setPayload({
+            ...data,
+            character: {
+              ...data.character,
+              builderData: normalizeBuilderData(data.character.builderData),
+            },
+          });
+        }
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "Failed to load character print data.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId, characterId]);
+
+  const derivedStats = useMemo(() => {
+    if (!payload) return null;
+    return buildCharacterDerivedCombatStats({
+      level: payload.character.level,
+      builderData: payload.character.builderData,
+      backpackItems: payload.backpackItems,
+      protectionTuning,
+    });
+  }, [payload, protectionTuning]);
+
+  const powerBudget = useMemo(() => {
+    if (!payload) return null;
+    return summarizeCharacterPowers({
+      level: payload.character.level,
+      powers: payload.character.builderData.powers,
+      tuningSnapshot: payload.powerTuning,
+      playerPowerSpendScalar: payload.characterBuilderTuning.playerPowerSpendScalar,
+    });
+  }, [payload]);
+
+  const traitSummary = useMemo(() => {
+    if (!payload) return null;
+    return selectedTraitSummary(
+      payload.character.builderData.selectedTraitKeys,
+      payload.character.level,
+      payload.traitCatalog,
+    );
+  }, [payload]);
+
+  const printFriendly = printType.endsWith("print-friendly");
+
+  const triggerPrint = useCallback(() => {
+    window.setTimeout(() => window.print(), 0);
+  }, []);
+
+  function toggleSheet(sheet: CharacterSheetKey, checked: boolean) {
+    setSheets((current) => ({ ...current, [sheet]: checked }));
+  }
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-8 text-zinc-400 md:px-6">
+        Loading printable character sheets...
+      </div>
+    );
+  }
+
+  if (error || !payload || !derivedStats || !powerBudget || !traitSummary) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4 px-4 py-8 md:px-6">
+        <p className="rounded border border-red-900/60 bg-red-950/30 p-4 text-red-200">
+          {error ?? "Character print data is unavailable."}
+        </p>
+        <Link
+          href={`/campaign/${campaignId}/characters`}
+          className="inline-block rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-900"
+        >
+          Back to Character Management
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={[
+        "cb-print-root mx-auto max-w-6xl space-y-6 px-4 pb-10 md:px-6",
+        printFriendly ? "cb-print-friendly" : "cb-print-colour",
+      ].join(" ")}
+    >
+      <section className="character-print-controls rounded border border-zinc-800 bg-zinc-900/40 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">Print Setup</h2>
+            <p className="text-sm text-zinc-400">
+              Choose a print style and the sheets to include.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/campaign/${campaignId}/characters/${characterId}/builder`}
+              className="rounded border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-800"
+            >
+              Back to Builder
+            </Link>
+            <button
+              type="button"
+              onClick={triggerPrint}
+              className="rounded border border-zinc-700 bg-zinc-100 px-3 py-2 text-sm text-zinc-950 hover:bg-white"
+            >
+              Print
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(220px,320px)_1fr]">
+          <label className="block text-sm">
+            <span className="text-zinc-400">Print Type</span>
+            <select
+              value={printType}
+              onChange={(event) => setPrintType(event.target.value as CharacterSheetPrintType)}
+              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2"
+            >
+              {Object.entries(CHARACTER_SHEET_PRINT_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div>
+            <div className="text-sm text-zinc-400">Sheets</div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-4">
+              {(Object.keys(CHARACTER_SHEET_LABELS) as CharacterSheetKey[]).map((sheet) => (
+                <label key={sheet} className="flex items-center gap-2 rounded border border-zinc-800 p-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={sheets[sheet]}
+                    onChange={(event) => toggleSheet(sheet, event.target.checked)}
+                  />
+                  {CHARACTER_SHEET_LABELS[sheet]}
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <CharacterSheetPreview
+        mode="print"
+        character={payload.character}
+        builderData={payload.character.builderData}
+        backpackItems={payload.backpackItems}
+        derivedStats={derivedStats}
+        powerBudget={powerBudget}
+        traitSummary={traitSummary}
+        printType={printType}
+        sheets={sheets}
+        campaignName={payload.campaign.name}
+      />
+
+      <style jsx global>{`
+        .cb-print-friendly,
+        .cb-print-friendly .cb-sheet-page,
+        .cb-print-friendly .cb-sheet-panel,
+        .cb-print-friendly .cb-stat-tile,
+        .cb-print-friendly .cb-power-card {
+          color: rgb(24 24 27);
+        }
+        .cb-print-friendly .cb-sheet-page,
+        .cb-print-friendly .cb-sheet-panel,
+        .cb-print-friendly .cb-stat-tile,
+        .cb-print-friendly .cb-power-card,
+        .cb-print-friendly .cb-identity-band,
+        .cb-print-friendly .cb-portrait {
+          border-color: rgb(212 212 216);
+          background: rgb(255 255 255);
+        }
+        .cb-print-friendly .cb-sheet-title-band {
+          border-color: rgb(212 212 216);
+          background: rgb(244 244 245);
+        }
+        .cb-sheet-compact .cb-sheet-page,
+        .cb-sheet-compact .cb-sheet-panel,
+        .cb-sheet-compact .cb-stat-tile,
+        .cb-sheet-compact .cb-power-card {
+          font-size: 0.82rem;
+          line-height: 1.2rem;
+        }
+        .cb-sheet-page,
+        .cb-sheet-panel,
+        .cb-stat-tile,
+        .cb-power-card {
+          break-inside: avoid;
+          page-break-inside: avoid;
+        }
+        @media print {
+          @page {
+            size: auto;
+            margin: 10mm;
+          }
+          html,
+          body {
+            background: white !important;
+          }
+          .character-print-controls {
+            display: none !important;
+          }
+          .cb-print-root {
+            max-width: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            color: rgb(24 24 27) !important;
+          }
+          .cb-sheet-preview {
+            display: block !important;
+          }
+          .cb-sheet-page {
+            background: white !important;
+            color: rgb(24 24 27) !important;
+            break-after: page;
+            page-break-after: always;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+          }
+          .cb-sheet-page:last-child {
+            break-after: auto;
+            page-break-after: auto;
+          }
+          .cb-sheet-title-band,
+          .cb-sheet-panel,
+          .cb-stat-tile,
+          .cb-power-card,
+          .cb-identity-band,
+          .cb-portrait {
+            background: white !important;
+            color: rgb(24 24 27) !important;
+            border-color: rgb(161 161 170) !important;
+            box-shadow: none !important;
+          }
+          .cb-print-colour .cb-sheet-page,
+          .cb-print-colour .cb-sheet-title-band {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}

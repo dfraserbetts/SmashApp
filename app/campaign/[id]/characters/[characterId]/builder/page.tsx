@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { CampaignNav } from "@/app/components/CampaignNav";
+import { CharacterSheetPreview } from "@/app/campaign/[id]/characters/[characterId]/components/CharacterSheetPreview";
 import { useProtectionTuning } from "@/app/summoning-circle/components/useProtectionTuning";
 import {
   CHARACTER_ATTRIBUTES,
@@ -212,13 +213,6 @@ type BuilderDraft = {
   level: string;
   builderData: CharacterBuilderData;
 };
-
-const PLACEHOLDER_SECTIONS = [
-  {
-    title: "Printable Preview",
-    status: "Coming in Step 9",
-  },
-];
 
 const EMPTY_BACKPACK_ITEMS: BuilderBackpackItem[] = [];
 const EMPTY_TRANSFER_TARGETS: BackpackTransferTarget[] = [];
@@ -438,6 +432,16 @@ function isHttpUrl(value: string | null | undefined): boolean {
   return /^https?:\/\//i.test(value.trim());
 }
 
+function privacySafePlayerLabel(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const withoutParentheticalEmail = trimmed.replace(/\s*\([^()\s]+@[^()\s]+\)\s*$/, "").trim();
+  if (!withoutParentheticalEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(withoutParentheticalEmail)) {
+    return null;
+  }
+  return withoutParentheticalEmail;
+}
+
 function formatBackpackItemMeta(item: BuilderBackpackItem) {
   const template = item.itemTemplate;
   return [
@@ -603,6 +607,10 @@ function formatPowerTimingOptionLabel(value: EffectTimingType) {
 
 function formatPowerNumber(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function getCharacterPowerCollapseKey(power: CharacterPower, index: number) {
+  return power.id ? `power-${power.id}` : `power-${power.sortOrder ?? index}-${index}`;
 }
 
 function toggleStringValue(values: unknown, value: string) {
@@ -806,6 +814,7 @@ export default function CharacterBuilderPage() {
   const [attributeSwapDrafts, setAttributeSwapDrafts] = useState<Record<string, string>>({});
   const [selectedBackpackItemId, setSelectedBackpackItemId] = useState("");
   const [pendingHandEquipItemId, setPendingHandEquipItemId] = useState("");
+  const [collapsedPowerKeys, setCollapsedPowerKeys] = useState<Record<string, boolean>>({});
   const [transferDraft, setTransferDraft] = useState<{
     backpackItemId: string;
     targetCharacterId: string;
@@ -876,14 +885,6 @@ export default function CharacterBuilderPage() {
   );
   const resistValidationErrors = validateResistPoints(currentLevel, builderData.resistPoints);
   const equippedUseCounts = getEquipmentSlotUseCounts(builderData.equippedSlots);
-  const equippedSlotItems = EQUIPMENT_SLOTS.map((slot) => {
-    const backpackItemId = builderData.equippedSlots[slot];
-    const backpackItem = backpackItems.find((item) => item.id === backpackItemId) ?? null;
-    return { slot, backpackItem };
-  }).filter(
-    (entry): entry is { slot: EquipmentSlotKey; backpackItem: BuilderBackpackItem } =>
-      Boolean(entry.backpackItem),
-  );
   const mainHandItem = builderData.equippedSlots.mainHand
     ? backpackItems.find((item) => item.id === builderData.equippedSlots.mainHand)
     : null;
@@ -1066,6 +1067,16 @@ export default function CharacterBuilderPage() {
   }
 
   function removePower(index: number) {
+    const power = builderData.powers[index];
+    if (power) {
+      const collapseKey = getCharacterPowerCollapseKey(power, index);
+      setCollapsedPowerKeys((prev) => {
+        if (!prev[collapseKey]) return prev;
+        const next = { ...prev };
+        delete next[collapseKey];
+        return next;
+      });
+    }
     updatePowers(builderData.powers.filter((_, candidateIndex) => candidateIndex !== index));
   }
 
@@ -1124,6 +1135,13 @@ export default function CharacterBuilderPage() {
       .filter((_, candidateIndex) => candidateIndex !== packetIndex)
       .map((packet, index) => ({ ...packet, sortOrder: index, packetIndex: index }));
     updatePower(powerIndex, { effectPackets: nextPackets, intentions: nextPackets });
+  }
+
+  function togglePowerCollapsed(collapseKey: string) {
+    setCollapsedPowerKeys((prev) => ({
+      ...prev,
+      [collapseKey]: !prev[collapseKey],
+    }));
   }
 
   function updateGreatSecretField(index: number, value: string) {
@@ -2500,6 +2518,9 @@ export default function CharacterBuilderPage() {
                   typeof power.descriptorChassisConfig?.releaseBehaviour === "string"
                     ? power.descriptorChassisConfig.releaseBehaviour
                     : "";
+                const powerCollapseKey = getCharacterPowerCollapseKey(power, powerIndex);
+                const powerCollapsed = Boolean(collapsedPowerKeys[powerCollapseKey]);
+                const powerBodyId = `character-power-body-${powerIndex}`;
                 return (
                   <article
                     key={`${power.sortOrder}-${powerIndex}`}
@@ -2507,10 +2528,26 @@ export default function CharacterBuilderPage() {
                     data-testid="character-power-card"
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h3 className="font-semibold">
-                          {power.name.trim() || `Power ${powerIndex + 1}`}
-                        </h3>
+                      <button
+                        type="button"
+                        onClick={() => togglePowerCollapsed(powerCollapseKey)}
+                        className="min-w-0 flex-1 rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-left hover:bg-zinc-900/40"
+                        aria-expanded={!powerCollapsed}
+                        aria-controls={powerBodyId}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="min-w-0 truncate font-semibold">
+                            <span className="mr-2 text-zinc-400" aria-hidden="true">
+                              {powerCollapsed ? ">" : "v"}
+                            </span>
+                            {power.name.trim() || `Power ${powerIndex + 1}`}
+                          </h3>
+                          {powerCollapsed ? (
+                            <span className="shrink-0 text-[11px] text-zinc-500">
+                              Effect Packets: {power.effectPackets.length}
+                            </span>
+                          ) : null}
+                        </div>
                         {summary?.costValid ? (
                           <div className="mt-1 flex flex-wrap gap-2 text-xs text-zinc-400">
                             <span className="rounded border border-zinc-800 px-2 py-1">
@@ -2539,7 +2576,7 @@ export default function CharacterBuilderPage() {
                             </span>
                           </div>
                         )}
-                      </div>
+                      </button>
                       <button
                         type="button"
                         onClick={() => removePower(powerIndex)}
@@ -2550,6 +2587,8 @@ export default function CharacterBuilderPage() {
                       </button>
                     </div>
 
+                    {!powerCollapsed ? (
+                      <div id={powerBodyId}>
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       <label className="block">
                         <span className="text-xs text-zinc-400">Power Name</span>
@@ -3602,6 +3641,8 @@ export default function CharacterBuilderPage() {
                         </ul>
                       ) : null}
                     </div>
+                      </div>
+                    ) : null}
                   </article>
                 );
               })}
@@ -3617,351 +3658,44 @@ export default function CharacterBuilderPage() {
         </div>
       </details>
 
-      {PLACEHOLDER_SECTIONS.map((section) => (
-        <details
-          key={section.title}
-          className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4"
-        >
-          <summary className="cursor-pointer">
-            <h2 className="font-semibold">{section.title}</h2>
-          </summary>
-          <p className="mt-1 text-sm text-zinc-500">{section.status}</p>
-        </details>
-      ))}
     </form>
   );
 
+  const previewCharacter = {
+    id: characterId,
+    name: previewName,
+    imageUrl: draft?.imageUrl.trim() || payload?.character.imageUrl || null,
+    age: previewAge || null,
+    race: previewRace || null,
+    description: previewDescription || null,
+    level: previewLevel,
+    archivedAt: payload?.character.archivedAt ?? null,
+  };
+
   const previewPanel = (
-    <aside className="max-h-none space-y-4 rounded-xl border border-zinc-800 bg-zinc-950 p-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
-      <div>
+    <aside className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+      <div className="mb-3 px-1">
         <div className="text-xs uppercase tracking-wide text-zinc-500">
-          Live Preview Shell
+          Live Sheet Preview
         </div>
-        <h2 className="mt-1 text-2xl font-semibold">{previewName}</h2>
-        <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-300">
-          <span className="rounded border border-zinc-800 px-2 py-1">Level {previewLevel}</span>
-          {previewRace ? (
-            <span className="rounded border border-zinc-800 px-2 py-1">{previewRace}</span>
-          ) : null}
-          {previewAge ? (
-            <span className="rounded border border-zinc-800 px-2 py-1">Age {previewAge}</span>
-          ) : null}
-          {isArchived ? (
-            <span className="rounded border border-amber-800 px-2 py-1 text-amber-300">
-              Archived
-            </span>
-          ) : null}
-        </div>
+        <p className="mt-1 text-sm text-zinc-400">
+          This preview uses the same sheet layout family as print mode.
+        </p>
       </div>
-
-      {draft?.imageUrl.trim() ? (
-        <div className="rounded-lg border border-zinc-800 bg-black p-3 text-xs text-zinc-400">
-          Portrait URL: <span className="break-all text-zinc-200">{draft.imageUrl.trim()}</span>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-zinc-800 bg-black p-6 text-center text-sm text-zinc-500">
-          Portrait placeholder
-        </div>
-      )}
-
-      <div className="rounded-lg border border-zinc-800 bg-black p-3">
-        <div className="text-xs text-zinc-500">Campaign</div>
-        <div className="text-sm text-zinc-200">{payload?.campaign.name ?? campaignId}</div>
-        <div className="mt-2 text-xs text-zinc-500">Assigned Player</div>
-        <div className="text-sm text-zinc-200">
-          {payload?.assignedPlayerLabel || "Unassigned"}
-        </div>
-      </div>
-
-      {previewDescription ? (
-        <div className="rounded-lg border border-zinc-800 bg-black p-3">
-          <div className="text-xs text-zinc-500">Description / Backstory</div>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">
-            {previewDescription}
-          </p>
-        </div>
-      ) : null}
-
-      <div className="rounded-lg border border-zinc-800 bg-black p-3">
-        <div className="text-xs text-zinc-500">Great Secret</div>
-        <p className="mt-1 text-sm text-zinc-200">{renderGreatSecret(builderData.greatSecret)}</p>
-      </div>
-
-      {builderData.narrativeNotes ? (
-        <div className="rounded-lg border border-zinc-800 bg-black p-3">
-          <div className="text-xs text-zinc-500">Narrative Notes</div>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">
-            {builderData.narrativeNotes}
-          </p>
-        </div>
-      ) : null}
-
-      <div className="rounded-lg border border-zinc-800 bg-black p-3">
-        <div className="text-xs text-zinc-500">Characteristics</div>
-        {builderData.characteristics.length === 0 ? (
-          <p className="mt-1 text-sm text-zinc-500">No Characteristics yet.</p>
-        ) : (
-          <ul className="mt-2 space-y-2 text-sm text-zinc-200">
-            {builderData.characteristics.map((characteristic) => (
-              <li key={characteristic.id}>{renderCharacteristicDescriptor(characteristic)}</li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="rounded-lg border border-zinc-800 bg-black p-3">
-        <div className="text-xs text-zinc-500">Attributes</div>
-        <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-zinc-200">
-          {CHARACTER_ATTRIBUTES.map((attribute) => {
-            const modifier = getAttributeModifierValue(attribute);
-            return (
-              <div key={attribute} className="flex justify-between gap-3">
-                <span>{attribute}</span>
-                <span>
-                  {builderData.attributes[attribute] || "Unassigned"}
-                  {modifier !== 0 ? ` (${formatSignedModifierValue(modifier)})` : ""}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-zinc-800 bg-black p-3">
-        <div className="text-xs text-zinc-500">Resist Points</div>
-        <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-zinc-200">
-          {CHARACTER_ATTRIBUTES.map((attribute) => (
-            <div key={attribute} className="flex justify-between gap-3">
-              <span>{attribute}</span>
-              <span>+{builderData.resistPoints[attribute]}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-zinc-800 bg-black p-3">
-        <div className="text-xs text-zinc-500">Powers</div>
-        <div className="mt-2 grid grid-cols-4 gap-2 text-xs text-zinc-300">
-          <div>
-            <span className="text-zinc-500">Pool </span>
-            {powerBudget.powerPool}
-          </div>
-          <div>
-            <span className="text-zinc-500">Scalar </span>
-            x{formatPowerNumber(powerBudget.playerPowerSpendScalar)}
-          </div>
-          <div>
-            <span className="text-zinc-500">Spent </span>
-            {formatPowerNumber(powerBudget.totalSpent)}
-          </div>
-          <div className={powerBudget.overspent ? "text-red-300" : ""}>
-            <span className="text-zinc-500">Remaining </span>
-            {formatPowerNumber(powerBudget.remaining)}
-          </div>
-        </div>
-        {powerBudget.powers.length === 0 ? (
-          <p className="mt-2 text-sm text-zinc-500">No powers authored yet.</p>
-        ) : (
-          <div className="mt-3 space-y-3">
-            {powerBudget.powers.map((powerSummary, index) => (
-              <div key={`${powerSummary.power.name}-${index}`} className="rounded border border-zinc-900 p-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-sm font-medium text-zinc-200">
-                    {powerSummary.power.name || `Power ${index + 1}`}
-                  </div>
-                  <div className={powerSummary.costValid ? "text-xs text-zinc-500" : "text-xs text-red-300"}>
-                    {powerSummary.costValid
-                      ? `Player Spend ${formatPowerNumber(powerSummary.spend ?? 0)} / Base ${formatPowerNumber(powerSummary.basePowerValue ?? 0)} / Cooldown ${powerSummary.derivedCooldownTurns ?? 1}`
-                      : `Invalid: ${powerSummary.invalidCostReason ?? "Power is invalid."}`}
-                  </div>
-                </div>
-                {powerSummary.descriptorLines.length > 0 ? (
-                  <ul className="mt-2 space-y-1 text-xs text-zinc-300">
-                    {powerSummary.descriptorLines.map((line, lineIndex) => (
-                      <li key={`${powerSummary.power.name}-${lineIndex}`}>{line}</li>
-                    ))}
-                  </ul>
-                ) : null}
-                {powerSummary.errors.length > 0 ? (
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-red-300">
-                    {powerSummary.errors.map((powerError) => (
-                      <li key={powerError}>{powerError}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="rounded-lg border border-zinc-800 bg-black p-3">
-        <div className="text-xs text-zinc-500">Player Traits</div>
-        {traitSummary.selected.length === 0 ? (
-          <p className="mt-1 text-sm text-zinc-500">No Traits selected.</p>
-        ) : (
-          <ul className="mt-2 space-y-2 text-sm text-zinc-200">
-            {traitSummary.selected.map((trait) => (
-              <li key={trait.id}>
-                <span className="font-medium">{trait.name}:</span> {trait.descriptor}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="rounded-lg border border-zinc-800 bg-black p-3">
-        <div className="text-xs text-zinc-500">Equipped Gear</div>
-        {equippedSlotItems.length === 0 ? (
-          <p className="mt-1 text-sm text-zinc-500">No Backpack items equipped.</p>
-        ) : (
-          <div className="mt-2 space-y-3">
-            {equippedSlotItems.map(({ slot, backpackItem }) => (
-              <div key={slot} className="rounded border border-zinc-900 p-2">
-                <div className="text-xs font-medium text-zinc-500">
-                  {EQUIPMENT_SLOT_LABELS[slot]}
-                </div>
-                <div className="flex justify-between gap-3 text-sm text-zinc-200">
-                  <span className="font-medium">
-                    {backpackItem.itemTemplate.name ?? "(Unnamed item)"}
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-zinc-500">
-                  {backpackItem.itemTemplate.details}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="rounded-lg border border-zinc-800 bg-black p-3">
-        <div className="text-xs text-zinc-500">Main Sheet - Combat Output</div>
-        <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-zinc-200">
-          <div className="rounded border border-zinc-900 p-2">
-            <div className="text-xs text-zinc-500">Physical Health</div>
-            <div className="text-lg font-semibold">{derivedCombatStats.physicalHealth}</div>
-          </div>
-          <div className="rounded border border-zinc-900 p-2">
-            <div className="text-xs text-zinc-500">Mental Health</div>
-            <div className="text-lg font-semibold">{derivedCombatStats.mentalHealth}</div>
-          </div>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-zinc-200">
-          <div className="flex justify-between gap-3">
-            <span>Weapon Skill</span>
-            <span>{derivedCombatStats.weaponSkill}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Armor Skill</span>
-            <span>{derivedCombatStats.armorSkill}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Willpower</span>
-            <span>{derivedCombatStats.willpower}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Dodge</span>
-            <span>{derivedCombatStats.dodgeDice} dice</span>
-          </div>
-        </div>
-        <div className="mt-3 grid gap-2 text-sm text-zinc-200 sm:grid-cols-2">
-          <div className="rounded border border-zinc-900 p-2">
-            <div className="text-xs text-zinc-500">Physical Protection</div>
-            <div>{derivedCombatStats.physicalProtection} PPV</div>
-            <div className="text-xs text-zinc-500">
-              Blocks {derivedCombatStats.physicalBlockPerSuccess} wounds per success
-            </div>
-          </div>
-          <div className="rounded border border-zinc-900 p-2">
-            <div className="text-xs text-zinc-500">Mental Protection</div>
-            <div>{derivedCombatStats.mentalProtection} MPV</div>
-            <div className="text-xs text-zinc-500">
-              Blocks {derivedCombatStats.mentalBlockPerSuccess} wounds per success
-            </div>
-          </div>
-        </div>
-        <div className="mt-3">
-          <div className="text-xs text-zinc-500">Defences</div>
-          <ul className="mt-1 space-y-1 text-xs text-zinc-300">
-            {derivedCombatStats.defenceStrings.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
-        {derivedCombatStats.attacks.length > 0 ? (
-          <div className="mt-3">
-            <div className="text-xs text-zinc-500">Attacks</div>
-            <div className="mt-1 space-y-2">
-              {derivedCombatStats.attacks.map((attack) => (
-                <div key={`${attack.slot}-${attack.label}`}>
-                  <div className="text-xs font-medium text-zinc-400">{attack.label}</div>
-                  <ul className="mt-1 space-y-1 text-xs text-zinc-300">
-                    {attack.lines.map((line, index) => (
-                      <li key={`${attack.label}-${index}`}>{line.replace("||", " ")}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <p className="mt-3 text-xs text-zinc-500">
-            No equipped weapon attack strings available.
-          </p>
-        )}
-        {derivedCombatStats.protectionSources.length > 0 ? (
-          <div className="mt-3">
-            <div className="text-xs text-zinc-500">Protections</div>
-            <ul className="mt-1 space-y-1 text-xs text-zinc-300">
-              {derivedCombatStats.protectionSources.map((source) => (
-                <li key={`${source.slot}-${source.itemName}`}>
-                  {EQUIPMENT_SLOT_LABELS[source.slot]}: {source.itemName} - PPV{" "}
-                  {source.physicalProtection}, MPV {source.mentalProtection}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {derivedCombatStats.itemOutputSections.length > 0 ? (
-          <div className="mt-3">
-            <div className="text-xs text-zinc-500">Item Output</div>
-            <div className="mt-1 space-y-2">
-              {derivedCombatStats.itemOutputSections.map((section, index) => (
-                <div key={`${section.slot}-${section.itemName}-${section.title}-${index}`}>
-                  <div className="text-xs font-medium text-zinc-400">
-                    {EQUIPMENT_SLOT_LABELS[section.slot]}: {section.itemName} -{" "}
-                    {section.title}
-                  </div>
-                  <ul className="mt-1 space-y-1 text-xs text-zinc-300">
-                    {section.lines.map((line, lineIndex) => (
-                      <li key={`${section.title}-${lineIndex}`}>{line.replace("||", " ")}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        <details className="mt-3 text-xs text-zinc-500">
-          <summary>Formula notes</summary>
-          <ul className="mt-1 list-disc space-y-1 pl-5">
-            {derivedCombatStats.notes.map((note) => (
-              <li key={note}>{note}</li>
-            ))}
-          </ul>
-        </details>
-      </div>
-
-      {["Character Sheet", "Power Sheet(s)", "Inventory Sheet"].map((label) => (
-        <div key={label} className="rounded-lg border border-dashed border-zinc-800 p-4">
-          <h3 className="font-medium text-zinc-300">{label}</h3>
-          <p className="mt-1 text-sm text-zinc-500">Preview structure reserved for Step 9.</p>
-        </div>
-      ))}
+      <CharacterSheetPreview
+        character={previewCharacter}
+        builderData={builderData}
+        backpackItems={backpackItems as CharacterBuilderDerivedBackpackItem[]}
+        derivedStats={derivedCombatStats}
+        powerBudget={powerBudget}
+        traitSummary={traitSummary}
+        printType="compact-colour"
+        mode="preview"
+        campaignName={payload?.campaign.name ?? campaignId}
+        assignedPlayerLabel={privacySafePlayerLabel(payload?.assignedPlayerLabel)}
+      />
     </aside>
   );
-
   if (loading) {
     return (
       <main className="min-h-screen bg-black p-6 text-zinc-100">
@@ -3991,31 +3725,42 @@ export default function CharacterBuilderPage() {
 
   return (
     <main
-      className="min-h-screen bg-black p-6 text-zinc-100"
+      className="min-h-screen bg-zinc-950 text-zinc-100"
       data-testid="character-builder-root"
     >
-      <div className="mx-auto max-w-7xl space-y-6">
-        <CampaignNav campaignId={campaignId} />
+      <div className="w-full space-y-6 px-0 md:px-6">
+        <div className="space-y-6 px-4 pt-4 md:px-6">
+          <CampaignNav campaignId={campaignId} />
 
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="text-sm text-zinc-400">
-              {payload?.campaign.name ?? "Campaign"}
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="text-sm text-zinc-400">
+                {payload?.campaign.name ?? "Campaign"}
+              </div>
+              <h1 className="text-2xl font-semibold">Character Builder</h1>
+              <p className="mt-1 max-w-3xl text-sm text-zinc-500">
+                Character identity, narrative details, Characteristics, Attributes,
+                Resist Points, player Traits, Backpack equipment, and derived combat stats.
+              </p>
             </div>
-            <h1 className="text-2xl font-semibold">Character Builder</h1>
-            <p className="mt-1 max-w-3xl text-sm text-zinc-500">
-              Character identity, narrative details, Characteristics, Attributes,
-              Resist Points, player Traits, Backpack equipment, and derived combat stats.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => router.push(`/campaign/${campaignId}/characters`)}
-            className="rounded-lg border border-zinc-800 px-4 py-2 text-sm hover:bg-zinc-950"
-          >
-            Back to Character Management
-          </button>
-        </header>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => router.push(`/campaign/${campaignId}/characters/${characterId}/print`)}
+                className="rounded-lg border border-zinc-800 px-4 py-2 text-sm hover:bg-zinc-950"
+              >
+                Print Character
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/campaign/${campaignId}/characters`)}
+                className="rounded-lg border border-zinc-800 px-4 py-2 text-sm hover:bg-zinc-950"
+              >
+                Back to Character Management
+              </button>
+            </div>
+          </header>
+        </div>
 
         {isArchived ? (
           <div className="rounded-xl border border-amber-800 bg-amber-950/20 p-4 text-sm text-amber-200">
@@ -4027,41 +3772,41 @@ export default function CharacterBuilderPage() {
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
         {message ? <p className="text-sm text-emerald-400">{message}</p> : null}
 
-        <div className="flex gap-2 lg:hidden">
-          <button
-            type="button"
-            onClick={() => setMobileView("editor")}
-            className={`rounded-lg border px-3 py-2 text-sm ${
-              mobileView === "editor"
-                ? "border-zinc-500 bg-zinc-900"
-                : "border-zinc-800 hover:bg-zinc-950"
-            }`}
-          >
-            Editor
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileView("preview")}
-            className={`rounded-lg border px-3 py-2 text-sm ${
-              mobileView === "preview"
-                ? "border-zinc-500 bg-zinc-900"
-                : "border-zinc-800 hover:bg-zinc-950"
-            }`}
-          >
-            Preview
-          </button>
+        <div className="overflow-hidden rounded border border-zinc-800 bg-zinc-900/40 lg:hidden">
+          <div className="grid grid-cols-2">
+            <button
+              type="button"
+              aria-pressed={mobileView === "editor"}
+              onClick={() => setMobileView("editor")}
+              className={`px-3 py-2 text-xs font-semibold ${
+                mobileView === "editor"
+                  ? "bg-zinc-800 text-zinc-100"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Editor
+            </button>
+            <button
+              type="button"
+              aria-pressed={mobileView === "preview"}
+              onClick={() => setMobileView("preview")}
+              className={`px-3 py-2 text-xs font-semibold ${
+                mobileView === "preview"
+                  ? "bg-zinc-800 text-zinc-100"
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Preview
+            </button>
+          </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_420px]">
-          <div className={mobileView === "preview" ? "hidden lg:block" : "block"}>
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+          <div className={`${mobileView === "preview" ? "hidden" : "block"} min-w-0 space-y-5 lg:block`}>
             {editorPanel}
           </div>
           <div
-            className={
-              mobileView === "editor"
-                ? "hidden lg:sticky lg:top-4 lg:block lg:self-start"
-                : "block lg:sticky lg:top-4 lg:self-start"
-            }
+            className={`${mobileView === "editor" ? "hidden" : "block"} min-w-0 self-start space-y-3 lg:sticky lg:top-0 lg:block lg:max-h-screen lg:overflow-y-auto`}
           >
             {previewPanel}
           </div>

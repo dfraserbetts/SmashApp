@@ -27,7 +27,10 @@ export type CharacterBuilderDerivedBackpackItem = {
   quantity: number;
   itemTemplate: {
     id: string;
+    itemUrl?: string | null;
     name: string | null;
+    rarity?: string | null;
+    level?: number | null;
     details?: string | null;
     type: string | null;
     size: string | null;

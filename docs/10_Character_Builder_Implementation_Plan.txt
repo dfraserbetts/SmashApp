@@ -1131,11 +1131,50 @@ Printable Preview / Sheet Output
 
 The Character Builder must produce exact printable sheet output.
 
+Implemented V1 route: `/campaign/[id]/characters/[characterId]/print`.
+
+The route loads the same saved Character Builder payload used by the editor,
+then formats that existing builder/derived data for browser print. It does not
+introduce print-only mechanics, print-only power descriptors, or separate cost
+formulas.
+
+The live Builder preview and print route share the same Character Sheet layout
+components. The editor preview is therefore a compact sheet preview, not a
+separate debug report.
+
+The Character Builder desktop shell should follow the Summoning Circle authoring
+layout: editor on the left, live preview on the right, roughly 50/50 at wide
+breakpoints, with the preview sticky and scrollable. Narrow screens use the same
+Editor / Preview toggle pattern.
+
+The Main Combat sheet uses a table-facing hero block: mental attributes
+(`Intellect`, `Synergy`, `Bravery`) on the left, character identity/portrait in
+the centre, and physical attributes (`Attack`, `Guard`, `Fortitude`) on the
+right. Attribute cards show current Character Builder values, gear modifiers,
+effective value, and Resist allocation.
+
+The combat hero should be sheet-first rather than dashboard-first. The mental
+side carries Mental Health, MPV, Willpower, and the mental attributes. The
+physical side carries Physical Health, PPV, Weapon Skill, Armor Skill, Dodge,
+and the physical attributes. Lower sheet sections should use compact
+table-facing references for attacks, guard/protection, equipped gear, powers,
+and backpack items rather than debug tables or large web cards.
+
+`docs/Character Builder V2.xlsx` may be used as visual/layout reference only:
+section density, combat-first hierarchy, identity banding, and compact card
+grouping. It must not be used as formula authority, terminology authority, or
+sheet-order authority. Current repo logic, shared descriptors, equipment
+hydration, and power resolver output remain the mechanical source of truth.
+
 This should match the Forge and Summoning Circle philosophy:
 
 What you see on screen is what you get when you print.
 
 The preview should support digital use and paper-based table play.
+
+The Character Builder editor provides a Print Character entry point to this
+route. The route provides a browser Print button rather than server-side PDF
+generation.
 
 Print Types
 -----------
