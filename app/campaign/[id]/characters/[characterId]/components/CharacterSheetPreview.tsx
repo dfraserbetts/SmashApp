@@ -1092,7 +1092,7 @@ function MainCombatSheet({
       />
 
       <div className="cb-main-hero border-2 border-zinc-800 bg-black/40 p-1.5">
-        <div className="grid grid-cols-1 items-stretch gap-1.5 lg:grid-cols-[1fr_1.12fr_1fr]">
+        <div className="cb-main-hero-grid grid grid-cols-[1fr_1.12fr_1fr] items-stretch gap-1.5">
           <CombatSide
             tone="mental"
             stats={[
@@ -1495,6 +1495,14 @@ export function CharacterSheetPreview({
 
         .cb-sheet-preview .cb-main-sheet {
           border-radius: 0.375rem;
+        }
+
+        .cb-sheet-preview.cb-sheet-live-mode {
+          overflow-x: auto;
+        }
+
+        .cb-sheet-preview .cb-main-sheet {
+          min-width: 720px;
         }
 
         .cb-sheet-preview .cb-sheet-title-band,
