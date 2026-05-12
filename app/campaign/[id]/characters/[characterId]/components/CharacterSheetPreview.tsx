@@ -573,7 +573,7 @@ function SheetFrame({
   subtitle,
   children,
   className = "",
-  contentClassName = "space-y-3 p-3 sm:p-4",
+  contentClassName = "space-y-3 p-4",
 }: {
   title: string;
   subtitle?: string;
@@ -677,25 +677,64 @@ function AttributeCard({
       : tone === "physical"
         ? "border-emerald-900/70 bg-emerald-950/15"
         : "border-zinc-800 bg-zinc-950/60";
+  const isPhysical = tone === "physical";
+  const detailBlock = (
+    <div
+      className={[
+        "grid gap-0.5 text-[9px] leading-tight text-zinc-400",
+        isPhysical ? "text-right" : "text-left",
+      ].join(" ")}
+    >
+      <p className="whitespace-nowrap">
+        <span className="uppercase tracking-[0.08em] text-zinc-500">Modifier</span>{" "}
+        <span className="text-[10px] font-semibold text-zinc-200">
+          {modifier ? signed(modifier) : "0"}
+        </span>
+      </p>
+      <p className="whitespace-nowrap">
+        <span className="uppercase tracking-[0.08em] text-zinc-500">Resist</span>{" "}
+        <span className="text-[10px] font-semibold text-zinc-200">{resist}</span>
+      </p>
+    </div>
+  );
+  const valueBlock = (
+    <div className="flex items-center justify-center text-2xl font-semibold leading-none text-zinc-100">
+      {baseNumber || "-"}
+    </div>
+  );
 
   return (
     <div className={`cb-attribute-card border px-1.5 py-1 ${toneClass}`}>
-      <div className="flex items-start justify-between gap-2 border-b border-zinc-800/80 pb-0.5">
-        <div className="text-[10px] font-semibold leading-tight text-zinc-100">{attribute}</div>
-        <div className="text-right text-lg font-semibold leading-none text-zinc-100">
-          {baseNumber || "-"}
-        </div>
+      <div className="border-b border-zinc-800/80 pb-0.5 text-center text-[10px] font-semibold leading-tight text-zinc-100">
+        {attribute}
       </div>
-      <div className="mt-0.5 grid grid-cols-2 gap-0.5 text-center text-[9px] leading-tight text-zinc-400">
-        <div>
-          <p className="uppercase tracking-[0.08em] text-zinc-500">Modifier</p>
-          <p className="text-[10px] font-semibold text-zinc-200">{modifier ? signed(modifier) : "0"}</p>
-        </div>
-        <div>
-          <p className="uppercase tracking-[0.08em] text-zinc-500">Resist</p>
-          <p className="text-[10px] font-semibold text-zinc-200">{resist}</p>
-        </div>
+      <div
+        className={[
+          "mt-0.5 grid min-h-9 items-center gap-1",
+          isPhysical ? "grid-cols-[2.5rem_minmax(0,1fr)]" : "grid-cols-[minmax(0,1fr)_2.5rem]",
+        ].join(" ")}
+      >
+        {isPhysical ? valueBlock : detailBlock}
+        {isPhysical ? detailBlock : valueBlock}
       </div>
+    </div>
+  );
+}
+
+function MainReferenceTile({
+  tone,
+  stat,
+}: {
+  tone: "mental" | "physical";
+  stat: { label: string; value: React.ReactNode; helper?: React.ReactNode };
+}) {
+  const alignment = tone === "physical" ? "text-right" : "text-left";
+
+  return (
+    <div className={`cb-main-reference-tile border border-zinc-800 bg-zinc-950/70 px-1.5 py-1 ${alignment}`}>
+      <div className="text-[8px] uppercase tracking-[0.08em] text-zinc-500">{stat.label}</div>
+      <div className="mt-0.5 text-lg font-semibold leading-none text-zinc-100">{stat.value}</div>
+      {stat.helper ? <div className="mt-0.5 text-[10px] text-zinc-500">{stat.helper}</div> : null}
     </div>
   );
 }
@@ -717,11 +756,7 @@ function CombatSide({
     <div className="cb-combat-side grid gap-1">
       <div className="grid gap-1">
         {stats.map((stat) => (
-          <div key={stat.label} className="cb-main-reference-tile border border-zinc-800 bg-zinc-950/70 px-1.5 py-1">
-            <div className="text-[8px] uppercase tracking-[0.08em] text-zinc-500">{stat.label}</div>
-            <div className="mt-0.5 text-lg font-semibold leading-none text-zinc-100">{stat.value}</div>
-            {stat.helper ? <div className="mt-0.5 text-[10px] text-zinc-500">{stat.helper}</div> : null}
-          </div>
+          <MainReferenceTile key={stat.label} tone={tone} stat={stat} />
         ))}
       </div>
       {attributes.map((attribute) => (
@@ -853,37 +888,6 @@ const MAIN_TRAIT_ATTRIBUTE_PLACEMENTS = new Set<AttributePlacement>(["TRAITS", "
 const MAIN_ATTACK_ATTRIBUTE_PLACEMENTS = new Set<AttributePlacement>(["ATTACK"]);
 const MAIN_GUARD_ATTRIBUTE_PLACEMENTS = new Set<AttributePlacement>(["GUARD"]);
 
-function MainSheetPlacementRows({
-  rows,
-  className = "",
-}: {
-  rows: MainSheetPlacementRow[];
-  className?: string;
-}) {
-  if (rows.length === 0) return null;
-
-  return (
-    <div className={[className || "grid gap-1"].join(" ")}>
-      {rows.map((row) => (
-        <div key={row.key} className="cb-main-output-row border border-zinc-800 bg-zinc-950/50 p-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <p className="truncate text-[11px] font-semibold leading-tight text-zinc-100">
-              {row.itemName}
-            </p>
-            <p className="shrink-0 text-[9px] uppercase tracking-[0.08em] text-zinc-500">
-              {EQUIPMENT_SLOT_LABELS[row.slot]}
-            </p>
-          </div>
-          <p className="mt-0.5 text-[10px] leading-snug text-zinc-300">
-            <span className="font-semibold">{row.title}: </span>
-            {row.line}
-          </p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function groupMainSheetRowsBySlot(rows: MainSheetPlacementRow[]) {
   const bySlot = new Map<EquipmentSlotKey, MainSheetPlacementRow[]>();
   for (const row of rows) {
@@ -933,7 +937,7 @@ function MainAttackAttributeLines({
 
 function MainDefenceStringBoxes({ lines }: { lines: string[] }) {
   return (
-    <div className="grid gap-1 sm:grid-cols-3">
+    <div className="grid grid-cols-3 gap-1">
       {lines.map((line) => (
         <div
           key={line}
@@ -1020,6 +1024,11 @@ function MainGuardAttributeLines({ rows }: { rows: MainSheetPlacementRow[] }) {
   );
 }
 
+function formatMainTraitAttributeLine(row: MainSheetPlacementRow) {
+  const cleaned = stripForgeLineLabel(row.line).trim();
+  return `${row.itemName}: ${cleaned}`;
+}
+
 function MainTraitsAttributesBox({
   traitSummary,
   derivedStats,
@@ -1039,23 +1048,17 @@ function MainTraitsAttributesBox({
           Traits / Attributes
         </h3>
       </div>
-      <div className="mt-1 grid gap-1 md:grid-cols-2">
+      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10px] leading-snug text-zinc-300">
         {traits.map((trait) => (
-          <div key={`trait-${trait.id}`} className="cb-main-output-row border border-zinc-800 bg-zinc-950/50 p-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[11px] font-semibold leading-tight text-zinc-100">{trait.name}</p>
-              <p className="shrink-0 text-[9px] uppercase tracking-[0.08em] text-zinc-500">
-                {signedTraitPointDisplay(trait)}
-              </p>
-            </div>
-            {trait.descriptor ? (
-              <p className="mt-0.5 text-[10px] leading-snug text-zinc-300">{trait.descriptor}</p>
-            ) : null}
-          </div>
+          <li key={`trait-${trait.id}`}>
+            <span className="font-semibold text-zinc-100">{trait.name}</span>
+            {trait.descriptor ? `: ${trait.descriptor}` : null}
+          </li>
         ))}
-
-        <MainSheetPlacementRows rows={equipmentRows} className="contents" />
-      </div>
+        {equipmentRows.map((row) => (
+          <li key={row.key}>{formatMainTraitAttributeLine(row)}</li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -1070,11 +1073,11 @@ function MainSheetBanner({
   assignedPlayerLabel?: string | null;
 }) {
   return (
-    <div className="cb-main-banner grid gap-1.5 border-2 border-zinc-800 bg-zinc-100 p-1.5 text-black sm:grid-cols-[96px_minmax(0,1fr)]">
+    <div className="cb-main-banner grid grid-cols-[96px_minmax(0,1fr)] gap-1.5 border-2 border-zinc-800 bg-zinc-100 p-1.5 text-black">
       <div className="cb-main-banner-logo flex items-center justify-center border border-zinc-800 bg-white px-2 py-1 text-base font-black uppercase tracking-[0.16em] text-black">
         SMASH
       </div>
-      <div className="grid gap-1 text-[10px] leading-tight text-black sm:grid-cols-4">
+      <div className="grid grid-cols-4 gap-1 text-[10px] leading-tight text-black">
         <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
           <p className="font-bold uppercase tracking-[0.08em] text-black">Player Name</p>
           <p className="truncate font-semibold text-black">{assignedPlayerLabel?.trim() || "-"}</p>
@@ -1131,7 +1134,7 @@ function MainCombatSheet({
       title="Main Combat"
       subtitle="Combat table reference generated from live Character Builder data."
       className="cb-main-sheet"
-      contentClassName="space-y-2 p-2 sm:p-2.5"
+      contentClassName="space-y-2 p-2.5"
     >
       <MainSheetBanner
         character={character}
@@ -1235,12 +1238,12 @@ function CharacterIdentitySheet({
 }) {
   return (
     <SheetFrame title="Character Sheet" subtitle="Identity, narrative details, Characteristics, and Traits.">
-      <div className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
+      <div className="grid grid-cols-[1.05fr_0.95fr] gap-3">
         <div className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-[160px_minmax(0,1fr)]">
+          <div className="grid grid-cols-[160px_minmax(0,1fr)] gap-3">
             <PortraitBlock character={character} />
             <SheetPanel title="Identity">
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-3 gap-2">
                 <StatTile label="Name" value={display(character.name)} />
                 <StatTile label="Race" value={display(character.race, "-")} />
                 <StatTile label="Age" value={display(character.age, "-")} />
@@ -1316,7 +1319,7 @@ function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudge
           <p className="text-sm text-zinc-500">No powers authored.</p>
         </SheetPanel>
       ) : (
-        <div className="grid gap-3 xl:grid-cols-2">
+        <div className="grid grid-cols-2 gap-3">
           {powerBudget.powers.map((summary, index) => (
             <section key={`${summary.power.name}-${index}`} className="cb-power-card border-2 border-zinc-800 bg-black/60 p-2.5">
               <div className="border-b border-zinc-800 pb-2">
@@ -1389,7 +1392,7 @@ function InventorySheet({
   return (
     <SheetFrame title="Inventory Sheet" subtitle="Equipped gear and Backpack items.">
       <SheetPanel title="Protection Summary">
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-2">
           <StatTile
             label="PPV"
             value={derivedStats.physicalProtection}
@@ -1407,7 +1410,7 @@ function InventorySheet({
         {equipped.length === 0 ? (
           <p className="text-sm text-zinc-500">No gear equipped.</p>
         ) : (
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-3 gap-2">
             {equipped.map(({ slot, backpackItem }) => (
               <EquippedItemCompactCard
                 key={slot}
@@ -1520,9 +1523,17 @@ export function CharacterSheetPreview({
       <style jsx global>{`
         .cb-sheet-preview {
           color: #111111;
+          overflow-x: auto;
+          padding-bottom: 0.5rem;
         }
 
         .cb-sheet-preview .cb-sheet-page {
+          width: 210mm;
+          min-height: 297mm;
+          aspect-ratio: 210 / 297;
+          box-sizing: border-box;
+          margin-left: auto;
+          margin-right: auto;
           border-color: #3f3f46;
           background: #ffffff;
           color: #111111;
@@ -1530,14 +1541,6 @@ export function CharacterSheetPreview({
 
         .cb-sheet-preview .cb-main-sheet {
           border-radius: 0.375rem;
-        }
-
-        .cb-sheet-preview.cb-sheet-live-mode {
-          overflow-x: auto;
-        }
-
-        .cb-sheet-preview .cb-main-sheet {
-          min-width: 720px;
         }
 
         .cb-sheet-preview .cb-sheet-title-band,

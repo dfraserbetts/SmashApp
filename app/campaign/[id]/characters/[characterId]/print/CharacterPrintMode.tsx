@@ -283,7 +283,7 @@ export function CharacterPrintMode({
         }
         @media print {
           @page {
-            size: auto;
+            size: A4 portrait;
             margin: 10mm;
           }
           html,
@@ -303,6 +303,9 @@ export function CharacterPrintMode({
             display: block !important;
           }
           .cb-sheet-page {
+            width: auto !important;
+            min-height: 0 !important;
+            aspect-ratio: auto !important;
             background: white !important;
             color: rgb(24 24 27) !important;
             break-after: page;
