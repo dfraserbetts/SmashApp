@@ -584,18 +584,18 @@ function AttributeCard({
           {baseNumber ? effective : "-"}
         </div>
       </div>
-      <div className="mt-0.5 grid grid-cols-3 gap-0.5 text-center text-[8px] leading-tight text-zinc-400">
+      <div className="mt-0.5 grid grid-cols-3 gap-0.5 text-center text-[9px] leading-tight text-zinc-400">
         <div>
           <p className="uppercase tracking-[0.08em] text-zinc-500">Base</p>
-          <p className="text-zinc-200">{base || "-"}</p>
+          <p className="text-[10px] font-semibold text-zinc-200">{base || "-"}</p>
         </div>
         <div>
-          <p className="uppercase tracking-[0.08em] text-zinc-500">Gear</p>
-          <p className="text-zinc-200">{modifier ? signed(modifier) : "-"}</p>
+          <p className="uppercase tracking-[0.08em] text-zinc-500">Modifier</p>
+          <p className="text-[10px] font-semibold text-zinc-200">{modifier ? signed(modifier) : "-"}</p>
         </div>
         <div>
           <p className="uppercase tracking-[0.08em] text-zinc-500">Resist</p>
-          <p className="text-zinc-200">+{resist}</p>
+          <p className="text-[10px] font-semibold text-zinc-200">+{resist}</p>
         </div>
       </div>
     </div>
@@ -674,6 +674,42 @@ function MainMetricPill({
   );
 }
 
+function MainSheetBanner({
+  character,
+  campaignName,
+  assignedPlayerLabel,
+}: {
+  character: CharacterSheetCharacter;
+  campaignName?: string | null;
+  assignedPlayerLabel?: string | null;
+}) {
+  return (
+    <div className="cb-main-banner grid gap-1.5 border-2 border-zinc-800 bg-black/40 p-1.5 sm:grid-cols-[96px_minmax(0,1fr)]">
+      <div className="flex items-center justify-center border border-zinc-800 bg-zinc-950/70 px-2 py-1 text-base font-black uppercase tracking-[0.16em] text-zinc-100">
+        SMASH
+      </div>
+      <div className="grid gap-1 text-[10px] leading-tight text-zinc-300 sm:grid-cols-4">
+        <div className="border border-zinc-800 bg-zinc-950/70 px-1.5 py-1">
+          <p className="uppercase tracking-[0.08em] text-zinc-500">Player Name</p>
+          <p className="truncate font-semibold text-zinc-100">{assignedPlayerLabel?.trim() || "-"}</p>
+        </div>
+        <div className="border border-zinc-800 bg-zinc-950/70 px-1.5 py-1">
+          <p className="uppercase tracking-[0.08em] text-zinc-500">Character Name</p>
+          <p className="truncate font-semibold text-zinc-100">{display(character.name)}</p>
+        </div>
+        <div className="border border-zinc-800 bg-zinc-950/70 px-1.5 py-1">
+          <p className="uppercase tracking-[0.08em] text-zinc-500">Power Level</p>
+          <p className="font-semibold text-zinc-100">{character.level}</p>
+        </div>
+        <div className="border border-zinc-800 bg-zinc-950/70 px-1.5 py-1">
+          <p className="uppercase tracking-[0.08em] text-zinc-500">Campaign Name</p>
+          <p className="truncate font-semibold text-zinc-100">{campaignName?.trim() || "-"}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MainCombatSheet({
   character,
   builderData,
@@ -696,6 +732,12 @@ function MainCombatSheet({
       className="cb-main-sheet"
       contentClassName="space-y-2 p-2 sm:p-2.5"
     >
+      <MainSheetBanner
+        character={character}
+        campaignName={campaignName}
+        assignedPlayerLabel={assignedPlayerLabel}
+      />
+
       <div className="cb-main-hero border-2 border-zinc-800 bg-black/40 p-1.5">
         <div className="grid grid-cols-1 items-stretch gap-1.5 lg:grid-cols-[1fr_1.12fr_1fr]">
           <CombatSide
@@ -709,35 +751,13 @@ function MainCombatSheet({
           />
 
           <div className="cb-identity-center flex flex-col gap-1 text-center">
-            <div className="cb-identity-band border border-zinc-800 bg-zinc-950/70 p-1.5">
-              <div className="text-[9px] uppercase tracking-[0.12em] text-zinc-500">
-                {campaignName || "Character"}
+            {character.archivedAt ? (
+              <div className="cb-identity-band border border-amber-800 bg-zinc-950/70 p-1.5">
+                <span className="text-xs text-amber-300">Archived</span>
               </div>
-              <h1 className="mt-0.5 text-lg font-semibold uppercase leading-tight tracking-[0.04em]">
-                {display(character.name)}
-              </h1>
-              <div className="mt-1 grid grid-cols-2 gap-1 text-[10px] leading-tight text-zinc-300">
-                <span className="border border-zinc-800 px-1.5 py-0.5">Level {character.level}</span>
-                <span className="border border-zinc-800 px-1.5 py-0.5">
-                  {display(character.race, "Race unset")}
-                </span>
-                <span className="border border-zinc-800 px-1.5 py-0.5">
-                  Age {display(character.age, "-")}
-                </span>
-                {assignedPlayerLabel ? (
-                  <span className="border border-zinc-800 px-1.5 py-0.5">{assignedPlayerLabel}</span>
-                ) : null}
-              </div>
-              {character.archivedAt ? (
-                <div className="mt-1.5">
-                  <span className="border border-amber-800 px-1.5 py-0.5 text-xs text-amber-300">
-                    Archived
-                  </span>
-                </div>
-              ) : null}
-            </div>
+            ) : null}
             <div className="flex-1">
-              <PortraitBlock character={character} className="min-h-32" imageClassName="max-h-40" />
+              <PortraitBlock character={character} className="min-h-48" imageClassName="max-h-60" />
             </div>
           </div>
 
@@ -1123,6 +1143,7 @@ export function CharacterSheetPreview({
         .cb-sheet-preview .cb-power-card,
         .cb-sheet-preview .cb-stat-tile,
         .cb-sheet-preview .cb-attribute-card,
+        .cb-sheet-preview .cb-main-banner,
         .cb-sheet-preview .cb-main-reference-tile,
         .cb-sheet-preview .cb-main-combat-section,
         .cb-sheet-preview .cb-sheet-panel {
@@ -1139,6 +1160,7 @@ export function CharacterSheetPreview({
         }
 
         .cb-sheet-preview .cb-main-sheet .cb-main-hero,
+        .cb-sheet-preview .cb-main-sheet .cb-main-banner,
         .cb-sheet-preview .cb-main-sheet .cb-identity-band,
         .cb-sheet-preview .cb-main-sheet .cb-main-reference-tile,
         .cb-sheet-preview .cb-main-sheet .cb-attribute-card,
