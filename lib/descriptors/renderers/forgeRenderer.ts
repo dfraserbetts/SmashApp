@@ -1,6 +1,7 @@
 // lib/descriptors/renderers/forgeRenderer.ts
 import type { AttackRangeSpec, DescriptorLine, DescriptorResult, DescriptorSection } from "../types";
 import { renderDescriptorTokenTemplate } from "../tokenTemplate";
+import type { AttributePlacement } from "@/lib/summoning/types";
 
 export type ForgeRenderOptions = {
   weaponSkillDiceOverride?: number;
@@ -249,17 +250,25 @@ export function renderForgeLine(
 export function renderForgeSection(
   section: DescriptorSection,
   options?: ForgeRenderOptions,
-): { title: string; lines: string[] } {
+): { title: string; lines: string[]; linePlacements?: Array<AttributePlacement | null> } {
+  const renderedLines = section.lines
+    .map((line) => ({
+      text: renderForgeLine(line, options),
+      placement: "placement" in line ? line.placement ?? null : null,
+    }))
+    .filter((line) => line.text);
+
   return {
     title: section.title,
-    lines: section.lines.map((line) => renderForgeLine(line, options)).filter(Boolean),
+    lines: renderedLines.map((line) => line.text),
+    linePlacements: renderedLines.map((line) => line.placement),
   };
 }
 
 export function renderForgeResult(
   result: DescriptorResult,
   options?: ForgeRenderOptions,
-): Array<{ title: string; lines: string[] }> {
+): Array<{ title: string; lines: string[]; linePlacements?: Array<AttributePlacement | null> }> {
   return result.sections
     .map((section) => renderForgeSection(section, options))
     .filter((s) => s.lines.length > 0);

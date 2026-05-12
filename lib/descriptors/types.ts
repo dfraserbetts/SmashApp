@@ -1,5 +1,6 @@
 // lib/descriptors/types.ts
 import type { ItemType } from "@/lib/forge/types";
+import type { AttributePlacement } from "@/lib/summoning/types";
 
 export type AttributeModToken = {
   attributeName: string;
@@ -15,11 +16,13 @@ export type ModifiersLine = {
 export type WeaponAttributeLine = {
   kind: "WEAPON_ATTRIBUTE";
   itemType: ItemType;
+  placement?: AttributePlacement | null;
   text: string; // fully rendered line, including “Name: …”
 };
 
 export type TextLine = {
   kind: "TEXT";
+  placement?: AttributePlacement | null;
   text: string;
 };
 
@@ -61,6 +64,7 @@ export type DescriptorInput = {
   weaponAttributes?: Array<{
     name: string; // e.g. "Reload 5" or "Parry"
     descriptorTemplate?: string | null; // template text saved in DB
+    placement?: AttributePlacement | null;
 
     // Optional explicit value for [AttributeValue] tokens (preferred over parsing from name)
     attributeValue?: number | string | null;
@@ -85,6 +89,7 @@ export type DescriptorInput = {
   armorAttributes?: Array<{
     name: string;
     descriptorTemplate?: string | null;
+    placement?: AttributePlacement | null;
     // Optional explicit value for [AttributeValue] tokens (preferred over parsing from name)
     attributeValue?: number | string | null;
   }>;
@@ -93,6 +98,7 @@ export type DescriptorInput = {
   shieldAttributes?: Array<{
     name: string;
     descriptorTemplate?: string | null;
+    placement?: AttributePlacement | null;
     // Optional explicit value for [AttributeValue] tokens (preferred over parsing from name)
     attributeValue?: number | string | null;
   }>;

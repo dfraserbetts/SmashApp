@@ -1,6 +1,7 @@
 import { buildDescriptorResult } from "@/lib/descriptors/descriptorEngine";
 import { renderForgeResult } from "@/lib/descriptors/renderers/forgeRenderer";
 import type { DescriptorInput } from "@/lib/descriptors/types";
+import type { AttributePlacement } from "@/lib/summoning/types";
 
 type NamedRelation<T extends string> = Record<T, { name: string }>;
 
@@ -17,6 +18,7 @@ type WeaponAttributeRelation = {
   weaponAttribute: {
     name: string;
     descriptorTemplate: string | null;
+    placement?: AttributePlacement | null;
   };
 };
 
@@ -24,6 +26,7 @@ type ArmorAttributeRelation = {
   armorAttribute: {
     name: string;
     descriptorTemplate: string | null;
+    placement?: AttributePlacement | null;
   };
 };
 
@@ -31,6 +34,7 @@ type ShieldAttributeRelation = {
   shieldAttribute: {
     name: string;
     descriptorTemplate: string | null;
+    placement?: AttributePlacement | null;
   };
 };
 
@@ -97,12 +101,16 @@ export type CharacterBuilderEquipmentItemSource = {
 
 export type CharacterBuilderEquipmentSummary = {
   details: string;
-  descriptorSections: Array<{ title: string; lines: string[] }>;
+  descriptorSections: Array<{
+    title: string;
+    lines: string[];
+    linePlacements?: Array<AttributePlacement | null>;
+  }>;
   descriptorWarnings: string[];
 };
 
 function customAttributeSections(item: CharacterBuilderEquipmentItemSource) {
-  const sections: Array<{ title: string; lines: string[] }> = [];
+  const sections: CharacterBuilderEquipmentSummary["descriptorSections"] = [];
   const customFields = [
     {
       title: "Custom Weapon Attributes",
@@ -128,6 +136,7 @@ function customAttributeSections(item: CharacterBuilderEquipmentItemSource) {
     sections.push({
       title: field.title,
       lines: [`Custom: ${text}`],
+      linePlacements: ["TRAITS"],
     });
   }
 
@@ -181,16 +190,19 @@ function buildDescriptorInput(item: CharacterBuilderEquipmentItemSource): Descri
     weaponAttributes: item.weaponAttributes.map((row) => ({
       name: row.weaponAttribute.name,
       descriptorTemplate: row.weaponAttribute.descriptorTemplate,
+      placement: row.weaponAttribute.placement,
       strengthSource: row.strengthSource,
       rangeSource: row.rangeSource,
     })),
     armorAttributes: item.armorAttributes.map((row) => ({
       name: row.armorAttribute.name,
       descriptorTemplate: row.armorAttribute.descriptorTemplate,
+      placement: row.armorAttribute.placement,
     })),
     shieldAttributes: item.shieldAttributes.map((row) => ({
       name: row.shieldAttribute.name,
       descriptorTemplate: row.shieldAttribute.descriptorTemplate,
+      placement: row.shieldAttribute.placement,
     })),
     ppv: numberOrUndefined(item.ppv),
     mpv: numberOrUndefined(item.mpv),

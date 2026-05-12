@@ -7,6 +7,15 @@ import type {
   WeaponAttributeLine,
 } from "./types";
 import { renderDescriptorTokenTemplate } from "./tokenTemplate";
+import type { AttributePlacement } from "@/lib/summoning/types";
+
+function normalizePlacement(value: unknown): AttributePlacement {
+  if (value === "DEFENCE") return "GUARD";
+  if (value === "ATTACK" || value === "GUARD" || value === "TRAITS" || value === "GENERAL") {
+    return value;
+  }
+  return "TRAITS";
+}
 
 function normalizeMods(
   mods: DescriptorInput["globalAttributeModifiers"],
@@ -266,6 +275,7 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
     ? ((input as any).weaponAttributes as Array<{
         name: string;
         descriptorTemplate?: string | null;
+        placement?: AttributePlacement | null;
         strengthSource?: "MELEE" | "RANGED" | "AOE" | null;
         rangeSource?: "MELEE" | "RANGED" | "AOE" | null;
       }>)
@@ -283,6 +293,7 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
       .map((wa) => ({
         name: String(wa?.name ?? "").trim(),
         descriptorTemplate: wa?.descriptorTemplate ?? null,
+        placement: normalizePlacement(wa?.placement),
         strengthSource:
           wa?.strengthSource === "MELEE" ||
           wa?.strengthSource === "RANGED" ||
@@ -383,6 +394,7 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
         kind: "WEAPON_ATTRIBUTE",
         itemType: input.itemType,
         text: finalText,
+        placement: wa.placement,
       });
     }
 
@@ -473,6 +485,7 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
     const typedAttributes = (rawAttributes as Array<{
       name: string;
       descriptorTemplate?: string | null;
+      placement?: AttributePlacement | null;
       attributeValue?: number | string | null;
     }>) ?? [];
 
@@ -547,6 +560,7 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
         lines.push({
           kind: "TEXT",
           text: `${aa.baseName}: ${rendered.text}`,
+          placement: normalizePlacement(aa.placement),
         });
       }
 

@@ -18,6 +18,7 @@ import type {
 } from "@/lib/characterBuilder/derivedStats";
 import type { CharacterPowerBudget } from "@/lib/characterBuilder/powers";
 import type { MonsterModifierField } from "@/lib/summoning/equipment";
+import type { AttributePlacement } from "@/lib/summoning/types";
 
 export type CharacterSheetPrintType =
   | "full-colour"
@@ -674,6 +675,95 @@ function MainMetricPill({
   );
 }
 
+const MAIN_TRAIT_ATTRIBUTE_PLACEMENTS = new Set<AttributePlacement>(["TRAITS", "GENERAL"]);
+
+function mainSheetEquipmentTraitAttributes(derivedStats: CharacterDerivedCombatStats) {
+  const rows: Array<{
+    key: string;
+    itemName: string;
+    title: string;
+    line: string;
+    placement: AttributePlacement;
+  }> = [];
+  const seen = new Set<string>();
+
+  for (const section of derivedStats.itemOutputSections) {
+    section.lines.forEach((line, index) => {
+      const placement = section.linePlacements?.[index];
+      if (!placement || !MAIN_TRAIT_ATTRIBUTE_PLACEMENTS.has(placement)) return;
+
+      const compacted = compactEquippedItemBullet(line);
+      const key = `${section.itemName.toLowerCase()}::${placement}::${compacted.toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      rows.push({
+        key,
+        itemName: section.itemName,
+        title: section.title,
+        line: compacted,
+        placement,
+      });
+    });
+  }
+
+  return rows;
+}
+
+function MainTraitsAttributesBox({
+  traitSummary,
+  derivedStats,
+}: {
+  traitSummary: CharacterTraitSummary;
+  derivedStats: CharacterDerivedCombatStats;
+}) {
+  const equipmentRows = mainSheetEquipmentTraitAttributes(derivedStats);
+  const traits = traitSummary.selected;
+
+  if (traits.length === 0 && equipmentRows.length === 0) return null;
+
+  return (
+    <section className="cb-main-traits-section border border-zinc-800 bg-black/50 p-1.5">
+      <div className="flex min-h-6 items-center justify-between gap-2 border-b border-zinc-800 pb-1">
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
+          Traits / Attributes
+        </h3>
+      </div>
+      <div className="mt-1 grid gap-1 md:grid-cols-2">
+        {traits.map((trait) => (
+          <div key={`trait-${trait.id}`} className="cb-main-output-row border border-zinc-800 bg-zinc-950/50 p-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold leading-tight text-zinc-100">{trait.name}</p>
+              <p className="shrink-0 text-[9px] uppercase tracking-[0.08em] text-zinc-500">
+                {signedTraitPointDisplay(trait)}
+              </p>
+            </div>
+            {trait.descriptor ? (
+              <p className="mt-0.5 text-[10px] leading-snug text-zinc-300">{trait.descriptor}</p>
+            ) : null}
+          </div>
+        ))}
+
+        {equipmentRows.map((row) => (
+          <div key={row.key} className="cb-main-output-row border border-zinc-800 bg-zinc-950/50 p-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="truncate text-[11px] font-semibold leading-tight text-zinc-100">
+                {row.itemName}
+              </p>
+              <p className="shrink-0 text-[9px] uppercase tracking-[0.08em] text-zinc-500">
+                {titleCase(row.placement)}
+              </p>
+            </div>
+            <p className="mt-0.5 text-[10px] leading-snug text-zinc-300">
+              <span className="font-semibold">{row.title}: </span>
+              {row.line}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function MainSheetBanner({
   character,
   campaignName,
@@ -714,6 +804,7 @@ function MainCombatSheet({
   character,
   builderData,
   derivedStats,
+  traitSummary,
   compact,
   campaignName,
   assignedPlayerLabel,
@@ -721,6 +812,7 @@ function MainCombatSheet({
   character: CharacterSheetCharacter;
   builderData: CharacterBuilderData;
   derivedStats: CharacterDerivedCombatStats;
+  traitSummary: CharacterTraitSummary;
   compact: boolean;
   campaignName?: string | null;
   assignedPlayerLabel?: string | null;
@@ -772,6 +864,11 @@ function MainCombatSheet({
           />
         </div>
       </div>
+
+      <MainTraitsAttributesBox
+        traitSummary={traitSummary}
+        derivedStats={derivedStats}
+      />
 
       <div className="grid gap-1.5 xl:grid-cols-2">
         <MainCombatSection
@@ -1100,6 +1197,7 @@ export function CharacterSheetPreview({
           character={character}
           builderData={builderData}
           derivedStats={derivedStats}
+          traitSummary={traitSummary}
           compact={compact}
           campaignName={campaignName}
           assignedPlayerLabel={assignedPlayerLabel}
@@ -1145,6 +1243,7 @@ export function CharacterSheetPreview({
         .cb-sheet-preview .cb-attribute-card,
         .cb-sheet-preview .cb-main-banner,
         .cb-sheet-preview .cb-main-reference-tile,
+        .cb-sheet-preview .cb-main-traits-section,
         .cb-sheet-preview .cb-main-combat-section,
         .cb-sheet-preview .cb-sheet-panel {
           border-color: #71717a;
@@ -1164,12 +1263,14 @@ export function CharacterSheetPreview({
         .cb-sheet-preview .cb-main-sheet .cb-identity-band,
         .cb-sheet-preview .cb-main-sheet .cb-main-reference-tile,
         .cb-sheet-preview .cb-main-sheet .cb-attribute-card,
+        .cb-sheet-preview .cb-main-sheet .cb-main-traits-section,
         .cb-sheet-preview .cb-main-sheet .cb-main-combat-section,
         .cb-sheet-preview .cb-main-sheet .cb-main-output-row {
           background: #f4f4f5;
         }
 
         .cb-sheet-preview .cb-main-sheet .cb-main-combat-section h3,
+        .cb-sheet-preview .cb-main-sheet .cb-main-traits-section h3,
         .cb-sheet-preview .cb-main-sheet .cb-main-reference-tile,
         .cb-sheet-preview .cb-main-sheet .cb-attribute-card {
           color: #111111;

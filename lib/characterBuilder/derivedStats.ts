@@ -10,7 +10,7 @@ import {
   type SummoningEquipmentItem,
 } from "@/lib/summoning/equipment";
 import { renderAttackActionLines } from "@/lib/summoning/render";
-import type { MonsterNaturalAttackConfig } from "@/lib/summoning/types";
+import type { AttributePlacement, MonsterNaturalAttackConfig } from "@/lib/summoning/types";
 import {
   CHARACTER_ATTRIBUTES,
   EQUIPMENT_SLOT_LABELS,
@@ -63,7 +63,11 @@ export type CharacterBuilderDerivedBackpackItem = {
     attackEffectsMelee?: string[];
     attackEffectsRanged?: string[];
     attackEffectsAoE?: string[];
-    descriptorSections?: Array<{ title: string; lines: string[] }>;
+    descriptorSections?: Array<{
+      title: string;
+      lines: string[];
+      linePlacements?: Array<AttributePlacement | null>;
+    }>;
   };
 };
 
@@ -92,6 +96,7 @@ export type CharacterDerivedCombatStats = {
     itemName: string;
     title: string;
     lines: string[];
+    linePlacements?: Array<AttributePlacement | null>;
   }>;
   itemModifiers: ReturnType<typeof getHighestItemModifiers>;
   notes: string[];
@@ -204,6 +209,7 @@ function itemOutputSections(
 ) {
   const relevantTitles = new Set([
     "Modifiers",
+    "Weapon Attributes",
     "Defence",
     "Greater Defence Effects",
     "Armor Attributes",
@@ -222,6 +228,7 @@ function itemOutputSections(
         itemName: itemName(backpackItem),
         title: section.title,
         lines: section.lines,
+        linePlacements: section.linePlacements,
       })),
   );
 }
