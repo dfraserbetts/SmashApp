@@ -59,6 +59,10 @@ function parseAttributeName(name: string): { baseName: string; value: number | n
   return { baseName, value: Number.isFinite(value) ? value : null };
 }
 
+function attributeEffectFamily(baseName: string) {
+  return `ATTRIBUTE:${baseName.trim().toLowerCase()}`;
+}
+
 function safeNum(n: any): string {
   const x = Number(n);
   return Number.isFinite(x) ? String(x) : "?";
@@ -395,6 +399,8 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
         itemType: input.itemType,
         text: finalText,
         placement: wa.placement,
+        effectFamily: attributeEffectFamily(baseName),
+        effectValue: wa.value,
       });
     }
 
@@ -561,6 +567,8 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
           kind: "TEXT",
           text: `${aa.baseName}: ${rendered.text}`,
           placement: normalizePlacement(aa.placement),
+          effectFamily: attributeEffectFamily(aa.baseName),
+          effectValue: aa.value,
         });
       }
 

@@ -59,6 +59,10 @@ export default function CampaignHomePage() {
   const [deleteNameInput, setDeleteNameInput] = useState("");
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameInput, setRenameInput] = useState("");
+  const [renameErr, setRenameErr] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
   const [members, setMembers] = useState<CampaignMemberRow[]>([]);
   const [addPlayerUserId, setAddPlayerUserId] = useState("");
   const [addPlayerName, setAddPlayerName] = useState("");
@@ -363,10 +367,53 @@ export default function CampaignHomePage() {
     }
   }
 
+  async function handleRenameCampaign() {
+    if (!campaignId) return;
+
+    const nextName = renameInput.trim();
+    if (!nextName) {
+      setRenameErr("Enter a new campaign name.");
+      return;
+    }
+
+    setRenaming(true);
+    setRenameErr(null);
+
+    try {
+      const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: nextName,
+        }),
+      });
+
+      const data = (await res.json().catch(() => ({}))) as {
+        campaign?: CampaignRow;
+        error?: string;
+      };
+
+      if (!res.ok || !data.campaign) {
+        throw new Error(data.error ?? "Failed to rename campaign.");
+      }
+
+      setCampaign(data.campaign);
+      setRenameOpen(false);
+      setRenameInput("");
+    } catch (e: unknown) {
+      setRenameErr(e instanceof Error ? e.message : "Failed to rename campaign.");
+    } finally {
+      setRenaming(false);
+    }
+  }
+
   const role = roleRow?.role ?? null;
   const campaignName = campaign?.name ?? "Campaign";
   const descriptorTag = campaign?.descriptorVersionTag ?? "v0";
   const canDeleteCampaign = Boolean(roleRow?.canManageCampaign);
+  const canRenameCampaign = Boolean(roleRow?.canManageCampaign);
   const canManageMembers = Boolean(roleRow?.canManageCampaign);
 
   const tools = useMemo(() => {
@@ -452,18 +499,35 @@ export default function CampaignHomePage() {
             </p>
           </div>
 
-          {canDeleteCampaign ? (
-            <button
-              type="button"
-              onClick={() => {
-                setDeleteErr(null);
-                setDeleteNameInput("");
-                setDeleteStep("WARNING");
-              }}
-              className="rounded-lg border-4 border-red-600 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30"
-            >
-              Delete Campaign
-            </button>
+          {canDeleteCampaign || canRenameCampaign ? (
+            <div className="flex flex-wrap gap-2">
+              {canRenameCampaign ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRenameErr(null);
+                    setRenameInput("");
+                    setRenameOpen(true);
+                  }}
+                  className="rounded-lg border border-blue-500 bg-blue-700 px-4 py-2 font-semibold text-blue-50 hover:bg-blue-600"
+                >
+                  Rename Campaign
+                </button>
+              ) : null}
+              {canDeleteCampaign ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteErr(null);
+                    setDeleteNameInput("");
+                    setDeleteStep("WARNING");
+                  }}
+                  className="rounded-lg border-4 border-red-600 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30"
+                >
+                  Delete Campaign
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </header>
 
@@ -725,6 +789,50 @@ export default function CampaignHomePage() {
           </button>
         </div>
       </div>
+
+      {renameOpen && canRenameCampaign ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">
+          <div className="w-full max-w-lg space-y-4 rounded-xl border border-blue-700 bg-zinc-950 p-6">
+            <h2 className="text-xl font-semibold text-blue-100">Rename Campaign?</h2>
+            <div className="space-y-2">
+              <label className="block text-sm text-zinc-300" htmlFor="rename-campaign-name">
+                New campaign name
+              </label>
+              <input
+                id="rename-campaign-name"
+                type="text"
+                value={renameInput}
+                onChange={(event) => setRenameInput(event.target.value)}
+                className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-zinc-100 outline-none focus:border-blue-500"
+                autoFocus
+              />
+            </div>
+            {renameErr ? <p className="text-sm text-red-400">{renameErr}</p> : null}
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setRenameOpen(false);
+                  setRenameInput("");
+                  setRenameErr(null);
+                }}
+                className="rounded-lg border border-zinc-700 px-4 py-2 hover:bg-zinc-900"
+                disabled={renaming}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRenameCampaign()}
+                className="rounded-lg border border-blue-500 bg-blue-700 px-4 py-2 font-semibold text-blue-50 hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={renaming}
+              >
+                {renaming ? "Renaming..." : "RENAME"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {deleteStep === "WARNING" && canDeleteCampaign ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">

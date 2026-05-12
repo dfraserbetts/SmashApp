@@ -67,6 +67,8 @@ export type CharacterBuilderDerivedBackpackItem = {
       title: string;
       lines: string[];
       linePlacements?: Array<AttributePlacement | null>;
+      lineEffectFamilies?: Array<string | null>;
+      lineEffectValues?: Array<number | null>;
     }>;
   };
 };
@@ -97,6 +99,8 @@ export type CharacterDerivedCombatStats = {
     title: string;
     lines: string[];
     linePlacements?: Array<AttributePlacement | null>;
+    lineEffectFamilies?: Array<string | null>;
+    lineEffectValues?: Array<number | null>;
   }>;
   itemModifiers: ReturnType<typeof getHighestItemModifiers>;
   notes: string[];
@@ -229,6 +233,8 @@ function itemOutputSections(
         title: section.title,
         lines: section.lines,
         linePlacements: section.linePlacements,
+        lineEffectFamilies: section.lineEffectFamilies,
+        lineEffectValues: section.lineEffectValues,
       })),
   );
 }

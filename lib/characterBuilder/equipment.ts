@@ -105,6 +105,8 @@ export type CharacterBuilderEquipmentSummary = {
     title: string;
     lines: string[];
     linePlacements?: Array<AttributePlacement | null>;
+    lineEffectFamilies?: Array<string | null>;
+    lineEffectValues?: Array<number | null>;
   }>;
   descriptorWarnings: string[];
 };
@@ -137,6 +139,8 @@ function customAttributeSections(item: CharacterBuilderEquipmentItemSource) {
       title: field.title,
       lines: [`Custom: ${text}`],
       linePlacements: ["TRAITS"],
+      lineEffectFamilies: [null],
+      lineEffectValues: [null],
     });
   }
 

@@ -120,18 +120,6 @@ function itemName(item: CharacterBuilderDerivedBackpackItem) {
   return item.itemTemplate.name?.trim() || "(Unnamed item)";
 }
 
-function itemMeta(item: CharacterBuilderDerivedBackpackItem) {
-  return [
-    item.itemTemplate.type,
-    item.itemTemplate.rarity,
-    item.itemTemplate.level ? `Level ${item.itemTemplate.level}` : null,
-    item.itemTemplate.size ?? item.itemTemplate.armorLocation ?? item.itemTemplate.itemLocation,
-    `Qty ${item.quantity}`,
-  ]
-    .filter(Boolean)
-    .join(" / ");
-}
-
 function titleCase(value: string | null | undefined) {
   const raw = value?.trim();
   if (!raw) return "-";
@@ -294,6 +282,13 @@ function compactEquippedItemBullet(line: string) {
     return `Spiked ${spikedMatch[1]}`;
   }
 
+  const namedWoundsMatch = withoutPeriod.match(
+    /^([A-Za-z][A-Za-z '-]*):\s+.+?\b(\d+)\s+(?:physical|mental|[A-Za-z]+)?\s*wounds?$/i,
+  );
+  if (namedWoundsMatch) {
+    return `${namedWoundsMatch[1].trim()} ${namedWoundsMatch[2]}`;
+  }
+
   const standaloneGreaterSuccessMatch = withoutPeriod.match(
     /^Each greater success inflicts (.+)$/i,
   );
@@ -302,7 +297,7 @@ function compactEquippedItemBullet(line: string) {
   }
 
   const weaponMatch = withoutPeriod.match(
-    /^Choose (.+) and roll weapon skill dice\. This weapon inflicts (\d+) (?:physical|mental) ([A-Za-z ]+) wounds? per success(?:\. Each greater success inflicts (.+))?$/i,
+    /^Choose (.+) and roll weapon skill dice\. This (?:weapon|shield) inflicts (\d+) (?:physical|mental) ([A-Za-z ]+) wounds? per success(?:\. Each greater success inflicts (.+))?$/i,
   );
   if (weaponMatch) {
     const range = compactWeaponRange(weaponMatch[1]);
@@ -314,17 +309,115 @@ function compactEquippedItemBullet(line: string) {
   return cleaned;
 }
 
-function equippedItemBullets(item: CharacterBuilderDerivedBackpackItem) {
+type ActiveEffectWinner = {
+  value: number;
+  occurrenceKey: string;
+  order: number;
+};
+
+type ActiveEffectRegistry = Map<string, ActiveEffectWinner>;
+
+function effectValue(value: unknown) {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function inferRenderedEffectMetadata(line: string) {
+  const cleaned = stripForgeLineLabel(line).replace(/\.$/, "").trim();
+  const namedWoundsMatch = cleaned.match(
+    /^([A-Za-z][A-Za-z '-]*):\s+.+?\b(\d+)\s+(?:(?:physical|mental)\s+)?[A-Za-z ]*wounds?\b/i,
+  );
+  if (!namedWoundsMatch) return null;
+
+  return {
+    family: `ATTRIBUTE:${namedWoundsMatch[1].trim().toLowerCase()}`,
+    value: Math.trunc(Number(namedWoundsMatch[2])),
+  };
+}
+
+function shouldRenderEffect(
+  registry: ActiveEffectRegistry | undefined,
+  family: string | null | undefined,
+  value: number | null | undefined,
+  occurrenceKey: string,
+) {
+  if (!registry || !family || value === null || value === undefined) return true;
+  return registry.get(family)?.occurrenceKey === occurrenceKey;
+}
+
+function buildActiveEffectRegistry(equipped: EquippedEntry[]) {
+  const registry: ActiveEffectRegistry = new Map();
+  let order = 0;
+
+  function add(family: string | null | undefined, value: number | null | undefined, occurrenceKey: string) {
+    if (!family || value === null || value === undefined) return;
+    const existing = registry.get(family);
+    if (!existing || value > existing.value || (value === existing.value && order < existing.order)) {
+      registry.set(family, { value, occurrenceKey, order });
+    }
+    order += 1;
+  }
+
+  for (const { slot, backpackItem } of equipped) {
+    const template = backpackItem.itemTemplate;
+    (template.globalAttributeModifiers ?? []).forEach((modifier, index) => {
+      const attribute = modifier.attribute?.trim();
+      const value = effectValue(modifier.amount);
+      add(
+        attribute ? `MODIFIER:${attribute.toLowerCase()}` : null,
+        value === null ? null : Math.abs(value),
+        `${slot}:${backpackItem.id}:modifier:${index}`,
+      );
+    });
+
+    (template.descriptorSections ?? []).forEach((section, sectionIndex) => {
+      section.lines.forEach((line, lineIndex) => {
+        const inferred = inferRenderedEffectMetadata(line);
+        add(
+          section.lineEffectFamilies?.[lineIndex] ?? inferred?.family,
+          section.lineEffectValues?.[lineIndex] ?? inferred?.value ?? null,
+          `${slot}:${backpackItem.id}:section:${sectionIndex}:${lineIndex}`,
+        );
+      });
+    });
+  }
+
+  return registry;
+}
+
+function equippedItemBullets(
+  slot: EquipmentSlotKey,
+  item: CharacterBuilderDerivedBackpackItem,
+  activeEffectRegistry?: ActiveEffectRegistry,
+) {
   const template = item.itemTemplate;
   const bullets: string[] = [];
 
-  for (const modifier of template.globalAttributeModifiers ?? []) {
+  for (const [index, modifier] of (template.globalAttributeModifiers ?? []).entries()) {
+    const attribute = modifier.attribute?.trim();
+    const value = effectValue(modifier.amount);
+    const family = attribute ? `MODIFIER:${attribute.toLowerCase()}` : null;
+    const occurrenceKey = `${slot}:${item.id}:modifier:${index}`;
+    if (!shouldRenderEffect(activeEffectRegistry, family, value === null ? null : Math.abs(value), occurrenceKey)) {
+      continue;
+    }
     const bullet = formatCompactModifier(modifier.attribute, modifier.amount);
     if (bullet) bullets.push(bullet);
   }
 
-  for (const section of template.descriptorSections ?? []) {
-    for (const line of section.lines) {
+  for (const [sectionIndex, section] of (template.descriptorSections ?? []).entries()) {
+    for (const [lineIndex, line] of section.lines.entries()) {
+      const inferred = inferRenderedEffectMetadata(line);
+      if (
+        !shouldRenderEffect(
+          activeEffectRegistry,
+          section.lineEffectFamilies?.[lineIndex] ?? inferred?.family,
+          section.lineEffectValues?.[lineIndex] ?? inferred?.value ?? null,
+          `${slot}:${item.id}:section:${sectionIndex}:${lineIndex}`,
+        )
+      ) {
+        continue;
+      }
       const bullet = compactEquippedItemBullet(line);
       if (bullet) bullets.push(bullet);
     }
@@ -367,16 +460,22 @@ function selectedEquippedItems(
 function EquippedItemCompactCard({
   slot,
   item,
+  activeEffectRegistry,
 }: {
   slot: EquipmentSlotKey;
   item: CharacterBuilderDerivedBackpackItem;
+  activeEffectRegistry?: ActiveEffectRegistry;
 }) {
   const template = item.itemTemplate;
   const palette = getForgeRarityPalette(template.rarity);
   const slotLabel = EQUIPMENT_SLOT_LABELS[slot];
-  const meta = itemMeta(item);
+  const typeLabel = titleCase(template.type);
+  const levelAndType = [template.level ? `Level ${template.level}` : null, typeLabel === "-" ? null : typeLabel]
+    .filter(Boolean)
+    .join(" ");
+  const rarityLabel = titleCase(template.rarity);
   const imageUrl = isHttpUrl(template.itemUrl) ? template.itemUrl?.trim() : null;
-  const bullets = equippedItemBullets(item);
+  const bullets = equippedItemBullets(slot, item, activeEffectRegistry);
 
   return (
     <article
@@ -387,13 +486,16 @@ function EquippedItemCompactCard({
       }}
     >
       <div className="min-w-0">
-        <p className="text-[11px] text-zinc-500">{slotLabel}</p>
+        <p className="truncate text-[11px] text-zinc-500">
+          {slotLabel}
+          {levelAndType ? ` - ${levelAndType}` : ""}
+        </p>
         <p
           className={`truncate text-sm ${palette.nameTextClass}`}
           style={{ color: palette.headerColor }}
         >
           {itemName(item)}
-          {meta ? ` - ${meta}` : ""}
+          {rarityLabel !== "-" ? ` - ${rarityLabel}` : ""}
         </p>
       </div>
       <div
@@ -675,38 +777,171 @@ function MainMetricPill({
   );
 }
 
-const MAIN_TRAIT_ATTRIBUTE_PLACEMENTS = new Set<AttributePlacement>(["TRAITS", "GENERAL"]);
+type MainSheetPlacementRow = {
+  key: string;
+  slot: EquipmentSlotKey;
+  itemName: string;
+  title: string;
+  line: string;
+  placement: AttributePlacement;
+  effectFamily: string | null;
+  effectValue: number | null;
+  order: number;
+};
 
-function mainSheetEquipmentTraitAttributes(derivedStats: CharacterDerivedCombatStats) {
+function highestOnlyRows<T extends { effectFamily: string | null; effectValue: number | null; order: number }>(
+  rows: T[],
+) {
+  const winners = new Map<string, T>();
+  for (const row of rows) {
+    if (!row.effectFamily || row.effectValue === null) continue;
+    const existing = winners.get(row.effectFamily);
+    if (!existing || row.effectValue > existing.effectValue! || (row.effectValue === existing.effectValue && row.order < existing.order)) {
+      winners.set(row.effectFamily, row);
+    }
+  }
+
+  return rows.filter((row) => {
+    if (!row.effectFamily || row.effectValue === null) return true;
+    return winners.get(row.effectFamily) === row;
+  });
+}
+
+function mainSheetEquipmentPlacementRows(
+  derivedStats: CharacterDerivedCombatStats,
+  placements: ReadonlySet<AttributePlacement>,
+  options: { lineMode?: "compact" | "full" } = {},
+) {
   const rows: Array<{
     key: string;
+    slot: EquipmentSlotKey;
     itemName: string;
     title: string;
     line: string;
     placement: AttributePlacement;
+    effectFamily: string | null;
+    effectValue: number | null;
+    order: number;
   }> = [];
   const seen = new Set<string>();
+  let order = 0;
 
   for (const section of derivedStats.itemOutputSections) {
     section.lines.forEach((line, index) => {
       const placement = section.linePlacements?.[index];
-      if (!placement || !MAIN_TRAIT_ATTRIBUTE_PLACEMENTS.has(placement)) return;
+      if (!placement || !placements.has(placement)) return;
 
-      const compacted = compactEquippedItemBullet(line);
-      const key = `${section.itemName.toLowerCase()}::${placement}::${compacted.toLowerCase()}`;
+      const renderedLine =
+        options.lineMode === "full" ? compactLine(line) : compactEquippedItemBullet(line);
+      const inferred = inferRenderedEffectMetadata(line);
+      const key = `${section.slot}::${section.itemName.toLowerCase()}::${placement}::${renderedLine.toLowerCase()}`;
       if (seen.has(key)) return;
       seen.add(key);
       rows.push({
         key,
+        slot: section.slot,
         itemName: section.itemName,
         title: section.title,
-        line: compacted,
+        line: renderedLine,
         placement,
+        effectFamily: section.lineEffectFamilies?.[index] ?? inferred?.family ?? null,
+        effectValue: section.lineEffectValues?.[index] ?? inferred?.value ?? null,
+        order: order++,
       });
     });
   }
 
-  return rows;
+  return highestOnlyRows(rows);
+}
+
+const MAIN_TRAIT_ATTRIBUTE_PLACEMENTS = new Set<AttributePlacement>(["TRAITS", "GENERAL"]);
+const MAIN_ATTACK_ATTRIBUTE_PLACEMENTS = new Set<AttributePlacement>(["ATTACK"]);
+const MAIN_GUARD_ATTRIBUTE_PLACEMENTS = new Set<AttributePlacement>(["GUARD"]);
+
+function MainSheetPlacementRows({
+  rows,
+  className = "",
+}: {
+  rows: MainSheetPlacementRow[];
+  className?: string;
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <div className={[className || "grid gap-1"].join(" ")}>
+      {rows.map((row) => (
+        <div key={row.key} className="cb-main-output-row border border-zinc-800 bg-zinc-950/50 p-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="truncate text-[11px] font-semibold leading-tight text-zinc-100">
+              {row.itemName}
+            </p>
+            <p className="shrink-0 text-[9px] uppercase tracking-[0.08em] text-zinc-500">
+              {EQUIPMENT_SLOT_LABELS[row.slot]}
+            </p>
+          </div>
+          <p className="mt-0.5 text-[10px] leading-snug text-zinc-300">
+            <span className="font-semibold">{row.title}: </span>
+            {row.line}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function groupMainSheetRowsBySlot(rows: MainSheetPlacementRow[]) {
+  const bySlot = new Map<EquipmentSlotKey, MainSheetPlacementRow[]>();
+  for (const row of rows) {
+    const existing = bySlot.get(row.slot) ?? [];
+    existing.push(row);
+    bySlot.set(row.slot, existing);
+  }
+  return bySlot;
+}
+
+function MainDefenceStringBoxes({ lines }: { lines: string[] }) {
+  return (
+    <div className="grid gap-1 sm:grid-cols-3">
+      {lines.map((line) => (
+        <div
+          key={line}
+          className="cb-main-defence-box border border-zinc-800 bg-zinc-950/50 px-1.5 py-2 text-center text-[10px] leading-snug text-zinc-300"
+        >
+          {line}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatMainGuardAttributeLine(row: MainSheetPlacementRow) {
+  const cleaned = stripForgeLineLabel(row.line).trim();
+  const withoutPeriod = cleaned.replace(/\.$/, "").trim();
+  const vrpMatch = withoutPeriod.match(
+    /^Whilst (?:wearing this armor|wielding this shield), you (gain|suffer) ([+\-âˆ’]?\d+)( dice)? to Defence rolls against ([A-Za-z ]+) attacks$/i,
+  );
+
+  if (vrpMatch) {
+    const action = vrpMatch[1].toLowerCase();
+    const amount = Math.abs(Math.trunc(Number(normalizeSignedInput(vrpMatch[2]))));
+    const sign = action === "suffer" ? "-" : "+";
+    const dice = vrpMatch[3] ? " dice" : "";
+    return `${row.itemName}: ${sign}${amount}${dice} to Defence rolls against ${vrpMatch[4].trim()} attacks`;
+  }
+
+  return `${row.itemName}: ${cleaned}`;
+}
+
+function MainGuardAttributeLines({ rows }: { rows: MainSheetPlacementRow[] }) {
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="mt-1 space-y-0.5 border-t border-zinc-800 pt-1 text-[10px] leading-snug text-zinc-300">
+      {rows.map((row) => (
+        <p key={row.key}>{formatMainGuardAttributeLine(row)}</p>
+      ))}
+    </div>
+  );
 }
 
 function MainTraitsAttributesBox({
@@ -716,7 +951,7 @@ function MainTraitsAttributesBox({
   traitSummary: CharacterTraitSummary;
   derivedStats: CharacterDerivedCombatStats;
 }) {
-  const equipmentRows = mainSheetEquipmentTraitAttributes(derivedStats);
+  const equipmentRows = mainSheetEquipmentPlacementRows(derivedStats, MAIN_TRAIT_ATTRIBUTE_PLACEMENTS);
   const traits = traitSummary.selected;
 
   if (traits.length === 0 && equipmentRows.length === 0) return null;
@@ -743,22 +978,7 @@ function MainTraitsAttributesBox({
           </div>
         ))}
 
-        {equipmentRows.map((row) => (
-          <div key={row.key} className="cb-main-output-row border border-zinc-800 bg-zinc-950/50 p-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <p className="truncate text-[11px] font-semibold leading-tight text-zinc-100">
-                {row.itemName}
-              </p>
-              <p className="shrink-0 text-[9px] uppercase tracking-[0.08em] text-zinc-500">
-                {titleCase(row.placement)}
-              </p>
-            </div>
-            <p className="mt-0.5 text-[10px] leading-snug text-zinc-300">
-              <span className="font-semibold">{row.title}: </span>
-              {row.line}
-            </p>
-          </div>
-        ))}
+        <MainSheetPlacementRows rows={equipmentRows} className="contents" />
       </div>
     </section>
   );
@@ -774,26 +994,26 @@ function MainSheetBanner({
   assignedPlayerLabel?: string | null;
 }) {
   return (
-    <div className="cb-main-banner grid gap-1.5 border-2 border-zinc-800 bg-black/40 p-1.5 sm:grid-cols-[96px_minmax(0,1fr)]">
-      <div className="flex items-center justify-center border border-zinc-800 bg-zinc-950/70 px-2 py-1 text-base font-black uppercase tracking-[0.16em] text-zinc-100">
+    <div className="cb-main-banner grid gap-1.5 border-2 border-zinc-800 bg-zinc-100 p-1.5 text-black sm:grid-cols-[96px_minmax(0,1fr)]">
+      <div className="cb-main-banner-logo flex items-center justify-center border border-zinc-800 bg-white px-2 py-1 text-base font-black uppercase tracking-[0.16em] text-black">
         SMASH
       </div>
-      <div className="grid gap-1 text-[10px] leading-tight text-zinc-300 sm:grid-cols-4">
-        <div className="border border-zinc-800 bg-zinc-950/70 px-1.5 py-1">
-          <p className="uppercase tracking-[0.08em] text-zinc-500">Player Name</p>
-          <p className="truncate font-semibold text-zinc-100">{assignedPlayerLabel?.trim() || "-"}</p>
+      <div className="grid gap-1 text-[10px] leading-tight text-black sm:grid-cols-4">
+        <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
+          <p className="font-bold uppercase tracking-[0.08em] text-black">Player Name</p>
+          <p className="truncate font-semibold text-black">{assignedPlayerLabel?.trim() || "-"}</p>
         </div>
-        <div className="border border-zinc-800 bg-zinc-950/70 px-1.5 py-1">
-          <p className="uppercase tracking-[0.08em] text-zinc-500">Character Name</p>
-          <p className="truncate font-semibold text-zinc-100">{display(character.name)}</p>
+        <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
+          <p className="font-bold uppercase tracking-[0.08em] text-black">Character Name</p>
+          <p className="truncate font-semibold text-black">{display(character.name)}</p>
         </div>
-        <div className="border border-zinc-800 bg-zinc-950/70 px-1.5 py-1">
-          <p className="uppercase tracking-[0.08em] text-zinc-500">Power Level</p>
-          <p className="font-semibold text-zinc-100">{character.level}</p>
+        <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
+          <p className="font-bold uppercase tracking-[0.08em] text-black">Power Level</p>
+          <p className="font-semibold text-black">{character.level}</p>
         </div>
-        <div className="border border-zinc-800 bg-zinc-950/70 px-1.5 py-1">
-          <p className="uppercase tracking-[0.08em] text-zinc-500">Campaign Name</p>
-          <p className="truncate font-semibold text-zinc-100">{campaignName?.trim() || "-"}</p>
+        <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
+          <p className="font-bold uppercase tracking-[0.08em] text-black">Campaign Name</p>
+          <p className="truncate font-semibold text-black">{campaignName?.trim() || "-"}</p>
         </div>
       </div>
     </div>
@@ -817,6 +1037,19 @@ function MainCombatSheet({
   campaignName?: string | null;
   assignedPlayerLabel?: string | null;
 }) {
+  const attackAttributeRows = mainSheetEquipmentPlacementRows(
+    derivedStats,
+    MAIN_ATTACK_ATTRIBUTE_PLACEMENTS,
+  );
+  const guardAttributeRows = mainSheetEquipmentPlacementRows(
+    derivedStats,
+    MAIN_GUARD_ATTRIBUTE_PLACEMENTS,
+    { lineMode: "full" },
+  );
+  const attackAttributeRowsBySlot = groupMainSheetRowsBySlot(attackAttributeRows);
+  const attackSlots = new Set(derivedStats.attacks.map((attack) => attack.slot));
+  const unmatchedAttackAttributeRows = attackAttributeRows.filter((row) => !attackSlots.has(row.slot));
+
   return (
     <SheetFrame
       title="Main Combat"
@@ -875,7 +1108,7 @@ function MainCombatSheet({
           title="Attacks"
           header={<MainMetricPill label="Weapon Skill" value={derivedStats.weaponSkill} />}
         >
-          {derivedStats.attacks.length === 0 ? (
+          {derivedStats.attacks.length === 0 && attackAttributeRows.length === 0 ? (
             <p className="text-sm text-zinc-500">No equipped attack output.</p>
           ) : (
             <div className="space-y-1">
@@ -887,6 +1120,10 @@ function MainCombatSheet({
                       {EQUIPMENT_SLOT_LABELS[attack.slot]}
                     </div>
                   </div>
+                  <MainSheetPlacementRows
+                    rows={attackAttributeRowsBySlot.get(attack.slot) ?? []}
+                    className="mt-1 grid gap-1"
+                  />
                   <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10px] leading-snug text-zinc-300">
                     {attack.lines.slice(0, compact ? 3 : attack.lines.length).map((line, index) => (
                       <li key={`${attack.label}-${index}`}>{compactLine(line)}</li>
@@ -894,6 +1131,7 @@ function MainCombatSheet({
                   </ul>
                 </div>
               ))}
+              <MainSheetPlacementRows rows={unmatchedAttackAttributeRows} />
             </div>
           )}
         </MainCombatSection>
@@ -911,11 +1149,8 @@ function MainCombatSheet({
             </div>
           }
         >
-          <ul className="list-disc space-y-0.5 pl-4 text-[10px] leading-snug text-zinc-300">
-            {derivedStats.defenceStrings.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
+          <MainDefenceStringBoxes lines={derivedStats.defenceStrings} />
+          <MainGuardAttributeLines rows={guardAttributeRows} />
         </MainCombatSection>
       </div>
     </SheetFrame>
@@ -1011,17 +1246,6 @@ function CharacterIdentitySheet({
 function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudget }) {
   return (
     <SheetFrame title="Power Sheet(s)" subtitle="Power references generated from the shared descriptor and resolver output.">
-      <div className="grid gap-3 sm:grid-cols-4">
-        <StatTile label="Power Pool" value={formatSheetNumber(powerBudget.powerPool)} emphasis />
-        <StatTile label="Spend Scalar" value={`x${formatSheetNumber(powerBudget.playerPowerSpendScalar)}`} />
-        <StatTile label="Spent" value={formatSheetNumber(powerBudget.totalSpent)} />
-        <StatTile
-          label="Remaining"
-          value={formatSheetNumber(powerBudget.remaining)}
-          helper={powerBudget.overspent ? "Overspent" : undefined}
-        />
-      </div>
-
       {powerBudget.powers.length === 0 ? (
         <SheetPanel title="Powers">
           <p className="text-sm text-zinc-500">No powers authored.</p>
@@ -1095,6 +1319,8 @@ function InventorySheet({
   derivedStats: CharacterDerivedCombatStats;
   compact: boolean;
 }) {
+  const activeEffectRegistry = buildActiveEffectRegistry(equipped);
+
   return (
     <SheetFrame title="Inventory Sheet" subtitle="Equipped gear and Backpack items.">
       <SheetPanel title="Protection Summary">
@@ -1118,7 +1344,12 @@ function InventorySheet({
         ) : (
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {equipped.map(({ slot, backpackItem }) => (
-              <EquippedItemCompactCard key={slot} slot={slot} item={backpackItem} />
+              <EquippedItemCompactCard
+                key={slot}
+                slot={slot}
+                item={backpackItem}
+                activeEffectRegistry={activeEffectRegistry}
+              />
             ))}
           </div>
         )}
@@ -1259,14 +1490,29 @@ export function CharacterSheetPreview({
         }
 
         .cb-sheet-preview .cb-main-sheet .cb-main-hero,
-        .cb-sheet-preview .cb-main-sheet .cb-main-banner,
         .cb-sheet-preview .cb-main-sheet .cb-identity-band,
         .cb-sheet-preview .cb-main-sheet .cb-main-reference-tile,
         .cb-sheet-preview .cb-main-sheet .cb-attribute-card,
         .cb-sheet-preview .cb-main-sheet .cb-main-traits-section,
         .cb-sheet-preview .cb-main-sheet .cb-main-combat-section,
+        .cb-sheet-preview .cb-main-sheet .cb-main-defence-box,
         .cb-sheet-preview .cb-main-sheet .cb-main-output-row {
           background: #f4f4f5;
+        }
+
+        .cb-sheet-preview .cb-main-sheet .cb-main-banner {
+          background: #f4f4f5;
+          color: #000000;
+        }
+
+        .cb-sheet-preview .cb-main-sheet .cb-main-banner-logo,
+        .cb-sheet-preview .cb-main-sheet .cb-main-banner-field {
+          background: #ffffff;
+          color: #000000;
+        }
+
+        .cb-sheet-preview .cb-main-sheet .cb-main-banner * {
+          color: #000000;
         }
 
         .cb-sheet-preview .cb-main-sheet .cb-main-combat-section h3,

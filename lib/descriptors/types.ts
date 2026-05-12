@@ -17,12 +17,16 @@ export type WeaponAttributeLine = {
   kind: "WEAPON_ATTRIBUTE";
   itemType: ItemType;
   placement?: AttributePlacement | null;
+  effectFamily?: string | null;
+  effectValue?: number | null;
   text: string; // fully rendered line, including “Name: …”
 };
 
 export type TextLine = {
   kind: "TEXT";
   placement?: AttributePlacement | null;
+  effectFamily?: string | null;
+  effectValue?: number | null;
   text: string;
 };
 

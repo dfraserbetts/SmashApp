@@ -250,11 +250,19 @@ export function renderForgeLine(
 export function renderForgeSection(
   section: DescriptorSection,
   options?: ForgeRenderOptions,
-): { title: string; lines: string[]; linePlacements?: Array<AttributePlacement | null> } {
+): {
+  title: string;
+  lines: string[];
+  linePlacements?: Array<AttributePlacement | null>;
+  lineEffectFamilies?: Array<string | null>;
+  lineEffectValues?: Array<number | null>;
+} {
   const renderedLines = section.lines
     .map((line) => ({
       text: renderForgeLine(line, options),
       placement: "placement" in line ? line.placement ?? null : null,
+      effectFamily: "effectFamily" in line ? line.effectFamily ?? null : null,
+      effectValue: "effectValue" in line ? line.effectValue ?? null : null,
     }))
     .filter((line) => line.text);
 
@@ -262,13 +270,21 @@ export function renderForgeSection(
     title: section.title,
     lines: renderedLines.map((line) => line.text),
     linePlacements: renderedLines.map((line) => line.placement),
+    lineEffectFamilies: renderedLines.map((line) => line.effectFamily),
+    lineEffectValues: renderedLines.map((line) => line.effectValue),
   };
 }
 
 export function renderForgeResult(
   result: DescriptorResult,
   options?: ForgeRenderOptions,
-): Array<{ title: string; lines: string[]; linePlacements?: Array<AttributePlacement | null> }> {
+): Array<{
+  title: string;
+  lines: string[];
+  linePlacements?: Array<AttributePlacement | null>;
+  lineEffectFamilies?: Array<string | null>;
+  lineEffectValues?: Array<number | null>;
+}> {
   return result.sections
     .map((section) => renderForgeSection(section, options))
     .filter((s) => s.lines.length > 0);

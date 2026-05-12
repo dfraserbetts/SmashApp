@@ -3,6 +3,59 @@ import { prisma } from "@/prisma/client";
 import { requireUserId } from "@/lib/auth/server";
 import { requireCampaignGameDirector } from "@/lib/campaign/access";
 
+export async function PATCH(
+  req: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const params = await context.params;
+    const campaignId = String(params?.id ?? "").trim();
+    if (!campaignId) {
+      return NextResponse.json({ error: "Campaign id is required" }, { status: 400 });
+    }
+
+    const body = (await req.json().catch(() => null)) as
+      | {
+          name?: unknown;
+        }
+      | null;
+
+    const name = typeof body?.name === "string" ? body.name.trim() : "";
+    if (!name) {
+      return NextResponse.json({ error: "Campaign name is required" }, { status: 400 });
+    }
+
+    const userId = await requireUserId();
+    await requireCampaignGameDirector(campaignId, userId);
+
+    const campaign = await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { name },
+      select: {
+        id: true,
+        name: true,
+        ownerUserId: true,
+        descriptorVersionTag: true,
+      },
+    });
+
+    return NextResponse.json({ ok: true, campaign });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg === "UNAUTHORIZED") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (msg === "FORBIDDEN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (msg === "NOT_FOUND") {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+    console.error("[CAMPAIGN_RENAME]", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   req: Request,
   context: { params: Promise<{ id: string }> },
