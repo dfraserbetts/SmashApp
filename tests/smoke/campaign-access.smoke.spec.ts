@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   expectEmailPrivate,
@@ -12,6 +12,17 @@ import {
 
 const missing = missingSmokeEnv();
 test.skip(missing.length > 0, `Missing smoke env vars: ${missing.join(", ")}`);
+
+async function waitForPartyStashReady(page: Page) {
+  await expect(page.getByText("Loading Party Stash...")).toHaveCount(0, { timeout: 15000 });
+
+  const loadError = page.locator('[data-testid="party-inventory-page"] .text-red-400').first();
+  if (await loadError.isVisible().catch(() => false)) {
+    throw new Error(`Party Stash failed to load: ${await loadError.innerText()}`);
+  }
+
+  await expectTestIdVisible(page, "party-stash-panel");
+}
 
 test.describe("campaign member privacy", () => {
   test("Game Director can see member admin details", async ({ page }) => {
@@ -52,7 +63,7 @@ test.describe("party stash permissions", () => {
     await gotoPartyInventory(page, smoke.campaignId);
 
     await expectTestIdVisible(page, "party-inventory-page");
-    await expectTestIdVisible(page, "party-stash-panel");
+    await waitForPartyStashReady(page);
     await expect(page.getByText("Add to Party Inventory")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /Add Item/i })).toHaveCount(0);
     await expect(page.getByTestId("party-stash-assign-column")).toHaveCount(0);
@@ -67,7 +78,7 @@ test.describe("party stash permissions", () => {
     await gotoPartyInventory(page, smoke.campaignId);
 
     await expectTestIdVisible(page, "party-inventory-page");
-    await expectTestIdVisible(page, "party-stash-panel");
+    await waitForPartyStashReady(page);
     await expectTestIdVisible(page, "party-stash-manager-indicator");
     await expectEmailPrivate(page, smoke.gd.email);
     await expectEmailPrivate(page, smoke.player.email);
