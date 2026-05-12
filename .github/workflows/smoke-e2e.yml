@@ -1,0 +1,53 @@
+name: Smoke E2E
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/smashapp
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/smashapp
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke E2E
+        env:
+          SMOKE_BASE_URL: ${{ secrets.SMOKE_BASE_URL }}
+          SMOKE_CAMPAIGN_ID: ${{ secrets.SMOKE_CAMPAIGN_ID }}
+          SMOKE_GD_EMAIL: ${{ secrets.SMOKE_GD_EMAIL }}
+          SMOKE_GD_PASSWORD: ${{ secrets.SMOKE_GD_PASSWORD }}
+          SMOKE_PLAYER_EMAIL: ${{ secrets.SMOKE_PLAYER_EMAIL }}
+          SMOKE_PLAYER_PASSWORD: ${{ secrets.SMOKE_PLAYER_PASSWORD }}
+          SMOKE_STASH_MANAGER_EMAIL: ${{ secrets.SMOKE_STASH_MANAGER_EMAIL }}
+          SMOKE_STASH_MANAGER_PASSWORD: ${{ secrets.SMOKE_STASH_MANAGER_PASSWORD }}
+          SMOKE_PLAYER_CHARACTER_ID: ${{ secrets.SMOKE_PLAYER_CHARACTER_ID }}
+          SMOKE_GD_CHARACTER_ID: ${{ secrets.SMOKE_GD_CHARACTER_ID }}
+          SMOKE_OTHER_PLAYER_CHARACTER_ID: ${{ secrets.SMOKE_OTHER_PLAYER_CHARACTER_ID }}
+        run: npm run smoke:e2e -- --reporter=list
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-artifacts
+          path: |
+            test-results/**
+            playwright-report/**
+          if-no-files-found: ignore
