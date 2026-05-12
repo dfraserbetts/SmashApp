@@ -580,11 +580,74 @@ function stripForgeLineLabel(line: string) {
   return (parts.length > 1 ? parts.slice(1).join("||") : parts[0]).trim();
 }
 
+function compactModifierAttribute(attribute: string, amount: number) {
+  const normalizedAmount = Math.trunc(amount);
+  const sign = normalizedAmount > 0 ? `+${normalizedAmount}` : String(normalizedAmount);
+  const defenceMatch = attribute.match(/^(?:(dice)\s+)?(?:to\s+)?Defence rolls against (.+?) attacks$/i);
+  if (!defenceMatch) return null;
+  const damageType = defenceMatch[2].trim();
+  return defenceMatch[1] ? `${sign} dice vs ${damageType}` : `${sign} defence vs ${damageType}`;
+}
+
 function formatCompactModifier(attribute: string | undefined, amount: number | undefined) {
   if (!attribute || !Number.isFinite(amount)) return null;
   const normalizedAmount = Math.trunc(amount ?? 0);
   if (normalizedAmount === 0) return null;
+  const compactAttribute = compactModifierAttribute(attribute, normalizedAmount);
+  if (compactAttribute) return compactAttribute;
   return `${normalizedAmount > 0 ? "+" : ""}${normalizedAmount} ${attribute}`;
+}
+
+function normalizeSignedInput(value: string) {
+  return value.replace(/[−–—]/g, "-").trim();
+}
+
+function formatCompactSignedValue(value: string) {
+  const numeric = Math.trunc(Number(normalizeSignedInput(value)));
+  if (!Number.isFinite(numeric)) return value;
+  return numeric > 0 ? `+${numeric}` : String(numeric);
+}
+
+function compactEquippedItemLine(line: string) {
+  const cleaned = stripForgeLineLabel(line);
+  const withoutPeriod = cleaned.replace(/\.$/, "").trim();
+
+  const customMatch = withoutPeriod.match(/^Custom:\s*(.+)$/i);
+  if (customMatch) return customMatch[1].trim();
+
+  const vrpMatch = withoutPeriod.match(
+    /^Whilst (?:wearing this armor|wielding this shield), you (gain|suffer) ([+\-−]?\d+)( dice)? to Defence rolls against ([A-Za-z ]+) attacks$/i,
+  );
+  if (vrpMatch) {
+    const amountNumber = Math.abs(Math.trunc(Number(normalizeSignedInput(vrpMatch[2]))));
+    const signedAmount = vrpMatch[1].toLowerCase() === "suffer" ? `-${amountNumber}` : `+${amountNumber}`;
+    const damageType = vrpMatch[4].trim();
+    return vrpMatch[3] ? `${signedAmount} dice vs ${damageType}` : `${signedAmount} defence vs ${damageType}`;
+  }
+
+  const rawVrpMatch = withoutPeriod.match(
+    /^([+\-−]?\d+)( dice)? (?:to )?Defence rolls against ([A-Za-z ]+) attacks$/i,
+  );
+  if (rawVrpMatch) {
+    const amount = formatCompactSignedValue(rawVrpMatch[1]);
+    return rawVrpMatch[2]
+      ? `${amount} dice vs ${rawVrpMatch[3].trim()}`
+      : `${amount} defence vs ${rawVrpMatch[3].trim()}`;
+  }
+
+  const attributeMatch = withoutPeriod.match(
+    /^Whilst (?:wielding this shield|wearing this armor|wearing this item), (?:the wielder gains|you gain) ([+\-−]?\d+) to ([A-Za-z ]+)$/i,
+  );
+  if (attributeMatch) {
+    return `${formatCompactSignedValue(attributeMatch[1])} ${attributeMatch[2].trim()}`;
+  }
+
+  const spikedMatch = withoutPeriod.match(
+    /^Spiked:\s*Whenever you are the target of a melee attack, the attacking creature suffers (\d+) physical piercing wounds?$/i,
+  );
+  if (spikedMatch) return `Spiked ${spikedMatch[1]}`;
+
+  return cleaned;
 }
 
 function formatSignedModifierValue(value: number) {
@@ -630,8 +693,6 @@ function equippedSlotsSignature(equippedSlots: CharacterBuilderData["equippedSlo
 function buildEquippedItemBullets(item: BuilderBackpackItem) {
   const template = item.itemTemplate;
   const bullets: string[] = [];
-  if (template.ppv && template.ppv > 0) bullets.push(`${template.ppv} PPV`);
-  if (template.mpv && template.mpv > 0) bullets.push(`${template.mpv} MPV`);
 
   for (const modifier of template.globalAttributeModifiers ?? []) {
     const bullet = formatCompactModifier(modifier.attribute, modifier.amount);
@@ -640,16 +701,31 @@ function buildEquippedItemBullets(item: BuilderBackpackItem) {
 
   for (const section of template.descriptorSections) {
     for (const line of section.lines) {
-      const bullet = stripForgeLineLabel(line);
+      const bullet = compactEquippedItemLine(line);
       if (bullet) bullets.push(bullet);
     }
+  }
+
+  const hasCompactProtection = bullets.some((bullet) => /\+\d+\s+P[MP]V/i.test(bullet));
+  if (!hasCompactProtection) {
+    if (template.ppv && template.ppv > 0) bullets.push(`${template.ppv} PPV`);
+    if (template.mpv && template.mpv > 0) bullets.push(`${template.mpv} MPV`);
   }
 
   if (bullets.length === 0 && template.generalDescription) {
     bullets.push(template.generalDescription);
   }
 
-  return Array.from(new Set(bullets)).slice(0, 8);
+  const uniqueBullets: string[] = [];
+  const seen = new Set<string>();
+  for (const bullet of bullets) {
+    const key = bullet.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueBullets.push(bullet);
+  }
+
+  return uniqueBullets.slice(0, 8);
 }
 
 function EquippedItemMiniCard({

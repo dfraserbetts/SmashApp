@@ -101,6 +101,39 @@ export type CharacterBuilderEquipmentSummary = {
   descriptorWarnings: string[];
 };
 
+function customAttributeSections(item: CharacterBuilderEquipmentItemSource) {
+  const sections: Array<{ title: string; lines: string[] }> = [];
+  const customFields = [
+    {
+      title: "Custom Weapon Attributes",
+      value: item.type === "WEAPON" ? item.customWeaponAttributes : null,
+    },
+    {
+      title: "Custom Armor Attributes",
+      value: item.type === "ARMOR" ? item.customArmorAttributes : null,
+    },
+    {
+      title: "Custom Shield Attributes",
+      value: item.type === "SHIELD" ? item.customShieldAttributes : null,
+    },
+    {
+      title: "Custom Item Attributes",
+      value: item.type === "ITEM" ? item.customItemAttributes : null,
+    },
+  ];
+
+  for (const field of customFields) {
+    const text = field.value?.trim();
+    if (!text) continue;
+    sections.push({
+      title: field.title,
+      lines: [`Custom: ${text}`],
+    });
+  }
+
+  return sections;
+}
+
 function numberOrUndefined(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
@@ -223,7 +256,7 @@ export function summarizeEquipmentItem(item: CharacterBuilderEquipmentItemSource
   const descriptor = buildDescriptorResult(buildDescriptorInput(item));
   return {
     details: detailParts.length > 0 ? detailParts.join(" - ") : "No item details",
-    descriptorSections: renderForgeResult(descriptor),
+    descriptorSections: [...renderForgeResult(descriptor), ...customAttributeSections(item)],
     descriptorWarnings: descriptor.meta?.warnings ?? [],
   };
 }

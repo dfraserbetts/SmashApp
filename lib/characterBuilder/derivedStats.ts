@@ -209,7 +209,10 @@ function itemOutputSections(
     "Armor Attributes",
     "Shield Attributes",
     "VRP",
+    "Custom Weapon Attributes",
     "Custom Armor Attributes",
+    "Custom Shield Attributes",
+    "Custom Item Attributes",
   ]);
   return entries.flatMap(({ slot, backpackItem }) =>
     (backpackItem.itemTemplate.descriptorSections ?? [])
