@@ -52,9 +52,48 @@ export function readSmokeFixture(): SmokeFixture {
   };
 }
 
+const SMOKE_APP_READY_TIMEOUT_MS = 30000;
+const SMOKE_APP_READY_RETRY_MS = 750;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isSmokeAppReachabilityError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /ERR_CONNECTION_REFUSED|ECONNREFUSED|ERR_CONNECTION_RESET|ERR_EMPTY_RESPONSE|ERR_ADDRESS_UNREACHABLE|ERR_NAME_NOT_RESOLVED/i.test(
+    message,
+  );
+}
+
+async function gotoWhenSmokeAppReachable(page: Page, path: string) {
+  const deadline = Date.now() + SMOKE_APP_READY_TIMEOUT_MS;
+  let lastError: unknown = null;
+
+  while (Date.now() <= deadline) {
+    try {
+      return await page.goto(path);
+    } catch (error) {
+      if (!isSmokeAppReachabilityError(error)) {
+        throw error;
+      }
+      lastError = error;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      await sleep(Math.min(SMOKE_APP_READY_RETRY_MS, remaining));
+    }
+  }
+
+  const baseUrl = process.env.SMOKE_BASE_URL ?? "http://localhost:3000";
+  const detail = lastError instanceof Error ? ` Last error: ${lastError.message}` : "";
+  throw new Error(
+    `Smoke app is not reachable at SMOKE_BASE_URL. Start npm run dev or check SMOKE_BASE_URL. Resolved base URL: ${baseUrl}.${detail}`,
+  );
+}
+
 export async function resetSession(page: Page) {
   await page.context().clearCookies();
-  await page.goto("/login");
+  await gotoWhenSmokeAppReachable(page, "/login");
   await page.evaluate(() => {
     window.localStorage.clear();
     window.sessionStorage.clear();
@@ -66,7 +105,7 @@ export async function login(page: Page, account: SmokeAccount) {
   await page.getByLabel("Email").fill(account.email);
   await page.getByLabel("Password").fill(account.password);
   await page.getByRole("button", { name: /^login$/i }).click();
-  await expect(page).toHaveURL(/\/dashboard(?:$|\?)/);
+  await expect(page).toHaveURL(/\/dashboard(?:$|\?)/, { timeout: 15000 });
 }
 
 export async function gotoCampaign(page: Page, campaignId: string) {
