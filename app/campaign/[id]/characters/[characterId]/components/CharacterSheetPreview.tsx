@@ -1,5 +1,6 @@
 import type React from "react";
 
+import { getForgeRarityPalette } from "@/lib/forge/itemRarityPalette";
 import {
   EQUIPMENT_SLOT_LABELS,
   EQUIPMENT_SLOTS,
@@ -130,16 +131,6 @@ function itemMeta(item: CharacterBuilderDerivedBackpackItem) {
     .join(" / ");
 }
 
-function itemBriefMeta(item: CharacterBuilderDerivedBackpackItem) {
-  return [
-    item.itemTemplate.type,
-    item.itemTemplate.rarity,
-    item.itemTemplate.level ? `Level ${item.itemTemplate.level}` : null,
-  ]
-    .filter(Boolean)
-    .join(" / ");
-}
-
 function titleCase(value: string | null | undefined) {
   const raw = value?.trim();
   if (!raw) return "-";
@@ -151,27 +142,156 @@ function titleCase(value: string | null | undefined) {
     .join(" ");
 }
 
-function itemProtectionSummary(item: CharacterBuilderDerivedBackpackItem) {
-  const ppv = item.itemTemplate.ppv ?? 0;
-  const mpv = item.itemTemplate.mpv ?? 0;
-  if (!ppv && !mpv) return null;
-  return `PPV ${ppv || "-"} / MPV ${mpv || "-"}`;
-}
-
-function itemModifierSummary(item: CharacterBuilderDerivedBackpackItem) {
-  const modifiers = item.itemTemplate.globalAttributeModifiers ?? [];
-  return modifiers
-    .filter((modifier) => modifier.attribute && typeof modifier.amount === "number" && modifier.amount !== 0)
-    .slice(0, 4)
-    .map((modifier) => `${modifier.attribute} ${signed(Number(modifier.amount))}`)
-    .join(", ");
-}
-
 function itemDescriptorPreview(item: CharacterBuilderDerivedBackpackItem, maxLines = 2) {
   const sections = item.itemTemplate.descriptorSections ?? [];
   const sectionLines = sections.flatMap((section) => section.lines.map((line) => compactLine(line)));
   const lines = sectionLines.length > 0 ? sectionLines : item.itemTemplate.details ? [item.itemTemplate.details] : [];
   return lines.filter(Boolean).slice(0, maxLines);
+}
+
+function stripForgeLineLabel(line: string) {
+  const parts = String(line).split("||");
+  return (parts.length > 1 ? parts.slice(1).join("||") : parts[0]).trim();
+}
+
+function formatCompactModifier(attribute: string | undefined, amount: number | undefined) {
+  if (!attribute || !Number.isFinite(amount)) return null;
+  const normalizedAmount = Math.trunc(amount ?? 0);
+  if (normalizedAmount === 0) return null;
+  return `${normalizedAmount > 0 ? "+" : ""}${normalizedAmount} ${attribute}`;
+}
+
+function compactProtectionValue(value: string, label: "PPV" | "MPV") {
+  const numeric = Math.trunc(Number(value));
+  return `${numeric > 0 ? "+" : ""}${numeric} ${label}`;
+}
+
+function compactSignedValue(value: string) {
+  const numeric = Math.trunc(Number(value));
+  if (!Number.isFinite(numeric)) return value;
+  return numeric > 0 ? `+${numeric}` : String(numeric);
+}
+
+function compactDamageType(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function compactGreaterSuccessClause(value: string) {
+  const stacks = value
+    .split(/\s+or\s+|\s*,\s*|\s+and\s+/i)
+    .map((stack) => stack.replace(/^1 stack of\s+/i, "").trim())
+    .filter(Boolean);
+
+  if (stacks.length === 0) return null;
+  return `GS: ${stacks.map((stack) => `+1 ${stack}`).join(" / ")}`;
+}
+
+function compactWeaponRange(rangeText: string) {
+  const adjacentMatch = rangeText.match(/^(\d+) adjacent targets?$/i);
+  if (adjacentMatch) return `${adjacentMatch[1]} melee`;
+
+  const rangedMatch = rangeText.match(/^(\d+) targets? within (\d+)ft$/i);
+  if (rangedMatch) return `${rangedMatch[1]} ranged ${rangedMatch[2]}ft`;
+
+  const aoeMatch = rangeText.match(
+    /^(up to )?(\d+) (?:x|\u00d7) (?:(\d+)ft )?(Spheres?|Cones?|Lines?)(?: within (\d+)ft| centered on yourself| emanating from yourself)$/i,
+  );
+  if (aoeMatch) {
+    const [, upTo, count, size, shape, distance] = aoeMatch;
+    const singularShape = shape.replace(/s$/i, "").toLowerCase();
+    return [
+      `${upTo ? "up to " : ""}${count} ${singularShape}`,
+      size ? `${size}ft` : null,
+      distance ? `@ ${distance}ft` : "self",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  return rangeText.replace(/^1 adjacent target$/i, "1 melee");
+}
+
+function compactEquippedItemBullet(line: string) {
+  const cleaned = stripForgeLineLabel(line);
+  const withoutPeriod = cleaned.replace(/\.$/, "").trim();
+
+  const attributeMatch = withoutPeriod.match(
+    /^Whilst (?:wielding this shield|wearing this armor), (?:the wielder gains|you gain) ([+-]?\d+) to ([A-Za-z ]+)$/i,
+  );
+  if (attributeMatch) {
+    return `${compactSignedValue(attributeMatch[1])} ${attributeMatch[2].trim()}`;
+  }
+
+  const combinedProtectionMatch = withoutPeriod.match(
+    /^Whilst (?:wearing this armor|wielding this shield), increase your Physical Protection by (\d+), and Mental Protection by (\d+)$/i,
+  );
+  if (combinedProtectionMatch) {
+    return [
+      compactProtectionValue(combinedProtectionMatch[1], "PPV"),
+      compactProtectionValue(combinedProtectionMatch[2], "MPV"),
+    ].join(" / ");
+  }
+
+  const singleProtectionMatch = withoutPeriod.match(
+    /^Whilst (?:wearing this armor|wielding this shield), increase your (Physical|Mental) Protection by (\d+)$/i,
+  );
+  if (singleProtectionMatch) {
+    return compactProtectionValue(
+      singleProtectionMatch[2],
+      singleProtectionMatch[1].toLowerCase() === "physical" ? "PPV" : "MPV",
+    );
+  }
+
+  const defencePenaltyMatch = withoutPeriod.match(
+    /^Whilst wearing this armor, you suffer (-?\d+) to Defence rolls against ([A-Za-z ]+) attacks$/i,
+  );
+  if (defencePenaltyMatch) {
+    return `${compactSignedValue(defencePenaltyMatch[1])} Defence vs ${defencePenaltyMatch[2].trim()}`;
+  }
+
+  const standaloneGreaterSuccessMatch = withoutPeriod.match(
+    /^Each greater success inflicts (.+)$/i,
+  );
+  if (standaloneGreaterSuccessMatch) {
+    return compactGreaterSuccessClause(standaloneGreaterSuccessMatch[1]) ?? cleaned;
+  }
+
+  const weaponMatch = withoutPeriod.match(
+    /^Choose (.+) and roll weapon skill dice\. This weapon inflicts (\d+) (?:physical|mental) ([A-Za-z ]+) wounds? per success(?:\. Each greater success inflicts (.+))?$/i,
+  );
+  if (weaponMatch) {
+    const range = compactWeaponRange(weaponMatch[1]);
+    const base = `${range} - ${weaponMatch[2]} ${compactDamageType(weaponMatch[3])} wounds`;
+    const greaterSuccess = weaponMatch[4] ? compactGreaterSuccessClause(weaponMatch[4]) : null;
+    return greaterSuccess ? `${base} / ${greaterSuccess}` : base;
+  }
+
+  return cleaned;
+}
+
+function equippedItemBullets(item: CharacterBuilderDerivedBackpackItem) {
+  const template = item.itemTemplate;
+  const bullets: string[] = [];
+  if (template.ppv && template.ppv > 0) bullets.push(`${template.ppv} PPV`);
+  if (template.mpv && template.mpv > 0) bullets.push(`${template.mpv} MPV`);
+
+  for (const modifier of template.globalAttributeModifiers ?? []) {
+    const bullet = formatCompactModifier(modifier.attribute, modifier.amount);
+    if (bullet) bullets.push(bullet);
+  }
+
+  for (const section of template.descriptorSections ?? []) {
+    for (const line of section.lines) {
+      const bullet = compactEquippedItemBullet(line);
+      if (bullet) bullets.push(bullet);
+    }
+  }
+
+  if (bullets.length === 0 && template.details) {
+    bullets.push(template.details);
+  }
+
+  return Array.from(new Set(bullets)).slice(0, 8);
 }
 
 function selectedEquippedItems(
@@ -184,6 +304,108 @@ function selectedEquippedItems(
     const backpackItem = backpackItemId ? byId.get(backpackItemId) : null;
     return backpackItem ? [{ slot, backpackItem }] : [];
   });
+}
+
+function EquippedItemCompactCard({
+  slot,
+  item,
+}: {
+  slot: EquipmentSlotKey;
+  item: CharacterBuilderDerivedBackpackItem;
+}) {
+  const template = item.itemTemplate;
+  const palette = getForgeRarityPalette(template.rarity);
+  const slotLabel = EQUIPMENT_SLOT_LABELS[slot];
+  const meta = itemMeta(item);
+  const imageUrl = isHttpUrl(template.itemUrl) ? template.itemUrl?.trim() : null;
+  const bullets = equippedItemBullets(item);
+
+  return (
+    <article
+      className={`space-y-2 overflow-hidden rounded border p-2 ${palette.panelBorderClass} ${palette.panelShadowClass}`}
+      style={{
+        backgroundImage: palette.backgroundImage,
+        borderColor: palette.panelBorderColor,
+      }}
+    >
+      <div className="min-w-0">
+        <p className="text-[11px] text-zinc-500">{slotLabel}</p>
+        <p
+          className={`truncate text-sm ${palette.nameTextClass}`}
+          style={{ color: palette.headerColor }}
+        >
+          {itemName(item)}
+          {meta ? ` - ${meta}` : ""}
+        </p>
+      </div>
+      <div
+        className={`grid h-[180px] grid-cols-[minmax(92px,42%)_1fr] gap-3 overflow-hidden rounded border p-2 ${palette.panelBorderClass} ${palette.panelShadowClass}`}
+        style={{
+          borderColor: palette.panelBorderColor,
+          backgroundColor: "rgba(3, 7, 18, 0.34)",
+        }}
+      >
+        <div
+          className={`flex min-w-0 items-center justify-center overflow-hidden rounded border ${palette.imageBorderClass}`}
+          style={{
+            borderColor: palette.panelBorderColor,
+            backgroundColor: "rgba(3, 7, 18, 0.34)",
+            boxShadow: `inset 0 0 18px rgba(0,0,0,0.35), 0 0 14px ${palette.outerBorderColor.replace(
+              "/",
+              "",
+            )}`,
+          }}
+        >
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={`${slotLabel} item preview`}
+              className="max-h-full max-w-full object-contain"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <p className={`text-xs ${palette.descriptionTextClass}`} style={{ color: palette.bodyColor }}>
+              No image
+            </p>
+          )}
+        </div>
+        <div
+          className={`min-h-0 min-w-0 overflow-y-auto overflow-x-hidden rounded border p-2 pr-3 ${palette.panelBorderClass} ${palette.panelShadowClass}`}
+          style={{
+            borderColor: palette.panelBorderColor,
+            backgroundColor: "rgba(3, 7, 18, 0.58)",
+          }}
+        >
+          <p
+            className={`mb-1 truncate text-[10px] uppercase tracking-wide ${palette.headerTextClass}`}
+            style={{ color: palette.headerColor }}
+          >
+            Values
+          </p>
+          {bullets.length > 0 ? (
+            <ul
+              className={`list-disc space-y-0.5 pl-4 text-[11px] leading-snug ${palette.bodyTextClass}`}
+              style={{ color: palette.bodyColor }}
+            >
+              {bullets.map((bullet) => (
+                <li key={bullet} className="break-words">
+                  {bullet}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p
+              className={`text-[11px] leading-snug ${palette.descriptionTextClass}`}
+              style={{ color: palette.bodyColor }}
+            >
+              No listed values.
+            </p>
+          )}
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function SheetFrame({
@@ -199,15 +421,12 @@ function SheetFrame({
 }) {
   return (
     <article
+      aria-label={subtitle ? `${title}: ${subtitle}` : title}
       className={[
         "cb-sheet-page overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-100 shadow-sm",
         className,
       ].join(" ")}
     >
-      <header className="cb-sheet-title-band border-b border-zinc-800 bg-zinc-900/70 px-4 py-3">
-        <h2 className="text-lg font-semibold uppercase tracking-[0.08em]">{title}</h2>
-        {subtitle ? <p className="mt-1 text-xs text-zinc-400">{subtitle}</p> : null}
-      </header>
       <div className="space-y-3 p-3 sm:p-4">{children}</div>
     </article>
   );
@@ -324,7 +543,7 @@ function CombatSide({
   builderData,
   derivedStats,
 }: {
-  title: string;
+  title?: string;
   tone: "mental" | "physical";
   stats: Array<{ label: string; value: React.ReactNode; helper?: React.ReactNode }>;
   attributes: CharacterAttribute[];
@@ -335,9 +554,11 @@ function CombatSide({
 
   return (
     <div className="cb-combat-side space-y-2">
-      <p className={`border-b border-zinc-800 pb-1 text-xs font-semibold uppercase tracking-[0.1em] ${titleClass}`}>
-        {title}
-      </p>
+      {title ? (
+        <p className={`border-b border-zinc-800 pb-1 text-xs font-semibold uppercase tracking-[0.1em] ${titleClass}`}>
+          {title}
+        </p>
+      ) : null}
       <div className="grid grid-cols-2 gap-1.5">
         {stats.map((stat) => (
           <StatTile key={stat.label} label={stat.label} value={stat.value} helper={stat.helper} />
@@ -360,7 +581,6 @@ function MainCombatSheet({
   character,
   builderData,
   derivedStats,
-  equipped,
   compact,
   campaignName,
   assignedPlayerLabel,
@@ -368,7 +588,6 @@ function MainCombatSheet({
   character: CharacterSheetCharacter;
   builderData: CharacterBuilderData;
   derivedStats: CharacterDerivedCombatStats;
-  equipped: EquippedEntry[];
   compact: boolean;
   campaignName?: string | null;
   assignedPlayerLabel?: string | null;
@@ -381,16 +600,9 @@ function MainCombatSheet({
       <div className="cb-main-hero border-2 border-zinc-800 bg-black/40 p-2.5">
         <div className="grid grid-cols-1 items-stretch gap-2.5 lg:grid-cols-[1.15fr_1.35fr_1.15fr]">
           <CombatSide
-            title="Mental Reference"
             tone="mental"
             stats={[
-              { label: "Mental Health", value: derivedStats.mentalHealth },
-              {
-                label: "MPV",
-                value: derivedStats.mentalProtection,
-                helper: `${derivedStats.mentalBlockPerSuccess} block / success`,
-              },
-              { label: "Willpower", value: derivedStats.willpower },
+              { label: "Mental Perseverance", value: derivedStats.mentalHealth },
             ]}
             attributes={["Intellect", "Synergy", "Bravery"]}
             builderData={builderData}
@@ -431,22 +643,9 @@ function MainCombatSheet({
           </div>
 
           <CombatSide
-            title="Physical Reference"
             tone="physical"
             stats={[
-              { label: "Physical Health", value: derivedStats.physicalHealth },
-              {
-                label: "PPV",
-                value: derivedStats.physicalProtection,
-                helper: `${derivedStats.physicalBlockPerSuccess} block / success`,
-              },
-              { label: "Weapon Skill", value: derivedStats.weaponSkill },
-              { label: "Armor Skill", value: derivedStats.armorSkill },
-              {
-                label: "Dodge",
-                value: `${derivedStats.dodgeDice} dice`,
-                helper: `Value ${formatSheetNumber(derivedStats.dodgeValue)}`,
-              },
+              { label: "Physical Resilience", value: derivedStats.physicalHealth },
             ]}
             attributes={["Attack", "Guard", "Fortitude"]}
             builderData={builderData}
@@ -457,6 +656,10 @@ function MainCombatSheet({
 
       <div className="grid gap-4 xl:grid-cols-2">
         <SheetPanel title="Attacks">
+          <div className="mb-2 flex items-center justify-between gap-2 border border-zinc-800 bg-zinc-950/50 px-2 py-1.5 text-sm">
+            <span className="text-[10px] uppercase tracking-[0.08em] text-zinc-500">Weapon Skill</span>
+            <span className="font-semibold text-zinc-100">{derivedStats.weaponSkill}</span>
+          </div>
           {derivedStats.attacks.length === 0 ? (
             <p className="text-sm text-zinc-500">No equipped attack output.</p>
           ) : (
@@ -481,48 +684,22 @@ function MainCombatSheet({
         </SheetPanel>
 
         <SheetPanel title="Guard / Protection">
+          <div className="mb-2 grid gap-2 sm:grid-cols-3">
+            <StatTile label="Armor Skill" value={derivedStats.armorSkill} />
+            <StatTile
+              label="Dodge"
+              value={`${derivedStats.dodgeDice} dice`}
+              helper={`Value ${formatSheetNumber(derivedStats.dodgeValue)}`}
+            />
+            <StatTile label="Willpower" value={derivedStats.willpower} />
+          </div>
           <ul className="list-disc space-y-1 pl-5 text-sm text-zinc-300">
             {derivedStats.defenceStrings.map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
-          {derivedStats.protectionSources.length > 0 ? (
-            <div className="mt-3 grid gap-2">
-              {derivedStats.protectionSources.map((source) => (
-                <div key={`${source.slot}-${source.itemName}`} className="border border-zinc-800 p-2 text-xs">
-                  <span className="font-medium">{EQUIPMENT_SLOT_LABELS[source.slot]}:</span>{" "}
-                  {source.itemName} / PPV {source.physicalProtection} / MPV {source.mentalProtection}
-                </div>
-              ))}
-            </div>
-          ) : null}
         </SheetPanel>
       </div>
-
-      <SheetPanel title="Equipped Gear">
-        {equipped.length === 0 ? (
-          <p className="text-sm text-zinc-500">No gear equipped.</p>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {equipped.map(({ slot, backpackItem }) => (
-              <div key={slot} className="border border-zinc-800 bg-zinc-950/50 p-2 text-sm">
-                <div className="text-[10px] uppercase tracking-[0.08em] text-zinc-500">
-                  {EQUIPMENT_SLOT_LABELS[slot]}
-                </div>
-                <div className="font-medium">{itemName(backpackItem)}</div>
-                <div className="text-xs text-zinc-500">{itemMeta(backpackItem)}</div>
-                {[itemProtectionSummary(backpackItem), itemModifierSummary(backpackItem)]
-                  .filter(Boolean)
-                  .map((line) => (
-                    <div key={line} className="mt-1 text-xs text-zinc-300">
-                      {line}
-                    </div>
-                  ))}
-              </div>
-            ))}
-          </div>
-        )}
-      </SheetPanel>
     </SheetFrame>
   );
 }
@@ -650,22 +827,12 @@ function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudge
                       </span>
                     </div>
                   </div>
-                  <div className={summary.costValid ? "grid grid-cols-3 gap-1 text-center text-xs text-zinc-300" : "text-xs font-medium text-red-300"}>
+                  <div className={summary.costValid ? "text-center text-xs text-zinc-300" : "text-xs font-medium text-red-300"}>
                     {summary.costValid ? (
-                      <>
-                        <span className="border border-zinc-800 px-1.5 py-1">
-                          <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Spend</span>
-                          {formatSheetNumber(summary.spend)}
-                        </span>
-                        <span className="border border-zinc-800 px-1.5 py-1">
-                          <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Base</span>
-                          {formatSheetNumber(summary.basePowerValue)}
-                        </span>
-                        <span className="border border-zinc-800 px-1.5 py-1">
-                          <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Cooldown</span>
-                          {summary.derivedCooldownTurns ?? 1}
-                        </span>
-                      </>
+                      <span className="block border border-zinc-800 px-1.5 py-1">
+                        <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Cooldown</span>
+                        {summary.derivedCooldownTurns ?? 1}
+                      </span>
                     ) : (
                       `Invalid: ${summary.invalidCostReason ?? "Power is invalid."}`
                     )}
@@ -702,44 +869,53 @@ function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudge
 function InventorySheet({
   backpackItems,
   equipped,
+  derivedStats,
   compact,
 }: {
   backpackItems: CharacterBuilderDerivedBackpackItem[];
   equipped: EquippedEntry[];
+  derivedStats: CharacterDerivedCombatStats;
   compact: boolean;
 }) {
   return (
     <SheetFrame title="Inventory Sheet" subtitle="Equipped gear and Backpack items.">
+      <SheetPanel title="Protection Summary">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <StatTile
+            label="PPV"
+            value={derivedStats.physicalProtection}
+            helper={`${derivedStats.physicalBlockPerSuccess} block / success`}
+          />
+          <StatTile
+            label="MPV"
+            value={derivedStats.mentalProtection}
+            helper={`${derivedStats.mentalBlockPerSuccess} block / success`}
+          />
+        </div>
+        {derivedStats.protectionSources.length > 0 ? (
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {derivedStats.protectionSources.map((source) => (
+              <div key={`${source.slot}-${source.itemName}`} className="border border-zinc-800 p-2 text-xs">
+                <div className="font-medium text-zinc-100">{source.itemName}</div>
+                <div className="text-zinc-500">{EQUIPMENT_SLOT_LABELS[source.slot]}</div>
+                <div className="mt-1 text-zinc-300">
+                  PPV {source.physicalProtection || "-"} / MPV {source.mentalProtection || "-"}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-zinc-500">No equipped PPV or MPV sources.</p>
+        )}
+      </SheetPanel>
+
       <SheetPanel title="Equipped Gear">
         {equipped.length === 0 ? (
           <p className="text-sm text-zinc-500">No gear equipped.</p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {equipped.map(({ slot, backpackItem }) => (
-              <div key={slot} className="border border-zinc-800 bg-zinc-950/50 p-2 text-sm">
-                <div className="flex items-start justify-between gap-2 border-b border-zinc-800 pb-1">
-                  <div className="text-[10px] uppercase tracking-[0.08em] text-zinc-500">
-                    {EQUIPMENT_SLOT_LABELS[slot]}
-                  </div>
-                  <div className="text-[10px] text-zinc-500">{itemBriefMeta(backpackItem)}</div>
-                </div>
-                <div className="mt-1 font-medium">{itemName(backpackItem)}</div>
-                <div className="text-xs text-zinc-500">{itemMeta(backpackItem)}</div>
-                {[itemProtectionSummary(backpackItem), itemModifierSummary(backpackItem)]
-                  .filter(Boolean)
-                  .map((line) => (
-                    <div key={line} className="mt-1 text-xs text-zinc-300">
-                      {line}
-                    </div>
-                  ))}
-                {itemDescriptorPreview(backpackItem, 2).length > 0 ? (
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-zinc-400">
-                    {itemDescriptorPreview(backpackItem, 2).map((line, index) => (
-                      <li key={`${slot}-${index}`}>{line}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
+              <EquippedItemCompactCard key={slot} slot={slot} item={backpackItem} />
             ))}
           </div>
         )}
@@ -818,7 +994,6 @@ export function CharacterSheetPreview({
           character={character}
           builderData={builderData}
           derivedStats={derivedStats}
-          equipped={equipped}
           compact={compact}
           campaignName={campaignName}
           assignedPlayerLabel={assignedPlayerLabel}
@@ -834,7 +1009,12 @@ export function CharacterSheetPreview({
       ) : null}
       {selectedSheets.powers ? <PowerReferenceSheet powerBudget={powerBudget} /> : null}
       {selectedSheets.inventory ? (
-        <InventorySheet backpackItems={backpackItems} equipped={equipped} compact={compact} />
+        <InventorySheet
+          backpackItems={backpackItems}
+          equipped={equipped}
+          derivedStats={derivedStats}
+          compact={compact}
+        />
       ) : null}
 
       <style jsx global>{`
