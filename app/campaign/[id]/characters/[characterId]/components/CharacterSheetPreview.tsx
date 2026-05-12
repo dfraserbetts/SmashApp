@@ -670,7 +670,6 @@ function AttributeCard({
   const base = builderData.attributes[attribute];
   const baseNumber = typeof base === "number" ? base : 0;
   const modifier = derivedStats.itemModifiers[ATTRIBUTE_MODIFIER_FIELDS[attribute]] ?? 0;
-  const effective = baseNumber + modifier;
   const resist = builderData.resistPoints[attribute] ?? 0;
   const toneClass =
     tone === "mental"
@@ -684,21 +683,17 @@ function AttributeCard({
       <div className="flex items-start justify-between gap-2 border-b border-zinc-800/80 pb-0.5">
         <div className="text-[10px] font-semibold leading-tight text-zinc-100">{attribute}</div>
         <div className="text-right text-lg font-semibold leading-none text-zinc-100">
-          {baseNumber ? effective : "-"}
+          {baseNumber || "-"}
         </div>
       </div>
-      <div className="mt-0.5 grid grid-cols-3 gap-0.5 text-center text-[9px] leading-tight text-zinc-400">
-        <div>
-          <p className="uppercase tracking-[0.08em] text-zinc-500">Base</p>
-          <p className="text-[10px] font-semibold text-zinc-200">{base || "-"}</p>
-        </div>
+      <div className="mt-0.5 grid grid-cols-2 gap-0.5 text-center text-[9px] leading-tight text-zinc-400">
         <div>
           <p className="uppercase tracking-[0.08em] text-zinc-500">Modifier</p>
-          <p className="text-[10px] font-semibold text-zinc-200">{modifier ? signed(modifier) : "-"}</p>
+          <p className="text-[10px] font-semibold text-zinc-200">{modifier ? signed(modifier) : "0"}</p>
         </div>
         <div>
           <p className="uppercase tracking-[0.08em] text-zinc-500">Resist</p>
-          <p className="text-[10px] font-semibold text-zinc-200">+{resist}</p>
+          <p className="text-[10px] font-semibold text-zinc-200">{resist}</p>
         </div>
       </div>
     </div>
@@ -907,14 +902,23 @@ function formatMainAttackAttributeLine(row: MainSheetPlacementRow) {
 function MainAttackAttributeLines({
   rows,
   title,
+  inline = false,
 }: {
   rows: MainSheetPlacementRow[];
   title?: string;
+  inline?: boolean;
 }) {
   if (rows.length === 0) return null;
 
   return (
-    <div className="mt-1 space-y-0.5 border-b border-zinc-800 pb-1 text-[10px] leading-snug text-zinc-300">
+    <div
+      className={[
+        inline
+          ? "mt-1 space-y-0.5 border-t border-zinc-800 pt-1"
+          : "mt-1 space-y-0.5 border-b border-zinc-800 pb-1",
+        "text-[10px] leading-snug text-zinc-300",
+      ].join(" ")}
+    >
       {title ? (
         <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
           {title}
@@ -936,6 +940,50 @@ function MainDefenceStringBoxes({ lines }: { lines: string[] }) {
           className="cb-main-defence-box border border-zinc-800 bg-zinc-950/50 px-1.5 py-2 text-center text-[10px] leading-snug text-zinc-300"
         >
           {line}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MainAttackStringBoxes({
+  attacks,
+  compact,
+  attackAttributeRowsBySlot,
+}: {
+  attacks: CharacterDerivedCombatStats["attacks"];
+  compact: boolean;
+  attackAttributeRowsBySlot: Map<EquipmentSlotKey, MainSheetPlacementRow[]>;
+}) {
+  const boxes = attacks.flatMap((attack) =>
+    attack.lines.slice(0, compact ? 3 : attack.lines.length).map((line, index) => ({
+      key: `${attack.slot}-${attack.label}-${index}`,
+      label: attack.label,
+      slot: attack.slot,
+      line,
+    })),
+  );
+
+  if (boxes.length === 0) return null;
+
+  return (
+    <div className="grid grid-cols-3 gap-1">
+      {boxes.map((box) => (
+        <div
+          key={box.key}
+          className="cb-main-output-row border border-zinc-800 bg-zinc-950/50 px-1.5 py-2 text-center text-[10px] leading-snug text-zinc-300"
+        >
+          <div className="mb-0.5 border-b border-zinc-800 pb-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+            {EQUIPMENT_SLOT_LABELS[box.slot]}
+          </div>
+          <div className="mb-1 text-[10px] font-semibold leading-tight text-zinc-100">
+            {box.label.replace(`${EQUIPMENT_SLOT_LABELS[box.slot]}: `, "")}
+          </div>
+          <div>{compactLine(box.line)}</div>
+          <MainAttackAttributeLines
+            rows={attackAttributeRowsBySlot.get(box.slot) ?? []}
+            inline
+          />
         </div>
       ))}
     </div>
@@ -1131,7 +1179,7 @@ function MainCombatSheet({
         derivedStats={derivedStats}
       />
 
-      <div className="grid gap-1.5 xl:grid-cols-2">
+      <div className="grid gap-1.5">
         <MainCombatSection
           title="Attacks"
           header={<MainMetricPill label="Weapon Skill" value={derivedStats.weaponSkill} />}
@@ -1140,24 +1188,11 @@ function MainCombatSheet({
             <p className="text-sm text-zinc-500">No equipped attack output.</p>
           ) : (
             <div className="space-y-1">
-              {derivedStats.attacks.map((attack) => (
-                <div key={`${attack.slot}-${attack.label}`} className="cb-main-output-row border border-zinc-800 bg-zinc-950/50 p-1.5">
-                  <div className="flex items-center justify-between gap-2 border-b border-zinc-800 pb-0.5">
-                    <div className="text-[11px] font-semibold leading-tight">{attack.label}</div>
-                    <div className="text-[9px] uppercase tracking-[0.08em] text-zinc-500">
-                      {EQUIPMENT_SLOT_LABELS[attack.slot]}
-                    </div>
-                  </div>
-                  <MainAttackAttributeLines
-                    rows={attackAttributeRowsBySlot.get(attack.slot) ?? []}
-                  />
-                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10px] leading-snug text-zinc-300">
-                    {attack.lines.slice(0, compact ? 3 : attack.lines.length).map((line, index) => (
-                      <li key={`${attack.label}-${index}`}>{compactLine(line)}</li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+              <MainAttackStringBoxes
+                attacks={derivedStats.attacks}
+                compact={compact}
+                attackAttributeRowsBySlot={attackAttributeRowsBySlot}
+              />
               <MainAttackAttributeLines
                 rows={unmatchedAttackAttributeRows}
                 title="Attack Attributes"
