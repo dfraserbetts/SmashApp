@@ -899,6 +899,34 @@ function groupMainSheetRowsBySlot(rows: MainSheetPlacementRow[]) {
   return bySlot;
 }
 
+function formatMainAttackAttributeLine(row: MainSheetPlacementRow) {
+  const cleaned = stripForgeLineLabel(row.line).trim();
+  return `${row.itemName}: ${cleaned}`;
+}
+
+function MainAttackAttributeLines({
+  rows,
+  title,
+}: {
+  rows: MainSheetPlacementRow[];
+  title?: string;
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="mt-1 space-y-0.5 border-b border-zinc-800 pb-1 text-[10px] leading-snug text-zinc-300">
+      {title ? (
+        <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+          {title}
+        </p>
+      ) : null}
+      {rows.map((row) => (
+        <p key={row.key}>{formatMainAttackAttributeLine(row)}</p>
+      ))}
+    </div>
+  );
+}
+
 function MainDefenceStringBoxes({ lines }: { lines: string[] }) {
   return (
     <div className="grid gap-1 sm:grid-cols-3">
@@ -1120,9 +1148,8 @@ function MainCombatSheet({
                       {EQUIPMENT_SLOT_LABELS[attack.slot]}
                     </div>
                   </div>
-                  <MainSheetPlacementRows
+                  <MainAttackAttributeLines
                     rows={attackAttributeRowsBySlot.get(attack.slot) ?? []}
-                    className="mt-1 grid gap-1"
                   />
                   <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10px] leading-snug text-zinc-300">
                     {attack.lines.slice(0, compact ? 3 : attack.lines.length).map((line, index) => (
@@ -1131,7 +1158,10 @@ function MainCombatSheet({
                   </ul>
                 </div>
               ))}
-              <MainSheetPlacementRows rows={unmatchedAttackAttributeRows} />
+              <MainAttackAttributeLines
+                rows={unmatchedAttackAttributeRows}
+                title="Attack Attributes"
+              />
             </div>
           )}
         </MainCombatSection>
