@@ -470,11 +470,13 @@ function SheetFrame({
   subtitle,
   children,
   className = "",
+  contentClassName = "space-y-3 p-3 sm:p-4",
 }: {
   title: string;
   subtitle?: string;
   children: React.ReactNode;
   className?: string;
+  contentClassName?: string;
 }) {
   return (
     <article
@@ -484,7 +486,7 @@ function SheetFrame({
         className,
       ].join(" ")}
     >
-      <div className="space-y-3 p-3 sm:p-4">{children}</div>
+      <div className={contentClassName}>{children}</div>
     </article>
   );
 }
@@ -575,14 +577,14 @@ function AttributeCard({
         : "border-zinc-800 bg-zinc-950/60";
 
   return (
-    <div className={`cb-attribute-card border px-2 py-1 ${toneClass}`}>
+    <div className={`cb-attribute-card border px-1.5 py-1 ${toneClass}`}>
       <div className="flex items-start justify-between gap-2 border-b border-zinc-800/80 pb-0.5">
-        <div className="text-[11px] font-semibold leading-tight text-zinc-100">{attribute}</div>
-        <div className="text-right text-xl font-semibold leading-none text-zinc-100">
+        <div className="text-[10px] font-semibold leading-tight text-zinc-100">{attribute}</div>
+        <div className="text-right text-lg font-semibold leading-none text-zinc-100">
           {baseNumber ? effective : "-"}
         </div>
       </div>
-      <div className="mt-1 grid grid-cols-3 gap-1 text-center text-[9px] leading-tight text-zinc-400">
+      <div className="mt-0.5 grid grid-cols-3 gap-0.5 text-center text-[8px] leading-tight text-zinc-400">
         <div>
           <p className="uppercase tracking-[0.08em] text-zinc-500">Base</p>
           <p className="text-zinc-200">{base || "-"}</p>
@@ -614,12 +616,12 @@ function CombatSide({
   derivedStats: CharacterDerivedCombatStats;
 }) {
   return (
-    <div className="cb-combat-side grid gap-1.5">
-      <div className="grid gap-1.5">
+    <div className="cb-combat-side grid gap-1">
+      <div className="grid gap-1">
         {stats.map((stat) => (
-          <div key={stat.label} className="cb-main-reference-tile border border-zinc-800 bg-zinc-950/70 px-2 py-1.5">
-            <div className="text-[9px] uppercase tracking-[0.08em] text-zinc-500">{stat.label}</div>
-            <div className="mt-0.5 text-xl font-semibold leading-none text-zinc-100">{stat.value}</div>
+          <div key={stat.label} className="cb-main-reference-tile border border-zinc-800 bg-zinc-950/70 px-1.5 py-1">
+            <div className="text-[8px] uppercase tracking-[0.08em] text-zinc-500">{stat.label}</div>
+            <div className="mt-0.5 text-lg font-semibold leading-none text-zinc-100">{stat.value}</div>
             {stat.helper ? <div className="mt-0.5 text-[10px] text-zinc-500">{stat.helper}</div> : null}
           </div>
         ))}
@@ -647,12 +649,12 @@ function MainCombatSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="cb-main-combat-section border border-zinc-800 bg-black/50 p-2">
-      <div className="flex min-h-7 flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-1">
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">{title}</h3>
+    <section className="cb-main-combat-section border border-zinc-800 bg-black/50 p-1.5">
+      <div className="flex min-h-6 flex-wrap items-center justify-between gap-1.5 border-b border-zinc-800 pb-1">
+        <h3 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-400">{title}</h3>
         {header}
       </div>
-      <div className="mt-1.5">{children}</div>
+      <div className="mt-1">{children}</div>
     </section>
   );
 }
@@ -665,7 +667,7 @@ function MainMetricPill({
   value: React.ReactNode;
 }) {
   return (
-    <span className="inline-flex items-center gap-1 border border-zinc-800 bg-zinc-950/50 px-1.5 py-0.5 text-[10px] leading-tight text-zinc-300">
+    <span className="inline-flex items-center gap-1 border border-zinc-800 bg-zinc-950/50 px-1.5 py-0.5 text-[9px] leading-tight text-zinc-300">
       <span className="uppercase tracking-[0.08em] text-zinc-500">{label}</span>
       <span className="font-semibold text-zinc-100">{value}</span>
     </span>
@@ -691,9 +693,11 @@ function MainCombatSheet({
     <SheetFrame
       title="Main Combat"
       subtitle="Combat table reference generated from live Character Builder data."
+      className="cb-main-sheet"
+      contentClassName="space-y-2 p-2 sm:p-2.5"
     >
-      <div className="cb-main-hero border-2 border-zinc-800 bg-black/40 p-2">
-        <div className="grid grid-cols-1 items-stretch gap-2 lg:grid-cols-[1fr_1.18fr_1fr]">
+      <div className="cb-main-hero border-2 border-zinc-800 bg-black/40 p-1.5">
+        <div className="grid grid-cols-1 items-stretch gap-1.5 lg:grid-cols-[1fr_1.12fr_1fr]">
           <CombatSide
             tone="mental"
             stats={[
@@ -704,15 +708,15 @@ function MainCombatSheet({
             derivedStats={derivedStats}
           />
 
-          <div className="cb-identity-center flex flex-col gap-1.5 text-center">
-            <div className="cb-identity-band border border-zinc-800 bg-zinc-950/70 p-2">
-              <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">
+          <div className="cb-identity-center flex flex-col gap-1 text-center">
+            <div className="cb-identity-band border border-zinc-800 bg-zinc-950/70 p-1.5">
+              <div className="text-[9px] uppercase tracking-[0.12em] text-zinc-500">
                 {campaignName || "Character"}
               </div>
-              <h1 className="mt-0.5 text-xl font-semibold uppercase leading-tight tracking-[0.04em]">
+              <h1 className="mt-0.5 text-lg font-semibold uppercase leading-tight tracking-[0.04em]">
                 {display(character.name)}
               </h1>
-              <div className="mt-1.5 grid grid-cols-2 gap-1 text-[11px] leading-tight text-zinc-300">
+              <div className="mt-1 grid grid-cols-2 gap-1 text-[10px] leading-tight text-zinc-300">
                 <span className="border border-zinc-800 px-1.5 py-0.5">Level {character.level}</span>
                 <span className="border border-zinc-800 px-1.5 py-0.5">
                   {display(character.race, "Race unset")}
@@ -733,7 +737,7 @@ function MainCombatSheet({
               ) : null}
             </div>
             <div className="flex-1">
-              <PortraitBlock character={character} className="min-h-36" imageClassName="max-h-44" />
+              <PortraitBlock character={character} className="min-h-32" imageClassName="max-h-40" />
             </div>
           </div>
 
@@ -749,7 +753,7 @@ function MainCombatSheet({
         </div>
       </div>
 
-      <div className="grid gap-2 xl:grid-cols-2">
+      <div className="grid gap-1.5 xl:grid-cols-2">
         <MainCombatSection
           title="Attacks"
           header={<MainMetricPill label="Weapon Skill" value={derivedStats.weaponSkill} />}
@@ -757,16 +761,16 @@ function MainCombatSheet({
           {derivedStats.attacks.length === 0 ? (
             <p className="text-sm text-zinc-500">No equipped attack output.</p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               {derivedStats.attacks.map((attack) => (
-                <div key={`${attack.slot}-${attack.label}`} className="border border-zinc-800 bg-zinc-950/50 p-1.5">
+                <div key={`${attack.slot}-${attack.label}`} className="cb-main-output-row border border-zinc-800 bg-zinc-950/50 p-1.5">
                   <div className="flex items-center justify-between gap-2 border-b border-zinc-800 pb-0.5">
-                    <div className="text-xs font-semibold">{attack.label}</div>
-                    <div className="text-[10px] uppercase tracking-[0.08em] text-zinc-500">
+                    <div className="text-[11px] font-semibold leading-tight">{attack.label}</div>
+                    <div className="text-[9px] uppercase tracking-[0.08em] text-zinc-500">
                       {EQUIPMENT_SLOT_LABELS[attack.slot]}
                     </div>
                   </div>
-                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] leading-snug text-zinc-300">
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10px] leading-snug text-zinc-300">
                     {attack.lines.slice(0, compact ? 3 : attack.lines.length).map((line, index) => (
                       <li key={`${attack.label}-${index}`}>{compactLine(line)}</li>
                     ))}
@@ -790,7 +794,7 @@ function MainCombatSheet({
             </div>
           }
         >
-          <ul className="list-disc space-y-0.5 pl-4 text-[11px] leading-snug text-zinc-300">
+          <ul className="list-disc space-y-0.5 pl-4 text-[10px] leading-snug text-zinc-300">
             {derivedStats.defenceStrings.map((line) => (
               <li key={line}>{line}</li>
             ))}
@@ -1110,6 +1114,10 @@ export function CharacterSheetPreview({
           color: #111111;
         }
 
+        .cb-sheet-preview .cb-main-sheet {
+          border-radius: 0.375rem;
+        }
+
         .cb-sheet-preview .cb-sheet-title-band,
         .cb-sheet-preview .cb-identity-band,
         .cb-sheet-preview .cb-power-card,
@@ -1127,6 +1135,21 @@ export function CharacterSheetPreview({
         .cb-sheet-preview .cb-portrait {
           border-color: #71717a;
           background: #f4f4f5;
+          color: #111111;
+        }
+
+        .cb-sheet-preview .cb-main-sheet .cb-main-hero,
+        .cb-sheet-preview .cb-main-sheet .cb-identity-band,
+        .cb-sheet-preview .cb-main-sheet .cb-main-reference-tile,
+        .cb-sheet-preview .cb-main-sheet .cb-attribute-card,
+        .cb-sheet-preview .cb-main-sheet .cb-main-combat-section,
+        .cb-sheet-preview .cb-main-sheet .cb-main-output-row {
+          background: #f4f4f5;
+        }
+
+        .cb-sheet-preview .cb-main-sheet .cb-main-combat-section h3,
+        .cb-sheet-preview .cb-main-sheet .cb-main-reference-tile,
+        .cb-sheet-preview .cb-main-sheet .cb-attribute-card {
           color: #111111;
         }
 
