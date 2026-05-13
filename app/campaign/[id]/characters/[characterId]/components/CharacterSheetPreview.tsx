@@ -901,9 +901,21 @@ function groupMainSheetRowsBySlot(rows: MainSheetPlacementRow[]) {
   return bySlot;
 }
 
-function formatMainAttackAttributeLine(row: MainSheetPlacementRow) {
+function formatMainAttackAttributeLine(row: MainSheetPlacementRow, options: { includeItemName?: boolean } = {}) {
   const cleaned = stripForgeLineLabel(row.line).trim();
-  return `${row.itemName}: ${cleaned}`;
+  return options.includeItemName === false ? cleaned : `${row.itemName}: ${cleaned}`;
+}
+
+function RenderLeadIn({ line }: { line: string }) {
+  const colonIndex = line.indexOf(":");
+  if (colonIndex <= 0) return <>{line}</>;
+
+  return (
+    <>
+      <span className="font-semibold">{line.slice(0, colonIndex + 1)}</span>
+      {line.slice(colonIndex + 1)}
+    </>
+  );
 }
 
 function MainAttackAttributeLines({
@@ -932,7 +944,9 @@ function MainAttackAttributeLines({
         </p>
       ) : null}
       {rows.map((row) => (
-        <p key={row.key}>{formatMainAttackAttributeLine(row)}</p>
+        <p key={row.key}>
+          <RenderLeadIn line={formatMainAttackAttributeLine(row, { includeItemName: !inline })} />
+        </p>
       ))}
     </div>
   );
@@ -986,7 +1000,7 @@ function MainAttackStringBoxes({
           <div className="mb-1 text-[10px] font-semibold leading-tight text-zinc-100">
             {box.label.replace(`${EQUIPMENT_SLOT_LABELS[box.slot]}: `, "")}
           </div>
-          <div>{compactLine(box.line)}</div>
+          <div><RenderLeadIn line={compactLine(box.line)} /></div>
           <MainAttackAttributeLines
             rows={attackAttributeRowsBySlot.get(box.slot) ?? []}
             inline
