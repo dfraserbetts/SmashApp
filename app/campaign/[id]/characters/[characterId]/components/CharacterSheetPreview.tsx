@@ -1,5 +1,8 @@
+"use client";
+
 import type React from "react";
 
+import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
 import { getForgeRarityPalette } from "@/lib/forge/itemRarityPalette";
 import {
   EQUIPMENT_SLOT_LABELS,
@@ -1063,6 +1066,65 @@ function MainTraitsAttributesBox({
   );
 }
 
+const MAIN_SHEET_STATUS_TRACKERS = [
+  "Disease",
+  "Freeze",
+  "Horrified",
+  "Immolate",
+  "Keen",
+  "Laceration",
+  "Overwhelmed",
+  "Penetrate",
+  "Poisoned",
+  "Shaken",
+  "Smite",
+  "Sundered",
+  "Surge",
+];
+const MAIN_SHEET_STATUS_TRACKER_ROWS = [
+  MAIN_SHEET_STATUS_TRACKERS.slice(0, 7),
+  MAIN_SHEET_STATUS_TRACKERS.slice(7),
+];
+
+function MainSheetHelperStrip() {
+  return (
+    <section className="cb-main-helper-strip mt-auto border border-zinc-800 bg-black/50 p-1.5">
+      <div className="space-y-0.5 text-center text-[8px] leading-tight text-zinc-300">
+        {MAIN_SHEET_STATUS_TRACKER_ROWS.map((row, rowIndex) => (
+          <div
+            key={`status-row-${rowIndex}`}
+            className={[
+              "grid border border-zinc-800",
+              rowIndex === 0 ? "grid-cols-7" : "grid-cols-6",
+            ].join(" ")}
+          >
+            {row.map((status) => (
+              <div key={status} className="border-r border-zinc-800 last:border-r-0">
+                <div className="border-b border-zinc-800 px-1 py-0.5 font-semibold uppercase tracking-[0.06em] text-zinc-500">
+                  {status}
+                </div>
+                <div className="flex min-h-7 items-center justify-center px-0.5 py-1">
+                  <span className="inline-block h-3.5 w-3.5 border border-zinc-700" aria-hidden="true" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div className="mt-1 grid grid-cols-2 gap-1 text-[9px] leading-snug text-zinc-300">
+        <p>
+          <span className="font-semibold uppercase tracking-[0.06em] text-zinc-500">Start of turn:</span>{" "}
+          Remove turn token. Replenish responses. Resolve any status effects or passive abilities.
+        </p>
+        <p>
+          <span className="font-semibold uppercase tracking-[0.06em] text-zinc-500">End of turn:</span>{" "}
+          Add a cooldown die to any powers you have used. Tick down any cooldown dice currently on powers, or remove if required. Mark your turn as complete with your turn token.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function MainSheetBanner({
   character,
   campaignName,
@@ -1134,7 +1196,7 @@ function MainCombatSheet({
       title="Main Combat"
       subtitle="Combat table reference generated from live Character Builder data."
       className="cb-main-sheet"
-      contentClassName="space-y-2 p-2.5"
+      contentClassName="cb-main-sheet-content flex min-h-[calc(297mm-1.25rem)] flex-col gap-2 p-2.5"
     >
       <MainSheetBanner
         character={character}
@@ -1143,7 +1205,7 @@ function MainCombatSheet({
       />
 
       <div className="cb-main-hero border-2 border-zinc-800 bg-black/40 p-1.5">
-        <div className="cb-main-hero-grid grid grid-cols-[1fr_1.12fr_1fr] items-stretch gap-1.5">
+        <div className="cb-main-hero-grid grid grid-cols-[0.78fr_1.65fr_0.78fr] items-stretch gap-1.5">
           <CombatSide
             tone="mental"
             stats={[
@@ -1161,7 +1223,7 @@ function MainCombatSheet({
               </div>
             ) : null}
             <div className="flex-1">
-              <PortraitBlock character={character} className="min-h-48" imageClassName="max-h-60" />
+              <PortraitBlock character={character} className="min-h-64" imageClassName="max-h-80" />
             </div>
           </div>
 
@@ -1221,6 +1283,8 @@ function MainCombatSheet({
           <MainGuardAttributeLines rows={guardAttributeRows} />
         </MainCombatSection>
       </div>
+
+      <MainSheetHelperStrip />
     </SheetFrame>
   );
 }
@@ -1480,17 +1544,35 @@ export function CharacterSheetPreview({
   const compact = printType.startsWith("compact");
   const printFriendly = printType.endsWith("print-friendly");
   const equipped = selectedEquippedItems(builderData, backpackItems);
-
-  return (
-    <div
-      className={[
-        "cb-sheet-preview space-y-5",
-        compact ? "cb-sheet-compact" : "cb-sheet-full",
-        printFriendly ? "cb-sheet-print-friendly" : "cb-sheet-colour",
-        mode === "print" ? "cb-sheet-print-mode" : "cb-sheet-live-mode",
-        className,
-      ].join(" ")}
-    >
+  const previewScaleEnabled = mode === "preview";
+  const {
+    wrapRef: previewScaleWrapRef,
+    innerRef: previewScaleInnerRef,
+    scale: previewScale,
+    scaledHeight: previewHeight,
+  } = useScaledPreview({
+    enabled: previewScaleEnabled,
+    contentKey: [
+      character.id,
+      character.imageUrl ?? "",
+      printType,
+      selectedSheets.main ? "main" : "",
+      selectedSheets.character ? "character" : "",
+      selectedSheets.powers ? "powers" : "",
+      selectedSheets.inventory ? "inventory" : "",
+      backpackItems.length,
+      powerBudget.powers.length,
+    ].join("|"),
+  });
+  const previewClassName = [
+    "cb-sheet-preview space-y-5",
+    compact ? "cb-sheet-compact" : "cb-sheet-full",
+    printFriendly ? "cb-sheet-print-friendly" : "cb-sheet-colour",
+    mode === "print" ? "cb-sheet-print-mode" : "cb-sheet-live-mode",
+    className,
+  ].join(" ");
+  const sheetsContent = (
+    <>
       {selectedSheets.main ? (
         <MainCombatSheet
           character={character}
@@ -1519,128 +1601,174 @@ export function CharacterSheetPreview({
           compact={compact}
         />
       ) : null}
+    </>
+  );
+  const previewStyles = (
+    <style jsx global>{`
+      .cb-sheet-scale-wrap {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+      }
 
-      <style jsx global>{`
-        .cb-sheet-preview {
-          color: #111111;
-          overflow-x: auto;
-          padding-bottom: 0.5rem;
-        }
+      .cb-sheet-scale-inner {
+        display: inline-block;
+        width: max-content;
+        max-width: none;
+        transform-origin: top left;
+      }
 
-        .cb-sheet-preview .cb-sheet-page {
-          width: 210mm;
-          min-height: 297mm;
-          aspect-ratio: 210 / 297;
-          box-sizing: border-box;
-          margin-left: auto;
-          margin-right: auto;
-          border-color: #3f3f46;
-          background: #ffffff;
-          color: #111111;
-        }
+      .cb-sheet-preview {
+        color: #111111;
+        padding-bottom: 0.5rem;
+      }
 
-        .cb-sheet-preview .cb-main-sheet {
-          border-radius: 0.375rem;
-        }
+      .cb-sheet-preview.cb-sheet-print-mode {
+        overflow-x: auto;
+      }
 
-        .cb-sheet-preview .cb-sheet-title-band,
-        .cb-sheet-preview .cb-identity-band,
-        .cb-sheet-preview .cb-power-card,
-        .cb-sheet-preview .cb-stat-tile,
-        .cb-sheet-preview .cb-attribute-card,
-        .cb-sheet-preview .cb-main-banner,
-        .cb-sheet-preview .cb-main-reference-tile,
-        .cb-sheet-preview .cb-main-traits-section,
-        .cb-sheet-preview .cb-main-combat-section,
-        .cb-sheet-preview .cb-sheet-panel {
-          border-color: #71717a;
-          background: #e4e4e7;
-          color: #111111;
-        }
+      .cb-sheet-preview .cb-sheet-page {
+        width: 210mm;
+        min-height: 297mm;
+        aspect-ratio: 210 / 297;
+        box-sizing: border-box;
+        margin-left: auto;
+        margin-right: auto;
+        border-color: #3f3f46;
+        background: #ffffff;
+        color: #111111;
+      }
 
-        .cb-sheet-preview .cb-main-hero,
-        .cb-sheet-preview .cb-portrait {
-          border-color: #71717a;
-          background: #f4f4f5;
-          color: #111111;
-        }
+      .cb-sheet-preview .cb-main-sheet {
+        border-radius: 0.375rem;
+      }
 
-        .cb-sheet-preview .cb-main-sheet .cb-main-hero,
-        .cb-sheet-preview .cb-main-sheet .cb-identity-band,
-        .cb-sheet-preview .cb-main-sheet .cb-main-reference-tile,
-        .cb-sheet-preview .cb-main-sheet .cb-attribute-card,
-        .cb-sheet-preview .cb-main-sheet .cb-main-traits-section,
-        .cb-sheet-preview .cb-main-sheet .cb-main-combat-section,
-        .cb-sheet-preview .cb-main-sheet .cb-main-defence-box,
-        .cb-sheet-preview .cb-main-sheet .cb-main-output-row {
-          background: #f4f4f5;
-        }
+      .cb-sheet-preview .cb-sheet-title-band,
+      .cb-sheet-preview .cb-identity-band,
+      .cb-sheet-preview .cb-power-card,
+      .cb-sheet-preview .cb-stat-tile,
+      .cb-sheet-preview .cb-attribute-card,
+      .cb-sheet-preview .cb-main-banner,
+      .cb-sheet-preview .cb-main-reference-tile,
+      .cb-sheet-preview .cb-main-traits-section,
+      .cb-sheet-preview .cb-main-combat-section,
+      .cb-sheet-preview .cb-main-helper-strip,
+      .cb-sheet-preview .cb-sheet-panel {
+        border-color: #71717a;
+        background: #e4e4e7;
+        color: #111111;
+      }
 
-        .cb-sheet-preview .cb-main-sheet .cb-main-banner {
-          background: #f4f4f5;
-          color: #000000;
-        }
+      .cb-sheet-preview .cb-main-hero,
+      .cb-sheet-preview .cb-portrait {
+        border-color: #71717a;
+        background: #f4f4f5;
+        color: #111111;
+      }
 
-        .cb-sheet-preview .cb-main-sheet .cb-main-banner-logo,
-        .cb-sheet-preview .cb-main-sheet .cb-main-banner-field {
-          background: #ffffff;
-          color: #000000;
-        }
+      .cb-sheet-preview .cb-main-sheet .cb-main-hero,
+      .cb-sheet-preview .cb-main-sheet .cb-identity-band,
+      .cb-sheet-preview .cb-main-sheet .cb-main-reference-tile,
+      .cb-sheet-preview .cb-main-sheet .cb-attribute-card,
+      .cb-sheet-preview .cb-main-sheet .cb-main-traits-section,
+      .cb-sheet-preview .cb-main-sheet .cb-main-combat-section,
+      .cb-sheet-preview .cb-main-sheet .cb-main-helper-strip,
+      .cb-sheet-preview .cb-main-sheet .cb-main-defence-box,
+      .cb-sheet-preview .cb-main-sheet .cb-main-output-row {
+        background: #f4f4f5;
+      }
 
-        .cb-sheet-preview .cb-main-sheet .cb-main-banner * {
-          color: #000000;
-        }
+      .cb-sheet-preview .cb-main-sheet .cb-main-banner {
+        background: #f4f4f5;
+        color: #000000;
+      }
 
-        .cb-sheet-preview .cb-main-sheet .cb-main-combat-section h3,
-        .cb-sheet-preview .cb-main-sheet .cb-main-traits-section h3,
-        .cb-sheet-preview .cb-main-sheet .cb-main-reference-tile,
-        .cb-sheet-preview .cb-main-sheet .cb-attribute-card {
-          color: #111111;
-        }
+      .cb-sheet-preview .cb-main-sheet .cb-main-banner-logo,
+      .cb-sheet-preview .cb-main-sheet .cb-main-banner-field {
+        background: #ffffff;
+        color: #000000;
+      }
 
-        .cb-sheet-preview .border-zinc-800,
-        .cb-sheet-preview .border-zinc-800\\/80 {
-          border-color: #71717a;
-        }
+      .cb-sheet-preview .cb-main-sheet .cb-main-banner * {
+        color: #000000;
+      }
 
-        .cb-sheet-preview .bg-black,
-        .cb-sheet-preview .bg-black\\/40,
-        .cb-sheet-preview .bg-black\\/50,
-        .cb-sheet-preview .bg-black\\/60,
-        .cb-sheet-preview .bg-zinc-900\\/70,
-        .cb-sheet-preview .bg-zinc-950\\/50,
-        .cb-sheet-preview .bg-zinc-950\\/60,
-        .cb-sheet-preview .bg-zinc-950\\/70 {
-          background: #e4e4e7;
-        }
+      .cb-sheet-preview .cb-main-sheet .cb-main-combat-section h3,
+      .cb-sheet-preview .cb-main-sheet .cb-main-traits-section h3,
+      .cb-sheet-preview .cb-main-sheet .cb-main-helper-strip,
+      .cb-sheet-preview .cb-main-sheet .cb-main-reference-tile,
+      .cb-sheet-preview .cb-main-sheet .cb-attribute-card {
+        color: #111111;
+      }
 
-        .cb-sheet-preview .text-zinc-100,
-        .cb-sheet-preview .text-zinc-200,
-        .cb-sheet-preview .text-zinc-300,
-        .cb-sheet-preview .text-cyan-200,
-        .cb-sheet-preview .text-emerald-200 {
-          color: #111111;
-        }
+      .cb-sheet-preview .border-zinc-800,
+      .cb-sheet-preview .border-zinc-800\\/80 {
+        border-color: #71717a;
+      }
 
-        .cb-sheet-preview .text-zinc-400,
-        .cb-sheet-preview .text-zinc-500 {
-          color: #52525b;
-        }
+      .cb-sheet-preview .bg-black,
+      .cb-sheet-preview .bg-black\\/40,
+      .cb-sheet-preview .bg-black\\/50,
+      .cb-sheet-preview .bg-black\\/60,
+      .cb-sheet-preview .bg-zinc-900\\/70,
+      .cb-sheet-preview .bg-zinc-950\\/50,
+      .cb-sheet-preview .bg-zinc-950\\/60,
+      .cb-sheet-preview .bg-zinc-950\\/70 {
+        background: #e4e4e7;
+      }
 
-        .cb-sheet-preview .border-cyan-900\\/70,
-        .cb-sheet-preview .border-emerald-900\\/70 {
-          border-color: #71717a;
-        }
+      .cb-sheet-preview .text-zinc-100,
+      .cb-sheet-preview .text-zinc-200,
+      .cb-sheet-preview .text-zinc-300,
+      .cb-sheet-preview .text-cyan-200,
+      .cb-sheet-preview .text-emerald-200 {
+        color: #111111;
+      }
 
-        .cb-sheet-preview .bg-cyan-950\\/15,
-        .cb-sheet-preview .bg-emerald-950\\/15 {
-          background: #e4e4e7;
-        }
+      .cb-sheet-preview .text-zinc-400,
+      .cb-sheet-preview .text-zinc-500 {
+        color: #52525b;
+      }
 
-        .cb-sheet-preview .ring-emerald-700\\/50 {
-          --tw-ring-color: #71717a;
-        }
-      `}</style>
+      .cb-sheet-preview .border-cyan-900\\/70,
+      .cb-sheet-preview .border-emerald-900\\/70 {
+        border-color: #71717a;
+      }
+
+      .cb-sheet-preview .bg-cyan-950\\/15,
+      .cb-sheet-preview .bg-emerald-950\\/15 {
+        background: #e4e4e7;
+      }
+
+      .cb-sheet-preview .ring-emerald-700\\/50 {
+        --tw-ring-color: #71717a;
+      }
+    `}</style>
+  );
+
+  if (previewScaleEnabled) {
+    return (
+      <div
+        ref={previewScaleWrapRef}
+        className="cb-sheet-scale-wrap"
+        style={{ height: previewHeight ? `${previewHeight}px` : undefined }}
+      >
+        <div
+          ref={previewScaleInnerRef}
+          className={`cb-sheet-scale-inner ${previewClassName}`}
+          style={{ transform: `scale(${previewScale})` }}
+        >
+          {sheetsContent}
+          {previewStyles}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={previewClassName}>
+      {sheetsContent}
+      {previewStyles}
     </div>
   );
 }
