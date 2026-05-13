@@ -1256,7 +1256,7 @@ export function ForgePrintMode({ campaignId }: Props) {
             grid-template-rows: auto minmax(0, 1fr) auto !important;
           }
           .forge-print-page.layout-verbose .forge-item-card {
-            grid-template-rows: 34px auto auto !important;
+            grid-template-rows: auto auto auto !important;
             align-content: start !important;
           }
 
@@ -1292,7 +1292,7 @@ export function ForgePrintMode({ campaignId }: Props) {
           }
 
           .forge-print-page.layout-verbose .forge-item-header {
-            max-height: 88px !important;
+            max-height: 112px !important;
           }
 
           .forge-print-page.layout-standard .forge-item-header-line2 {
@@ -1511,27 +1511,40 @@ export function ForgePrintMode({ campaignId }: Props) {
 
           .forge-print-page.layout-standard,
           .forge-print-page.layout-standard .forge-item-card,
+          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly),
           .forge-print-page.layout-standard .forge-item-image-wrap,
           .forge-print-page.layout-standard .forge-item-section-attributes,
           .forge-print-page.layout-standard .forge-item-section-attack,
-          .forge-print-page.layout-standard .forge-item-section-defence {
+          .forge-print-page.layout-standard .forge-item-section-defence,
+          .forge-print-page.layout-verbose,
+          .forge-print-page.layout-verbose .forge-item-card,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly),
+          .forge-print-page.layout-verbose .forge-item-image-wrap,
+          .forge-print-page.layout-verbose .forge-item-section-attributes,
+          .forge-print-page.layout-verbose .forge-item-section-attack,
+          .forge-print-page.layout-verbose .forge-item-section-defence {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
 
-          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) {
+          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly),
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) {
             color: var(--forge-rarity-body, rgb(255 247 237 / 0.9)) !important;
             border-color: var(--forge-rarity-outer-border, rgb(245 158 11 / 0.7)) !important;
           }
 
           .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-image-wrap,
-          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attributes {
+          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attributes,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-image-wrap,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attributes {
             background: rgb(0 0 0 / 0.25) !important;
             border-color: var(--forge-rarity-panel-border, rgb(180 83 9 / 0.4)) !important;
           }
 
           .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attack,
-          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-defence {
+          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-defence,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attack,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-defence {
             background: rgb(0 0 0 / 0.3) !important;
             border-color: var(--forge-rarity-panel-border, rgb(180 83 9 / 0.4)) !important;
           }
@@ -1539,7 +1552,11 @@ export function ForgePrintMode({ campaignId }: Props) {
           .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-header-line1,
           .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attributes > p:first-child,
           .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attack > p:first-child,
-          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-defence > p:first-child {
+          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-defence > p:first-child,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-header-line1,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attributes > p:first-child,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attack > p:first-child,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-defence > p:first-child {
             color: var(--forge-rarity-header, rgb(252 211 77 / 0.82)) !important;
           }
 
@@ -1549,11 +1566,19 @@ export function ForgePrintMode({ campaignId }: Props) {
           .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attributes li,
           .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-defence p,
           .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-defence li,
-          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-custom {
+          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-custom,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-header-line2,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-attack-line-text,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attributes p,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-attributes li,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-defence p,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-defence li,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-item-section-custom {
             color: var(--forge-rarity-body, rgb(255 247 237 / 0.9)) !important;
           }
 
-          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-attack-line-label {
+          .forge-print-page.layout-standard .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-attack-line-label,
+          .forge-print-page.layout-verbose .forge-item-card-shell:not(.forge-item-card--print-friendly) .forge-attack-line-label {
             color: var(--forge-rarity-attack-label, rgb(254 243 199)) !important;
           }
 
