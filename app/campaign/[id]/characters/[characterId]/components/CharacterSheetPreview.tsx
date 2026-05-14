@@ -1564,34 +1564,30 @@ function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudge
           {powerBudget.powers.map((summary, index) => (
             <section key={`${summary.power.name}-${index}`} className="cb-power-card border-2 border-zinc-800 bg-black/60 p-2.5">
               <div className="border-b border-zinc-800 pb-2">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <h3 className="text-base font-semibold uppercase tracking-[0.04em]">
-                      {summary.power.name || `Power ${index + 1}`}
-                    </h3>
-                    <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-[0.08em] text-zinc-400">
-                      <span className="border border-zinc-800 px-1.5 py-0.5">
-                        {titleCase(summary.power.descriptorChassis)}
-                      </span>
-                      <span className="border border-zinc-800 px-1.5 py-0.5">
-                        Counter {titleCase(summary.power.counterMode)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className={summary.costValid ? "text-center text-xs text-zinc-300" : "text-xs font-medium text-red-300"}>
+                <div className="flow-root">
+                  <div className={summary.costValid ? "float-right mb-1 ml-2 flex gap-1.5 text-center text-xs text-zinc-300" : "float-right mb-1 ml-2 text-xs font-medium text-red-300"}>
                     {summary.costValid ? (
-                      <span className="block border border-zinc-800 px-1.5 py-1">
-                        <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Cooldown</span>
-                        {summary.derivedCooldownTurns ?? 1}
-                      </span>
+                      <>
+                        <span className="block min-w-16 border border-zinc-800 px-1.5 py-1">
+                          <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Counter</span>
+                          {titleCase(summary.power.counterMode)}
+                        </span>
+                        <span className="block min-w-16 border border-zinc-800 px-1.5 py-1">
+                          <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Cooldown</span>
+                          {summary.derivedCooldownTurns ?? 1}
+                        </span>
+                      </>
                     ) : (
                       `Invalid: ${summary.invalidCostReason ?? "Power is invalid."}`
                     )}
                   </div>
+                  <h3 className="text-base font-semibold uppercase tracking-[0.04em]">
+                    {summary.power.name || `Power ${index + 1}`}
+                  </h3>
+                  {summary.power.description?.trim() ? (
+                    <p className="mt-0.5 text-xs italic leading-snug text-zinc-400">{summary.power.description}</p>
+                  ) : null}
                 </div>
-                {summary.power.description?.trim() ? (
-                  <p className="mt-2 text-xs italic text-zinc-400">{summary.power.description}</p>
-                ) : null}
               </div>
               {summary.descriptorLines.length > 0 ? (
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-300">
