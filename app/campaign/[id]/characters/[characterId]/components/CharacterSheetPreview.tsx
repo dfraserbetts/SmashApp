@@ -1191,32 +1191,32 @@ function formatMainTraitAttributeLine(row: MainSheetPlacementRow) {
   return `${row.itemName}: ${cleaned}`;
 }
 
+function characteristicSheetEffectText(
+  characteristic: CharacterBuilderData["characteristics"][number],
+) {
+  const descriptor = renderCharacteristicDescriptor(characteristic);
+  const name = characteristic.name.trim() || "Unnamed Characteristic";
+  const prefix = `${name}: `;
+  return descriptor.startsWith(prefix) ? descriptor.slice(prefix.length) : descriptor;
+}
+
 function MainTraitsAttributesBox({
-  traitSummary,
   derivedStats,
 }: {
-  traitSummary: CharacterTraitSummary;
   derivedStats: CharacterDerivedCombatStats;
 }) {
   const equipmentRows = mainSheetEquipmentPlacementRows(derivedStats, MAIN_TRAIT_ATTRIBUTE_PLACEMENTS);
-  const traits = traitSummary.selected;
 
-  if (traits.length === 0 && equipmentRows.length === 0) return null;
+  if (equipmentRows.length === 0) return null;
 
   return (
     <section className="cb-main-traits-section border border-zinc-800 bg-black/50 p-1.5">
       <div className="flex min-h-6 items-center justify-between gap-2 border-b border-zinc-800 pb-1">
         <h3 className="text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-400">
-          Traits / Attributes
+          Attributes
         </h3>
       </div>
       <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10px] leading-snug text-zinc-300">
-        {traits.map((trait) => (
-          <li key={`trait-${trait.id}`}>
-            <span className="font-semibold text-zinc-100">{trait.name}</span>
-            {trait.descriptor ? `: ${trait.descriptor}` : null}
-          </li>
-        ))}
         {equipmentRows.map((row) => (
           <li key={row.key}>{formatMainTraitAttributeLine(row)}</li>
         ))}
@@ -1324,7 +1324,6 @@ function MainCombatSheet({
   character,
   builderData,
   derivedStats,
-  traitSummary,
   compact,
   campaignName,
   assignedPlayerLabel,
@@ -1332,7 +1331,6 @@ function MainCombatSheet({
   character: CharacterSheetCharacter;
   builderData: CharacterBuilderData;
   derivedStats: CharacterDerivedCombatStats;
-  traitSummary: CharacterTraitSummary;
   compact: boolean;
   campaignName?: string | null;
   assignedPlayerLabel?: string | null;
@@ -1383,8 +1381,8 @@ function MainCombatSheet({
                 <span className="text-xs text-amber-300">Archived</span>
               </div>
             ) : null}
-            <div className="flex-1">
-              <PortraitBlock character={character} className="min-h-64" imageClassName="max-h-80" />
+            <div>
+              <PortraitBlock character={character} className="h-[22rem]" imageClassName="h-full max-h-full" />
             </div>
           </div>
 
@@ -1401,7 +1399,6 @@ function MainCombatSheet({
       </div>
 
       <MainTraitsAttributesBox
-        traitSummary={traitSummary}
         derivedStats={derivedStats}
       />
 
@@ -1464,76 +1461,93 @@ function CharacterIdentitySheet({
   compact: boolean;
 }) {
   return (
-    <SheetFrame title="Character Sheet" subtitle="Identity, narrative details, Characteristics, and Traits.">
-      <div className="grid grid-cols-[1.05fr_0.95fr] gap-3">
-        <div className="space-y-3">
-          <div className="grid grid-cols-[160px_minmax(0,1fr)] gap-3">
-            <PortraitBlock character={character} />
-            <SheetPanel title="Identity">
-              <div className="grid grid-cols-3 gap-2">
-                <StatTile label="Name" value={display(character.name)} />
-                <StatTile label="Race" value={display(character.race, "-")} />
-                <StatTile label="Age" value={display(character.age, "-")} />
-              </div>
-            </SheetPanel>
+    <SheetFrame
+      title="Character Sheet"
+      subtitle="Identity, narrative details, Characteristics, and Traits."
+      contentClassName="space-y-3 p-4"
+    >
+      <div className="grid grid-cols-[0.9fr_1.25fr_0.9fr] items-stretch gap-3">
+        <SheetPanel title="Description / Backstory">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
+            {display(character.description, "No description.")}
+          </p>
+        </SheetPanel>
+
+        <section className="border-2 border-zinc-800 bg-black/55 p-2 text-center">
+          <div className="border border-zinc-800 bg-zinc-950/70 p-2">
+            <h3 className="text-lg font-semibold uppercase tracking-[0.08em] text-zinc-100">
+              {display(character.name)}
+            </h3>
+            <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+              <StatTile label="Race" value={display(character.race, "-")} />
+              <StatTile label="Age" value={display(character.age, "-")} />
+              <StatTile label="Level" value={character.level} />
+            </div>
           </div>
-          <SheetPanel title="Description / Backstory">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
-              {display(character.description, "No description.")}
-            </p>
-          </SheetPanel>
-          <SheetPanel title="Great Secret">
-            <p className="text-sm leading-relaxed text-zinc-300">{renderGreatSecret(builderData.greatSecret)}</p>
-          </SheetPanel>
-        </div>
+          <PortraitBlock character={character} className="mt-2 min-h-64" imageClassName="max-h-72" />
+        </section>
 
-        <div className="space-y-3">
-          <SheetPanel title="Characteristics">
-            {builderData.characteristics.length === 0 ? (
-              <p className="text-sm text-zinc-500">No Characteristics authored.</p>
-            ) : (
-              <div className="space-y-2">
-                {builderData.characteristics
-                  .slice(0, compact ? 6 : builderData.characteristics.length)
-                  .map((characteristic) => (
-                    <div key={characteristic.id} className="border border-zinc-800 bg-zinc-950/50 p-2 text-sm text-zinc-300">
-                      {renderCharacteristicDescriptor(characteristic)}
-                    </div>
-                  ))}
-              </div>
-            )}
-          </SheetPanel>
-
-          <SheetPanel title="Character Traits">
-            {traitSummary.selected.length === 0 ? (
-              <p className="text-sm text-zinc-500">No Traits selected.</p>
-            ) : (
-              <div className="space-y-2">
-                {traitSummary.selected.map((trait) => (
-                  <div key={trait.id} className="border border-zinc-800 bg-zinc-950/50 p-2 text-sm text-zinc-300">
-                    <div className="font-medium text-zinc-100">
-                      {trait.name} ({signedTraitPointDisplay(trait)})
-                    </div>
-                    <p className="mt-1">{trait.descriptor}</p>
+        <SheetPanel title="Traits">
+          {traitSummary.selected.length === 0 ? (
+            <p className="text-sm text-zinc-500">No Traits selected.</p>
+          ) : (
+            <div className="grid max-h-[25rem] gap-1.5 overflow-hidden">
+              {traitSummary.selected.map((trait) => (
+                <div key={trait.id} className="border border-zinc-800 bg-zinc-950/50 p-1.5 text-xs text-zinc-300">
+                  <div className="flex items-start justify-between gap-2 font-medium text-zinc-100">
+                    <span>{trait.name}</span>
+                    <span className="shrink-0 text-zinc-400">{signedTraitPointDisplay(trait)}</span>
                   </div>
-                ))}
-              </div>
-            )}
-          </SheetPanel>
-
-          <SheetPanel title="Bonds">
-            <p className="text-sm text-zinc-500">Bonds are not authored in the V1 player builder.</p>
-          </SheetPanel>
-
-          {builderData.narrativeNotes?.trim() ? (
-            <SheetPanel title="Narrative Notes">
-              <p className="whitespace-pre-wrap text-sm text-zinc-300">
-                {builderData.narrativeNotes}
-              </p>
-            </SheetPanel>
-          ) : null}
-        </div>
+                  <p className="mt-0.5 leading-snug">{trait.descriptor}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </SheetPanel>
       </div>
+
+      <div className="grid grid-cols-[1fr_0.75fr] gap-3">
+        <SheetPanel title="Great Secret">
+          <p className="text-sm leading-relaxed text-zinc-300">{renderGreatSecret(builderData.greatSecret)}</p>
+        </SheetPanel>
+        <SheetPanel title="Bonds">
+          <p className="text-sm text-zinc-500">No Bonds recorded.</p>
+        </SheetPanel>
+      </div>
+
+      <SheetPanel title="Characteristics">
+        {builderData.characteristics.length === 0 ? (
+          <p className="text-sm text-zinc-500">No Characteristics authored.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {builderData.characteristics
+              .slice(0, compact ? 6 : builderData.characteristics.length)
+              .map((characteristic) => (
+                <section key={characteristic.id} className="border border-zinc-800 bg-zinc-950/45 p-2 text-sm text-zinc-300">
+                  <div className="flex items-start justify-between gap-2 border-b border-zinc-800 pb-1">
+                    <h3 className="font-semibold text-zinc-100">
+                      {characteristic.name.trim() || "Unnamed Characteristic"}
+                    </h3>
+                    {characteristic.keyword.trim() ? (
+                      <span className="shrink-0 border border-zinc-800 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-zinc-400">
+                        {characteristic.keyword.trim()}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 leading-relaxed">{characteristicSheetEffectText(characteristic)}</p>
+                </section>
+              ))}
+          </div>
+        )}
+      </SheetPanel>
+
+      {builderData.narrativeNotes?.trim() ? (
+        <SheetPanel title="Narrative Notes">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">
+            {builderData.narrativeNotes}
+          </p>
+        </SheetPanel>
+      ) : null}
     </SheetFrame>
   );
 }
@@ -1741,7 +1755,6 @@ export function CharacterSheetPreview({
           character={character}
           builderData={builderData}
           derivedStats={derivedStats}
-          traitSummary={traitSummary}
           compact={compact}
           campaignName={campaignName}
           assignedPlayerLabel={assignedPlayerLabel}
