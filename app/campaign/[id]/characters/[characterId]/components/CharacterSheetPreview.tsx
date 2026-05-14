@@ -861,7 +861,7 @@ function mainSheetEquipmentPlacementRows(
 
   for (const section of derivedStats.itemOutputSections) {
     section.lines.forEach((line, index) => {
-      const placement = section.linePlacements?.[index];
+      const placement = section.linePlacements?.[index] ?? (section.title === "VRP" ? "GUARD" : null);
       if (!placement || !placements.has(placement)) return;
 
       const renderedLine =

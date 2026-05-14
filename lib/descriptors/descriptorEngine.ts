@@ -617,6 +617,9 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
         if (e.effectKind === "VULNERABILITY") {
           return {
             kind: "TEXT",
+            placement: "GUARD",
+            effectFamily: `VRP:${e.effectKind}:${e.damageType.toLowerCase()}`,
+            effectValue: e.magnitude,
             text: `${defencePrefix}, you suffer −${e.magnitude} to Defence rolls against ${e.damageType} attacks.`,
           };
         }
@@ -624,6 +627,9 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
         if (e.effectKind === "RESISTANCE") {
           return {
             kind: "TEXT",
+            placement: "GUARD",
+            effectFamily: `VRP:${e.effectKind}:${e.damageType.toLowerCase()}`,
+            effectValue: e.magnitude,
             text: `${defencePrefix}, you gain +${e.magnitude} to Defence rolls against ${e.damageType} attacks.`,
           };
         }
@@ -631,6 +637,9 @@ export function buildDescriptorResult(input: DescriptorInput): DescriptorResult 
         // PROTECTION
         return {
           kind: "TEXT",
+          placement: "GUARD",
+          effectFamily: `VRP:${e.effectKind}:${e.damageType.toLowerCase()}`,
+          effectValue: e.magnitude,
           text: `${defencePrefix}, you gain +${e.magnitude} dice to Defence rolls against ${e.damageType} attacks.`,
         };
       });
