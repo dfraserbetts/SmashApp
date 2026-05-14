@@ -1,0 +1,398 @@
+# Incarnate Kickstarter Brand Strategy
+
+## Working Title
+
+**INCARNATE**
+
+Optional usage where clarity is needed:
+
+**Incarnate TTRPG**
+
+Studio line:
+
+**A Sanctuary Gaming Studios Manifestation**
+
+Do not write “A Sanctuary Gaming Studio’s Manifestation.” The studio name is plural and the line is brand language, not possessive grammar.
+
+## Core Brand Thesis
+
+Incarnate is not merely a combat game. It is a system for turning player intent into playable form.
+
+The player provides the conscious layer:
+
+* imagination
+* identity
+* intention
+* fantasy
+* creative direction
+
+The app/system provides the subconscious layer:
+
+* mechanical execution
+* balance
+* rules legality
+* descriptor generation
+* printable output
+* live feedback
+
+The player imagines who they want to be and what they want to do. Incarnate gives that idea a mechanically solid body.
+
+This is the central truth behind the game:
+
+**Intent becomes form.**
+
+Or, in brand language:
+
+**Imagine your character. Incarnate them.**
+
+## Why “Incarnate” Fits
+
+“Incarnate” means to give body or form to an idea, spirit, or force. That directly matches the game’s purpose.
+
+It expresses:
+
+* imagination made playable
+* identity given form
+* power embodied
+* character fantasy turned into table-ready mechanics
+* a premium, serious, mythic tone
+
+It is broader than “SMASH,” which strongly implies combat, impact, and anime-style limit-breaking, but does not fully express the system’s deeper identity.
+
+SMASH remains emotionally important as the original spark and may still be useful as a mechanic name, legacy term, or over-limit action concept. But “Incarnate” better represents the whole product.
+
+## Product Identity
+
+Recommended product identity:
+
+**INCARNATE**
+
+**Be anyone.**
+**Do anything.**
+**Try everything.**
+
+**A Sanctuary Gaming Studios Manifestation**
+
+This is the current strongest identity structure.
+
+## Tagline
+
+**Be anyone.**
+**Do anything.**
+**Try everything.**
+
+Each line maps to a real system promise:
+
+### Be anyone
+
+No rigid class prison. Players build the character they imagine rather than selecting from pre-shaped identities.
+
+### Do anything
+
+Players can create powers, traits, equipment interactions, and expressive mechanical behaviours that match their fantasy.
+
+### Try everything
+
+The system supports creative use, flexible application, and table-driven experimentation. A fireball might defend an ally. A healing stim might finish an enemy. A bolstering shout might be used to surprise rather than augment.
+
+The third line is especially important because it expresses the intended table culture: lateral thinking, not merely optimisation.
+
+## Brand Posture
+
+The desired posture is quiet confidence.
+
+Incarnate should not beg for attention. It should reveal capability.
+
+The guiding structure is:
+
+**Front cover = silent confidence**
+**Kickstarter / website / back cover = clear promise**
+**Actual app + sheets + rules = undeniable proof**
+
+This keeps the cover premium and restrained while ensuring the sales journey remains clear.
+
+## Important Brand Rule
+
+Mystique is powerful. Ambiguity is expensive.
+
+The front cover can be silent and mythic. The surrounding sales context must clearly communicate what the product is.
+
+Do not hide that Incarnate is a tabletop roleplaying game everywhere. Hide nothing from the buyer. Only avoid cluttering the front cover with generic category language if the rest of the campaign makes the category unmistakable.
+
+## Cover Strategy
+
+Recommended front cover hierarchy:
+
+**INCARNATE**
+
+**Be anyone.**
+**Do anything.**
+**Try everything.**
+
+**A Sanctuary Gaming Studios Manifestation**
+
+Optional small footer if needed:
+
+**Core Rulebook**
+
+“Core Rulebook” may be a better front-cover category marker than “A tabletop roleplaying game.” It communicates the product category to RPG players without flattening the cover into generic marketplace language.
+
+Recommended non-cover usage:
+
+* Kickstarter title: **Incarnate TTRPG: Be Anyone. Do Anything. Try Everything.**
+* Website SEO title: **Incarnate TTRPG | A tabletop roleplaying game of limitless character creation**
+* Back cover: clearly explain that Incarnate is a tabletop roleplaying game.
+* Spine: **Incarnate TTRPG** or **Incarnate Core Rulebook**
+* PDF title: **Incarnate TTRPG Core Rulebook**
+* Store metadata: explicitly use tabletop roleplaying game / TTRPG / RPG.
+
+## What Not To Do
+
+Do not use language that sounds like the game is claiming to be above the genre.
+
+Avoid:
+
+* “Not a TTRPG.”
+* “The next evolution of roleplaying.”
+* “A new form of game.”
+* “Beyond tabletop roleplaying.”
+
+The correct posture is:
+
+**This is a tabletop roleplaying game. It simply does not need to look or feel like every other tabletop roleplaying game.**
+
+## Demonstration Strategy
+
+The game should make minimal claims and then demonstrate them brutally.
+
+Do not say:
+
+“This is the most flexible TTRPG ever made.”
+
+Say:
+
+**Be anyone. Do anything. Try everything.**
+
+Then show it.
+
+Example demonstration flow:
+
+1. A player imagines a volcanic shield-bearer.
+2. The app turns that fantasy into legal mechanics.
+3. The live preview updates instantly.
+4. The character sheet shows attacks, guard, traits, powers, damage interactions, and costs.
+5. The sheet prints cleanly.
+6. The character reaches a decisive moment.
+7. The player chooses whether to Breakthrough / Smash and pay the cost.
+
+The goal is not to argue that Incarnate is different. The goal is to make the difference impossible to miss.
+
+## Marketing Rule
+
+**Promise little. Demonstrate brutally. Let the audience make the bigger claim.**
+
+This is how Incarnate avoids sounding arrogant while still appearing premium and important.
+
+The audience should be the ones saying:
+
+“This is better than anything we’ve seen before.”
+
+The product does not need to say that about itself.
+
+## Front Cover Visual Concept
+
+The cover should feel like a serious, mythic artefact rather than a generic fantasy TTRPG cover.
+
+Possible structure:
+
+* Central logo: **INCARNATE**
+* Triptych-style hero art rather than three disconnected images
+* Three visual beats:
+
+  * **Be anyone** — identity / character forming / self imagined into being
+  * **Do anything** — power expression / impossible ability / creative mechanical freedom
+  * **Try everything** — unexpected application / tactical creativity / power used in an unconventional way
+* Studio line at bottom: **A Sanctuary Gaming Studios Manifestation**
+
+The art should not be crowded. The cover should walk into the room dressed to kill, saying very little.
+
+## Studio-Level Language
+
+“Manifestation” should become Sanctuary Gaming Studios’ product-family term.
+
+Example:
+
+**Incarnate**
+**A Sanctuary Gaming Studios Manifestation**
+
+Future products can also be Manifestations.
+
+This gives the studio a philosophical identity:
+
+**Sanctuary Gaming Studios creates Manifestations: games that turn imagination into playable form.**
+
+## Mechanic Naming
+
+“Limit Break” should not be used as the official term because it is strongly associated with Final Fantasy.
+
+Candidate replacement terms:
+
+### Breakthrough
+
+Pros:
+
+* clear
+* heroic
+* broadly applicable beyond combat
+* captures pushing past a limit
+
+Cons:
+
+* softer than the cost/danger of the mechanic
+* can sound self-help/corporate if framed poorly
+
+### Smash
+
+Pros:
+
+* emotionally tied to the original inspiration
+* explosive
+* easy table verb
+* good for violent/offensive over-limit moments
+
+Cons:
+
+* combat-weighted
+* still carries the old working-title baggage
+* may imply punch game if overused
+
+Possible architecture:
+
+* Game title: **Incarnate**
+* Studio line: **A Sanctuary Gaming Studios Manifestation**
+* Over-limit mechanic: **Breakthrough** or **Smash**
+
+Potential rule language:
+
+**When the moment demands more than you safely possess, you may Breakthrough.**
+
+or:
+
+**When you choose to put everything on the line, you may Smash.**
+
+This remains undecided.
+
+## Philosophical Foundation
+
+The app mirrors the relationship between conscious intention and subconscious execution.
+
+The conscious mind decides:
+
+* what it wants
+* what action it intends
+* what outcome it imagines
+
+The subconscious executes:
+
+* countless mechanical processes
+* physical coordination
+* adjustment through feedback
+* detailed implementation beyond conscious bandwidth
+
+Incarnate uses the same pattern.
+
+The player decides the imaginative intent. The app performs the mechanical execution.
+
+The live preview is the feedback loop. As the player enters ideas, they see the mechanical form update in real time. They can judge whether the character is underdeveloped, overpowered, or exactly right.
+
+This solves the impossible book problem.
+
+A book cannot reasonably contain every imaginable balanced power, trait, build, and interaction without becoming unusable. The app can act as the mechanical subconscious, letting players remain in the imaginative/conceptual space while the system handles legality, balance, and output.
+
+## Kickstarter Positioning
+
+The campaign should avoid over-explaining up front.
+
+Recommended sequence:
+
+1. Show the logo and tagline.
+2. Show a short, impossible-seeming character fantasy.
+3. Show the app turning it into mechanics.
+4. Show the printable sheet.
+5. Show table application.
+6. Show the over-limit moment.
+7. Then explain the system for those who want detail.
+
+The hook is not “another fantasy TTRPG.”
+
+The hook is:
+
+**Imagine the character first. Incarnate them into the rules. Then find out what they are willing to sacrifice when the moment demands everything.**
+
+## Brand Tone
+
+Incarnate should feel:
+
+* serious
+* premium
+* mythic
+* restrained
+* confident
+* mechanically impressive
+* creatively liberating
+
+It should avoid:
+
+* jokey indie chaos
+* generic fantasy noise
+* class-based nostalgia framing
+* overclaiming
+* apologetic explanation
+* fake revolution language
+* empty mysticism without proof
+
+## Final Current Brand Draft
+
+**INCARNATE**
+
+**Be anyone.**
+**Do anything.**
+**Try everything.**
+
+**A Sanctuary Gaming Studios Manifestation**
+
+Clear supporting copy:
+
+**Incarnate is a tabletop roleplaying game where players imagine who they want to be, build the powers they can conceive, and bring those characters to the table through live digital tools and printable sheets.**
+
+Sharper pitch variant:
+
+**Imagine your character. Incarnate them. When the moment demands everything, choose whether to Breakthrough — and pay the cost.**
+
+## Open Decisions
+
+Still to decide later:
+
+1. Whether the over-limit mechanic is called Breakthrough, Smash, or something else.
+2. Whether “Core Rulebook” appears on the front cover.
+3. Final logo form for Incarnate.
+4. Final cover art structure: single hero image vs triptych.
+5. Whether “Manifestation” is used on all Sanctuary products or only major releases.
+6. How strongly the front cover should signal TTRPG category versus relying on back cover / Kickstarter / metadata.
+7. Whether “SMASH” remains a mechanic name, internal legacy term, or disappears entirely.
+
+## Strategic Warning
+
+The tagline is powerful but dangerous because it is an oath.
+
+If the game says:
+
+**Be anyone. Do anything. Try everything.**
+
+then the system, app, and table experience must keep honouring that promise.
+
+Every unnecessary restriction wounds the brand.
+
+Every successful live-preview build proves it.
+
+The product must demonstrate the promise, not merely print it.
