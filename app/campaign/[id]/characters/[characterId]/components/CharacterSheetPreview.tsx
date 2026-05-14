@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import Image from "next/image";
 
 import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
 import { getForgeRarityPalette } from "@/lib/forge/itemRarityPalette";
@@ -706,20 +707,20 @@ function AttributeCard({
     </div>
   );
   const valueBlock = (
-    <div className="flex items-center justify-center text-2xl font-semibold leading-none text-zinc-100">
+    <div className="flex items-center justify-center text-5xl font-semibold leading-none text-zinc-100">
       {baseNumber || "-"}
     </div>
   );
 
   return (
     <div className={`cb-attribute-card border px-1.5 py-1 ${toneClass}`}>
-      <div className="border-b border-zinc-800/80 pb-0.5 text-center text-[10px] font-semibold leading-tight text-zinc-100">
+      <div className="border-b border-zinc-800/80 pb-0.5 text-center text-[16px] font-semibold leading-tight text-zinc-100">
         {attribute}
       </div>
       <div
         className={[
-          "mt-0.5 grid min-h-9 items-center gap-1",
-          isPhysical ? "grid-cols-[2.5rem_minmax(0,1fr)]" : "grid-cols-[minmax(0,1fr)_2.5rem]",
+          "mt-0.5 grid min-h-14 items-center gap-1",
+          isPhysical ? "grid-cols-[4.5rem_minmax(0,1fr)]" : "grid-cols-[minmax(0,1fr)_4.5rem]",
         ].join(" ")}
       >
         {isPhysical ? valueBlock : detailBlock}
@@ -740,8 +741,8 @@ function MainReferenceTile({
 
   return (
     <div className={`cb-main-reference-tile border border-zinc-800 bg-zinc-950/70 px-1.5 py-1 ${alignment}`}>
-      <div className="text-[8px] uppercase tracking-[0.08em] text-zinc-500">{stat.label}</div>
-      <div className="mt-0.5 text-lg font-semibold leading-none text-zinc-100">{stat.value}</div>
+      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-500">{stat.label}</div>
+      <div className="mt-0.5 text-4xl font-semibold leading-none text-zinc-100">{stat.value}</div>
       {stat.helper ? <div className="mt-0.5 text-[10px] text-zinc-500">{stat.helper}</div> : null}
     </div>
   );
@@ -803,13 +804,15 @@ function MainCombatSection({
 function MainMetricPill({
   label,
   value,
+  labelClassName = "text-zinc-500",
 }: {
   label: string;
   value: React.ReactNode;
+  labelClassName?: string;
 }) {
   return (
     <span className="inline-flex items-center gap-1 border border-zinc-800 bg-zinc-950/50 px-1.5 py-0.5 text-[9px] leading-tight text-zinc-300">
-      <span className="uppercase tracking-[0.08em] text-zinc-500">{label}</span>
+      <span className={`uppercase tracking-[0.08em] ${labelClassName}`}>{label}</span>
       <span className="font-semibold text-zinc-100">{value}</span>
     </span>
   );
@@ -1106,11 +1109,27 @@ function MainGuardAttributeLines({ rows }: { rows: MainSheetPlacementRow[] }) {
 const DAMAGE_INTERACTION_GROUPS: Array<{
   kind: DamageInteractionKind;
   label: string;
-  marker: string;
+  iconSrc: string;
+  iconAlt: string;
 }> = [
-  { kind: "VULNERABILITY", label: "Vulnerable", marker: "[- Shield]" },
-  { kind: "RESISTANCE", label: "Resist", marker: "[+ Shield]" },
-  { kind: "PROTECTION", label: "Protection", marker: "[+ Dice]" },
+  {
+    kind: "VULNERABILITY",
+    label: "Vulnerability",
+    iconSrc: "/icons/brokenshield.png",
+    iconAlt: "broken shield",
+  },
+  {
+    kind: "RESISTANCE",
+    label: "Resistance",
+    iconSrc: "/icons/shield.png",
+    iconAlt: "shield",
+  },
+  {
+    kind: "PROTECTION",
+    label: "Protection",
+    iconSrc: "/icons/dice.png",
+    iconAlt: "dice",
+  },
 ];
 
 function MainDamageInteractionRows({ rows }: { rows: DamageInteractionRow[] }) {
@@ -1118,22 +1137,30 @@ function MainDamageInteractionRows({ rows }: { rows: DamageInteractionRow[] }) {
 
   return (
     <div className="mt-1 border-t border-zinc-800 pt-1">
-      <p className="mb-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
-        Damage Interactions
-      </p>
-      <div className="space-y-0.5 text-[10px] leading-snug text-zinc-300">
+      <div className="grid grid-cols-3 overflow-hidden border border-zinc-800 text-[10px] leading-snug text-zinc-300">
         {DAMAGE_INTERACTION_GROUPS.map((group) => {
           const groupRows = rows
             .filter((row) => row.kind === group.kind)
             .sort((a, b) => a.damageType.localeCompare(b.damageType));
-          if (groupRows.length === 0) return null;
 
           return (
-            <p key={group.kind}>
-              <span className="mr-1 font-semibold text-zinc-100">{group.marker}</span>
-              <span className="font-semibold text-zinc-100">{group.label}:</span>{" "}
-              {groupRows.map((row) => `${row.damageType} ${formatSheetNumber(row.value)}`).join(", ")}
-            </p>
+            <div key={group.kind} className="border-r border-zinc-800 last:border-r-0">
+              <div className="flex items-center justify-center gap-1 border-b border-zinc-800 bg-zinc-950/50 px-1 py-0.5">
+                <Image
+                  src={group.iconSrc}
+                  alt={group.iconAlt}
+                  width={36}
+                  height={36}
+                  className="h-9 w-9 object-contain"
+                />
+                <span className="font-semibold text-zinc-100">{group.label}</span>
+              </div>
+              <div className="min-h-8 px-1 py-1 text-center text-[9px] leading-snug text-zinc-300">
+                {groupRows.length > 0
+                  ? groupRows.map((row) => `${row.damageType} ${formatSheetNumber(row.value)}`).join(", ")
+                  : "-"}
+              </div>
+            </div>
           );
         })}
       </div>
@@ -1363,7 +1390,7 @@ function MainCombatSheet({
       <div className="grid gap-1.5">
         <MainCombatSection
           title="Attacks"
-          header={<MainMetricPill label="Weapon Skill" value={derivedStats.weaponSkill} />}
+          header={<MainMetricPill label="Weapon Skill" value={derivedStats.weaponSkill} labelClassName="text-black" />}
         >
           {derivedStats.attacks.length === 0 && attackAttributeRows.length === 0 ? (
             <p className="text-sm text-zinc-500">No equipped attack output.</p>
@@ -1386,12 +1413,13 @@ function MainCombatSheet({
           title="Guard / Protection"
           header={
             <div className="flex flex-wrap justify-end gap-1">
-              <MainMetricPill label="Armor" value={derivedStats.armorSkill} />
+              <MainMetricPill label="Armor Skill" value={derivedStats.armorSkill} labelClassName="text-black" />
               <MainMetricPill
                 label="Dodge"
                 value={`${derivedStats.dodgeDice}d / ${formatSheetNumber(derivedStats.dodgeValue)}`}
+                labelClassName="text-black"
               />
-              <MainMetricPill label="Will" value={derivedStats.willpower} />
+              <MainMetricPill label="Willpower" value={derivedStats.willpower} labelClassName="text-black" />
             </div>
           }
         >
