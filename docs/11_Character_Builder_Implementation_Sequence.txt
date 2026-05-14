@@ -4,7 +4,7 @@ Character Builder Implementation Sequence
 Purpose
 -------
 
-This document records the recommended nine-step implementation sequence for the SMASH TTRPG Character Builder.
+This document records the recommended nine-step implementation sequence for the Incarnate TTRPG Character Builder.
 
 It is designed to be used as the source for future Codex prompts.
 
@@ -620,6 +620,10 @@ Scope:
 - Build print/export flow from Character Builder preview.
 - Match Forge and Summoning Circle philosophy:
   - what is shown on screen is what prints
+- Use a fixed paper-canvas sheet renderer philosophy:
+  - the app shell may be responsive
+  - sheet internals should preserve printable layout
+  - preview may scale or scroll rather than semantically reflowing sections
 - Add print type selector:
   1. Full Colour Sheet
   2. Full Print Friendly Sheet
@@ -642,8 +646,12 @@ Main Sheet:
 - health pools
 - defence strings
 - attack strings
-- equipped gear summary
+- equipment-derived combat outputs where relevant
 - table-facing combat outputs
+
+The Main Sheet should not duplicate the equipped gear item list. It may show
+combat-facing outputs derived from equipment, but not the full equipped gear
+detail list.
 
 Character Sheet:
 
@@ -664,10 +672,13 @@ Power Sheet(s):
 
 Inventory Sheet:
 
-- equipped items
+- equipped item detail
 - Backpack items
 - quantities
 - item summaries/descriptors where appropriate
+
+The Inventory Sheet owns equipped item detail, Backpack items, quantities, and
+item descriptors or summaries.
 
 Non-goals:
 
@@ -731,4 +742,3 @@ The Character Builder touches too many systems to safely build as one giant feat
 9. printable output
 
 This order avoids building player-facing UI on top of missing permissions, avoids fake Backpack logic, and avoids creating a power-builder fork before the shared core is cleanly reused.
-

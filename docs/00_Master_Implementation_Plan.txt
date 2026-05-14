@@ -1,20 +1,30 @@
 Purpose
 
-This document is the top-level source of truth for the SMASH TTRPG power-system redesign. Its purpose is to keep future design and implementation work aligned across multiple chats and development sessions. It is intentionally strategic rather than exhaustive. Detailed rules, matrices, and edge cases belong in the more specific source documents.
+This document is the top-level source of truth for the Incarnate TTRPG power-system redesign. Its purpose is to keep future design and implementation work aligned across multiple chats and development sessions. It is intentionally strategic rather than exhaustive. Detailed rules, matrices, and edge cases belong in the more specific source documents.
+
+Master Identity
+
+Incarnate is the product identity.
+
+Studio line: A Sanctuary Gaming Studios Manifestation.
+
+Core philosophy: player intent becomes playable form.
+
+Detailed Kickstarter and brand strategy belongs in doc 12 and is intentionally not repeated here.
 
 Project Goal
 
-SMASH is moving from a legacy power-building approach toward a shared power framework that supports both monster powers and player powers through a single underlying architecture.
+Incarnate is moving from a legacy power-building approach toward a shared power framework that supports both monster powers and player powers through a single underlying architecture.
 
 The goal is to preserve the original speed and clarity of the descriptor engine while adding enough structure for powers to feel distinct, premium, and mechanically expressive rather than just baseline actions with bigger numbers.
 
 Thematic Scope and the Heart of the Game
 
-SMASH TTRPG allows players to create the characters and powers they imagine.
+Incarnate TTRPG allows players to create the characters and powers they imagine.
 
-Unlike games that say, “Pick from these classes and we will tell you how your character plays,” SMASH asks the player, “How do you imagine your character? How do they play? What can they do?”
+Unlike games that say, “Pick from these classes and we will tell you how your character plays,” Incarnate asks the player, “How do you imagine your character? How do they play? What can they do?”
 
-The player imagines the character, how they would behave, and what powers they would have. SMASH then provides the tools to create those results in a mechanically viable and balanced way.
+The player imagines the character, how they would behave, and what powers they would have. Incarnate then provides the tools to create those results in a mechanically viable and balanced way.
 
 This is a foundational design truth and should not be forgotten during implementation. The system exists to support authored character imagination, not to force players into narrow pre-shaped identities.
 
@@ -66,7 +76,7 @@ Delivery Method must be chosen early enough in the workflow to shape the form co
 
 Not every power needs every layer of complexity. Straightforward powers should stay fast and simple.
 
-Complexity has a meaningful cost in SMASH and must continue to do so. More intentions, longer lifespans, longer effect durations, richer timing structures, and stronger action commitment should all consume more budget.
+Complexity has a meaningful cost in Incarnate and must continue to do so. More intentions, longer lifespans, longer effect durations, richer timing structures, and stronger action commitment should all consume more budget.
 
 Packet Resolution Direction
 
