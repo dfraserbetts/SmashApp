@@ -728,6 +728,14 @@ function buildEquippedItemBullets(item: BuilderBackpackItem) {
   return uniqueBullets.slice(0, 8);
 }
 
+function equippedSlotDisplayLabel(slot: EquipmentSlotKey, item: BuilderBackpackItem) {
+  return (slot === "mainHand" || slot === "offHand") &&
+    item.itemTemplate.type === "WEAPON" &&
+    item.itemTemplate.size === "TWO_HANDED"
+    ? "Two-Handed"
+    : EQUIPMENT_SLOT_LABELS[slot];
+}
+
 function EquippedItemMiniCard({
   slot,
   item,
@@ -743,7 +751,7 @@ function EquippedItemMiniCard({
 }) {
   const template = item.itemTemplate;
   const palette = getForgeRarityPalette(template.rarity);
-  const slotLabel = EQUIPMENT_SLOT_LABELS[slot];
+  const slotLabel = equippedSlotDisplayLabel(slot, item);
   const itemName = template.name?.trim() || "(Unnamed item)";
   const meta = formatBackpackItemMeta(item);
   const imageUrl = isHttpUrl(template.itemUrl) ? template.itemUrl?.trim() : null;

@@ -85,7 +85,7 @@ export type CharacterDerivedCombatStats = {
   mentalProtection: number;
   physicalBlockPerSuccess: number;
   mentalBlockPerSuccess: number;
-  attacks: Array<{ slot: EquipmentSlotKey; label: string; lines: string[] }>;
+  attacks: Array<{ slot: EquipmentSlotKey; slotLabel: string; label: string; lines: string[] }>;
   defenceStrings: string[];
   protectionSources: Array<{
     slot: EquipmentSlotKey;
@@ -116,6 +116,17 @@ function attributeNumber(
 
 function itemName(item: CharacterBuilderDerivedBackpackItem) {
   return item.itemTemplate.name?.trim() || "(Unnamed item)";
+}
+
+function equippedSlotDisplayLabel(
+  slot: EquipmentSlotKey,
+  item: CharacterBuilderDerivedBackpackItem,
+) {
+  return (slot === "mainHand" || slot === "offHand") &&
+    item.itemTemplate.type === "WEAPON" &&
+    item.itemTemplate.size === "TWO_HANDED"
+    ? "Two-Handed"
+    : EQUIPMENT_SLOT_LABELS[slot];
 }
 
 function numberOrZero(value: unknown) {
@@ -337,10 +348,12 @@ export function buildCharacterDerivedCombatStats(params: {
       applyWeaponSkillOverride: true,
     });
     if (lines.length === 0) return [];
+    const slotLabel = equippedSlotDisplayLabel(slot, backpackItem);
     return [
       {
         slot,
-        label: `${EQUIPMENT_SLOT_LABELS[slot]}: ${itemName(backpackItem)}`,
+        slotLabel,
+        label: `${slotLabel}: ${itemName(backpackItem)}`,
         lines,
       },
     ];

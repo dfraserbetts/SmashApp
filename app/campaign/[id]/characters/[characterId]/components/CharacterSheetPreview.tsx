@@ -124,6 +124,17 @@ function itemName(item: CharacterBuilderDerivedBackpackItem) {
   return item.itemTemplate.name?.trim() || "(Unnamed item)";
 }
 
+function equippedSlotDisplayLabel(
+  slot: EquipmentSlotKey,
+  item: CharacterBuilderDerivedBackpackItem,
+) {
+  return (slot === "mainHand" || slot === "offHand") &&
+    item.itemTemplate.type === "WEAPON" &&
+    item.itemTemplate.size === "TWO_HANDED"
+    ? "Two-Handed"
+    : EQUIPMENT_SLOT_LABELS[slot];
+}
+
 function titleCase(value: string | null | undefined) {
   const raw = value?.trim();
   if (!raw) return "-";
@@ -477,7 +488,7 @@ function EquippedItemCompactCard({
 }) {
   const template = item.itemTemplate;
   const palette = getForgeRarityPalette(template.rarity);
-  const slotLabel = EQUIPMENT_SLOT_LABELS[slot];
+  const slotLabel = equippedSlotDisplayLabel(slot, item);
   const typeLabel = titleCase(template.type);
   const levelAndType = [template.level ? `Level ${template.level}` : null, typeLabel === "-" ? null : typeLabel]
     .filter(Boolean)
@@ -1043,24 +1054,31 @@ function MainAttackStringBoxes({
       key: `${attack.slot}-${attack.label}-${index}`,
       label: attack.label,
       slot: attack.slot,
+      slotLabel: attack.slotLabel,
       line,
     })),
   );
 
   if (boxes.length === 0) return null;
+  const gridClass =
+    boxes.length === 1
+      ? "grid grid-cols-[45%] justify-center gap-1"
+      : boxes.length === 2
+        ? "grid grid-cols-2 gap-1"
+        : "grid grid-cols-3 gap-1";
 
   return (
-    <div className="grid grid-cols-3 gap-1">
+    <div className={gridClass}>
       {boxes.map((box) => (
         <div
           key={box.key}
           className="cb-main-output-row border border-zinc-800 bg-zinc-950/50 px-1.5 py-2 text-center text-[10px] leading-snug text-zinc-300"
         >
           <div className="mb-0.5 border-b border-zinc-800 pb-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
-            {EQUIPMENT_SLOT_LABELS[box.slot]}
+            {box.slotLabel}
           </div>
           <div className="mb-1 text-[10px] font-semibold leading-tight text-zinc-100">
-            {box.label.replace(`${EQUIPMENT_SLOT_LABELS[box.slot]}: `, "")}
+            {box.label.replace(`${box.slotLabel}: `, "")}
           </div>
           <div><RenderLeadIn line={compactLine(box.line)} /></div>
           <MainAttackAttributeLines
