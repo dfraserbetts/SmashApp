@@ -718,7 +718,7 @@ function AttributeCard({
     </div>
   );
   const valueBlock = (
-    <div className="flex items-center justify-center text-5xl font-semibold leading-none text-zinc-100">
+    <div className="flex items-center justify-center text-[2.1rem] font-semibold leading-none text-zinc-100">
       {baseNumber || "-"}
     </div>
   );
@@ -1434,7 +1434,7 @@ function MainCombatSheet({
               <MainMetricPill label="Armor Skill" value={derivedStats.armorSkill} labelClassName="text-black" />
               <MainMetricPill
                 label="Dodge"
-                value={`${derivedStats.dodgeDice}d / ${formatSheetNumber(derivedStats.dodgeValue)}`}
+                value={formatSheetNumber(derivedStats.dodgeValue)}
                 labelClassName="text-black"
               />
               <MainMetricPill label="Willpower" value={derivedStats.willpower} labelClassName="text-black" />
