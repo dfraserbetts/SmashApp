@@ -1093,6 +1093,9 @@ function MainGuardAttributeLines({ rows }: { rows: MainSheetPlacementRow[] }) {
 
   return (
     <div className="mt-1 space-y-0.5 border-t border-zinc-800 pt-1 text-[10px] leading-snug text-zinc-300">
+      <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+        General Defence Attributes
+      </p>
       {rows.map((row) => (
         <p key={row.key}>{formatMainGuardAttributeLine(row)}</p>
       ))}
@@ -1105,16 +1108,19 @@ const DAMAGE_INTERACTION_GROUPS: Array<{
   label: string;
   marker: string;
 }> = [
-  { kind: "VULNERABILITY", label: "Vulnerable", marker: "[!]" },
-  { kind: "RESISTANCE", label: "Resist", marker: "[R]" },
-  { kind: "PROTECTION", label: "Protection", marker: "[P]" },
+  { kind: "VULNERABILITY", label: "Vulnerable", marker: "[- Shield]" },
+  { kind: "RESISTANCE", label: "Resist", marker: "[+ Shield]" },
+  { kind: "PROTECTION", label: "Protection", marker: "[+ Dice]" },
 ];
 
-function MainDamageInteractionsSection({ rows }: { rows: DamageInteractionRow[] }) {
+function MainDamageInteractionRows({ rows }: { rows: DamageInteractionRow[] }) {
   if (rows.length === 0) return null;
 
   return (
-    <MainCombatSection title="Damage Interactions">
+    <div className="mt-1 border-t border-zinc-800 pt-1">
+      <p className="mb-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+        Damage Interactions
+      </p>
       <div className="space-y-0.5 text-[10px] leading-snug text-zinc-300">
         {DAMAGE_INTERACTION_GROUPS.map((group) => {
           const groupRows = rows
@@ -1131,7 +1137,7 @@ function MainDamageInteractionsSection({ rows }: { rows: DamageInteractionRow[] 
           );
         })}
       </div>
-    </MainCombatSection>
+    </div>
   );
 }
 
@@ -1289,6 +1295,7 @@ function MainCombatSheet({
   const attackAttributeRows = mainSheetEquipmentPlacementRows(
     derivedStats,
     MAIN_ATTACK_ATTRIBUTE_PLACEMENTS,
+    { lineMode: "full" },
   );
   const guardAttributeRows = mainSheetEquipmentPlacementRows(
     derivedStats,
@@ -1389,11 +1396,10 @@ function MainCombatSheet({
           }
         >
           <MainDefenceStringBoxes lines={derivedStats.defenceStrings} />
+          <MainDamageInteractionRows rows={damageInteractionRows} />
           <MainGuardAttributeLines rows={guardAttributeRows} />
         </MainCombatSection>
       </div>
-
-      <MainDamageInteractionsSection rows={damageInteractionRows} />
 
       <MainSheetHelperStrip />
     </SheetFrame>
