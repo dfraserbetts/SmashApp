@@ -300,13 +300,18 @@ function compactEquippedItemBullet(line: string) {
   }
 
   const weaponMatch = withoutPeriod.match(
-    /^Choose (.+) and roll weapon skill dice\. This (?:weapon|shield) inflicts (\d+) (?:physical|mental) ([A-Za-z ]+) wounds? per success(?:\. Each greater success inflicts (.+))?$/i,
+    /^(?:[A-Za-z ]+:\s*)?Choose (.+) and roll weapon skill dice\. This (?:weapon|shield) inflicts (\d+) (?:physical|mental) ([A-Za-z ]+) wounds? per success(?:\. Each greater success inflicts (.+))?$/i,
   );
   if (weaponMatch) {
     const range = compactWeaponRange(weaponMatch[1]);
     const base = `${range} - ${weaponMatch[2]} ${compactDamageType(weaponMatch[3])} wounds`;
     const greaterSuccess = weaponMatch[4] ? compactGreaterSuccessClause(weaponMatch[4]) : null;
     return greaterSuccess ? `${base} / ${greaterSuccess}` : base;
+  }
+
+  const namedAttributeMatch = withoutPeriod.match(/^([A-Za-z][A-Za-z '-]*):\s+\S.+$/);
+  if (namedAttributeMatch) {
+    return namedAttributeMatch[1].trim();
   }
 
   return cleaned;
@@ -489,7 +494,7 @@ function EquippedItemCompactCard({
       }}
     >
       <div className="min-w-0">
-        <p className="truncate text-[11px] text-zinc-500">
+        <p className="truncate text-[11px] text-white">
           {slotLabel}
           {levelAndType ? ` - ${levelAndType}` : ""}
         </p>
@@ -502,7 +507,7 @@ function EquippedItemCompactCard({
         </p>
       </div>
       <div
-        className={`grid h-[180px] grid-cols-[minmax(92px,42%)_1fr] gap-3 overflow-hidden rounded border p-2 ${palette.panelBorderClass} ${palette.panelShadowClass}`}
+        className={`grid h-[180px] grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3 overflow-hidden rounded border p-2 ${palette.panelBorderClass} ${palette.panelShadowClass}`}
         style={{
           borderColor: palette.panelBorderColor,
           backgroundColor: "rgba(3, 7, 18, 0.34)",
@@ -822,6 +827,18 @@ type MainSheetPlacementRow = {
   order: number;
 };
 
+type DamageInteractionKind = "VULNERABILITY" | "RESISTANCE" | "PROTECTION";
+
+type DamageInteractionRow = {
+  key: string;
+  kind: DamageInteractionKind;
+  damageType: string;
+  value: number;
+  effectFamily: string | null;
+  effectValue: number | null;
+  order: number;
+};
+
 function highestOnlyRows<T extends { effectFamily: string | null; effectValue: number | null; order: number }>(
   rows: T[],
 ) {
@@ -862,7 +879,9 @@ function mainSheetEquipmentPlacementRows(
   for (const section of derivedStats.itemOutputSections) {
     section.lines.forEach((line, index) => {
       const placement = section.linePlacements?.[index] ?? (section.title === "VRP" ? "GUARD" : null);
+      const effectFamily = section.lineEffectFamilies?.[index] ?? null;
       if (!placement || !placements.has(placement)) return;
+      if (section.title === "VRP" || effectFamily?.startsWith("VRP:")) return;
 
       const renderedLine =
         options.lineMode === "full" ? compactLine(line) : compactEquippedItemBullet(line);
@@ -877,8 +896,48 @@ function mainSheetEquipmentPlacementRows(
         title: section.title,
         line: renderedLine,
         placement,
-        effectFamily: section.lineEffectFamilies?.[index] ?? inferred?.family ?? null,
+        effectFamily: effectFamily ?? inferred?.family ?? null,
         effectValue: section.lineEffectValues?.[index] ?? inferred?.value ?? null,
+        order: order++,
+      });
+    });
+  }
+
+  return highestOnlyRows(rows);
+}
+
+function parseVrpEffectFamily(family: string | null | undefined) {
+  const parts = family?.split(":") ?? [];
+  if (parts.length !== 3 || parts[0] !== "VRP") return null;
+  const kind = parts[1] as DamageInteractionKind;
+  if (kind !== "VULNERABILITY" && kind !== "RESISTANCE" && kind !== "PROTECTION") return null;
+  const damageType = titleCase(parts[2]);
+  if (!damageType || damageType === "-") return null;
+  return { kind, damageType };
+}
+
+function mainSheetDamageInteractionRows(derivedStats: CharacterDerivedCombatStats) {
+  const rows: DamageInteractionRow[] = [];
+  const seen = new Set<string>();
+  let order = 0;
+
+  for (const section of derivedStats.itemOutputSections) {
+    section.lines.forEach((_line, index) => {
+      const metadata = parseVrpEffectFamily(section.lineEffectFamilies?.[index]);
+      const value = effectValue(section.lineEffectValues?.[index]);
+      if (!metadata || value === null || value <= 0) return;
+
+      const key = `${metadata.kind}::${metadata.damageType.toLowerCase()}::${value}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      rows.push({
+        key,
+        kind: metadata.kind,
+        damageType: metadata.damageType,
+        value,
+        effectFamily: section.lineEffectFamilies?.[index] ?? null,
+        effectValue: value,
         order: order++,
       });
     });
@@ -1038,6 +1097,41 @@ function MainGuardAttributeLines({ rows }: { rows: MainSheetPlacementRow[] }) {
         <p key={row.key}>{formatMainGuardAttributeLine(row)}</p>
       ))}
     </div>
+  );
+}
+
+const DAMAGE_INTERACTION_GROUPS: Array<{
+  kind: DamageInteractionKind;
+  label: string;
+  marker: string;
+}> = [
+  { kind: "VULNERABILITY", label: "Vulnerable", marker: "[!]" },
+  { kind: "RESISTANCE", label: "Resist", marker: "[R]" },
+  { kind: "PROTECTION", label: "Protection", marker: "[P]" },
+];
+
+function MainDamageInteractionsSection({ rows }: { rows: DamageInteractionRow[] }) {
+  if (rows.length === 0) return null;
+
+  return (
+    <MainCombatSection title="Damage Interactions">
+      <div className="space-y-0.5 text-[10px] leading-snug text-zinc-300">
+        {DAMAGE_INTERACTION_GROUPS.map((group) => {
+          const groupRows = rows
+            .filter((row) => row.kind === group.kind)
+            .sort((a, b) => a.damageType.localeCompare(b.damageType));
+          if (groupRows.length === 0) return null;
+
+          return (
+            <p key={group.kind}>
+              <span className="mr-1 font-semibold text-zinc-100">{group.marker}</span>
+              <span className="font-semibold text-zinc-100">{group.label}:</span>{" "}
+              {groupRows.map((row) => `${row.damageType} ${formatSheetNumber(row.value)}`).join(", ")}
+            </p>
+          );
+        })}
+      </div>
+    </MainCombatSection>
   );
 }
 
@@ -1201,6 +1295,7 @@ function MainCombatSheet({
     MAIN_GUARD_ATTRIBUTE_PLACEMENTS,
     { lineMode: "full" },
   );
+  const damageInteractionRows = mainSheetDamageInteractionRows(derivedStats);
   const attackAttributeRowsBySlot = groupMainSheetRowsBySlot(attackAttributeRows);
   const attackSlots = new Set(derivedStats.attacks.map((attack) => attack.slot));
   const unmatchedAttackAttributeRows = attackAttributeRows.filter((row) => !attackSlots.has(row.slot));
@@ -1297,6 +1392,8 @@ function MainCombatSheet({
           <MainGuardAttributeLines rows={guardAttributeRows} />
         </MainCombatSection>
       </div>
+
+      <MainDamageInteractionsSection rows={damageInteractionRows} />
 
       <MainSheetHelperStrip />
     </SheetFrame>
