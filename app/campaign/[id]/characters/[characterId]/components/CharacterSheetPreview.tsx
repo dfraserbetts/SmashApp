@@ -4,7 +4,6 @@ import type React from "react";
 import Image from "next/image";
 
 import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
-import { getForgeRarityPalette } from "@/lib/forge/itemRarityPalette";
 import {
   EQUIPMENT_SLOT_LABELS,
   EQUIPMENT_SLOTS,
@@ -144,13 +143,6 @@ function titleCase(value: string | null | undefined) {
     .filter(Boolean)
     .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
     .join(" ");
-}
-
-function itemDescriptorPreview(item: CharacterBuilderDerivedBackpackItem, maxLines = 2) {
-  const sections = item.itemTemplate.descriptorSections ?? [];
-  const sectionLines = sections.flatMap((section) => section.lines.map((line) => compactLine(line)));
-  const lines = sectionLines.length > 0 ? sectionLines : item.itemTemplate.details ? [item.itemTemplate.details] : [];
-  return lines.filter(Boolean).slice(0, maxLines);
 }
 
 function stripForgeLineLabel(line: string) {
@@ -477,114 +469,125 @@ function selectedEquippedItems(
   });
 }
 
-function EquippedItemCompactCard({
+function InventorySlotCard({
   slot,
   item,
   activeEffectRegistry,
 }: {
   slot: EquipmentSlotKey;
-  item: CharacterBuilderDerivedBackpackItem;
+  item?: CharacterBuilderDerivedBackpackItem;
   activeEffectRegistry?: ActiveEffectRegistry;
 }) {
-  const template = item.itemTemplate;
-  const palette = getForgeRarityPalette(template.rarity);
-  const slotLabel = equippedSlotDisplayLabel(slot, item);
-  const typeLabel = titleCase(template.type);
-  const levelAndType = [template.level ? `Level ${template.level}` : null, typeLabel === "-" ? null : typeLabel]
-    .filter(Boolean)
-    .join(" ");
-  const rarityLabel = titleCase(template.rarity);
-  const imageUrl = isHttpUrl(template.itemUrl) ? template.itemUrl?.trim() : null;
-  const bullets = equippedItemBullets(slot, item, activeEffectRegistry);
+  const slotLabel = item ? equippedSlotDisplayLabel(slot, item) : EQUIPMENT_SLOT_LABELS[slot];
+  const bullets = item ? equippedItemBullets(slot, item, activeEffectRegistry).slice(0, 3) : [];
+  const rarityLabel = item ? titleCase(item.itemTemplate.rarity) : null;
+  const levelLabel = item?.itemTemplate.level ? `Level ${item.itemTemplate.level}` : null;
+  const meta = [rarityLabel && rarityLabel !== "-" ? rarityLabel : null, levelLabel].filter(Boolean).join(" / ");
 
   return (
-    <article
-      className={`space-y-2 overflow-hidden rounded border p-2 ${palette.panelBorderClass} ${palette.panelShadowClass}`}
-      style={{
-        backgroundImage: palette.backgroundImage,
-        borderColor: palette.panelBorderColor,
-      }}
-    >
-      <div className="min-w-0">
-        <p className="truncate text-[11px] text-white">
-          {slotLabel}
-          {levelAndType ? ` - ${levelAndType}` : ""}
-        </p>
-        <p
-          className={`truncate text-sm ${palette.nameTextClass}`}
-          style={{ color: palette.headerColor }}
-        >
-          {itemName(item)}
-          {rarityLabel !== "-" ? ` - ${rarityLabel}` : ""}
-        </p>
-      </div>
-      <div
-        className={`grid h-[180px] grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-3 overflow-hidden rounded border p-2 ${palette.panelBorderClass} ${palette.panelShadowClass}`}
-        style={{
-          borderColor: palette.panelBorderColor,
-          backgroundColor: "rgba(3, 7, 18, 0.34)",
-        }}
-      >
-        <div
-          className={`flex min-w-0 items-center justify-center overflow-hidden rounded border ${palette.imageBorderClass}`}
-          style={{
-            borderColor: palette.panelBorderColor,
-            backgroundColor: "rgba(3, 7, 18, 0.34)",
-            boxShadow: `inset 0 0 18px rgba(0,0,0,0.35), 0 0 14px ${palette.outerBorderColor.replace(
-              "/",
-              "",
-            )}`,
-          }}
-        >
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={`${slotLabel} item preview`}
-              className="max-h-full max-w-full object-contain"
-              loading="lazy"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <p className={`text-xs ${palette.descriptionTextClass}`} style={{ color: palette.bodyColor }}>
-              No image
-            </p>
-          )}
-        </div>
-        <div
-          className={`min-h-0 min-w-0 overflow-y-auto overflow-x-hidden rounded border p-2 pr-3 ${palette.panelBorderClass} ${palette.panelShadowClass}`}
-          style={{
-            borderColor: palette.panelBorderColor,
-            backgroundColor: "rgba(3, 7, 18, 0.58)",
-          }}
-        >
-          <p
-            className={`mb-1 truncate text-[10px] uppercase tracking-wide ${palette.headerTextClass}`}
-            style={{ color: palette.headerColor }}
-          >
-            Values
-          </p>
+    <article className="h-full min-h-[3rem] border border-zinc-700 bg-white/95 p-1 text-zinc-950 shadow-[0_0_0_1px_rgba(255,255,255,0.45)]">
+      <p className="truncate text-[8px] font-semibold uppercase tracking-[0.08em] text-zinc-600">{slotLabel}</p>
+      {item ? (
+        <>
+          <p className="truncate text-[11px] font-semibold leading-tight">{itemName(item)}</p>
+          {meta ? <p className="truncate text-[8px] uppercase tracking-[0.04em] text-zinc-600">{meta}</p> : null}
           {bullets.length > 0 ? (
-            <ul
-              className={`list-disc space-y-0.5 pl-4 text-[11px] leading-snug ${palette.bodyTextClass}`}
-              style={{ color: palette.bodyColor }}
-            >
+            <ul className="mt-0.5 list-disc space-y-0.5 pl-3 text-[7.5px] leading-tight text-zinc-800">
               {bullets.map((bullet) => (
                 <li key={bullet} className="break-words">
                   {bullet}
                 </li>
               ))}
             </ul>
-          ) : (
-            <p
-              className={`text-[11px] leading-snug ${palette.descriptionTextClass}`}
-              style={{ color: palette.bodyColor }}
-            >
-              No listed values.
-            </p>
-          )}
+          ) : null}
+        </>
+      ) : (
+        <p className="mt-1 text-[10px] text-zinc-500">Empty</p>
+      )}
+    </article>
+  );
+}
+
+function InventoryProtectionSummary({ derivedStats }: { derivedStats: CharacterDerivedCombatStats }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 border border-zinc-700 bg-zinc-100 p-2 text-[10px] text-zinc-950">
+      <div className="min-w-0">
+        <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-zinc-600">Physical</p>
+        <p className="mt-0.5 font-semibold">
+          PPV {formatSheetNumber(derivedStats.physicalProtection)}
+          <span className="font-normal"> | Physical Protection: {formatSheetNumber(derivedStats.physicalBlockPerSuccess)} block/success</span>
+        </p>
+      </div>
+      <div className="min-w-0">
+        <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-zinc-600">Mental</p>
+        <p className="mt-0.5 font-semibold">
+          MPV {formatSheetNumber(derivedStats.mentalProtection)}
+          <span className="font-normal"> | Mental Protection: {formatSheetNumber(derivedStats.mentalBlockPerSuccess)} block/success</span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function InventoryLoadout({
+  character,
+  equipped,
+  activeEffectRegistry,
+}: {
+  character: CharacterSheetCharacter;
+  equipped: EquippedEntry[];
+  activeEffectRegistry: ActiveEffectRegistry;
+}) {
+  const bySlot = new Map(equipped.map(({ slot, backpackItem }) => [slot, backpackItem]));
+  const portraitUrl = isHttpUrl(character.imageUrl) ? character.imageUrl?.trim().replace(/"/g, "%22") : null;
+  const slot = (slotKey: EquipmentSlotKey) => (
+    <InventorySlotCard
+      key={slotKey}
+      slot={slotKey}
+      item={bySlot.get(slotKey)}
+      activeEffectRegistry={activeEffectRegistry}
+    />
+  );
+
+  return (
+    <div
+      className="relative h-[21rem] overflow-hidden border border-zinc-700 bg-zinc-100 p-2"
+      style={
+        portraitUrl
+          ? {
+              backgroundImage: `linear-gradient(rgba(244,244,245,0.34), rgba(244,244,245,0.52)), url("${portraitUrl}")`,
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+              backgroundSize: "auto 92%",
+            }
+          : undefined
+      }
+    >
+      {!portraitUrl ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="h-64 w-32 rounded-full border border-zinc-400 bg-zinc-300/35" />
+        </div>
+      ) : null}
+      <div className="relative z-10 grid h-full grid-cols-4 grid-rows-6 gap-1.5">
+        <div className="col-start-2 row-start-1">{slot("headArmor")}</div>
+        <div className="col-start-3 row-start-1">{slot("headItem")}</div>
+        <div className="col-start-2 col-span-2 row-start-2">{slot("neckItem")}</div>
+        <div className="col-start-1 row-start-2">{slot("shoulderArmor")}</div>
+        <div className="col-start-4 row-start-2">{slot("armsItem")}</div>
+        <div className="col-start-1 row-start-3">{slot("mainHand")}</div>
+        <div className="col-start-2 col-span-2 row-start-3">{slot("torsoArmor")}</div>
+        <div className="col-start-4 row-start-3">{slot("offHand")}</div>
+        <div className="col-start-2 col-span-2 row-start-4">{slot("beltItem")}</div>
+        <div className="col-start-4 row-start-4">{slot("smallSlot")}</div>
+        <div className="col-start-2 row-start-5">{slot("legsArmor")}</div>
+        <div className="col-start-3 row-start-5">{slot("feetArmor")}</div>
+        <div className="col-start-2 col-span-2 row-start-6 flex items-end justify-center">
+          <p className="bg-white/80 px-2 py-0.5 text-[8px] uppercase tracking-[0.08em] text-zinc-600">
+            Equipped Loadout
+          </p>
         </div>
       </div>
-    </article>
+    </div>
   );
 }
 
@@ -1614,81 +1617,43 @@ function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudge
 }
 
 function InventorySheet({
+  character,
   backpackItems,
   equipped,
   derivedStats,
-  compact,
 }: {
+  character: CharacterSheetCharacter;
   backpackItems: CharacterBuilderDerivedBackpackItem[];
   equipped: EquippedEntry[];
   derivedStats: CharacterDerivedCombatStats;
-  compact: boolean;
 }) {
   const activeEffectRegistry = buildActiveEffectRegistry(equipped);
 
   return (
     <SheetFrame title="Inventory Sheet" subtitle="Equipped gear and Backpack items.">
-      <SheetPanel title="Protection Summary">
-        <div className="grid grid-cols-2 gap-2">
-          <StatTile
-            label="PPV"
-            value={derivedStats.physicalProtection}
-            helper={`${derivedStats.physicalBlockPerSuccess} block / success`}
-          />
-          <StatTile
-            label="MPV"
-            value={derivedStats.mentalProtection}
-            helper={`${derivedStats.mentalBlockPerSuccess} block / success`}
-          />
-        </div>
-      </SheetPanel>
+      <InventoryProtectionSummary derivedStats={derivedStats} />
 
-      <SheetPanel title="Equipped Gear">
-        {equipped.length === 0 ? (
-          <p className="text-sm text-zinc-500">No gear equipped.</p>
-        ) : (
-          <div className="grid grid-cols-3 gap-2">
-            {equipped.map(({ slot, backpackItem }) => (
-              <EquippedItemCompactCard
-                key={slot}
-                slot={slot}
-                item={backpackItem}
-                activeEffectRegistry={activeEffectRegistry}
-              />
-            ))}
-          </div>
-        )}
+      <SheetPanel title="Equipped Loadout">
+        <InventoryLoadout
+          character={character}
+          equipped={equipped}
+          activeEffectRegistry={activeEffectRegistry}
+        />
       </SheetPanel>
 
       <SheetPanel title="Backpack">
         {backpackItems.length === 0 ? (
           <p className="text-sm text-zinc-500">No Backpack items assigned.</p>
         ) : (
-          <div className="overflow-hidden border border-zinc-800">
-            <div className="grid grid-cols-[minmax(0,1.4fr)_0.8fr_0.7fr_44px] gap-2 border-b border-zinc-800 bg-zinc-900/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
-              <div>Item</div>
-              <div>Type</div>
-              <div>Rank</div>
-              <div className="text-right">Qty</div>
-            </div>
-            <div className="divide-y divide-zinc-800">
+          <div className="border border-zinc-800">
+            <div className="grid grid-cols-2">
               {backpackItems.map((item) => (
-                <div key={item.id} className="grid grid-cols-[minmax(0,1.4fr)_0.8fr_0.7fr_44px] gap-2 px-2 py-1.5 text-xs text-zinc-300">
-                  <div className="min-w-0">
-                    <div className="truncate font-medium text-zinc-100">{itemName(item)}</div>
-                    {!compact && itemDescriptorPreview(item, 1)[0] ? (
-                      <div className="mt-0.5 line-clamp-2 text-[11px] text-zinc-500">
-                        {itemDescriptorPreview(item, 1)[0]}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div>{titleCase(item.itemTemplate.type)}</div>
-                  <div>
-                    {[item.itemTemplate.rarity, item.itemTemplate.level ? `L${item.itemTemplate.level}` : null]
-                      .filter(Boolean)
-                      .join(" / ") || "-"}
-                  </div>
-                  <div className="text-right">{item.quantity}</div>
+                <div
+                  key={item.id}
+                  className="flex min-w-0 items-center justify-between gap-2 border-b border-zinc-800 px-2 py-1 text-[11px] text-zinc-300 odd:border-r odd:border-zinc-800"
+                >
+                  <span className="truncate font-medium text-zinc-100">{itemName(item)}</span>
+                  <span className="shrink-0 text-zinc-500">x{item.quantity}</span>
                 </div>
               ))}
             </div>
@@ -1767,10 +1732,10 @@ export function CharacterSheetPreview({
       {selectedSheets.powers ? <PowerReferenceSheet powerBudget={powerBudget} /> : null}
       {selectedSheets.inventory ? (
         <InventorySheet
+          character={character}
           backpackItems={backpackItems}
           equipped={equipped}
           derivedStats={derivedStats}
-          compact={compact}
         />
       ) : null}
     </>
