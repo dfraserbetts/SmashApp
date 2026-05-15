@@ -472,37 +472,25 @@ function selectedEquippedItems(
 function InventorySlotCard({
   slot,
   item,
-  activeEffectRegistry,
 }: {
   slot: EquipmentSlotKey;
   item?: CharacterBuilderDerivedBackpackItem;
-  activeEffectRegistry?: ActiveEffectRegistry;
 }) {
   const slotLabel = item ? equippedSlotDisplayLabel(slot, item) : EQUIPMENT_SLOT_LABELS[slot];
-  const bullets = item ? equippedItemBullets(slot, item, activeEffectRegistry).slice(0, 3) : [];
   const rarityLabel = item ? titleCase(item.itemTemplate.rarity) : null;
   const levelLabel = item?.itemTemplate.level ? `Level ${item.itemTemplate.level}` : null;
   const meta = [rarityLabel && rarityLabel !== "-" ? rarityLabel : null, levelLabel].filter(Boolean).join(" / ");
 
   return (
-    <article className="h-full min-h-[3rem] border border-zinc-700 bg-white/95 p-1 text-zinc-950 shadow-[0_0_0_1px_rgba(255,255,255,0.45)]">
-      <p className="truncate text-[8px] font-semibold uppercase tracking-[0.08em] text-zinc-600">{slotLabel}</p>
+    <article className="w-fit min-w-[4.25rem] max-w-[7.25rem] overflow-hidden border border-zinc-700 bg-white/75 px-1 py-0.5 text-zinc-950 shadow-[0_0_0_1px_rgba(255,255,255,0.7)]">
+      <p className="truncate text-[7.75px] font-semibold uppercase leading-[1.25] tracking-[0.06em] text-zinc-600">{slotLabel}</p>
       {item ? (
         <>
-          <p className="truncate text-[11px] font-semibold leading-tight">{itemName(item)}</p>
-          {meta ? <p className="truncate text-[8px] uppercase tracking-[0.04em] text-zinc-600">{meta}</p> : null}
-          {bullets.length > 0 ? (
-            <ul className="mt-0.5 list-disc space-y-0.5 pl-3 text-[7.5px] leading-tight text-zinc-800">
-              {bullets.map((bullet) => (
-                <li key={bullet} className="break-words">
-                  {bullet}
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <p className="truncate text-[10.25px] font-semibold leading-[1.15]">{itemName(item)}</p>
+          {meta ? <p className="truncate text-[7.5px] uppercase leading-[1.15] tracking-[0.03em] text-zinc-600">{meta}</p> : null}
         </>
       ) : (
-        <p className="mt-1 text-[10px] text-zinc-500">Empty</p>
+        <p className="mt-0.5 text-[9.5px] leading-tight text-zinc-500">Empty</p>
       )}
     </article>
   );
@@ -532,11 +520,9 @@ function InventoryProtectionSummary({ derivedStats }: { derivedStats: CharacterD
 function InventoryLoadout({
   character,
   equipped,
-  activeEffectRegistry,
 }: {
   character: CharacterSheetCharacter;
   equipped: EquippedEntry[];
-  activeEffectRegistry: ActiveEffectRegistry;
 }) {
   const bySlot = new Map(equipped.map(({ slot, backpackItem }) => [slot, backpackItem]));
   const portraitUrl = isHttpUrl(character.imageUrl) ? character.imageUrl?.trim().replace(/"/g, "%22") : null;
@@ -545,20 +531,19 @@ function InventoryLoadout({
       key={slotKey}
       slot={slotKey}
       item={bySlot.get(slotKey)}
-      activeEffectRegistry={activeEffectRegistry}
     />
   );
 
   return (
     <div
-      className="relative h-[21rem] overflow-hidden border border-zinc-700 bg-zinc-100 p-2"
+      className="relative h-[18.5rem] overflow-hidden border border-zinc-700 bg-zinc-100 p-2"
       style={
         portraitUrl
           ? {
-              backgroundImage: `linear-gradient(rgba(244,244,245,0.34), rgba(244,244,245,0.52)), url("${portraitUrl}")`,
+              backgroundImage: `linear-gradient(rgba(244,244,245,0.18), rgba(244,244,245,0.32)), url("${portraitUrl}")`,
               backgroundPosition: "center",
               backgroundRepeat: "no-repeat",
-              backgroundSize: "auto 92%",
+              backgroundSize: "auto 98%",
             }
           : undefined
       }
@@ -569,25 +554,60 @@ function InventoryLoadout({
         </div>
       ) : null}
       <div className="relative z-10 grid h-full grid-cols-4 grid-rows-6 gap-1.5">
-        <div className="col-start-2 row-start-1">{slot("headArmor")}</div>
-        <div className="col-start-3 row-start-1">{slot("headItem")}</div>
-        <div className="col-start-2 col-span-2 row-start-2">{slot("neckItem")}</div>
-        <div className="col-start-1 row-start-2">{slot("shoulderArmor")}</div>
-        <div className="col-start-4 row-start-2">{slot("armsItem")}</div>
-        <div className="col-start-1 row-start-3">{slot("mainHand")}</div>
-        <div className="col-start-2 col-span-2 row-start-3">{slot("torsoArmor")}</div>
-        <div className="col-start-4 row-start-3">{slot("offHand")}</div>
-        <div className="col-start-2 col-span-2 row-start-4">{slot("beltItem")}</div>
-        <div className="col-start-4 row-start-4">{slot("smallSlot")}</div>
-        <div className="col-start-2 row-start-5">{slot("legsArmor")}</div>
-        <div className="col-start-3 row-start-5">{slot("feetArmor")}</div>
-        <div className="col-start-2 col-span-2 row-start-6 flex items-end justify-center">
-          <p className="bg-white/80 px-2 py-0.5 text-[8px] uppercase tracking-[0.08em] text-zinc-600">
-            Equipped Loadout
-          </p>
-        </div>
+        <div className="col-start-2 row-start-1 mx-2 flex items-center justify-center">{slot("headArmor")}</div>
+        <div className="col-start-3 row-start-1 mx-2 flex items-center justify-center">{slot("headItem")}</div>
+        <div className="col-start-2 col-span-2 row-start-2 mx-12 flex items-center justify-center">{slot("neckItem")}</div>
+        <div className="col-start-1 row-start-2 mx-2 flex items-center justify-center">{slot("shoulderArmor")}</div>
+        <div className="col-start-4 row-start-2 mx-2 flex items-center justify-center">{slot("armsItem")}</div>
+        <div className="col-start-1 row-start-3 mx-2 flex items-center justify-center">{slot("mainHand")}</div>
+        <div className="col-start-2 col-span-2 row-start-3 mx-8 flex items-center justify-center">{slot("torsoArmor")}</div>
+        <div className="col-start-4 row-start-3 mx-2 flex items-center justify-center">{slot("offHand")}</div>
+        <div className="col-start-2 col-span-2 row-start-4 mx-14 flex items-center justify-center">{slot("beltItem")}</div>
+        <div className="col-start-4 row-start-4 mx-2 flex items-center justify-center">{slot("smallSlot")}</div>
+        <div className="col-start-2 row-start-5 mx-2 flex items-center justify-center">{slot("legsArmor")}</div>
+        <div className="col-start-3 row-start-5 mx-2 flex items-center justify-center">{slot("feetArmor")}</div>
       </div>
     </div>
+  );
+}
+
+function InventoryEquippedEffects({
+  equipped,
+  activeEffectRegistry,
+}: {
+  equipped: EquippedEntry[];
+  activeEffectRegistry: ActiveEffectRegistry;
+}) {
+  const rows = equipped
+    .map(({ slot, backpackItem }) => ({
+      slot,
+      slotLabel: equippedSlotDisplayLabel(slot, backpackItem),
+      item: backpackItem,
+      bullets: equippedItemBullets(slot, backpackItem, activeEffectRegistry),
+    }))
+    .filter((row) => row.bullets.length > 0);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <SheetPanel title="Equipped Effects">
+      <div className="divide-y divide-zinc-800 border border-zinc-800 text-[9px] leading-snug text-zinc-300">
+        {rows.map((row) => (
+          <div
+            key={`${row.slot}-${row.item.id}`}
+            className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,2.2fr)] gap-2 bg-zinc-950/20 px-2 py-0.5"
+          >
+            <div className="min-w-0">
+              <span className="mr-1 text-[7.5px] font-semibold uppercase tracking-[0.06em] text-zinc-500">
+                {row.slotLabel}
+              </span>
+              <span className="font-semibold text-zinc-100">{itemName(row.item)}</span>
+            </div>
+            <div className="min-w-0 break-words text-zinc-300">{row.bullets.join("; ")}</div>
+          </div>
+        ))}
+      </div>
+    </SheetPanel>
   );
 }
 
@@ -1637,9 +1657,13 @@ function InventorySheet({
         <InventoryLoadout
           character={character}
           equipped={equipped}
-          activeEffectRegistry={activeEffectRegistry}
         />
       </SheetPanel>
+
+      <InventoryEquippedEffects
+        equipped={equipped}
+        activeEffectRegistry={activeEffectRegistry}
+      />
 
       <SheetPanel title="Backpack">
         {backpackItems.length === 0 ? (
