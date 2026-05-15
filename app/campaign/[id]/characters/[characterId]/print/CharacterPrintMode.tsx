@@ -6,11 +6,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CHARACTER_SHEET_LABELS,
   CHARACTER_SHEET_PRINT_TYPE_LABELS,
+  CHARACTER_SHEET_THEME_LABELS,
   CharacterSheetPreview,
   DEFAULT_CHARACTER_SHEETS,
   type CharacterSheetKey,
   type CharacterSheetPrintType,
   type CharacterSheetSelection,
+  type CharacterSheetTheme,
 } from "@/app/campaign/[id]/characters/[characterId]/components/CharacterSheetPreview";
 import { useProtectionTuning } from "@/app/summoning-circle/components/useProtectionTuning";
 import {
@@ -62,6 +64,7 @@ export function CharacterPrintMode({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [printType, setPrintType] = useState<CharacterSheetPrintType>("full-colour");
+  const [theme, setTheme] = useState<CharacterSheetTheme>("classic");
   const [sheets, setSheets] = useState<CharacterSheetSelection>(DEFAULT_CHARACTER_SHEETS);
   const protectionTuning = useProtectionTuning();
 
@@ -134,6 +137,7 @@ export function CharacterPrintMode({
   }, [payload]);
 
   const printFriendly = printType.endsWith("print-friendly");
+  const darkPrestigeColourPrint = theme === "dark-prestige" && !printFriendly;
 
   const triggerPrint = useCallback(() => {
     window.setTimeout(() => window.print(), 0);
@@ -172,6 +176,7 @@ export function CharacterPrintMode({
       className={[
         "cb-print-root mx-auto max-w-6xl space-y-6 px-4 pb-10 md:px-6",
         printFriendly ? "cb-print-friendly" : "cb-print-colour",
+        `cb-print-theme-${theme}`,
       ].join(" ")}
     >
       <section className="character-print-controls rounded border border-zinc-800 bg-zinc-900/40 p-4">
@@ -199,21 +204,38 @@ export function CharacterPrintMode({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(220px,320px)_1fr]">
-          <label className="block text-sm">
-            <span className="text-zinc-400">Print Type</span>
-            <select
-              value={printType}
-              onChange={(event) => setPrintType(event.target.value as CharacterSheetPrintType)}
-              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2"
-            >
-              {Object.entries(CHARACTER_SHEET_PRINT_TYPE_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(220px,360px)_1fr]">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <label className="block text-sm">
+              <span className="text-zinc-400">Print Type</span>
+              <select
+                value={printType}
+                onChange={(event) => setPrintType(event.target.value as CharacterSheetPrintType)}
+                className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2"
+              >
+                {Object.entries(CHARACTER_SHEET_PRINT_TYPE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block text-sm">
+              <span className="text-zinc-400">Theme</span>
+              <select
+                value={theme}
+                onChange={(event) => setTheme(event.target.value as CharacterSheetTheme)}
+                className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2"
+              >
+                {Object.entries(CHARACTER_SHEET_THEME_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
           <div>
             <div className="text-sm text-zinc-400">Sheets</div>
@@ -231,6 +253,11 @@ export function CharacterPrintMode({
             </div>
           </div>
         </div>
+        {darkPrestigeColourPrint ? (
+          <p className="mt-3 rounded border border-amber-900/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-200">
+            Dark Prestige colour printing uses background colours. In Chrome&apos;s print dialog, enable Background graphics for the PDF/printout to match this preview.
+          </p>
+        ) : null}
       </section>
 
       <CharacterSheetPreview
@@ -242,28 +269,29 @@ export function CharacterPrintMode({
         powerBudget={powerBudget}
         traitSummary={traitSummary}
         printType={printType}
+        theme={theme}
         sheets={sheets}
         campaignName={payload.campaign.name}
       />
 
       <style jsx global>{`
-        .cb-print-friendly,
-        .cb-print-friendly .cb-sheet-page,
-        .cb-print-friendly .cb-sheet-panel,
-        .cb-print-friendly .cb-stat-tile,
-        .cb-print-friendly .cb-power-card {
+        .cb-print-friendly .cb-sheet-preview,
+        .cb-print-friendly .cb-sheet-preview .cb-sheet-page,
+        .cb-print-friendly .cb-sheet-preview .cb-sheet-panel,
+        .cb-print-friendly .cb-sheet-preview .cb-stat-tile,
+        .cb-print-friendly .cb-sheet-preview .cb-power-card {
           color: rgb(24 24 27);
         }
-        .cb-print-friendly .cb-sheet-page,
-        .cb-print-friendly .cb-sheet-panel,
-        .cb-print-friendly .cb-stat-tile,
-        .cb-print-friendly .cb-power-card,
-        .cb-print-friendly .cb-identity-band,
-        .cb-print-friendly .cb-portrait {
+        .cb-print-friendly .cb-sheet-preview .cb-sheet-page,
+        .cb-print-friendly .cb-sheet-preview .cb-sheet-panel,
+        .cb-print-friendly .cb-sheet-preview .cb-stat-tile,
+        .cb-print-friendly .cb-sheet-preview .cb-power-card,
+        .cb-print-friendly .cb-sheet-preview .cb-identity-band,
+        .cb-print-friendly .cb-sheet-preview .cb-portrait {
           border-color: rgb(212 212 216);
           background: rgb(255 255 255);
         }
-        .cb-print-friendly .cb-sheet-title-band {
+        .cb-print-friendly .cb-sheet-preview .cb-sheet-title-band {
           border-color: rgb(212 212 216);
           background: rgb(244 244 245);
         }
@@ -284,7 +312,7 @@ export function CharacterPrintMode({
         @media print {
           @page {
             size: A4 portrait;
-            margin: 10mm;
+            margin: 0;
           }
           html,
           body {
@@ -297,40 +325,58 @@ export function CharacterPrintMode({
             max-width: none !important;
             padding: 0 !important;
             margin: 0 !important;
-            color: rgb(24 24 27) !important;
           }
           .cb-sheet-preview {
             display: block !important;
+            padding: 0 !important;
+            background: transparent !important;
           }
           .cb-sheet-page {
-            width: auto !important;
-            min-height: 0 !important;
-            aspect-ratio: auto !important;
-            background: white !important;
-            color: rgb(24 24 27) !important;
+            width: 210mm !important;
+            min-height: 297mm !important;
+            aspect-ratio: 210 / 297 !important;
             break-after: page;
             page-break-after: always;
             margin: 0 !important;
-            padding: 0 !important;
             box-shadow: none !important;
           }
           .cb-sheet-page:last-child {
             break-after: auto;
             page-break-after: auto;
           }
-          .cb-sheet-title-band,
-          .cb-sheet-panel,
-          .cb-stat-tile,
-          .cb-power-card,
-          .cb-identity-band,
-          .cb-portrait {
-            background: white !important;
+          .cb-print-friendly .cb-sheet-preview .cb-sheet-page,
+          .cb-print-friendly .cb-sheet-preview .cb-sheet-page * {
             color: rgb(24 24 27) !important;
-            border-color: rgb(161 161 170) !important;
+            text-shadow: none !important;
             box-shadow: none !important;
+            border-color: rgb(161 161 170) !important;
+          }
+          .cb-print-friendly .cb-sheet-preview .cb-sheet-page,
+          .cb-print-friendly .cb-sheet-preview .cb-sheet-title-band,
+          .cb-print-friendly .cb-sheet-preview .cb-sheet-panel,
+          .cb-print-friendly .cb-sheet-preview .cb-stat-tile,
+          .cb-print-friendly .cb-sheet-preview .cb-power-card,
+          .cb-print-friendly .cb-sheet-preview .cb-identity-band,
+          .cb-print-friendly .cb-sheet-preview .cb-portrait,
+          .cb-print-friendly .cb-sheet-preview .cb-main-banner,
+          .cb-print-friendly .cb-sheet-preview .cb-main-banner-logo,
+          .cb-print-friendly .cb-sheet-preview .cb-main-banner-field,
+          .cb-print-friendly .cb-sheet-preview .cb-main-hero,
+          .cb-print-friendly .cb-sheet-preview .cb-main-reference-tile,
+          .cb-print-friendly .cb-sheet-preview .cb-main-combat-section,
+          .cb-print-friendly .cb-sheet-preview .cb-main-traits-section,
+          .cb-print-friendly .cb-sheet-preview .cb-main-helper-strip,
+          .cb-print-friendly .cb-sheet-preview .cb-main-defence-box,
+          .cb-print-friendly .cb-sheet-preview .cb-main-output-row,
+          .cb-print-friendly .cb-sheet-preview .cb-inventory-summary,
+          .cb-print-friendly .cb-sheet-preview .cb-inventory-loadout,
+          .cb-print-friendly .cb-sheet-preview .cb-inventory-slot-card,
+          .cb-print-friendly .cb-sheet-preview .cb-inventory-effects-ledger,
+          .cb-print-friendly .cb-sheet-preview .cb-inventory-effects-row {
+            background: white !important;
           }
           .cb-print-colour .cb-sheet-page,
-          .cb-print-colour .cb-sheet-title-band {
+          .cb-print-colour .cb-sheet-page * {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }

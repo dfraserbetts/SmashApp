@@ -29,6 +29,8 @@ export type CharacterSheetPrintType =
   | "compact-colour"
   | "compact-print-friendly";
 
+export type CharacterSheetTheme = "classic" | "dark-prestige";
+
 export type CharacterSheetKey = "main" | "character" | "powers" | "inventory";
 
 export type CharacterSheetSelection = Record<CharacterSheetKey, boolean>;
@@ -38,6 +40,11 @@ export const CHARACTER_SHEET_PRINT_TYPE_LABELS: Record<CharacterSheetPrintType, 
   "full-print-friendly": "Full Print Friendly Sheet",
   "compact-colour": "Compact Colour Sheet",
   "compact-print-friendly": "Compact Print Friendly Sheet",
+};
+
+export const CHARACTER_SHEET_THEME_LABELS: Record<CharacterSheetTheme, string> = {
+  classic: "Classic",
+  "dark-prestige": "Dark Prestige",
 };
 
 export const CHARACTER_SHEET_LABELS: Record<CharacterSheetKey, string> = {
@@ -80,6 +87,7 @@ type CharacterSheetPreviewProps = {
   powerBudget: CharacterPowerBudget;
   traitSummary: CharacterTraitSummary;
   printType?: CharacterSheetPrintType;
+  theme?: CharacterSheetTheme;
   sheets?: Partial<CharacterSheetSelection>;
   mode?: "preview" | "print";
   campaignName?: string | null;
@@ -482,7 +490,7 @@ function InventorySlotCard({
   const meta = [rarityLabel && rarityLabel !== "-" ? rarityLabel : null, levelLabel].filter(Boolean).join(" / ");
 
   return (
-    <article className="w-fit min-w-[4.25rem] max-w-[7.25rem] overflow-hidden border border-zinc-700 bg-white/75 px-1 py-0.5 text-zinc-950 shadow-[0_0_0_1px_rgba(255,255,255,0.7)]">
+    <article className="cb-inventory-slot-card w-fit min-w-[4.25rem] max-w-[7.25rem] overflow-hidden border border-zinc-700 bg-white/75 px-1 py-0.5 text-zinc-950 shadow-[0_0_0_1px_rgba(255,255,255,0.7)]">
       <p className="truncate text-[7.75px] font-semibold uppercase leading-[1.25] tracking-[0.06em] text-zinc-600">{slotLabel}</p>
       {item ? (
         <>
@@ -498,7 +506,7 @@ function InventorySlotCard({
 
 function InventoryProtectionSummary({ derivedStats }: { derivedStats: CharacterDerivedCombatStats }) {
   return (
-    <div className="grid grid-cols-2 gap-2 border border-zinc-700 bg-zinc-100 p-2 text-[10px] text-zinc-950">
+    <div className="cb-inventory-summary grid grid-cols-2 gap-2 border border-zinc-700 bg-zinc-100 p-2 text-[10px] text-zinc-950">
       <div className="min-w-0">
         <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-zinc-600">Physical</p>
         <p className="mt-0.5 font-semibold">
@@ -536,7 +544,7 @@ function InventoryLoadout({
 
   return (
     <div
-      className="relative h-[18.5rem] overflow-hidden border border-zinc-700 bg-zinc-100 p-2"
+      className="cb-inventory-loadout relative h-[18.5rem] overflow-hidden border border-zinc-700 bg-zinc-100 p-2"
       style={
         portraitUrl
           ? {
@@ -591,11 +599,11 @@ function InventoryEquippedEffects({
 
   return (
     <SheetPanel title="Equipped Effects">
-      <div className="divide-y divide-zinc-800 border border-zinc-800 text-[9px] leading-snug text-zinc-300">
+      <div className="cb-inventory-effects-ledger divide-y divide-zinc-800 border border-zinc-800 text-[9px] leading-snug text-zinc-300">
         {rows.map((row) => (
           <div
             key={`${row.slot}-${row.item.id}`}
-            className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,2.2fr)] gap-2 bg-zinc-950/20 px-2 py-0.5"
+            className="cb-inventory-effects-row grid grid-cols-[minmax(0,0.9fr)_minmax(0,2.2fr)] gap-2 bg-zinc-950/20 px-2 py-0.5"
           >
             <div className="min-w-0">
               <span className="mr-1 text-[7.5px] font-semibold uppercase tracking-[0.06em] text-zinc-500">
@@ -1317,9 +1325,9 @@ function MainSheetBanner({
   assignedPlayerLabel?: string | null;
 }) {
   return (
-    <div className="cb-main-banner grid grid-cols-[96px_minmax(0,1fr)] gap-1.5 border-2 border-zinc-800 bg-zinc-100 p-1.5 text-black">
-      <div className="cb-main-banner-logo flex items-center justify-center border border-zinc-800 bg-white px-2 py-1 text-base font-black uppercase tracking-[0.16em] text-black">
-        SMASH
+    <div className="cb-main-banner grid grid-cols-[128px_minmax(0,1fr)] gap-1.5 border-2 border-zinc-800 bg-zinc-100 p-1.5 text-black">
+      <div className="cb-main-banner-logo flex items-center justify-center border border-zinc-800 bg-white px-2 py-1 text-sm font-black uppercase tracking-[0.1em] text-black">
+        INCARNATE
       </div>
       <div className="grid grid-cols-4 gap-1 text-[10px] leading-tight text-black">
         <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
@@ -1696,6 +1704,7 @@ export function CharacterSheetPreview({
   powerBudget,
   traitSummary,
   printType = "full-colour",
+  theme = "classic",
   sheets = DEFAULT_CHARACTER_SHEETS,
   mode = "preview",
   campaignName,
@@ -1718,6 +1727,7 @@ export function CharacterSheetPreview({
       character.id,
       character.imageUrl ?? "",
       printType,
+      theme,
       selectedSheets.main ? "main" : "",
       selectedSheets.character ? "character" : "",
       selectedSheets.powers ? "powers" : "",
@@ -1728,6 +1738,7 @@ export function CharacterSheetPreview({
   });
   const previewClassName = [
     "cb-sheet-preview space-y-5",
+    `character-sheet--${theme}`,
     compact ? "cb-sheet-compact" : "cb-sheet-full",
     printFriendly ? "cb-sheet-print-friendly" : "cb-sheet-colour",
     mode === "print" ? "cb-sheet-print-mode" : "cb-sheet-live-mode",
@@ -1903,6 +1914,408 @@ export function CharacterSheetPreview({
 
       .cb-sheet-preview .ring-emerald-700\\/50 {
         --tw-ring-color: #71717a;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige {
+        --inc-sheet-bg: #080706;
+        --inc-panel-bg: #15110d;
+        --inc-panel-bg-soft: #211914;
+        --inc-border: #8b5e2e;
+        --inc-border-soft: #4b2f1c;
+        --inc-text: #eadfc7;
+        --inc-muted: #b79b6b;
+        --inc-gold: #c4974d;
+        --inc-bronze: #6f4628;
+        --inc-ember: #c2412d;
+        --inc-font-display: Georgia, "Times New Roman", serif;
+        --inc-font-body: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --inc-font-label: Georgia, "Times New Roman", serif;
+        color: var(--inc-text);
+        font-family: var(--inc-font-body);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-page {
+        position: relative;
+        border-color: var(--inc-border);
+        background:
+          radial-gradient(circle at 50% 0%, rgba(196, 151, 77, 0.12), transparent 34%),
+          linear-gradient(135deg, #080706 0%, #120d0a 52%, #080706 100%);
+        color: var(--inc-text);
+        box-shadow:
+          inset 0 0 0 1px rgba(196, 151, 77, 0.28),
+          inset 0 0 0 6px rgba(75, 47, 28, 0.34),
+          0 18px 40px rgba(0, 0, 0, 0.55);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-page::before {
+        content: "";
+        position: absolute;
+        inset: 7px;
+        pointer-events: none;
+        border: 1px solid rgba(196, 151, 77, 0.34);
+        z-index: 0;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-page::after {
+        content: "";
+        position: absolute;
+        inset: 12px;
+        pointer-events: none;
+        background:
+          linear-gradient(var(--inc-gold), var(--inc-gold)) left top / 22px 1px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) left top / 1px 22px no-repeat,
+          linear-gradient(var(--inc-bronze), var(--inc-bronze)) 6px 6px / 12px 1px no-repeat,
+          linear-gradient(var(--inc-bronze), var(--inc-bronze)) 6px 6px / 1px 12px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) right top / 22px 1px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) right top / 1px 22px no-repeat,
+          linear-gradient(var(--inc-bronze), var(--inc-bronze)) calc(100% - 18px) 6px / 12px 1px no-repeat,
+          linear-gradient(var(--inc-bronze), var(--inc-bronze)) calc(100% - 7px) 6px / 1px 12px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) left bottom / 18px 1px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) left bottom / 1px 18px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) right bottom / 18px 1px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) right bottom / 1px 18px no-repeat;
+        opacity: 0.44;
+        z-index: 0;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-sheet::after {
+        background:
+          linear-gradient(var(--inc-gold), var(--inc-gold)) left top / 22px 1px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) left top / 1px 22px no-repeat,
+          linear-gradient(var(--inc-bronze), var(--inc-bronze)) 6px 6px / 12px 1px no-repeat,
+          linear-gradient(var(--inc-bronze), var(--inc-bronze)) 6px 6px / 1px 12px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) right top / 22px 1px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) right top / 1px 22px no-repeat,
+          linear-gradient(var(--inc-bronze), var(--inc-bronze)) calc(100% - 18px) 6px / 12px 1px no-repeat,
+          linear-gradient(var(--inc-bronze), var(--inc-bronze)) calc(100% - 7px) 6px / 1px 12px no-repeat;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-page > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-panel,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-stat-tile,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-power-card,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-attribute-card,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner-logo,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner-field,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-hero,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-portrait,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-reference-tile,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-combat-section,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-traits-section,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-helper-strip,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-defence-box,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-output-row,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-identity-band,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-title-band {
+        position: relative;
+        border-color: var(--inc-border);
+        background:
+          linear-gradient(180deg, rgba(33, 25, 20, 0.96), rgba(16, 12, 9, 0.96));
+        color: var(--inc-text);
+        box-shadow:
+          inset 0 0 0 1px rgba(196, 151, 77, 0.16),
+          inset 0 0 18px rgba(0, 0, 0, 0.28);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-panel::before,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-power-card::before,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-combat-section::before,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-traits-section::before,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-helper-strip::before,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-hero::before {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        pointer-events: none;
+        border: 1px solid rgba(196, 151, 77, 0.2);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-panel::after,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-power-card::after,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-combat-section::after,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-traits-section::after {
+        content: "";
+        position: absolute;
+        inset: 5px;
+        pointer-events: none;
+        background:
+          linear-gradient(var(--inc-gold), var(--inc-gold)) left top / 14px 1px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) left top / 1px 14px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) right top / 14px 1px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) right top / 1px 14px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) left bottom / 14px 1px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) left bottom / 1px 14px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) right bottom / 14px 1px no-repeat,
+          linear-gradient(var(--inc-gold), var(--inc-gold)) right bottom / 1px 14px no-repeat;
+        opacity: 0.38;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner {
+        position: relative;
+        background:
+          linear-gradient(90deg, rgba(75, 47, 28, 0.8), rgba(21, 17, 13, 0.96)),
+          linear-gradient(180deg, var(--inc-panel-bg-soft), var(--inc-panel-bg));
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner-logo {
+        color: var(--inc-gold);
+        font-family: var(--inc-font-display);
+        letter-spacing: 0.08em;
+        text-shadow: 0 0 14px rgba(196, 151, 77, 0.32);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner-field p:first-child,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-stat-tile > div:first-child,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-reference-tile p:first-child,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-slot-card p:first-child {
+        font-family: var(--inc-font-label);
+        font-variant-caps: small-caps;
+        letter-spacing: 0.11em;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner *,
+      .cb-sheet-preview.character-sheet--dark-prestige .text-black,
+      .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-100,
+      .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-200,
+      .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-300,
+      .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-950,
+      .cb-sheet-preview.character-sheet--dark-prestige .text-cyan-200,
+      .cb-sheet-preview.character-sheet--dark-prestige .text-emerald-200 {
+        color: var(--inc-text);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-400,
+      .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-500 {
+        color: var(--inc-muted);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .border-zinc-800,
+      .cb-sheet-preview.character-sheet--dark-prestige .border-zinc-800\\/80,
+      .cb-sheet-preview.character-sheet--dark-prestige .border-zinc-700,
+      .cb-sheet-preview.character-sheet--dark-prestige .border-cyan-900\\/70,
+      .cb-sheet-preview.character-sheet--dark-prestige .border-emerald-900\\/70 {
+        border-color: var(--inc-border);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-black,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-black\\/40,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-black\\/50,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-black\\/60,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-zinc-900\\/70,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-zinc-950\\/35,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-zinc-950\\/50,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-zinc-950\\/60,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-zinc-950\\/70,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-cyan-950\\/15,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-emerald-950\\/15 {
+        background: var(--inc-panel-bg);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-white,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-white\\/75,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-zinc-100,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-zinc-300\\/35,
+      .cb-sheet-preview.character-sheet--dark-prestige .bg-zinc-100\\/95 {
+        background: rgba(33, 25, 20, 0.78);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-portrait {
+        background:
+          radial-gradient(circle at 50% 42%, rgba(196, 151, 77, 0.14), transparent 44%),
+          linear-gradient(180deg, #100c09, #050403);
+        box-shadow:
+          inset 0 0 0 1px rgba(196, 151, 77, 0.26),
+          inset 0 0 28px rgba(0, 0, 0, 0.52);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-portrait span {
+        color: var(--inc-muted);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-reference-tile .font-black,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-attribute-card .font-black {
+        color: #f4e8cb;
+        font-family: var(--inc-font-display);
+        text-shadow:
+          0 0 10px rgba(194, 65, 45, 0.28),
+          0 1px 0 rgba(0, 0, 0, 0.8);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-panel h3,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-combat-section h3,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-traits-section h3,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-power-card h3 {
+        color: var(--inc-gold);
+        font-family: var(--inc-font-display);
+        font-variant-caps: small-caps;
+        letter-spacing: 0.1em;
+        text-shadow: 0 0 10px rgba(196, 151, 77, 0.18);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-panel h3,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-combat-section h3,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-traits-section h3 {
+        border-bottom-color: var(--inc-border-soft);
+        background:
+          linear-gradient(90deg, rgba(196, 151, 77, 0.22), transparent 38%),
+          linear-gradient(180deg, rgba(8, 7, 6, 0.36), transparent);
+        padding-left: 0.35rem;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-helper-strip {
+        background:
+          linear-gradient(180deg, rgba(33, 25, 20, 0.96), rgba(8, 7, 6, 0.96));
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-panel {
+        background:
+          linear-gradient(180deg, rgba(35, 25, 18, 0.96), rgba(16, 12, 9, 0.96));
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-panel h3 {
+        border-color: var(--inc-border-soft);
+        text-shadow: 0 0 10px rgba(196, 151, 77, 0.14);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-power-card h3 {
+        font-size: 1.08rem;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-stat-tile > div:nth-child(2) {
+        color: #f4e8cb;
+        font-family: var(--inc-font-display);
+        text-shadow: 0 0 8px rgba(196, 151, 77, 0.18);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-defence-box,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-main-output-row {
+        box-shadow:
+          inset 0 0 0 1px rgba(196, 151, 77, 0.12),
+          inset 0 0 14px rgba(0, 0, 0, 0.2);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-summary {
+        border-color: var(--inc-border);
+        background:
+          linear-gradient(90deg, rgba(33, 25, 20, 0.96), rgba(20, 15, 11, 0.96));
+        color: var(--inc-text);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-summary p {
+        color: var(--inc-text);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-loadout {
+        border-color: var(--inc-border);
+        background-color: var(--inc-panel-bg) !important;
+        box-shadow: inset 0 0 36px rgba(0, 0, 0, 0.52);
+        background-blend-mode: multiply, normal;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-slot-card {
+        border-color: var(--inc-border);
+        background: rgba(21, 17, 13, 0.84);
+        color: var(--inc-text);
+        box-shadow:
+          inset 0 0 0 1px rgba(196, 151, 77, 0.14),
+          0 2px 7px rgba(0, 0, 0, 0.42);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-slot-card p {
+        color: var(--inc-text);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-slot-card p:first-child,
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-slot-card .text-zinc-600 {
+        color: var(--inc-muted);
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-slot-card p:first-child {
+        font-size: 9px;
+        line-height: 1.25;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-slot-card p:nth-child(2) {
+        font-size: 11.5px;
+        line-height: 1.18;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-slot-card p:nth-child(3) {
+        font-size: 8.75px;
+        line-height: 1.18;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-effects-ledger {
+        border-color: var(--inc-border);
+        background: rgba(8, 7, 6, 0.28);
+        font-size: 10.25px;
+        line-height: 1.25;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-effects-row {
+        border-color: var(--inc-border-soft);
+        background: rgba(21, 17, 13, 0.62);
+        padding-top: 0.12rem;
+        padding-bottom: 0.12rem;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-effects-row span:first-child {
+        font-size: 8.5px;
+        line-height: 1.2;
+      }
+
+      .cb-sheet-preview.character-sheet--dark-prestige .ring-emerald-700\\/50 {
+        --tw-ring-color: rgba(196, 151, 77, 0.55);
+      }
+
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-page,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-panel,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-stat-tile,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-power-card,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-attribute-card,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner-logo,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner-field,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-hero,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-portrait,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-reference-tile,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-combat-section,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-traits-section,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-helper-strip,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-defence-box,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-output-row,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-identity-band,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-title-band {
+        border-color: #d4d4d8;
+        background: #ffffff;
+        color: #18181b;
+        box-shadow: none;
+      }
+
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-sheet-title-band,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner-logo,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .cb-main-banner-field {
+        background: #f4f4f5;
+      }
+
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige *,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .text-black,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-100,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-200,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-300,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-400,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-500,
+      .cb-print-friendly .cb-sheet-preview.character-sheet--dark-prestige .text-zinc-950 {
+        color: #18181b;
+        text-shadow: none;
       }
     `}</style>
   );
