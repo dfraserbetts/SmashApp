@@ -4,7 +4,11 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { CampaignNav } from "@/app/components/CampaignNav";
-import { CharacterSheetPreview } from "@/app/campaign/[id]/characters/[characterId]/components/CharacterSheetPreview";
+import {
+  CHARACTER_SHEET_THEME_LABELS,
+  CharacterSheetPreview,
+  type CharacterSheetTheme,
+} from "@/app/campaign/[id]/characters/[characterId]/components/CharacterSheetPreview";
 import { useProtectionTuning } from "@/app/summoning-circle/components/useProtectionTuning";
 import {
   CHARACTER_ATTRIBUTES,
@@ -895,6 +899,7 @@ export default function CharacterBuilderPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [mobileView, setMobileView] = useState<"editor" | "preview">("editor");
+  const [previewTheme, setPreviewTheme] = useState<CharacterSheetTheme>("classic");
   const [attributeSwapDrafts, setAttributeSwapDrafts] = useState<Record<string, string>>({});
   const [selectedBackpackItemId, setSelectedBackpackItemId] = useState("");
   const [pendingHandEquipItemId, setPendingHandEquipItemId] = useState("");
@@ -3758,13 +3763,29 @@ export default function CharacterBuilderPage() {
 
   const previewPanel = (
     <aside className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-      <div className="mb-3 px-1">
-        <div className="text-xs uppercase tracking-wide text-zinc-500">
-          Live Sheet Preview
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3 px-1">
+        <div>
+          <div className="text-xs uppercase tracking-wide text-zinc-500">
+            Live Sheet Preview
+          </div>
+          <p className="mt-1 text-sm text-zinc-400">
+            This preview uses the same sheet layout family as print mode.
+          </p>
         </div>
-        <p className="mt-1 text-sm text-zinc-400">
-          This preview uses the same sheet layout family as print mode.
-        </p>
+        <label className="grid gap-1 text-xs uppercase tracking-wide text-zinc-500">
+          Preview Theme
+          <select
+            value={previewTheme}
+            onChange={(event) => setPreviewTheme(event.target.value as CharacterSheetTheme)}
+            className="rounded border border-zinc-800 bg-black px-2 py-1 text-sm normal-case tracking-normal text-zinc-100"
+          >
+            {Object.entries(CHARACTER_SHEET_THEME_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       <CharacterSheetPreview
         character={previewCharacter}
@@ -3774,6 +3795,7 @@ export default function CharacterBuilderPage() {
         powerBudget={powerBudget}
         traitSummary={traitSummary}
         printType="compact-colour"
+        theme={previewTheme}
         mode="preview"
         campaignName={payload?.campaign.name ?? campaignId}
         assignedPlayerLabel={privacySafePlayerLabel(payload?.assignedPlayerLabel)}
