@@ -46,12 +46,23 @@ type BuilderCharacter = {
 type BuilderPayload = {
   campaign: { id: string; name: string };
   character: BuilderCharacter;
+  assignedPlayerLabel: string;
   traitCatalog: PlayerTraitDefinition[];
   backpackItems: CharacterBuilderDerivedBackpackItem[];
   powerTuning: PowerTuningSnapshot;
   characterBuilderTuning: CharacterBuilderTuningSnapshot;
   error?: string;
 };
+
+function privacySafePlayerLabel(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const withoutParentheticalEmail = trimmed.replace(/\s*\([^()\s]+@[^()\s]+\)\s*$/, "").trim();
+  if (!withoutParentheticalEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(withoutParentheticalEmail)) {
+    return null;
+  }
+  return withoutParentheticalEmail;
+}
 
 export function CharacterPrintMode({
   campaignId,
@@ -272,6 +283,7 @@ export function CharacterPrintMode({
         theme={theme}
         sheets={sheets}
         campaignName={payload.campaign.name}
+        assignedPlayerLabel={privacySafePlayerLabel(payload.assignedPlayerLabel)}
       />
 
       <style jsx global>{`

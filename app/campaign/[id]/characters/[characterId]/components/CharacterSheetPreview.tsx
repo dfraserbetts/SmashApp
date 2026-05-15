@@ -1325,26 +1325,32 @@ function MainSheetBanner({
   assignedPlayerLabel?: string | null;
 }) {
   return (
-    <div className="cb-main-banner grid grid-cols-[128px_minmax(0,1fr)] gap-1.5 border-2 border-zinc-800 bg-zinc-100 p-1.5 text-black">
-      <div className="cb-main-banner-logo flex items-center justify-center border border-zinc-800 bg-white px-2 py-1 text-sm font-black uppercase tracking-[0.1em] text-black">
-        INCARNATE
-      </div>
-      <div className="grid grid-cols-4 gap-1 text-[10px] leading-tight text-black">
-        <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
-          <p className="font-bold uppercase tracking-[0.08em] text-black">Player Name</p>
-          <p className="truncate font-semibold text-black">{assignedPlayerLabel?.trim() || "-"}</p>
+    <div className="cb-main-banner relative border-2 border-zinc-800 bg-zinc-100 p-1.5 text-black">
+      <div className="cb-main-banner-art pointer-events-none absolute inset-0 hidden" aria-hidden="true" />
+      <div className="cb-main-banner-content relative grid grid-cols-[128px_minmax(0,1fr)] gap-1.5">
+        <div
+          className="cb-main-banner-logo flex items-center justify-center border border-zinc-800 bg-white px-2 py-1 text-sm font-black uppercase tracking-[0.1em] text-black"
+          aria-label="Incarnate TTRPG"
+        >
+          <span className="cb-main-banner-logo-text">INCARNATE</span>
         </div>
-        <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
-          <p className="font-bold uppercase tracking-[0.08em] text-black">Character Name</p>
-          <p className="truncate font-semibold text-black">{display(character.name)}</p>
-        </div>
-        <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
-          <p className="font-bold uppercase tracking-[0.08em] text-black">Power Level</p>
-          <p className="font-semibold text-black">{character.level}</p>
-        </div>
-        <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
-          <p className="font-bold uppercase tracking-[0.08em] text-black">Campaign Name</p>
-          <p className="truncate font-semibold text-black">{campaignName?.trim() || "-"}</p>
+        <div className="cb-main-banner-fields grid grid-cols-4 gap-1 text-[10px] leading-tight text-black">
+          <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
+            <p className="font-bold uppercase tracking-[0.08em] text-black">Player Name</p>
+            <p className="truncate font-semibold text-black">{assignedPlayerLabel?.trim() || "-"}</p>
+          </div>
+          <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
+            <p className="font-bold uppercase tracking-[0.08em] text-black">Character Name</p>
+            <p className="truncate font-semibold text-black">{display(character.name)}</p>
+          </div>
+          <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
+            <p className="font-bold uppercase tracking-[0.08em] text-black">Power Level</p>
+            <p className="font-semibold text-black">{character.level}</p>
+          </div>
+          <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
+            <p className="font-bold uppercase tracking-[0.08em] text-black">Campaign Name</p>
+            <p className="truncate font-semibold text-black">{campaignName?.trim() || "-"}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -2481,6 +2487,262 @@ export function CharacterSheetPreview({
         background:
           linear-gradient(90deg, rgba(75, 47, 28, 0.28), transparent 18%, transparent 82%, rgba(75, 47, 28, 0.28)),
           linear-gradient(180deg, rgba(26, 19, 14, 0.98), rgba(8, 7, 6, 0.98));
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet {
+        border-color: rgba(219, 172, 91, 0.78);
+        background:
+          radial-gradient(circle at 50% 3%, rgba(219, 172, 91, 0.14), transparent 20%),
+          radial-gradient(circle at 50% 55%, rgba(194, 65, 45, 0.075), transparent 40%),
+          repeating-linear-gradient(135deg, rgba(234, 223, 199, 0.022) 0 1px, transparent 1px 8px),
+          linear-gradient(145deg, #070605 0%, #17100b 42%, #0b0806 100%);
+        box-shadow:
+          inset 0 0 0 1px rgba(245, 220, 165, 0.16),
+          inset 0 0 0 5px rgba(5, 4, 3, 0.58),
+          inset 0 0 50px rgba(0, 0, 0, 0.64),
+          0 20px 44px rgba(0, 0, 0, 0.62);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet::before {
+        content: none;
+        display: none;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet::after {
+        content: none;
+        display: none;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-banner {
+        --dp-main-banner-flow-height: 3.25rem;
+        --dp-main-banner-art-left: 17.4%;
+        --dp-main-banner-art-right: calc(-0.9rem + 5px);
+        --dp-main-banner-art-top: calc(-1.08rem - 6.5px);
+        --dp-main-banner-art-height: calc(5.65rem + 5px);
+        --dp-main-banner-fields-left-nudge: 25px;
+        --dp-main-banner-fields-right: -0.15rem;
+        --dp-main-banner-fields-top: 0.5rem;
+        --dp-main-banner-fields-height: 2.82rem;
+        --dp-main-banner-logo-top: calc(-0.45rem - 12px);
+        --dp-main-banner-logo-left: 25px;
+        --dp-main-banner-logo-width: 12.13%;
+        --dp-main-banner-logo-height: 5.51rem;
+        height: var(--dp-main-banner-flow-height);
+        min-height: var(--dp-main-banner-flow-height);
+        overflow: visible;
+        z-index: 10;
+        border-color: transparent;
+        border-radius: 0;
+        padding: 0;
+        background:
+          linear-gradient(90deg, rgba(5, 4, 3, 0.2), rgba(39, 26, 17, 0.12) 50%, rgba(5, 4, 3, 0.2)),
+          linear-gradient(180deg, rgba(18, 13, 9, 0.6), rgba(8, 6, 4, 0.7));
+        box-shadow: none;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-banner-art {
+        /* Four-field strip asset layer; sheet data remains real HTML above it. */
+        display: block;
+        left: var(--dp-main-banner-art-left);
+        right: var(--dp-main-banner-art-right);
+        top: var(--dp-main-banner-art-top);
+        bottom: auto;
+        height: var(--dp-main-banner-art-height);
+        z-index: 3;
+        background-image:
+          var(--inc-main-banner-frame-image, url("/character-sheet/dark-prestige/header-frame.png"));
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: 100% 100%;
+        opacity: 0.96;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-banner-art::after {
+        content: "";
+        position: absolute;
+        left: 44.66%;
+        top: 3.19%;
+        width: 11.96%;
+        height: 47.85%;
+        pointer-events: none;
+        background: url("/character-sheet/dark-prestige/header-star-overlay.png") center / contain no-repeat;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-banner-content {
+        display: block;
+        position: relative;
+        height: 100%;
+        gap: 0;
+        z-index: 20;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-banner-fields {
+        position: absolute;
+        left: calc(var(--dp-main-banner-art-left) + var(--dp-main-banner-fields-left-nudge));
+        right: var(--dp-main-banner-fields-right);
+        top: var(--dp-main-banner-fields-top);
+        height: var(--dp-main-banner-fields-height);
+        z-index: 30;
+        gap: 0;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-top: 0;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-banner-logo {
+        position: absolute;
+        left: var(--dp-main-banner-logo-left);
+        top: var(--dp-main-banner-logo-top);
+        z-index: 40;
+        width: var(--dp-main-banner-logo-width);
+        height: var(--dp-main-banner-logo-height);
+        border-width: 0;
+        border-color: transparent;
+        color: #f2d38c;
+        letter-spacing: 0.12em;
+        overflow: visible;
+        background: transparent;
+        box-shadow: none;
+        pointer-events: none;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-banner-logo::before {
+        content: "";
+        position: absolute;
+        inset: -10px 0 0;
+        pointer-events: none;
+        background: url("/character-sheet/dark-prestige/IncarnateLogoTransparentNoTtrpg.png") center 42% / 116% auto no-repeat;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-banner-logo-text {
+        color: transparent;
+        text-shadow: none;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-banner-field {
+        display: grid;
+        align-content: center;
+        border-width: 0;
+        border-color: transparent;
+        background: transparent;
+        box-shadow: none;
+        padding: 0 9%;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-banner-field p:first-child {
+        color: rgba(183, 155, 107, 0.92);
+        font-size: 8.5px;
+        line-height: 1;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-banner-field p:last-child {
+        color: #f1e3c7;
+        font-size: 14px;
+        line-height: 1.05;
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.95);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-hero {
+        border-color: rgba(219, 172, 91, 0.76);
+        background:
+          linear-gradient(90deg, rgba(5, 4, 3, 0.72), rgba(35, 25, 18, 0.9) 45%, rgba(35, 25, 18, 0.9) 55%, rgba(5, 4, 3, 0.72)),
+          radial-gradient(circle at 50% 42%, rgba(219, 172, 91, 0.12), transparent 45%),
+          linear-gradient(180deg, rgba(28, 19, 13, 0.98), rgba(7, 5, 4, 0.98));
+        box-shadow:
+          inset 0 0 0 1px rgba(245, 220, 165, 0.12),
+          inset 0 0 46px rgba(0, 0, 0, 0.52);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet .cb-portrait {
+        border-color: rgba(219, 172, 91, 0.82);
+        background:
+          linear-gradient(90deg, rgba(5, 4, 3, 0.95), transparent 10%, transparent 90%, rgba(5, 4, 3, 0.95)),
+          radial-gradient(circle at 50% 44%, rgba(219, 172, 91, 0.18), transparent 54%),
+          linear-gradient(180deg, #17100b, #040302);
+        box-shadow:
+          inset 0 0 0 1px rgba(245, 220, 165, 0.18),
+          inset 0 0 0 6px rgba(5, 4, 3, 0.62),
+          inset 0 0 38px rgba(0, 0, 0, 0.68),
+          0 0 0 1px rgba(118, 80, 50, 0.82),
+          0 7px 18px rgba(0, 0, 0, 0.42);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-reference-tile,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet .cb-attribute-card {
+        border-color: rgba(185, 128, 70, 0.68);
+        background:
+          linear-gradient(90deg, rgba(219, 172, 91, 0.1), transparent 20%, transparent 80%, rgba(219, 172, 91, 0.08)),
+          linear-gradient(180deg, rgba(32, 22, 15, 0.98), rgba(10, 7, 5, 0.98));
+        box-shadow:
+          inset 0 0 0 1px rgba(245, 220, 165, 0.09),
+          inset 0 0 18px rgba(0, 0, 0, 0.38);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-reference-tile .text-4xl,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet .cb-attribute-card .text-\\[2\\.1rem\\] {
+        color: #f7dfaa;
+        text-shadow:
+          0 0 14px rgba(194, 65, 45, 0.22),
+          0 1px 0 rgba(0, 0, 0, 1);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet .cb-main-combat-section,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet .cb-main-traits-section,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet .cb-main-helper-strip {
+        border-color: rgba(185, 128, 70, 0.72);
+        background:
+          linear-gradient(90deg, rgba(111, 70, 40, 0.18), transparent 16%, transparent 84%, rgba(111, 70, 40, 0.18)),
+          radial-gradient(circle at 50% 0%, rgba(219, 172, 91, 0.09), transparent 42%),
+          linear-gradient(180deg, rgba(28, 19, 13, 0.98), rgba(9, 6, 5, 0.98));
+        box-shadow:
+          inset 0 0 0 1px rgba(245, 220, 165, 0.08),
+          inset 0 0 22px rgba(0, 0, 0, 0.38);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet .cb-main-combat-section > div:first-child {
+        border-bottom-color: rgba(219, 172, 91, 0.54);
+        background:
+          linear-gradient(90deg, rgba(219, 172, 91, 0.18), rgba(219, 172, 91, 0.05) 42%, transparent);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet .cb-main-combat-section h3,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet .cb-main-traits-section h3,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-sheet-panel h3,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-power-card h3 {
+        color: #f0d89a;
+        letter-spacing: 0.13em;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-defence-box,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-output-row {
+        border-color: rgba(166, 111, 60, 0.62);
+        background:
+          linear-gradient(180deg, rgba(24, 17, 12, 0.98), rgba(8, 6, 4, 0.98));
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-inventory-slot-card p:first-child {
+        font-size: 9.4px;
+        line-height: 1.28;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-inventory-slot-card p:nth-child(2) {
+        font-size: 12px;
+        line-height: 1.2;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-inventory-slot-card p:nth-child(3) {
+        font-size: 9.1px;
+        line-height: 1.2;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-inventory-effects-ledger {
+        font-size: 10.6px;
+        line-height: 1.3;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-inventory-effects-row {
+        padding-top: 0.16rem;
+        padding-bottom: 0.16rem;
       }
 
       .cb-sheet-preview.cb-sheet-print-friendly.character-sheet--dark-prestige .cb-sheet-page,
