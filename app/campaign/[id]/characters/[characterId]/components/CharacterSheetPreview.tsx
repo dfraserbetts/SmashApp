@@ -480,22 +480,28 @@ function selectedEquippedItems(
 function InventorySlotCard({
   slot,
   item,
+  wide = false,
 }: {
   slot: EquipmentSlotKey;
   item?: CharacterBuilderDerivedBackpackItem;
+  wide?: boolean;
 }) {
   const slotLabel = item ? equippedSlotDisplayLabel(slot, item) : EQUIPMENT_SLOT_LABELS[slot];
   const rarityLabel = item ? titleCase(item.itemTemplate.rarity) : null;
-  const levelLabel = item?.itemTemplate.level ? `Level ${item.itemTemplate.level}` : null;
-  const meta = [rarityLabel && rarityLabel !== "-" ? rarityLabel : null, levelLabel].filter(Boolean).join(" / ");
+  const meta = rarityLabel && rarityLabel !== "-" ? rarityLabel : null;
 
   return (
-    <article className="cb-inventory-slot-card w-fit min-w-[4.25rem] max-w-[7.25rem] overflow-hidden border border-zinc-700 bg-white/75 px-1 py-0.5 text-zinc-950 shadow-[0_0_0_1px_rgba(255,255,255,0.7)]">
-      <p className="truncate text-[7.75px] font-semibold uppercase leading-[1.25] tracking-[0.06em] text-zinc-600">{slotLabel}</p>
+    <article
+      className={[
+        "cb-inventory-slot-card w-fit overflow-hidden border border-zinc-700 bg-white/48 px-1 py-0.5 text-zinc-950 shadow-[0_0_0_1px_rgba(255,255,255,0.7)]",
+        wide ? "min-w-[6.6rem] max-w-[9.5rem]" : "min-w-[4.9rem] max-w-[8.25rem]",
+      ].join(" ")}
+    >
+      <p className="whitespace-normal text-[7.75px] font-semibold uppercase leading-[1.25] tracking-[0.06em] text-zinc-600">{slotLabel}</p>
       {item ? (
         <>
-          <p className="truncate text-[10.25px] font-semibold leading-[1.15]">{itemName(item)}</p>
-          {meta ? <p className="truncate text-[7.5px] uppercase leading-[1.15] tracking-[0.03em] text-zinc-600">{meta}</p> : null}
+          <p className="whitespace-normal break-words text-[10.25px] font-semibold leading-[1.15]">{itemName(item)}</p>
+          {meta ? <p className="truncate text-[7.5px] leading-[1.15] tracking-[0.03em] text-zinc-600">{meta}</p> : null}
         </>
       ) : (
         <p className="mt-0.5 text-[9.5px] leading-tight text-zinc-500">Empty</p>
@@ -526,54 +532,50 @@ function InventoryProtectionSummary({ derivedStats }: { derivedStats: CharacterD
 }
 
 function InventoryLoadout({
-  character,
   equipped,
 }: {
-  character: CharacterSheetCharacter;
   equipped: EquippedEntry[];
 }) {
   const bySlot = new Map(equipped.map(({ slot, backpackItem }) => [slot, backpackItem]));
-  const portraitUrl = isHttpUrl(character.imageUrl) ? character.imageUrl?.trim().replace(/"/g, "%22") : null;
-  const slot = (slotKey: EquipmentSlotKey) => (
+  const hasTwoHandedWeapon = equipped.some(
+    ({ backpackItem }) =>
+      backpackItem.itemTemplate.type === "WEAPON" && backpackItem.itemTemplate.size === "TWO_HANDED",
+  );
+  const slot = (slotKey: EquipmentSlotKey, options?: { wide?: boolean }) => (
     <InventorySlotCard
       key={slotKey}
       slot={slotKey}
       item={bySlot.get(slotKey)}
+      wide={options?.wide}
     />
   );
 
   return (
     <div
       className="cb-inventory-loadout relative h-[18.5rem] overflow-hidden border border-zinc-700 bg-zinc-100 p-2"
-      style={
-        portraitUrl
-          ? {
-              backgroundImage: `linear-gradient(rgba(244,244,245,0.18), rgba(244,244,245,0.32)), url("${portraitUrl}")`,
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
-              backgroundSize: "auto 98%",
-            }
-          : undefined
-      }
+      style={{
+        backgroundImage:
+          'linear-gradient(rgba(244,244,245,0.18), rgba(244,244,245,0.32)), url("/character-sheet/dark-prestige/Inventory_Silhouette.png")',
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        backgroundSize: "100% auto",
+      }}
     >
-      {!portraitUrl ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-64 w-32 rounded-full border border-zinc-400 bg-zinc-300/35" />
-        </div>
-      ) : null}
       <div className="relative z-10 grid h-full grid-cols-4 grid-rows-6 gap-1.5">
-        <div className="col-start-2 row-start-1 mx-2 flex items-center justify-center">{slot("headArmor")}</div>
-        <div className="col-start-3 row-start-1 mx-2 flex items-center justify-center">{slot("headItem")}</div>
-        <div className="col-start-2 col-span-2 row-start-2 mx-12 flex items-center justify-center">{slot("neckItem")}</div>
-        <div className="col-start-1 row-start-2 mx-2 flex items-center justify-center">{slot("shoulderArmor")}</div>
-        <div className="col-start-4 row-start-2 mx-2 flex items-center justify-center">{slot("armsItem")}</div>
-        <div className="col-start-1 row-start-3 mx-2 flex items-center justify-center">{slot("mainHand")}</div>
+        <div className="col-start-2 row-start-1 mx-2 flex translate-y-[25px] items-center justify-center">{slot("headArmor")}</div>
+        <div className="col-start-3 row-start-1 mx-2 flex translate-y-[25px] items-center justify-center">{slot("headItem")}</div>
+        <div className="col-start-2 col-span-2 row-start-2 mx-12 flex translate-y-[37px] items-center justify-center">{slot("neckItem")}</div>
+        <div className="col-start-1 row-start-2 mx-2 flex translate-x-[25px] translate-y-[10px] items-center justify-center">{slot("shoulderArmor")}</div>
+        <div className="col-start-4 row-start-2 mx-2 flex -translate-x-[25px] translate-y-[10px] items-center justify-center">{slot("armsItem")}</div>
+        <div className="col-start-1 row-start-3 mx-2 flex translate-y-[25px] items-center justify-center">{slot("mainHand")}</div>
         <div className="col-start-2 col-span-2 row-start-3 mx-8 flex items-center justify-center">{slot("torsoArmor")}</div>
-        <div className="col-start-4 row-start-3 mx-2 flex items-center justify-center">{slot("offHand")}</div>
-        <div className="col-start-2 col-span-2 row-start-4 mx-14 flex items-center justify-center">{slot("beltItem")}</div>
-        <div className="col-start-4 row-start-4 mx-2 flex items-center justify-center">{slot("smallSlot")}</div>
-        <div className="col-start-2 row-start-5 mx-2 flex items-center justify-center">{slot("legsArmor")}</div>
-        <div className="col-start-3 row-start-5 mx-2 flex items-center justify-center">{slot("feetArmor")}</div>
+        {!hasTwoHandedWeapon ? (
+          <div className="col-start-4 row-start-3 mx-2 flex translate-y-[25px] items-center justify-center">{slot("offHand")}</div>
+        ) : null}
+        <div className="col-start-2 col-span-2 row-start-4 mx-14 flex -translate-y-[15px] items-center justify-center">{slot("beltItem")}</div>
+        <div className="col-start-4 row-start-4 mx-2 flex -translate-x-[25px] items-center justify-center">{slot("smallSlot")}</div>
+        <div className="col-start-2 col-span-2 row-start-5 mx-16 flex -translate-y-[40px] items-center justify-center">{slot("legsArmor", { wide: true })}</div>
+        <div className="col-start-2 col-span-2 row-start-6 mx-16 flex -translate-y-[50px] items-center justify-center">{slot("feetArmor", { wide: true })}</div>
       </div>
     </div>
   );
@@ -582,9 +584,11 @@ function InventoryLoadout({
 function InventoryEquippedEffects({
   equipped,
   activeEffectRegistry,
+  className = "",
 }: {
   equipped: EquippedEntry[];
   activeEffectRegistry: ActiveEffectRegistry;
+  className?: string;
 }) {
   const rows = equipped
     .map(({ slot, backpackItem }) => ({
@@ -595,26 +599,28 @@ function InventoryEquippedEffects({
     }))
     .filter((row) => row.bullets.length > 0);
 
-  if (rows.length === 0) return null;
-
   return (
-    <SheetPanel title="Equipped Effects">
-      <div className="cb-inventory-effects-ledger divide-y divide-zinc-800 border border-zinc-800 text-[9px] leading-snug text-zinc-300">
-        {rows.map((row) => (
-          <div
-            key={`${row.slot}-${row.item.id}`}
-            className="cb-inventory-effects-row grid grid-cols-[minmax(0,0.9fr)_minmax(0,2.2fr)] gap-2 bg-zinc-950/20 px-2 py-0.5"
-          >
-            <div className="min-w-0">
-              <span className="mr-1 text-[7.5px] font-semibold uppercase tracking-[0.06em] text-zinc-500">
-                {row.slotLabel}
-              </span>
-              <span className="font-semibold text-zinc-100">{itemName(row.item)}</span>
+    <SheetPanel title="Equipped Effects" className={className}>
+      {rows.length === 0 ? (
+        <p className="text-sm text-zinc-500">No equipped effects listed.</p>
+      ) : (
+        <div className="cb-inventory-effects-ledger divide-y divide-zinc-800 border border-zinc-800 text-[10.25px] leading-snug text-zinc-300">
+          {rows.map((row) => (
+            <div
+              key={`${row.slot}-${row.item.id}`}
+              className="cb-inventory-effects-row grid grid-cols-[minmax(0,0.9fr)_minmax(0,2.2fr)] gap-2 bg-zinc-950/20 px-2 py-1"
+            >
+              <div className="min-w-0">
+                <div className="text-[8.25px] font-semibold uppercase leading-tight tracking-[0.06em] text-zinc-500">
+                  {row.slotLabel}
+                </div>
+                <div className="font-semibold leading-tight text-zinc-100">{itemName(row.item)}</div>
+              </div>
+              <div className="min-w-0 break-words text-zinc-300">{row.bullets.join("; ")}</div>
             </div>
-            <div className="min-w-0 break-words text-zinc-300">{row.bullets.join("; ")}</div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </SheetPanel>
   );
 }
@@ -1256,6 +1262,26 @@ function MainTraitsAttributesBox({
   );
 }
 
+function moveSpeedFeetFromFortitude(builderData: CharacterBuilderData) {
+  const fortitude = builderData.attributes.Fortitude;
+  return (typeof fortitude === "number" ? fortitude : 0) * 5;
+}
+
+function MainMoveSpeedCartouche({ effectiveMoveSpeedFeet }: { effectiveMoveSpeedFeet: number }) {
+  return (
+    <div className="cb-main-move-speed-cartouche pointer-events-none absolute left-1/2 top-0 z-20 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center">
+      <div className="cb-main-move-speed-art absolute inset-0" aria-hidden="true" />
+      <div className="cb-main-move-speed-label absolute z-10 text-center text-[7px] font-semibold uppercase leading-none tracking-[0.12em] text-zinc-400">
+        Move Speed
+      </div>
+      <div className="cb-main-move-speed-value absolute z-10 text-center font-semibold leading-none text-zinc-100">
+        <span className="cb-main-move-speed-number">{effectiveMoveSpeedFeet || "-"}</span>
+        <span className="cb-main-move-speed-unit">ft</span>
+      </div>
+    </div>
+  );
+}
+
 const MAIN_SHEET_STATUS_TRACKERS = [
   "Disease",
   "Freeze",
@@ -1301,14 +1327,18 @@ function MainSheetHelperStrip() {
           </div>
         ))}
       </div>
-      <div className="mt-1 grid grid-cols-2 gap-1 text-[9px] leading-snug text-zinc-300">
+      <div className="mt-1 grid grid-cols-3 gap-1 text-[9px] leading-snug text-zinc-300">
         <p>
           <span className="font-semibold uppercase tracking-[0.06em] text-zinc-500">Start of turn:</span>{" "}
           Remove turn token. Replenish responses. Resolve any status effects or passive abilities.
         </p>
         <p>
           <span className="font-semibold uppercase tracking-[0.06em] text-zinc-500">End of turn:</span>{" "}
-          Add a cooldown die to any powers you have used. Tick down any cooldown dice currently on powers, or remove if required. Mark your turn as complete with your turn token.
+          Add a cooldown die to any powers you have used. Tick down any cooldown dice currently on powers, or remove if required.
+        </p>
+        <p>
+          <span className="font-semibold uppercase tracking-[0.06em] text-zinc-500">Start of round:</span>{" "}
+          Replace turn token.
         </p>
       </div>
     </section>
@@ -1386,6 +1416,7 @@ function MainCombatSheet({
   const attackAttributeRowsBySlot = groupMainSheetRowsBySlot(attackAttributeRows);
   const attackSlots = new Set(derivedStats.attacks.map((attack) => attack.slot));
   const unmatchedAttackAttributeRows = attackAttributeRows.filter((row) => !attackSlots.has(row.slot));
+  const moveSpeedFeet = moveSpeedFeetFromFortitude(builderData);
 
   return (
     <SheetFrame
@@ -1435,9 +1466,12 @@ function MainCombatSheet({
         </div>
       </div>
 
-      <MainTraitsAttributesBox
-        derivedStats={derivedStats}
-      />
+      <div className="cb-main-attributes-anchor relative">
+        <MainMoveSpeedCartouche effectiveMoveSpeedFeet={moveSpeedFeet} />
+        <MainTraitsAttributesBox
+          derivedStats={derivedStats}
+        />
+      </div>
 
       <div className="grid gap-1.5">
         <MainCombatSection
@@ -1651,12 +1685,10 @@ function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudge
 }
 
 function InventorySheet({
-  character,
   backpackItems,
   equipped,
   derivedStats,
 }: {
-  character: CharacterSheetCharacter;
   backpackItems: CharacterBuilderDerivedBackpackItem[];
   equipped: EquippedEntry[];
   derivedStats: CharacterDerivedCombatStats;
@@ -1667,17 +1699,17 @@ function InventorySheet({
     <SheetFrame title="Inventory Sheet" subtitle="Equipped gear and Backpack items.">
       <InventoryProtectionSummary derivedStats={derivedStats} />
 
-      <SheetPanel title="Equipped Loadout">
-        <InventoryLoadout
-          character={character}
-          equipped={equipped}
-        />
-      </SheetPanel>
+      <div className="cb-inventory-loadout-effects-row grid grid-cols-[minmax(0,55fr)_minmax(0,45fr)] gap-3">
+        <SheetPanel title="Equipped Loadout" className="cb-inventory-loadout-panel">
+          <InventoryLoadout equipped={equipped} />
+        </SheetPanel>
 
-      <InventoryEquippedEffects
-        equipped={equipped}
-        activeEffectRegistry={activeEffectRegistry}
-      />
+        <InventoryEquippedEffects
+          equipped={equipped}
+          activeEffectRegistry={activeEffectRegistry}
+          className="cb-inventory-effects-panel"
+        />
+      </div>
 
       <SheetPanel title="Backpack">
         {backpackItems.length === 0 ? (
@@ -1773,7 +1805,6 @@ export function CharacterSheetPreview({
       {selectedSheets.powers ? <PowerReferenceSheet powerBudget={powerBudget} /> : null}
       {selectedSheets.inventory ? (
         <InventorySheet
-          character={character}
           backpackItems={backpackItems}
           equipped={equipped}
           derivedStats={derivedStats}
@@ -1819,6 +1850,71 @@ export function CharacterSheetPreview({
 
       .cb-sheet-preview .cb-main-sheet {
         border-radius: 0.375rem;
+      }
+
+      .cb-sheet-preview .cb-inventory-loadout-effects-row {
+        min-height: 38rem;
+        align-items: stretch;
+      }
+
+      .cb-sheet-preview .cb-inventory-loadout-panel,
+      .cb-sheet-preview .cb-inventory-effects-panel {
+        display: flex;
+        min-height: 0;
+        flex-direction: column;
+      }
+
+      .cb-sheet-preview .cb-inventory-loadout-panel > div,
+      .cb-sheet-preview .cb-inventory-effects-panel > div {
+        min-height: 0;
+        flex: 1;
+      }
+
+      .cb-sheet-preview .cb-inventory-loadout-effects-row .cb-inventory-loadout {
+        height: 100%;
+      }
+
+      .cb-sheet-preview .cb-main-move-speed-cartouche {
+        width: 6.7rem;
+        aspect-ratio: 3 / 2;
+        color: #111111;
+        filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.28));
+      }
+
+      .cb-sheet-preview .cb-main-move-speed-art {
+        background: linear-gradient(180deg, #f4f4f5, #d4d4d8);
+        border: 1px solid #71717a;
+        clip-path: polygon(8% 35%, 14% 17%, 32% 12%, 42% 18%, 58% 18%, 68% 12%, 86% 17%, 92% 35%, 88% 58%, 65% 60%, 59% 68%, 50% 91%, 41% 68%, 35% 60%, 12% 58%);
+      }
+
+      .cb-sheet-preview .cb-main-move-speed-label,
+      .cb-sheet-preview .cb-main-move-speed-value {
+        left: 50%;
+        width: 58%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #111111;
+      }
+
+      .cb-sheet-preview .cb-main-move-speed-label {
+        top: 17%;
+        height: 17%;
+      }
+
+      .cb-sheet-preview .cb-main-move-speed-value {
+        top: 49%;
+        height: 26%;
+        font-size: 1rem;
+        gap: 0.06em;
+        align-items: baseline;
+      }
+
+      .cb-sheet-preview .cb-main-move-speed-unit {
+        font-size: 0.7em;
+        line-height: 1;
+        transform: translateY(-0.02em);
       }
 
       .cb-sheet-preview .cb-sheet-title-band,
@@ -2651,6 +2747,41 @@ export function CharacterSheetPreview({
         box-shadow:
           inset 0 0 0 1px rgba(245, 220, 165, 0.12),
           inset 0 0 46px rgba(0, 0, 0, 0.52);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-move-speed-cartouche {
+        width: 6.85rem;
+        border: 0;
+        clip-path: none;
+        background: none;
+        filter: drop-shadow(0 4px 7px rgba(0, 0, 0, 0.62));
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-move-speed-art {
+        border: 0;
+        clip-path: none;
+        background: url("/assets/character-sheet/dark-prestige/move-speed-cartouche.png") center / contain no-repeat;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-move-speed-label {
+        top: 16%;
+        height: 17%;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-move-speed-value {
+        color: #f1e3c7;
+        top: 50%;
+        height: 25%;
+        font-size: 0.96rem;
+        gap: 0.04em;
+        text-shadow:
+          0 1px 0 rgba(0, 0, 0, 0.95),
+          0 0 8px rgba(194, 65, 45, 0.32);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-move-speed-label {
+        color: rgba(196, 151, 77, 0.88);
+        text-shadow: 0 1px 0 rgba(0, 0, 0, 0.95);
       }
 
       .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet .cb-portrait {
