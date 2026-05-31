@@ -148,7 +148,8 @@ export function CharacterPrintMode({
   }, [payload]);
 
   const printFriendly = printType.endsWith("print-friendly");
-  const darkPrestigeColourPrint = theme === "dark-prestige" && !printFriendly;
+  const darkPrestigeColourPrint =
+    (theme === "dark-prestige" || theme === "dark-prestige-v2") && !printFriendly;
 
   const triggerPrint = useCallback(() => {
     window.setTimeout(() => window.print(), 0);

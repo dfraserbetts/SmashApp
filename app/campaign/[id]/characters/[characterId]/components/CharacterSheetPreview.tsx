@@ -29,7 +29,7 @@ export type CharacterSheetPrintType =
   | "compact-colour"
   | "compact-print-friendly";
 
-export type CharacterSheetTheme = "classic" | "dark-prestige";
+export type CharacterSheetTheme = "classic" | "dark-prestige" | "dark-prestige-v2";
 
 export type CharacterSheetKey = "main" | "character" | "powers" | "inventory";
 
@@ -45,6 +45,7 @@ export const CHARACTER_SHEET_PRINT_TYPE_LABELS: Record<CharacterSheetPrintType, 
 export const CHARACTER_SHEET_THEME_LABELS: Record<CharacterSheetTheme, string> = {
   classic: "Classic",
   "dark-prestige": "Dark Prestige",
+  "dark-prestige-v2": "Dark Prestige V2",
 };
 
 export const CHARACTER_SHEET_LABELS: Record<CharacterSheetKey, string> = {
@@ -465,6 +466,12 @@ function equippedItemBullets(
   return uniqueBullets.slice(0, 8);
 }
 
+function displayEquippedEffectBullet(bullet: string) {
+  return bullet
+    .replace(/\bPPV\b/g, "Physical Protection")
+    .replace(/\bMPV\b/g, "Mental Protection");
+}
+
 function selectedEquippedItems(
   data: CharacterBuilderData,
   backpackItems: CharacterBuilderDerivedBackpackItem[],
@@ -616,7 +623,9 @@ function InventoryEquippedEffects({
                 </div>
                 <div className="font-semibold leading-tight text-zinc-100">{itemName(row.item)}</div>
               </div>
-              <div className="min-w-0 break-words text-zinc-300">{row.bullets.join("; ")}</div>
+              <div className="min-w-0 break-words text-zinc-300">
+                {row.bullets.map(displayEquippedEffectBullet).join("; ")}
+              </div>
             </div>
           ))}
         </div>
@@ -788,7 +797,9 @@ function MainReferenceTile({
   const alignment = tone === "physical" ? "text-right" : "text-left";
 
   return (
-    <div className={`cb-main-reference-tile border border-zinc-800 bg-zinc-950/70 px-1.5 py-1 ${alignment}`}>
+    <div
+      className={`cb-main-reference-tile cb-main-reference-tile--${tone} border border-zinc-800 bg-zinc-950/70 px-1.5 py-1 ${alignment}`}
+    >
       <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-500">{stat.label}</div>
       <div className="mt-0.5 text-4xl font-semibold leading-none text-zinc-100">{stat.value}</div>
       {stat.helper ? <div className="mt-0.5 text-[10px] text-zinc-500">{stat.helper}</div> : null}
@@ -1329,16 +1340,16 @@ function MainSheetHelperStrip() {
       </div>
       <div className="mt-1 grid grid-cols-3 gap-1 text-[9px] leading-snug text-zinc-300">
         <p>
+          <span className="font-semibold uppercase tracking-[0.06em] text-zinc-500">Start of round:</span>{" "}
+          Replace turn token.
+        </p>
+        <p>
           <span className="font-semibold uppercase tracking-[0.06em] text-zinc-500">Start of turn:</span>{" "}
           Remove turn token. Replenish responses. Resolve any status effects or passive abilities.
         </p>
         <p>
           <span className="font-semibold uppercase tracking-[0.06em] text-zinc-500">End of turn:</span>{" "}
-          Add a cooldown die to any powers you have used. Tick down any cooldown dice currently on powers, or remove if required.
-        </p>
-        <p>
-          <span className="font-semibold uppercase tracking-[0.06em] text-zinc-500">Start of round:</span>{" "}
-          Replace turn token.
+          Add cooldown dice to powers used this turn. Tick down existing cooldowns by 1, remove any at 0.
         </p>
       </div>
     </section>
@@ -1370,16 +1381,16 @@ function MainSheetBanner({
             <p className="truncate font-semibold text-black">{assignedPlayerLabel?.trim() || "-"}</p>
           </div>
           <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
+            <p className="font-bold uppercase tracking-[0.08em] text-black">Campaign Name</p>
+            <p className="truncate font-semibold text-black">{campaignName?.trim() || "-"}</p>
+          </div>
+          <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
             <p className="font-bold uppercase tracking-[0.08em] text-black">Character Name</p>
             <p className="truncate font-semibold text-black">{display(character.name)}</p>
           </div>
           <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
-            <p className="font-bold uppercase tracking-[0.08em] text-black">Power Level</p>
+            <p className="font-bold uppercase tracking-[0.08em] text-black">Character Level</p>
             <p className="font-semibold text-black">{character.level}</p>
-          </div>
-          <div className="cb-main-banner-field border border-zinc-800 bg-white px-1.5 py-1 text-black">
-            <p className="font-bold uppercase tracking-[0.08em] text-black">Campaign Name</p>
-            <p className="truncate font-semibold text-black">{campaignName?.trim() || "-"}</p>
           </div>
         </div>
       </div>
@@ -1499,12 +1510,12 @@ function MainCombatSheet({
           title="Guard / Protection"
           header={
             <div className="flex flex-wrap justify-end gap-1">
-              <MainMetricPill label="Armor Skill" value={derivedStats.armorSkill} labelClassName="text-black" />
               <MainMetricPill
                 label="Dodge"
                 value={formatSheetNumber(derivedStats.dodgeValue)}
                 labelClassName="text-black"
               />
+              <MainMetricPill label="Armor Skill" value={derivedStats.armorSkill} labelClassName="text-black" />
               <MainMetricPill label="Willpower" value={derivedStats.willpower} labelClassName="text-black" />
             </div>
           }
@@ -1625,7 +1636,11 @@ function CharacterIdentitySheet({
 
 function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudget }) {
   return (
-    <SheetFrame title="Power Sheet(s)" subtitle="Power references generated from the shared descriptor and resolver output.">
+    <SheetFrame
+      title="Power Sheet(s)"
+      subtitle="Power references generated from the shared descriptor and resolver output."
+      className="cb-power-sheet"
+    >
       {powerBudget.powers.length === 0 ? (
         <SheetPanel title="Powers">
           <p className="text-sm text-zinc-500">No powers authored.</p>
@@ -1716,11 +1731,11 @@ function InventorySheet({
           <p className="text-sm text-zinc-500">No Backpack items assigned.</p>
         ) : (
           <div className="border border-zinc-800">
-            <div className="grid grid-cols-2">
+            <div className="cb-backpack-ledger grid grid-cols-3">
               {backpackItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex min-w-0 items-center justify-between gap-2 border-b border-zinc-800 px-2 py-1 text-[11px] text-zinc-300 odd:border-r odd:border-zinc-800"
+                  className="cb-backpack-entry flex min-w-0 items-center justify-between gap-2 border-b border-r border-zinc-800 px-2 py-1 text-[11px] text-zinc-300"
                 >
                   <span className="truncate font-medium text-zinc-100">{itemName(item)}</span>
                   <span className="shrink-0 text-zinc-500">x{item.quantity}</span>
@@ -1752,6 +1767,7 @@ export function CharacterSheetPreview({
   const selectedSheets = { ...DEFAULT_CHARACTER_SHEETS, ...sheets };
   const compact = printType.startsWith("compact");
   const printFriendly = printType.endsWith("print-friendly");
+  const darkPrestigeFamily = theme === "dark-prestige" || theme === "dark-prestige-v2";
   const equipped = selectedEquippedItems(builderData, backpackItems);
   const previewScaleEnabled = mode === "preview";
   const {
@@ -1777,6 +1793,7 @@ export function CharacterSheetPreview({
   const previewClassName = [
     "cb-sheet-preview space-y-5",
     `character-sheet--${theme}`,
+    darkPrestigeFamily ? "character-sheet--dark-prestige" : "",
     compact ? "cb-sheet-compact" : "cb-sheet-full",
     printFriendly ? "cb-sheet-print-friendly" : "cb-sheet-colour",
     mode === "print" ? "cb-sheet-print-mode" : "cb-sheet-live-mode",
@@ -1872,6 +1889,10 @@ export function CharacterSheetPreview({
 
       .cb-sheet-preview .cb-inventory-loadout-effects-row .cb-inventory-loadout {
         height: 100%;
+      }
+
+      .cb-sheet-preview .cb-backpack-ledger .cb-backpack-entry:nth-child(3n) {
+        border-right-width: 0;
       }
 
       .cb-sheet-preview .cb-main-move-speed-cartouche {
@@ -2016,6 +2037,151 @@ export function CharacterSheetPreview({
 
       .cb-sheet-preview .ring-emerald-700\\/50 {
         --tw-ring-color: #71717a;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic {
+        --classic-paper: #e9d4a8;
+        --classic-paper-deep: #c49b5f;
+        --classic-ink: #2b2115;
+        --classic-muted: #735831;
+        --classic-line: rgba(99, 73, 38, 0.5);
+        --classic-line-soft: rgba(99, 73, 38, 0.2);
+        --classic-panel: rgba(244, 224, 184, 0.82);
+        --classic-panel-strong: rgba(238, 213, 165, 0.9);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-sheet-page {
+        position: relative;
+        isolation: isolate;
+        border-color: transparent;
+        background: url("/assets/character-sheet/Classic/classic_background.png") center / 100% 100% no-repeat;
+        color: var(--classic-ink);
+        box-shadow:
+          0 12px 28px rgba(20, 13, 6, 0.18);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-sheet-page::before {
+        content: "";
+        position: absolute;
+        inset: 4mm;
+        z-index: 0;
+        pointer-events: none;
+        border: 0;
+        background: none;
+        opacity: 0.85;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-sheet-page::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background:
+          radial-gradient(circle at 6% 6%, rgba(99, 73, 38, 0.18), transparent 8%),
+          radial-gradient(circle at 94% 6%, rgba(99, 73, 38, 0.16), transparent 8%),
+          radial-gradient(circle at 6% 94%, rgba(99, 73, 38, 0.14), transparent 8%),
+          radial-gradient(circle at 94% 94%, rgba(99, 73, 38, 0.14), transparent 8%);
+        mix-blend-mode: multiply;
+        opacity: 0.55;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-sheet-page > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-sheet-panel,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-stat-tile,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-attribute-card,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-reference-tile,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-traits-section,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-combat-section,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-helper-strip,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-defence-box,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-output-row,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-power-card,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-inventory-summary,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-inventory-loadout,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-inventory-effects-ledger {
+        border-color: var(--classic-line);
+        background:
+          linear-gradient(rgba(247, 229, 191, 0.84), rgba(229, 197, 137, 0.78)),
+          repeating-linear-gradient(135deg, transparent 0 13px, rgba(105, 75, 37, 0.035) 13px 14px);
+        color: var(--classic-ink);
+        box-shadow:
+          inset 0 0 0 1px rgba(255, 248, 220, 0.48),
+          inset 0 -12px 24px rgba(116, 80, 36, 0.08);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-hero,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-portrait {
+        border-color: var(--classic-line);
+        background:
+          linear-gradient(rgba(248, 231, 193, 0.78), rgba(224, 194, 136, 0.7)),
+          radial-gradient(circle at 50% 45%, rgba(103, 73, 35, 0.12), transparent 58%);
+        color: var(--classic-ink);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-banner {
+        border-color: rgba(99, 73, 38, 0.68);
+        background:
+          linear-gradient(90deg, rgba(112, 77, 35, 0.12), rgba(250, 232, 194, 0.82) 18%, rgba(250, 232, 194, 0.82) 82%, rgba(112, 77, 35, 0.12)),
+          linear-gradient(180deg, rgba(248, 232, 196, 0.9), rgba(222, 190, 130, 0.82));
+        color: var(--classic-ink);
+        box-shadow: inset 0 0 0 1px rgba(255, 248, 222, 0.5);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-banner-logo {
+        position: relative;
+        overflow: visible;
+        border-color: rgba(99, 73, 38, 0.62);
+        background: rgba(247, 229, 190, 0.66);
+        color: transparent;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-banner-logo::before {
+        content: "";
+        position: absolute;
+        inset: -0.35rem 0.35rem;
+        background: url("/character-sheet/dark-prestige/IncarnateLogoTransparentNoTtrpg.png") center / contain no-repeat;
+        filter: sepia(1) saturate(0.85) brightness(0.56) contrast(1.35);
+        opacity: 0.9;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-banner-logo-text {
+        color: transparent;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-banner-field,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-inventory-slot-card,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-inventory-effects-row {
+        border-color: rgba(99, 73, 38, 0.46);
+        background: rgba(248, 230, 191, 0.66);
+        color: var(--classic-ink);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-sheet-panel h3,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-combat-section h3,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-main-traits-section h3,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .cb-power-card h3 {
+        color: #4f371d;
+        border-color: rgba(99, 73, 38, 0.45);
+        font-family: Georgia, "Times New Roman", serif;
+        letter-spacing: 0.1em;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .text-zinc-100,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .text-zinc-200,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .text-zinc-300,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .text-black {
+        color: var(--classic-ink);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .text-zinc-400,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .text-zinc-500,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--classic .text-zinc-600 {
+        color: var(--classic-muted);
       }
 
       .cb-sheet-preview.character-sheet--dark-prestige {
@@ -2323,7 +2489,7 @@ export function CharacterSheetPreview({
 
       .cb-sheet-preview.character-sheet--dark-prestige .cb-inventory-slot-card {
         border-color: var(--inc-border);
-        background: rgba(21, 17, 13, 0.84);
+        background: rgba(21, 17, 13, 0.59);
         color: var(--inc-text);
         box-shadow:
           inset 0 0 0 1px rgba(196, 151, 77, 0.14),
@@ -2586,7 +2752,7 @@ export function CharacterSheetPreview({
       }
 
       .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet {
-        border-color: rgba(219, 172, 91, 0.78);
+        border-color: transparent;
         background:
           radial-gradient(circle at 50% 3%, rgba(219, 172, 91, 0.14), transparent 20%),
           radial-gradient(circle at 50% 55%, rgba(194, 65, 45, 0.075), transparent 40%),
@@ -2597,6 +2763,18 @@ export function CharacterSheetPreview({
           inset 0 0 0 5px rgba(5, 4, 3, 0.58),
           inset 0 0 50px rgba(0, 0, 0, 0.64),
           0 20px 44px rgba(0, 0, 0, 0.62);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-sheet-page {
+        border-color: transparent;
+        background: url("/assets/character-sheet/dark-prestige/dark_prestigue_background.png") center / 100% 100% no-repeat;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-sheet-page::before,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-sheet-page::after {
+        content: none;
+        display: none;
       }
 
       .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-sheet::before {
@@ -2764,7 +2942,7 @@ export function CharacterSheetPreview({
       }
 
       .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-main-move-speed-label {
-        top: 16%;
+        top: calc(16% + 5px);
         height: 17%;
       }
 
@@ -2874,6 +3052,321 @@ export function CharacterSheetPreview({
       .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige .cb-inventory-effects-row {
         padding-top: 0.16rem;
         padding-bottom: 0.16rem;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-sheet-page {
+        border-color: transparent;
+        background: url("/assets/character-sheet/dark-prestige/dark_prestigue_background_v2.png") center / 106% 102% no-repeat;
+        box-shadow: none;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-sheet-page::before,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-sheet-page::after,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-sheet-panel::before,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-sheet-panel::after,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-card::before,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-card::after,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner::before,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner::after,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-hero::before,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-identity-center::before,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-combat-section::before,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-combat-section::after,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-traits-section::before,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-traits-section::after,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-helper-strip::before,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet::before,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet::after,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-art::after {
+        content: none;
+        display: none;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-art,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-move-speed-art {
+        display: none;
+        background: none;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-sheet-panel,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-stat-tile,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-card,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-attribute-card,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-logo,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-field,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-hero,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-portrait,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-reference-tile,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-combat-section,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-traits-section,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-helper-strip,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-defence-box,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-output-row,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-identity-band,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-sheet-title-band,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-inventory-summary,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-inventory-loadout,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-inventory-slot-card,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-inventory-effects-ledger,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-inventory-effects-row,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-combat-section > div:first-child,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-attribute-card > div:first-child {
+        border-color: transparent !important;
+        background: transparent !important;
+        background-image: none !important;
+        box-shadow: none !important;
+        outline: none !important;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet :where(.border, .border-t, .border-b, .border-l, .border-r),
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-sheet-panel :where(.border, .border-t, .border-b, .border-l, .border-r) {
+        border-color: transparent !important;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet :where(.bg-black, .bg-black\/40, .bg-black\/50, .bg-black\/60, .bg-zinc-950\/35, .bg-zinc-950\/45, .bg-zinc-950\/50, .bg-zinc-950\/60, .bg-zinc-950\/70),
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-sheet-panel :where(.bg-black, .bg-black\/40, .bg-black\/50, .bg-black\/60, .bg-zinc-950\/35, .bg-zinc-950\/45, .bg-zinc-950\/50, .bg-zinc-950\/60, .bg-zinc-950\/70) {
+        background: transparent !important;
+        background-image: none !important;
+        box-shadow: none !important;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-attribute-card,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-traits-section,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-combat-section,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-helper-strip,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-defence-box,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-output-row,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-combat-section > div:first-child,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-output-row > div:first-child,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-attribute-card > div:first-child,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-sheet-panel section {
+        border-color: transparent !important;
+        background: transparent !important;
+        background-image: none !important;
+        box-shadow: none !important;
+        outline: none !important;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-reference-tile {
+        position: relative;
+        overflow: visible;
+        min-height: 4.9rem;
+        padding: 0.95rem 0.95rem 0.8rem;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-reference-tile::after {
+        content: "";
+        position: absolute;
+        inset: -0.45rem -0.35rem;
+        z-index: 0;
+        pointer-events: none;
+        background: url("/assets/character-sheet/dark-prestige/Health_Pool_Frame.png") center / 100% 100% no-repeat;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-reference-tile > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-reference-tile .text-4xl {
+        display: block;
+        transform: translateY(-4px);
+        text-align: center;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-main-reference-tile > div:first-child {
+        text-align: center;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-hero {
+        min-height: calc(22rem + 0.75rem);
+        display: flex;
+        align-items: flex-end;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-hero-grid {
+        width: 100%;
+        align-items: end;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-identity-center {
+        justify-content: flex-end;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-portrait {
+        height: 18.7rem !important;
+        min-height: 18.7rem;
+        position: relative;
+        overflow: visible;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-portrait::after {
+        content: "";
+        position: absolute;
+        inset: -0.42rem;
+        z-index: 3;
+        pointer-events: none;
+        background: url("/assets/character-sheet/dark-prestige/portrait-frame.png") center / 100% 100% no-repeat;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-portrait img,
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-sheet .cb-portrait span {
+        position: relative;
+        z-index: 1;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-combat-side {
+        align-self: end;
+        height: 18.7rem;
+        min-height: 18.7rem;
+        grid-template-rows: auto repeat(3, minmax(0, 1fr));
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner {
+        transform: translateY(2rem);
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-content {
+        height: 100%;
+        overflow: visible;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-logo {
+        left: 50%;
+        top: -1.55rem;
+        width: 11.4rem;
+        height: 6.35rem;
+        transform: translateX(-50%);
+        z-index: 50;
+        overflow: visible !important;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-logo::before {
+        inset: -1.5rem -1rem -1.15rem;
+        background-position: center;
+        background-size: contain;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-fields {
+        left: 2.35rem;
+        right: 2.35rem;
+        top: calc(0.38rem + 10px);
+        height: 2.7rem;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 10.5rem minmax(0, 1fr) minmax(0, 1fr);
+        column-gap: 0.85rem;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-field:nth-child(1) {
+        grid-column: 1;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-field:nth-child(2) {
+        grid-column: 2;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-field:nth-child(3) {
+        grid-column: 4;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-field:nth-child(4) {
+        grid-column: 5;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-field {
+        justify-items: center;
+        padding: 0 5%;
+        text-align: center;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-field p:first-child {
+        font-size: 9.8px;
+        line-height: 1.02;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-main-banner-field p:last-child {
+        font-size: 16.1px;
+        line-height: 1.04;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-sheet > div {
+        padding: 1.95rem 1.85rem !important;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-sheet .cb-power-card {
+        position: relative;
+        overflow: visible;
+        min-height: 10.6rem;
+        padding: 1.2rem 1.35rem 1.15rem !important;
+        border-color: transparent !important;
+        background: rgba(10, 8, 6, 0.24) !important;
+        box-shadow: none !important;
+        font-size: 90%;
+        line-height: 1.35;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-sheet .cb-power-card::before {
+        content: "";
+        display: block;
+        position: absolute;
+        inset: -0.38rem;
+        z-index: 0;
+        pointer-events: none;
+        background: url("/assets/character-sheet/dark-prestige/Ornate_frame.png") center / 100% 100% no-repeat;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-sheet .cb-power-card > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-sheet .cb-power-card > div:first-child {
+        padding-bottom: 0.45rem;
+        border-color: rgba(196, 151, 77, 0.28) !important;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-sheet .cb-power-card h3 {
+        font-size: 0.92rem;
+        line-height: 1.12;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-sheet .cb-power-card p {
+        font-size: 0.68rem;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-sheet .cb-power-card ul {
+        margin-top: 0.45rem;
+        font-size: 0.79rem;
+        line-height: 1.4;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-sheet .cb-power-card li {
+        padding-right: 0.15rem;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-sheet .cb-power-card .float-right span {
+        min-width: 3.25rem;
+        padding: 0.25rem 0.35rem;
+        border-color: rgba(196, 151, 77, 0.32) !important;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-inventory-loadout {
+        background-image:
+          linear-gradient(rgba(244,244,245,0.18), rgba(244,244,245,0.32)),
+          url("/character-sheet/dark-prestige/Inventory_Silhouette.png") !important;
+        background-position: center top !important;
+        background-repeat: no-repeat !important;
+        background-size: 100% calc(100% + 5px) !important;
+      }
+
+      .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-inventory-loadout .cb-inventory-slot-card {
+        border-color: rgba(196, 151, 77, 0.64) !important;
+        background:
+          linear-gradient(180deg, rgba(24, 18, 12, 0.78), rgba(9, 7, 5, 0.78)) !important;
+        box-shadow:
+          inset 0 0 0 1px rgba(245, 220, 165, 0.1),
+          0 4px 9px rgba(0, 0, 0, 0.36) !important;
       }
 
       .cb-sheet-preview.cb-sheet-print-friendly.character-sheet--dark-prestige .cb-sheet-page,
