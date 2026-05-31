@@ -30,6 +30,22 @@ export default function LoginPage() {
       return;
     }
 
+    const ensureRes = await fetch('/api/auth/ensure-profile', {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!ensureRes.ok) {
+      let message = 'Failed to sync profile.';
+      try {
+        const payload = await ensureRes.json();
+        if (payload?.error) message = payload.error;
+      } catch {}
+      setErr(message);
+      setLoading(false);
+      return;
+    }
+
     router.replace('/dashboard');
   }
 

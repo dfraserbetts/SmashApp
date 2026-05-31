@@ -18,7 +18,6 @@ type CampaignUserRow = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [userId, setUserId] = useState<string | null>(null);
   const [rows, setRows] = useState<CampaignUserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -45,7 +44,19 @@ export default function DashboardPage() {
       }
 
       if (cancelled) return;
-      setUserId(u.id);
+
+      try {
+        const ensureRes = await fetch("/api/auth/ensure-profile", {
+          method: "POST",
+          credentials: "include",
+        });
+        if (ensureRes.status === 401) {
+          router.replace("/login");
+          return;
+        }
+      } catch {
+        // Profile sync is a backfill aid here; campaign loading can continue.
+      }
 
       // Pull memberships + campaign details
       const { data, error } = await supabaseClient

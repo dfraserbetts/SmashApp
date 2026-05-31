@@ -516,6 +516,8 @@ model CharacterBuilderTuning {
 
 model UserProfile {
   userId          String          @id @db.Uuid
+  email           String?
+  emailNormalized String?         @unique
   entitlementTier EntitlementTier @default(FREE)
   createdAt       DateTime        @default(now()) @db.Timestamptz(6)
   updatedAt       DateTime        @default(now()) @updatedAt @db.Timestamptz(6)

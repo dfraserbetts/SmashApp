@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
 
 export async function getSupabaseServer() {
   const cookieStore = await cookies();
@@ -24,6 +25,11 @@ export async function getSupabaseServer() {
 }
 
 export async function requireUserId(): Promise<string> {
+  const user = await requireSupabaseUser();
+  return user.id;
+}
+
+export async function requireSupabaseUser(): Promise<User> {
   const supabase = await getSupabaseServer();
   const { data, error } = await supabase.auth.getUser();
 
@@ -31,6 +37,5 @@ export async function requireUserId(): Promise<string> {
     throw new Error("UNAUTHORIZED");
   }
 
-  return data.user.id;
+  return data.user;
 }
-

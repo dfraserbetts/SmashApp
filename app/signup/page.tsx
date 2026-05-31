@@ -37,21 +37,18 @@ export default function SignupPage() {
       return;
     }
 
-    const userId = data.user?.id ?? data.session?.user?.id;
-
-    if (!userId) {
-      setErr('Signup succeeded but no user id was returned.');
-      setLoading(false);
-      return;
-    }
-
     const ensureRes = await fetch('/api/auth/ensure-profile', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
+      credentials: 'include',
     });
 
     if (!ensureRes.ok) {
+      if (ensureRes.status === 401 && data.user && !data.session) {
+        setErr('Signup succeeded. Check your email to confirm your account, then log in.');
+        setLoading(false);
+        return;
+      }
+
       let message = 'Failed to create profile.';
       try {
         const payload = await ensureRes.json();

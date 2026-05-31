@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+import { normalizeEmail, upsertUserProfileFromAuthUser } from "@/lib/auth/profile";
+import { prisma } from "@/prisma/client";
 
 type MemberIdentity = {
   userId: string;
@@ -22,17 +24,41 @@ export async function getMemberIdentities(userIds: string[]): Promise<Map<string
     uniqueUserIds.map((userId) => [userId, { userId, email: null }]),
   );
 
+  const profiles = await prisma.userProfile.findMany({
+    where: { userId: { in: uniqueUserIds } },
+    select: { userId: true, email: true },
+  });
+
+  for (const profile of profiles) {
+    if (profile.email) {
+      identities.set(profile.userId, {
+        userId: profile.userId,
+        email: profile.email,
+      });
+    }
+  }
+
+  const missingEmailUserIds = uniqueUserIds.filter(
+    (userId) => !identities.get(userId)?.email,
+  );
+  if (missingEmailUserIds.length === 0) return identities;
+
   const supabase = getServiceSupabase();
   if (!supabase) return identities;
 
   await Promise.all(
-    uniqueUserIds.map(async (userId) => {
+    missingEmailUserIds.map(async (userId) => {
       const { data, error } = await supabase.auth.admin.getUserById(userId);
       if (error) return;
+      const email = data.user?.email ?? null;
       identities.set(userId, {
         userId,
-        email: data.user?.email ?? null,
+        email,
       });
+
+      if (normalizeEmail(email)) {
+        await upsertUserProfileFromAuthUser({ id: userId, email }).catch(() => {});
+      }
     }),
   );
 
