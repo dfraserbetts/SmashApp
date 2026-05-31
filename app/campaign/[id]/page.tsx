@@ -29,6 +29,16 @@ type CampaignMemberRow = {
   isSyntheticOwner?: boolean;
 };
 
+type PendingInviteRow = {
+  id: string;
+  invitedEmail: string;
+  invitedEmailNormalized: string;
+  playerName: string | null;
+  emailDeliveryStatus: string | null;
+  emailSentAt: string | null;
+  createdAt: string;
+};
+
 type CampaignMembersPayload = {
   campaign: CampaignRow;
   access: {
@@ -41,6 +51,7 @@ type CampaignMembersPayload = {
     };
   };
   members: CampaignMemberRow[];
+  pendingInvites?: PendingInviteRow[];
   error?: string;
 };
 
@@ -64,8 +75,11 @@ export default function CampaignHomePage() {
   const [renameErr, setRenameErr] = useState<string | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [members, setMembers] = useState<CampaignMemberRow[]>([]);
-  const [addPlayerUserId, setAddPlayerUserId] = useState("");
-  const [addPlayerName, setAddPlayerName] = useState("");
+  const [pendingInvites, setPendingInvites] = useState<PendingInviteRow[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [invitePlayerName, setInvitePlayerName] = useState("");
+  const [joinUpEmail, setJoinUpEmail] = useState<string | null>(null);
+  const [sendingJoinUpEmail, setSendingJoinUpEmail] = useState(false);
   const [memberNameDrafts, setMemberNameDrafts] = useState<Record<string, string>>({});
   const [memberErr, setMemberErr] = useState<string | null>(null);
   const [addingPlayer, setAddingPlayer] = useState(false);
@@ -98,6 +112,7 @@ export default function CampaignHomePage() {
       setRoleRow(null);
       setCampaign(null);
       setMembers([]);
+      setPendingInvites([]);
       setMemberErr(null);
 
       try {
@@ -129,6 +144,7 @@ export default function CampaignHomePage() {
           });
           setCampaign(data.campaign);
           setMembers(data.members ?? []);
+          setPendingInvites(data.pendingInvites ?? []);
           setMemberNameDrafts(
             Object.fromEntries(
               (data.members ?? []).map((member) => [member.userId, member.playerName ?? ""]),
@@ -160,6 +176,7 @@ export default function CampaignHomePage() {
     const reloaded = (await reload.json().catch(() => ({}))) as CampaignMembersPayload;
     if (reload.ok) {
       setMembers(reloaded.members ?? []);
+      setPendingInvites(reloaded.pendingInvites ?? []);
       setMemberNameDrafts(
         Object.fromEntries(
           (reloaded.members ?? []).map((member) => [member.userId, member.playerName ?? ""]),
@@ -168,37 +185,82 @@ export default function CampaignHomePage() {
     }
   }
 
-  async function handleAddPlayer() {
+  async function handleSendInvite() {
     if (!campaignId) return;
-    const userId = addPlayerUserId.trim();
-    if (!userId) {
-      setMemberErr("Enter the player's Supabase user ID.");
+    const email = inviteEmail.trim();
+    if (!email) {
+      setMemberErr("Enter the player's email.");
       return;
     }
 
     setAddingPlayer(true);
     setMemberErr(null);
+    setMemberActionMessage(null);
 
     try {
-      const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/members`, {
+      const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/invites`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, playerName: addPlayerName }),
+        body: JSON.stringify({ email, playerName: invitePlayerName }),
       });
       const data = (await res.json().catch(() => ({}))) as {
+        code?: string;
         error?: string;
+        emailDeliveryStatus?: { status?: string };
       };
+      if (res.status === 409 && data.code === "ACCOUNT_NOT_FOUND") {
+        setJoinUpEmail(email);
+        return;
+      }
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to add player.");
       }
 
-      setAddPlayerUserId("");
-      setAddPlayerName("");
+      setInviteEmail("");
+      setInvitePlayerName("");
+      setMemberActionMessage({
+        userId: "invite",
+        text:
+          data.code === "INVITE_ALREADY_PENDING"
+            ? "Invite is already pending."
+            : `Invite created. Email delivery: ${data.emailDeliveryStatus?.status ?? "logged"}.`,
+      });
       await reloadMembers();
     } catch (e: unknown) {
-      setMemberErr(e instanceof Error ? e.message : "Failed to add player.");
+      setMemberErr(e instanceof Error ? e.message : "Failed to send invite.");
     } finally {
       setAddingPlayer(false);
+    }
+  }
+
+  async function handleSendJoinUpEmail() {
+    if (!campaignId || !joinUpEmail) return;
+    setSendingJoinUpEmail(true);
+    setMemberErr(null);
+
+    try {
+      const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/join-up-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: joinUpEmail }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        emailDeliveryStatus?: { status?: string };
+      };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to send Join Up email.");
+      }
+
+      setMemberActionMessage({
+        userId: "join-up",
+        text: `Join Up email ${data.emailDeliveryStatus?.status ?? "logged"}.`,
+      });
+      setJoinUpEmail(null);
+    } catch (error: unknown) {
+      setMemberErr(error instanceof Error ? error.message : "Failed to send Join Up email.");
+    } finally {
+      setSendingJoinUpEmail(false);
     }
   }
 
@@ -559,25 +621,25 @@ export default function CampaignHomePage() {
             </div>
             {canManageMembers ? (
               <div className="w-full max-w-md space-y-2">
-                <label className="block text-xs text-zinc-400" htmlFor="player-user-id">
-                  Add Player by Supabase User ID
+                <label className="block text-xs text-zinc-400" htmlFor="player-invite-email">
+                  Invite Player by Email
                 </label>
                 <div className="flex gap-2">
                   <input
-                    id="player-user-id"
-                    type="text"
-                    value={addPlayerUserId}
-                    onChange={(event) => setAddPlayerUserId(event.target.value)}
+                    id="player-invite-email"
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(event) => setInviteEmail(event.target.value)}
                     className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500"
-                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    placeholder="player@example.com"
                   />
                   <button
                     type="button"
-                    onClick={() => void handleAddPlayer()}
+                    onClick={() => void handleSendInvite()}
                     disabled={addingPlayer}
                     className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {addingPlayer ? "Adding..." : "Add"}
+                    {addingPlayer ? "Sending..." : "Send Invite"}
                   </button>
                 </div>
                 <label className="block text-xs text-zinc-400" htmlFor="player-display-name">
@@ -586,14 +648,11 @@ export default function CampaignHomePage() {
                 <input
                   id="player-display-name"
                   type="text"
-                  value={addPlayerName}
-                  onChange={(event) => setAddPlayerName(event.target.value)}
+                  value={invitePlayerName}
+                  onChange={(event) => setInvitePlayerName(event.target.value)}
                   className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500"
                   placeholder="e.g. Dani"
                 />
-                <p className="text-[11px] text-zinc-500">
-                  Temporary dev bridge: email delivery is not wired yet, so adding still uses the player&apos;s account ID.
-                </p>
                 {memberErr ? <p className="text-sm text-red-400">{memberErr}</p> : null}
                 {memberActionErr ? <p className="text-sm text-red-400">{memberActionErr}</p> : null}
                 {memberActionMessage ? (
@@ -602,6 +661,36 @@ export default function CampaignHomePage() {
               </div>
             ) : null}
           </div>
+
+          {canManageMembers && pendingInvites.length > 0 ? (
+            <div className="mt-4 rounded-lg border border-emerald-900/60 bg-emerald-950/10 p-3">
+              <h3 className="text-sm font-semibold text-emerald-100">Outgoing Pending Invites</h3>
+              <div className="mt-3 grid gap-2">
+                {pendingInvites.map((invite) => (
+                  <div
+                    key={invite.id}
+                    className="rounded-lg border border-zinc-800 bg-black px-3 py-2 text-sm"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-zinc-100">{invite.invitedEmail}</div>
+                        {invite.playerName ? (
+                          <div className="text-xs text-zinc-400">Player Name: {invite.playerName}</div>
+                        ) : null}
+                      </div>
+                      <div className="rounded-full border border-emerald-600 px-3 py-1 text-xs text-emerald-200">
+                        Invite Pending
+                      </div>
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      Delivery: {invite.emailDeliveryStatus ?? "not sent"} | Created:{" "}
+                      {new Date(invite.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -789,6 +878,38 @@ export default function CampaignHomePage() {
           </button>
         </div>
       </div>
+
+      {joinUpEmail ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">
+          <div className="w-full max-w-lg space-y-4 rounded-xl border border-amber-700 bg-zinc-950 p-6">
+            <h2 className="text-xl font-semibold text-amber-100">Account Not Found</h2>
+            <p className="text-sm text-zinc-300">
+              The player currently does not have an active Incarnate TTRPG account. Invite cannot be sent. Send a Join Up email instead?
+            </p>
+            <div className="rounded-lg border border-zinc-800 bg-black p-3 text-sm text-zinc-300">
+              {joinUpEmail}
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setJoinUpEmail(null)}
+                className="rounded-lg border border-zinc-700 px-4 py-2 hover:bg-zinc-900"
+                disabled={sendingJoinUpEmail}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSendJoinUpEmail()}
+                className="rounded-lg border border-amber-500 bg-amber-700 px-4 py-2 font-semibold text-amber-50 hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={sendingJoinUpEmail}
+              >
+                {sendingJoinUpEmail ? "Sending..." : "Yes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {renameOpen && canRenameCampaign ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">

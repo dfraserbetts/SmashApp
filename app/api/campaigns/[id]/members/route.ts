@@ -53,10 +53,6 @@ function getConfirmationValue(args: {
   return args.email ?? args.playerName?.trim() ?? args.userId;
 }
 
-function isLikelySupabaseUserId(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
 function toErrorResponse(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   if (message === "UNAUTHORIZED") {
@@ -114,6 +110,21 @@ export async function GET(
         createdAt: true,
       },
     });
+    const pendingInvites = canViewEmail
+      ? await prisma.campaignInvite.findMany({
+          where: { campaignId },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            invitedEmail: true,
+            invitedEmailNormalized: true,
+            playerName: true,
+            emailDeliveryStatus: true,
+            emailSentAt: true,
+            createdAt: true,
+          },
+        })
+      : [];
     const identities = await getMemberIdentities([
       campaign.ownerUserId,
       ...rows.map((row) => row.userId),
@@ -176,7 +187,12 @@ export async function GET(
         permissions,
       },
       members,
-      inviteMode: "manual_user_id",
+      pendingInvites: pendingInvites.map((invite) => ({
+        ...invite,
+        createdAt: invite.createdAt.toISOString(),
+        emailSentAt: invite.emailSentAt?.toISOString() ?? null,
+      })),
+      inviteMode: "email_invite",
       identityMode: "email_when_service_role_available_else_user_id",
     });
   } catch (error) {
@@ -306,7 +322,7 @@ export async function PATCH(
 }
 
 export async function POST(
-  req: Request,
+  _req: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -319,63 +335,9 @@ export async function POST(
     const actorUserId = await requireUserId();
     await requireCampaignGameDirector(campaignId, actorUserId);
 
-    const body = (await req.json().catch(() => ({}))) as CampaignMemberPayload;
-    const targetUserId = normalizeUserId(body.userId);
-    const playerName = normalizePlayerName(body.playerName);
-    if (!targetUserId) {
-      return NextResponse.json({ error: "Player userId is required" }, { status: 400 });
-    }
-    if (body.playerName !== undefined && playerName === null) {
-      return NextResponse.json({ error: "playerName must be text" }, { status: 400 });
-    }
-    if (typeof playerName === "string" && playerName.length > 120) {
-      return NextResponse.json({ error: "Player Name is too long" }, { status: 400 });
-    }
-    if (!isLikelySupabaseUserId(targetUserId)) {
-      return NextResponse.json(
-        { error: "Player userId must be a Supabase UUID" },
-        { status: 400 },
-      );
-    }
-
-    const campaign = await prisma.campaign.findUnique({
-      where: { id: campaignId },
-      select: { ownerUserId: true },
-    });
-    if (!campaign) {
-      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
-    }
-
-    const role = targetUserId === campaign.ownerUserId ? "GAME_DIRECTOR" : "PLAYER";
-    const member = await prisma.campaignUser.upsert({
-      where: { campaignId_userId: { campaignId, userId: targetUserId } },
-      update: { role, ...(playerName !== undefined ? { playerName } : {}) },
-      create: {
-        campaignId,
-        userId: targetUserId,
-        role,
-        playerName,
-        canManagePartyStash: false,
-      },
-      select: {
-        userId: true,
-        playerName: true,
-        role: true,
-        canManagePartyStash: true,
-        allowHistoricCharacters: true,
-        createdAt: true,
-      },
-    });
-
     return NextResponse.json({
-      ok: true,
-      member: {
-        ...member,
-        isOwner: member.userId === campaign.ownerUserId,
-        isSyntheticOwner: false,
-      },
-      inviteMode: "manual_user_id",
-    });
+      error: "Direct member add is retired. Use campaign invites.",
+    }, { status: 410 });
   } catch (error) {
     return toErrorResponse(error);
   }

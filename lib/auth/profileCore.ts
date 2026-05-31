@@ -16,6 +16,28 @@ export async function upsertUserProfileFromAuthUser(user: AuthProfileUser) {
   const email = typeof user.email === "string" ? user.email.trim() : null;
   const emailNormalized = normalizeEmail(email);
 
+  if (!emailNormalized) {
+    const existing = await prisma.userProfile.findUnique({
+      where: { userId: user.id },
+      select: {
+        userId: true,
+        email: true,
+        emailNormalized: true,
+      },
+    });
+
+    if (existing) return existing;
+
+    return prisma.userProfile.create({
+      data: { userId: user.id },
+      select: {
+        userId: true,
+        email: true,
+        emailNormalized: true,
+      },
+    });
+  }
+
   return prisma.userProfile.upsert({
     where: { userId: user.id },
     create: {

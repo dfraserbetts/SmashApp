@@ -533,6 +533,7 @@ model Campaign {
   ownerUserId          String
   descriptorVersionTag String         @default("v0")
   members              CampaignUser[]
+  invites              CampaignInvite[]
   characters           CampaignCharacter[]
   partyInventoryItems  CampaignPartyInventoryItem[]
   characterBackpackItems CampaignCharacterBackpackItem[]
@@ -556,6 +557,27 @@ model CampaignUser {
   @@id([campaignId, userId])
   @@index([userId])
   @@map("CampaignUser")
+}
+
+model CampaignInvite {
+  id                     String   @id @default(cuid())
+  campaignId             String
+  invitedEmail           String
+  invitedEmailNormalized String
+  invitedUserId          String   @db.Uuid
+  invitedByUserId        String
+  playerName             String?
+  emailDeliveryStatus    String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @default(now()) @updatedAt
+  emailSentAt            DateTime?
+  campaign               Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, invitedUserId])
+  @@index([campaignId])
+  @@index([invitedUserId])
+  @@index([invitedEmailNormalized])
+  @@map("CampaignInvite")
 }
 
 model CampaignCharacter {

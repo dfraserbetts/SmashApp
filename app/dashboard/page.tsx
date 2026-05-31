@@ -5,28 +5,39 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 
-type CampaignRow = {
-  id: string;
-  name: string;
-  descriptorVersionTag: string;
-};
+type DashboardCard =
+  | {
+      kind: "pendingInvite";
+      inviteId: string;
+      campaignId: string;
+      campaignName: string;
+      descriptorVersionTag: string;
+      statusLabel: "Invite Pending";
+      invitedByNameOrEmail?: string | null;
+      createdAt: string;
+    }
+  | {
+      kind: "membership";
+      campaignId: string;
+      campaignName: string;
+      descriptorVersionTag: string;
+      role: "GAME_DIRECTOR" | "PLAYER";
+      roleLabel: string;
+    };
 
-type CampaignUserRow = {
-  role: "GAME_DIRECTOR" | "PLAYER";
-  campaign: CampaignRow | null;
+type DashboardPayload = {
+  cards?: DashboardCard[];
+  error?: string;
 };
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [rows, setRows] = useState<CampaignUserRow[]>([]);
+  const [cards, setCards] = useState<DashboardCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const campaigns = useMemo(
-    () => rows.map((r) => r.campaign).filter(Boolean) as CampaignRow[],
-    [rows],
-  );
+  const hasCards = useMemo(() => cards.length > 0, [cards]);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,42 +46,23 @@ export default function DashboardPage() {
       setErr(null);
       setLoading(true);
 
-      const supabaseClient = getSupabaseBrowserClient();
-      const { data: sessionData } = await supabaseClient.auth.getSession();
-      const u = sessionData.session?.user;
-      if (!u) {
+      const res = await fetch("/api/dashboard/campaigns", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as DashboardPayload;
+
+      if (cancelled) return;
+
+      if (res.status === 401) {
         router.replace("/login");
         return;
       }
-
-      if (cancelled) return;
-
-      try {
-        const ensureRes = await fetch("/api/auth/ensure-profile", {
-          method: "POST",
-          credentials: "include",
-        });
-        if (ensureRes.status === 401) {
-          router.replace("/login");
-          return;
-        }
-      } catch {
-        // Profile sync is a backfill aid here; campaign loading can continue.
-      }
-
-      // Pull memberships + campaign details
-      const { data, error } = await supabaseClient
-        .from("CampaignUser")
-        .select("role, campaign:Campaign(id,name,descriptorVersionTag)")
-        .eq("userId", u.id);
-
-      if (cancelled) return;
-
-      if (error) {
-        setErr(error.message);
-        setRows([]);
+      if (!res.ok) {
+        setErr(data.error ?? "Failed to load campaigns.");
+        setCards([]);
       } else {
-        setRows((data ?? []) as unknown as CampaignUserRow[]);
+        setCards(data.cards ?? []);
       }
 
       setLoading(false);
@@ -179,34 +171,52 @@ export default function DashboardPage() {
           </p>
         )}
 
-        {!loading && !err && campaigns.length === 0 && (
+        {!loading && !err && !hasCards && (
           <p className="text-zinc-400">
             No campaigns yet. Create one. (Your first quest.)
           </p>
         )}
 
         <div className="grid gap-3">
-          {rows
-            .filter((r) => r.campaign)
-            .map((r) => (
+          {cards.map((card) =>
+            card.kind === "pendingInvite" ? (
               <Link
-                key={r.campaign!.id}
-                href={`/campaign/${r.campaign!.id}`}
+                key={`invite-${card.inviteId}`}
+                href={`/campaign-invites/${card.inviteId}`}
+                className="block rounded-xl border border-emerald-600 p-4 hover:bg-emerald-950/20"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-lg font-semibold">{card.campaignName}</div>
+                    <div className="text-sm text-zinc-400">
+                      Descriptor: {card.descriptorVersionTag}
+                    </div>
+                  </div>
+                  <div className="text-xs rounded-full border border-emerald-500 px-3 py-1 text-emerald-200">
+                    {card.statusLabel}
+                  </div>
+                </div>
+              </Link>
+            ) : (
+              <Link
+                key={`campaign-${card.campaignId}`}
+                href={`/campaign/${card.campaignId}`}
                 className="block rounded-xl border border-zinc-800 p-4 hover:bg-zinc-900"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-lg font-semibold">{r.campaign!.name}</div>
+                    <div className="text-lg font-semibold">{card.campaignName}</div>
                     <div className="text-sm text-zinc-400">
-                      Descriptor: {r.campaign!.descriptorVersionTag}
+                      Descriptor: {card.descriptorVersionTag}
                     </div>
                   </div>
                   <div className="text-xs rounded-full border border-zinc-700 px-3 py-1 text-zinc-300">
-                    {r.role === "GAME_DIRECTOR" ? "Game Director" : "Player"}
+                    {card.roleLabel}
                   </div>
                 </div>
               </Link>
-            ))}
+            ),
+          )}
         </div>
       </div>
     </main>
