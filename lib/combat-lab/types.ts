@@ -7,6 +7,7 @@ import type {
 
 export type CombatSide = "players" | "monsters";
 export type CombatPool = "physical" | "mental";
+export type CombatTurnOrder = "playersFirst" | "monstersFirst" | "alternatingByRound" | "randomSeeded";
 export type CombatAttributeName =
   | "Attack"
   | "Guard"
@@ -82,6 +83,8 @@ export type CombatActorHydration = {
   warnings: string[];
   unsupportedEquipment: string[];
   unsupportedTraits: string[];
+  ignoredTraits?: string[];
+  unsupportedCombatTraits?: string[];
   fallbackActions: string[];
 };
 
@@ -164,12 +167,16 @@ export type CombatResolutionMetrics = {
   rawWounds: number;
   dodgeSuccesses: number;
   dodgeRolls: number;
+  dodgeChosen: number;
   dodgeDegradationApplied: number;
   woundsAvoidedByDodge: number;
   physicalDefenceRolls: number;
+  physicalDefenceChosen: number;
   physicalDefenceDegradationApplied: number;
   mentalDefenceRolls: number;
+  mentalDefenceChosen: number;
   mentalDefenceDegradationApplied: number;
+  defenceChoiceExpectedValue: number;
   degradedDefenceRolls: number;
   defenceStringBlocked: number;
   staticProtectionPrevented: number;
@@ -202,6 +209,7 @@ export type CombatResolutionMetrics = {
   ongoingDamageTicks: number;
   ongoingDamagePreventedOrCleansed: number;
   counterUses: number;
+  counterChosen: number;
   counterDamage: number;
   counterMitigation: number;
   responsesUsed: number;
@@ -239,11 +247,15 @@ export type CombatAggregateMetrics = {
   protectionPrevented: Record<CombatSide, number>;
   woundsAvoidedByDodge: Record<CombatSide, number>;
   dodgeRolls: Record<CombatSide, number>;
+  dodgeChosen: Record<CombatSide, number>;
   dodgeDegradationApplied: Record<CombatSide, number>;
   physicalDefenceRolls: Record<CombatSide, number>;
+  physicalDefenceChosen: Record<CombatSide, number>;
   physicalDefenceDegradationApplied: Record<CombatSide, number>;
   mentalDefenceRolls: Record<CombatSide, number>;
+  mentalDefenceChosen: Record<CombatSide, number>;
   mentalDefenceDegradationApplied: Record<CombatSide, number>;
+  defenceChoiceExpectedValue: Record<CombatSide, number>;
   degradedDefenceRolls: Record<CombatSide, number>;
   defenceStringBlocked: Record<CombatSide, number>;
   staticProtectionPrevented: Record<CombatSide, number>;
@@ -283,6 +295,7 @@ export type CombatAggregateMetrics = {
   ongoingDamageTicks: Record<CombatSide, number>;
   ongoingDamagePreventedOrCleansed: Record<CombatSide, number>;
   counterUses: Record<CombatSide, number>;
+  counterChosen: Record<CombatSide, number>;
   counterDamage: Record<CombatSide, number>;
   counterMitigation: Record<CombatSide, number>;
   responsesUsed: Record<CombatSide, number>;
@@ -294,6 +307,49 @@ export type CombatAggregateMetrics = {
   aoePotentialTargets: Record<CombatSide, number>;
   aoeActualTargets: Record<CombatSide, number>;
   positionalAbstractionsUsed: Record<CombatSide, number>;
+  actorContributions: Record<string, CombatActorContribution>;
+};
+
+export type CombatActionContribution = {
+  actionId: string;
+  actionName: string;
+  sourcePowerId?: string | null;
+  sourceType: CombatActionSourceType;
+  kind: CombatActionKind;
+  uses: number;
+  damage: number;
+  healing: number;
+  mitigation: number;
+  counterUses: number;
+  counterDamage: number;
+  counterMitigation: number;
+  buffApplications: number;
+  debuffApplications: number;
+  controlTurnsApplied: number;
+  actionsDenied: number;
+  ongoingDamageApplied: number;
+  linkedActionCount: number;
+};
+
+export type CombatActorContribution = {
+  actorId: string;
+  actorName: string;
+  side: CombatSide;
+  role: CombatActorRole;
+  actionsUsed: number;
+  damage: number;
+  healing: number;
+  mitigation: number;
+  counterUses: number;
+  counterDamage: number;
+  counterMitigation: number;
+  buffApplications: number;
+  debuffApplications: number;
+  controlTurnsApplied: number;
+  actionsDenied: number;
+  ongoingDamageApplied: number;
+  topActionName: string | null;
+  actionContributions: CombatActionContribution[];
 };
 
 export type UnsupportedPowerSummary = {
@@ -310,6 +366,7 @@ export type CombatScenario = {
   runs: number;
   seed: number;
   maxRounds?: number;
+  turnOrder?: CombatTurnOrder;
 };
 
 export type CombatSuiteReport = {
@@ -336,11 +393,15 @@ export type CombatSuiteReport = {
     actionsDenied: Record<CombatSide, number>;
     forcedMovementApplied: Record<CombatSide, number>;
     dodgeRolls: Record<CombatSide, number>;
+    dodgeChosen: Record<CombatSide, number>;
     dodgeDegradationApplied: Record<CombatSide, number>;
     physicalDefenceRolls: Record<CombatSide, number>;
+    physicalDefenceChosen: Record<CombatSide, number>;
     physicalDefenceDegradationApplied: Record<CombatSide, number>;
     mentalDefenceRolls: Record<CombatSide, number>;
+    mentalDefenceChosen: Record<CombatSide, number>;
     mentalDefenceDegradationApplied: Record<CombatSide, number>;
+    defenceChoiceExpectedValue: Record<CombatSide, number>;
     defenceStringBlocked: Record<CombatSide, number>;
     staticProtectionPrevented: Record<CombatSide, number>;
     resistRolls: Record<CombatSide, number>;
@@ -359,6 +420,7 @@ export type CombatSuiteReport = {
     ongoingDamageTicks: Record<CombatSide, number>;
     ongoingDamagePreventedOrCleansed: Record<CombatSide, number>;
     counterUses: Record<CombatSide, number>;
+    counterChosen: Record<CombatSide, number>;
     counterDamage: Record<CombatSide, number>;
     counterMitigation: Record<CombatSide, number>;
     responsesUsed: Record<CombatSide, number>;
@@ -372,6 +434,7 @@ export type CombatSuiteReport = {
     positionalAbstractionsUsed: Record<CombatSide, number>;
   };
   roleContribution: CombatAggregateMetrics["roleContribution"];
+  actorContributions: CombatActorContribution[];
   unsupported: UnsupportedPowerSummary;
   hydrationIntegrity: CombatHydrationIntegrity;
   verdict: string;
@@ -385,6 +448,8 @@ export type CombatHydrationIntegrity = {
   unsupportedPowerCount: number;
   unsupportedEquipmentCount: number;
   unsupportedTraitCount: number;
+  ignoredTraitCount: number;
+  unsupportedCombatTraitCount: number;
   hydrationWarnings: string[];
   actors: Array<{
     id: string;
@@ -404,6 +469,8 @@ export type CombatHydrationIntegrity = {
     unsupportedPowers: UnsupportedPowerReason[];
     unsupportedEquipment: string[];
     unsupportedTraits: string[];
+    ignoredTraits: string[];
+    unsupportedCombatTraits: string[];
     warnings: string[];
   }>;
 };

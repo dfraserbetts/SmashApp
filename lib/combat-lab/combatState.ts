@@ -19,6 +19,8 @@ export function cloneActor(actor: CombatActor): CombatActor {
       warnings: [...actor.hydration.warnings],
       unsupportedEquipment: [...actor.hydration.unsupportedEquipment],
       unsupportedTraits: [...actor.hydration.unsupportedTraits],
+      ignoredTraits: [...(actor.hydration.ignoredTraits ?? [])],
+      unsupportedCombatTraits: [...(actor.hydration.unsupportedCombatTraits ?? [])],
       fallbackActions: [...actor.hydration.fallbackActions],
     },
   };
@@ -127,11 +129,15 @@ export function createEmptyMetrics(): CombatAggregateMetrics {
     protectionPrevented: { players: 0, monsters: 0 },
     woundsAvoidedByDodge: { players: 0, monsters: 0 },
     dodgeRolls: { players: 0, monsters: 0 },
+    dodgeChosen: { players: 0, monsters: 0 },
     dodgeDegradationApplied: { players: 0, monsters: 0 },
     physicalDefenceRolls: { players: 0, monsters: 0 },
+    physicalDefenceChosen: { players: 0, monsters: 0 },
     physicalDefenceDegradationApplied: { players: 0, monsters: 0 },
     mentalDefenceRolls: { players: 0, monsters: 0 },
+    mentalDefenceChosen: { players: 0, monsters: 0 },
     mentalDefenceDegradationApplied: { players: 0, monsters: 0 },
+    defenceChoiceExpectedValue: { players: 0, monsters: 0 },
     degradedDefenceRolls: { players: 0, monsters: 0 },
     defenceStringBlocked: { players: 0, monsters: 0 },
     staticProtectionPrevented: { players: 0, monsters: 0 },
@@ -162,6 +168,7 @@ export function createEmptyMetrics(): CombatAggregateMetrics {
     ongoingDamageTicks: { players: 0, monsters: 0 },
     ongoingDamagePreventedOrCleansed: { players: 0, monsters: 0 },
     counterUses: { players: 0, monsters: 0 },
+    counterChosen: { players: 0, monsters: 0 },
     counterDamage: { players: 0, monsters: 0 },
     counterMitigation: { players: 0, monsters: 0 },
     responsesUsed: { players: 0, monsters: 0 },
@@ -173,6 +180,7 @@ export function createEmptyMetrics(): CombatAggregateMetrics {
     aoePotentialTargets: { players: 0, monsters: 0 },
     aoeActualTargets: { players: 0, monsters: 0 },
     positionalAbstractionsUsed: { players: 0, monsters: 0 },
+    actorContributions: {},
   };
 }
 

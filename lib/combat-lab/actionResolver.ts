@@ -1,4 +1,4 @@
-import { rollDice, type Rng } from "./dice";
+import { diceSides, expectedSuccesses, rollDice, successCountForRoll, type Rng } from "./dice";
 import {
   getAttributeModifier,
   getLivingActors,
@@ -30,12 +30,16 @@ function emptyResolution(): CombatResolutionMetrics {
     rawWounds: 0,
     dodgeSuccesses: 0,
     dodgeRolls: 0,
+    dodgeChosen: 0,
     dodgeDegradationApplied: 0,
     woundsAvoidedByDodge: 0,
     physicalDefenceRolls: 0,
+    physicalDefenceChosen: 0,
     physicalDefenceDegradationApplied: 0,
     mentalDefenceRolls: 0,
+    mentalDefenceChosen: 0,
     mentalDefenceDegradationApplied: 0,
+    defenceChoiceExpectedValue: 0,
     degradedDefenceRolls: 0,
     defenceStringBlocked: 0,
     staticProtectionPrevented: 0,
@@ -68,6 +72,7 @@ function emptyResolution(): CombatResolutionMetrics {
     ongoingDamageTicks: 0,
     ongoingDamagePreventedOrCleansed: 0,
     counterUses: 0,
+    counterChosen: 0,
     counterDamage: 0,
     counterMitigation: 0,
     responsesUsed: 0,
@@ -93,6 +98,40 @@ function takeDefenceDegradation(state: CombatState, actorId: string, type: "dodg
   return previousRolls;
 }
 
+function peekDefenceDegradation(state: CombatState, actorId: string, type: "dodge" | "physical" | "mental") {
+  return state.defenceDegradation[actorId]?.[type] ?? 0;
+}
+
+function successDistribution(diceCount: number, die: CombatActor["attributeDice"][CombatAttributeName], modifier: number): number[] {
+  const count = Math.max(0, Math.trunc(diceCount));
+  let distribution = [1];
+  const sides = diceSides(die);
+  for (let dieIndex = 0; dieIndex < count; dieIndex += 1) {
+    const next = Array.from({ length: distribution.length + 3 }, () => 0);
+    for (let existing = 0; existing < distribution.length; existing += 1) {
+      for (let roll = 1; roll <= sides; roll += 1) {
+        const successes = successCountForRoll(roll, modifier);
+        next[existing + successes] += distribution[existing] / sides;
+      }
+    }
+    distribution = next;
+  }
+  return distribution;
+}
+
+function probabilitySuccessesAtLeast(params: {
+  diceCount: number;
+  die: CombatActor["attributeDice"][CombatAttributeName];
+  modifier: number;
+  threshold: number;
+}) {
+  const threshold = Math.max(0, Math.trunc(params.threshold));
+  if (threshold <= 0) return 1;
+  return successDistribution(params.diceCount, params.die, params.modifier)
+    .slice(threshold)
+    .reduce((sum, probability) => sum + probability, 0);
+}
+
 function rollAttributeDice(params: {
   state: CombatState;
   actor: CombatActor;
@@ -112,6 +151,7 @@ function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses
   const diceCount = Math.max(1, baseDice - degradation);
   const roll = rollAttributeDice({ state, actor: target, attribute: "Guard", diceCount, rng });
   metrics.dodgeRolls = 1;
+  metrics.dodgeChosen = 1;
   metrics.dodgeDegradationApplied = degradation;
   metrics.degradedDefenceRolls = degradation > 0 ? 1 : 0;
   metrics.dodgeSuccesses = roll.successes;
@@ -144,12 +184,70 @@ function resolveDefenceString(state: CombatState, target: CombatActor, pool: "ph
   metrics.protectionPrevented = blocked;
   if (pool === "physical") {
     metrics.physicalDefenceRolls = 1;
+    metrics.physicalDefenceChosen = 1;
     metrics.physicalDefenceDegradationApplied = degradation;
   } else {
     metrics.mentalDefenceRolls = 1;
+    metrics.mentalDefenceChosen = 1;
     metrics.mentalDefenceDegradationApplied = degradation;
   }
   metrics.degradedDefenceRolls = degradation > 0 ? 1 : 0;
+  return metrics;
+}
+
+function estimateDodgeValue(state: CombatState, target: CombatActor, incomingSuccesses: number, rawWounds: number): number {
+  if (incomingSuccesses <= 0 || rawWounds <= 0) return 0;
+  const modifier = getAttributeModifier(state, target.id, "Guard");
+  const degradation = peekDefenceDegradation(state, target.id, "dodge");
+  const baseDice = Math.max(1, Math.trunc(target.dodgeDice ?? target.dodgeValue ?? 1));
+  const diceCount = Math.max(1, baseDice - degradation);
+  return probabilitySuccessesAtLeast({
+    diceCount,
+    die: target.attributeDice.Guard ?? "D8",
+    modifier,
+    threshold: incomingSuccesses,
+  }) * rawWounds;
+}
+
+function estimateDefenceStringValue(state: CombatState, target: CombatActor, pool: "physical" | "mental", rawWounds: number): number {
+  if (rawWounds <= 0) return 0;
+  const type = pool === "physical" ? "physical" : "mental";
+  const attribute = pool === "physical" ? "Guard" : "Bravery";
+  const baseDice = Math.max(1, Math.trunc(pool === "physical" ? target.physicalDefenceDice ?? 1 : target.mentalDefenceDice ?? 1));
+  const degradation = peekDefenceDegradation(state, target.id, type);
+  const diceCount = Math.max(1, baseDice - degradation);
+  const blockPerSuccess = Math.max(
+    0,
+    Math.trunc(
+      pool === "physical"
+        ? target.physicalBlockPerSuccess ?? target.physicalDefenceBlock ?? 0
+        : target.mentalBlockPerSuccess ?? target.mentalDefenceBlock ?? 0,
+    ),
+  );
+  if (blockPerSuccess <= 0) return 0;
+  const expectedBlocked = expectedSuccesses(
+    diceCount,
+    target.attributeDice[attribute] ?? "D8",
+    getAttributeModifier(state, target.id, attribute),
+  ) * blockPerSuccess;
+  return Math.min(rawWounds, expectedBlocked);
+}
+
+function resolveBestNormalDefence(params: {
+  state: CombatState;
+  target: CombatActor;
+  pool: "physical" | "mental";
+  incomingSuccesses: number;
+  rawWounds: number;
+  rng: Rng;
+}): CombatResolutionMetrics {
+  const dodgeValue = estimateDodgeValue(params.state, params.target, params.incomingSuccesses, params.rawWounds);
+  const defenceStringValue = estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds);
+  const metrics =
+    defenceStringValue > dodgeValue
+      ? resolveDefenceString(params.state, params.target, params.pool, params.rawWounds, params.rng)
+      : resolveDodge(params.state, params.target, params.incomingSuccesses, params.rng);
+  metrics.defenceChoiceExpectedValue = Math.max(dodgeValue, defenceStringValue);
   return metrics;
 }
 
@@ -261,6 +359,7 @@ function resolveCounterDefences(state: CombatState, target: CombatActor, attacke
     );
     metrics.counterMitigation += Math.max(1, roll.successes * Math.max(1, action.protection ?? action.potency));
     metrics.counterUses += 1;
+    metrics.counterChosen += 1;
     metrics.responsesUsed += 1;
     if (action.cooldownRounds > 0) state.cooldowns[`${target.id}:${action.id}`] = action.cooldownRounds;
     state.log.push({
@@ -305,6 +404,7 @@ function resolveCounterAttacks(state: CombatState, target: CombatActor, attacker
   const damage = Math.max(0, raw - prevented);
   metrics.counterDamage = damage;
   metrics.counterUses = 1;
+  metrics.counterChosen = 1;
   metrics.responsesUsed = 1;
   applyWounds(attacker, pool, damage);
   if (action.cooldownRounds > 0) state.cooldowns[`${target.id}:${action.id}`] = action.cooldownRounds;
@@ -373,9 +473,16 @@ function resolveSingleTargetAction(params: {
     const pool = action.pool ?? "physical";
     const activeHostileSuccesses = action.resistAttribute ? metrics.hostileSuccessesAfterResist : roll.successes;
     const rawWounds = activeHostileSuccesses * action.potency;
-    const dodgeMetrics = resolveDodge(state, target, activeHostileSuccesses, rng);
-    addMetrics(metrics, dodgeMetrics);
-    if (dodgeMetrics.woundsAvoidedByDodge > 0) {
+    const normalDefenceMetrics = resolveBestNormalDefence({
+      state,
+      target,
+      pool,
+      incomingSuccesses: activeHostileSuccesses,
+      rawWounds,
+      rng,
+    });
+    addMetrics(metrics, normalDefenceMetrics);
+    if (normalDefenceMetrics.woundsAvoidedByDodge > 0) {
       metrics.rawWounds = rawWounds;
       metrics.woundsAvoidedByDodge = rawWounds;
       return metrics;
@@ -383,19 +490,21 @@ function resolveSingleTargetAction(params: {
     const activeSuccesses = activeHostileSuccesses;
     const activeRawWounds = activeSuccesses * action.potency;
     const passiveDefence = passiveDefenceAmount(target, pool);
-    const counterDefenceMetrics = resolveCounterDefences(state, target, actor, pool, rng);
+    const normalDefenceBlocked = normalDefenceMetrics.defenceStringBlocked;
+    const counterDefenceMetrics =
+      activeRawWounds - normalDefenceBlocked > 0
+        ? resolveCounterDefences(state, target, actor, pool, rng)
+        : emptyResolution();
     addMetrics(metrics, counterDefenceMetrics);
-    const defenceStringMetrics = resolveDefenceString(state, target, pool, activeRawWounds, rng);
-    addMetrics(metrics, defenceStringMetrics);
     const protection =
       (pool === "physical" ? target.physicalProtection : target.mentalProtection) +
       getProtectionModifier(state, target.id, pool) +
       passiveDefence;
     const staticPrevented = Math.min(
-      Math.max(0, activeRawWounds - defenceStringMetrics.defenceStringBlocked - counterDefenceMetrics.counterMitigation),
+      Math.max(0, activeRawWounds - normalDefenceBlocked - counterDefenceMetrics.counterMitigation),
       Math.max(0, protection),
     );
-    const prevented = defenceStringMetrics.defenceStringBlocked + counterDefenceMetrics.counterMitigation + staticPrevented;
+    const prevented = normalDefenceBlocked + counterDefenceMetrics.counterMitigation + staticPrevented;
     const netWounds = Math.max(0, activeRawWounds - prevented);
     const overkill = applyWounds(target, pool, netWounds);
     const counterAttackMetrics = params.fromSecondary ? emptyResolution() : resolveCounterAttacks(state, target, actor, rng);
@@ -448,6 +557,7 @@ function resolveSingleTargetAction(params: {
         kind: action.kind,
         attribute: action.modifier.attribute,
         amount: action.modifier.amount,
+        sourceActionName: action.name,
         remainingRounds: action.modifier.durationRounds,
         positionalAbstraction: action.targetPolicy === "allAllies"
           ? "AOE ally buff abstracted to all living allies."
@@ -508,10 +618,7 @@ function resolveSingleTargetAction(params: {
     }
   }
 
-  if (
-    (action.kind === "control" || action.kind === "movement") &&
-    (!action.resistAttribute || metrics.hostileSuccessesAfterResist > 0)
-  ) {
+  if (!action.resistAttribute || metrics.hostileSuccessesAfterResist > 0) {
     for (const secondaryAction of action.secondaryActions ?? []) {
       addMetrics(metrics, resolveSingleTargetAction({
         state,

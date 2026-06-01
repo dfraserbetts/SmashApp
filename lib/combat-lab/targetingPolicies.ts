@@ -15,6 +15,19 @@ function defence(actor: CombatActor): number {
   return actor.dodgeValue + actor.physicalProtection + actor.mentalProtection;
 }
 
+function actionAlreadyApplied(actor: CombatActor, action: CombatAction, state: CombatState): boolean {
+  return state.statusEffects.some(
+    (effect) =>
+      effect.sourceActorId === actor.id &&
+      effect.sourceActionName === action.name &&
+      effect.remainingRounds > 0,
+  );
+}
+
+function hasWoundedAlly(actor: CombatActor, state: CombatState): boolean {
+  return getLivingActors(state, actor.side).some((ally) => hpPercent(ally) < 0.8);
+}
+
 export function chooseAction(actor: CombatActor, state: CombatState): CombatAction | null {
   const available = actor.actions.filter((action) => {
     if (!action.supported) return false;
@@ -31,18 +44,19 @@ export function chooseAction(actor: CombatActor, state: CombatState): CombatActi
   if (actor.role === "Support") {
     const heal = available.find((action) => action.kind === "healing");
     if (heal && woundedAlly) return heal;
-    const field = available.find((action) => action.kind === "debuff" && action.targetPolicy === "allEnemies");
-    if (field && enemies.length >= 2) return field;
     const buff = available.find(
       (action) =>
         action.kind === "buff" &&
-        !state.statusEffects.some((effect) => effect.sourceActorId === actor.id && effect.kind === "buff"),
+        allies.length > 1 &&
+        !actionAlreadyApplied(actor, action, state),
     );
     if (buff && enemies.length > 0) return buff;
+    const field = available.find((action) => action.kind === "debuff" && action.targetPolicy === "allEnemies");
+    if (field && enemies.length >= 2 && !actionAlreadyApplied(actor, field, state)) return field;
+    const debuff = available.find((action) => action.kind === "debuff" && !actionAlreadyApplied(actor, action, state));
+    if (debuff && enemies.length > 0) return debuff;
     const cleanse = available.find((action) => action.kind === "cleanse");
     if (cleanse && state.statusEffects.some((effect) => effect.sourceActorId !== actor.id && effect.targetActorId !== actor.id)) return cleanse;
-    const debuff = available.find((action) => action.kind === "debuff");
-    if (debuff && enemies.length > 0) return debuff;
   }
 
   if (actor.role === "Bruiser") {
@@ -55,7 +69,7 @@ export function chooseAction(actor: CombatActor, state: CombatState): CombatActi
 
   if (actor.role === "Tank") {
     const defenceAction = available.find((action) => action.kind === "defence" || action.kind === "buff");
-    if (defenceAction && allies.some((ally) => hpPercent(ally) < 0.5)) return defenceAction;
+    if (defenceAction && hasWoundedAlly(actor, state)) return defenceAction;
   }
 
   return available.find((action) => action.kind === "attack") ?? available[0] ?? null;

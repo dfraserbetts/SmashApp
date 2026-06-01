@@ -46,15 +46,15 @@ export function rollDice(count: number, die: CombatDieSize, rng: Rng, modifier =
   };
 }
 
-export function expectedSuccessesPerDie(die: CombatDieSize): number {
+export function expectedSuccessesPerDie(die: CombatDieSize, modifier = 0): number {
   const sides = diceSides(die);
   let total = 0;
   for (let roll = 1; roll <= sides; roll += 1) {
-    total += successCountForRoll(roll);
+    total += successCountForRoll(roll, modifier);
   }
   return total / sides;
 }
 
-export function expectedSuccesses(count: number, die: CombatDieSize): number {
-  return Math.max(0, Math.trunc(count)) * expectedSuccessesPerDie(die);
+export function expectedSuccesses(count: number, die: CombatDieSize, modifier = 0): number {
+  return Math.max(0, Math.trunc(count)) * expectedSuccessesPerDie(die, modifier);
 }

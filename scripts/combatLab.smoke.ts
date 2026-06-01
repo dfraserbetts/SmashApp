@@ -1,4 +1,4 @@
-import { buildCombatLabSmokeScenarios } from "../lib/combat-lab/autoSimulator";
+import { buildCombatLabSmokeScenarios, runCombatScenario } from "../lib/combat-lab/autoSimulator";
 import { resolveCombatAction, resolveStartOfTurnEffects } from "../lib/combat-lab/actionResolver";
 import {
   createCombatState,
@@ -23,6 +23,7 @@ import {
   makeFixturePower,
 } from "../lib/combat-lab/powerAdapter";
 import { formatSuiteReport, runScenarioSuite } from "../lib/combat-lab/reporting";
+import { chooseAction, chooseTarget } from "../lib/combat-lab/targetingPolicies";
 import type { CombatAction, CombatActor } from "../lib/combat-lab/types";
 
 type CombatLabCharacterRow = Parameters<typeof adaptCampaignCharacterToCombatActor>[0];
@@ -509,6 +510,34 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const base = makeFixturePower({
+    id: "open-vein-fixture",
+    name: "Open Vein Fixture",
+    intention: "ATTACK",
+    diceCount: 4,
+    potency: 2,
+    durationTurns: undefined,
+  });
+  const primary = base.effectPackets[0];
+  const secondary = {
+    ...primary,
+    id: "open-vein-fixture-secondary",
+    sortOrder: 1,
+    packetIndex: 1,
+    effectDurationType: "TURNS" as const,
+    effectDurationTurns: 2,
+  };
+  const adapted = adaptPowerToCombatActions({
+    ...base,
+    effectPackets: [primary, secondary],
+    intentions: [primary, secondary],
+  });
+  if (adapted.actions.length !== 1 || (adapted.actions[0].secondaryActions?.length ?? 0) !== 1) {
+    throw new Error("Linked secondary attack packets were not nested under a single top-level power action.");
+  }
+}
+
+{
   const attacker = fixtureActor("dodge-attacker", "players");
   const defender = fixtureActor("dodge-defender", "monsters", { dodgeDice: 2 });
   const state = createCombatState([attacker], [defender]);
@@ -519,8 +548,151 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     action: action({ diceCount: 1, potency: 4 }),
     rng: rngFrom([0.99, 0.99, 0.99]),
   });
-  if (resolution.dodgeRolls !== 1 || resolution.woundsAvoidedByDodge !== 8 || resolution.netWounds !== 0) {
+  if (resolution.dodgeChosen !== 1 || resolution.dodgeRolls !== 1 || resolution.woundsAvoidedByDodge !== 8 || resolution.netWounds !== 0) {
     throw new Error("Dodge did not use Guard dice to fully avoid a matching attack.");
+  }
+}
+
+{
+  const attacker = fixtureActor("tank-policy-attacker", "players");
+  const defender = fixtureActor("tank-policy-defender", "monsters", {
+    dodgeDice: 1,
+    physicalDefenceDice: 6,
+    physicalBlockPerSuccess: 4,
+  });
+  const state = createCombatState([attacker], [defender]);
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99]),
+  });
+  if (resolution.physicalDefenceChosen !== 1 || resolution.dodgeChosen !== 0) {
+    throw new Error("Monster-like high-physical-defence defender did not choose physical defence over dodge.");
+  }
+}
+
+{
+  const attacker = fixtureActor("fragile-policy-attacker", "players");
+  const defender = fixtureActor("fragile-policy-defender", "monsters", {
+    dodgeDice: 6,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 1,
+  });
+  const state = createCombatState([attacker], [defender]);
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0.99, 0.99]),
+  });
+  if (resolution.dodgeChosen !== 1 || resolution.physicalDefenceChosen !== 0) {
+    throw new Error("Monster-like high-dodge defender did not choose dodge over weak physical defence.");
+  }
+}
+
+{
+  const attacker = fixtureActor("degraded-policy-attacker", "players");
+  const defender = fixtureActor("degraded-policy-defender", "monsters", {
+    dodgeDice: 5,
+    physicalDefenceDice: 4,
+    physicalBlockPerSuccess: 2,
+  });
+  const fresh = createCombatState([attacker], [defender]);
+  const first = resolveCombatAction({
+    state: fresh,
+    actor: fresh.actors[0],
+    target: fresh.actors[1],
+    action: action({ diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0.99, 0.99]),
+  });
+  const degraded = createCombatState([attacker], [defender]);
+  degraded.defenceDegradation[degraded.actors[1].id] = { dodge: 4, physical: 0, mental: 0 };
+  const second = resolveCombatAction({
+    state: degraded,
+    actor: degraded.actors[0],
+    target: degraded.actors[1],
+    action: action({ diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99]),
+  });
+  if (first.dodgeChosen !== 1 || second.physicalDefenceChosen !== 1) {
+    throw new Error("Monster defence choice did not switch away from degraded dodge.");
+  }
+}
+
+{
+  const playerDefender = fixtureActor("symmetry-player-defender", "players", {
+    dodgeDice: 1,
+    physicalDefenceDice: 6,
+    physicalBlockPerSuccess: 4,
+  });
+  const monsterDefender = fixtureActor("symmetry-monster-defender", "monsters", {
+    dodgeDice: 1,
+    physicalDefenceDice: 6,
+    physicalBlockPerSuccess: 4,
+  });
+  const monsterAttacker = fixtureActor("symmetry-monster-attacker", "monsters");
+  const playerAttacker = fixtureActor("symmetry-player-attacker", "players");
+
+  const playerDefenceState = createCombatState([playerDefender], [monsterAttacker]);
+  const playerDefence = resolveCombatAction({
+    state: playerDefenceState,
+    actor: playerDefenceState.actors[1],
+    target: playerDefenceState.actors[0],
+    action: action({ diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99]),
+  });
+
+  const monsterDefenceState = createCombatState([playerAttacker], [monsterDefender]);
+  const monsterDefence = resolveCombatAction({
+    state: monsterDefenceState,
+    actor: monsterDefenceState.actors[0],
+    target: monsterDefenceState.actors[1],
+    action: action({ diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99]),
+  });
+
+  if (
+    playerDefence.physicalDefenceChosen !== 1 ||
+    monsterDefence.physicalDefenceChosen !== 1 ||
+    playerDefence.dodgeChosen !== monsterDefence.dodgeChosen ||
+    playerDefence.defenceStringBlocked !== monsterDefence.defenceStringBlocked
+  ) {
+    throw new Error("Player and monster defenders did not use the same best-defence decision path.");
+  }
+}
+
+{
+  const player = fixtureActor("side-metric-player", "players", {
+    dodgeDice: 1,
+    physicalDefenceDice: 6,
+    physicalBlockPerSuccess: 4,
+    actions: [action({ id: "side-metric-player-attack", diceCount: 1, potency: 1 })],
+  });
+  const monster = fixtureActor("side-metric-monster", "monsters", {
+    dodgeDice: 20,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 1,
+    actions: [action({ id: "side-metric-monster-attack", diceCount: 10, potency: 4 })],
+  });
+  const run = runCombatScenario({
+    name: "side defence metric fixture",
+    players: [player],
+    monsters: [monster],
+    runs: 1,
+    seed: 707,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  if (
+    run.metrics.dodgeChosen.monsters <= 0 ||
+    run.metrics.physicalDefenceChosen.players <= 0 ||
+    run.metrics.dodgeChosen.players !== 0 ||
+    run.metrics.physicalDefenceChosen.monsters !== 0
+  ) {
+    throw new Error(`Defence choice metrics did not report player/monster side decisions separately: dodge ${JSON.stringify(run.metrics.dodgeChosen)}, physical ${JSON.stringify(run.metrics.physicalDefenceChosen)}.`);
   }
 }
 
@@ -589,6 +761,127 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   });
   if (resolution.aoePotentialTargets !== 4 || resolution.aoeActualTargets !== 2) {
     throw new Error("AOE target abstraction did not apply 60% target capacity.");
+  }
+}
+
+{
+  const player = fixtureActor("aoe-solo-player", "players");
+  const monster = fixtureActor("aoe-solo-monster", "monsters");
+  const state = createCombatState([player], [monster]);
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ rangeCategory: "AOE", targetCount: 8 }),
+    rng: rngFrom([0.99, 0]),
+  });
+  if (resolution.aoePotentialTargets !== 8 || resolution.aoeActualTargets !== 1) {
+    throw new Error("AOE target abstraction exceeded legal living targets in 1v1.");
+  }
+}
+
+{
+  const support = createFixtureActor({
+    id: "support-policy",
+    side: "players",
+    name: "Support Policy",
+    role: "Support",
+    physicalHp: 30,
+    mentalHp: 30,
+    physicalProtection: 0,
+    mentalProtection: 0,
+    dodgeValue: 8,
+    attack: 2,
+    guard: 2,
+    fortitude: 2,
+    intellect: 4,
+    synergy: 6,
+    bravery: 4,
+    basicAttack: { diceCount: 1, potency: 1 },
+    powers: [
+      makeFixturePower({ id: "support-heal-policy", name: "Heal Policy", intention: "HEALING", diceCount: 3, potency: 2, applyTo: "ALLIES" }),
+      makeFixturePower({ id: "support-buff-policy", name: "Buff Policy", intention: "AUGMENT", diceCount: 3, potency: 1, applyTo: "ALLIES", statTarget: "Attack", durationTurns: 2 }),
+      makeFixturePower({ id: "support-debuff-policy", name: "Debuff Policy", intention: "DEBUFF", diceCount: 3, potency: 1, statTarget: "Guard", durationTurns: 2 }),
+    ],
+  });
+  const ally = fixtureActor("support-ally", "players");
+  const monster = fixtureActor("support-enemy", "monsters");
+  const soloState = createCombatState([support], [monster]);
+  const soloAction = chooseAction(soloState.actors[0], soloState);
+  if (soloAction?.kind !== "debuff") {
+    throw new Error("Solo support did not prefer a useful debuff before wasting an ally buff.");
+  }
+  const partyState = createCombatState([support, ally], [monster]);
+  const partyAction = chooseAction(partyState.actors[0], partyState);
+  if (partyAction?.kind !== "buff") {
+    throw new Error("Party support did not prefer a useful early ally buff.");
+  }
+  partyState.actors[1].physicalHpCurrent = Math.floor(partyState.actors[1].physicalHpMax / 2);
+  const healAction = chooseAction(partyState.actors[0], partyState);
+  const healTarget = healAction ? chooseTarget(partyState.actors[0], healAction, partyState) : null;
+  if (healAction?.kind !== "healing" || healTarget?.id !== partyState.actors[1].id) {
+    throw new Error("Support did not heal the most wounded ally.");
+  }
+}
+
+{
+  const player = fixtureActor("order-player", "players", {
+    physicalHpMax: 999,
+    mentalHpMax: 999,
+    actions: [action({ id: "order-player-attack" })],
+  });
+  const monster = fixtureActor("order-monster", "monsters", {
+    physicalHpMax: 999,
+    mentalHpMax: 999,
+    actions: [action({ id: "order-monster-attack" })],
+  });
+  const playersFirst = runCombatScenario({
+    name: "turn order players first fixture",
+    players: [player],
+    monsters: [monster],
+    runs: 1,
+    seed: 919,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  const monstersFirst = runCombatScenario({
+    name: "turn order monsters first fixture",
+    players: [player],
+    monsters: [monster],
+    runs: 1,
+    seed: 919,
+    maxRounds: 1,
+    turnOrder: "monstersFirst",
+  });
+  const alternating = runCombatScenario({
+    name: "turn order alternating fixture",
+    players: [player],
+    monsters: [monster],
+    runs: 1,
+    seed: 919,
+    maxRounds: 2,
+    turnOrder: "alternatingByRound",
+  });
+  if (playersFirst.log[0]?.actorId !== "order-player" || monstersFirst.log[0]?.actorId !== "order-monster") {
+    throw new Error("Configured first side did not act first.");
+  }
+  const roundTwoFirst = alternating.log.find((entry) => entry.round === 2);
+  if (alternating.log[0]?.actorId !== "order-player" || roundTwoFirst?.actorId !== "order-monster") {
+    throw new Error("Alternating turn order did not swap first side by round.");
+  }
+}
+
+{
+  const report = runScenarioSuite({
+    name: "actor contribution fixture",
+    players: [fixtureActor("contribution-player", "players", { actions: [action({ id: "contribution-player-attack" })] })],
+    monsters: [fixtureActor("contribution-monster", "monsters", { actions: [action({ id: "contribution-monster-attack" })] })],
+    runs: 2,
+    seed: 808,
+    maxRounds: 2,
+  });
+  if (report.actorContributions.length === 0 || !report.actorContributions.some((entry) => entry.topActionName)) {
+    throw new Error("Actor contribution report did not record action usage.");
   }
 }
 

@@ -9,6 +9,7 @@ import {
 } from "@/lib/combat-lab/liveAdapters";
 import { getProtectionTuning } from "@/lib/config/combatTuning";
 import { runScenarioSuite } from "@/lib/combat-lab/reporting";
+import type { CombatTurnOrder } from "@/lib/combat-lab/types";
 import { prisma } from "@/prisma/client";
 
 type RunRequestBody = {
@@ -16,6 +17,7 @@ type RunRequestBody = {
   characterIds?: unknown;
   monsterIds?: unknown;
   runs?: unknown;
+  turnOrder?: unknown;
 };
 
 const POWER_INCLUDE = {
@@ -51,6 +53,15 @@ function runCount(value: unknown): number {
   return Math.max(1, Math.min(500, Math.trunc(parsed)));
 }
 
+function turnOrder(value: unknown): CombatTurnOrder {
+  return value === "playersFirst" ||
+    value === "monstersFirst" ||
+    value === "randomSeeded" ||
+    value === "alternatingByRound"
+    ? value
+    : "alternatingByRound";
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as RunRequestBody;
@@ -58,6 +69,7 @@ export async function POST(req: Request) {
     const characterIds = stringList(body.characterIds);
     const monsterIds = stringList(body.monsterIds);
     const runs = runCount(body.runs);
+    const selectedTurnOrder = turnOrder(body.turnOrder);
 
     if (!campaignId || characterIds.length === 0 || monsterIds.length === 0) {
       return NextResponse.json(
@@ -151,6 +163,7 @@ export async function POST(req: Request) {
       runs,
       seed: Date.now() % 100000,
       maxRounds: 20,
+      turnOrder: selectedTurnOrder,
     });
 
     return NextResponse.json({
@@ -170,6 +183,13 @@ export async function POST(req: Request) {
           rangeCategory: action.rangeCategory,
           abstractionNotes: action.abstractionNotes ?? [],
           secondaryActionCount: action.secondaryActions?.length ?? 0,
+          secondaryActions: (action.secondaryActions ?? []).map((secondaryAction) => ({
+            id: secondaryAction.id,
+            name: secondaryAction.name,
+            kind: secondaryAction.kind,
+            targetCount: secondaryAction.targetCount,
+            rangeCategory: secondaryAction.rangeCategory,
+          })),
         })),
       })),
       selectedMonsters: adaptedMonsters.map((entry) => ({
@@ -188,6 +208,13 @@ export async function POST(req: Request) {
           rangeCategory: action.rangeCategory,
           abstractionNotes: action.abstractionNotes ?? [],
           secondaryActionCount: action.secondaryActions?.length ?? 0,
+          secondaryActions: (action.secondaryActions ?? []).map((secondaryAction) => ({
+            id: secondaryAction.id,
+            name: secondaryAction.name,
+            kind: secondaryAction.kind,
+            targetCount: secondaryAction.targetCount,
+            rangeCategory: secondaryAction.rangeCategory,
+          })),
         })),
       })),
       hydrationWarnings: [

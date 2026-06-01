@@ -424,6 +424,11 @@ function unsupportedActionWarnings(actor: { id: string; name: string }, actions:
     );
 }
 
+function textLooksCombatMechanical(value: string | null | undefined): boolean {
+  const text = (value ?? "").toLowerCase();
+  return /\b(attack|damage|wound|dice|die|protection|dodge|resist|heal|turn|action|cooldown|physical|mental|buff|debuff|control)\b/.test(text);
+}
+
 export function adaptCampaignCharacterToCombatActor(
   row: CharacterRow,
   protectionTuning?: ProtectionTuningValues,
@@ -431,6 +436,8 @@ export function adaptCampaignCharacterToCombatActor(
   const warnings: CombatLabHydrationWarning[] = [];
   const unsupportedEquipment: string[] = [];
   const unsupportedTraits: string[] = [];
+  const ignoredTraits: string[] = [];
+  const unsupportedCombatTraits: string[] = [];
   const builderData = normalizeBuilderData(row.builderData);
   const backpackItems = (row.backpackItems ?? []).map(toDerivedBackpackItem);
   const level = Math.max(1, Math.trunc(row.level || 1));
@@ -504,8 +511,8 @@ export function adaptCampaignCharacterToCombatActor(
   }
 
   if (builderData.selectedTraitKeys.length > 0) {
-    const message = "Character trait mechanics are reported but not applied by Combat Lab V1.";
-    unsupportedTraits.push(...builderData.selectedTraitKeys.map((key) => `${key}: ${message}`));
+    const message = "Character traits/characteristics are tracked as authored identity and ignored by Combat Lab V1 unless a combat mechanic is explicitly hydratable.";
+    ignoredTraits.push(...builderData.selectedTraitKeys.map((key) => `${key}: ${message}`));
     warnings.push(makeWarning(row.id, row.name, "selectedTraitKeys", message));
   }
   warnings.push(...unsupportedActionWarnings(row, equipmentActions));
@@ -559,6 +566,8 @@ export function adaptCampaignCharacterToCombatActor(
         warnings: warnings.map((warning) => warning.message),
         unsupportedEquipment,
         unsupportedTraits,
+        ignoredTraits,
+        unsupportedCombatTraits,
         fallbackActions: actionNames(fallbackActions),
       },
       defeated: false,
@@ -574,6 +583,8 @@ export function adaptMonsterToCombatLabActor(
   const warnings: CombatLabHydrationWarning[] = [];
   const unsupportedEquipment: string[] = [];
   const unsupportedTraits: string[] = [];
+  const ignoredTraits: string[] = [];
+  const unsupportedCombatTraits: string[] = [];
   const adaptedPowers = row.powers.map((power) => adaptPowerToCombatActions(mapPower(power)));
   const powerActions = adaptedPowers.flatMap((entry) => entry.actions);
   warnings.push(
@@ -673,10 +684,16 @@ export function adaptMonsterToCombatLabActor(
   for (const trait of row.traits ?? []) {
     const name = trait.trait?.name?.trim();
     if (!name) continue;
-    const message = `${name}: monster trait mechanics are reported but not applied by Combat Lab V1.`;
-    unsupportedTraits.push(message);
+    const effectText = trait.trait?.effectText ?? "";
+    if (textLooksCombatMechanical(effectText)) {
+      const message = `${name}: monster combat trait mechanics are reported but not applied by Combat Lab V1.`;
+      unsupportedTraits.push(message);
+      unsupportedCombatTraits.push(message);
+    } else {
+      ignoredTraits.push(`${name}: trait/characteristic has no detected combat mechanics and is ignored by Combat Lab V1.`);
+    }
   }
-  if (unsupportedTraits.length > 0) {
+  if (unsupportedCombatTraits.length > 0) {
     warnings.push(makeWarning(row.id, row.name, "traits", "Monster trait mechanics are reported but not applied by Combat Lab V1."));
   }
   warnings.push(...unsupportedActionWarnings(row, [...naturalAttackActions, ...equippedWeaponActions]));
@@ -746,6 +763,8 @@ export function adaptMonsterToCombatLabActor(
         warnings: warnings.map((warning) => warning.message),
         unsupportedEquipment,
         unsupportedTraits,
+        ignoredTraits,
+        unsupportedCombatTraits,
         fallbackActions: actionNames(fallbackActions),
       },
       defeated: false,

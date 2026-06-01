@@ -17,10 +17,12 @@ import {
 import { chooseAction, chooseTarget } from "./targetingPolicies";
 import type {
   CombatAggregateMetrics,
+  CombatAction,
   CombatActor,
   CombatRunResult,
   CombatScenario,
   CombatSide,
+  CombatTurnOrder,
 } from "./types";
 
 function addRoleContribution(metrics: CombatAggregateMetrics, actorRole: string, actionKind: string, values: {
@@ -50,24 +52,30 @@ function addResolutionToAggregate(
   metrics: CombatAggregateMetrics,
   side: CombatSide,
   resolution: ReturnType<typeof resolveCombatAction>,
+  options: { defensiveSide?: CombatSide } = {},
 ) {
+  const defensiveSide = options.defensiveSide ?? side;
   metrics.damageDealt[side] += resolution.netWounds;
   metrics.healingDone[side] += resolution.healingDone;
-  metrics.protectionPrevented[side] += resolution.protectionPrevented;
-  metrics.woundsAvoidedByDodge[side] += resolution.woundsAvoidedByDodge;
-  metrics.dodgeRolls[side] += resolution.dodgeRolls;
-  metrics.dodgeDegradationApplied[side] += resolution.dodgeDegradationApplied;
-  metrics.physicalDefenceRolls[side] += resolution.physicalDefenceRolls;
-  metrics.physicalDefenceDegradationApplied[side] += resolution.physicalDefenceDegradationApplied;
-  metrics.mentalDefenceRolls[side] += resolution.mentalDefenceRolls;
-  metrics.mentalDefenceDegradationApplied[side] += resolution.mentalDefenceDegradationApplied;
-  metrics.degradedDefenceRolls[side] += resolution.degradedDefenceRolls;
-  metrics.defenceStringBlocked[side] += resolution.defenceStringBlocked;
-  metrics.staticProtectionPrevented[side] += resolution.staticProtectionPrevented;
-  metrics.resistCancelled[side] += resolution.resistCancelled;
-  metrics.resistRolls[side] += resolution.resistRolls;
-  metrics.resistSuccesses[side] += resolution.resistSuccesses;
-  metrics.hostileSuccessesCancelledByResist[side] += resolution.hostileSuccessesCancelledByResist;
+  metrics.protectionPrevented[defensiveSide] += resolution.protectionPrevented;
+  metrics.woundsAvoidedByDodge[defensiveSide] += resolution.woundsAvoidedByDodge;
+  metrics.dodgeRolls[defensiveSide] += resolution.dodgeRolls;
+  metrics.dodgeChosen[defensiveSide] += resolution.dodgeChosen;
+  metrics.dodgeDegradationApplied[defensiveSide] += resolution.dodgeDegradationApplied;
+  metrics.physicalDefenceRolls[defensiveSide] += resolution.physicalDefenceRolls;
+  metrics.physicalDefenceChosen[defensiveSide] += resolution.physicalDefenceChosen;
+  metrics.physicalDefenceDegradationApplied[defensiveSide] += resolution.physicalDefenceDegradationApplied;
+  metrics.mentalDefenceRolls[defensiveSide] += resolution.mentalDefenceRolls;
+  metrics.mentalDefenceChosen[defensiveSide] += resolution.mentalDefenceChosen;
+  metrics.mentalDefenceDegradationApplied[defensiveSide] += resolution.mentalDefenceDegradationApplied;
+  metrics.defenceChoiceExpectedValue[defensiveSide] += resolution.defenceChoiceExpectedValue;
+  metrics.degradedDefenceRolls[defensiveSide] += resolution.degradedDefenceRolls;
+  metrics.defenceStringBlocked[defensiveSide] += resolution.defenceStringBlocked;
+  metrics.staticProtectionPrevented[defensiveSide] += resolution.staticProtectionPrevented;
+  metrics.resistCancelled[defensiveSide] += resolution.resistCancelled;
+  metrics.resistRolls[defensiveSide] += resolution.resistRolls;
+  metrics.resistSuccesses[defensiveSide] += resolution.resistSuccesses;
+  metrics.hostileSuccessesCancelledByResist[defensiveSide] += resolution.hostileSuccessesCancelledByResist;
   metrics.overkill[side] += resolution.overkill;
   metrics.wastedActions[side] += resolution.wastedActions;
   metrics.controlTurnsApplied[side] += resolution.controlTurnsApplied;
@@ -85,18 +93,105 @@ function addResolutionToAggregate(
   metrics.ongoingDamageUnitsApplied[side] += resolution.ongoingDamageUnitsApplied;
   metrics.ongoingDamageTicks[side] += resolution.ongoingDamageTicks;
   metrics.ongoingDamagePreventedOrCleansed[side] += resolution.ongoingDamagePreventedOrCleansed;
-  metrics.counterUses[side] += resolution.counterUses;
-  metrics.counterDamage[side] += resolution.counterDamage;
-  metrics.counterMitigation[side] += resolution.counterMitigation;
-  metrics.responsesUsed[side] += resolution.responsesUsed;
-  metrics.responsesWastedOrUnavailable[side] += resolution.responsesWastedOrUnavailable;
-  metrics.passiveDefenceContribution[side] += resolution.passiveDefenceContribution;
+  metrics.counterUses[defensiveSide] += resolution.counterUses;
+  metrics.counterChosen[defensiveSide] += resolution.counterChosen;
+  metrics.counterDamage[defensiveSide] += resolution.counterDamage;
+  metrics.counterMitigation[defensiveSide] += resolution.counterMitigation;
+  metrics.responsesUsed[defensiveSide] += resolution.responsesUsed;
+  metrics.responsesWastedOrUnavailable[defensiveSide] += resolution.responsesWastedOrUnavailable;
+  metrics.passiveDefenceContribution[defensiveSide] += resolution.passiveDefenceContribution;
   metrics.stacksApplied[side] += resolution.stacksApplied;
   metrics.stacksExpired[side] += resolution.stacksExpired;
   metrics.stacksCleansed[side] += resolution.stacksCleansed;
   metrics.aoePotentialTargets[side] += resolution.aoePotentialTargets;
   metrics.aoeActualTargets[side] += resolution.aoeActualTargets;
   metrics.positionalAbstractionsUsed[side] += resolution.positionalAbstractionsUsed;
+}
+
+function addActorContribution(
+  metrics: CombatAggregateMetrics,
+  actor: CombatActor,
+  action: CombatAction | null,
+  resolution: ReturnType<typeof resolveCombatAction>,
+) {
+  if (!action) return;
+  const actorContribution = metrics.actorContributions[actor.id] ??= {
+    actorId: actor.id,
+    actorName: actor.name,
+    side: actor.side,
+    role: actor.role,
+    actionsUsed: 0,
+    damage: 0,
+    healing: 0,
+    mitigation: 0,
+    counterUses: 0,
+    counterDamage: 0,
+    counterMitigation: 0,
+    buffApplications: 0,
+    debuffApplications: 0,
+    controlTurnsApplied: 0,
+    actionsDenied: 0,
+    ongoingDamageApplied: 0,
+    topActionName: null,
+    actionContributions: [],
+  };
+  let actionContribution = actorContribution.actionContributions.find((entry) => entry.actionId === action.id);
+  if (!actionContribution) {
+    actionContribution = {
+      actionId: action.id,
+      actionName: action.name,
+      sourcePowerId: action.sourcePowerId,
+      sourceType: action.sourceType,
+      kind: action.kind,
+      uses: 0,
+      damage: 0,
+      healing: 0,
+      mitigation: 0,
+      counterUses: 0,
+      counterDamage: 0,
+      counterMitigation: 0,
+      buffApplications: 0,
+      debuffApplications: 0,
+      controlTurnsApplied: 0,
+      actionsDenied: 0,
+      ongoingDamageApplied: 0,
+      linkedActionCount: action.secondaryActions?.length ?? 0,
+    };
+    actorContribution.actionContributions.push(actionContribution);
+  }
+
+  const mitigation = resolution.protectionPrevented + resolution.mitigationApplied;
+  actorContribution.actionsUsed += 1;
+  actorContribution.damage += resolution.netWounds;
+  actorContribution.healing += resolution.healingDone;
+  actorContribution.mitigation += mitigation;
+  actorContribution.counterUses += resolution.counterUses;
+  actorContribution.counterDamage += resolution.counterDamage;
+  actorContribution.counterMitigation += resolution.counterMitigation;
+  actorContribution.buffApplications += resolution.buffApplications;
+  actorContribution.debuffApplications += resolution.debuffApplications;
+  actorContribution.controlTurnsApplied += resolution.controlTurnsApplied;
+  actorContribution.actionsDenied += resolution.actionsDenied;
+  actorContribution.ongoingDamageApplied += resolution.ongoingDamageApplied;
+
+  actionContribution.uses += 1;
+  actionContribution.damage += resolution.netWounds;
+  actionContribution.healing += resolution.healingDone;
+  actionContribution.mitigation += mitigation;
+  actionContribution.counterUses += resolution.counterUses;
+  actionContribution.counterDamage += resolution.counterDamage;
+  actionContribution.counterMitigation += resolution.counterMitigation;
+  actionContribution.buffApplications += resolution.buffApplications;
+  actionContribution.debuffApplications += resolution.debuffApplications;
+  actionContribution.controlTurnsApplied += resolution.controlTurnsApplied;
+  actionContribution.actionsDenied += resolution.actionsDenied;
+  actionContribution.ongoingDamageApplied += resolution.ongoingDamageApplied;
+
+  actorContribution.topActionName =
+    [...actorContribution.actionContributions].sort((a, b) =>
+      (b.damage + b.healing + b.mitigation + b.buffApplications + b.debuffApplications + b.controlTurnsApplied) -
+      (a.damage + a.healing + a.mitigation + a.buffApplications + a.debuffApplications + a.controlTurnsApplied),
+    )[0]?.actionName ?? null;
 }
 
 function survivorHealthPercent(stateSide: CombatSide, resultStateActors: ReturnType<typeof getLivingActors>): number {
@@ -119,21 +214,39 @@ function addStatusUptimeMetrics(metrics: CombatAggregateMetrics, state: ReturnTy
   }
 }
 
-function roundTurnOrder(state: ReturnType<typeof createCombatState>) {
+function shuffled<T>(items: T[], rng: ReturnType<typeof createSeededRng>): T[] {
+  const out = [...items];
+  for (let index = out.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(rng() * (index + 1));
+    [out[index], out[swapIndex]] = [out[swapIndex] as T, out[index] as T];
+  }
+  return out;
+}
+
+function roundTurnOrder(
+  state: ReturnType<typeof createCombatState>,
+  rng: ReturnType<typeof createSeededRng>,
+  turnOrder: CombatTurnOrder,
+  round: number,
+) {
   const players = getLivingActors(state, "players");
   const monsters = getLivingActors(state, "monsters");
-  const order: CombatActor[] = [];
-  const max = Math.max(players.length, monsters.length);
-  for (let index = 0; index < max; index += 1) {
-    if (players[index]) order.push(players[index]);
-    if (monsters[index]) order.push(monsters[index]);
+  const playerOrder = shuffled(players, rng);
+  const monsterOrder = shuffled(monsters, rng);
+  const playersLead =
+    turnOrder === "playersFirst" ||
+    (turnOrder === "alternatingByRound" && round % 2 === 1) ||
+    (turnOrder === "randomSeeded" && rng() < 0.5);
+  if (turnOrder === "monstersFirst" || !playersLead) {
+    return [...monsterOrder, ...playerOrder];
   }
-  return order;
+  return [...playerOrder, ...monsterOrder];
 }
 
 export function runCombatScenario(scenario: CombatScenario, runIndex = 0): CombatRunResult {
   const rng = createSeededRng(scenario.seed + runIndex * 9973);
   const maxRounds = scenario.maxRounds ?? 20;
+  const turnOrder = scenario.turnOrder ?? "alternatingByRound";
   const state = createCombatState(scenario.players, scenario.monsters);
   const metrics = createEmptyMetrics();
   let stoppedBy: CombatRunResult["stoppedBy"] = "maxRounds";
@@ -144,7 +257,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
     const damageAtRoundStart = metrics.damageDealt.players + metrics.damageDealt.monsters;
     metrics.activeEnemiesByRound.push(getLivingActors(state, "monsters").length);
 
-    for (const actor of roundTurnOrder(state)) {
+    for (const actor of roundTurnOrder(state, rng, turnOrder, round)) {
       const currentActor = state.actors.find((candidate) => candidate.id === actor.id);
       if (!currentActor || currentActor.defeated) continue;
       refreshActorResponses(state, currentActor.id);
@@ -179,7 +292,8 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
           rng,
         });
         metrics.actionsUsed[currentActor.side] += action ? 1 : 0;
-        addResolutionToAggregate(metrics, currentActor.side, resolution);
+        addResolutionToAggregate(metrics, currentActor.side, resolution, { defensiveSide: target?.side });
+        addActorContribution(metrics, currentActor, action, resolution);
         addRoleContribution(metrics, currentActor.role, action?.kind ?? "attack", {
           damage: resolution.netWounds,
           healing: resolution.healingDone,

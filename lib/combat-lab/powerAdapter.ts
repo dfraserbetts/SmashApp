@@ -249,34 +249,33 @@ export function adaptPowerToCombatActions(power: Power): {
         ? structuralDurationRounds
         : 1;
     const isAoe = rangeCategory === "AOE";
-    const secondaryPacket = packets.find(
+    const linkedPackets = packets.filter(
       (candidate) =>
         candidate.packetIndex !== packet.packetIndex &&
-        candidate.sortOrder > (packet.sortOrder ?? packet.packetIndex ?? 0) &&
-        candidate.intention === "ATTACK",
+        candidate.sortOrder > (packet.sortOrder ?? packet.packetIndex ?? 0),
     );
-    const secondaryAdaptation =
-      (kind === "control" || kind === "movement") && secondaryPacket
-        ? adaptPowerToCombatActions({
-            ...power,
-            effectPackets: [secondaryPacket],
-            intentions: [secondaryPacket],
-          })
-        : null;
-    const secondaryActions = secondaryAdaptation?.actions ?? [];
-    if (secondaryAdaptation) {
+    const secondaryActions = linkedPackets.flatMap((secondaryPacket) => {
+      const secondaryAdaptation = adaptPowerToCombatActions({
+        ...power,
+        effectPackets: [secondaryPacket],
+        intentions: [secondaryPacket],
+      });
       warnings.push(...secondaryAdaptation.warnings);
       unsupportedReasons.push(...secondaryAdaptation.unsupported);
-    }
-    if (secondaryActions.length > 0 && secondaryPacket?.packetIndex !== undefined) {
-      skippedPacketIndexes.add(secondaryPacket.packetIndex);
-    }
+      if (secondaryPacket.packetIndex !== undefined) {
+        skippedPacketIndexes.add(secondaryPacket.packetIndex);
+      }
+      return secondaryAdaptation.actions.map((action) => ({
+        ...action,
+        name: `${power.name} (${action.kind})`,
+      }));
+    });
 
     actions.push({
       id: `${power.id ?? power.name}:${packet.packetIndex ?? actions.length}`,
       sourcePowerId: power.id ?? power.name,
       sourceType: "power",
-      name: packets.length > 1 ? `${power.name} (${packet.intention})` : power.name,
+      name: power.name,
       kind,
       targetPolicy:
         isAoe && (kind === "buff" || kind === "defence")
@@ -315,6 +314,7 @@ export function adaptPowerToCombatActions(power: Power): {
         ...(power.descriptorChassis === "FIELD" ? ["Field positioning abstracted using 60% potential target capacity."] : []),
         ...(kind === "movement" ? ["Movement position not simulated; forced movement tracked as control metric."] : []),
         ...(power.counterMode === "YES" ? ["Counter economy uses Responses and is limited to one reaction per incoming action."] : []),
+        ...(secondaryActions.length > 0 ? [`Linked ${secondaryActions.length} secondary packet(s) resolved under this power action.`] : []),
       ],
       cooldownRounds: Math.max(0, asInt(power.cooldownTurns, 0) - asInt(power.cooldownReduction, 0)),
       source: { power, packet },
@@ -609,6 +609,8 @@ export function createFixtureActor(params: {
       warnings: [],
       unsupportedEquipment: [],
       unsupportedTraits: [],
+      ignoredTraits: [],
+      unsupportedCombatTraits: [],
       fallbackActions: actions.filter((action) => action.sourceType === "fallback").map((action) => action.name),
     },
     defeated: false,

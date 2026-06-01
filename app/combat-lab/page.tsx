@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type CampaignOption = { id: string; name: string };
+type CombatTurnOrder = "playersFirst" | "monstersFirst" | "alternatingByRound" | "randomSeeded";
 type CombatantOption = {
   id: string;
   name: string;
@@ -16,6 +17,8 @@ type RosterPayload = {
   characters: CombatantOption[];
   monsters: CombatantOption[];
 };
+
+const MONSTER_LEVEL_FILTER_OPTIONS = Array.from({ length: 20 }, (_, index) => index + 1);
 type RunPayload = {
   campaign: { id: string; name: string };
   selectedCharacters: Array<{
@@ -60,6 +63,8 @@ type RunPayload = {
       unsupportedPowerCount: number;
       unsupportedEquipmentCount: number;
       unsupportedTraitCount: number;
+      ignoredTraitCount: number;
+      unsupportedCombatTraitCount: number;
       hydrationWarnings: string[];
       actors: Array<{
         id: string;
@@ -71,9 +76,48 @@ type RunPayload = {
         unsupportedPowers: Array<{ powerName: string; reason: string }>;
         unsupportedEquipment: string[];
         unsupportedTraits: string[];
+        ignoredTraits: string[];
+        unsupportedCombatTraits: string[];
         warnings: string[];
       }>;
     };
+    actorContributions: Array<{
+      actorId: string;
+      actorName: string;
+      side: "players" | "monsters";
+      role: string;
+      actionsUsed: number;
+      damage: number;
+      healing: number;
+      mitigation: number;
+      counterUses: number;
+      counterDamage: number;
+      counterMitigation: number;
+      buffApplications: number;
+      debuffApplications: number;
+      controlTurnsApplied: number;
+      actionsDenied: number;
+      ongoingDamageApplied: number;
+      topActionName: string | null;
+      actionContributions: Array<{
+        actionId: string;
+        actionName: string;
+        kind: string;
+        uses: number;
+        damage: number;
+        healing: number;
+        mitigation: number;
+        counterUses: number;
+        counterDamage: number;
+        counterMitigation: number;
+        buffApplications: number;
+        debuffApplications: number;
+        controlTurnsApplied: number;
+        actionsDenied: number;
+        ongoingDamageApplied: number;
+        linkedActionCount: number;
+      }>;
+    }>;
     verdict: string;
   };
 };
@@ -88,6 +132,13 @@ type ActionSummary = {
   rangeCategory?: "MELEE" | "RANGED" | "AOE" | null;
   abstractionNotes?: string[];
   secondaryActionCount?: number;
+  secondaryActions?: Array<{
+    id: string;
+    name: string;
+    kind?: string;
+    targetCount?: number;
+    rangeCategory?: "MELEE" | "RANGED" | "AOE" | null;
+  }>;
   unsupportedReasons?: string[];
 };
 
@@ -101,6 +152,12 @@ function num(value: number): string {
 
 function toggleSelection(current: string[], id: string): string[] {
   return current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id];
+}
+
+function toggleNumberSelection(current: number[], value: number): number[] {
+  return current.includes(value)
+    ? current.filter((entry) => entry !== value)
+    : [...current, value].sort((a, b) => a - b);
 }
 
 function actionLabel(action: ActionSummary): string {
@@ -125,7 +182,10 @@ export default function CombatLabPage() {
   const [roster, setRoster] = useState<RosterPayload | null>(null);
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
   const [selectedMonsterIds, setSelectedMonsterIds] = useState<string[]>([]);
+  const [selectedMonsterLevels, setSelectedMonsterLevels] = useState<number[]>([]);
+  const [monsterLevelFilterOpen, setMonsterLevelFilterOpen] = useState(false);
   const [runs, setRuns] = useState(50);
+  const [turnOrder, setTurnOrder] = useState<CombatTurnOrder>("alternatingByRound");
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,6 +215,8 @@ export default function CombatLabPage() {
     setResult(null);
     setSelectedCharacterIds([]);
     setSelectedMonsterIds([]);
+    setSelectedMonsterLevels([]);
+    setMonsterLevelFilterOpen(false);
     try {
       const res = await fetch(`/api/combat-lab/campaign/${encodeURIComponent(id)}`, {
         cache: "no-store",
@@ -183,6 +245,7 @@ export default function CombatLabPage() {
           characterIds: selectedCharacterIds,
           monsterIds: selectedMonsterIds,
           runs,
+          turnOrder,
         }),
       });
       const data = await readJson<RunPayload>(res);
@@ -208,6 +271,19 @@ export default function CombatLabPage() {
     [campaignId, running, selectedCharacterIds.length, selectedMonsterIds.length],
   );
 
+  const filteredMonsters = useMemo(() => {
+    const monsters = roster?.monsters ?? [];
+    if (selectedMonsterLevels.length === 0) return monsters;
+    const allowedLevels = new Set(selectedMonsterLevels);
+    return monsters.filter((monster) => allowedLevels.has(monster.level));
+  }, [roster?.monsters, selectedMonsterLevels]);
+
+  useEffect(() => {
+    if (!roster || selectedMonsterLevels.length === 0) return;
+    const visibleMonsterIds = new Set(filteredMonsters.map((monster) => monster.id));
+    setSelectedMonsterIds((current) => current.filter((id) => visibleMonsterIds.has(id)));
+  }, [filteredMonsters, roster, selectedMonsterLevels.length]);
+
   return (
     <main className="min-h-screen bg-zinc-950 p-4 text-zinc-100">
       <div className="mx-auto max-w-6xl space-y-4">
@@ -224,7 +300,7 @@ export default function CombatLabPage() {
         ) : null}
 
         <section className="rounded border border-zinc-800 bg-zinc-900/40 p-4">
-          <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
             <label className="space-y-1">
               <span className="text-xs text-zinc-400">Campaign</span>
               <select
@@ -251,6 +327,19 @@ export default function CombatLabPage() {
                 onChange={(event) => setRuns(Math.max(1, Math.min(500, Number(event.target.value) || 1)))}
                 className="w-32 rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
               />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs text-zinc-400">Turn order</span>
+              <select
+                value={turnOrder}
+                onChange={(event) => setTurnOrder(event.target.value as CombatTurnOrder)}
+                className="w-48 rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
+              >
+                <option value="alternatingByRound">Alternating by Round</option>
+                <option value="playersFirst">Players First</option>
+                <option value="monstersFirst">Monsters First</option>
+                <option value="randomSeeded">Seeded Random Side</option>
+              </select>
             </label>
             <button
               type="button"
@@ -290,12 +379,86 @@ export default function CombatLabPage() {
           </section>
 
           <section className="rounded border border-zinc-800 bg-zinc-900/30 p-4">
-            <h2 className="mb-3 text-lg font-semibold">Monster Side: Campaign Monsters</h2>
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-semibold">Monster Side: Campaign Monsters</h2>
+                <p className="text-xs text-zinc-500">
+                  Showing {filteredMonsters.length} of {roster?.monsters.length ?? 0}
+                </p>
+              </div>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMonsterLevelFilterOpen((current) => !current)}
+                  className={[
+                    "rounded border px-3 py-2 text-sm",
+                    monsterLevelFilterOpen || selectedMonsterLevels.length > 0
+                      ? "border-emerald-600 bg-emerald-950/20 text-emerald-100"
+                      : "border-zinc-700 hover:bg-zinc-800",
+                  ].join(" ")}
+                >
+                  Level Filter{selectedMonsterLevels.length > 0 ? ` (${selectedMonsterLevels.length})` : ""}
+                </button>
+
+                {monsterLevelFilterOpen ? (
+                  <div className="absolute right-0 z-40 mt-1 w-72 max-w-[90vw] space-y-3 rounded border border-zinc-800 bg-zinc-950/95 p-3 shadow-lg">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs uppercase tracking-wide text-zinc-500">Monster Level</p>
+                      {selectedMonsterLevels.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedMonsterLevels([])}
+                          className="text-xs text-zinc-400 hover:text-zinc-100"
+                        >
+                          Clear
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMonsterLevels([])}
+                        className={[
+                          "rounded border px-2 py-1 text-xs",
+                          selectedMonsterLevels.length === 0
+                            ? "border-emerald-600 bg-emerald-950/20 text-emerald-100"
+                            : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800",
+                        ].join(" ")}
+                      >
+                        All
+                      </button>
+                      {MONSTER_LEVEL_FILTER_OPTIONS.map((level) => {
+                        const selected = selectedMonsterLevels.includes(level);
+                        return (
+                          <button
+                            key={level}
+                            type="button"
+                            onClick={() =>
+                              setSelectedMonsterLevels((current) => toggleNumberSelection(current, level))
+                            }
+                            className={[
+                              "rounded border px-2 py-1 text-xs",
+                              selected
+                                ? "border-emerald-600 bg-emerald-950/20 text-emerald-100"
+                                : "border-zinc-700 bg-zinc-900 hover:bg-zinc-800",
+                            ].join(" ")}
+                          >
+                            {level}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
             {!roster || roster.monsters.length === 0 ? (
               <p className="text-sm text-zinc-500">No campaign monsters loaded.</p>
+            ) : filteredMonsters.length === 0 ? (
+              <p className="text-sm text-zinc-500">No campaign monsters match the selected level filter.</p>
             ) : (
               <div className="space-y-2">
-                {roster.monsters.map((monster) => (
+                {filteredMonsters.map((monster) => (
                   <label key={monster.id} className="flex gap-3 rounded border border-zinc-800 bg-zinc-950 p-3">
                     <input
                       type="checkbox"
@@ -371,10 +534,10 @@ export default function CombatLabPage() {
                 <div className="text-xl font-semibold">{result.report.hydrationIntegrity.unsupportedActionCount}</div>
               </div>
               <div className="rounded border border-zinc-800 bg-zinc-950 p-3">
-                <div className="text-xs text-zinc-500">Unsupported Equipment / Traits</div>
+                <div className="text-xs text-zinc-500">Unsupported Equipment / Combat Traits</div>
                 <div className="text-sm font-semibold">
                   {result.report.hydrationIntegrity.unsupportedEquipmentCount} /{" "}
-                  {result.report.hydrationIntegrity.unsupportedTraitCount}
+                  {result.report.hydrationIntegrity.unsupportedCombatTraitCount}
                 </div>
               </div>
             </div>
@@ -389,7 +552,18 @@ export default function CombatLabPage() {
                     </div>
                     <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-zinc-400">
                       {character.actions.map((action) => (
-                        <li key={action.id}>{actionLabel(action)}</li>
+                        <li key={action.id}>
+                          {actionLabel(action)}
+                          {action.secondaryActions && action.secondaryActions.length > 0 ? (
+                            <ul className="mt-1 list-disc pl-5">
+                              {action.secondaryActions.map((secondaryAction) => (
+                                <li key={secondaryAction.id}>
+                                  linked: {secondaryAction.name} ({secondaryAction.kind})
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </li>
                       ))}
                     </ul>
                   </div>
@@ -404,7 +578,18 @@ export default function CombatLabPage() {
                     </div>
                     <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-zinc-400">
                       {monster.actions.map((action) => (
-                        <li key={action.id}>{actionLabel(action)}</li>
+                        <li key={action.id}>
+                          {actionLabel(action)}
+                          {action.secondaryActions && action.secondaryActions.length > 0 ? (
+                            <ul className="mt-1 list-disc pl-5">
+                              {action.secondaryActions.map((secondaryAction) => (
+                                <li key={secondaryAction.id}>
+                                  linked: {secondaryAction.name} ({secondaryAction.kind})
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </li>
                       ))}
                     </ul>
                   </div>
@@ -435,12 +620,16 @@ export default function CombatLabPage() {
                   ["Control turns", result.report.averageMechanics.controlTurnsApplied],
                   ["Actions denied", result.report.averageMechanics.actionsDenied],
                   ["Forced movement", result.report.averageMechanics.forcedMovementApplied],
+                  ["Dodge chosen", result.report.averageMechanics.dodgeChosen],
                   ["Dodge rolls", result.report.averageMechanics.dodgeRolls],
                   ["Dodge degradation", result.report.averageMechanics.dodgeDegradationApplied],
+                  ["Physical defence chosen", result.report.averageMechanics.physicalDefenceChosen],
                   ["Physical defence rolls", result.report.averageMechanics.physicalDefenceRolls],
                   ["Physical defence degradation", result.report.averageMechanics.physicalDefenceDegradationApplied],
+                  ["Mental defence chosen", result.report.averageMechanics.mentalDefenceChosen],
                   ["Mental defence rolls", result.report.averageMechanics.mentalDefenceRolls],
                   ["Mental defence degradation", result.report.averageMechanics.mentalDefenceDegradationApplied],
+                  ["Defence choice EV", result.report.averageMechanics.defenceChoiceExpectedValue],
                   ["Defence string blocked", result.report.averageMechanics.defenceStringBlocked],
                   ["Static protection prevented", result.report.averageMechanics.staticProtectionPrevented],
                   ["Resist rolls", result.report.averageMechanics.resistRolls],
@@ -457,6 +646,7 @@ export default function CombatLabPage() {
                   ["Ongoing damage ticks", result.report.averageMechanics.ongoingDamageTicks],
                   ["Ongoing cleansed", result.report.averageMechanics.ongoingDamagePreventedOrCleansed],
                   ["Counter uses", result.report.averageMechanics.counterUses],
+                  ["Counter chosen", result.report.averageMechanics.counterChosen],
                   ["Counter damage", result.report.averageMechanics.counterDamage],
                   ["Counter mitigation", result.report.averageMechanics.counterMitigation],
                   ["Responses used", result.report.averageMechanics.responsesUsed],
@@ -478,11 +668,43 @@ export default function CombatLabPage() {
               </div>
             </div>
 
+            <div className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">
+              <h3 className="mb-2 font-semibold">Actor Contributions</h3>
+              {result.report.actorContributions.length === 0 ? (
+                <p className="text-zinc-500">No actor contribution metrics were recorded.</p>
+              ) : (
+                <div className="space-y-3">
+                  {result.report.actorContributions.map((actor) => (
+                    <div key={actor.actorId} className="rounded border border-zinc-800 p-2">
+                      <div className="font-semibold">
+                        {actor.actorName} ({actor.side}) {actor.topActionName ? `| top: ${actor.topActionName}` : ""}
+                      </div>
+                      <p className="text-xs text-zinc-400">
+                        actions {num(actor.actionsUsed)}, damage {num(actor.damage)}, healing {num(actor.healing)},
+                        mitigation {num(actor.mitigation)}, counters {num(actor.counterUses)}, control{" "}
+                        {num(actor.controlTurnsApplied)}, ongoing {num(actor.ongoingDamageApplied)}
+                      </p>
+                      <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-zinc-400">
+                        {actor.actionContributions.slice(0, 4).map((action) => (
+                          <li key={action.actionId}>
+                            {action.actionName}: uses {num(action.uses)}, damage {num(action.damage)}, healing{" "}
+                            {num(action.healing)}, mitigation {num(action.mitigation)}
+                            {action.linkedActionCount > 0 ? `, linked ${action.linkedActionCount}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="rounded border border-amber-800 bg-amber-950/20 p-3 text-sm text-amber-100">
-              <h3 className="mb-2 font-semibold">Unsupported / Fallbacks</h3>
+              <h3 className="mb-2 font-semibold">Unsupported / Fallbacks / Ignored Traits</h3>
               {result.hydrationWarnings.length === 0 &&
               result.report.unsupported.unsupportedPowerCount === 0 &&
-              result.report.hydrationIntegrity.fallbackActionCount === 0 ? (
+              result.report.hydrationIntegrity.fallbackActionCount === 0 &&
+              result.report.hydrationIntegrity.ignoredTraitCount === 0 ? (
                 <p>No unsupported campaign fields or powers were reported.</p>
               ) : (
                 <div className="space-y-2">
@@ -490,6 +712,12 @@ export default function CombatLabPage() {
                     <p>
                       Fallback actions used: {result.report.hydrationIntegrity.fallbackActionCount}. Treat this
                       simulation as provisional for those actors.
+                    </p>
+                  ) : null}
+                  {result.report.hydrationIntegrity.ignoredTraitCount > 0 ? (
+                    <p>
+                      Ignored traits/characteristics: {result.report.hydrationIntegrity.ignoredTraitCount}. These are
+                      informational and do not affect the verdict unless marked as unsupported combat traits.
                     </p>
                   ) : null}
                   {result.hydrationWarnings.map((warning, index) => (
