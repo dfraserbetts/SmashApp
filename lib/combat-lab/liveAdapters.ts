@@ -150,6 +150,8 @@ type MonsterRow = {
   braveryModifier?: number;
   weaponSkillValue?: number;
   weaponSkillModifier?: number;
+  armorSkillValue?: number;
+  armorSkillModifier?: number;
   powers: MonsterPowerRow[];
   naturalAttack?: { attackName: string; attackConfig: unknown } | null;
   attacks?: MonsterAttackRow[];
@@ -528,9 +530,14 @@ export function adaptCampaignCharacterToCombatActor(
       physicalHpMax: derived.physicalHealth,
       mentalHpCurrent: derived.mentalHealth,
       mentalHpMax: derived.mentalHealth,
-      physicalProtection: derived.physicalProtection,
-      mentalProtection: derived.mentalProtection,
+      physicalProtection: 0,
+      mentalProtection: 0,
       dodgeValue: derived.dodgeValue,
+      dodgeDice: derived.dodgeDice,
+      physicalDefenceDice: derived.armorSkill,
+      physicalDefenceBlock: derived.physicalBlockPerSuccess,
+      mentalDefenceDice: derived.willpower,
+      mentalDefenceBlock: derived.mentalBlockPerSuccess,
       attributes: { Attack: attack, Guard: guard, Fortitude: fortitude, Intellect: intellect, Synergy: synergy, Bravery: bravery },
       attributeDice,
       resist: {
@@ -679,6 +686,17 @@ export function adaptMonsterToCombatLabActor(
   const synergy = getAttributeNumericValue(row.synergyDie) + asNumber(row.synergyModifier);
   const bravery = getAttributeNumericValue(row.braveryDie) + asNumber(row.braveryModifier);
   const actions = [...naturalAttackActions, ...equippedWeaponActions, ...fallbackActions, ...powerActions];
+  const dodgeValue = Math.max(0, Math.ceil((guard + intellect) / 2));
+  const armorSkill = Math.max(1, Math.trunc(asNumber(row.armorSkillValue, guard) + asNumber(row.armorSkillModifier)));
+  const mentalDefenceDice = Math.max(1, Math.ceil(bravery / 3));
+  warnings.push(
+    makeWarning(
+      row.id,
+      row.name,
+      "defenceStrings",
+      "Monster mental defence dice are approximated from Bravery until a dedicated Willpower value is stored for monsters.",
+    ),
+  );
 
   return {
     actor: {
@@ -692,9 +710,14 @@ export function adaptMonsterToCombatLabActor(
       physicalHpMax: row.physicalResilienceMax,
       mentalHpCurrent: row.mentalPerseveranceMax,
       mentalHpMax: row.mentalPerseveranceMax,
-      physicalProtection: row.physicalProtection,
-      mentalProtection: row.mentalProtection,
-      dodgeValue: Math.max(0, Math.ceil((guard + intellect) / 2)),
+      physicalProtection: 0,
+      mentalProtection: 0,
+      dodgeValue,
+      dodgeDice: Math.max(1, Math.ceil(dodgeValue / 6)),
+      physicalDefenceDice: armorSkill,
+      physicalDefenceBlock: Math.max(0, row.physicalProtection),
+      mentalDefenceDice,
+      mentalDefenceBlock: Math.max(0, row.mentalProtection),
       attributes: { Attack: attack, Guard: guard, Fortitude: fortitude, Intellect: intellect, Synergy: synergy, Bravery: bravery },
       attributeDice: {
         Attack: row.attackDie,

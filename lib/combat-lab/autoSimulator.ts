@@ -3,8 +3,11 @@ import {
   collectUnsupportedSummary,
   createCombatState,
   createEmptyMetrics,
-  decrementRoundEffects,
   getLivingActors,
+  refreshActorResponses,
+  resetRoundDefenceDegradation,
+  tickActorCooldowns,
+  tickTargetTurnEffects,
 } from "./combatState";
 import { createSeededRng } from "./dice";
 import {
@@ -14,6 +17,7 @@ import {
 import { chooseAction, chooseTarget } from "./targetingPolicies";
 import type {
   CombatAggregateMetrics,
+  CombatActor,
   CombatRunResult,
   CombatScenario,
   CombatSide,
@@ -51,7 +55,19 @@ function addResolutionToAggregate(
   metrics.healingDone[side] += resolution.healingDone;
   metrics.protectionPrevented[side] += resolution.protectionPrevented;
   metrics.woundsAvoidedByDodge[side] += resolution.woundsAvoidedByDodge;
+  metrics.dodgeRolls[side] += resolution.dodgeRolls;
+  metrics.dodgeDegradationApplied[side] += resolution.dodgeDegradationApplied;
+  metrics.physicalDefenceRolls[side] += resolution.physicalDefenceRolls;
+  metrics.physicalDefenceDegradationApplied[side] += resolution.physicalDefenceDegradationApplied;
+  metrics.mentalDefenceRolls[side] += resolution.mentalDefenceRolls;
+  metrics.mentalDefenceDegradationApplied[side] += resolution.mentalDefenceDegradationApplied;
+  metrics.degradedDefenceRolls[side] += resolution.degradedDefenceRolls;
+  metrics.defenceStringBlocked[side] += resolution.defenceStringBlocked;
+  metrics.staticProtectionPrevented[side] += resolution.staticProtectionPrevented;
   metrics.resistCancelled[side] += resolution.resistCancelled;
+  metrics.resistRolls[side] += resolution.resistRolls;
+  metrics.resistSuccesses[side] += resolution.resistSuccesses;
+  metrics.hostileSuccessesCancelledByResist[side] += resolution.hostileSuccessesCancelledByResist;
   metrics.overkill[side] += resolution.overkill;
   metrics.wastedActions[side] += resolution.wastedActions;
   metrics.controlTurnsApplied[side] += resolution.controlTurnsApplied;
@@ -64,11 +80,22 @@ function addResolutionToAggregate(
   metrics.debuffUptime[side] += resolution.debuffUptime;
   metrics.debuffedActions[side] += resolution.debuffedActions;
   metrics.healingOverTimeApplied[side] += resolution.healingOverTimeApplied;
+  metrics.healingTicks[side] += resolution.healingTicks;
   metrics.ongoingDamageApplied[side] += resolution.ongoingDamageApplied;
+  metrics.ongoingDamageUnitsApplied[side] += resolution.ongoingDamageUnitsApplied;
+  metrics.ongoingDamageTicks[side] += resolution.ongoingDamageTicks;
+  metrics.ongoingDamagePreventedOrCleansed[side] += resolution.ongoingDamagePreventedOrCleansed;
   metrics.counterUses[side] += resolution.counterUses;
   metrics.counterDamage[side] += resolution.counterDamage;
   metrics.counterMitigation[side] += resolution.counterMitigation;
+  metrics.responsesUsed[side] += resolution.responsesUsed;
+  metrics.responsesWastedOrUnavailable[side] += resolution.responsesWastedOrUnavailable;
   metrics.passiveDefenceContribution[side] += resolution.passiveDefenceContribution;
+  metrics.stacksApplied[side] += resolution.stacksApplied;
+  metrics.stacksExpired[side] += resolution.stacksExpired;
+  metrics.stacksCleansed[side] += resolution.stacksCleansed;
+  metrics.aoePotentialTargets[side] += resolution.aoePotentialTargets;
+  metrics.aoeActualTargets[side] += resolution.aoeActualTargets;
   metrics.positionalAbstractionsUsed[side] += resolution.positionalAbstractionsUsed;
 }
 
@@ -92,6 +119,18 @@ function addStatusUptimeMetrics(metrics: CombatAggregateMetrics, state: ReturnTy
   }
 }
 
+function roundTurnOrder(state: ReturnType<typeof createCombatState>) {
+  const players = getLivingActors(state, "players");
+  const monsters = getLivingActors(state, "monsters");
+  const order: CombatActor[] = [];
+  const max = Math.max(players.length, monsters.length);
+  for (let index = 0; index < max; index += 1) {
+    if (players[index]) order.push(players[index]);
+    if (monsters[index]) order.push(monsters[index]);
+  }
+  return order;
+}
+
 export function runCombatScenario(scenario: CombatScenario, runIndex = 0): CombatRunResult {
   const rng = createSeededRng(scenario.seed + runIndex * 9973);
   const maxRounds = scenario.maxRounds ?? 20;
@@ -105,9 +144,10 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
     const damageAtRoundStart = metrics.damageDealt.players + metrics.damageDealt.monsters;
     metrics.activeEnemiesByRound.push(getLivingActors(state, "monsters").length);
 
-    for (const actor of [...state.actors]) {
+    for (const actor of roundTurnOrder(state)) {
       const currentActor = state.actors.find((candidate) => candidate.id === actor.id);
       if (!currentActor || currentActor.defeated) continue;
+      refreshActorResponses(state, currentActor.id);
       const startTurnResolution = resolveStartOfTurnEffects(state, currentActor);
       addResolutionToAggregate(metrics, currentActor.side, startTurnResolution);
       if (startTurnResolution.actionsDenied > 0 || currentActor.defeated) {
@@ -122,6 +162,9 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
             metrics: startTurnResolution,
           });
         }
+        tickActorCooldowns(state, currentActor.id);
+        const expired = tickTargetTurnEffects(state, currentActor.id);
+        if (expired > 0) metrics.stacksExpired[currentActor.side] += expired;
         continue;
       }
 
@@ -153,6 +196,9 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
           break;
         }
       }
+      tickActorCooldowns(state, currentActor.id);
+      const expired = tickTargetTurnEffects(state, currentActor.id);
+      if (expired > 0) metrics.stacksExpired[currentActor.side] += expired;
       if (stoppedBy !== "maxRounds") break;
     }
 
@@ -164,7 +210,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
       break;
     }
     addStatusUptimeMetrics(metrics, state);
-    decrementRoundEffects(state);
+    resetRoundDefenceDegradation(state);
   }
 
   const livingPlayers = getLivingActors(state, "players");

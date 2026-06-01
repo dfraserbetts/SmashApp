@@ -435,16 +435,38 @@ export default function CombatLabPage() {
                   ["Control turns", result.report.averageMechanics.controlTurnsApplied],
                   ["Actions denied", result.report.averageMechanics.actionsDenied],
                   ["Forced movement", result.report.averageMechanics.forcedMovementApplied],
+                  ["Dodge rolls", result.report.averageMechanics.dodgeRolls],
+                  ["Dodge degradation", result.report.averageMechanics.dodgeDegradationApplied],
+                  ["Physical defence rolls", result.report.averageMechanics.physicalDefenceRolls],
+                  ["Physical defence degradation", result.report.averageMechanics.physicalDefenceDegradationApplied],
+                  ["Mental defence rolls", result.report.averageMechanics.mentalDefenceRolls],
+                  ["Mental defence degradation", result.report.averageMechanics.mentalDefenceDegradationApplied],
+                  ["Defence string blocked", result.report.averageMechanics.defenceStringBlocked],
+                  ["Static protection prevented", result.report.averageMechanics.staticProtectionPrevented],
+                  ["Resist rolls", result.report.averageMechanics.resistRolls],
+                  ["Resist successes", result.report.averageMechanics.resistSuccesses],
+                  ["Resist cancelled successes", result.report.averageMechanics.hostileSuccessesCancelledByResist],
                   ["Buff applications", result.report.averageMechanics.buffApplications],
                   ["Buffed actions", result.report.averageMechanics.buffedActions],
                   ["Debuff applications", result.report.averageMechanics.debuffApplications],
                   ["Debuffed actions", result.report.averageMechanics.debuffedActions],
                   ["Healing over time", result.report.averageMechanics.healingOverTimeApplied],
+                  ["Healing ticks", result.report.averageMechanics.healingTicks],
                   ["Ongoing damage", result.report.averageMechanics.ongoingDamageApplied],
+                  ["Ongoing damage units", result.report.averageMechanics.ongoingDamageUnitsApplied],
+                  ["Ongoing damage ticks", result.report.averageMechanics.ongoingDamageTicks],
+                  ["Ongoing cleansed", result.report.averageMechanics.ongoingDamagePreventedOrCleansed],
                   ["Counter uses", result.report.averageMechanics.counterUses],
                   ["Counter damage", result.report.averageMechanics.counterDamage],
                   ["Counter mitigation", result.report.averageMechanics.counterMitigation],
+                  ["Responses used", result.report.averageMechanics.responsesUsed],
+                  ["Responses unavailable", result.report.averageMechanics.responsesWastedOrUnavailable],
                   ["Passive defence", result.report.averageMechanics.passiveDefenceContribution],
+                  ["Stacks applied", result.report.averageMechanics.stacksApplied],
+                  ["Stacks expired", result.report.averageMechanics.stacksExpired],
+                  ["Stacks cleansed", result.report.averageMechanics.stacksCleansed],
+                  ["AOE potential targets", result.report.averageMechanics.aoePotentialTargets],
+                  ["AOE actual targets", result.report.averageMechanics.aoeActualTargets],
                   ["Position abstractions", result.report.averageMechanics.positionalAbstractionsUsed],
                 ].map(([label, values]) => (
                   <p key={label as string}>
@@ -470,8 +492,8 @@ export default function CombatLabPage() {
                       simulation as provisional for those actors.
                     </p>
                   ) : null}
-                  {result.hydrationWarnings.map((warning) => (
-                    <p key={`${warning.actorId}-${warning.field}`}>
+                  {result.hydrationWarnings.map((warning, index) => (
+                    <p key={`${warning.actorId}-${warning.field}-${warning.message}-${index}`}>
                       {warning.actorName}: {warning.message}
                     </p>
                   ))}

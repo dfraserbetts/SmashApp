@@ -99,6 +99,11 @@ export type CombatActor = {
   physicalProtection: number;
   mentalProtection: number;
   dodgeValue: number;
+  dodgeDice?: number;
+  physicalDefenceDice?: number;
+  physicalDefenceBlock?: number;
+  mentalDefenceDice?: number;
+  mentalDefenceBlock?: number;
   attributes: Record<CombatAttributeName, number>;
   attributeDice: Record<CombatAttributeName, CombatDieSize>;
   resist: Partial<Record<CoreAttribute, number>>;
@@ -128,6 +133,15 @@ export type CombatState = {
   cooldowns: Record<string, number>;
   counterUses: Record<string, number>;
   statusEffects: CombatStatusEffect[];
+  responsesRemaining: Record<string, number>;
+  defenceDegradation: Record<
+    string,
+    {
+      dodge: number;
+      physical: number;
+      mental: number;
+    }
+  >;
   log: CombatLogEntry[];
 };
 
@@ -147,9 +161,23 @@ export type CombatResolutionMetrics = {
   rawSuccesses: number;
   rawWounds: number;
   dodgeSuccesses: number;
+  dodgeRolls: number;
+  dodgeDegradationApplied: number;
   woundsAvoidedByDodge: number;
+  physicalDefenceRolls: number;
+  physicalDefenceDegradationApplied: number;
+  mentalDefenceRolls: number;
+  mentalDefenceDegradationApplied: number;
+  degradedDefenceRolls: number;
+  defenceStringBlocked: number;
+  staticProtectionPrevented: number;
   protectionPrevented: number;
   resistCancelled: number;
+  resistRolls: number;
+  resistSuccesses: number;
+  hostileSuccessesBeforeResist: number;
+  hostileSuccessesAfterResist: number;
+  hostileSuccessesCancelledByResist: number;
   netWounds: number;
   healingDone: number;
   mitigationApplied: number;
@@ -166,11 +194,22 @@ export type CombatResolutionMetrics = {
   debuffUptime: number;
   debuffedActions: number;
   healingOverTimeApplied: number;
+  healingTicks: number;
   ongoingDamageApplied: number;
+  ongoingDamageUnitsApplied: number;
+  ongoingDamageTicks: number;
+  ongoingDamagePreventedOrCleansed: number;
   counterUses: number;
   counterDamage: number;
   counterMitigation: number;
+  responsesUsed: number;
+  responsesWastedOrUnavailable: number;
   passiveDefenceContribution: number;
+  stacksApplied: number;
+  stacksExpired: number;
+  stacksCleansed: number;
+  aoePotentialTargets: number;
+  aoeActualTargets: number;
   positionalAbstractionsUsed: number;
 };
 
@@ -197,7 +236,19 @@ export type CombatAggregateMetrics = {
   healingDone: Record<CombatSide, number>;
   protectionPrevented: Record<CombatSide, number>;
   woundsAvoidedByDodge: Record<CombatSide, number>;
+  dodgeRolls: Record<CombatSide, number>;
+  dodgeDegradationApplied: Record<CombatSide, number>;
+  physicalDefenceRolls: Record<CombatSide, number>;
+  physicalDefenceDegradationApplied: Record<CombatSide, number>;
+  mentalDefenceRolls: Record<CombatSide, number>;
+  mentalDefenceDegradationApplied: Record<CombatSide, number>;
+  degradedDefenceRolls: Record<CombatSide, number>;
+  defenceStringBlocked: Record<CombatSide, number>;
+  staticProtectionPrevented: Record<CombatSide, number>;
   resistCancelled: Record<CombatSide, number>;
+  resistRolls: Record<CombatSide, number>;
+  resistSuccesses: Record<CombatSide, number>;
+  hostileSuccessesCancelledByResist: Record<CombatSide, number>;
   overkill: Record<CombatSide, number>;
   oneRoundDownEvents: Record<CombatSide, number>;
   actionsUsed: Record<CombatSide, number>;
@@ -224,11 +275,22 @@ export type CombatAggregateMetrics = {
   debuffUptime: Record<CombatSide, number>;
   debuffedActions: Record<CombatSide, number>;
   healingOverTimeApplied: Record<CombatSide, number>;
+  healingTicks: Record<CombatSide, number>;
   ongoingDamageApplied: Record<CombatSide, number>;
+  ongoingDamageUnitsApplied: Record<CombatSide, number>;
+  ongoingDamageTicks: Record<CombatSide, number>;
+  ongoingDamagePreventedOrCleansed: Record<CombatSide, number>;
   counterUses: Record<CombatSide, number>;
   counterDamage: Record<CombatSide, number>;
   counterMitigation: Record<CombatSide, number>;
+  responsesUsed: Record<CombatSide, number>;
+  responsesWastedOrUnavailable: Record<CombatSide, number>;
   passiveDefenceContribution: Record<CombatSide, number>;
+  stacksApplied: Record<CombatSide, number>;
+  stacksExpired: Record<CombatSide, number>;
+  stacksCleansed: Record<CombatSide, number>;
+  aoePotentialTargets: Record<CombatSide, number>;
+  aoeActualTargets: Record<CombatSide, number>;
   positionalAbstractionsUsed: Record<CombatSide, number>;
 };
 
@@ -271,6 +333,17 @@ export type CombatSuiteReport = {
     controlTurnsApplied: Record<CombatSide, number>;
     actionsDenied: Record<CombatSide, number>;
     forcedMovementApplied: Record<CombatSide, number>;
+    dodgeRolls: Record<CombatSide, number>;
+    dodgeDegradationApplied: Record<CombatSide, number>;
+    physicalDefenceRolls: Record<CombatSide, number>;
+    physicalDefenceDegradationApplied: Record<CombatSide, number>;
+    mentalDefenceRolls: Record<CombatSide, number>;
+    mentalDefenceDegradationApplied: Record<CombatSide, number>;
+    defenceStringBlocked: Record<CombatSide, number>;
+    staticProtectionPrevented: Record<CombatSide, number>;
+    resistRolls: Record<CombatSide, number>;
+    resistSuccesses: Record<CombatSide, number>;
+    hostileSuccessesCancelledByResist: Record<CombatSide, number>;
     buffApplications: Record<CombatSide, number>;
     buffUptime: Record<CombatSide, number>;
     buffedActions: Record<CombatSide, number>;
@@ -278,11 +351,22 @@ export type CombatSuiteReport = {
     debuffUptime: Record<CombatSide, number>;
     debuffedActions: Record<CombatSide, number>;
     healingOverTimeApplied: Record<CombatSide, number>;
+    healingTicks: Record<CombatSide, number>;
     ongoingDamageApplied: Record<CombatSide, number>;
+    ongoingDamageUnitsApplied: Record<CombatSide, number>;
+    ongoingDamageTicks: Record<CombatSide, number>;
+    ongoingDamagePreventedOrCleansed: Record<CombatSide, number>;
     counterUses: Record<CombatSide, number>;
     counterDamage: Record<CombatSide, number>;
     counterMitigation: Record<CombatSide, number>;
+    responsesUsed: Record<CombatSide, number>;
+    responsesWastedOrUnavailable: Record<CombatSide, number>;
     passiveDefenceContribution: Record<CombatSide, number>;
+    stacksApplied: Record<CombatSide, number>;
+    stacksExpired: Record<CombatSide, number>;
+    stacksCleansed: Record<CombatSide, number>;
+    aoePotentialTargets: Record<CombatSide, number>;
+    aoeActualTargets: Record<CombatSide, number>;
     positionalAbstractionsUsed: Record<CombatSide, number>;
   };
   roleContribution: CombatAggregateMetrics["roleContribution"];

@@ -1,4 +1,11 @@
 import { buildCombatLabSmokeScenarios } from "../lib/combat-lab/autoSimulator";
+import { resolveCombatAction, resolveStartOfTurnEffects } from "../lib/combat-lab/actionResolver";
+import {
+  createCombatState,
+  refreshActorResponses,
+  tickActorCooldowns,
+} from "../lib/combat-lab/combatState";
+import type { Rng } from "../lib/combat-lab/dice";
 import {
   adaptPowerToCombatActions,
   createFixtureActor,
@@ -6,6 +13,61 @@ import {
   makeFixturePower,
 } from "../lib/combat-lab/powerAdapter";
 import { formatSuiteReport, runScenarioSuite } from "../lib/combat-lab/reporting";
+import type { CombatAction, CombatActor } from "../lib/combat-lab/types";
+
+function rngFrom(values: number[]): Rng {
+  let index = 0;
+  return () => values[index++] ?? values[values.length - 1] ?? 0.99;
+}
+
+function fixtureActor(id: string, side: "players" | "monsters", overrides: Partial<CombatActor> = {}): CombatActor {
+  return {
+    ...createFixtureActor({
+      id,
+      side,
+      name: id,
+      role: "Fixture",
+      physicalHp: 80,
+      mentalHp: 80,
+      physicalProtection: 0,
+      mentalProtection: 0,
+      dodgeValue: 6,
+      dodgeDice: 1,
+      physicalDefenceDice: 1,
+      physicalDefenceBlock: 0,
+      mentalDefenceDice: 1,
+      mentalDefenceBlock: 0,
+      attack: 8,
+      guard: 8,
+      fortitude: 8,
+      intellect: 8,
+      synergy: 8,
+      bravery: 8,
+      powers: [],
+    }),
+    ...overrides,
+  };
+}
+
+function action(overrides: Partial<CombatAction> = {}): CombatAction {
+  return {
+    id: "test-action",
+    name: "Test Action",
+    sourceType: "fallback",
+    kind: "attack",
+    targetPolicy: "enemy",
+    supported: true,
+    unsupportedReasons: [],
+    pool: "physical",
+    rangeCategory: "MELEE",
+    targetCount: 1,
+    accuracyAttribute: "Attack",
+    diceCount: 1,
+    potency: 3,
+    cooldownRounds: 0,
+    ...overrides,
+  };
+}
 
 const scenarios = buildCombatLabSmokeScenarios();
 const reports = scenarios.map(runScenarioSuite);
@@ -177,6 +239,116 @@ const unsupportedReport = runScenarioSuite({
 });
 if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   throw new Error("Unsupported power fixture was not reported in hydration integrity metrics.");
+}
+
+{
+  const attacker = fixtureActor("dodge-attacker", "players");
+  const defender = fixtureActor("dodge-defender", "monsters", { dodgeDice: 2 });
+  const state = createCombatState([attacker], [defender]);
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0.99, 0.99]),
+  });
+  if (resolution.dodgeRolls !== 1 || resolution.woundsAvoidedByDodge !== 8 || resolution.netWounds !== 0) {
+    throw new Error("Dodge did not use Guard dice to fully avoid a matching attack.");
+  }
+}
+
+{
+  const attacker = fixtureActor("degrade-attacker", "players");
+  const defender = fixtureActor("degrade-defender", "monsters", { dodgeDice: 1 });
+  const state = createCombatState([attacker], [defender]);
+  const first = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: action(), rng: rngFrom([0.99, 0]) });
+  const second = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: action(), rng: rngFrom([0.99, 0]) });
+  if (first.dodgeDegradationApplied !== 0 || second.dodgeDegradationApplied !== 1) {
+    throw new Error("Repeated defence rolls did not apply same-round degradation.");
+  }
+}
+
+{
+  const attacker = fixtureActor("resist-attacker", "players");
+  const defender = fixtureActor("resist-defender", "monsters", { resist: { FORTITUDE: 0 } });
+  defender.attributeDice.Fortitude = "D4";
+  const state = createCombatState([attacker], [defender]);
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ kind: "control", diceCount: 3, potency: 1, resistAttribute: "FORTITUDE" }),
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0, 0]),
+  });
+  if (resolution.resistRolls !== 1 || resolution.hostileSuccessesCancelledByResist !== 1 || resolution.controlTurnsApplied !== 1) {
+    throw new Error("Resist did not cancel hostile successes success-by-success.");
+  }
+}
+
+{
+  const state = createCombatState([fixtureActor("cooldown-a", "players")], [fixtureActor("cooldown-b", "monsters")]);
+  state.cooldowns["cooldown-a:power"] = 2;
+  state.cooldowns["cooldown-b:power"] = 2;
+  tickActorCooldowns(state, "cooldown-a");
+  if (state.cooldowns["cooldown-a:power"] !== 1 || state.cooldowns["cooldown-b:power"] !== 2) {
+    throw new Error("Cooldowns ticked for a non-active actor.");
+  }
+}
+
+{
+  const counterOne = action({ id: "counter-one", name: "Counter One", kind: "defence", counterMode: true, targetPolicy: "self", protection: 2 });
+  const counterTwo = action({ id: "counter-two", name: "Counter Two", kind: "defence", counterMode: true, targetPolicy: "self", protection: 2 });
+  const attacker = fixtureActor("response-attacker", "players");
+  const defender = fixtureActor("response-defender", "monsters", { actions: [counterOne, counterTwo] });
+  const state = createCombatState([attacker], [defender]);
+  state.responsesRemaining[state.actors[1].id] = 1;
+  const first = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: action(), rng: rngFrom([0.99, 0, 0.99]) });
+  const second = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: action(), rng: rngFrom([0.99, 0]) });
+  if (first.responsesUsed !== 1 || second.responsesWastedOrUnavailable !== 1) {
+    throw new Error("Counter defences did not consume the Response economy.");
+  }
+}
+
+{
+  const player = fixtureActor("aoe-player", "players");
+  const monsters = Array.from({ length: 4 }, (_, index) => fixtureActor(`aoe-monster-${index}`, "monsters"));
+  const state = createCombatState([player], monsters);
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ rangeCategory: "AOE", targetCount: 4 }),
+    rng: rngFrom([0.99, 0, 0.99, 0]),
+  });
+  if (resolution.aoePotentialTargets !== 4 || resolution.aoeActualTargets !== 2) {
+    throw new Error("AOE target abstraction did not apply 60% target capacity.");
+  }
+}
+
+{
+  const attacker = fixtureActor("ongoing-attacker", "players");
+  const defender = fixtureActor("ongoing-defender", "monsters", { dodgeDice: 1 });
+  const state = createCombatState([attacker], [defender]);
+  const applied = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ recurring: { kind: "ongoingDamage", durationRounds: 2 } }),
+    rng: rngFrom([0.99, 0]),
+  });
+  const ticked = resolveStartOfTurnEffects(state, state.actors[1]);
+  if (applied.ongoingDamageUnitsApplied <= 0 || ticked.ongoingDamageTicks !== 1) {
+    throw new Error("Ongoing damage did not apply as units and tick on target turn.");
+  }
+}
+
+{
+  const healer = fixtureActor("response-refresh", "players");
+  const state = createCombatState([healer], [fixtureActor("refresh-monster", "monsters")]);
+  refreshActorResponses(state, state.actors[0].id);
+  if (state.responsesRemaining[state.actors[0].id] !== 2) {
+    throw new Error("Actor Responses did not refresh to 2 at turn start.");
+  }
 }
 
 console.log(

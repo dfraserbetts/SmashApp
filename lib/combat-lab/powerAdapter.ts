@@ -155,7 +155,7 @@ function rangeCategoryForPower(power: Power): CombatAction["rangeCategory"] {
 
 function targetCountForPower(power: Power): number {
   return power.rangeCategories?.includes("AOE")
-    ? Math.max(1, asInt(power.aoeCount, 1))
+    ? Math.max(1, asInt(power.aoeCount, power.aoeSphereRadiusFeet === 10 ? 4 : 4))
     : power.rangeCategories?.includes("RANGED")
       ? Math.max(1, asInt(power.rangedTargets, 1))
       : Math.max(1, asInt(power.meleeTargets, 1));
@@ -311,10 +311,10 @@ export function adaptPowerToCombatActions(power: Power): {
       passive: kind === "defence" && (packet.effectDurationType ?? "INSTANT") === "PASSIVE" && targetPolicyForAction(kind, packet) === "self",
       counterMode: power.counterMode === "YES",
       abstractionNotes: [
-        ...(isAoe && kind === "buff" ? ["AOE ally buff abstracted to all living allies."] : []),
-        ...(power.descriptorChassis === "FIELD" ? ["Field positioning abstracted: affected all enemy actors."] : []),
+        ...(isAoe ? ["AOE target count abstracted to 60% of potential capacity."] : []),
+        ...(power.descriptorChassis === "FIELD" ? ["Field positioning abstracted using 60% potential target capacity."] : []),
         ...(kind === "movement" ? ["Movement position not simulated; forced movement tracked as control metric."] : []),
-        ...(power.counterMode === "YES" ? ["Counter economy simplified to once per round."] : []),
+        ...(power.counterMode === "YES" ? ["Counter economy uses Responses and is limited to one reaction per incoming action."] : []),
       ],
       cooldownRounds: Math.max(0, asInt(power.cooldownTurns, 0) - asInt(power.cooldownReduction, 0)),
       source: { power, packet },
@@ -556,6 +556,11 @@ export function createFixtureActor(params: {
   actionsPerTurn?: number;
   powers: Power[];
   basicAttack?: { diceCount: number; potency: number; pool?: CombatPool };
+  dodgeDice?: number;
+  physicalDefenceDice?: number;
+  physicalDefenceBlock?: number;
+  mentalDefenceDice?: number;
+  mentalDefenceBlock?: number;
 }): CombatActor {
   const adapted = params.powers.map(adaptPowerToCombatActions);
   const actions = adapted.flatMap((row) => row.actions);
@@ -578,6 +583,11 @@ export function createFixtureActor(params: {
     physicalProtection: params.physicalProtection,
     mentalProtection: params.mentalProtection,
     dodgeValue: params.dodgeValue,
+    dodgeDice: params.dodgeDice ?? Math.max(1, Math.ceil(params.dodgeValue / 6)),
+    physicalDefenceDice: params.physicalDefenceDice ?? Math.max(1, Math.ceil(params.guard / 2)),
+    physicalDefenceBlock: params.physicalDefenceBlock ?? params.physicalProtection,
+    mentalDefenceDice: params.mentalDefenceDice ?? Math.max(1, Math.ceil(params.bravery / 2)),
+    mentalDefenceBlock: params.mentalDefenceBlock ?? params.mentalProtection,
     attributes: {
       Attack: params.attack,
       Guard: params.guard,
