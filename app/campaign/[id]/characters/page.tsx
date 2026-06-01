@@ -46,6 +46,7 @@ type CharactersPayload = {
       canManageCampaign: boolean;
       canManageCampaignCharacters: boolean;
       canUsePlayerCampaignTools: boolean;
+      canDeleteCharacters: boolean;
     };
   };
   characters: CampaignCharacterRow[];
@@ -98,6 +99,7 @@ export default function CampaignCharactersPage() {
   const [deleting, setDeleting] = useState(false);
 
   const canManageCharacters = Boolean(access?.permissions.canManageCampaignCharacters);
+  const canDeleteCharacters = Boolean(access?.permissions.canDeleteCharacters);
 
   const assignedCharacterIds = useMemo(() => {
     const currentUserId = access?.userId;
@@ -500,19 +502,21 @@ export default function CampaignCharactersPage() {
                             >
                               Archive
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setFormErr(null);
-                                setDeleteCharacter(character);
-                                setDeleteConfirmInput("");
-                                setDeleteStep("WARNING");
-                              }}
-                              disabled={saving}
-                              className="ml-2 rounded-lg border border-red-700 px-3 py-2 text-sm text-red-200 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              Delete
-                            </button>
+                            {canDeleteCharacters ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFormErr(null);
+                                  setDeleteCharacter(character);
+                                  setDeleteConfirmInput("");
+                                  setDeleteStep("WARNING");
+                                }}
+                                disabled={saving}
+                                className="ml-2 rounded-lg border border-red-700 px-3 py-2 text-sm text-red-200 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Delete
+                              </button>
+                            ) : null}
                           </td>
                         ) : isAssignedToCurrentUser ? (
                           <td className="py-2 pr-3">
@@ -599,19 +603,21 @@ export default function CampaignCharactersPage() {
                           >
                             Unarchive
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFormErr(null);
-                              setDeleteCharacter(character);
-                              setDeleteConfirmInput("");
-                              setDeleteStep("WARNING");
-                            }}
-                            disabled={saving}
-                            className="rounded-lg border border-red-700 px-3 py-2 text-sm text-red-200 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            Delete
-                          </button>
+                          {canDeleteCharacters ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormErr(null);
+                                setDeleteCharacter(character);
+                                setDeleteConfirmInput("");
+                                setDeleteStep("WARNING");
+                              }}
+                              disabled={saving}
+                              className="rounded-lg border border-red-700 px-3 py-2 text-sm text-red-200 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Delete
+                            </button>
+                          ) : null}
                         </td>
                       </tr>
                     );

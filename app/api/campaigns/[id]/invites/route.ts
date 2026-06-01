@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { findUserProfileByEmail, normalizeEmail } from "@/lib/auth/profile";
 import { requireUserId } from "@/lib/auth/server";
 import { requireCampaignGameDirector } from "@/lib/campaign/access";
-import { getAppBaseUrl, sendEmail } from "@/lib/email/sendEmail";
+import { getAppBaseUrl, sendEmail, type EmailDeliveryResult } from "@/lib/email/sendEmail";
 import { prisma } from "@/prisma/client";
 
 type InviteBody = {
@@ -44,6 +44,35 @@ function toInvitePayload(invite: {
     createdAt: invite.createdAt.toISOString(),
     emailSentAt: invite.emailSentAt?.toISOString() ?? null,
   };
+}
+
+function inviteDeliveryMessage(args: { alreadyPending: boolean; emailDelivery: EmailDeliveryResult }) {
+  const prefix = args.alreadyPending ? "Invite is already pending." : "Invite created.";
+  if (args.emailDelivery.status === "sent") return `${prefix} Email sent.`;
+  if (args.emailDelivery.status === "logged") {
+    return args.alreadyPending
+      ? `${prefix} Email logged again (dev only; no email sent).`
+      : `${prefix} Email logged (dev only; no email sent).`;
+  }
+  if (args.emailDelivery.status === "failed") return `${prefix} Email delivery failed.`;
+  return `${prefix} Email delivery skipped.`;
+}
+
+async function sendCampaignInviteEmail(args: {
+  inviteId: string;
+  to: string;
+  campaignName: string;
+}) {
+  const inviteUrl = `${getAppBaseUrl()}/campaign-invites/${encodeURIComponent(args.inviteId)}`;
+  return sendEmail({
+    to: args.to,
+    subject: `You have been invited to ${args.campaignName}`,
+    text: [
+      `You have been invited to ${args.campaignName}.`,
+      "",
+      `Open your campaign invite: ${inviteUrl}`,
+    ].join("\n"),
+  });
 }
 
 export async function POST(
@@ -136,10 +165,39 @@ export async function POST(
       },
     });
     if (existingInvite) {
+      const emailDelivery = await sendCampaignInviteEmail({
+        inviteId: existingInvite.id,
+        to: existingInvite.invitedEmail,
+        campaignName: campaign.name,
+      });
+      const updatedInvite = await prisma.campaignInvite.update({
+        where: { id: existingInvite.id },
+        data: {
+          emailDeliveryStatus: emailDelivery.status,
+          emailSentAt:
+            emailDelivery.status === "sent" || emailDelivery.status === "logged"
+              ? new Date()
+              : null,
+        },
+        select: {
+          id: true,
+          campaignId: true,
+          invitedEmail: true,
+          invitedEmailNormalized: true,
+          invitedUserId: true,
+          playerName: true,
+          emailDeliveryStatus: true,
+          createdAt: true,
+          emailSentAt: true,
+        },
+      });
+
       return NextResponse.json({
         ok: true,
         code: "INVITE_ALREADY_PENDING",
-        invite: toInvitePayload(existingInvite),
+        message: inviteDeliveryMessage({ alreadyPending: true, emailDelivery }),
+        invite: toInvitePayload(updatedInvite),
+        emailDeliveryStatus: emailDelivery,
       });
     }
 
@@ -165,22 +223,20 @@ export async function POST(
       },
     });
 
-    const inviteUrl = `${getAppBaseUrl()}/campaign-invites/${encodeURIComponent(invite.id)}`;
-    const emailDelivery = await sendEmail({
+    const emailDelivery = await sendCampaignInviteEmail({
+      inviteId: invite.id,
       to: invitedEmail,
-      subject: `You have been invited to ${campaign.name}`,
-      text: [
-        `You have been invited to ${campaign.name}.`,
-        "",
-        `Open your campaign invite: ${inviteUrl}`,
-      ].join("\n"),
+      campaignName: campaign.name,
     });
 
     const updatedInvite = await prisma.campaignInvite.update({
       where: { id: invite.id },
       data: {
         emailDeliveryStatus: emailDelivery.status,
-        emailSentAt: emailDelivery.sent || emailDelivery.logged ? new Date() : null,
+        emailSentAt:
+          emailDelivery.status === "sent" || emailDelivery.status === "logged"
+            ? new Date()
+            : null,
       },
       select: {
         id: true,
@@ -198,6 +254,7 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       code: "INVITE_CREATED",
+      message: inviteDeliveryMessage({ alreadyPending: false, emailDelivery }),
       invite: toInvitePayload(updatedInvite),
       emailDeliveryStatus: emailDelivery,
     });

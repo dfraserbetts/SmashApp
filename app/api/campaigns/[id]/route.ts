@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
 import { requireUserId } from "@/lib/auth/server";
-import { requireCampaignGameDirector } from "@/lib/campaign/access";
+import { requireCampaignGameDirector, requireCampaignOwner } from "@/lib/campaign/access";
 
 export async function PATCH(
   req: Request,
@@ -101,7 +101,7 @@ export async function DELETE(
       );
     }
 
-    await requireCampaignGameDirector(campaignId, userId);
+    await requireCampaignOwner(campaignId, userId);
 
     await prisma.campaign.delete({
       where: { id: campaignId },

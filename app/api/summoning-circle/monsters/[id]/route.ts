@@ -21,7 +21,12 @@ import {
   type ReserveReleaseBehaviour,
   type TriggerConditionKey,
 } from "@/lib/summoning/types";
-import { requireCampaignAccess, requireCampaignDirectorOrAdmin, requireUserId } from "../../_shared";
+import {
+  requireCampaignAccess,
+  requireCampaignDirectorOrAdmin,
+  requireCampaignOwnerAccess,
+  requireUserId,
+} from "../../_shared";
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
 
 const MONSTER_INCLUDE = {
@@ -1217,7 +1222,7 @@ export async function PUT(
 
   try {
     const userId = await requireUserId();
-    await requireCampaignDirectorOrAdmin(campaignId, userId);
+    await requireCampaignOwnerAccess(campaignId, userId);
 
     const existing = await prisma.monster.findUnique({
       where: { id },
@@ -1406,7 +1411,10 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
     if (message === "FORBIDDEN") {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json(
+        { error: "Only the Campaign Owner can delete monsters." },
+        { status: 403 },
+      );
     }
     if (message === "Not found") {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

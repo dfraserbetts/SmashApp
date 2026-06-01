@@ -65,9 +65,26 @@ export async function POST(
       ].join("\n"),
     });
 
+    if (emailDeliveryStatus.status === "failed") {
+      return NextResponse.json(
+        {
+          ok: false,
+          code: "EMAIL_DELIVERY_FAILED",
+          error: "Join Up email delivery failed",
+          emailNormalized,
+          emailDeliveryStatus,
+        },
+        { status: 502 },
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       code: "JOIN_UP_EMAIL_SENT_OR_LOGGED",
+      message:
+        emailDeliveryStatus.status === "sent"
+          ? "Join Up email sent."
+          : "Join Up email logged (dev only; no email sent).",
       emailNormalized,
       emailDeliveryStatus,
     });

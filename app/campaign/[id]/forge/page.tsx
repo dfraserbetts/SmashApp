@@ -1,6 +1,9 @@
 // app/campaign/[id]/forge/page.tsx
 import { CampaignNav } from "@/app/components/CampaignNav";
+import { CampaignToolAccessDenied } from "@/app/campaign/[id]/CampaignToolAccessDenied";
 import { ForgeCreate } from "@/app/forge/components/ForgeCreate";
+import { requireUserId } from "@/lib/auth/server";
+import { requireCampaignGameDirector } from "@/lib/campaign/access";
 import Link from "next/link";
 
 type ForgePageProps = {
@@ -9,6 +12,12 @@ type ForgePageProps = {
 
 export default async function ForgePage({ params }: ForgePageProps) {
 const { id } = await Promise.resolve(params);
+  try {
+    const userId = await requireUserId();
+    await requireCampaignGameDirector(id, userId);
+  } catch {
+    return <CampaignToolAccessDenied campaignId={id} />;
+  }
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">

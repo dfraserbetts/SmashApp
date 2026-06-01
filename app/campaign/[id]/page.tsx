@@ -6,6 +6,11 @@ import { useParams, usePathname, useRouter } from "next/navigation";
 type CampaignRoleRow = {
   role: string;
   canManageCampaign: boolean;
+  canDeleteCampaign: boolean;
+  canInvitePlayers: boolean;
+  canRemoveMembers: boolean;
+  canPromoteMembers: boolean;
+  canDemoteMembers: boolean;
 };
 
 type CampaignRow = {
@@ -39,6 +44,12 @@ type PendingInviteRow = {
   createdAt: string;
 };
 
+type EmailDeliveryPayload = {
+  status?: string;
+  provider?: string;
+  error?: string;
+};
+
 type CampaignMembersPayload = {
   campaign: CampaignRow;
   access: {
@@ -48,12 +59,31 @@ type CampaignMembersPayload = {
     permissions: {
       canManageCampaign: boolean;
       canUsePlayerCampaignTools: boolean;
+      canDeleteCampaign: boolean;
+      canInvitePlayers: boolean;
+      canRemoveMembers: boolean;
+      canPromoteMembers: boolean;
+      canDemoteMembers: boolean;
     };
   };
   members: CampaignMemberRow[];
   pendingInvites?: PendingInviteRow[];
   error?: string;
 };
+
+function formatDeliveryStatus(status: string | null | undefined) {
+  if (status === "sent") return "sent";
+  if (status === "logged") return "logged (dev only; no email sent)";
+  if (status === "failed") return "failed";
+  if (status === "skipped") return "skipped";
+  return "not sent";
+}
+
+function formatMemberRole(member: CampaignMemberRow) {
+  if (member.isOwner) return "Campaign Owner";
+  if (member.role === "GAME_DIRECTOR") return "Co-Game Director";
+  return "Player";
+}
 
 export default function CampaignHomePage() {
   const router = useRouter();
@@ -80,6 +110,8 @@ export default function CampaignHomePage() {
   const [invitePlayerName, setInvitePlayerName] = useState("");
   const [joinUpEmail, setJoinUpEmail] = useState<string | null>(null);
   const [sendingJoinUpEmail, setSendingJoinUpEmail] = useState(false);
+  const [inviteToCancel, setInviteToCancel] = useState<PendingInviteRow | null>(null);
+  const [cancellingInvite, setCancellingInvite] = useState(false);
   const [memberNameDrafts, setMemberNameDrafts] = useState<Record<string, string>>({});
   const [memberErr, setMemberErr] = useState<string | null>(null);
   const [addingPlayer, setAddingPlayer] = useState(false);
@@ -96,6 +128,9 @@ export default function CampaignHomePage() {
   const [removeStep, setRemoveStep] = useState<"IDLE" | "WARNING" | "CONFIRM">("IDLE");
   const [removeConfirmInput, setRemoveConfirmInput] = useState("");
   const [removingPlayer, setRemovingPlayer] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [leavingCampaign, setLeavingCampaign] = useState(false);
+  const [leaveErr, setLeaveErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -141,6 +176,11 @@ export default function CampaignHomePage() {
           setRoleRow({
             role: data.access.role ?? (data.access.isAdmin ? "ADMIN" : "PLAYER"),
             canManageCampaign: Boolean(data.access.permissions.canManageCampaign),
+            canDeleteCampaign: Boolean(data.access.permissions.canDeleteCampaign),
+            canInvitePlayers: Boolean(data.access.permissions.canInvitePlayers),
+            canRemoveMembers: Boolean(data.access.permissions.canRemoveMembers),
+            canPromoteMembers: Boolean(data.access.permissions.canPromoteMembers),
+            canDemoteMembers: Boolean(data.access.permissions.canDemoteMembers),
           });
           setCampaign(data.campaign);
           setMembers(data.members ?? []);
@@ -206,7 +246,8 @@ export default function CampaignHomePage() {
       const data = (await res.json().catch(() => ({}))) as {
         code?: string;
         error?: string;
-        emailDeliveryStatus?: { status?: string };
+        message?: string;
+        emailDeliveryStatus?: EmailDeliveryPayload;
       };
       if (res.status === 409 && data.code === "ACCOUNT_NOT_FOUND") {
         setJoinUpEmail(email);
@@ -221,9 +262,8 @@ export default function CampaignHomePage() {
       setMemberActionMessage({
         userId: "invite",
         text:
-          data.code === "INVITE_ALREADY_PENDING"
-            ? "Invite is already pending."
-            : `Invite created. Email delivery: ${data.emailDeliveryStatus?.status ?? "logged"}.`,
+          data.message ??
+          `Invite created. Delivery: ${formatDeliveryStatus(data.emailDeliveryStatus?.status)}.`,
       });
       await reloadMembers();
     } catch (e: unknown) {
@@ -246,7 +286,8 @@ export default function CampaignHomePage() {
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
-        emailDeliveryStatus?: { status?: string };
+        message?: string;
+        emailDeliveryStatus?: EmailDeliveryPayload;
       };
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to send Join Up email.");
@@ -254,13 +295,45 @@ export default function CampaignHomePage() {
 
       setMemberActionMessage({
         userId: "join-up",
-        text: `Join Up email ${data.emailDeliveryStatus?.status ?? "logged"}.`,
+        text:
+          data.message ??
+          `Join Up email delivery: ${formatDeliveryStatus(data.emailDeliveryStatus?.status)}.`,
       });
       setJoinUpEmail(null);
     } catch (error: unknown) {
       setMemberErr(error instanceof Error ? error.message : "Failed to send Join Up email.");
     } finally {
       setSendingJoinUpEmail(false);
+    }
+  }
+
+  async function handleCancelInvite() {
+    if (!campaignId || !inviteToCancel) return;
+    setCancellingInvite(true);
+    setMemberErr(null);
+    setMemberActionErr(null);
+    setMemberActionMessage(null);
+
+    try {
+      const res = await fetch(
+        `/api/campaigns/${encodeURIComponent(campaignId)}/invites/${encodeURIComponent(inviteToCancel.id)}`,
+        { method: "DELETE" },
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to cancel invite.");
+      }
+
+      setInviteToCancel(null);
+      setMemberActionMessage({
+        userId: "cancel-invite",
+        text: "Invite cancelled.",
+      });
+      await reloadMembers();
+    } catch (error: unknown) {
+      setMemberActionErr(error instanceof Error ? error.message : "Failed to cancel invite.");
+    } finally {
+      setCancellingInvite(false);
     }
   }
 
@@ -357,6 +430,37 @@ export default function CampaignHomePage() {
     }
   }
 
+  async function handleChangeMemberRole(member: CampaignMemberRow, role: "GAME_DIRECTOR" | "PLAYER") {
+    if (!campaignId) return;
+    setMemberActionErr(null);
+    setMemberActionMessage(null);
+    setSavingMemberNameUserId(member.userId);
+
+    try {
+      const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: member.userId,
+          role,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to update campaign role.");
+      }
+      await reloadMembers();
+      setMemberActionMessage({
+        userId: member.userId,
+        text: role === "GAME_DIRECTOR" ? "Promoted to Co-Game Director" : "Demoted to Player",
+      });
+    } catch (error: unknown) {
+      setMemberActionErr(error instanceof Error ? error.message : "Failed to update campaign role.");
+    } finally {
+      setSavingMemberNameUserId(null);
+    }
+  }
+
   async function handleRemovePlayer() {
     if (!campaignId || !removingMember) return;
     setRemovingPlayer(true);
@@ -385,6 +489,28 @@ export default function CampaignHomePage() {
       setMemberActionErr(error instanceof Error ? error.message : "Failed to remove player.");
     } finally {
       setRemovingPlayer(false);
+    }
+  }
+
+  async function handleLeaveCampaign() {
+    if (!campaignId) return;
+    setLeavingCampaign(true);
+    setLeaveErr(null);
+
+    try {
+      const res = await fetch(`/api/campaigns/${encodeURIComponent(campaignId)}/leave`, {
+        method: "POST",
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to leave campaign.");
+      }
+
+      router.replace("/dashboard");
+    } catch (error: unknown) {
+      setLeaveErr(error instanceof Error ? error.message : "Failed to leave campaign.");
+    } finally {
+      setLeavingCampaign(false);
     }
   }
 
@@ -474,9 +600,13 @@ export default function CampaignHomePage() {
   const role = roleRow?.role ?? null;
   const campaignName = campaign?.name ?? "Campaign";
   const descriptorTag = campaign?.descriptorVersionTag ?? "v0";
-  const canDeleteCampaign = Boolean(roleRow?.canManageCampaign);
+  const canDeleteCampaign = Boolean(roleRow?.canDeleteCampaign);
   const canRenameCampaign = Boolean(roleRow?.canManageCampaign);
-  const canManageMembers = Boolean(roleRow?.canManageCampaign);
+  const canManageMembers = Boolean(roleRow?.canInvitePlayers);
+  const canRemoveMembers = Boolean(roleRow?.canRemoveMembers);
+  const canPromoteMembers = Boolean(roleRow?.canPromoteMembers);
+  const canDemoteMembers = Boolean(roleRow?.canDemoteMembers);
+  const canLeaveCampaign = role === "PLAYER" && !roleRow?.canManageCampaign;
 
   const tools = useMemo(() => {
     if (!role) return [];
@@ -557,11 +687,18 @@ export default function CampaignHomePage() {
             </div>
             <h1 className="text-2xl font-semibold">{campaignName}</h1>
             <p className="text-sm text-zinc-400">
-              Role: <span className="text-zinc-200">{role}</span>
+              Role:{" "}
+              <span className="text-zinc-200">
+                {roleRow?.canDeleteCampaign
+                  ? "Campaign Owner"
+                  : role === "GAME_DIRECTOR"
+                    ? "Co-Game Director"
+                    : "Player"}
+              </span>
             </p>
           </div>
 
-          {canDeleteCampaign || canRenameCampaign ? (
+          {canDeleteCampaign || canRenameCampaign || canLeaveCampaign ? (
             <div className="flex flex-wrap gap-2">
               {canRenameCampaign ? (
                 <button
@@ -587,6 +724,18 @@ export default function CampaignHomePage() {
                   className="rounded-lg border-4 border-red-600 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30"
                 >
                   Delete Campaign
+                </button>
+              ) : null}
+              {canLeaveCampaign ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLeaveErr(null);
+                    setLeaveConfirmOpen(true);
+                  }}
+                  className="rounded-lg border border-red-700 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30"
+                >
+                  Leave Campaign
                 </button>
               ) : null}
             </div>
@@ -671,19 +820,32 @@ export default function CampaignHomePage() {
                     key={invite.id}
                     className="rounded-lg border border-zinc-800 bg-black px-3 py-2 text-sm"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <div className="text-zinc-100">{invite.invitedEmail}</div>
                         {invite.playerName ? (
                           <div className="text-xs text-zinc-400">Player Name: {invite.playerName}</div>
                         ) : null}
                       </div>
-                      <div className="rounded-full border border-emerald-600 px-3 py-1 text-xs text-emerald-200">
-                        Invite Pending
+                      <div className="flex flex-col items-start gap-2 sm:items-end">
+                        <div className="rounded-full border border-emerald-600 px-3 py-1 text-xs text-emerald-200">
+                          Invite Pending
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMemberActionErr(null);
+                            setMemberActionMessage(null);
+                            setInviteToCancel(invite);
+                          }}
+                          className="rounded-full border border-red-700 px-3 py-1 text-xs font-semibold text-red-200 hover:bg-red-950/30"
+                        >
+                          Cancel Invite
+                        </button>
                       </div>
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
-                      Delivery: {invite.emailDeliveryStatus ?? "not sent"} | Created:{" "}
+                      Delivery: {formatDeliveryStatus(invite.emailDeliveryStatus)} | Created:{" "}
                       {new Date(invite.createdAt).toLocaleString()}
                     </div>
                   </div>
@@ -730,7 +892,11 @@ export default function CampaignHomePage() {
                         {canManageMembers ? (
                           <div className="space-y-2">
                             <label className="block text-[11px] text-zinc-500">
-                              {member.role === "GAME_DIRECTOR" ? "GD Name" : "Player Name"}
+                              {member.isOwner
+                                ? "Owner Name"
+                                : member.role === "GAME_DIRECTOR"
+                                  ? "Co-GD Name"
+                                  : "Player Name"}
                             </label>
                             <input
                               type="text"
@@ -745,15 +911,14 @@ export default function CampaignHomePage() {
                               className="w-full rounded border border-zinc-700 bg-black px-2 py-1 text-sm text-zinc-100 outline-none focus:border-zinc-500"
                               placeholder={
                                 member.role === "GAME_DIRECTOR"
-                                  ? "Game Director Name"
+                                  ? member.isOwner
+                                    ? "Campaign Owner Name"
+                                    : "Co-Game Director Name"
                                   : "Player Name"
                               }
                             />
                             <div className="text-xs text-zinc-400">
                               Email: {member.email ?? "Email unavailable"}
-                            </div>
-                            <div className="font-mono text-[11px] text-zinc-500">
-                              {member.userId}
                             </div>
                           </div>
                         ) : (
@@ -764,18 +929,19 @@ export default function CampaignHomePage() {
                                 <div className="text-xs text-zinc-400">
                                   Email: {member.email ?? "Email unavailable"}
                                 </div>
-                                <div className="font-mono text-[11px] text-zinc-500">
-                                  {member.userId}
-                                </div>
                               </>
                             ) : null}
                           </div>
                         )}
                       </td>
-                      <td className="py-2 pr-3">{member.role}</td>
+                      <td className="py-2 pr-3">{formatMemberRole(member)}</td>
                       {canManageMembers ? (
                         <td className="py-2 pr-3 text-zinc-400">
-                          {member.isOwner ? "Owner" : "Member"}
+                          {member.isOwner
+                            ? "Owner"
+                            : member.role === "GAME_DIRECTOR"
+                              ? "Co-GD"
+                              : "Member"}
                           {member.isSyntheticOwner ? " (owner fallback)" : ""}
                         </td>
                       ) : null}
@@ -833,7 +999,9 @@ export default function CampaignHomePage() {
                               {savingMemberNameUserId === member.userId
                                 ? "Saving..."
                                 : member.role === "GAME_DIRECTOR"
-                                  ? "Save GD Name"
+                                  ? member.isOwner
+                                    ? "Save Owner Name"
+                                    : "Save Co-GD Name"
                                   : "Save Name"}
                             </button>
                             {memberActionMessage?.userId === member.userId ? (
@@ -841,7 +1009,27 @@ export default function CampaignHomePage() {
                                 {memberActionMessage.text}
                               </p>
                             ) : null}
-                            {member.role === "PLAYER" ? (
+                            {member.role === "PLAYER" && canPromoteMembers ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleChangeMemberRole(member, "GAME_DIRECTOR")}
+                                disabled={savingMemberNameUserId === member.userId}
+                                className="block rounded-lg border border-emerald-700 px-3 py-1 text-xs text-emerald-200 hover:bg-emerald-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Promote to Co-GD
+                              </button>
+                            ) : null}
+                            {!member.isOwner && member.role === "GAME_DIRECTOR" && canDemoteMembers ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleChangeMemberRole(member, "PLAYER")}
+                                disabled={savingMemberNameUserId === member.userId}
+                                className="block rounded-lg border border-amber-700 px-3 py-1 text-xs text-amber-200 hover:bg-amber-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                Demote to Player
+                              </button>
+                            ) : null}
+                            {member.role === "PLAYER" && canRemoveMembers ? (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -856,7 +1044,9 @@ export default function CampaignHomePage() {
                                 Remove Player
                               </button>
                             ) : (
-                              <span className="block text-xs text-zinc-500">Protected</span>
+                              <span className="block text-xs text-zinc-500">
+                                {member.isOwner ? "Protected owner" : "Protected"}
+                              </span>
                             )}
                           </>
                         </td>
@@ -905,6 +1095,35 @@ export default function CampaignHomePage() {
                 disabled={sendingJoinUpEmail}
               >
                 {sendingJoinUpEmail ? "Sending..." : "Yes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {inviteToCancel ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">
+          <div className="w-full max-w-lg space-y-4 rounded-xl border border-red-700 bg-zinc-950 p-6">
+            <h2 className="text-xl font-semibold text-red-200">Cancel Invite?</h2>
+            <p className="text-sm text-zinc-300">
+              This will revoke the pending campaign invitation for {inviteToCancel.invitedEmail}. The player will no longer be able to join from this invite.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setInviteToCancel(null)}
+                className="rounded-lg border border-zinc-700 px-4 py-2 hover:bg-zinc-900"
+                disabled={cancellingInvite}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCancelInvite()}
+                className="rounded-lg border border-red-700 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={cancellingInvite}
+              >
+                {cancellingInvite ? "Cancelling..." : "Yes, Cancel Invite"}
               </button>
             </div>
           </div>
@@ -1021,6 +1240,39 @@ export default function CampaignHomePage() {
                 className="rounded-lg border-2 border-red-600 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30"
               >
                 Yes
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {leaveConfirmOpen && canLeaveCampaign ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6">
+          <div className="w-full max-w-xl space-y-4 rounded-xl border-2 border-red-700 bg-zinc-950 p-6">
+            <h2 className="text-xl font-semibold text-red-200">Leave Campaign?</h2>
+            <p className="text-sm text-zinc-300">
+              Are you sure you wish to leave the campaign? Leaving a campaign will archive any characters assigned to you.
+            </p>
+            {leaveErr ? <p className="text-sm text-red-400">{leaveErr}</p> : null}
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setLeaveConfirmOpen(false);
+                  setLeaveErr(null);
+                }}
+                className="rounded-lg border border-zinc-700 px-4 py-2 hover:bg-zinc-900"
+                disabled={leavingCampaign}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleLeaveCampaign()}
+                className="rounded-lg border-2 border-red-600 px-4 py-2 font-semibold text-red-200 hover:bg-red-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={leavingCampaign}
+              >
+                {leavingCampaign ? "Leaving..." : "Yes, Leave Campaign"}
               </button>
             </div>
           </div>

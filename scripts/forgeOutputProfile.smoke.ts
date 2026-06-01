@@ -155,6 +155,7 @@ const FEATURE_WEIGHT_CONTEXT = buildForgeFeatureWeightContext([
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Expensive", value: 25 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Thrown", value: -10 },
   { category: "WeaponAttributes", selector1: "Weapon", selector2: "Reload", selector3: "1", value: -12 },
+  { category: "ItemModifiers", selector1: "Dodge", selector3: "3", value: 100 },
   { category: "RangeCategory", selector1: "Weapon", selector2: "Ranged", value: 2 },
   { category: "RangeCategory", selector1: "Weapon", selector2: "AoE", value: 5 },
   { category: "RangedDistanceFt", selector1: "Weapon", selector2: "30", value: 0 },
@@ -1013,6 +1014,20 @@ assert.ok(
     entry.label.includes("Attack +2") && entry.weight === 20 && !entry.fallbackUsed,
   ),
   "Global Attack modifier should use Forge-Values weight",
+);
+
+const itemDodgeModifier = runCase("weighted item dodge modifier", {
+  level: 5,
+  rarity: "RARE",
+  type: "ITEM",
+  globalAttributeModifiers: [{ attribute: "Dodge", amount: 3 }],
+});
+const itemDodgeWeighted = compareForgeOutputToBands(itemDodgeModifier, FEATURE_WEIGHT_CONTEXT);
+assert.ok(
+  itemDodgeWeighted.lanes.debug.featureWeightDrivers.some((entry) =>
+    entry.label.includes("Dodge +3") && entry.weight === 100 && !entry.fallbackUsed,
+  ),
+  "Item Dodge modifier should use ItemModifiers Forge-Values weight",
 );
 
 const weightedWeaponAttribute = runCase("weighted weapon attribute", {

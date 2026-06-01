@@ -15,7 +15,20 @@ export type CampaignAccess = {
 export type CampaignPermissionSet = {
   canViewCampaign: boolean;
   canManageCampaign: boolean;
+  canUseGameDirectorTools: boolean;
   canUsePlayerCampaignTools: boolean;
+  canInvitePlayers: boolean;
+  canManageCharacters: boolean;
+  canArchiveCharacters: boolean;
+  canManageInventory: boolean;
+  canManageForge: boolean;
+  canManageSummoningCircle: boolean;
+  canDeleteCampaign: boolean;
+  canDeleteCharacters: boolean;
+  canDeleteMonsters: boolean;
+  canRemoveMembers: boolean;
+  canPromoteMembers: boolean;
+  canDemoteMembers: boolean;
   canManageCampaignCharacters: boolean;
   canManageCampaignInventory: boolean;
   canManagePartyStash: boolean;
@@ -23,15 +36,31 @@ export type CampaignPermissionSet = {
 
 export function getCampaignPermissions(access: CampaignAccess | null): CampaignPermissionSet {
   const canViewCampaign = Boolean(access?.isAdmin || access?.effectiveRole);
-  const canManageCampaign = Boolean(access?.isAdmin || access?.effectiveRole === "GAME_DIRECTOR");
-  const canManagePartyStash = Boolean(canManageCampaign || access?.canManagePartyStash);
+  const canUseGameDirectorTools = Boolean(
+    access?.isAdmin || access?.effectiveRole === "GAME_DIRECTOR",
+  );
+  const canManagePartyStash = Boolean(canUseGameDirectorTools || access?.canManagePartyStash);
+  const hasOwnerAuthority = Boolean(access?.isOwner);
 
   return {
     canViewCampaign,
-    canManageCampaign,
+    canManageCampaign: canUseGameDirectorTools,
+    canUseGameDirectorTools,
     canUsePlayerCampaignTools: canViewCampaign,
-    canManageCampaignCharacters: canManageCampaign,
-    canManageCampaignInventory: canManageCampaign,
+    canInvitePlayers: canUseGameDirectorTools,
+    canManageCharacters: canUseGameDirectorTools,
+    canArchiveCharacters: canUseGameDirectorTools,
+    canManageInventory: canUseGameDirectorTools,
+    canManageForge: canUseGameDirectorTools,
+    canManageSummoningCircle: canUseGameDirectorTools,
+    canDeleteCampaign: hasOwnerAuthority,
+    canDeleteCharacters: hasOwnerAuthority,
+    canDeleteMonsters: hasOwnerAuthority,
+    canRemoveMembers: hasOwnerAuthority,
+    canPromoteMembers: hasOwnerAuthority,
+    canDemoteMembers: hasOwnerAuthority,
+    canManageCampaignCharacters: canUseGameDirectorTools,
+    canManageCampaignInventory: canUseGameDirectorTools,
     canManagePartyStash,
   };
 }
@@ -42,6 +71,10 @@ export function canViewCampaign(access: CampaignAccess | null): boolean {
 
 export function canManageCampaign(access: CampaignAccess | null): boolean {
   return getCampaignPermissions(access).canManageCampaign;
+}
+
+export function canUseGameDirectorTools(access: CampaignAccess | null): boolean {
+  return getCampaignPermissions(access).canUseGameDirectorTools;
 }
 
 export function canUsePlayerCampaignTools(access: CampaignAccess | null): boolean {
@@ -58,6 +91,18 @@ export function canManageCampaignInventory(access: CampaignAccess | null): boole
 
 export function canManagePartyStash(access: CampaignAccess | null): boolean {
   return getCampaignPermissions(access).canManagePartyStash;
+}
+
+export function canDeleteCampaign(access: CampaignAccess | null): boolean {
+  return getCampaignPermissions(access).canDeleteCampaign;
+}
+
+export function canDeleteCharacters(access: CampaignAccess | null): boolean {
+  return getCampaignPermissions(access).canDeleteCharacters;
+}
+
+export function canRemoveMembers(access: CampaignAccess | null): boolean {
+  return getCampaignPermissions(access).canRemoveMembers;
 }
 
 export async function getCampaignMembership(
@@ -118,6 +163,17 @@ export async function requireCampaignGameDirector(
 ): Promise<CampaignAccess> {
   const access = await requireCampaignAccess(campaignId, userId);
   if (!canManageCampaign(access)) {
+    throw new Error("FORBIDDEN");
+  }
+  return access;
+}
+
+export async function requireCampaignOwner(
+  campaignId: string,
+  userId: string,
+): Promise<CampaignAccess> {
+  const access = await requireCampaignAccess(campaignId, userId);
+  if (!access.isOwner) {
     throw new Error("FORBIDDEN");
   }
   return access;

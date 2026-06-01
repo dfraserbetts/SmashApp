@@ -595,6 +595,12 @@ function getItemTypeLabel(profile: ForgeOutputProfile): "Weapon" | "Armor" | "Sh
   return "Weapon";
 }
 
+const ITEM_MODIFIER_ATTRIBUTE_KEYS = new Set(["armor skill", "weapon skill", "willpower", "dodge"]);
+
+function isItemModifierAttribute(attribute: string): boolean {
+  return ITEM_MODIFIER_ATTRIBUTE_KEYS.has(normalizeCostKey(attribute));
+}
+
 function formatRangeLabel(rangeCategory: string): "Melee" | "Ranged" | "AoE" {
   const normalized = String(rangeCategory ?? "").trim().toUpperCase();
   if (normalized === "RANGED") return "Ranged";
@@ -2083,29 +2089,41 @@ function collectFeatureWeights(
 
   for (const label of profile.featureProfile.globalAttributeModifierSummary) {
     const parsed = parseGlobalAttributeSummary(label);
+    const isItemModifier = itemTypeLabel === "Item" && isItemModifierAttribute(parsed.attribute);
+    const lookups = isItemModifier
+      ? [
+          {
+            category: "ItemModifiers",
+            selector1: parsed.attribute,
+            selector3: parsed.magnitude ?? undefined,
+          },
+        ]
+      : [
+          {
+            category: "Attribute",
+            selector1: itemTypeLabel,
+            selector2: parsed.attribute,
+            selector3: parsed.magnitude ?? undefined,
+          },
+          {
+            category: "Attribute",
+            selector1: parsed.attribute,
+            selector2: itemTypeLabel,
+            selector3: parsed.magnitude ?? undefined,
+          },
+          { category: "Attribute", selector1: itemTypeLabel, selector2: parsed.attribute },
+          { category: "Attribute", selector1: parsed.attribute, selector2: itemTypeLabel },
+        ];
     addFeatureCountEntry(state);
     addFeatureWeight(
       state,
       context,
-      `Global modifier: ${label}`,
-      "global_attribute_modifier",
-      [
-        {
-          category: "Attribute",
-          selector1: itemTypeLabel,
-          selector2: parsed.attribute,
-          selector3: parsed.magnitude ?? undefined,
-        },
-        {
-          category: "Attribute",
-          selector1: parsed.attribute,
-          selector2: itemTypeLabel,
-          selector3: parsed.magnitude ?? undefined,
-        },
-        { category: "Attribute", selector1: itemTypeLabel, selector2: parsed.attribute },
-        { category: "Attribute", selector1: parsed.attribute, selector2: itemTypeLabel },
-      ],
-      "global attribute modifier has no matching Forge-Values row",
+      `${isItemModifier ? "Item modifier" : "Global modifier"}: ${label}`,
+      isItemModifier ? "item_modifier" : "global_attribute_modifier",
+      lookups,
+      isItemModifier
+        ? "item modifier has no matching Forge-Values row"
+        : "global attribute modifier has no matching Forge-Values row",
       "featureValue",
     );
   }

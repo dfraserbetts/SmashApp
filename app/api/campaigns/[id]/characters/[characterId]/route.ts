@@ -4,6 +4,7 @@ import { requireUserId } from "@/lib/auth/server";
 import {
   getCampaignPermissions,
   requireCampaignAccess,
+  requireCampaignOwner,
 } from "@/lib/campaign/access";
 import { prisma } from "@/prisma/client";
 
@@ -250,10 +251,7 @@ export async function DELETE(
     }
 
     const userId = await requireUserId();
-    const access = await requireCampaignAccess(campaignId, userId);
-    if (!getCampaignPermissions(access).canManageCampaignCharacters) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    await requireCampaignOwner(campaignId, userId);
 
     const existing = await prisma.campaignCharacter.findFirst({
       where: {

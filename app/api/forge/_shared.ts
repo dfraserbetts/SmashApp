@@ -1,5 +1,4 @@
 import {
-  requireCampaignAccess as requireSharedCampaignAccess,
   requireCampaignGameDirector,
   requireCampaignMemberRole,
 } from "@/lib/campaign/access";
@@ -20,7 +19,7 @@ export async function requireCampaignMember(campaignId: string, userId: string) 
 }
 
 export async function requireCampaignAccess(campaignId: string, userId: string): Promise<CampaignAccess> {
-  const access = await requireSharedCampaignAccess(campaignId, userId);
+  const access = await requireCampaignGameDirector(campaignId, userId);
   return { isAdmin: access.isAdmin, role: access.effectiveRole };
 }
 

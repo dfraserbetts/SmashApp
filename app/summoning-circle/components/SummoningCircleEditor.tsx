@@ -127,7 +127,10 @@ import {
   type MonsterTraitMechanicalEffectSummary,
 } from "@/lib/summoning/traitMechanics";
 
-type Props = { campaignId: string };
+type Props = {
+  campaignId: string;
+  canDeleteMonsters?: boolean;
+};
 type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
 
 type EditableMonster = MonsterUpsertInput & {
@@ -4044,7 +4047,7 @@ function HoverTooltipLabel({
   );
 }
 
-export function SummoningCircleEditor({ campaignId }: Props) {
+export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }: Props) {
   const searchParams = useSearchParams();
   const monsterIdFromUrl = searchParams.get("monsterId");
   const [summaries, setSummaries] = useState<MonsterSummary[]>([]);
@@ -6334,7 +6337,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
   ]);
 
   const deleteMonster = useCallback(async () => {
-    if (!editor?.id || readOnly) return;
+    if (!editor?.id || readOnly || !canDeleteMonsters) return;
     if (!window.confirm("Delete this monster?")) return;
     setBusy(true);
     setError(null);
@@ -6354,7 +6357,7 @@ export function SummoningCircleEditor({ campaignId }: Props) {
     } finally {
       setBusy(false);
     }
-  }, [campaignId, editor?.id, readOnly, refreshSummaries]);
+  }, [campaignId, canDeleteMonsters, editor?.id, readOnly, refreshSummaries]);
 
   const copyMonster = useCallback(async () => {
     if (!editor?.id) return;
@@ -8041,13 +8044,15 @@ export function SummoningCircleEditor({ campaignId }: Props) {
               )}
               {!readOnly && (
                 <>
-                  <button
-                    onClick={deleteMonster}
-                    disabled={busy || !editor.id}
-                    className="rounded border border-red-700 px-3 py-1 text-sm text-red-200 hover:bg-red-950/20 disabled:opacity-50"
-                  >
-                    Delete
-                  </button>
+                  {canDeleteMonsters ? (
+                    <button
+                      onClick={deleteMonster}
+                      disabled={busy || !editor.id}
+                      className="rounded border border-red-700 px-3 py-1 text-sm text-red-200 hover:bg-red-950/20 disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  ) : null}
                   <button
                     onClick={saveMonster}
                     disabled={busy}

@@ -6,6 +6,7 @@ import {
   getCampaignPermissions,
   requireCampaignAccess,
   requireCampaignGameDirector,
+  requireCampaignOwner,
 } from "@/lib/campaign/access";
 import { getMemberIdentities } from "@/lib/campaign/memberIdentity";
 
@@ -15,6 +16,7 @@ type CampaignMemberPayload = {
   confirmation?: unknown;
   allowHistoricCharacters?: unknown;
   canManagePartyStash?: unknown;
+  role?: unknown;
 };
 
 function normalizeUserId(value: unknown): string {
@@ -27,6 +29,12 @@ function normalizePlayerName(value: unknown): string | null | undefined {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeRole(value: unknown): "GAME_DIRECTOR" | "PLAYER" | undefined | null {
+  if (value === undefined) return undefined;
+  if (value === "GAME_DIRECTOR" || value === "PLAYER") return value;
+  return null;
 }
 
 function getVisibleMemberLabel(args: {
@@ -212,7 +220,7 @@ export async function PATCH(
     }
 
     const actorUserId = await requireUserId();
-    await requireCampaignGameDirector(campaignId, actorUserId);
+    const actorAccess = await requireCampaignGameDirector(campaignId, actorUserId);
 
     const body = (await req.json().catch(() => ({}))) as CampaignMemberPayload;
     const targetUserId = normalizeUserId(body.userId);
@@ -220,6 +228,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Player userId is required" }, { status: 400 });
     }
     const playerName = normalizePlayerName(body.playerName);
+    const requestedRole = normalizeRole(body.role);
+    if (requestedRole === null) {
+      return NextResponse.json({ error: "role must be GAME_DIRECTOR or PLAYER" }, { status: 400 });
+    }
     if (body.playerName !== undefined && playerName === null) {
       return NextResponse.json({ error: "playerName must be text" }, { status: 400 });
     }
@@ -261,6 +273,32 @@ export async function PATCH(
     if (!effectiveRole) {
       return NextResponse.json({ error: "Campaign member not found" }, { status: 404 });
     }
+    if (requestedRole !== undefined) {
+      if (!actorAccess.isOwner) {
+        return NextResponse.json({ error: "Only the Campaign Owner can change member roles" }, { status: 403 });
+      }
+      if (targetUserId === actorUserId) {
+        return NextResponse.json({ error: "You cannot change your own campaign role" }, { status: 400 });
+      }
+      if (targetIsOwner) {
+        return NextResponse.json({ error: "The Campaign Owner role cannot be changed here" }, { status: 400 });
+      }
+      if (!member) {
+        return NextResponse.json({ error: "Campaign member not found" }, { status: 404 });
+      }
+      if (requestedRole === "GAME_DIRECTOR" && member.role !== "PLAYER") {
+        return NextResponse.json(
+          { error: "Only Player members can be promoted to Co-Game Director" },
+          { status: 400 },
+        );
+      }
+      if (requestedRole === "PLAYER" && member.role !== "GAME_DIRECTOR") {
+        return NextResponse.json(
+          { error: "Only Co-Game Directors can be demoted to Player" },
+          { status: 400 },
+        );
+      }
+    }
     if (body.allowHistoricCharacters !== undefined && effectiveRole !== "PLAYER") {
       return NextResponse.json(
         { error: "Historic character policy can only be changed for Player members" },
@@ -276,10 +314,12 @@ export async function PATCH(
 
     const data: {
       playerName?: string | null;
+      role?: "GAME_DIRECTOR" | "PLAYER";
       allowHistoricCharacters?: boolean;
       canManagePartyStash?: boolean;
     } = {};
     if (playerName !== undefined) data.playerName = playerName;
+    if (requestedRole !== undefined) data.role = requestedRole;
     if (typeof body.allowHistoricCharacters === "boolean") {
       data.allowHistoricCharacters = body.allowHistoricCharacters;
     }
@@ -355,7 +395,7 @@ export async function DELETE(
     }
 
     const actorUserId = await requireUserId();
-    await requireCampaignGameDirector(campaignId, actorUserId);
+    await requireCampaignOwner(campaignId, actorUserId);
 
     const body = (await req.json().catch(() => ({}))) as CampaignMemberPayload;
     const targetUserId = normalizeUserId(body.userId);

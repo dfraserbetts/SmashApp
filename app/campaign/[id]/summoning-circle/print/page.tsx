@@ -1,5 +1,8 @@
 import { CampaignNav } from "@/app/components/CampaignNav";
+import { CampaignToolAccessDenied } from "@/app/campaign/[id]/CampaignToolAccessDenied";
 import { SummoningCirclePrintMode } from "@/app/summoning-circle/components/SummoningCirclePrintMode";
+import { requireUserId } from "@/lib/auth/server";
+import { requireCampaignGameDirector } from "@/lib/campaign/access";
 
 type SummoningCirclePrintPageProps = {
   params: { id: string };
@@ -7,6 +10,12 @@ type SummoningCirclePrintPageProps = {
 
 export default async function SummoningCirclePrintPage({ params }: SummoningCirclePrintPageProps) {
   const { id } = await Promise.resolve(params);
+  try {
+    const userId = await requireUserId();
+    await requireCampaignGameDirector(id, userId);
+  } catch {
+    return <CampaignToolAccessDenied campaignId={id} />;
+  }
 
   return (
     <main className="min-h-screen bg-zinc-950 text-zinc-100">
