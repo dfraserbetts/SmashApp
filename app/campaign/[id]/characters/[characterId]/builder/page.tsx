@@ -100,6 +100,7 @@ import type { MonsterModifierField } from "@/lib/summoning/equipment";
 import type {
   DescriptorChassisType,
   EffectDurationType,
+  EffectPacket,
   EffectTimingType,
   EffectPacketApplyTo,
   PowerIntention,
@@ -1432,7 +1433,14 @@ export default function CharacterBuilderPage() {
   ) {
     const packet = builderData.powers[powerIndex]?.effectPackets[packetIndex];
     if (!packet) return;
+    const woundChannelPatch =
+      packet.intention === "ATTACK" && (detailsPatch.attackMode === "PHYSICAL" || detailsPatch.attackMode === "MENTAL")
+        ? { woundChannel: detailsPatch.attackMode as EffectPacket["woundChannel"] }
+        : packet.intention === "HEALING" && (detailsPatch.healingMode === "PHYSICAL" || detailsPatch.healingMode === "MENTAL")
+          ? { woundChannel: detailsPatch.healingMode as EffectPacket["woundChannel"] }
+          : {};
     updatePowerPacket(powerIndex, packetIndex, {
+      ...woundChannelPatch,
       detailsJson: {
         ...(packet.detailsJson ?? {}),
         ...detailsPatch,

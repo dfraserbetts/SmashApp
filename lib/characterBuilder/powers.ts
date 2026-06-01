@@ -238,6 +238,26 @@ function oneOf<T extends string>(value: unknown, options: readonly T[], fallback
   return options.includes(value as T) ? (value as T) : fallback;
 }
 
+function normalizeWoundChannelValue(value: unknown): EffectPacket["woundChannel"] {
+  return ATTACK_MODES.includes(value as (typeof ATTACK_MODES)[number])
+    ? (value as (typeof ATTACK_MODES)[number])
+    : null;
+}
+
+function normalizePacketWoundChannel(
+  intention: PowerIntention,
+  details: Record<string, unknown>,
+  raw: Record<string, unknown>,
+): EffectPacket["woundChannel"] {
+  if (intention === "ATTACK") {
+    return oneOf(details.attackMode, ATTACK_MODES, "PHYSICAL");
+  }
+  if (intention === "HEALING") {
+    return oneOf(details.healingMode, ATTACK_MODES, "PHYSICAL");
+  }
+  return normalizeWoundChannelValue(raw.woundChannel);
+}
+
 function isNumberOption(value: unknown, options: readonly number[]) {
   const numeric = Number(value);
   return Number.isFinite(numeric) && options.includes(numeric);
@@ -603,7 +623,7 @@ export function createDefaultCharacterPowerPacket(
     effectDurationType: "INSTANT",
     effectDurationTurns: null,
     dealsWounds: intention === "ATTACK",
-    woundChannel: intention === "ATTACK" ? "PHYSICAL" : null,
+    woundChannel: intention === "ATTACK" || intention === "HEALING" ? "PHYSICAL" : null,
     targetedAttribute: null,
     applicationModeKey: null,
     resolutionOrigin: "CASTER",
@@ -702,7 +722,7 @@ function normalizePacket(
         ? asInteger(raw.effectDurationTurns, 1, 1, Number.MAX_SAFE_INTEGER)
         : null,
     dealsWounds: Boolean(raw.dealsWounds ?? intention === "ATTACK"),
-    woundChannel: oneOf(raw.woundChannel ?? details.attackMode ?? details.healingMode, ATTACK_MODES, "PHYSICAL"),
+    woundChannel: normalizePacketWoundChannel(intention, details, raw),
     targetedAttribute: normalizeCoreAttribute(raw.targetedAttribute ?? details.statTarget),
     applicationModeKey: asString(raw.applicationModeKey, "") || null,
     resolutionOrigin: oneOf(
