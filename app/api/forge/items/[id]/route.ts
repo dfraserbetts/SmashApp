@@ -5,6 +5,7 @@ import {
   requireCampaignDirectorOrAdmin,
   requireUserId,
 } from '../../_shared';
+import { requireCampaignOwner } from '@/lib/campaign/access';
 
 import { normalizeVRPEntries } from '../vrp-utils';
 import type { VRPEntryInput } from '../vrp-utils';
@@ -760,16 +761,89 @@ export async function DELETE(
 
   try {
     const userId = await requireUserId();
-    await requireCampaignDirectorOrAdmin(campaignId, userId);
+    await requireCampaignOwner(campaignId, userId);
 
-    const deleted = await prisma.itemTemplate.deleteMany({
-      where: { id, campaignId },
+    const deleted = await prisma.$transaction(async (tx) => {
+      const item = await tx.itemTemplate.findFirst({
+        where: { id, campaignId },
+        select: { id: true },
+      });
+
+      if (!item) {
+        return null;
+      }
+
+      const partyInventoryItems = await tx.campaignPartyInventoryItem.findMany({
+        where: { campaignId, itemTemplateId: id },
+        select: { id: true },
+      });
+      const partyInventoryItemIds = partyInventoryItems.map((entry) => entry.id);
+
+      const backpackItems =
+        partyInventoryItemIds.length > 0
+          ? await tx.campaignCharacterBackpackItem.deleteMany({
+              where: {
+                campaignId,
+                partyInventoryItemId: { in: partyInventoryItemIds },
+              },
+            })
+          : { count: 0 };
+
+      const partyInventory =
+        partyInventoryItemIds.length > 0
+          ? await tx.campaignPartyInventoryItem.deleteMany({
+              where: {
+                campaignId,
+                id: { in: partyInventoryItemIds },
+              },
+            })
+          : { count: 0 };
+
+      const monsterEquipmentFields = [
+        'mainHandItemId',
+        'offHandItemId',
+        'smallItemId',
+        'headArmorItemId',
+        'shoulderArmorItemId',
+        'torsoArmorItemId',
+        'legsArmorItemId',
+        'feetArmorItemId',
+        'headItemId',
+        'neckItemId',
+        'armsItemId',
+        'beltItemId',
+      ] as const;
+
+      let monsterEquipmentReferences = 0;
+      for (const field of monsterEquipmentFields) {
+        const result = await tx.monster.updateMany({
+          where: {
+            campaignId,
+            [field]: id,
+          } as unknown as Parameters<typeof tx.monster.updateMany>[0]['where'],
+          data: {
+            [field]: null,
+          } as unknown as Parameters<typeof tx.monster.updateMany>[0]['data'],
+        });
+        monsterEquipmentReferences += result.count;
+      }
+
+      const itemTemplate = await tx.itemTemplate.deleteMany({
+        where: { id, campaignId },
+      });
+
+      return {
+        itemTemplates: itemTemplate.count,
+        partyInventoryItems: partyInventory.count,
+        backpackItems: backpackItems.count,
+        monsterEquipmentReferences,
+      };
     });
 
-    if (deleted.count === 0) {
+    if (!deleted || deleted.itemTemplates === 0) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, deleted });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to delete item template';
     if (message === 'UNAUTHORIZED') {

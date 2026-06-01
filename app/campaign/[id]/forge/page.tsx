@@ -3,7 +3,10 @@ import { CampaignNav } from "@/app/components/CampaignNav";
 import { CampaignToolAccessDenied } from "@/app/campaign/[id]/CampaignToolAccessDenied";
 import { ForgeCreate } from "@/app/forge/components/ForgeCreate";
 import { requireUserId } from "@/lib/auth/server";
-import { requireCampaignGameDirector } from "@/lib/campaign/access";
+import {
+  getCampaignPermissions,
+  requireCampaignGameDirector,
+} from "@/lib/campaign/access";
 import Link from "next/link";
 
 type ForgePageProps = {
@@ -11,10 +14,12 @@ type ForgePageProps = {
 };
 
 export default async function ForgePage({ params }: ForgePageProps) {
-const { id } = await Promise.resolve(params);
+  const { id } = await Promise.resolve(params);
+  let canDeleteForgeItems = false;
   try {
     const userId = await requireUserId();
-    await requireCampaignGameDirector(id, userId);
+    const access = await requireCampaignGameDirector(id, userId);
+    canDeleteForgeItems = getCampaignPermissions(access).canDeleteForgeItems;
   } catch {
     return <CampaignToolAccessDenied campaignId={id} />;
   }
@@ -38,7 +43,7 @@ const { id } = await Promise.resolve(params);
           </header>
         </div>
 
-        <ForgeCreate campaignId={id} />
+        <ForgeCreate campaignId={id} canDeleteItems={canDeleteForgeItems} />
       </div>
     </main>
   );

@@ -1734,7 +1734,12 @@ function getAttributeValueMagnitude(name: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export function ForgeCreate({ campaignId }: { campaignId: string }) {
+type ForgeCreateProps = {
+  campaignId: string;
+  canDeleteItems?: boolean;
+};
+
+export function ForgeCreate({ campaignId, canDeleteItems = false }: ForgeCreateProps) {
   const searchParams = useSearchParams();
   const itemIdFromUrl = searchParams.get('itemId');
   const { data, loading, error } = useForgePicklists();
@@ -1874,6 +1879,7 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [tagSuggestions, setTagSuggestions] = useState<TagSuggestion[]>([]);
   const [activeTagIndex, setActiveTagIndex] = useState<number>(-1);
@@ -1969,6 +1975,7 @@ export function ForgeCreate({ campaignId }: { campaignId: string }) {
     }
     return map;
   }, [forgeItems]);
+  const selectedForgeItem = selectedItemId ? forgeItemsById[selectedItemId] ?? null : null;
   const hasPickerQuery = pickerQuery.trim().length > 0;
   const activePickerFilterPills = useMemo(() => {
     const pills: Array<{ id: 'level' | 'itemType' | 'rarity' | 'noLegendary' | 'noMythic'; label: string }> = [];
@@ -2328,6 +2335,57 @@ function handleResetForge() {
   if (!ok) return;
 
   resetForgeToNewItemMode();
+}
+
+async function handleDeleteSelectedItem() {
+  if (!selectedItemId || isDeletingItem) return;
+
+  const ok = window.confirm(
+    'This cannot be undone, are you sure you wish to delete this item?',
+  );
+  if (!ok) return;
+
+  const deletedItemId = selectedItemId;
+  const deletedItemName =
+    selectedForgeItem?.name?.trim() ||
+    watchedValues.name?.trim() ||
+    deletedItemId;
+
+  setIsDeletingItem(true);
+  setSubmitError(null);
+  setSubmitSuccess(null);
+
+  try {
+    const res = await fetch(
+      `/api/forge/items/${encodeURIComponent(deletedItemId)}?campaignId=${encodeURIComponent(campaignId)}`,
+      { method: 'DELETE' },
+    );
+
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      const message =
+        payload && typeof payload === 'object' && 'error' in payload
+          ? String((payload as { error?: unknown }).error)
+          : `Failed to delete item (status ${res.status})`;
+      throw new Error(message);
+    }
+
+    setRecentForgeItemIds((prev) => {
+      const next = prev.filter((id) => id !== deletedItemId);
+      persistRecentForgeItemIds(next);
+      return next;
+    });
+    resetForgeToNewItemMode();
+    refetchForgeItems();
+    setSubmitSuccess(`Item deleted: ${deletedItemName}`);
+  } catch (err: unknown) {
+    console.error('[FORGE_DELETE_ITEM]', err);
+    const message =
+      err instanceof Error ? err.message : 'Unknown error deleting item';
+    setSubmitError(message);
+  } finally {
+    setIsDeletingItem(false);
+  }
 }
 
     // Load selected item into the form (edit mode)
@@ -7409,11 +7467,21 @@ useEffect(() => {
 
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isDeletingItem}
           className="inline-flex justify-center items-center rounded-md bg-emerald-600 px-6 py-3 text-sm font-semibold text-emerald-50 shadow-sm hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? 'Forging…' : 'Forge'}
         </button>
+        {canDeleteItems && selectedItemId ? (
+          <button
+            type="button"
+            onClick={handleDeleteSelectedItem}
+            disabled={isDeletingItem || isSubmitting}
+            className="inline-flex justify-center items-center rounded-md border border-red-500 bg-red-950 px-6 py-3 text-sm font-semibold uppercase tracking-wide text-red-100 shadow-sm hover:bg-red-900 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isDeletingItem ? 'Deleting...' : 'DELETE ITEM'}
+          </button>
+        ) : null}
       </div>
     </form>
           </div>

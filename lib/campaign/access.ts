@@ -25,6 +25,7 @@ export type CampaignPermissionSet = {
   canManageSummoningCircle: boolean;
   canDeleteCampaign: boolean;
   canDeleteCharacters: boolean;
+  canDeleteForgeItems: boolean;
   canDeleteMonsters: boolean;
   canRemoveMembers: boolean;
   canPromoteMembers: boolean;
@@ -55,6 +56,7 @@ export function getCampaignPermissions(access: CampaignAccess | null): CampaignP
     canManageSummoningCircle: canUseGameDirectorTools,
     canDeleteCampaign: hasOwnerAuthority,
     canDeleteCharacters: hasOwnerAuthority,
+    canDeleteForgeItems: hasOwnerAuthority,
     canDeleteMonsters: hasOwnerAuthority,
     canRemoveMembers: hasOwnerAuthority,
     canPromoteMembers: hasOwnerAuthority,
