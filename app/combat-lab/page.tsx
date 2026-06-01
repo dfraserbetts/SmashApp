@@ -89,15 +89,20 @@ type RunPayload = {
       actionsUsed: number;
       damage: number;
       healing: number;
+      healingOverTimeApplied: number;
+      healingTicks: number;
       mitigation: number;
       counterUses: number;
       counterDamage: number;
       counterMitigation: number;
       buffApplications: number;
+      buffUptime: number;
       debuffApplications: number;
+      debuffUptime: number;
       controlTurnsApplied: number;
       actionsDenied: number;
       ongoingDamageApplied: number;
+      ongoingDamageTicks: number;
       topActionName: string | null;
       actionContributions: Array<{
         actionId: string;
@@ -106,17 +111,54 @@ type RunPayload = {
         uses: number;
         damage: number;
         healing: number;
+        healingOverTimeApplied: number;
+        healingTicks: number;
         mitigation: number;
         counterUses: number;
         counterDamage: number;
         counterMitigation: number;
         buffApplications: number;
+        buffUptime: number;
         debuffApplications: number;
+        debuffUptime: number;
         controlTurnsApplied: number;
         actionsDenied: number;
         ongoingDamageApplied: number;
+        ongoingDamageTicks: number;
         linkedActionCount: number;
       }>;
+    }>;
+    defensiveContributions: Array<{
+      actorId: string;
+      actorName: string;
+      side: "players" | "monsters";
+      role: string;
+      attacksDefended: number;
+      woundsDodged: number;
+      defenceStringBlocked: number;
+      staticProtectionPrevented: number;
+      counterUses: number;
+      counterDamage: number;
+      counterMitigation: number;
+      responsesUsed: number;
+      netDamageTaken: number;
+    }>;
+    cooldownTrace: Array<{
+      actorId: string;
+      actorName: string;
+      side: "players" | "monsters";
+      actionId: string;
+      actionName: string;
+      sourceType: string;
+      isCounter: boolean;
+      cooldownRounds: number;
+      uses: number;
+      attemptedUsesWhileOnCooldown: number;
+      preventedByCooldown: number;
+      cooldownApplied: number;
+      cooldownTicks: number;
+      availableTurns: number;
+      unavailableTurns: number;
     }>;
     verdict: string;
   };
@@ -655,8 +697,9 @@ export default function CombatLabPage() {
                   ["Stacks applied", result.report.averageMechanics.stacksApplied],
                   ["Stacks expired", result.report.averageMechanics.stacksExpired],
                   ["Stacks cleansed", result.report.averageMechanics.stacksCleansed],
+                  ["AOE action uses", result.report.averageMechanics.aoeActionUses],
                   ["AOE potential targets", result.report.averageMechanics.aoePotentialTargets],
-                  ["AOE actual targets", result.report.averageMechanics.aoeActualTargets],
+                  ["AOE actual targets/action", result.report.averageMechanics.aoeActualTargets],
                   ["Position abstractions", result.report.averageMechanics.positionalAbstractionsUsed],
                 ].map(([label, values]) => (
                   <p key={label as string}>
@@ -674,25 +717,116 @@ export default function CombatLabPage() {
                 <p className="text-zinc-500">No actor contribution metrics were recorded.</p>
               ) : (
                 <div className="space-y-3">
-                  {result.report.actorContributions.map((actor) => (
-                    <div key={actor.actorId} className="rounded border border-zinc-800 p-2">
+                  {result.report.actorContributions.map((actor) => {
+                    const rounds = Math.max(1, result.report.averageRounds);
+                    const cooldownByAction = new Map(
+                      result.report.cooldownTrace
+                        .filter((trace) => trace.actorId === actor.actorId)
+                        .map((trace) => [trace.actionId, trace]),
+                    );
+                    return (
+                      <div key={actor.actorId} className="rounded border border-zinc-800 p-2">
+                        <div className="font-semibold">
+                          {actor.actorName} ({actor.side}) {actor.topActionName ? `| top: ${actor.topActionName}` : ""}
+                        </div>
+                        <p className="text-xs text-zinc-400">
+                          actions {num(actor.actionsUsed)}, damage {num(actor.damage)}, healing {num(actor.healing)},
+                          HoT applied {num(actor.healingOverTimeApplied)}, HoT ticks {num(actor.healingTicks)},
+                          buffs {num(actor.buffApplications)}, buff uptime {num(actor.buffUptime)}, debuffs{" "}
+                          {num(actor.debuffApplications)}, debuff uptime {num(actor.debuffUptime)},
+                          support mitigation {num(actor.mitigation)}, control{" "}
+                          {num(actor.controlTurnsApplied)}, ongoing {num(actor.ongoingDamageApplied)}, ongoing ticks{" "}
+                          {num(actor.ongoingDamageTicks)}
+                        </p>
+                        <p className="text-xs text-zinc-300">
+                          Average per round: actions {num(actor.actionsUsed / rounds)}, damage{" "}
+                          {num(actor.damage / rounds)}, healing {num(actor.healing / rounds)}, support mitigation{" "}
+                          {num(actor.mitigation / rounds)}, HoT ticks {num(actor.healingTicks / rounds)}, control{" "}
+                          {num(actor.controlTurnsApplied / rounds)}, ongoing{" "}
+                          {num(actor.ongoingDamageApplied / rounds)}, debuff uptime {num(actor.debuffUptime / rounds)}
+                        </p>
+                        <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-zinc-400">
+                          {actor.actionContributions.slice(0, 4).map((action, index) => {
+                            const cooldown = cooldownByAction.get(action.actionId);
+                            return (
+                              <li key={`${action.actionId}-${index}`}>
+                                {action.actionName}: uses {num(action.uses)}, damage {num(action.damage)}, healing{" "}
+                                {num(action.healing)}, support mitigation {num(action.mitigation)}
+                                {action.healingOverTimeApplied > 0
+                                  ? `, HoT applied ${num(action.healingOverTimeApplied)}`
+                                  : ""}
+                                {action.healingTicks > 0 ? `, HoT ticks ${num(action.healingTicks)}` : ""}
+                                {action.buffApplications > 0 ? `, buffs ${num(action.buffApplications)}` : ""}
+                                {action.buffUptime > 0 ? `, buff uptime ${num(action.buffUptime)}` : ""}
+                                {action.debuffApplications > 0 ? `, debuffs ${num(action.debuffApplications)}` : ""}
+                                {action.debuffUptime > 0 ? `, debuff uptime ${num(action.debuffUptime)}` : ""}
+                                {action.ongoingDamageApplied > 0
+                                  ? `, ongoing ${num(action.ongoingDamageApplied)}`
+                                  : ""}
+                                {action.ongoingDamageTicks > 0
+                                  ? `, ongoing ticks ${num(action.ongoingDamageTicks)}`
+                                  : ""}
+                                {cooldown
+                                  ? `, cooldown uses ${num(cooldown.uses)}, prevented ${num(cooldown.preventedByCooldown)}, ticks ${num(cooldown.cooldownTicks)}`
+                                  : ""}
+                                {action.linkedActionCount > 0 ? `, linked ${action.linkedActionCount}` : ""}
+                              </li>
+                            );
+                          })}
+                      </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">
+              <h3 className="mb-2 font-semibold">Cooldown Trace</h3>
+              {result.report.cooldownTrace.length === 0 ? (
+                <p className="text-zinc-500">No cooldown-bearing actions were used or sampled.</p>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {result.report.cooldownTrace.map((trace) => (
+                    <div key={`${trace.actorId}-${trace.actionId}`} className="rounded border border-zinc-800 p-2">
                       <div className="font-semibold">
-                        {actor.actorName} ({actor.side}) {actor.topActionName ? `| top: ${actor.topActionName}` : ""}
+                        {trace.actionName} {trace.isCounter ? "(Counter)" : ""} | {trace.actorName} ({trace.side})
                       </div>
                       <p className="text-xs text-zinc-400">
-                        actions {num(actor.actionsUsed)}, damage {num(actor.damage)}, healing {num(actor.healing)},
-                        mitigation {num(actor.mitigation)}, counters {num(actor.counterUses)}, control{" "}
-                        {num(actor.controlTurnsApplied)}, ongoing {num(actor.ongoingDamageApplied)}
+                        cooldown {trace.cooldownRounds}, uses {num(trace.uses)}, applied{" "}
+                        {num(trace.cooldownApplied)}, ticks {num(trace.cooldownTicks)}
                       </p>
-                      <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-zinc-400">
-                        {actor.actionContributions.slice(0, 4).map((action) => (
-                          <li key={action.actionId}>
-                            {action.actionName}: uses {num(action.uses)}, damage {num(action.damage)}, healing{" "}
-                            {num(action.healing)}, mitigation {num(action.mitigation)}
-                            {action.linkedActionCount > 0 ? `, linked ${action.linkedActionCount}` : ""}
-                          </li>
-                        ))}
-                      </ul>
+                      <p className="text-xs text-zinc-400">
+                        prevented by cooldown {num(trace.preventedByCooldown)}, attempted while cooling{" "}
+                        {num(trace.attemptedUsesWhileOnCooldown)}, available turns {num(trace.availableTurns)},
+                        unavailable turns {num(trace.unavailableTurns)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">
+              <h3 className="mb-2 font-semibold">Defensive Contributions</h3>
+              {result.report.defensiveContributions.length === 0 ? (
+                <p className="text-zinc-500">No defensive contribution metrics were recorded.</p>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {result.report.defensiveContributions.map((actor) => (
+                    <div key={actor.actorId} className="rounded border border-zinc-800 p-2">
+                      <div className="font-semibold">
+                        {actor.actorName} ({actor.side})
+                      </div>
+                      <p className="text-xs text-zinc-400">
+                        defended {num(actor.attacksDefended)}, dodged {num(actor.woundsDodged)}, defence string
+                        blocked {num(actor.defenceStringBlocked)}, static protection {num(actor.staticProtectionPrevented)}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        counters {num(actor.counterUses)}, counter damage {num(actor.counterDamage)}, counter
+                        mitigation {num(actor.counterMitigation)}, responses {num(actor.responsesUsed)}, net damage
+                        taken {num(actor.netDamageTaken)}
+                      </p>
                     </div>
                   ))}
                 </div>

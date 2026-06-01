@@ -1,6 +1,8 @@
 import type {
+  CombatAction,
   CombatActor,
   CombatAggregateMetrics,
+  CombatCooldownTrace,
   CombatSide,
   CombatState,
   UnsupportedPowerSummary,
@@ -36,6 +38,7 @@ export function createCombatState(players: CombatActor[], monsters: CombatActor[
       mentalHpCurrent: actor.mentalHpMax,
     })),
     cooldowns: {},
+    cooldownTrace: {},
     counterUses: {},
     responsesRemaining: {},
     defenceDegradation: {},
@@ -79,10 +82,76 @@ export function spendActorResponse(state: CombatState, actorId: string): boolean
   return true;
 }
 
+export function cooldownKey(actorId: string, actionId: string) {
+  return `${actorId}:${actionId}`;
+}
+
+function ensureCooldownTrace(state: CombatState, actor: CombatActor, action: CombatAction): CombatCooldownTrace {
+  const key = cooldownKey(actor.id, action.id);
+  return state.cooldownTrace[key] ??= {
+    actorId: actor.id,
+    actorName: actor.name,
+    side: actor.side,
+    actionId: action.id,
+    actionName: action.name,
+    sourceType: action.sourceType,
+    isCounter: Boolean(action.counterMode),
+    cooldownRounds: action.cooldownRounds,
+    uses: 0,
+    attemptedUsesWhileOnCooldown: 0,
+    preventedByCooldown: 0,
+    cooldownApplied: 0,
+    cooldownTicks: 0,
+    availableTurns: 0,
+    unavailableTurns: 0,
+  };
+}
+
+export function getActionCooldownRemaining(state: CombatState, actorId: string, actionId: string) {
+  return state.cooldowns[cooldownKey(actorId, actionId)] ?? 0;
+}
+
+export function isActionOnCooldown(state: CombatState, actorId: string, actionId: string) {
+  return getActionCooldownRemaining(state, actorId, actionId) > 0;
+}
+
+export function recordActionUse(state: CombatState, actor: CombatActor, action: CombatAction) {
+  if (action.cooldownRounds <= 0 && !action.counterMode) return;
+  ensureCooldownTrace(state, actor, action).uses += 1;
+}
+
+export function recordCooldownPreventedUse(state: CombatState, actor: CombatActor, action: CombatAction) {
+  const trace = ensureCooldownTrace(state, actor, action);
+  trace.attemptedUsesWhileOnCooldown += 1;
+  trace.preventedByCooldown += 1;
+}
+
+export function applyActionCooldown(state: CombatState, actor: CombatActor, action: CombatAction) {
+  if (action.cooldownRounds <= 0) return;
+  state.cooldowns[cooldownKey(actor.id, action.id)] = action.cooldownRounds;
+  ensureCooldownTrace(state, actor, action).cooldownApplied += 1;
+}
+
+export function sampleActorCooldownAvailability(state: CombatState, actor: CombatActor) {
+  for (const action of actor.actions) {
+    if (action.cooldownRounds <= 0) continue;
+    const trace = ensureCooldownTrace(state, actor, action);
+    if (isActionOnCooldown(state, actor.id, action.id)) {
+      trace.unavailableTurns += 1;
+    } else {
+      trace.availableTurns += 1;
+    }
+  }
+}
+
 export function tickActorCooldowns(state: CombatState, actorId: string) {
   for (const key of Object.keys(state.cooldowns)) {
     if (!key.startsWith(`${actorId}:`)) continue;
+    const previous = state.cooldowns[key] ?? 0;
     state.cooldowns[key] = Math.max(0, state.cooldowns[key] - 1);
+    if (previous > 0 && state.cooldownTrace[key]) {
+      state.cooldownTrace[key].cooldownTicks += 1;
+    }
     if (state.cooldowns[key] === 0) delete state.cooldowns[key];
   }
 }
@@ -177,10 +246,13 @@ export function createEmptyMetrics(): CombatAggregateMetrics {
     stacksApplied: { players: 0, monsters: 0 },
     stacksExpired: { players: 0, monsters: 0 },
     stacksCleansed: { players: 0, monsters: 0 },
+    aoeActionUses: { players: 0, monsters: 0 },
     aoePotentialTargets: { players: 0, monsters: 0 },
     aoeActualTargets: { players: 0, monsters: 0 },
     positionalAbstractionsUsed: { players: 0, monsters: 0 },
     actorContributions: {},
+    defensiveContributions: {},
+    cooldownTrace: {},
   };
 }
 

@@ -127,6 +127,7 @@ export type CombatStatusEffect = {
   attribute?: CombatAttributeName;
   amount: number;
   pool?: CombatPool;
+  sourceActionId?: string;
   sourceActionName?: string;
   positionalAbstraction?: string;
   remainingRounds: number;
@@ -136,6 +137,7 @@ export type CombatState = {
   round: number;
   actors: CombatActor[];
   cooldowns: Record<string, number>;
+  cooldownTrace: Record<string, CombatCooldownTrace>;
   counterUses: Record<string, number>;
   statusEffects: CombatStatusEffect[];
   responsesRemaining: Record<string, number>;
@@ -148,6 +150,24 @@ export type CombatState = {
     }
   >;
   log: CombatLogEntry[];
+};
+
+export type CombatCooldownTrace = {
+  actorId: string;
+  actorName: string;
+  side: CombatSide;
+  actionId: string;
+  actionName: string;
+  sourceType: CombatActionSourceType;
+  isCounter: boolean;
+  cooldownRounds: number;
+  uses: number;
+  attemptedUsesWhileOnCooldown: number;
+  preventedByCooldown: number;
+  cooldownApplied: number;
+  cooldownTicks: number;
+  availableTurns: number;
+  unavailableTurns: number;
 };
 
 export type CombatLogEntry = {
@@ -218,6 +238,7 @@ export type CombatResolutionMetrics = {
   stacksApplied: number;
   stacksExpired: number;
   stacksCleansed: number;
+  aoeActionUses: number;
   aoePotentialTargets: number;
   aoeActualTargets: number;
   positionalAbstractionsUsed: number;
@@ -304,10 +325,13 @@ export type CombatAggregateMetrics = {
   stacksApplied: Record<CombatSide, number>;
   stacksExpired: Record<CombatSide, number>;
   stacksCleansed: Record<CombatSide, number>;
+  aoeActionUses: Record<CombatSide, number>;
   aoePotentialTargets: Record<CombatSide, number>;
   aoeActualTargets: Record<CombatSide, number>;
   positionalAbstractionsUsed: Record<CombatSide, number>;
   actorContributions: Record<string, CombatActorContribution>;
+  defensiveContributions: Record<string, CombatDefensiveContribution>;
+  cooldownTrace: Record<string, CombatCooldownTrace>;
 };
 
 export type CombatActionContribution = {
@@ -319,15 +343,20 @@ export type CombatActionContribution = {
   uses: number;
   damage: number;
   healing: number;
+  healingOverTimeApplied: number;
+  healingTicks: number;
   mitigation: number;
   counterUses: number;
   counterDamage: number;
   counterMitigation: number;
   buffApplications: number;
+  buffUptime: number;
   debuffApplications: number;
+  debuffUptime: number;
   controlTurnsApplied: number;
   actionsDenied: number;
   ongoingDamageApplied: number;
+  ongoingDamageTicks: number;
   linkedActionCount: number;
 };
 
@@ -339,17 +368,38 @@ export type CombatActorContribution = {
   actionsUsed: number;
   damage: number;
   healing: number;
+  healingOverTimeApplied: number;
+  healingTicks: number;
   mitigation: number;
   counterUses: number;
   counterDamage: number;
   counterMitigation: number;
   buffApplications: number;
+  buffUptime: number;
   debuffApplications: number;
+  debuffUptime: number;
   controlTurnsApplied: number;
   actionsDenied: number;
   ongoingDamageApplied: number;
+  ongoingDamageTicks: number;
   topActionName: string | null;
   actionContributions: CombatActionContribution[];
+};
+
+export type CombatDefensiveContribution = {
+  actorId: string;
+  actorName: string;
+  side: CombatSide;
+  role: CombatActorRole;
+  attacksDefended: number;
+  woundsDodged: number;
+  defenceStringBlocked: number;
+  staticProtectionPrevented: number;
+  counterUses: number;
+  counterDamage: number;
+  counterMitigation: number;
+  responsesUsed: number;
+  netDamageTaken: number;
 };
 
 export type UnsupportedPowerSummary = {
@@ -429,12 +479,15 @@ export type CombatSuiteReport = {
     stacksApplied: Record<CombatSide, number>;
     stacksExpired: Record<CombatSide, number>;
     stacksCleansed: Record<CombatSide, number>;
+    aoeActionUses: Record<CombatSide, number>;
     aoePotentialTargets: Record<CombatSide, number>;
     aoeActualTargets: Record<CombatSide, number>;
     positionalAbstractionsUsed: Record<CombatSide, number>;
   };
   roleContribution: CombatAggregateMetrics["roleContribution"];
   actorContributions: CombatActorContribution[];
+  defensiveContributions: CombatDefensiveContribution[];
+  cooldownTrace: CombatCooldownTrace[];
   unsupported: UnsupportedPowerSummary;
   hydrationIntegrity: CombatHydrationIntegrity;
   verdict: string;

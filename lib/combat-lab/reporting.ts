@@ -1,7 +1,9 @@
 import { runCombatScenario } from "./autoSimulator";
 import type {
   CombatActorContribution,
+  CombatDefensiveContribution,
   CombatAggregateMetrics,
+  CombatCooldownTrace,
   CombatRunResult,
   CombatScenario,
   CombatHydrationIntegrity,
@@ -36,6 +38,19 @@ function averageSideTotals(runs: CombatRunResult[], selector: (metrics: CombatAg
   return {
     players: totals.players / Math.max(1, runs.length),
     monsters: totals.monsters / Math.max(1, runs.length),
+  };
+}
+
+function averageSideRatio(
+  runs: CombatRunResult[],
+  numerator: (metrics: CombatAggregateMetrics) => Record<CombatSide, number>,
+  denominator: (metrics: CombatAggregateMetrics) => Record<CombatSide, number>,
+) {
+  const totals = sumBySide(runs, numerator);
+  const divisors = sumBySide(runs, denominator);
+  return {
+    players: totals.players / Math.max(1, divisors.players),
+    monsters: totals.monsters / Math.max(1, divisors.monsters),
   };
 }
 
@@ -126,54 +141,69 @@ function mergeActorContributions(runs: CombatRunResult[]): CombatActorContributi
         actionsUsed: 0,
         damage: 0,
         healing: 0,
+        healingOverTimeApplied: 0,
+        healingTicks: 0,
         mitigation: 0,
         counterUses: 0,
         counterDamage: 0,
         counterMitigation: 0,
         buffApplications: 0,
+        buffUptime: 0,
         debuffApplications: 0,
+        debuffUptime: 0,
         controlTurnsApplied: 0,
         actionsDenied: 0,
         ongoingDamageApplied: 0,
+        ongoingDamageTicks: 0,
         topActionName: null,
         actionContributions: [],
       };
       actor.actionsUsed += contribution.actionsUsed / divisor;
       actor.damage += contribution.damage / divisor;
       actor.healing += contribution.healing / divisor;
+      actor.healingOverTimeApplied += contribution.healingOverTimeApplied / divisor;
+      actor.healingTicks += contribution.healingTicks / divisor;
       actor.mitigation += contribution.mitigation / divisor;
       actor.counterUses += contribution.counterUses / divisor;
       actor.counterDamage += contribution.counterDamage / divisor;
       actor.counterMitigation += contribution.counterMitigation / divisor;
       actor.buffApplications += contribution.buffApplications / divisor;
+      actor.buffUptime += contribution.buffUptime / divisor;
       actor.debuffApplications += contribution.debuffApplications / divisor;
+      actor.debuffUptime += contribution.debuffUptime / divisor;
       actor.controlTurnsApplied += contribution.controlTurnsApplied / divisor;
       actor.actionsDenied += contribution.actionsDenied / divisor;
       actor.ongoingDamageApplied += contribution.ongoingDamageApplied / divisor;
+      actor.ongoingDamageTicks += contribution.ongoingDamageTicks / divisor;
 
       for (const actionContribution of contribution.actionContributions) {
         let action = actor.actionContributions.find((entry) => entry.actionId === actionContribution.actionId);
         if (!action) {
-          action = { ...actionContribution, uses: 0, damage: 0, healing: 0, mitigation: 0, counterUses: 0, counterDamage: 0, counterMitigation: 0, buffApplications: 0, debuffApplications: 0, controlTurnsApplied: 0, actionsDenied: 0, ongoingDamageApplied: 0 };
+          action = { ...actionContribution, uses: 0, damage: 0, healing: 0, healingOverTimeApplied: 0, healingTicks: 0, mitigation: 0, counterUses: 0, counterDamage: 0, counterMitigation: 0, buffApplications: 0, buffUptime: 0, debuffApplications: 0, debuffUptime: 0, controlTurnsApplied: 0, actionsDenied: 0, ongoingDamageApplied: 0, ongoingDamageTicks: 0 };
           actor.actionContributions.push(action);
         }
         action.uses += actionContribution.uses / divisor;
         action.damage += actionContribution.damage / divisor;
         action.healing += actionContribution.healing / divisor;
+        action.healingOverTimeApplied += actionContribution.healingOverTimeApplied / divisor;
+        action.healingTicks += actionContribution.healingTicks / divisor;
         action.mitigation += actionContribution.mitigation / divisor;
         action.counterUses += actionContribution.counterUses / divisor;
         action.counterDamage += actionContribution.counterDamage / divisor;
         action.counterMitigation += actionContribution.counterMitigation / divisor;
         action.buffApplications += actionContribution.buffApplications / divisor;
+        action.buffUptime += actionContribution.buffUptime / divisor;
         action.debuffApplications += actionContribution.debuffApplications / divisor;
+        action.debuffUptime += actionContribution.debuffUptime / divisor;
         action.controlTurnsApplied += actionContribution.controlTurnsApplied / divisor;
         action.actionsDenied += actionContribution.actionsDenied / divisor;
         action.ongoingDamageApplied += actionContribution.ongoingDamageApplied / divisor;
+        action.ongoingDamageTicks += actionContribution.ongoingDamageTicks / divisor;
       }
 
       actor.actionContributions.sort((a, b) =>
-        (b.damage + b.healing + b.mitigation + b.buffApplications + b.debuffApplications + b.controlTurnsApplied) -
-        (a.damage + a.healing + a.mitigation + a.buffApplications + a.debuffApplications + a.controlTurnsApplied),
+        (b.damage + b.healing + b.healingOverTimeApplied + b.mitigation + b.buffApplications + b.buffUptime + b.debuffApplications + b.debuffUptime + b.controlTurnsApplied + b.ongoingDamageApplied) -
+        (a.damage + a.healing + a.healingOverTimeApplied + a.mitigation + a.buffApplications + a.buffUptime + a.debuffApplications + a.debuffUptime + a.controlTurnsApplied + a.ongoingDamageApplied),
       );
       actor.topActionName = actor.actionContributions[0]?.actionName ?? null;
       merged.set(contribution.actorId, actor);
@@ -181,8 +211,78 @@ function mergeActorContributions(runs: CombatRunResult[]): CombatActorContributi
   }
   return [...merged.values()].sort((a, b) =>
     a.side.localeCompare(b.side) ||
-    (b.damage + b.healing + b.mitigation + b.buffApplications + b.debuffApplications + b.controlTurnsApplied) -
-      (a.damage + a.healing + a.mitigation + a.buffApplications + a.debuffApplications + a.controlTurnsApplied),
+    (b.damage + b.healing + b.healingOverTimeApplied + b.mitigation + b.buffApplications + b.buffUptime + b.debuffApplications + b.debuffUptime + b.controlTurnsApplied + b.ongoingDamageApplied) -
+      (a.damage + a.healing + a.healingOverTimeApplied + a.mitigation + a.buffApplications + a.buffUptime + a.debuffApplications + a.debuffUptime + a.controlTurnsApplied + a.ongoingDamageApplied),
+  );
+}
+
+function mergeDefensiveContributions(runs: CombatRunResult[]): CombatDefensiveContribution[] {
+  const merged = new Map<string, CombatDefensiveContribution>();
+  const divisor = Math.max(1, runs.length);
+  for (const run of runs) {
+    for (const contribution of Object.values(run.metrics.defensiveContributions)) {
+      const actor = merged.get(contribution.actorId) ?? {
+        ...contribution,
+        attacksDefended: 0,
+        woundsDodged: 0,
+        defenceStringBlocked: 0,
+        staticProtectionPrevented: 0,
+        counterUses: 0,
+        counterDamage: 0,
+        counterMitigation: 0,
+        responsesUsed: 0,
+        netDamageTaken: 0,
+      };
+      actor.attacksDefended += contribution.attacksDefended / divisor;
+      actor.woundsDodged += contribution.woundsDodged / divisor;
+      actor.defenceStringBlocked += contribution.defenceStringBlocked / divisor;
+      actor.staticProtectionPrevented += contribution.staticProtectionPrevented / divisor;
+      actor.counterUses += contribution.counterUses / divisor;
+      actor.counterDamage += contribution.counterDamage / divisor;
+      actor.counterMitigation += contribution.counterMitigation / divisor;
+      actor.responsesUsed += contribution.responsesUsed / divisor;
+      actor.netDamageTaken += contribution.netDamageTaken / divisor;
+      merged.set(contribution.actorId, actor);
+    }
+  }
+  return [...merged.values()].sort((a, b) =>
+    a.side.localeCompare(b.side) ||
+    (b.woundsDodged + b.defenceStringBlocked + b.staticProtectionPrevented + b.counterMitigation + b.counterDamage) -
+      (a.woundsDodged + a.defenceStringBlocked + a.staticProtectionPrevented + a.counterMitigation + a.counterDamage),
+  );
+}
+
+function mergeCooldownTrace(runs: CombatRunResult[]): CombatCooldownTrace[] {
+  const merged = new Map<string, CombatCooldownTrace>();
+  const divisor = Math.max(1, runs.length);
+  for (const run of runs) {
+    for (const trace of Object.values(run.metrics.cooldownTrace)) {
+      const entry = merged.get(`${trace.actorId}:${trace.actionId}`) ?? {
+        ...trace,
+        uses: 0,
+        attemptedUsesWhileOnCooldown: 0,
+        preventedByCooldown: 0,
+        cooldownApplied: 0,
+        cooldownTicks: 0,
+        availableTurns: 0,
+        unavailableTurns: 0,
+      };
+      entry.cooldownRounds = Math.max(entry.cooldownRounds, trace.cooldownRounds);
+      entry.isCounter = entry.isCounter || trace.isCounter;
+      entry.uses += trace.uses / divisor;
+      entry.attemptedUsesWhileOnCooldown += trace.attemptedUsesWhileOnCooldown / divisor;
+      entry.preventedByCooldown += trace.preventedByCooldown / divisor;
+      entry.cooldownApplied += trace.cooldownApplied / divisor;
+      entry.cooldownTicks += trace.cooldownTicks / divisor;
+      entry.availableTurns += trace.availableTurns / divisor;
+      entry.unavailableTurns += trace.unavailableTurns / divisor;
+      merged.set(`${trace.actorId}:${trace.actionId}`, entry);
+    }
+  }
+  return [...merged.values()].sort((a, b) =>
+    a.side.localeCompare(b.side) ||
+    Number(b.isCounter) - Number(a.isCounter) ||
+    (b.preventedByCooldown + b.uses + b.cooldownTicks) - (a.preventedByCooldown + a.uses + a.cooldownTicks),
   );
 }
 
@@ -214,6 +314,21 @@ function verdict(report: Omit<CombatSuiteReport, "verdict">): string {
   if (report.stalemateRate > 0.25) return "likely stalemate";
   if (report.scenarioName.includes("Support") && report.playerWinRate < 0.4) {
     return "support solo weakness expected";
+  }
+  const hasTank =
+    Object.keys(report.roleContribution).some((role) => role.toLowerCase().includes("tank")) ||
+    report.actorContributions.some(
+      (actor) =>
+        actor.side === "players" &&
+        `${actor.actorName} ${actor.role}`.toLowerCase().includes("tank"),
+    );
+  if (
+    report.playerWinRate > 0.8 &&
+    hasTank &&
+    report.averageRounds >= 5 &&
+    report.averageDamagePerRound.players <= 4
+  ) {
+    return "expected tank attrition win";
   }
   if (report.playerWinRate > 0.8) return "player too lethal";
   if (report.monsterWinRate > 0.8) return "monsters too lethal";
@@ -292,12 +407,23 @@ export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
       stacksApplied: averageSideTotals(runs, (metrics) => metrics.stacksApplied),
       stacksExpired: averageSideTotals(runs, (metrics) => metrics.stacksExpired),
       stacksCleansed: averageSideTotals(runs, (metrics) => metrics.stacksCleansed),
-      aoePotentialTargets: averageSideTotals(runs, (metrics) => metrics.aoePotentialTargets),
-      aoeActualTargets: averageSideTotals(runs, (metrics) => metrics.aoeActualTargets),
+      aoeActionUses: averageSideTotals(runs, (metrics) => metrics.aoeActionUses),
+      aoePotentialTargets: averageSideRatio(
+        runs,
+        (metrics) => metrics.aoePotentialTargets,
+        (metrics) => metrics.aoeActionUses,
+      ),
+      aoeActualTargets: averageSideRatio(
+        runs,
+        (metrics) => metrics.aoeActualTargets,
+        (metrics) => metrics.aoeActionUses,
+      ),
       positionalAbstractionsUsed: averageSideTotals(runs, (metrics) => metrics.positionalAbstractionsUsed),
     },
     roleContribution: mergeRoleContribution(runs),
     actorContributions: mergeActorContributions(runs),
+    defensiveContributions: mergeDefensiveContributions(runs),
+    cooldownTrace: mergeCooldownTrace(runs),
     unsupported: mergeUnsupported(runs),
     hydrationIntegrity: collectHydrationIntegrity(scenario),
   };
@@ -327,7 +453,7 @@ export function formatSuiteReport(report: CombatSuiteReport): string {
     `Health remaining: ${pct(report.averageWinnerHealthRemainingPercent)}`,
     `Damage/round: players ${num(report.averageDamagePerRound.players)}, monsters ${num(report.averageDamagePerRound.monsters)}`,
     `Defence: protection prevented P/M ${num(report.averageProtectionPrevented.players)}/${num(report.averageProtectionPrevented.monsters)}, dodge avoided P/M ${num(report.averageDodgeAvoided.players)}/${num(report.averageDodgeAvoided.monsters)}`,
-    `Mechanics: control ${num(report.averageMechanics.controlTurnsApplied.players)}/${num(report.averageMechanics.controlTurnsApplied.monsters)}, denied ${num(report.averageMechanics.actionsDenied.players)}/${num(report.averageMechanics.actionsDenied.monsters)}, dodge choices ${num(report.averageMechanics.dodgeChosen.players)}/${num(report.averageMechanics.dodgeChosen.monsters)}, physical defence choices ${num(report.averageMechanics.physicalDefenceChosen.players)}/${num(report.averageMechanics.physicalDefenceChosen.monsters)}, mental defence choices ${num(report.averageMechanics.mentalDefenceChosen.players)}/${num(report.averageMechanics.mentalDefenceChosen.monsters)}, defence blocked ${num(report.averageMechanics.defenceStringBlocked.players)}/${num(report.averageMechanics.defenceStringBlocked.monsters)}, resist successes ${num(report.averageMechanics.resistSuccesses.players)}/${num(report.averageMechanics.resistSuccesses.monsters)}, responses ${num(report.averageMechanics.responsesUsed.players)}/${num(report.averageMechanics.responsesUsed.monsters)}, HoT ticks ${num(report.averageMechanics.healingTicks.players)}/${num(report.averageMechanics.healingTicks.monsters)}, ongoing ticks ${num(report.averageMechanics.ongoingDamageTicks.players)}/${num(report.averageMechanics.ongoingDamageTicks.monsters)}, counters ${num(report.averageMechanics.counterUses.players)}/${num(report.averageMechanics.counterUses.monsters)}, AOE actual/potential ${num(report.averageMechanics.aoeActualTargets.players)}/${num(report.averageMechanics.aoePotentialTargets.players)} vs ${num(report.averageMechanics.aoeActualTargets.monsters)}/${num(report.averageMechanics.aoePotentialTargets.monsters)}`,
+    `Mechanics: control ${num(report.averageMechanics.controlTurnsApplied.players)}/${num(report.averageMechanics.controlTurnsApplied.monsters)}, denied ${num(report.averageMechanics.actionsDenied.players)}/${num(report.averageMechanics.actionsDenied.monsters)}, dodge choices ${num(report.averageMechanics.dodgeChosen.players)}/${num(report.averageMechanics.dodgeChosen.monsters)}, physical defence choices ${num(report.averageMechanics.physicalDefenceChosen.players)}/${num(report.averageMechanics.physicalDefenceChosen.monsters)}, mental defence choices ${num(report.averageMechanics.mentalDefenceChosen.players)}/${num(report.averageMechanics.mentalDefenceChosen.monsters)}, defence blocked ${num(report.averageMechanics.defenceStringBlocked.players)}/${num(report.averageMechanics.defenceStringBlocked.monsters)}, resist successes ${num(report.averageMechanics.resistSuccesses.players)}/${num(report.averageMechanics.resistSuccesses.monsters)}, responses ${num(report.averageMechanics.responsesUsed.players)}/${num(report.averageMechanics.responsesUsed.monsters)}, HoT ticks ${num(report.averageMechanics.healingTicks.players)}/${num(report.averageMechanics.healingTicks.monsters)}, ongoing ticks ${num(report.averageMechanics.ongoingDamageTicks.players)}/${num(report.averageMechanics.ongoingDamageTicks.monsters)}, counters ${num(report.averageMechanics.counterUses.players)}/${num(report.averageMechanics.counterUses.monsters)}, AOE targets/action ${num(report.averageMechanics.aoeActualTargets.players)}/${num(report.averageMechanics.aoePotentialTargets.players)} vs ${num(report.averageMechanics.aoeActualTargets.monsters)}/${num(report.averageMechanics.aoePotentialTargets.monsters)}`,
     unsupported,
     `Balance verdict: ${report.verdict}`,
   ].join("\n");

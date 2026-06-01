@@ -270,6 +270,39 @@ function equipmentAttackConfig(item: SummoningEquipmentItem): MonsterNaturalAtta
   };
 }
 
+function profileHasAttackIntent(profile: MonsterNaturalAttackConfig["melee"] | MonsterNaturalAttackConfig["ranged"] | MonsterNaturalAttackConfig["aoe"]) {
+  if (!profile) return false;
+  return Boolean(profile.enabled) ||
+    positiveModifier(profile.physicalStrength) > 0 ||
+    positiveModifier(profile.mentalStrength) > 0 ||
+    (profile.attackEffects?.length ?? 0) > 0;
+}
+
+function attackConfigHasIntent(config: MonsterNaturalAttackConfig | null | undefined) {
+  return profileHasAttackIntent(config?.melee) ||
+    profileHasAttackIntent(config?.ranged) ||
+    profileHasAttackIntent(config?.aoe);
+}
+
+function itemContributesDefenceOnly(item: {
+  ppv?: number | null;
+  mpv?: number | null;
+  globalAttributeModifiers?: Array<{ attribute?: string; amount?: number }> | unknown;
+}) {
+  const modifiers = readGlobalAttributeModifiers(item.globalAttributeModifiers);
+  return asNumber(item.ppv) > 0 ||
+    asNumber(item.mpv) > 0 ||
+    modifiers.some((modifier) =>
+      ["armor skill", "willpower", "dodge", "guard", "fortitude", "bravery"].includes(
+        String(modifier.attribute ?? "").trim().toLowerCase(),
+      ) && asNumber(modifier.amount) !== 0,
+    );
+}
+
+function equipmentSlotLabel(slot: string) {
+  return slot.endsWith("ItemId") ? slot.slice(0, -"ItemId".length) : slot;
+}
+
 export function itemTemplateToSummoningEquipmentItem(template: ItemTemplateRow): SummoningEquipmentItem {
   const rangeCategories = template.rangeCategories ?? [];
   return {
@@ -464,16 +497,25 @@ export function adaptCampaignCharacterToCombatActor(
     const type = backpackItem.itemTemplate.type;
     if (type !== "WEAPON" && type !== "SHIELD") return [];
     const label = `${slot}: ${backpackItem.itemTemplate.name ?? "Equipped item"}`;
+    const attackConfig = buildAttackConfig(backpackItem);
     const actions = makeAttackActionsFromConfig({
       idBase: `${row.id}:equipment:${slot}:${backpackItem.id}`,
       sourceLabel: label,
       sourceType: "equippedWeapon",
-      attackConfig: buildAttackConfig(backpackItem),
+      attackConfig,
       diceCount: derived.weaponSkill,
     });
     if (actions.length === 0 || actions.every((action) => !action.supported)) {
-      const message = `${label} is equipped but has no supported attack strength for Combat Lab V1.`;
-      unsupportedEquipment.push(message);
+      const defensiveOnlyShield =
+        type === "SHIELD" &&
+        !attackConfigHasIntent(attackConfig) &&
+        itemContributesDefenceOnly(backpackItem.itemTemplate);
+      const message = defensiveOnlyShield
+        ? `${label} contributes defence only; no attack generated.`
+        : `${label} is equipped but has no supported attack strength for Combat Lab V1.`;
+      if (!defensiveOnlyShield) {
+        unsupportedEquipment.push(message);
+      }
       warnings.push(makeWarning(row.id, row.name, `equipment:${slot}`, message));
     }
     const effects = [
@@ -634,18 +676,28 @@ export function adaptMonsterToCombatLabActor(
       return [];
     }
     if (item.type !== "WEAPON" && item.type !== "SHIELD") return [];
-    const label = `${slot}: ${item.name}`;
+    const slotLabel = equipmentSlotLabel(String(slot));
+    const label = `${slotLabel}: ${item.name}`;
+    const attackConfig = equipmentAttackConfig(item);
     const actions = makeAttackActionsFromConfig({
-      idBase: `${row.id}:equipment:${slot}:${item.id}`,
+      idBase: `${row.id}:equipment:${slotLabel}:${item.id}`,
       sourceLabel: label,
       sourceType: "equippedWeapon",
-      attackConfig: equipmentAttackConfig(item),
+      attackConfig,
       diceCount: weaponSkill,
     });
     if (actions.length === 0 || actions.every((action) => !action.supported)) {
-      const message = `${label} is equipped but has no supported attack strength for Combat Lab V1.`;
-      unsupportedEquipment.push(message);
-      warnings.push(makeWarning(row.id, row.name, `equipment:${slot}`, message));
+      const defensiveOnlyShield =
+        item.type === "SHIELD" &&
+        !attackConfigHasIntent(attackConfig) &&
+        itemContributesDefenceOnly(item);
+      const message = defensiveOnlyShield
+        ? `${label} contributes defence only; no attack generated.`
+        : `${label} is equipped but has no supported attack strength for Combat Lab V1.`;
+      if (!defensiveOnlyShield) {
+        unsupportedEquipment.push(message);
+      }
+      warnings.push(makeWarning(row.id, row.name, `equipment:${slotLabel}`, message));
     }
     const effects = [
       ...(item.melee?.attackEffects ?? []),

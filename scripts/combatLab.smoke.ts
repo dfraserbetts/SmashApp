@@ -2,6 +2,8 @@ import { buildCombatLabSmokeScenarios, runCombatScenario } from "../lib/combat-l
 import { resolveCombatAction, resolveStartOfTurnEffects } from "../lib/combat-lab/actionResolver";
 import {
   createCombatState,
+  getActionCooldownRemaining,
+  isActionOnCooldown,
   refreshActorResponses,
   tickActorCooldowns,
 } from "../lib/combat-lab/combatState";
@@ -123,6 +125,10 @@ function makeBackpackRow(params: {
   ppv?: number | null;
   mpv?: number | null;
   globalAttributeModifiers?: Array<{ attribute: string; amount: number }>;
+  rangeCategories?: Array<{ rangeCategory: string }>;
+  meleePhysicalStrength?: number | null;
+  meleeMentalStrength?: number | null;
+  attackEffectsMelee?: Array<{ attackEffect: { name: string } }>;
 }): CombatLabCharacterBackpackItem {
   return {
     id: params.id,
@@ -141,6 +147,10 @@ function makeBackpackRow(params: {
         rarity: "COMMON",
         level: 3,
         globalAttributeModifiers: params.globalAttributeModifiers ?? [],
+        rangeCategories: params.rangeCategories ?? [],
+        meleePhysicalStrength: params.meleePhysicalStrength ?? null,
+        meleeMentalStrength: params.meleeMentalStrength ?? null,
+        attackEffectsMelee: params.attackEffectsMelee ?? [],
       },
     },
   };
@@ -510,6 +520,52 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const defensiveShield = makeBackpackRow({
+    id: "defensive-shield",
+    name: "Defensive Only Shield",
+    type: "SHIELD",
+    ppv: 6,
+    mpv: 3,
+    globalAttributeModifiers: [{ attribute: "Armor Skill", amount: 1 }],
+  });
+  const { actor } = adaptCampaignCharacterToCombatActor(
+    makeCharacterRow({
+      builderData: makeCharacterBuilderData({ equippedSlots: { offHand: "defensive-shield" } }),
+      backpackItems: [defensiveShield],
+    }),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  if (actor.hydration.unsupportedEquipment.length !== 0) {
+    throw new Error("Defensive-only shield was counted as unsupported combat equipment.");
+  }
+  if (!actor.hydration.warnings.some((warning) => warning.includes("contributes defence only; no attack generated"))) {
+    throw new Error("Defensive-only shield did not report its info-only hydration note.");
+  }
+}
+
+{
+  const attackShield = makeBackpackRow({
+    id: "attack-shield",
+    name: "Attack Effect Shield",
+    type: "SHIELD",
+    ppv: 4,
+    rangeCategories: [{ rangeCategory: "MELEE" }],
+    meleePhysicalStrength: 1,
+    attackEffectsMelee: [{ attackEffect: { name: "Knockdown" } }],
+  });
+  const { actor } = adaptCampaignCharacterToCombatActor(
+    makeCharacterRow({
+      builderData: makeCharacterBuilderData({ equippedSlots: { offHand: "attack-shield" } }),
+      backpackItems: [attackShield],
+    }),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  if (actor.hydration.unsupportedEquipment.length === 0) {
+    throw new Error("Attack-intended shield with unresolved effects was not counted as unsupported equipment.");
+  }
+}
+
+{
   const base = makeFixturePower({
     id: "open-vein-fixture",
     name: "Open Vein Fixture",
@@ -749,6 +805,176 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const counterstrike = action({
+    id: "cooldown-counterstrike",
+    name: "Cooldown Counterstrike",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 4,
+    potency: 2,
+    cooldownRounds: 2,
+  });
+  const defender = fixtureActor("cooldown-counter-defender", "players", {
+    physicalHpMax: 999,
+    mentalHpMax: 999,
+    dodgeDice: 1,
+    actions: [counterstrike],
+  });
+  const attacker = fixtureActor("cooldown-counter-attacker", "monsters", {
+    physicalHpMax: 999,
+    mentalHpMax: 999,
+    actions: [action({ id: "cooldown-trigger-attack", diceCount: 4, potency: 1 })],
+  });
+  const state = createCombatState([defender], [attacker]);
+  refreshActorResponses(state, state.actors[0].id);
+  resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: state.actors[1].actions[0],
+    rng: rngFrom([0.99, 0, 0.99, 0.99, 0.99, 0.99]),
+  });
+  state.round += 1;
+  refreshActorResponses(state, state.actors[0].id);
+  resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: state.actors[1].actions[0],
+    rng: rngFrom([0.99, 0, 0.99]),
+  });
+  tickActorCooldowns(state, state.actors[0].id);
+  const trace = Object.values(state.cooldownTrace).find((entry) => entry.actionId === counterstrike.id);
+  if (
+    !trace ||
+    trace.uses !== 1 ||
+    trace.preventedByCooldown < 1 ||
+    trace.cooldownApplied !== 1 ||
+    trace.cooldownTicks !== 1 ||
+    getActionCooldownRemaining(state, state.actors[0].id, counterstrike.id) !== 1
+  ) {
+    throw new Error(`Cooldown 2 counter was not enforced across incoming attacks: ${JSON.stringify(trace)}.`);
+  }
+}
+
+{
+  const counterstrike = action({
+    id: "response-refresh-counterstrike",
+    name: "Response Refresh Counterstrike",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 4,
+    potency: 2,
+    cooldownRounds: 2,
+  });
+  const defender = fixtureActor("response-refresh-defender", "monsters", {
+    actions: [counterstrike],
+  });
+  const attacker = fixtureActor("response-refresh-attacker", "players", {
+    actions: [action({ id: "response-refresh-trigger", diceCount: 4, potency: 1 })],
+  });
+  const state = createCombatState([attacker], [defender]);
+  refreshActorResponses(state, state.actors[1].id);
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.99, 0, 0.99, 0.99, 0.99]),
+  });
+  refreshActorResponses(state, state.actors[1].id);
+  if (
+    resolution.counterUses !== 1 ||
+    state.responsesRemaining[state.actors[1].id] !== 2 ||
+    !isActionOnCooldown(state, state.actors[1].id, counterstrike.id)
+  ) {
+    throw new Error("Refreshing Responses incorrectly refreshed or bypassed counter cooldown.");
+  }
+}
+
+{
+  const normalPower = action({
+    id: "normal-cooldown-power",
+    name: "Normal Cooldown Power",
+    diceCount: 4,
+    potency: 1,
+    cooldownRounds: 2,
+  });
+  const counterPower = action({
+    id: "counter-cooldown-power",
+    name: "Counter Cooldown Power",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 4,
+    potency: 1,
+    cooldownRounds: 2,
+  });
+  const normalActor = fixtureActor("normal-cooldown-actor", "players", { actions: [normalPower] });
+  const counterActor = fixtureActor("counter-cooldown-actor", "monsters", { actions: [counterPower] });
+  const state = createCombatState([normalActor], [counterActor]);
+  refreshActorResponses(state, state.actors[1].id);
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.99, 0, 0.99]),
+  });
+  if (
+    getActionCooldownRemaining(state, state.actors[0].id, normalPower.id) !== 2 ||
+    getActionCooldownRemaining(state, state.actors[1].id, counterPower.id) !== 2
+  ) {
+    throw new Error("Normal and counter powers did not apply cooldown through the same remaining-value path.");
+  }
+  const normalTrace = state.cooldownTrace[`${state.actors[0].id}:${normalPower.id}`];
+  const counterTrace = state.cooldownTrace[`${state.actors[1].id}:${counterPower.id}`];
+  if (normalTrace?.cooldownApplied !== 1 || counterTrace?.cooldownApplied !== 1) {
+    throw new Error("Normal and counter powers did not both record cooldown application.");
+  }
+}
+
+{
+  const counterstrike = action({
+    id: "report-cooldown-counterstrike",
+    name: "Report Cooldown Counterstrike",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 3,
+    potency: 2,
+    cooldownRounds: 2,
+  });
+  const report = runScenarioSuite({
+    name: "cooldown trace report fixture",
+    players: [
+      fixtureActor("report-cooldown-defender", "players", {
+        physicalHpMax: 999,
+        mentalHpMax: 999,
+        actions: [counterstrike],
+      }),
+    ],
+    monsters: [
+      fixtureActor("report-cooldown-attacker", "monsters", {
+        physicalHpMax: 999,
+        mentalHpMax: 999,
+        actions: [action({ id: "report-cooldown-trigger", diceCount: 1, potency: 1 })],
+      }),
+    ],
+    runs: 2,
+    seed: 823,
+    maxRounds: 2,
+    turnOrder: "monstersFirst",
+  });
+  const trace = report.cooldownTrace.find((entry) => entry.actionId === counterstrike.id);
+  if (!trace || trace.uses <= 0 || trace.cooldownTicks <= 0) {
+    throw new Error("Cooldown trace was not exposed in the merged report.");
+  }
+}
+
+{
   const player = fixtureActor("aoe-player", "players");
   const monsters = Array.from({ length: 4 }, (_, index) => fixtureActor(`aoe-monster-${index}`, "monsters"));
   const state = createCombatState([player], monsters);
@@ -759,7 +985,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     action: action({ rangeCategory: "AOE", targetCount: 4 }),
     rng: rngFrom([0.99, 0, 0.99, 0]),
   });
-  if (resolution.aoePotentialTargets !== 4 || resolution.aoeActualTargets !== 2) {
+  if (resolution.aoeActionUses !== 1 || resolution.aoePotentialTargets !== 4 || resolution.aoeActualTargets !== 2) {
     throw new Error("AOE target abstraction did not apply 60% target capacity.");
   }
 }
@@ -772,11 +998,30 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     state,
     actor: state.actors[0],
     target: state.actors[1],
-    action: action({ rangeCategory: "AOE", targetCount: 8 }),
+    action: action({ rangeCategory: "AOE", targetCount: 10 }),
     rng: rngFrom([0.99, 0]),
   });
-  if (resolution.aoePotentialTargets !== 8 || resolution.aoeActualTargets !== 1) {
+  if (resolution.aoeActionUses !== 1 || resolution.aoePotentialTargets !== 10 || resolution.aoeActualTargets !== 1) {
     throw new Error("AOE target abstraction exceeded legal living targets in 1v1.");
+  }
+}
+
+{
+  const player = fixtureActor("aoe-report-player", "players", {
+    actions: [action({ id: "aoe-report-action", rangeCategory: "AOE", targetCount: 10 })],
+  });
+  const monster = fixtureActor("aoe-report-monster", "monsters");
+  const report = runScenarioSuite({
+    name: "aoe reporting fixture",
+    players: [player],
+    monsters: [monster],
+    runs: 2,
+    seed: 611,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  if (report.averageMechanics.aoeActualTargets.players > 1 || report.averageMechanics.aoeActionUses.players <= 0) {
+    throw new Error("AOE report did not keep actual target count per use capped by living targets.");
   }
 }
 
@@ -784,8 +1029,8 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   const support = createFixtureActor({
     id: "support-policy",
     side: "players",
-    name: "Support Policy",
-    role: "Support",
+    name: "CL-L3-Support Policy",
+    role: "Campaign Character",
     physicalHp: 30,
     mentalHp: 30,
     physicalProtection: 0,
@@ -810,6 +1055,12 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   const soloAction = chooseAction(soloState.actors[0], soloState);
   if (soloAction?.kind !== "debuff") {
     throw new Error("Solo support did not prefer a useful debuff before wasting an ally buff.");
+  }
+  soloState.actors[0].physicalHpCurrent = Math.floor(soloState.actors[0].physicalHpMax / 2);
+  const soloHealAction = chooseAction(soloState.actors[0], soloState);
+  const soloHealTarget = soloHealAction ? chooseTarget(soloState.actors[0], soloHealAction, soloState) : null;
+  if (soloHealAction?.kind !== "healing" || soloHealTarget?.id !== soloState.actors[0].id) {
+    throw new Error("Wounded solo support did not heal self before attacking.");
   }
   const partyState = createCombatState([support, ally], [monster]);
   const partyAction = chooseAction(partyState.actors[0], partyState);
@@ -882,6 +1133,175 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   });
   if (report.actorContributions.length === 0 || !report.actorContributions.some((entry) => entry.topActionName)) {
     throw new Error("Actor contribution report did not record action usage.");
+  }
+}
+
+{
+  const hotAction = action({
+    id: "multiheal-credit",
+    name: "Multiheal Credit",
+    kind: "healing",
+    targetPolicy: "ally",
+    diceCount: 4,
+    potency: 2,
+    recurring: { kind: "healingOverTime", durationRounds: 2 },
+  });
+  const healer = fixtureActor("hot-credit-healer", "players", {
+    physicalHpMax: 50,
+    mentalHpMax: 50,
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    physicalProtection: 0,
+    actions: [hotAction],
+  });
+  const attacker = fixtureActor("hot-credit-attacker", "monsters", {
+    actions: [action({ id: "hot-credit-attack", diceCount: 5, potency: 3 })],
+  });
+  const report = runScenarioSuite({
+    name: "healing over time actor contribution fixture",
+    players: [healer],
+    monsters: [attacker],
+    runs: 3,
+    seed: 819,
+    maxRounds: 3,
+    turnOrder: "monstersFirst",
+  });
+  const contribution = report.actorContributions.find((entry) => entry.actorId === healer.id);
+  const actionContribution = contribution?.actionContributions.find((entry) => entry.actionId === hotAction.id);
+  if (!actionContribution || actionContribution.healing <= 0 || actionContribution.healingTicks <= 0) {
+    throw new Error("Healing-over-time ticks were not credited back to the source healing action contribution.");
+  }
+}
+
+{
+  const ongoingAction = action({
+    id: "open-vein-credit",
+    name: "Open Vein Credit",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 5,
+    potency: 1,
+    recurring: { kind: "ongoingDamage", durationRounds: 2 },
+  });
+  const attacker = fixtureActor("ongoing-credit-attacker", "players", {
+    actions: [ongoingAction],
+  });
+  const defender = fixtureActor("ongoing-credit-defender", "monsters", {
+    physicalHpMax: 999,
+    mentalHpMax: 999,
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    physicalProtection: 0,
+  });
+  const report = runScenarioSuite({
+    name: "ongoing damage actor contribution fixture",
+    players: [attacker],
+    monsters: [defender],
+    runs: 3,
+    seed: 820,
+    maxRounds: 2,
+    turnOrder: "playersFirst",
+  });
+  const contribution = report.actorContributions.find((entry) => entry.actorId === attacker.id);
+  const actionContribution = contribution?.actionContributions.find((entry) => entry.actionId === ongoingAction.id);
+  if (!actionContribution || actionContribution.ongoingDamageApplied <= 0 || actionContribution.ongoingDamageTicks <= 0) {
+    throw new Error("Ongoing damage ticks were not credited back to the source attack action contribution.");
+  }
+}
+
+{
+  const fieldAction = action({
+    id: "suppression-field-credit",
+    name: "Suppression Field Credit",
+    kind: "debuff",
+    targetPolicy: "allEnemies",
+    diceCount: 3,
+    potency: 1,
+    modifier: { attribute: "Attack", amount: 1, durationRounds: 2 },
+  });
+  const support = fixtureActor("field-credit-support", "players", {
+    name: "Support Field Credit",
+    role: "Campaign Character",
+    actions: [fieldAction],
+  });
+  const defender = fixtureActor("field-credit-defender", "monsters", {
+    physicalHpMax: 999,
+    mentalHpMax: 999,
+  });
+  const report = runScenarioSuite({
+    name: "field debuff actor contribution fixture",
+    players: [support],
+    monsters: [defender],
+    runs: 3,
+    seed: 821,
+    maxRounds: 2,
+    turnOrder: "playersFirst",
+  });
+  const contribution = report.actorContributions.find((entry) => entry.actorId === support.id);
+  const actionContribution = contribution?.actionContributions.find((entry) => entry.actionId === fieldAction.id);
+  if (!actionContribution || actionContribution.debuffApplications <= 0 || actionContribution.debuffUptime <= 0) {
+    throw new Error("Field/debuff uptime was not credited back to the source debuff action contribution.");
+  }
+}
+
+{
+  const attacker = fixtureActor("outgoing-contribution-attacker", "players", {
+    actions: [action({ id: "outgoing-hit", diceCount: 1, potency: 4 })],
+  });
+  const defender = fixtureActor("defensive-contribution-defender", "monsters", {
+    dodgeDice: 1,
+    physicalDefenceDice: 20,
+    physicalBlockPerSuccess: 4,
+    physicalProtection: 0,
+    actions: [action({ id: "defender-fallback" })],
+  });
+  const report = runScenarioSuite({
+    name: "defensive contribution fixture",
+    players: [attacker],
+    monsters: [defender],
+    runs: 2,
+    seed: 817,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  const outgoing = report.actorContributions.find((entry) => entry.actorId === attacker.id);
+  const defensive = report.defensiveContributions.find((entry) => entry.actorId === defender.id);
+  if (!outgoing || outgoing.mitigation !== 0 || !defensive || defensive.defenceStringBlocked <= 0) {
+    throw new Error("Defender mitigation was not separated from attacker outgoing action contribution.");
+  }
+}
+
+{
+  const counterAttack = action({
+    id: "counter-strike-credit",
+    name: "Counter Strike Credit",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 4,
+    potency: 2,
+  });
+  const attacker = fixtureActor("counter-credit-attacker", "players", {
+    actions: [action({ id: "counter-trigger-attack", diceCount: 1, potency: 1 })],
+  });
+  const defender = fixtureActor("counter-credit-defender", "monsters", {
+    actions: [counterAttack],
+  });
+  const report = runScenarioSuite({
+    name: "counter defensive credit fixture",
+    players: [attacker],
+    monsters: [defender],
+    runs: 2,
+    seed: 818,
+    maxRounds: 1,
+    turnOrder: "monstersFirst",
+  });
+  const outgoing = report.actorContributions.find((entry) => entry.actorId === attacker.id);
+  const defensive = report.defensiveContributions.find((entry) => entry.actorId === defender.id);
+  if (!defensive || defensive.counterDamage <= 0 || (outgoing?.counterDamage ?? 0) !== 0) {
+    throw new Error("Counter damage was not credited to the defending actor.");
   }
 }
 

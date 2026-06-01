@@ -6,6 +6,7 @@ import {
   getLivingActors,
   refreshActorResponses,
   resetRoundDefenceDegradation,
+  sampleActorCooldownAvailability,
   tickActorCooldowns,
   tickTargetTurnEffects,
 } from "./combatState";
@@ -19,6 +20,7 @@ import type {
   CombatAggregateMetrics,
   CombatAction,
   CombatActor,
+  CombatActorContribution,
   CombatRunResult,
   CombatScenario,
   CombatSide,
@@ -103,6 +105,7 @@ function addResolutionToAggregate(
   metrics.stacksApplied[side] += resolution.stacksApplied;
   metrics.stacksExpired[side] += resolution.stacksExpired;
   metrics.stacksCleansed[side] += resolution.stacksCleansed;
+  metrics.aoeActionUses[side] += resolution.aoeActionUses;
   metrics.aoePotentialTargets[side] += resolution.aoePotentialTargets;
   metrics.aoeActualTargets[side] += resolution.aoeActualTargets;
   metrics.positionalAbstractionsUsed[side] += resolution.positionalAbstractionsUsed;
@@ -123,15 +126,20 @@ function addActorContribution(
     actionsUsed: 0,
     damage: 0,
     healing: 0,
+    healingOverTimeApplied: 0,
+    healingTicks: 0,
     mitigation: 0,
     counterUses: 0,
     counterDamage: 0,
     counterMitigation: 0,
     buffApplications: 0,
+    buffUptime: 0,
     debuffApplications: 0,
+    debuffUptime: 0,
     controlTurnsApplied: 0,
     actionsDenied: 0,
     ongoingDamageApplied: 0,
+    ongoingDamageTicks: 0,
     topActionName: null,
     actionContributions: [],
   };
@@ -146,52 +154,255 @@ function addActorContribution(
       uses: 0,
       damage: 0,
       healing: 0,
+      healingOverTimeApplied: 0,
+      healingTicks: 0,
       mitigation: 0,
       counterUses: 0,
       counterDamage: 0,
       counterMitigation: 0,
       buffApplications: 0,
+      buffUptime: 0,
       debuffApplications: 0,
+      debuffUptime: 0,
       controlTurnsApplied: 0,
       actionsDenied: 0,
       ongoingDamageApplied: 0,
+      ongoingDamageTicks: 0,
       linkedActionCount: action.secondaryActions?.length ?? 0,
     };
     actorContribution.actionContributions.push(actionContribution);
   }
 
-  const mitigation = resolution.protectionPrevented + resolution.mitigationApplied;
+  const mitigation = resolution.mitigationApplied;
   actorContribution.actionsUsed += 1;
   actorContribution.damage += resolution.netWounds;
   actorContribution.healing += resolution.healingDone;
+  actorContribution.healingOverTimeApplied += resolution.healingOverTimeApplied;
+  actorContribution.healingTicks += resolution.healingTicks;
   actorContribution.mitigation += mitigation;
-  actorContribution.counterUses += resolution.counterUses;
-  actorContribution.counterDamage += resolution.counterDamage;
-  actorContribution.counterMitigation += resolution.counterMitigation;
   actorContribution.buffApplications += resolution.buffApplications;
+  actorContribution.buffUptime += resolution.buffUptime;
   actorContribution.debuffApplications += resolution.debuffApplications;
+  actorContribution.debuffUptime += resolution.debuffUptime;
   actorContribution.controlTurnsApplied += resolution.controlTurnsApplied;
   actorContribution.actionsDenied += resolution.actionsDenied;
   actorContribution.ongoingDamageApplied += resolution.ongoingDamageApplied;
+  actorContribution.ongoingDamageTicks += resolution.ongoingDamageTicks;
 
   actionContribution.uses += 1;
   actionContribution.damage += resolution.netWounds;
   actionContribution.healing += resolution.healingDone;
+  actionContribution.healingOverTimeApplied += resolution.healingOverTimeApplied;
+  actionContribution.healingTicks += resolution.healingTicks;
   actionContribution.mitigation += mitigation;
-  actionContribution.counterUses += resolution.counterUses;
-  actionContribution.counterDamage += resolution.counterDamage;
-  actionContribution.counterMitigation += resolution.counterMitigation;
   actionContribution.buffApplications += resolution.buffApplications;
+  actionContribution.buffUptime += resolution.buffUptime;
   actionContribution.debuffApplications += resolution.debuffApplications;
+  actionContribution.debuffUptime += resolution.debuffUptime;
   actionContribution.controlTurnsApplied += resolution.controlTurnsApplied;
   actionContribution.actionsDenied += resolution.actionsDenied;
   actionContribution.ongoingDamageApplied += resolution.ongoingDamageApplied;
+  actionContribution.ongoingDamageTicks += resolution.ongoingDamageTicks;
 
   actorContribution.topActionName =
     [...actorContribution.actionContributions].sort((a, b) =>
-      (b.damage + b.healing + b.mitigation + b.buffApplications + b.debuffApplications + b.controlTurnsApplied) -
-      (a.damage + a.healing + a.mitigation + a.buffApplications + a.debuffApplications + a.controlTurnsApplied),
+      (b.damage + b.healing + b.healingOverTimeApplied + b.mitigation + b.buffApplications + b.buffUptime + b.debuffApplications + b.debuffUptime + b.controlTurnsApplied + b.ongoingDamageApplied) -
+      (a.damage + a.healing + a.healingOverTimeApplied + a.mitigation + a.buffApplications + a.buffUptime + a.debuffApplications + a.debuffUptime + a.controlTurnsApplied + a.ongoingDamageApplied),
     )[0]?.actionName ?? null;
+}
+
+type TimedStatusContribution = {
+  sourceActorId: string;
+  sourceActionId?: string;
+  sourceActionName?: string;
+  damage: number;
+  healing: number;
+  healingTicks: number;
+  ongoingDamageApplied: number;
+  ongoingDamageTicks: number;
+  buffUptime: number;
+  debuffUptime: number;
+};
+
+function collectStartOfTurnStatusContributions(
+  state: ReturnType<typeof createCombatState>,
+  target: CombatActor,
+): TimedStatusContribution[] {
+  const contributions: TimedStatusContribution[] = [];
+  let physicalCurrent = target.physicalHpCurrent;
+  let mentalCurrent = target.mentalHpCurrent;
+  for (const effect of state.statusEffects.filter((entry) => entry.targetActorId === target.id)) {
+    if (effect.kind !== "healingOverTime" && effect.kind !== "ongoingDamage") continue;
+    let healing = 0;
+    let damage = 0;
+    if (effect.kind === "healingOverTime") {
+      const pool = effect.pool ?? "physical";
+      const current = pool === "physical" ? physicalCurrent : mentalCurrent;
+      const max = pool === "physical" ? target.physicalHpMax : target.mentalHpMax;
+      healing = Math.min(Math.max(0, max - current), Math.max(0, effect.amount));
+      if (pool === "physical") {
+        physicalCurrent = Math.min(max, physicalCurrent + healing);
+      } else {
+        mentalCurrent = Math.min(max, mentalCurrent + healing);
+      }
+    } else {
+      damage = Math.max(0, effect.amount);
+    }
+    contributions.push({
+      sourceActorId: effect.sourceActorId,
+      sourceActionId: effect.sourceActionId,
+      sourceActionName: effect.sourceActionName,
+      damage,
+      healing,
+      healingTicks: effect.kind === "healingOverTime" ? 1 : 0,
+      ongoingDamageApplied: damage,
+      ongoingDamageTicks: effect.kind === "ongoingDamage" ? 1 : 0,
+      buffUptime: 0,
+      debuffUptime: 0,
+    });
+  }
+  return contributions;
+}
+
+function ensureActorContribution(metrics: CombatAggregateMetrics, actor: CombatActor): CombatActorContribution {
+  return metrics.actorContributions[actor.id] ??= {
+    actorId: actor.id,
+    actorName: actor.name,
+    side: actor.side,
+    role: actor.role,
+    actionsUsed: 0,
+    damage: 0,
+    healing: 0,
+    healingOverTimeApplied: 0,
+    healingTicks: 0,
+    mitigation: 0,
+    counterUses: 0,
+    counterDamage: 0,
+    counterMitigation: 0,
+    buffApplications: 0,
+    buffUptime: 0,
+    debuffApplications: 0,
+    debuffUptime: 0,
+    controlTurnsApplied: 0,
+    actionsDenied: 0,
+    ongoingDamageApplied: 0,
+    ongoingDamageTicks: 0,
+    topActionName: null,
+    actionContributions: [],
+  };
+}
+
+function findSourceAction(sourceActor: CombatActor, contribution: Pick<TimedStatusContribution, "sourceActionId" | "sourceActionName">) {
+  return sourceActor.actions.find((action) =>
+    contribution.sourceActionId
+      ? action.id === contribution.sourceActionId
+      : action.name === contribution.sourceActionName,
+  );
+}
+
+function addTimedStatusContributions(
+  metrics: CombatAggregateMetrics,
+  state: ReturnType<typeof createCombatState>,
+  contributions: TimedStatusContribution[],
+) {
+  for (const contribution of contributions) {
+    const sourceActor = state.actors.find((actor) => actor.id === contribution.sourceActorId);
+    if (!sourceActor) continue;
+    const sourceAction = findSourceAction(sourceActor, contribution);
+    const actorContribution = ensureActorContribution(metrics, sourceActor);
+    actorContribution.damage += contribution.damage;
+    actorContribution.healing += contribution.healing;
+    actorContribution.healingTicks += contribution.healingTicks;
+    actorContribution.ongoingDamageApplied += contribution.ongoingDamageApplied;
+    actorContribution.ongoingDamageTicks += contribution.ongoingDamageTicks;
+    actorContribution.buffUptime += contribution.buffUptime;
+    actorContribution.debuffUptime += contribution.debuffUptime;
+    if (!sourceAction) continue;
+    let actionContribution = actorContribution.actionContributions.find((entry) => entry.actionId === sourceAction.id);
+    if (!actionContribution) {
+      actionContribution = {
+        actionId: sourceAction.id,
+        actionName: sourceAction.name,
+        sourcePowerId: sourceAction.sourcePowerId,
+        sourceType: sourceAction.sourceType,
+        kind: sourceAction.kind,
+        uses: 0,
+        damage: 0,
+        healing: 0,
+        healingOverTimeApplied: 0,
+        healingTicks: 0,
+        mitigation: 0,
+        counterUses: 0,
+        counterDamage: 0,
+        counterMitigation: 0,
+        buffApplications: 0,
+        buffUptime: 0,
+        debuffApplications: 0,
+        debuffUptime: 0,
+        controlTurnsApplied: 0,
+        actionsDenied: 0,
+        ongoingDamageApplied: 0,
+        ongoingDamageTicks: 0,
+        linkedActionCount: sourceAction.secondaryActions?.length ?? 0,
+      };
+      actorContribution.actionContributions.push(actionContribution);
+    }
+    actionContribution.damage += contribution.damage;
+    actionContribution.healing += contribution.healing;
+    actionContribution.healingTicks += contribution.healingTicks;
+    actionContribution.ongoingDamageApplied += contribution.ongoingDamageApplied;
+    actionContribution.ongoingDamageTicks += contribution.ongoingDamageTicks;
+    actionContribution.buffUptime += contribution.buffUptime;
+    actionContribution.debuffUptime += contribution.debuffUptime;
+    actorContribution.topActionName =
+      [...actorContribution.actionContributions].sort((a, b) =>
+        (b.damage + b.healing + b.healingOverTimeApplied + b.mitigation + b.buffApplications + b.buffUptime + b.debuffApplications + b.debuffUptime + b.controlTurnsApplied + b.ongoingDamageApplied) -
+        (a.damage + a.healing + a.healingOverTimeApplied + a.mitigation + a.buffApplications + a.buffUptime + a.debuffApplications + a.debuffUptime + a.controlTurnsApplied + a.ongoingDamageApplied),
+      )[0]?.actionName ?? null;
+  }
+}
+
+function addDefensiveContribution(
+  metrics: CombatAggregateMetrics,
+  defender: CombatActor | null,
+  resolution: ReturnType<typeof resolveCombatAction>,
+) {
+  if (!defender) return;
+  if (resolution.aoeActualTargets > 1) return;
+  const defended =
+    resolution.dodgeChosen +
+    resolution.physicalDefenceChosen +
+    resolution.mentalDefenceChosen +
+    resolution.counterChosen +
+    resolution.responsesUsed +
+    resolution.protectionPrevented;
+  if (defended <= 0 && resolution.netWounds <= 0) return;
+
+  const contribution = metrics.defensiveContributions[defender.id] ??= {
+    actorId: defender.id,
+    actorName: defender.name,
+    side: defender.side,
+    role: defender.role,
+    attacksDefended: 0,
+    woundsDodged: 0,
+    defenceStringBlocked: 0,
+    staticProtectionPrevented: 0,
+    counterUses: 0,
+    counterDamage: 0,
+    counterMitigation: 0,
+    responsesUsed: 0,
+    netDamageTaken: 0,
+  };
+
+  contribution.attacksDefended += defended > 0 ? 1 : 0;
+  contribution.woundsDodged += resolution.woundsAvoidedByDodge;
+  contribution.defenceStringBlocked += resolution.defenceStringBlocked;
+  contribution.staticProtectionPrevented += resolution.staticProtectionPrevented;
+  contribution.counterUses += resolution.counterUses;
+  contribution.counterDamage += resolution.counterDamage;
+  contribution.counterMitigation += resolution.counterMitigation;
+  contribution.responsesUsed += resolution.responsesUsed;
+  contribution.netDamageTaken += resolution.netWounds;
 }
 
 function survivorHealthPercent(stateSide: CombatSide, resultStateActors: ReturnType<typeof getLivingActors>): number {
@@ -206,12 +417,42 @@ function survivorHealthPercent(stateSide: CombatSide, resultStateActors: ReturnT
 }
 
 function addStatusUptimeMetrics(metrics: CombatAggregateMetrics, state: ReturnType<typeof createCombatState>) {
+  const sourceContributions: TimedStatusContribution[] = [];
   for (const effect of state.statusEffects) {
     const target = state.actors.find((actor) => actor.id === effect.targetActorId);
     if (!target) continue;
-    if (effect.kind === "buff") metrics.buffUptime[target.side] += 1;
-    if (effect.kind === "debuff" || effect.kind === "field") metrics.debuffUptime[target.side] += 1;
+    if (effect.kind === "buff") {
+      metrics.buffUptime[target.side] += 1;
+      sourceContributions.push({
+        sourceActorId: effect.sourceActorId,
+        sourceActionId: effect.sourceActionId,
+        sourceActionName: effect.sourceActionName,
+        damage: 0,
+        healing: 0,
+        healingTicks: 0,
+        ongoingDamageApplied: 0,
+        ongoingDamageTicks: 0,
+        buffUptime: 1,
+        debuffUptime: 0,
+      });
+    }
+    if (effect.kind === "debuff" || effect.kind === "field") {
+      metrics.debuffUptime[target.side] += 1;
+      sourceContributions.push({
+        sourceActorId: effect.sourceActorId,
+        sourceActionId: effect.sourceActionId,
+        sourceActionName: effect.sourceActionName,
+        damage: 0,
+        healing: 0,
+        healingTicks: 0,
+        ongoingDamageApplied: 0,
+        ongoingDamageTicks: 0,
+        buffUptime: 0,
+        debuffUptime: 1,
+      });
+    }
   }
+  addTimedStatusContributions(metrics, state, sourceContributions);
 }
 
 function shuffled<T>(items: T[], rng: ReturnType<typeof createSeededRng>): T[] {
@@ -261,8 +502,11 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
       const currentActor = state.actors.find((candidate) => candidate.id === actor.id);
       if (!currentActor || currentActor.defeated) continue;
       refreshActorResponses(state, currentActor.id);
+      sampleActorCooldownAvailability(state, currentActor);
+      const timedStatusContributions = collectStartOfTurnStatusContributions(state, currentActor);
       const startTurnResolution = resolveStartOfTurnEffects(state, currentActor);
       addResolutionToAggregate(metrics, currentActor.side, startTurnResolution);
+      addTimedStatusContributions(metrics, state, timedStatusContributions);
       if (startTurnResolution.actionsDenied > 0 || currentActor.defeated) {
         if (startTurnResolution.actionsDenied > 0) {
           state.log.push({
@@ -294,10 +538,11 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
         metrics.actionsUsed[currentActor.side] += action ? 1 : 0;
         addResolutionToAggregate(metrics, currentActor.side, resolution, { defensiveSide: target?.side });
         addActorContribution(metrics, currentActor, action, resolution);
+        addDefensiveContribution(metrics, target, resolution);
         addRoleContribution(metrics, currentActor.role, action?.kind ?? "attack", {
           damage: resolution.netWounds,
           healing: resolution.healingDone,
-          mitigation: resolution.protectionPrevented + resolution.mitigationApplied,
+          mitigation: resolution.mitigationApplied,
           buffDebuff: resolution.buffDebuffApplied,
         });
 
@@ -329,6 +574,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
 
   const livingPlayers = getLivingActors(state, "players");
   const livingMonsters = getLivingActors(state, "monsters");
+  metrics.cooldownTrace = state.cooldownTrace;
   const winner: CombatRunResult["winner"] =
     stoppedBy === "monstersDefeated"
       ? "players"

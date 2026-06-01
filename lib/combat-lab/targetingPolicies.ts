@@ -1,4 +1,4 @@
-import { getLivingActors, getOppositeSide } from "./combatState";
+import { getLivingActors, getOppositeSide, isActionOnCooldown } from "./combatState";
 import type { CombatAction, CombatActor, CombatState } from "./types";
 
 function hpPercent(actor: CombatActor): number {
@@ -28,20 +28,26 @@ function hasWoundedAlly(actor: CombatActor, state: CombatState): boolean {
   return getLivingActors(state, actor.side).some((ally) => hpPercent(ally) < 0.8);
 }
 
+function isSupportLike(actor: CombatActor, actions: CombatAction[]): boolean {
+  const role = String(actor.role).toLowerCase();
+  if (role.includes("support") || actor.name.toLowerCase().includes("support")) return true;
+  return actions.some((action) => action.kind === "healing" || action.kind === "buff" || action.kind === "cleanse");
+}
+
 export function chooseAction(actor: CombatActor, state: CombatState): CombatAction | null {
   const available = actor.actions.filter((action) => {
     if (!action.supported) return false;
-    return !state.cooldowns[`${actor.id}:${action.id}`];
+    return !isActionOnCooldown(state, actor.id, action.id);
   });
   if (available.length === 0) return null;
 
   const allies = getLivingActors(state, actor.side);
   const enemies = getLivingActors(state, getOppositeSide(actor.side));
   const woundedAlly = allies
-    .filter((ally) => hpPercent(ally) < 0.65)
+    .filter((ally) => hpPercent(ally) < 0.8)
     .sort((a, b) => hpPercent(a) - hpPercent(b))[0];
 
-  if (actor.role === "Support") {
+  if (isSupportLike(actor, available)) {
     const heal = available.find((action) => action.kind === "healing");
     if (heal && woundedAlly) return heal;
     const buff = available.find(

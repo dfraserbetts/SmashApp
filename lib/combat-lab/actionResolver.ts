@@ -1,10 +1,14 @@
 import { diceSides, expectedSuccesses, rollDice, successCountForRoll, type Rng } from "./dice";
 import {
+  applyActionCooldown,
   getAttributeModifier,
   getLivingActors,
   getOppositeSide,
   getProtectionModifier,
+  isActionOnCooldown,
   markDefeatedActors,
+  recordActionUse,
+  recordCooldownPreventedUse,
   spendActorResponse,
 } from "./combatState";
 import type {
@@ -81,6 +85,7 @@ function emptyResolution(): CombatResolutionMetrics {
     stacksApplied: 0,
     stacksExpired: 0,
     stacksCleansed: 0,
+    aoeActionUses: 0,
     aoePotentialTargets: 0,
     aoeActualTargets: 0,
     positionalAbstractionsUsed: 0,
@@ -337,20 +342,24 @@ function passiveDefenceAmount(target: CombatActor, pool: "physical" | "mental") 
 
 function resolveCounterDefences(state: CombatState, target: CombatActor, attacker: CombatActor, pool: "physical" | "mental", rng: Rng) {
   const metrics = emptyResolution();
-  const availableCounters = target.actions.filter(
+  const counterCandidates = target.actions.filter(
     (action) =>
       action.counterMode &&
       action.kind === "defence" &&
       !state.counterUses[`${state.round}:${target.id}:${action.id}`] &&
-      !state.cooldowns[`${target.id}:${action.id}`] &&
       (action.pool ?? pool) === pool,
   );
+  for (const action of counterCandidates.filter((candidate) => isActionOnCooldown(state, target.id, candidate.id))) {
+    recordCooldownPreventedUse(state, target, action);
+  }
+  const availableCounters = counterCandidates.filter((action) => !isActionOnCooldown(state, target.id, action.id));
   for (const action of availableCounters.slice(0, 1)) {
     if (!spendActorResponse(state, target.id)) {
       metrics.responsesWastedOrUnavailable = 1;
       return metrics;
     }
     state.counterUses[`${state.round}:${target.id}:${action.id}`] = 1;
+    recordActionUse(state, target, action);
     const roll = rollDice(
       Math.max(1, action.diceCount),
       getActorDie(target, action),
@@ -361,7 +370,7 @@ function resolveCounterDefences(state: CombatState, target: CombatActor, attacke
     metrics.counterUses += 1;
     metrics.counterChosen += 1;
     metrics.responsesUsed += 1;
-    if (action.cooldownRounds > 0) state.cooldowns[`${target.id}:${action.id}`] = action.cooldownRounds;
+    applyActionCooldown(state, target, action);
     state.log.push({
       round: state.round,
       actorId: target.id,
@@ -379,19 +388,23 @@ function resolveCounterDefences(state: CombatState, target: CombatActor, attacke
 
 function resolveCounterAttacks(state: CombatState, target: CombatActor, attacker: CombatActor, rng: Rng) {
   const metrics = emptyResolution();
-  const action = target.actions.find(
+  const counterCandidates = target.actions.filter(
     (candidate) =>
       candidate.counterMode &&
       candidate.kind === "attack" &&
-      !state.counterUses[`${state.round}:${target.id}:${candidate.id}`] &&
-      !state.cooldowns[`${target.id}:${candidate.id}`],
+      !state.counterUses[`${state.round}:${target.id}:${candidate.id}`],
   );
+  for (const candidate of counterCandidates.filter((action) => isActionOnCooldown(state, target.id, action.id))) {
+    recordCooldownPreventedUse(state, target, candidate);
+  }
+  const action = counterCandidates.find((candidate) => !isActionOnCooldown(state, target.id, candidate.id));
   if (!action) return metrics;
   if (!spendActorResponse(state, target.id)) {
     metrics.responsesWastedOrUnavailable = 1;
     return metrics;
   }
   state.counterUses[`${state.round}:${target.id}:${action.id}`] = 1;
+  recordActionUse(state, target, action);
   const roll = rollDice(
     Math.max(1, action.diceCount),
     getActorDie(target, action),
@@ -407,7 +420,7 @@ function resolveCounterAttacks(state: CombatState, target: CombatActor, attacker
   metrics.counterChosen = 1;
   metrics.responsesUsed = 1;
   applyWounds(attacker, pool, damage);
-  if (action.cooldownRounds > 0) state.cooldowns[`${target.id}:${action.id}`] = action.cooldownRounds;
+  applyActionCooldown(state, target, action);
   state.log.push({
     round: state.round,
     actorId: target.id,
@@ -507,7 +520,10 @@ function resolveSingleTargetAction(params: {
     const prevented = normalDefenceBlocked + counterDefenceMetrics.counterMitigation + staticPrevented;
     const netWounds = Math.max(0, activeRawWounds - prevented);
     const overkill = applyWounds(target, pool, netWounds);
-    const counterAttackMetrics = params.fromSecondary ? emptyResolution() : resolveCounterAttacks(state, target, actor, rng);
+    const counterAttackMetrics =
+      params.fromSecondary || counterDefenceMetrics.counterChosen > 0
+        ? emptyResolution()
+        : resolveCounterAttacks(state, target, actor, rng);
     addMetrics(metrics, counterAttackMetrics);
 
     metrics.rawWounds = rawWounds;
@@ -525,6 +541,7 @@ function resolveSingleTargetAction(params: {
         kind: "ongoingDamage",
         amount: Math.max(1, action.potency) * units,
         pool,
+        sourceActionId: action.id,
         sourceActionName: action.name,
         remainingRounds: action.recurring.durationRounds,
       });
@@ -540,6 +557,7 @@ function resolveSingleTargetAction(params: {
         kind: "healingOverTime",
         amount: Math.max(1, roll.successes * action.potency),
         pool: action.pool ?? "physical",
+        sourceActionId: action.id,
         sourceActionName: action.name,
         remainingRounds: action.recurring.durationRounds,
       });
@@ -557,6 +575,7 @@ function resolveSingleTargetAction(params: {
         kind: action.kind,
         attribute: action.modifier.attribute,
         amount: action.modifier.amount,
+        sourceActionId: action.id,
         sourceActionName: action.name,
         remainingRounds: action.modifier.durationRounds,
         positionalAbstraction: action.targetPolicy === "allAllies"
@@ -579,6 +598,8 @@ function resolveSingleTargetAction(params: {
       kind: "protection",
       pool: action.pool ?? "physical",
       amount,
+      sourceActionId: action.id,
+      sourceActionName: action.name,
       remainingRounds: action.modifier?.durationRounds ?? 1,
     });
     metrics.mitigationApplied = amount;
@@ -589,6 +610,7 @@ function resolveSingleTargetAction(params: {
       targetActorId: target.id,
       kind: "mainActionDenied",
       amount: 1,
+      sourceActionId: action.id,
       sourceActionName: action.name,
       remainingRounds: 1,
     });
@@ -647,9 +669,16 @@ export function resolveCombatAction(params: {
     metrics.wastedActions = 1;
     return metrics;
   }
+  if (isActionOnCooldown(state, actor.id, action.id)) {
+    recordCooldownPreventedUse(state, actor, action);
+    metrics.wastedActions = 1;
+    return metrics;
+  }
+  recordActionUse(state, actor, action);
 
   const targets = resolveTargets(state, actor, action, target);
   if (actionUsesAoeAbstraction(action)) {
+    metrics.aoeActionUses += 1;
     metrics.aoePotentialTargets += aoePotentialTargetCount(action);
     metrics.aoeActualTargets += targets.length;
     metrics.positionalAbstractionsUsed += 1;
@@ -658,9 +687,7 @@ export function resolveCombatAction(params: {
     addMetrics(metrics, resolveSingleTargetAction({ state, actor, action, target: resolvedTarget, rng }));
   }
 
-  if (action.cooldownRounds > 0) {
-    state.cooldowns[`${actor.id}:${action.id}`] = action.cooldownRounds;
-  }
+  applyActionCooldown(state, actor, action);
 
   const defeated = markDefeatedActors(state);
   state.log.push({
