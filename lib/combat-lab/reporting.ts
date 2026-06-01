@@ -114,7 +114,7 @@ function mergeRoleContribution(runs: CombatRunResult[]): CombatAggregateMetrics[
         healing: 0,
         mitigation: 0,
         buffDebuff: 0,
-        actions: { attack: 0, healing: 0, buff: 0, debuff: 0, defence: 0 },
+        actions: { attack: 0, healing: 0, buff: 0, debuff: 0, defence: 0, control: 0, movement: 0, cleanse: 0 },
       };
       out[role].damage += contribution.damage / Math.max(1, runs.length);
       out[role].healing += contribution.healing / Math.max(1, runs.length);
@@ -170,6 +170,24 @@ export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
     averageOverkill: averageSideTotals(runs, (metrics) => metrics.overkill),
     averageActionsUsed: averageSideTotals(runs, (metrics) => metrics.actionsUsed),
     averageWastedActions: averageSideTotals(runs, (metrics) => metrics.wastedActions),
+    averageMechanics: {
+      controlTurnsApplied: averageSideTotals(runs, (metrics) => metrics.controlTurnsApplied),
+      actionsDenied: averageSideTotals(runs, (metrics) => metrics.actionsDenied),
+      forcedMovementApplied: averageSideTotals(runs, (metrics) => metrics.forcedMovementApplied),
+      buffApplications: averageSideTotals(runs, (metrics) => metrics.buffApplications),
+      buffUptime: averageSideTotals(runs, (metrics) => metrics.buffUptime),
+      buffedActions: averageSideTotals(runs, (metrics) => metrics.buffedActions),
+      debuffApplications: averageSideTotals(runs, (metrics) => metrics.debuffApplications),
+      debuffUptime: averageSideTotals(runs, (metrics) => metrics.debuffUptime),
+      debuffedActions: averageSideTotals(runs, (metrics) => metrics.debuffedActions),
+      healingOverTimeApplied: averageSideTotals(runs, (metrics) => metrics.healingOverTimeApplied),
+      ongoingDamageApplied: averageSideTotals(runs, (metrics) => metrics.ongoingDamageApplied),
+      counterUses: averageSideTotals(runs, (metrics) => metrics.counterUses),
+      counterDamage: averageSideTotals(runs, (metrics) => metrics.counterDamage),
+      counterMitigation: averageSideTotals(runs, (metrics) => metrics.counterMitigation),
+      passiveDefenceContribution: averageSideTotals(runs, (metrics) => metrics.passiveDefenceContribution),
+      positionalAbstractionsUsed: averageSideTotals(runs, (metrics) => metrics.positionalAbstractionsUsed),
+    },
     roleContribution: mergeRoleContribution(runs),
     unsupported: mergeUnsupported(runs),
     hydrationIntegrity: collectHydrationIntegrity(scenario),
@@ -200,6 +218,7 @@ export function formatSuiteReport(report: CombatSuiteReport): string {
     `Health remaining: ${pct(report.averageWinnerHealthRemainingPercent)}`,
     `Damage/round: players ${num(report.averageDamagePerRound.players)}, monsters ${num(report.averageDamagePerRound.monsters)}`,
     `Defence: protection prevented P/M ${num(report.averageProtectionPrevented.players)}/${num(report.averageProtectionPrevented.monsters)}, dodge avoided P/M ${num(report.averageDodgeAvoided.players)}/${num(report.averageDodgeAvoided.monsters)}`,
+    `Mechanics: control ${num(report.averageMechanics.controlTurnsApplied.players)}/${num(report.averageMechanics.controlTurnsApplied.monsters)}, denied ${num(report.averageMechanics.actionsDenied.players)}/${num(report.averageMechanics.actionsDenied.monsters)}, forced move ${num(report.averageMechanics.forcedMovementApplied.players)}/${num(report.averageMechanics.forcedMovementApplied.monsters)}, buffs ${num(report.averageMechanics.buffApplications.players)}/${num(report.averageMechanics.buffApplications.monsters)}, debuffs ${num(report.averageMechanics.debuffApplications.players)}/${num(report.averageMechanics.debuffApplications.monsters)}, HoT ${num(report.averageMechanics.healingOverTimeApplied.players)}/${num(report.averageMechanics.healingOverTimeApplied.monsters)}, ongoing ${num(report.averageMechanics.ongoingDamageApplied.players)}/${num(report.averageMechanics.ongoingDamageApplied.monsters)}, counters ${num(report.averageMechanics.counterUses.players)}/${num(report.averageMechanics.counterUses.monsters)}, abstractions ${num(report.averageMechanics.positionalAbstractionsUsed.players)}/${num(report.averageMechanics.positionalAbstractionsUsed.monsters)}`,
     unsupported,
     `Balance verdict: ${report.verdict}`,
   ].join("\n");

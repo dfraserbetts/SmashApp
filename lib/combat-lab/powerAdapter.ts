@@ -55,11 +55,28 @@ function normalizePool(value: unknown): CombatPool {
   return asString(value).toUpperCase() === "MENTAL" ? "mental" : "physical";
 }
 
+function normalizeDomain(value: unknown): "MENTAL" | "PHYSICAL" | null {
+  const normalized = asString(value).toUpperCase();
+  if (normalized === "MENTAL" || normalized === "PHYSICAL") return normalized;
+  return null;
+}
+
+function formatDomainValue(value: "MENTAL" | "PHYSICAL" | null) {
+  return value ?? "unset";
+}
+
 function normalizeAttribute(value: unknown, fallback: CombatAttributeName): CombatAttributeName {
   const normalized = asString(value).toUpperCase();
   if (normalized === "DEFENCE" || normalized === "DEFENSE" || normalized === "GUARD") return "Guard";
   if (normalized === "SUPPORT" || normalized === "SYNERGY") return "Synergy";
   return ATTRIBUTES.find((attribute) => attribute.toUpperCase() === normalized) ?? fallback;
+}
+
+function coreAttributeFromValue(value: unknown): CoreAttribute | null {
+  const normalized = asString(value).toUpperCase();
+  if (normalized === "DEFENCE" || normalized === "DEFENSE" || normalized === "GUARD") return "GUARD";
+  if (normalized === "SUPPORT" || normalized === "SYNERGY") return "SYNERGY";
+  return (Object.keys(CORE_TO_COMBAT_ATTRIBUTE) as CoreAttribute[]).find((attribute) => attribute === normalized) ?? null;
 }
 
 function getPackets(power: Power): EffectPacket[] {
@@ -93,15 +110,15 @@ function unsupported(
 
 function packetIsCastableNow(power: Power, packet: EffectPacket): string | null {
   const chassis = power.descriptorChassis ?? "IMMEDIATE";
-  if (chassis !== "IMMEDIATE") {
+  if (chassis !== "IMMEDIATE" && chassis !== "FIELD") {
     return `Descriptor chassis ${chassis} is not resolved in automated V1.`;
   }
   const timing = packet.effectTimingType ?? "ON_CAST";
-  if (timing !== "ON_CAST") {
+  if (timing !== "ON_CAST" && !(chassis === "FIELD" && timing === "START_OF_TURN")) {
     return `Packet timing ${timing} is not resolved in automated V1.`;
   }
   const duration = packet.effectDurationType ?? "INSTANT";
-  if (duration !== "INSTANT" && duration !== "TURNS") {
+  if (duration !== "INSTANT" && duration !== "TURNS" && duration !== "PASSIVE") {
     return `Packet duration ${duration} is not resolved in automated V1.`;
   }
   return null;
@@ -113,6 +130,9 @@ function actionKindForIntention(intention: PowerIntention): CombatAction["kind"]
   if (intention === "AUGMENT") return "buff";
   if (intention === "DEBUFF") return "debuff";
   if (intention === "DEFENCE") return "defence";
+  if (intention === "CONTROL") return "control";
+  if (intention === "MOVEMENT") return "movement";
+  if (intention === "CLEANSE") return "cleanse";
   return null;
 }
 
@@ -123,20 +143,72 @@ function targetPolicyForAction(kind: CombatAction["kind"], packet: EffectPacket)
   return "enemy";
 }
 
+function rangeCategoryForPower(power: Power): CombatAction["rangeCategory"] {
+  return power.rangeCategories?.includes("AOE")
+    ? "AOE"
+    : power.rangeCategories?.includes("RANGED")
+      ? "RANGED"
+      : power.rangeCategories?.includes("MELEE")
+        ? "MELEE"
+        : null;
+}
+
+function targetCountForPower(power: Power): number {
+  return power.rangeCategories?.includes("AOE")
+    ? Math.max(1, asInt(power.aoeCount, 1))
+    : power.rangeCategories?.includes("RANGED")
+      ? Math.max(1, asInt(power.rangedTargets, 1))
+      : Math.max(1, asInt(power.meleeTargets, 1));
+}
+
+function resolveAttackPacketPool(params: {
+  power: Power;
+  packet: EffectPacket;
+  details: Record<string, unknown>;
+}): { pool: CombatPool; warning: string | null } {
+  const attackMode = normalizeDomain(params.details.attackMode);
+  const protectionChannel = normalizeDomain(params.power.primaryDefenceGate?.protectionChannel);
+  const woundChannel = normalizeDomain(params.packet.woundChannel);
+  const chosen = attackMode ?? protectionChannel ?? woundChannel;
+
+  if (!chosen) {
+    return {
+      pool: "physical",
+      warning: `Power "${params.power.name}" has no supported attack domain metadata: attackMode ${formatDomainValue(attackMode)}, protectionChannel ${formatDomainValue(protectionChannel)}, woundChannel ${formatDomainValue(woundChannel)}. Combat Lab used PHYSICAL fallback.`,
+    };
+  }
+
+  const validDomains = [attackMode, protectionChannel, woundChannel].filter(
+    (domain): domain is "MENTAL" | "PHYSICAL" => Boolean(domain),
+  );
+  const hasMismatch = new Set(validDomains).size > 1;
+
+  return {
+    pool: chosen === "MENTAL" ? "mental" : "physical",
+    warning: hasMismatch
+      ? `Power "${params.power.name}" has mismatched attack domain metadata: attackMode ${formatDomainValue(attackMode)}, protectionChannel ${formatDomainValue(protectionChannel)}, woundChannel ${formatDomainValue(woundChannel)}. Combat Lab used ${chosen}.`
+      : null,
+  };
+}
+
 export function adaptPowerToCombatActions(power: Power): {
   actions: CombatAction[];
   unsupported: UnsupportedPowerReason[];
+  warnings: string[];
 } {
   const actions: CombatAction[] = [];
   const unsupportedReasons: UnsupportedPowerReason[] = [];
+  const warnings: string[] = [];
   const packets = getPackets(power);
 
   if (packets.length === 0) {
     unsupportedReasons.push(unsupported(power, "Power has no effect packets."));
-    return { actions, unsupported: unsupportedReasons };
+    return { actions, unsupported: unsupportedReasons, warnings };
   }
 
+  const skippedPacketIndexes = new Set<number>();
   for (const packet of packets) {
+    if (skippedPacketIndexes.has(packet.packetIndex ?? -1)) continue;
     const castableIssue = packetIsCastableNow(power, packet);
     const kind = actionKindForIntention(packet.intention);
     if (castableIssue || !kind) {
@@ -151,14 +223,54 @@ export function adaptPowerToCombatActions(power: Power): {
     }
 
     const details = asRecord(packet.detailsJson);
-    const pool = normalizePool(packet.woundChannel ?? details.attackMode ?? details.healingMode);
-    const durationRounds = Math.max(1, asInt(packet.effectDurationTurns, 1));
+    const attackDomainResolution =
+      kind === "attack"
+        ? resolveAttackPacketPool({ power, packet, details })
+        : null;
+    const pool = attackDomainResolution?.pool ?? normalizePool(packet.woundChannel ?? details.attackMode ?? details.healingMode);
+    if (attackDomainResolution?.warning) {
+      warnings.push(attackDomainResolution.warning);
+    }
     const attribute = normalizeAttribute(
       packet.targetedAttribute ? CORE_TO_COMBAT_ATTRIBUTE[packet.targetedAttribute] : details.statTarget ?? details.statChoice,
       kind === "debuff" ? "Attack" : "Guard",
     );
     const potency = asInt(packet.potency ?? power.potency, 1);
     const diceCount = asInt(packet.diceCount ?? power.diceCount, 1);
+    const rangeCategory = rangeCategoryForPower(power);
+    const targetCount = targetCountForPower(power);
+    const durationRounds = Math.max(1, asInt(packet.effectDurationTurns, 1));
+    const structuralDurationRounds =
+      power.descriptorChassis === "FIELD"
+        ? Math.max(1, asInt(power.lifespanTurns, durationRounds))
+        : durationRounds;
+    const modifierDurationRounds =
+      (packet.effectDurationType ?? "INSTANT") === "TURNS" || power.descriptorChassis === "FIELD"
+        ? structuralDurationRounds
+        : 1;
+    const isAoe = rangeCategory === "AOE";
+    const secondaryPacket = packets.find(
+      (candidate) =>
+        candidate.packetIndex !== packet.packetIndex &&
+        candidate.sortOrder > (packet.sortOrder ?? packet.packetIndex ?? 0) &&
+        candidate.intention === "ATTACK",
+    );
+    const secondaryAdaptation =
+      (kind === "control" || kind === "movement") && secondaryPacket
+        ? adaptPowerToCombatActions({
+            ...power,
+            effectPackets: [secondaryPacket],
+            intentions: [secondaryPacket],
+          })
+        : null;
+    const secondaryActions = secondaryAdaptation?.actions ?? [];
+    if (secondaryAdaptation) {
+      warnings.push(...secondaryAdaptation.warnings);
+      unsupportedReasons.push(...secondaryAdaptation.unsupported);
+    }
+    if (secondaryActions.length > 0 && secondaryPacket?.packetIndex !== undefined) {
+      skippedPacketIndexes.add(secondaryPacket.packetIndex);
+    }
 
     actions.push({
       id: `${power.id ?? power.name}:${packet.packetIndex ?? actions.length}`,
@@ -166,23 +278,17 @@ export function adaptPowerToCombatActions(power: Power): {
       sourceType: "power",
       name: packets.length > 1 ? `${power.name} (${packet.intention})` : power.name,
       kind,
-      targetPolicy: targetPolicyForAction(kind, packet),
+      targetPolicy:
+        isAoe && (kind === "buff" || kind === "defence")
+          ? "allAllies"
+          : isAoe && kind === "debuff"
+            ? "allEnemies"
+            : targetPolicyForAction(kind, packet),
       supported: true,
       unsupportedReasons: [],
       pool,
-      rangeCategory:
-        power.rangeCategories?.includes("AOE")
-          ? "AOE"
-          : power.rangeCategories?.includes("RANGED")
-            ? "RANGED"
-            : power.rangeCategories?.includes("MELEE")
-              ? "MELEE"
-              : null,
-      targetCount: power.rangeCategories?.includes("AOE")
-        ? Math.max(1, asInt(power.aoeCount, 1))
-        : power.rangeCategories?.includes("RANGED")
-          ? Math.max(1, asInt(power.rangedTargets, 1))
-          : Math.max(1, asInt(power.meleeTargets, 1)),
+      rangeCategory,
+      targetCount,
       accuracyAttribute:
         kind === "healing" || kind === "buff" || kind === "defence" ? "Synergy" : "Attack",
       diceCount,
@@ -190,8 +296,26 @@ export function adaptPowerToCombatActions(power: Power): {
       protection: kind === "defence" ? potency : undefined,
       modifier:
         kind === "buff" || kind === "debuff"
-          ? { attribute, amount: Math.max(1, potency), durationRounds }
+          ? { attribute, amount: Math.max(1, potency), durationRounds: modifierDurationRounds }
           : undefined,
+      resistAttribute: power.primaryDefenceGate?.gateResult === "RESIST"
+        ? (power.primaryDefenceGate.resistAttribute ?? coreAttributeFromValue(details.resistAttribute))
+        : null,
+      secondaryActions,
+      recurring:
+        kind === "healing" && (packet.effectDurationType ?? "INSTANT") === "TURNS"
+          ? { kind: "healingOverTime", durationRounds }
+          : kind === "attack" && (packet.effectDurationType ?? "INSTANT") === "TURNS"
+            ? { kind: "ongoingDamage", durationRounds }
+            : undefined,
+      passive: kind === "defence" && (packet.effectDurationType ?? "INSTANT") === "PASSIVE" && targetPolicyForAction(kind, packet) === "self",
+      counterMode: power.counterMode === "YES",
+      abstractionNotes: [
+        ...(isAoe && kind === "buff" ? ["AOE ally buff abstracted to all living allies."] : []),
+        ...(power.descriptorChassis === "FIELD" ? ["Field positioning abstracted: affected all enemy actors."] : []),
+        ...(kind === "movement" ? ["Movement position not simulated; forced movement tracked as control metric."] : []),
+        ...(power.counterMode === "YES" ? ["Counter economy simplified to once per round."] : []),
+      ],
       cooldownRounds: Math.max(0, asInt(power.cooldownTurns, 0) - asInt(power.cooldownReduction, 0)),
       source: { power, packet },
     });
@@ -201,7 +325,7 @@ export function adaptPowerToCombatActions(power: Power): {
     unsupportedReasons.push(unsupported(power, "No supported V1 action could be derived."));
   }
 
-  return { actions, unsupported: unsupportedReasons };
+  return { actions, unsupported: unsupportedReasons, warnings };
 }
 
 export function makeBasicAttackAction(params: {

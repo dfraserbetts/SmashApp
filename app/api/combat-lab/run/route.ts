@@ -161,8 +161,11 @@ export async function POST(req: Request) {
           name: action.name,
           sourceType: action.sourceType,
           supported: action.supported,
+          kind: action.kind,
           targetCount: action.targetCount,
           rangeCategory: action.rangeCategory,
+          abstractionNotes: action.abstractionNotes ?? [],
+          secondaryActionCount: action.secondaryActions?.length ?? 0,
         })),
       })),
       selectedMonsters: adaptedMonsters.map((entry) => ({
@@ -176,8 +179,11 @@ export async function POST(req: Request) {
           name: action.name,
           sourceType: action.sourceType,
           supported: action.supported,
+          kind: action.kind,
           targetCount: action.targetCount,
           rangeCategory: action.rangeCategory,
+          abstractionNotes: action.abstractionNotes ?? [],
+          secondaryActionCount: action.secondaryActions?.length ?? 0,
         })),
       })),
       hydrationWarnings: [

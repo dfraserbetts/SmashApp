@@ -1,4 +1,4 @@
-import { resolveCombatAction } from "./actionResolver";
+import { resolveCombatAction, resolveStartOfTurnEffects } from "./actionResolver";
 import {
   collectUnsupportedSummary,
   createCombatState,
@@ -30,7 +30,7 @@ function addRoleContribution(metrics: CombatAggregateMetrics, actorRole: string,
     healing: 0,
     mitigation: 0,
     buffDebuff: 0,
-    actions: { attack: 0, healing: 0, buff: 0, debuff: 0, defence: 0 },
+    actions: { attack: 0, healing: 0, buff: 0, debuff: 0, defence: 0, control: 0, movement: 0, cleanse: 0 },
   };
   const role = metrics.roleContribution[actorRole];
   role.damage += values.damage;
@@ -42,6 +42,36 @@ function addRoleContribution(metrics: CombatAggregateMetrics, actorRole: string,
   }
 }
 
+function addResolutionToAggregate(
+  metrics: CombatAggregateMetrics,
+  side: CombatSide,
+  resolution: ReturnType<typeof resolveCombatAction>,
+) {
+  metrics.damageDealt[side] += resolution.netWounds;
+  metrics.healingDone[side] += resolution.healingDone;
+  metrics.protectionPrevented[side] += resolution.protectionPrevented;
+  metrics.woundsAvoidedByDodge[side] += resolution.woundsAvoidedByDodge;
+  metrics.resistCancelled[side] += resolution.resistCancelled;
+  metrics.overkill[side] += resolution.overkill;
+  metrics.wastedActions[side] += resolution.wastedActions;
+  metrics.controlTurnsApplied[side] += resolution.controlTurnsApplied;
+  metrics.actionsDenied[side] += resolution.actionsDenied;
+  metrics.forcedMovementApplied[side] += resolution.forcedMovementApplied;
+  metrics.buffApplications[side] += resolution.buffApplications;
+  metrics.buffUptime[side] += resolution.buffUptime;
+  metrics.buffedActions[side] += resolution.buffedActions;
+  metrics.debuffApplications[side] += resolution.debuffApplications;
+  metrics.debuffUptime[side] += resolution.debuffUptime;
+  metrics.debuffedActions[side] += resolution.debuffedActions;
+  metrics.healingOverTimeApplied[side] += resolution.healingOverTimeApplied;
+  metrics.ongoingDamageApplied[side] += resolution.ongoingDamageApplied;
+  metrics.counterUses[side] += resolution.counterUses;
+  metrics.counterDamage[side] += resolution.counterDamage;
+  metrics.counterMitigation[side] += resolution.counterMitigation;
+  metrics.passiveDefenceContribution[side] += resolution.passiveDefenceContribution;
+  metrics.positionalAbstractionsUsed[side] += resolution.positionalAbstractionsUsed;
+}
+
 function survivorHealthPercent(stateSide: CombatSide, resultStateActors: ReturnType<typeof getLivingActors>): number {
   const survivors = resultStateActors.filter((actor) => actor.side === stateSide);
   if (survivors.length === 0) return 0;
@@ -51,6 +81,15 @@ function survivorHealthPercent(stateSide: CombatSide, resultStateActors: ReturnT
   );
   const totalMax = survivors.reduce((sum, actor) => sum + actor.physicalHpMax + actor.mentalHpMax, 0);
   return totalMax > 0 ? totalCurrent / totalMax : 0;
+}
+
+function addStatusUptimeMetrics(metrics: CombatAggregateMetrics, state: ReturnType<typeof createCombatState>) {
+  for (const effect of state.statusEffects) {
+    const target = state.actors.find((actor) => actor.id === effect.targetActorId);
+    if (!target) continue;
+    if (effect.kind === "buff") metrics.buffUptime[target.side] += 1;
+    if (effect.kind === "debuff" || effect.kind === "field") metrics.debuffUptime[target.side] += 1;
+  }
 }
 
 export function runCombatScenario(scenario: CombatScenario, runIndex = 0): CombatRunResult {
@@ -69,6 +108,22 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
     for (const actor of [...state.actors]) {
       const currentActor = state.actors.find((candidate) => candidate.id === actor.id);
       if (!currentActor || currentActor.defeated) continue;
+      const startTurnResolution = resolveStartOfTurnEffects(state, currentActor);
+      addResolutionToAggregate(metrics, currentActor.side, startTurnResolution);
+      if (startTurnResolution.actionsDenied > 0 || currentActor.defeated) {
+        if (startTurnResolution.actionsDenied > 0) {
+          state.log.push({
+            round: state.round,
+            actorId: currentActor.id,
+            actorName: currentActor.name,
+            actionId: "start-turn",
+            actionName: "Start of Turn",
+            message: `${currentActor.name}'s main action was denied by a control effect.`,
+            metrics: startTurnResolution,
+          });
+        }
+        continue;
+      }
 
       for (let actionCount = 0; actionCount < currentActor.actionsPerTurn; actionCount += 1) {
         const action = chooseAction(currentActor, state);
@@ -81,13 +136,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
           rng,
         });
         metrics.actionsUsed[currentActor.side] += action ? 1 : 0;
-        metrics.wastedActions[currentActor.side] += resolution.wastedActions;
-        metrics.damageDealt[currentActor.side] += resolution.netWounds;
-        metrics.healingDone[currentActor.side] += resolution.healingDone;
-        metrics.protectionPrevented[currentActor.side] += resolution.protectionPrevented;
-        metrics.woundsAvoidedByDodge[currentActor.side] += resolution.woundsAvoidedByDodge;
-        metrics.resistCancelled[currentActor.side] += resolution.resistCancelled;
-        metrics.overkill[currentActor.side] += resolution.overkill;
+        addResolutionToAggregate(metrics, currentActor.side, resolution);
         addRoleContribution(metrics, currentActor.role, action?.kind ?? "attack", {
           damage: resolution.netWounds,
           healing: resolution.healingDone,
@@ -114,6 +163,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
       stoppedBy = "stalemate";
       break;
     }
+    addStatusUptimeMetrics(metrics, state);
     decrementRoundEffects(state);
   }
 

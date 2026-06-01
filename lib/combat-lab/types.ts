@@ -15,8 +15,8 @@ export type CombatAttributeName =
   | "Synergy"
   | "Bravery";
 export type CombatDieSize = "D4" | "D6" | "D8" | "D10" | "D12";
-export type CombatActionKind = "attack" | "healing" | "buff" | "debuff" | "defence";
-export type CombatTargetPolicy = "enemy" | "ally" | "self";
+export type CombatActionKind = "attack" | "healing" | "buff" | "debuff" | "defence" | "control" | "movement" | "cleanse";
+export type CombatTargetPolicy = "enemy" | "ally" | "self" | "allAllies" | "allEnemies";
 export type CombatActionSourceType = "naturalAttack" | "equippedWeapon" | "power" | "fallback";
 export type CombatActorRole =
   | "Glass Cannon"
@@ -60,6 +60,15 @@ export type CombatAction = {
     amount: number;
     durationRounds: number;
   };
+  resistAttribute?: CoreAttribute | null;
+  secondaryActions?: CombatAction[];
+  recurring?: {
+    kind: "healingOverTime" | "ongoingDamage";
+    durationRounds: number;
+  };
+  passive?: boolean;
+  counterMode?: boolean;
+  abstractionNotes?: string[];
   cooldownRounds: number;
   source?: {
     power?: Power;
@@ -104,10 +113,12 @@ export type CombatStatusEffect = {
   id: string;
   sourceActorId: string;
   targetActorId: string;
-  kind: "buff" | "debuff" | "protection";
+  kind: "buff" | "debuff" | "protection" | "mainActionDenied" | "healingOverTime" | "ongoingDamage" | "field";
   attribute?: CombatAttributeName;
   amount: number;
   pool?: CombatPool;
+  sourceActionName?: string;
+  positionalAbstraction?: string;
   remainingRounds: number;
 };
 
@@ -115,6 +126,7 @@ export type CombatState = {
   round: number;
   actors: CombatActor[];
   cooldowns: Record<string, number>;
+  counterUses: Record<string, number>;
   statusEffects: CombatStatusEffect[];
   log: CombatLogEntry[];
 };
@@ -144,6 +156,22 @@ export type CombatResolutionMetrics = {
   buffDebuffApplied: number;
   overkill: number;
   wastedActions: number;
+  controlTurnsApplied: number;
+  actionsDenied: number;
+  forcedMovementApplied: number;
+  buffApplications: number;
+  buffUptime: number;
+  buffedActions: number;
+  debuffApplications: number;
+  debuffUptime: number;
+  debuffedActions: number;
+  healingOverTimeApplied: number;
+  ongoingDamageApplied: number;
+  counterUses: number;
+  counterDamage: number;
+  counterMitigation: number;
+  passiveDefenceContribution: number;
+  positionalAbstractionsUsed: number;
 };
 
 export type CombatRunOptions = {
@@ -186,6 +214,22 @@ export type CombatAggregateMetrics = {
       actions: Record<CombatActionKind, number>;
     }
   >;
+  controlTurnsApplied: Record<CombatSide, number>;
+  actionsDenied: Record<CombatSide, number>;
+  forcedMovementApplied: Record<CombatSide, number>;
+  buffApplications: Record<CombatSide, number>;
+  buffUptime: Record<CombatSide, number>;
+  buffedActions: Record<CombatSide, number>;
+  debuffApplications: Record<CombatSide, number>;
+  debuffUptime: Record<CombatSide, number>;
+  debuffedActions: Record<CombatSide, number>;
+  healingOverTimeApplied: Record<CombatSide, number>;
+  ongoingDamageApplied: Record<CombatSide, number>;
+  counterUses: Record<CombatSide, number>;
+  counterDamage: Record<CombatSide, number>;
+  counterMitigation: Record<CombatSide, number>;
+  passiveDefenceContribution: Record<CombatSide, number>;
+  positionalAbstractionsUsed: Record<CombatSide, number>;
 };
 
 export type UnsupportedPowerSummary = {
@@ -223,6 +267,24 @@ export type CombatSuiteReport = {
   averageOverkill: Record<CombatSide, number>;
   averageActionsUsed: Record<CombatSide, number>;
   averageWastedActions: Record<CombatSide, number>;
+  averageMechanics: {
+    controlTurnsApplied: Record<CombatSide, number>;
+    actionsDenied: Record<CombatSide, number>;
+    forcedMovementApplied: Record<CombatSide, number>;
+    buffApplications: Record<CombatSide, number>;
+    buffUptime: Record<CombatSide, number>;
+    buffedActions: Record<CombatSide, number>;
+    debuffApplications: Record<CombatSide, number>;
+    debuffUptime: Record<CombatSide, number>;
+    debuffedActions: Record<CombatSide, number>;
+    healingOverTimeApplied: Record<CombatSide, number>;
+    ongoingDamageApplied: Record<CombatSide, number>;
+    counterUses: Record<CombatSide, number>;
+    counterDamage: Record<CombatSide, number>;
+    counterMitigation: Record<CombatSide, number>;
+    passiveDefenceContribution: Record<CombatSide, number>;
+    positionalAbstractionsUsed: Record<CombatSide, number>;
+  };
   roleContribution: CombatAggregateMetrics["roleContribution"];
   unsupported: UnsupportedPowerSummary;
   hydrationIntegrity: CombatHydrationIntegrity;

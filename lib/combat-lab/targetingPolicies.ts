@@ -31,10 +31,26 @@ export function chooseAction(actor: CombatActor, state: CombatState): CombatActi
   if (actor.role === "Support") {
     const heal = available.find((action) => action.kind === "healing");
     if (heal && woundedAlly) return heal;
-    const buff = available.find((action) => action.kind === "buff");
+    const field = available.find((action) => action.kind === "debuff" && action.targetPolicy === "allEnemies");
+    if (field && enemies.length >= 2) return field;
+    const buff = available.find(
+      (action) =>
+        action.kind === "buff" &&
+        !state.statusEffects.some((effect) => effect.sourceActorId === actor.id && effect.kind === "buff"),
+    );
     if (buff && enemies.length > 0) return buff;
+    const cleanse = available.find((action) => action.kind === "cleanse");
+    if (cleanse && state.statusEffects.some((effect) => effect.sourceActorId !== actor.id && effect.targetActorId !== actor.id)) return cleanse;
     const debuff = available.find((action) => action.kind === "debuff");
     if (debuff && enemies.length > 0) return debuff;
+  }
+
+  if (actor.role === "Bruiser") {
+    const hasLongFight = enemies.length > 1 || enemies.some((enemy) => hpPercent(enemy) > 0.6);
+    const buff = available.find((action) => action.kind === "buff" && action.targetPolicy === "self");
+    if (buff && hasLongFight && !state.statusEffects.some((effect) => effect.sourceActorId === actor.id && effect.kind === "buff")) {
+      return buff;
+    }
   }
 
   if (actor.role === "Tank") {
@@ -47,6 +63,10 @@ export function chooseAction(actor: CombatActor, state: CombatState): CombatActi
 
 export function chooseTarget(actor: CombatActor, action: CombatAction, state: CombatState): CombatActor | null {
   if (action.targetPolicy === "self") return actor;
+  if (action.targetPolicy === "allAllies") return actor;
+  if (action.targetPolicy === "allEnemies") {
+    return getLivingActors(state, getOppositeSide(actor.side))[0] ?? null;
+  }
   const candidates = getLivingActors(
     state,
     action.targetPolicy === "enemy" ? getOppositeSide(actor.side) : actor.side,
@@ -70,4 +90,3 @@ export function chooseTarget(actor: CombatActor, action: CombatAction, state: Co
   }
   return candidates[0] ?? null;
 }
-

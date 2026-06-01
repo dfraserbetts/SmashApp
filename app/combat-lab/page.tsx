@@ -45,6 +45,7 @@ type RunPayload = {
     averageDamagePerRound: { players: number; monsters: number };
     averageProtectionPrevented: { players: number; monsters: number };
     averageDodgeAvoided: { players: number; monsters: number };
+    averageMechanics: Record<string, { players: number; monsters: number }>;
     unsupported: {
       unsupportedPowerCount: number;
       unsupportedPowerNames: string[];
@@ -82,8 +83,11 @@ type ActionSummary = {
   name: string;
   sourceType: "naturalAttack" | "equippedWeapon" | "power" | "fallback";
   supported: boolean;
+  kind?: string;
   targetCount?: number;
   rangeCategory?: "MELEE" | "RANGED" | "AOE" | null;
+  abstractionNotes?: string[];
+  secondaryActionCount?: number;
   unsupportedReasons?: string[];
 };
 
@@ -103,7 +107,8 @@ function actionLabel(action: ActionSummary): string {
   const source = action.sourceType === "fallback" ? "fallback" : action.sourceType;
   const range = action.rangeCategory ? ` ${action.rangeCategory.toLowerCase()}` : "";
   const targets = action.targetCount && action.targetCount > 1 ? `, ${action.targetCount} targets` : "";
-  return `${action.name} (${source}${range}${targets}${action.supported ? "" : ", unsupported"})`;
+  const linked = action.secondaryActionCount ? `, ${action.secondaryActionCount} linked` : "";
+  return `${action.name} (${action.kind ?? source}${range}${targets}${linked}${action.supported ? "" : ", unsupported"})`;
 }
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -421,6 +426,34 @@ export default function CombatLabPage() {
                 Dodge avoided: players {num(result.report.averageDodgeAvoided.players)}, monsters{" "}
                 {num(result.report.averageDodgeAvoided.monsters)}
               </p>
+            </div>
+
+            <div className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">
+              <h3 className="mb-2 font-semibold">Supported Mechanics</h3>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ["Control turns", result.report.averageMechanics.controlTurnsApplied],
+                  ["Actions denied", result.report.averageMechanics.actionsDenied],
+                  ["Forced movement", result.report.averageMechanics.forcedMovementApplied],
+                  ["Buff applications", result.report.averageMechanics.buffApplications],
+                  ["Buffed actions", result.report.averageMechanics.buffedActions],
+                  ["Debuff applications", result.report.averageMechanics.debuffApplications],
+                  ["Debuffed actions", result.report.averageMechanics.debuffedActions],
+                  ["Healing over time", result.report.averageMechanics.healingOverTimeApplied],
+                  ["Ongoing damage", result.report.averageMechanics.ongoingDamageApplied],
+                  ["Counter uses", result.report.averageMechanics.counterUses],
+                  ["Counter damage", result.report.averageMechanics.counterDamage],
+                  ["Counter mitigation", result.report.averageMechanics.counterMitigation],
+                  ["Passive defence", result.report.averageMechanics.passiveDefenceContribution],
+                  ["Position abstractions", result.report.averageMechanics.positionalAbstractionsUsed],
+                ].map(([label, values]) => (
+                  <p key={label as string}>
+                    <span className="text-zinc-500">{label as string}:</span>{" "}
+                    players {num((values as { players: number; monsters: number }).players)}, monsters{" "}
+                    {num((values as { players: number; monsters: number }).monsters)}
+                  </p>
+                ))}
+              </div>
             </div>
 
             <div className="rounded border border-amber-800 bg-amber-950/20 p-3 text-sm text-amber-100">

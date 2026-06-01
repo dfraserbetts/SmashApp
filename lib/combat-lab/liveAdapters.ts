@@ -354,12 +354,25 @@ function mapPower(power: MonsterPowerRow): Power {
           specific: typeof raw.specific === "string" ? raw.specific : null,
           diceCount: Number(raw.diceCount ?? 1),
           potency: Number(raw.potency ?? 1),
-          effectTimingType: raw.effectTimingType === "ON_HIT" ? "ON_HIT" : "ON_CAST",
+          effectTimingType:
+            raw.effectTimingType === "ON_HIT" ||
+            raw.effectTimingType === "START_OF_TURN" ||
+            raw.effectTimingType === "ON_CAST"
+              ? raw.effectTimingType
+              : "ON_CAST",
           effectTimingTurns: typeof raw.effectTimingTurns === "number" ? raw.effectTimingTurns : null,
-          effectDurationType: raw.effectDurationType === "TURNS" ? "TURNS" : "INSTANT",
+          effectDurationType:
+            raw.effectDurationType === "TURNS" ||
+            raw.effectDurationType === "PASSIVE" ||
+            raw.effectDurationType === "UNTIL_TARGET_NEXT_TURN"
+              ? raw.effectDurationType
+              : "INSTANT",
           effectDurationTurns: typeof raw.effectDurationTurns === "number" ? raw.effectDurationTurns : null,
           dealsWounds: Boolean(raw.dealsWounds ?? normalizedIntention === "ATTACK"),
-          woundChannel: raw.woundChannel === "MENTAL" ? "MENTAL" : "PHYSICAL",
+          woundChannel:
+            raw.woundChannel === "MENTAL" || raw.woundChannel === "PHYSICAL"
+              ? raw.woundChannel
+              : null,
           targetedAttribute: null,
           applicationModeKey: typeof raw.applicationModeKey === "string" ? raw.applicationModeKey : null,
           resolutionOrigin: "CASTER",
@@ -428,6 +441,14 @@ export function adaptCampaignCharacterToCombatActor(
 
   const adaptedPowers = builderData.powers.map(adaptPowerToCombatActions);
   const powerActions = adaptedPowers.flatMap((entry) => entry.actions);
+  warnings.push(
+    ...adaptedPowers.flatMap((entry) =>
+      entry.warnings.map((message) => makeWarning(row.id, row.name, "powerDomain", message)),
+    ),
+    ...Array.from(new Set(powerActions.flatMap((action) => action.abstractionNotes ?? []))).map((message) =>
+      makeWarning(row.id, row.name, "powerAbstraction", message),
+    ),
+  );
   const equipmentActions = getEquippedEntries(builderData, backpackItems).flatMap(({ slot, backpackItem }) => {
     const type = backpackItem.itemTemplate.type;
     if (type !== "WEAPON" && type !== "SHIELD") return [];
@@ -546,6 +567,14 @@ export function adaptMonsterToCombatLabActor(
   const unsupportedTraits: string[] = [];
   const adaptedPowers = row.powers.map((power) => adaptPowerToCombatActions(mapPower(power)));
   const powerActions = adaptedPowers.flatMap((entry) => entry.actions);
+  warnings.push(
+    ...adaptedPowers.flatMap((entry) =>
+      entry.warnings.map((message) => makeWarning(row.id, row.name, "powerDomain", message)),
+    ),
+    ...Array.from(new Set(powerActions.flatMap((action) => action.abstractionNotes ?? []))).map((message) =>
+      makeWarning(row.id, row.name, "powerAbstraction", message),
+    ),
+  );
   const weaponSkill = Math.max(1, Math.trunc(asNumber(row.weaponSkillValue, 1) + asNumber(row.weaponSkillModifier)));
 
   const attackRows =

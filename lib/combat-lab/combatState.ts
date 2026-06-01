@@ -34,6 +34,7 @@ export function createCombatState(players: CombatActor[], monsters: CombatActor[
       mentalHpCurrent: actor.mentalHpMax,
     })),
     cooldowns: {},
+    counterUses: {},
     statusEffects: [],
     log: [],
   };
@@ -98,6 +99,22 @@ export function createEmptyMetrics(): CombatAggregateMetrics {
     actorsDefeatedBeforeActing: { players: 0, monsters: 0 },
     activeEnemiesByRound: [],
     roleContribution: {},
+    controlTurnsApplied: { players: 0, monsters: 0 },
+    actionsDenied: { players: 0, monsters: 0 },
+    forcedMovementApplied: { players: 0, monsters: 0 },
+    buffApplications: { players: 0, monsters: 0 },
+    buffUptime: { players: 0, monsters: 0 },
+    buffedActions: { players: 0, monsters: 0 },
+    debuffApplications: { players: 0, monsters: 0 },
+    debuffUptime: { players: 0, monsters: 0 },
+    debuffedActions: { players: 0, monsters: 0 },
+    healingOverTimeApplied: { players: 0, monsters: 0 },
+    ongoingDamageApplied: { players: 0, monsters: 0 },
+    counterUses: { players: 0, monsters: 0 },
+    counterDamage: { players: 0, monsters: 0 },
+    counterMitigation: { players: 0, monsters: 0 },
+    passiveDefenceContribution: { players: 0, monsters: 0 },
+    positionalAbstractionsUsed: { players: 0, monsters: 0 },
   };
 }
 
