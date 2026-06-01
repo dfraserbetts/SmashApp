@@ -1097,20 +1097,18 @@ function MainAttackStringBoxes({
   compact: boolean;
   attackAttributeRowsBySlot: Map<EquipmentSlotKey, MainSheetPlacementRow[]>;
 }) {
-  const boxes = attacks.flatMap((attack) =>
-    attack.lines.slice(0, compact ? 3 : attack.lines.length).map((line, index) => ({
-      key: `${attack.slot}-${attack.label}-${index}`,
-      label: attack.label,
-      slot: attack.slot,
-      slotLabel: attack.slotLabel,
-      line,
-    })),
-  );
+  const boxes = attacks.map((attack) => ({
+    key: `${attack.slot}-${attack.label}`,
+    label: attack.label,
+    slot: attack.slot,
+    slotLabel: attack.slotLabel,
+    lines: attack.lines.slice(0, compact ? 3 : attack.lines.length),
+  }));
 
   if (boxes.length === 0) return null;
   const gridClass =
     boxes.length === 1
-      ? "grid grid-cols-[45%] justify-center gap-1"
+      ? "grid grid-cols-[55%] justify-center gap-1"
       : boxes.length === 2
         ? "grid grid-cols-2 gap-1"
         : "grid grid-cols-3 gap-1";
@@ -1128,7 +1126,13 @@ function MainAttackStringBoxes({
           <div className="mb-1 text-[10px] font-semibold leading-tight text-zinc-100">
             {box.label.replace(`${box.slotLabel}: `, "")}
           </div>
-          <div><RenderLeadIn line={compactLine(box.line)} /></div>
+          <div className="space-y-1">
+            {box.lines.map((line, index) => (
+              <p key={`${box.key}-${index}`}>
+                <RenderLeadIn line={compactLine(line)} />
+              </p>
+            ))}
+          </div>
           <MainAttackAttributeLines
             rows={attackAttributeRowsBySlot.get(box.slot) ?? []}
             inline

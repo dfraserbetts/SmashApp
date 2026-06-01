@@ -216,7 +216,6 @@ export const CHARACTER_POWER_FALLBACK_DAMAGE_TYPES = [
   { id: -102, name: "Pierce", attackMode: "PHYSICAL" as const },
   { id: -103, name: "Bludgeon", attackMode: "PHYSICAL" as const },
   { id: -201, name: "Psychic", attackMode: "MENTAL" as const },
-  { id: -202, name: "Corruption", attackMode: "MENTAL" as const },
 ];
 
 function asRecord(value: unknown): Record<string, unknown> {

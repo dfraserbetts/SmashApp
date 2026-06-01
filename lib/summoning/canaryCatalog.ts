@@ -339,7 +339,7 @@ const heldBoltAttack = createCanaryPacket("ATTACK", 0, {
   applyTo: "PRIMARY_TARGET",
   detailsJson: {
     attackMode: "MENTAL",
-    damageTypes: ["Corruption"],
+    damageTypes: ["Psychic"],
   },
 });
 

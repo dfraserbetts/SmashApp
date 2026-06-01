@@ -1,6 +1,7 @@
 // app/api/forge/picklists/route.ts
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../prisma/client'; // adjust path if you move client.ts
+import { isSelectableDamageTypeName } from '@/lib/damageTypes/selectable';
 
 type ForgeCostPicklistRow = {
   id: number;
@@ -12,20 +13,12 @@ type ForgeCostPicklistRow = {
   notes: string | null;
 };
 
-function withRequiredDamageTypes(
+function selectableDamageTypes(
   damageTypes: Array<{ id: number; name: string; attackMode?: unknown }>,
 ) {
-  const next = damageTypes.map((damageType) =>
-    damageType.name.trim().toLowerCase() === 'corruption'
-      ? { ...damageType, attackMode: 'MENTAL' as const }
-      : damageType,
-  );
-
-  if (!next.some((damageType) => damageType.name.trim().toLowerCase() === 'corruption')) {
-    next.push({ id: -1, name: 'Corruption', attackMode: 'MENTAL' });
-  }
-
-  return next.sort((a, b) => a.name.localeCompare(b.name));
+  return damageTypes
+    .filter((damageType) => isSelectableDamageTypeName(damageType.name))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function GET() {
@@ -70,7 +63,7 @@ export async function GET() {
         FROM "ForgeCostEntry"
       `,
     ]);
-    const normalizedDamageTypes = withRequiredDamageTypes(damageTypes);
+    const normalizedDamageTypes = selectableDamageTypes(damageTypes);
 
     const damageTypeModeById = new Map<number, 'PHYSICAL' | 'MENTAL'>();
     for (const dt of normalizedDamageTypes) {

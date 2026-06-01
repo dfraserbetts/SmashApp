@@ -139,7 +139,7 @@ function positiveModifier(value: unknown) {
   return Math.max(0, Math.trunc(numeric));
 }
 
-function getEquippedEntries(
+export function getEquippedEntries(
   data: CharacterBuilderData,
   backpackItems: CharacterBuilderDerivedBackpackItem[],
 ) {
@@ -173,7 +173,7 @@ function enabledStrength(physicalStrength: unknown, mentalStrength: unknown) {
   return numberOrZero(physicalStrength) > 0 || numberOrZero(mentalStrength) > 0;
 }
 
-function buildAttackConfig(
+export function buildAttackConfig(
   item: CharacterBuilderDerivedBackpackItem,
 ): MonsterNaturalAttackConfig {
   const template = item.itemTemplate;

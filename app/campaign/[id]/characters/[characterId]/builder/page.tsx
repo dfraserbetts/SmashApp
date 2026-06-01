@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, type CSSProperties, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { CampaignNav } from "@/app/components/CampaignNav";
@@ -51,6 +51,7 @@ import {
 import {
   buildCharacterDerivedCombatStats,
   type CharacterBuilderDerivedBackpackItem,
+  type CharacterDerivedCombatStats,
 } from "@/lib/characterBuilder/derivedStats";
 import {
   CHARACTER_POWER_ATTACK_MODES,
@@ -657,6 +658,236 @@ function compactEquippedItemLine(line: string) {
 function formatSignedModifierValue(value: number) {
   const normalized = Math.trunc(value);
   return normalized > 0 ? `+${normalized}` : String(normalized);
+}
+
+type DerivedSkillConnection = {
+  label: string;
+  value: (stats: CharacterDerivedCombatStats) => number;
+  color: string;
+  sources: CharacterAttribute[];
+  targetRow: number;
+  trunkX: number;
+};
+
+const DERIVED_SKILL_CONNECTIONS: DerivedSkillConnection[] = [
+  {
+    label: "Weapon Skill",
+    value: (stats) => stats.weaponSkill,
+    color: "#ef4444",
+    sources: ["Bravery", "Attack"],
+    targetRow: 0,
+    trunkX: 20,
+  },
+  {
+    label: "Armor Skill",
+    value: (stats) => stats.armorSkill,
+    color: "#3b82f6",
+    sources: ["Fortitude", "Guard"],
+    targetRow: 5 / 3,
+    trunkX: 40,
+  },
+  {
+    label: "Dodge",
+    value: (stats) => stats.dodgeValue,
+    color: "#22c55e",
+    sources: ["Guard", "Intellect"],
+    targetRow: 10 / 3,
+    trunkX: 60,
+  },
+  {
+    label: "Willpower",
+    value: (stats) => stats.willpower,
+    color: "#a855f7",
+    sources: ["Synergy", "Bravery"],
+    targetRow: 5,
+    trunkX: 80,
+  },
+];
+
+const ATTRIBUTE_ROUTE_ROWS: Record<CharacterAttribute, number> = {
+  Attack: 0,
+  Guard: 1,
+  Fortitude: 2,
+  Intellect: 3,
+  Synergy: 4,
+  Bravery: 5,
+};
+
+const DERIVED_SKILL_LABEL_X = 58;
+
+function routeTrunkX(skill: DerivedSkillConnection) {
+  return (skill.trunkX / 100) * DERIVED_SKILL_LABEL_X;
+}
+
+function routeTop(row: number) {
+  return `${((row + 0.5) / CHARACTER_ATTRIBUTES.length) * 100}%`;
+}
+
+function routeTopPercent(row: number) {
+  return ((row + 0.5) / CHARACTER_ATTRIBUTES.length) * 100;
+}
+
+function routeLaneOffset(source: CharacterAttribute, skillLabel: string) {
+  const connectedSkills = DERIVED_SKILL_CONNECTIONS.filter((skill) => skill.sources.includes(source));
+  if (connectedSkills.length < 2) return 0;
+
+  const skillIndex = connectedSkills.findIndex((skill) => skill.label === skillLabel);
+  if (skillIndex < 0) return 0;
+
+  return (skillIndex - (connectedSkills.length - 1) / 2) * 0.84;
+}
+
+function routeLineTop(row: number, offsetRem = 0) {
+  return `calc(${routeTop(row)} - 0.625rem + ${offsetRem}rem)`;
+}
+
+function routeTrunkTop(sourceRow: number, targetRow: number, sourceOffsetRem: number) {
+  if (sourceRow < targetRow) {
+    return `calc(${routeTopPercent(sourceRow)}% + ${sourceOffsetRem}rem)`;
+  }
+
+  return routeTop(targetRow);
+}
+
+function routeTrunkHeight(sourceRow: number, targetRow: number, sourceOffsetRem: number) {
+  const distance = Math.abs(routeTopPercent(targetRow) - routeTopPercent(sourceRow));
+  if (sourceRow < targetRow) {
+    return `calc(${distance}% - ${sourceOffsetRem}rem)`;
+  }
+
+  return `calc(${distance}% + ${sourceOffsetRem}rem)`;
+}
+
+function ChevronSegment({
+  color,
+  orientation = "horizontal",
+  style,
+}: {
+  color: string;
+  orientation?: "horizontal" | "vertical-up" | "vertical-down";
+  style: CSSProperties;
+}) {
+  const isHorizontal = orientation === "horizontal";
+  const chevronCount = isHorizontal ? 34 : 18;
+  const rotation =
+    orientation === "vertical-up" ? "rotate(-90deg)" : orientation === "vertical-down" ? "rotate(90deg)" : undefined;
+
+  return (
+    <span
+      aria-hidden="true"
+      className={[
+        "pointer-events-none absolute overflow-hidden",
+        isHorizontal ? "flex h-5 items-center gap-0.5" : "flex w-5 flex-col items-center gap-0.5",
+      ].join(" ")}
+      style={style}
+    >
+      {Array.from({ length: chevronCount }, (_, index) => (
+        <span
+          key={index}
+          className="text-base font-bold leading-none"
+          style={{
+            color: index % 2 === 0 ? "#f8fafc" : color,
+            transform: rotation,
+          }}
+        >
+          &rsaquo;
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function DerivedSkillRoutingDiagram({ stats }: { stats: CharacterDerivedCombatStats }) {
+  return (
+    <div className="relative min-h-[17rem] overflow-visible">
+      {DERIVED_SKILL_CONNECTIONS.flatMap((skill) =>
+        skill.sources.flatMap((source) => {
+          const sourceRow = ATTRIBUTE_ROUTE_ROWS[source];
+          const sourceOffsetRem = routeLaneOffset(source, skill.label);
+          const trunkX = routeTrunkX(skill);
+          const lines = [
+            <ChevronSegment
+              key={`${skill.label}-${source}-source`}
+              color={skill.color}
+              style={{
+                left: "0%",
+                top: routeLineTop(sourceRow, sourceOffsetRem),
+                width: `${trunkX + 1}%`,
+              }}
+            />,
+          ];
+
+          if (sourceRow !== skill.targetRow || sourceOffsetRem !== 0) {
+            lines.push(
+              <ChevronSegment
+                key={`${skill.label}-${source}-trunk`}
+                color={skill.color}
+                orientation={sourceRow > skill.targetRow ? "vertical-up" : "vertical-down"}
+                style={{
+                  left: `calc(${trunkX}% - 0.625rem)`,
+                  top: routeTrunkTop(sourceRow, skill.targetRow, sourceOffsetRem),
+                  height: routeTrunkHeight(sourceRow, skill.targetRow, sourceOffsetRem),
+                }}
+              />,
+            );
+          }
+
+          return lines;
+        }),
+      )}
+
+      {DERIVED_SKILL_CONNECTIONS.map((skill) => {
+        const trunkX = routeTrunkX(skill);
+        return (
+          <ChevronSegment
+            key={`${skill.label}-merged-target`}
+            color={skill.color}
+            style={{
+              left: `${trunkX}%`,
+              top: `calc(${routeTop(skill.targetRow)} - 0.625rem)`,
+              width: `${DERIVED_SKILL_LABEL_X - trunkX - 2}%`,
+            }}
+          />
+        );
+      })}
+
+      {DERIVED_SKILL_CONNECTIONS.map((skill) => (
+        <div
+          key={skill.label}
+          className="absolute grid grid-cols-[minmax(108px,1fr)_48px] items-center gap-3"
+          style={{
+            left: `${DERIVED_SKILL_LABEL_X}%`,
+            right: "0.5rem",
+            top: `calc(${routeTop(skill.targetRow)} - 1.25rem)`,
+          }}
+        >
+          <div className="text-xs font-semibold uppercase tracking-wide text-zinc-200">
+            {skill.label}
+          </div>
+          <div className="rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-center text-lg font-semibold text-zinc-100">
+            {skill.value(stats)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DerivedSkillValueColumn({ stats }: { stats: CharacterDerivedCombatStats }) {
+  return (
+    <div className="grid gap-3">
+      {DERIVED_SKILL_CONNECTIONS.map((skill) => (
+        <div key={skill.label} className="grid grid-cols-[minmax(112px,1fr)_48px] items-center gap-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-zinc-300">
+            {skill.label}
+          </div>
+          <div className="rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-center text-lg font-semibold text-zinc-100">
+            {skill.value(stats)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function formatPowerOptionLabel(value: string) {
@@ -2165,88 +2396,80 @@ export default function CharacterBuilderPage() {
         <summary className="cursor-pointer">
           <h2 className="text-lg font-semibold">Attributes / Resist Points</h2>
         </summary>
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="mt-4 space-y-4">
           <div className="rounded-lg border border-zinc-800 bg-black p-3">
-            <label className="block">
-              <span className="text-xs text-zinc-400">Attribute Generation Method</span>
-              <select
-                value={builderData.attributeMethod}
-                onChange={(event) => updateAttributeMethod(event.target.value as AttributeMethod)}
-                disabled={!canEdit || saving}
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-              >
-                <option value="HEROIC">Heroic</option>
-                <option value="DESTINY">Destiny</option>
-                <option value="ROLLED">Rolled</option>
-              </select>
-            </label>
-            <p className="mt-2 text-xs text-zinc-500">
-              Heroic uses 12, 10, 8, 8, 6, 4. Destiny must total 48. Rolled allows legal table values.
-            </p>
-            <div className="mt-4 space-y-2">
-              <div className="grid grid-cols-[1fr_minmax(92px,120px)_72px] gap-2 text-xs uppercase text-zinc-500">
-                <div>Attribute</div>
-                <div className="text-center">Base</div>
-                <div className="text-center">Modifier</div>
-              </div>
-              {CHARACTER_ATTRIBUTES.map((attribute) => {
-                const modifier = getAttributeModifierValue(attribute);
-                return (
-                  <div
-                    key={attribute}
-                    className="grid grid-cols-[1fr_minmax(92px,120px)_72px] items-center gap-2"
+            <div className="grid gap-4">
+              <div>
+                <label className="block">
+                  <span className="text-xs text-zinc-400">Attribute Generation Method</span>
+                  <select
+                    value={builderData.attributeMethod}
+                    onChange={(event) => updateAttributeMethod(event.target.value as AttributeMethod)}
+                    disabled={!canEdit || saving}
+                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                   >
-                    <span className="text-sm text-zinc-300">{attribute}</span>
-                    <select
-                      value={builderData.attributes[attribute]}
-                      onChange={(event) =>
-                        updateAttribute(
-                          attribute,
-                          event.target.value ? Number(event.target.value) : "",
-                        )
-                      }
-                      disabled={!canEdit || saving}
-                      className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-center text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                    >
-                      <option value="">Choose...</option>
-                      {LEGAL_ATTRIBUTE_VALUES.map((value) => (
-                        <option
-                          key={value}
-                          value={value}
-                          disabled={!isHeroicValueAvailable(attribute, value)}
-                        >
-                          {value}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      readOnly
-                      type="text"
-                      value={formatSignedModifierValue(modifier)}
-                      className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-2 text-center text-sm text-zinc-200 opacity-80"
-                      aria-label={`${attribute} equipped item modifier`}
-                    />
+                    <option value="HEROIC">Heroic</option>
+                    <option value="DESTINY">Destiny</option>
+                    <option value="ROLLED">Rolled</option>
+                  </select>
+                </label>
+                <p className="mt-2 text-xs text-zinc-500">
+                  Heroic uses 12, 10, 8, 8, 6, 4. Destiny must total 48. Rolled allows legal table values.
+                </p>
+                <div className="mt-4">
+                  <div className="grid grid-cols-[minmax(90px,0.8fr)_minmax(92px,120px)_72px] gap-x-2 gap-y-2 xl:grid-cols-[minmax(90px,0.8fr)_minmax(92px,120px)_72px_minmax(450px,1fr)]">
+                    <div className="text-xs uppercase text-zinc-500">Attribute</div>
+                    <div className="text-center text-xs uppercase text-zinc-500">Base</div>
+                    <div className="text-center text-xs uppercase text-zinc-500">Modifier</div>
+                    <div className="hidden xl:block" aria-hidden="true" />
+                    <div className="hidden xl:block xl:col-start-4 xl:row-span-6 xl:row-start-2 xl:-ml-2">
+                      <DerivedSkillRoutingDiagram stats={derivedCombatStats} />
+                    </div>
+                    {CHARACTER_ATTRIBUTES.map((attribute) => {
+                      const modifier = getAttributeModifierValue(attribute);
+                      return (
+                        <div key={attribute} className="contents">
+                          <span className="flex items-center text-sm text-zinc-300">{attribute}</span>
+                          <select
+                            value={builderData.attributes[attribute]}
+                            onChange={(event) =>
+                              updateAttribute(
+                                attribute,
+                                event.target.value ? Number(event.target.value) : "",
+                              )
+                            }
+                            disabled={!canEdit || saving}
+                            className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-center text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                          >
+                            <option value="">Choose...</option>
+                            {LEGAL_ATTRIBUTE_VALUES.map((value) => (
+                              <option
+                                key={value}
+                                value={value}
+                                disabled={!isHeroicValueAvailable(attribute, value)}
+                              >
+                                {value}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            readOnly
+                            type="text"
+                            value={formatSignedModifierValue(modifier)}
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-2 text-center text-sm text-zinc-200 opacity-80"
+                            aria-label={`${attribute} equipped item modifier`}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-            <div className="mt-3 text-sm text-zinc-400">
-              Attribute total:{" "}
-              {CHARACTER_ATTRIBUTES.reduce(
-                (sum, attribute) =>
-                  sum +
-                  (typeof builderData.attributes[attribute] === "number"
-                    ? builderData.attributes[attribute]
-                    : 0),
-                0,
-              )}
-              {builderData.attributeMethod === "DESTINY" ? " / 48" : ""}
-            </div>
-            {builderData.attributeMethod === "DESTINY" ? (
-              <div className="mt-1 text-sm text-zinc-500">
-                Remaining to 48:{" "}
-                {48 -
-                  CHARACTER_ATTRIBUTES.reduce(
+                  <div className="mt-4 xl:hidden">
+                    <DerivedSkillValueColumn stats={derivedCombatStats} />
+                  </div>
+                </div>
+                <div className="mt-3 text-sm text-zinc-400">
+                  Attribute total:{" "}
+                  {CHARACTER_ATTRIBUTES.reduce(
                     (sum, attribute) =>
                       sum +
                       (typeof builderData.attributes[attribute] === "number"
@@ -2254,15 +2477,31 @@ export default function CharacterBuilderPage() {
                         : 0),
                     0,
                   )}
+                  {builderData.attributeMethod === "DESTINY" ? " / 48" : ""}
+                </div>
+                {builderData.attributeMethod === "DESTINY" ? (
+                  <div className="mt-1 text-sm text-zinc-500">
+                    Remaining to 48:{" "}
+                    {48 -
+                      CHARACTER_ATTRIBUTES.reduce(
+                        (sum, attribute) =>
+                          sum +
+                          (typeof builderData.attributes[attribute] === "number"
+                            ? builderData.attributes[attribute]
+                            : 0),
+                        0,
+                      )}
+                  </div>
+                ) : null}
+                {attributeValidationErrors.length > 0 ? (
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
+                    {attributeValidationErrors.map((validationError) => (
+                      <li key={validationError}>{validationError}</li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
-            ) : null}
-            {attributeValidationErrors.length > 0 ? (
-              <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
-                {attributeValidationErrors.map((validationError) => (
-                  <li key={validationError}>{validationError}</li>
-                ))}
-              </ul>
-            ) : null}
+            </div>
           </div>
 
           <div className="rounded-lg border border-zinc-800 bg-black p-3">

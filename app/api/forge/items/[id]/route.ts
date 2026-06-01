@@ -10,6 +10,11 @@ import { requireCampaignOwner } from '@/lib/campaign/access';
 import { normalizeVRPEntries } from '../vrp-utils';
 import type { VRPEntryInput } from '../vrp-utils';
 import { hasItemTagClient, isUnknownTagsIncludeError } from '../route';
+import {
+  isSelectableDamageTypeName,
+  sanitizeDamageTypeIds,
+  sanitizeVRPEntries,
+} from '@/lib/damageTypes/selectable';
 
 // Local enum replacements.
 // Your generated Prisma Client does not export these as TS enums in this project,
@@ -313,6 +318,31 @@ export async function PUT(
         { status: 400 },
       );
     }
+    const selectableDamageTypeIds = new Set(
+      (
+        await prisma.damageType.findMany({
+          select: { id: true, name: true },
+        })
+      )
+        .filter((damageType) => isSelectableDamageTypeName(damageType.name))
+        .map((damageType) => damageType.id),
+    );
+    const meleeDamageTypeIds =
+      body.meleeDamageTypeIds !== undefined
+        ? sanitizeDamageTypeIds(body.meleeDamageTypeIds, selectableDamageTypeIds)
+        : undefined;
+    const rangedDamageTypeIds =
+      body.rangedDamageTypeIds !== undefined
+        ? sanitizeDamageTypeIds(body.rangedDamageTypeIds, selectableDamageTypeIds)
+        : undefined;
+    const aoeDamageTypeIds =
+      body.aoeDamageTypeIds !== undefined
+        ? sanitizeDamageTypeIds(body.aoeDamageTypeIds, selectableDamageTypeIds)
+        : undefined;
+    const vrpEntries =
+      body.vrpEntries !== undefined
+        ? sanitizeVRPEntries(body.vrpEntries, selectableDamageTypeIds)
+        : undefined;
       const updated = await prisma.$transaction(async (tx) => {
       // 1) core update (scoped to campaign)
       const itemTemplateUpdateData = {
@@ -465,9 +495,9 @@ export async function PUT(
         await tx.itemTemplateMeleeDamageType.deleteMany({
           where: { itemTemplateId: id },
         });
-        if (body.meleeDamageTypeIds.length) {
+        if (meleeDamageTypeIds?.length) {
           await tx.itemTemplateMeleeDamageType.createMany({
-            data: body.meleeDamageTypeIds.map((damageTypeId) => ({
+            data: meleeDamageTypeIds.map((damageTypeId) => ({
               itemTemplateId: id,
               damageTypeId,
             })),
@@ -479,9 +509,9 @@ export async function PUT(
         await tx.itemTemplateRangedDamageType.deleteMany({
           where: { itemTemplateId: id },
         });
-        if (body.rangedDamageTypeIds.length) {
+        if (rangedDamageTypeIds?.length) {
           await tx.itemTemplateRangedDamageType.createMany({
-            data: body.rangedDamageTypeIds.map((damageTypeId) => ({
+            data: rangedDamageTypeIds.map((damageTypeId) => ({
               itemTemplateId: id,
               damageTypeId,
             })),
@@ -493,9 +523,9 @@ export async function PUT(
         await tx.itemTemplateAoEDamageType.deleteMany({
           where: { itemTemplateId: id },
         });
-        if (body.aoeDamageTypeIds.length) {
+        if (aoeDamageTypeIds?.length) {
           await tx.itemTemplateAoEDamageType.createMany({
-            data: body.aoeDamageTypeIds.map((damageTypeId) => ({
+            data: aoeDamageTypeIds.map((damageTypeId) => ({
               itemTemplateId: id,
               damageTypeId,
             })),
@@ -633,7 +663,7 @@ export async function PUT(
       }
 
       if (body.vrpEntries) {
-        const normalizedVRP = normalizeVRPEntries(body.vrpEntries);
+        const normalizedVRP = normalizeVRPEntries(vrpEntries);
         await tx.itemTemplateVRPEntry.deleteMany({
           where: { itemTemplateId: id },
         });

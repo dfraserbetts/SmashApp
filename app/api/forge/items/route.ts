@@ -9,6 +9,11 @@ import {
 } from '../_shared';
 import type { VRPEntryInput } from './vrp-utils';
 import { normalizeVRPEntries } from './vrp-utils';
+import {
+  isSelectableDamageTypeName,
+  sanitizeDamageTypeIds,
+  sanitizeVRPEntries,
+} from '@/lib/damageTypes/selectable';
 
 function normalizeTagsInput(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -293,6 +298,20 @@ export async function POST(req: Request) {
       );
     }
 
+    const selectableDamageTypeIds = new Set(
+      (
+        await prisma.damageType.findMany({
+          select: { id: true, name: true },
+        })
+      )
+        .filter((damageType) => isSelectableDamageTypeName(damageType.name))
+        .map((damageType) => damageType.id),
+    );
+    const meleeDamageTypeIds = sanitizeDamageTypeIds(body.meleeDamageTypeIds, selectableDamageTypeIds);
+    const rangedDamageTypeIds = sanitizeDamageTypeIds(body.rangedDamageTypeIds, selectableDamageTypeIds);
+    const aoeDamageTypeIds = sanitizeDamageTypeIds(body.aoeDamageTypeIds, selectableDamageTypeIds);
+    const vrpEntries = sanitizeVRPEntries(body.vrpEntries, selectableDamageTypeIds);
+
     const now = new Date();
 
       const items = await prisma.$transaction(async (tx) => {
@@ -393,8 +412,8 @@ export async function POST(req: Request) {
       const id = item.id;
 
       // VRP entries (global, for all item types)
-      if (Array.isArray(body.vrpEntries) && body.vrpEntries.length > 0) {
-        const normalizedVRP = normalizeVRPEntries(body.vrpEntries);
+      if (vrpEntries.length > 0) {
+        const normalizedVRP = normalizeVRPEntries(vrpEntries);
         await tx.itemTemplateVRPEntry.createMany({
           data: normalizedVRP.map((entry) => ({
             itemTemplateId: id,
@@ -420,7 +439,6 @@ export async function POST(req: Request) {
         });
       }
 
-      const meleeDamageTypeIds = body.meleeDamageTypeIds ?? [];
       if (meleeDamageTypeIds.length) {
         await tx.itemTemplateMeleeDamageType.createMany({
           data: meleeDamageTypeIds.map((damageTypeId) => ({
@@ -430,7 +448,6 @@ export async function POST(req: Request) {
         });
       }
 
-      const rangedDamageTypeIds = body.rangedDamageTypeIds ?? [];
       if (rangedDamageTypeIds.length) {
         await tx.itemTemplateRangedDamageType.createMany({
           data: rangedDamageTypeIds.map((damageTypeId) => ({
@@ -440,7 +457,6 @@ export async function POST(req: Request) {
         });
       }
 
-      const aoeDamageTypeIds = body.aoeDamageTypeIds ?? [];
       if (aoeDamageTypeIds.length) {
         await tx.itemTemplateAoEDamageType.createMany({
           data: aoeDamageTypeIds.map((damageTypeId) => ({

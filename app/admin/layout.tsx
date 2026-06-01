@@ -99,6 +99,9 @@ export default async function AdminLayout({
                 <Link className="underline" href="/admin/combat-tuning">
                   Combat Tuning
                 </Link>
+                <Link className="underline" href="/combat-lab">
+                  Combat Lab
+                </Link>
                 <Link className="underline" href="/admin/power-tuning">
                   Power Tuning
                 </Link>
