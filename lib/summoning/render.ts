@@ -1069,6 +1069,15 @@ function renderRepeatingDirectEffectSuffix(
   return `at the start of their next ${formatCountedUnit(effectPacket.effectDurationTurns, "turn")}`;
 }
 
+function renderImmediateTargetTurnCadenceSuffix(
+  effectPacket: Pick<EffectPacket, "effectDurationType" | "effectDurationTurns"> | null | undefined,
+  isMultiTarget: boolean,
+): string | null {
+  if (!effectPacket || (effectPacket.effectDurationType ?? "INSTANT") !== "TURNS") return null;
+  const targetPhrase = isMultiTarget ? "each target's turn" : "the target's turn";
+  return `at the start of ${targetPhrase} for ${formatCountedUnit(effectPacket.effectDurationTurns, "turn")}`;
+}
+
 function combineRangeLeadWithRollClause(
   rangeLead: string,
   rollClause: string,
@@ -2269,6 +2278,18 @@ export function renderPowerDescriptorLines(
     rangeCategory === "AOE" ||
     (rangeCategory === "MELEE" && meleeTargets > 1) ||
     (rangeCategory === "RANGED" && rangedTargets > 1);
+  const primaryImmediateTargetTurnCadence =
+    power.descriptorChassis === "IMMEDIATE" &&
+    power.commitmentModifier === "STANDARD" &&
+    primaryPacket &&
+    (primaryPacket.effectTimingType ?? "ON_CAST") === "ON_CAST" &&
+    (
+      primaryPacket.intention === "ATTACK" ||
+      primaryPacket.intention === "HEALING" ||
+      primaryPacket.intention === "DEFENCE"
+    )
+      ? renderImmediateTargetTurnCadenceSuffix(primaryPacket, isMultiTarget)
+      : null;
   const primaryDefenceCheck =
     derivePrimaryDefenceCheckFromGate(power.primaryDefenceGate, primaryPacket, isMultiTarget) ??
     derivePrimaryDefenceCheck(primaryPacket, rangeCategory, meleeTargets, rangedTargets);
@@ -2735,7 +2756,7 @@ export function renderPowerDescriptorLines(
     );
     return [
       leadWithRoll,
-      `${power.name} ${primaryBaseClause} per success${primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}.`,
+      `${power.name} ${primaryBaseClause} per success${primaryImmediateTargetTurnCadence ? ` ${primaryImmediateTargetTurnCadence}` : primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}.`,
       ...sameTimingSecondaryClauses,
     ]
       .join(" ")

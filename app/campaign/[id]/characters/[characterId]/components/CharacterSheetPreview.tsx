@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
 
 import { useScaledPreview } from "@/app/summoning-circle/components/useScaledPreview";
@@ -1638,6 +1639,61 @@ function CharacterIdentitySheet({
   );
 }
 
+const POWER_TITLE_FONT_SIZES = [16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6];
+
+function PowerCardTitle({ children }: { children: string }) {
+  const titleRef = useRef<HTMLHeadingElement | null>(null);
+  const [fontSize, setFontSize] = useState(POWER_TITLE_FONT_SIZES[0]);
+
+  useLayoutEffect(() => {
+    const titleElement = titleRef.current;
+    if (!titleElement) return undefined;
+
+    const fitTitle = () => {
+      const nextFontSize =
+        POWER_TITLE_FONT_SIZES.find((size) => {
+          titleElement.style.fontSize = `${size}px`;
+          titleElement.style.whiteSpace = "nowrap";
+          titleElement.style.width = "100%";
+          return titleElement.scrollWidth <= titleElement.clientWidth;
+        }) ?? POWER_TITLE_FONT_SIZES[POWER_TITLE_FONT_SIZES.length - 1];
+
+      setFontSize(nextFontSize);
+      titleElement.style.fontSize = `${nextFontSize}px`;
+      titleElement.style.whiteSpace = "nowrap";
+      titleElement.style.width = "100%";
+    };
+
+    fitTitle();
+    const frameId = window.requestAnimationFrame(fitTitle);
+    const fontReady = document.fonts?.ready;
+    fontReady?.then(fitTitle).catch(() => undefined);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.cancelAnimationFrame(frameId);
+    }
+
+    const resizeObserver = new ResizeObserver(fitTitle);
+    resizeObserver.observe(titleElement);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+    };
+  }, [children]);
+
+  return (
+    <h3
+      ref={titleRef}
+      className="block min-w-0 max-w-full overflow-hidden whitespace-nowrap font-semibold uppercase tracking-[0.04em]"
+      style={{ fontSize, lineHeight: 1.18 }}
+      title={children}
+    >
+      {children}
+    </h3>
+  );
+}
+
 function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudget }) {
   return (
     <SheetFrame
@@ -1653,9 +1709,17 @@ function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudge
         <div className="grid grid-cols-2 gap-3">
           {powerBudget.powers.map((summary, index) => (
             <section key={`${summary.power.name}-${index}`} className="cb-power-card border-2 border-zinc-800 bg-black/60 p-2.5">
-              <div className="border-b border-zinc-800 pb-2">
-                <div className="flow-root">
-                  <div className={summary.costValid ? "float-right mb-1 ml-2 flex gap-1.5 text-center text-xs text-zinc-300" : "float-right mb-1 ml-2 text-xs font-medium text-red-300"}>
+              <div className="cb-power-card-header border-b border-zinc-800 pb-2 pt-1.5">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                  <div className="min-w-0 overflow-hidden">
+                    <PowerCardTitle>
+                      {summary.power.name || `Power ${index + 1}`}
+                    </PowerCardTitle>
+                    {summary.power.description?.trim() ? (
+                      <p className="mt-0.5 text-xs italic leading-snug text-zinc-400">{summary.power.description}</p>
+                    ) : null}
+                  </div>
+                  <div className={summary.costValid ? "flex gap-1.5 text-center text-xs text-zinc-300" : "text-xs font-medium text-red-300"}>
                     {summary.costValid ? (
                       <>
                         <span className="block min-w-16 border border-zinc-800 px-1.5 py-1">
@@ -1671,12 +1735,6 @@ function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudge
                       `Invalid: ${summary.invalidCostReason ?? "Power is invalid."}`
                     )}
                   </div>
-                  <h3 className="text-base font-semibold uppercase tracking-[0.04em]">
-                    {summary.power.name || `Power ${index + 1}`}
-                  </h3>
-                  {summary.power.description?.trim() ? (
-                    <p className="mt-0.5 text-xs italic leading-snug text-zinc-400">{summary.power.description}</p>
-                  ) : null}
                 </div>
               </div>
               {summary.descriptorLines.length > 0 ? (
@@ -3326,6 +3384,7 @@ export function CharacterSheetPreview({
       }
 
       .cb-sheet-preview.cb-sheet-colour.character-sheet--dark-prestige-v2 .cb-power-sheet .cb-power-card > div:first-child {
+        padding-top: 0.38rem;
         padding-bottom: 0.45rem;
         border-color: rgba(196, 151, 77, 0.28) !important;
       }
