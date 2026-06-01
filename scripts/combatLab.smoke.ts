@@ -2,8 +2,10 @@ import { buildCombatLabSmokeScenarios, runCombatScenario } from "../lib/combat-l
 import { resolveCombatAction, resolveStartOfTurnEffects } from "../lib/combat-lab/actionResolver";
 import {
   createCombatState,
+  createActorInstances,
   getActionCooldownRemaining,
   isActionOnCooldown,
+  markDefeatedActors,
   refreshActorResponses,
   tickActorCooldowns,
 } from "../lib/combat-lab/combatState";
@@ -24,8 +26,8 @@ import {
   makeAttackActionsFromConfig,
   makeFixturePower,
 } from "../lib/combat-lab/powerAdapter";
-import { formatSuiteReport, runScenarioSuite } from "../lib/combat-lab/reporting";
-import { chooseAction, chooseTarget } from "../lib/combat-lab/targetingPolicies";
+import { calculateOutcomeSummary, formatSuiteReport, runScenarioSuite } from "../lib/combat-lab/reporting";
+import { chooseTarget, chooseTurnAction } from "../lib/combat-lab/targetingPolicies";
 import type { CombatAction, CombatActor } from "../lib/combat-lab/types";
 
 type CombatLabCharacterRow = Parameters<typeof adaptCampaignCharacterToCombatActor>[0];
@@ -83,6 +85,24 @@ function action(overrides: Partial<CombatAction> = {}): CombatAction {
     cooldownRounds: 0,
     ...overrides,
   };
+}
+
+{
+  const outcomes = calculateOutcomeSummary([
+    ...Array.from({ length: 48 }, () => ({ winner: "players" as const, stoppedBy: "monstersDefeated" as const })),
+    ...Array.from({ length: 24 }, () => ({ winner: "monsters" as const, stoppedBy: "playersDefeated" as const })),
+    ...Array.from({ length: 14 }, () => ({ winner: "stalemate" as const, stoppedBy: "stalemate" as const })),
+    ...Array.from({ length: 14 }, () => ({ winner: "stalemate" as const, stoppedBy: "maxRounds" as const })),
+  ]);
+  const total = outcomes.playerWinRate + outcomes.monsterWinRate + outcomes.stalemateRate;
+  if (
+    Math.abs(outcomes.playerWinRate - 0.48) > 0.0001 ||
+    Math.abs(outcomes.monsterWinRate - 0.24) > 0.0001 ||
+    Math.abs(outcomes.stalemateRate - 0.28) > 0.0001 ||
+    Math.abs(total - 1) > 0.0001
+  ) {
+    throw new Error(`Outcome rates did not calculate direct stalemate share correctly: ${JSON.stringify(outcomes)}.`);
+  }
 }
 
 function weightedSkillExpected(primary: number, secondary: number, modifier: number): number {
@@ -753,6 +773,209 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const weapon = action({ id: "shield-policy-fallback", name: "Fallback Strike", sourceType: "equippedWeapon" });
+  const mentalShield = action({
+    id: "mental-shield-policy",
+    name: "Mental Fortress",
+    sourceType: "power",
+    kind: "defence",
+    targetPolicy: "self",
+    pool: "mental",
+    protection: 4,
+    diceCount: 3,
+  });
+  const actor = fixtureActor("mental-shield-policy-actor", "players", { actions: [weapon, mentalShield] });
+  const physicalEnemy = fixtureActor("physical-only-threat", "monsters", {
+    actions: [action({ id: "physical-threat-hit", name: "Physical Threat Hit", pool: "physical" })],
+  });
+  const state = createCombatState([actor], [physicalEnemy]);
+  if (chooseTurnAction(state.actors[0], state, "power")?.id === mentalShield.id) {
+    throw new Error("Mental defence power was treated as useful against physical-only enemies.");
+  }
+}
+
+{
+  const physicalShield = action({
+    id: "physical-shield-policy",
+    name: "Body Ward",
+    sourceType: "power",
+    kind: "defence",
+    targetPolicy: "self",
+    pool: "physical",
+    protection: 4,
+    diceCount: 3,
+  });
+  const actor = fixtureActor("physical-shield-policy-actor", "players", { actions: [physicalShield] });
+  const physicalEnemy = fixtureActor("physical-threat", "monsters", {
+    actions: [action({ id: "physical-threat-hit", pool: "physical" })],
+  });
+  const state = createCombatState([actor], [physicalEnemy]);
+  if (chooseTurnAction(state.actors[0], state, "power")?.id !== physicalShield.id) {
+    throw new Error("Physical defence power was not useful against physical enemies.");
+  }
+}
+
+{
+  const mentalShield = action({
+    id: "mental-threat-shield",
+    name: "Mental Fortress",
+    sourceType: "power",
+    kind: "defence",
+    targetPolicy: "self",
+    pool: "mental",
+    protection: 4,
+    diceCount: 3,
+  });
+  const actor = fixtureActor("mental-threat-shield-actor", "players", { actions: [mentalShield] });
+  const mentalEnemy = fixtureActor("mental-threat", "monsters", {
+    actions: [action({ id: "mental-threat-hit", pool: "mental", accuracyAttribute: "Intellect" })],
+  });
+  const state = createCombatState([actor], [mentalEnemy]);
+  if (chooseTurnAction(state.actors[0], state, "power")?.id !== mentalShield.id) {
+    throw new Error("Mental defence power was not useful against mental enemies.");
+  }
+}
+
+{
+  const attacker = fixtureActor("guard-debuff-physical-attacker", "players");
+  const defender = fixtureActor("guard-debuff-physical-defender", "monsters", {
+    dodgeDice: 1,
+    physicalDefenceDice: 6,
+    physicalBlockPerSuccess: 3,
+  });
+  const state = createCombatState([attacker], [defender]);
+  state.statusEffects.push({
+    id: "guard-debuff-physical",
+    sourceActorId: state.actors[0].id,
+    targetActorId: state.actors[1].id,
+    kind: "debuff",
+    attribute: "Guard",
+    amount: 2,
+    remainingRounds: 2,
+  });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99]),
+  });
+  if (resolution.physicalDefenceChosen !== 1 || resolution.debuffedDefenceRolls !== 1) {
+    throw new Error("Guard debuff did not affect and report physical defence rolls.");
+  }
+}
+
+{
+  const attacker = fixtureActor("guard-debuff-dodge-attacker", "players");
+  const defender = fixtureActor("guard-debuff-dodge-defender", "monsters", {
+    dodgeDice: 4,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+  });
+  const state = createCombatState([attacker], [defender]);
+  state.statusEffects.push({
+    id: "guard-debuff-dodge",
+    sourceActorId: state.actors[0].id,
+    targetActorId: state.actors[1].id,
+    kind: "debuff",
+    attribute: "Guard",
+    amount: 2,
+    remainingRounds: 2,
+  });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99]),
+  });
+  if (resolution.dodgeChosen !== 1 || resolution.debuffedDefenceRolls !== 1) {
+    throw new Error("Guard debuff did not affect and report dodge rolls.");
+  }
+}
+
+{
+  const attacker = fixtureActor("bravery-debuff-mental-attacker", "players");
+  const defender = fixtureActor("bravery-debuff-mental-defender", "monsters", {
+    dodgeDice: 1,
+    mentalDefenceDice: 6,
+    mentalBlockPerSuccess: 3,
+    resist: { BRAVERY: 0 },
+  });
+  const mentalDefenceState = createCombatState([attacker], [defender]);
+  mentalDefenceState.statusEffects.push({
+    id: "bravery-debuff-mental-defence",
+    sourceActorId: mentalDefenceState.actors[0].id,
+    targetActorId: mentalDefenceState.actors[1].id,
+    kind: "debuff",
+    attribute: "Bravery",
+    amount: 2,
+    remainingRounds: 2,
+  });
+  const defenceResolution = resolveCombatAction({
+    state: mentalDefenceState,
+    actor: mentalDefenceState.actors[0],
+    target: mentalDefenceState.actors[1],
+    action: action({ pool: "mental", accuracyAttribute: "Intellect", diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99]),
+  });
+  if (defenceResolution.mentalDefenceChosen !== 1 || defenceResolution.debuffedDefenceRolls !== 1) {
+    throw new Error("Bravery debuff did not affect and report mental defence rolls.");
+  }
+
+  const resistState = createCombatState([attacker], [defender]);
+  resistState.statusEffects.push({
+    id: "bravery-debuff-resist",
+    sourceActorId: resistState.actors[0].id,
+    targetActorId: resistState.actors[1].id,
+    kind: "debuff",
+    attribute: "Bravery",
+    amount: 2,
+    remainingRounds: 2,
+  });
+  const resistResolution = resolveCombatAction({
+    state: resistState,
+    actor: resistState.actors[0],
+    target: resistState.actors[1],
+    action: action({ kind: "control", diceCount: 3, potency: 1, resistAttribute: "BRAVERY" }),
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0.99]),
+  });
+  if (resistResolution.resistRolls !== 1 || resistResolution.debuffedResistRolls !== 1) {
+    throw new Error("Bravery debuff did not affect and report resist rolls.");
+  }
+}
+
+{
+  const attacker = fixtureActor("pool-mismatch-attacker", "players");
+  const defender = fixtureActor("pool-mismatch-defender", "monsters", {
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    physicalProtection: 0,
+  });
+  const state = createCombatState([attacker], [defender]);
+  state.statusEffects.push({
+    id: "mental-protection-only",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[1].id,
+    kind: "protection",
+    pool: "mental",
+    amount: 999,
+    remainingRounds: 2,
+  });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ pool: "physical", diceCount: 2, potency: 3 }),
+    rng: rngFrom([0.99, 0.99, 0, 0]),
+  });
+  if (resolution.staticProtectionPrevented > 0 || resolution.netWounds <= 0) {
+    throw new Error("Mental defence power incorrectly blocked physical wounds.");
+  }
+}
+
+{
   const attacker = fixtureActor("degrade-attacker", "players");
   const defender = fixtureActor("degrade-defender", "monsters", { dodgeDice: 1 });
   const state = createCombatState([attacker], [defender]);
@@ -777,6 +1000,189 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   });
   if (resolution.resistRolls !== 1 || resolution.hostileSuccessesCancelledByResist !== 1 || resolution.controlTurnsApplied !== 1) {
     throw new Error("Resist did not cancel hostile successes success-by-success.");
+  }
+}
+
+{
+  const weapon = action({ id: "lane-weapon", name: "Lane Weapon", sourceType: "equippedWeapon", diceCount: 2, potency: 1 });
+  const mark = action({
+    id: "lane-mark",
+    name: "Mark da target!",
+    sourceType: "power",
+    kind: "debuff",
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 1,
+    modifier: { attribute: "Guard", amount: 1, durationRounds: 2 },
+    cooldownRounds: 2,
+  });
+  const actor = fixtureActor("lane-actor", "players", { actions: [weapon, mark] });
+  const state = createCombatState([actor], [fixtureActor("lane-target", "monsters")]);
+  if (chooseTurnAction(state.actors[0], state, "main")?.id !== weapon.id) {
+    throw new Error("Main action did not prefer weapon/natural attack.");
+  }
+  if (chooseTurnAction(state.actors[0], state, "power")?.id !== mark.id) {
+    throw new Error("Power action did not choose ready debuff power.");
+  }
+  const run = runCombatScenario({
+    name: "main plus power action fixture",
+    players: [actor],
+    monsters: [fixtureActor("lane-run-target", "monsters")],
+    runs: 1,
+    seed: 741,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  if (run.metrics.mainActionsUsed.players !== 1 || run.metrics.powerActionsUsed.players !== 1) {
+    throw new Error("Actor with weapon and ready power did not use both main and power lanes.");
+  }
+}
+
+{
+  const weapon = action({ id: "fallback-weapon", name: "Fallback Weapon", sourceType: "naturalAttack" });
+  const power = action({
+    id: "cooling-power",
+    name: "Cooling Power",
+    sourceType: "power",
+    kind: "attack",
+    cooldownRounds: 2,
+  });
+  const actor = fixtureActor("cooldown-fallback-actor", "players", { actions: [weapon, power] });
+  const state = createCombatState([actor], [fixtureActor("cooldown-fallback-target", "monsters")]);
+  state.cooldowns[`${state.actors[0].id}:${power.id}`] = 2;
+  if (chooseTurnAction(state.actors[0], state, "power")?.id !== weapon.id) {
+    throw new Error("Power lane did not fall back to second weapon/natural attack while power was cooling down.");
+  }
+}
+
+{
+  const weapon = action({ id: "waste-weapon", name: "Waste Weapon", sourceType: "equippedWeapon" });
+  const cleanse = action({ id: "waste-cleanse", name: "Waste Cleanse", sourceType: "power", kind: "cleanse", targetPolicy: "ally" });
+  const heal = action({ id: "waste-heal", name: "Waste Heal", sourceType: "power", kind: "healing", targetPolicy: "ally" });
+  const actor = fixtureActor("waste-actor", "players", { actions: [weapon, cleanse, heal] });
+  const state = createCombatState([actor], [fixtureActor("waste-target", "monsters")]);
+  const chosen = chooseTurnAction(state.actors[0], state, "power");
+  if (chosen?.id === cleanse.id || chosen?.id === heal.id) {
+    throw new Error("Power lane used cleanse/heal when there was no removable effect or wounded ally.");
+  }
+}
+
+{
+  const players = Array.from({ length: 4 }, (_, index) =>
+    fixtureActor(`spread-player-${index + 1}`, "players", {
+      physicalHpMax: 999,
+      mentalHpMax: 999,
+      actionsPerTurn: 0,
+      actions: [],
+    }),
+  );
+  const minions = createActorInstances(
+    fixtureActor("spread-minion", "monsters", {
+      name: "Spread Minion",
+      role: "Minion",
+      actions: [action({ id: "spread-minion-attack", sourceType: "naturalAttack", diceCount: 3, potency: 1 })],
+    }),
+    12,
+  );
+  const run = runCombatScenario({
+    name: "minion target spread fixture",
+    players,
+    monsters: minions,
+    runs: 1,
+    seed: 742,
+    maxRounds: 1,
+    turnOrder: "monstersFirst",
+  });
+  const attacksByPlayer = players.map(
+    (player) => run.metrics.defensiveContributions[player.id]?.attacksDefended ?? 0,
+  );
+  if (attacksByPlayer.some((count) => count === 0) || Math.max(...attacksByPlayer) - Math.min(...attacksByPlayer) > 2) {
+    throw new Error(`Minion attacks did not distribute across all defenders: ${attacksByPlayer.join(", ")}.`);
+  }
+}
+
+{
+  const mark = action({
+    id: "gobbo-mark",
+    name: "Mark da target!",
+    sourceType: "power",
+    kind: "debuff",
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 1,
+    modifier: { attribute: "Guard", amount: 1, durationRounds: 2 },
+    cooldownRounds: 2,
+  });
+  const gobbos = createActorInstances(
+    fixtureActor("gobbo-like", "monsters", {
+      name: "Gobbo Scout",
+      role: "Minion",
+      actions: [
+        action({ id: "gobbo-stab", name: "Gobbo Stab", sourceType: "naturalAttack", diceCount: 2, potency: 1 }),
+        mark,
+      ],
+    }),
+    4,
+  );
+  const report = runScenarioSuite({
+    name: "gobbo mark power fixture",
+    players: Array.from({ length: 4 }, (_, index) => fixtureActor(`gobbo-target-${index + 1}`, "players", { physicalHpMax: 999, mentalHpMax: 999, actionsPerTurn: 0, actions: [] })),
+    monsters: gobbos,
+    runs: 1,
+    seed: 743,
+    maxRounds: 1,
+    turnOrder: "monstersFirst",
+  });
+  const markUses = report.cooldownTrace
+    .filter((trace) => trace.actionName === "Mark da target!")
+    .reduce((sum, trace) => sum + trace.uses, 0);
+  if (markUses <= 0 || report.averageMechanics.powerActionsUsed.monsters <= 0) {
+    throw new Error("Gobbo-like minions did not use ready Mark da target! power.");
+  }
+}
+
+{
+  const mark = action({
+    id: "gobbo-mark-report",
+    name: "Mark da target!",
+    sourceType: "power",
+    kind: "debuff",
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 1,
+    modifier: { attribute: "Guard", amount: 1, durationRounds: 2 },
+    cooldownRounds: 2,
+  });
+  const player = fixtureActor("marked-player-defender", "players", {
+    physicalHpMax: 999,
+    mentalHpMax: 999,
+    dodgeDice: 1,
+    physicalDefenceDice: 5,
+    physicalBlockPerSuccess: 3,
+    actions: [],
+  });
+  const gobbo = fixtureActor("gobbo-mark-reporter", "monsters", {
+    name: "Gobbo Mark Reporter",
+    role: "Minion",
+    actions: [
+      action({ id: "gobbo-report-stab", name: "Gobbo Stab", sourceType: "naturalAttack", diceCount: 2, potency: 1 }),
+      mark,
+    ],
+  });
+  const report = runScenarioSuite({
+    name: "gobbo mark defence debuff report fixture",
+    players: [player],
+    monsters: [gobbo],
+    runs: 1,
+    seed: 744,
+    maxRounds: 2,
+    turnOrder: "monstersFirst",
+  });
+  const markContribution = report.actorContributions
+    .find((entry) => entry.actorId === gobbo.id)
+    ?.actionContributions.find((entry) => entry.actionId === mark.id);
+  if (!markContribution || markContribution.debuffApplications <= 0 || report.averageMechanics.debuffedDefenceRolls.players <= 0) {
+    throw new Error("Mark da target! did not report both debuff application and affected player defence rolls.");
   }
 }
 
@@ -975,6 +1381,187 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const baseMonster = fixtureActor("quantity-gobbo", "monsters", {
+    name: "Gobbo Scout",
+    hydration: {
+      source: "campaignMonster",
+      realData: true,
+      warnings: [],
+      unsupportedEquipment: [],
+      unsupportedTraits: [],
+      ignoredTraits: [],
+      unsupportedCombatTraits: [],
+      fallbackActions: [],
+    },
+  });
+  const instances = createActorInstances(baseMonster, 3);
+  if (
+    instances.length !== 3 ||
+    new Set(instances.map((actor) => actor.id)).size !== 3 ||
+    instances[0]?.name !== "Gobbo Scout #1" ||
+    instances[2]?.instanceIndex !== 3 ||
+    instances.some((actor) => actor.baseActorId !== baseMonster.id || actor.displayGroupName !== "Gobbo Scout")
+  ) {
+    throw new Error("Monster quantity expansion did not create distinguishable runtime instances.");
+  }
+}
+
+{
+  const attacker = fixtureActor("quantity-attacker", "players", {
+    actions: [action({ id: "quantity-hit", diceCount: 4, potency: 2 })],
+  });
+  const instances = createActorInstances(fixtureActor("quantity-target", "monsters", { name: "Gobbo Scout" }), 2);
+  const state = createCombatState([attacker], instances);
+  const firstMonster = state.actors.find((actor) => actor.id === instances[0]?.id);
+  const secondMonster = state.actors.find((actor) => actor.id === instances[1]?.id);
+  if (!firstMonster || !secondMonster) throw new Error("Quantity state did not include monster instances.");
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: firstMonster,
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.99, 0, 0.99]),
+  });
+  if (
+    firstMonster.physicalHpCurrent >= firstMonster.physicalHpMax ||
+    secondMonster.physicalHpCurrent !== secondMonster.physicalHpMax
+  ) {
+    throw new Error("Damaging one monster instance leaked state into another instance.");
+  }
+  firstMonster.physicalHpCurrent = 0;
+  markDefeatedActors(state);
+  if (!firstMonster.defeated || secondMonster.defeated) {
+    throw new Error("Defeating one monster instance defeated another instance.");
+  }
+}
+
+{
+  const players = Array.from({ length: 4 }, (_, index) =>
+    fixtureActor(`turn-player-${index + 1}`, "players", {
+      actionsPerTurn: 0,
+      actions: [],
+      physicalHpMax: 999,
+      mentalHpMax: 999,
+    }),
+  );
+  const minions = createActorInstances(
+    fixtureActor("turn-minion", "monsters", {
+      name: "Turn Minion",
+      actions: [action({ id: "turn-minion-attack", diceCount: 1, potency: 1 })],
+    }),
+    12,
+  );
+  const run = runCombatScenario({
+    name: "4 players vs 12 quantity minions turn count",
+    players,
+    monsters: minions,
+    runs: 1,
+    seed: 771,
+    maxRounds: 1,
+    turnOrder: "alternatingByRound",
+  });
+  if (
+    run.metrics.mainActionsUsed.monsters !== 12 ||
+    run.metrics.powerActionsUsed.monsters !== 12 ||
+    run.metrics.secondWeaponAttacksUsed.monsters !== 12
+  ) {
+    throw new Error(
+      `Expected 12 monster turns with main plus fallback power-lane attacks, got main ${run.metrics.mainActionsUsed.monsters}, power ${run.metrics.powerActionsUsed.monsters}, second weapon ${run.metrics.secondWeaponAttacksUsed.monsters}.`,
+    );
+  }
+}
+
+{
+  const player = fixtureActor("pressure-player", "players", {
+    physicalHpMax: 999,
+    mentalHpMax: 999,
+    dodgeDice: 1,
+    physicalDefenceDice: 3,
+    physicalBlockPerSuccess: 1,
+  });
+  const minions = createActorInstances(
+    fixtureActor("pressure-minion", "monsters", {
+      actions: [action({ id: "pressure-attack", diceCount: 4, potency: 1 })],
+    }),
+    3,
+  );
+  const state = createCombatState([player], minions);
+  const target = state.actors[0];
+  for (const attacker of state.actors.filter((actor) => actor.side === "monsters")) {
+    resolveCombatAction({
+      state,
+      actor: attacker,
+      target,
+      action: attacker.actions[0],
+      rng: rngFrom([0.99, 0, 0.99]),
+    });
+  }
+  const degradation = state.defenceDegradation[target.id];
+  if (!degradation || degradation.dodge + degradation.physical + degradation.mental <= 1) {
+    throw new Error("Multiple monster instances did not accumulate defender degradation pressure.");
+  }
+}
+
+{
+  const aoe = action({
+    id: "quantity-aoe",
+    name: "Quantity AOE",
+    rangeCategory: "AOE",
+    targetCount: 4,
+    diceCount: 4,
+    potency: 1,
+  });
+  const player = fixtureActor("quantity-aoe-player", "players", { actions: [aoe] });
+  const minions = createActorInstances(fixtureActor("quantity-aoe-minion", "monsters", { name: "AOE Minion" }), 12);
+  const state = createCombatState([player], minions);
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: aoe,
+    rng: rngFrom([0.99, 0, 0.99]),
+  });
+  if (resolution.aoeActualTargets !== 2) {
+    throw new Error(`Expected AOE against 12 minions with capacity 4 to hit 2 instances, got ${resolution.aoeActualTargets}.`);
+  }
+}
+
+{
+  const baseMonster = fixtureActor("report-quantity-minion", "monsters", {
+    name: "Report Minion",
+    hydration: {
+      source: "campaignMonster",
+      realData: true,
+      warnings: [],
+      unsupportedEquipment: [],
+      unsupportedTraits: [],
+      ignoredTraits: [],
+      unsupportedCombatTraits: [],
+      fallbackActions: [],
+    },
+  });
+  const report = runScenarioSuite({
+    name: "quantity report fixture",
+    players: [fixtureActor("report-quantity-player", "players", { actionsPerTurn: 0, actions: [] })],
+    monsters: createActorInstances(baseMonster, 3),
+    runs: 1,
+    seed: 833,
+    maxRounds: 1,
+    turnOrder: "monstersFirst",
+  });
+  const group = report.monsterGroupContributions.find((entry) => entry.baseActorId === baseMonster.id);
+  if (
+    report.hydrationIntegrity.realMonsterCount !== 1 ||
+    report.hydrationIntegrity.monsterInstanceCount !== 3 ||
+    !group ||
+    group.quantity !== 3 ||
+    group.survivors !== 3
+  ) {
+    throw new Error("Quantity report did not preserve base monster count, instance count, and grouped survivors.");
+  }
+}
+
+{
   const player = fixtureActor("aoe-player", "players");
   const monsters = Array.from({ length: 4 }, (_, index) => fixtureActor(`aoe-monster-${index}`, "monsters"));
   const state = createCombatState([player], monsters);
@@ -1052,23 +1639,23 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   const ally = fixtureActor("support-ally", "players");
   const monster = fixtureActor("support-enemy", "monsters");
   const soloState = createCombatState([support], [monster]);
-  const soloAction = chooseAction(soloState.actors[0], soloState);
+  const soloAction = chooseTurnAction(soloState.actors[0], soloState, "power");
   if (soloAction?.kind !== "debuff") {
     throw new Error("Solo support did not prefer a useful debuff before wasting an ally buff.");
   }
   soloState.actors[0].physicalHpCurrent = Math.floor(soloState.actors[0].physicalHpMax / 2);
-  const soloHealAction = chooseAction(soloState.actors[0], soloState);
+  const soloHealAction = chooseTurnAction(soloState.actors[0], soloState, "power");
   const soloHealTarget = soloHealAction ? chooseTarget(soloState.actors[0], soloHealAction, soloState) : null;
   if (soloHealAction?.kind !== "healing" || soloHealTarget?.id !== soloState.actors[0].id) {
     throw new Error("Wounded solo support did not heal self before attacking.");
   }
   const partyState = createCombatState([support, ally], [monster]);
-  const partyAction = chooseAction(partyState.actors[0], partyState);
+  const partyAction = chooseTurnAction(partyState.actors[0], partyState, "power");
   if (partyAction?.kind !== "buff") {
     throw new Error("Party support did not prefer a useful early ally buff.");
   }
   partyState.actors[1].physicalHpCurrent = Math.floor(partyState.actors[1].physicalHpMax / 2);
-  const healAction = chooseAction(partyState.actors[0], partyState);
+  const healAction = chooseTurnAction(partyState.actors[0], partyState, "power");
   const healTarget = healAction ? chooseTarget(partyState.actors[0], healAction, partyState) : null;
   if (healAction?.kind !== "healing" || healTarget?.id !== partyState.actors[1].id) {
     throw new Error("Support did not heal the most wounded ally.");

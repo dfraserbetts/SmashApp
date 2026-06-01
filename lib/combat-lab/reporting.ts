@@ -4,11 +4,13 @@ import type {
   CombatDefensiveContribution,
   CombatAggregateMetrics,
   CombatCooldownTrace,
+  CombatMonsterGroupContribution,
   CombatRunResult,
   CombatScenario,
   CombatHydrationIntegrity,
   CombatSide,
   CombatSuiteReport,
+  CombatStoppedByBreakdown,
   UnsupportedPowerSummary,
 } from "./types";
 
@@ -51,6 +53,28 @@ function averageSideRatio(
   return {
     players: totals.players / Math.max(1, divisors.players),
     monsters: totals.monsters / Math.max(1, divisors.monsters),
+  };
+}
+
+export function calculateOutcomeSummary(
+  runs: Array<Pick<CombatRunResult, "winner" | "stoppedBy">>,
+): {
+  playerWinRate: number;
+  monsterWinRate: number;
+  stalemateRate: number;
+  stoppedByBreakdown: CombatStoppedByBreakdown;
+} {
+  const divisor = Math.max(1, runs.length);
+  return {
+    playerWinRate: runs.filter((run) => run.winner === "players").length / divisor,
+    monsterWinRate: runs.filter((run) => run.winner === "monsters").length / divisor,
+    stalemateRate: runs.filter((run) => run.winner === "stalemate").length / divisor,
+    stoppedByBreakdown: {
+      playersDefeated: runs.filter((run) => run.stoppedBy === "playersDefeated").length / divisor,
+      monstersDefeated: runs.filter((run) => run.stoppedBy === "monstersDefeated").length / divisor,
+      maxRounds: runs.filter((run) => run.stoppedBy === "maxRounds").length / divisor,
+      stalemate: runs.filter((run) => run.stoppedBy === "stalemate").length / divisor,
+    },
   };
 }
 
@@ -98,7 +122,12 @@ export function collectHydrationIntegrity(scenario: Pick<CombatScenario, "player
   }));
   return {
     realCharacterCount: scenario.players.filter((actor) => actor.hydration.source === "campaignCharacter").length,
-    realMonsterCount: scenario.monsters.filter((actor) => actor.hydration.source === "campaignMonster").length,
+    realMonsterCount: new Set(
+      scenario.monsters
+        .filter((actor) => actor.hydration.source === "campaignMonster")
+        .map((actor) => actor.baseActorId ?? actor.id),
+    ).size,
+    monsterInstanceCount: scenario.monsters.filter((actor) => actor.hydration.source === "campaignMonster").length,
     fallbackActionCount: actors.reduce(
       (sum, actor) => sum + actor.actions.filter((action) => action.sourceType === "fallback").length,
       0,
@@ -216,6 +245,63 @@ function mergeActorContributions(runs: CombatRunResult[]): CombatActorContributi
   );
 }
 
+function mergeMonsterGroupContributions(scenario: CombatScenario, runs: CombatRunResult[]): CombatMonsterGroupContribution[] {
+  const divisor = Math.max(1, runs.length);
+  const groups = new Map<string, CombatMonsterGroupContribution>();
+  for (const monster of scenario.monsters) {
+    const baseActorId = monster.baseActorId ?? monster.id;
+    const group = groups.get(baseActorId) ?? {
+      baseActorId,
+      displayGroupName: monster.displayGroupName ?? monster.name,
+      quantity: 0,
+      survivors: 0,
+      defeated: 0,
+      actionsUsed: 0,
+      damage: 0,
+      healing: 0,
+      mitigation: 0,
+      controlTurnsApplied: 0,
+      ongoingDamageApplied: 0,
+      averageDamagePerInstance: 0,
+    };
+    group.quantity += 1;
+    groups.set(baseActorId, group);
+  }
+
+  for (const run of runs) {
+    for (const contribution of Object.values(run.metrics.actorContributions)) {
+      if (contribution.side !== "monsters") continue;
+      const baseActorId = contribution.baseActorId ?? contribution.actorId;
+      const group = groups.get(baseActorId);
+      if (!group) continue;
+      group.actionsUsed += contribution.actionsUsed / divisor;
+      group.damage += contribution.damage / divisor;
+      group.healing += contribution.healing / divisor;
+      group.mitigation += contribution.mitigation / divisor;
+      group.controlTurnsApplied += contribution.controlTurnsApplied / divisor;
+      group.ongoingDamageApplied += contribution.ongoingDamageApplied / divisor;
+    }
+  }
+
+  const survivorTotals = new Map<string, number>();
+  for (const run of runs) {
+    const survivingMonsterIds = new Set(run.survivorActorIds.monsters);
+    for (const actor of scenario.monsters) {
+      if (!survivingMonsterIds.has(actor.id)) continue;
+      const baseActorId = actor.baseActorId ?? actor.id;
+      survivorTotals.set(baseActorId, (survivorTotals.get(baseActorId) ?? 0) + 1 / divisor);
+    }
+  }
+
+  for (const group of groups.values()) {
+    group.survivors = survivorTotals.get(group.baseActorId) ?? 0;
+    group.defeated = Math.max(0, group.quantity - group.survivors);
+    group.averageDamagePerInstance = group.damage / Math.max(1, group.quantity);
+  }
+
+  return [...groups.values()].sort((a, b) => b.quantity - a.quantity || a.displayGroupName.localeCompare(b.displayGroupName));
+}
+
 function mergeDefensiveContributions(runs: CombatRunResult[]): CombatDefensiveContribution[] {
   const merged = new Map<string, CombatDefensiveContribution>();
   const divisor = Math.max(1, runs.length);
@@ -227,6 +313,10 @@ function mergeDefensiveContributions(runs: CombatRunResult[]): CombatDefensiveCo
         woundsDodged: 0,
         defenceStringBlocked: 0,
         staticProtectionPrevented: 0,
+        buffedDefenceRolls: 0,
+        debuffedDefenceRolls: 0,
+        buffedResistRolls: 0,
+        debuffedResistRolls: 0,
         counterUses: 0,
         counterDamage: 0,
         counterMitigation: 0,
@@ -237,6 +327,10 @@ function mergeDefensiveContributions(runs: CombatRunResult[]): CombatDefensiveCo
       actor.woundsDodged += contribution.woundsDodged / divisor;
       actor.defenceStringBlocked += contribution.defenceStringBlocked / divisor;
       actor.staticProtectionPrevented += contribution.staticProtectionPrevented / divisor;
+      actor.buffedDefenceRolls += contribution.buffedDefenceRolls / divisor;
+      actor.debuffedDefenceRolls += contribution.debuffedDefenceRolls / divisor;
+      actor.buffedResistRolls += contribution.buffedResistRolls / divisor;
+      actor.debuffedResistRolls += contribution.debuffedResistRolls / divisor;
       actor.counterUses += contribution.counterUses / divisor;
       actor.counterDamage += contribution.counterDamage / divisor;
       actor.counterMitigation += contribution.counterMitigation / divisor;
@@ -341,12 +435,11 @@ export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
   const rounds = runs.map((run) => run.rounds);
   const totalRounds = Math.max(1, rounds.reduce((sum, value) => sum + value, 0));
   const damage = sumBySide(runs, (metrics) => metrics.damageDealt);
+  const outcomeSummary = calculateOutcomeSummary(runs);
   const reportWithoutVerdict = {
     scenarioName: scenario.name,
     runs: scenario.runs,
-    playerWinRate: runs.filter((run) => run.winner === "players").length / Math.max(1, runs.length),
-    monsterWinRate: runs.filter((run) => run.winner === "monsters").length / Math.max(1, runs.length),
-    stalemateRate: runs.filter((run) => run.winner === "stalemate").length / Math.max(1, runs.length),
+    ...outcomeSummary,
     averageRounds: avg(rounds),
     medianRounds: percentile(rounds, 0.5),
     p10Rounds: percentile(rounds, 0.1),
@@ -388,9 +481,13 @@ export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
       buffApplications: averageSideTotals(runs, (metrics) => metrics.buffApplications),
       buffUptime: averageSideTotals(runs, (metrics) => metrics.buffUptime),
       buffedActions: averageSideTotals(runs, (metrics) => metrics.buffedActions),
+      buffedDefenceRolls: averageSideTotals(runs, (metrics) => metrics.buffedDefenceRolls),
+      buffedResistRolls: averageSideTotals(runs, (metrics) => metrics.buffedResistRolls),
       debuffApplications: averageSideTotals(runs, (metrics) => metrics.debuffApplications),
       debuffUptime: averageSideTotals(runs, (metrics) => metrics.debuffUptime),
       debuffedActions: averageSideTotals(runs, (metrics) => metrics.debuffedActions),
+      debuffedDefenceRolls: averageSideTotals(runs, (metrics) => metrics.debuffedDefenceRolls),
+      debuffedResistRolls: averageSideTotals(runs, (metrics) => metrics.debuffedResistRolls),
       healingOverTimeApplied: averageSideTotals(runs, (metrics) => metrics.healingOverTimeApplied),
       healingTicks: averageSideTotals(runs, (metrics) => metrics.healingTicks),
       ongoingDamageApplied: averageSideTotals(runs, (metrics) => metrics.ongoingDamageApplied),
@@ -419,9 +516,14 @@ export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
         (metrics) => metrics.aoeActionUses,
       ),
       positionalAbstractionsUsed: averageSideTotals(runs, (metrics) => metrics.positionalAbstractionsUsed),
+      mainActionsUsed: averageSideTotals(runs, (metrics) => metrics.mainActionsUsed),
+      powerActionsUsed: averageSideTotals(runs, (metrics) => metrics.powerActionsUsed),
+      secondWeaponAttacksUsed: averageSideTotals(runs, (metrics) => metrics.secondWeaponAttacksUsed),
+      skippedPowerActions: averageSideTotals(runs, (metrics) => metrics.skippedPowerActions),
     },
     roleContribution: mergeRoleContribution(runs),
     actorContributions: mergeActorContributions(runs),
+    monsterGroupContributions: mergeMonsterGroupContributions(scenario, runs),
     defensiveContributions: mergeDefensiveContributions(runs),
     cooldownTrace: mergeCooldownTrace(runs),
     unsupported: mergeUnsupported(runs),
@@ -453,7 +555,7 @@ export function formatSuiteReport(report: CombatSuiteReport): string {
     `Health remaining: ${pct(report.averageWinnerHealthRemainingPercent)}`,
     `Damage/round: players ${num(report.averageDamagePerRound.players)}, monsters ${num(report.averageDamagePerRound.monsters)}`,
     `Defence: protection prevented P/M ${num(report.averageProtectionPrevented.players)}/${num(report.averageProtectionPrevented.monsters)}, dodge avoided P/M ${num(report.averageDodgeAvoided.players)}/${num(report.averageDodgeAvoided.monsters)}`,
-    `Mechanics: control ${num(report.averageMechanics.controlTurnsApplied.players)}/${num(report.averageMechanics.controlTurnsApplied.monsters)}, denied ${num(report.averageMechanics.actionsDenied.players)}/${num(report.averageMechanics.actionsDenied.monsters)}, dodge choices ${num(report.averageMechanics.dodgeChosen.players)}/${num(report.averageMechanics.dodgeChosen.monsters)}, physical defence choices ${num(report.averageMechanics.physicalDefenceChosen.players)}/${num(report.averageMechanics.physicalDefenceChosen.monsters)}, mental defence choices ${num(report.averageMechanics.mentalDefenceChosen.players)}/${num(report.averageMechanics.mentalDefenceChosen.monsters)}, defence blocked ${num(report.averageMechanics.defenceStringBlocked.players)}/${num(report.averageMechanics.defenceStringBlocked.monsters)}, resist successes ${num(report.averageMechanics.resistSuccesses.players)}/${num(report.averageMechanics.resistSuccesses.monsters)}, responses ${num(report.averageMechanics.responsesUsed.players)}/${num(report.averageMechanics.responsesUsed.monsters)}, HoT ticks ${num(report.averageMechanics.healingTicks.players)}/${num(report.averageMechanics.healingTicks.monsters)}, ongoing ticks ${num(report.averageMechanics.ongoingDamageTicks.players)}/${num(report.averageMechanics.ongoingDamageTicks.monsters)}, counters ${num(report.averageMechanics.counterUses.players)}/${num(report.averageMechanics.counterUses.monsters)}, AOE targets/action ${num(report.averageMechanics.aoeActualTargets.players)}/${num(report.averageMechanics.aoePotentialTargets.players)} vs ${num(report.averageMechanics.aoeActualTargets.monsters)}/${num(report.averageMechanics.aoePotentialTargets.monsters)}`,
+    `Mechanics: main ${num(report.averageMechanics.mainActionsUsed.players)}/${num(report.averageMechanics.mainActionsUsed.monsters)}, power ${num(report.averageMechanics.powerActionsUsed.players)}/${num(report.averageMechanics.powerActionsUsed.monsters)}, second weapon ${num(report.averageMechanics.secondWeaponAttacksUsed.players)}/${num(report.averageMechanics.secondWeaponAttacksUsed.monsters)}, skipped power ${num(report.averageMechanics.skippedPowerActions.players)}/${num(report.averageMechanics.skippedPowerActions.monsters)}, control ${num(report.averageMechanics.controlTurnsApplied.players)}/${num(report.averageMechanics.controlTurnsApplied.monsters)}, denied ${num(report.averageMechanics.actionsDenied.players)}/${num(report.averageMechanics.actionsDenied.monsters)}, dodge choices ${num(report.averageMechanics.dodgeChosen.players)}/${num(report.averageMechanics.dodgeChosen.monsters)}, physical defence choices ${num(report.averageMechanics.physicalDefenceChosen.players)}/${num(report.averageMechanics.physicalDefenceChosen.monsters)}, mental defence choices ${num(report.averageMechanics.mentalDefenceChosen.players)}/${num(report.averageMechanics.mentalDefenceChosen.monsters)}, defence blocked ${num(report.averageMechanics.defenceStringBlocked.players)}/${num(report.averageMechanics.defenceStringBlocked.monsters)}, debuffed defence rolls ${num(report.averageMechanics.debuffedDefenceRolls.players)}/${num(report.averageMechanics.debuffedDefenceRolls.monsters)}, debuffed resist rolls ${num(report.averageMechanics.debuffedResistRolls.players)}/${num(report.averageMechanics.debuffedResistRolls.monsters)}, resist successes ${num(report.averageMechanics.resistSuccesses.players)}/${num(report.averageMechanics.resistSuccesses.monsters)}, responses ${num(report.averageMechanics.responsesUsed.players)}/${num(report.averageMechanics.responsesUsed.monsters)}, HoT ticks ${num(report.averageMechanics.healingTicks.players)}/${num(report.averageMechanics.healingTicks.monsters)}, ongoing ticks ${num(report.averageMechanics.ongoingDamageTicks.players)}/${num(report.averageMechanics.ongoingDamageTicks.monsters)}, counters ${num(report.averageMechanics.counterUses.players)}/${num(report.averageMechanics.counterUses.monsters)}, AOE targets/action ${num(report.averageMechanics.aoeActualTargets.players)}/${num(report.averageMechanics.aoePotentialTargets.players)} vs ${num(report.averageMechanics.aoeActualTargets.monsters)}/${num(report.averageMechanics.aoePotentialTargets.monsters)}`,
     unsupported,
     `Balance verdict: ${report.verdict}`,
   ].join("\n");

@@ -8,13 +8,25 @@ import type {
   UnsupportedPowerSummary,
 } from "./types";
 
+function cloneAction(action: CombatAction): CombatAction {
+  return {
+    ...action,
+    unsupportedReasons: [...action.unsupportedReasons],
+    secondaryActions: action.secondaryActions?.map(cloneAction),
+    abstractionNotes: action.abstractionNotes ? [...action.abstractionNotes] : undefined,
+    modifier: action.modifier ? { ...action.modifier } : undefined,
+    recurring: action.recurring ? { ...action.recurring } : undefined,
+    source: action.source ? { ...action.source } : undefined,
+  };
+}
+
 export function cloneActor(actor: CombatActor): CombatActor {
   return {
     ...actor,
     attributes: { ...actor.attributes },
     attributeDice: { ...actor.attributeDice },
     resist: { ...actor.resist },
-    actions: actor.actions.map((action) => ({ ...action })),
+    actions: actor.actions.map(cloneAction),
     unsupportedPowers: actor.unsupportedPowers.map((reason) => ({ ...reason })),
     hydration: {
       ...actor.hydration,
@@ -26,6 +38,24 @@ export function cloneActor(actor: CombatActor): CombatActor {
       fallbackActions: [...actor.hydration.fallbackActions],
     },
   };
+}
+
+export function createActorInstances(actor: CombatActor, quantity: number): CombatActor[] {
+  return Array.from({ length: Math.max(1, Math.trunc(quantity)) }, (_, index) => {
+    const instanceIndex = index + 1;
+    const clone = cloneActor(actor);
+    return {
+      ...clone,
+      id: quantity === 1 ? actor.id : `${actor.id}:instance:${instanceIndex}`,
+      baseActorId: actor.baseActorId ?? actor.id,
+      instanceIndex,
+      displayGroupName: actor.displayGroupName ?? actor.name,
+      name: quantity === 1 ? actor.name : `${actor.name} #${instanceIndex}`,
+      defeated: false,
+      physicalHpCurrent: actor.physicalHpMax,
+      mentalHpCurrent: actor.mentalHpMax,
+    };
+  });
 }
 
 export function createCombatState(players: CombatActor[], monsters: CombatActor[]): CombatState {
@@ -40,6 +70,7 @@ export function createCombatState(players: CombatActor[], monsters: CombatActor[
     cooldowns: {},
     cooldownTrace: {},
     counterUses: {},
+    incomingActionsByTargetThisRound: {},
     responsesRemaining: {},
     defenceDegradation: {},
     statusEffects: [],
@@ -69,6 +100,14 @@ export function markDefeatedActors(state: CombatState): string[] {
 
 export function resetRoundDefenceDegradation(state: CombatState) {
   state.defenceDegradation = {};
+}
+
+export function resetRoundTargetingPressure(state: CombatState) {
+  state.incomingActionsByTargetThisRound = {};
+}
+
+export function recordIncomingActionPressure(state: CombatState, targetId: string) {
+  state.incomingActionsByTargetThisRound[targetId] = (state.incomingActionsByTargetThisRound[targetId] ?? 0) + 1;
 }
 
 export function refreshActorResponses(state: CombatState, actorId: string) {
@@ -217,6 +256,10 @@ export function createEmptyMetrics(): CombatAggregateMetrics {
     overkill: { players: 0, monsters: 0 },
     oneRoundDownEvents: { players: 0, monsters: 0 },
     actionsUsed: { players: 0, monsters: 0 },
+    mainActionsUsed: { players: 0, monsters: 0 },
+    powerActionsUsed: { players: 0, monsters: 0 },
+    secondWeaponAttacksUsed: { players: 0, monsters: 0 },
+    skippedPowerActions: { players: 0, monsters: 0 },
     wastedActions: { players: 0, monsters: 0 },
     actorsDefeatedBeforeActing: { players: 0, monsters: 0 },
     activeEnemiesByRound: [],
@@ -227,9 +270,13 @@ export function createEmptyMetrics(): CombatAggregateMetrics {
     buffApplications: { players: 0, monsters: 0 },
     buffUptime: { players: 0, monsters: 0 },
     buffedActions: { players: 0, monsters: 0 },
+    buffedDefenceRolls: { players: 0, monsters: 0 },
+    buffedResistRolls: { players: 0, monsters: 0 },
     debuffApplications: { players: 0, monsters: 0 },
     debuffUptime: { players: 0, monsters: 0 },
     debuffedActions: { players: 0, monsters: 0 },
+    debuffedDefenceRolls: { players: 0, monsters: 0 },
+    debuffedResistRolls: { players: 0, monsters: 0 },
     healingOverTimeApplied: { players: 0, monsters: 0 },
     healingTicks: { players: 0, monsters: 0 },
     ongoingDamageApplied: { players: 0, monsters: 0 },

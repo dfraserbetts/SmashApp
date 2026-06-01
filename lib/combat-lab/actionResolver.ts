@@ -66,9 +66,13 @@ function emptyResolution(): CombatResolutionMetrics {
     buffApplications: 0,
     buffUptime: 0,
     buffedActions: 0,
+    buffedDefenceRolls: 0,
+    buffedResistRolls: 0,
     debuffApplications: 0,
     debuffUptime: 0,
     debuffedActions: 0,
+    debuffedDefenceRolls: 0,
+    debuffedResistRolls: 0,
     healingOverTimeApplied: 0,
     healingTicks: 0,
     ongoingDamageApplied: 0,
@@ -145,7 +149,20 @@ function rollAttributeDice(params: {
   rng: Rng;
 }) {
   const modifier = getAttributeModifier(params.state, params.actor.id, String(params.attribute));
-  return rollDice(params.diceCount, params.actor.attributeDice[params.attribute] ?? "D8", params.rng, modifier);
+  return {
+    ...rollDice(params.diceCount, params.actor.attributeDice[params.attribute] ?? "D8", params.rng, modifier),
+    modifier,
+  };
+}
+
+function recordModifiedDefenceRoll(metrics: CombatResolutionMetrics, modifier: number) {
+  if (modifier > 0) metrics.buffedDefenceRolls += 1;
+  if (modifier < 0) metrics.debuffedDefenceRolls += 1;
+}
+
+function recordModifiedResistRoll(metrics: CombatResolutionMetrics, modifier: number) {
+  if (modifier > 0) metrics.buffedResistRolls += 1;
+  if (modifier < 0) metrics.debuffedResistRolls += 1;
 }
 
 function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses: number, rng: Rng): CombatResolutionMetrics {
@@ -160,6 +177,7 @@ function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses
   metrics.dodgeDegradationApplied = degradation;
   metrics.degradedDefenceRolls = degradation > 0 ? 1 : 0;
   metrics.dodgeSuccesses = roll.successes;
+  recordModifiedDefenceRoll(metrics, roll.modifier);
   if (roll.successes >= incomingSuccesses) {
     metrics.woundsAvoidedByDodge = incomingSuccesses;
   }
@@ -187,6 +205,7 @@ function resolveDefenceString(state: CombatState, target: CombatActor, pool: "ph
   const blocked = Math.min(wounds, roll.successes * blockPerSuccess);
   metrics.defenceStringBlocked = blocked;
   metrics.protectionPrevented = blocked;
+  recordModifiedDefenceRoll(metrics, roll.modifier);
   if (pool === "physical") {
     metrics.physicalDefenceRolls = 1;
     metrics.physicalDefenceChosen = 1;
@@ -329,6 +348,7 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
   metrics.resistRolls = 1;
   metrics.resistSuccesses = resistRoll.successes;
   metrics.resistCancelled = cancelled;
+  recordModifiedResistRoll(metrics, resistRoll.modifier);
   metrics.hostileSuccessesCancelledByResist = cancelled;
   metrics.hostileSuccessesAfterResist = Math.max(0, successes - cancelled);
   return metrics;

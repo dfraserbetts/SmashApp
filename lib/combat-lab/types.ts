@@ -90,6 +90,9 @@ export type CombatActorHydration = {
 
 export type CombatActor = {
   id: string;
+  baseActorId?: string;
+  instanceIndex?: number;
+  displayGroupName?: string;
   side: CombatSide;
   name: string;
   role: CombatActorRole;
@@ -139,6 +142,7 @@ export type CombatState = {
   cooldowns: Record<string, number>;
   cooldownTrace: Record<string, CombatCooldownTrace>;
   counterUses: Record<string, number>;
+  incomingActionsByTargetThisRound: Record<string, number>;
   statusEffects: CombatStatusEffect[];
   responsesRemaining: Record<string, number>;
   defenceDegradation: Record<
@@ -219,9 +223,13 @@ export type CombatResolutionMetrics = {
   buffApplications: number;
   buffUptime: number;
   buffedActions: number;
+  buffedDefenceRolls: number;
+  buffedResistRolls: number;
   debuffApplications: number;
   debuffUptime: number;
   debuffedActions: number;
+  debuffedDefenceRolls: number;
+  debuffedResistRolls: number;
   healingOverTimeApplied: number;
   healingTicks: number;
   ongoingDamageApplied: number;
@@ -256,10 +264,18 @@ export type CombatRunResult = {
   rounds: number;
   stoppedBy: "playersDefeated" | "monstersDefeated" | "maxRounds" | "stalemate";
   survivors: Record<CombatSide, number>;
+  survivorActorIds: Record<CombatSide, string[]>;
   winnerHealthRemainingPercent: number;
   metrics: CombatAggregateMetrics;
   unsupported: UnsupportedPowerSummary;
   log: CombatLogEntry[];
+};
+
+export type CombatStoppedByBreakdown = {
+  playersDefeated: number;
+  monstersDefeated: number;
+  maxRounds: number;
+  stalemate: number;
 };
 
 export type CombatAggregateMetrics = {
@@ -287,6 +303,10 @@ export type CombatAggregateMetrics = {
   overkill: Record<CombatSide, number>;
   oneRoundDownEvents: Record<CombatSide, number>;
   actionsUsed: Record<CombatSide, number>;
+  mainActionsUsed: Record<CombatSide, number>;
+  powerActionsUsed: Record<CombatSide, number>;
+  secondWeaponAttacksUsed: Record<CombatSide, number>;
+  skippedPowerActions: Record<CombatSide, number>;
   wastedActions: Record<CombatSide, number>;
   actorsDefeatedBeforeActing: Record<CombatSide, number>;
   activeEnemiesByRound: number[];
@@ -306,9 +326,13 @@ export type CombatAggregateMetrics = {
   buffApplications: Record<CombatSide, number>;
   buffUptime: Record<CombatSide, number>;
   buffedActions: Record<CombatSide, number>;
+  buffedDefenceRolls: Record<CombatSide, number>;
+  buffedResistRolls: Record<CombatSide, number>;
   debuffApplications: Record<CombatSide, number>;
   debuffUptime: Record<CombatSide, number>;
   debuffedActions: Record<CombatSide, number>;
+  debuffedDefenceRolls: Record<CombatSide, number>;
+  debuffedResistRolls: Record<CombatSide, number>;
   healingOverTimeApplied: Record<CombatSide, number>;
   healingTicks: Record<CombatSide, number>;
   ongoingDamageApplied: Record<CombatSide, number>;
@@ -363,6 +387,9 @@ export type CombatActionContribution = {
 export type CombatActorContribution = {
   actorId: string;
   actorName: string;
+  baseActorId?: string;
+  instanceIndex?: number;
+  displayGroupName?: string;
   side: CombatSide;
   role: CombatActorRole;
   actionsUsed: number;
@@ -395,6 +422,10 @@ export type CombatDefensiveContribution = {
   woundsDodged: number;
   defenceStringBlocked: number;
   staticProtectionPrevented: number;
+  buffedDefenceRolls: number;
+  debuffedDefenceRolls: number;
+  buffedResistRolls: number;
+  debuffedResistRolls: number;
   counterUses: number;
   counterDamage: number;
   counterMitigation: number;
@@ -425,6 +456,7 @@ export type CombatSuiteReport = {
   playerWinRate: number;
   monsterWinRate: number;
   stalemateRate: number;
+  stoppedByBreakdown: CombatStoppedByBreakdown;
   averageRounds: number;
   medianRounds: number;
   p10Rounds: number;
@@ -460,9 +492,13 @@ export type CombatSuiteReport = {
     buffApplications: Record<CombatSide, number>;
     buffUptime: Record<CombatSide, number>;
     buffedActions: Record<CombatSide, number>;
+    buffedDefenceRolls: Record<CombatSide, number>;
+    buffedResistRolls: Record<CombatSide, number>;
     debuffApplications: Record<CombatSide, number>;
     debuffUptime: Record<CombatSide, number>;
     debuffedActions: Record<CombatSide, number>;
+    debuffedDefenceRolls: Record<CombatSide, number>;
+    debuffedResistRolls: Record<CombatSide, number>;
     healingOverTimeApplied: Record<CombatSide, number>;
     healingTicks: Record<CombatSide, number>;
     ongoingDamageApplied: Record<CombatSide, number>;
@@ -483,9 +519,14 @@ export type CombatSuiteReport = {
     aoePotentialTargets: Record<CombatSide, number>;
     aoeActualTargets: Record<CombatSide, number>;
     positionalAbstractionsUsed: Record<CombatSide, number>;
+    mainActionsUsed: Record<CombatSide, number>;
+    powerActionsUsed: Record<CombatSide, number>;
+    secondWeaponAttacksUsed: Record<CombatSide, number>;
+    skippedPowerActions: Record<CombatSide, number>;
   };
   roleContribution: CombatAggregateMetrics["roleContribution"];
   actorContributions: CombatActorContribution[];
+  monsterGroupContributions: CombatMonsterGroupContribution[];
   defensiveContributions: CombatDefensiveContribution[];
   cooldownTrace: CombatCooldownTrace[];
   unsupported: UnsupportedPowerSummary;
@@ -493,9 +534,25 @@ export type CombatSuiteReport = {
   verdict: string;
 };
 
+export type CombatMonsterGroupContribution = {
+  baseActorId: string;
+  displayGroupName: string;
+  quantity: number;
+  survivors: number;
+  defeated: number;
+  actionsUsed: number;
+  damage: number;
+  healing: number;
+  mitigation: number;
+  controlTurnsApplied: number;
+  ongoingDamageApplied: number;
+  averageDamagePerInstance: number;
+};
+
 export type CombatHydrationIntegrity = {
   realCharacterCount: number;
   realMonsterCount: number;
+  monsterInstanceCount: number;
   fallbackActionCount: number;
   unsupportedActionCount: number;
   unsupportedPowerCount: number;

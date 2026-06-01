@@ -4,8 +4,10 @@ import {
   createCombatState,
   createEmptyMetrics,
   getLivingActors,
+  recordIncomingActionPressure,
   refreshActorResponses,
   resetRoundDefenceDegradation,
+  resetRoundTargetingPressure,
   sampleActorCooldownAvailability,
   tickActorCooldowns,
   tickTargetTurnEffects,
@@ -15,7 +17,7 @@ import {
   createFixtureActor,
   makeFixturePower,
 } from "./powerAdapter";
-import { chooseAction, chooseTarget } from "./targetingPolicies";
+import { chooseTarget, chooseTurnAction } from "./targetingPolicies";
 import type {
   CombatAggregateMetrics,
   CombatAction,
@@ -86,9 +88,13 @@ function addResolutionToAggregate(
   metrics.buffApplications[side] += resolution.buffApplications;
   metrics.buffUptime[side] += resolution.buffUptime;
   metrics.buffedActions[side] += resolution.buffedActions;
+  metrics.buffedDefenceRolls[defensiveSide] += resolution.buffedDefenceRolls;
+  metrics.buffedResistRolls[defensiveSide] += resolution.buffedResistRolls;
   metrics.debuffApplications[side] += resolution.debuffApplications;
   metrics.debuffUptime[side] += resolution.debuffUptime;
   metrics.debuffedActions[side] += resolution.debuffedActions;
+  metrics.debuffedDefenceRolls[defensiveSide] += resolution.debuffedDefenceRolls;
+  metrics.debuffedResistRolls[defensiveSide] += resolution.debuffedResistRolls;
   metrics.healingOverTimeApplied[side] += resolution.healingOverTimeApplied;
   metrics.healingTicks[side] += resolution.healingTicks;
   metrics.ongoingDamageApplied[side] += resolution.ongoingDamageApplied;
@@ -111,6 +117,17 @@ function addResolutionToAggregate(
   metrics.positionalAbstractionsUsed[side] += resolution.positionalAbstractionsUsed;
 }
 
+function isOffensiveAction(action: CombatAction): boolean {
+  return (
+    action.targetPolicy === "enemy" ||
+    action.targetPolicy === "allEnemies" ||
+    action.kind === "attack" ||
+    action.kind === "debuff" ||
+    action.kind === "control" ||
+    action.kind === "movement"
+  );
+}
+
 function addActorContribution(
   metrics: CombatAggregateMetrics,
   actor: CombatActor,
@@ -121,6 +138,9 @@ function addActorContribution(
   const actorContribution = metrics.actorContributions[actor.id] ??= {
     actorId: actor.id,
     actorName: actor.name,
+    baseActorId: actor.baseActorId,
+    instanceIndex: actor.instanceIndex,
+    displayGroupName: actor.displayGroupName,
     side: actor.side,
     role: actor.role,
     actionsUsed: 0,
@@ -268,6 +288,9 @@ function ensureActorContribution(metrics: CombatAggregateMetrics, actor: CombatA
   return metrics.actorContributions[actor.id] ??= {
     actorId: actor.id,
     actorName: actor.name,
+    baseActorId: actor.baseActorId,
+    instanceIndex: actor.instanceIndex,
+    displayGroupName: actor.displayGroupName,
     side: actor.side,
     role: actor.role,
     actionsUsed: 0,
@@ -387,6 +410,10 @@ function addDefensiveContribution(
     woundsDodged: 0,
     defenceStringBlocked: 0,
     staticProtectionPrevented: 0,
+    buffedDefenceRolls: 0,
+    debuffedDefenceRolls: 0,
+    buffedResistRolls: 0,
+    debuffedResistRolls: 0,
     counterUses: 0,
     counterDamage: 0,
     counterMitigation: 0,
@@ -398,6 +425,10 @@ function addDefensiveContribution(
   contribution.woundsDodged += resolution.woundsAvoidedByDodge;
   contribution.defenceStringBlocked += resolution.defenceStringBlocked;
   contribution.staticProtectionPrevented += resolution.staticProtectionPrevented;
+  contribution.buffedDefenceRolls += resolution.buffedDefenceRolls;
+  contribution.debuffedDefenceRolls += resolution.debuffedDefenceRolls;
+  contribution.buffedResistRolls += resolution.buffedResistRolls;
+  contribution.debuffedResistRolls += resolution.debuffedResistRolls;
   contribution.counterUses += resolution.counterUses;
   contribution.counterDamage += resolution.counterDamage;
   contribution.counterMitigation += resolution.counterMitigation;
@@ -464,6 +495,18 @@ function shuffled<T>(items: T[], rng: ReturnType<typeof createSeededRng>): T[] {
   return out;
 }
 
+function interleaveTurns(first: CombatActor[], second: CombatActor[]): CombatActor[] {
+  const order: CombatActor[] = [];
+  const max = Math.max(first.length, second.length);
+  for (let index = 0; index < max; index += 1) {
+    const firstActor = first[index];
+    const secondActor = second[index];
+    if (firstActor) order.push(firstActor);
+    if (secondActor) order.push(secondActor);
+  }
+  return order;
+}
+
 function roundTurnOrder(
   state: ReturnType<typeof createCombatState>,
   rng: ReturnType<typeof createSeededRng>,
@@ -479,9 +522,13 @@ function roundTurnOrder(
     (turnOrder === "alternatingByRound" && round % 2 === 1) ||
     (turnOrder === "randomSeeded" && rng() < 0.5);
   if (turnOrder === "monstersFirst" || !playersLead) {
-    return [...monsterOrder, ...playerOrder];
+    return turnOrder === "monstersFirst"
+      ? [...monsterOrder, ...playerOrder]
+      : interleaveTurns(monsterOrder, playerOrder);
   }
-  return [...playerOrder, ...monsterOrder];
+  return turnOrder === "playersFirst"
+    ? [...playerOrder, ...monsterOrder]
+    : interleaveTurns(playerOrder, monsterOrder);
 }
 
 export function runCombatScenario(scenario: CombatScenario, runIndex = 0): CombatRunResult {
@@ -495,6 +542,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
 
   for (let round = 1; round <= maxRounds; round += 1) {
     state.round = round;
+    resetRoundTargetingPressure(state);
     const damageAtRoundStart = metrics.damageDealt.players + metrics.damageDealt.monsters;
     metrics.activeEnemiesByRound.push(getLivingActors(state, "monsters").length);
 
@@ -525,9 +573,17 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
         continue;
       }
 
-      for (let actionCount = 0; actionCount < currentActor.actionsPerTurn; actionCount += 1) {
-        const action = chooseAction(currentActor, state);
+      const lanes: Array<"main" | "power"> = currentActor.actionsPerTurn > 0 ? ["main", "power"] : [];
+      for (const lane of lanes) {
+        const action = chooseTurnAction(currentActor, state, lane);
         const target = action ? chooseTarget(currentActor, action, state) : null;
+        if (!action && lane === "power") {
+          metrics.skippedPowerActions[currentActor.side] += 1;
+          continue;
+        }
+        if (action && target && isOffensiveAction(action)) {
+          recordIncomingActionPressure(state, target.id);
+        }
         const resolution = resolveCombatAction({
           state,
           actor: currentActor,
@@ -536,6 +592,11 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
           rng,
         });
         metrics.actionsUsed[currentActor.side] += action ? 1 : 0;
+        if (action && lane === "main") metrics.mainActionsUsed[currentActor.side] += 1;
+        if (action && lane === "power") {
+          metrics.powerActionsUsed[currentActor.side] += 1;
+          if (action.sourceType !== "power") metrics.secondWeaponAttacksUsed[currentActor.side] += 1;
+        }
         addResolutionToAggregate(metrics, currentActor.side, resolution, { defensiveSide: target?.side });
         addActorContribution(metrics, currentActor, action, resolution);
         addDefensiveContribution(metrics, target, resolution);
@@ -588,6 +649,10 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
     rounds: state.round,
     stoppedBy,
     survivors: { players: livingPlayers.length, monsters: livingMonsters.length },
+    survivorActorIds: {
+      players: livingPlayers.map((actor) => actor.id),
+      monsters: livingMonsters.map((actor) => actor.id),
+    },
     winnerHealthRemainingPercent: winner === "stalemate" ? 0 : survivorHealthPercent(winner, getLivingActors(state)),
     metrics,
     unsupported: collectUnsupportedSummary(state.actors),

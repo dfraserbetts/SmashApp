@@ -33,6 +33,7 @@ type RunPayload = {
     name: string;
     level: number;
     tier: string | null;
+    quantity: number;
     actionCount: number;
     actions: ActionSummary[];
   }>;
@@ -43,6 +44,12 @@ type RunPayload = {
     playerWinRate: number;
     monsterWinRate: number;
     stalemateRate: number;
+    stoppedByBreakdown: {
+      playersDefeated: number;
+      monstersDefeated: number;
+      maxRounds: number;
+      stalemate: number;
+    };
     averageRounds: number;
     averageWinnerHealthRemainingPercent: number;
     averageDamagePerRound: { players: number; monsters: number };
@@ -58,6 +65,7 @@ type RunPayload = {
     hydrationIntegrity: {
       realCharacterCount: number;
       realMonsterCount: number;
+      monsterInstanceCount: number;
       fallbackActionCount: number;
       unsupportedActionCount: number;
       unsupportedPowerCount: number;
@@ -84,6 +92,9 @@ type RunPayload = {
     actorContributions: Array<{
       actorId: string;
       actorName: string;
+      baseActorId?: string;
+      instanceIndex?: number;
+      displayGroupName?: string;
       side: "players" | "monsters";
       role: string;
       actionsUsed: number;
@@ -128,6 +139,20 @@ type RunPayload = {
         linkedActionCount: number;
       }>;
     }>;
+    monsterGroupContributions: Array<{
+      baseActorId: string;
+      displayGroupName: string;
+      quantity: number;
+      survivors: number;
+      defeated: number;
+      actionsUsed: number;
+      damage: number;
+      healing: number;
+      mitigation: number;
+      controlTurnsApplied: number;
+      ongoingDamageApplied: number;
+      averageDamagePerInstance: number;
+    }>;
     defensiveContributions: Array<{
       actorId: string;
       actorName: string;
@@ -137,6 +162,10 @@ type RunPayload = {
       woundsDodged: number;
       defenceStringBlocked: number;
       staticProtectionPrevented: number;
+      buffedDefenceRolls: number;
+      debuffedDefenceRolls: number;
+      buffedResistRolls: number;
+      debuffedResistRolls: number;
       counterUses: number;
       counterDamage: number;
       counterMitigation: number;
@@ -202,6 +231,12 @@ function toggleNumberSelection(current: number[], value: number): number[] {
     : [...current, value].sort((a, b) => a - b);
 }
 
+function clampMonsterQuantity(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.max(1, Math.min(30, Math.trunc(parsed)));
+}
+
 function actionLabel(action: ActionSummary): string {
   const source = action.sourceType === "fallback" ? "fallback" : action.sourceType;
   const range = action.rangeCategory ? ` ${action.rangeCategory.toLowerCase()}` : "";
@@ -224,6 +259,7 @@ export default function CombatLabPage() {
   const [roster, setRoster] = useState<RosterPayload | null>(null);
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
   const [selectedMonsterIds, setSelectedMonsterIds] = useState<string[]>([]);
+  const [monsterQuantities, setMonsterQuantities] = useState<Record<string, number>>({});
   const [selectedMonsterLevels, setSelectedMonsterLevels] = useState<number[]>([]);
   const [monsterLevelFilterOpen, setMonsterLevelFilterOpen] = useState(false);
   const [runs, setRuns] = useState(50);
@@ -257,6 +293,7 @@ export default function CombatLabPage() {
     setResult(null);
     setSelectedCharacterIds([]);
     setSelectedMonsterIds([]);
+    setMonsterQuantities({});
     setSelectedMonsterLevels([]);
     setMonsterLevelFilterOpen(false);
     try {
@@ -267,6 +304,9 @@ export default function CombatLabPage() {
       setRoster(data);
       setSelectedCharacterIds(data.characters.slice(0, 4).map((character) => character.id));
       setSelectedMonsterIds(data.monsters.slice(0, 1).map((monster) => monster.id));
+      setMonsterQuantities(
+        Object.fromEntries(data.monsters.map((monster) => [monster.id, 1])),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load campaign combatants");
     } finally {
@@ -285,7 +325,10 @@ export default function CombatLabPage() {
         body: JSON.stringify({
           campaignId,
           characterIds: selectedCharacterIds,
-          monsterIds: selectedMonsterIds,
+          monsters: selectedMonsterIds.map((monsterId) => ({
+            monsterId,
+            quantity: clampMonsterQuantity(monsterQuantities[monsterId] ?? 1),
+          })),
           runs,
           turnOrder,
         }),
@@ -311,6 +354,15 @@ export default function CombatLabPage() {
   const canRun = useMemo(
     () => Boolean(campaignId && selectedCharacterIds.length > 0 && selectedMonsterIds.length > 0 && !running),
     [campaignId, running, selectedCharacterIds.length, selectedMonsterIds.length],
+  );
+
+  const selectedMonsterInstanceCount = useMemo(
+    () =>
+      selectedMonsterIds.reduce(
+        (sum, monsterId) => sum + clampMonsterQuantity(monsterQuantities[monsterId] ?? 1),
+        0,
+      ),
+    [monsterQuantities, selectedMonsterIds],
   );
 
   const filteredMonsters = useMemo(() => {
@@ -425,7 +477,8 @@ export default function CombatLabPage() {
               <div>
                 <h2 className="text-lg font-semibold">Monster Side: Campaign Monsters</h2>
                 <p className="text-xs text-zinc-500">
-                  Showing {filteredMonsters.length} of {roster?.monsters.length ?? 0}
+                  Showing {filteredMonsters.length} of {roster?.monsters.length ?? 0} | selected instances{" "}
+                  {selectedMonsterInstanceCount}
                 </p>
               </div>
               <div className="relative">
@@ -500,21 +553,81 @@ export default function CombatLabPage() {
               <p className="text-sm text-zinc-500">No campaign monsters match the selected level filter.</p>
             ) : (
               <div className="space-y-2">
-                {filteredMonsters.map((monster) => (
-                  <label key={monster.id} className="flex gap-3 rounded border border-zinc-800 bg-zinc-950 p-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedMonsterIds.includes(monster.id)}
-                      onChange={() => setSelectedMonsterIds((current) => toggleSelection(current, monster.id))}
-                    />
-                    <span>
-                      <span className="block font-medium">{monster.name}</span>
-                      <span className="text-xs text-zinc-400">
-                        Level {monster.level} {monster.tier ?? ""} | powers {monster.powerCount} | id {monster.id}
-                      </span>
-                    </span>
-                  </label>
-                ))}
+                {filteredMonsters.map((monster) => {
+                  const selected = selectedMonsterIds.includes(monster.id);
+                  const quantity = clampMonsterQuantity(monsterQuantities[monster.id] ?? 1);
+                  return (
+                    <div
+                      key={monster.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded border border-zinc-800 bg-zinc-950 p-3"
+                    >
+                      <label className="flex min-w-0 flex-1 gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => {
+                            setSelectedMonsterIds((current) => toggleSelection(current, monster.id));
+                            setMonsterQuantities((current) => ({
+                              ...current,
+                              [monster.id]: clampMonsterQuantity(current[monster.id] ?? 1),
+                            }));
+                          }}
+                        />
+                        <span className="min-w-0">
+                          <span className="block font-medium">
+                            {monster.name}
+                            {selected ? ` x${quantity}` : ""}
+                          </span>
+                          <span className="text-xs text-zinc-400">
+                            Level {monster.level} {monster.tier ?? ""} | powers {monster.powerCount} | id {monster.id}
+                          </span>
+                        </span>
+                      </label>
+                      <div className="flex items-center gap-1" aria-label={`${monster.name} quantity`}>
+                        <button
+                          type="button"
+                          disabled={!selected}
+                          onClick={() =>
+                            setMonsterQuantities((current) => ({
+                              ...current,
+                              [monster.id]: clampMonsterQuantity(quantity - 1),
+                            }))
+                          }
+                          className="h-8 w-8 rounded border border-zinc-700 text-sm hover:bg-zinc-800 disabled:opacity-40"
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          max={30}
+                          disabled={!selected}
+                          value={quantity}
+                          onChange={(event) =>
+                            setMonsterQuantities((current) => ({
+                              ...current,
+                              [monster.id]: clampMonsterQuantity(event.target.value),
+                            }))
+                          }
+                          className="h-8 w-16 rounded border border-zinc-700 bg-zinc-950 px-2 text-center text-sm disabled:opacity-40"
+                        />
+                        <button
+                          type="button"
+                          disabled={!selected}
+                          onClick={() =>
+                            setMonsterQuantities((current) => ({
+                              ...current,
+                              [monster.id]: clampMonsterQuantity(quantity + 1),
+                            }))
+                          }
+                          className="h-8 w-8 rounded border border-zinc-700 text-sm hover:bg-zinc-800 disabled:opacity-40"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -540,7 +653,7 @@ export default function CombatLabPage() {
               </p>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-5">
               <div className="rounded border border-zinc-800 bg-zinc-950 p-3">
                 <div className="text-xs text-zinc-500">Player Win Rate</div>
                 <div className="text-xl font-semibold">{pct(result.report.playerWinRate)}</div>
@@ -548,6 +661,10 @@ export default function CombatLabPage() {
               <div className="rounded border border-zinc-800 bg-zinc-950 p-3">
                 <div className="text-xs text-zinc-500">Monster Win Rate</div>
                 <div className="text-xl font-semibold">{pct(result.report.monsterWinRate)}</div>
+              </div>
+              <div className="rounded border border-zinc-800 bg-zinc-950 p-3">
+                <div className="text-xs text-zinc-500">Stalemate Rate</div>
+                <div className="text-xl font-semibold">{pct(result.report.stalemateRate)}</div>
               </div>
               <div className="rounded border border-zinc-800 bg-zinc-950 p-3">
                 <div className="text-xs text-zinc-500">Average Rounds</div>
@@ -559,12 +676,37 @@ export default function CombatLabPage() {
               </div>
             </div>
 
+            <div className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">
+              <h3 className="mb-2 font-semibold">Stopped Reason Breakdown</h3>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <p>
+                  <span className="text-zinc-500">Players defeated:</span>{" "}
+                  {pct(result.report.stoppedByBreakdown.playersDefeated)}
+                </p>
+                <p>
+                  <span className="text-zinc-500">Monsters defeated:</span>{" "}
+                  {pct(result.report.stoppedByBreakdown.monstersDefeated)}
+                </p>
+                <p>
+                  <span className="text-zinc-500">Max rounds:</span>{" "}
+                  {pct(result.report.stoppedByBreakdown.maxRounds)}
+                </p>
+                <p>
+                  <span className="text-zinc-500">Stalemate:</span>{" "}
+                  {pct(result.report.stoppedByBreakdown.stalemate)}
+                </p>
+              </div>
+            </div>
+
             <div className="grid gap-3 md:grid-cols-4">
               <div className="rounded border border-zinc-800 bg-zinc-950 p-3">
                 <div className="text-xs text-zinc-500">Real Actors</div>
                 <div className="text-sm font-semibold">
                   Characters {result.report.hydrationIntegrity.realCharacterCount} / Monsters{" "}
                   {result.report.hydrationIntegrity.realMonsterCount}
+                </div>
+                <div className="text-xs text-zinc-400">
+                  Monster instances {result.report.hydrationIntegrity.monsterInstanceCount}
                 </div>
               </div>
               <div className="rounded border border-zinc-800 bg-zinc-950 p-3">
@@ -616,7 +758,8 @@ export default function CombatLabPage() {
                 {result.selectedMonsters.map((monster) => (
                   <div key={monster.id} className="mb-3">
                     <div>
-                      {monster.name} | level {monster.level} {monster.tier ?? ""} | actions {monster.actionCount} | {monster.id}
+                      {monster.name} x{monster.quantity} | level {monster.level} {monster.tier ?? ""} | actions{" "}
+                      {monster.actionCount} | {monster.id}
                     </div>
                     <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-zinc-400">
                       {monster.actions.map((action) => (
@@ -659,6 +802,10 @@ export default function CombatLabPage() {
               <h3 className="mb-2 font-semibold">Supported Mechanics</h3>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {[
+                  ["Main actions", result.report.averageMechanics.mainActionsUsed],
+                  ["Power actions", result.report.averageMechanics.powerActionsUsed],
+                  ["Second weapon attacks", result.report.averageMechanics.secondWeaponAttacksUsed],
+                  ["Skipped power actions", result.report.averageMechanics.skippedPowerActions],
                   ["Control turns", result.report.averageMechanics.controlTurnsApplied],
                   ["Actions denied", result.report.averageMechanics.actionsDenied],
                   ["Forced movement", result.report.averageMechanics.forcedMovementApplied],
@@ -679,8 +826,12 @@ export default function CombatLabPage() {
                   ["Resist cancelled successes", result.report.averageMechanics.hostileSuccessesCancelledByResist],
                   ["Buff applications", result.report.averageMechanics.buffApplications],
                   ["Buffed actions", result.report.averageMechanics.buffedActions],
+                  ["Buffed defence rolls", result.report.averageMechanics.buffedDefenceRolls],
+                  ["Buffed resist rolls", result.report.averageMechanics.buffedResistRolls],
                   ["Debuff applications", result.report.averageMechanics.debuffApplications],
                   ["Debuffed actions", result.report.averageMechanics.debuffedActions],
+                  ["Debuffed defence rolls", result.report.averageMechanics.debuffedDefenceRolls],
+                  ["Debuffed resist rolls", result.report.averageMechanics.debuffedResistRolls],
                   ["Healing over time", result.report.averageMechanics.healingOverTimeApplied],
                   ["Healing ticks", result.report.averageMechanics.healingTicks],
                   ["Ongoing damage", result.report.averageMechanics.ongoingDamageApplied],
@@ -712,12 +863,40 @@ export default function CombatLabPage() {
             </div>
 
             <div className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">
+              <h3 className="mb-2 font-semibold">Monster Group Contributions</h3>
+              {result.report.monsterGroupContributions.length === 0 ? (
+                <p className="text-zinc-500">No monster group contribution metrics were recorded.</p>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {result.report.monsterGroupContributions.map((group) => (
+                    <div key={group.baseActorId} className="rounded border border-zinc-800 p-2">
+                      <div className="font-semibold">
+                        {group.displayGroupName} x{group.quantity}
+                      </div>
+                      <p className="text-xs text-zinc-400">
+                        actions {num(group.actionsUsed)}, damage {num(group.damage)}, average damage/instance{" "}
+                        {num(group.averageDamagePerInstance)}, healing {num(group.healing)}, support mitigation{" "}
+                        {num(group.mitigation)}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        control {num(group.controlTurnsApplied)}, ongoing {num(group.ongoingDamageApplied)}, average
+                        survivors {num(group.survivors)}, average defeated {num(group.defeated)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">
               <h3 className="mb-2 font-semibold">Actor Contributions</h3>
               {result.report.actorContributions.length === 0 ? (
                 <p className="text-zinc-500">No actor contribution metrics were recorded.</p>
               ) : (
                 <div className="space-y-3">
-                  {result.report.actorContributions.map((actor) => {
+                  {result.report.actorContributions
+                    .filter((actor) => actor.side === "players" || result.report.monsterGroupContributions.length === 0)
+                    .map((actor) => {
                     const rounds = Math.max(1, result.report.averageRounds);
                     const cooldownByAction = new Map(
                       result.report.cooldownTrace
@@ -821,6 +1000,11 @@ export default function CombatLabPage() {
                       <p className="text-xs text-zinc-400">
                         defended {num(actor.attacksDefended)}, dodged {num(actor.woundsDodged)}, defence string
                         blocked {num(actor.defenceStringBlocked)}, static protection {num(actor.staticProtectionPrevented)}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        buffed defence rolls {num(actor.buffedDefenceRolls)}, debuffed defence rolls{" "}
+                        {num(actor.debuffedDefenceRolls)}, buffed resist rolls {num(actor.buffedResistRolls)},
+                        debuffed resist rolls {num(actor.debuffedResistRolls)}
                       </p>
                       <p className="text-xs text-zinc-400">
                         counters {num(actor.counterUses)}, counter damage {num(actor.counterDamage)}, counter
