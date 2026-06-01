@@ -101,8 +101,10 @@ export type CombatActor = {
   dodgeValue: number;
   dodgeDice?: number;
   physicalDefenceDice?: number;
+  physicalBlockPerSuccess?: number;
   physicalDefenceBlock?: number;
   mentalDefenceDice?: number;
+  mentalBlockPerSuccess?: number;
   mentalDefenceBlock?: number;
   attributes: Record<CombatAttributeName, number>;
   attributeDice: Record<CombatAttributeName, CombatDieSize>;

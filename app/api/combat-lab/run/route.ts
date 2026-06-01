@@ -7,6 +7,7 @@ import {
   adaptMonsterToCombatLabActor,
   itemTemplateToSummoningEquipmentItem,
 } from "@/lib/combat-lab/liveAdapters";
+import { getProtectionTuning } from "@/lib/config/combatTuning";
 import { runScenarioSuite } from "@/lib/combat-lab/reporting";
 import { prisma } from "@/prisma/client";
 
@@ -68,7 +69,7 @@ export async function POST(req: Request) {
     const userId = await requireUserId();
     await requireCampaignGameDirector(campaignId, userId);
 
-    const [campaign, characters, monsters] = await Promise.all([
+    const [campaign, characters, monsters, protectionTuning] = await Promise.all([
       prisma.campaign.findUnique({
         where: { id: campaignId },
         select: { id: true, name: true, descriptorVersionTag: true },
@@ -104,6 +105,7 @@ export async function POST(req: Request) {
           },
         },
       }),
+      getProtectionTuning(),
     ]);
 
     const monsterItemIds = Array.from(
@@ -136,7 +138,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const adaptedCharacters = characters.map(adaptCampaignCharacterToCombatActor);
+    const adaptedCharacters = characters.map((character) =>
+      adaptCampaignCharacterToCombatActor(character, protectionTuning),
+    );
     const adaptedMonsters = monsters.map((monster) =>
       adaptMonsterToCombatLabActor(monster, monsterEquipmentById),
     );

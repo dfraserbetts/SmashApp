@@ -558,8 +558,10 @@ export function createFixtureActor(params: {
   basicAttack?: { diceCount: number; potency: number; pool?: CombatPool };
   dodgeDice?: number;
   physicalDefenceDice?: number;
+  physicalBlockPerSuccess?: number;
   physicalDefenceBlock?: number;
   mentalDefenceDice?: number;
+  mentalBlockPerSuccess?: number;
   mentalDefenceBlock?: number;
 }): CombatActor {
   const adapted = params.powers.map(adaptPowerToCombatActions);
@@ -585,9 +587,9 @@ export function createFixtureActor(params: {
     dodgeValue: params.dodgeValue,
     dodgeDice: params.dodgeDice ?? Math.max(1, Math.ceil(params.dodgeValue / 6)),
     physicalDefenceDice: params.physicalDefenceDice ?? Math.max(1, Math.ceil(params.guard / 2)),
-    physicalDefenceBlock: params.physicalDefenceBlock ?? params.physicalProtection,
+    physicalBlockPerSuccess: params.physicalBlockPerSuccess ?? params.physicalDefenceBlock ?? params.physicalProtection,
     mentalDefenceDice: params.mentalDefenceDice ?? Math.max(1, Math.ceil(params.bravery / 2)),
-    mentalDefenceBlock: params.mentalDefenceBlock ?? params.mentalProtection,
+    mentalBlockPerSuccess: params.mentalBlockPerSuccess ?? params.mentalDefenceBlock ?? params.mentalProtection,
     attributes: {
       Attack: params.attack,
       Guard: params.guard,

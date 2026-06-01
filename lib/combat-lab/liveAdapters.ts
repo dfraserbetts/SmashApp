@@ -1,5 +1,6 @@
 import { normalizeBuilderData } from "@/lib/characterBuilder/core";
 import type { CharacterBuilderData } from "@/lib/characterBuilder/core";
+import type { ProtectionTuningValues } from "@/lib/config/combatTuningShared";
 import {
   buildAttackConfig,
   buildCharacterDerivedCombatStats,
@@ -425,6 +426,7 @@ function unsupportedActionWarnings(actor: { id: string; name: string }, actions:
 
 export function adaptCampaignCharacterToCombatActor(
   row: CharacterRow,
+  protectionTuning?: ProtectionTuningValues,
 ): { actor: CombatActor; warnings: CombatLabHydrationWarning[] } {
   const warnings: CombatLabHydrationWarning[] = [];
   const unsupportedEquipment: string[] = [];
@@ -432,7 +434,7 @@ export function adaptCampaignCharacterToCombatActor(
   const builderData = normalizeBuilderData(row.builderData);
   const backpackItems = (row.backpackItems ?? []).map(toDerivedBackpackItem);
   const level = Math.max(1, Math.trunc(row.level || 1));
-  const derived = buildCharacterDerivedCombatStats({ level, builderData, backpackItems });
+  const derived = buildCharacterDerivedCombatStats({ level, builderData, backpackItems, protectionTuning });
   const modifiers = derived.itemModifiers;
   const attack = attributeNumber(builderData, "Attack") + positiveModifier(modifiers.attackModifier);
   const guard = attributeNumber(builderData, "Guard") + positiveModifier(modifiers.guardModifier);
@@ -535,9 +537,9 @@ export function adaptCampaignCharacterToCombatActor(
       dodgeValue: derived.dodgeValue,
       dodgeDice: derived.dodgeDice,
       physicalDefenceDice: derived.armorSkill,
-      physicalDefenceBlock: derived.physicalBlockPerSuccess,
+      physicalBlockPerSuccess: derived.physicalBlockPerSuccess,
       mentalDefenceDice: derived.willpower,
-      mentalDefenceBlock: derived.mentalBlockPerSuccess,
+      mentalBlockPerSuccess: derived.mentalBlockPerSuccess,
       attributes: { Attack: attack, Guard: guard, Fortitude: fortitude, Intellect: intellect, Synergy: synergy, Bravery: bravery },
       attributeDice,
       resist: {
@@ -715,9 +717,9 @@ export function adaptMonsterToCombatLabActor(
       dodgeValue,
       dodgeDice: Math.max(1, Math.ceil(dodgeValue / 6)),
       physicalDefenceDice: armorSkill,
-      physicalDefenceBlock: Math.max(0, row.physicalProtection),
+      physicalBlockPerSuccess: Math.max(0, row.physicalProtection),
       mentalDefenceDice,
-      mentalDefenceBlock: Math.max(0, row.mentalProtection),
+      mentalBlockPerSuccess: Math.max(0, row.mentalProtection),
       attributes: { Attack: attack, Guard: guard, Fortitude: fortitude, Intellect: intellect, Synergy: synergy, Bravery: bravery },
       attributeDice: {
         Attack: row.attackDie,

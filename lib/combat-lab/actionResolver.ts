@@ -127,7 +127,14 @@ function resolveDefenceString(state: CombatState, target: CombatActor, pool: "ph
   const type = pool === "physical" ? "physical" : "mental";
   const attribute = pool === "physical" ? "Guard" : "Bravery";
   const baseDice = Math.max(1, Math.trunc(pool === "physical" ? target.physicalDefenceDice ?? 1 : target.mentalDefenceDice ?? 1));
-  const blockPerSuccess = Math.max(0, Math.trunc(pool === "physical" ? target.physicalDefenceBlock ?? 0 : target.mentalDefenceBlock ?? 0));
+  const blockPerSuccess = Math.max(
+    0,
+    Math.trunc(
+      pool === "physical"
+        ? target.physicalBlockPerSuccess ?? target.physicalDefenceBlock ?? 0
+        : target.mentalBlockPerSuccess ?? target.mentalDefenceBlock ?? 0,
+    ),
+  );
   if (blockPerSuccess <= 0) return metrics;
   const degradation = takeDefenceDegradation(state, target.id, type);
   const diceCount = Math.max(1, baseDice - degradation);

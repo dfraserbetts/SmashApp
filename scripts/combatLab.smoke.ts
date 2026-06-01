@@ -7,6 +7,16 @@ import {
 } from "../lib/combat-lab/combatState";
 import type { Rng } from "../lib/combat-lab/dice";
 import {
+  DEFAULT_COMBAT_TUNING_VALUES,
+  type ProtectionTuningValues,
+} from "../lib/config/combatTuningShared";
+import { defaultBuilderData, type CharacterBuilderData } from "../lib/characterBuilder/core";
+import { buildCharacterDerivedCombatStats } from "../lib/characterBuilder/derivedStats";
+import {
+  adaptCampaignCharacterToCombatActor,
+  type CombatLabHydrationWarning,
+} from "../lib/combat-lab/liveAdapters";
+import {
   adaptPowerToCombatActions,
   createFixtureActor,
   makeAttackActionsFromConfig,
@@ -14,6 +24,9 @@ import {
 } from "../lib/combat-lab/powerAdapter";
 import { formatSuiteReport, runScenarioSuite } from "../lib/combat-lab/reporting";
 import type { CombatAction, CombatActor } from "../lib/combat-lab/types";
+
+type CombatLabCharacterRow = Parameters<typeof adaptCampaignCharacterToCombatActor>[0];
+type CombatLabCharacterBackpackItem = NonNullable<CombatLabCharacterRow["backpackItems"]>[number];
 
 function rngFrom(values: number[]): Rng {
   let index = 0;
@@ -66,6 +79,82 @@ function action(overrides: Partial<CombatAction> = {}): CombatAction {
     potency: 3,
     cooldownRounds: 0,
     ...overrides,
+  };
+}
+
+function weightedSkillExpected(primary: number, secondary: number, modifier: number): number {
+  const primaryHalf = Math.round(primary / 2);
+  const secondaryHalf = Math.round(secondary / 2);
+  const weightedHalf = (primaryHalf * 2 + secondaryHalf) / 3;
+  const roundedRaw = Math.round((weightedHalf - 1) * 10) / 10;
+  return Math.max(1, Math.ceil(roundedRaw) + modifier);
+}
+
+function makeCharacterBuilderData(overrides: Partial<CharacterBuilderData> = {}): CharacterBuilderData {
+  return {
+    ...defaultBuilderData(),
+    attributes: {
+      Attack: 6,
+      Guard: 8,
+      Fortitude: 10,
+      Intellect: 10,
+      Synergy: 12,
+      Bravery: 6,
+    },
+    resistPoints: {
+      Attack: 0,
+      Guard: 0,
+      Fortitude: 0,
+      Intellect: 0,
+      Synergy: 0,
+      Bravery: 0,
+    },
+    equippedSlots: { torsoArmor: "equipped-armor" },
+    powers: [],
+    ...overrides,
+  };
+}
+
+function makeBackpackRow(params: {
+  id: string;
+  name: string;
+  type: string;
+  ppv?: number | null;
+  mpv?: number | null;
+  globalAttributeModifiers?: Array<{ attribute: string; amount: number }>;
+}): CombatLabCharacterBackpackItem {
+  return {
+    id: params.id,
+    quantity: 1,
+    partyInventoryItem: {
+      itemTemplate: {
+        id: `template-${params.id}`,
+        name: params.name,
+        type: params.type,
+        size: null,
+        armorLocation: params.type === "ARMOR" ? "TORSO" : null,
+        itemLocation: null,
+        ppv: params.ppv ?? null,
+        mpv: params.mpv ?? null,
+        generalDescription: null,
+        rarity: "COMMON",
+        level: 3,
+        globalAttributeModifiers: params.globalAttributeModifiers ?? [],
+      },
+    },
+  };
+}
+
+function makeCharacterRow(params: {
+  builderData: CharacterBuilderData;
+  backpackItems: CombatLabCharacterRow["backpackItems"];
+}): CombatLabCharacterRow {
+  return {
+    id: "synthetic-character",
+    name: "Synthetic Character",
+    level: 3,
+    builderData: params.builderData,
+    backpackItems: params.backpackItems,
   };
 }
 
@@ -239,6 +328,184 @@ const unsupportedReport = runScenarioSuite({
 });
 if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   throw new Error("Unsupported power fixture was not reported in hydration integrity metrics.");
+}
+
+{
+  const tuning: ProtectionTuningValues = DEFAULT_COMBAT_TUNING_VALUES;
+  const equippedArmor = makeBackpackRow({
+    id: "equipped-armor",
+    name: "Equipped Formula Armor",
+    type: "ARMOR",
+    ppv: 8,
+    mpv: 6,
+    globalAttributeModifiers: [
+      { attribute: "Dodge", amount: 2 },
+      { attribute: "Armor Skill", amount: 3 },
+      { attribute: "Willpower", amount: 2 },
+    ],
+  });
+  const backpackOnlyArmor = makeBackpackRow({
+    id: "backpack-only-armor",
+    name: "Backpack Only Overcounter",
+    type: "ARMOR",
+    ppv: 99,
+    mpv: 99,
+    globalAttributeModifiers: [
+      { attribute: "Dodge", amount: 99 },
+      { attribute: "Armor Skill", amount: 99 },
+      { attribute: "Willpower", amount: 99 },
+    ],
+  });
+  const builderData = makeCharacterBuilderData();
+  const derived = buildCharacterDerivedCombatStats({
+    level: 3,
+    builderData,
+    backpackItems: [
+      {
+        id: "equipped-armor",
+        quantity: 1,
+        itemTemplate: {
+          id: "template-equipped-armor",
+          name: "Equipped Formula Armor",
+          rarity: "COMMON",
+          level: 3,
+          details: null,
+          type: "ARMOR",
+          size: null,
+          armorLocation: "TORSO",
+          itemLocation: null,
+          ppv: 8,
+          mpv: 6,
+          globalAttributeModifiers: [
+            { attribute: "Dodge", amount: 2 },
+            { attribute: "Armor Skill", amount: 3 },
+            { attribute: "Willpower", amount: 2 },
+          ],
+          descriptorSections: [],
+        },
+      },
+      {
+        id: "backpack-only-armor",
+        quantity: 1,
+        itemTemplate: {
+          id: "template-backpack-only-armor",
+          name: "Backpack Only Overcounter",
+          rarity: "COMMON",
+          level: 3,
+          details: null,
+          type: "ARMOR",
+          size: null,
+          armorLocation: "TORSO",
+          itemLocation: null,
+          ppv: 99,
+          mpv: 99,
+          globalAttributeModifiers: [
+            { attribute: "Dodge", amount: 99 },
+            { attribute: "Armor Skill", amount: 99 },
+            { attribute: "Willpower", amount: 99 },
+          ],
+          descriptorSections: [],
+        },
+      },
+    ],
+    protectionTuning: tuning,
+  });
+  const expectedDodgeValue = Math.max(1, Math.ceil(Math.ceil((10 * 2 + 8) / 2) + 3 - 8));
+  const expectedDodgeDice = Math.max(0, Math.ceil(expectedDodgeValue / 6) + 2);
+  const expectedArmorSkill = weightedSkillExpected(10, 8, 3);
+  const expectedPhysicalBlock = Math.ceil((8 / tuning.protectionK) * (1 + expectedArmorSkill / tuning.protectionS));
+  const expectedWillpower = weightedSkillExpected(12, 6, 2);
+  const expectedMentalBlock = Math.ceil((6 / tuning.protectionK) * (1 + expectedWillpower / tuning.protectionS));
+  if (derived.dodgeDice !== expectedDodgeDice) {
+    throw new Error(`Character dodge formula mismatch: expected ${expectedDodgeDice}, got ${derived.dodgeDice}.`);
+  }
+  if (derived.armorSkill !== expectedArmorSkill || derived.physicalBlockPerSuccess !== expectedPhysicalBlock) {
+    throw new Error("Character physical defence formula mismatch.");
+  }
+  if (derived.willpower !== expectedWillpower || derived.mentalBlockPerSuccess !== expectedMentalBlock) {
+    throw new Error("Character mental defence formula mismatch.");
+  }
+
+  const noEquipmentDerived = buildCharacterDerivedCombatStats({
+    level: 3,
+    builderData: makeCharacterBuilderData({ equippedSlots: {} }),
+    backpackItems: [
+      {
+        id: "backpack-only-armor",
+        quantity: 1,
+        itemTemplate: {
+          id: "template-backpack-only-armor",
+          name: "Backpack Only Overcounter",
+          rarity: "COMMON",
+          level: 3,
+          details: null,
+          type: "ARMOR",
+          size: null,
+          armorLocation: "TORSO",
+          itemLocation: null,
+          ppv: 99,
+          mpv: 99,
+          globalAttributeModifiers: [{ attribute: "Dodge", amount: 99 }],
+          descriptorSections: [],
+        },
+      },
+    ],
+    protectionTuning: tuning,
+  });
+  const ppvOnlyDerived = buildCharacterDerivedCombatStats({
+    level: 3,
+    builderData,
+    backpackItems: [
+      {
+        id: "equipped-armor",
+        quantity: 1,
+        itemTemplate: {
+          id: "template-equipped-armor",
+          name: "Equipped Formula Armor",
+          rarity: "COMMON",
+          level: 3,
+          details: null,
+          type: "ARMOR",
+          size: null,
+          armorLocation: "TORSO",
+          itemLocation: null,
+          ppv: 8,
+          mpv: 6,
+          globalAttributeModifiers: [],
+          descriptorSections: [],
+        },
+      },
+    ],
+    protectionTuning: tuning,
+  });
+  if (ppvOnlyDerived.dodgeDice >= noEquipmentDerived.dodgeDice) {
+    throw new Error("Equipped PPV did not reduce character dodge dice as expected.");
+  }
+  if (derived.dodgeDice !== ppvOnlyDerived.dodgeDice + 2) {
+    throw new Error("Direct equipped Dodge modifier did not increase final character dodge dice.");
+  }
+  if (noEquipmentDerived.itemModifiers.dodgeModifier !== 0 || noEquipmentDerived.physicalProtection !== 0) {
+    throw new Error("Backpack-only item contributed to character derived defence stats.");
+  }
+
+  const { actor, warnings } = adaptCampaignCharacterToCombatActor(
+    makeCharacterRow({ builderData, backpackItems: [equippedArmor, backpackOnlyArmor] }),
+    tuning,
+  );
+  const _warningCheck: CombatLabHydrationWarning[] = warnings;
+  if (
+    actor.dodgeDice !== expectedDodgeDice ||
+    actor.physicalDefenceDice !== expectedArmorSkill ||
+    actor.physicalBlockPerSuccess !== expectedPhysicalBlock ||
+    actor.mentalDefenceDice !== expectedWillpower ||
+    actor.mentalBlockPerSuccess !== expectedMentalBlock
+  ) {
+    throw new Error("Combat Lab character hydration did not preserve Character Builder defence formulas.");
+  }
+  if (actor.physicalProtection !== 0 || actor.mentalProtection !== 0) {
+    throw new Error("Combat Lab character hydration collapsed structured defence strings into static protection.");
+  }
+  void _warningCheck;
 }
 
 {
