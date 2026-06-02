@@ -2826,6 +2826,131 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const defeatedActor = fixtureActor("defeated-start-turn-actor", "players", {
+    physicalHpMax: 20,
+    physicalHpCurrent: 20,
+    actions: [
+      action({ id: "defeated-cooldown-main", name: "Defeated Cooldown Main", cooldownRounds: 3 }),
+      action({ id: "defeated-cooldown-power", name: "Defeated Cooldown Power", cooldownRounds: 2 }),
+    ],
+  });
+  const source = fixtureActor("defeated-start-turn-source", "monsters");
+  const state = createCombatState([defeatedActor], [source], { captureTranscript: true });
+  setCooldown(state, state.actors[0].id, "defeated-cooldown-main", 2);
+  setCooldown(state, state.actors[0].id, "defeated-cooldown-power", 1);
+  state.responsesRemaining[state.actors[0].id] = 2;
+  state.statusEffects.push(
+    {
+      id: "start-turn-defeat-dot",
+      sourceActorId: state.actors[1].id,
+      targetActorId: state.actors[0].id,
+      kind: "ongoingDamage",
+      amount: 25,
+      pool: "physical",
+      damageLabel: "physical Slashing",
+      sourceActionId: "swiping-claws",
+      sourceActionName: "Swiping Claws",
+      remainingRounds: 1,
+    },
+    {
+      id: "start-turn-defeat-denial",
+      sourceActorId: state.actors[1].id,
+      targetActorId: state.actors[0].id,
+      kind: "mainActionDenied",
+      amount: 1,
+      sourceActionId: "staggering-strike",
+      sourceActionName: "Staggering Strike",
+      remainingRounds: 2,
+    },
+  );
+
+  resolveStartOfTurnEffects(state, state.actors[0]);
+  if (!state.actors[0].defeated) {
+    throw new Error("Start-turn ongoing damage did not defeat the actor.");
+  }
+  if (Object.keys(state.cooldowns).some((key) => key.startsWith(`${state.actors[0].id}:`))) {
+    throw new Error(`Defeated actor cooldowns were not cleared: ${JSON.stringify(state.cooldowns)}.`);
+  }
+  if (state.responsesRemaining[state.actors[0].id] !== undefined) {
+    throw new Error("Defeated actor responses were not cleared.");
+  }
+  if (state.statusEffects.some((effect) => effect.targetActorId === state.actors[0].id)) {
+    throw new Error(`Defeated actor target statuses were not cleared: ${JSON.stringify(state.statusEffects)}.`);
+  }
+  tickActorCooldowns(state, state.actors[0].id);
+  refreshActorResponses(state, state.actors[0].id);
+  if (state.transcriptLines.some((line) => /Cooldown tick:|Cooldown ready:/i.test(line))) {
+    throw new Error(`Defeated actor produced cooldown tick/readiness transcript: ${state.transcriptLines.join(" | ")}`);
+  }
+  if (state.transcriptLines.some((line) => /Responses: defeated-start-turn-actor refreshes/i.test(line))) {
+    throw new Error(`Defeated actor refreshed responses after cleanup: ${state.transcriptLines.join(" | ")}`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Start of Turn: defeated-start-turn-actor suffers 25 physical Slashing wounds from Swiping Claws\. Ticks remaining after this: 0/i, "start-turn defeat tick transcript");
+  expectTranscriptLine(state.transcriptLines, /Defeat: defeated-start-turn-actor is defeated/i, "start-turn defeat transcript");
+  expectTranscriptLine(state.transcriptLines, /Defeat cleanup: defeated-start-turn-actor leaves active combat; cleared 2 cooldowns and 2 active statuses/i, "start-turn defeat cleanup transcript");
+}
+
+{
+  const firstPlayer = fixtureActor("future-target-defeated", "players", {
+    physicalHpMax: 10,
+    physicalHpCurrent: 10,
+  });
+  const secondPlayer = fixtureActor("future-target-living", "players", {
+    physicalHpMax: 50,
+    physicalHpCurrent: 50,
+  });
+  const attackerAction = action({
+    id: "future-target-killer",
+    name: "Future Target Killer",
+    diceCount: 1,
+    potency: 20,
+  });
+  const attacker = fixtureActor("future-target-attacker", "monsters", { actions: [attackerAction] });
+  const state = createCombatState([firstPlayer, secondPlayer], [attacker], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[2],
+    target: state.actors[0],
+    action: attackerAction,
+    rng: rngFrom([0.99, 0]),
+    lane: "main",
+  });
+  if (!state.actors[0].defeated) {
+    throw new Error("Immediate attack did not defeat the target for cleanup smoke.");
+  }
+  const nextTarget = chooseTarget(state.actors[2], attackerAction, state);
+  if (!nextTarget || nextTarget.id !== state.actors[1].id) {
+    throw new Error(`Defeated actor remained a legal future target: ${nextTarget?.id ?? "none"}.`);
+  }
+}
+
+{
+  const source = fixtureActor("source-defeat-owner", "players", {
+    physicalHpMax: 10,
+    physicalHpCurrent: 0,
+  });
+  const target = fixtureActor("source-defeat-target", "monsters");
+  const state = createCombatState([source], [target], { captureTranscript: true });
+  state.actors[0].physicalHpCurrent = 0;
+  state.statusEffects.push({
+    id: "source-owned-persistent-effect",
+    sourceActorId: state.actors[0].id,
+    targetActorId: state.actors[1].id,
+    kind: "ongoingDamage",
+    amount: 5,
+    pool: "physical",
+    sourceActionId: "source-owned-action",
+    sourceActionName: "Source Owned Action",
+    remainingRounds: 2,
+  });
+  markDefeatedActors(state);
+  if (state.statusEffects.some((effect) => effect.sourceActorId === state.actors[0].id)) {
+    throw new Error("Source-owned persistent effect remained after source defeat.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Defeat cleanup: source-defeat-owner leaves active combat; cleared 0 cooldowns and 1 active status/i, "source-owned defeat cleanup transcript");
+}
+
+{
   const immediate = action({
     id: "explicit-immediate-damage",
     name: "Explicit Immediate Damage",

@@ -149,9 +149,45 @@ export function markDefeatedActors(state: CombatState): string[] {
           mentalHpCurrent: actor.mentalHpCurrent,
         },
       });
+      cleanupDefeatedActorRuntime(state, actor);
     }
   }
   return defeated;
+}
+
+function cleanupDefeatedActorRuntime(state: CombatState, actor: CombatActor) {
+  let clearedCooldowns = 0;
+  for (const key of Object.keys(state.cooldowns)) {
+    if (!key.startsWith(`${actor.id}:`)) continue;
+    delete state.cooldowns[key];
+    clearedCooldowns += 1;
+  }
+
+  const hadResponses = Object.prototype.hasOwnProperty.call(state.responsesRemaining, actor.id);
+  delete state.responsesRemaining[actor.id];
+  delete state.defenceDegradation[actor.id];
+  delete state.incomingActionsByTargetThisRound[actor.id];
+
+  const beforeStatusCount = state.statusEffects.length;
+  state.statusEffects = state.statusEffects.filter(
+    (effect) => effect.targetActorId !== actor.id && effect.sourceActorId !== actor.id,
+  );
+  const clearedStatuses = beforeStatusCount - state.statusEffects.length;
+
+  emitTranscriptEvent(state, {
+    type: "defeatCleanup",
+    actorId: actor.id,
+    actorName: actor.name,
+    message:
+      `Defeat cleanup: ${actor.name} leaves active combat; cleared ${clearedCooldowns} cooldown${clearedCooldowns === 1 ? "" : "s"} and ${clearedStatuses} active status${clearedStatuses === 1 ? "" : "es"}.` +
+      (hadResponses ? " Cleared refreshed responses." : ""),
+    details: {
+      clearedCooldowns,
+      clearedStatuses,
+      clearedResponses: hadResponses ? 1 : 0,
+      sourceOwnedEffectsEndOnDefeat: true,
+    },
+  });
 }
 
 export function resetRoundDefenceDegradation(state: CombatState) {
@@ -167,8 +203,9 @@ export function recordIncomingActionPressure(state: CombatState, targetId: strin
 }
 
 export function refreshActorResponses(state: CombatState, actorId: string) {
-  state.responsesRemaining[actorId] = 2;
   const actor = state.actors.find((entry) => entry.id === actorId);
+  if (actor?.defeated) return;
+  state.responsesRemaining[actorId] = 2;
   emitTranscriptEvent(state, {
     type: "responsesRefresh",
     actorId,
@@ -180,10 +217,11 @@ export function refreshActorResponses(state: CombatState, actorId: string) {
 }
 
 export function spendActorResponse(state: CombatState, actorId: string): boolean {
+  const actor = state.actors.find((entry) => entry.id === actorId);
+  if (actor?.defeated) return false;
   const remaining = state.responsesRemaining[actorId] ?? 0;
   if (remaining <= 0) return false;
   state.responsesRemaining[actorId] = remaining - 1;
-  const actor = state.actors.find((entry) => entry.id === actorId);
   emitTranscriptEvent(state, {
     type: "responseAction",
     actorId,
@@ -274,6 +312,8 @@ export function sampleActorCooldownAvailability(state: CombatState, actor: Comba
 }
 
 export function tickActorCooldowns(state: CombatState, actorId: string) {
+  const actor = state.actors.find((entry) => entry.id === actorId);
+  if (actor?.defeated) return;
   for (const key of Object.keys(state.cooldowns)) {
     if (!key.startsWith(`${actorId}:`)) continue;
     const entry = state.cooldowns[key];

@@ -257,6 +257,7 @@ export type CombatTranscriptEventType =
   | "cooldownTicked"
   | "actionSkipped"
   | "actorDefeated"
+  | "defeatCleanup"
   | "turnEnd"
   | "roundEnd";
 

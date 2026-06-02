@@ -601,7 +601,6 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
           mentalHpCurrent: currentActor.mentalHpCurrent,
         },
       });
-      refreshActorResponses(state, currentActor.id);
       sampleActorCooldownAvailability(state, currentActor);
       const timedStatusContributions = collectStartOfTurnStatusContributions(state, currentActor);
       const deniedMainActionBy = mainActionDenialSource(state, currentActor);
@@ -621,9 +620,6 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
         });
       }
       if (currentActor.defeated) {
-        tickActorCooldowns(state, currentActor.id);
-        const expired = tickTargetTurnEffects(state, currentActor.id);
-        if (expired > 0) metrics.stacksExpired[currentActor.side] += expired;
         emitTranscriptEvent(state, {
           type: "turnEnd",
           actorId: currentActor.id,
@@ -633,9 +629,11 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
         state.currentTurnActorId = null;
         continue;
       }
+      refreshActorResponses(state, currentActor.id);
 
       const lanes: Array<"main" | "power"> = currentActor.actionsPerTurn > 0 ? ["main", "power"] : [];
       for (const lane of lanes) {
+        if (currentActor.defeated) break;
         if (lane === "main" && mainActionDenied) {
           emitTranscriptEvent(state, {
             type: "actionSkipped",
@@ -697,9 +695,11 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
           break;
         }
       }
-      tickActorCooldowns(state, currentActor.id);
-      const expired = tickTargetTurnEffects(state, currentActor.id);
-      if (expired > 0) metrics.stacksExpired[currentActor.side] += expired;
+      if (!currentActor.defeated) {
+        tickActorCooldowns(state, currentActor.id);
+        const expired = tickTargetTurnEffects(state, currentActor.id);
+        if (expired > 0) metrics.stacksExpired[currentActor.side] += expired;
+      }
       emitTranscriptEvent(state, {
         type: "turnEnd",
         actorId: currentActor.id,

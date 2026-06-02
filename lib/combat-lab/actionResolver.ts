@@ -708,6 +708,10 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
         message: `Start of Turn: ${actor.name} suffers ${effect.amount} ${woundLabel} wounds from ${effect.sourceActionName ?? "ongoing damage"}. Ticks remaining after this: ${remainingAfterTick}.`,
         details: { effect: effect.kind, wounds: effect.amount, pool: effect.pool ?? "physical", overkill, remainingRounds: effect.remainingRounds, remainingAfterTick },
       });
+      if (actor.physicalHpCurrent <= 0 || actor.mentalHpCurrent <= 0) {
+        markDefeatedActors(state);
+        return metrics;
+      }
     }
   }
   markDefeatedActors(state);
