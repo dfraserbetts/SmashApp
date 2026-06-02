@@ -1,0 +1,668 @@
+Incarnate TTRPG — Future Encounter Confidence Panel Source Document
+Purpose
+
+The future Encounter Confidence Panel is a user-facing Game Director tool built on top of the Combat Lab simulation engine.
+
+Its purpose is to help Game Directors understand how a proposed encounter is likely to perform against their actual campaign party, using:
+
+real campaign characters
+real character attributes
+real equipment
+real powers
+real party inventory where relevant
+real custom monsters
+real custom monster powers
+real custom Forge items
+real current Combat Lab runtime rules
+
+This is not intended to be a static CR-style guideline.
+
+It is intended to answer:
+
+“How dangerous is this encounter for my actual table?”
+
+rather than:
+
+“What level is this monster theoretically appropriate for?”
+Strategic Rationale
+
+Traditional encounter balancing tools often fail because they are static. They assume a generic party composition and a generic monster profile.
+
+That breaks down when party composition matters heavily.
+
+Example failure case:
+
+A monster may be the correct CR for a party by book rules,
+but if its mechanics directly counter that party’s composition,
+the fight can become dramatically more lethal than expected.
+
+The classic example is a Beholder against a party of spellcasters. The CR may be technically correct, but the encounter behaves very differently because anti-magic pressure directly attacks the party’s core capabilities.
+
+Incarnate has an even greater need for contextual encounter confidence because the system supports:
+
+bespoke player characters
+bespoke powers
+bespoke monsters
+bespoke weapons
+bespoke armour
+custom party inventories
+custom encounter compositions
+
+Static challenge ratings will not be enough.
+
+The Combat Lab allows Incarnate to offer something stronger:
+
+Simulate the encounter against the actual party and explain the likely result.
+Product Promise
+
+The Encounter Confidence Panel should eventually support this promise:
+
+Build anything. Simulate it. Understand it.
+
+For Game Directors:
+
+Do not guess whether an encounter is fair.
+Run it against your real party.
+See the likely outcome.
+Adjust before table night.
+Core User Flow
+1. Game Director opens Encounter Creator / Encounter Confidence
+
+The tool is available only to Game Directors and Co-Game Directors where appropriate.
+
+Suggested future route:
+
+/campaign/[id]/encounter-confidence
+
+or as a mode inside Combat Lab:
+
+/campaign/[id]/combat-lab?mode=encounter-confidence
+2. Select party
+
+Default selection:
+
+Current active campaign party
+
+The Game Director can optionally include/exclude characters.
+
+The system loads real campaign character data:
+
+level
+attributes
+derived combat stats
+powers
+equipped items
+backpack/equipment state
+resist values
+current tuning version
+3. Select enemies
+
+The Game Director selects real monsters from the Summoning Circle.
+
+For each monster:
+
+monster
+quantity
+optional role/placement assumption
+
+Example:
+
+Gobbo Scout x16
+Dire Wolf x2
+Gazzkill x1
+
+The system should use the real monster data:
+
+level
+tier
+attributes
+physical/mental pools
+natural attacks
+equipped Forge items
+powers
+defence strings
+cooldowns
+traits where supported
+4. Run simulations
+
+The tool runs an automated simulation batch.
+
+Default:
+
+100 runs
+
+Advanced options later:
+
+250 runs
+500 runs
+1000 runs
+turn order mode
+targeting policy
+positioning abstraction
+run seed
+5. Output Encounter Confidence Report
+
+The report summarizes:
+
+difficulty label
+player win rate
+monster win rate
+stalemate rate
+average rounds
+average PC defeats
+survival rates
+first defeated actor
+main damage contributors
+main mitigation contributors
+main support contributors
+danger drivers
+suggested adjustments
+Core Output Panel
+
+The future panel should be concise and GM-readable.
+
+Example:
+
+Encounter Confidence: Hard
+
+Party Win Rate: 68%
+Monster Win Rate: 24%
+Stalemate Rate: 8%
+Average Rounds: 6.4
+Expected PC Defeats: 1.1
+
+Primary Risk:
+Support is defeated before round 4 in 52% of monster wins.
+
+Main Party Carry:
+Glass Cannon contributes 48% of effective damage.
+
+Main Monster Pressure:
+Gobbo Scouts apply Guard debuffs that degrade party defence by round 3.
+
+Suggested Adjustment:
+For Standard difficulty, reduce Gobbo Scouts from 16 to 14.
+For Deadly difficulty, increase to 18.
+Difficulty Labels
+
+The panel should classify encounters by actual simulation results, not monster tier alone.
+
+Initial possible labels:
+
+Trivial
+Easy
+Standard
+Hard
+Deadly
+Extreme
+Swingy
+Stalemate Risk
+Mismatch / Role-Countered
+Incomplete Confidence
+Suggested rough classification logic
+
+These are starting points only.
+
+Trivial:
+Party win rate > 95%
+Average PC defeats near 0
+Low resource pressure
+
+Easy:
+Party win rate 85–95%
+Low PC defeat rate
+Low danger spike
+
+Standard:
+Party win rate 70–85%
+Some damage/resource pressure
+Low full-party defeat risk
+
+Hard:
+Party win rate 55–70%
+Meaningful PC defeat chance
+Party likely wins but must perform
+
+Deadly:
+Party win rate 35–55%
+High PC defeat chance
+Outcome uncertain
+
+Extreme:
+Party win rate < 35%
+Likely party defeat
+
+Swingy:
+Both sides have meaningful win rates, but variance is high
+High first-death sensitivity
+High round variance
+
+Stalemate Risk:
+Stalemate/max-round rate above threshold
+Low effective damage versus mitigation/healing
+
+Incomplete Confidence:
+Unsupported powers/equipment/traits materially affect result
+Metrics Required
+Outcome Metrics
+playerWinRate
+monsterWinRate
+stalemateRate
+averageRounds
+medianRounds
+p10Rounds
+p90Rounds
+stoppedReasonBreakdown
+Defeat / Survival Metrics
+averagePCDefeats
+averageMonsterDefeats
+actorSurvivalRate
+averageRoundDefeated
+firstDefeatedActorRate
+partyWipeRate
+bossSurvivalRate
+monsterSurvivorsRemaining
+Damage Metrics
+rawDamage
+effectiveDamage
+overkillDamage
+overkillPercent
+damageByActor
+damageByAction
+damageByDamageType
+damageByPool physical/mental
+Defence Metrics
+dodgeAvoided
+defenceStringBlocked
+staticProtectionPrevented
+counterMitigation
+resistSuccesses
+hostileSuccessesCancelledByResist
+degradationApplied
+debuffedDefenceRolls
+buffedDefenceRolls
+Support Metrics
+healingDone
+healingOverTimeTicks
+buffApplications
+buffUptime
+debuffApplications
+debuffUptime
+controlTurnsApplied
+actionsDenied
+cleansedStacks
+supportMitigation
+Action Economy Metrics
+mainActionsUsed
+powerActionsUsed
+responsesUsed
+responsesUnavailable
+cooldownPreventedUses
+secondWeaponAttacks
+skippedPowerActions
+actorsDefeatedBeforeActing
+Trust / Hydration Metrics
+unsupportedPowerCount
+unsupportedEquipmentCount
+unsupportedCombatTraitCount
+ignoredNonCombatTraitCount
+fallbackActionCount
+hydrationWarnings
+positioningAbstractionsUsed
+confidenceLevel
+Confidence Level
+
+The report should include a confidence indicator.
+
+Example:
+
+Confidence: High
+
+or:
+
+Confidence: Medium — 2 unsupported item effects and field positioning abstraction used.
+
+Suggested confidence levels:
+
+High:
+No important unsupported mechanics.
+Low fallback usage.
+Transcript verified.
+Low abstraction impact.
+
+Medium:
+Some abstractions used, but unlikely to dominate result.
+
+Low:
+Unsupported powers/equipment materially affect encounter.
+High abstraction impact.
+Major fallback usage.
+
+This is essential. The panel must not pretend certainty when the simulator is approximating.
+
+“Why This Encounter Is Hard/Easy”
+
+The tool should explain the result in plain language.
+
+Examples:
+
+This encounter is easy because the party’s Glass Cannon defeats minions faster than their Guard debuffs can collapse player defences.
+This encounter is hard because monster action economy forces repeated degraded defence rolls by round 2.
+This encounter is deadly because the Support is frequently defeated before healing-over-time can stabilize the party.
+This encounter is swingy because early Boss AoE outcomes heavily determine whether the party stabilizes.
+
+This explanation is more valuable than a label alone.
+
+Suggested Adjustment Engine
+
+The future panel should eventually suggest how to move the encounter toward a chosen target difficulty.
+
+Possible user flow:
+
+Current Encounter: Gobbo Scout x19
+Target Difficulty: Hard
+
+Output:
+
+Suggested adjustment:
+Reduce Gobbo Scout quantity to 16.
+
+Projected:
+Party Win Rate: 68%
+Monster Win Rate: 25%
+Stalemate Rate: 7%
+
+Other adjustment types:
+
+increase/decrease monster quantity
+swap one monster tier
+reduce/increase monster level
+remove a high-impact power
+reduce power cooldown pressure
+increase/decrease boss defence
+add/remove minion support units
+
+Important: early implementation should focus on quantity adjustment, because it is easiest and safest.
+
+Quantity Sweep Feature
+
+The first suggested-adjustment feature should be quantity sweeping.
+
+Example:
+
+Selected monster: Gobbo Scout
+Quantity range: 10–22
+Step: 1
+Runs per quantity: 100
+
+Output table:
+
+Quantity | Party Win | Monster Win | Stalemate | Avg Rounds | Verdict
+12       | 100%      | 0%          | 0%        | 4.3        | Easy
+15       | 82%       | 12%         | 6%        | 6.1        | Hard
+17       | 66%       | 28%         | 6%        | 7.2        | Very Hard
+19       | 52%       | 44%         | 4%        | 8.3        | Deadly/Swingy
+
+This directly replaces vague CR guessing with empirical party-specific scaling.
+
+Run 1 Transcript Integration
+
+The Encounter Confidence Panel should include a way to inspect at least one sample run.
+
+This can be:
+
+View Sample Combat Transcript
+
+Purpose:
+
+Audit why the simulator reached its conclusion.
+Verify dice, powers, defences, cooldowns, and targeting.
+Debug surprising results.
+
+The transcript should not be front-and-center for normal users, but it must be available for trust.
+
+Future Encounter Builder Modes
+Quick Confidence
+
+For normal Game Directors.
+
+Select party
+Select monsters
+Run confidence
+Read difficulty
+Apply suggested adjustment
+Advanced Simulation
+
+For power users.
+
+run count
+turn order mode
+targeting policy
+positioning abstraction
+quantity sweep
+seed control
+transcript
+export report
+Designer / Dev Diagnostic
+
+For internal balancing.
+
+full mechanics metrics
+hydration warnings
+unsupported mechanics
+raw JSON
+per-action contribution
+cooldown trace
+effective/overkill analysis
+
+The current Combat Lab is closest to the Designer / Dev Diagnostic mode.
+
+Implementation Phases
+Phase 1 — Combat Lab Trust Foundation
+
+Current focus.
+
+Requirements:
+
+runtime rules transcript-verified
+cooldowns correct
+linked packets correct
+monster/character hydration correct
+defence strings correct
+powers use effective rendered values
+effective damage / overkill metrics
+defeat timing metrics
+
+No user-facing Encounter Confidence until this is stable.
+
+Phase 2 — Encounter Quantity and Party Simulation
+
+Requirements:
+
+monster quantity selection
+independent runtime monster instances
+party vs group simulation
+target distribution
+defence degradation under swarm pressure
+group contribution reporting
+
+Already partially implemented.
+
+Phase 3 — Encounter Confidence Metrics
+
+Add GM-facing summary metrics:
+
+difficulty label
+win/stalemate rates
+average rounds
+expected PC defeats
+survival rates
+main risks
+main contributors
+confidence level
+Phase 4 — Quantity Sweep
+
+Implement:
+
+quantity range
+batch simulations by quantity
+difficulty curve
+recommended quantity for target difficulty
+
+This is the first major user-facing differentiator.
+
+Phase 5 — Suggested Adjustments
+
+Initial adjustment types:
+
+change quantity
+change monster level
+change tier mix
+reduce/increase boss/minion count
+
+Later adjustment types:
+
+power-specific suggestions
+defence tuning suggestions
+damage-path mismatch warnings
+party weakness warnings
+Phase 6 — User-Facing Encounter Creator
+
+Build a polished Game Director-facing tool.
+
+Features:
+
+save encounter draft
+load encounter draft
+duplicate encounter
+run confidence
+view suggested adjustment
+export encounter notes
+send to session prep
+Phase 7 — Campaign-Aware Encounter History
+
+Optional future feature.
+
+save simulation history
+compare before/after tuning
+track actual play outcomes
+feed future balance dashboard
+
+This could eventually improve the system’s tuning over time.
+
+Non-Goals for Early User-Facing Version
+
+Do not initially implement:
+
+full map positioning
+terrain
+line of sight
+manual tactics scripting
+AI personality scripting
+perfect tactical optimization
+summons/transforms
+every exotic power timing
+full campaign session automation
+
+The first version should answer:
+
+Is this encounter broadly safe, hard, deadly, or swingy for this party?
+
+Not:
+
+Can it perfectly replicate every table choice?
+Risks
+False Confidence
+
+The worst possible outcome is a tool that looks precise but simulates incorrectly.
+
+Mitigation:
+
+transcript audit
+confidence level
+unsupported mechanic warnings
+hydration warnings
+clear abstraction labels
+Overfitting to Simulator Tactics
+
+The tool must not imply exact table outcome.
+
+Language should be:
+
+likely
+expected
+risk
+confidence
+suggested
+
+Not:
+
+guaranteed
+will happen
+perfectly balanced
+GM Misuse
+
+Some GMs may treat the result as law.
+
+The UI should gently frame it as:
+
+Encounter confidence, not prophecy.
+Performance
+
+Large simulations with many monsters can become expensive.
+
+Mitigations:
+
+cap run counts
+cap monster instances
+background jobs later
+cached reports later
+quantity sweeps with batched runs
+Future Marketing Angle
+
+Potential phrasing:
+
+No more guessing from static challenge ratings.
+Simulate encounters against your actual party.
+Your monsters. Your players. Your rules. Your encounter confidence.
+Build freely. Balance with evidence.
+Incarnate gives Game Directors the confidence to run bespoke encounters without flying blind.
+Strategic Importance
+
+This feature is not merely a utility.
+
+It is a direct answer to one of the hardest objections against high-freedom tabletop systems:
+
+“If players and GMs can build anything, how can encounters possibly stay balanced?”
+
+The answer:
+
+The system gives you simulation-backed encounter confidence against your actual campaign party.
+
+This may become one of Incarnate’s strongest product differentiators.
+
+Locked Principle
+
+The Encounter Confidence Panel must always be built on top of the same Combat Lab resolver.
+
+Never create a separate “GM estimate formula” disconnected from the simulation engine.
+
+One rules engine.
+One source of combat truth.
+Many presentation layers.
+
+The dev Combat Lab, automated simulation suite, manual Combat Lab, and future Encounter Confidence Panel must all consume the same runtime semantics.
+
+Next Reminder for Future Implementation
+
+Do not begin the user-facing Encounter Confidence Panel until:
+
+Run 1 transcript is reliable.
+Cooldowns are transcript-verified.
+Linked packet resolution is transcript-verified.
+Monster and character defence hydration are transcript-verified.
+Effective damage / overkill metrics exist.
+Actor defeat timing exists.
+Party benchmark matrix is usable.
+
+Only then should this become a Game Director-facing product surface.
