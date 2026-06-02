@@ -333,10 +333,34 @@ export function tickActorCooldowns(state: CombatState, actorId: string) {
 
 export function tickTargetTurnEffects(state: CombatState, actorId: string): number {
   let expired = 0;
+  const actor = state.actors.find((entry) => entry.id === actorId);
   state.statusEffects = state.statusEffects
-    .map((effect) =>
-      effect.targetActorId === actorId ? { ...effect, remainingRounds: effect.remainingRounds - 1 } : effect,
-    )
+    .map((effect) => {
+      if (effect.targetActorId !== actorId) return effect;
+      const previous = effect.remainingRounds;
+      const remainingRounds = previous - 1;
+      if (effect.kind === "mainActionDenied" && actor) {
+        emitTranscriptEvent(state, {
+          type: "stackChanged",
+          actorId: actor.id,
+          actorName: actor.name,
+          actionId: effect.sourceActionId,
+          actionName: effect.sourceActionName,
+          lane: "endOfTurn",
+          message:
+            remainingRounds <= 0
+              ? `End of Turn: Force No Main Action from ${effect.sourceActionName ?? "a control effect"} ticks down from ${previous} to 0 and expires.`
+              : `End of Turn: Force No Main Action from ${effect.sourceActionName ?? "a control effect"} ticks down from ${previous} to ${remainingRounds}.`,
+          details: {
+            effect: "mainActionDenied",
+            previousStacks: previous,
+            remainingStacks: Math.max(0, remainingRounds),
+            expired: remainingRounds <= 0,
+          },
+        });
+      }
+      return { ...effect, remainingRounds };
+    })
     .filter((effect) => {
       const keep = effect.remainingRounds > 0;
       if (!keep) expired += 1;

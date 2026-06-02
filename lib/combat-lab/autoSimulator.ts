@@ -5,10 +5,12 @@ import {
   createEmptyMetrics,
   emitTranscriptEvent,
   getLivingActors,
+  getOppositeSide,
   recordIncomingActionPressure,
   refreshActorResponses,
   resetRoundDefenceDegradation,
   resetRoundTargetingPressure,
+  isActionOnCooldown,
   sampleActorCooldownAvailability,
   tickActorCooldowns,
   tickTargetTurnEffects,
@@ -128,6 +130,34 @@ function isOffensiveAction(action: CombatAction): boolean {
     action.kind === "control" ||
     action.kind === "movement"
   );
+}
+
+function hasLegalActionTarget(actor: CombatActor, action: CombatAction, state: ReturnType<typeof createCombatState>): boolean {
+  if (action.targetPolicy === "self" || action.targetPolicy === "allAllies") return true;
+  if (action.targetPolicy === "allEnemies") return getLivingActors(state, getOppositeSide(actor.side)).length > 0;
+  const side = action.targetPolicy === "enemy" ? getOppositeSide(actor.side) : actor.side;
+  return getLivingActors(state, side).length > 0;
+}
+
+function powerActionSkipReason(actor: CombatActor, state: ReturnType<typeof createCombatState>): string {
+  const supportedPowers = actor.actions.filter(
+    (action) => action.sourceType === "power" && action.supported && !action.counterMode && !action.passive,
+  );
+  if (supportedPowers.length === 0) return "no supported ready powers are hydrated for this actor";
+
+  const readyPowers = supportedPowers.filter((action) => !isActionOnCooldown(state, actor.id, action.id));
+  if (readyPowers.length === 0) return "all powers are on cooldown";
+
+  const legalPowers = readyPowers.filter((action) => hasLegalActionTarget(actor, action, state));
+  if (legalPowers.length === 0) return "no legal targets exist for ready powers";
+
+  return "no useful power action was selected";
+}
+
+function mainActionDenialSource(state: ReturnType<typeof createCombatState>, actor: CombatActor): string {
+  return state.statusEffects.find(
+    (effect) => effect.targetActorId === actor.id && effect.kind === "mainActionDenied",
+  )?.sourceActionName ?? "a control effect";
 }
 
 function addActorContribution(
@@ -570,21 +600,23 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
       refreshActorResponses(state, currentActor.id);
       sampleActorCooldownAvailability(state, currentActor);
       const timedStatusContributions = collectStartOfTurnStatusContributions(state, currentActor);
+      const deniedMainActionBy = mainActionDenialSource(state, currentActor);
       const startTurnResolution = resolveStartOfTurnEffects(state, currentActor);
       addResolutionToAggregate(metrics, currentActor.side, startTurnResolution);
       addTimedStatusContributions(metrics, state, timedStatusContributions);
-      if (startTurnResolution.actionsDenied > 0 || currentActor.defeated) {
-        if (startTurnResolution.actionsDenied > 0) {
-          state.log.push({
-            round: state.round,
-            actorId: currentActor.id,
-            actorName: currentActor.name,
-            actionId: "start-turn",
-            actionName: "Start of Turn",
-            message: `${currentActor.name}'s main action was denied by a control effect.`,
-            metrics: startTurnResolution,
-          });
-        }
+      const mainActionDenied = startTurnResolution.actionsDenied > 0;
+      if (mainActionDenied) {
+        state.log.push({
+          round: state.round,
+          actorId: currentActor.id,
+          actorName: currentActor.name,
+          actionId: "start-turn",
+          actionName: "Start of Turn",
+          message: `${currentActor.name}'s main action was denied by ${deniedMainActionBy}.`,
+          metrics: startTurnResolution,
+        });
+      }
+      if (currentActor.defeated) {
         tickActorCooldowns(state, currentActor.id);
         const expired = tickTargetTurnEffects(state, currentActor.id);
         if (expired > 0) metrics.stacksExpired[currentActor.side] += expired;
@@ -600,10 +632,29 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
 
       const lanes: Array<"main" | "power"> = currentActor.actionsPerTurn > 0 ? ["main", "power"] : [];
       for (const lane of lanes) {
+        if (lane === "main" && mainActionDenied) {
+          emitTranscriptEvent(state, {
+            type: "actionSkipped",
+            actorId: currentActor.id,
+            actorName: currentActor.name,
+            lane: "main",
+            message: `Main Action: denied by ${deniedMainActionBy}.`,
+            details: { reason: "mainActionDenied", sourceActionName: deniedMainActionBy },
+          });
+          continue;
+        }
         const action = chooseTurnAction(currentActor, state, lane);
         const target = action ? chooseTarget(currentActor, action, state) : null;
         if (!action && lane === "power") {
           metrics.skippedPowerActions[currentActor.side] += 1;
+          emitTranscriptEvent(state, {
+            type: "actionSkipped",
+            actorId: currentActor.id,
+            actorName: currentActor.name,
+            lane: "power",
+            message: `Power Action: skipped because ${powerActionSkipReason(currentActor, state)}.`,
+            details: { reason: powerActionSkipReason(currentActor, state) },
+          });
           continue;
         }
         if (action && target && isOffensiveAction(action)) {

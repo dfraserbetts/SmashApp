@@ -8,12 +8,14 @@ import {
   markDefeatedActors,
   refreshActorResponses,
   tickActorCooldowns,
+  tickTargetTurnEffects,
 } from "../lib/combat-lab/combatState";
 import type { Rng } from "../lib/combat-lab/dice";
 import {
   DEFAULT_COMBAT_TUNING_VALUES,
   type ProtectionTuningValues,
 } from "../lib/config/combatTuningShared";
+import { DEFAULT_POWER_TUNING_VALUES, type PowerTuningSnapshot } from "../lib/config/powerTuningShared";
 import { defaultBuilderData, type CharacterBuilderData } from "../lib/characterBuilder/core";
 import { buildCharacterDerivedCombatStats } from "../lib/characterBuilder/derivedStats";
 import {
@@ -264,6 +266,29 @@ function makeMonsterRow(overrides: Partial<CombatLabMonsterRow> = {}): CombatLab
     neckItemId: null,
     armsItemId: null,
     beltItemId: null,
+    ...overrides,
+  };
+}
+
+function monsterPowerRowFromFixture(
+  power: ReturnType<typeof makeFixturePower>,
+  overrides: Partial<CombatLabMonsterRow["powers"][number]> = {},
+): CombatLabMonsterRow["powers"][number] {
+  return {
+    id: power.id,
+    sortOrder: power.sortOrder,
+    name: power.name,
+    description: power.description,
+    descriptorChassis: power.descriptorChassis,
+    descriptorChassisConfig: power.descriptorChassisConfig,
+    commitmentModifier: power.commitmentModifier,
+    cooldownTurns: power.cooldownTurns,
+    cooldownReduction: power.cooldownReduction,
+    primaryDefenceGate: power.primaryDefenceGate ?? null,
+    diceCount: power.diceCount,
+    potency: power.potency,
+    rangeCategories: (power.rangeCategories ?? []).map((rangeCategory) => ({ rangeCategory })),
+    effectPackets: power.effectPackets,
     ...overrides,
   };
 }
@@ -884,6 +909,213 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   }));
   if (authoredCooldown.actions[0]?.cooldownRounds !== 3 || authoredCooldown.warnings.length > 0) {
     throw new Error(`Authored cooldown was not preserved: ${JSON.stringify(authoredCooldown)}.`);
+  }
+}
+
+{
+  const derivedCooldownTuning: PowerTuningSnapshot = {
+    setId: "combat-lab-smoke-derived-cooldown",
+    name: "Combat Lab Smoke Derived Cooldown",
+    slug: "combat-lab-smoke-derived-cooldown",
+    status: "ACTIVE",
+    updatedAt: new Date(0).toISOString(),
+    values: {
+      ...DEFAULT_POWER_TUNING_VALUES,
+      "cooldown.load.lightMax": 0,
+      "cooldown.load.moderateMax": 0,
+      "cooldown.load.heavyMax": 999,
+    },
+  };
+  const power = makeFixturePower({
+    id: "stale-character-derived-cooldown",
+    name: "Stale Character Cooldown",
+    intention: "ATTACK",
+    diceCount: 3,
+    potency: 2,
+    cooldownTurns: 1,
+  });
+  const primaryPacket = {
+    ...power.effectPackets[0],
+    detailsJson: {
+      ...power.effectPackets[0]?.detailsJson,
+      attackMode: "PHYSICAL",
+      damageTypes: ["Slashing"],
+      rangeCategory: "MELEE",
+      rangeValue: 1,
+    },
+  };
+  const validCharacterPower = {
+    ...power,
+    effectPackets: [primaryPacket],
+    intentions: [primaryPacket],
+  };
+  const { actor, warnings } = adaptCampaignCharacterToCombatActor(
+    makeCharacterRow({
+      builderData: makeCharacterBuilderData({ powers: [validCharacterPower] }),
+      backpackItems: [],
+    }),
+    DEFAULT_COMBAT_TUNING_VALUES,
+    derivedCooldownTuning,
+  );
+  const actionWithDerivedCooldown = actor.actions.find(
+    (candidate) => candidate.name === power.name && candidate.cooldownRounds === 3,
+  );
+  if (!actionWithDerivedCooldown) {
+    throw new Error(`Character power did not hydrate from derived display cooldown 3: ${JSON.stringify(actor.actions)}.`);
+  }
+  if (
+    !warnings.some((warning) =>
+      /stored cooldown 1 differs from Character Builder derived\/display cooldown 3; Combat Lab used 3/i.test(
+        warning.message,
+      ),
+    )
+  ) {
+    throw new Error(
+      `Character stale cooldown mismatch warning was not reported: ${JSON.stringify(warnings)}.`,
+    );
+  }
+  const target = fixtureActor("character-derived-cooldown-target", "monsters", {
+    dodgeDice: 1,
+    physicalProtection: 0,
+  });
+  const state = createCombatState([actor], [target], { captureTranscript: true });
+  state.currentTurnActorId = state.actors[0].id;
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: actionWithDerivedCooldown,
+    rng: rngFrom([0.99, 0]),
+    lane: "power",
+  });
+  if (getActionCooldownRemaining(state, state.actors[0].id, actionWithDerivedCooldown.id) !== 3) {
+    throw new Error("Character power did not enter the Character Builder derived/display cooldown.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Cooldown: Stale Character Cooldown enters cooldown 3/i, "derived character cooldown transcript");
+}
+
+{
+  const base = makeFixturePower({
+    id: "monster-authored-cooldown",
+    name: "Monster Authored Cooldown",
+    intention: "ATTACK",
+    diceCount: 3,
+    potency: 2,
+    cooldownTurns: 2,
+  });
+  const { actor, warnings } = adaptMonsterToCombatLabActor(
+    makeMonsterRow({
+      powers: [monsterPowerRowFromFixture(base, { cooldownTurns: 2, cooldownReduction: 0 })],
+    }),
+    new Map(),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  const actionWithStoredCooldown = actor.actions.find(
+    (candidate) => candidate.sourcePowerId === base.id && candidate.cooldownRounds === 2,
+  );
+  if (!actionWithStoredCooldown) {
+    throw new Error(`Monster authored power cooldown was not preserved: ${JSON.stringify(actor.actions)}.`);
+  }
+  if (warnings.some((warning) => /stored cooldown/i.test(warning.message))) {
+    throw new Error(`Stored monster cooldown path should not warn without derived tuning: ${JSON.stringify(warnings)}.`);
+  }
+}
+
+{
+  const derivedCooldownTwoTuning: PowerTuningSnapshot = {
+    setId: "combat-lab-smoke-monster-derived-cooldown",
+    name: "Combat Lab Smoke Monster Derived Cooldown",
+    slug: "combat-lab-smoke-monster-derived-cooldown",
+    status: "ACTIVE",
+    updatedAt: new Date(0).toISOString(),
+    values: {
+      ...DEFAULT_POWER_TUNING_VALUES,
+      "cooldown.load.lightMax": 0,
+      "cooldown.load.moderateMax": 999,
+      "cooldown.load.heavyMax": 1000,
+    },
+  };
+  const base = makeFixturePower({
+    id: "stale-monster-derived-cooldown",
+    name: "Stale Monster Cooldown",
+    intention: "ATTACK",
+    diceCount: 3,
+    potency: 2,
+    cooldownTurns: 1,
+  });
+  const { actor, warnings } = adaptMonsterToCombatLabActor(
+    makeMonsterRow({
+      powers: [monsterPowerRowFromFixture(base, { cooldownTurns: 1, cooldownReduction: 0 })],
+    }),
+    new Map(),
+    DEFAULT_COMBAT_TUNING_VALUES,
+    derivedCooldownTwoTuning,
+  );
+  const actionWithDerivedCooldown = actor.actions.find(
+    (candidate) => candidate.sourcePowerId === base.id && candidate.cooldownRounds === 2,
+  );
+  if (!actionWithDerivedCooldown) {
+    throw new Error(`Monster power did not hydrate from Summoning Circle derived/display cooldown 2: ${JSON.stringify(actor.actions)}.`);
+  }
+  if (
+    !warnings.some((warning) =>
+      /stored cooldown 1 differs from Summoning Circle derived\/display cooldown 2; Combat Lab used 2/i.test(
+        warning.message,
+      ),
+    )
+  ) {
+    throw new Error(
+      `Monster stale cooldown mismatch warning was not reported: ${JSON.stringify(warnings)}.`,
+    );
+  }
+  const target = fixtureActor("monster-derived-cooldown-target", "players", {
+    dodgeDice: 1,
+    physicalProtection: 0,
+  });
+  const state = createCombatState([target], [actor], { captureTranscript: true });
+  state.currentTurnActorId = state.actors[1].id;
+  resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: actionWithDerivedCooldown,
+    rng: rngFrom([0.99, 0]),
+    lane: "power",
+  });
+  if (getActionCooldownRemaining(state, state.actors[1].id, actionWithDerivedCooldown.id) !== 2) {
+    throw new Error("Monster power did not enter the Summoning Circle derived/display cooldown.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Cooldown: Stale Monster Cooldown enters cooldown 2/i, "derived monster cooldown transcript");
+}
+
+{
+  const missingCooldownBase = makeFixturePower({
+    id: "missing-monster-cooldown",
+    name: "Missing Monster Cooldown",
+    intention: "ATTACK",
+    diceCount: 3,
+    potency: 2,
+  });
+  const { actor, warnings } = adaptMonsterToCombatLabActor(
+    makeMonsterRow({
+      powers: [
+        monsterPowerRowFromFixture(missingCooldownBase, {
+          cooldownTurns: undefined as unknown as number,
+          cooldownReduction: 0,
+        }),
+      ],
+    }),
+    new Map(),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  const actionWithFallbackCooldown = actor.actions.find(
+    (candidate) => candidate.sourcePowerId === missingCooldownBase.id && candidate.cooldownRounds === 1,
+  );
+  if (
+    !actionWithFallbackCooldown ||
+    !warnings.some((warning) => /Missing Monster Cooldown.*fallback cooldown 1/i.test(warning.message))
+  ) {
+    throw new Error(`Missing monster cooldown fallback was not reported: ${JSON.stringify({ actions: actor.actions, warnings })}.`);
   }
 }
 
@@ -2616,11 +2848,161 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     },
   );
   const resolution = resolveStartOfTurnEffects(state, state.actors[0]);
-  const denialLines = state.transcriptLines.filter((line) => /main action is denied/i.test(line));
+  const denialLines = state.transcriptLines.filter((line) => /Force No Main Action/i.test(line));
   if (resolution.actionsDenied !== 1 || denialLines.length !== 1) {
     throw new Error(`Duplicate main-action denial was not consolidated: actionsDenied ${resolution.actionsDenied}, lines ${denialLines.length}.`);
   }
   expectTranscriptLine(state.transcriptLines, /consolidated to one denied main action/i, "duplicate denial consolidation");
+}
+
+{
+  const power = action({
+    id: "stack-lifecycle-power",
+    name: "Stack Lifecycle Power",
+    sourceType: "power",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 1,
+  });
+  const deniedActor = fixtureActor("stack-lifecycle-target", "monsters", {
+    physicalHpMax: 999,
+    mentalHpMax: 999,
+    actions: [power],
+  });
+  const sourceActor = fixtureActor("stack-lifecycle-source", "players");
+  const state = createCombatState([sourceActor], [deniedActor], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "stack-lifecycle-denial",
+    sourceActorId: state.actors[0].id,
+    targetActorId: state.actors[1].id,
+    kind: "mainActionDenied",
+    amount: 3,
+    sourceActionId: "stack-lifecycle-denial-source",
+    sourceActionName: "Three Stack Denial",
+    remainingRounds: 3,
+  });
+  for (const expectedStacks of [3, 2, 1]) {
+    state.round = 4 - expectedStacks;
+    state.currentTurnActorId = state.actors[1].id;
+    const startResolution = resolveStartOfTurnEffects(state, state.actors[1]);
+    if (startResolution.actionsDenied !== 1) {
+      throw new Error(`Expected main action denial with ${expectedStacks} stacks active.`);
+    }
+    expectTranscriptLine(
+      state.transcriptLines,
+      new RegExp(`Start of Turn: stack-lifecycle-target has ${expectedStacks} stack${expectedStacks === 1 ? "" : "s"} of Force No Main Action from Three Stack Denial`, "i"),
+      `start-turn ${expectedStacks} denial stacks`,
+    );
+    const selectedPower = chooseTurnAction(state.actors[1], state, "power");
+    if (selectedPower?.id !== power.id) {
+      throw new Error(`Power lane was not available with ${expectedStacks} Force No Main Action stack(s).`);
+    }
+    const expired = tickTargetTurnEffects(state, state.actors[1].id);
+    const remaining = state.statusEffects.find((effect) => effect.id === "stack-lifecycle-denial")?.remainingRounds ?? 0;
+    if (remaining !== expectedStacks - 1) {
+      throw new Error(`Force No Main Action stacks double-decremented or failed to tick: expected ${expectedStacks - 1}, got ${remaining}.`);
+    }
+    if (expectedStacks > 1 && expired !== 0) {
+      throw new Error(`Force No Main Action expired early with ${expectedStacks} stacks active.`);
+    }
+    if (expectedStacks === 1 && expired !== 1) {
+      throw new Error("Force No Main Action did not expire after ticking from 1 to 0.");
+    }
+  }
+  expectTranscriptLine(state.transcriptLines, /End of Turn: Force No Main Action from Three Stack Denial ticks down from 3 to 2/i, "denial stack 3 to 2");
+  expectTranscriptLine(state.transcriptLines, /End of Turn: Force No Main Action from Three Stack Denial ticks down from 2 to 1/i, "denial stack 2 to 1");
+  expectTranscriptLine(state.transcriptLines, /End of Turn: Force No Main Action from Three Stack Denial ticks down from 1 to 0 and expires/i, "denial stack expires");
+}
+
+{
+  const laneController = fixtureActor("lane-controller", "players", {
+    actions: [
+      action({
+        id: "lane-main-denial",
+        name: "Lane Main Denial",
+        sourceType: "power",
+        kind: "control",
+        targetPolicy: "enemy",
+        diceCount: 1,
+        potency: 1,
+      }),
+    ],
+  });
+  const deniedActor = fixtureActor("lane-denied-power-user", "monsters", {
+    physicalHpMax: 999,
+    mentalHpMax: 999,
+    actions: [
+      action({
+        id: "lane-ready-power",
+        name: "Lane Ready Power",
+        sourceType: "power",
+        kind: "attack",
+        targetPolicy: "enemy",
+        diceCount: 1,
+        potency: 1,
+      }),
+    ],
+  });
+  const run = runCombatScenario({
+    name: "main-action denial preserves power lane",
+    players: [laneController],
+    monsters: [deniedActor],
+    runs: 1,
+    seed: 1201,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  const lines = run.firstRunTranscript?.lines ?? [];
+  expectTranscriptLine(lines, /Start of Turn: lane-denied-power-user has .* Force No Main Action from Lane Main Denial/i, "lane-specific denial start");
+  expectTranscriptLine(lines, /Main Action: denied by Lane Main Denial/i, "main lane denied");
+  expectTranscriptLine(lines, /Power Action: lane-denied-power-user uses Lane Ready Power/i, "power lane still runs");
+  const mainDeniedIndex = lines.findIndex((line) => /Main Action: denied by Lane Main Denial/i.test(line));
+  const powerActionIndex = lines.findIndex((line) => /Power Action: lane-denied-power-user uses Lane Ready Power/i.test(line));
+  if (mainDeniedIndex < 0 || powerActionIndex <= mainDeniedIndex) {
+    throw new Error(`Denied actor did not use power lane after main-lane denial: ${lines.join(" | ")}`);
+  }
+  if (run.metrics.mainActionsUsed.monsters !== 0 || run.metrics.powerActionsUsed.monsters !== 1) {
+    throw new Error(
+      `Main-action denial affected wrong lane: main ${run.metrics.mainActionsUsed.monsters}, power ${run.metrics.powerActionsUsed.monsters}.`,
+    );
+  }
+}
+
+{
+  const laneController = fixtureActor("lane-skip-controller", "players", {
+    actions: [
+      action({
+        id: "lane-skip-main-denial",
+        name: "Lane Skip Main Denial",
+        sourceType: "power",
+        kind: "control",
+        targetPolicy: "enemy",
+        diceCount: 1,
+        potency: 1,
+      }),
+    ],
+  });
+  const deniedActor = fixtureActor("lane-denied-no-power", "monsters", {
+    physicalHpMax: 999,
+    mentalHpMax: 999,
+    actions: [],
+  });
+  const run = runCombatScenario({
+    name: "main-action denial logs empty power lane",
+    players: [laneController],
+    monsters: [deniedActor],
+    runs: 1,
+    seed: 1202,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  const lines = run.firstRunTranscript?.lines ?? [];
+  expectTranscriptLine(lines, /Main Action: denied by Lane Skip Main Denial/i, "main lane denied before power skip");
+  expectTranscriptLine(lines, /Power Action: skipped because no supported ready powers are hydrated for this actor/i, "power skip reason");
+  if (run.metrics.skippedPowerActions.monsters !== 1) {
+    throw new Error(`Skipped power action was not counted: ${run.metrics.skippedPowerActions.monsters}.`);
+  }
 }
 
 {

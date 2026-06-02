@@ -1,6 +1,8 @@
 import { normalizeBuilderData } from "@/lib/characterBuilder/core";
 import type { CharacterBuilderData } from "@/lib/characterBuilder/core";
 import type { ProtectionTuningValues } from "@/lib/config/combatTuningShared";
+import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
+import { summarizeCharacterPowers } from "@/lib/characterBuilder/powers";
 import {
   buildAttackConfig,
   buildCharacterDerivedCombatStats,
@@ -15,6 +17,7 @@ import {
 } from "@/lib/summoning/attributes";
 import type {
   EffectPacket,
+  MonsterTier,
   MonsterNaturalAttackConfig,
   Power,
   RangeCategory,
@@ -24,6 +27,8 @@ import {
   getProtectionTotalsFromItems,
   type SummoningEquipmentItem,
 } from "@/lib/summoning/equipment";
+import { effectiveCooldownTurns } from "@/lib/summoning/render";
+import { resolvePowerCosts } from "@/lib/summoning/powerCostResolver";
 
 import type { CombatAction, CombatActor, CombatAttributeName, CombatDieSize } from "./types";
 import {
@@ -515,6 +520,107 @@ function unsupportedActionWarnings(actor: { id: string; name: string }, actions:
     );
 }
 
+function readEffectiveStoredCooldown(power: Power): number | null {
+  const cooldownTurns = typeof power.cooldownTurns === "number" ? power.cooldownTurns : Number(power.cooldownTurns);
+  if (!Number.isFinite(cooldownTurns) || cooldownTurns < 1) return null;
+  const cooldownReduction =
+    typeof power.cooldownReduction === "number" ? power.cooldownReduction : Number(power.cooldownReduction);
+  return effectiveCooldownTurns({
+    cooldownTurns: Math.trunc(cooldownTurns),
+    cooldownReduction: Number.isFinite(cooldownReduction)
+      ? Math.max(0, Math.trunc(cooldownReduction))
+      : 0,
+  });
+}
+
+function monsterTierForPowerCost(value: string): MonsterTier | null {
+  if (value === "MINION" || value === "SOLDIER" || value === "ELITE" || value === "BOSS") {
+    return value;
+  }
+  return null;
+}
+
+function characterPowersWithDerivedCooldowns(params: {
+  row: Pick<CharacterRow, "id" | "name">;
+  level: number;
+  builderData: CharacterBuilderData;
+  powerTuning?: PowerTuningSnapshot | null;
+}): { powers: Power[]; warnings: CombatLabHydrationWarning[] } {
+  const budget = summarizeCharacterPowers({
+    level: params.level,
+    powers: params.builderData.powers,
+    tuningSnapshot: params.powerTuning ?? null,
+  });
+  const warnings: CombatLabHydrationWarning[] = [];
+  const powers = params.builderData.powers.map((power, index) => {
+    const derivedCooldownTurns = budget.powers[index]?.derivedCooldownTurns;
+    if (!Number.isFinite(derivedCooldownTurns) || !derivedCooldownTurns || derivedCooldownTurns < 1) {
+      return power;
+    }
+    const cooldownTurns = Math.max(1, Math.trunc(derivedCooldownTurns));
+    const storedCooldown = readEffectiveStoredCooldown(power);
+    if (storedCooldown !== null && storedCooldown !== cooldownTurns) {
+      warnings.push(
+        makeWarning(
+          params.row.id,
+          params.row.name,
+          `powerCooldown:${power.id ?? power.name ?? index}`,
+          `Power "${power.name || `Power ${index + 1}`}" stored cooldown ${storedCooldown} differs from Character Builder derived/display cooldown ${cooldownTurns}; Combat Lab used ${cooldownTurns}.`,
+        ),
+      );
+    }
+    return {
+      ...power,
+      cooldownTurns,
+      cooldownReduction: 0,
+    };
+  });
+  return { powers, warnings };
+}
+
+function monsterPowersWithDerivedCooldowns(params: {
+  row: Pick<MonsterRow, "id" | "name" | "level" | "tier">;
+  powers: MonsterPowerRow[];
+  powerTuning?: PowerTuningSnapshot | null;
+}): { powers: Power[]; warnings: CombatLabHydrationWarning[] } {
+  const powers = params.powers.map(mapPower);
+  if (!params.powerTuning) {
+    return { powers, warnings: [] };
+  }
+
+  const resolved = resolvePowerCosts(powers, params.powerTuning, {
+    level: params.row.level,
+    tier: monsterTierForPowerCost(params.row.tier),
+  });
+  const warnings: CombatLabHydrationWarning[] = [];
+  const hydratedPowers = powers.map((power, index) => {
+    const derivedCooldownTurns = resolved.powers[index]?.derivedCooldownTurns;
+    if (!Number.isFinite(derivedCooldownTurns) || !derivedCooldownTurns || derivedCooldownTurns < 1) {
+      return power;
+    }
+
+    const cooldownTurns = Math.max(1, Math.trunc(derivedCooldownTurns));
+    const storedCooldown = readEffectiveStoredCooldown(power);
+    if (storedCooldown !== null && storedCooldown !== cooldownTurns) {
+      warnings.push(
+        makeWarning(
+          params.row.id,
+          params.row.name,
+          `powerCooldown:${power.id ?? power.name ?? index}`,
+          `Power "${power.name || `Power ${index + 1}`}" stored cooldown ${storedCooldown} differs from Summoning Circle derived/display cooldown ${cooldownTurns}; Combat Lab used ${cooldownTurns}.`,
+        ),
+      );
+    }
+    return {
+      ...power,
+      cooldownTurns,
+      cooldownReduction: 0,
+    };
+  });
+
+  return { powers: hydratedPowers, warnings };
+}
+
 function textLooksCombatMechanical(value: string | null | undefined): boolean {
   const text = (value ?? "").toLowerCase();
   return /\b(attack|damage|wound|dice|die|protection|dodge|resist|heal|turn|action|cooldown|physical|mental|buff|debuff|control)\b/.test(text);
@@ -523,6 +629,7 @@ function textLooksCombatMechanical(value: string | null | undefined): boolean {
 export function adaptCampaignCharacterToCombatActor(
   row: CharacterRow,
   protectionTuning?: ProtectionTuningValues,
+  powerTuning?: PowerTuningSnapshot | null,
 ): { actor: CombatActor; warnings: CombatLabHydrationWarning[] } {
   const warnings: CombatLabHydrationWarning[] = [];
   const unsupportedEquipment: string[] = [];
@@ -541,7 +648,14 @@ export function adaptCampaignCharacterToCombatActor(
   const synergy = attributeNumber(builderData, "Synergy") + positiveModifier(modifiers.synergyModifier);
   const bravery = attributeNumber(builderData, "Bravery") + positiveModifier(modifiers.braveryModifier);
 
-  const adaptedPowers = builderData.powers.map((power) => adaptPowerToCombatActions(power));
+  const characterPowerHydration = characterPowersWithDerivedCooldowns({
+    row,
+    level,
+    builderData,
+    powerTuning,
+  });
+  warnings.push(...characterPowerHydration.warnings);
+  const adaptedPowers = characterPowerHydration.powers.map((power) => adaptPowerToCombatActions(power));
   const powerActions = adaptedPowers.flatMap((entry) => entry.actions);
   warnings.push(
     ...adaptedPowers.flatMap((entry) =>
@@ -680,13 +794,20 @@ export function adaptMonsterToCombatLabActor(
   row: MonsterRow,
   equipmentById = new Map<string, SummoningEquipmentItem>(),
   protectionTuning: ProtectionTuningValues,
+  powerTuning?: PowerTuningSnapshot | null,
 ): { actor: CombatActor; warnings: CombatLabHydrationWarning[] } {
   const warnings: CombatLabHydrationWarning[] = [];
   const unsupportedEquipment: string[] = [];
   const unsupportedTraits: string[] = [];
   const ignoredTraits: string[] = [];
   const unsupportedCombatTraits: string[] = [];
-  const adaptedPowers = row.powers.map((power) => adaptPowerToCombatActions(mapPower(power)));
+  const monsterPowerHydration = monsterPowersWithDerivedCooldowns({
+    row,
+    powers: row.powers,
+    powerTuning,
+  });
+  warnings.push(...monsterPowerHydration.warnings);
+  const adaptedPowers = monsterPowerHydration.powers.map((power) => adaptPowerToCombatActions(power));
   const powerActions = adaptedPowers.flatMap((entry) => entry.actions);
   warnings.push(
     ...adaptedPowers.flatMap((entry) =>

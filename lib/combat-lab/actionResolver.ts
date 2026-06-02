@@ -611,6 +611,10 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
   const actionDeniedEffects = actorEffects.filter((effect) => effect.kind === "mainActionDenied");
   if (actionDeniedEffects.length > 0) {
     const primaryDenial = actionDeniedEffects[0];
+    const activeStacks = Math.max(
+      1,
+      Math.trunc(primaryDenial?.remainingRounds ?? primaryDenial?.amount ?? 1),
+    );
     metrics.actionsDenied = 1;
     emitTranscriptEvent(state, {
       type: "startOfTurnEffect",
@@ -621,12 +625,13 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
       lane: "startOfTurn",
       message:
         actionDeniedEffects.length > 1
-          ? `Start of Turn: ${actor.name}'s main action is denied by ${primaryDenial?.sourceActionName ?? "a control effect"}. ${actionDeniedEffects.length} denial effects were present, consolidated to one denied main action.`
-          : `Start of Turn: ${actor.name}'s main action is denied by ${primaryDenial?.sourceActionName ?? "a control effect"}. ${primaryDenial?.remainingRounds ?? 0} ticks remaining.`,
+          ? `Start of Turn: ${actor.name} has ${activeStacks} stack${activeStacks === 1 ? "" : "s"} of Force No Main Action from ${primaryDenial?.sourceActionName ?? "a control effect"}. ${actionDeniedEffects.length} denial effects were present, consolidated to one denied main action.`
+          : `Start of Turn: ${actor.name} has ${activeStacks} stack${activeStacks === 1 ? "" : "s"} of Force No Main Action from ${primaryDenial?.sourceActionName ?? "a control effect"}.`,
       details: {
         effect: "mainActionDenied",
         amount: 1,
         consolidatedEffects: actionDeniedEffects.length,
+        activeStacks,
         remainingRounds: primaryDenial?.remainingRounds,
       },
     });
@@ -1026,7 +1031,7 @@ function resolveSingleTargetAction(params: {
       amount: controlStacks,
       sourceActionId: action.id,
       sourceActionName: action.name,
-      remainingRounds: 1,
+      remainingRounds: controlStacks,
     });
     metrics.controlTurnsApplied = controlStacks;
     emitTranscriptEvent(state, {
