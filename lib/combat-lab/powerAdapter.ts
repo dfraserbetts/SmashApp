@@ -119,10 +119,14 @@ function packetIsCastableNow(power: Power, packet: EffectPacket): string | null 
     return `Descriptor chassis ${chassis} is not resolved in automated V1.`;
   }
   const timing = packet.effectTimingType ?? "ON_CAST";
-  if (timing !== "ON_CAST" && !(chassis === "FIELD" && timing === "START_OF_TURN")) {
+  const duration = packet.effectDurationType ?? "INSTANT";
+  const recurringTurnTiming =
+    duration === "TURNS" &&
+    (timing === "START_OF_TURN" ||
+      timing === "START_OF_TURN_WHILST_CHANNELLED");
+  if (timing !== "ON_CAST" && !recurringTurnTiming && !(chassis === "FIELD" && timing === "START_OF_TURN")) {
     return `Packet timing ${timing} is not resolved in automated V1.`;
   }
-  const duration = packet.effectDurationType ?? "INSTANT";
   if (duration !== "INSTANT" && duration !== "TURNS" && duration !== "PASSIVE") {
     return `Packet duration ${duration} is not resolved in automated V1.`;
   }
@@ -164,6 +168,35 @@ function targetCountForPower(power: Power): number {
     : power.rangeCategories?.includes("RANGED")
       ? Math.max(1, asInt(power.rangedTargets, 1))
       : Math.max(1, asInt(power.meleeTargets, 1));
+}
+
+function damageApplicationTimingForPacket(
+  kind: CombatAction["kind"],
+  packet: EffectPacket,
+): CombatAction["damageApplicationTiming"] {
+  const duration = packet.effectDurationType ?? "INSTANT";
+  const timing = packet.effectTimingType ?? "ON_CAST";
+  if (kind === "attack" && duration === "TURNS") {
+    if (
+      timing === "ON_CAST" ||
+      timing === "START_OF_TURN" ||
+      timing === "START_OF_TURN_WHILST_CHANNELLED"
+    ) {
+      return "startOfTurn";
+    }
+    if (timing === "END_OF_TURN" || timing === "END_OF_TURN_WHILST_CHANNELLED") {
+      return "endOfTurn";
+    }
+  }
+  return "immediate";
+}
+
+function recurringKindForPacket(kind: CombatAction["kind"], packet: EffectPacket): CombatAction["recurring"] {
+  if ((packet.effectDurationType ?? "INSTANT") !== "TURNS") return undefined;
+  const durationRounds = Math.max(1, asInt(packet.effectDurationTurns, 1));
+  if (kind === "healing") return { kind: "healingOverTime", durationRounds };
+  if (kind === "attack") return { kind: "ongoingDamage", durationRounds };
+  return undefined;
 }
 
 function resolveAttackPacketPool(params: {
@@ -337,12 +370,9 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
         ? (power.primaryDefenceGate.resistAttribute ?? coreAttributeFromValue(details.resistAttribute))
         : null,
       secondaryActions,
-      recurring:
-        kind === "healing" && (packet.effectDurationType ?? "INSTANT") === "TURNS"
-          ? { kind: "healingOverTime", durationRounds }
-          : kind === "attack" && (packet.effectDurationType ?? "INSTANT") === "TURNS"
-            ? { kind: "ongoingDamage", durationRounds }
-            : undefined,
+      recurring: recurringKindForPacket(kind, packet),
+      damageApplicationTiming:
+        kind === "attack" ? damageApplicationTimingForPacket(kind, packet) : undefined,
       passive: kind === "defence" && (packet.effectDurationType ?? "INSTANT") === "PASSIVE" && targetPolicyForAction(kind, packet) === "self",
       counterMode: power.counterMode === "YES",
       abstractionNotes: [

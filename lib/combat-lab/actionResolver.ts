@@ -146,6 +146,25 @@ function rollEventType(action: CombatAction): "attackRoll" | "healingRoll" | "bu
   return "attackRoll";
 }
 
+function damageApplicationTimingForAction(action: CombatAction): NonNullable<CombatAction["damageApplicationTiming"]> {
+  if (action.damageApplicationTiming) return action.damageApplicationTiming;
+  const packet = action.source?.packet;
+  if (action.kind === "attack" && (packet?.effectDurationType ?? "INSTANT") === "TURNS") {
+    const timing = packet?.effectTimingType ?? "ON_CAST";
+    if (
+      timing === "ON_CAST" ||
+      timing === "START_OF_TURN" ||
+      timing === "START_OF_TURN_WHILST_CHANNELLED"
+    ) {
+      return "startOfTurn";
+    }
+    if (timing === "END_OF_TURN" || timing === "END_OF_TURN_WHILST_CHANNELLED") {
+      return "endOfTurn";
+    }
+  }
+  return "immediate";
+}
+
 function actionDamageLabel(action: CombatAction, pool: "physical" | "mental") {
   const details =
     action.source?.packet?.detailsJson &&
@@ -261,7 +280,14 @@ function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses
   return metrics;
 }
 
-function resolveDefenceString(state: CombatState, target: CombatActor, pool: "physical" | "mental", wounds: number, rng: Rng): CombatResolutionMetrics {
+function resolveDefenceString(
+  state: CombatState,
+  target: CombatActor,
+  pool: "physical" | "mental",
+  wounds: number,
+  rng: Rng,
+  context: { ongoingPerTick?: boolean } = {},
+): CombatResolutionMetrics {
   const metrics = emptyResolution();
   if (wounds <= 0) return metrics;
   const type = pool === "physical" ? "physical" : "mental";
@@ -299,7 +325,7 @@ function resolveDefenceString(state: CombatState, target: CombatActor, pool: "ph
     actorId: target.id,
     actorName: target.name,
     lane: "response",
-    message: `${rollText(rollSummary)} ${pool === "physical" ? "Physical Defence" : "Mental Defence"} blocked ${blocked} of ${wounds} ${pool} wounds (${blockPerSuccess} block per success). Degradation ${degradation}, final dice ${diceCount}.`,
+    message: `${rollText(rollSummary)} ${pool === "physical" ? "Physical Defence" : "Mental Defence"} blocked ${blocked} of ${wounds} ${context.ongoingPerTick ? "ongoing " : ""}${pool} wounds${context.ongoingPerTick ? " per tick" : ""} (${blockPerSuccess} block per success). Degradation ${degradation}, final dice ${diceCount}.`,
     roll: rollSummary,
     details: {
       pool,
@@ -359,6 +385,7 @@ function resolveBestNormalDefence(params: {
   incomingSuccesses: number;
   rawWounds: number;
   rng: Rng;
+  ongoingPerTick?: boolean;
 }): CombatResolutionMetrics {
   const dodgeValue = estimateDodgeValue(params.state, params.target, params.incomingSuccesses, params.rawWounds);
   const defenceStringValue = estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds);
@@ -373,7 +400,9 @@ function resolveBestNormalDefence(params: {
   });
   const metrics =
     defenceStringValue > dodgeValue
-      ? resolveDefenceString(params.state, params.target, params.pool, params.rawWounds, params.rng)
+      ? resolveDefenceString(params.state, params.target, params.pool, params.rawWounds, params.rng, {
+          ongoingPerTick: params.ongoingPerTick,
+        })
       : resolveDodge(params.state, params.target, params.incomingSuccesses, params.rng);
   metrics.defenceChoiceExpectedValue = Math.max(dodgeValue, defenceStringValue);
   return metrics;
@@ -663,6 +692,8 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
       metrics.healingTicks += 1;
     } else if (effect.kind === "ongoingDamage") {
       const overkill = applyWounds(actor, effect.pool ?? "physical", effect.amount);
+      const remainingAfterTick = Math.max(0, effect.remainingRounds - 1);
+      const woundLabel = effect.damageLabel ?? effect.pool ?? "physical";
       metrics.netWounds += effect.amount;
       metrics.ongoingDamageApplied += effect.amount;
       metrics.ongoingDamageTicks += 1;
@@ -674,8 +705,8 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
         actionId: effect.sourceActionId,
         actionName: effect.sourceActionName,
         lane: "startOfTurn",
-        message: `Start of Turn: ${actor.name} suffers ${effect.amount} ${effect.pool ?? "physical"} wounds from ${effect.sourceActionName ?? "ongoing damage"}. ${effect.remainingRounds} ticks remaining.`,
-        details: { effect: effect.kind, wounds: effect.amount, pool: effect.pool ?? "physical", overkill, remainingRounds: effect.remainingRounds },
+        message: `Start of Turn: ${actor.name} suffers ${effect.amount} ${woundLabel} wounds from ${effect.sourceActionName ?? "ongoing damage"}. Ticks remaining after this: ${remainingAfterTick}.`,
+        details: { effect: effect.kind, wounds: effect.amount, pool: effect.pool ?? "physical", overkill, remainingRounds: effect.remainingRounds, remainingAfterTick },
       });
     }
   }
@@ -783,6 +814,9 @@ function resolveSingleTargetAction(params: {
     const effectPerSuccess = Math.max(1, action.effectPerPrimarySuccess ?? action.potency);
     const rawWounds = activeHostileSuccesses * effectPerSuccess;
     const woundLabel = actionDamageLabel(action, pool);
+    const damageApplicationTiming = damageApplicationTimingForAction(action);
+    const isPureOngoingDamage =
+      action.recurring?.kind === "ongoingDamage" && damageApplicationTiming !== "immediate";
     emitTranscriptEvent(state, {
       type: "damageApplied",
       actorId: actor.id,
@@ -792,10 +826,12 @@ function resolveSingleTargetAction(params: {
       actionId: action.id,
       actionName: action.name,
       lane,
-      message: action.usesPrimaryAppliedSuccesses
-        ? `Declared damage: ${activeHostileSuccesses} applied primary successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds.`
-        : `Declared damage: ${action.name} has ${activeHostileSuccesses} active successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds before defence.`,
-      details: { activeSuccesses: activeHostileSuccesses, potency: effectPerSuccess, rawWounds, pool },
+      message: isPureOngoingDamage
+        ? `Ongoing declaration: ${action.name} has ${activeHostileSuccesses} active successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds per tick before declaration defence.`
+        : action.usesPrimaryAppliedSuccesses
+          ? `Declared damage: ${activeHostileSuccesses} applied primary successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds.`
+          : `Declared damage: ${action.name} has ${activeHostileSuccesses} active successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds before defence.`,
+      details: { activeSuccesses: activeHostileSuccesses, potency: effectPerSuccess, rawWounds, pool, damageApplicationTiming },
     });
     const normalDefenceMetrics = gateAlreadyResolved
       ? emptyResolution()
@@ -806,6 +842,7 @@ function resolveSingleTargetAction(params: {
           incomingSuccesses: activeHostileSuccesses,
           rawWounds,
           rng,
+          ongoingPerTick: isPureOngoingDamage,
         });
     addMetrics(metrics, normalDefenceMetrics);
     if (normalDefenceMetrics.woundsAvoidedByDodge > 0) {
@@ -820,7 +857,9 @@ function resolveSingleTargetAction(params: {
         actionId: action.id,
         actionName: action.name,
         lane,
-        message: `Attack result: ${target.name} dodged ${action.name}; 0 net wounds.`,
+        message: isPureOngoingDamage
+          ? `Application result: ${target.name} avoids ${action.name}; no ongoing damage status is created.`
+          : `Attack result: ${target.name} dodged ${action.name}; 0 net wounds.`,
         details: { rawWounds, netWounds: 0, pool },
       });
       return metrics;
@@ -845,10 +884,11 @@ function resolveSingleTargetAction(params: {
       Math.max(0, protection),
     );
     const prevented = normalDefenceBlocked + counterDefenceMetrics.counterMitigation + staticPrevented;
-    const netWounds = Math.max(0, activeRawWounds - prevented);
-    const overkill = applyWounds(target, pool, netWounds);
+    const netWounds = isPureOngoingDamage ? 0 : Math.max(0, activeRawWounds - prevented);
+    const storedOngoingWounds = isPureOngoingDamage ? Math.max(0, activeRawWounds - prevented) : 0;
+    const overkill = isPureOngoingDamage ? 0 : applyWounds(target, pool, netWounds);
     const counterAttackMetrics =
-      gateAlreadyResolved || counterDefenceMetrics.counterChosen > 0
+      isPureOngoingDamage || gateAlreadyResolved || counterDefenceMetrics.counterChosen > 0
         ? emptyResolution()
         : resolveCounterAttacks(state, target, actor, rng);
     addMetrics(metrics, counterAttackMetrics);
@@ -859,19 +899,92 @@ function resolveSingleTargetAction(params: {
     metrics.passiveDefenceContribution = Math.min(activeRawWounds, passiveDefence);
     metrics.netWounds = netWounds;
     metrics.overkill = overkill;
-    emitTranscriptEvent(state, {
-      type: "damageApplied",
-      actorId: actor.id,
-      actorName: actor.name,
-      targetId: target.id,
-      targetName: target.name,
-      actionId: action.id,
-      actionName: action.name,
-      lane,
-      message: `Attack result: ${target.name} suffers ${netWounds} ${pool} wounds from ${action.name}. Prevented ${prevented} (${normalDefenceBlocked} defence, ${counterDefenceMetrics.counterMitigation} counter, ${staticPrevented} static/passive).`,
-      details: { rawWounds: activeRawWounds, prevented, netWounds, overkill, pool },
-    });
-    if (action.recurring?.kind === "ongoingDamage" && netWounds > 0) {
+
+    if (isPureOngoingDamage) {
+      if (storedOngoingWounds <= 0) {
+        emitTranscriptEvent(state, {
+          type: "damageApplied",
+          actorId: actor.id,
+          actorName: actor.name,
+          targetId: target.id,
+          targetName: target.name,
+          actionId: action.id,
+          actionName: action.name,
+          lane,
+          message: `Application result: ${target.name}'s declaration defence fully prevents ${action.name}; no ongoing damage status is created. Prevented ${prevented} (${normalDefenceBlocked} defence, ${counterDefenceMetrics.counterMitigation} counter, ${staticPrevented} static/passive).`,
+          details: { rawWounds: activeRawWounds, prevented, storedOngoingWounds: 0, pool },
+        });
+      } else if (action.recurring?.kind === "ongoingDamage") {
+        const units = Math.max(1, Math.ceil(storedOngoingWounds / Math.max(1, effectPerSuccess)));
+        state.statusEffects.push({
+          id: `${state.round}:${actor.id}:${action.id}:${target.id}:ongoing`,
+          sourceActorId: actor.id,
+          targetActorId: target.id,
+          kind: "ongoingDamage",
+          amount: storedOngoingWounds,
+          pool,
+          damageLabel: woundLabel,
+          sourceActionId: action.id,
+          sourceActionName: action.name,
+          remainingRounds: action.recurring.durationRounds,
+        });
+        metrics.ongoingDamageUnitsApplied += units;
+        metrics.stacksApplied += units;
+        emitTranscriptEvent(state, {
+          type: "damageApplied",
+          actorId: actor.id,
+          actorName: actor.name,
+          targetId: target.id,
+          targetName: target.name,
+          actionId: action.id,
+          actionName: action.name,
+          lane,
+          message: `Ongoing result: ${action.name} stores ${storedOngoingWounds} ${woundLabel} wounds per tick on ${target.name} for ${action.recurring.durationRounds} ticks. Prevented ${prevented}.`,
+          details: {
+            effect: "ongoingDamage",
+            storedOngoingWounds,
+            prevented,
+            rawWounds: activeRawWounds,
+            durationRounds: action.recurring.durationRounds,
+          },
+        });
+        emitTranscriptEvent(state, {
+          type: "statusCreated",
+          actorId: actor.id,
+          actorName: actor.name,
+          targetId: target.id,
+          targetName: target.name,
+          actionId: action.id,
+          actionName: action.name,
+          lane,
+          message: `Status created: ${action.name} ongoing damage on ${target.name}, ${action.recurring.durationRounds} ticks remaining, ${storedOngoingWounds} ${woundLabel} wounds per tick. Declaration prevention ${prevented} reduced the stored tick value from ${activeRawWounds} to ${storedOngoingWounds}.`,
+          details: {
+            effect: "ongoingDamage",
+            amount: storedOngoingWounds,
+            units,
+            durationRounds: action.recurring.durationRounds,
+            pool,
+            prevented,
+            rawWounds: activeRawWounds,
+            damageApplicationTiming,
+          },
+        });
+      }
+    } else {
+      emitTranscriptEvent(state, {
+        type: "damageApplied",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Attack result: ${target.name} suffers ${netWounds} ${pool} wounds from ${action.name}. Prevented ${prevented} (${normalDefenceBlocked} defence, ${counterDefenceMetrics.counterMitigation} counter, ${staticPrevented} static/passive).`,
+        details: { rawWounds: activeRawWounds, prevented, netWounds, overkill, pool },
+      });
+    }
+    if (!isPureOngoingDamage && action.recurring?.kind === "ongoingDamage" && netWounds > 0) {
       const units = Math.max(1, Math.ceil(netWounds / Math.max(1, action.potency)));
       state.statusEffects.push({
         id: `${state.round}:${actor.id}:${action.id}:${target.id}:ongoing`,
@@ -880,6 +993,7 @@ function resolveSingleTargetAction(params: {
         kind: "ongoingDamage",
         amount: Math.max(1, action.potency) * units,
         pool,
+        damageLabel: actionDamageLabel(action, pool),
         sourceActionId: action.id,
         sourceActionName: action.name,
         remainingRounds: action.recurring.durationRounds,

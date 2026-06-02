@@ -20,6 +20,7 @@ function cloneAction(action: CombatAction): CombatAction {
     modifier: action.modifier ? { ...action.modifier } : undefined,
     control: action.control ? { ...action.control } : undefined,
     recurring: action.recurring ? { ...action.recurring } : undefined,
+    damageApplicationTiming: action.damageApplicationTiming,
     source: action.source ? { ...action.source } : undefined,
   };
 }

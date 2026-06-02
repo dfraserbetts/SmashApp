@@ -77,6 +77,7 @@ export type CombatAction = {
     kind: "healingOverTime" | "ongoingDamage";
     durationRounds: number;
   };
+  damageApplicationTiming?: "immediate" | "startOfTurn" | "endOfTurn";
   passive?: boolean;
   counterMode?: boolean;
   abstractionNotes?: string[];
@@ -140,6 +141,7 @@ export type CombatStatusEffect = {
   attribute?: CombatAttributeName;
   amount: number;
   pool?: CombatPool;
+  damageLabel?: string;
   sourceActionId?: string;
   sourceActionName?: string;
   positionalAbstraction?: string;

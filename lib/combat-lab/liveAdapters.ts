@@ -455,7 +455,11 @@ function mapPower(power: MonsterPowerRow): Power {
           potency: Number(raw.potency ?? 1),
           effectTimingType:
             raw.effectTimingType === "ON_HIT" ||
+            raw.effectTimingType === "ON_TRIGGER" ||
             raw.effectTimingType === "START_OF_TURN" ||
+            raw.effectTimingType === "END_OF_TURN" ||
+            raw.effectTimingType === "START_OF_TURN_WHILST_CHANNELLED" ||
+            raw.effectTimingType === "END_OF_TURN_WHILST_CHANNELLED" ||
             raw.effectTimingType === "ON_CAST"
               ? raw.effectTimingType
               : "ON_CAST",

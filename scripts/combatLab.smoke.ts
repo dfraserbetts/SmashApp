@@ -2498,6 +2498,419 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const power = makeFixturePower({
+    id: "pure-start-turn-dot",
+    name: "Pure Start Turn DoT",
+    intention: "ATTACK",
+    diceCount: 3,
+    potency: 4,
+    durationTurns: 2,
+  });
+  const startTurnPacket = {
+    ...power.effectPackets[0],
+    effectTimingType: "START_OF_TURN" as const,
+    effectDurationType: "TURNS" as const,
+    effectDurationTurns: 2,
+  };
+  const adapted = adaptPowerToCombatActions({
+    ...power,
+    effectPackets: [startTurnPacket],
+    intentions: [startTurnPacket],
+  });
+  const dotAction = adapted.actions[0];
+  if (!dotAction || dotAction.damageApplicationTiming !== "startOfTurn") {
+    throw new Error(`START_OF_TURN damage packet was not adapted as pure ongoing damage: ${JSON.stringify(adapted)}.`);
+  }
+  const attacker = fixtureActor("pure-dot-attacker", "players", { actions: [dotAction] });
+  const defender = fixtureActor("pure-dot-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 100,
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    physicalProtection: 0,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: dotAction,
+    rng: rngFrom([0.99, 0]),
+    lane: "power",
+  });
+  const created = state.statusEffects.find((effect) => effect.kind === "ongoingDamage" && effect.sourceActionName === dotAction.name);
+  if (!created || state.actors[1].physicalHpCurrent !== state.actors[1].physicalHpMax) {
+    throw new Error(`Pure DoT dealt immediate damage or failed to create status: ${JSON.stringify({ hp: state.actors[1].physicalHpCurrent, created })}.`);
+  }
+  if (state.transcriptLines.some((line) => /Attack result: pure-dot-defender suffers/i.test(line))) {
+    throw new Error(`Pure DoT transcript still reported immediate HP damage: ${state.transcriptLines.join(" | ")}`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Status created: Pure Start Turn DoT ongoing damage/i, "pure DoT status creation");
+  resolveStartOfTurnEffects(state, state.actors[1]);
+  if (state.actors[1].physicalHpCurrent >= state.actors[1].physicalHpMax) {
+    throw new Error("Pure DoT did not apply damage at target start of turn.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Ticks remaining after this: 1/i, "pure DoT remaining tick wording");
+}
+
+{
+  const dotAction = action({
+    id: "dodged-pure-dot",
+    name: "Dodged Pure DoT",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 2,
+    potency: 8,
+    recurring: { kind: "ongoingDamage", durationRounds: 2 },
+    damageApplicationTiming: "startOfTurn",
+  });
+  const attacker = fixtureActor("dodged-dot-attacker", "players", { actions: [dotAction] });
+  const defender = fixtureActor("dodged-dot-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 100,
+    dodgeDice: 6,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    physicalProtection: 0,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: dotAction,
+    rng: rngFrom([0.99, 0.99]),
+    lane: "power",
+  });
+  if (state.statusEffects.some((effect) => effect.kind === "ongoingDamage") || state.actors[1].physicalHpCurrent !== 100) {
+    throw new Error("Dodged pure DoT created a status or immediate damage.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Application result: dodged-dot-defender avoids Dodged Pure DoT; no ongoing damage status is created/i, "pure DoT dodge prevention");
+}
+
+{
+  const dotAction = action({
+    id: "failed-dodge-pure-dot",
+    name: "Failed Dodge Pure DoT",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 2,
+    potency: 8,
+    recurring: { kind: "ongoingDamage", durationRounds: 2 },
+    damageApplicationTiming: "startOfTurn",
+  });
+  const attacker = fixtureActor("failed-dodge-dot-attacker", "players", { actions: [dotAction] });
+  const defender = fixtureActor("failed-dodge-dot-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 100,
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    physicalProtection: 0,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: dotAction,
+    rng: rngFrom([0.99, 0.99, 0]),
+    lane: "power",
+  });
+  const created = state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
+  if (!created || created.amount !== 16 || state.actors[1].physicalHpCurrent !== 100) {
+    throw new Error(`Failed Dodge pure DoT did not store full potential 16 without immediate damage: ${JSON.stringify({ created, hp: state.actors[1].physicalHpCurrent })}.`);
+  }
+}
+
+{
+  const dotAction = action({
+    id: "protected-pure-dot",
+    name: "Protected Pure DoT",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 2,
+    potency: 8,
+    recurring: { kind: "ongoingDamage", durationRounds: 2 },
+    damageApplicationTiming: "startOfTurn",
+  });
+  const attacker = fixtureActor("protected-dot-attacker", "players", { actions: [dotAction] });
+  const defender = fixtureActor("protected-dot-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 100,
+    dodgeDice: 1,
+    physicalDefenceDice: 3,
+    physicalBlockPerSuccess: 4,
+    physicalProtection: 0,
+    actions: [
+      action({
+        id: "protected-dot-counter",
+        name: "Protected Dot Counter",
+        kind: "defence",
+        sourceType: "power",
+        targetPolicy: "self",
+        diceCount: 1,
+        potency: 1,
+        protection: 1,
+        counterMode: true,
+      }),
+    ],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  state.responsesRemaining[state.actors[1].id] = 2;
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: dotAction,
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0]),
+    lane: "power",
+  });
+  const created = state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
+  if (!created || created.amount !== 3 || state.actors[1].physicalHpCurrent !== 100) {
+    throw new Error(`Protection/counter did not reduce pure DoT stored payload from 16 to 3 without immediate damage: ${JSON.stringify({ created, hp: state.actors[1].physicalHpCurrent })}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Physical Defence blocked 12 of 16 ongoing physical wounds per tick/i, "pure DoT physical defence per tick transcript");
+  expectTranscriptLine(state.transcriptLines, /Ongoing result: Protected Pure DoT stores 3 physical wounds per tick/i, "pure DoT stored net tick value");
+  expectTranscriptLine(state.transcriptLines, /Declaration prevention .* reduced the stored tick value/i, "pure DoT protection reduction transcript");
+  if (state.transcriptLines.some((line) => /Attack result: protected-dot-defender suffers/i.test(line))) {
+    throw new Error(`Protected pure DoT still reported immediate HP damage: ${state.transcriptLines.join(" | ")}`);
+  }
+  resolveStartOfTurnEffects(state, state.actors[1]);
+  const protectedPureDotHpAfterTick = Number(state.actors[1].physicalHpCurrent);
+  if (protectedPureDotHpAfterTick !== 97) {
+    throw new Error(`Stored pure DoT tick did not deal 3 damage at start of turn: ${protectedPureDotHpAfterTick}.`);
+  }
+}
+
+{
+  const dotAction = action({
+    id: "fully-prevented-pure-dot",
+    name: "Fully Prevented Pure DoT",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 2,
+    potency: 8,
+    recurring: { kind: "ongoingDamage", durationRounds: 2 },
+    damageApplicationTiming: "startOfTurn",
+  });
+  const attacker = fixtureActor("fully-prevented-dot-attacker", "players", { actions: [dotAction] });
+  const defender = fixtureActor("fully-prevented-dot-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 100,
+    dodgeDice: 1,
+    physicalDefenceDice: 4,
+    physicalBlockPerSuccess: 4,
+    physicalProtection: 0,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: dotAction,
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0.99]),
+    lane: "power",
+  });
+  if (state.statusEffects.some((effect) => effect.kind === "ongoingDamage") || state.actors[1].physicalHpCurrent !== 100) {
+    throw new Error("Fully prevented pure DoT created a status or immediate damage.");
+  }
+  expectTranscriptLine(state.transcriptLines, /fully prevents Fully Prevented Pure DoT; no ongoing damage status is created/i, "fully prevented pure DoT transcript");
+}
+
+{
+  const base = makeFixturePower({
+    id: "live-swiping-claws-fixture",
+    name: "Swiping Claws",
+    intention: "ATTACK",
+    diceCount: 4,
+    potency: 4,
+    cooldownTurns: 2,
+    durationTurns: 2,
+  });
+  const startTurnPacket = {
+    ...base.effectPackets[0],
+    effectTimingType: "ON_CAST" as const,
+    effectDurationType: "TURNS" as const,
+    effectDurationTurns: 2,
+    detailsJson: {
+      ...base.effectPackets[0]?.detailsJson,
+      attackMode: "PHYSICAL",
+      damageTypes: ["Slashing"],
+    },
+  };
+  const { actor } = adaptMonsterToCombatLabActor(
+    makeMonsterRow({
+      powers: [
+        monsterPowerRowFromFixture(
+          {
+            ...base,
+            effectPackets: [startTurnPacket],
+            intentions: [startTurnPacket],
+          },
+          {
+            cooldownTurns: 2,
+            cooldownReduction: 0,
+            effectPackets: [startTurnPacket],
+          },
+        ),
+      ],
+    }),
+    new Map(),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  const swipingClaws = actor.actions.find((candidate) => candidate.name === "Swiping Claws");
+  if (
+    !swipingClaws ||
+    swipingClaws.damageApplicationTiming !== "startOfTurn" ||
+    swipingClaws.source?.packet?.effectTimingType !== "ON_CAST" ||
+    swipingClaws.source?.packet?.effectDurationType !== "TURNS" ||
+    swipingClaws.cooldownRounds !== 2
+  ) {
+    throw new Error(`Live monster Swiping Claws path did not hydrate as cooldown-2 pure DoT: ${JSON.stringify(actor.actions)}.`);
+  }
+  const target = fixtureActor("live-swiping-target", "players", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 100,
+    dodgeDice: 1,
+    physicalDefenceDice: 3,
+    physicalBlockPerSuccess: 3,
+    physicalProtection: 0,
+    actions: [
+      action({
+        id: "live-swiping-counter",
+        name: "Live Swiping Counter",
+        kind: "defence",
+        sourceType: "power",
+        targetPolicy: "self",
+        diceCount: 1,
+        potency: 3,
+        protection: 3,
+        counterMode: true,
+      }),
+    ],
+  });
+  const state = createCombatState([target], [actor], { captureTranscript: true });
+  state.currentTurnActorId = state.actors[1].id;
+  state.responsesRemaining[state.actors[0].id] = 2;
+  resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: swipingClaws,
+    rng: rngFrom([0.4, 0.4, 0, 0, 0.4, 0.4, 0.4, 0.4]),
+    lane: "power",
+  });
+  const created = state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
+  if (!created || created.amount !== 4 || created.damageLabel !== "physical Slashing" || state.actors[0].physicalHpCurrent !== 100) {
+    throw new Error(`Live Swiping Claws path did not store 4 physical Slashing per tick without immediate damage: ${JSON.stringify({ action: swipingClaws, created, hp: state.actors[0].physicalHpCurrent })}.`);
+  }
+  if (getActionCooldownRemaining(state, state.actors[1].id, swipingClaws.id) !== 2) {
+    throw new Error("Live Swiping Claws did not enter cooldown 2.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Ongoing declaration: Swiping Claws has 2 active successes x 8 = 16 physical Slashing wounds per tick/i, "live Swiping Claws potential tick transcript");
+  expectTranscriptLine(state.transcriptLines, /Physical Defence blocked 9 of 16 ongoing physical wounds per tick/i, "live Swiping Claws defence prevention transcript");
+  expectTranscriptLine(state.transcriptLines, /Counter mitigation 3/i, "live Swiping Claws counter mitigation transcript");
+  expectTranscriptLine(state.transcriptLines, /Ongoing result: Swiping Claws stores 4 physical Slashing wounds per tick.*Prevented 12/i, "live Swiping Claws stored tick transcript");
+  expectTranscriptLine(state.transcriptLines, /Status created: Swiping Claws ongoing damage .* 4 physical Slashing wounds per tick/i, "live Swiping Claws status transcript");
+  if (state.transcriptLines.some((line) => /Attack result: live-swiping-target suffers/i.test(line))) {
+    throw new Error(`Live Swiping Claws still reported immediate HP damage: ${state.transcriptLines.join(" | ")}`);
+  }
+  resolveStartOfTurnEffects(state, state.actors[0]);
+  const liveSwipingHpAfterTick = Number(state.actors[0].physicalHpCurrent);
+  if (liveSwipingHpAfterTick !== 96) {
+    throw new Error(`Live Swiping Claws start-turn tick did not deal stored value 4: ${liveSwipingHpAfterTick}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Start of Turn: live-swiping-target suffers 4 physical Slashing wounds from Swiping Claws\. Ticks remaining after this: 1/i, "live Swiping Claws tick transcript");
+}
+
+{
+  const immediate = action({
+    id: "explicit-immediate-damage",
+    name: "Explicit Immediate Damage",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 2,
+    potency: 3,
+    damageApplicationTiming: "immediate",
+  });
+  const attacker = fixtureActor("immediate-attacker", "players", { actions: [immediate] });
+  const defender = fixtureActor("immediate-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 100,
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    physicalProtection: 0,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: immediate,
+    rng: rngFrom([0.99, 0]),
+    lane: "power",
+  });
+  if (state.actors[1].physicalHpCurrent >= 100) {
+    throw new Error("Explicit immediate damage no longer applied immediate HP damage.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Attack result: immediate-defender suffers/i, "immediate damage still reports attack result");
+}
+
+{
+  const primary = action({
+    id: "both-immediate-primary",
+    name: "Both Immediate Primary",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 2,
+    potency: 3,
+    damageApplicationTiming: "immediate",
+    secondaryActions: [
+      action({
+        id: "both-ongoing-secondary",
+        name: "Both Immediate Primary (ongoing)",
+        kind: "attack",
+        targetPolicy: "enemy",
+        diceCount: 2,
+        potency: 2,
+        recurring: { kind: "ongoingDamage", durationRounds: 2 },
+        damageApplicationTiming: "startOfTurn",
+        usesPrimaryAppliedSuccesses: true,
+        skipOwnRoll: true,
+        skipOwnDefenceGate: true,
+      }),
+    ],
+  });
+  const attacker = fixtureActor("both-attacker", "players", { actions: [primary] });
+  const defender = fixtureActor("both-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 100,
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    physicalProtection: 0,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: primary,
+    rng: rngFrom([0.99, 0]),
+    lane: "power",
+  });
+  if (
+    state.actors[1].physicalHpCurrent >= 100 ||
+    !state.statusEffects.some((effect) => effect.kind === "ongoingDamage" && effect.sourceActionName === "Both Immediate Primary (ongoing)")
+  ) {
+    throw new Error("Power with explicit immediate and ongoing packets did not preserve both effects.");
+  }
+}
+
+{
   const fieldAction = action({
     id: "suppression-field-credit",
     name: "Suppression Field Credit",
