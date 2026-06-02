@@ -146,6 +146,21 @@ function rollEventType(action: CombatAction): "attackRoll" | "healingRoll" | "bu
   return "attackRoll";
 }
 
+function actionDamageLabel(action: CombatAction, pool: "physical" | "mental") {
+  const details =
+    action.source?.packet?.detailsJson &&
+    typeof action.source.packet.detailsJson === "object" &&
+    !Array.isArray(action.source.packet.detailsJson)
+      ? (action.source.packet.detailsJson as Record<string, unknown>)
+      : {};
+  const damageTypes = Array.isArray(details.damageTypes)
+    ? details.damageTypes.map((entry) => String(entry).trim()).filter(Boolean)
+    : [];
+  if (damageTypes.length === 0) return pool;
+  if (damageTypes.length === 1) return `${pool} ${damageTypes[0]}`;
+  return `${pool} ${damageTypes.join("/")}`;
+}
+
 function takeDefenceDegradation(state: CombatState, actorId: string, type: "dodge" | "physical" | "mental") {
   state.defenceDegradation[actorId] ??= { dodge: 0, physical: 0, mental: 0 };
   const previousRolls = state.defenceDegradation[actorId][type];
@@ -666,6 +681,7 @@ function resolveSingleTargetAction(params: {
   lane?: CombatActionLane;
   fromSecondary?: boolean;
   gateAlreadyResolved?: boolean;
+  primaryAppliedSuccesses?: number;
 }): CombatResolutionMetrics {
   const { state, actor, action, target, rng, lane } = params;
   const gateAlreadyResolved = Boolean(params.gateAlreadyResolved || params.fromSecondary);
@@ -673,23 +689,31 @@ function resolveSingleTargetAction(params: {
   const actorAttributeModifier = getAttributeModifier(state, actor.id, action.accuracyAttribute);
   if (actorAttributeModifier > 0) metrics.buffedActions = 1;
   if (actorAttributeModifier < 0) metrics.debuffedActions = 1;
+  const inheritedPrimaryAppliedSuccesses = Math.max(0, Math.trunc(params.primaryAppliedSuccesses ?? 0));
+  const skipOwnRoll = Boolean(params.fromSecondary && (action.skipOwnRoll || action.usesPrimaryAppliedSuccesses));
   const diceCount = Math.max(0, action.diceCount);
-  const roll = rollDice(diceCount, getActorDie(actor, action), rng, actorAttributeModifier);
-  const rollSummary = summarizeRoll({ actor, reason: action.name, attribute: action.accuracyAttribute, roll });
-  metrics.rawSuccesses = roll.successes;
-  emitTranscriptEvent(state, {
-    type: rollEventType(action),
-    actorId: actor.id,
-    actorName: actor.name,
-    targetId: target.id,
-    targetName: target.name,
-    actionId: action.id,
-    actionName: action.name,
-    lane,
-    message: `Roll: ${rollText(rollSummary)}`,
-    roll: rollSummary,
-    details: { actionKind: action.kind, potency: action.potency, pool: action.pool ?? null },
-  });
+  const roll = skipOwnRoll
+    ? null
+    : rollDice(diceCount, getActorDie(actor, action), rng, actorAttributeModifier);
+  const rollSummary = roll
+    ? summarizeRoll({ actor, reason: action.name, attribute: action.accuracyAttribute, roll })
+    : null;
+  metrics.rawSuccesses = skipOwnRoll ? inheritedPrimaryAppliedSuccesses : (roll?.successes ?? 0);
+  if (roll && rollSummary) {
+    emitTranscriptEvent(state, {
+      type: rollEventType(action),
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Roll: ${rollText(rollSummary)}`,
+      roll: rollSummary,
+      details: { actionKind: action.kind, potency: action.potency, pool: action.pool ?? null },
+    });
+  }
 
   if (gateAlreadyResolved) {
     emitTranscriptEvent(state, {
@@ -701,22 +725,53 @@ function resolveSingleTargetAction(params: {
       actionId: action.id,
       actionName: action.name,
       lane,
-      message: `Linked effect: ${action.name} rides the primary defence result; no second Dodge, Protection, or Resist gate is rolled.`,
-      details: { gateAlreadyResolved: true, fromSecondary: Boolean(params.fromSecondary) },
+      message: action.usesPrimaryAppliedSuccesses
+        ? `Linked effect: ${action.name} rides ${inheritedPrimaryAppliedSuccesses} applied primary successes. No secondary roll is made. No second Dodge, Protection, or Resist gate is rolled.`
+        : `Linked effect: ${action.name} rides the primary defence result; no second Dodge, Protection, or Resist gate is rolled.`,
+      details: {
+        gateAlreadyResolved: true,
+        fromSecondary: Boolean(params.fromSecondary),
+        appliedPrimarySuccesses: inheritedPrimaryAppliedSuccesses,
+        skipOwnRoll,
+      },
     });
   } else if (action.kind === "attack" || action.kind === "control" || action.kind === "movement") {
-    const resistMetrics = resolveResist(state, target, action, roll.successes, rng);
+    const resistMetrics = resolveResist(state, target, action, metrics.rawSuccesses, rng);
     addMetrics(metrics, resistMetrics);
-    if (action.resistAttribute && resistMetrics.hostileSuccessesAfterResist <= 0) {
-      return metrics;
-    }
+  }
+
+  const activeAppliedSuccesses =
+    gateAlreadyResolved && action.usesPrimaryAppliedSuccesses
+      ? inheritedPrimaryAppliedSuccesses
+      : !gateAlreadyResolved && action.resistAttribute
+        ? metrics.hostileSuccessesAfterResist
+        : metrics.rawSuccesses;
+
+  if (!params.fromSecondary) {
+    emitTranscriptEvent(state, {
+      type: "statusCreated",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Applied primary successes: ${activeAppliedSuccesses}.`,
+      details: { appliedPrimarySuccesses: activeAppliedSuccesses },
+    });
+  }
+
+  if (activeAppliedSuccesses <= 0 && (Boolean(action.resistAttribute) || Boolean(action.usesPrimaryAppliedSuccesses))) {
+    return metrics;
   }
 
   if (action.kind === "attack") {
     const pool = action.pool ?? "physical";
-    const activeHostileSuccesses =
-      !gateAlreadyResolved && action.resistAttribute ? metrics.hostileSuccessesAfterResist : roll.successes;
-    const rawWounds = activeHostileSuccesses * action.potency;
+    const activeHostileSuccesses = activeAppliedSuccesses;
+    const effectPerSuccess = Math.max(1, action.effectPerPrimarySuccess ?? action.potency);
+    const rawWounds = activeHostileSuccesses * effectPerSuccess;
+    const woundLabel = actionDamageLabel(action, pool);
     emitTranscriptEvent(state, {
       type: "damageApplied",
       actorId: actor.id,
@@ -726,8 +781,10 @@ function resolveSingleTargetAction(params: {
       actionId: action.id,
       actionName: action.name,
       lane,
-      message: `Declared damage: ${action.name} has ${activeHostileSuccesses} active successes x ${action.potency} = ${rawWounds} ${pool} wounds before defence.`,
-      details: { activeSuccesses: activeHostileSuccesses, potency: action.potency, rawWounds, pool },
+      message: action.usesPrimaryAppliedSuccesses
+        ? `Declared damage: ${activeHostileSuccesses} applied primary successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds.`
+        : `Declared damage: ${action.name} has ${activeHostileSuccesses} active successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds before defence.`,
+      details: { activeSuccesses: activeHostileSuccesses, potency: effectPerSuccess, rawWounds, pool },
     });
     const normalDefenceMetrics = gateAlreadyResolved
       ? emptyResolution()
@@ -758,7 +815,7 @@ function resolveSingleTargetAction(params: {
       return metrics;
     }
     const activeSuccesses = activeHostileSuccesses;
-    const activeRawWounds = activeSuccesses * action.potency;
+    const activeRawWounds = activeSuccesses * effectPerSuccess;
     const passiveDefence = gateAlreadyResolved ? 0 : passiveDefenceAmount(target, pool);
     const normalDefenceBlocked = normalDefenceMetrics.defenceStringBlocked;
     const counterDefenceMetrics =
@@ -833,7 +890,7 @@ function resolveSingleTargetAction(params: {
     }
   } else if (action.kind === "healing") {
     if (action.recurring?.kind === "healingOverTime") {
-      const amount = Math.max(1, roll.successes * action.potency);
+      const amount = Math.max(1, activeAppliedSuccesses * action.potency);
       state.statusEffects.push({
         id: `${state.round}:${actor.id}:${action.id}:${target.id}:hot`,
         sourceActorId: actor.id,
@@ -871,7 +928,7 @@ function resolveSingleTargetAction(params: {
         details: { effect: "healingOverTime", durationRounds: action.recurring.durationRounds },
       });
     } else {
-      const healing = roll.successes * action.potency;
+      const healing = activeAppliedSuccesses * action.potency;
       metrics.healingDone = healWounds(target, action.pool ?? "physical", healing);
       emitTranscriptEvent(state, {
         type: "healingApplied",
@@ -882,7 +939,7 @@ function resolveSingleTargetAction(params: {
         actionId: action.id,
         actionName: action.name,
         lane,
-        message: `Healing: ${action.name} heals ${metrics.healingDone} ${action.pool ?? "physical"} wounds on ${target.name} (${roll.successes} successes x ${action.potency}).`,
+        message: `Healing: ${action.name} heals ${metrics.healingDone} ${action.pool ?? "physical"} wounds on ${target.name} (${activeAppliedSuccesses} successes x ${action.potency}).`,
         details: { healingRolled: healing, healingApplied: metrics.healingDone, pool: action.pool ?? "physical" },
       });
     }
@@ -934,7 +991,7 @@ function resolveSingleTargetAction(params: {
       });
     }
   } else if (action.kind === "defence") {
-    const amount = Math.max(1, roll.successes * Math.max(1, action.protection ?? action.potency));
+    const amount = Math.max(1, activeAppliedSuccesses * Math.max(1, action.protection ?? action.potency));
     state.statusEffects.push({
       id: `${state.round}:${actor.id}:${action.id}:${target.id}`,
       sourceActorId: actor.id,
@@ -960,17 +1017,18 @@ function resolveSingleTargetAction(params: {
       details: { effect: "protection", amount, pool: action.pool ?? "physical", durationRounds: action.modifier?.durationRounds ?? 1 },
     });
   } else if (action.kind === "control") {
+    const controlStacks = Math.max(1, activeAppliedSuccesses * Math.max(1, action.potency));
     state.statusEffects.push({
       id: `${state.round}:${actor.id}:${action.id}:${target.id}:control`,
       sourceActorId: actor.id,
       targetActorId: target.id,
       kind: "mainActionDenied",
-      amount: 1,
+      amount: controlStacks,
       sourceActionId: action.id,
       sourceActionName: action.name,
       remainingRounds: 1,
     });
-    metrics.controlTurnsApplied = 1;
+    metrics.controlTurnsApplied = controlStacks;
     emitTranscriptEvent(state, {
       type: "statusCreated",
       actorId: actor.id,
@@ -980,8 +1038,8 @@ function resolveSingleTargetAction(params: {
       actionId: action.id,
       actionName: action.name,
       lane,
-      message: `Control: ${action.name} denies ${target.name}'s main action for 1 turn.`,
-      details: { effect: "mainActionDenied", durationRounds: 1 },
+      message: `Control: ${action.name} applies ${controlStacks} stack${controlStacks === 1 ? "" : "s"} of Force No Main Action to ${target.name}.`,
+      details: { effect: "mainActionDenied", amount: controlStacks, durationRounds: 1 },
     });
   } else if (action.kind === "movement") {
     metrics.forcedMovementApplied = 1;
@@ -999,7 +1057,7 @@ function resolveSingleTargetAction(params: {
       details: { positionalAbstraction: true },
     });
   } else if (action.kind === "cleanse") {
-    const cleanseUnits = Math.max(1, roll.successes * Math.max(1, action.potency));
+    const cleanseUnits = Math.max(1, activeAppliedSuccesses * Math.max(1, action.potency));
     const removable = state.statusEffects.find(
       (effect) =>
         effect.targetActorId === target.id &&
@@ -1043,7 +1101,7 @@ function resolveSingleTargetAction(params: {
     }
   }
 
-  const primaryLanded = metrics.rawSuccesses > 0 && (!action.resistAttribute || metrics.hostileSuccessesAfterResist > 0);
+  const primaryLanded = activeAppliedSuccesses > 0;
   if (!params.fromSecondary && primaryLanded) {
     for (const secondaryAction of action.secondaryActions ?? []) {
       addMetrics(metrics, resolveSingleTargetAction({
@@ -1055,6 +1113,7 @@ function resolveSingleTargetAction(params: {
         lane,
         fromSecondary: true,
         gateAlreadyResolved: true,
+        primaryAppliedSuccesses: activeAppliedSuccesses,
       }));
     }
   }

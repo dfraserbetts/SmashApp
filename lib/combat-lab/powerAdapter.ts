@@ -6,7 +6,7 @@ import type {
   PowerIntention,
   RangeCategory,
 } from "@/lib/summoning/types";
-import { effectiveCooldownTurns } from "@/lib/summoning/render";
+import { effectiveAttackWoundsPerSuccess, effectiveCooldownTurns } from "@/lib/summoning/render";
 
 import type {
   CombatAction,
@@ -255,7 +255,11 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       packet.targetedAttribute ? CORE_TO_COMBAT_ATTRIBUTE[packet.targetedAttribute] : details.statTarget ?? details.statChoice,
       kind === "debuff" ? "Attack" : "Guard",
     );
-    const potency = asInt(packet.potency ?? power.potency, 1);
+    const rawPotency = asInt(packet.potency ?? power.potency, 1);
+    const potency =
+      kind === "attack"
+        ? Math.max(1, effectiveAttackWoundsPerSuccess(packet) ?? rawPotency)
+        : rawPotency;
     const diceCount = asInt(packet.diceCount ?? power.diceCount, 1);
     const rangeCategory = rangeCategoryForPower(power);
     const targetCount = targetCountForPower(power);
@@ -291,6 +295,11 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
         ...action,
         name: `${power.name} (${action.kind})`,
         cooldownRounds: 0,
+        linkedToPrimary: true,
+        usesPrimaryAppliedSuccesses: true,
+        effectPerPrimarySuccess: Math.max(1, action.potency),
+        skipOwnRoll: true,
+        skipOwnDefenceGate: true,
       }));
     });
 

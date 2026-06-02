@@ -64,6 +64,11 @@ export type CombatAction = {
   };
   resistAttribute?: CoreAttribute | null;
   secondaryActions?: CombatAction[];
+  linkedToPrimary?: boolean;
+  usesPrimaryAppliedSuccesses?: boolean;
+  effectPerPrimarySuccess?: number;
+  skipOwnRoll?: boolean;
+  skipOwnDefenceGate?: boolean;
   recurring?: {
     kind: "healingOverTime" | "ongoingDamage";
     durationRounds: number;

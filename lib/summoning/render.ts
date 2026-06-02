@@ -389,24 +389,30 @@ function deriveSecondaryScalingModeFromPrimaryPacket(
     : "PRIMARY_APPLIED_SUCCESSES";
 }
 
-function deriveWoundsPerSuccessFromPrimaryPacket(
-  primaryPacket: EffectPacket | undefined,
+export function effectiveAttackWoundsPerSuccess(
+  effectPacket: Pick<EffectPacket, "intention" | "dealsWounds" | "detailsJson" | "potency"> | undefined,
 ): number | null {
-  if (!primaryPacket) return null;
-  if (primaryPacket.intention !== "ATTACK" || primaryPacket.dealsWounds === false) return null;
+  if (!effectPacket) return null;
+  if (effectPacket.intention !== "ATTACK" || effectPacket.dealsWounds === false) return null;
   const details =
-    primaryPacket.detailsJson && typeof primaryPacket.detailsJson === "object" && !Array.isArray(primaryPacket.detailsJson)
-      ? (primaryPacket.detailsJson as Record<string, unknown>)
+    effectPacket.detailsJson && typeof effectPacket.detailsJson === "object" && !Array.isArray(effectPacket.detailsJson)
+      ? (effectPacket.detailsJson as Record<string, unknown>)
       : {};
   const selectedDamageTypeCount = getDetailsStringArray(details, "damageTypes")
     .map((entry) => entry.trim())
     .filter(Boolean).length;
-  const potency = Math.max(1, Number(primaryPacket.potency ?? 1));
+  const potency = Math.max(1, Number(effectPacket.potency ?? 1));
   const effectiveDamageTypeCount = Math.max(
     1,
     Math.min(MAX_POWER_PACKET_DAMAGE_TYPES, selectedDamageTypeCount),
   );
   return potency * 2 * effectiveDamageTypeCount;
+}
+
+function deriveWoundsPerSuccessFromPrimaryPacket(
+  primaryPacket: EffectPacket | undefined,
+): number | null {
+  return effectiveAttackWoundsPerSuccess(primaryPacket);
 }
 
 function readPositiveWholeNumber(value: unknown): number | null {

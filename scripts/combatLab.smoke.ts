@@ -777,6 +777,100 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (adapted.actions[0].cooldownRounds !== 3 || adapted.actions[0].secondaryActions?.[0]?.cooldownRounds !== 0) {
     throw new Error("Linked secondary cooldown handling did not keep cooldown on the top-level power only.");
   }
+  if (
+    !adapted.actions[0].secondaryActions?.[0]?.linkedToPrimary ||
+    !adapted.actions[0].secondaryActions?.[0]?.usesPrimaryAppliedSuccesses ||
+    !adapted.actions[0].secondaryActions?.[0]?.skipOwnRoll ||
+    !adapted.actions[0].secondaryActions?.[0]?.skipOwnDefenceGate
+  ) {
+    throw new Error("Linked secondary packets were not marked as primary-success riders.");
+  }
+}
+
+{
+  const base = makeFixturePower({
+    id: "staggering-style",
+    name: "Staggering Strike",
+    intention: "CONTROL",
+    diceCount: 4,
+    potency: 3,
+    cooldownTurns: 2,
+    statTarget: "Fortitude",
+  });
+  const primary = {
+    ...base.effectPackets[0],
+    intention: "CONTROL" as const,
+    type: "CONTROL" as const,
+    potency: 3,
+    targetedAttribute: "FORTITUDE" as const,
+    detailsJson: {
+      controlMode: "Force no main action",
+      controlTheme: "BODY_ENDURANCE",
+      controlEffect: "Force No Main Action",
+    },
+  };
+  const secondary = {
+    ...primary,
+    sortOrder: 1,
+    packetIndex: 1,
+    intention: "ATTACK" as const,
+    type: "ATTACK" as const,
+    diceCount: 1,
+    potency: 2,
+    dealsWounds: true,
+    woundChannel: "PHYSICAL" as const,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      damageTypes: ["Blunt"],
+    },
+  };
+  const adapted = adaptPowerToCombatActions({
+    ...base,
+    primaryDefenceGate: {
+      sourcePacketIndex: 0,
+      gateResult: "RESIST",
+      protectionChannel: null,
+      resistAttribute: "FORTITUDE",
+      hostileEntryPattern: "DIRECT",
+      resolutionSource: "EXPLICIT",
+    },
+    effectPackets: [primary, secondary],
+    intentions: [primary, secondary],
+  });
+  const primaryAction = adapted.actions[0];
+  const secondaryAction = primaryAction?.secondaryActions?.[0];
+  if (!primaryAction || !secondaryAction) {
+    throw new Error(`Staggering-style linked power did not adapt: ${JSON.stringify(adapted)}.`);
+  }
+  if (secondaryAction.potency !== 4 || secondaryAction.effectPerPrimarySuccess !== 4) {
+    throw new Error(`Linked secondary did not use rendered/effective wound value 4: ${JSON.stringify(secondaryAction)}.`);
+  }
+  const state = createCombatState(
+    [fixtureActor("CL-L3-Bruiser", "players", { actions: [primaryAction], attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" } })],
+    [fixtureActor("Ice Wolf", "monsters", { resist: { FORTITUDE: 0 }, physicalProtection: 0, dodgeDice: 99, physicalDefenceDice: 99, physicalBlockPerSuccess: 99 })],
+    { captureTranscript: true },
+  );
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: primaryAction,
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0, 0]),
+    lane: "power",
+  });
+  if (resolution.hostileSuccessesBeforeResist !== 4 || resolution.hostileSuccessesAfterResist !== 3 || resolution.netWounds !== 12) {
+    throw new Error(`Staggering-style linked secondary resolved incorrectly: ${JSON.stringify(resolution)}.`);
+  }
+  if (state.transcriptLines.some((line) => /Roll: .*Staggering Strike \(attack\)/i.test(line))) {
+    throw new Error("Linked secondary made its own roll.");
+  }
+  const resistLines = state.transcriptLines.filter((line) => /Resist formula/i.test(line));
+  if (resistLines.length !== 1) {
+    throw new Error(`Linked secondary created an extra defence/resist gate: ${resistLines.join(" | ")}`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Applied primary successes: 3/i, "staggering applied primary successes");
+  expectTranscriptLine(state.transcriptLines, /Linked effect: Staggering Strike \(attack\) rides 3 applied primary successes\. No secondary roll is made/i, "staggering linked secondary no roll");
+  expectTranscriptLine(state.transcriptLines, /Declared damage: 3 applied primary successes x 4 = 12 physical Blunt wounds/i, "staggering effective linked damage");
 }
 
 {
@@ -1230,7 +1324,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     action: action({ kind: "control", diceCount: 3, potency: 1, resistAttribute: "FORTITUDE" }),
     rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0, 0]),
   });
-  if (resolution.resistRolls !== 1 || resolution.hostileSuccessesCancelledByResist !== 1 || resolution.controlTurnsApplied !== 1) {
+  if (resolution.resistRolls !== 1 || resolution.hostileSuccessesCancelledByResist !== 1 || resolution.controlTurnsApplied !== 2) {
     throw new Error("Resist did not cancel hostile successes success-by-success.");
   }
 }
@@ -2415,6 +2509,11 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     diceCount: 1,
     potency: 2,
     resistAttribute: "FORTITUDE",
+    linkedToPrimary: true,
+    usesPrimaryAppliedSuccesses: true,
+    effectPerPrimarySuccess: 2,
+    skipOwnRoll: true,
+    skipOwnDefenceGate: true,
   });
   const primary = action({
     id: "linked-primary-control",
@@ -2445,7 +2544,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (resistLines.length !== 1 || resolution.netWounds <= 0) {
     throw new Error(`Linked secondary did not ride the primary gate: resist lines ${resistLines.length}, net wounds ${resolution.netWounds}.`);
   }
-  expectTranscriptLine(state.transcriptLines, /Linked effect: Linked Secondary Burn rides the primary defence result/i, "linked secondary gate transcript");
+  expectTranscriptLine(state.transcriptLines, /Linked effect: Linked Secondary Burn rides 1 applied primary successes/i, "linked secondary gate transcript");
 }
 
 {
@@ -2457,6 +2556,11 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     diceCount: 1,
     potency: 2,
     resistAttribute: "FORTITUDE",
+    linkedToPrimary: true,
+    usesPrimaryAppliedSuccesses: true,
+    effectPerPrimarySuccess: 2,
+    skipOwnRoll: true,
+    skipOwnDefenceGate: true,
   });
   const primary = action({
     id: "fully-resisted-primary",
