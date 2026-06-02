@@ -14,10 +14,20 @@ export async function getSupabaseServer() {
           return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: unknown) {
-          cookieStore.set({ name, value, ...(options as Record<string, unknown>) });
+          try {
+            cookieStore.set({ name, value, ...(options as Record<string, unknown>) });
+          } catch {
+            // Server Components can read cookies but cannot commit Supabase refresh writes.
+            // Route Handlers and proxy.ts still refresh cookies on request/response paths.
+          }
         },
         remove(name: string, options: unknown) {
-          cookieStore.set({ name, value: "", ...(options as Record<string, unknown>) });
+          try {
+            cookieStore.set({ name, value: "", ...(options as Record<string, unknown>) });
+          } catch {
+            // Server Components can read cookies but cannot commit Supabase refresh writes.
+            // Route Handlers and proxy.ts still refresh cookies on request/response paths.
+          }
         },
       },
     },
