@@ -5,8 +5,11 @@ import type {
   CombatCooldownTrace,
   CombatSide,
   CombatState,
+  CombatTranscriptEvent,
   UnsupportedPowerSummary,
 } from "./types";
+
+const MAX_TRANSCRIPT_LINES = 1200;
 
 function cloneAction(action: CombatAction): CombatAction {
   return {
@@ -58,7 +61,11 @@ export function createActorInstances(actor: CombatActor, quantity: number): Comb
   });
 }
 
-export function createCombatState(players: CombatActor[], monsters: CombatActor[]): CombatState {
+export function createCombatState(
+  players: CombatActor[],
+  monsters: CombatActor[],
+  options: { captureTranscript?: boolean } = {},
+): CombatState {
   return {
     round: 1,
     actors: [...players, ...monsters].map((actor) => ({
@@ -68,14 +75,51 @@ export function createCombatState(players: CombatActor[], monsters: CombatActor[
       mentalHpCurrent: actor.mentalHpMax,
     })),
     cooldowns: {},
+    currentTurnActorId: null,
     cooldownTrace: {},
     counterUses: {},
     incomingActionsByTargetThisRound: {},
     responsesRemaining: {},
     defenceDegradation: {},
     statusEffects: [],
+    captureTranscript: Boolean(options.captureTranscript),
+    transcriptEvents: [],
+    transcriptLines: [],
+    transcriptTruncated: false,
+    transcriptEventSeq: 0,
     log: [],
   };
+}
+
+export function emitTranscriptEvent(
+  state: CombatState,
+  event: Omit<CombatTranscriptEvent, "id" | "round"> & { round?: number },
+) {
+  if (!state.captureTranscript) return;
+  if (state.transcriptLines.length >= MAX_TRANSCRIPT_LINES) {
+    if (!state.transcriptTruncated) {
+      state.transcriptTruncated = true;
+      const truncatedEvent: CombatTranscriptEvent = {
+        id: `transcript-${state.transcriptEventSeq + 1}`,
+        type: "roundEnd",
+        round: state.round,
+        message: `Transcript truncated after ${MAX_TRANSCRIPT_LINES} lines.`,
+      };
+      state.transcriptEventSeq += 1;
+      state.transcriptEvents.push(truncatedEvent);
+      state.transcriptLines.push(truncatedEvent.message);
+    }
+    return;
+  }
+
+  state.transcriptEventSeq += 1;
+  const entry: CombatTranscriptEvent = {
+    ...event,
+    id: `transcript-${state.transcriptEventSeq}`,
+    round: event.round ?? state.round,
+  };
+  state.transcriptEvents.push(entry);
+  state.transcriptLines.push(entry.message);
 }
 
 export function getLivingActors(state: CombatState, side?: CombatSide): CombatActor[] {
@@ -93,6 +137,16 @@ export function markDefeatedActors(state: CombatState): string[] {
     if (actor.physicalHpCurrent <= 0 || actor.mentalHpCurrent <= 0) {
       actor.defeated = true;
       defeated.push(actor.id);
+      emitTranscriptEvent(state, {
+        type: "actorDefeated",
+        actorId: actor.id,
+        actorName: actor.name,
+        message: `Defeat: ${actor.name} is defeated.`,
+        details: {
+          physicalHpCurrent: actor.physicalHpCurrent,
+          mentalHpCurrent: actor.mentalHpCurrent,
+        },
+      });
     }
   }
   return defeated;
@@ -112,12 +166,30 @@ export function recordIncomingActionPressure(state: CombatState, targetId: strin
 
 export function refreshActorResponses(state: CombatState, actorId: string) {
   state.responsesRemaining[actorId] = 2;
+  const actor = state.actors.find((entry) => entry.id === actorId);
+  emitTranscriptEvent(state, {
+    type: "responsesRefresh",
+    actorId,
+    actorName: actor?.name,
+    lane: "startOfTurn",
+    message: `Responses: ${actor?.name ?? actorId} refreshes to 2 responses.`,
+    details: { responsesRemaining: 2 },
+  });
 }
 
 export function spendActorResponse(state: CombatState, actorId: string): boolean {
   const remaining = state.responsesRemaining[actorId] ?? 0;
   if (remaining <= 0) return false;
   state.responsesRemaining[actorId] = remaining - 1;
+  const actor = state.actors.find((entry) => entry.id === actorId);
+  emitTranscriptEvent(state, {
+    type: "responseAction",
+    actorId,
+    actorName: actor?.name,
+    lane: "response",
+    message: `Response spent: ${actor?.name ?? actorId} spends 1 response (${state.responsesRemaining[actorId]} remaining).`,
+    details: { responsesRemaining: state.responsesRemaining[actorId] },
+  });
   return true;
 }
 
@@ -147,7 +219,7 @@ function ensureCooldownTrace(state: CombatState, actor: CombatActor, action: Com
 }
 
 export function getActionCooldownRemaining(state: CombatState, actorId: string, actionId: string) {
-  return state.cooldowns[cooldownKey(actorId, actionId)] ?? 0;
+  return state.cooldowns[cooldownKey(actorId, actionId)]?.remaining ?? 0;
 }
 
 export function isActionOnCooldown(state: CombatState, actorId: string, actionId: string) {
@@ -167,8 +239,24 @@ export function recordCooldownPreventedUse(state: CombatState, actor: CombatActo
 
 export function applyActionCooldown(state: CombatState, actor: CombatActor, action: CombatAction) {
   if (action.cooldownRounds <= 0) return;
-  state.cooldowns[cooldownKey(actor.id, action.id)] = action.cooldownRounds;
+  const appliedTurnActorId = state.currentTurnActorId ?? null;
+  state.cooldowns[cooldownKey(actor.id, action.id)] = {
+    remaining: action.cooldownRounds,
+    appliedRound: state.round,
+    appliedTurnActorId,
+    appliedOnOwnerTurn: appliedTurnActorId === actor.id,
+  };
   ensureCooldownTrace(state, actor, action).cooldownApplied += 1;
+  emitTranscriptEvent(state, {
+    type: "cooldownApplied",
+    actorId: actor.id,
+    actorName: actor.name,
+    actionId: action.id,
+    actionName: action.name,
+    lane: action.counterMode ? "response" : undefined,
+    message: `Cooldown: ${action.name} enters cooldown ${action.cooldownRounds}.`,
+    details: { cooldownRounds: action.cooldownRounds },
+  });
 }
 
 export function sampleActorCooldownAvailability(state: CombatState, actor: CombatActor) {
@@ -186,12 +274,60 @@ export function sampleActorCooldownAvailability(state: CombatState, actor: Comba
 export function tickActorCooldowns(state: CombatState, actorId: string) {
   for (const key of Object.keys(state.cooldowns)) {
     if (!key.startsWith(`${actorId}:`)) continue;
-    const previous = state.cooldowns[key] ?? 0;
-    state.cooldowns[key] = Math.max(0, state.cooldowns[key] - 1);
-    if (previous > 0 && state.cooldownTrace[key]) {
-      state.cooldownTrace[key].cooldownTicks += 1;
+    const entry = state.cooldowns[key];
+    if (!entry) continue;
+    const trace = state.cooldownTrace[key];
+
+    if (
+      entry.appliedOnOwnerTurn &&
+      entry.appliedRound === state.round &&
+      entry.appliedTurnActorId === actorId
+    ) {
+      if (trace) {
+        emitTranscriptEvent(state, {
+          type: "cooldownTicked",
+          actorId: trace.actorId,
+          actorName: trace.actorName,
+          actionId: trace.actionId,
+          actionName: trace.actionName,
+          lane: "endOfTurn",
+          message: `Cooldown tick skipped: ${trace.actionName} entered cooldown this turn.`,
+          details: { remainingCooldown: entry.remaining },
+        });
+      }
+      continue;
     }
-    if (state.cooldowns[key] === 0) delete state.cooldowns[key];
+
+    const previous = entry.remaining;
+    entry.remaining = Math.max(0, entry.remaining - 1);
+    if (previous > 0 && trace) {
+      trace.cooldownTicks += 1;
+      emitTranscriptEvent(state, {
+        type: "cooldownTicked",
+        actorId: trace.actorId,
+        actorName: trace.actorName,
+        actionId: trace.actionId,
+        actionName: trace.actionName,
+        lane: "endOfTurn",
+        message: `Cooldown tick: ${trace.actionName} ${previous} -> ${entry.remaining}.`,
+        details: { previousCooldown: previous, remainingCooldown: entry.remaining },
+      });
+    }
+    if (entry.remaining === 0) {
+      delete state.cooldowns[key];
+      if (trace) {
+        emitTranscriptEvent(state, {
+          type: "cooldownTicked",
+          actorId: trace.actorId,
+          actorName: trace.actorName,
+          actionId: trace.actionId,
+          actionName: trace.actionName,
+          lane: "endOfTurn",
+          message: `Cooldown ready: ${trace.actionName} is ready next turn.`,
+          details: { remainingCooldown: 0 },
+        });
+      }
+    }
   }
 }
 

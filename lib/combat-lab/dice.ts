@@ -27,8 +27,7 @@ export function diceSides(die: CombatDieSize): number {
 
 export function successCountForRoll(roll: number, modifier = 0): number {
   const modifiedRoll = roll + modifier;
-  if (modifiedRoll >= 11) return 3;
-  if (modifiedRoll >= 8) return 2;
+  if (modifiedRoll >= 10) return 2;
   if (modifiedRoll >= 4) return 1;
   return 0;
 }
@@ -39,9 +38,16 @@ export function rollDie(die: CombatDieSize, rng: Rng, modifier = 0): { roll: num
 }
 
 export function rollDice(count: number, die: CombatDieSize, rng: Rng, modifier = 0) {
-  const rolls = Array.from({ length: Math.max(0, Math.trunc(count)) }, () => rollDie(die, rng, modifier));
+  const diceCount = Math.max(0, Math.trunc(count));
+  const rolls = Array.from({ length: diceCount }, () => rollDie(die, rng, modifier));
   return {
+    diceCount,
+    dieSize: die,
+    modifier,
     rolls,
+    rawResults: rolls.map((roll) => roll.roll),
+    modifiedResults: rolls.map((roll) => roll.modifiedRoll),
+    perDieSuccesses: rolls.map((roll) => roll.successes),
     successes: rolls.reduce((sum, roll) => sum + roll.successes, 0),
   };
 }

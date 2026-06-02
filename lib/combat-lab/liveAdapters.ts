@@ -7,14 +7,23 @@ import {
   getEquippedEntries,
   type CharacterBuilderDerivedBackpackItem,
 } from "@/lib/characterBuilder/derivedStats";
-import { getAttributeNumericValue } from "@/lib/summoning/attributes";
+import {
+  getArmorSkillDiceCountFromAttributes,
+  getAttributeNumericValue,
+  getDodgeValue,
+  getWillpowerDiceCountFromAttributes,
+} from "@/lib/summoning/attributes";
 import type {
   EffectPacket,
   MonsterNaturalAttackConfig,
   Power,
   RangeCategory,
 } from "@/lib/summoning/types";
-import type { SummoningEquipmentItem } from "@/lib/summoning/equipment";
+import {
+  getHighestItemModifiers,
+  getProtectionTotalsFromItems,
+  type SummoningEquipmentItem,
+} from "@/lib/summoning/equipment";
 
 import type { CombatAction, CombatActor, CombatAttributeName, CombatDieSize } from "./types";
 import {
@@ -131,6 +140,8 @@ type MonsterRow = {
   mentalPerseveranceMax: number;
   physicalProtection: number;
   mentalProtection: number;
+  naturalPhysicalProtection?: number;
+  naturalMentalProtection?: number;
   attackDie: CombatDieSize;
   attackResistDie: number;
   attackModifier?: number;
@@ -160,6 +171,15 @@ type MonsterRow = {
   mainHandItemId?: string | null;
   offHandItemId?: string | null;
   smallItemId?: string | null;
+  headArmorItemId?: string | null;
+  shoulderArmorItemId?: string | null;
+  torsoArmorItemId?: string | null;
+  legsArmorItemId?: string | null;
+  feetArmorItemId?: string | null;
+  headItemId?: string | null;
+  neckItemId?: string | null;
+  armsItemId?: string | null;
+  beltItemId?: string | null;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -301,6 +321,44 @@ function itemContributesDefenceOnly(item: {
 
 function equipmentSlotLabel(slot: string) {
   return slot.endsWith("ItemId") ? slot.slice(0, -"ItemId".length) : slot;
+}
+
+function monsterEquippedItems(
+  row: MonsterRow,
+  equipmentById: Map<string, SummoningEquipmentItem>,
+): Array<SummoningEquipmentItem | null> {
+  const slotIds = [
+    row.mainHandItemId ?? null,
+    row.offHandItemId ?? null,
+    row.smallItemId ?? null,
+    row.headArmorItemId ?? null,
+    row.shoulderArmorItemId ?? null,
+    row.torsoArmorItemId ?? null,
+    row.legsArmorItemId ?? null,
+    row.feetArmorItemId ?? null,
+    row.headItemId ?? null,
+    row.neckItemId ?? null,
+    row.armsItemId ?? null,
+    row.beltItemId ?? null,
+  ];
+  return slotIds.map((id) => (id ? equipmentById.get(id) ?? null : null));
+}
+
+function finiteProtection(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, Math.trunc(numeric)) : null;
+}
+
+function blockPerSuccess(params: {
+  protection: number;
+  dice: number;
+  tuning: Pick<ProtectionTuningValues, "protectionK" | "protectionS">;
+}) {
+  if (params.protection <= 0) return 0;
+  return Math.ceil(
+    (params.protection / params.tuning.protectionK) *
+      (1 + Math.max(1, params.dice) / params.tuning.protectionS),
+  );
 }
 
 export function itemTemplateToSummoningEquipmentItem(template: ItemTemplateRow): SummoningEquipmentItem {
@@ -483,7 +541,7 @@ export function adaptCampaignCharacterToCombatActor(
   const synergy = attributeNumber(builderData, "Synergy") + positiveModifier(modifiers.synergyModifier);
   const bravery = attributeNumber(builderData, "Bravery") + positiveModifier(modifiers.braveryModifier);
 
-  const adaptedPowers = builderData.powers.map(adaptPowerToCombatActions);
+  const adaptedPowers = builderData.powers.map((power) => adaptPowerToCombatActions(power));
   const powerActions = adaptedPowers.flatMap((entry) => entry.actions);
   warnings.push(
     ...adaptedPowers.flatMap((entry) =>
@@ -621,6 +679,7 @@ export function adaptCampaignCharacterToCombatActor(
 export function adaptMonsterToCombatLabActor(
   row: MonsterRow,
   equipmentById = new Map<string, SummoningEquipmentItem>(),
+  protectionTuning: ProtectionTuningValues,
 ): { actor: CombatActor; warnings: CombatLabHydrationWarning[] } {
   const warnings: CombatLabHydrationWarning[] = [];
   const unsupportedEquipment: string[] = [];
@@ -637,7 +696,13 @@ export function adaptMonsterToCombatLabActor(
       makeWarning(row.id, row.name, "powerAbstraction", message),
     ),
   );
-  const weaponSkill = Math.max(1, Math.trunc(asNumber(row.weaponSkillValue, 1) + asNumber(row.weaponSkillModifier)));
+  const equippedItems = monsterEquippedItems(row, equipmentById);
+  const itemModifiers = getHighestItemModifiers(equippedItems);
+  const itemProtection = getProtectionTotalsFromItems(equippedItems);
+  const weaponSkill = Math.max(
+    1,
+    Math.trunc(asNumber(row.weaponSkillValue, 1) + asNumber(row.weaponSkillModifier) + Math.max(0, itemModifiers.weaponSkillModifier ?? 0)),
+  );
 
   const attackRows =
     Array.isArray(row.attacks) && row.attacks.length > 0
@@ -757,15 +822,54 @@ export function adaptMonsterToCombatLabActor(
   const synergy = getAttributeNumericValue(row.synergyDie) + asNumber(row.synergyModifier);
   const bravery = getAttributeNumericValue(row.braveryDie) + asNumber(row.braveryModifier);
   const actions = [...naturalAttackActions, ...equippedWeaponActions, ...fallbackActions, ...powerActions];
-  const dodgeValue = Math.max(0, Math.ceil((guard + intellect) / 2));
-  const armorSkill = Math.max(1, Math.trunc(asNumber(row.armorSkillValue, guard) + asNumber(row.armorSkillModifier)));
-  const mentalDefenceDice = Math.max(1, Math.ceil(bravery / 3));
+  const naturalPhysicalProtection =
+    finiteProtection(row.naturalPhysicalProtection) ??
+    (itemProtection.physicalProtection > 0 ? 0 : Math.max(0, row.physicalProtection));
+  const naturalMentalProtection =
+    finiteProtection(row.naturalMentalProtection) ??
+    (itemProtection.mentalProtection > 0 ? 0 : Math.max(0, row.mentalProtection));
+  const totalPhysicalProtection = naturalPhysicalProtection + itemProtection.physicalProtection;
+  const totalMentalProtection = naturalMentalProtection + itemProtection.mentalProtection;
+  const dodgeValue = Math.max(
+    0,
+    getDodgeValue(
+      row.guardDie,
+      row.intellectDie,
+      row.level,
+      totalPhysicalProtection,
+      protectionTuning,
+    ),
+  );
+  const dodgeDice = Math.max(0, Math.ceil(dodgeValue / 6) + Math.max(0, Math.trunc(itemModifiers.dodgeModifier ?? 0)));
+  const baseArmorSkill = getArmorSkillDiceCountFromAttributes(row.guardDie, row.fortitudeDie, protectionTuning);
+  const armorSkill = Math.max(
+    1,
+    Math.trunc(
+      baseArmorSkill +
+        Math.max(0, Math.trunc(itemModifiers.armorSkillModifier ?? 0)),
+    ),
+  );
+  const mentalDefenceDice = Math.max(
+    1,
+    getWillpowerDiceCountFromAttributes(row.synergyDie, row.braveryDie, protectionTuning) +
+      Math.max(0, Math.trunc(itemModifiers.willpowerModifier ?? 0)),
+  );
+  const physicalBlockPerSuccess = blockPerSuccess({
+    protection: totalPhysicalProtection,
+    dice: armorSkill,
+    tuning: protectionTuning,
+  });
+  const mentalBlockPerSuccess = blockPerSuccess({
+    protection: totalMentalProtection,
+    dice: mentalDefenceDice,
+    tuning: protectionTuning,
+  });
   warnings.push(
     makeWarning(
       row.id,
       row.name,
-      "defenceStrings",
-      "Monster mental defence dice are approximated from Bravery until a dedicated Willpower value is stored for monsters.",
+      "defenceSummary",
+      `Physical Defence: ${armorSkill} x ${row.guardDie}, blocks ${physicalBlockPerSuccess}/success. Mental Defence: ${mentalDefenceDice} x ${row.braveryDie}, blocks ${mentalBlockPerSuccess}/success.`,
     ),
   );
 
@@ -784,11 +888,11 @@ export function adaptMonsterToCombatLabActor(
       physicalProtection: 0,
       mentalProtection: 0,
       dodgeValue,
-      dodgeDice: Math.max(1, Math.ceil(dodgeValue / 6)),
+      dodgeDice,
       physicalDefenceDice: armorSkill,
-      physicalBlockPerSuccess: Math.max(0, row.physicalProtection),
+      physicalBlockPerSuccess,
       mentalDefenceDice,
-      mentalBlockPerSuccess: Math.max(0, row.mentalProtection),
+      mentalBlockPerSuccess,
       attributes: { Attack: attack, Guard: guard, Fortitude: fortitude, Intellect: intellect, Synergy: synergy, Bravery: bravery },
       attributeDice: {
         Attack: row.attackDie,

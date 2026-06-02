@@ -18,6 +18,8 @@ import { defaultBuilderData, type CharacterBuilderData } from "../lib/characterB
 import { buildCharacterDerivedCombatStats } from "../lib/characterBuilder/derivedStats";
 import {
   adaptCampaignCharacterToCombatActor,
+  adaptMonsterToCombatLabActor,
+  itemTemplateToSummoningEquipmentItem,
   type CombatLabHydrationWarning,
 } from "../lib/combat-lab/liveAdapters";
 import {
@@ -28,10 +30,11 @@ import {
 } from "../lib/combat-lab/powerAdapter";
 import { calculateOutcomeSummary, formatSuiteReport, runScenarioSuite } from "../lib/combat-lab/reporting";
 import { chooseTarget, chooseTurnAction } from "../lib/combat-lab/targetingPolicies";
-import type { CombatAction, CombatActor } from "../lib/combat-lab/types";
+import type { CombatAction, CombatActor, CombatState } from "../lib/combat-lab/types";
 
 type CombatLabCharacterRow = Parameters<typeof adaptCampaignCharacterToCombatActor>[0];
 type CombatLabCharacterBackpackItem = NonNullable<CombatLabCharacterRow["backpackItems"]>[number];
+type CombatLabMonsterRow = Parameters<typeof adaptMonsterToCombatLabActor>[0];
 
 function rngFrom(values: number[]): Rng {
   let index = 0;
@@ -84,6 +87,27 @@ function action(overrides: Partial<CombatAction> = {}): CombatAction {
     potency: 3,
     cooldownRounds: 0,
     ...overrides,
+  };
+}
+
+function expectTranscriptLine(lines: string[], pattern: RegExp, label: string) {
+  if (!lines.some((line) => pattern.test(line))) {
+    throw new Error(`Transcript missing ${label}: ${lines.slice(0, 12).join(" | ")}`);
+  }
+}
+
+function setCooldown(
+  state: CombatState,
+  actorId: string,
+  actionId: string,
+  remaining: number,
+  options: Partial<CombatState["cooldowns"][string]> = {},
+) {
+  state.cooldowns[`${actorId}:${actionId}`] = {
+    remaining,
+    appliedRound: options.appliedRound ?? 0,
+    appliedTurnActorId: options.appliedTurnActorId ?? null,
+    appliedOnOwnerTurn: options.appliedOnOwnerTurn ?? false,
   };
 }
 
@@ -186,6 +210,61 @@ function makeCharacterRow(params: {
     level: 3,
     builderData: params.builderData,
     backpackItems: params.backpackItems,
+  };
+}
+
+function makeMonsterRow(overrides: Partial<CombatLabMonsterRow> = {}): CombatLabMonsterRow {
+  return {
+    id: "synthetic-monster",
+    name: "Synthetic Monster",
+    level: 5,
+    tier: "ELITE",
+    legendary: false,
+    physicalResilienceMax: 80,
+    mentalPerseveranceMax: 80,
+    physicalProtection: 10,
+    mentalProtection: 0,
+    naturalPhysicalProtection: 10,
+    naturalMentalProtection: 0,
+    attackDie: "D8",
+    attackResistDie: 0,
+    attackModifier: 0,
+    guardDie: "D8",
+    guardResistDie: 0,
+    guardModifier: 0,
+    fortitudeDie: "D8",
+    fortitudeResistDie: 0,
+    fortitudeModifier: 0,
+    intellectDie: "D8",
+    intellectResistDie: 0,
+    intellectModifier: 0,
+    synergyDie: "D8",
+    synergyResistDie: 0,
+    synergyModifier: 0,
+    braveryDie: "D8",
+    braveryResistDie: 0,
+    braveryModifier: 0,
+    weaponSkillValue: 3,
+    weaponSkillModifier: 0,
+    armorSkillValue: 3,
+    armorSkillModifier: 0,
+    powers: [],
+    naturalAttack: null,
+    attacks: [],
+    traits: [],
+    mainHandItemId: null,
+    offHandItemId: null,
+    smallItemId: null,
+    headArmorItemId: null,
+    shoulderArmorItemId: null,
+    torsoArmorItemId: null,
+    legsArmorItemId: null,
+    feetArmorItemId: null,
+    headItemId: null,
+    neckItemId: null,
+    armsItemId: null,
+    beltItemId: null,
+    ...overrides,
   };
 }
 
@@ -540,6 +619,89 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const monsterTuning = {
+    ...DEFAULT_COMBAT_TUNING_VALUES,
+    protectionK: 4,
+    protectionS: 6,
+  };
+  const { actor } = adaptMonsterToCombatLabActor(makeMonsterRow(), new Map(), monsterTuning);
+  if (
+    actor.physicalDefenceDice !== 3 ||
+    actor.physicalBlockPerSuccess !== 4 ||
+    actor.attributeDice.Guard !== "D8"
+  ) {
+    throw new Error(
+      `Monster physical defence hydration did not match Monster Block values: ${JSON.stringify({
+        physicalDefenceDice: actor.physicalDefenceDice,
+        physicalBlockPerSuccess: actor.physicalBlockPerSuccess,
+        guardDie: actor.attributeDice.Guard,
+      })}.`,
+    );
+  }
+  if (!actor.hydration.warnings.some((warning) => /Physical Defence: 3 x D8, blocks 4\/success/i.test(warning))) {
+    throw new Error("Monster defence summary was not reported in hydration output.");
+  }
+}
+
+{
+  const monsterTuning = {
+    ...DEFAULT_COMBAT_TUNING_VALUES,
+    protectionK: 4,
+    protectionS: 6,
+  };
+  const shield = itemTemplateToSummoningEquipmentItem(makeBackpackRow({
+    id: "ppv-confusion-shield",
+    name: "PPV Confusion Shield",
+    type: "SHIELD",
+    ppv: 10,
+  }).partyInventoryItem.itemTemplate);
+  const { actor } = adaptMonsterToCombatLabActor(
+    makeMonsterRow({
+      physicalProtection: 999,
+      naturalPhysicalProtection: 0,
+      offHandItemId: shield.id,
+    }),
+    new Map([[shield.id, shield]]),
+    monsterTuning,
+  );
+  if (actor.physicalDefenceDice !== 3 || actor.physicalBlockPerSuccess !== 4) {
+    throw new Error("Monster defence hydration confused raw PPV/package value with final block-per-success.");
+  }
+}
+
+{
+  const monsterTuning = {
+    ...DEFAULT_COMBAT_TUNING_VALUES,
+    protectionK: 4,
+    protectionS: 6,
+  };
+  const { actor: defender } = adaptMonsterToCombatLabActor(makeMonsterRow({
+    id: "monster-defence-resolution-target",
+    name: "Monster Defence Resolution Target",
+  }), new Map(), monsterTuning);
+  const attacker = fixtureActor("monster-defence-resolution-attacker", "players", {
+    actions: [action({ id: "monster-defence-resolution-hit", diceCount: 5, potency: 4 })],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0.25, 0.4, 0.8]),
+    lane: "main",
+  });
+  if (
+    resolution.defenceStringBlocked !== 8 ||
+    resolution.protectionPrevented !== 8 ||
+    resolution.netWounds !== 12
+  ) {
+    throw new Error(`Monster physical defence blocked the wrong amount: ${JSON.stringify(resolution)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Physical Defence blocked 8 of 20 physical wounds \(4 block per success\)/i, "monster physical block per success transcript");
+}
+
+{
   const defensiveShield = makeBackpackRow({
     id: "defensive-shield",
     name: "Defensive Only Shield",
@@ -592,6 +754,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     intention: "ATTACK",
     diceCount: 4,
     potency: 2,
+    cooldownTurns: 3,
     durationTurns: undefined,
   });
   const primary = base.effectPackets[0];
@@ -611,6 +774,75 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (adapted.actions.length !== 1 || (adapted.actions[0].secondaryActions?.length ?? 0) !== 1) {
     throw new Error("Linked secondary attack packets were not nested under a single top-level power action.");
   }
+  if (adapted.actions[0].cooldownRounds !== 3 || adapted.actions[0].secondaryActions?.[0]?.cooldownRounds !== 0) {
+    throw new Error("Linked secondary cooldown handling did not keep cooldown on the top-level power only.");
+  }
+}
+
+{
+  const authoredCooldown = adaptPowerToCombatActions(makeFixturePower({
+    id: "authored-cooldown-power",
+    name: "Authored Cooldown Power",
+    intention: "ATTACK",
+    diceCount: 3,
+    potency: 2,
+    cooldownTurns: 3,
+  }));
+  if (authoredCooldown.actions[0]?.cooldownRounds !== 3 || authoredCooldown.warnings.length > 0) {
+    throw new Error(`Authored cooldown was not preserved: ${JSON.stringify(authoredCooldown)}.`);
+  }
+}
+
+{
+  const reducedCooldown = adaptPowerToCombatActions(makeFixturePower({
+    id: "reduced-cooldown-power",
+    name: "Reduced Cooldown Power",
+    intention: "ATTACK",
+    diceCount: 3,
+    potency: 2,
+    cooldownTurns: 3,
+    cooldownReduction: 1,
+  }));
+  if (reducedCooldown.actions[0]?.cooldownRounds !== 2) {
+    throw new Error("Cooldown reduction was not applied through the shared effective cooldown helper.");
+  }
+}
+
+{
+  const missingCooldownPower = {
+    ...makeFixturePower({
+      id: "missing-cooldown-power",
+      name: "Missing Cooldown Power",
+      intention: "ATTACK",
+      diceCount: 3,
+      potency: 2,
+    }),
+    cooldownTurns: undefined as unknown as number,
+  };
+  const adapted = adaptPowerToCombatActions(missingCooldownPower);
+  if (
+    adapted.actions[0]?.cooldownRounds !== 1 ||
+    !adapted.warnings.some((warning) => /Missing Cooldown Power.*fallback cooldown 1/i.test(warning))
+  ) {
+    throw new Error(`Missing cooldown fallback was not reported: ${JSON.stringify(adapted)}.`);
+  }
+}
+
+{
+  const counterPower = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "authored-counter-cooldown",
+      name: "Authored Counter Cooldown",
+      intention: "ATTACK",
+      diceCount: 3,
+      potency: 2,
+      cooldownTurns: 2,
+    }),
+    counterMode: "YES",
+  });
+  if (counterPower.actions[0]?.cooldownRounds !== 2 || counterPower.actions[0]?.counterMode !== true) {
+    throw new Error("Counter power did not preserve its authored cooldown.");
+  }
 }
 
 {
@@ -624,7 +856,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     action: action({ diceCount: 1, potency: 4 }),
     rng: rngFrom([0.99, 0.99, 0.99]),
   });
-  if (resolution.dodgeChosen !== 1 || resolution.dodgeRolls !== 1 || resolution.woundsAvoidedByDodge !== 8 || resolution.netWounds !== 0) {
+  if (resolution.dodgeChosen !== 1 || resolution.dodgeRolls !== 1 || resolution.woundsAvoidedByDodge !== 4 || resolution.netWounds !== 0) {
     throw new Error("Dodge did not use Guard dice to fully avoid a matching attack.");
   }
 }
@@ -673,7 +905,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   const attacker = fixtureActor("degraded-policy-attacker", "players");
   const defender = fixtureActor("degraded-policy-defender", "monsters", {
     dodgeDice: 5,
-    physicalDefenceDice: 4,
+    physicalDefenceDice: 3,
     physicalBlockPerSuccess: 2,
   });
   const fresh = createCombatState([attacker], [defender]);
@@ -1049,7 +1281,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   });
   const actor = fixtureActor("cooldown-fallback-actor", "players", { actions: [weapon, power] });
   const state = createCombatState([actor], [fixtureActor("cooldown-fallback-target", "monsters")]);
-  state.cooldowns[`${state.actors[0].id}:${power.id}`] = 2;
+  setCooldown(state, state.actors[0].id, power.id, 2);
   if (chooseTurnAction(state.actors[0], state, "power")?.id !== weapon.id) {
     throw new Error("Power lane did not fall back to second weapon/natural attack while power was cooling down.");
   }
@@ -1188,11 +1420,147 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 
 {
   const state = createCombatState([fixtureActor("cooldown-a", "players")], [fixtureActor("cooldown-b", "monsters")]);
-  state.cooldowns["cooldown-a:power"] = 2;
-  state.cooldowns["cooldown-b:power"] = 2;
+  setCooldown(state, "cooldown-a", "power", 2);
+  setCooldown(state, "cooldown-b", "power", 2);
   tickActorCooldowns(state, "cooldown-a");
-  if (state.cooldowns["cooldown-a:power"] !== 1 || state.cooldowns["cooldown-b:power"] !== 2) {
+  if (state.cooldowns["cooldown-a:power"]?.remaining !== 1 || state.cooldowns["cooldown-b:power"]?.remaining !== 2) {
     throw new Error("Cooldowns ticked for a non-active actor.");
+  }
+}
+
+{
+  const coolingPower = action({
+    id: "same-turn-cooldown-power",
+    name: "Same Turn Cooldown Power",
+    sourceType: "power",
+    kind: "attack",
+    diceCount: 1,
+    potency: 1,
+    cooldownRounds: 2,
+  });
+  const actor = fixtureActor("same-turn-cooldown-actor", "players", { actions: [coolingPower] });
+  const target = fixtureActor("same-turn-cooldown-target", "monsters", {
+    dodgeDice: 1,
+    physicalProtection: 0,
+  });
+  const state = createCombatState([actor], [target], { captureTranscript: true });
+  state.currentTurnActorId = state.actors[0].id;
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: coolingPower,
+    rng: rngFrom([0.99, 0]),
+    lane: "power",
+  });
+  tickActorCooldowns(state, state.actors[0].id);
+  if (getActionCooldownRemaining(state, state.actors[0].id, coolingPower.id) !== 2) {
+    throw new Error("Cooldown ticked on the same owner turn it was applied.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Cooldown tick skipped: Same Turn Cooldown Power entered cooldown this turn/i, "same-turn cooldown skip");
+  state.currentTurnActorId = state.actors[1].id;
+  state.round += 1;
+  tickActorCooldowns(state, state.actors[0].id);
+  if (getActionCooldownRemaining(state, state.actors[0].id, coolingPower.id) !== 1) {
+    throw new Error("Cooldown did not tick on the next eligible owner turn.");
+  }
+}
+
+{
+  const adapted = adaptPowerToCombatActions(makeFixturePower({
+    id: "transcript-cooldown-three-power",
+    name: "Transcript Cooldown Three",
+    intention: "ATTACK",
+    diceCount: 1,
+    potency: 1,
+    cooldownTurns: 3,
+  }));
+  const coolingPower = adapted.actions[0];
+  if (!coolingPower) throw new Error("Cooldown transcript power did not adapt to a combat action.");
+  const actor = fixtureActor("transcript-cooldown-three-actor", "players", { actions: [coolingPower] });
+  const target = fixtureActor("transcript-cooldown-three-target", "monsters", {
+    dodgeDice: 1,
+    physicalProtection: 0,
+  });
+  const state = createCombatState([actor], [target], { captureTranscript: true });
+  state.currentTurnActorId = state.actors[0].id;
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: coolingPower,
+    rng: rngFrom([0.99, 0]),
+    lane: "power",
+  });
+  tickActorCooldowns(state, state.actors[0].id);
+  if (getActionCooldownRemaining(state, state.actors[0].id, coolingPower.id) !== 3) {
+    throw new Error("Authored cooldown 3 ticked on the same turn it was applied.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Cooldown: Transcript Cooldown Three enters cooldown 3/i, "authored cooldown transcript");
+  expectTranscriptLine(state.transcriptLines, /Cooldown tick skipped: Transcript Cooldown Three entered cooldown this turn/i, "authored cooldown same-turn skip");
+  for (const expected of [
+    { round: 2, remaining: 2, line: /Cooldown tick: Transcript Cooldown Three 3 -> 2/i },
+    { round: 3, remaining: 1, line: /Cooldown tick: Transcript Cooldown Three 2 -> 1/i },
+    { round: 4, remaining: 0, line: /Cooldown tick: Transcript Cooldown Three 1 -> 0/i },
+  ]) {
+    state.round = expected.round;
+    state.currentTurnActorId = state.actors[0].id;
+    tickActorCooldowns(state, state.actors[0].id);
+    if (getActionCooldownRemaining(state, state.actors[0].id, coolingPower.id) !== expected.remaining) {
+      throw new Error(`Authored cooldown 3 did not count down to ${expected.remaining}.`);
+    }
+    expectTranscriptLine(state.transcriptLines, expected.line, `authored cooldown countdown ${expected.round}`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Cooldown ready: Transcript Cooldown Three is ready next turn/i, "authored cooldown ready");
+  const trace = state.cooldownTrace[`${state.actors[0].id}:${coolingPower.id}`];
+  if (trace?.cooldownRounds !== 3) {
+    throw new Error(`Cooldown trace did not preserve authored cooldown 3: ${JSON.stringify(trace)}.`);
+  }
+}
+
+{
+  const counterstrike = action({
+    id: "owner-turn-response-counterstrike",
+    name: "Owner Turn Response Counterstrike",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 2,
+    potency: 2,
+    cooldownRounds: 2,
+  });
+  const defender = fixtureActor("owner-turn-response-defender", "players", {
+    physicalHpMax: 999,
+    dodgeDice: 1,
+    actions: [counterstrike],
+  });
+  const attacker = fixtureActor("owner-turn-response-attacker", "monsters", {
+    physicalHpMax: 999,
+    actions: [action({ id: "owner-turn-response-trigger", diceCount: 2, potency: 1 })],
+  });
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  state.currentTurnActorId = state.actors[1].id;
+  refreshActorResponses(state, state.actors[0].id);
+  resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: state.actors[1].actions[0],
+    rng: rngFrom([0.99, 0, 0, 0.99, 0.99]),
+  });
+  tickActorCooldowns(state, state.actors[1].id);
+  if (getActionCooldownRemaining(state, state.actors[0].id, counterstrike.id) !== 2) {
+    throw new Error("Response cooldown ticked at the end of the attacker's turn.");
+  }
+  state.currentTurnActorId = state.actors[0].id;
+  state.round += 1;
+  refreshActorResponses(state, state.actors[0].id);
+  if (state.responsesRemaining[state.actors[0].id] !== 2 || !isActionOnCooldown(state, state.actors[0].id, counterstrike.id)) {
+    throw new Error("Response refresh bypassed counter cooldown.");
+  }
+  tickActorCooldowns(state, state.actors[0].id);
+  if (getActionCooldownRemaining(state, state.actors[0].id, counterstrike.id) !== 1) {
+    throw new Error("Response cooldown did not tick on the owner's next turn end.");
   }
 }
 
@@ -1916,6 +2284,292 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (state.responsesRemaining[state.actors[0].id] !== 2) {
     throw new Error("Actor Responses did not refresh to 2 at turn start.");
   }
+}
+
+{
+  const attacker = fixtureActor("transcript-dodge-attacker", "players", {
+    actions: [action({ id: "transcript-dodge-hit", name: "Transcript Strike", diceCount: 1, potency: 4 })],
+  });
+  const defender = fixtureActor("transcript-dodge-defender", "monsters", { dodgeDice: 2 });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.99, 0.99, 0.99]),
+    lane: "main",
+  });
+  expectTranscriptLine(state.transcriptLines, /Main Action: transcript-dodge-attacker uses Transcript Strike/i, "attack action line");
+  expectTranscriptLine(state.transcriptLines, /raw results/i, "raw attack dice results");
+  expectTranscriptLine(state.transcriptLines, /Dodge .*succeeded/i, "dodge result");
+  expectTranscriptLine(state.transcriptLines, /Attack result: transcript-dodge-defender dodged/i, "dodged damage result");
+}
+
+{
+  const attacker = fixtureActor("transcript-physical-attacker", "players", {
+    actions: [action({ id: "transcript-physical-hit", name: "Physical Transcript Hit", diceCount: 1, potency: 4 })],
+  });
+  const defender = fixtureActor("transcript-physical-defender", "monsters", {
+    dodgeDice: 1,
+    physicalDefenceDice: 6,
+    physicalBlockPerSuccess: 3,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.99]),
+    lane: "main",
+  });
+  expectTranscriptLine(state.transcriptLines, /Defence choice: .*physical defence/i, "physical defence choice");
+  expectTranscriptLine(state.transcriptLines, /Physical Defence blocked/i, "physical defence block amount");
+  expectTranscriptLine(state.transcriptLines, /Attack result: .*suffers/i, "physical net wounds result");
+}
+
+{
+  const attacker = fixtureActor("transcript-resist-attacker", "players", {
+    actions: [action({ id: "transcript-control", name: "Transcript Control", kind: "control", diceCount: 3, potency: 1, resistAttribute: "FORTITUDE" })],
+  });
+  const defender = fixtureActor("transcript-resist-defender", "monsters", { resist: { FORTITUDE: 1 } });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0, 0]),
+    lane: "power",
+  });
+  expectTranscriptLine(state.transcriptLines, /Resist formula 3 \+ FORTITUDE resist value = 4 dice/i, "resist dice formula");
+  expectTranscriptLine(state.transcriptLines, /cancelled .* hostile successes/i, "resist cancelled successes");
+}
+
+{
+  const multiheal = action({
+    id: "transcript-multiheal",
+    name: "Multiheal",
+    sourceType: "power",
+    kind: "healing",
+    targetPolicy: "ally",
+    accuracyAttribute: "Synergy",
+    diceCount: 3,
+    potency: 4,
+    cooldownRounds: 2,
+    recurring: { kind: "healingOverTime", durationRounds: 3 },
+  });
+  const healer = fixtureActor("CL-L3-Support", "players", { actions: [multiheal] });
+  const target = fixtureActor("CL-L3-Bruiser", "players");
+  const state = createCombatState([healer, target], [], { captureTranscript: true });
+  state.actors[1].physicalHpCurrent = Math.max(1, state.actors[1].physicalHpMax - 10);
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.34, 0.62, 0.9]),
+    lane: "power",
+  });
+  expectTranscriptLine(state.transcriptLines, /Power Action: CL-L3-Support uses Multiheal on CL-L3-Bruiser/i, "healing power action");
+  expectTranscriptLine(state.transcriptLines, /Roll: .*3 x D8 using Synergy/i, "healing roll");
+  expectTranscriptLine(state.transcriptLines, /Effect: Multiheal applies healing-over-time/i, "healing over time effect");
+  expectTranscriptLine(state.transcriptLines, /Status created: Multiheal on CL-L3-Bruiser, 3 ticks remaining/i, "healing status created");
+  expectTranscriptLine(state.transcriptLines, /Cooldown: Multiheal enters cooldown 2/i, "hydrated healing cooldown");
+}
+
+{
+  const buff = action({
+    id: "transcript-buff",
+    name: "Transcript Buff",
+    sourceType: "power",
+    kind: "buff",
+    targetPolicy: "ally",
+    modifier: { attribute: "Guard", amount: 2, durationRounds: 3 },
+  });
+  const debuff = action({
+    id: "transcript-debuff",
+    name: "Transcript Debuff",
+    sourceType: "power",
+    kind: "debuff",
+    targetPolicy: "enemy",
+    modifier: { attribute: "Attack", amount: 1, durationRounds: 2 },
+  });
+  const actor = fixtureActor("transcript-buffer", "players", { actions: [buff, debuff] });
+  const ally = fixtureActor("transcript-buff-ally", "players");
+  const enemy = fixtureActor("transcript-debuff-enemy", "monsters");
+  const state = createCombatState([actor, ally], [enemy], { captureTranscript: true });
+  resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: buff, rng: rngFrom([0.99]), lane: "power" });
+  resolveCombatAction({ state, actor: state.actors[0], target: state.actors[2], action: debuff, rng: rngFrom([0.99]), lane: "power" });
+  expectTranscriptLine(state.transcriptLines, /Buff: Transcript Buff applies \+2 Guard/i, "buff transcript");
+  expectTranscriptLine(state.transcriptLines, /Debuff: Transcript Debuff applies -1 Attack/i, "debuff transcript");
+}
+
+{
+  const linkedSecondary = action({
+    id: "linked-secondary-burn",
+    name: "Linked Secondary Burn",
+    sourceType: "power",
+    kind: "attack",
+    diceCount: 1,
+    potency: 2,
+    resistAttribute: "FORTITUDE",
+  });
+  const primary = action({
+    id: "linked-primary-control",
+    name: "Linked Primary Control",
+    sourceType: "power",
+    kind: "control",
+    diceCount: 1,
+    potency: 1,
+    resistAttribute: "FORTITUDE",
+    secondaryActions: [linkedSecondary],
+  });
+  const actor = fixtureActor("linked-secondary-actor", "players", { actions: [primary] });
+  const target = fixtureActor("linked-secondary-target", "monsters", {
+    physicalHpMax: 999,
+    physicalProtection: 99,
+    dodgeDice: 12,
+  });
+  const state = createCombatState([actor], [target], { captureTranscript: true });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: primary,
+    rng: rngFrom([0.99, 0, 0, 0, 0.99]),
+    lane: "power",
+  });
+  const resistLines = state.transcriptLines.filter((line) => /Resist formula/i.test(line));
+  if (resistLines.length !== 1 || resolution.netWounds <= 0) {
+    throw new Error(`Linked secondary did not ride the primary gate: resist lines ${resistLines.length}, net wounds ${resolution.netWounds}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Linked effect: Linked Secondary Burn rides the primary defence result/i, "linked secondary gate transcript");
+}
+
+{
+  const linkedSecondary = action({
+    id: "fully-resisted-secondary",
+    name: "Fully Resisted Secondary",
+    sourceType: "power",
+    kind: "attack",
+    diceCount: 1,
+    potency: 2,
+    resistAttribute: "FORTITUDE",
+  });
+  const primary = action({
+    id: "fully-resisted-primary",
+    name: "Fully Resisted Primary",
+    sourceType: "power",
+    kind: "control",
+    diceCount: 1,
+    potency: 1,
+    resistAttribute: "FORTITUDE",
+    secondaryActions: [linkedSecondary],
+  });
+  const state = createCombatState(
+    [fixtureActor("fully-resisted-actor", "players", { actions: [primary] })],
+    [fixtureActor("fully-resisted-target", "monsters")],
+    { captureTranscript: true },
+  );
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: primary,
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99]),
+    lane: "power",
+  });
+  if (resolution.netWounds > 0 || state.transcriptLines.some((line) => /Fully Resisted Secondary/i.test(line))) {
+    throw new Error("Linked secondary resolved after the primary was fully resisted.");
+  }
+}
+
+{
+  const actor = fixtureActor("duplicate-denial-target", "players");
+  const state = createCombatState([actor], [fixtureActor("duplicate-denial-source", "monsters")], { captureTranscript: true });
+  state.statusEffects.push(
+    {
+      id: "duplicate-denial-a",
+      sourceActorId: state.actors[1].id,
+      targetActorId: state.actors[0].id,
+      kind: "mainActionDenied",
+      amount: 1,
+      sourceActionId: "denial-a",
+      sourceActionName: "Denial A",
+      remainingRounds: 1,
+    },
+    {
+      id: "duplicate-denial-b",
+      sourceActorId: state.actors[1].id,
+      targetActorId: state.actors[0].id,
+      kind: "mainActionDenied",
+      amount: 1,
+      sourceActionId: "denial-b",
+      sourceActionName: "Denial B",
+      remainingRounds: 1,
+    },
+  );
+  const resolution = resolveStartOfTurnEffects(state, state.actors[0]);
+  const denialLines = state.transcriptLines.filter((line) => /main action is denied/i.test(line));
+  if (resolution.actionsDenied !== 1 || denialLines.length !== 1) {
+    throw new Error(`Duplicate main-action denial was not consolidated: actionsDenied ${resolution.actionsDenied}, lines ${denialLines.length}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /consolidated to one denied main action/i, "duplicate denial consolidation");
+}
+
+{
+  const counter = action({
+    id: "transcript-counterstrike",
+    name: "Counterstrike",
+    sourceType: "power",
+    kind: "attack",
+    targetPolicy: "enemy",
+    counterMode: true,
+    diceCount: 2,
+    potency: 3,
+    cooldownRounds: 2,
+  });
+  const attacker = fixtureActor("transcript-counter-attacker", "players", {
+    actions: [action({ id: "transcript-counter-trigger", name: "Trigger Hit", diceCount: 1, potency: 2 })],
+  });
+  const defender = fixtureActor("transcript-counter-defender", "monsters", {
+    physicalHpMax: 999,
+    dodgeDice: 1,
+    actions: [counter],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  refreshActorResponses(state, state.actors[1].id);
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.99, 0, 0.99, 0.99]),
+    lane: "main",
+  });
+  tickActorCooldowns(state, state.actors[1].id);
+  expectTranscriptLine(state.transcriptLines, /Response spent/i, "response spend");
+  expectTranscriptLine(state.transcriptLines, /Response: transcript-counter-defender uses Counterstrike/i, "counter response");
+  expectTranscriptLine(state.transcriptLines, /Cooldown: Counterstrike enters cooldown 2/i, "counter cooldown applied");
+  expectTranscriptLine(state.transcriptLines, /Cooldown tick: Counterstrike 2 -> 1/i, "counter cooldown tick");
+}
+
+{
+  const report = runScenarioSuite({
+    name: "first run transcript fixture",
+    players: [fixtureActor("first-run-transcript-player", "players", { actions: [action({ id: "first-run-transcript-attack" })] })],
+    monsters: [fixtureActor("first-run-transcript-monster", "monsters", { actions: [action({ id: "first-run-transcript-monster-attack" })] })],
+    runs: 3,
+    seed: 909,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  if (!report.firstRunTranscript || report.firstRunTranscript.runIndex !== 0 || report.firstRunTranscript.lines.length === 0) {
+    throw new Error("Multi-run scenario did not expose exactly one first-run transcript.");
+  }
+  expectTranscriptLine(report.firstRunTranscript.lines, /Round 1 begins/i, "first run transcript round start");
 }
 
 console.log(

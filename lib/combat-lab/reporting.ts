@@ -526,6 +526,7 @@ export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
     monsterGroupContributions: mergeMonsterGroupContributions(scenario, runs),
     defensiveContributions: mergeDefensiveContributions(runs),
     cooldownTrace: mergeCooldownTrace(runs),
+    firstRunTranscript: runs[0]?.firstRunTranscript,
     unsupported: mergeUnsupported(runs),
     hydrationIntegrity: collectHydrationIntegrity(scenario),
   };

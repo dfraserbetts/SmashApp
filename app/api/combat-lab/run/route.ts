@@ -170,6 +170,15 @@ export async function POST(req: Request) {
           monster.mainHandItemId,
           monster.offHandItemId,
           monster.smallItemId,
+          monster.headArmorItemId,
+          monster.shoulderArmorItemId,
+          monster.torsoArmorItemId,
+          monster.legsArmorItemId,
+          monster.feetArmorItemId,
+          monster.headItemId,
+          monster.neckItemId,
+          monster.armsItemId,
+          monster.beltItemId,
         ]).filter(Boolean) as string[],
       ),
     );
@@ -202,7 +211,7 @@ export async function POST(req: Request) {
       const monster = monsterById.get(selection.monsterId);
       if (!monster) throw new Error("SELECTED_MONSTER_NOT_FOUND");
       return {
-        ...adaptMonsterToCombatLabActor(monster, monsterEquipmentById),
+        ...adaptMonsterToCombatLabActor(monster, monsterEquipmentById, protectionTuning),
         quantity: selection.quantity,
       };
     });

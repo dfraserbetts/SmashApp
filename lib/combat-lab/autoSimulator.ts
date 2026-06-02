@@ -3,6 +3,7 @@ import {
   collectUnsupportedSummary,
   createCombatState,
   createEmptyMetrics,
+  emitTranscriptEvent,
   getLivingActors,
   recordIncomingActionPressure,
   refreshActorResponses,
@@ -26,6 +27,7 @@ import type {
   CombatRunResult,
   CombatScenario,
   CombatSide,
+  CombatTranscript,
   CombatTurnOrder,
 } from "./types";
 
@@ -535,13 +537,18 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
   const rng = createSeededRng(scenario.seed + runIndex * 9973);
   const maxRounds = scenario.maxRounds ?? 20;
   const turnOrder = scenario.turnOrder ?? "alternatingByRound";
-  const state = createCombatState(scenario.players, scenario.monsters);
+  const captureTranscript = runIndex === 0;
+  const state = createCombatState(scenario.players, scenario.monsters, { captureTranscript });
   const metrics = createEmptyMetrics();
   let stoppedBy: CombatRunResult["stoppedBy"] = "maxRounds";
   let roundsWithoutDamage = 0;
 
   for (let round = 1; round <= maxRounds; round += 1) {
     state.round = round;
+    emitTranscriptEvent(state, {
+      type: "roundStart",
+      message: `Round ${round} begins.`,
+    });
     resetRoundTargetingPressure(state);
     const damageAtRoundStart = metrics.damageDealt.players + metrics.damageDealt.monsters;
     metrics.activeEnemiesByRound.push(getLivingActors(state, "monsters").length);
@@ -549,6 +556,17 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
     for (const actor of roundTurnOrder(state, rng, turnOrder, round)) {
       const currentActor = state.actors.find((candidate) => candidate.id === actor.id);
       if (!currentActor || currentActor.defeated) continue;
+      state.currentTurnActorId = currentActor.id;
+      emitTranscriptEvent(state, {
+        type: "turnStart",
+        actorId: currentActor.id,
+        actorName: currentActor.name,
+        message: `Turn ${round}: ${currentActor.name} begins.`,
+        details: {
+          physicalHpCurrent: currentActor.physicalHpCurrent,
+          mentalHpCurrent: currentActor.mentalHpCurrent,
+        },
+      });
       refreshActorResponses(state, currentActor.id);
       sampleActorCooldownAvailability(state, currentActor);
       const timedStatusContributions = collectStartOfTurnStatusContributions(state, currentActor);
@@ -570,6 +588,13 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
         tickActorCooldowns(state, currentActor.id);
         const expired = tickTargetTurnEffects(state, currentActor.id);
         if (expired > 0) metrics.stacksExpired[currentActor.side] += expired;
+        emitTranscriptEvent(state, {
+          type: "turnEnd",
+          actorId: currentActor.id,
+          actorName: currentActor.name,
+          message: `Turn end: ${currentActor.name}.`,
+        });
+        state.currentTurnActorId = null;
         continue;
       }
 
@@ -590,6 +615,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
           action,
           target,
           rng,
+          lane,
         });
         metrics.actionsUsed[currentActor.side] += action ? 1 : 0;
         if (action && lane === "main") metrics.mainActionsUsed[currentActor.side] += 1;
@@ -619,6 +645,13 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
       tickActorCooldowns(state, currentActor.id);
       const expired = tickTargetTurnEffects(state, currentActor.id);
       if (expired > 0) metrics.stacksExpired[currentActor.side] += expired;
+      emitTranscriptEvent(state, {
+        type: "turnEnd",
+        actorId: currentActor.id,
+        actorName: currentActor.name,
+        message: `Turn end: ${currentActor.name}.`,
+      });
+      state.currentTurnActorId = null;
       if (stoppedBy !== "maxRounds") break;
     }
 
@@ -631,6 +664,14 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
     }
     addStatusUptimeMetrics(metrics, state);
     resetRoundDefenceDegradation(state);
+    emitTranscriptEvent(state, {
+      type: "roundEnd",
+      message: `Round ${round} ends.`,
+      details: {
+        playersRemaining: getLivingActors(state, "players").length,
+        monstersRemaining: getLivingActors(state, "monsters").length,
+      },
+    });
   }
 
   const livingPlayers = getLivingActors(state, "players");
@@ -642,6 +683,16 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
       : stoppedBy === "playersDefeated"
         ? "monsters"
         : "stalemate";
+
+  const firstRunTranscript: CombatTranscript | undefined = captureTranscript
+    ? {
+        runIndex,
+        scenarioName: scenario.name,
+        truncated: state.transcriptTruncated,
+        events: state.transcriptEvents,
+        lines: state.transcriptLines,
+      }
+    : undefined;
 
   return {
     scenarioName: scenario.name,
@@ -655,6 +706,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
     },
     winnerHealthRemainingPercent: winner === "stalemate" ? 0 : survivorHealthPercent(winner, getLivingActors(state)),
     metrics,
+    firstRunTranscript,
     unsupported: collectUnsupportedSummary(state.actors),
     log: state.log,
   };

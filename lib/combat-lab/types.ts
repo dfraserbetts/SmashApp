@@ -19,6 +19,7 @@ export type CombatDieSize = "D4" | "D6" | "D8" | "D10" | "D12";
 export type CombatActionKind = "attack" | "healing" | "buff" | "debuff" | "defence" | "control" | "movement" | "cleanse";
 export type CombatTargetPolicy = "enemy" | "ally" | "self" | "allAllies" | "allEnemies";
 export type CombatActionSourceType = "naturalAttack" | "equippedWeapon" | "power" | "fallback";
+export type CombatActionLane = "main" | "power" | "response" | "startOfTurn" | "endOfTurn";
 export type CombatActorRole =
   | "Glass Cannon"
   | "Bruiser"
@@ -136,14 +137,27 @@ export type CombatStatusEffect = {
   remainingRounds: number;
 };
 
+export type CombatCooldownEntry = {
+  remaining: number;
+  appliedRound: number;
+  appliedTurnActorId: string | null;
+  appliedOnOwnerTurn: boolean;
+};
+
 export type CombatState = {
   round: number;
   actors: CombatActor[];
-  cooldowns: Record<string, number>;
+  cooldowns: Record<string, CombatCooldownEntry>;
+  currentTurnActorId?: string | null;
   cooldownTrace: Record<string, CombatCooldownTrace>;
   counterUses: Record<string, number>;
   incomingActionsByTargetThisRound: Record<string, number>;
   statusEffects: CombatStatusEffect[];
+  captureTranscript: boolean;
+  transcriptEvents: CombatTranscriptEvent[];
+  transcriptLines: string[];
+  transcriptTruncated: boolean;
+  transcriptEventSeq: number;
   responsesRemaining: Record<string, number>;
   defenceDegradation: Record<
     string,
@@ -184,6 +198,79 @@ export type CombatLogEntry = {
   targetName?: string;
   message: string;
   metrics: Partial<CombatResolutionMetrics>;
+};
+
+export type CombatRollSummary = {
+  rollerId: string;
+  rollerName: string;
+  reason: string;
+  attribute: CombatAttributeName | string;
+  diceCount: number;
+  dieSize: CombatDieSize;
+  rawResults: number[];
+  modifiedResults: number[];
+  perDieSuccesses: number[];
+  modifier: number;
+  successes: number;
+};
+
+export type CombatTranscriptEventType =
+  | "roundStart"
+  | "turnStart"
+  | "responsesRefresh"
+  | "startOfTurnEffect"
+  | "mainAction"
+  | "powerAction"
+  | "responseAction"
+  | "attackRoll"
+  | "healingRoll"
+  | "buffRoll"
+  | "debuffRoll"
+  | "controlRoll"
+  | "movementRoll"
+  | "cleanseRoll"
+  | "defenceChoice"
+  | "dodgeRoll"
+  | "physicalDefenceRoll"
+  | "mentalDefenceRoll"
+  | "resistRoll"
+  | "counterRoll"
+  | "damageApplied"
+  | "healingApplied"
+  | "buffApplied"
+  | "debuffApplied"
+  | "statusCreated"
+  | "statusTick"
+  | "stackChanged"
+  | "cooldownApplied"
+  | "cooldownTicked"
+  | "actionSkipped"
+  | "actorDefeated"
+  | "turnEnd"
+  | "roundEnd";
+
+export type CombatTranscriptEvent = {
+  id: string;
+  type: CombatTranscriptEventType;
+  round: number;
+  actorId?: string;
+  actorName?: string;
+  targetId?: string;
+  targetName?: string;
+  actionId?: string;
+  actionName?: string;
+  lane?: CombatActionLane;
+  message: string;
+  roll?: CombatRollSummary;
+  details?: Record<string, string | number | boolean | null | undefined>;
+};
+
+export type CombatTranscript = {
+  runIndex: number;
+  scenarioName: string;
+  truncated: boolean;
+  events: CombatTranscriptEvent[];
+  lines: string[];
 };
 
 export type CombatResolutionMetrics = {
@@ -267,6 +354,7 @@ export type CombatRunResult = {
   survivorActorIds: Record<CombatSide, string[]>;
   winnerHealthRemainingPercent: number;
   metrics: CombatAggregateMetrics;
+  firstRunTranscript?: CombatTranscript;
   unsupported: UnsupportedPowerSummary;
   log: CombatLogEntry[];
 };
@@ -529,6 +617,7 @@ export type CombatSuiteReport = {
   monsterGroupContributions: CombatMonsterGroupContribution[];
   defensiveContributions: CombatDefensiveContribution[];
   cooldownTrace: CombatCooldownTrace[];
+  firstRunTranscript?: CombatTranscript;
   unsupported: UnsupportedPowerSummary;
   hydrationIntegrity: CombatHydrationIntegrity;
   verdict: string;

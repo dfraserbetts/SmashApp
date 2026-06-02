@@ -6,6 +6,7 @@ import type {
   PowerIntention,
   RangeCategory,
 } from "@/lib/summoning/types";
+import { effectiveCooldownTurns } from "@/lib/summoning/render";
 
 import type {
   CombatAction,
@@ -45,6 +46,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 function asInt(value: unknown, fallback: number): number {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : fallback;
+}
+
+function hasFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 function asString(value: unknown): string {
@@ -191,7 +196,7 @@ function resolveAttackPacketPool(params: {
   };
 }
 
-export function adaptPowerToCombatActions(power: Power): {
+export function adaptPowerToCombatActions(power: Power, options: { linkedSecondary?: boolean } = {}): {
   actions: CombatAction[];
   unsupported: UnsupportedPowerReason[];
   warnings: string[];
@@ -200,6 +205,21 @@ export function adaptPowerToCombatActions(power: Power): {
   const unsupportedReasons: UnsupportedPowerReason[] = [];
   const warnings: string[] = [];
   const packets = getPackets(power);
+  const rawCooldownTurns = (power as { cooldownTurns?: unknown }).cooldownTurns;
+  const rawCooldownReduction = (power as { cooldownReduction?: unknown }).cooldownReduction;
+  const hasHydratedCooldown = hasFiniteNumber(rawCooldownTurns) && rawCooldownTurns >= 1;
+  const cooldownRounds = hasHydratedCooldown
+    ? effectiveCooldownTurns({
+        cooldownTurns: Math.trunc(rawCooldownTurns),
+        cooldownReduction: hasFiniteNumber(rawCooldownReduction)
+          ? Math.max(0, Math.trunc(rawCooldownReduction))
+          : 0,
+      })
+    : 1;
+
+  if (!options.linkedSecondary && !hasHydratedCooldown) {
+    warnings.push(`Power "${power.name}" has no hydrated cooldown value; Combat Lab used fallback cooldown ${cooldownRounds}.`);
+  }
 
   if (packets.length === 0) {
     unsupportedReasons.push(unsupported(power, "Power has no effect packets."));
@@ -259,6 +279,8 @@ export function adaptPowerToCombatActions(power: Power): {
         ...power,
         effectPackets: [secondaryPacket],
         intentions: [secondaryPacket],
+      }, {
+        linkedSecondary: true,
       });
       warnings.push(...secondaryAdaptation.warnings);
       unsupportedReasons.push(...secondaryAdaptation.unsupported);
@@ -268,6 +290,7 @@ export function adaptPowerToCombatActions(power: Power): {
       return secondaryAdaptation.actions.map((action) => ({
         ...action,
         name: `${power.name} (${action.kind})`,
+        cooldownRounds: 0,
       }));
     });
 
@@ -316,7 +339,7 @@ export function adaptPowerToCombatActions(power: Power): {
         ...(power.counterMode === "YES" ? ["Counter economy uses Responses and is limited to one reaction per incoming action."] : []),
         ...(secondaryActions.length > 0 ? [`Linked ${secondaryActions.length} secondary packet(s) resolved under this power action.`] : []),
       ],
-      cooldownRounds: Math.max(0, asInt(power.cooldownTurns, 0) - asInt(power.cooldownReduction, 0)),
+      cooldownRounds: options.linkedSecondary ? 0 : cooldownRounds,
       source: { power, packet },
     });
   }
@@ -491,6 +514,8 @@ export function makeFixturePower(params: {
   applyTo?: "PRIMARY_TARGET" | "ALLIES" | "SELF";
   statTarget?: CombatAttributeName;
   durationTurns?: number;
+  cooldownTurns?: number;
+  cooldownReduction?: number;
 }): Power {
   const details: Record<string, unknown> = {
     attackMode: params.pool === "mental" ? "MENTAL" : "PHYSICAL",
@@ -524,8 +549,8 @@ export function makeFixturePower(params: {
     description: null,
     descriptorChassis: "IMMEDIATE",
     descriptorChassisConfig: {},
-    cooldownTurns: 0,
-    cooldownReduction: 0,
+    cooldownTurns: params.cooldownTurns ?? 1,
+    cooldownReduction: params.cooldownReduction ?? 0,
     rangeCategories: ["MELEE"],
     primaryDefenceGate: null,
     effectPackets: [packet],
@@ -564,7 +589,7 @@ export function createFixtureActor(params: {
   mentalBlockPerSuccess?: number;
   mentalDefenceBlock?: number;
 }): CombatActor {
-  const adapted = params.powers.map(adaptPowerToCombatActions);
+  const adapted = params.powers.map((power) => adaptPowerToCombatActions(power));
   const actions = adapted.flatMap((row) => row.actions);
   if (params.basicAttack) actions.unshift(makeBasicAttackAction(params.basicAttack));
   const attributeDice = Object.fromEntries(

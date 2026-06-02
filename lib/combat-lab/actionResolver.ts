@@ -1,6 +1,7 @@
 import { diceSides, expectedSuccesses, rollDice, successCountForRoll, type Rng } from "./dice";
 import {
   applyActionCooldown,
+  emitTranscriptEvent,
   getAttributeModifier,
   getLivingActors,
   getOppositeSide,
@@ -13,8 +14,10 @@ import {
 } from "./combatState";
 import type {
   CombatAction,
+  CombatActionLane,
   CombatActor,
   CombatAttributeName,
+  CombatRollSummary,
   CombatResolutionMetrics,
   CombatState,
 } from "./types";
@@ -100,6 +103,49 @@ function getActorDie(actor: CombatActor, action: CombatAction) {
   return actor.attributeDice[action.accuracyAttribute] ?? "D8";
 }
 
+type CombatDiceRoll = ReturnType<typeof rollDice> & { modifier: number };
+
+function formatResults(results: number[]) {
+  return results.length > 0 ? results.join(", ") : "none";
+}
+
+function summarizeRoll(params: {
+  actor: CombatActor;
+  reason: string;
+  attribute: CombatAttributeName | string;
+  roll: CombatDiceRoll;
+}): CombatRollSummary {
+  return {
+    rollerId: params.actor.id,
+    rollerName: params.actor.name,
+    reason: params.reason,
+    attribute: params.attribute,
+    diceCount: params.roll.diceCount,
+    dieSize: params.roll.dieSize,
+    rawResults: params.roll.rawResults,
+    modifiedResults: params.roll.modifiedResults,
+    perDieSuccesses: params.roll.perDieSuccesses,
+    modifier: params.roll.modifier,
+    successes: params.roll.successes,
+  };
+}
+
+function rollText(roll: CombatRollSummary) {
+  const modified =
+    roll.modifier !== 0 ? `, modified results ${formatResults(roll.modifiedResults)}` : "";
+  return `${roll.rollerName} rolled ${roll.diceCount} x ${roll.dieSize} using ${roll.attribute} for ${roll.reason}: raw results ${formatResults(roll.rawResults)}${modified}; per-die successes ${formatResults(roll.perDieSuccesses)}; total ${roll.successes} successes.`;
+}
+
+function rollEventType(action: CombatAction): "attackRoll" | "healingRoll" | "buffRoll" | "debuffRoll" | "controlRoll" | "movementRoll" | "cleanseRoll" {
+  if (action.kind === "healing") return "healingRoll";
+  if (action.kind === "buff") return "buffRoll";
+  if (action.kind === "debuff") return "debuffRoll";
+  if (action.kind === "control") return "controlRoll";
+  if (action.kind === "movement") return "movementRoll";
+  if (action.kind === "cleanse") return "cleanseRoll";
+  return "attackRoll";
+}
+
 function takeDefenceDegradation(state: CombatState, actorId: string, type: "dodge" | "physical" | "mental") {
   state.defenceDegradation[actorId] ??= { dodge: 0, physical: 0, mental: 0 };
   const previousRolls = state.defenceDegradation[actorId][type];
@@ -172,6 +218,7 @@ function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses
   const baseDice = Math.max(1, Math.trunc(target.dodgeDice ?? target.dodgeValue ?? 1));
   const diceCount = Math.max(1, baseDice - degradation);
   const roll = rollAttributeDice({ state, actor: target, attribute: "Guard", diceCount, rng });
+  const rollSummary = summarizeRoll({ actor: target, reason: "Dodge", attribute: "Guard", roll });
   metrics.dodgeRolls = 1;
   metrics.dodgeChosen = 1;
   metrics.dodgeDegradationApplied = degradation;
@@ -181,6 +228,21 @@ function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses
   if (roll.successes >= incomingSuccesses) {
     metrics.woundsAvoidedByDodge = incomingSuccesses;
   }
+  emitTranscriptEvent(state, {
+    type: "dodgeRoll",
+    actorId: target.id,
+    actorName: target.name,
+    lane: "response",
+    message: `${rollText(rollSummary)} Dodge ${roll.successes >= incomingSuccesses ? "succeeded" : "failed"} against ${incomingSuccesses} incoming successes. Degradation ${degradation}, final dice ${diceCount}.`,
+    roll: rollSummary,
+    details: {
+      incomingSuccesses,
+      originalDice: baseDice,
+      degradation,
+      finalDice: diceCount,
+      dodgeSucceeded: roll.successes >= incomingSuccesses,
+    },
+  });
   return metrics;
 }
 
@@ -202,6 +264,7 @@ function resolveDefenceString(state: CombatState, target: CombatActor, pool: "ph
   const degradation = takeDefenceDegradation(state, target.id, type);
   const diceCount = Math.max(1, baseDice - degradation);
   const roll = rollAttributeDice({ state, actor: target, attribute, diceCount, rng });
+  const rollSummary = summarizeRoll({ actor: target, reason: `${pool} defence`, attribute, roll });
   const blocked = Math.min(wounds, roll.successes * blockPerSuccess);
   metrics.defenceStringBlocked = blocked;
   metrics.protectionPrevented = blocked;
@@ -216,6 +279,23 @@ function resolveDefenceString(state: CombatState, target: CombatActor, pool: "ph
     metrics.mentalDefenceDegradationApplied = degradation;
   }
   metrics.degradedDefenceRolls = degradation > 0 ? 1 : 0;
+  emitTranscriptEvent(state, {
+    type: pool === "physical" ? "physicalDefenceRoll" : "mentalDefenceRoll",
+    actorId: target.id,
+    actorName: target.name,
+    lane: "response",
+    message: `${rollText(rollSummary)} ${pool === "physical" ? "Physical Defence" : "Mental Defence"} blocked ${blocked} of ${wounds} ${pool} wounds (${blockPerSuccess} block per success). Degradation ${degradation}, final dice ${diceCount}.`,
+    roll: rollSummary,
+    details: {
+      pool,
+      incomingWounds: wounds,
+      blocked,
+      blockPerSuccess,
+      originalDice: baseDice,
+      degradation,
+      finalDice: diceCount,
+    },
+  });
   return metrics;
 }
 
@@ -267,6 +347,15 @@ function resolveBestNormalDefence(params: {
 }): CombatResolutionMetrics {
   const dodgeValue = estimateDodgeValue(params.state, params.target, params.incomingSuccesses, params.rawWounds);
   const defenceStringValue = estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds);
+  const chosen = defenceStringValue > dodgeValue ? `${params.pool} defence` : "dodge";
+  emitTranscriptEvent(params.state, {
+    type: "defenceChoice",
+    actorId: params.target.id,
+    actorName: params.target.name,
+    lane: "response",
+    message: `Defence choice: ${params.target.name} chooses ${chosen}. Expected prevention: dodge ${dodgeValue.toFixed(2)}, ${params.pool} defence ${defenceStringValue.toFixed(2)}.`,
+    details: { dodgeExpectedValue: dodgeValue, defenceStringExpectedValue: defenceStringValue, chosen },
+  });
   const metrics =
     defenceStringValue > dodgeValue
       ? resolveDefenceString(params.state, params.target, params.pool, params.rawWounds, params.rng)
@@ -344,6 +433,7 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
   const resistDice = Math.max(1, 3 + (target.resist[action.resistAttribute] ?? 0));
   const attribute = CORE_TO_COMBAT_ATTRIBUTE[action.resistAttribute] ?? "Guard";
   const resistRoll = rollAttributeDice({ state, actor: target, attribute, diceCount: resistDice, rng });
+  const rollSummary = summarizeRoll({ actor: target, reason: `${action.name} resist`, attribute, roll: resistRoll });
   const cancelled = Math.min(successes, resistRoll.successes);
   metrics.resistRolls = 1;
   metrics.resistSuccesses = resistRoll.successes;
@@ -351,6 +441,23 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
   recordModifiedResistRoll(metrics, resistRoll.modifier);
   metrics.hostileSuccessesCancelledByResist = cancelled;
   metrics.hostileSuccessesAfterResist = Math.max(0, successes - cancelled);
+  emitTranscriptEvent(state, {
+    type: "resistRoll",
+    actorId: target.id,
+    actorName: target.name,
+    actionId: action.id,
+    actionName: action.name,
+    lane: "response",
+    message: `${rollText(rollSummary)} Resist formula 3 + ${action.resistAttribute} resist value = ${resistDice} dice; cancelled ${cancelled} of ${successes} hostile successes.`,
+    roll: rollSummary,
+    details: {
+      resistAttribute: action.resistAttribute,
+      resistDice,
+      incomingSuccesses: successes,
+      cancelled,
+      remainingSuccesses: metrics.hostileSuccessesAfterResist,
+    },
+  });
   return metrics;
 }
 
@@ -386,11 +493,25 @@ function resolveCounterDefences(state: CombatState, target: CombatActor, attacke
       rng,
       getAttributeModifier(state, target.id, action.accuracyAttribute),
     );
+    const rollSummary = summarizeRoll({ actor: target, reason: action.name, attribute: action.accuracyAttribute, roll });
     metrics.counterMitigation += Math.max(1, roll.successes * Math.max(1, action.protection ?? action.potency));
     metrics.counterUses += 1;
     metrics.counterChosen += 1;
     metrics.responsesUsed += 1;
     applyActionCooldown(state, target, action);
+    emitTranscriptEvent(state, {
+      type: "counterRoll",
+      actorId: target.id,
+      actorName: target.name,
+      targetId: attacker.id,
+      targetName: attacker.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane: "response",
+      message: `Response: ${target.name} uses ${action.name}. ${rollText(rollSummary)} Counter mitigation ${metrics.counterMitigation}.`,
+      roll: rollSummary,
+      details: { counterMitigation: metrics.counterMitigation, responsesRemaining: state.responsesRemaining[target.id] ?? 0 },
+    });
     state.log.push({
       round: state.round,
       actorId: target.id,
@@ -431,6 +552,7 @@ function resolveCounterAttacks(state: CombatState, target: CombatActor, attacker
     rng,
     getAttributeModifier(state, target.id, action.accuracyAttribute),
   );
+  const rollSummary = summarizeRoll({ actor: target, reason: action.name, attribute: action.accuracyAttribute, roll });
   const raw = roll.successes * action.potency;
   const pool = action.pool ?? "physical";
   const prevented = Math.min(raw, pool === "physical" ? attacker.physicalProtection : attacker.mentalProtection);
@@ -441,6 +563,19 @@ function resolveCounterAttacks(state: CombatState, target: CombatActor, attacker
   metrics.responsesUsed = 1;
   applyWounds(attacker, pool, damage);
   applyActionCooldown(state, target, action);
+  emitTranscriptEvent(state, {
+    type: "counterRoll",
+    actorId: target.id,
+    actorName: target.name,
+    targetId: attacker.id,
+    targetName: attacker.name,
+    actionId: action.id,
+    actionName: action.name,
+    lane: "response",
+    message: `Response: ${target.name} uses ${action.name}. ${rollText(rollSummary)} Counter deals ${damage} ${pool} wounds after ${prevented} protection.`,
+    roll: rollSummary,
+    details: { rawWounds: raw, prevented, netWounds: damage, pool, responsesRemaining: state.responsesRemaining[target.id] ?? 0 },
+  });
   state.log.push({
     round: state.round,
     actorId: target.id,
@@ -457,11 +592,46 @@ function resolveCounterAttacks(state: CombatState, target: CombatActor, attacker
 
 export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor): CombatResolutionMetrics {
   const metrics = emptyResolution();
-  for (const effect of state.statusEffects.filter((entry) => entry.targetActorId === actor.id)) {
+  const actorEffects = state.statusEffects.filter((entry) => entry.targetActorId === actor.id);
+  const actionDeniedEffects = actorEffects.filter((effect) => effect.kind === "mainActionDenied");
+  if (actionDeniedEffects.length > 0) {
+    const primaryDenial = actionDeniedEffects[0];
+    metrics.actionsDenied = 1;
+    emitTranscriptEvent(state, {
+      type: "startOfTurnEffect",
+      actorId: actor.id,
+      actorName: actor.name,
+      actionId: primaryDenial?.sourceActionId,
+      actionName: primaryDenial?.sourceActionName,
+      lane: "startOfTurn",
+      message:
+        actionDeniedEffects.length > 1
+          ? `Start of Turn: ${actor.name}'s main action is denied by ${primaryDenial?.sourceActionName ?? "a control effect"}. ${actionDeniedEffects.length} denial effects were present, consolidated to one denied main action.`
+          : `Start of Turn: ${actor.name}'s main action is denied by ${primaryDenial?.sourceActionName ?? "a control effect"}. ${primaryDenial?.remainingRounds ?? 0} ticks remaining.`,
+      details: {
+        effect: "mainActionDenied",
+        amount: 1,
+        consolidatedEffects: actionDeniedEffects.length,
+        remainingRounds: primaryDenial?.remainingRounds,
+      },
+    });
+  }
+  for (const effect of actorEffects) {
     if (effect.kind === "mainActionDenied") {
-      metrics.actionsDenied += effect.amount;
-    } else if (effect.kind === "healingOverTime") {
+      continue;
+    }
+    if (effect.kind === "healingOverTime") {
       const healed = healWounds(actor, effect.pool ?? "physical", effect.amount);
+      emitTranscriptEvent(state, {
+        type: "statusTick",
+        actorId: actor.id,
+        actorName: actor.name,
+        actionId: effect.sourceActionId,
+        actionName: effect.sourceActionName,
+        lane: "startOfTurn",
+        message: `Start of Turn: ${actor.name} heals ${healed} ${effect.pool ?? "physical"} wounds from ${effect.sourceActionName ?? "healing-over-time"}. ${effect.remainingRounds} ticks remaining.`,
+        details: { effect: effect.kind, healing: healed, pool: effect.pool ?? "physical", remainingRounds: effect.remainingRounds },
+      });
       metrics.healingDone += healed;
       metrics.healingOverTimeApplied += healed;
       metrics.healingTicks += 1;
@@ -471,6 +641,16 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
       metrics.ongoingDamageApplied += effect.amount;
       metrics.ongoingDamageTicks += 1;
       metrics.overkill += overkill;
+      emitTranscriptEvent(state, {
+        type: "statusTick",
+        actorId: actor.id,
+        actorName: actor.name,
+        actionId: effect.sourceActionId,
+        actionName: effect.sourceActionName,
+        lane: "startOfTurn",
+        message: `Start of Turn: ${actor.name} suffers ${effect.amount} ${effect.pool ?? "physical"} wounds from ${effect.sourceActionName ?? "ongoing damage"}. ${effect.remainingRounds} ticks remaining.`,
+        details: { effect: effect.kind, wounds: effect.amount, pool: effect.pool ?? "physical", overkill, remainingRounds: effect.remainingRounds },
+      });
     }
   }
   markDefeatedActors(state);
@@ -483,18 +663,48 @@ function resolveSingleTargetAction(params: {
   action: CombatAction;
   target: CombatActor;
   rng: Rng;
+  lane?: CombatActionLane;
   fromSecondary?: boolean;
+  gateAlreadyResolved?: boolean;
 }): CombatResolutionMetrics {
-  const { state, actor, action, target, rng } = params;
+  const { state, actor, action, target, rng, lane } = params;
+  const gateAlreadyResolved = Boolean(params.gateAlreadyResolved || params.fromSecondary);
   const metrics = emptyResolution();
   const actorAttributeModifier = getAttributeModifier(state, actor.id, action.accuracyAttribute);
   if (actorAttributeModifier > 0) metrics.buffedActions = 1;
   if (actorAttributeModifier < 0) metrics.debuffedActions = 1;
   const diceCount = Math.max(0, action.diceCount);
   const roll = rollDice(diceCount, getActorDie(actor, action), rng, actorAttributeModifier);
+  const rollSummary = summarizeRoll({ actor, reason: action.name, attribute: action.accuracyAttribute, roll });
   metrics.rawSuccesses = roll.successes;
+  emitTranscriptEvent(state, {
+    type: rollEventType(action),
+    actorId: actor.id,
+    actorName: actor.name,
+    targetId: target.id,
+    targetName: target.name,
+    actionId: action.id,
+    actionName: action.name,
+    lane,
+    message: `Roll: ${rollText(rollSummary)}`,
+    roll: rollSummary,
+    details: { actionKind: action.kind, potency: action.potency, pool: action.pool ?? null },
+  });
 
-  if (action.kind === "attack" || action.kind === "control" || action.kind === "movement") {
+  if (gateAlreadyResolved) {
+    emitTranscriptEvent(state, {
+      type: "statusCreated",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Linked effect: ${action.name} rides the primary defence result; no second Dodge, Protection, or Resist gate is rolled.`,
+      details: { gateAlreadyResolved: true, fromSecondary: Boolean(params.fromSecondary) },
+    });
+  } else if (action.kind === "attack" || action.kind === "control" || action.kind === "movement") {
     const resistMetrics = resolveResist(state, target, action, roll.successes, rng);
     addMetrics(metrics, resistMetrics);
     if (action.resistAttribute && resistMetrics.hostileSuccessesAfterResist <= 0) {
@@ -504,35 +714,64 @@ function resolveSingleTargetAction(params: {
 
   if (action.kind === "attack") {
     const pool = action.pool ?? "physical";
-    const activeHostileSuccesses = action.resistAttribute ? metrics.hostileSuccessesAfterResist : roll.successes;
+    const activeHostileSuccesses =
+      !gateAlreadyResolved && action.resistAttribute ? metrics.hostileSuccessesAfterResist : roll.successes;
     const rawWounds = activeHostileSuccesses * action.potency;
-    const normalDefenceMetrics = resolveBestNormalDefence({
-      state,
-      target,
-      pool,
-      incomingSuccesses: activeHostileSuccesses,
-      rawWounds,
-      rng,
+    emitTranscriptEvent(state, {
+      type: "damageApplied",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Declared damage: ${action.name} has ${activeHostileSuccesses} active successes x ${action.potency} = ${rawWounds} ${pool} wounds before defence.`,
+      details: { activeSuccesses: activeHostileSuccesses, potency: action.potency, rawWounds, pool },
     });
+    const normalDefenceMetrics = gateAlreadyResolved
+      ? emptyResolution()
+      : resolveBestNormalDefence({
+          state,
+          target,
+          pool,
+          incomingSuccesses: activeHostileSuccesses,
+          rawWounds,
+          rng,
+        });
     addMetrics(metrics, normalDefenceMetrics);
     if (normalDefenceMetrics.woundsAvoidedByDodge > 0) {
       metrics.rawWounds = rawWounds;
       metrics.woundsAvoidedByDodge = rawWounds;
+      emitTranscriptEvent(state, {
+        type: "damageApplied",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Attack result: ${target.name} dodged ${action.name}; 0 net wounds.`,
+        details: { rawWounds, netWounds: 0, pool },
+      });
       return metrics;
     }
     const activeSuccesses = activeHostileSuccesses;
     const activeRawWounds = activeSuccesses * action.potency;
-    const passiveDefence = passiveDefenceAmount(target, pool);
+    const passiveDefence = gateAlreadyResolved ? 0 : passiveDefenceAmount(target, pool);
     const normalDefenceBlocked = normalDefenceMetrics.defenceStringBlocked;
     const counterDefenceMetrics =
-      activeRawWounds - normalDefenceBlocked > 0
+      !gateAlreadyResolved && activeRawWounds - normalDefenceBlocked > 0
         ? resolveCounterDefences(state, target, actor, pool, rng)
         : emptyResolution();
     addMetrics(metrics, counterDefenceMetrics);
     const protection =
-      (pool === "physical" ? target.physicalProtection : target.mentalProtection) +
-      getProtectionModifier(state, target.id, pool) +
-      passiveDefence;
+      gateAlreadyResolved
+        ? 0
+        : (pool === "physical" ? target.physicalProtection : target.mentalProtection) +
+          getProtectionModifier(state, target.id, pool) +
+          passiveDefence;
     const staticPrevented = Math.min(
       Math.max(0, activeRawWounds - normalDefenceBlocked - counterDefenceMetrics.counterMitigation),
       Math.max(0, protection),
@@ -541,7 +780,7 @@ function resolveSingleTargetAction(params: {
     const netWounds = Math.max(0, activeRawWounds - prevented);
     const overkill = applyWounds(target, pool, netWounds);
     const counterAttackMetrics =
-      params.fromSecondary || counterDefenceMetrics.counterChosen > 0
+      gateAlreadyResolved || counterDefenceMetrics.counterChosen > 0
         ? emptyResolution()
         : resolveCounterAttacks(state, target, actor, rng);
     addMetrics(metrics, counterAttackMetrics);
@@ -552,6 +791,18 @@ function resolveSingleTargetAction(params: {
     metrics.passiveDefenceContribution = Math.min(activeRawWounds, passiveDefence);
     metrics.netWounds = netWounds;
     metrics.overkill = overkill;
+    emitTranscriptEvent(state, {
+      type: "damageApplied",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Attack result: ${target.name} suffers ${netWounds} ${pool} wounds from ${action.name}. Prevented ${prevented} (${normalDefenceBlocked} defence, ${counterDefenceMetrics.counterMitigation} counter, ${staticPrevented} static/passive).`,
+      details: { rawWounds: activeRawWounds, prevented, netWounds, overkill, pool },
+    });
     if (action.recurring?.kind === "ongoingDamage" && netWounds > 0) {
       const units = Math.max(1, Math.ceil(netWounds / Math.max(1, action.potency)));
       state.statusEffects.push({
@@ -567,24 +818,73 @@ function resolveSingleTargetAction(params: {
       });
       metrics.ongoingDamageUnitsApplied += units;
       metrics.stacksApplied += units;
+      emitTranscriptEvent(state, {
+        type: "statusCreated",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Status created: ${action.name} ongoing damage on ${target.name}, ${action.recurring.durationRounds} ticks remaining, ${Math.max(1, action.potency) * units} ${pool} wounds per tick.`,
+        details: { effect: "ongoingDamage", amount: Math.max(1, action.potency) * units, units, durationRounds: action.recurring.durationRounds, pool },
+      });
     }
   } else if (action.kind === "healing") {
     if (action.recurring?.kind === "healingOverTime") {
+      const amount = Math.max(1, roll.successes * action.potency);
       state.statusEffects.push({
         id: `${state.round}:${actor.id}:${action.id}:${target.id}:hot`,
         sourceActorId: actor.id,
         targetActorId: target.id,
         kind: "healingOverTime",
-        amount: Math.max(1, roll.successes * action.potency),
+        amount,
         pool: action.pool ?? "physical",
         sourceActionId: action.id,
         sourceActionName: action.name,
         remainingRounds: action.recurring.durationRounds,
       });
       metrics.healingOverTimeApplied = 1;
+      emitTranscriptEvent(state, {
+        type: "statusCreated",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Effect: ${action.name} applies healing-over-time to ${target.name}: ${amount} ${action.pool ?? "physical"} healing per tick for ${action.recurring.durationRounds} ticks.`,
+        details: { effect: "healingOverTime", amount, pool: action.pool ?? "physical", durationRounds: action.recurring.durationRounds },
+      });
+      emitTranscriptEvent(state, {
+        type: "statusCreated",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Status created: ${action.name} on ${target.name}, ${action.recurring.durationRounds} ticks remaining.`,
+        details: { effect: "healingOverTime", durationRounds: action.recurring.durationRounds },
+      });
     } else {
       const healing = roll.successes * action.potency;
       metrics.healingDone = healWounds(target, action.pool ?? "physical", healing);
+      emitTranscriptEvent(state, {
+        type: "healingApplied",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Healing: ${action.name} heals ${metrics.healingDone} ${action.pool ?? "physical"} wounds on ${target.name} (${roll.successes} successes x ${action.potency}).`,
+        details: { healingRolled: healing, healingApplied: metrics.healingDone, pool: action.pool ?? "physical" },
+      });
     }
   } else if (action.kind === "buff" || action.kind === "debuff") {
     if (action.modifier) {
@@ -608,6 +908,30 @@ function resolveSingleTargetAction(params: {
       if (action.kind === "buff") metrics.buffApplications = 1;
       if (action.kind === "debuff") metrics.debuffApplications = 1;
       if (action.targetPolicy === "allAllies" || action.targetPolicy === "allEnemies") metrics.positionalAbstractionsUsed = 1;
+      emitTranscriptEvent(state, {
+        type: action.kind === "buff" ? "buffApplied" : "debuffApplied",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `${action.kind === "buff" ? "Buff" : "Debuff"}: ${action.name} applies ${action.kind === "buff" ? "+" : "-"}${action.modifier.amount} ${action.modifier.attribute} to ${target.name} for ${action.modifier.durationRounds} turns.`,
+        details: { modifierAttribute: action.modifier.attribute, amount: action.modifier.amount, durationRounds: action.modifier.durationRounds },
+      });
+      emitTranscriptEvent(state, {
+        type: "statusCreated",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Status created: ${action.name} on ${target.name}, ${action.modifier.durationRounds} ticks remaining.`,
+        details: { effect: action.kind, durationRounds: action.modifier.durationRounds },
+      });
     }
   } else if (action.kind === "defence") {
     const amount = Math.max(1, roll.successes * Math.max(1, action.protection ?? action.potency));
@@ -623,6 +947,18 @@ function resolveSingleTargetAction(params: {
       remainingRounds: action.modifier?.durationRounds ?? 1,
     });
     metrics.mitigationApplied = amount;
+    emitTranscriptEvent(state, {
+      type: "statusCreated",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Defence power: ${action.name} gives ${target.name} ${amount} ${action.pool ?? "physical"} protection for ${action.modifier?.durationRounds ?? 1} turns.`,
+      details: { effect: "protection", amount, pool: action.pool ?? "physical", durationRounds: action.modifier?.durationRounds ?? 1 },
+    });
   } else if (action.kind === "control") {
     state.statusEffects.push({
       id: `${state.round}:${actor.id}:${action.id}:${target.id}:control`,
@@ -635,9 +971,33 @@ function resolveSingleTargetAction(params: {
       remainingRounds: 1,
     });
     metrics.controlTurnsApplied = 1;
+    emitTranscriptEvent(state, {
+      type: "statusCreated",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Control: ${action.name} denies ${target.name}'s main action for 1 turn.`,
+      details: { effect: "mainActionDenied", durationRounds: 1 },
+    });
   } else if (action.kind === "movement") {
     metrics.forcedMovementApplied = 1;
     metrics.positionalAbstractionsUsed = 1;
+    emitTranscriptEvent(state, {
+      type: "movementRoll",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Movement: ${action.name} forces movement; positioning is abstracted.`,
+      details: { positionalAbstraction: true },
+    });
   } else if (action.kind === "cleanse") {
     const cleanseUnits = Math.max(1, roll.successes * Math.max(1, action.potency));
     const removable = state.statusEffects.find(
@@ -655,12 +1015,36 @@ function resolveSingleTargetAction(params: {
       if (removable.amount <= 0) {
         state.statusEffects = state.statusEffects.filter((effect) => effect.id !== removable.id);
       }
+      emitTranscriptEvent(state, {
+        type: "stackChanged",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Cleanse: ${action.name} removes ${cleansed} from ${removable.sourceActionName ?? removable.kind} on ${target.name}.`,
+        details: { cleansed, effect: removable.kind, remainingAmount: removable.amount },
+      });
     } else {
       metrics.wastedActions = 1;
+      emitTranscriptEvent(state, {
+        type: "actionSkipped",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Action wasted: ${action.name} found no removable hostile effect on ${target.name}.`,
+      });
     }
   }
 
-  if (!action.resistAttribute || metrics.hostileSuccessesAfterResist > 0) {
+  const primaryLanded = metrics.rawSuccesses > 0 && (!action.resistAttribute || metrics.hostileSuccessesAfterResist > 0);
+  if (!params.fromSecondary && primaryLanded) {
     for (const secondaryAction of action.secondaryActions ?? []) {
       addMetrics(metrics, resolveSingleTargetAction({
         state,
@@ -668,7 +1052,9 @@ function resolveSingleTargetAction(params: {
         action: secondaryAction,
         target,
         rng,
+        lane,
         fromSecondary: true,
+        gateAlreadyResolved: true,
       }));
     }
   }
@@ -682,21 +1068,50 @@ export function resolveCombatAction(params: {
   action: CombatAction | null;
   target: CombatActor | null;
   rng: Rng;
+  lane?: CombatActionLane;
 }): CombatResolutionMetrics {
-  const { state, actor, action, target, rng } = params;
+  const { state, actor, action, target, rng, lane } = params;
   const metrics = emptyResolution();
   if (!action || !target || actor.defeated) {
     metrics.wastedActions = 1;
+    emitTranscriptEvent(state, {
+      type: "actionSkipped",
+      actorId: actor.id,
+      actorName: actor.name,
+      lane,
+      message: `${actor.name} has no ${lane ?? "action"} action target and skips.`,
+    });
     return metrics;
   }
   if (isActionOnCooldown(state, actor.id, action.id)) {
     recordCooldownPreventedUse(state, actor, action);
     metrics.wastedActions = 1;
+    emitTranscriptEvent(state, {
+      type: "actionSkipped",
+      actorId: actor.id,
+      actorName: actor.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `${actor.name} considers ${action.name}, but it is on cooldown and cannot be used.`,
+    });
     return metrics;
   }
   recordActionUse(state, actor, action);
 
   const targets = resolveTargets(state, actor, action, target);
+  emitTranscriptEvent(state, {
+    type: lane === "power" ? "powerAction" : lane === "response" ? "responseAction" : "mainAction",
+    actorId: actor.id,
+    actorName: actor.name,
+    targetId: target.id,
+    targetName: targets.map((entry) => entry.name).join(", "),
+    actionId: action.id,
+    actionName: action.name,
+    lane,
+    message: `${lane === "power" ? "Power Action" : lane === "response" ? "Response" : "Main Action"}: ${actor.name} uses ${action.name} on ${targets.map((entry) => entry.name).join(", ")}.`,
+    details: { targetCount: targets.length, actionKind: action.kind, cooldownRounds: action.cooldownRounds },
+  });
   if (actionUsesAoeAbstraction(action)) {
     metrics.aoeActionUses += 1;
     metrics.aoePotentialTargets += aoePotentialTargetCount(action);
@@ -704,7 +1119,7 @@ export function resolveCombatAction(params: {
     metrics.positionalAbstractionsUsed += 1;
   }
   for (const resolvedTarget of targets) {
-    addMetrics(metrics, resolveSingleTargetAction({ state, actor, action, target: resolvedTarget, rng }));
+    addMetrics(metrics, resolveSingleTargetAction({ state, actor, action, target: resolvedTarget, rng, lane }));
   }
 
   applyActionCooldown(state, actor, action);

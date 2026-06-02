@@ -189,6 +189,22 @@ type RunPayload = {
       availableTurns: number;
       unavailableTurns: number;
     }>;
+    firstRunTranscript?: {
+      runIndex: number;
+      scenarioName: string;
+      truncated: boolean;
+      lines: string[];
+      events: Array<{
+        id: string;
+        type: string;
+        round: number;
+        actorId?: string;
+        actorName?: string;
+        targetId?: string;
+        targetName?: string;
+        message: string;
+      }>;
+    };
     verdict: string;
   };
 };
@@ -243,6 +259,110 @@ function actionLabel(action: ActionSummary): string {
   const targets = action.targetCount && action.targetCount > 1 ? `, ${action.targetCount} targets` : "";
   const linked = action.secondaryActionCount ? `, ${action.secondaryActionCount} linked` : "";
   return `${action.name} (${action.kind ?? source}${range}${targets}${linked}${action.supported ? "" : ", unsupported"})`;
+}
+
+const TRANSCRIPT_ACTOR_COLOURS = [
+  "text-white",
+  "text-sky-300",
+  "text-emerald-300",
+  "text-yellow-300",
+  "text-rose-300",
+  "text-fuchsia-300",
+  "text-orange-300",
+  "text-cyan-200",
+  "text-lime-300",
+  "text-violet-300",
+];
+
+type TranscriptEvent = NonNullable<RunPayload["report"]["firstRunTranscript"]>["events"][number];
+
+function splitTranscriptTargets(value?: string): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function buildTranscriptActorColours(events: TranscriptEvent[]): Map<string, string> {
+  const actorColours = new Map<string, string>();
+
+  function addActorName(name?: string) {
+    if (!name || actorColours.has(name)) return;
+    actorColours.set(name, TRANSCRIPT_ACTOR_COLOURS[actorColours.size % TRANSCRIPT_ACTOR_COLOURS.length]);
+  }
+
+  for (const event of events) {
+    addActorName(event.actorName);
+    for (const targetName of splitTranscriptTargets(event.targetName)) {
+      addActorName(targetName);
+    }
+  }
+
+  return actorColours;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderTranscriptMessage(message: string, actorColours: Map<string, string>) {
+  const actorNames = [...actorColours.keys()]
+    .filter((name) => message.includes(name))
+    .sort((a, b) => b.length - a.length);
+
+  if (actorNames.length === 0) return message;
+
+  const matcher = new RegExp(`(${actorNames.map(escapeRegExp).join("|")})`, "g");
+  return message.split(matcher).map((part, index) => {
+    const colourClass = actorColours.get(part);
+    return colourClass ? (
+      <span key={`${part}-${index}`} className={`${colourClass} font-semibold`}>
+        {part}
+      </span>
+    ) : (
+      part
+    );
+  });
+}
+
+function CombatTranscriptView({
+  transcript,
+}: {
+  transcript?: RunPayload["report"]["firstRunTranscript"];
+}) {
+  if (!transcript || transcript.lines.length === 0) {
+    return <p className="text-zinc-500">No first-run transcript was captured.</p>;
+  }
+
+  const actorColours = buildTranscriptActorColours(transcript.events);
+  const transcriptEntries =
+    transcript.events.length > 0
+      ? transcript.events
+      : transcript.lines.map((message, index) => ({
+          id: `transcript-line-${index}`,
+          type: "line",
+          round: 0,
+          message,
+        }));
+
+  return (
+    <div className="space-y-2">
+      {actorColours.size > 0 ? (
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+          {[...actorColours.entries()].map(([actorName, colourClass]) => (
+            <span key={actorName} className={`${colourClass} font-semibold`}>
+              {actorName}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="max-h-[34rem] overflow-auto whitespace-pre-wrap rounded border border-zinc-800 bg-black p-3 font-mono text-xs leading-relaxed text-zinc-200">
+        {transcriptEntries.map((event) => (
+          <div key={event.id}>{renderTranscriptMessage(event.message, actorColours)}</div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 async function readJson<T>(res: Response): Promise<T> {
@@ -1015,6 +1135,17 @@ export default function CombatLabPage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div className="rounded border border-emerald-900 bg-zinc-950 p-3 text-sm">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-semibold">Run 1 Combat Transcript</h3>
+                <span className="text-xs text-zinc-500">
+                  {result.report.firstRunTranscript?.events.length ?? 0} events
+                  {result.report.firstRunTranscript?.truncated ? " | truncated" : ""}
+                </span>
+              </div>
+              <CombatTranscriptView transcript={result.report.firstRunTranscript} />
             </div>
 
             <div className="rounded border border-amber-800 bg-amber-950/20 p-3 text-sm text-amber-100">
