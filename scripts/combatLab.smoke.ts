@@ -1556,7 +1556,12 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     action: action({ kind: "control", diceCount: 3, potency: 1, resistAttribute: "FORTITUDE" }),
     rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0, 0]),
   });
-  if (resolution.resistRolls !== 1 || resolution.hostileSuccessesCancelledByResist !== 1 || resolution.controlTurnsApplied !== 2) {
+  if (
+    resolution.resistRolls !== 1 ||
+    resolution.hostileSuccessesCancelledByResist !== 1 ||
+    resolution.controlTurnsApplied !== 1 ||
+    resolution.stacksApplied !== 2
+  ) {
     throw new Error("Resist did not cancel hostile successes success-by-success.");
   }
 }
@@ -2879,40 +2884,151 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     kind: "mainActionDenied",
     amount: 3,
     sourceActionId: "stack-lifecycle-denial-source",
-    sourceActionName: "Three Stack Denial",
-    remainingRounds: 3,
+    sourceActionName: "Staggering-Style Denial",
+    remainingRounds: 1,
   });
-  for (const expectedStacks of [3, 2, 1]) {
-    state.round = 4 - expectedStacks;
-    state.currentTurnActorId = state.actors[1].id;
-    const startResolution = resolveStartOfTurnEffects(state, state.actors[1]);
-    if (startResolution.actionsDenied !== 1) {
-      throw new Error(`Expected main action denial with ${expectedStacks} stacks active.`);
-    }
-    expectTranscriptLine(
-      state.transcriptLines,
-      new RegExp(`Start of Turn: stack-lifecycle-target has ${expectedStacks} stack${expectedStacks === 1 ? "" : "s"} of Force No Main Action from Three Stack Denial`, "i"),
-      `start-turn ${expectedStacks} denial stacks`,
-    );
-    const selectedPower = chooseTurnAction(state.actors[1], state, "power");
-    if (selectedPower?.id !== power.id) {
-      throw new Error(`Power lane was not available with ${expectedStacks} Force No Main Action stack(s).`);
-    }
-    const expired = tickTargetTurnEffects(state, state.actors[1].id);
-    const remaining = state.statusEffects.find((effect) => effect.id === "stack-lifecycle-denial")?.remainingRounds ?? 0;
-    if (remaining !== expectedStacks - 1) {
-      throw new Error(`Force No Main Action stacks double-decremented or failed to tick: expected ${expectedStacks - 1}, got ${remaining}.`);
-    }
-    if (expectedStacks > 1 && expired !== 0) {
-      throw new Error(`Force No Main Action expired early with ${expectedStacks} stacks active.`);
-    }
-    if (expectedStacks === 1 && expired !== 1) {
-      throw new Error("Force No Main Action did not expire after ticking from 1 to 0.");
-    }
+  state.currentTurnActorId = state.actors[1].id;
+  const startResolution = resolveStartOfTurnEffects(state, state.actors[1]);
+  if (startResolution.actionsDenied !== 1) {
+    throw new Error("Expected duration-1 Force No Main Action to deny exactly one target main action.");
   }
-  expectTranscriptLine(state.transcriptLines, /End of Turn: Force No Main Action from Three Stack Denial ticks down from 3 to 2/i, "denial stack 3 to 2");
-  expectTranscriptLine(state.transcriptLines, /End of Turn: Force No Main Action from Three Stack Denial ticks down from 2 to 1/i, "denial stack 2 to 1");
-  expectTranscriptLine(state.transcriptLines, /End of Turn: Force No Main Action from Three Stack Denial ticks down from 1 to 0 and expires/i, "denial stack expires");
+  expectTranscriptLine(
+    state.transcriptLines,
+    /Start of Turn: stack-lifecycle-target has 3 stacks of Force No Main Action from Staggering-Style Denial, 1 turn remaining/i,
+    "duration-1 stack status start",
+  );
+  const selectedPower = chooseTurnAction(state.actors[1], state, "power");
+  if (selectedPower?.id !== power.id) {
+    throw new Error("Power lane was not available while Force No Main Action denied only the main lane.");
+  }
+  const expired = tickTargetTurnEffects(state, state.actors[1].id);
+  if (expired !== 1 || state.statusEffects.some((effect) => effect.id === "stack-lifecycle-denial")) {
+    throw new Error(`Duration-1 stack status did not expire after one affected turn: ${JSON.stringify(state.statusEffects)}.`);
+  }
+  expectTranscriptLine(
+    state.transcriptLines,
+    /End of Turn: Force No Main Action from Staggering-Style Denial expires; removed 3 remaining stacks/i,
+    "duration expiry removes all remaining stacks",
+  );
+  const nextTurnResolution = resolveStartOfTurnEffects(state, state.actors[1]);
+  if (nextTurnResolution.actionsDenied !== 0) {
+    throw new Error("Expired Force No Main Action denied a later main action.");
+  }
+}
+
+{
+  const deniedActor = fixtureActor("high-intensity-stack-target", "monsters");
+  const sourceActor = fixtureActor("high-intensity-stack-source", "players");
+  const state = createCombatState([sourceActor], [deniedActor], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "high-intensity-stack-denial",
+    sourceActorId: state.actors[0].id,
+    targetActorId: state.actors[1].id,
+    kind: "mainActionDenied",
+    amount: 15,
+    sourceActionId: "high-intensity-stack-source-action",
+    sourceActionName: "High Intensity Denial",
+    remainingRounds: 1,
+  });
+  const startResolution = resolveStartOfTurnEffects(state, state.actors[1]);
+  if (startResolution.actionsDenied !== 1) {
+    throw new Error("High-intensity duration-1 stack status did not deny the active target turn.");
+  }
+  const expired = tickTargetTurnEffects(state, state.actors[1].id);
+  if (expired !== 1 || state.statusEffects.some((effect) => effect.id === "high-intensity-stack-denial")) {
+    throw new Error("High-intensity stacks treated amount as duration instead of expiring by duration.");
+  }
+  expectTranscriptLine(
+    state.transcriptLines,
+    /End of Turn: Force No Main Action from High Intensity Denial expires; removed 15 remaining stacks/i,
+    "high-intensity duration expiry",
+  );
+}
+
+{
+  const cleanser = fixtureActor("stack-cleanser", "players", {
+    actions: [
+      action({
+        id: "stack-cleanse",
+        name: "Stack Cleanse",
+        sourceType: "power",
+        kind: "cleanse",
+        targetPolicy: "ally",
+        diceCount: 1,
+        potency: 2,
+      }),
+    ],
+  });
+  const affected = fixtureActor("stack-cleanse-target", "players");
+  const source = fixtureActor("stack-cleanse-source", "monsters");
+  const state = createCombatState([cleanser, affected], [source], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "stack-cleanse-denial",
+    sourceActorId: state.actors[2].id,
+    targetActorId: state.actors[1].id,
+    kind: "mainActionDenied",
+    amount: 5,
+    sourceActionId: "stack-cleanse-source-action",
+    sourceActionName: "Cleanse Test Denial",
+    remainingRounds: 1,
+  });
+  const cleanseResolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  const remainingEffect = state.statusEffects.find((effect) => effect.id === "stack-cleanse-denial");
+  if (cleanseResolution.stacksCleansed !== 2 || remainingEffect?.amount !== 3 || remainingEffect.remainingRounds !== 1) {
+    throw new Error(`Cleanse did not reduce stack amount while preserving duration: ${JSON.stringify({ cleanseResolution, remainingEffect })}.`);
+  }
+  tickTargetTurnEffects(state, state.actors[1].id);
+  if (state.statusEffects.some((effect) => effect.id === "stack-cleanse-denial")) {
+    throw new Error("Stack status remained after duration expiry following cleanup.");
+  }
+  expectTranscriptLine(
+    state.transcriptLines,
+    /End of Turn: Force No Main Action from Cleanse Test Denial expires; removed 3 remaining stacks/i,
+    "expiry removes post-cleanse remaining stacks",
+  );
+}
+
+{
+  const deniedActor = fixtureActor("long-duration-stack-target", "monsters");
+  const sourceActor = fixtureActor("long-duration-stack-source", "players");
+  const state = createCombatState([sourceActor], [deniedActor], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "long-duration-stack-denial",
+    sourceActorId: state.actors[0].id,
+    targetActorId: state.actors[1].id,
+    kind: "mainActionDenied",
+    amount: 2,
+    sourceActionId: "long-duration-stack-source-action",
+    sourceActionName: "Long Duration Denial",
+    remainingRounds: 2,
+  });
+  const firstStart = resolveStartOfTurnEffects(state, state.actors[1]);
+  const firstExpired = tickTargetTurnEffects(state, state.actors[1].id);
+  const afterFirst = state.statusEffects.find((effect) => effect.id === "long-duration-stack-denial");
+  const secondStart = resolveStartOfTurnEffects(state, state.actors[1]);
+  const secondExpired = tickTargetTurnEffects(state, state.actors[1].id);
+  if (
+    firstStart.actionsDenied !== 1 ||
+    firstExpired !== 0 ||
+    afterFirst?.amount !== 2 ||
+    afterFirst.remainingRounds !== 1 ||
+    secondStart.actionsDenied !== 1 ||
+    secondExpired !== 1
+  ) {
+    throw new Error(`Long-duration stack status did not track duration separately from amount: ${JSON.stringify({ firstStart, firstExpired, afterFirst, secondStart, secondExpired })}.`);
+  }
+  expectTranscriptLine(
+    state.transcriptLines,
+    /duration ticks down from 2 to 1; 2 stacks remain active/i,
+    "long-duration stack duration tick",
+  );
 }
 
 {

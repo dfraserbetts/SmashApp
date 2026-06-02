@@ -329,6 +329,10 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
         kind === "buff" || kind === "debuff"
           ? { attribute, amount: Math.max(1, potency), durationRounds: modifierDurationRounds }
           : undefined,
+      control:
+        kind === "control"
+          ? { effect: "mainActionDenied", durationRounds: modifierDurationRounds }
+          : undefined,
       resistAttribute: power.primaryDefenceGate?.gateResult === "RESIST"
         ? (power.primaryDefenceGate.resistAttribute ?? coreAttributeFromValue(details.resistAttribute))
         : null,

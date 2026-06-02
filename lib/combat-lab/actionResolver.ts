@@ -608,12 +608,18 @@ function resolveCounterAttacks(state: CombatState, target: CombatActor, attacker
 export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor): CombatResolutionMetrics {
   const metrics = emptyResolution();
   const actorEffects = state.statusEffects.filter((entry) => entry.targetActorId === actor.id);
-  const actionDeniedEffects = actorEffects.filter((effect) => effect.kind === "mainActionDenied");
+  const actionDeniedEffects = actorEffects.filter(
+    (effect) => effect.kind === "mainActionDenied" && effect.amount > 0 && effect.remainingRounds > 0,
+  );
   if (actionDeniedEffects.length > 0) {
     const primaryDenial = actionDeniedEffects[0];
     const activeStacks = Math.max(
       1,
-      Math.trunc(primaryDenial?.remainingRounds ?? primaryDenial?.amount ?? 1),
+      Math.trunc(primaryDenial?.amount ?? 1),
+    );
+    const remainingRounds = Math.max(
+      1,
+      Math.trunc(primaryDenial?.remainingRounds ?? 1),
     );
     metrics.actionsDenied = 1;
     emitTranscriptEvent(state, {
@@ -625,14 +631,14 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
       lane: "startOfTurn",
       message:
         actionDeniedEffects.length > 1
-          ? `Start of Turn: ${actor.name} has ${activeStacks} stack${activeStacks === 1 ? "" : "s"} of Force No Main Action from ${primaryDenial?.sourceActionName ?? "a control effect"}. ${actionDeniedEffects.length} denial effects were present, consolidated to one denied main action.`
-          : `Start of Turn: ${actor.name} has ${activeStacks} stack${activeStacks === 1 ? "" : "s"} of Force No Main Action from ${primaryDenial?.sourceActionName ?? "a control effect"}.`,
+          ? `Start of Turn: ${actor.name} has ${activeStacks} stack${activeStacks === 1 ? "" : "s"} of Force No Main Action from ${primaryDenial?.sourceActionName ?? "a control effect"}, ${remainingRounds} turn${remainingRounds === 1 ? "" : "s"} remaining. ${actionDeniedEffects.length} denial effects were present, consolidated to one denied main action.`
+          : `Start of Turn: ${actor.name} has ${activeStacks} stack${activeStacks === 1 ? "" : "s"} of Force No Main Action from ${primaryDenial?.sourceActionName ?? "a control effect"}, ${remainingRounds} turn${remainingRounds === 1 ? "" : "s"} remaining.`,
       details: {
         effect: "mainActionDenied",
         amount: 1,
         consolidatedEffects: actionDeniedEffects.length,
         activeStacks,
-        remainingRounds: primaryDenial?.remainingRounds,
+        remainingRounds,
       },
     });
   }
@@ -1023,6 +1029,7 @@ function resolveSingleTargetAction(params: {
     });
   } else if (action.kind === "control") {
     const controlStacks = Math.max(1, activeAppliedSuccesses * Math.max(1, action.potency));
+    const durationRounds = Math.max(1, Math.trunc(action.control?.durationRounds ?? 1));
     state.statusEffects.push({
       id: `${state.round}:${actor.id}:${action.id}:${target.id}:control`,
       sourceActorId: actor.id,
@@ -1031,9 +1038,10 @@ function resolveSingleTargetAction(params: {
       amount: controlStacks,
       sourceActionId: action.id,
       sourceActionName: action.name,
-      remainingRounds: controlStacks,
+      remainingRounds: durationRounds,
     });
-    metrics.controlTurnsApplied = controlStacks;
+    metrics.controlTurnsApplied = durationRounds;
+    metrics.stacksApplied = controlStacks;
     emitTranscriptEvent(state, {
       type: "statusCreated",
       actorId: actor.id,
@@ -1043,8 +1051,8 @@ function resolveSingleTargetAction(params: {
       actionId: action.id,
       actionName: action.name,
       lane,
-      message: `Control: ${action.name} applies ${controlStacks} stack${controlStacks === 1 ? "" : "s"} of Force No Main Action to ${target.name}.`,
-      details: { effect: "mainActionDenied", amount: controlStacks, durationRounds: 1 },
+      message: `Control: ${action.name} applies ${controlStacks} stack${controlStacks === 1 ? "" : "s"} of Force No Main Action to ${target.name} for ${durationRounds} turn${durationRounds === 1 ? "" : "s"}.`,
+      details: { effect: "mainActionDenied", amount: controlStacks, durationRounds },
     });
   } else if (action.kind === "movement") {
     metrics.forcedMovementApplied = 1;

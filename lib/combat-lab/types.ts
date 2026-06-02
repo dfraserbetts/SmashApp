@@ -62,6 +62,10 @@ export type CombatAction = {
     amount: number;
     durationRounds: number;
   };
+  control?: {
+    effect: "mainActionDenied";
+    durationRounds: number;
+  };
   resistAttribute?: CoreAttribute | null;
   secondaryActions?: CombatAction[];
   linkedToPrimary?: boolean;

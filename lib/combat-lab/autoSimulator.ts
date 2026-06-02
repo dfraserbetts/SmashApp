@@ -156,7 +156,11 @@ function powerActionSkipReason(actor: CombatActor, state: ReturnType<typeof crea
 
 function mainActionDenialSource(state: ReturnType<typeof createCombatState>, actor: CombatActor): string {
   return state.statusEffects.find(
-    (effect) => effect.targetActorId === actor.id && effect.kind === "mainActionDenied",
+    (effect) =>
+      effect.targetActorId === actor.id &&
+      effect.kind === "mainActionDenied" &&
+      effect.amount > 0 &&
+      effect.remainingRounds > 0,
   )?.sourceActionName ?? "a control effect";
 }
 

@@ -18,6 +18,7 @@ function cloneAction(action: CombatAction): CombatAction {
     secondaryActions: action.secondaryActions?.map(cloneAction),
     abstractionNotes: action.abstractionNotes ? [...action.abstractionNotes] : undefined,
     modifier: action.modifier ? { ...action.modifier } : undefined,
+    control: action.control ? { ...action.control } : undefined,
     recurring: action.recurring ? { ...action.recurring } : undefined,
     source: action.source ? { ...action.source } : undefined,
   };
@@ -349,12 +350,14 @@ export function tickTargetTurnEffects(state: CombatState, actorId: string): numb
           lane: "endOfTurn",
           message:
             remainingRounds <= 0
-              ? `End of Turn: Force No Main Action from ${effect.sourceActionName ?? "a control effect"} ticks down from ${previous} to 0 and expires.`
-              : `End of Turn: Force No Main Action from ${effect.sourceActionName ?? "a control effect"} ticks down from ${previous} to ${remainingRounds}.`,
+              ? `End of Turn: Force No Main Action from ${effect.sourceActionName ?? "a control effect"} expires; removed ${effect.amount} remaining stack${effect.amount === 1 ? "" : "s"}.`
+              : `End of Turn: Force No Main Action from ${effect.sourceActionName ?? "a control effect"} duration ticks down from ${previous} to ${remainingRounds}; ${effect.amount} stack${effect.amount === 1 ? "" : "s"} remain active.`,
           details: {
             effect: "mainActionDenied",
-            previousStacks: previous,
-            remainingStacks: Math.max(0, remainingRounds),
+            previousDurationRounds: previous,
+            remainingDurationRounds: Math.max(0, remainingRounds),
+            removedStacks: remainingRounds <= 0 ? effect.amount : 0,
+            remainingStacks: remainingRounds <= 0 ? 0 : effect.amount,
             expired: remainingRounds <= 0,
           },
         });
