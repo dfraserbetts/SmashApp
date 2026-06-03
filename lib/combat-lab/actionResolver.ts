@@ -841,6 +841,15 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
   return metrics;
 }
 
+type LinkedPrimaryContext = {
+  scalingMode: NonNullable<CombatAction["linkedScalingMode"]>;
+  primaryActionName: string;
+  primaryAppliedSuccesses: number;
+  linkedUnits: number;
+  netPrimaryWounds?: number;
+  primaryWoundsPerSuccess?: number;
+};
+
 function resolveSingleTargetAction(params: {
   state: CombatState;
   actor: CombatActor;
@@ -851,10 +860,12 @@ function resolveSingleTargetAction(params: {
   fromSecondary?: boolean;
   gateAlreadyResolved?: boolean;
   primaryAppliedSuccesses?: number;
+  linkedPrimaryContext?: LinkedPrimaryContext;
 }): CombatResolutionMetrics {
   const { state, actor, action, target, rng, lane } = params;
   const gateAlreadyResolved = Boolean(params.gateAlreadyResolved || params.fromSecondary);
   const metrics = emptyResolution();
+  let linkedWoundBandContext: LinkedPrimaryContext | null = null;
   const actorAttributeModifier = getAttributeModifier(state, actor.id, action.accuracyAttribute);
   if (actorAttributeModifier > 0) metrics.buffedActions = 1;
   if (actorAttributeModifier < 0) metrics.debuffedActions = 1;
@@ -892,6 +903,13 @@ function resolveSingleTargetAction(params: {
   const counterRoll = rollDeclaredCounter(state, target, actor, counterDeclaration.declared, rng);
 
   if (gateAlreadyResolved) {
+    const linkedContext = params.linkedPrimaryContext;
+    const linkedMessage =
+      action.usesPrimaryAppliedSuccesses && linkedContext?.scalingMode === "primaryWoundBands"
+        ? `Linked effect: ${action.name} rides ${linkedContext.netPrimaryWounds ?? 0} net primary wounds from ${linkedContext.primaryActionName}. Applied wound bands: ceil(${linkedContext.netPrimaryWounds ?? 0} / ${linkedContext.primaryWoundsPerSuccess ?? 1}) = ${linkedContext.linkedUnits}. No secondary roll is made. No second Dodge, Protection, or Resist gate is rolled.`
+        : action.usesPrimaryAppliedSuccesses
+          ? `Linked effect: ${action.name} rides ${inheritedPrimaryAppliedSuccesses} applied primary successes. No secondary roll is made. No second Dodge, Protection, or Resist gate is rolled.`
+          : `Linked effect: ${action.name} rides the primary defence result; no second Dodge, Protection, or Resist gate is rolled.`;
     emitTranscriptEvent(state, {
       type: "statusCreated",
       actorId: actor.id,
@@ -901,13 +919,15 @@ function resolveSingleTargetAction(params: {
       actionId: action.id,
       actionName: action.name,
       lane,
-      message: action.usesPrimaryAppliedSuccesses
-        ? `Linked effect: ${action.name} rides ${inheritedPrimaryAppliedSuccesses} applied primary successes. No secondary roll is made. No second Dodge, Protection, or Resist gate is rolled.`
-        : `Linked effect: ${action.name} rides the primary defence result; no second Dodge, Protection, or Resist gate is rolled.`,
+      message: linkedMessage,
       details: {
         gateAlreadyResolved: true,
         fromSecondary: Boolean(params.fromSecondary),
         appliedPrimarySuccesses: inheritedPrimaryAppliedSuccesses,
+        linkedScalingMode: linkedContext?.scalingMode,
+        netPrimaryWounds: linkedContext?.netPrimaryWounds,
+        primaryWoundsPerSuccess: linkedContext?.primaryWoundsPerSuccess,
+        linkedUnits: linkedContext?.linkedUnits,
         skipOwnRoll,
       },
     });
@@ -958,6 +978,10 @@ function resolveSingleTargetAction(params: {
     const damageApplicationTiming = damageApplicationTimingForAction(action);
     const isPureOngoingDamage =
       action.recurring?.kind === "ongoingDamage" && damageApplicationTiming !== "immediate";
+    const linkedUnitLabel =
+      params.linkedPrimaryContext?.scalingMode === "primaryWoundBands"
+        ? `wound band${activeHostileSuccesses === 1 ? "" : "s"}`
+        : "active successes";
     emitTranscriptEvent(state, {
       type: "damageApplied",
       actorId: actor.id,
@@ -968,9 +992,9 @@ function resolveSingleTargetAction(params: {
       actionName: action.name,
       lane,
       message: isPureOngoingDamage
-        ? `Ongoing declaration: ${action.name} has ${activeHostileSuccesses} active successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds per tick before declaration defence.`
+        ? `Ongoing declaration: ${action.name} has ${activeHostileSuccesses} ${linkedUnitLabel} x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds per tick${gateAlreadyResolved ? "." : " before declaration defence."}`
         : action.usesPrimaryAppliedSuccesses
-          ? `Declared damage: ${activeHostileSuccesses} applied primary successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds.`
+          ? `Declared damage: ${activeHostileSuccesses} ${params.linkedPrimaryContext?.scalingMode === "primaryWoundBands" ? linkedUnitLabel : "applied primary successes"} x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds.`
           : `Declared damage: ${action.name} has ${activeHostileSuccesses} active successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds before defence.`,
       details: { activeSuccesses: activeHostileSuccesses, potency: effectPerSuccess, rawWounds, pool, damageApplicationTiming },
     });
@@ -1045,6 +1069,18 @@ function resolveSingleTargetAction(params: {
     metrics.passiveDefenceContribution = Math.min(activeRawWounds, passiveDefence);
     metrics.netWounds = netWounds;
     metrics.overkill = overkill;
+
+    if (!params.fromSecondary && !isPureOngoingDamage && netWounds > 0) {
+      const primaryWoundsPerSuccess = Math.max(1, effectPerSuccess);
+      linkedWoundBandContext = {
+        scalingMode: "primaryWoundBands",
+        primaryActionName: action.name,
+        primaryAppliedSuccesses: activeAppliedSuccesses,
+        linkedUnits: Math.max(1, Math.ceil(netWounds / primaryWoundsPerSuccess)),
+        netPrimaryWounds: netWounds,
+        primaryWoundsPerSuccess,
+      };
+    }
 
     if (isPureOngoingDamage) {
       if (storedOngoingWounds <= 0) {
@@ -1377,9 +1413,57 @@ function resolveSingleTargetAction(params: {
     }
   }
 
-  const primaryLanded = activeAppliedSuccesses > 0;
-  if (!params.fromSecondary && primaryLanded) {
+  if (!params.fromSecondary) {
     for (const secondaryAction of action.secondaryActions ?? []) {
+      const scalingMode = secondaryAction.linkedScalingMode ?? (action.kind === "attack" ? "primaryWoundBands" : "primaryAppliedSuccesses");
+      const linkedPrimaryContext: LinkedPrimaryContext | null =
+        scalingMode === "primaryWoundBands"
+          ? (
+              linkedWoundBandContext?.netPrimaryWounds
+                ? (() => {
+                    const primaryWoundsPerSuccess = Math.max(
+                      1,
+                      secondaryAction.primaryWoundsPerSuccess ?? linkedWoundBandContext.primaryWoundsPerSuccess ?? 1,
+                    );
+                    return {
+                      ...linkedWoundBandContext,
+                      primaryWoundsPerSuccess,
+                      linkedUnits: Math.max(1, Math.ceil(linkedWoundBandContext.netPrimaryWounds / primaryWoundsPerSuccess)),
+                    };
+                  })()
+                : null
+            )
+          : activeAppliedSuccesses > 0
+            ? {
+                scalingMode: "primaryAppliedSuccesses",
+                primaryActionName: action.name,
+                primaryAppliedSuccesses: activeAppliedSuccesses,
+                linkedUnits: activeAppliedSuccesses,
+              }
+            : null;
+
+      if (!linkedPrimaryContext || linkedPrimaryContext.linkedUnits <= 0) {
+        if (scalingMode === "primaryWoundBands") {
+          emitTranscriptEvent(state, {
+            type: "statusCreated",
+            actorId: actor.id,
+            actorName: actor.name,
+            targetId: target.id,
+            targetName: target.name,
+            actionId: secondaryAction.id,
+            actionName: secondaryAction.name,
+            lane,
+            message: `Linked effect: ${secondaryAction.name} does not apply because ${action.name} inflicted 0 net wounds.`,
+            details: {
+              scalingMode,
+              primaryActionId: action.id,
+              primaryActionName: action.name,
+              netPrimaryWounds: 0,
+            },
+          });
+        }
+        continue;
+      }
       addMetrics(metrics, resolveSingleTargetAction({
         state,
         actor,
@@ -1389,7 +1473,8 @@ function resolveSingleTargetAction(params: {
         lane,
         fromSecondary: true,
         gateAlreadyResolved: true,
-        primaryAppliedSuccesses: activeAppliedSuccesses,
+        primaryAppliedSuccesses: linkedPrimaryContext.linkedUnits,
+        linkedPrimaryContext,
       }));
     }
   }

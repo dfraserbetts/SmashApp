@@ -312,6 +312,16 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
         candidate.sortOrder > (packet.sortOrder ?? packet.packetIndex ?? 0),
     );
     const secondaryActions = linkedPackets.flatMap((secondaryPacket) => {
+      const secondaryDetails = asRecord(secondaryPacket.detailsJson);
+      const secondaryScalingMode = asString(secondaryDetails.secondaryScalingMode).toUpperCase();
+      const linkedScalingMode: NonNullable<CombatAction["linkedScalingMode"]> =
+        secondaryScalingMode === "PRIMARY_WOUND_BANDS" || (kind === "attack" && packet.dealsWounds !== false)
+          ? "primaryWoundBands"
+          : "primaryAppliedSuccesses";
+      const primaryWoundsPerSuccess =
+        linkedScalingMode === "primaryWoundBands"
+          ? Math.max(1, asInt(secondaryDetails.woundsPerSuccess, potency))
+          : undefined;
       const secondaryAdaptation = adaptPowerToCombatActions({
         ...power,
         effectPackets: [secondaryPacket],
@@ -330,6 +340,8 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
         cooldownRounds: 0,
         linkedToPrimary: true,
         usesPrimaryAppliedSuccesses: true,
+        linkedScalingMode,
+        primaryWoundsPerSuccess,
         effectPerPrimarySuccess: Math.max(1, action.potency),
         skipOwnRoll: true,
         skipOwnDefenceGate: true,

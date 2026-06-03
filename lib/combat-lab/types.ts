@@ -70,6 +70,8 @@ export type CombatAction = {
   secondaryActions?: CombatAction[];
   linkedToPrimary?: boolean;
   usesPrimaryAppliedSuccesses?: boolean;
+  linkedScalingMode?: "primaryAppliedSuccesses" | "primaryWoundBands";
+  primaryWoundsPerSuccess?: number;
   effectPerPrimarySuccess?: number;
   skipOwnRoll?: boolean;
   skipOwnDefenceGate?: boolean;

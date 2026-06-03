@@ -113,6 +113,59 @@ function setCooldown(
   };
 }
 
+function runLinkedWoundBandFixture(prevention: number) {
+  const secondary = action({
+    id: "linked-wound-rider",
+    name: "Linked Wound Rider",
+    sourceType: "power",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 6,
+    recurring: { kind: "ongoingDamage", durationRounds: 2 },
+    damageApplicationTiming: "startOfTurn",
+    linkedToPrimary: true,
+    usesPrimaryAppliedSuccesses: true,
+    linkedScalingMode: "primaryWoundBands",
+    primaryWoundsPerSuccess: 8,
+    effectPerPrimarySuccess: 6,
+    skipOwnRoll: true,
+    skipOwnDefenceGate: true,
+  });
+  const primary = action({
+    id: "linked-wound-primary",
+    name: "Linked Wound Primary",
+    sourceType: "power",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 4,
+    potency: 8,
+    secondaryActions: [secondary],
+  });
+  const attacker = fixtureActor("linked-wound-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [primary],
+  });
+  const defender = fixtureActor("linked-wound-defender", "monsters", {
+    physicalHpMax: 1000,
+    physicalHpCurrent: 1000,
+    physicalProtection: prevention,
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: primary,
+    rng: rngFrom([0.1, 0.45, 0.45, 0.9, 0]),
+    lane: "power",
+  });
+  return { state, resolution };
+}
+
 {
   const outcomes = calculateOutcomeSummary([
     ...Array.from({ length: 48 }, () => ({ winner: "players" as const, stoppedBy: "monstersDefeated" as const })),
@@ -805,11 +858,113 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (
     !adapted.actions[0].secondaryActions?.[0]?.linkedToPrimary ||
     !adapted.actions[0].secondaryActions?.[0]?.usesPrimaryAppliedSuccesses ||
+    adapted.actions[0].secondaryActions?.[0]?.linkedScalingMode !== "primaryWoundBands" ||
+    adapted.actions[0].secondaryActions?.[0]?.primaryWoundsPerSuccess !== 4 ||
     !adapted.actions[0].secondaryActions?.[0]?.skipOwnRoll ||
     !adapted.actions[0].secondaryActions?.[0]?.skipOwnDefenceGate
   ) {
-    throw new Error("Linked secondary packets were not marked as primary-success riders.");
+    throw new Error("Linked secondary packets were not marked as wound-band primary riders.");
   }
+}
+
+{
+  const partial = runLinkedWoundBandFixture(29);
+  const partialStatus = partial.state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
+  if (partial.resolution.netWounds !== 3 || !partialStatus || partialStatus.amount !== 6) {
+    throw new Error(`Linked wound-band partial damage did not create one 6-wound rider tick: ${JSON.stringify({ resolution: partial.resolution, status: partialStatus })}.`);
+  }
+  expectTranscriptLine(partial.state.transcriptLines, /Linked effect: Linked Wound Rider rides 3 net primary wounds from Linked Wound Primary\. Applied wound bands: ceil\(3 \/ 8\) = 1/i, "partial linked wound-band transcript");
+  expectTranscriptLine(partial.state.transcriptLines, /Ongoing declaration: Linked Wound Rider has 1 wound band x 6 = 6 physical wounds per tick/i, "partial linked wound-band ongoing declaration");
+
+  const exact = runLinkedWoundBandFixture(24);
+  const exactStatus = exact.state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
+  if (exact.resolution.netWounds !== 8 || !exactStatus || exactStatus.amount !== 6) {
+    throw new Error(`Linked wound-band exact band did not create one rider unit: ${JSON.stringify({ resolution: exact.resolution, status: exactStatus })}.`);
+  }
+
+  const over = runLinkedWoundBandFixture(23);
+  const overStatus = over.state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
+  if (over.resolution.netWounds !== 9 || !overStatus || overStatus.amount !== 12) {
+    throw new Error(`Linked wound-band just-over band did not create two rider units: ${JSON.stringify({ resolution: over.resolution, status: overStatus })}.`);
+  }
+
+  const prevented = runLinkedWoundBandFixture(32);
+  if (prevented.resolution.netWounds !== 0 || prevented.state.statusEffects.some((effect) => effect.kind === "ongoingDamage")) {
+    throw new Error(`Fully prevented wound primary still created a linked ongoing status: ${JSON.stringify({ resolution: prevented.resolution, statuses: prevented.state.statusEffects })}.`);
+  }
+  expectTranscriptLine(prevented.state.transcriptLines, /Linked effect: Linked Wound Rider does not apply because Linked Wound Primary inflicted 0 net wounds/i, "fully prevented linked wound-band skip");
+}
+
+{
+  const base = makeFixturePower({
+    id: "open-vein-live-wound-band",
+    name: "Open Vein",
+    intention: "ATTACK",
+    diceCount: 4,
+    potency: 4,
+    cooldownTurns: 2,
+  });
+  const primary = {
+    ...base.effectPackets[0],
+    potency: 4,
+    dealsWounds: true,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      damageTypes: ["Slashing"],
+    },
+  };
+  const secondary = {
+    ...primary,
+    id: "open-vein-live-wound-band-secondary",
+    sortOrder: 1,
+    packetIndex: 1,
+    potency: 3,
+    effectDurationType: "TURNS" as const,
+    effectTimingType: "START_OF_TURN" as const,
+    effectDurationTurns: 2,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      damageTypes: ["Necrotic"],
+      secondaryScalingMode: "PRIMARY_WOUND_BANDS",
+      woundsPerSuccess: 8,
+    },
+  };
+  const adapted = adaptPowerToCombatActions({
+    ...base,
+    effectPackets: [primary, secondary],
+    intentions: [primary, secondary],
+  });
+  const openVein = adapted.actions[0];
+  if (!openVein || openVein.potency !== 8 || openVein.secondaryActions?.[0]?.effectPerPrimarySuccess !== 6) {
+    throw new Error(`Open Vein live hydration did not preserve 8 primary/6 rider wound values: ${JSON.stringify(adapted)}.`);
+  }
+  const attacker = fixtureActor("open-vein-live-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [openVein],
+  });
+  const defender = fixtureActor("open-vein-live-defender", "monsters", {
+    physicalHpMax: 1000,
+    physicalHpCurrent: 1000,
+    physicalProtection: 29,
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: openVein,
+    rng: rngFrom([0.1, 0.45, 0.45, 0.9, 0]),
+    lane: "power",
+  });
+  const status = state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
+  if (resolution.netWounds !== 3 || !status || status.amount !== 6 || status.damageLabel !== "physical Necrotic") {
+    throw new Error(`Hydrated Open Vein did not scale linked rider by wound bands: ${JSON.stringify({ resolution, status, transcript: state.transcriptLines })}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Linked effect: Open Vein \(attack\) rides 3 net primary wounds from Open Vein\. Applied wound bands: ceil\(3 \/ 8\) = 1/i, "hydrated Open Vein wound-band transcript");
+  expectTranscriptLine(state.transcriptLines, /Status created: Open Vein \(attack\) ongoing damage .* 6 physical Necrotic wounds per tick/i, "hydrated Open Vein status");
 }
 
 {
