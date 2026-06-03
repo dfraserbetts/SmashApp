@@ -1269,11 +1269,13 @@ function getPacketSpecificCost(
           ? "forceNoMove"
           : controlMode === "Force no main action"
             ? "forceNoMainAction"
-            : controlMode === "Force specific main action"
-              ? "forceSpecificMainAction"
-              : controlMode === "Force specific power action"
-                ? "forceSpecificPowerAction"
-                : null;
+            : controlMode === "Force no response"
+              ? "forceNoResponse"
+              : controlMode === "Force specific main action"
+                ? "forceSpecificMainAction"
+                : controlMode === "Force specific power action"
+                  ? "forceSpecificPowerAction"
+                  : null;
     resolved = resolveDiscreteTuningValue(tuningValues, "packet.controlMode", suffix);
   } else if (intention === "CLEANSE") {
     const cleanseEffectType = asString(details.cleanseEffectType);

@@ -88,6 +88,7 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
       forceMove: 1.5,
       forceNoMainAction: 2,
       forceNoMove: 1.5,
+      forceNoResponse: 2,
       forceSpecificMainAction: 2.5,
       forceSpecificPowerAction: 3,
     },

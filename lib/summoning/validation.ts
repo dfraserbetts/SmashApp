@@ -214,6 +214,7 @@ const CONTROL_MODE_SET = new Set<string>([
   "Force no move",
   "Force specific main action",
   "Force no main action",
+  "Force no response",
   "Force specific power action",
 ]);
 const CONTROL_THEME_TO_RESIST_ATTRIBUTE = new Map<string, CoreAttribute>([

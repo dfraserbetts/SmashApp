@@ -389,6 +389,47 @@ const hostilePrimaryControlPacket = createPacket("CONTROL", {
     rangeCategory: "RANGED",
   },
 });
+const forceNoResponseControlPacket = createPacket("CONTROL", {
+  hostility: "HOSTILE",
+  diceCount: 3,
+  potency: 2,
+  applyTo: "PRIMARY_TARGET",
+  effectDurationType: "TURNS",
+  effectDurationTurns: 1,
+  detailsJson: {
+    controlMode: "Force no response",
+    controlTheme: "BODY_ENDURANCE",
+    rangeCategory: "RANGED",
+  },
+});
+const forceNoResponseCost = getFirstPacketBreakdown(createPower({
+  name: "Force No Response Smoke",
+  rangeCategories: ["RANGED"],
+  packet: forceNoResponseControlPacket,
+}));
+assert.equal(
+  DEFAULT_POWER_TUNING_VALUES["packet.controlMode.forceNoResponse"],
+  DEFAULT_POWER_TUNING_VALUES["packet.controlMode.forceNoMainAction"],
+);
+assert.equal(forceNoResponseCost.packetSpecificCost, DEFAULT_POWER_TUNING_VALUES["packet.controlMode.forceNoMainAction"]);
+assert.ok(
+  (forceNoResponseCost.debug.chosenTuningKeys as string[]).includes("packet.controlMode.forceNoResponse"),
+);
+const normalizedForceNoResponse = normalizeMonsterUpsertInput({
+  ...createBaseMonster(),
+  powers: [
+    createPower({
+      name: "Force No Response Smoke",
+      rangeCategories: ["RANGED"],
+      packet: forceNoResponseControlPacket,
+    }),
+  ],
+});
+if (!normalizedForceNoResponse.ok) throw new Error(normalizedForceNoResponse.error);
+assert.equal(
+  normalizedForceNoResponse.data.powers[0].effectPackets[0].detailsJson.controlMode,
+  "Force no response",
+);
 const triggeredSelfTeleportPacket = createPacket("MOVEMENT", {
   sortOrder: 1,
   packetIndex: 1,

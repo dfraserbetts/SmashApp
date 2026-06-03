@@ -67,6 +67,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   forceMove: "Force Move",
   forceNoMainAction: "Force No Main Action",
   forceNoMove: "Force No Move",
+  forceNoResponse: "Force No Response",
   forcePush: "Force Push",
   forceSpecificMainAction: "Force Specific Main Action",
   forceSpecificPowerAction: "Force Specific Power Action",

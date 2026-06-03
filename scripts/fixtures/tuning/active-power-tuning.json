@@ -68,6 +68,7 @@
     "packet.controlMode.forceMove": 1.5,
     "packet.controlMode.forceNoMainAction": 2,
     "packet.controlMode.forceNoMove": 1.5,
+    "packet.controlMode.forceNoResponse": 2,
     "packet.controlMode.forceSpecificMainAction": 2.5,
     "packet.controlMode.forceSpecificPowerAction": 3,
     "packet.debuffStat.armorSkill": 1,

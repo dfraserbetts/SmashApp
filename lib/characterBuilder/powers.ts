@@ -147,6 +147,7 @@ const CONTROL_MODES = [
   "Force no move",
   "Force specific main action",
   "Force no main action",
+  "Force no response",
   "Force specific power action",
 ] as const;
 const CLEANSE_EFFECTS = [
