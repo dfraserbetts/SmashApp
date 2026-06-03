@@ -68,20 +68,21 @@ export function createCombatState(
   monsters: CombatActor[],
   options: { captureTranscript?: boolean } = {},
 ): CombatState {
+  const actors = [...players, ...monsters].map((actor) => ({
+    ...cloneActor(actor),
+    defeated: false,
+    physicalHpCurrent: actor.physicalHpMax,
+    mentalHpCurrent: actor.mentalHpMax,
+  }));
   return {
     round: 1,
-    actors: [...players, ...monsters].map((actor) => ({
-      ...cloneActor(actor),
-      defeated: false,
-      physicalHpCurrent: actor.physicalHpMax,
-      mentalHpCurrent: actor.mentalHpMax,
-    })),
+    actors,
     cooldowns: {},
     currentTurnActorId: null,
     cooldownTrace: {},
     counterUses: {},
     incomingActionsByTargetThisRound: {},
-    responsesRemaining: {},
+    responsesRemaining: Object.fromEntries(actors.filter((actor) => !actor.defeated).map((actor) => [actor.id, 2])),
     defenceDegradation: {},
     statusEffects: [],
     captureTranscript: Boolean(options.captureTranscript),
@@ -91,6 +92,21 @@ export function createCombatState(
     transcriptEventSeq: 0,
     log: [],
   };
+}
+
+export function emitCombatStartResponses(state: CombatState) {
+  for (const actor of state.actors) {
+    if (actor.defeated) continue;
+    const responsesRemaining = state.responsesRemaining[actor.id] ?? 0;
+    emitTranscriptEvent(state, {
+      type: "responsesRefresh",
+      actorId: actor.id,
+      actorName: actor.name,
+      lane: "combatStart",
+      message: `Combat start: ${actor.name} starts with ${responsesRemaining} responses.`,
+      details: { responsesRemaining },
+    });
+  }
 }
 
 export function emitTranscriptEvent(

@@ -1906,6 +1906,52 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const openingCounter = action({
+    id: "pre-first-turn-counterstrike",
+    name: "Pre First Turn Counterstrike",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 3,
+  });
+  const defender = fixtureActor("pre-first-turn-defender", "players", {
+    actions: [openingCounter],
+  });
+  const attacker = fixtureActor("pre-first-turn-attacker", "monsters", {
+    actions: [action({ id: "pre-first-turn-trigger", name: "Pre First Turn Trigger", diceCount: 1, potency: 1 })],
+  });
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  if (state.responsesRemaining[state.actors[0].id] !== 2 || state.responsesRemaining[state.actors[1].id] !== 2) {
+    throw new Error(`Combatants did not begin combat with 2 responses: ${JSON.stringify(state.responsesRemaining)}.`);
+  }
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: state.actors[1].actions[0],
+    rng: rngFrom([0.99, 0.99]),
+    lane: "main",
+  });
+  if (
+    resolution.counterChosen !== 1 ||
+    resolution.responsesUsed !== 1 ||
+    state.responsesRemaining[state.actors[0].id] !== 1 ||
+    resolution.dodgeChosen !== 0 ||
+    resolution.physicalDefenceChosen !== 0
+  ) {
+    throw new Error(`Actor attacked before first turn did not spend one opening response on its counter: ${JSON.stringify({ resolution, responses: state.responsesRemaining })}.`);
+  }
+  refreshActorResponses(state, state.actors[0].id);
+  if (state.responsesRemaining[state.actors[0].id] !== 2) {
+    throw new Error("Actor did not refresh back to 2 responses at the start of its own turn.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Counter declared: pre-first-turn-defender will use Pre First Turn Counterstrike/i, "pre-first-turn counter declaration");
+  expectTranscriptLine(state.transcriptLines, /Response spent: pre-first-turn-defender spends 1 response \(1 remaining\)/i, "pre-first-turn response spend");
+  expectTranscriptLine(state.transcriptLines, /Responses: pre-first-turn-defender refreshes to 2 responses/i, "pre-first-turn owner refresh");
+}
+
+{
   const counterstrike = action({
     id: "owner-turn-response-counterstrike",
     name: "Owner Turn Response Counterstrike",
@@ -3923,6 +3969,14 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     throw new Error("Multi-run scenario did not expose exactly one first-run transcript.");
   }
   expectTranscriptLine(report.firstRunTranscript.lines, /Round 1 begins/i, "first run transcript round start");
+  expectTranscriptLine(report.firstRunTranscript.lines, /Combat start: first-run-transcript-player starts with 2 responses/i, "first run player combat-start responses");
+  expectTranscriptLine(report.firstRunTranscript.lines, /Combat start: first-run-transcript-monster starts with 2 responses/i, "first run monster combat-start responses");
+  const roundStartIndex = report.firstRunTranscript.lines.findIndex((line) => /Round 1 begins/i.test(line));
+  const combatStartIndex = report.firstRunTranscript.lines.findIndex((line) => /Combat start:/i.test(line));
+  const turnStartIndex = report.firstRunTranscript.lines.findIndex((line) => /Turn 1:/i.test(line));
+  if (roundStartIndex < 0 || combatStartIndex < 0 || turnStartIndex < 0 || roundStartIndex > combatStartIndex || combatStartIndex > turnStartIndex) {
+    throw new Error(`Combat-start response transcript ordering is wrong: ${report.firstRunTranscript.lines.slice(0, 8).join(" | ")}`);
+  }
 }
 
 console.log(

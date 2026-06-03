@@ -3,6 +3,7 @@ import {
   collectUnsupportedSummary,
   createCombatState,
   createEmptyMetrics,
+  emitCombatStartResponses,
   emitTranscriptEvent,
   getLivingActors,
   getOppositeSide,
@@ -583,6 +584,9 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
       type: "roundStart",
       message: `Round ${round} begins.`,
     });
+    if (round === 1) {
+      emitCombatStartResponses(state);
+    }
     resetRoundTargetingPressure(state);
     const damageAtRoundStart = metrics.damageDealt.players + metrics.damageDealt.monsters;
     metrics.activeEnemiesByRound.push(getLivingActors(state, "monsters").length);

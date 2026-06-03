@@ -19,7 +19,7 @@ export type CombatDieSize = "D4" | "D6" | "D8" | "D10" | "D12";
 export type CombatActionKind = "attack" | "healing" | "buff" | "debuff" | "defence" | "control" | "movement" | "cleanse";
 export type CombatTargetPolicy = "enemy" | "ally" | "self" | "allAllies" | "allEnemies";
 export type CombatActionSourceType = "naturalAttack" | "equippedWeapon" | "power" | "fallback";
-export type CombatActionLane = "main" | "power" | "response" | "startOfTurn" | "endOfTurn";
+export type CombatActionLane = "combatStart" | "main" | "power" | "response" | "startOfTurn" | "endOfTurn";
 export type CombatActorRole =
   | "Glass Cannon"
   | "Bruiser"
