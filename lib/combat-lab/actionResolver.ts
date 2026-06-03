@@ -172,7 +172,9 @@ function actionDamageLabel(action: CombatAction, pool: "physical" | "mental") {
     !Array.isArray(action.source.packet.detailsJson)
       ? (action.source.packet.detailsJson as Record<string, unknown>)
       : {};
-  const damageTypes = Array.isArray(details.damageTypes)
+  const damageTypes = Array.isArray(action.damageTypes)
+    ? action.damageTypes.map((entry) => String(entry).trim()).filter(Boolean)
+    : Array.isArray(details.damageTypes)
     ? details.damageTypes.map((entry) => String(entry).trim()).filter(Boolean)
     : [];
   if (damageTypes.length === 0) return pool;
@@ -1255,23 +1257,26 @@ function resolveSingleTargetAction(params: {
     }
   } else if (action.kind === "buff" || action.kind === "debuff") {
     if (action.modifier) {
+      const linkedStacks = action.usesPrimaryAppliedSuccesses ? Math.max(1, activeAppliedSuccesses) : 1;
+      const appliedAmount = Math.max(1, action.modifier.amount) * linkedStacks;
+      const durationRounds = action.durationRounds ?? action.modifier.durationRounds;
       state.statusEffects.push({
         id: `${state.round}:${actor.id}:${action.id}:${target.id}`,
         sourceActorId: actor.id,
         targetActorId: target.id,
         kind: action.kind,
         attribute: action.modifier.attribute,
-        amount: action.modifier.amount,
+        amount: appliedAmount,
         sourceActionId: action.id,
         sourceActionName: action.name,
-        remainingRounds: action.modifier.durationRounds,
+        remainingRounds: durationRounds,
         positionalAbstraction: action.targetPolicy === "allAllies"
           ? "AOE ally buff abstracted to all living allies."
           : action.targetPolicy === "allEnemies"
             ? "Field positioning abstracted: affected all enemy actors."
             : undefined,
       });
-      metrics.buffDebuffApplied = action.modifier.amount;
+      metrics.buffDebuffApplied = appliedAmount;
       if (action.kind === "buff") metrics.buffApplications = 1;
       if (action.kind === "debuff") metrics.debuffApplications = 1;
       if (action.targetPolicy === "allAllies" || action.targetPolicy === "allEnemies") metrics.positionalAbstractionsUsed = 1;
@@ -1284,8 +1289,10 @@ function resolveSingleTargetAction(params: {
         actionId: action.id,
         actionName: action.name,
         lane,
-        message: `${action.kind === "buff" ? "Buff" : "Debuff"}: ${action.name} applies ${action.kind === "buff" ? "+" : "-"}${action.modifier.amount} ${action.modifier.attribute} to ${target.name} for ${action.modifier.durationRounds} turns.`,
-        details: { modifierAttribute: action.modifier.attribute, amount: action.modifier.amount, durationRounds: action.modifier.durationRounds },
+        message: action.usesPrimaryAppliedSuccesses
+          ? `${action.kind === "buff" ? "Buff/status created" : "Debuff/status created"}: ${action.name} grants ${linkedStacks} stack${linkedStacks === 1 ? "" : "s"} of ${action.kind === "buff" ? "+" : "-"}${action.modifier.amount} ${action.modifier.attribute} to ${target.name} (${action.kind === "buff" ? "+" : "-"}${appliedAmount} total) for ${durationRounds} turns.`
+          : `${action.kind === "buff" ? "Buff" : "Debuff"}: ${action.name} applies ${action.kind === "buff" ? "+" : "-"}${appliedAmount} ${action.modifier.attribute} to ${target.name} for ${durationRounds} turns.`,
+        details: { modifierAttribute: action.modifier.attribute, amount: appliedAmount, stackAmount: action.modifier.amount, stacks: linkedStacks, durationRounds },
       });
       emitTranscriptEvent(state, {
         type: "statusCreated",
@@ -1296,12 +1303,15 @@ function resolveSingleTargetAction(params: {
         actionId: action.id,
         actionName: action.name,
         lane,
-        message: `Status created: ${action.name} on ${target.name}, ${action.modifier.durationRounds} ticks remaining.`,
-        details: { effect: action.kind, durationRounds: action.modifier.durationRounds },
+        message: `Status created: ${action.name} on ${target.name}, ${durationRounds} ticks remaining.`,
+        details: { effect: action.kind, durationRounds },
       });
     }
   } else if (action.kind === "defence") {
-    const amount = Math.max(1, activeAppliedSuccesses * Math.max(1, action.protection ?? action.potency));
+    const blockPerSuccess = Math.max(1, action.protection ?? action.potency);
+    const amount = Math.max(1, activeAppliedSuccesses * blockPerSuccess);
+    const durationRounds = Math.max(1, action.durationRounds ?? action.modifier?.durationRounds ?? 1);
+    const isPassiveDuration = action.source?.packet?.effectDurationType === "PASSIVE" || durationRounds >= 99;
     state.statusEffects.push({
       id: `${state.round}:${actor.id}:${action.id}:${target.id}`,
       sourceActorId: actor.id,
@@ -1311,9 +1321,10 @@ function resolveSingleTargetAction(params: {
       amount,
       sourceActionId: action.id,
       sourceActionName: action.name,
-      remainingRounds: action.modifier?.durationRounds ?? 1,
+      remainingRounds: durationRounds,
     });
     metrics.mitigationApplied = amount;
+    metrics.passiveDefenceContribution = amount;
     emitTranscriptEvent(state, {
       type: "statusCreated",
       actorId: actor.id,
@@ -1323,8 +1334,10 @@ function resolveSingleTargetAction(params: {
       actionId: action.id,
       actionName: action.name,
       lane,
-      message: `Defence power: ${action.name} gives ${target.name} ${amount} ${action.pool ?? "physical"} protection for ${action.modifier?.durationRounds ?? 1} turns.`,
-      details: { effect: "protection", amount, pool: action.pool ?? "physical", durationRounds: action.modifier?.durationRounds ?? 1 },
+      message: isPassiveDuration
+        ? `Passive defence: ${action.name} grants ${target.name} ${activeAppliedSuccesses} x ${blockPerSuccess} = ${amount} passive ${action.pool ?? "physical"} wound blocking until it ends or is removed.`
+        : `Defence power: ${action.name} gives ${target.name} ${amount} ${action.pool ?? "physical"} protection for ${durationRounds} turns.`,
+      details: { effect: "protection", amount, blockPerSuccess, appliedSuccesses: activeAppliedSuccesses, pool: action.pool ?? "physical", durationRounds },
     });
   } else if (action.kind === "control") {
     const controlStacks = Math.max(1, activeAppliedSuccesses * Math.max(1, action.potency));

@@ -524,6 +524,12 @@ function unsupportedActionWarnings(actor: { id: string; name: string }, actions:
     );
 }
 
+function actionAbstractionWarnings(actor: { id: string; name: string }, actions: CombatAction[]) {
+  return Array.from(new Set(actions.flatMap((action) => action.abstractionNotes ?? []))).map((message) =>
+    makeWarning(actor.id, actor.name, "actionAbstraction", message),
+  );
+}
+
 function readEffectiveStoredCooldown(power: Power): number | null {
   const cooldownTurns = typeof power.cooldownTurns === "number" ? power.cooldownTurns : Number(power.cooldownTurns);
   if (!Number.isFinite(cooldownTurns) || cooldownTurns < 1) return null;
@@ -734,6 +740,7 @@ export function adaptCampaignCharacterToCombatActor(
     warnings.push(makeWarning(row.id, row.name, "selectedTraitKeys", message));
   }
   warnings.push(...unsupportedActionWarnings(row, equipmentActions));
+  warnings.push(...actionAbstractionWarnings(row, equipmentActions));
 
   const actions = [...equipmentActions, ...fallbackActions, ...powerActions];
   const attributeDice = {
@@ -939,6 +946,7 @@ export function adaptMonsterToCombatLabActor(
     warnings.push(makeWarning(row.id, row.name, "traits", "Monster trait mechanics are reported but not applied by Combat Lab V1."));
   }
   warnings.push(...unsupportedActionWarnings(row, [...naturalAttackActions, ...equippedWeaponActions]));
+  warnings.push(...actionAbstractionWarnings(row, [...naturalAttackActions, ...equippedWeaponActions]));
 
   const attack = getAttributeNumericValue(row.attackDie) + asNumber(row.attackModifier);
   const guard = getAttributeNumericValue(row.guardDie) + asNumber(row.guardModifier);

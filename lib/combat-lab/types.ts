@@ -53,10 +53,12 @@ export type CombatAction = {
   rangeCategory?: "MELEE" | "RANGED" | "AOE" | null;
   targetCount?: number;
   damageTypeCount?: number;
+  damageTypes?: string[];
   accuracyAttribute: CombatAttributeName;
   diceCount: number;
   potency: number;
   protection?: number;
+  durationRounds?: number;
   modifier?: {
     attribute: CombatAttributeName;
     amount: number;

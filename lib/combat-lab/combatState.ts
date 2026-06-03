@@ -15,8 +15,10 @@ function cloneAction(action: CombatAction): CombatAction {
   return {
     ...action,
     unsupportedReasons: [...action.unsupportedReasons],
+    damageTypes: action.damageTypes ? [...action.damageTypes] : undefined,
     secondaryActions: action.secondaryActions?.map(cloneAction),
     abstractionNotes: action.abstractionNotes ? [...action.abstractionNotes] : undefined,
+    durationRounds: action.durationRounds,
     modifier: action.modifier ? { ...action.modifier } : undefined,
     control: action.control ? { ...action.control } : undefined,
     recurring: action.recurring ? { ...action.recurring } : undefined,

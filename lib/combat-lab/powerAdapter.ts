@@ -7,6 +7,7 @@ import type {
   RangeCategory,
 } from "@/lib/summoning/types";
 import { effectiveAttackWoundsPerSuccess, effectiveCooldownTurns } from "@/lib/summoning/render";
+import { strengthToTableWoundsPerSuccess } from "@/lib/forge/outputProfile";
 
 import type {
   CombatAction,
@@ -36,6 +37,8 @@ const CORE_TO_COMBAT_ATTRIBUTE: Record<CoreAttribute, CombatAttributeName> = {
   SYNERGY: "Synergy",
   BRAVERY: "Bravery",
 };
+
+const PASSIVE_POWER_DURATION_ROUNDS = 99;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -127,7 +130,7 @@ function packetIsCastableNow(power: Power, packet: EffectPacket): string | null 
   if (timing !== "ON_CAST" && !recurringTurnTiming && !(chassis === "FIELD" && timing === "START_OF_TURN")) {
     return `Packet timing ${timing} is not resolved in automated V1.`;
   }
-  if (duration !== "INSTANT" && duration !== "TURNS" && duration !== "PASSIVE") {
+  if (duration !== "INSTANT" && duration !== "TURNS" && duration !== "PASSIVE" && duration !== "UNTIL_TARGET_NEXT_TURN") {
     return `Packet duration ${duration} is not resolved in automated V1.`;
   }
   return null;
@@ -197,6 +200,17 @@ function recurringKindForPacket(kind: CombatAction["kind"], packet: EffectPacket
   if (kind === "healing") return { kind: "healingOverTime", durationRounds };
   if (kind === "attack") return { kind: "ongoingDamage", durationRounds };
   return undefined;
+}
+
+function actionDurationRounds(power: Power, packet: EffectPacket, fallbackRounds: number): number {
+  const duration = packet.effectDurationType ?? "INSTANT";
+  if (power.descriptorChassis === "FIELD") {
+    return Math.max(1, asInt(power.lifespanTurns, fallbackRounds));
+  }
+  if (duration === "TURNS") return fallbackRounds;
+  if (duration === "PASSIVE") return PASSIVE_POWER_DURATION_ROUNDS;
+  if (duration === "UNTIL_TARGET_NEXT_TURN") return 1;
+  return 1;
 }
 
 function resolveAttackPacketPool(params: {
@@ -301,10 +315,7 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       power.descriptorChassis === "FIELD"
         ? Math.max(1, asInt(power.lifespanTurns, durationRounds))
         : durationRounds;
-    const modifierDurationRounds =
-      (packet.effectDurationType ?? "INSTANT") === "TURNS" || power.descriptorChassis === "FIELD"
-        ? structuralDurationRounds
-        : 1;
+    const durationRoundsForAction = actionDurationRounds(power, packet, structuralDurationRounds);
     const isAoe = rangeCategory === "AOE";
     const linkedPackets = packets.filter(
       (candidate) =>
@@ -336,7 +347,10 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       }
       return secondaryAdaptation.actions.map((action) => ({
         ...action,
-        name: `${power.name} (${action.kind})`,
+        name:
+          action.kind === "buff" && action.modifier
+            ? `${power.name} (+${action.modifier.attribute})`
+            : `${power.name} (${action.kind})`,
         cooldownRounds: 0,
         linkedToPrimary: true,
         usesPrimaryAppliedSuccesses: true,
@@ -370,13 +384,14 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       diceCount,
       potency,
       protection: kind === "defence" ? potency : undefined,
+      durationRounds: durationRoundsForAction,
       modifier:
         kind === "buff" || kind === "debuff"
-          ? { attribute, amount: Math.max(1, potency), durationRounds: modifierDurationRounds }
+          ? { attribute, amount: Math.max(1, potency), durationRounds: durationRoundsForAction }
           : undefined,
       control:
         kind === "control"
-          ? { effect: "mainActionDenied", durationRounds: modifierDurationRounds }
+          ? { effect: "mainActionDenied", durationRounds: durationRoundsForAction }
           : undefined,
       resistAttribute: power.primaryDefenceGate?.gateResult === "RESIST"
         ? (power.primaryDefenceGate.resistAttribute ?? coreAttributeFromValue(details.resistAttribute))
@@ -385,7 +400,7 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       recurring: recurringKindForPacket(kind, packet),
       damageApplicationTiming:
         kind === "attack" ? damageApplicationTimingForPacket(kind, packet) : undefined,
-      passive: kind === "defence" && (packet.effectDurationType ?? "INSTANT") === "PASSIVE" && targetPolicyForAction(kind, packet) === "self",
+      passive: undefined,
       counterMode: power.counterMode === "YES",
       abstractionNotes: [
         ...(isAoe ? ["AOE target count abstracted to 60% of potential capacity."] : []),
@@ -451,6 +466,28 @@ function damageTypeCount(
   return Math.max(1, count);
 }
 
+function damageTypeNames(
+  damageTypes: Array<{ name?: string | null; mode?: string | null }> | undefined,
+  pool: CombatPool,
+): string[] {
+  const mode = pool === "mental" ? "MENTAL" : "PHYSICAL";
+  return (damageTypes ?? [])
+    .filter((entry) => (entry.mode ?? "PHYSICAL") === mode)
+    .map((entry) => String(entry.name ?? "").trim())
+    .filter(Boolean);
+}
+
+function tableFacingWoundsPerSuccess(rawStrength: number): number {
+  return strengthToTableWoundsPerSuccess(rawStrength);
+}
+
+function damageHydrationWarning(sourceLabel: string, pool: CombatPool, rawStrength: number, displayedWounds: number) {
+  if (rawStrength <= 0 || rawStrength === displayedWounds) return [];
+  return [
+    `Damage hydration warning: ${sourceLabel} raw ${pool} strength ${rawStrength} resolves to displayed ${displayedWounds} wounds per success; Combat Lab used ${displayedWounds}.`,
+  ];
+}
+
 function rangeTargetCount(
   rangeCategory: RangeCategory,
   config: NonNullable<MonsterNaturalAttackConfig[Lowercase<RangeCategory>]>,
@@ -488,6 +525,7 @@ function makeAttackProfileActions(params: {
   };
   const actions: CombatAction[] = [];
   if (physicalStrength > 0) {
+    const potency = tableFacingWoundsPerSuccess(physicalStrength);
     actions.push({
       ...base,
       id: `${params.idBase}:${params.rangeCategory.toLowerCase()}:physical`,
@@ -496,10 +534,13 @@ function makeAttackProfileActions(params: {
       unsupportedReasons: [],
       pool: "physical",
       damageTypeCount: damageTypeCount(params.config.damageTypes, "physical"),
-      potency: Math.max(1, Math.ceil(physicalStrength)),
+      damageTypes: damageTypeNames(params.config.damageTypes, "physical"),
+      potency: Math.max(1, potency),
+      abstractionNotes: damageHydrationWarning(params.sourceLabel, "physical", physicalStrength, potency),
     });
   }
   if (mentalStrength > 0) {
+    const potency = tableFacingWoundsPerSuccess(mentalStrength);
     actions.push({
       ...base,
       id: `${params.idBase}:${params.rangeCategory.toLowerCase()}:mental`,
@@ -508,7 +549,9 @@ function makeAttackProfileActions(params: {
       unsupportedReasons: [],
       pool: "mental",
       damageTypeCount: damageTypeCount(params.config.damageTypes, "mental"),
-      potency: Math.max(1, Math.ceil(mentalStrength)),
+      damageTypes: damageTypeNames(params.config.damageTypes, "mental"),
+      potency: Math.max(1, potency),
+      abstractionNotes: damageHydrationWarning(params.sourceLabel, "mental", mentalStrength, potency),
     });
   }
   if (actions.length === 0) {

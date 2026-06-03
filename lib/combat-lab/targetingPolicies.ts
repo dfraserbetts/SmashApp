@@ -33,6 +33,16 @@ function targetHasEquivalentEffect(target: CombatActor, action: CombatAction, st
   );
 }
 
+function hasActiveSelfProtection(actor: CombatActor, action: CombatAction, state: CombatState): boolean {
+  return state.statusEffects.some(
+    (effect) =>
+      effect.targetActorId === actor.id &&
+      effect.kind === "protection" &&
+      effect.sourceActionName === action.name &&
+      effect.remainingRounds > 0,
+  );
+}
+
 function hasWoundedAlly(actor: CombatActor, state: CombatState): boolean {
   return getLivingActors(state, actor.side).some((ally) => hpPercent(ally) < 0.8);
 }
@@ -72,12 +82,28 @@ function isDefencePowerUseful(actor: CombatActor, action: CombatAction, state: C
   const protectedPool = action.pool ?? "physical";
   const enemyPools = expectedEnemyAttackPools(actor, state);
   if (!enemyPools.has(protectedPool)) return false;
-  if (action.targetPolicy === "self" || action.targetPolicy === "allAllies") return true;
+  if (action.targetPolicy === "self") return !hasActiveSelfProtection(actor, action, state);
+  if (action.targetPolicy === "allAllies") return !hasActiveSelfProtection(actor, action, state);
   if (action.targetPolicy === "ally") {
     const allies = getLivingActors(state, actor.side);
     return allies.length > 1 || hpPercent(actor) < 0.98;
   }
   return false;
+}
+
+function shouldPrioritizeSelfDefence(actor: CombatActor, action: CombatAction, state: CombatState): boolean {
+  if (action.kind !== "defence" || action.targetPolicy !== "self") return false;
+  if (hasActiveSelfProtection(actor, action, state)) return false;
+  if (state.round <= 1) return true;
+  const enemies = getLivingActors(state, getOppositeSide(actor.side));
+  const protectedPool = action.pool ?? "physical";
+  const highestExpectedBurst = enemies.reduce((max, enemy) => {
+    const enemyBurst = enemy.actions
+      .filter((candidate) => candidate.kind === "attack" && (candidate.pool ?? "physical") === protectedPool)
+      .reduce((sum, candidate) => Math.max(sum, candidate.diceCount * Math.max(1, candidate.potency)), 0);
+    return Math.max(max, enemyBurst);
+  }, 0);
+  return highestExpectedBurst >= Math.max(8, actor.physicalHpMax * 0.15);
 }
 
 function isSupportLike(actor: CombatActor, actions: CombatAction[]): boolean {
@@ -168,6 +194,10 @@ export function chooseTurnAction(
     const powerPool = available.filter(
       (action) => action.sourceType === "power" && isContextuallyUsefulPower(actor, action, state),
     );
+    const selfDefence = powerPool
+      .filter((action) => shouldPrioritizeSelfDefence(actor, action, state))
+      .sort((a, b) => actionScore(b) - actionScore(a))[0];
+    if (selfDefence) return selfDefence;
     if (isSupportLike(actor, powerPool)) {
       const allies = getLivingActors(state, actor.side);
       const woundedAlly = allies

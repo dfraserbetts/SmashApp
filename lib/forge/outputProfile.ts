@@ -515,7 +515,7 @@ function normalizeArmorLocation(location: string | null | undefined): ArmorLocat
   return null;
 }
 
-function strengthToTableWoundsPerSuccess(strength: number): number {
+export function strengthToTableWoundsPerSuccess(strength: number): number {
   return Math.max(0, strength) * 2;
 }
 

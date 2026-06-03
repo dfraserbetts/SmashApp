@@ -405,6 +405,67 @@ const realAttackActions = makeAttackActionsFromConfig({
 if (realAttackActions.length === 0 || realAttackActions.some((action) => action.sourceType === "fallback")) {
   throw new Error("Real equipped attack fixture incorrectly used fallback.");
 }
+if (realAttackActions[0]?.potency !== 4 || realAttackActions[0]?.damageTypes?.[0] !== "Piercing") {
+  throw new Error(`Real equipped attack fixture did not use table-facing damage once: ${JSON.stringify(realAttackActions)}.`);
+}
+
+{
+  const { actor, warnings } = adaptMonsterToCombatLabActor(
+    makeMonsterRow({
+      name: "Mindbreak Hydration Fixture",
+      attackDie: "D12",
+      weaponSkillValue: 1,
+      physicalProtection: 0,
+      mentalProtection: 0,
+      naturalPhysicalProtection: 0,
+      naturalMentalProtection: 0,
+      naturalAttack: {
+        attackName: "Mindbreak Gaze",
+        attackConfig: {
+          melee: {
+            enabled: true,
+            targets: 1,
+            physicalStrength: 0,
+            mentalStrength: 4,
+            damageTypes: [{ name: "Holy", mode: "MENTAL" }],
+            attackEffects: [],
+          },
+        },
+      },
+    }),
+    new Map(),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  const mindbreak = actor.actions.find((candidate) => candidate.name === "Mindbreak Gaze melee mental attack");
+  if (!mindbreak || mindbreak.potency !== 8 || mindbreak.damageTypes?.[0] !== "Holy") {
+    throw new Error(`Mindbreak Gaze did not hydrate raw mental strength 4 to 8 Holy wounds per success: ${JSON.stringify(actor.actions)}.`);
+  }
+  if (!warnings.some((warning) => /raw mental strength 4 resolves to displayed 8 wounds per success/i.test(warning.message))) {
+    throw new Error(`Mindbreak Gaze hydration warning was not surfaced: ${JSON.stringify(warnings)}.`);
+  }
+  const target = fixtureActor("mindbreak-target", "players", {
+    mentalHpMax: 100,
+    mentalHpCurrent: 100,
+    dodgeDice: 0,
+    physicalDefenceDice: 0,
+    mentalDefenceDice: 0,
+    mentalProtection: 0,
+  });
+  const state = createCombatState([target], [actor], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: mindbreak,
+    rng: rngFrom([0.99]),
+    lane: "main",
+  });
+  expectTranscriptLine(
+    state.transcriptLines,
+    /Declared damage: Mindbreak Gaze melee mental attack has 2 active successes x 8 = 16 mental Holy wounds before defence/i,
+    "Mindbreak Gaze table-facing mental damage transcript",
+  );
+}
 
 const fallbackReport = runScenarioSuite({
   name: "fixture fallback reporting",
@@ -1323,6 +1384,153 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   });
   if (counterPower.actions[0]?.cooldownRounds !== 2 || counterPower.actions[0]?.counterMode !== true) {
     throw new Error("Counter power did not preserve its authored cooldown.");
+  }
+}
+
+{
+  const base = makeFixturePower({
+    id: "iron-skin-fixture",
+    name: "Iron Skin",
+    intention: "DEFENCE",
+    diceCount: 4,
+    potency: 5,
+    cooldownTurns: 4,
+  });
+  const primary = {
+    ...base.effectPackets[0],
+    intention: "DEFENCE" as const,
+    type: "DEFENCE" as const,
+    applyTo: "SELF" as const,
+    diceCount: 4,
+    potency: 5,
+    effectDurationType: "PASSIVE" as const,
+    effectDurationTurns: null,
+    detailsJson: { attackMode: "PHYSICAL" },
+  };
+  const linkedGuard = {
+    ...primary,
+    id: "iron-skin-guard",
+    sortOrder: 1,
+    packetIndex: 1,
+    intention: "AUGMENT" as const,
+    type: "AUGMENT" as const,
+    targetedAttribute: "GUARD" as const,
+    potency: 5,
+    detailsJson: { statTarget: "Guard" },
+  };
+  const adapted = adaptPowerToCombatActions({
+    ...base,
+    effectPackets: [primary, linkedGuard],
+    intentions: [primary, linkedGuard],
+    cooldownTurns: 4,
+    cooldownReduction: 0,
+    counterMode: "NO",
+  });
+  const ironSkin = adapted.actions[0];
+  if (
+    !ironSkin ||
+    ironSkin.kind !== "defence" ||
+    ironSkin.targetPolicy !== "self" ||
+    ironSkin.pool !== "physical" ||
+    ironSkin.protection !== 5 ||
+    ironSkin.passive ||
+    ironSkin.cooldownRounds !== 4 ||
+    ironSkin.durationRounds === undefined ||
+    ironSkin.durationRounds < 20 ||
+    ironSkin.secondaryActions?.[0]?.name !== "Iron Skin (+Guard)"
+  ) {
+    throw new Error(`Iron Skin did not hydrate as a usable passive physical defence power: ${JSON.stringify(adapted)}.`);
+  }
+
+  const glassCannon = fixtureActor("CL-L3-Glass-Cannon", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [
+      action({ id: "glass-cannon-burst", name: "Glass Cannon Burst", diceCount: 4, potency: 8 }),
+      action({
+        id: "counterstrike-fixture",
+        name: "Counterstrike",
+        sourceType: "power",
+        kind: "attack",
+        targetPolicy: "enemy",
+        diceCount: 1,
+        potency: 20,
+        counterMode: true,
+      }),
+    ],
+  });
+  const wolf = fixtureActor("Wolf Berzerker", "monsters", {
+    physicalHpMax: 200,
+    physicalHpCurrent: 200,
+    physicalProtection: 0,
+    mentalProtection: 0,
+    dodgeDice: 0,
+    physicalDefenceDice: 0,
+    mentalDefenceDice: 0,
+    actions: [
+      ironSkin,
+      action({ id: "wolf-claw-after-iron-skin", name: "Wolf Claw", sourceType: "naturalAttack", diceCount: 1, potency: 1 }),
+    ],
+  });
+  const state = createCombatState([glassCannon], [wolf], { captureTranscript: true });
+  if (chooseTurnAction(state.actors[1], state, "power")?.id !== ironSkin.id) {
+    throw new Error("Iron Skin was not chosen as an early useful Power Action against physical burst.");
+  }
+  const ironResolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[1],
+    action: ironSkin,
+    rng: rngFrom([0.99, 0.99, 0.99, 0]),
+    lane: "power",
+  });
+  const protection = state.statusEffects.find((effect) => effect.kind === "protection" && effect.sourceActionName === "Iron Skin");
+  const guardBuff = state.statusEffects.find((effect) => effect.kind === "buff" && effect.sourceActionName === "Iron Skin (+Guard)");
+  if (!protection || protection.amount !== 15 || protection.pool !== "physical" || ironResolution.mitigationApplied !== 15) {
+    throw new Error(`Iron Skin did not create 3 x 5 passive physical blocking: ${JSON.stringify({ protection, ironResolution })}.`);
+  }
+  if (!guardBuff || guardBuff.attribute !== "Guard" || guardBuff.amount !== 15) {
+    throw new Error(`Iron Skin linked +Guard rider did not scale by applied primary successes: ${JSON.stringify(state.statusEffects)}.`);
+  }
+  if (getActionCooldownRemaining(state, state.actors[1].id, ironSkin.id) !== 4) {
+    throw new Error("Iron Skin did not enter cooldown 4.");
+  }
+  if (chooseTurnAction(state.actors[1], state, "power")?.id === ironSkin.id) {
+    throw new Error("Iron Skin was selected again while its active protection was already present.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Passive defence: Iron Skin grants Wolf Berzerker 3 x 5 = 15 passive physical wound blocking until it ends or is removed/i, "Iron Skin passive defence transcript");
+  expectTranscriptLine(state.transcriptLines, /Buff\/status created: Iron Skin \(\+Guard\) grants 3 stacks of \+5 Guard/i, "Iron Skin linked Guard transcript");
+  expectTranscriptLine(state.transcriptLines, /Cooldown: Iron Skin enters cooldown 4/i, "Iron Skin cooldown transcript");
+  state.statusEffects = state.statusEffects.filter((effect) => effect.id !== guardBuff.id);
+
+  const directHitResolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ id: "passive-block-direct-hit", name: "Passive Block Direct Hit", diceCount: 1, potency: 20 }),
+    rng: rngFrom([0.99, 0]),
+    lane: "main",
+  });
+  if (directHitResolution.staticProtectionPrevented < 15) {
+    throw new Error(`Iron Skin passive/static block did not reduce later physical incoming damage: ${JSON.stringify(directHitResolution)}.`);
+  }
+
+  const counterResolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: action({ id: "wolf-trigger-counterstrike", name: "Wolf Trigger Counterstrike", sourceType: "naturalAttack", diceCount: 1, potency: 1 }),
+    rng: rngFrom([0.99, 0.99, 0]),
+    lane: "main",
+  });
+  if (counterResolution.staticProtectionPrevented < 15 || counterResolution.counterDamage !== 25) {
+    throw new Error(`Iron Skin passive/static block did not reduce Counterstrike damage: ${JSON.stringify(counterResolution)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Counter result: Wolf Berzerker suffers 25 physical wounds from Counterstrike\. Prevented 15 passive\/static/i, "Iron Skin counter prevention transcript");
+
+  state.actors[1].physicalHpCurrent = 0;
+  markDefeatedActors(state);
+  if (state.statusEffects.some((effect) => effect.sourceActorId === state.actors[1].id || effect.targetActorId === state.actors[1].id)) {
+    throw new Error("Defeat cleanup did not clear active Iron Skin protection/buff effects.");
   }
 }
 
