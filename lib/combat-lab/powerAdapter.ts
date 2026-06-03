@@ -80,6 +80,14 @@ function normalizeAttribute(value: unknown, fallback: CombatAttributeName): Comb
   return ATTRIBUTES.find((attribute) => attribute.toUpperCase() === normalized) ?? fallback;
 }
 
+function authoredAttribute(value: unknown): CombatAttributeName | null {
+  const normalized = asString(value).toUpperCase();
+  if (!normalized) return null;
+  if (normalized === "DEFENCE" || normalized === "DEFENSE" || normalized === "GUARD") return "Guard";
+  if (normalized === "SUPPORT" || normalized === "SYNERGY") return "Synergy";
+  return ATTRIBUTES.find((attribute) => attribute.toUpperCase() === normalized) ?? null;
+}
+
 function coreAttributeFromValue(value: unknown): CoreAttribute | null {
   const normalized = asString(value).toUpperCase();
   if (normalized === "DEFENCE" || normalized === "DEFENSE" || normalized === "GUARD") return "GUARD";
@@ -213,6 +221,89 @@ function actionDurationRounds(power: Power, packet: EffectPacket, fallbackRounds
   return 1;
 }
 
+function powerTextForTheme(power: Power, packet: EffectPacket, details: Record<string, unknown>): string {
+  return [
+    power.name,
+    power.description,
+    packet.specific,
+    details.theme,
+    details.defenceTheme,
+    details.defenseTheme,
+    details.effectTheme,
+    details.statTarget,
+    details.statChoice,
+    details.attackMode,
+    details.healingMode,
+  ]
+    .map((value) => asString(value).toLowerCase())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function themedSelfDefenceAttribute(
+  power: Power,
+  packet: EffectPacket,
+  details: Record<string, unknown>,
+  pool: CombatPool,
+): { attribute: CombatAttributeName; warning: string | null } {
+  const theme = powerTextForTheme(power, packet, details);
+  if (pool === "mental") {
+    if (/\b(intellect|cognition|cognitive|focus|focused|illusion|illusions|perception|mind|mental)\b/.test(theme)) {
+      return { attribute: "Intellect", warning: null };
+    }
+    return { attribute: "Bravery", warning: null };
+  }
+  if (/\b(shield|shields|ward|wards|barrier|barriers|forcefield|force field|guard|guarding|posture|armour|armor|aegis|bulwark)\b/.test(theme)) {
+    return { attribute: "Guard", warning: null };
+  }
+  if (/\b(skin|hide|harden|hardening|endurance|endure|body|bodily|flesh|bone|bones|blood|iron|stone|resilience|resilient|fortitude|toughness)\b/.test(theme)) {
+    return { attribute: "Fortitude", warning: null };
+  }
+  return {
+    attribute: "Guard",
+    warning: `Power "${power.name}" self-targeted physical defence has no clear roll theme; Combat Lab used Guard fallback instead of Synergy.`,
+  };
+}
+
+function resolvePowerRollAttribute(params: {
+  power: Power;
+  packet: EffectPacket;
+  details: Record<string, unknown>;
+  kind: CombatAction["kind"];
+  targetPolicy: CombatAction["targetPolicy"];
+  pool: CombatPool;
+  modifierAttribute: CombatAttributeName;
+}): { attribute: CombatAttributeName; warning: string | null } {
+  const explicit = params.packet.targetedAttribute
+    ? CORE_TO_COMBAT_ATTRIBUTE[params.packet.targetedAttribute]
+    : authoredAttribute(params.details.rollAttribute ?? params.details.rollAttributeOverride ?? params.details.checkAttribute);
+  if (explicit) return { attribute: explicit, warning: null };
+
+  if (params.kind === "attack" || params.kind === "debuff" || params.kind === "control") {
+    return { attribute: "Attack", warning: null };
+  }
+  if (params.kind === "healing") {
+    if (params.targetPolicy === "self") {
+      return { attribute: params.pool === "mental" ? "Bravery" : "Fortitude", warning: null };
+    }
+    return { attribute: "Synergy", warning: null };
+  }
+  if (params.kind === "defence") {
+    if (params.targetPolicy === "self") {
+      return themedSelfDefenceAttribute(params.power, params.packet, params.details, params.pool);
+    }
+    return { attribute: "Synergy", warning: null };
+  }
+  if (params.kind === "buff") {
+    if (params.targetPolicy !== "self") return { attribute: "Synergy", warning: null };
+    return { attribute: params.modifierAttribute, warning: null };
+  }
+  if (params.kind === "cleanse") {
+    return { attribute: params.targetPolicy === "self" ? "Fortitude" : "Synergy", warning: null };
+  }
+  return { attribute: "Attack", warning: null };
+}
+
 function resolveAttackPacketPool(params: {
   power: Power;
   packet: EffectPacket;
@@ -298,7 +389,7 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
     if (attackDomainResolution?.warning) {
       warnings.push(attackDomainResolution.warning);
     }
-    const attribute = normalizeAttribute(
+    const modifierAttribute = normalizeAttribute(
       packet.targetedAttribute ? CORE_TO_COMBAT_ATTRIBUTE[packet.targetedAttribute] : details.statTarget ?? details.statChoice,
       kind === "debuff" ? "Attack" : "Guard",
     );
@@ -317,6 +408,24 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
         : durationRounds;
     const durationRoundsForAction = actionDurationRounds(power, packet, structuralDurationRounds);
     const isAoe = rangeCategory === "AOE";
+    const targetPolicy =
+      isAoe && (kind === "buff" || kind === "defence")
+        ? "allAllies"
+        : isAoe && kind === "debuff"
+          ? "allEnemies"
+          : targetPolicyForAction(kind, packet);
+    const rollAttributeResolution = resolvePowerRollAttribute({
+      power,
+      packet,
+      details,
+      kind,
+      targetPolicy,
+      pool,
+      modifierAttribute,
+    });
+    if (rollAttributeResolution.warning) {
+      warnings.push(rollAttributeResolution.warning);
+    }
     const linkedPackets = packets.filter(
       (candidate) =>
         candidate.packetIndex !== packet.packetIndex &&
@@ -368,26 +477,20 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       sourceType: "power",
       name: power.name,
       kind,
-      targetPolicy:
-        isAoe && (kind === "buff" || kind === "defence")
-          ? "allAllies"
-          : isAoe && kind === "debuff"
-            ? "allEnemies"
-            : targetPolicyForAction(kind, packet),
+      targetPolicy,
       supported: true,
       unsupportedReasons: [],
       pool,
       rangeCategory,
       targetCount,
-      accuracyAttribute:
-        kind === "healing" || kind === "buff" || kind === "defence" ? "Synergy" : "Attack",
+      accuracyAttribute: rollAttributeResolution.attribute,
       diceCount,
       potency,
       protection: kind === "defence" ? potency : undefined,
       durationRounds: durationRoundsForAction,
       modifier:
         kind === "buff" || kind === "debuff"
-          ? { attribute, amount: Math.max(1, potency), durationRounds: durationRoundsForAction }
+          ? { attribute: modifierAttribute, amount: Math.max(1, potency), durationRounds: durationRoundsForAction }
           : undefined,
       control:
         kind === "control"

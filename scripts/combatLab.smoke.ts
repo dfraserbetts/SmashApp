@@ -1388,6 +1388,90 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const hardeningPower = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "self-hardening-attribute",
+      name: "Stone Skin",
+      intention: "DEFENCE",
+      diceCount: 3,
+      potency: 4,
+    }),
+    effectPackets: [
+      {
+        ...makeFixturePower({
+          id: "self-hardening-attribute-packet",
+          name: "Stone Skin",
+          intention: "DEFENCE",
+          diceCount: 3,
+          potency: 4,
+        }).effectPackets[0],
+        applyTo: "SELF" as const,
+        effectDurationType: "PASSIVE" as const,
+        detailsJson: { attackMode: "PHYSICAL" },
+      },
+    ],
+  });
+  if (hardeningPower.actions[0]?.accuracyAttribute !== "Fortitude") {
+    throw new Error(`Self physical hardening defence should roll Fortitude, not Synergy: ${JSON.stringify(hardeningPower)}.`);
+  }
+
+  const forcefieldPower = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "self-forcefield-attribute",
+      name: "Forcefield Guard",
+      intention: "DEFENCE",
+      diceCount: 3,
+      potency: 4,
+    }),
+    effectPackets: [
+      {
+        ...makeFixturePower({
+          id: "self-forcefield-attribute-packet",
+          name: "Forcefield Guard",
+          intention: "DEFENCE",
+          diceCount: 3,
+          potency: 4,
+        }).effectPackets[0],
+        applyTo: "SELF" as const,
+        effectDurationType: "PASSIVE" as const,
+        detailsJson: { attackMode: "PHYSICAL", defenceTheme: "forcefield" },
+      },
+    ],
+  });
+  if (forcefieldPower.actions[0]?.accuracyAttribute !== "Guard") {
+    throw new Error(`Self forcefield/guard defence should roll Guard, not Synergy: ${JSON.stringify(forcefieldPower)}.`);
+  }
+
+  const allyBuff = adaptPowerToCombatActions(makeFixturePower({
+    id: "ally-buff-attribute",
+    name: "Battle Coordination",
+    intention: "AUGMENT",
+    diceCount: 3,
+    potency: 2,
+    applyTo: "ALLIES",
+    statTarget: "Attack",
+    durationTurns: 2,
+  }));
+  if (allyBuff.actions[0]?.accuracyAttribute !== "Synergy") {
+    throw new Error(`Ally-targeted buff should still roll Synergy: ${JSON.stringify(allyBuff)}.`);
+  }
+
+  const selfAttackBuff = adaptPowerToCombatActions(makeFixturePower({
+    id: "self-attack-buff-attribute",
+    name: "Killing Focus",
+    intention: "AUGMENT",
+    diceCount: 3,
+    potency: 2,
+    applyTo: "SELF",
+    statTarget: "Attack",
+    durationTurns: 2,
+  }));
+  if (selfAttackBuff.actions[0]?.accuracyAttribute !== "Attack") {
+    throw new Error(`Self attack-amplification buff should roll Attack: ${JSON.stringify(selfAttackBuff)}.`);
+  }
+}
+
+{
   const base = makeFixturePower({
     id: "iron-skin-fixture",
     name: "Iron Skin",
@@ -1433,6 +1517,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     ironSkin.targetPolicy !== "self" ||
     ironSkin.pool !== "physical" ||
     ironSkin.protection !== 5 ||
+    ironSkin.accuracyAttribute !== "Fortitude" ||
     ironSkin.passive ||
     ironSkin.cooldownRounds !== 4 ||
     ironSkin.durationRounds === undefined ||
@@ -1459,6 +1544,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     ],
   });
   const wolf = fixtureActor("Wolf Berzerker", "monsters", {
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D10", Intellect: "D8", Synergy: "D4", Bravery: "D8" },
     physicalHpMax: 200,
     physicalHpCurrent: 200,
     physicalProtection: 0,
@@ -1480,7 +1566,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     actor: state.actors[1],
     target: state.actors[1],
     action: ironSkin,
-    rng: rngFrom([0.99, 0.99, 0.99, 0]),
+    rng: rngFrom([0.3, 0.3, 0.3, 0]),
     lane: "power",
   });
   const protection = state.statusEffects.find((effect) => effect.kind === "protection" && effect.sourceActionName === "Iron Skin");
@@ -1497,6 +1583,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (chooseTurnAction(state.actors[1], state, "power")?.id === ironSkin.id) {
     throw new Error("Iron Skin was selected again while its active protection was already present.");
   }
+  expectTranscriptLine(state.transcriptLines, /Roll: Wolf Berzerker rolled 4 x D10 using Fortitude for Iron Skin/i, "Iron Skin Fortitude roll transcript");
   expectTranscriptLine(state.transcriptLines, /Passive defence: Iron Skin grants Wolf Berzerker 3 x 5 = 15 passive physical wound blocking until it ends or is removed/i, "Iron Skin passive defence transcript");
   expectTranscriptLine(state.transcriptLines, /Buff\/status created: Iron Skin \(\+Guard\) grants 3 stacks of \+5 Guard/i, "Iron Skin linked Guard transcript");
   expectTranscriptLine(state.transcriptLines, /Cooldown: Iron Skin enters cooldown 4/i, "Iron Skin cooldown transcript");
