@@ -1228,6 +1228,62 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const attacker = fixtureActor("mental-no-dodge-attacker", "players");
+  const defender = fixtureActor("mental-no-dodge-defender", "monsters", {
+    dodgeDice: 12,
+    mentalDefenceDice: 1,
+    mentalBlockPerSuccess: 1,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ id: "mental-no-dodge-hit", name: "Mental No Dodge Hit", pool: "mental", accuracyAttribute: "Intellect", diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0.99, 0.99]),
+  });
+  if (resolution.dodgeChosen !== 0 || resolution.dodgeRolls !== 0 || resolution.mentalDefenceChosen !== 1) {
+    throw new Error(`Mental attack used an illegal dodge path: ${JSON.stringify(resolution)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Defence choice: mental-no-dodge-defender chooses mental defence\. Expected prevention: mental defence/i, "mental attack legal defence choice");
+  if (state.transcriptLines.some((line) => /Defence choice: .*chooses dodge|Expected prevention: dodge/i.test(line))) {
+    throw new Error(`Mental attack transcript exposed dodge as a legal defence: ${state.transcriptLines.join(" | ")}`);
+  }
+}
+
+{
+  const attacker = fixtureActor("aoe-mental-no-dodge-attacker", "players");
+  const defender = fixtureActor("aoe-mental-no-dodge-defender", "monsters", {
+    dodgeDice: 12,
+    mentalDefenceDice: 2,
+    mentalBlockPerSuccess: 2,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({
+      id: "aoe-mental-no-dodge-hit",
+      name: "AoE Mental No Dodge Hit",
+      pool: "mental",
+      accuracyAttribute: "Intellect",
+      diceCount: 1,
+      potency: 4,
+      targetCount: 3,
+    }),
+    rng: rngFrom([0.99, 0.99, 0.99]),
+  });
+  if (resolution.dodgeChosen !== 0 || resolution.dodgeRolls !== 0 || resolution.mentalDefenceChosen !== 1) {
+    throw new Error(`AoE mental attack used an illegal dodge path: ${JSON.stringify(resolution)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Defence choice: aoe-mental-no-dodge-defender chooses mental defence\. Expected prevention: mental defence/i, "aoe mental attack legal defence choice");
+  if (state.transcriptLines.some((line) => /Defence choice: .*chooses dodge|Expected prevention: dodge/i.test(line))) {
+    throw new Error(`AoE mental attack transcript exposed dodge as a legal defence: ${state.transcriptLines.join(" | ")}`);
+  }
+}
+
+{
   const attacker = fixtureActor("degraded-policy-attacker", "players");
   const defender = fixtureActor("degraded-policy-defender", "monsters", {
     dodgeDice: 5,
@@ -1907,6 +1963,146 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (first.responsesUsed !== 1 || second.responsesWastedOrUnavailable !== 1) {
     throw new Error("Counter defences did not consume the Response economy.");
   }
+}
+
+{
+  const counterstrike = action({
+    id: "zero-success-counterstrike",
+    name: "Zero Success Counterstrike",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 5,
+  });
+  const attacker = fixtureActor("zero-success-counter-attacker", "players", {
+    physicalProtection: 2,
+    dodgeDice: 20,
+    physicalDefenceDice: 20,
+    physicalBlockPerSuccess: 20,
+    actions: [action({ id: "zero-success-trigger", name: "Zero Success Trigger", diceCount: 1, potency: 10 })],
+  });
+  const defender = fixtureActor("zero-success-counter-defender", "monsters", {
+    physicalHpMax: 999,
+    dodgeDice: 20,
+    physicalDefenceDice: 20,
+    physicalBlockPerSuccess: 20,
+    actions: [counterstrike],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  refreshActorResponses(state, state.actors[1].id);
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0, 0.99]),
+    lane: "main",
+  });
+  if (resolution.counterDamage !== 3 || resolution.dodgeChosen !== 0 || resolution.physicalDefenceChosen !== 0) {
+    throw new Error(`Attack-only counter did not fire before/independent of the incoming roll: ${JSON.stringify(resolution)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Counter declared: zero-success-counter-defender will use Zero Success Counterstrike against Zero Success Trigger/i, "zero-success counter declaration");
+  expectTranscriptLine(state.transcriptLines, /Counter tradeoff: Zero Success Counterstrike includes an Attack packet and no Defence packet/i, "zero-success attack-only tradeoff");
+  expectTranscriptLine(state.transcriptLines, /Incoming result: zero-success-counter-defender suffers 0 physical wounds/i, "zero-success incoming result");
+  expectTranscriptLine(state.transcriptLines, /Counter result: zero-success-counter-attacker suffers 3 physical wounds from Zero Success Counterstrike\. Prevented 2 passive\/static/i, "zero-success counter result");
+  if (state.transcriptLines.some((line) => /Defence choice:|zero-success-counter-attacker rolled .*Dodge|zero-success-counter-attacker rolled .*physical defence/i.test(line))) {
+    throw new Error(`Attack-only counter incorrectly used normal defence or granted active counter-defence: ${state.transcriptLines.join(" | ")}`);
+  }
+  const counterDeclarationIndex = state.transcriptLines.findIndex((line) => /Counter declared:/i.test(line));
+  const incomingRollIndex = state.transcriptLines.findIndex((line) => /Roll: zero-success-counter-attacker rolled/i.test(line));
+  if (counterDeclarationIndex < 0 || incomingRollIndex < 0 || counterDeclarationIndex > incomingRollIndex) {
+    throw new Error(`Counter was not declared before the incoming roll: ${state.transcriptLines.join(" | ")}`);
+  }
+}
+
+{
+  const counterstrike = action({
+    id: "defeated-counterstrike",
+    name: "Defeated Counterstrike",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 5,
+  });
+  const attacker = fixtureActor("defeated-counter-attacker", "players", {
+    physicalHpMax: 50,
+    physicalHpCurrent: 50,
+    actions: [action({ id: "defeating-trigger", name: "Defeating Trigger", diceCount: 1, potency: 20 })],
+  });
+  const defender = fixtureActor("defeated-counter-defender", "monsters", {
+    physicalHpMax: 5,
+    physicalHpCurrent: 5,
+    dodgeDice: 1,
+    actions: [counterstrike],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  refreshActorResponses(state, state.actors[1].id);
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.99, 0.99]),
+    lane: "main",
+  });
+  if (resolution.counterDamage <= 0 || !state.actors[1].defeated || state.actors[0].physicalHpCurrent >= state.actors[0].physicalHpMax) {
+    throw new Error(`Declared counter did not resolve after the countering actor was defeated: ${JSON.stringify({ resolution, actors: state.actors })}.`);
+  }
+  const incomingResultIndex = state.transcriptLines.findIndex((line) => /Incoming result:/i.test(line));
+  const counterResultIndex = state.transcriptLines.findIndex((line) => /Counter result:/i.test(line));
+  const defeatIndex = state.transcriptLines.findIndex((line) => /Defeat: defeated-counter-defender is defeated/i.test(line));
+  if (incomingResultIndex < 0 || counterResultIndex < 0 || defeatIndex < 0 || incomingResultIndex > counterResultIndex || counterResultIndex > defeatIndex) {
+    throw new Error(`Defeat was not processed after both incoming and counter results: ${state.transcriptLines.join(" | ")}`);
+  }
+}
+
+{
+  const hybridCounter = action({
+    id: "hybrid-counter",
+    name: "Hybrid Counter",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 5,
+    secondaryActions: [
+      action({
+        id: "hybrid-counter-defence",
+        name: "Hybrid Counter Defence",
+        kind: "defence",
+        targetPolicy: "self",
+        pool: "mental",
+        protection: 2,
+        potency: 2,
+      }),
+    ],
+  });
+  const attacker = fixtureActor("hybrid-counter-attacker", "players", {
+    actions: [action({ id: "hybrid-mental-trigger", name: "Hybrid Mental Trigger", pool: "mental", accuracyAttribute: "Intellect", diceCount: 1, potency: 6 })],
+  });
+  const defender = fixtureActor("hybrid-counter-defender", "monsters", {
+    mentalDefenceDice: 1,
+    mentalBlockPerSuccess: 0,
+    actions: [hybridCounter],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  refreshActorResponses(state, state.actors[1].id);
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: state.actors[0].actions[0],
+    rng: rngFrom([0.99, 0.99]),
+    lane: "main",
+  });
+  if (resolution.counterDamage <= 0 || resolution.counterMitigation <= 0) {
+    throw new Error(`Hybrid counter did not both mitigate and attack: ${JSON.stringify(resolution)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Counter tradeoff: Hybrid Counter includes Defence/i, "hybrid counter defensive tradeoff");
+  expectTranscriptLine(state.transcriptLines, /Counter mitigation: .* prevents 2 mental wounds/i, "hybrid counter mitigation");
+  expectTranscriptLine(state.transcriptLines, /Counter result: hybrid-counter-attacker suffers/i, "hybrid counter attack");
 }
 
 {
@@ -2664,7 +2860,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     actor: state.actors[0],
     target: state.actors[1],
     action: dotAction,
-    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0]),
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0.99]),
     lane: "power",
   });
   const created = state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
@@ -2811,7 +3007,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   }
   expectTranscriptLine(state.transcriptLines, /Ongoing declaration: Swiping Claws has 2 active successes x 8 = 16 physical Slashing wounds per tick/i, "live Swiping Claws potential tick transcript");
   expectTranscriptLine(state.transcriptLines, /Physical Defence blocked 9 of 16 ongoing physical wounds per tick/i, "live Swiping Claws defence prevention transcript");
-  expectTranscriptLine(state.transcriptLines, /Counter mitigation 3/i, "live Swiping Claws counter mitigation transcript");
+  expectTranscriptLine(state.transcriptLines, /Counter mitigation: .* prevents 3 physical wounds/i, "live Swiping Claws counter mitigation transcript");
   expectTranscriptLine(state.transcriptLines, /Ongoing result: Swiping Claws stores 4 physical Slashing wounds per tick.*Prevented 12/i, "live Swiping Claws stored tick transcript");
   expectTranscriptLine(state.transcriptLines, /Status created: Swiping Claws ongoing damage .* 4 physical Slashing wounds per tick/i, "live Swiping Claws status transcript");
   if (state.transcriptLines.some((line) => /Attack result: live-swiping-target suffers/i.test(line))) {
@@ -3169,7 +3365,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     rng: rngFrom([0.99, 0.99, 0.99]),
     lane: "main",
   });
-  expectTranscriptLine(state.transcriptLines, /Main Action: transcript-dodge-attacker uses Transcript Strike/i, "attack action line");
+  expectTranscriptLine(state.transcriptLines, /Main Action: transcript-dodge-attacker declares Transcript Strike/i, "attack action line");
   expectTranscriptLine(state.transcriptLines, /raw results/i, "raw attack dice results");
   expectTranscriptLine(state.transcriptLines, /Dodge .*succeeded/i, "dodge result");
   expectTranscriptLine(state.transcriptLines, /Attack result: transcript-dodge-defender dodged/i, "dodged damage result");
@@ -3610,9 +3806,9 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   const lines = run.firstRunTranscript?.lines ?? [];
   expectTranscriptLine(lines, /Start of Turn: lane-denied-power-user has .* Force No Main Action from Lane Main Denial/i, "lane-specific denial start");
   expectTranscriptLine(lines, /Main Action: denied by Lane Main Denial/i, "main lane denied");
-  expectTranscriptLine(lines, /Power Action: lane-denied-power-user uses Lane Ready Power/i, "power lane still runs");
+  expectTranscriptLine(lines, /Power Action: lane-denied-power-user declares Lane Ready Power/i, "power lane still runs");
   const mainDeniedIndex = lines.findIndex((line) => /Main Action: denied by Lane Main Denial/i.test(line));
-  const powerActionIndex = lines.findIndex((line) => /Power Action: lane-denied-power-user uses Lane Ready Power/i.test(line));
+  const powerActionIndex = lines.findIndex((line) => /Power Action: lane-denied-power-user declares Lane Ready Power/i.test(line));
   if (mainDeniedIndex < 0 || powerActionIndex <= mainDeniedIndex) {
     throw new Error(`Denied actor did not use power lane after main-lane denial: ${lines.join(" | ")}`);
   }
@@ -3691,9 +3887,26 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   });
   tickActorCooldowns(state, state.actors[1].id);
   expectTranscriptLine(state.transcriptLines, /Response spent/i, "response spend");
-  expectTranscriptLine(state.transcriptLines, /Response: transcript-counter-defender uses Counterstrike/i, "counter response");
+  expectTranscriptLine(state.transcriptLines, /Counter declared: transcript-counter-defender will use Counterstrike against Trigger Hit/i, "counter declaration");
+  expectTranscriptLine(state.transcriptLines, /Counter tradeoff: Counterstrike includes an Attack packet and no Defence packet/i, "attack-only counter tradeoff");
+  expectTranscriptLine(state.transcriptLines, /Roll: transcript-counter-defender rolled .* for Counterstrike/i, "counter roll");
+  expectTranscriptLine(state.transcriptLines, /Counter result: transcript-counter-attacker suffers/i, "counter result");
   expectTranscriptLine(state.transcriptLines, /Cooldown: Counterstrike enters cooldown 2/i, "counter cooldown applied");
   expectTranscriptLine(state.transcriptLines, /Cooldown tick: Counterstrike 2 -> 1/i, "counter cooldown tick");
+  const counterDeclarationIndex = state.transcriptLines.findIndex((line) => /Counter declared:/i.test(line));
+  const incomingRollIndex = state.transcriptLines.findIndex((line) => /Roll: transcript-counter-attacker rolled/i.test(line));
+  const incomingResultIndex = state.transcriptLines.findIndex((line) => /Incoming result:/i.test(line));
+  const counterResultIndex = state.transcriptLines.findIndex((line) => /Counter result:/i.test(line));
+  if (
+    counterDeclarationIndex < 0 ||
+    incomingRollIndex < 0 ||
+    incomingResultIndex < 0 ||
+    counterResultIndex < 0 ||
+    counterDeclarationIndex > incomingRollIndex ||
+    incomingResultIndex > counterResultIndex
+  ) {
+    throw new Error(`Counter transcript order was incorrect: ${state.transcriptLines.join(" | ")}`);
+  }
 }
 
 {

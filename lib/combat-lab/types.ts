@@ -245,6 +245,7 @@ export type CombatTranscriptEventType =
   | "physicalDefenceRoll"
   | "mentalDefenceRoll"
   | "resistRoll"
+  | "counterDeclared"
   | "counterRoll"
   | "damageApplied"
   | "healingApplied"

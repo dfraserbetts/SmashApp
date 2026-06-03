@@ -387,8 +387,24 @@ function resolveBestNormalDefence(params: {
   rng: Rng;
   ongoingPerTick?: boolean;
 }): CombatResolutionMetrics {
-  const dodgeValue = estimateDodgeValue(params.state, params.target, params.incomingSuccesses, params.rawWounds);
   const defenceStringValue = estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds);
+  if (params.pool === "mental") {
+    emitTranscriptEvent(params.state, {
+      type: "defenceChoice",
+      actorId: params.target.id,
+      actorName: params.target.name,
+      lane: "response",
+      message: `Defence choice: ${params.target.name} chooses mental defence. Expected prevention: mental defence ${defenceStringValue.toFixed(2)}.`,
+      details: { defenceStringExpectedValue: defenceStringValue, chosen: "mental defence", dodgeLegal: false },
+    });
+    const metrics = resolveDefenceString(params.state, params.target, params.pool, params.rawWounds, params.rng, {
+      ongoingPerTick: params.ongoingPerTick,
+    });
+    metrics.defenceChoiceExpectedValue = defenceStringValue;
+    return metrics;
+  }
+
+  const dodgeValue = estimateDodgeValue(params.state, params.target, params.incomingSuccesses, params.rawWounds);
   const chosen = defenceStringValue > dodgeValue ? `${params.pool} defence` : "dodge";
   emitTranscriptEvent(params.state, {
     type: "defenceChoice",
@@ -511,40 +527,93 @@ function passiveDefenceAmount(target: CombatActor, pool: "physical" | "mental") 
     .reduce((sum, action) => sum + Math.max(1, action.protection ?? action.potency), 0);
 }
 
-function resolveCounterDefences(state: CombatState, target: CombatActor, attacker: CombatActor, pool: "physical" | "mental", rng: Rng) {
-  const metrics = emptyResolution();
-  const counterCandidates = target.actions.filter(
-    (action) =>
-      action.counterMode &&
-      action.kind === "defence" &&
-      !state.counterUses[`${state.round}:${target.id}:${action.id}`] &&
-      (action.pool ?? pool) === pool,
+type DeclaredCounter = {
+  action: CombatAction;
+  hasAttackPacket: boolean;
+  hasDefencePacket: boolean;
+  forfeitsNormalDefence: boolean;
+};
+
+type DeclaredCounterRoll = {
+  declared: DeclaredCounter;
+  successes: number;
+  rollSummary: CombatRollSummary;
+};
+
+function actionAndSecondaries(action: CombatAction): CombatAction[] {
+  return [action, ...(action.secondaryActions ?? [])];
+}
+
+function counterAttackPackets(action: CombatAction) {
+  return actionAndSecondaries(action).filter((entry) => entry.kind === "attack");
+}
+
+function counterDefencePackets(action: CombatAction, pool: "physical" | "mental") {
+  return actionAndSecondaries(action).filter(
+    (entry) => entry.kind === "defence" && (entry.pool ?? pool) === pool,
   );
-  for (const action of counterCandidates.filter((candidate) => isActionOnCooldown(state, target.id, candidate.id))) {
-    recordCooldownPreventedUse(state, target, action);
+}
+
+function counterPriority(action: CombatAction, pool: "physical" | "mental") {
+  const hasAttackPacket = counterAttackPackets(action).length > 0;
+  const hasDefencePacket = counterDefencePackets(action, pool).length > 0;
+  if (hasDefencePacket && !hasAttackPacket) return 0;
+  if (hasDefencePacket && hasAttackPacket) return 1;
+  if (hasAttackPacket) return 2;
+  return 3;
+}
+
+function declareCounter(params: {
+  state: CombatState;
+  target: CombatActor;
+  attacker: CombatActor;
+  incomingAction: CombatAction;
+  pool: "physical" | "mental";
+}): { declared: DeclaredCounter | null; metrics: CombatResolutionMetrics } {
+  const { state, target, attacker, incomingAction, pool } = params;
+  const metrics = emptyResolution();
+  const counterCandidates = target.actions
+    .filter((action) => action.counterMode && !state.counterUses[`${state.round}:${target.id}:${action.id}`])
+    .filter((action) => counterPriority(action, pool) < 3)
+    .sort((left, right) => counterPriority(left, pool) - counterPriority(right, pool));
+
+  for (const candidate of counterCandidates.filter((action) => isActionOnCooldown(state, target.id, action.id))) {
+    recordCooldownPreventedUse(state, target, candidate);
   }
-  const availableCounters = counterCandidates.filter((action) => !isActionOnCooldown(state, target.id, action.id));
-  for (const action of availableCounters.slice(0, 1)) {
-    if (!spendActorResponse(state, target.id)) {
-      metrics.responsesWastedOrUnavailable = 1;
-      return metrics;
-    }
-    state.counterUses[`${state.round}:${target.id}:${action.id}`] = 1;
-    recordActionUse(state, target, action);
-    const roll = rollDice(
-      Math.max(1, action.diceCount),
-      getActorDie(target, action),
-      rng,
-      getAttributeModifier(state, target.id, action.accuracyAttribute),
-    );
-    const rollSummary = summarizeRoll({ actor: target, reason: action.name, attribute: action.accuracyAttribute, roll });
-    metrics.counterMitigation += Math.max(1, roll.successes * Math.max(1, action.protection ?? action.potency));
-    metrics.counterUses += 1;
-    metrics.counterChosen += 1;
-    metrics.responsesUsed += 1;
-    applyActionCooldown(state, target, action);
+
+  const action = counterCandidates.find((candidate) => !isActionOnCooldown(state, target.id, candidate.id));
+  if (!action) return { declared: null, metrics };
+  if ((state.responsesRemaining[target.id] ?? 0) <= 0) {
+    metrics.responsesWastedOrUnavailable = 1;
+    return { declared: null, metrics };
+  }
+
+  const hasAttackPacket = counterAttackPackets(action).length > 0;
+  const hasDefencePacket = counterDefencePackets(action, pool).length > 0;
+  const forfeitsNormalDefence = hasAttackPacket && !hasDefencePacket;
+  const declared: DeclaredCounter = { action, hasAttackPacket, hasDefencePacket, forfeitsNormalDefence };
+
+  emitTranscriptEvent(state, {
+    type: "counterDeclared",
+    actorId: target.id,
+    actorName: target.name,
+    targetId: attacker.id,
+    targetName: attacker.name,
+    actionId: action.id,
+    actionName: action.name,
+    lane: "response",
+    message: `Counter declared: ${target.name} will use ${action.name} against ${incomingAction.name}.`,
+    details: {
+      incomingActionId: incomingAction.id,
+      incomingActionName: incomingAction.name,
+      hasAttackPacket,
+      hasDefencePacket,
+      forfeitsNormalDefence,
+    },
+  });
+  if (forfeitsNormalDefence) {
     emitTranscriptEvent(state, {
-      type: "counterRoll",
+      type: "counterDeclared",
       actorId: target.id,
       actorName: target.name,
       targetId: attacker.id,
@@ -552,44 +621,43 @@ function resolveCounterDefences(state: CombatState, target: CombatActor, attacke
       actionId: action.id,
       actionName: action.name,
       lane: "response",
-      message: `Response: ${target.name} uses ${action.name}. ${rollText(rollSummary)} Counter mitigation ${metrics.counterMitigation}.`,
-      roll: rollSummary,
-      details: { counterMitigation: metrics.counterMitigation, responsesRemaining: state.responsesRemaining[target.id] ?? 0 },
+      message: `Counter tradeoff: ${action.name} includes an Attack packet and no Defence packet, so ${target.name} forfeits normal defence against ${incomingAction.name}.`,
+      details: { forfeitsNormalDefence: true },
     });
-    state.log.push({
-      round: state.round,
+  } else if (hasAttackPacket && hasDefencePacket) {
+    emitTranscriptEvent(state, {
+      type: "counterDeclared",
       actorId: target.id,
       actorName: target.name,
-      actionId: action.id,
-      actionName: action.name,
       targetId: attacker.id,
       targetName: attacker.name,
-      message: `${target.name} used counter ${action.name}; counter economy uses Responses and is limited to one reaction per incoming action.`,
-      metrics: { counterUses: 1, counterMitigation: metrics.counterMitigation, responsesUsed: 1 },
+      actionId: action.id,
+      actionName: action.name,
+      lane: "response",
+      message: `Counter tradeoff: ${action.name} includes Defence, so its authored defensive packet applies against ${incomingAction.name}.`,
+      details: { forfeitsNormalDefence: false },
     });
   }
-  return metrics;
-}
 
-function resolveCounterAttacks(state: CombatState, target: CombatActor, attacker: CombatActor, rng: Rng) {
-  const metrics = emptyResolution();
-  const counterCandidates = target.actions.filter(
-    (candidate) =>
-      candidate.counterMode &&
-      candidate.kind === "attack" &&
-      !state.counterUses[`${state.round}:${target.id}:${candidate.id}`],
-  );
-  for (const candidate of counterCandidates.filter((action) => isActionOnCooldown(state, target.id, action.id))) {
-    recordCooldownPreventedUse(state, target, candidate);
-  }
-  const action = counterCandidates.find((candidate) => !isActionOnCooldown(state, target.id, candidate.id));
-  if (!action) return metrics;
-  if (!spendActorResponse(state, target.id)) {
-    metrics.responsesWastedOrUnavailable = 1;
-    return metrics;
-  }
+  spendActorResponse(state, target.id);
   state.counterUses[`${state.round}:${target.id}:${action.id}`] = 1;
   recordActionUse(state, target, action);
+  applyActionCooldown(state, target, action);
+  metrics.counterUses = 1;
+  metrics.counterChosen = 1;
+  metrics.responsesUsed = 1;
+  return { declared, metrics };
+}
+
+function rollDeclaredCounter(
+  state: CombatState,
+  target: CombatActor,
+  attacker: CombatActor,
+  declared: DeclaredCounter | null,
+  rng: Rng,
+): DeclaredCounterRoll | null {
+  if (!declared) return null;
+  const action = declared.action;
   const roll = rollDice(
     Math.max(1, action.diceCount),
     getActorDie(target, action),
@@ -597,16 +665,6 @@ function resolveCounterAttacks(state: CombatState, target: CombatActor, attacker
     getAttributeModifier(state, target.id, action.accuracyAttribute),
   );
   const rollSummary = summarizeRoll({ actor: target, reason: action.name, attribute: action.accuracyAttribute, roll });
-  const raw = roll.successes * action.potency;
-  const pool = action.pool ?? "physical";
-  const prevented = Math.min(raw, pool === "physical" ? attacker.physicalProtection : attacker.mentalProtection);
-  const damage = Math.max(0, raw - prevented);
-  metrics.counterDamage = damage;
-  metrics.counterUses = 1;
-  metrics.counterChosen = 1;
-  metrics.responsesUsed = 1;
-  applyWounds(attacker, pool, damage);
-  applyActionCooldown(state, target, action);
   emitTranscriptEvent(state, {
     type: "counterRoll",
     actorId: target.id,
@@ -616,21 +674,86 @@ function resolveCounterAttacks(state: CombatState, target: CombatActor, attacker
     actionId: action.id,
     actionName: action.name,
     lane: "response",
-    message: `Response: ${target.name} uses ${action.name}. ${rollText(rollSummary)} Counter deals ${damage} ${pool} wounds after ${prevented} protection.`,
+    message: `Roll: ${rollText(rollSummary)} Counter roll declared before ${attacker.name}'s result is applied.`,
     roll: rollSummary,
-    details: { rawWounds: raw, prevented, netWounds: damage, pool, responsesRemaining: state.responsesRemaining[target.id] ?? 0 },
+    details: { responsesRemaining: state.responsesRemaining[target.id] ?? 0 },
   });
-  state.log.push({
-    round: state.round,
+  return { declared, successes: roll.successes, rollSummary };
+}
+
+function resolveDeclaredCounterDefence(params: {
+  state: CombatState;
+  target: CombatActor;
+  attacker: CombatActor;
+  counterRoll: DeclaredCounterRoll | null;
+  pool: "physical" | "mental";
+  remainingWounds: number;
+}): CombatResolutionMetrics {
+  const { state, target, attacker, counterRoll, pool, remainingWounds } = params;
+  const metrics = emptyResolution();
+  if (!counterRoll || remainingWounds <= 0) return metrics;
+  const defencePackets = counterDefencePackets(counterRoll.declared.action, pool);
+  if (defencePackets.length === 0) return metrics;
+  const mitigationPerSuccess = defencePackets.reduce(
+    (sum, action) => sum + Math.max(1, action.protection ?? action.potency),
+    0,
+  );
+  const rawMitigation = Math.max(1, counterRoll.successes * mitigationPerSuccess);
+  const mitigation = Math.min(remainingWounds, rawMitigation);
+  metrics.counterMitigation = mitigation;
+  emitTranscriptEvent(state, {
+    type: "counterRoll",
     actorId: target.id,
     actorName: target.name,
-    actionId: action.id,
-    actionName: action.name,
     targetId: attacker.id,
     targetName: attacker.name,
-    message: `${target.name} used counter ${action.name}; counter economy uses Responses and is limited to one reaction per incoming action.`,
-    metrics: { counterUses: 1, counterDamage: damage, responsesUsed: 1 },
+    actionId: counterRoll.declared.action.id,
+    actionName: counterRoll.declared.action.name,
+    lane: "response",
+    message: `Counter mitigation: ${target.name}'s ${counterRoll.declared.action.name} prevents ${mitigation} ${pool} wounds from ${attacker.name}'s attack.`,
+    roll: counterRoll.rollSummary,
+    details: { counterMitigation: mitigation, rawMitigation, mitigationPerSuccess, pool },
   });
+  return metrics;
+}
+
+function resolveDeclaredCounterAttack(params: {
+  state: CombatState;
+  target: CombatActor;
+  attacker: CombatActor;
+  counterRoll: DeclaredCounterRoll | null;
+}): CombatResolutionMetrics {
+  const { state, target, attacker, counterRoll } = params;
+  const metrics = emptyResolution();
+  if (!counterRoll) return metrics;
+  for (const action of counterAttackPackets(counterRoll.declared.action)) {
+    const pool = action.pool ?? "physical";
+    const raw = counterRoll.successes * Math.max(1, action.potency);
+    const passiveDefence = passiveDefenceAmount(attacker, pool);
+    const staticProtection =
+      (pool === "physical" ? attacker.physicalProtection : attacker.mentalProtection) +
+      getProtectionModifier(state, attacker.id, pool) +
+      passiveDefence;
+    const prevented = Math.min(raw, Math.max(0, staticProtection));
+    const damage = Math.max(0, raw - prevented);
+    applyWounds(attacker, pool, damage);
+    metrics.counterDamage += damage;
+    metrics.staticProtectionPrevented += prevented;
+    metrics.protectionPrevented += prevented;
+    metrics.passiveDefenceContribution += Math.min(raw, passiveDefence);
+    emitTranscriptEvent(state, {
+      type: "damageApplied",
+      actorId: target.id,
+      actorName: target.name,
+      targetId: attacker.id,
+      targetName: attacker.name,
+      actionId: counterRoll.declared.action.id,
+      actionName: counterRoll.declared.action.name,
+      lane: "response",
+      message: `Counter result: ${attacker.name} suffers ${damage} ${pool} wounds from ${counterRoll.declared.action.name}. Prevented ${prevented} passive/static.`,
+      details: { rawWounds: raw, prevented, netWounds: damage, pool },
+    });
+  }
   return metrics;
 }
 
@@ -737,6 +860,12 @@ function resolveSingleTargetAction(params: {
   if (actorAttributeModifier < 0) metrics.debuffedActions = 1;
   const inheritedPrimaryAppliedSuccesses = Math.max(0, Math.trunc(params.primaryAppliedSuccesses ?? 0));
   const skipOwnRoll = Boolean(params.fromSecondary && (action.skipOwnRoll || action.usesPrimaryAppliedSuccesses));
+  const poolForCounterDeclaration = action.pool ?? "physical";
+  const counterDeclaration =
+    !gateAlreadyResolved && !params.fromSecondary && action.kind === "attack"
+      ? declareCounter({ state, target, attacker: actor, incomingAction: action, pool: poolForCounterDeclaration })
+      : { declared: null, metrics: emptyResolution() };
+  addMetrics(metrics, counterDeclaration.metrics);
   const diceCount = Math.max(0, action.diceCount);
   const roll = skipOwnRoll
     ? null
@@ -760,6 +889,7 @@ function resolveSingleTargetAction(params: {
       details: { actionKind: action.kind, potency: action.potency, pool: action.pool ?? null },
     });
   }
+  const counterRoll = rollDeclaredCounter(state, target, actor, counterDeclaration.declared, rng);
 
   if (gateAlreadyResolved) {
     emitTranscriptEvent(state, {
@@ -781,7 +911,10 @@ function resolveSingleTargetAction(params: {
         skipOwnRoll,
       },
     });
-  } else if (action.kind === "attack" || action.kind === "control" || action.kind === "movement") {
+  } else if (
+    (action.kind === "attack" || action.kind === "control" || action.kind === "movement") &&
+    !counterDeclaration.declared?.forfeitsNormalDefence
+  ) {
     const resistMetrics = resolveResist(state, target, action, metrics.rawSuccesses, rng);
     addMetrics(metrics, resistMetrics);
   }
@@ -789,7 +922,7 @@ function resolveSingleTargetAction(params: {
   const activeAppliedSuccesses =
     gateAlreadyResolved && action.usesPrimaryAppliedSuccesses
       ? inheritedPrimaryAppliedSuccesses
-      : !gateAlreadyResolved && action.resistAttribute
+      : !gateAlreadyResolved && action.resistAttribute && !counterDeclaration.declared?.forfeitsNormalDefence
         ? metrics.hostileSuccessesAfterResist
         : metrics.rawSuccesses;
 
@@ -808,7 +941,11 @@ function resolveSingleTargetAction(params: {
     });
   }
 
-  if (activeAppliedSuccesses <= 0 && (Boolean(action.resistAttribute) || Boolean(action.usesPrimaryAppliedSuccesses))) {
+  if (
+    activeAppliedSuccesses <= 0 &&
+    (Boolean(action.resistAttribute) || Boolean(action.usesPrimaryAppliedSuccesses)) &&
+    !counterDeclaration.declared?.hasAttackPacket
+  ) {
     return metrics;
   }
 
@@ -837,7 +974,7 @@ function resolveSingleTargetAction(params: {
           : `Declared damage: ${action.name} has ${activeHostileSuccesses} active successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds before defence.`,
       details: { activeSuccesses: activeHostileSuccesses, potency: effectPerSuccess, rawWounds, pool, damageApplicationTiming },
     });
-    const normalDefenceMetrics = gateAlreadyResolved
+    const normalDefenceMetrics = gateAlreadyResolved || counterDeclaration.declared?.forfeitsNormalDefence
       ? emptyResolution()
       : resolveBestNormalDefence({
           state,
@@ -866,6 +1003,9 @@ function resolveSingleTargetAction(params: {
           : `Attack result: ${target.name} dodged ${action.name}; 0 net wounds.`,
         details: { rawWounds, netWounds: 0, pool },
       });
+      const counterAttackMetrics =
+        gateAlreadyResolved ? emptyResolution() : resolveDeclaredCounterAttack({ state, target, attacker: actor, counterRoll });
+      addMetrics(metrics, counterAttackMetrics);
       return metrics;
     }
     const activeSuccesses = activeHostileSuccesses;
@@ -874,7 +1014,14 @@ function resolveSingleTargetAction(params: {
     const normalDefenceBlocked = normalDefenceMetrics.defenceStringBlocked;
     const counterDefenceMetrics =
       !gateAlreadyResolved && activeRawWounds - normalDefenceBlocked > 0
-        ? resolveCounterDefences(state, target, actor, pool, rng)
+        ? resolveDeclaredCounterDefence({
+            state,
+            target,
+            attacker: actor,
+            counterRoll,
+            pool,
+            remainingWounds: activeRawWounds - normalDefenceBlocked,
+          })
         : emptyResolution();
     addMetrics(metrics, counterDefenceMetrics);
     const protection =
@@ -891,11 +1038,6 @@ function resolveSingleTargetAction(params: {
     const netWounds = isPureOngoingDamage ? 0 : Math.max(0, activeRawWounds - prevented);
     const storedOngoingWounds = isPureOngoingDamage ? Math.max(0, activeRawWounds - prevented) : 0;
     const overkill = isPureOngoingDamage ? 0 : applyWounds(target, pool, netWounds);
-    const counterAttackMetrics =
-      isPureOngoingDamage || gateAlreadyResolved || counterDefenceMetrics.counterChosen > 0
-        ? emptyResolution()
-        : resolveCounterAttacks(state, target, actor, rng);
-    addMetrics(metrics, counterAttackMetrics);
 
     metrics.rawWounds = rawWounds;
     metrics.protectionPrevented = prevented;
@@ -984,7 +1126,7 @@ function resolveSingleTargetAction(params: {
         actionId: action.id,
         actionName: action.name,
         lane,
-        message: `Attack result: ${target.name} suffers ${netWounds} ${pool} wounds from ${action.name}. Prevented ${prevented} (${normalDefenceBlocked} defence, ${counterDefenceMetrics.counterMitigation} counter, ${staticPrevented} static/passive).`,
+        message: `${counterDeclaration.declared ? "Incoming result" : "Attack result"}: ${target.name} suffers ${netWounds} ${pool} wounds from ${action.name}. Prevented ${prevented} (${normalDefenceBlocked} defence, ${counterDefenceMetrics.counterMitigation} counter, ${staticPrevented} static/passive).`,
         details: { rawWounds: activeRawWounds, prevented, netWounds, overkill, pool },
       });
     }
@@ -1017,6 +1159,9 @@ function resolveSingleTargetAction(params: {
         details: { effect: "ongoingDamage", amount: Math.max(1, action.potency) * units, units, durationRounds: action.recurring.durationRounds, pool },
       });
     }
+    const counterAttackMetrics =
+      gateAlreadyResolved ? emptyResolution() : resolveDeclaredCounterAttack({ state, target, attacker: actor, counterRoll });
+    addMetrics(metrics, counterAttackMetrics);
   } else if (action.kind === "healing") {
     if (action.recurring?.kind === "healingOverTime") {
       const amount = Math.max(1, activeAppliedSuccesses * action.potency);
@@ -1290,6 +1435,8 @@ export function resolveCombatAction(params: {
   recordActionUse(state, actor, action);
 
   const targets = resolveTargets(state, actor, action, target);
+  const laneLabel = lane === "power" ? "Power Action" : lane === "response" ? "Response" : "Main Action";
+  const actionVerb = action.kind === "attack" || action.kind === "control" || action.kind === "movement" ? "declares" : "uses";
   emitTranscriptEvent(state, {
     type: lane === "power" ? "powerAction" : lane === "response" ? "responseAction" : "mainAction",
     actorId: actor.id,
@@ -1299,7 +1446,7 @@ export function resolveCombatAction(params: {
     actionId: action.id,
     actionName: action.name,
     lane,
-    message: `${lane === "power" ? "Power Action" : lane === "response" ? "Response" : "Main Action"}: ${actor.name} uses ${action.name} on ${targets.map((entry) => entry.name).join(", ")}.`,
+    message: `${laneLabel}: ${actor.name} ${actionVerb} ${action.name} on ${targets.map((entry) => entry.name).join(", ")}.`,
     details: { targetCount: targets.length, actionKind: action.kind, cooldownRounds: action.cooldownRounds },
   });
   if (actionUsesAoeAbstraction(action)) {
