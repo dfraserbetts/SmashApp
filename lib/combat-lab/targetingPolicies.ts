@@ -43,6 +43,16 @@ function hasActiveSelfProtection(actor: CombatActor, action: CombatAction, state
   );
 }
 
+function hasActiveSelfSetup(actor: CombatActor, action: CombatAction, state: CombatState): boolean {
+  return state.statusEffects.some(
+    (effect) =>
+      effect.targetActorId === actor.id &&
+      effect.sourceActorId === actor.id &&
+      effect.sourceActionName === action.name &&
+      effect.remainingRounds > 0,
+  );
+}
+
 function hasWoundedAlly(actor: CombatActor, state: CombatState): boolean {
   return getLivingActors(state, actor.side).some((ally) => hpPercent(ally) < 0.8);
 }
@@ -70,7 +80,7 @@ function expectedEnemyAttackPools(actor: CombatActor, state: CombatState): Set<C
   const pools = new Set<CombatPool>();
   for (const enemy of getLivingActors(state, getOppositeSide(actor.side))) {
     for (const action of enemy.actions) {
-      if (!action.supported || action.counterMode || action.passive) continue;
+      if (!action.supported || action.passive) continue;
       collectAttackPools(action, pools);
     }
   }
@@ -104,6 +114,80 @@ function shouldPrioritizeSelfDefence(actor: CombatActor, action: CombatAction, s
     return Math.max(max, enemyBurst);
   }, 0);
   return highestExpectedBurst >= Math.max(8, actor.physicalHpMax * 0.15);
+}
+
+function actionMitigatesPhysicalThreat(action: CombatAction): boolean {
+  if (action.pool && action.pool !== "physical") return false;
+  if (action.kind === "defence" && action.protection && action.protection > 0) return true;
+  return Boolean(action.secondaryActions?.some(actionMitigatesPhysicalThreat));
+}
+
+function actionMitigatesAnyThreat(action: CombatAction): boolean {
+  if (action.kind === "defence" && (action.protection ?? 0) > 0) return true;
+  if (action.kind === "buff" && action.modifier) return true;
+  return Boolean(action.secondaryActions?.some(actionMitigatesAnyThreat));
+}
+
+function enemyPhysicalBurstOrCounterThreat(actor: CombatActor, state: CombatState): { present: boolean; reason: string } {
+  const enemies = getLivingActors(state, getOppositeSide(actor.side));
+  const physicalBurst = enemies.reduce((max, enemy) => {
+    const burst = enemy.actions
+      .filter((action) => action.kind === "attack" && !action.passive && (action.pool ?? "physical") === "physical")
+      .reduce((best, action) => Math.max(best, action.diceCount * Math.max(1, action.potency)), 0);
+    return Math.max(max, burst);
+  }, 0);
+  const counter = enemies
+    .flatMap((enemy) => enemy.actions.map((action) => ({ enemy, action })))
+    .filter(({ action }) => action.counterMode && action.kind === "attack" && (action.pool ?? "physical") === "physical")
+    .sort((left, right) => right.action.diceCount * Math.max(1, right.action.potency) - left.action.diceCount * Math.max(1, left.action.potency))[0];
+
+  if (counter) {
+    return {
+      present: true,
+      reason: `${counter.enemy.name} presents high physical counter threat`,
+    };
+  }
+  if (physicalBurst >= Math.max(8, actor.physicalHpMax * 0.15)) {
+    return {
+      present: true,
+      reason: `enemy physical burst ${physicalBurst} can meaningfully threaten ${actor.name}`,
+    };
+  }
+  return { present: false, reason: "no high physical burst or counter threat detected" };
+}
+
+export function isDefensiveSetupPower(actor: CombatActor, action: CombatAction, state: CombatState): boolean {
+  if (action.sourceType !== "power" || action.counterMode || action.passive || action.targetPolicy !== "self") return false;
+  if (!hasLegalTarget(actor, action, state)) return false;
+  if (isActionOnCooldown(state, actor.id, action.id)) return false;
+  if (hasActiveSelfSetup(actor, action, state)) return false;
+  return actionMitigatesAnyThreat(action);
+}
+
+export function defensiveSetupBeforeMainReason(
+  actor: CombatActor,
+  action: CombatAction,
+  state: CombatState,
+): string | null {
+  if (!isDefensiveSetupPower(actor, action, state)) return null;
+  if (!actionMitigatesPhysicalThreat(action)) return null;
+  const threat = enemyPhysicalBurstOrCounterThreat(actor, state);
+  if (!threat.present) return null;
+  if (state.round > 1 && !shouldPrioritizeSelfDefence(actor, action, state)) return null;
+  return `${actor.name} uses defensive Power Action before Main Action because ${threat.reason}.`;
+}
+
+export function chooseActionLaneOrder(
+  actor: CombatActor,
+  state: CombatState,
+  mainActionDenied: boolean,
+): { lanes: Array<"main" | "power">; reason: string | null; setupActionId: string | null } {
+  if (mainActionDenied) return { lanes: ["main", "power"], reason: null, setupActionId: null };
+  const powerAction = chooseTurnAction(actor, state, "power");
+  if (!powerAction) return { lanes: ["main", "power"], reason: null, setupActionId: null };
+  const reason = defensiveSetupBeforeMainReason(actor, powerAction, state);
+  if (!reason) return { lanes: ["main", "power"], reason: null, setupActionId: null };
+  return { lanes: ["power", "main"], reason, setupActionId: powerAction.id };
 }
 
 function isSupportLike(actor: CombatActor, actions: CombatAction[]): boolean {

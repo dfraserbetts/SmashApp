@@ -20,6 +20,8 @@ export type CombatActionKind = "attack" | "healing" | "buff" | "debuff" | "defen
 export type CombatTargetPolicy = "enemy" | "ally" | "self" | "allAllies" | "allEnemies";
 export type CombatActionSourceType = "naturalAttack" | "equippedWeapon" | "power" | "fallback";
 export type CombatActionLane = "combatStart" | "main" | "power" | "response" | "startOfTurn" | "endOfTurn";
+export type CombatDurationKind = "instant" | "turns" | "passive";
+export type CombatDurationSource = "authored" | "inheritedFromParent" | "defaulted";
 export type CombatActorRole =
   | "Glass Cannon"
   | "Bruiser"
@@ -82,8 +84,12 @@ export type CombatAction = {
     durationRounds: number;
   };
   damageApplicationTiming?: "immediate" | "startOfTurn" | "endOfTurn";
+  durationKind?: CombatDurationKind;
+  durationSource?: CombatDurationSource;
+  passiveDuration?: boolean;
   passive?: boolean;
   counterMode?: boolean;
+  cooldownActionId?: string;
   abstractionNotes?: string[];
   cooldownRounds: number;
   source?: {
@@ -148,6 +154,10 @@ export type CombatStatusEffect = {
   damageLabel?: string;
   sourceActionId?: string;
   sourceActionName?: string;
+  sourceCooldownActionId?: string;
+  durationKind?: CombatDurationKind;
+  durationSource?: CombatDurationSource;
+  passiveDuration?: boolean;
   positionalAbstraction?: string;
   remainingRounds: number;
 };
@@ -232,6 +242,7 @@ export type CombatRollSummary = {
 export type CombatTranscriptEventType =
   | "roundStart"
   | "turnStart"
+  | "tacticalDecision"
   | "responsesRefresh"
   | "startOfTurnEffect"
   | "mainAction"

@@ -10,6 +10,7 @@ import {
   markDefeatedActors,
   recordActionUse,
   recordCooldownPreventedUse,
+  removeStatusEffectById,
   spendActorResponse,
 } from "./combatState";
 import type {
@@ -1260,6 +1261,7 @@ function resolveSingleTargetAction(params: {
       const linkedStacks = action.usesPrimaryAppliedSuccesses ? Math.max(1, activeAppliedSuccesses) : 1;
       const appliedAmount = Math.max(1, action.modifier.amount) * linkedStacks;
       const durationRounds = action.durationRounds ?? action.modifier.durationRounds;
+      const passiveDuration = Boolean(action.passiveDuration);
       state.statusEffects.push({
         id: `${state.round}:${actor.id}:${action.id}:${target.id}`,
         sourceActorId: actor.id,
@@ -1269,6 +1271,10 @@ function resolveSingleTargetAction(params: {
         amount: appliedAmount,
         sourceActionId: action.id,
         sourceActionName: action.name,
+        sourceCooldownActionId: action.cooldownActionId ?? action.id,
+        durationKind: action.durationKind,
+        durationSource: action.durationSource,
+        passiveDuration,
         remainingRounds: durationRounds,
         positionalAbstraction: action.targetPolicy === "allAllies"
           ? "AOE ally buff abstracted to all living allies."
@@ -1289,10 +1295,18 @@ function resolveSingleTargetAction(params: {
         actionId: action.id,
         actionName: action.name,
         lane,
-        message: action.usesPrimaryAppliedSuccesses
-          ? `${action.kind === "buff" ? "Buff/status created" : "Debuff/status created"}: ${action.name} grants ${linkedStacks} stack${linkedStacks === 1 ? "" : "s"} of ${action.kind === "buff" ? "+" : "-"}${action.modifier.amount} ${action.modifier.attribute} to ${target.name} (${action.kind === "buff" ? "+" : "-"}${appliedAmount} total) for ${durationRounds} turns.`
-          : `${action.kind === "buff" ? "Buff" : "Debuff"}: ${action.name} applies ${action.kind === "buff" ? "+" : "-"}${appliedAmount} ${action.modifier.attribute} to ${target.name} for ${durationRounds} turns.`,
-        details: { modifierAttribute: action.modifier.attribute, amount: appliedAmount, stackAmount: action.modifier.amount, stacks: linkedStacks, durationRounds },
+        message: passiveDuration
+          ? (
+              action.usesPrimaryAppliedSuccesses
+                ? `${action.kind === "buff" ? "Buff/status created" : "Debuff/status created"}: ${action.name} grants ${linkedStacks} stack${linkedStacks === 1 ? "" : "s"} of ${action.kind === "buff" ? "+" : "-"}${action.modifier.amount} ${action.modifier.attribute} to ${target.name} (${action.kind === "buff" ? "+" : "-"}${appliedAmount} total) until ended or removed.`
+                : `${action.kind === "buff" ? "Buff" : "Debuff"}: ${action.name} applies ${action.kind === "buff" ? "+" : "-"}${appliedAmount} ${action.modifier.attribute} to ${target.name} until ended or removed.`
+            )
+          : (
+              action.usesPrimaryAppliedSuccesses
+                ? `${action.kind === "buff" ? "Buff/status created" : "Debuff/status created"}: ${action.name} grants ${linkedStacks} stack${linkedStacks === 1 ? "" : "s"} of ${action.kind === "buff" ? "+" : "-"}${action.modifier.amount} ${action.modifier.attribute} to ${target.name} (${action.kind === "buff" ? "+" : "-"}${appliedAmount} total) for ${durationRounds} turns.`
+                : `${action.kind === "buff" ? "Buff" : "Debuff"}: ${action.name} applies ${action.kind === "buff" ? "+" : "-"}${appliedAmount} ${action.modifier.attribute} to ${target.name} for ${durationRounds} turns.`
+            ),
+        details: { modifierAttribute: action.modifier.attribute, amount: appliedAmount, stackAmount: action.modifier.amount, stacks: linkedStacks, durationRounds, durationSource: action.durationSource, passiveDuration },
       });
       emitTranscriptEvent(state, {
         type: "statusCreated",
@@ -1303,15 +1317,17 @@ function resolveSingleTargetAction(params: {
         actionId: action.id,
         actionName: action.name,
         lane,
-        message: `Status created: ${action.name} on ${target.name}, ${durationRounds} ticks remaining.`,
-        details: { effect: action.kind, durationRounds },
+        message: passiveDuration
+          ? `Status created: ${action.name} remains active until ended or removed.`
+          : `Status created: ${action.name} on ${target.name}, ${durationRounds} ticks remaining.`,
+        details: { effect: action.kind, durationRounds, durationSource: action.durationSource, passiveDuration },
       });
     }
   } else if (action.kind === "defence") {
     const blockPerSuccess = Math.max(1, action.protection ?? action.potency);
     const amount = Math.max(1, activeAppliedSuccesses * blockPerSuccess);
     const durationRounds = Math.max(1, action.durationRounds ?? action.modifier?.durationRounds ?? 1);
-    const isPassiveDuration = action.source?.packet?.effectDurationType === "PASSIVE" || durationRounds >= 99;
+    const isPassiveDuration = Boolean(action.passiveDuration);
     state.statusEffects.push({
       id: `${state.round}:${actor.id}:${action.id}:${target.id}`,
       sourceActorId: actor.id,
@@ -1321,6 +1337,10 @@ function resolveSingleTargetAction(params: {
       amount,
       sourceActionId: action.id,
       sourceActionName: action.name,
+      sourceCooldownActionId: action.cooldownActionId ?? action.id,
+      durationKind: action.durationKind,
+      durationSource: action.durationSource,
+      passiveDuration: isPassiveDuration,
       remainingRounds: durationRounds,
     });
     metrics.mitigationApplied = amount;
@@ -1337,8 +1357,22 @@ function resolveSingleTargetAction(params: {
       message: isPassiveDuration
         ? `Passive defence: ${action.name} grants ${target.name} ${activeAppliedSuccesses} x ${blockPerSuccess} = ${amount} passive ${action.pool ?? "physical"} wound blocking until it ends or is removed.`
         : `Defence power: ${action.name} gives ${target.name} ${amount} ${action.pool ?? "physical"} protection for ${durationRounds} turns.`,
-      details: { effect: "protection", amount, blockPerSuccess, appliedSuccesses: activeAppliedSuccesses, pool: action.pool ?? "physical", durationRounds },
+      details: { effect: "protection", amount, blockPerSuccess, appliedSuccesses: activeAppliedSuccesses, pool: action.pool ?? "physical", durationRounds, durationSource: action.durationSource, passiveDuration: isPassiveDuration },
     });
+    if (isPassiveDuration) {
+      emitTranscriptEvent(state, {
+        type: "statusCreated",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Status created: ${action.name} remains active until ended or removed.`,
+        details: { effect: "protection", durationRounds, durationSource: action.durationSource, passiveDuration: true },
+      });
+    }
   } else if (action.kind === "control") {
     const controlStacks = Math.max(1, activeAppliedSuccesses * Math.max(1, action.potency));
     const durationRounds = Math.max(1, Math.trunc(action.control?.durationRounds ?? 1));
@@ -1387,7 +1421,11 @@ function resolveSingleTargetAction(params: {
       (effect) =>
         effect.targetActorId === target.id &&
         effect.sourceActorId !== actor.id &&
-        (effect.kind === "ongoingDamage" || effect.kind === "debuff" || effect.kind === "mainActionDenied"),
+        (effect.kind === "ongoingDamage" ||
+          effect.kind === "debuff" ||
+          effect.kind === "mainActionDenied" ||
+          effect.kind === "protection" ||
+          effect.kind === "buff"),
     );
     if (removable) {
       const cleansed = Math.min(removable.amount, cleanseUnits);
@@ -1396,7 +1434,7 @@ function resolveSingleTargetAction(params: {
       metrics.ongoingDamagePreventedOrCleansed = removable.kind === "ongoingDamage" ? cleansed : 0;
       metrics.stacksCleansed = cleansed;
       if (removable.amount <= 0) {
-        state.statusEffects = state.statusEffects.filter((effect) => effect.id !== removable.id);
+        removeStatusEffectById(state, removable.id);
       }
       emitTranscriptEvent(state, {
         type: "stackChanged",
@@ -1557,7 +1595,9 @@ export function resolveCombatAction(params: {
     addMetrics(metrics, resolveSingleTargetAction({ state, actor, action, target: resolvedTarget, rng, lane }));
   }
 
-  applyActionCooldown(state, actor, action);
+  if (!action.passiveDuration) {
+    applyActionCooldown(state, actor, action);
+  }
 
   const defeated = markDefeatedActors(state);
   state.log.push({

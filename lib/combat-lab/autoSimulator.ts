@@ -21,7 +21,7 @@ import {
   createFixtureActor,
   makeFixturePower,
 } from "./powerAdapter";
-import { chooseTarget, chooseTurnAction } from "./targetingPolicies";
+import { chooseActionLaneOrder, chooseTarget, chooseTurnAction } from "./targetingPolicies";
 import type {
   CombatAggregateMetrics,
   CombatAction,
@@ -635,7 +635,21 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
       }
       refreshActorResponses(state, currentActor.id);
 
-      const lanes: Array<"main" | "power"> = currentActor.actionsPerTurn > 0 ? ["main", "power"] : [];
+      const laneOrder = currentActor.actionsPerTurn > 0
+        ? chooseActionLaneOrder(currentActor, state, mainActionDenied)
+        : { lanes: [] as Array<"main" | "power">, reason: null, setupActionId: null };
+      if (laneOrder.reason) {
+        emitTranscriptEvent(state, {
+          type: "tacticalDecision",
+          actorId: currentActor.id,
+          actorName: currentActor.name,
+          actionId: laneOrder.setupActionId ?? undefined,
+          lane: "power",
+          message: `Tactical sequencing: ${laneOrder.reason}`,
+          details: { laneOrder: "powerBeforeMain" },
+        });
+      }
+      const lanes = laneOrder.lanes;
       for (const lane of lanes) {
         if (currentActor.defeated) break;
         if (lane === "main" && mainActionDenied) {

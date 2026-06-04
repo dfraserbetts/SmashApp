@@ -6,6 +6,7 @@ import {
   getActionCooldownRemaining,
   isActionOnCooldown,
   markDefeatedActors,
+  removeStatusEffectById,
   refreshActorResponses,
   tickActorCooldowns,
   tickTargetTurnEffects,
@@ -31,7 +32,7 @@ import {
   makeFixturePower,
 } from "../lib/combat-lab/powerAdapter";
 import { calculateOutcomeSummary, formatSuiteReport, runScenarioSuite } from "../lib/combat-lab/reporting";
-import { chooseTarget, chooseTurnAction } from "../lib/combat-lab/targetingPolicies";
+import { chooseActionLaneOrder, chooseTarget, chooseTurnAction } from "../lib/combat-lab/targetingPolicies";
 import type { CombatAction, CombatActor, CombatState } from "../lib/combat-lab/types";
 
 type CombatLabCharacterRow = Parameters<typeof adaptCampaignCharacterToCombatActor>[0];
@@ -1500,6 +1501,8 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     type: "AUGMENT" as const,
     targetedAttribute: "GUARD" as const,
     potency: 5,
+    effectDurationType: "INSTANT" as const,
+    effectDurationTurns: null,
     detailsJson: { statTarget: "Guard" },
   };
   const adapted = adaptPowerToCombatActions({
@@ -1522,6 +1525,12 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     ironSkin.cooldownRounds !== 4 ||
     ironSkin.durationRounds === undefined ||
     ironSkin.durationRounds < 20 ||
+    ironSkin.durationKind !== "passive" ||
+    ironSkin.durationSource !== "authored" ||
+    ironSkin.passiveDuration !== true ||
+    ironSkin.secondaryActions?.[0]?.durationKind !== "passive" ||
+    ironSkin.secondaryActions?.[0]?.durationSource !== "inheritedFromParent" ||
+    ironSkin.secondaryActions?.[0]?.passiveDuration !== true ||
     ironSkin.secondaryActions?.[0]?.name !== "Iron Skin (+Guard)"
   ) {
     throw new Error(`Iron Skin did not hydrate as a usable passive physical defence power: ${JSON.stringify(adapted)}.`);
@@ -1561,6 +1570,10 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (chooseTurnAction(state.actors[1], state, "power")?.id !== ironSkin.id) {
     throw new Error("Iron Skin was not chosen as an early useful Power Action against physical burst.");
   }
+  const laneOrder = chooseActionLaneOrder(state.actors[1], state, false);
+  if (laneOrder.lanes.join(",") !== "power,main" || laneOrder.setupActionId !== ironSkin.id) {
+    throw new Error(`Iron Skin was not prioritized before the main lane: ${JSON.stringify(laneOrder)}.`);
+  }
   const ironResolution = resolveCombatAction({
     state,
     actor: state.actors[1],
@@ -1577,16 +1590,28 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (!guardBuff || guardBuff.attribute !== "Guard" || guardBuff.amount !== 15) {
     throw new Error(`Iron Skin linked +Guard rider did not scale by applied primary successes: ${JSON.stringify(state.statusEffects)}.`);
   }
-  if (getActionCooldownRemaining(state, state.actors[1].id, ironSkin.id) !== 4) {
-    throw new Error("Iron Skin did not enter cooldown 4.");
+  if (getActionCooldownRemaining(state, state.actors[1].id, ironSkin.id) !== 0) {
+    throw new Error("Passive-duration Iron Skin entered cooldown immediately on cast.");
   }
   if (chooseTurnAction(state.actors[1], state, "power")?.id === ironSkin.id) {
     throw new Error("Iron Skin was selected again while its active protection was already present.");
   }
   expectTranscriptLine(state.transcriptLines, /Roll: Wolf Berzerker rolled 4 x D10 using Fortitude for Iron Skin/i, "Iron Skin Fortitude roll transcript");
   expectTranscriptLine(state.transcriptLines, /Passive defence: Iron Skin grants Wolf Berzerker 3 x 5 = 15 passive physical wound blocking until it ends or is removed/i, "Iron Skin passive defence transcript");
-  expectTranscriptLine(state.transcriptLines, /Buff\/status created: Iron Skin \(\+Guard\) grants 3 stacks of \+5 Guard/i, "Iron Skin linked Guard transcript");
-  expectTranscriptLine(state.transcriptLines, /Cooldown: Iron Skin enters cooldown 4/i, "Iron Skin cooldown transcript");
+  expectTranscriptLine(state.transcriptLines, /Buff\/status created: Iron Skin \(\+Guard\) grants 3 stacks of \+5 Guard .* until ended or removed/i, "Iron Skin linked Guard passive transcript");
+  expectTranscriptLine(state.transcriptLines, /Status created: Iron Skin remains active until ended or removed/i, "Iron Skin passive status transcript");
+  expectTranscriptLine(state.transcriptLines, /Status created: Iron Skin \(\+Guard\) remains active until ended or removed/i, "Iron Skin linked passive status transcript");
+  if (state.transcriptLines.some((line) => /Iron Skin.*ticks remaining|Cooldown: Iron Skin enters cooldown|Cooldown tick skipped: Iron Skin/i.test(line))) {
+    throw new Error(`Passive-duration Iron Skin produced timed/cooldown transcript lines: ${state.transcriptLines.join(" | ")}`);
+  }
+  tickTargetTurnEffects(state, state.actors[1].id);
+  tickTargetTurnEffects(state, state.actors[1].id);
+  if (
+    !state.statusEffects.some((effect) => effect.id === protection.id && effect.passiveDuration) ||
+    !state.statusEffects.some((effect) => effect.id === guardBuff.id && effect.passiveDuration)
+  ) {
+    throw new Error(`Passive-duration Iron Skin effects ticked down naturally: ${JSON.stringify(state.statusEffects)}.`);
+  }
   state.statusEffects = state.statusEffects.filter((effect) => effect.id !== guardBuff.id);
 
   const directHitResolution = resolveCombatAction({
@@ -1614,10 +1639,146 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   }
   expectTranscriptLine(state.transcriptLines, /Counter result: Wolf Berzerker suffers 25 physical wounds from Counterstrike\. Prevented 15 passive\/static/i, "Iron Skin counter prevention transcript");
 
+  const removalState = createCombatState([glassCannon], [wolf], { captureTranscript: true });
+  const removalResolution = resolveCombatAction({
+    state: removalState,
+    actor: removalState.actors[1],
+    target: removalState.actors[1],
+    action: ironSkin,
+    rng: rngFrom([0.3, 0.3, 0.3, 0]),
+    lane: "power",
+  });
+  const removalProtection = removalState.statusEffects.find((effect) => effect.kind === "protection" && effect.sourceActionName === "Iron Skin");
+  if (!removalProtection || removalResolution.mitigationApplied !== 15) {
+    throw new Error("Passive Iron Skin removal fixture did not create protection.");
+  }
+  if (!removeStatusEffectById(removalState, removalProtection.id)) {
+    throw new Error("Passive Iron Skin removal fixture could not remove protection.");
+  }
+  if (removalState.statusEffects.some((effect) => effect.sourceActionName === "Iron Skin" || effect.sourceActionName === "Iron Skin (+Guard)")) {
+    throw new Error(`Passive Iron Skin removal did not clear inherited linked statuses: ${JSON.stringify(removalState.statusEffects)}.`);
+  }
+  if (getActionCooldownRemaining(removalState, removalState.actors[1].id, ironSkin.id) !== 4) {
+    throw new Error("Passive Iron Skin did not enter cooldown when removed while the source actor remained active.");
+  }
+  expectTranscriptLine(removalState.transcriptLines, /Cooldown: Iron Skin enters cooldown 4/i, "passive removal cooldown transcript");
+
   state.actors[1].physicalHpCurrent = 0;
   markDefeatedActors(state);
   if (state.statusEffects.some((effect) => effect.sourceActorId === state.actors[1].id || effect.targetActorId === state.actors[1].id)) {
     throw new Error("Defeat cleanup did not clear active Iron Skin protection/buff effects.");
+  }
+
+  const tacticalWolf = fixtureActor("Wolf Berzerker", "monsters", {
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D10", Intellect: "D8", Synergy: "D4", Bravery: "D8" },
+    physicalHpMax: 200,
+    physicalHpCurrent: 200,
+    mentalHpMax: 200,
+    mentalHpCurrent: 200,
+    physicalProtection: 0,
+    mentalProtection: 0,
+    dodgeDice: 0,
+    physicalDefenceDice: 0,
+    mentalDefenceDice: 0,
+    actions: [
+      ironSkin,
+      action({
+        id: "mindbreak-gaze-fixture",
+        name: "Mindbreak Gaze",
+        sourceType: "naturalAttack",
+        pool: "mental",
+        diceCount: 1,
+        potency: 8,
+      }),
+    ],
+  });
+  const tacticalRun = runCombatScenario({
+    name: "Iron Skin tactical setup fixture",
+    players: [glassCannon],
+    monsters: [tacticalWolf],
+    runs: 1,
+    seed: 9603,
+    maxRounds: 1,
+    turnOrder: "monstersFirst",
+  });
+  const tacticalLines = tacticalRun.firstRunTranscript?.lines ?? [];
+  const tacticalLineIndex = tacticalLines.findIndex((line) => /Tactical sequencing: Wolf Berzerker uses defensive Power Action before Main Action/i.test(line));
+  const powerLineIndex = tacticalLines.findIndex((line) => /Power Action: Wolf Berzerker uses Iron Skin on Wolf Berzerker/i.test(line));
+  const mainLineIndex = tacticalLines.findIndex((line) => /Main Action: Wolf Berzerker declares Mindbreak Gaze on CL-L3-Glass-Cannon/i.test(line));
+  if (tacticalLineIndex < 0 || powerLineIndex < 0 || mainLineIndex < 0 || tacticalLineIndex > powerLineIndex || powerLineIndex > mainLineIndex) {
+    throw new Error(`Tactical power-before-main transcript order was not preserved: ${JSON.stringify(tacticalLines)}`);
+  }
+  expectTranscriptLine(tacticalLines, /Roll: Wolf Berzerker rolled 4 x D10 using Fortitude for Iron Skin/i, "tactical Iron Skin Fortitude roll");
+  expectTranscriptLine(tacticalLines, /Counter declared: CL-L3-Glass-Cannon will use Counterstrike against Mindbreak Gaze/i, "tactical counter declaration");
+  expectTranscriptLine(tacticalLines, /Counter result: Wolf Berzerker suffers .* from Counterstrike\. Prevented [1-9]\d* passive\/static/i, "tactical Iron Skin same-turn counter prevention");
+}
+
+{
+  const base = makeFixturePower({
+    id: "timed-linked-status-fixture",
+    name: "Timed Linked Guard",
+    intention: "DEFENCE",
+    diceCount: 1,
+    potency: 1,
+    cooldownTurns: 2,
+  });
+  const primary = {
+    ...base.effectPackets[0],
+    intention: "DEFENCE" as const,
+    type: "DEFENCE" as const,
+    applyTo: "SELF" as const,
+    diceCount: 1,
+    potency: 1,
+    effectDurationType: "TURNS" as const,
+    effectDurationTurns: 1,
+    detailsJson: { attackMode: "PHYSICAL" },
+  };
+  const linkedGuard = {
+    ...primary,
+    id: "timed-linked-guard",
+    sortOrder: 1,
+    packetIndex: 1,
+    intention: "AUGMENT" as const,
+    type: "AUGMENT" as const,
+    targetedAttribute: "GUARD" as const,
+    potency: 2,
+    effectDurationType: "TURNS" as const,
+    effectDurationTurns: 1,
+    detailsJson: { statTarget: "Guard" },
+  };
+  const adapted = adaptPowerToCombatActions({
+    ...base,
+    effectPackets: [primary, linkedGuard],
+    intentions: [primary, linkedGuard],
+    cooldownTurns: 2,
+    cooldownReduction: 0,
+  });
+  const timedPower = adapted.actions[0];
+  const timedLinked = timedPower?.secondaryActions?.[0];
+  if (!timedPower || !timedLinked || timedLinked.passiveDuration || timedLinked.durationKind !== "turns") {
+    throw new Error(`Explicit timed linked status incorrectly inherited passive duration: ${JSON.stringify(adapted)}.`);
+  }
+  const actor = fixtureActor("timed-linked-actor", "players", {
+    actions: [timedPower],
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const state = createCombatState([actor], [fixtureActor("timed-linked-target", "monsters")], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[0],
+    action: timedPower,
+    rng: rngFrom([0.99, 0]),
+    lane: "power",
+  });
+  const guardStatus = state.statusEffects.find((effect) => effect.sourceActionName === "Timed Linked Guard (+Guard)");
+  if (!guardStatus || guardStatus.passiveDuration || guardStatus.remainingRounds !== 1) {
+    throw new Error(`Explicit timed linked Guard status did not remain one-turn timed: ${JSON.stringify(state.statusEffects)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Buff\/status created: Timed Linked Guard \(\+Guard\).* for 1 turns/i, "explicit timed linked status transcript");
+  tickTargetTurnEffects(state, state.actors[0].id);
+  if (state.statusEffects.some((effect) => effect.id === guardStatus.id)) {
+    throw new Error("Explicit timed linked Guard status did not expire on target turn tick.");
   }
 }
 
@@ -2092,6 +2253,10 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   }
   if (chooseTurnAction(state.actors[0], state, "power")?.id !== mark.id) {
     throw new Error("Power action did not choose ready debuff power.");
+  }
+  const laneOrder = chooseActionLaneOrder(state.actors[0], state, false);
+  if (laneOrder.lanes.join(",") !== "main,power") {
+    throw new Error(`Normal offensive actor should keep Main Action before Power Action: ${JSON.stringify(laneOrder)}.`);
   }
   const run = runCombatScenario({
     name: "main plus power action fixture",

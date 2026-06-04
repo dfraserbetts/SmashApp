@@ -221,6 +221,13 @@ function actionDurationRounds(power: Power, packet: EffectPacket, fallbackRounds
   return 1;
 }
 
+function durationKindForPacket(packet: EffectPacket): CombatAction["durationKind"] {
+  const duration = packet.effectDurationType ?? "INSTANT";
+  if (duration === "PASSIVE") return "passive";
+  if (duration === "TURNS" || duration === "UNTIL_TARGET_NEXT_TURN") return "turns";
+  return "instant";
+}
+
 function powerTextForTheme(power: Power, packet: EffectPacket, details: Record<string, unknown>): string {
   return [
     power.name,
@@ -414,6 +421,9 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
         : isAoe && kind === "debuff"
           ? "allEnemies"
           : targetPolicyForAction(kind, packet);
+    const actionId = `${power.id ?? power.name}:${packet.packetIndex ?? actions.length}`;
+    const durationKind = durationKindForPacket(packet);
+    const passiveDuration = durationKind === "passive";
     const rollAttributeResolution = resolvePowerRollAttribute({
       power,
       packet,
@@ -433,6 +443,12 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
     );
     const secondaryActions = linkedPackets.flatMap((secondaryPacket) => {
       const secondaryDetails = asRecord(secondaryPacket.detailsJson);
+      const secondaryDurationKind = durationKindForPacket(secondaryPacket);
+      const secondaryHasExplicitTimedDuration =
+        secondaryPacket.effectDurationType === "TURNS" ||
+        secondaryPacket.effectDurationType === "PASSIVE" ||
+        secondaryPacket.effectDurationType === "UNTIL_TARGET_NEXT_TURN";
+      const inheritsPrimaryPassiveDuration = passiveDuration && !secondaryHasExplicitTimedDuration;
       const secondaryScalingMode = asString(secondaryDetails.secondaryScalingMode).toUpperCase();
       const linkedScalingMode: NonNullable<CombatAction["linkedScalingMode"]> =
         secondaryScalingMode === "PRIMARY_WOUND_BANDS" || (kind === "attack" && packet.dealsWounds !== false)
@@ -456,6 +472,14 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       }
       return secondaryAdaptation.actions.map((action) => ({
         ...action,
+        durationRounds: inheritsPrimaryPassiveDuration ? durationRoundsForAction : action.durationRounds,
+        durationKind: inheritsPrimaryPassiveDuration ? "passive" : action.durationKind,
+        durationSource: inheritsPrimaryPassiveDuration
+          ? "inheritedFromParent"
+          : (action.durationSource ?? (secondaryDurationKind === "instant" ? "defaulted" : "authored")),
+        modifier: action.modifier && inheritsPrimaryPassiveDuration
+          ? { ...action.modifier, durationRounds: durationRoundsForAction }
+          : action.modifier,
         name:
           action.kind === "buff" && action.modifier
             ? `${power.name} (+${action.modifier.attribute})`
@@ -468,11 +492,13 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
         effectPerPrimarySuccess: Math.max(1, action.potency),
         skipOwnRoll: true,
         skipOwnDefenceGate: true,
+        passiveDuration: action.passiveDuration || inheritsPrimaryPassiveDuration,
+        cooldownActionId: actionId,
       }));
     });
 
     actions.push({
-      id: `${power.id ?? power.name}:${packet.packetIndex ?? actions.length}`,
+      id: actionId,
       sourcePowerId: power.id ?? power.name,
       sourceType: "power",
       name: power.name,
@@ -503,8 +529,12 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       recurring: recurringKindForPacket(kind, packet),
       damageApplicationTiming:
         kind === "attack" ? damageApplicationTimingForPacket(kind, packet) : undefined,
+      durationKind,
+      durationSource: durationKind === "instant" ? "defaulted" : "authored",
+      passiveDuration,
       passive: undefined,
       counterMode: power.counterMode === "YES",
+      cooldownActionId: actionId,
       abstractionNotes: [
         ...(isAoe ? ["AOE target count abstracted to 60% of potential capacity."] : []),
         ...(power.descriptorChassis === "FIELD" ? ["Field positioning abstracted using 60% potential target capacity."] : []),

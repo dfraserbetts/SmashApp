@@ -23,6 +23,10 @@ function cloneAction(action: CombatAction): CombatAction {
     control: action.control ? { ...action.control } : undefined,
     recurring: action.recurring ? { ...action.recurring } : undefined,
     damageApplicationTiming: action.damageApplicationTiming,
+    durationKind: action.durationKind,
+    durationSource: action.durationSource,
+    passiveDuration: action.passiveDuration,
+    cooldownActionId: action.cooldownActionId,
     source: action.source ? { ...action.source } : undefined,
   };
 }
@@ -317,6 +321,38 @@ export function applyActionCooldown(state: CombatState, actor: CombatActor, acti
   });
 }
 
+function applyPassiveStatusRemovalCooldown(state: CombatState, effect: CombatState["statusEffects"][number]) {
+  if (!effect.passiveDuration) return;
+  const sourceActor = state.actors.find((actor) => actor.id === effect.sourceActorId);
+  if (!sourceActor || sourceActor.defeated) return;
+  const cooldownActionId = effect.sourceCooldownActionId ?? effect.sourceActionId;
+  if (!cooldownActionId) return;
+  const sourceAction = sourceActor.actions.find((action) => action.id === cooldownActionId);
+  if (!sourceAction || sourceAction.cooldownRounds <= 0) return;
+  if (isActionOnCooldown(state, sourceActor.id, sourceAction.id)) return;
+  applyActionCooldown(state, sourceActor, sourceAction);
+}
+
+export function removeStatusEffectById(state: CombatState, effectId: string): boolean {
+  const effect = state.statusEffects.find((entry) => entry.id === effectId);
+  if (!effect) return false;
+  const linkedPassiveEffects = effect.passiveDuration
+    ? state.statusEffects.filter(
+        (entry) =>
+          entry.passiveDuration &&
+          entry.sourceActorId === effect.sourceActorId &&
+          entry.targetActorId === effect.targetActorId &&
+          (entry.sourceCooldownActionId ?? entry.sourceActionId) === (effect.sourceCooldownActionId ?? effect.sourceActionId),
+      )
+    : [effect];
+  const linkedIds = new Set(linkedPassiveEffects.map((entry) => entry.id));
+  state.statusEffects = state.statusEffects.filter((entry) => !linkedIds.has(entry.id));
+  for (const removed of linkedPassiveEffects) {
+    applyPassiveStatusRemovalCooldown(state, removed);
+  }
+  return true;
+}
+
 export function sampleActorCooldownAvailability(state: CombatState, actor: CombatActor) {
   for (const action of actor.actions) {
     if (action.cooldownRounds <= 0) continue;
@@ -397,6 +433,7 @@ export function tickTargetTurnEffects(state: CombatState, actorId: string): numb
   state.statusEffects = state.statusEffects
     .map((effect) => {
       if (effect.targetActorId !== actorId) return effect;
+      if (effect.passiveDuration) return effect;
       const previous = effect.remainingRounds;
       const remainingRounds = previous - 1;
       if (effect.kind === "mainActionDenied" && actor) {
@@ -433,7 +470,7 @@ export function tickTargetTurnEffects(state: CombatState, actorId: string): numb
 
 export function decrementRoundEffects(state: CombatState) {
   state.statusEffects = state.statusEffects
-    .map((effect) => ({ ...effect, remainingRounds: effect.remainingRounds - 1 }))
+    .map((effect) => effect.passiveDuration ? effect : { ...effect, remainingRounds: effect.remainingRounds - 1 })
     .filter((effect) => effect.remainingRounds > 0);
 }
 
