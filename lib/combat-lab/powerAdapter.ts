@@ -157,8 +157,14 @@ function actionKindForIntention(intention: PowerIntention): CombatAction["kind"]
 }
 
 function targetPolicyForAction(kind: CombatAction["kind"], packet: EffectPacket): CombatAction["targetPolicy"] {
-  const applyTo = packet.applyTo ?? asString(asRecord(packet.detailsJson).applyTo).toUpperCase();
+  const details = asRecord(packet.detailsJson);
+  const applyTo = packet.applyTo ?? asString(details.applyTo).toUpperCase();
+  const rangeCategory = asString(details.rangeCategory).toUpperCase();
+  const selfRangedBeneficial =
+    rangeCategory === "SELF" &&
+    (kind === "healing" || kind === "buff" || kind === "defence" || kind === "cleanse");
   if (applyTo === "SELF") return "self";
+  if (selfRangedBeneficial) return "self";
   if (kind === "healing" || kind === "buff" || kind === "defence") return "ally";
   return "enemy";
 }
@@ -255,12 +261,12 @@ function themedSelfDefenceAttribute(
 ): { attribute: CombatAttributeName; warning: string | null } {
   const theme = powerTextForTheme(power, packet, details);
   if (pool === "mental") {
-    if (/\b(intellect|cognition|cognitive|focus|focused|illusion|illusions|perception|mind|mental)\b/.test(theme)) {
+    if (/\b(intellect|cognition|cognitive|focus|focused|illusion|illusions|perception|clarity|reason|reasoning)\b/.test(theme)) {
       return { attribute: "Intellect", warning: null };
     }
     return { attribute: "Bravery", warning: null };
   }
-  if (/\b(shield|shields|ward|wards|barrier|barriers|forcefield|force field|guard|guarding|posture|armour|armor|aegis|bulwark)\b/.test(theme)) {
+  if (/\b(block|blocks|blocking|deflect|deflects|deflecting|parry|parries|parrying|shield|shields|ward|wards|barrier|barriers|forcefield|force field|guard|guarding|posture|armour|armor|aegis|bulwark)\b/.test(theme)) {
     return { attribute: "Guard", warning: null };
   }
   if (/\b(skin|hide|harden|hardening|endurance|endure|body|bodily|flesh|bone|bones|blood|iron|stone|resilience|resilient|fortitude|toughness)\b/.test(theme)) {
@@ -284,7 +290,6 @@ function resolvePowerRollAttribute(params: {
   const explicit = params.packet.targetedAttribute
     ? CORE_TO_COMBAT_ATTRIBUTE[params.packet.targetedAttribute]
     : authoredAttribute(params.details.rollAttribute ?? params.details.rollAttributeOverride ?? params.details.checkAttribute);
-  if (explicit) return { attribute: explicit, warning: null };
 
   if (params.kind === "attack" || params.kind === "debuff" || params.kind === "control") {
     return { attribute: "Attack", warning: null };
@@ -297,17 +302,28 @@ function resolvePowerRollAttribute(params: {
   }
   if (params.kind === "defence") {
     if (params.targetPolicy === "self") {
-      return themedSelfDefenceAttribute(params.power, params.packet, params.details, params.pool);
+      const themed = themedSelfDefenceAttribute(params.power, params.packet, params.details, params.pool);
+      if (explicit && explicit !== themed.attribute) {
+        return {
+          attribute: themed.attribute,
+          warning: `Power "${params.power.name}" self-targeted ${params.pool} defence authored roll attribute ${explicit}, but its self-defence theme resolves to ${themed.attribute}; Combat Lab used ${themed.attribute} instead of defaulting to Synergy.`,
+        };
+      }
+      return explicit ? { attribute: explicit, warning: null } : themed;
     }
+    if (explicit) return { attribute: explicit, warning: null };
     return { attribute: "Synergy", warning: null };
   }
   if (params.kind === "buff") {
+    if (explicit && params.targetPolicy !== "self") return { attribute: explicit, warning: null };
     if (params.targetPolicy !== "self") return { attribute: "Synergy", warning: null };
     return { attribute: params.modifierAttribute, warning: null };
   }
   if (params.kind === "cleanse") {
+    if (explicit) return { attribute: explicit, warning: null };
     return { attribute: params.targetPolicy === "self" ? "Fortitude" : "Synergy", warning: null };
   }
+  if (explicit) return { attribute: explicit, warning: null };
   return { attribute: "Attack", warning: null };
 }
 
@@ -470,31 +486,39 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       if (secondaryPacket.packetIndex !== undefined) {
         skippedPacketIndexes.add(secondaryPacket.packetIndex);
       }
-      return secondaryAdaptation.actions.map((action) => ({
-        ...action,
-        durationRounds: inheritsPrimaryPassiveDuration ? durationRoundsForAction : action.durationRounds,
-        durationKind: inheritsPrimaryPassiveDuration ? "passive" : action.durationKind,
-        durationSource: inheritsPrimaryPassiveDuration
-          ? "inheritedFromParent"
-          : (action.durationSource ?? (secondaryDurationKind === "instant" ? "defaulted" : "authored")),
-        modifier: action.modifier && inheritsPrimaryPassiveDuration
-          ? { ...action.modifier, durationRounds: durationRoundsForAction }
-          : action.modifier,
-        name:
-          action.kind === "buff" && action.modifier
-            ? `${power.name} (+${action.modifier.attribute})`
-            : `${power.name} (${action.kind})`,
-        cooldownRounds: 0,
-        linkedToPrimary: true,
-        usesPrimaryAppliedSuccesses: true,
-        linkedScalingMode,
-        primaryWoundsPerSuccess,
-        effectPerPrimarySuccess: Math.max(1, action.potency),
-        skipOwnRoll: true,
-        skipOwnDefenceGate: true,
-        passiveDuration: action.passiveDuration || inheritsPrimaryPassiveDuration,
-        cooldownActionId: actionId,
-      }));
+      return secondaryAdaptation.actions.map((action) => {
+        const inheritedDefenceRider =
+          inheritsPrimaryPassiveDuration && kind === "defence" && action.kind === "buff";
+        return {
+          ...action,
+          durationRounds: inheritsPrimaryPassiveDuration ? durationRoundsForAction : action.durationRounds,
+          durationKind: inheritsPrimaryPassiveDuration ? "passive" : action.durationKind,
+          durationSource: inheritsPrimaryPassiveDuration
+            ? "inheritedFromParent"
+            : (action.durationSource ?? (secondaryDurationKind === "instant" ? "defaulted" : "authored")),
+          modifier: action.modifier && inheritsPrimaryPassiveDuration
+            ? {
+                ...action.modifier,
+                durationRounds: durationRoundsForAction,
+                modifiesRollResults: inheritedDefenceRider ? false : action.modifier.modifiesRollResults,
+              }
+            : action.modifier,
+          name:
+            action.kind === "buff" && action.modifier
+              ? `${power.name} (+${action.modifier.attribute})`
+              : `${power.name} (${action.kind})`,
+          cooldownRounds: 0,
+          linkedToPrimary: true,
+          usesPrimaryAppliedSuccesses: true,
+          linkedScalingMode,
+          primaryWoundsPerSuccess,
+          effectPerPrimarySuccess: Math.max(1, action.potency),
+          skipOwnRoll: true,
+          skipOwnDefenceGate: true,
+          passiveDuration: action.passiveDuration || inheritsPrimaryPassiveDuration,
+          cooldownActionId: actionId,
+        };
+      });
     });
 
     actions.push({

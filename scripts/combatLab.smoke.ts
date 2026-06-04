@@ -1443,6 +1443,108 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     throw new Error(`Self forcefield/guard defence should roll Guard, not Synergy: ${JSON.stringify(forcefieldPower)}.`);
   }
 
+  const deflectPower = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "deflect-counter-attribute",
+      name: "Deflect attack",
+      intention: "DEFENCE",
+      diceCount: 3,
+      potency: 5,
+      cooldownTurns: 2,
+    }),
+    counterMode: "YES",
+    effectPackets: [
+      {
+        ...makeFixturePower({
+          id: "deflect-counter-attribute-packet",
+          name: "Deflect attack",
+          intention: "DEFENCE",
+          diceCount: 3,
+          potency: 5,
+        }).effectPackets[0],
+        applyTo: "PRIMARY_TARGET" as const,
+        detailsJson: { attackMode: "PHYSICAL", rangeCategory: "SELF" },
+      },
+    ],
+  });
+  const deflect = deflectPower.actions[0];
+  if (!deflect || deflect.targetPolicy !== "self" || deflect.accuracyAttribute !== "Guard" || deflect.counterMode !== true) {
+    throw new Error(`Deflect-style self Counter defence should target self and roll Guard, not Synergy: ${JSON.stringify(deflectPower)}.`);
+  }
+
+  const deflectState = createCombatState(
+    [
+      fixtureActor("deflect-defender", "players", {
+        attributeDice: { Attack: "D8", Guard: "D6", Fortitude: "D8", Intellect: "D8", Synergy: "D12", Bravery: "D8" },
+        actions: [deflect],
+      }),
+    ],
+    [
+      fixtureActor("deflect-attacker", "monsters", {
+        actions: [action({ id: "deflect-trigger", name: "Tusk Club", sourceType: "naturalAttack", diceCount: 1, potency: 10 })],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  resolveCombatAction({
+    state: deflectState,
+    actor: deflectState.actors[1],
+    target: deflectState.actors[0],
+    action: deflectState.actors[1].actions[0],
+    rng: rngFrom([0.99, 0.45, 0.6, 0.7, 0]),
+    lane: "main",
+  });
+  expectTranscriptLine(deflectState.transcriptLines, /Counter declared: deflect-defender will use Deflect attack against Tusk Club/i, "Deflect counter declaration");
+  expectTranscriptLine(deflectState.transcriptLines, /Roll: deflect-defender rolled 3 x D6 using Guard for Deflect attack/i, "Deflect counter Guard roll");
+  if (deflectState.transcriptLines.some((line) => /Deflect attack: .*using Synergy|using Synergy for Deflect attack/i.test(line))) {
+    throw new Error(`Deflect counter used Synergy instead of Guard: ${deflectState.transcriptLines.join(" | ")}`);
+  }
+
+  const inconsistentExplicitDeflect = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "deflect-explicit-synergy",
+      name: "Deflect explicit Synergy",
+      intention: "DEFENCE",
+      diceCount: 3,
+      potency: 5,
+      cooldownTurns: 2,
+    }),
+    counterMode: "YES",
+    effectPackets: [
+      {
+        ...makeFixturePower({
+          id: "deflect-explicit-synergy-packet",
+          name: "Deflect explicit Synergy",
+          intention: "DEFENCE",
+          diceCount: 3,
+          potency: 5,
+        }).effectPackets[0],
+        applyTo: "SELF" as const,
+        targetedAttribute: "SYNERGY" as const,
+        detailsJson: { attackMode: "PHYSICAL", defenceTheme: "deflect" },
+      },
+    ],
+  });
+  if (
+    inconsistentExplicitDeflect.actions[0]?.accuracyAttribute !== "Guard" ||
+    !inconsistentExplicitDeflect.warnings.some((warning) => /authored roll attribute Synergy.*used Guard/i.test(warning))
+  ) {
+    throw new Error(`Inconsistent self-defence authored Synergy should warn and resolve to Guard: ${JSON.stringify(inconsistentExplicitDeflect)}.`);
+  }
+
+  const allyDefence = adaptPowerToCombatActions(makeFixturePower({
+    id: "ally-defence-attribute",
+    name: "Cover Ally",
+    intention: "DEFENCE",
+    diceCount: 3,
+    potency: 2,
+    applyTo: "ALLIES",
+    durationTurns: 1,
+  }));
+  if (allyDefence.actions[0]?.accuracyAttribute !== "Synergy") {
+    throw new Error(`Ally-targeted defence should still roll Synergy: ${JSON.stringify(allyDefence)}.`);
+  }
+
   const allyBuff = adaptPowerToCombatActions(makeFixturePower({
     id: "ally-buff-attribute",
     name: "Battle Coordination",
@@ -1469,6 +1571,77 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   }));
   if (selfAttackBuff.actions[0]?.accuracyAttribute !== "Attack") {
     throw new Error(`Self attack-amplification buff should roll Attack: ${JSON.stringify(selfAttackBuff)}.`);
+  }
+
+  const mentalResolve = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "self-mental-resolve-attribute",
+      name: "Fearless Resolve",
+      intention: "DEFENCE",
+      pool: "mental",
+      diceCount: 3,
+      potency: 4,
+    }),
+    effectPackets: [
+      {
+        ...makeFixturePower({
+          id: "self-mental-resolve-attribute-packet",
+          name: "Fearless Resolve",
+          intention: "DEFENCE",
+          pool: "mental",
+          diceCount: 3,
+          potency: 4,
+        }).effectPackets[0],
+        applyTo: "SELF" as const,
+        detailsJson: { attackMode: "MENTAL", defenceTheme: "resolve" },
+      },
+    ],
+  });
+  if (mentalResolve.actions[0]?.accuracyAttribute !== "Bravery") {
+    throw new Error(`Self mental resolve defence should roll Bravery: ${JSON.stringify(mentalResolve)}.`);
+  }
+
+  const mentalFocus = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "self-mental-focus-attribute",
+      name: "Focused Mind",
+      intention: "DEFENCE",
+      pool: "mental",
+      diceCount: 3,
+      potency: 4,
+    }),
+    effectPackets: [
+      {
+        ...makeFixturePower({
+          id: "self-mental-focus-attribute-packet",
+          name: "Focused Mind",
+          intention: "DEFENCE",
+          pool: "mental",
+          diceCount: 3,
+          potency: 4,
+        }).effectPackets[0],
+        applyTo: "SELF" as const,
+        detailsJson: { attackMode: "MENTAL", defenceTheme: "focus" },
+      },
+    ],
+  });
+  if (mentalFocus.actions[0]?.accuracyAttribute !== "Intellect") {
+    throw new Error(`Self cognitive/focus defence should roll Intellect: ${JSON.stringify(mentalFocus)}.`);
+  }
+
+  const damageCounter = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "damage-counter-attribute",
+      name: "Counterstrike",
+      intention: "ATTACK",
+      diceCount: 3,
+      potency: 2,
+      cooldownTurns: 2,
+    }),
+    counterMode: "YES",
+  });
+  if (damageCounter.actions[0]?.accuracyAttribute !== "Attack") {
+    throw new Error(`Damage Counter should still roll Attack: ${JSON.stringify(damageCounter)}.`);
   }
 }
 
@@ -1590,6 +1763,9 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (!guardBuff || guardBuff.attribute !== "Guard" || guardBuff.amount !== 15) {
     throw new Error(`Iron Skin linked +Guard rider did not scale by applied primary successes: ${JSON.stringify(state.statusEffects)}.`);
   }
+  if (guardBuff.modifiesRollResults !== false || ironSkin.secondaryActions?.[0]?.modifier?.modifiesRollResults !== false) {
+    throw new Error(`Iron Skin linked +Guard rider should be tracked as passive status, not a Guard dice modifier: ${JSON.stringify({ guardBuff, secondary: ironSkin.secondaryActions?.[0] })}.`);
+  }
   if (getActionCooldownRemaining(state, state.actors[1].id, ironSkin.id) !== 0) {
     throw new Error("Passive-duration Iron Skin entered cooldown immediately on cast.");
   }
@@ -1599,6 +1775,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   expectTranscriptLine(state.transcriptLines, /Roll: Wolf Berzerker rolled 4 x D10 using Fortitude for Iron Skin/i, "Iron Skin Fortitude roll transcript");
   expectTranscriptLine(state.transcriptLines, /Passive defence: Iron Skin grants Wolf Berzerker 3 x 5 = 15 passive physical wound blocking until it ends or is removed/i, "Iron Skin passive defence transcript");
   expectTranscriptLine(state.transcriptLines, /Buff\/status created: Iron Skin \(\+Guard\) grants 3 stacks of \+5 Guard .* until ended or removed/i, "Iron Skin linked Guard passive transcript");
+  expectTranscriptLine(state.transcriptLines, /Iron Skin \(\+Guard\).*does not modify roll results/i, "Iron Skin linked Guard non-roll transcript");
   expectTranscriptLine(state.transcriptLines, /Status created: Iron Skin remains active until ended or removed/i, "Iron Skin passive status transcript");
   expectTranscriptLine(state.transcriptLines, /Status created: Iron Skin \(\+Guard\) remains active until ended or removed/i, "Iron Skin linked passive status transcript");
   if (state.transcriptLines.some((line) => /Iron Skin.*ticks remaining|Cooldown: Iron Skin enters cooldown|Cooldown tick skipped: Iron Skin/i.test(line))) {
@@ -1612,6 +1789,183 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   ) {
     throw new Error(`Passive-duration Iron Skin effects ticked down naturally: ${JSON.stringify(state.statusEffects)}.`);
   }
+
+  const ironSkinRollState = createCombatState(
+    [
+      fixtureActor("iron-skin-roll-attacker", "players", {
+        attributeDice: { Attack: "D10", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        actions: [],
+      }),
+    ],
+    [
+      fixtureActor("iron-skin-roll-defender", "monsters", {
+        physicalHpMax: 120,
+        physicalHpCurrent: 120,
+        physicalProtection: 0,
+        dodgeDice: 1,
+        physicalDefenceDice: 4,
+        physicalBlockPerSuccess: 6,
+        attributeDice: { Attack: "D8", Guard: "D10", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D10" },
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  ironSkinRollState.statusEffects.push(
+    {
+      id: "iron-skin-roll-protection",
+      sourceActorId: "iron-skin-roll-defender",
+      targetActorId: "iron-skin-roll-defender",
+      kind: "protection",
+      pool: "physical",
+      amount: 10,
+      sourceActionId: "iron-skin-roll",
+      sourceActionName: "Iron Skin",
+      passiveDuration: true,
+      remainingRounds: 20,
+    },
+    {
+      id: "iron-skin-roll-guard-rider",
+      sourceActorId: "iron-skin-roll-defender",
+      targetActorId: "iron-skin-roll-defender",
+      kind: "buff",
+      attribute: "Guard",
+      amount: 10,
+      sourceActionId: "iron-skin-roll-guard",
+      sourceActionName: "Iron Skin (+Guard)",
+      passiveDuration: true,
+      modifiesRollResults: false,
+      remainingRounds: 20,
+    },
+  );
+  const ironSkinRollResolution = resolveCombatAction({
+    state: ironSkinRollState,
+    actor: ironSkinRollState.actors[0],
+    target: ironSkinRollState.actors[1],
+    action: action({ id: "iron-skin-physical-test", name: "Iron Skin Physical Test", diceCount: 1, potency: 20 }),
+    rng: rngFrom([0.99, 0.45, 0.99, 0, 0.99]),
+    lane: "main",
+  });
+  if (ironSkinRollResolution.defenceStringBlocked !== 30 || ironSkinRollResolution.staticProtectionPrevented !== 10) {
+    throw new Error(`Iron Skin did not apply passive/static prevention after an unmodified physical defence roll: ${JSON.stringify(ironSkinRollResolution)}.`);
+  }
+  expectTranscriptLine(
+    ironSkinRollState.transcriptLines,
+    /raw results 5, 10, 1, 10; per-die successes 1, 2, 0, 2; total 5 successes\. Physical Defence blocked 30 of 40 physical wounds/i,
+    "Iron Skin physical defence unmodified Guard roll",
+  );
+  expectTranscriptLine(
+    ironSkinRollState.transcriptLines,
+    /Passive\/static prevention: Iron Skin blocked 10 physical wounds/i,
+    "Iron Skin named passive/static prevention",
+  );
+  if (ironSkinRollState.transcriptLines.some((line) => /physical defence.*modified results/i.test(line))) {
+    throw new Error(`Iron Skin linked Guard rider incorrectly modified physical defence dice: ${ironSkinRollState.transcriptLines.join(" | ")}`);
+  }
+
+  const legitBuffState = createCombatState(
+    [
+      fixtureActor("legit-buff-attacker", "players", {
+        attributeDice: { Attack: "D10", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        actions: [],
+      }),
+    ],
+    [
+      fixtureActor("legit-buff-defender", "monsters", {
+        mentalHpMax: 120,
+        mentalHpCurrent: 120,
+        dodgeDice: 1,
+        mentalDefenceDice: 4,
+        mentalBlockPerSuccess: 6,
+        attributeDice: { Attack: "D8", Guard: "D10", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  legitBuffState.statusEffects.push({
+    id: "legit-guard-buff",
+    sourceActorId: "legit-buff-defender",
+    targetActorId: "legit-buff-defender",
+    kind: "buff",
+    attribute: "Bravery",
+    amount: 10,
+    sourceActionId: "legit-bravery-buff",
+    sourceActionName: "Legitimate Bravery Buff",
+    remainingRounds: 2,
+  });
+  resolveCombatAction({
+    state: legitBuffState,
+    actor: legitBuffState.actors[0],
+    target: legitBuffState.actors[1],
+    action: action({ id: "legit-buff-mental-test", name: "Legit Buff Mental Test", pool: "mental", diceCount: 1, potency: 20 }),
+    rng: rngFrom([0.99, 0.45, 0.99, 0, 0.99]),
+    lane: "main",
+  });
+  expectTranscriptLine(
+    legitBuffState.transcriptLines,
+    /using Bravery for mental defence: raw results .* modified results .* per-die successes 2, 2, 2, 2; total 8 successes/i,
+    "legitimate Bravery buff still modifies mental defence dice",
+  );
+
+  const mentalState = createCombatState(
+    [
+      fixtureActor("iron-skin-mental-attacker", "players", {
+        attributeDice: { Attack: "D10", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        actions: [],
+      }),
+    ],
+    [
+      fixtureActor("iron-skin-mental-defender", "monsters", {
+        mentalHpMax: 120,
+        mentalHpCurrent: 120,
+        mentalDefenceDice: 1,
+        mentalBlockPerSuccess: 0,
+        attributeDice: { Attack: "D8", Guard: "D10", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D10" },
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  mentalState.statusEffects.push(
+    {
+      id: "iron-skin-mental-protection",
+      sourceActorId: "iron-skin-mental-defender",
+      targetActorId: "iron-skin-mental-defender",
+      kind: "protection",
+      pool: "physical",
+      amount: 10,
+      sourceActionId: "iron-skin-mental",
+      sourceActionName: "Iron Skin",
+      passiveDuration: true,
+      remainingRounds: 20,
+    },
+    {
+      id: "iron-skin-mental-guard-rider",
+      sourceActorId: "iron-skin-mental-defender",
+      targetActorId: "iron-skin-mental-defender",
+      kind: "buff",
+      attribute: "Guard",
+      amount: 10,
+      sourceActionId: "iron-skin-mental-guard",
+      sourceActionName: "Iron Skin (+Guard)",
+      passiveDuration: true,
+      modifiesRollResults: false,
+      remainingRounds: 20,
+    },
+  );
+  const mentalResolution = resolveCombatAction({
+    state: mentalState,
+    actor: mentalState.actors[0],
+    target: mentalState.actors[1],
+    action: action({ id: "iron-skin-mental-test", name: "Iron Skin Mental Test", pool: "mental", diceCount: 1, potency: 20 }),
+    rng: rngFrom([0.99, 0]),
+    lane: "main",
+  });
+  if (mentalResolution.staticProtectionPrevented !== 0) {
+    throw new Error(`Iron Skin physical passive/static prevention leaked into mental damage: ${JSON.stringify(mentalResolution)}.`);
+  }
+  if (mentalState.transcriptLines.some((line) => /dodge.*modified results|mental defence.*modified results|Passive\/static prevention: Iron Skin/i.test(line))) {
+    throw new Error(`Iron Skin incorrectly affected mental defence/dodge/passive prevention: ${mentalState.transcriptLines.join(" | ")}`);
+  }
+
   state.statusEffects = state.statusEffects.filter((effect) => effect.id !== guardBuff.id);
 
   const directHitResolution = resolveCombatAction({
