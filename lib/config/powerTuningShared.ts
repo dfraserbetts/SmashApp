@@ -15,6 +15,17 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
     chargeType: { buildPower: 1, delayedCast: 1.5 },
     commitment: { channel: 2, charge: 2, standard: 0 },
     counter: { no: 0, yes: 1.5 },
+    counterPremium: {
+      attack: 6,
+      attackControlCombo: 10,
+      attackDefenceCombo: 8,
+      attackOffensiveMultiplier: 2.5,
+      buff: 6,
+      control: 10,
+      debuff: 8,
+      defence: 4,
+      movement: 6,
+    },
   },
   cooldown: {
     capacity: {

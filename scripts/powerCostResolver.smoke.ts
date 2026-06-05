@@ -4,6 +4,10 @@ import { derivePowerCooldown, resolvePowerCost } from "../lib/summoning/powerCos
 import { calculatorConfig } from "../lib/calculators/calculatorConfig";
 import { computeMonsterOutcomes } from "../lib/calculators/monsterOutcomeCalculator";
 import { DEFAULT_POWER_TUNING_VALUES } from "../lib/config/powerTuningShared";
+import {
+  DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
+  calculateCharacterPlayerPowerSpend,
+} from "../lib/config/characterBuilderTuningShared";
 import { renderPowerDescriptorLines } from "../lib/summoning/render";
 import { normalizeMonsterUpsertInput } from "../lib/summoning/validation";
 import type { EffectPacket, Power } from "../lib/summoning/types";
@@ -37,9 +41,15 @@ function createPacket(
 function createPower(config: {
   name: string;
   rangeCategories?: Power["rangeCategories"];
+  meleeTargets?: number | null;
+  rangedDistanceFeet?: number | null;
   rangedTargets?: number | null;
   packet: EffectPacket;
+  packets?: EffectPacket[];
+  counterMode?: Power["counterMode"];
+  primaryDefenceGate?: Power["primaryDefenceGate"];
 }): Power {
+  const packets = config.packets ?? [config.packet];
   return {
     sortOrder: 0,
     name: config.name,
@@ -48,14 +58,18 @@ function createPower(config: {
     descriptorChassisConfig: {},
     cooldownTurns: 1,
     cooldownReduction: 0,
-    counterMode: "NO",
+    counterMode: config.counterMode ?? "NO",
     commitmentModifier: "STANDARD",
     lifespanType: "NONE",
     lifespanTurns: null,
     rangeCategories: config.rangeCategories ?? [],
+    meleeTargets: config.meleeTargets ?? null,
+    rangedDistanceFeet: config.rangedDistanceFeet ?? null,
     rangedTargets: config.rangedTargets ?? null,
-    effectPackets: [config.packet],
-    intentions: [config.packet],
+    primaryDefenceGate: config.primaryDefenceGate,
+    defenceRequirement: config.primaryDefenceGate?.gateResult ?? undefined,
+    effectPackets: packets,
+    intentions: packets,
     diceCount: Number(config.packet.diceCount ?? 1),
     potency: Number(config.packet.potency ?? 1),
     effectDurationType: config.packet.effectDurationType ?? "INSTANT",
@@ -430,6 +444,210 @@ assert.equal(
   normalizedForceNoResponse.data.powers[0].effectPackets[0].detailsJson.controlMode,
   "Force no response",
 );
+
+const counterPremiumKeys = {
+  attack: "access.counterPremium.attack",
+  attackControlCombo: "access.counterPremium.attackControlCombo",
+  attackDefenceCombo: "access.counterPremium.attackDefenceCombo",
+  attackOffensiveMultiplier: "access.counterPremium.attackOffensiveMultiplier",
+  buff: "access.counterPremium.buff",
+  control: "access.counterPremium.control",
+  debuff: "access.counterPremium.debuff",
+  defence: "access.counterPremium.defence",
+  movement: "access.counterPremium.movement",
+} as const;
+const legacyCounterTuningValues = {
+  ...DEFAULT_POWER_TUNING_VALUES,
+  ...Object.fromEntries(Object.values(counterPremiumKeys).map((key) => [key, 0])),
+};
+const physicalAttackGate = {
+  sourcePacketIndex: 0,
+  gateResult: "DODGE_OR_PROTECTION",
+  protectionChannel: "PHYSICAL",
+  resistAttribute: null,
+  hostileEntryPattern: null,
+  resolutionSource: "INFERRED",
+} as const;
+const counterstrikePacket = createPacket("ATTACK", {
+  diceCount: 3,
+  potency: 4,
+  detailsJson: {
+    attackMode: "PHYSICAL",
+    damageTypes: ["Ice", "Slashing"],
+    rangeCategory: "MELEE",
+  },
+});
+const counterstrikePower = createPower({
+  name: "Counterstrike",
+  rangeCategories: ["MELEE"],
+  meleeTargets: 1,
+  packet: counterstrikePacket,
+  counterMode: "YES",
+  primaryDefenceGate: physicalAttackGate,
+});
+const suddenDaggerPacket = createPacket("ATTACK", {
+  diceCount: 3,
+  potency: 3,
+  detailsJson: {
+    attackMode: "PHYSICAL",
+    damageTypes: ["Piercing", "Necrotic"],
+    rangeCategory: "RANGED",
+    rangeValue: 30,
+    rangeExtra: { targets: 1 },
+  },
+});
+const suddenDaggerPower = createPower({
+  name: "Sudden Dagger",
+  rangeCategories: ["RANGED"],
+  rangedDistanceFeet: 30,
+  rangedTargets: 1,
+  packet: suddenDaggerPacket,
+  counterMode: "YES",
+  primaryDefenceGate: physicalAttackGate,
+});
+const openVeinPrimaryPacket = createPacket("ATTACK", {
+  diceCount: 4,
+  potency: 4,
+  detailsJson: {
+    attackMode: "PHYSICAL",
+    damageTypes: ["Slashing"],
+    rangeCategory: "MELEE",
+  },
+});
+const openVeinOngoingPacket = createPacket("ATTACK", {
+  sortOrder: 1,
+  packetIndex: 1,
+  diceCount: 1,
+  potency: 3,
+  effectTimingType: "START_OF_TURN",
+  effectDurationType: "TURNS",
+  effectDurationTurns: 2,
+  detailsJson: {
+    attackMode: "PHYSICAL",
+    damageTypes: ["Necrotic"],
+    rangeCategory: "MELEE",
+    secondaryScalingMode: "PRIMARY_WOUND_BANDS",
+    woundsPerSuccess: 6,
+  },
+});
+const openVeinPower = createPower({
+  name: "Open Vein",
+  rangeCategories: ["MELEE"],
+  meleeTargets: 1,
+  packet: openVeinPrimaryPacket,
+  packets: [openVeinPrimaryPacket, openVeinOngoingPacket],
+  primaryDefenceGate: physicalAttackGate,
+});
+const defenceOnlyCounterPower = createPower({
+  name: "Guard Snap",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 2,
+    potency: 2,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      rangeCategory: "SELF",
+    },
+  }),
+  counterMode: "YES",
+});
+const attackDefenceCounterPower = createPower({
+  name: "Riposte Guard",
+  rangeCategories: ["MELEE"],
+  meleeTargets: 1,
+  packet: counterstrikePacket,
+  packets: [
+    counterstrikePacket,
+    createPacket("DEFENCE", {
+      sortOrder: 1,
+      packetIndex: 1,
+      hostility: "NON_HOSTILE",
+      applyTo: "SELF",
+      diceCount: 1,
+      potency: 2,
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        rangeCategory: "SELF",
+      },
+    }),
+  ],
+  counterMode: "YES",
+  primaryDefenceGate: physicalAttackGate,
+});
+
+function summarizeCounterAudit(power: Power) {
+  const before = resolvePowerCost(power, {
+    values: legacyCounterTuningValues,
+  });
+  const after = resolvePowerCost(power, {
+    values: DEFAULT_POWER_TUNING_VALUES,
+  });
+  return {
+    before,
+    after,
+    beforeSpend: calculateCharacterPlayerPowerSpend(
+      before.basePowerValue,
+      DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
+    ),
+    afterSpend: calculateCharacterPlayerPowerSpend(
+      after.basePowerValue,
+      DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
+    ),
+  };
+}
+
+const counterstrikeAudit = summarizeCounterAudit(counterstrikePower);
+const suddenDaggerAudit = summarizeCounterAudit(suddenDaggerPower);
+const openVeinAudit = summarizeCounterAudit(openVeinPower);
+const defenceOnlyCounterAudit = summarizeCounterAudit(defenceOnlyCounterPower);
+const attackDefenceCounterAudit = summarizeCounterAudit(attackDefenceCounterPower);
+const counterstrikeDescriptor = renderPowerDescriptorLines(counterstrikePower).join("\n");
+const suddenDaggerDescriptor = renderPowerDescriptorLines(suddenDaggerPower).join("\n");
+const openVeinDescriptor = renderPowerDescriptorLines(openVeinPower).join("\n");
+
+assert.ok(
+  counterstrikeAudit.after.basePowerValue - counterstrikeAudit.before.basePowerValue >= 20,
+  "Counterstrike should receive a material attack-counter premium.",
+);
+assert.ok(
+  suddenDaggerAudit.after.basePowerValue - suddenDaggerAudit.before.basePowerValue >= 20,
+  "Sudden Dagger should receive a material attack-counter premium.",
+);
+assert.equal(
+  openVeinAudit.after.basePowerValue,
+  openVeinAudit.before.basePowerValue,
+  "Non-counter Open Vein must not receive attack-counter premium.",
+);
+assert.ok(
+  defenceOnlyCounterAudit.after.accessCost < counterstrikeAudit.after.accessCost,
+  "Defence-only Counter premium should remain lower than Attack Counter premium.",
+);
+assert.ok(
+  attackDefenceCounterAudit.after.accessCost > counterstrikeAudit.after.accessCost,
+  "Attack + Defence Counter should cost more than Attack-only Counter.",
+);
+assert.match(
+  counterstrikeDescriptor,
+  /The target may attempt a Dodge or Protection roll against Counterstrike as soon as the power is declared\./,
+);
+assert.match(
+  counterstrikeDescriptor,
+  /When used as a Counter, this attack does not allow the triggering attacker an active defence roll\. Passive\/static protection still applies\./,
+);
+assert.match(
+  suddenDaggerDescriptor,
+  /The target may attempt a Dodge or Protection roll against Sudden Dagger as soon as the power is declared\./,
+);
+assert.match(
+  suddenDaggerDescriptor,
+  /When used as a Counter, this attack does not allow the triggering attacker an active defence roll\. Passive\/static protection still applies\./,
+);
+assert.match(
+  openVeinDescriptor,
+  /The target may attempt a Dodge or Protection roll against Open Vein as soon as the power is declared\./,
+);
+assert.doesNotMatch(openVeinDescriptor, /When used as a Counter/);
 const triggeredSelfTeleportPacket = createPacket("MOVEMENT", {
   sortOrder: 1,
   packetIndex: 1,
@@ -594,6 +812,43 @@ console.log(
               magnitude?: Record<string, unknown>;
             }
           ).magnitude,
+        },
+      },
+      counterPricingAudit: {
+        tuningKeys: counterPremiumKeys,
+        counterstrike: {
+          beforeBasePowerValue: counterstrikeAudit.before.basePowerValue,
+          afterBasePowerValue: counterstrikeAudit.after.basePowerValue,
+          beforeCharacterSpend: counterstrikeAudit.beforeSpend,
+          afterCharacterSpend: counterstrikeAudit.afterSpend,
+          accessBefore: counterstrikeAudit.before.accessCost,
+          accessAfter: counterstrikeAudit.after.accessCost,
+          accessBreakdown: counterstrikeAudit.after.debug.accessBreakdown,
+          packetCosts: counterstrikeAudit.after.packetCosts,
+          derivedCooldown: counterstrikeAudit.after.derivedCooldownTurns,
+        },
+        suddenDagger: {
+          beforeBasePowerValue: suddenDaggerAudit.before.basePowerValue,
+          afterBasePowerValue: suddenDaggerAudit.after.basePowerValue,
+          beforeCharacterSpend: suddenDaggerAudit.beforeSpend,
+          afterCharacterSpend: suddenDaggerAudit.afterSpend,
+          accessBefore: suddenDaggerAudit.before.accessCost,
+          accessAfter: suddenDaggerAudit.after.accessCost,
+          accessBreakdown: suddenDaggerAudit.after.debug.accessBreakdown,
+          packetCosts: suddenDaggerAudit.after.packetCosts,
+          derivedCooldown: suddenDaggerAudit.after.derivedCooldownTurns,
+        },
+        openVein: {
+          beforeBasePowerValue: openVeinAudit.before.basePowerValue,
+          afterBasePowerValue: openVeinAudit.after.basePowerValue,
+          beforeCharacterSpend: openVeinAudit.beforeSpend,
+          afterCharacterSpend: openVeinAudit.afterSpend,
+          accessBefore: openVeinAudit.before.accessCost,
+          accessAfter: openVeinAudit.after.accessCost,
+          packetCosts: openVeinAudit.after.packetCosts,
+          packetCountComplexityCost: openVeinAudit.after.packetCountComplexityCost,
+          crossPacketSynergyCost: openVeinAudit.after.crossPacketSynergyCost,
+          derivedCooldown: openVeinAudit.after.derivedCooldownTurns,
         },
       },
     },

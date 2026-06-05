@@ -1838,18 +1838,39 @@ function getStructuralCost(
 function getAccessCost(
   tuningValues: Record<string, number>,
   power: Power,
-): { cost: number; chosenKeys: string[]; notes: string[] } {
+  packets: EffectPacket[],
+  canonicalRangeCategory: CanonicalRangeCategory,
+): { cost: number; chosenKeys: string[]; notes: string[]; debug: Record<string, unknown> } {
   const chosenKeys: string[] = [];
   const notes: string[] = [];
   let cost = 0;
+  const counterMode = asString(power.counterMode).toUpperCase() === "YES" ? "yes" : "no";
 
   const counterResolved = resolveDiscreteTuningValue(
     tuningValues,
     "access.counter",
-    asString(power.counterMode).toUpperCase() === "YES" ? "yes" : "no",
+    counterMode,
   );
   cost += counterResolved.value;
   pushSelectedTuning(chosenKeys, notes, counterResolved);
+
+  const counterPremium =
+    counterMode === "yes"
+      ? getCounterIntentPremiumCost(
+          tuningValues,
+          power,
+          packets,
+          canonicalRangeCategory,
+        )
+      : {
+          cost: 0,
+          chosenKeys: [] as string[],
+          notes: [] as string[],
+          debug: { counterEnabled: false },
+        };
+  cost += counterPremium.cost;
+  chosenKeys.push(...counterPremium.chosenKeys);
+  notes.push(...counterPremium.notes);
 
   const commitment = asString(power.commitmentModifier).toUpperCase() || "STANDARD";
   const commitmentResolved = resolveDiscreteTuningValue(
@@ -1888,6 +1909,128 @@ function getAccessCost(
     cost: roundCost(cost),
     chosenKeys,
     notes,
+    debug: {
+      counterMode,
+      flatCounterKey: counterResolved.tuningKey,
+      flatCounterContribution: roundCost(counterResolved.value),
+      counterPremium: counterPremium.debug,
+      commitment,
+      commitmentKey: commitmentResolved.tuningKey,
+      commitmentContribution: roundCost(commitmentResolved.value),
+    },
+  };
+}
+
+function getCounterIntentPremiumCost(
+  tuningValues: Record<string, number>,
+  power: Power,
+  packets: EffectPacket[],
+  canonicalRangeCategory: CanonicalRangeCategory,
+): { cost: number; chosenKeys: string[]; notes: string[]; debug: Record<string, unknown> } {
+  const chosenKeys: string[] = [];
+  const notes: string[] = [];
+  const intentions = new Set<PowerIntention>();
+  let offensivePacketValue = 0;
+
+  for (const [packetListIndex, packet] of packets.entries()) {
+    const intention = packet.intention ?? packet.type ?? "ATTACK";
+    intentions.add(intention);
+    if (intention !== "ATTACK") continue;
+
+    const identity = getPacketIdentityCost(tuningValues, packet);
+    const magnitude = getPacketMagnitudeCost(tuningValues, power, packet);
+    const timing = getPacketTimingCost(tuningValues, packet);
+    const duration = getPacketDurationCost(tuningValues, packet);
+    const recipient = getPacketRecipientCost(
+      tuningValues,
+      canonicalRangeCategory,
+      power,
+      packet,
+    );
+    const specific = getPacketSpecificCost(tuningValues, packet);
+    const beforeContingency = roundCost(
+      identity.cost +
+        magnitude.cost +
+        timing.cost +
+        duration.cost +
+        recipient.cost +
+        specific.cost,
+    );
+    const contingency = getPacketContingencyMultiplier(
+      tuningValues,
+      packet.packetIndex ?? packetListIndex,
+    );
+    offensivePacketValue += beforeContingency * contingency.value;
+  }
+
+  const hasAttack = intentions.has("ATTACK");
+  const hasDefence = intentions.has("DEFENCE");
+  const hasControl = intentions.has("CONTROL");
+  const hasDebuff = intentions.has("DEBUFF");
+  const hasMovement = intentions.has("MOVEMENT");
+  const hasBuff =
+    intentions.has("AUGMENT") ||
+    intentions.has("HEALING") ||
+    intentions.has("CLEANSE") ||
+    intentions.has("SUPPORT");
+
+  let cost = 0;
+  const applied: Array<{ key: string | null; label: string; contribution: number }> = [];
+  const applyPremium = (key: string, label: string, value: number) => {
+    const resolved = resolvePowerTuningValue(tuningValues, key);
+    const contribution = roundCost(value * resolved.value);
+    cost += contribution;
+    if (resolved.tuningKey) chosenKeys.push(resolved.tuningKey);
+    if (resolved.note) notes.push(resolved.note);
+    applied.push({ key: resolved.tuningKey, label, contribution });
+  };
+  const applyFlatPremium = (key: string, label: string) => {
+    const resolved = resolvePowerTuningValue(tuningValues, key);
+    cost += resolved.value;
+    if (resolved.tuningKey) chosenKeys.push(resolved.tuningKey);
+    if (resolved.note) notes.push(resolved.note);
+    applied.push({ key: resolved.tuningKey, label, contribution: roundCost(resolved.value) });
+  };
+
+  if (hasAttack) {
+    applyFlatPremium("access.counterPremium.attack", "attack counter option");
+    applyPremium(
+      "access.counterPremium.attackOffensiveMultiplier",
+      "attack counter offensive packet multiplier",
+      roundCost(offensivePacketValue),
+    );
+  } else if (hasControl) {
+    applyFlatPremium("access.counterPremium.control", "control counter option");
+  } else if (hasDebuff) {
+    applyFlatPremium("access.counterPremium.debuff", "debuff counter option");
+  } else if (hasMovement) {
+    applyFlatPremium("access.counterPremium.movement", "movement counter option");
+  } else if (hasBuff) {
+    applyFlatPremium("access.counterPremium.buff", "buff/support counter option");
+  } else if (hasDefence) {
+    applyFlatPremium("access.counterPremium.defence", "defence counter option");
+  } else {
+    notes.push("Counter premium could not classify packet intent; only flat counter access was applied.");
+  }
+
+  if (hasAttack && hasDefence) {
+    applyFlatPremium("access.counterPremium.attackDefenceCombo", "attack + defence counter combo");
+  }
+  if (hasAttack && hasControl) {
+    applyFlatPremium("access.counterPremium.attackControlCombo", "attack + control counter combo");
+  }
+
+  return {
+    cost: roundCost(cost),
+    chosenKeys,
+    notes,
+    debug: {
+      counterEnabled: true,
+      intentions: Array.from(intentions),
+      offensivePacketValue: roundCost(offensivePacketValue),
+      appliedPremiums: applied,
+      totalCounterPremium: roundCost(cost),
+    },
   };
 }
 
@@ -2309,7 +2452,7 @@ export function resolvePowerCost(
   const hostileEntry = deriveHostileEntryPattern(power, packets);
   topLevelNotes.push(...hostileEntry.notes);
   const structural = getStructuralCost(tuningValues, power, hostileEntry.pattern);
-  const access = getAccessCost(tuningValues, power);
+  const access = getAccessCost(tuningValues, power, packets, canonicalRangeCategory);
 
   let packetCostsTotal = 0;
   const packetCosts: PowerCostPacketBreakdown[] = packets.map((packet, packetListIndex) => {
@@ -2481,6 +2624,7 @@ export function resolvePowerCost(
       derivedCooldown,
       sharedContextBreakdown: shared.debug,
       structuralBreakdown: structural.debug,
+      accessBreakdown: access.debug,
       structuralPresenceBreakdown: structuralPresence.debug,
       recurringCadenceBreakdown: recurringCadence.debug,
       relevantThreatAxes,

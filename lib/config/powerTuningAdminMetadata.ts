@@ -45,6 +45,9 @@ const SEGMENT_LABELS: Record<string, string> = {
   aoeShape: "AoE Shape",
   armThenTarget: "Arm, Then Target",
   armorSkill: "Armor Skill",
+  attackControlCombo: "Attack + Control Combo",
+  attackDefenceCombo: "Attack + Defence Combo",
+  attackOffensiveMultiplier: "Attack Offensive Multiplier",
   attachedHostileEntry: "Attached Hostile Entry",
   attachedPressure: "Attached Pressure",
   buildPower: "Build Power",
@@ -55,6 +58,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   chargeType: "Charge Type",
   coneLength: "Cone Length",
   cooldown: "Cooldown",
+  counterPremium: "Counter Premium",
   damageOverTime: "Damage Over Time",
   damageTypeCount: "Damage Type Count",
   delayedCast: "Delayed Release",
@@ -262,7 +266,8 @@ function formatForKey(configKey: string): PowerTuningValueFormat {
     configKey.startsWith("packet.magnitude.damageTypeCount.") ||
     configKey.startsWith("packet.magnitude.buildPowerBonusDice.") ||
     configKey.startsWith("packet.magnitude.movementTypeMultiplier.") ||
-    configKey.startsWith("packet.axisEmission.")
+    configKey.startsWith("packet.axisEmission.") ||
+    configKey === "access.counterPremium.attackOffensiveMultiplier"
   ) {
     return "multiplier";
   }
@@ -278,6 +283,8 @@ function descriptionForKey(configKey: string): string {
   if (configKey.startsWith("structural.triggerMethod.")) return "Raises or lowers the cost of the selected Trigger setup flow.";
   if (configKey.startsWith("structural.attachedHostileEntry.")) return "Raises or lowers the cost of whether an Attached hostile event happens on attach or later payload.";
   if (configKey.startsWith("access.chargeTurns.")) return "Raises or lowers the extra cost for longer charge times.";
+  if (configKey === "access.counterPremium.attackOffensiveMultiplier") return "Multiplies the offensive packet value added when an attack power also gains Counter use.";
+  if (configKey.startsWith("access.counterPremium.")) return "Raises or lowers the extra option-value premium for Counter powers by resolved packet intent.";
   if (configKey.startsWith("access.")) return "Raises or lowers the cost of commitment, counterplay, and charge access.";
   if (configKey.startsWith("cooldown.capacity.tierMultiplier.")) return "Multiplies the level-adjusted cooldown capacity for this monster tier. First-pass defaults are neutral.";
   if (configKey.startsWith("cooldown.capacity.")) return "Sets the expected power capacity used after BasePowerValue when deriving cooldown.";

@@ -65,6 +65,7 @@ export type CombatAction = {
     attribute: CombatAttributeName;
     amount: number;
     durationRounds: number;
+    modifiesRollResults?: boolean;
   };
   control?: {
     effect: "mainActionDenied";
@@ -158,6 +159,7 @@ export type CombatStatusEffect = {
   durationKind?: CombatDurationKind;
   durationSource?: CombatDurationSource;
   passiveDuration?: boolean;
+  modifiesRollResults?: boolean;
   positionalAbstraction?: string;
   remainingRounds: number;
 };

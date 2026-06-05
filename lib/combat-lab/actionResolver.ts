@@ -183,6 +183,46 @@ function actionDamageLabel(action: CombatAction, pool: "physical" | "mental") {
   return `${pool} ${damageTypes.join("/")}`;
 }
 
+function protectionBreakdown(
+  state: CombatState,
+  actor: CombatActor,
+  pool: "physical" | "mental",
+  cap: number,
+): Array<{ name: string; prevented: number }> {
+  let remaining = Math.max(0, cap);
+  if (remaining <= 0) return [];
+  const entries: Array<{ name: string; amount: number }> = [];
+  const baseStatic = pool === "physical" ? actor.physicalProtection : actor.mentalProtection;
+  if (baseStatic > 0) entries.push({ name: `${actor.name}'s base ${pool} protection`, amount: baseStatic });
+  for (const effect of state.statusEffects) {
+    if (
+      effect.targetActorId !== actor.id ||
+      effect.kind !== "protection" ||
+      effect.pool !== pool ||
+      effect.amount <= 0
+    ) {
+      continue;
+    }
+    entries.push({ name: effect.sourceActionName ?? "passive/static effect", amount: effect.amount });
+  }
+  const passiveDefence = passiveDefenceAmount(actor, pool);
+  if (passiveDefence > 0) entries.push({ name: `${actor.name}'s passive defence`, amount: passiveDefence });
+  const capped: Array<{ name: string; prevented: number }> = [];
+  for (const entry of entries) {
+    if (remaining <= 0) break;
+    const prevented = Math.min(remaining, Math.max(0, entry.amount));
+    if (prevented > 0) {
+      capped.push({ name: entry.name, prevented });
+      remaining -= prevented;
+    }
+  }
+  return capped;
+}
+
+function formatProtectionBreakdown(entries: Array<{ name: string; prevented: number }>, pool: "physical" | "mental") {
+  return entries.map((entry) => `${entry.name} blocked ${entry.prevented} ${pool} wounds`).join("; ");
+}
+
 function takeDefenceDegradation(state: CombatState, actorId: string, type: "dodge" | "physical" | "mental") {
   state.defenceDegradation[actorId] ??= { dodge: 0, physical: 0, mental: 0 };
   const previousRolls = state.defenceDegradation[actorId][type];
@@ -1061,6 +1101,14 @@ function resolveSingleTargetAction(params: {
       Math.max(0, activeRawWounds - normalDefenceBlocked - counterDefenceMetrics.counterMitigation),
       Math.max(0, protection),
     );
+    const staticBreakdown = gateAlreadyResolved
+      ? []
+      : protectionBreakdown(
+          state,
+          target,
+          pool,
+          Math.max(0, activeRawWounds - normalDefenceBlocked - counterDefenceMetrics.counterMitigation),
+        );
     const prevented = normalDefenceBlocked + counterDefenceMetrics.counterMitigation + staticPrevented;
     const netWounds = isPureOngoingDamage ? 0 : Math.max(0, activeRawWounds - prevented);
     const storedOngoingWounds = isPureOngoingDamage ? Math.max(0, activeRawWounds - prevented) : 0;
@@ -1083,6 +1131,21 @@ function resolveSingleTargetAction(params: {
         netPrimaryWounds: netWounds,
         primaryWoundsPerSuccess,
       };
+    }
+
+    if (staticPrevented > 0 && staticBreakdown.length > 0) {
+      emitTranscriptEvent(state, {
+        type: "damageApplied",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Passive/static prevention: ${formatProtectionBreakdown(staticBreakdown, pool)}.`,
+        details: { pool, staticPrevented },
+      });
     }
 
     if (isPureOngoingDamage) {
@@ -1262,6 +1325,7 @@ function resolveSingleTargetAction(params: {
       const appliedAmount = Math.max(1, action.modifier.amount) * linkedStacks;
       const durationRounds = action.durationRounds ?? action.modifier.durationRounds;
       const passiveDuration = Boolean(action.passiveDuration);
+      const modifiesRollResults = action.modifier.modifiesRollResults !== false;
       state.statusEffects.push({
         id: `${state.round}:${actor.id}:${action.id}:${target.id}`,
         sourceActorId: actor.id,
@@ -1275,6 +1339,7 @@ function resolveSingleTargetAction(params: {
         durationKind: action.durationKind,
         durationSource: action.durationSource,
         passiveDuration,
+        modifiesRollResults,
         remainingRounds: durationRounds,
         positionalAbstraction: action.targetPolicy === "allAllies"
           ? "AOE ally buff abstracted to all living allies."
@@ -1298,7 +1363,7 @@ function resolveSingleTargetAction(params: {
         message: passiveDuration
           ? (
               action.usesPrimaryAppliedSuccesses
-                ? `${action.kind === "buff" ? "Buff/status created" : "Debuff/status created"}: ${action.name} grants ${linkedStacks} stack${linkedStacks === 1 ? "" : "s"} of ${action.kind === "buff" ? "+" : "-"}${action.modifier.amount} ${action.modifier.attribute} to ${target.name} (${action.kind === "buff" ? "+" : "-"}${appliedAmount} total) until ended or removed.`
+                ? `${action.kind === "buff" ? "Buff/status created" : "Debuff/status created"}: ${action.name} grants ${linkedStacks} stack${linkedStacks === 1 ? "" : "s"} of ${action.kind === "buff" ? "+" : "-"}${action.modifier.amount} ${action.modifier.attribute} to ${target.name} (${action.kind === "buff" ? "+" : "-"}${appliedAmount} total) until ended or removed${modifiesRollResults ? "." : "; it does not modify roll results."}`
                 : `${action.kind === "buff" ? "Buff" : "Debuff"}: ${action.name} applies ${action.kind === "buff" ? "+" : "-"}${appliedAmount} ${action.modifier.attribute} to ${target.name} until ended or removed.`
             )
           : (
@@ -1306,7 +1371,7 @@ function resolveSingleTargetAction(params: {
                 ? `${action.kind === "buff" ? "Buff/status created" : "Debuff/status created"}: ${action.name} grants ${linkedStacks} stack${linkedStacks === 1 ? "" : "s"} of ${action.kind === "buff" ? "+" : "-"}${action.modifier.amount} ${action.modifier.attribute} to ${target.name} (${action.kind === "buff" ? "+" : "-"}${appliedAmount} total) for ${durationRounds} turns.`
                 : `${action.kind === "buff" ? "Buff" : "Debuff"}: ${action.name} applies ${action.kind === "buff" ? "+" : "-"}${appliedAmount} ${action.modifier.attribute} to ${target.name} for ${durationRounds} turns.`
             ),
-        details: { modifierAttribute: action.modifier.attribute, amount: appliedAmount, stackAmount: action.modifier.amount, stacks: linkedStacks, durationRounds, durationSource: action.durationSource, passiveDuration },
+        details: { modifierAttribute: action.modifier.attribute, amount: appliedAmount, stackAmount: action.modifier.amount, stacks: linkedStacks, durationRounds, durationSource: action.durationSource, passiveDuration, modifiesRollResults },
       });
       emitTranscriptEvent(state, {
         type: "statusCreated",

@@ -2147,6 +2147,7 @@ export function renderPowerDescriptorLines(
     | "chargeTurns"
     | "chargeBonusDicePerTurn"
     | "commitmentModifier"
+    | "counterMode"
     | "triggerMethod"
     | "attachedHostAnchorType"
     | "lifespanType"
@@ -2944,6 +2945,14 @@ export function renderPowerDescriptorLines(
     } else {
       lines.push(
         `The target may attempt a ${primaryDefenceCheck.checkLabel} roll against ${power.name} ${defenceTimingText}.`,
+      );
+    }
+    if (
+      power.counterMode === "YES" &&
+      primaryPacket?.intention === "ATTACK"
+    ) {
+      lines.push(
+        "When used as a Counter, this attack does not allow the triggering attacker an active defence roll. Passive/static protection still applies.",
       );
     }
   }

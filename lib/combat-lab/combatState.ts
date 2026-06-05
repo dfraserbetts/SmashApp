@@ -476,7 +476,11 @@ export function decrementRoundEffects(state: CombatState) {
 
 export function getAttributeModifier(state: CombatState, actorId: string, attribute: string): number {
   return state.statusEffects
-    .filter((effect) => effect.targetActorId === actorId && effect.attribute === attribute)
+    .filter((effect) =>
+      effect.targetActorId === actorId &&
+      effect.attribute === attribute &&
+      effect.modifiesRollResults !== false
+    )
     .reduce((sum, effect) => {
       if (effect.kind === "debuff") return sum - effect.amount;
       return sum + effect.amount;
