@@ -504,6 +504,7 @@ Scope:
   - Effect Packets
   - Primary Packet defence gate
   - shared cooldown lifecycle
+- Inherit shared Dodge / Evade / Reposition and Resist / Purge / Shake Off defensive power options when those are implemented; do not create a character-only fork.
 - Remove or hide monster Outcome Calculator dependencies.
 - Use BasePowerValue as player Power Point spend in V1.
 - Use PowerPool = CharacterLevel * 50.

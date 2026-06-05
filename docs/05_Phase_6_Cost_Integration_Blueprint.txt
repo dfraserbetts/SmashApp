@@ -242,6 +242,25 @@ AccessFormula should be mostly additive.
 Build Power bonus output may also influence packet magnitude through a local packet-level scaling step rather than only this top-level access formula.
 
 
+Counter And Response Cost Guidance
+
+Counter: Yes is an added use permission, not an exclusivity tradeoff.
+
+Do not discount a power because Counter-enabled use replaces normal active defence; the power remains normally usable as a Power Action.
+
+Attack Counters carry a high premium because they create off-turn damage or effects and the triggering attacker does not receive an active defence roll against them. Already-active passive/static protection still applies.
+
+Defence Counters are priced as specialist active-response alternatives, not as free stacks on top of Dodge, Physical Defence, Mental Defence, or Resist.
+
+Movement and Control interrupt Counters need a high premium because a strict timing win can avoid, cancel, or deny an incoming action. First-pass timing requires strictly more successes than the trigger; ties fail.
+
+Persistent or passive setup remains valuable because it is established before the response window and can stack with later response choices.
+
+Preparation stacks. Panic buttons replace.
+
+Counter, Movement Counter, and Control interrupt Counter costs should be revisited after Combat Lab and runtime behaviour faithfully implement the response-stack rules.
+
+
 CombinedEffectPacketFormula
 
 CombinedEffectPacketFormula is the heart of the power cost model.

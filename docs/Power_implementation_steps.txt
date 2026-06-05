@@ -96,6 +96,11 @@ The architecture is no longer the main risk.
 
 The practical next work should stay focused on:
 
+- implementing the locked Response Window / Incarnate Stack in runtime-facing tools
+- preserving that Counter use replaces normal active defence unless explicitly modified by the Counter
+- keeping Counter-enabled powers normally usable; Counter: Yes adds response use rather than exclusivity
+- adding shared Dodge / Evade / Reposition and Resist / Purge / Shake Off defensive power options for Summoning Circle and Character Builder
+- applying strictly-exceed timing for Movement and Control interrupt Counters; ties fail
 - using the now-aligned Canary Harness as the comparative tuning workspace
 - tuning canonical power values against the current builder surface
 - tuning non-power monster baseline contribution where stripped monsters prove too weak or too strong

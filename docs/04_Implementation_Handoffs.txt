@@ -105,6 +105,39 @@ Future builder work should also preserve the following implementation-facing dir
 - local origin and local targeting overrides should stay behind advanced controls
 
 
+Response Window Continuity Rule
+
+All runtime-facing systems must use one response-stack model:
+
+1. Apply already-active effects.
+2. Declare the hostile action and targets.
+3. Declare legal Assists.
+4. Declare legal Counters.
+5. Roll and apply Assists.
+6. Roll and apply Counters.
+7. Roll the triggering hostile action.
+8. If no Counter was declared, roll the chosen normal active defence.
+9. Calculate prevention and effects.
+10. Apply the incoming result and the Counter result.
+11. Process defeats and cleanup.
+
+Combat Lab, Manual Combat Lab, Encounter Confidence Panel, printable runtime guidance, and future digital runtime tooling must not invent separate response rules.
+
+Do not reintroduce Counter plus normal active defence stacking.
+
+Any Counter replaces Dodge, Physical Defence, Mental Defence, or Resist for that trigger unless the Counter explicitly grants or modifies that defence.
+
+Already-active passive effects, static protection, buffs, debuffs, and prepared states still apply because they were established before the trigger.
+
+Preparation stacks. Panic buttons replace.
+
+Movement and Control interrupt Counters require strictly more successes than the triggering action. Ties fail.
+
+Attack Counter damage does not cancel the triggering action unless the Counter explicitly interrupts or cancels.
+
+Counter-enabled powers remain normally usable; Counter: Yes adds an extra response mode, not exclusivity.
+
+
 Cooldown Lifecycle Rule For Future Work
 
 All future implementation work must preserve the distinction between cooldown value and cooldown lifecycle.
