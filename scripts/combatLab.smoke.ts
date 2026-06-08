@@ -1520,6 +1520,58 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (interposeSelfState.transcriptLines.some((line) => /using Synergy for Interpose Shield/i.test(line))) {
     throw new Error(`Self Interpose Shield used Synergy instead of Guard: ${interposeSelfState.transcriptLines.join(" | ")}`);
   }
+  const interposeCounterRoll = interposeSelfState.transcriptEvents.find(
+    (event) => event.type === "counterRoll" && event.actionName === "Interpose Shield" && event.roll?.attribute === "Guard",
+  );
+  if (
+    !interposeCounterRoll ||
+    interposeCounterRoll.details?.protectedActorId !== interposeSelfState.actors[0].id ||
+    interposeCounterRoll.details?.triggeringAttackerId !== interposeSelfState.actors[1].id
+  ) {
+    throw new Error(`Interpose self Counter did not carry protected/triggering actor context: ${JSON.stringify(interposeSelfState.transcriptEvents)}`);
+  }
+
+  const interposeSuiteReport = runScenarioSuite({
+    name: "real-shaped Tank Interpose self Counter",
+    players: [
+      fixtureActor("suite-interpose-tank", "players", {
+        name: "CL-L3-Tank",
+        role: "Tank",
+        attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D10", Bravery: "D8" },
+        physicalHpMax: 100,
+        mentalHpMax: 100,
+        actions: [interpose],
+      }),
+    ],
+    monsters: [
+      fixtureActor("suite-dire-wolf", "monsters", {
+        name: "Dire Wolf",
+        role: "Elite",
+        actions: [
+          action({
+            id: "suite-swiping-claws",
+            name: "Swiping Claws",
+            sourceType: "power",
+            kind: "attack",
+            targetPolicy: "enemy",
+            diceCount: 4,
+            potency: 8,
+            cooldownRounds: 1,
+          }),
+        ],
+      }),
+    ],
+    runs: 1,
+    seed: 1401,
+    maxRounds: 1,
+    turnOrder: "monstersFirst",
+  });
+  const interposeSuiteLines = interposeSuiteReport.firstRunTranscript?.lines ?? [];
+  expectTranscriptLine(interposeSuiteLines, /Counter declared: CL-L3-Tank will use Interpose Shield against Swiping Claws/i, "suite Interpose self counter declaration");
+  expectTranscriptLine(interposeSuiteLines, /Roll: CL-L3-Tank rolled 3 x D12 using Guard for Interpose Shield/i, "suite Interpose self Guard roll");
+  if (interposeSuiteLines.some((line) => /using Synergy for Interpose Shield/i.test(line))) {
+    throw new Error(`Suite-shaped Tank Interpose path used Synergy: ${interposeSuiteLines.join(" | ")}`);
+  }
 
   const interposeAllyState = createCombatState(
     [

@@ -772,6 +772,9 @@ function passiveDefenceAmount(target: CombatActor, pool: "physical" | "mental") 
 
 type DeclaredCounter = {
   action: CombatAction;
+  counteringActorId: string;
+  protectedActorId: string;
+  triggeringAttackerId: string;
   hasAttackPacket: boolean;
   hasDefencePacket: boolean;
   forfeitsNormalDefence: boolean;
@@ -834,7 +837,15 @@ function declareCounter(params: {
   const hasAttackPacket = counterAttackPackets(action).length > 0;
   const hasDefencePacket = counterDefencePackets(action, pool).length > 0;
   const forfeitsNormalDefence = true;
-  const declared: DeclaredCounter = { action, hasAttackPacket, hasDefencePacket, forfeitsNormalDefence };
+  const declared: DeclaredCounter = {
+    action,
+    counteringActorId: target.id,
+    protectedActorId: target.id,
+    triggeringAttackerId: attacker.id,
+    hasAttackPacket,
+    hasDefencePacket,
+    forfeitsNormalDefence,
+  };
 
   emitTranscriptEvent(state, {
     type: "counterDeclared",
@@ -849,6 +860,9 @@ function declareCounter(params: {
     details: {
       incomingActionId: incomingAction.id,
       incomingActionName: incomingAction.name,
+      counteringActorId: target.id,
+      protectedActorId: target.id,
+      triggeringAttackerId: attacker.id,
       hasAttackPacket,
       hasDefencePacket,
       forfeitsNormalDefence,
@@ -904,7 +918,8 @@ function rollDeclaredCounter(
 ): DeclaredCounterRoll | null {
   if (!declared) return null;
   const action = declared.action;
-  const accuracyAttribute = effectiveAccuracyAttribute(target, target, action);
+  const protectedActor = state.actors.find((actor) => actor.id === declared.protectedActorId) ?? target;
+  const accuracyAttribute = effectiveAccuracyAttribute(target, protectedActor, action);
   const roll = rollDice(
     Math.max(1, action.diceCount),
     getActorDie(target, accuracyAttribute),
@@ -923,7 +938,13 @@ function rollDeclaredCounter(
     lane: "response",
     message: `Roll: ${rollText(rollSummary)} Counter roll declared before ${attacker.name}'s result is applied.`,
     roll: rollSummary,
-    details: { responsesRemaining: state.responsesRemaining[target.id] ?? 0 },
+    details: {
+      responsesRemaining: state.responsesRemaining[target.id] ?? 0,
+      counteringActorId: declared.counteringActorId,
+      protectedActorId: declared.protectedActorId,
+      triggeringAttackerId: declared.triggeringAttackerId,
+      resolvedAccuracyAttribute: accuracyAttribute,
+    },
   });
   return { declared, successes: roll.successes, rollSummary };
 }
