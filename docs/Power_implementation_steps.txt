@@ -100,6 +100,7 @@ The practical next work should stay focused on:
 - preserving that Counter use replaces normal active defence unless explicitly modified by the Counter
 - keeping Counter-enabled powers normally usable; Counter: Yes adds response use rather than exclusivity
 - adding shared Dodge / Evade / Reposition and Resist / Purge / Shake Off defensive power options for Summoning Circle and Character Builder
+- preserving the simplified targeting rule: target self legality is selected-target legality, not range exclusivity; descriptors and validation must count self against the authored target count
 - applying strictly-exceed timing for Movement and Control interrupt Counters; ties fail
 - using the now-aligned Canary Harness as the comparative tuning workspace
 - tuning canonical power values against the current builder surface

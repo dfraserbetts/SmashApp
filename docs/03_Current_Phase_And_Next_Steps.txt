@@ -147,6 +147,8 @@ The practical next work should stay focused on:
 
 - implementing shared power-builder support for Dodge / Evade / Reposition and Resist / Purge / Shake Off defensive power options in both Summoning Circle and Character Builder
 - updating descriptor wording so normal use and Counter use are clearly distinct: Counter-enabled powers remain normally usable, while Counter use replaces normal active defence
+- preserving the locked targeting split across shared builders, descriptors, and Combat Lab: range defines reach / area, target legality defines who may be selected, target count limits selected targets, and self consumes one target slot when self is legal
+- applying the same range-vs-target-legality rule to future Dodge / Evade / Reposition and Resist / Purge / Shake Off power implementation
 - implementing Combat Lab and future runtime handling through one Response Window / Incarnate Stack model
 - preserving the locked response order: active effects, hostile declaration, Assist declaration, Counter declaration, Assists, Counters, trigger roll, normal active defence only if no Counter, prevention/effects, result application, cleanup
 - rerunning the 16-test response / defence / Counter matrix after runtime changes

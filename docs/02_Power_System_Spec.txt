@@ -1366,13 +1366,35 @@ A Secondary Packet may use a different target class or local targeting pattern o
 
 In the current builder-facing model, the relevant packet-local recipient classes may include Primary Targets, Allies, and Self. Allies includes self by default. A power that should exclude the user must do so through an explicit authored restriction rather than by redefining Allies as not-self.
 
+Range, target legality, and target count are separate parts of the shared rules grammar.
+
+Range defines reach or area. Target legality defines who or what may be selected. Target count defines how many legal targets may be selected.
+
+Range does not by itself decide whether self is legal or illegal. Self is legal only when the power's legal target set allows self.
+
+Self can be selected through Self range, Melee range, Ranged range, or AoE / area placement when self is legal, self is inside the relevant range or area geometry, self is selected as one of the allowed target slots, and the selected target count does not exceed the power's authored target count.
+
+Self consumes one target slot like any other target unless the power explicitly says otherwise.
+
+Examples:
+
+- A Ranged power that chooses 2 legal targets may choose self plus 1 ally if self and allies are legal targets.
+- That same Ranged 2-target power may not choose self plus 2 allies.
+- A Melee power that chooses 1 legal target may choose self only if self is legal and the geometry permits it.
+- An AoE placed somewhere that does not include self cannot affect self.
+- An AoE that includes self may affect self only if self is a legal target.
+
+Self range is the cheapest and cleanest way to author self-only effects, but Self range is not the only way self can ever be targeted.
+
+Broader target flexibility should be priced through the normal range, target legality, target count, and area cost axes. Do not add a hidden legality layer that forbids Melee or Ranged powers from selecting self when self is otherwise legal.
+
 Packet-local recipient classes must remain legal within the power's shared cast context unless an explicit advanced local targeting override truthfully authorizes a different recipient lane.
 
 In the current builder surface:
 
-Self range collapses packet-local recipient selection to Self only.
+Self-only powers collapse packet-local recipient selection to Self only.
 
-Single-target Melee and single-target Ranged powers collapse packet-local recipient selection to Primary Targets or Self only unless an explicit advanced local targeting override is present.
+Single-target Melee and single-target Ranged powers do not automatically exclude self. They may select self only when self is legal, within range / geometry, and counted as the one selected target.
 
 These restrictions are builder-surface legality and anti-redundancy rules. They do not redefine the broader meaning of Allies, which still includes self by default where Allies is legally available.
 
@@ -1545,7 +1567,9 @@ packet-local recipient class may distinguish Primary Targets, Allies, and Self w
 
 Allies includes self by default unless an explicit authored restriction says otherwise
 
-packet-local recipient class must remain legal within the shared cast context unless an explicit advanced local targeting override authorizes a different recipient lane; in the current builder surface Self collapses to Self only, and single-target Melee / Ranged collapses to Primary Targets or Self only
+range, target legality, and target count are separate: self may be selected through Self, Melee, Ranged, or AoE only when self is legal, inside the relevant geometry, and counted against the authored target count
+
+packet-local recipient class must remain legal within the shared cast context unless an explicit advanced local targeting override authorizes a different recipient lane
 
 Persistent states use stacks and a stack-cleanup model, while repeating direct effects use ongoing value plus duration
 

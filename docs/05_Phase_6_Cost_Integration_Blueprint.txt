@@ -212,6 +212,18 @@ SharedContextFormula should be additive.
 
 It is a real cost burden, but it should not be allowed to dominate packet identity.
 
+Targeting flexibility cost guidance
+
+Self-only targeting is the cheapest and cleanest targeting profile.
+
+A power that can affect self and another ally / target is more flexible than a self-only power and should pay for that flexibility through target legality / recipient flexibility where the current architecture supports it.
+
+A power that can choose multiple targets is more flexible than a single-target power.
+
+Target count remains meaningful because self consumes one selected target slot unless a power explicitly says otherwise.
+
+Broader range, area, or flexible target profiles should be valued by the cost model rather than blocked by an extra authoring rule that Melee or Ranged powers cannot target self.
+
 
 StructuralFormula
 

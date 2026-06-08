@@ -43,6 +43,8 @@ Every implementation prompt must obey these rules:
 - Do not introduce conditional React hooks.
 - Preserve the current shared power architecture.
 - Preserve Summoning Circle as the mechanical bible for current character calculations unless explicitly overridden.
+- Inherit shared power targeting rules from Summoning Circle and the shared power core; do not create a character-only targeting fork.
+- Preserve the range-vs-target-legality model: range defines reach / area, target legality defines who may be selected, and self consumes one selected target slot when self is legal.
 - Use Guard and Synergy, not Defence and Support.
 - Campaign member management should use email identity for long-term invite/display UX, not raw Supabase User IDs except as a temporary internal bridge.
 - Character archiving is distinct from deleting, player removal, and Historic Character Records.

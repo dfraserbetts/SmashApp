@@ -81,6 +81,9 @@ All future builder work should assume:
 - packet-local recipient class may distinguish Primary Targets, Allies, and Self where a Secondary Packet needs a different target class from Packet 1
 - Allies includes self by default unless an explicit authored restriction says otherwise
 - packet-local recipient class must remain legal within the shared cast context
+- range, target legality, and target count are separate; do not reintroduce a hidden rule that Melee or Ranged powers cannot target self
+- self can be selected through any range mode only when self is legal, within range / area geometry, and counted against the authored target count
+- AoE affects self only when the placed area includes self and self is a legal target
 - ambiguous Cleanse targeting of Active Power or Channelled Power may use Cleanse Theme only where a unique cleanup Resist Attribute is not otherwise already settled
 - Trigger powers may use Trigger Method to distinguish Arm and then target from Target and then arm while keeping Packet 1 on trigger
 - Secondary timing choices must obey both chassis legality and Packet 1 carrier legality
@@ -339,6 +342,9 @@ The following are treated as locked for this session:
 - ongoing-damage cleanup removes source damage units per success rather than individual wounds
 - packet-local recipient class may distinguish Primary Targets, Allies, and Self where needed
 - Allies includes self by default unless an explicit authored restriction says otherwise
+- range defines reach / area, target legality defines who may be selected, and target count defines how many selected legal targets may be affected
+- self consumes one target slot when selected; self is not a free bonus target unless a power explicitly says so
+- AoE self-affection requires both area inclusion and self being legal
 - Trigger powers may use Trigger Method to distinguish Arm and then target from Target and then arm while keeping Packet 1 on trigger
 - Secondary timing choices must obey both chassis legality and carrier legality
 - Immediate remains the only chassis that can honestly have no Lifespan requirement in the current builder surface

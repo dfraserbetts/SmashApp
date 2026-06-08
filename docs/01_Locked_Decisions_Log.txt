@@ -626,6 +626,29 @@ Allies includes self by default. A power that should exclude the user must do so
 
 The renderer should explain the contextual reach of that target class through chassis and range language such as inside the field, within the released area, or within range of the attached host rather than bloating the authored dropdown label itself.
 
+44A. Range, target legality, and target count are separate
+
+Range defines reach or area. Target legality defines who or what may be selected. Target count defines how many legal targets may be selected.
+
+Range does not by itself make self legal or illegal.
+
+Self can be selected through Self range, Melee range, Ranged range, or AoE / area placement when all of the following are true:
+
+- self is in the power's legal target set
+- self is inside the relevant range or area geometry
+- self is selected as one of the allowed target slots
+- the selected target count does not exceed the power's authored target count
+
+Self consumes one target slot like any other target unless a power explicitly says otherwise.
+
+A Ranged power that chooses 2 legal targets may choose self plus 1 ally if both are legal targets. It may not choose self plus 2 allies unless the power allows 3 targets.
+
+A Melee power that chooses 1 legal target may choose self only if self is legal and the geometry permits it.
+
+An AoE affects self only if the placed area includes self and self is a legal target. AoE placement does not make self a free or automatic target.
+
+Self-only targeting remains the cheapest and cleanest option. Broader self-plus-other flexibility should be priced through normal range, target legality, target count, and area cost axes rather than blocked by a hidden rule that Melee or Ranged powers cannot target self.
+
 45. Ambiguous Cleanse cleanup uses a narrow Cleanse Theme where needed
 
 Where Cleanse targets an Active Power or a Channelled Power and the current authored specifics do not already settle one unique cleanup Resist Attribute, the builder may surface a packet-local Cleanse Theme disambiguator.
@@ -680,8 +703,8 @@ Packet-local recipient classes must be legal within the power's shared cast cont
 
 In the current builder surface:
 
-Self-range powers collapse packet-local recipient selection to Self only.
+Self-only powers collapse packet-local recipient selection to Self only.
 
-Single-target Melee and single-target Ranged powers collapse packet-local recipient selection to Primary Targets or Self only unless an explicit advanced local targeting override is present.
+Single-target Melee and single-target Ranged powers do not automatically exclude self. They may select self only when self is legal, within range / geometry, and counted as the one selected target.
 
 If a legally authored packet has no legal recipient when it would resolve, that packet does not apply to that recipient.
