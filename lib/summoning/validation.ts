@@ -26,6 +26,10 @@ import {
   RESIST_THEME_VALUES,
   TRIGGER_CONDITION_KEYS,
 } from "@/lib/summoning/types";
+import {
+  POWER_DEFENCE_MODE_OPTIONS,
+  POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS,
+} from "@/lib/powers/authoringRules";
 
 const DICE_SET = new Set<DiceSize>(["D4", "D6", "D8", "D10", "D12"]);
 const TIER_SET = new Set<MonsterTier>(["MINION", "SOLDIER", "ELITE", "BOSS"]);
@@ -76,6 +80,8 @@ const TRIGGER_AREA_PRESENCE_KEYS = new Set<TriggerConditionKey>([
 ]);
 const ATTACHED_HOST_ANCHOR_TYPE_SET = new Set(["TARGET", "OBJECT", "WEAPON", "ARMOR", "SELF", "AREA"]);
 const EFFECT_PACKET_APPLY_TO_SET = new Set(["PRIMARY_TARGET", "ALLIES", "SELF"]);
+const DEFENCE_MODE_SET = new Set<string>(POWER_DEFENCE_MODE_OPTIONS);
+const DEFENCE_RESISTED_ATTRIBUTE_SET = new Set<string>(POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS);
 const EFFECT_TIMING_SET = new Set<string>([
   "ON_CAST",
   "ON_TRIGGER",
@@ -313,6 +319,29 @@ function normalizePacketDetailsForIntention(
   intention: PowerIntention,
   details: Record<string, unknown>,
 ): Record<string, unknown> {
+  if (intention === "DEFENCE") {
+    const rawDefenceMode = asString(details.defenceMode, "Block");
+    const defenceMode = DEFENCE_MODE_SET.has(rawDefenceMode) ? rawDefenceMode : "Block";
+    const rawResistedAttribute = asString(details.resistedAttribute, "");
+    const resistedAttribute =
+      defenceMode === "Resist"
+        ? DEFENCE_RESISTED_ATTRIBUTE_SET.has(rawResistedAttribute)
+          ? rawResistedAttribute
+          : null
+        : null;
+    const nextDetails: Record<string, unknown> = {
+      ...details,
+      defenceMode,
+      attackMode: asString(details.attackMode, "PHYSICAL").toUpperCase() === "MENTAL" ? "MENTAL" : "PHYSICAL",
+    };
+    delete nextDetails.defenceCleanupTarget;
+    if (resistedAttribute) {
+      nextDetails.resistedAttribute = resistedAttribute;
+    } else {
+      delete nextDetails.resistedAttribute;
+    }
+    return nextDetails;
+  }
   if (intention === "CONTROL") {
     const controlMode = normalizeControlMode(details.controlMode) || "Force move";
     const controlTheme = normalizeControlTheme(details.controlTheme, controlMode);
@@ -1602,11 +1631,21 @@ export function normalizeMonsterUpsertInput(body: unknown): {
       return { ok: false, error: "effectDurationTurns is only allowed when effectDurationType is TURNS" };
     }
     for (const packet of power.effectPackets) {
-      if ((packet.intention ?? packet.type ?? "ATTACK") !== "ATTACK") continue;
       const details =
         packet.detailsJson && typeof packet.detailsJson === "object" && !Array.isArray(packet.detailsJson)
           ? (packet.detailsJson as Record<string, unknown>)
           : {};
+      if (
+        (packet.intention ?? packet.type ?? "ATTACK") === "DEFENCE" &&
+        asString(details.defenceMode, "Block") === "Resist" &&
+        !DEFENCE_RESISTED_ATTRIBUTE_SET.has(asString(details.resistedAttribute, ""))
+      ) {
+        return {
+          ok: false,
+          error: "Resist defence powers require a resisted attribute",
+        };
+      }
+      if ((packet.intention ?? packet.type ?? "ATTACK") !== "ATTACK") continue;
       const damageTypeCount = countSelectedAttackDamageTypes(details);
       if (damageTypeCount < 1) {
         return {

@@ -62,6 +62,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   damageOverTime: "Damage Over Time",
   damageTypeCount: "Damage Type Count",
   delayedCast: "Delayed Release",
+    dodge: "Dodge",
   effectOverTime: "Effect Over Time",
   endOfTurn: "End of Turn",
   endOfTurnWhileChannelled: "End of Turn While Channelled",
@@ -100,6 +101,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   rangeCategory: "Range Category",
   rangedDistance: "Ranged Distance",
   rangedTargets: "Ranged Targets",
+    resist: "Resist",
   recurringCarrierTurnShare: "Repeat Value per Active Turn",
   recurringTurnTiming: "Repeat Timing Pressure per Turn",
   reservePressure: "Reserve Pressure",
@@ -198,6 +200,7 @@ function labelForKey(configKey: string): string {
     if (family === "debuffStat") return `Debuff Stat - ${formatSegment(detail ?? "")}`;
     if (family === "cleanseEffect") return `Cleanse Target - ${formatSegment(detail ?? "")}`;
     if (family === "controlMode") return `Control Mode - ${formatSegment(detail ?? "")}`;
+    if (family === "defenceMode") return `Defence Mode - ${formatSegment(detail ?? "")}`;
     if (family === "movementType") return `Movement Mode - ${formatSegment(detail ?? "")}`;
     return `${formatSegment(family ?? "")} - ${formatSegment(detail ?? "")}`.trim();
   }
@@ -236,6 +239,7 @@ function groupForKey(configKey: string): PowerTuningAdminGroup {
     configKey.startsWith("packet.augmentStat.") ||
     configKey.startsWith("packet.cleanseEffect.") ||
     configKey.startsWith("packet.controlMode.") ||
+    configKey.startsWith("packet.defenceMode.") ||
     configKey.startsWith("packet.debuffStat.") ||
     configKey.startsWith("packet.movementType.")
   ) {

@@ -10,6 +10,17 @@ import {
 } from "../lib/config/characterBuilderTuningShared";
 import { renderPowerDescriptorLines } from "../lib/summoning/render";
 import { normalizeMonsterUpsertInput } from "../lib/summoning/validation";
+import {
+  CHARACTER_POWER_DEFENCE_MODES,
+  CHARACTER_POWER_DEFENCE_RESISTED_ATTRIBUTES,
+  normalizeCharacterPower,
+  validateCharacterPowers,
+} from "../lib/characterBuilder/powers";
+import { adaptPowerToCombatActions } from "../lib/combat-lab/powerAdapter";
+import {
+  POWER_DEFENCE_MODE_OPTIONS,
+  POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS,
+} from "../lib/powers/authoringRules";
 import type { EffectPacket, Power } from "../lib/summoning/types";
 
 function createPacket(
@@ -605,6 +616,125 @@ const attackDefenceCounterAudit = summarizeCounterAudit(attackDefenceCounterPowe
 const counterstrikeDescriptor = renderPowerDescriptorLines(counterstrikePower).join("\n");
 const suddenDaggerDescriptor = renderPowerDescriptorLines(suddenDaggerPower).join("\n");
 const openVeinDescriptor = renderPowerDescriptorLines(openVeinPower).join("\n");
+const dodgePower = createPower({
+  name: "Slip Guard",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 3,
+    potency: 2,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Dodge",
+      rangeCategory: "SELF",
+    },
+  }),
+  counterMode: "YES",
+});
+const illegalRepositionPower = createPower({
+  name: "Illegal Sidestep",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 3,
+    potency: 2,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Reposition",
+      rangeCategory: "SELF",
+    },
+  }),
+});
+const resistPower = createPower({
+  name: "Sudden Dive",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 2,
+    potency: 1,
+    detailsJson: {
+      attackMode: "MENTAL",
+      defenceMode: "Resist",
+      resistedAttribute: "Guard",
+      rangeCategory: "SELF",
+    },
+  }),
+  counterMode: "YES",
+});
+const braveryResistPower = createPower({
+  name: "Mind Fortress",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 2,
+    potency: 3,
+    detailsJson: {
+      attackMode: "MENTAL",
+      defenceMode: "Resist",
+      resistedAttribute: "Bravery",
+      rangeCategory: "SELF",
+    },
+  }),
+});
+const missingResistedAttributePower = createPower({
+  name: "Incomplete Resist",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 2,
+    potency: 2,
+    detailsJson: {
+      attackMode: "MENTAL",
+      defenceMode: "Resist",
+      rangeCategory: "SELF",
+    },
+  }),
+});
+const multiResistedAttributePower = createPower({
+  name: "Overbroad Resist",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 2,
+    potency: 2,
+    detailsJson: {
+      attackMode: "MENTAL",
+      defenceMode: "Resist",
+      resistedAttribute: ["Attack", "Guard"],
+      rangeCategory: "SELF",
+    },
+  }),
+});
+const dodgeDescriptor = renderPowerDescriptorLines(dodgePower).join("\n");
+const characterDodgeDescriptor = renderPowerDescriptorLines(
+  normalizeCharacterPower(dodgePower, 0),
+).join("\n");
+const braveryResistDescriptor = renderPowerDescriptorLines(braveryResistPower).join("\n");
+const illegalRepositionNormalized = normalizeMonsterUpsertInput({
+  ...createBaseMonster(),
+  powers: [illegalRepositionPower],
+});
+if (!illegalRepositionNormalized.ok) throw new Error(illegalRepositionNormalized.error);
+const missingResistedAttributeNormalized = normalizeMonsterUpsertInput({
+  ...createBaseMonster(),
+  powers: [missingResistedAttributePower],
+});
+const multiResistedAttributeNormalized = normalizeMonsterUpsertInput({
+  ...createBaseMonster(),
+  powers: [multiResistedAttributePower],
+});
+const missingResistedAttributeCharacterErrors = validateCharacterPowers({
+  level: 1,
+  powers: [normalizeCharacterPower(missingResistedAttributePower, 0)],
+});
+const multiResistedAttributeCharacterErrors = validateCharacterPowers({
+  level: 1,
+  powers: [normalizeCharacterPower(multiResistedAttributePower, 0)],
+});
+const resistDescriptor = renderPowerDescriptorLines(resistPower).join("\n");
+const dodgeCost = getFirstPacketBreakdown(dodgePower);
+const resistCost = getFirstPacketBreakdown(resistPower);
+const combatLabDodgeAdaptation = adaptPowerToCombatActions(dodgePower);
 
 assert.ok(
   counterstrikeAudit.after.basePowerValue - counterstrikeAudit.before.basePowerValue >= 20,
@@ -648,6 +778,100 @@ assert.match(
   /The target may attempt a Dodge or Protection roll against Open Vein as soon as the power is declared\./,
 );
 assert.doesNotMatch(openVeinDescriptor, /When used as a Counter/);
+assert.match(
+  dodgeDescriptor,
+  /creates a Dodge defence against an avoidable incoming action/,
+);
+assert.match(
+  characterDodgeDescriptor,
+  /creates a Dodge defence against an avoidable incoming action/,
+);
+assert.match(
+  dodgeDescriptor,
+  /replaces normal Dodge, Physical Defence, Mental Defence, or Resist/,
+);
+assert.match(dodgeDescriptor, /does not stack with normal Dodge/);
+assert.doesNotMatch(dodgeDescriptor, /Dodge \/ Evade/);
+assert.deepEqual([...POWER_DEFENCE_MODE_OPTIONS], ["Block", "Dodge", "Resist"]);
+assert.deepEqual([...CHARACTER_POWER_DEFENCE_MODES], ["Block", "Dodge", "Resist"]);
+assert.deepEqual([...POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS], [
+  "Attack",
+  "Guard",
+  "Fortitude",
+  "Intellect",
+  "Synergy",
+  "Bravery",
+]);
+assert.deepEqual([...CHARACTER_POWER_DEFENCE_RESISTED_ATTRIBUTES], [
+  "Attack",
+  "Guard",
+  "Fortitude",
+  "Intellect",
+  "Synergy",
+  "Bravery",
+]);
+assert.equal(missingResistedAttributeNormalized.ok, false);
+assert.match(
+  missingResistedAttributeNormalized.ok ? "" : missingResistedAttributeNormalized.error,
+  /require.*resisted attribute/i,
+);
+assert.ok(
+  missingResistedAttributeCharacterErrors.some((error) =>
+    error.includes("Resist requires a resisted attribute"),
+  ),
+);
+assert.equal(multiResistedAttributeNormalized.ok, false);
+assert.match(
+  multiResistedAttributeNormalized.ok ? "" : multiResistedAttributeNormalized.error,
+  /require.*resisted attribute/i,
+);
+assert.ok(
+  multiResistedAttributeCharacterErrors.some((error) =>
+    error.includes("Resist requires a resisted attribute"),
+  ),
+);
+assert.equal(
+  illegalRepositionNormalized.data.powers[0].effectPackets[0].detailsJson.defenceMode,
+  "Block",
+);
+assert.equal(
+  Object.prototype.hasOwnProperty.call(
+    resistPower.effectPackets[0].detailsJson as Record<string, unknown>,
+    "defenceCleanupTarget",
+  ),
+  false,
+);
+assert.match(
+  resistDescriptor,
+  /applies 1 Guard Resist per success/,
+);
+assert.match(
+  braveryResistDescriptor,
+  /applies 3 Bravery Resists per success/,
+);
+assert.match(
+  resistDescriptor,
+  /does not stack with normal Resist/,
+);
+assert.doesNotMatch(resistDescriptor, /Resist \/ Purge \/ Shake Off/);
+assert.doesNotMatch(resistDescriptor, /cleanup|purge|shake off/i);
+assert.doesNotMatch(`${resistDescriptor}\n${braveryResistDescriptor}`, /attempts to Resist|removable hostile effect|all hostile effects|any hostile effect/i);
+assert.equal(
+  dodgeCost.packetSpecificCost,
+  DEFAULT_POWER_TUNING_VALUES["packet.defenceMode.dodge"],
+);
+assert.equal(
+  resistCost.packetSpecificCost,
+  DEFAULT_POWER_TUNING_VALUES["packet.defenceMode.resist"],
+);
+assert.equal(DEFAULT_POWER_TUNING_VALUES["packet.defenceMode.dodgeEvade"], undefined);
+assert.equal(DEFAULT_POWER_TUNING_VALUES["packet.defenceMode.reposition"], undefined);
+assert.equal(DEFAULT_POWER_TUNING_VALUES["packet.defenceMode.resistPurgeShakeOff"], undefined);
+assert.ok(
+  combatLabDodgeAdaptation.unsupported.some((entry) =>
+    entry.reason.includes("Defence mode Dodge is authored but not resolved by Combat Lab runtime yet"),
+  ),
+);
 const triggeredSelfTeleportPacket = createPacket("MOVEMENT", {
   sortOrder: 1,
   packetIndex: 1,

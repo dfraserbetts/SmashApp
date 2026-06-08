@@ -362,11 +362,11 @@ If the interrupt timing is not won, a non-interrupt control effect may still app
 
 Dodge and Resist defensive power options
 
-The shared builder still needs explicit defence power options for Dodge / Evade / Reposition and Resist / Purge / Shake Off.
+The shared builder needs explicit defence power options for Block, Dodge, and Resist.
 
 These options must be shared by Summoning Circle and Character Builder.
 
-Dodge and Resist Counter powers do not stack with normal Dodge or normal Resist. They are chosen active response paths.
+Dodge and Resist Counter powers do not stack with normal Dodge or normal Resist. They are chosen active response paths. Resist is authored against one core Attribute lane and remains distinct from Cleanse cleanup/removal powers. One Defence -> Resist packet selects exactly one Resisted Attribute: Attack, Guard, Fortitude, Intellect, Synergy, or Bravery. Potency means Resists applied per successful power-roll success, so total Resists equals roll successes multiplied by Potency. Multi-attribute Resist requires multiple effect packets. Movement powers may be Counter-enabled and use Movement Counter timing, but Movement/Reposition is not a Defence mode.
 
 
 3. Shared Rules Grammar

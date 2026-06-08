@@ -1004,7 +1004,7 @@ Character Builder must inherit the shared range-vs-target-legality model from Su
 
 Phase 1 unified authoring extraction moves reusable Character Builder legality checks into shared pure power authoring-rule helpers. Phase 2 begins migrating Summoning Circle option hydration and integrity checks to the same pure helpers where this can be done without changing Summoning Circle behaviour. Shared helpers also cover fixed range/AoE option sets and small readiness gates such as Reserve release behaviour and Attached hostile entry selection. Summoning Circle remains the reference implementation, shared descriptor rendering is already in use, and future descriptor extension context for Character Builder-only metadata such as Restrictions remains deferred.
 
-The shared power builder must also inherit the future Dodge / Evade / Reposition and Resist / Purge / Shake Off defensive power options. These are shared power options for Summoning Circle and Character Builder, not a character-only fork.
+The shared power builder must also inherit the Block, Dodge, and Resist defensive power options. These are shared power options for Summoning Circle and Character Builder, not a character-only fork. Defence -> Resist selects one Resisted Attribute per packet, uses Potency as Resists per successful power-roll success, and requires multiple packets for multi-attribute Resist. Cleanse remains the distinct cleanup/removal family. Movement powers may be Counter-enabled, but Movement/Reposition is not a Defence mode.
 
 Key difference from Summoning Circle:
 

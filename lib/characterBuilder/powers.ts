@@ -27,6 +27,8 @@ import {
   POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS,
   POWER_RANGE_RANGED_DISTANCE_OPTIONS,
   POWER_RANGE_TARGET_OPTIONS,
+  POWER_DEFENCE_MODE_OPTIONS,
+  POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS,
   POWER_RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
   POWER_TRIGGER_AREA_PRESENCE_KEYS,
   getPowerAllowedCommitmentOptions,
@@ -164,6 +166,8 @@ const MOVEMENT_MODES = [
   "Fly",
   "Teleport",
 ] as const;
+const DEFENCE_MODES = POWER_DEFENCE_MODE_OPTIONS;
+const DEFENCE_RESISTED_ATTRIBUTES = POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS;
 const CONTROL_THEME_OPTIONS = [
   { value: "BODY_ENDURANCE", label: "Body / endurance" },
   { value: "MIND_COGNITION", label: "Mind / cognition / perception" },
@@ -184,6 +188,8 @@ export const CHARACTER_POWER_ATTACK_MODES = ATTACK_MODES;
 export const CHARACTER_POWER_CONTROL_MODES = CONTROL_MODES;
 export const CHARACTER_POWER_CLEANSE_EFFECTS = CLEANSE_EFFECTS;
 export const CHARACTER_POWER_MOVEMENT_MODES = MOVEMENT_MODES;
+export const CHARACTER_POWER_DEFENCE_MODES = DEFENCE_MODES;
+export const CHARACTER_POWER_DEFENCE_RESISTED_ATTRIBUTES = DEFENCE_RESISTED_ATTRIBUTES;
 export const CHARACTER_POWER_CONTROL_THEME_OPTIONS = CONTROL_THEME_OPTIONS;
 export const CHARACTER_POWER_ATTRIBUTE_OPTIONS = ATTRIBUTE_LABEL_OPTIONS;
 export const CHARACTER_POWER_TRIGGER_CONDITION_OPTIONS = TRIGGER_CONDITION_KEYS;
@@ -348,7 +354,7 @@ function defaultDetailsForIntention(intention: PowerIntention): Record<string, u
     case "ATTACK":
       return { attackMode: "PHYSICAL", damageTypes: [] };
     case "DEFENCE":
-      return { attackMode: "PHYSICAL" };
+      return { attackMode: "PHYSICAL", defenceMode: "Block" };
     case "CONTROL":
       return { controlMode: "Force move" };
     case "CLEANSE":
@@ -378,7 +384,25 @@ function normalizePacketDetailsForIntention(
     };
   }
   if (intention === "DEFENCE") {
-    return { ...details, attackMode: oneOf(details.attackMode, ATTACK_MODES, "PHYSICAL") };
+    const defenceMode = oneOf(details.defenceMode, DEFENCE_MODES, "Block");
+    const resistedAttribute =
+      defenceMode === "Resist"
+        ? DEFENCE_RESISTED_ATTRIBUTES.includes(details.resistedAttribute as (typeof DEFENCE_RESISTED_ATTRIBUTES)[number])
+          ? (details.resistedAttribute as (typeof DEFENCE_RESISTED_ATTRIBUTES)[number])
+          : null
+        : null;
+    const nextDetails: Record<string, unknown> = {
+      ...details,
+      attackMode: oneOf(details.attackMode, ATTACK_MODES, "PHYSICAL"),
+      defenceMode,
+    };
+    delete nextDetails.defenceCleanupTarget;
+    if (resistedAttribute) {
+      nextDetails.resistedAttribute = resistedAttribute;
+    } else {
+      delete nextDetails.resistedAttribute;
+    }
+    return nextDetails;
   }
   if (intention === "CONTROL") {
     const controlMode = normalizeControlMode(details.controlMode);
@@ -1065,6 +1089,18 @@ function collectCharacterPowerValidationErrors(power: CharacterPower) {
       }
       if (damageTypes.length > MAX_DAMAGE_TYPES) {
         errors.push(`${packetLabel} Attack can select at most ${MAX_DAMAGE_TYPES} damage types.`);
+      }
+    }
+    if (packet.intention === "DEFENCE") {
+      const defenceMode = oneOf(details.defenceMode, DEFENCE_MODES, "Block");
+      if (!DEFENCE_MODES.includes(defenceMode)) {
+        errors.push(`${packetLabel} Defence requires a supported Defence Type.`);
+      }
+      if (
+        defenceMode === "Resist" &&
+        !DEFENCE_RESISTED_ATTRIBUTES.includes(details.resistedAttribute as (typeof DEFENCE_RESISTED_ATTRIBUTES)[number])
+      ) {
+        errors.push(`${packetLabel} Resist requires a resisted attribute.`);
       }
     }
     if ((packet.intention === "AUGMENT" || packet.intention === "DEBUFF") && !normalizeCoreAttribute(details.statTarget)) {

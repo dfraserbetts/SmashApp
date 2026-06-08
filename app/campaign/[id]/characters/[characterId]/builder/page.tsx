@@ -59,6 +59,8 @@ import {
   CHARACTER_POWER_CLEANSE_EFFECTS,
   CHARACTER_POWER_CONTROL_MODES,
   CHARACTER_POWER_CONTROL_THEME_OPTIONS,
+  CHARACTER_POWER_DEFENCE_MODES,
+  CHARACTER_POWER_DEFENCE_RESISTED_ATTRIBUTES,
   CHARACTER_POWER_FALLBACK_DAMAGE_TYPES,
   CHARACTER_POWER_INTENTION_OPTIONS,
   CHARACTER_POWER_MAX_DAMAGE_TYPES,
@@ -3304,6 +3306,16 @@ export default function CharacterBuilderPage() {
                           const attackMode = String(packetDetails.attackMode ?? "PHYSICAL").toUpperCase() === "MENTAL"
                             ? "MENTAL"
                             : "PHYSICAL";
+                          const defenceMode = CHARACTER_POWER_DEFENCE_MODES.includes(
+                            String(packetDetails.defenceMode ?? "Block") as (typeof CHARACTER_POWER_DEFENCE_MODES)[number],
+                          )
+                            ? String(packetDetails.defenceMode ?? "Block")
+                            : "Block";
+                          const resistedAttribute = CHARACTER_POWER_DEFENCE_RESISTED_ATTRIBUTES.includes(
+                            String(packetDetails.resistedAttribute ?? "") as (typeof CHARACTER_POWER_DEFENCE_RESISTED_ATTRIBUTES)[number],
+                          )
+                            ? String(packetDetails.resistedAttribute)
+                            : "Fortitude";
                           const damageTypeOptions =
                             (powerDamageTypes.length > 0 ? powerDamageTypes : CHARACTER_POWER_FALLBACK_DAMAGE_TYPES)
                               .filter((row) => row.attackMode === attackMode);
@@ -3490,7 +3502,70 @@ export default function CharacterBuilderPage() {
                                   </label>
                                 )}
 
-                                {(packet.intention === "ATTACK" || packet.intention === "DEFENCE") ? (
+                                {packet.intention === "DEFENCE" ? (
+                                  <>
+                                    <label className="block">
+                                      <span className="text-xs text-zinc-400">Defence Type</span>
+                                      <select
+                                        value={defenceMode}
+                                        onChange={(event) =>
+                                          updatePowerPacketDetails(powerIndex, packetIndex, {
+                                            defenceMode: event.target.value,
+                                            ...(event.target.value === "Resist"
+                                              ? { resistedAttribute }
+                                              : { resistedAttribute: null }),
+                                          })
+                                        }
+                                        disabled={!canEdit || saving}
+                                        className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                      >
+                                        {CHARACTER_POWER_DEFENCE_MODES.map((option) => (
+                                          <option key={option} value={option}>{option}</option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    {defenceMode === "Block" ? (
+                                      <label className="block">
+                                        <span className="text-xs text-zinc-400">Protection Channel</span>
+                                        <select
+                                          value={attackMode}
+                                          onChange={(event) =>
+                                            updatePowerPacketDetails(powerIndex, packetIndex, {
+                                              attackMode: event.target.value,
+                                            })
+                                          }
+                                          disabled={!canEdit || saving}
+                                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                        >
+                                          {CHARACTER_POWER_ATTACK_MODES.map((option) => (
+                                            <option key={option} value={option}>{POWER_ATTACK_MODE_LABELS[option]}</option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                    ) : null}
+                                    {defenceMode === "Resist" ? (
+                                      <label className="block">
+                                        <span className="text-xs text-zinc-400">Resisted Attribute</span>
+                                        <select
+                                          value={resistedAttribute}
+                                          onChange={(event) =>
+                                            updatePowerPacketDetails(powerIndex, packetIndex, {
+                                              resistedAttribute: event.target.value,
+                                            })
+                                          }
+                                          disabled={!canEdit || saving}
+                                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                        >
+                                          {CHARACTER_POWER_DEFENCE_RESISTED_ATTRIBUTES.map((option) => (
+                                            <option key={option} value={option}>{option}</option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                    ) : null}
+                                  </>
+                                ) : null}
+
+                                {packet.intention === "ATTACK" ? (
                                   <label className="block">
                                     <span className="text-xs text-zinc-400">Mode</span>
                                     <select
@@ -3498,7 +3573,7 @@ export default function CharacterBuilderPage() {
                                       onChange={(event) =>
                                         updatePowerPacketDetails(powerIndex, packetIndex, {
                                           attackMode: event.target.value,
-                                          ...(packet.intention === "ATTACK" ? { damageTypes: [] } : {}),
+                                          damageTypes: [],
                                         })
                                       }
                                       disabled={!canEdit || saving}

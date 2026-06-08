@@ -65,6 +65,8 @@ import {
   POWER_RANGE_AOE_SPHERE_RADIUS_OPTIONS,
   POWER_RANGE_RANGED_DISTANCE_OPTIONS,
   POWER_RANGE_TARGET_OPTIONS,
+  POWER_DEFENCE_MODE_OPTIONS,
+  POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS,
   POWER_TRIGGER_AREA_PRESENCE_KEYS as TRIGGER_AREA_PRESENCE_KEYS,
   getPowerAllowedCommitmentOptions as getSharedPowerAllowedCommitmentOptions,
   getPowerAllowedCounterOptions as getSharedPowerAllowedCounterOptions,
@@ -579,6 +581,8 @@ const MOVEMENT_MODES = [
   "Fly",
   "Teleport",
 ] as const;
+const DEFENCE_MODES = POWER_DEFENCE_MODE_OPTIONS;
+const DEFENCE_RESISTED_ATTRIBUTES = POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS;
 
 const AUGMENT_DEBUFF_STATS = [
   "Attack",
@@ -959,6 +963,31 @@ function normalizePacketDetailsForIntention(
   intention: MonsterPowerIntentionType,
   details: Record<string, unknown>,
 ): Record<string, unknown> {
+  if (intention === "DEFENCE") {
+    const rawDefenceMode = getDetailsString(details, "defenceMode") || "Block";
+    const defenceMode = DEFENCE_MODES.includes(rawDefenceMode as (typeof DEFENCE_MODES)[number])
+      ? rawDefenceMode
+      : "Block";
+    const rawResistedAttribute = getDetailsString(details, "resistedAttribute");
+    const resistedAttribute =
+      defenceMode === "Resist"
+        ? DEFENCE_RESISTED_ATTRIBUTES.includes(rawResistedAttribute as (typeof DEFENCE_RESISTED_ATTRIBUTES)[number])
+          ? rawResistedAttribute
+          : null
+        : null;
+    const nextDetails: Record<string, unknown> = {
+      ...details,
+      defenceMode,
+      attackMode: getAttackModeKey(details.attackMode),
+    };
+    delete nextDetails.defenceCleanupTarget;
+    if (resistedAttribute) {
+      nextDetails.resistedAttribute = resistedAttribute;
+    } else {
+      delete nextDetails.resistedAttribute;
+    }
+    return nextDetails;
+  }
   if (intention === "CONTROL") {
     const controlMode = normalizeControlMode(details.controlMode) || "Force move";
     const controlTheme = normalizeControlTheme(details.controlTheme, controlMode);
@@ -1108,7 +1137,7 @@ function defaultDetailsForIntentionType(type: MonsterPowerIntentionType): Record
     case "ATTACK":
       return { attackMode: "PHYSICAL", damageTypes: [] };
     case "DEFENCE":
-      return { attackMode: "PHYSICAL" };
+      return { attackMode: "PHYSICAL", defenceMode: "Block" };
     case "CONTROL":
       return { controlMode: "Force move" };
     case "CLEANSE":
@@ -11069,6 +11098,16 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                       {effectPackets.map((it, j) => {
                         const details = (it.detailsJson ?? {}) as Record<string, unknown>;
                         const attackMode = getDetailsString(details, "attackMode");
+                        const defenceMode = DEFENCE_MODES.includes(
+                          getDetailsString(details, "defenceMode") as (typeof DEFENCE_MODES)[number],
+                        )
+                          ? getDetailsString(details, "defenceMode")
+                          : "Block";
+                        const resistedAttribute = DEFENCE_RESISTED_ATTRIBUTES.includes(
+                          getDetailsString(details, "resistedAttribute") as (typeof DEFENCE_RESISTED_ATTRIBUTES)[number],
+                          )
+                          ? getDetailsString(details, "resistedAttribute")
+                          : "Fortitude";
                         const dmgTypes = getDetailsStringArray(details, "damageTypes");
                         const controlMode = getDetailsString(details, "controlMode");
                         const normalizedControlMode = normalizeControlMode(controlMode);
@@ -11534,7 +11573,81 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                                 </label>
                               )}
 
-                              {(it.intention === "ATTACK" || it.intention === "DEFENCE") && (
+                              {it.intention === "DEFENCE" && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  <label className="space-y-1">
+                                    <span className="text-[11px] text-zinc-500">Defence Type</span>
+                                    <select
+                                      disabled={readOnly}
+                                      value={defenceMode}
+                                      onChange={(e) =>
+                                        setPowerEffectPacketDetails(setEditor, i, j, {
+                                          defenceMode: e.target.value,
+                                          ...(e.target.value === "Resist"
+                                            ? { resistedAttribute }
+                                            : { resistedAttribute: null }),
+                                        })
+                                      }
+                                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                                    >
+                                      {DEFENCE_MODES.map((mode) => (
+                                        <option key={mode} value={mode}>
+                                          {mode}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  {defenceMode === "Block" ? (
+                                    <label className="space-y-1">
+                                      <span className="text-[11px] text-zinc-500">Protection Channel</span>
+                                      <select
+                                        disabled={readOnly}
+                                        value={attackMode || "PHYSICAL"}
+                                        title={ATTACK_MODE_TOOLTIPS[getAttackModeKey(attackMode || "PHYSICAL")]}
+                                        onChange={(e) =>
+                                          setPowerEffectPacketDetails(setEditor, i, j, {
+                                            attackMode: e.target.value,
+                                          })
+                                        }
+                                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                                      >
+                                        {ATTACK_MODES.map((mode) => (
+                                          <option
+                                            key={mode}
+                                            value={mode}
+                                            title={ATTACK_MODE_TOOLTIPS[mode]}
+                                          >
+                                            {ATTACK_MODE_LABELS[mode]}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                  ) : null}
+                                  {defenceMode === "Resist" ? (
+                                    <label className="space-y-1">
+                                      <span className="text-[11px] text-zinc-500">Resisted Attribute</span>
+                                      <select
+                                        disabled={readOnly}
+                                        value={resistedAttribute}
+                                        onChange={(e) =>
+                                          setPowerEffectPacketDetails(setEditor, i, j, {
+                                            resistedAttribute: e.target.value,
+                                          })
+                                        }
+                                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                                      >
+                                        {DEFENCE_RESISTED_ATTRIBUTES.map((attribute) => (
+                                          <option key={attribute} value={attribute}>
+                                            {attribute}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                  ) : null}
+                                </div>
+                              )}
+
+                              {it.intention === "ATTACK" && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                   <label className="space-y-1">
                                     <span className="text-[11px] text-zinc-500">Mode</span>
@@ -11545,7 +11658,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                                       onChange={(e) =>
                                         setPowerEffectPacketDetails(setEditor, i, j, {
                                           attackMode: e.target.value,
-                                          ...(it.intention === "ATTACK" ? { damageTypes: [] } : {}),
+                                          damageTypes: [],
                                         })
                                       }
                                       className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
@@ -11562,51 +11675,49 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                                     </select>
                                   </label>
 
-                                  {it.intention === "ATTACK" && (
-                                    <div className="space-y-1">
-                                      <span className="text-[11px] text-zinc-500">Damage Types</span>
-                                      <div className="flex flex-wrap gap-2">
-                                        {availableDamageTypes.map((dt) => {
-                                          const selected = dmgTypes.some(
-                                            (x) => String(x).toLowerCase() === dt.name.toLowerCase(),
-                                          );
-                                          const disableDamageTypeOption =
-                                            readOnly ||
-                                            (!selected && dmgTypes.length >= MAX_POWER_PACKET_DAMAGE_TYPES);
-                                          return (
-                                            <button
-                                              key={dt.id}
-                                              type="button"
-                                              disabled={disableDamageTypeOption}
-                                              onClick={() => {
-                                                if (!selected && dmgTypes.length >= MAX_POWER_PACKET_DAMAGE_TYPES) {
-                                                  return;
-                                                }
-                                                setPowerEffectPacketDetails(setEditor, i, j, {
-                                                  damageTypes: toggleStringInArray(dmgTypes, dt.name),
-                                                });
-                                              }}
-                                              className={[
-                                                "rounded border px-2 py-1 text-xs",
-                                                selected
-                                                  ? "border-emerald-600 bg-emerald-950/30 text-emerald-100"
-                                                  : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800",
-                                                disableDamageTypeOption ? "opacity-60 cursor-not-allowed" : "",
-                                              ].join(" ")}
-                                            >
-                                              {dt.name}
-                                            </button>
-                                          );
-                                        })}
-                                        {picklists.damageTypes.length === 0 && (
-                                          <p className="text-xs text-zinc-500">No damage types loaded.</p>
-                                        )}
-                                      </div>
-                                      <p className="text-[11px] text-zinc-600">
-                                        Uses Forge damage type list (filtered by mode). Select up to {MAX_POWER_PACKET_DAMAGE_TYPES}.
-                                      </p>
+                                  <div className="space-y-1">
+                                    <span className="text-[11px] text-zinc-500">Damage Types</span>
+                                    <div className="flex flex-wrap gap-2">
+                                      {availableDamageTypes.map((dt) => {
+                                        const selected = dmgTypes.some(
+                                          (x) => String(x).toLowerCase() === dt.name.toLowerCase(),
+                                        );
+                                        const disableDamageTypeOption =
+                                          readOnly ||
+                                          (!selected && dmgTypes.length >= MAX_POWER_PACKET_DAMAGE_TYPES);
+                                        return (
+                                          <button
+                                            key={dt.id}
+                                            type="button"
+                                            disabled={disableDamageTypeOption}
+                                            onClick={() => {
+                                              if (!selected && dmgTypes.length >= MAX_POWER_PACKET_DAMAGE_TYPES) {
+                                                return;
+                                              }
+                                              setPowerEffectPacketDetails(setEditor, i, j, {
+                                                damageTypes: toggleStringInArray(dmgTypes, dt.name),
+                                              });
+                                            }}
+                                            className={[
+                                              "rounded border px-2 py-1 text-xs",
+                                              selected
+                                                ? "border-emerald-600 bg-emerald-950/30 text-emerald-100"
+                                                : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800",
+                                              disableDamageTypeOption ? "opacity-60 cursor-not-allowed" : "",
+                                            ].join(" ")}
+                                          >
+                                            {dt.name}
+                                          </button>
+                                        );
+                                      })}
+                                      {picklists.damageTypes.length === 0 && (
+                                        <p className="text-xs text-zinc-500">No damage types loaded.</p>
+                                      )}
                                     </div>
-                                  )}
+                                    <p className="text-[11px] text-zinc-600">
+                                      Uses Forge damage type list (filtered by mode). Select up to {MAX_POWER_PACKET_DAMAGE_TYPES}.
+                                    </p>
+                                  </div>
                                 </div>
                               )}
 

@@ -5,6 +5,7 @@ import type {
   Power,
   PowerIntention,
 } from "@/lib/summoning/types";
+import { POWER_DEFENCE_MODE_OPTIONS } from "@/lib/powers/authoringRules";
 import type { RadarAxes } from "@/lib/calculators/monsterOutcomeCalculator";
 import type { PowerTuningFlatValues } from "@/lib/config/powerTuningShared";
 import {
@@ -240,6 +241,13 @@ function normalizeMovementMode(value: unknown): string {
   if (movementMode === "Fly") return "Fly";
   if (movementMode === "Teleport") return "Teleport";
   return movementMode;
+}
+
+function normalizeDefenceMode(value: unknown): string {
+  const defenceMode = asString(value);
+  return POWER_DEFENCE_MODE_OPTIONS.includes(defenceMode as (typeof POWER_DEFENCE_MODE_OPTIONS)[number])
+    ? defenceMode
+    : "Block";
 }
 
 function isForcedMovementMode(movementMode: string): boolean {
@@ -667,8 +675,12 @@ function allocatePacketAxisVector(
       spillRules.push("presenceFromAttackPressure");
       break;
     case "DEFENCE":
-      baseLane = defenceAxis;
-      applyAxisShare(axisVector, defenceAxis, totalCost);
+      {
+        const defenceMode = normalizeDefenceMode(details.defenceMode);
+        baseLane = defenceAxis;
+        applyAxisShare(axisVector, defenceAxis, totalCost);
+        spillRules.push(`defenceMode:${defenceMode}`);
+      }
       break;
     case "HEALING":
       baseLane = healingAxis;
@@ -1277,6 +1289,15 @@ function getPacketSpecificCost(
                   ? "forceSpecificPowerAction"
                   : null;
     resolved = resolveDiscreteTuningValue(tuningValues, "packet.controlMode", suffix);
+  } else if (intention === "DEFENCE") {
+    const defenceMode = normalizeDefenceMode(details.defenceMode);
+    const suffix =
+      defenceMode === "Dodge"
+        ? "dodge"
+        : defenceMode === "Resist"
+          ? "resist"
+          : "block";
+    resolved = resolveDiscreteTuningValue(tuningValues, "packet.defenceMode", suffix);
   } else if (intention === "CLEANSE") {
     const cleanseEffectType = asString(details.cleanseEffectType);
     const suffix =
@@ -2056,8 +2077,9 @@ function getComboPacketRoutingDebug(
     recipient: getPacketApplyTo(packet),
     statTargetKey: getStatTargetKey(details.statTarget ?? details.statChoice),
     effect: asNullableString(
-      details.controlMode ??
-        details.cleanseEffectType ??
+        details.controlMode ??
+            details.defenceMode ??
+            details.cleanseEffectType ??
         details.movementMode ??
         details.statTarget ??
         details.statChoice,
@@ -2528,6 +2550,7 @@ export function resolvePowerCost(
         packet.specific ??
         asNullableString(
           details.controlMode ??
+            details.defenceMode ??
             details.cleanseEffectType ??
             details.movementMode ??
             details.statTarget ??

@@ -10,7 +10,7 @@ import type {
   RangeCategory,
   TriggerConditionKey,
 } from "@/lib/summoning/types";
-import { TRIGGER_CONDITION_KEYS } from "@/lib/summoning/types";
+import { CORE_ATTRIBUTE_ORDER, TRIGGER_CONDITION_KEYS } from "@/lib/summoning/types";
 
 export type PowerRangeAuthoringCategory = "SELF" | RangeCategory;
 
@@ -40,6 +40,14 @@ export const POWER_RESERVE_RELEASE_BEHAVIOUR_OPTIONS = [
   "RESPONSE_ONLY",
   "ON_EXPIRY",
 ] as const satisfies readonly ReserveReleaseBehaviour[];
+export const POWER_DEFENCE_MODE_OPTIONS = [
+  "Block",
+  "Dodge",
+  "Resist",
+] as const;
+export type PowerDefenceMode = (typeof POWER_DEFENCE_MODE_OPTIONS)[number];
+export const POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS = CORE_ATTRIBUTE_ORDER;
+export type PowerDefenceResistedAttribute = (typeof POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS)[number];
 
 const COMMITMENT_MODIFIERS = ["STANDARD", "CHANNEL", "CHARGE"] as const;
 const COUNTER_MODES = ["NO", "YES"] as const;

@@ -116,6 +116,11 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
       weaponSkill: 1,
       willpower: 1,
     },
+    defenceMode: {
+      block: 0,
+      dodge: 2,
+      resist: 2.5,
+    },
     duration: { instant: 0, passive: 3, turns: 1, untilNextTurn: 0.5 },
     durationTurns: { "1": 0, "2": 0.5, "3": 1, "4": 1.5 },
     identity: {
@@ -265,6 +270,9 @@ const LEGACY_POWER_TUNING_KEY_ALIASES: Record<string, string> = {
   "packet.augmentStat.support": "packet.augmentStat.synergy",
   "packet.debuffStat.defence": "packet.debuffStat.guard",
   "packet.debuffStat.support": "packet.debuffStat.synergy",
+  // Migration-only aliases for pre-cleanup Defence mode terminology.
+  "packet.defenceMode.dodgeEvade": "packet.defenceMode.dodge",
+  "packet.defenceMode.resistPurgeShakeOff": "packet.defenceMode.resist",
 };
 
 export function canonicalizePowerTuningConfigKey(configKey: string): string {

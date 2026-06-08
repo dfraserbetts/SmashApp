@@ -1,6 +1,10 @@
 import { buildDescriptorResult } from "@/lib/descriptors/descriptorEngine";
 import { renderForgeResult } from "@/lib/descriptors/renderers/forgeRenderer";
 import {
+  POWER_DEFENCE_MODE_OPTIONS,
+  POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS,
+} from "@/lib/powers/authoringRules";
+import {
   LEGACY_TRIGGER_CONDITION_TEXT_KEY,
   MAX_POWER_PACKET_DAMAGE_TYPES,
   RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
@@ -54,6 +58,36 @@ function getDetailsString(details: Record<string, unknown>, key: string): string
 function getDetailsStringArray(details: Record<string, unknown>, key: string): string[] {
   const value = details[key];
   return Array.isArray(value) ? value.map((entry) => String(entry)) : [];
+}
+
+type DefenceMode = (typeof POWER_DEFENCE_MODE_OPTIONS)[number];
+type DefenceResistedAttribute = (typeof POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS)[number];
+
+function readDefenceMode(details: Record<string, unknown>): DefenceMode {
+  const value = getDetailsString(details, "defenceMode");
+  return POWER_DEFENCE_MODE_OPTIONS.includes(value as DefenceMode) ? (value as DefenceMode) : "Block";
+}
+
+function readDefenceResistedAttribute(details: Record<string, unknown>): DefenceResistedAttribute {
+  const value = getDetailsString(details, "resistedAttribute");
+  return POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS.includes(value as DefenceResistedAttribute)
+    ? (value as DefenceResistedAttribute)
+    : "Fortitude";
+}
+
+function renderDefenceResistApplicationClause(details: Record<string, unknown>, potency: number): string {
+  const resistedAttribute = readDefenceResistedAttribute(details);
+  return `applies ${potency} ${resistedAttribute} ${plural(potency, "Resist")}`;
+}
+
+function renderDefenceCounterSemantics(mode: DefenceMode): string | null {
+  if (mode === "Dodge") {
+    return "When used as a Counter, this replaces normal Dodge, Physical Defence, Mental Defence, or Resist for that trigger. It does not stack with normal Dodge. Passive/static protection still applies. Counter-enabled powers remain normally usable.";
+  }
+  if (mode === "Resist") {
+    return "When used as a Counter, this replaces normal Dodge, Physical Defence, Mental Defence, or Resist for that trigger. It does not stack with normal Resist. Passive/static protection still applies. Counter-enabled powers remain normally usable.";
+  }
+  return null;
 }
 
 function readStatTarget(details: Record<string, unknown>): string {
@@ -670,6 +704,16 @@ function formatSecondaryClause(
 
   // Intention-specific grammar for secondary intentions:
   if (intentionType === "DEFENCE") {
+    const defenceMode = readDefenceMode(details);
+    if (defenceMode === "Dodge") {
+      return omitRecipientContext
+        ? "creates a Dodge defence against an avoidable incoming action"
+        : `creates a Dodge defence for ${entity} against an avoidable incoming action`;
+    }
+    if (defenceMode === "Resist") {
+      const resistClause = renderDefenceResistApplicationClause(details, powerPotency);
+      return omitRecipientContext ? resistClause : `${resistClause} for ${entity}`;
+    }
     const mode = getDetailsString(details, "attackMode").trim().toUpperCase() === "MENTAL" ? "mental" : "physical";
     if (omitRecipientContext) {
       return `blocks ${powerPotency} ${mode} wounds suffered`;
@@ -834,7 +878,9 @@ function renderEffectPacketDetail(
     case "HEALING":
       return `restore ${potency} wound${potency === 1 ? "" : "s"}`;
     case "DEFENCE":
-      return `block ${potency} wound${potency === 1 ? "" : "s"}`;
+      return readDefenceMode(details) === "Block"
+        ? `block ${potency} wound${potency === 1 ? "" : "s"}`
+        : humanizeLabel(readDefenceMode(details));
     case "AUGMENT": {
       const stat = String(details.statChoice ?? "Stat");
       return `gain 1 stack of ${signedPotency(potency)} ${stat}`;
@@ -1728,6 +1774,13 @@ function renderPacketBaseClause(
   }
 
   if (effectPacket.intention === "DEFENCE") {
+    const defenceMode = readDefenceMode(details);
+    if (defenceMode === "Dodge") {
+      return "creates a Dodge defence against an avoidable incoming action";
+    }
+    if (defenceMode === "Resist") {
+      return renderDefenceResistApplicationClause(details, packetPotency);
+    }
     const mode =
       getDetailsString(details, "attackMode").trim().toUpperCase() === "MENTAL" ? "mental" : "physical";
     return `blocks ${packetPotency} ${mode} wounds`;
@@ -2955,6 +3008,15 @@ export function renderPowerDescriptorLines(
         "When used as a Counter, this attack does not allow the triggering attacker an active defence roll. Passive/static protection still applies.",
       );
     }
+  }
+  if (
+    power.counterMode === "YES" &&
+    primaryPacket?.intention === "DEFENCE"
+  ) {
+    const counterSemantics = renderDefenceCounterSemantics(
+      readDefenceMode((primaryPacket.detailsJson ?? {}) as Record<string, unknown>),
+    );
+    if (counterSemantics) lines.push(counterSemantics);
   }
   const primaryStackResistLine = buildStackResistRemovalLane({
     effectPacket: primaryPacket,
