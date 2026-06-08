@@ -89,6 +89,7 @@ export type CombatAction = {
   durationSource?: CombatDurationSource;
   passiveDuration?: boolean;
   passive?: boolean;
+  runtimeCleanup?: boolean;
   counterMode?: boolean;
   cooldownActionId?: string;
   abstractionNotes?: string[];
@@ -153,6 +154,8 @@ export type CombatStatusEffect = {
   amount: number;
   pool?: CombatPool;
   damageLabel?: string;
+  cleanupAttribute?: CombatAttributeName;
+  cleanupUnitWounds?: number;
   sourceActionId?: string;
   sourceActionName?: string;
   sourceCooldownActionId?: string;

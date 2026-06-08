@@ -1022,7 +1022,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     lane: "power",
   });
   const status = state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
-  if (resolution.netWounds !== 3 || !status || status.amount !== 6 || status.damageLabel !== "physical Necrotic") {
+  if (resolution.netWounds !== 3 || !status || status.amount !== 6 || status.cleanupUnitWounds !== 6 || status.damageLabel !== "physical Necrotic") {
     throw new Error(`Hydrated Open Vein did not scale linked rider by wound bands: ${JSON.stringify({ resolution, status, transcript: state.transcriptLines })}.`);
   }
   expectTranscriptLine(state.transcriptLines, /Linked effect: Open Vein \(attack\) rides 3 net primary wounds from Open Vein\. Applied wound bands: ceil\(3 \/ 8\) = 1/i, "hydrated Open Vein wound-band transcript");
@@ -4026,7 +4026,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     lane: "power",
   });
   const created = state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
-  if (!created || created.amount !== 13 || created.damageLabel !== "physical Slashing" || state.actors[0].physicalHpCurrent !== 100) {
+  if (!created || created.amount !== 13 || created.cleanupUnitWounds !== 8 || created.damageLabel !== "physical Slashing" || state.actors[0].physicalHpCurrent !== 100) {
     throw new Error(`Live Swiping Claws path did not store 13 physical Slashing per tick without immediate damage: ${JSON.stringify({ action: swipingClaws, created, hp: state.actors[0].physicalHpCurrent })}.`);
   }
   if (getActionCooldownRemaining(state, state.actors[1].id, swipingClaws.id) !== 2) {
@@ -4968,6 +4968,441 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     /End of Turn: Force No Main Action from Cleanse Test Denial expires; removed 3 remaining stacks/i,
     "expiry removes post-cleanse remaining stacks",
   );
+}
+
+{
+  const cleanupPower = action({
+    id: "post-cleanup-power",
+    name: "Post Cleanup Power",
+    sourceType: "power",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 1,
+  });
+  const actor = fixtureActor("physical-cleanup-target", "players", {
+    physicalHpMax: 60,
+    physicalHpCurrent: 60,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D10", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    resist: { FORTITUDE: 2 },
+    actions: [cleanupPower],
+  });
+  const source = fixtureActor("physical-cleanup-source", "monsters");
+  const state = createCombatState([actor], [source], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "physical-cleanup-dot",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "ongoingDamage",
+    amount: 16,
+    pool: "physical",
+    damageLabel: "physical Slashing",
+    cleanupUnitWounds: 8,
+    sourceActionId: "swiping-claws",
+    sourceActionName: "Swiping Claws",
+    remainingRounds: 2,
+  });
+  resolveStartOfTurnEffects(state, state.actors[0]);
+  const cleanup = chooseTurnAction(state.actors[0], state, "main");
+  if (!cleanup?.runtimeCleanup) {
+    throw new Error(`Significant physical ongoing damage did not select Main Action cleanup: ${JSON.stringify(cleanup)}.`);
+  }
+  const cleanupResolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[0],
+    action: cleanup,
+    rng: rngFrom([0.2, 0.3, 0.5, 0.6, 0.99]),
+    lane: "main",
+  });
+  const remaining = state.statusEffects.find((effect) => effect.id === "physical-cleanup-dot");
+  if (cleanupResolution.ongoingDamagePreventedOrCleansed !== 16 || cleanupResolution.stacksCleansed !== 0 || remaining) {
+    throw new Error(`Physical ongoing cleanup did not remove one 8-wound unit per Fortitude success: ${JSON.stringify({ cleanupResolution, remaining })}.`);
+  }
+  if (chooseTurnAction(state.actors[0], state, "power")?.id !== cleanupPower.id) {
+    throw new Error("Power Action was not available after Main Action cleanup.");
+  }
+  expectTranscriptLine(state.transcriptLines, /using Fortitude for clean up Swiping Claws/i, "physical cleanup Fortitude roll");
+  expectTranscriptLine(state.transcriptLines, /Cleanup: physical-cleanup-target removes 5 ongoing units from Swiping Claws \(5 x 8 = 40\), reducing it from 16 to 0 physical Slashing wounds per tick/i, "physical cleanup unit removal");
+  expectTranscriptLine(state.transcriptLines, /Cleanup: Swiping Claws ongoing damage is removed from physical-cleanup-target/i, "physical cleanup removed");
+}
+
+{
+  const actor = fixtureActor("partial-unit-cleanup-target", "players", {
+    physicalHpMax: 40,
+    physicalHpCurrent: 40,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D4", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [action({ id: "partial-unit-attack", sourceType: "naturalAttack" })],
+  });
+  const source = fixtureActor("partial-unit-cleanup-source", "monsters");
+  const state = createCombatState([actor], [source], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "partial-unit-dot",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "ongoingDamage",
+    amount: 11,
+    pool: "physical",
+    damageLabel: "physical Slashing",
+    cleanupUnitWounds: 8,
+    sourceActionName: "Partially Prevented Bleed",
+    remainingRounds: 2,
+  });
+  const cleanup = chooseTurnAction(state.actors[0], state, "main");
+  if (!cleanup?.runtimeCleanup) throw new Error("Partial unit cleanup did not select universal cleanup.");
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[0], action: cleanup, rng: rngFrom([0, 0, 0.99]), lane: "main" });
+  const remaining = state.statusEffects.find((effect) => effect.id === "partial-unit-dot");
+  if (resolution.ongoingDamagePreventedOrCleansed !== 8 || remaining?.amount !== 3) {
+    throw new Error(`One cleanup success should reduce 11 by one 8-wound unit to 3: ${JSON.stringify({ resolution, remaining })}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /removes 1 ongoing unit from Partially Prevented Bleed \(1 x 8 = 8\), reducing it from 11 to 3/i, "partial unit cleanup");
+}
+
+{
+  const actor = fixtureActor("partial-unit-full-cleanup-target", "players", {
+    physicalHpMax: 40,
+    physicalHpCurrent: 40,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D10", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [action({ id: "partial-unit-full-attack", sourceType: "naturalAttack" })],
+  });
+  const source = fixtureActor("partial-unit-full-cleanup-source", "monsters");
+  const state = createCombatState([actor], [source], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "partial-unit-full-dot",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "ongoingDamage",
+    amount: 11,
+    pool: "physical",
+    damageLabel: "physical Slashing",
+    cleanupUnitWounds: 8,
+    sourceActionName: "Partially Prevented Bleed",
+    remainingRounds: 2,
+  });
+  const cleanup = chooseTurnAction(state.actors[0], state, "main");
+  if (!cleanup?.runtimeCleanup) throw new Error("Partial full unit cleanup did not select universal cleanup.");
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[0], action: cleanup, rng: rngFrom([0.99, 0, 0]), lane: "main" });
+  if (resolution.ongoingDamagePreventedOrCleansed !== 11 || state.statusEffects.some((effect) => effect.id === "partial-unit-full-dot")) {
+    throw new Error(`Two cleanup successes should remove 11 with 8-wound units: ${JSON.stringify({ resolution, statuses: state.statusEffects })}.`);
+  }
+}
+
+{
+  const actor = fixtureActor("open-vein-unit-cleanup-target", "players", {
+    physicalHpMax: 40,
+    physicalHpCurrent: 40,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D4", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [action({ id: "open-vein-unit-attack", sourceType: "naturalAttack" })],
+  });
+  const source = fixtureActor("open-vein-unit-cleanup-source", "monsters");
+  const state = createCombatState([actor], [source], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "open-vein-unit-dot",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "ongoingDamage",
+    amount: 12,
+    pool: "physical",
+    damageLabel: "physical Necrotic",
+    cleanupUnitWounds: 6,
+    sourceActionName: "Open Vein",
+    remainingRounds: 2,
+  });
+  const cleanup = chooseTurnAction(state.actors[0], state, "main");
+  if (!cleanup?.runtimeCleanup) throw new Error("Open Vein unit cleanup did not select universal cleanup.");
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[0], action: cleanup, rng: rngFrom([0, 0, 0.99]), lane: "main" });
+  const remaining = state.statusEffects.find((effect) => effect.id === "open-vein-unit-dot");
+  if (resolution.ongoingDamagePreventedOrCleansed !== 6 || remaining?.amount !== 6) {
+    throw new Error(`Open Vein-style cleanup should reduce 12 by one 6-wound unit: ${JSON.stringify({ resolution, remaining })}.`);
+  }
+}
+
+{
+  const actor = fixtureActor("open-vein-unit-full-cleanup-target", "players", {
+    physicalHpMax: 40,
+    physicalHpCurrent: 40,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D10", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [action({ id: "open-vein-unit-full-attack", sourceType: "naturalAttack" })],
+  });
+  const source = fixtureActor("open-vein-unit-full-cleanup-source", "monsters");
+  const state = createCombatState([actor], [source], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "open-vein-unit-full-dot",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "ongoingDamage",
+    amount: 12,
+    pool: "physical",
+    damageLabel: "physical Necrotic",
+    cleanupUnitWounds: 6,
+    sourceActionName: "Open Vein",
+    remainingRounds: 2,
+  });
+  const cleanup = chooseTurnAction(state.actors[0], state, "main");
+  if (!cleanup?.runtimeCleanup) throw new Error("Open Vein full unit cleanup did not select universal cleanup.");
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[0], action: cleanup, rng: rngFrom([0.99, 0, 0]), lane: "main" });
+  if (resolution.ongoingDamagePreventedOrCleansed !== 12 || state.statusEffects.some((effect) => effect.id === "open-vein-unit-full-dot")) {
+    throw new Error(`Open Vein-style two-success cleanup should remove 12: ${JSON.stringify({ resolution, statuses: state.statusEffects })}.`);
+  }
+}
+
+{
+  const actor = fixtureActor("mental-cleanup-target", "players", {
+    mentalHpMax: 40,
+    mentalHpCurrent: 40,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D4" },
+    actions: [action({ id: "mental-cleanup-attack", sourceType: "naturalAttack" })],
+  });
+  const source = fixtureActor("mental-cleanup-source", "monsters");
+  const state = createCombatState([actor], [source], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "mental-cleanup-dot",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "ongoingDamage",
+    amount: 10,
+    pool: "mental",
+    damageLabel: "mental Psychic",
+    cleanupUnitWounds: 5,
+    sourceActionName: "Mind Rot",
+    remainingRounds: 2,
+  });
+  const cleanup = chooseTurnAction(state.actors[0], state, "main");
+  if (!cleanup?.runtimeCleanup) {
+    throw new Error("Significant mental ongoing damage did not select Main Action cleanup.");
+  }
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[0],
+    action: cleanup,
+    rng: rngFrom([0.99, 0.99, 0.99]),
+    lane: "main",
+  });
+  const remaining = state.statusEffects.find((effect) => effect.id === "mental-cleanup-dot");
+  if (remaining) {
+    throw new Error(`Mental ongoing cleanup did not use Bravery Resist to remove 3 units of 5: ${JSON.stringify(remaining)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /using Bravery for clean up Mind Rot/i, "mental cleanup Bravery roll");
+}
+
+{
+  const actor = fixtureActor("full-cleanup-target", "players", {
+    physicalHpMax: 10,
+    physicalHpCurrent: 10,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D4", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [],
+  });
+  const source = fixtureActor("full-cleanup-source", "monsters");
+  const state = createCombatState([actor], [source], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "full-cleanup-dot",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "ongoingDamage",
+    amount: 3,
+    pool: "physical",
+    cleanupUnitWounds: 3,
+    sourceActionName: "Small Bleed",
+    remainingRounds: 2,
+  });
+  const cleanup = chooseTurnAction(state.actors[0], state, "main");
+  if (!cleanup?.runtimeCleanup) throw new Error("Cleanup was not available without authored actions.");
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[0], action: cleanup, rng: rngFrom([0.99, 0.99, 0.99]), lane: "main" });
+  if (resolution.ongoingDamagePreventedOrCleansed !== 3 || state.statusEffects.some((effect) => effect.id === "full-cleanup-dot")) {
+    throw new Error("Cleanup that reduced ongoing damage to 0 did not remove the status.");
+  }
+}
+
+{
+  const trivialActor = fixtureActor("trivial-cleanup-actor", "players", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 100,
+    actions: [action({ id: "trivial-normal-attack", name: "Trivial Normal Attack", sourceType: "naturalAttack" })],
+  });
+  const source = fixtureActor("trivial-cleanup-source", "monsters");
+  const state = createCombatState([trivialActor], [source]);
+  state.statusEffects.push({
+    id: "trivial-dot",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "ongoingDamage",
+    amount: 1,
+    pool: "physical",
+    cleanupUnitWounds: 1,
+    sourceActionName: "Trivial Scratch",
+    remainingRounds: 2,
+  });
+  const chosen = chooseTurnAction(state.actors[0], state, "main");
+  if (chosen?.runtimeCleanup || chosen?.id !== "trivial-normal-attack") {
+    throw new Error(`Trivial ongoing damage should not override normal Main Action: ${JSON.stringify(chosen)}.`);
+  }
+}
+
+{
+  const deniedActor = fixtureActor("cleanup-denied-actor", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 100,
+    actions: [action({ id: "cleanup-denied-power", name: "Cleanup Denied Power", sourceType: "power", kind: "attack" })],
+  });
+  const source = fixtureActor("cleanup-denied-source", "players");
+  const run = runCombatScenario({
+    name: "main action denied prevents cleanup",
+    players: [source],
+    monsters: [deniedActor],
+    initialStatusEffects: [
+      {
+        id: "denied-cleanup-dot",
+        sourceActorId: source.id,
+        targetActorId: deniedActor.id,
+        kind: "ongoingDamage",
+        amount: 40,
+        pool: "physical",
+        cleanupUnitWounds: 8,
+        sourceActionName: "Denied Bleed",
+        remainingRounds: 2,
+      },
+      {
+        id: "denied-cleanup-main",
+        sourceActorId: source.id,
+        targetActorId: deniedActor.id,
+        kind: "mainActionDenied",
+        amount: 1,
+        sourceActionName: "No Main",
+        remainingRounds: 1,
+      },
+    ],
+    runs: 1,
+    seed: 1301,
+    maxRounds: 1,
+    turnOrder: "monstersFirst",
+  });
+  const lines = run.firstRunTranscript?.lines ?? [];
+  expectTranscriptLine(lines, /Main Action: denied by No Main/i, "main action denial blocks cleanup lane");
+  if (lines.some((line) => /attempts to resist Denied Bleed/i.test(line))) {
+    throw new Error("Actor used Main Action cleanup while main action was denied.");
+  }
+}
+
+{
+  const actor = fixtureActor("stack-runtime-cleanup-target", "players", {
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D4", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [action({ id: "stack-runtime-normal", sourceType: "naturalAttack" })],
+  });
+  const source = fixtureActor("stack-runtime-cleanup-source", "monsters");
+  const state = createCombatState([actor], [source], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "stack-runtime-cleanup-debuff",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "debuff",
+    attribute: "Guard",
+    cleanupAttribute: "Fortitude",
+    amount: 5,
+    sourceActionName: "Stacking Debuff",
+    remainingRounds: 2,
+  });
+  const cleanup = chooseTurnAction(state.actors[0], state, "main");
+  if (!cleanup?.runtimeCleanup) throw new Error("Stack cleanup did not select universal cleanup.");
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[0], action: cleanup, rng: rngFrom([0.99, 0.99, 0.99]), lane: "main" });
+  const remaining = state.statusEffects.find((effect) => effect.id === "stack-runtime-cleanup-debuff");
+  if (resolution.stacksCleansed !== 3 || remaining?.amount !== 2 || remaining.remainingRounds !== 2) {
+    throw new Error(`Stack cleanup did not reduce stack amount while preserving duration: ${JSON.stringify({ resolution, remaining })}.`);
+  }
+}
+
+{
+  const actor = fixtureActor("stack-runtime-remove-target", "players", {
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D4", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [],
+  });
+  const source = fixtureActor("stack-runtime-remove-source", "monsters");
+  const state = createCombatState([actor], [source], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "stack-runtime-remove-debuff",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "debuff",
+    attribute: "Guard",
+    amount: 3,
+    sourceActionName: "Removable Stack Debuff",
+    remainingRounds: 2,
+  });
+  const cleanup = chooseTurnAction(state.actors[0], state, "main");
+  if (!cleanup?.runtimeCleanup) throw new Error("Stack cleanup was not available without authored actions.");
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[0], action: cleanup, rng: rngFrom([0.99, 0.99, 0.99]), lane: "main" });
+  if (resolution.stacksCleansed !== 3 || state.statusEffects.some((effect) => effect.id === "stack-runtime-remove-debuff")) {
+    throw new Error("Stack cleanup that reached 0 did not remove the status.");
+  }
+}
+
+{
+  const actor = fixtureActor("cleanup-defeated-before-act", "players", {
+    physicalHpMax: 10,
+    physicalHpCurrent: 10,
+    actions: [action({ id: "defeated-before-cleanup-attack", sourceType: "naturalAttack" })],
+  });
+  const source = fixtureActor("cleanup-defeated-source", "monsters");
+  const run = runCombatScenario({
+    name: "defeated before cleanup fixture",
+    players: [actor],
+    monsters: [source],
+    initialStatusEffects: [
+      {
+        id: "defeating-dot",
+        sourceActorId: source.id,
+        targetActorId: actor.id,
+        kind: "ongoingDamage",
+    amount: 20,
+    pool: "physical",
+    cleanupUnitWounds: 10,
+    sourceActionName: "Fatal Bleed",
+        remainingRounds: 2,
+      },
+    ],
+    runs: 1,
+    seed: 1302,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  const lines = run.firstRunTranscript?.lines ?? [];
+  expectTranscriptLine(lines, /Start of Turn: cleanup-defeated-before-act suffers 20 physical wounds from Fatal Bleed/i, "fatal start-turn ongoing tick");
+  if (lines.some((line) => /attempts to resist Fatal Bleed/i.test(line))) {
+    throw new Error("Defeated actor attempted cleanup after start-of-turn defeat.");
+  }
+}
+
+{
+  const cleanse = action({
+    id: "relevant-antitoxin",
+    name: "AntiToxin",
+    sourceType: "power",
+    kind: "cleanse",
+    targetPolicy: "ally",
+    diceCount: 1,
+    potency: 3,
+  });
+  const actor = fixtureActor("relevant-cleanser", "players", { actions: [cleanse] });
+  const source = fixtureActor("relevant-cleanse-source", "monsters");
+  const state = createCombatState([actor], [source]);
+  state.statusEffects.push({
+    id: "relevant-cleanse-dot",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "ongoingDamage",
+    amount: 12,
+    pool: "physical",
+    cleanupUnitWounds: 6,
+    sourceActionName: "Relevant Poison",
+    remainingRounds: 2,
+  });
+  if (chooseTurnAction(state.actors[0], state, "power")?.id !== cleanse.id) {
+    throw new Error("Cleanse power was not selected when a removable hostile effect was present.");
+  }
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[0], action: cleanse, rng: rngFrom([0.99]), lane: "power" });
+  if (resolution.ongoingDamagePreventedOrCleansed !== 12 || resolution.stacksCleansed !== 0) {
+    throw new Error(`Cleanse power did not credit ongoing cleansed separately from stack cleansed: ${JSON.stringify(resolution)}.`);
+  }
 }
 
 {

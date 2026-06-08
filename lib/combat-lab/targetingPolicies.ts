@@ -1,5 +1,25 @@
 import { getLivingActors, getOppositeSide, isActionOnCooldown } from "./combatState";
+import { expectedSuccesses } from "./dice";
 import type { CombatAction, CombatActor, CombatPool, CombatState } from "./types";
+
+const UNIVERSAL_CLEANUP_ACTION: CombatAction = {
+  id: "__runtime_cleanup_resist",
+  name: "Cleanup Resist",
+  sourceType: "fallback",
+  kind: "cleanse",
+  targetPolicy: "self",
+  supported: true,
+  unsupportedReasons: [],
+  accuracyAttribute: "Fortitude",
+  diceCount: 0,
+  potency: 1,
+  cooldownRounds: 0,
+  runtimeCleanup: true,
+};
+
+const CLEANUP_NEXT_TICK_HP_THRESHOLD = 0.25;
+const CLEANUP_TOTAL_REMAINING_HP_THRESHOLD = 0.35;
+const CLEANUP_LOW_HP_THRESHOLD = 0.5;
 
 function hpPercent(actor: CombatActor): number {
   const physical = actor.physicalHpMax > 0 ? actor.physicalHpCurrent / actor.physicalHpMax : 1;
@@ -65,6 +85,92 @@ function hasRemovableHostileEffect(actor: CombatActor, state: CombatState): bool
       effect.sourceActorId !== actor.id &&
       (effect.kind === "ongoingDamage" || effect.kind === "debuff" || effect.kind === "mainActionDenied"),
   );
+}
+
+function hostileCleanupEffects(actor: CombatActor, state: CombatState) {
+  return state.statusEffects.filter(
+    (effect) =>
+      effect.targetActorId === actor.id &&
+      effect.sourceActorId !== actor.id &&
+      effect.amount > 0 &&
+      effect.remainingRounds > 0 &&
+      (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "debuff"),
+  );
+}
+
+function relevantHpForOngoing(actor: CombatActor, pool: CombatPool): number {
+  return Math.max(1, pool === "mental" ? actor.mentalHpCurrent : actor.physicalHpCurrent);
+}
+
+function cleanupAttributeForEffect(effect: CombatState["statusEffects"][number]) {
+  if (effect.cleanupAttribute) return effect.cleanupAttribute;
+  if (effect.kind === "ongoingDamage") return (effect.pool ?? "physical") === "mental" ? "Bravery" : "Fortitude";
+  if (effect.attribute) return effect.attribute;
+  return "Fortitude";
+}
+
+function cleanupUnitWoundsForEffect(effect: CombatState["statusEffects"][number]): number {
+  return Math.max(1, Math.trunc(effect.cleanupUnitWounds ?? 1));
+}
+
+function expectedCleanupReduction(actor: CombatActor, effect: CombatState["statusEffects"][number]): number {
+  const attribute = cleanupAttributeForEffect(effect);
+  const coreAttribute = attribute.toUpperCase() as keyof CombatActor["resist"];
+  const diceCount = Math.max(1, 3 + (actor.resist[coreAttribute] ?? 0));
+  const expectedUnits = expectedSuccesses(diceCount, actor.attributeDice[attribute] ?? "D8");
+  return effect.kind === "ongoingDamage"
+    ? expectedUnits * cleanupUnitWoundsForEffect(effect)
+    : expectedUnits;
+}
+
+function likelyDefeatsEnemyWithMainAction(actor: CombatActor, state: CombatState, available: CombatAction[]): boolean {
+  const attacks = available.filter((action) =>
+    action.kind === "attack" &&
+    (action.targetPolicy === "enemy" || action.targetPolicy === "allEnemies") &&
+    !action.passive &&
+    !action.counterMode
+  );
+  if (attacks.length === 0) return false;
+  const enemies = getLivingActors(state, getOppositeSide(actor.side));
+  if (enemies.length === 0) return false;
+  return attacks.some((action) => {
+    const pool = action.pool ?? "physical";
+    const expectedWounds = action.diceCount * Math.max(1, action.potency);
+    return enemies.some((enemy) => {
+      const hp = pool === "mental" ? enemy.mentalHpCurrent : enemy.physicalHpCurrent;
+      return hp > 0 && expectedWounds >= hp;
+    });
+  });
+}
+
+function shouldUseUniversalCleanup(actor: CombatActor, state: CombatState, available: CombatAction[]): boolean {
+  const effects = hostileCleanupEffects(actor, state);
+  if (effects.length === 0) return false;
+  if (likelyDefeatsEnemyWithMainAction(actor, state, available)) return false;
+
+  const hpRatio = hpPercent(actor);
+  for (const effect of effects) {
+    if (effect.kind === "ongoingDamage") {
+      const futureTicks = Math.max(0, effect.remainingRounds - 1);
+      if (futureTicks <= 0) continue;
+      if (expectedCleanupReduction(actor, effect) <= 0) continue;
+      const currentHp = relevantHpForOngoing(actor, effect.pool ?? "physical");
+      const nextTickShare = effect.amount / currentHp;
+      const totalRemainingShare = (effect.amount * futureTicks) / currentHp;
+      if (
+        nextTickShare >= CLEANUP_NEXT_TICK_HP_THRESHOLD ||
+        totalRemainingShare >= CLEANUP_TOTAL_REMAINING_HP_THRESHOLD ||
+        (hpRatio < CLEANUP_LOW_HP_THRESHOLD && effect.amount > 0)
+      ) {
+        return true;
+      }
+      continue;
+    }
+    if (expectedCleanupReduction(actor, effect) <= 0) continue;
+    if (effect.kind === "mainActionDenied") return true;
+    if (effect.kind === "debuff" && (effect.amount >= 2 || hpRatio < CLEANUP_LOW_HP_THRESHOLD)) return true;
+  }
+  return false;
 }
 
 function collectAttackPools(action: CombatAction, pools: Set<CombatPool>) {
@@ -263,6 +369,7 @@ export function chooseTurnAction(
   lane: "main" | "power",
 ): CombatAction | null {
   const available = readyActions(actor, state).filter((action) => hasLegalTarget(actor, action, state));
+  if (lane === "main" && shouldUseUniversalCleanup(actor, state, available)) return UNIVERSAL_CLEANUP_ACTION;
   if (available.length === 0) return null;
 
   if (lane === "main") {
@@ -282,6 +389,8 @@ export function chooseTurnAction(
       .filter((action) => shouldPrioritizeSelfDefence(actor, action, state))
       .sort((a, b) => actionScore(b) - actionScore(a))[0];
     if (selfDefence) return selfDefence;
+    const cleanse = powerPool.find((action) => action.kind === "cleanse");
+    if (cleanse && hasRemovableHostileEffect(actor, state)) return cleanse;
     if (isSupportLike(actor, powerPool)) {
       const allies = getLivingActors(state, actor.side);
       const woundedAlly = allies
@@ -328,7 +437,7 @@ export function chooseTurnAction(
     const debuff = available.find((action) => action.kind === "debuff" && !actionAlreadyApplied(actor, action, state));
     if (debuff && enemies.length > 0) return debuff;
     const cleanse = available.find((action) => action.kind === "cleanse");
-    if (cleanse && state.statusEffects.some((effect) => effect.sourceActorId !== actor.id && effect.targetActorId !== actor.id)) return cleanse;
+    if (cleanse && hasRemovableHostileEffect(actor, state)) return cleanse;
   }
 
   if (actor.role === "Bruiser") {
@@ -348,6 +457,7 @@ export function chooseTurnAction(
 }
 
 export function chooseTarget(actor: CombatActor, action: CombatAction, state: CombatState): CombatActor | null {
+  if (action.runtimeCleanup) return actor;
   if (action.targetPolicy === "self") return actor;
   if (action.targetPolicy === "allAllies") return actor;
   if (action.targetPolicy === "allEnemies") {

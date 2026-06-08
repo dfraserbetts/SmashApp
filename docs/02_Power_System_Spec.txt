@@ -840,11 +840,12 @@ Persistent-state cleanup uses the following first-pass model:
 Ongoing-damage cleanup uses the following first-pass model:
 
 - ongoing damage is not tracked as stacks
-- Cleanse removes ongoing damage from the target per success
+- Cleanse removes ongoing damage units from the target per success
 - the target may use a Main Action to attempt a cleanup Resist roll against one chosen ongoing damage effect
 - Physical ongoing damage uses Fortitude Resist by default for this cleanup roll
 - Mental ongoing damage uses Bravery Resist by default for this cleanup roll
-- each cleanup-roll success removes 1 ongoing damage from the chosen effect
+- each cleanup-roll success removes 1 ongoing damage unit from the chosen effect
+- each ongoing damage unit removes the source effect's wounds-per-success / wounds-per-band value from the stored ongoing amount
 - ongoing damage does not naturally degrade by 1 each turn
 - expiry ends the ongoing damage effect
 - same-source reapplication may refresh duration without adding potency unless explicitly authored otherwise

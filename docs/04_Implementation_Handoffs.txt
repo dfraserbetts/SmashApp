@@ -77,6 +77,7 @@ All future builder work should assume:
 - persistent states use a stack-cleanup model distinct from ongoing direct effects
 - ongoing damage uses ongoing value plus duration rather than stacks
 - physical ongoing-damage cleanup defaults to Fortitude Resist and mental ongoing-damage cleanup defaults to Bravery Resist
+- ongoing-damage cleanup removes source damage units per success, where each unit is the source effect's wounds-per-success / wounds-per-band value
 - packet-local recipient class may distinguish Primary Targets, Allies, and Self where a Secondary Packet needs a different target class from Packet 1
 - Allies includes self by default unless an explicit authored restriction says otherwise
 - packet-local recipient class must remain legal within the shared cast context
@@ -335,6 +336,7 @@ The following are treated as locked for this session:
 - secondary scaling derives from the Primary result class in the current builder surface
 - persistent states use stack cleanup through resist rolls, cleanse, natural degradation, and expiry
 - ongoing damage uses ongoing value plus duration rather than stacks
+- ongoing-damage cleanup removes source damage units per success rather than individual wounds
 - packet-local recipient class may distinguish Primary Targets, Allies, and Self where needed
 - Allies includes self by default unless an explicit authored restriction says otherwise
 - Trigger powers may use Trigger Method to distinguish Arm and then target from Target and then arm while keeping Packet 1 on trigger

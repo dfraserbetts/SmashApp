@@ -602,7 +602,9 @@ Ongoing damage may be reduced by Cleanse or by a Main Action cleanup Resist roll
 
 Physical ongoing damage uses Fortitude Resist by default for this cleanup roll. Mental ongoing damage uses Bravery Resist by default.
 
-Each cleanup-roll success removes 1 ongoing damage from the chosen effect.
+Each cleanup-roll success removes 1 ongoing damage unit from the chosen effect.
+
+Each ongoing damage unit removes the source effect's wounds-per-success / wounds-per-band value from the stored ongoing amount.
 
 Ongoing damage does not naturally degrade by 1 each turn.
 
