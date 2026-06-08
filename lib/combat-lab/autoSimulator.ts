@@ -568,12 +568,42 @@ function roundTurnOrder(
     : interleaveTurns(playerOrder, monsterOrder);
 }
 
+function sideDefeatStopReason(state: ReturnType<typeof createCombatState>): CombatRunResult["stoppedBy"] | null {
+  const playersRemaining = getLivingActors(state, "players").length;
+  const monstersRemaining = getLivingActors(state, "monsters").length;
+  if (playersRemaining === 0 && monstersRemaining === 0) return "stalemate";
+  if (playersRemaining === 0) return "playersDefeated";
+  if (monstersRemaining === 0) return "monstersDefeated";
+  return null;
+}
+
+function emitCombatEnd(state: ReturnType<typeof createCombatState>, stoppedBy: CombatRunResult["stoppedBy"]) {
+  const label =
+    stoppedBy === "playersDefeated"
+      ? "players defeated"
+      : stoppedBy === "monstersDefeated"
+        ? "monsters defeated"
+        : stoppedBy === "stalemate"
+          ? "both sides defeated"
+          : stoppedBy;
+  emitTranscriptEvent(state, {
+    type: "combatEnd",
+    message: `Combat ends: ${label}.`,
+    details: {
+      stoppedBy,
+      playersRemaining: getLivingActors(state, "players").length,
+      monstersRemaining: getLivingActors(state, "monsters").length,
+    },
+  });
+}
+
 export function runCombatScenario(scenario: CombatScenario, runIndex = 0): CombatRunResult {
   const rng = createSeededRng(scenario.seed + runIndex * 9973);
   const maxRounds = scenario.maxRounds ?? 20;
   const turnOrder = scenario.turnOrder ?? "alternatingByRound";
   const captureTranscript = runIndex === 0;
   const state = createCombatState(scenario.players, scenario.monsters, { captureTranscript });
+  state.statusEffects.push(...(scenario.initialStatusEffects ?? []).map((effect) => ({ ...effect })));
   const metrics = createEmptyMetrics();
   let stoppedBy: CombatRunResult["stoppedBy"] = "maxRounds";
   let roundsWithoutDamage = 0;
@@ -622,6 +652,13 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
           message: `${currentActor.name}'s main action was denied by ${deniedMainActionBy}.`,
           metrics: startTurnResolution,
         });
+      }
+      const startTurnStoppedBy = sideDefeatStopReason(state);
+      if (startTurnStoppedBy) {
+        stoppedBy = startTurnStoppedBy;
+        emitCombatEnd(state, stoppedBy);
+        state.currentTurnActorId = null;
+        break;
       }
       if (currentActor.defeated) {
         emitTranscriptEvent(state, {
@@ -704,19 +741,28 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
           buffDebuff: resolution.buffDebuffApplied,
         });
 
-        if (getLivingActors(state, "players").length === 0) {
-          stoppedBy = "playersDefeated";
+        const actionStoppedBy = sideDefeatStopReason(state);
+        if (actionStoppedBy) {
+          stoppedBy = actionStoppedBy;
+          emitCombatEnd(state, stoppedBy);
           break;
         }
-        if (getLivingActors(state, "monsters").length === 0) {
-          stoppedBy = "monstersDefeated";
-          break;
-        }
+      }
+      if (stoppedBy !== "maxRounds") {
+        state.currentTurnActorId = null;
+        break;
       }
       if (!currentActor.defeated) {
         tickActorCooldowns(state, currentActor.id);
         const expired = tickTargetTurnEffects(state, currentActor.id);
         if (expired > 0) metrics.stacksExpired[currentActor.side] += expired;
+      }
+      const endTurnStoppedBy = sideDefeatStopReason(state);
+      if (endTurnStoppedBy && stoppedBy === "maxRounds") {
+        stoppedBy = endTurnStoppedBy;
+        emitCombatEnd(state, stoppedBy);
+        state.currentTurnActorId = null;
+        break;
       }
       emitTranscriptEvent(state, {
         type: "turnEnd",

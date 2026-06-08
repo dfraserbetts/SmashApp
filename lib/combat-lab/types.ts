@@ -276,6 +276,7 @@ export type CombatTranscriptEventType =
   | "actionSkipped"
   | "actorDefeated"
   | "defeatCleanup"
+  | "combatEnd"
   | "turnEnd"
   | "roundEnd";
 
@@ -562,6 +563,7 @@ export type CombatScenario = {
   name: string;
   players: CombatActor[];
   monsters: CombatActor[];
+  initialStatusEffects?: CombatStatusEffect[];
   runs: number;
   seed: number;
   maxRounds?: number;

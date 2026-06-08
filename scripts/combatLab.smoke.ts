@@ -4151,6 +4151,217 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const player = fixtureActor("sot-stop-player", "players", {
+    actions: [action({ id: "sot-stop-player-extra", name: "Player Extra Turn", potency: 1 })],
+  });
+  const monster = fixtureActor("sot-stop-monster", "monsters", {
+    physicalHpMax: 10,
+    physicalHpCurrent: 10,
+    actions: [action({ id: "sot-stop-monster-action", name: "Monster Should Not Act", potency: 1 })],
+  });
+  const result = runCombatScenario({
+    name: "start-turn monster defeat stop",
+    players: [player],
+    monsters: [monster],
+    initialStatusEffects: [{
+      id: "sot-stop-monster-dot",
+      sourceActorId: player.id,
+      targetActorId: monster.id,
+      kind: "ongoingDamage",
+      amount: 12,
+      pool: "physical",
+      damageLabel: "physical Necrotic",
+      sourceActionId: "open-vein",
+      sourceActionName: "Open Vein",
+      remainingRounds: 2,
+    }],
+    runs: 1,
+    seed: 1201,
+    maxRounds: 3,
+    turnOrder: "monstersFirst",
+  });
+  const lines = result.firstRunTranscript?.lines ?? [];
+  if (result.stoppedBy !== "monstersDefeated" || result.winner !== "players") {
+    throw new Error(`Start-turn monster defeat did not stop as monstersDefeated: ${JSON.stringify({ stoppedBy: result.stoppedBy, winner: result.winner })}.`);
+  }
+  expectTranscriptLine(lines, /Start of Turn: sot-stop-monster suffers 12 physical Necrotic wounds from Open Vein/i, "start-turn monster defeat tick");
+  expectTranscriptLine(lines, /Defeat cleanup: sot-stop-monster leaves active combat/i, "start-turn monster defeat cleanup");
+  expectTranscriptLine(lines, /Combat ends: monsters defeated/i, "start-turn monster combat end");
+  const combatEndIndex = lines.findIndex((line) => /Combat ends: monsters defeated/i.test(line));
+  if (lines.some((line, index) => index > combatEndIndex && /Turn \d+: sot-stop-player begins/i.test(line))) {
+    throw new Error(`Player received a turn after only monster was defeated: ${lines.join(" | ")}`);
+  }
+}
+
+{
+  const player = fixtureActor("sot-player-stop-player", "players", {
+    physicalHpMax: 10,
+    physicalHpCurrent: 10,
+    actions: [action({ id: "sot-player-stop-action", name: "Player Should Not Act", potency: 1 })],
+  });
+  const monster = fixtureActor("sot-player-stop-monster", "monsters", {
+    actions: [action({ id: "sot-player-stop-monster-extra", name: "Monster Extra Turn", potency: 1 })],
+  });
+  const result = runCombatScenario({
+    name: "start-turn player defeat stop",
+    players: [player],
+    monsters: [monster],
+    initialStatusEffects: [{
+      id: "sot-stop-player-dot",
+      sourceActorId: monster.id,
+      targetActorId: player.id,
+      kind: "ongoingDamage",
+      amount: 12,
+      pool: "physical",
+      damageLabel: "physical Necrotic",
+      sourceActionId: "open-vein",
+      sourceActionName: "Open Vein",
+      remainingRounds: 2,
+    }],
+    runs: 1,
+    seed: 1202,
+    maxRounds: 3,
+    turnOrder: "playersFirst",
+  });
+  const lines = result.firstRunTranscript?.lines ?? [];
+  if (result.stoppedBy !== "playersDefeated" || result.winner !== "monsters") {
+    throw new Error(`Start-turn player defeat did not stop as playersDefeated: ${JSON.stringify({ stoppedBy: result.stoppedBy, winner: result.winner })}.`);
+  }
+  expectTranscriptLine(lines, /Combat ends: players defeated/i, "start-turn player combat end");
+  const combatEndIndex = lines.findIndex((line) => /Combat ends: players defeated/i.test(line));
+  if (lines.some((line, index) => index > combatEndIndex && /Turn \d+: sot-player-stop-monster begins/i.test(line))) {
+    throw new Error(`Monster received a turn after only player was defeated: ${lines.join(" | ")}`);
+  }
+}
+
+{
+  const player = fixtureActor("immediate-stop-player", "players", {
+    actions: [action({ id: "immediate-stop-killer", name: "Immediate Stop Killer", diceCount: 20, potency: 20 })],
+  });
+  const monster = fixtureActor("immediate-stop-monster", "monsters", {
+    physicalHpMax: 5,
+    physicalHpCurrent: 5,
+    actions: [action({ id: "immediate-stop-monster-extra", name: "Monster Extra Turn", potency: 1 })],
+  });
+  const result = runCombatScenario({
+    name: "immediate action side wipe stop",
+    players: [player],
+    monsters: [monster],
+    runs: 1,
+    seed: 1203,
+    maxRounds: 3,
+    turnOrder: "playersFirst",
+  });
+  const lines = result.firstRunTranscript?.lines ?? [];
+  if (result.stoppedBy !== "monstersDefeated" || result.winner !== "players") {
+    throw new Error(`Immediate side wipe did not stop as monstersDefeated: ${JSON.stringify({ stoppedBy: result.stoppedBy, winner: result.winner })}.`);
+  }
+  expectTranscriptLine(lines, /Combat ends: monsters defeated/i, "immediate side wipe combat end");
+  const combatEndIndex = lines.findIndex((line) => /Combat ends: monsters defeated/i.test(line));
+  if (lines.some((line, index) => index > combatEndIndex && /Turn \d+: immediate-stop-monster begins|Cooldown tick:/i.test(line))) {
+    throw new Error(`Simulation continued after immediate side wipe: ${lines.join(" | ")}`);
+  }
+}
+
+{
+  const counter = action({
+    id: "counter-stop-counterstrike",
+    name: "Counter Stop Counterstrike",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 20,
+    potency: 20,
+  });
+  const player = fixtureActor("counter-stop-player", "players", {
+    physicalHpMax: 999,
+    physicalHpCurrent: 999,
+    actions: [counter],
+  });
+  const monster = fixtureActor("counter-stop-monster", "monsters", {
+    physicalHpMax: 5,
+    physicalHpCurrent: 5,
+    actions: [action({ id: "counter-stop-trigger", name: "Counter Stop Trigger", diceCount: 1, potency: 1 })],
+  });
+  const result = runCombatScenario({
+    name: "counter damage side wipe stop",
+    players: [player],
+    monsters: [monster],
+    runs: 1,
+    seed: 1204,
+    maxRounds: 3,
+    turnOrder: "monstersFirst",
+  });
+  const lines = result.firstRunTranscript?.lines ?? [];
+  if (result.stoppedBy !== "monstersDefeated" || result.winner !== "players") {
+    throw new Error(`Counter side wipe did not stop as monstersDefeated: ${JSON.stringify({ stoppedBy: result.stoppedBy, winner: result.winner })}.`);
+  }
+  const incomingResultIndex = lines.findIndex((line) => /Incoming result:/i.test(line));
+  const counterResultIndex = lines.findIndex((line) => /Counter result:/i.test(line));
+  const combatEndIndex = lines.findIndex((line) => /Combat ends: monsters defeated/i.test(line));
+  if (incomingResultIndex < 0 || counterResultIndex < 0 || combatEndIndex < 0 || incomingResultIndex > counterResultIndex || counterResultIndex > combatEndIndex) {
+    throw new Error(`Counter side wipe did not apply incoming and counter before combat end: ${lines.join(" | ")}`);
+  }
+  if (lines.some((line, index) => index > combatEndIndex && /Turn \d+: counter-stop-player begins|Cooldown tick:/i.test(line))) {
+    throw new Error(`Simulation continued after counter side wipe: ${lines.join(" | ")}`);
+  }
+}
+
+{
+  const counter = action({
+    id: "simul-stop-counterstrike",
+    name: "Simultaneous Stop Counterstrike",
+    kind: "attack",
+    counterMode: true,
+    targetPolicy: "enemy",
+    diceCount: 20,
+    potency: 20,
+  });
+  const player = fixtureActor("simul-stop-player", "players", {
+    physicalHpMax: 5,
+    physicalHpCurrent: 5,
+    actions: [counter],
+  });
+  const monster = fixtureActor("simul-stop-monster", "monsters", {
+    physicalHpMax: 5,
+    physicalHpCurrent: 5,
+    actions: [action({ id: "simul-stop-trigger", name: "Simultaneous Stop Trigger", diceCount: 20, potency: 20 })],
+  });
+  const result = runCombatScenario({
+    name: "simultaneous side defeat stop",
+    players: [player],
+    monsters: [monster],
+    runs: 1,
+    seed: 1205,
+    maxRounds: 3,
+    turnOrder: "monstersFirst",
+  });
+  const lines = result.firstRunTranscript?.lines ?? [];
+  if (result.stoppedBy !== "stalemate" || result.winner !== "stalemate") {
+    throw new Error(`Simultaneous side defeat did not resolve as stalemate: ${JSON.stringify({ stoppedBy: result.stoppedBy, winner: result.winner })}.`);
+  }
+  const incomingResultIndex = lines.findIndex((line) => /Incoming result:/i.test(line));
+  const counterResultIndex = lines.findIndex((line) => /Counter result:/i.test(line));
+  const playerDefeatIndex = lines.findIndex((line) => /Defeat: simul-stop-player is defeated/i.test(line));
+  const monsterDefeatIndex = lines.findIndex((line) => /Defeat: simul-stop-monster is defeated/i.test(line));
+  const combatEndIndex = lines.findIndex((line) => /Combat ends: both sides defeated/i.test(line));
+  if (
+    incomingResultIndex < 0 ||
+    counterResultIndex < 0 ||
+    playerDefeatIndex < 0 ||
+    monsterDefeatIndex < 0 ||
+    combatEndIndex < 0 ||
+    incomingResultIndex > counterResultIndex ||
+    counterResultIndex > playerDefeatIndex ||
+    counterResultIndex > monsterDefeatIndex ||
+    playerDefeatIndex > combatEndIndex ||
+    monsterDefeatIndex > combatEndIndex
+  ) {
+    throw new Error(`Simultaneous defeat did not apply both results and defeats before combat end: ${lines.join(" | ")}`);
+  }
+}
+
+{
   const source = fixtureActor("source-defeat-owner", "players", {
     physicalHpMax: 10,
     physicalHpCurrent: 0,
