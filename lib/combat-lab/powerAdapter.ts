@@ -141,6 +141,13 @@ function packetIsCastableNow(power: Power, packet: EffectPacket): string | null 
   if (duration !== "INSTANT" && duration !== "TURNS" && duration !== "PASSIVE" && duration !== "UNTIL_TARGET_NEXT_TURN") {
     return `Packet duration ${duration} is not resolved in automated V1.`;
   }
+  if (packet.intention === "DEFENCE") {
+    const details = asRecord(packet.detailsJson);
+    const defenceMode = asString(details.defenceMode) || "Block";
+    if (defenceMode !== "Block") {
+      return `Defence mode ${defenceMode} is authored but not resolved by Combat Lab runtime yet.`;
+    }
+  }
   return null;
 }
 
@@ -426,8 +433,21 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
     if (attackDomainResolution?.warning) {
       warnings.push(attackDomainResolution.warning);
     }
+    const authoredModifierAttribute = packet.targetedAttribute
+      ? CORE_TO_COMBAT_ATTRIBUTE[packet.targetedAttribute]
+      : authoredAttribute(details.statTarget ?? details.statChoice ?? packet.specific);
+    if (kind === "debuff" && !authoredModifierAttribute) {
+      unsupportedReasons.push(
+        unsupported(
+          power,
+          "Debuff packet does not identify a supported target attribute.",
+          packet,
+        ),
+      );
+      continue;
+    }
     const modifierAttribute = normalizeAttribute(
-      packet.targetedAttribute ? CORE_TO_COMBAT_ATTRIBUTE[packet.targetedAttribute] : details.statTarget ?? details.statChoice,
+      authoredModifierAttribute,
       kind === "debuff" ? "Attack" : "Guard",
     );
     const rawPotency = asInt(packet.potency ?? power.potency, 1);

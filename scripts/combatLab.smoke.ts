@@ -34,6 +34,7 @@ import {
 import { calculateOutcomeSummary, formatSuiteReport, runScenarioSuite } from "../lib/combat-lab/reporting";
 import { chooseActionLaneOrder, chooseTarget, chooseTurnAction } from "../lib/combat-lab/targetingPolicies";
 import type { CombatAction, CombatActor, CombatState } from "../lib/combat-lab/types";
+import type { Power } from "../lib/summoning/types";
 
 type CombatLabCharacterRow = Parameters<typeof adaptCampaignCharacterToCombatActor>[0];
 type CombatLabCharacterBackpackItem = NonNullable<CombatLabCharacterRow["backpackItems"]>[number];
@@ -2336,7 +2337,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 {
   const attacker = fixtureActor("dodge-attacker", "players");
   const defender = fixtureActor("dodge-defender", "monsters", { dodgeDice: 2 });
-  const state = createCombatState([attacker], [defender]);
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
   const resolution = resolveCombatAction({
     state,
     actor: state.actors[0],
@@ -2356,7 +2357,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     physicalDefenceDice: 6,
     physicalBlockPerSuccess: 4,
   });
-  const state = createCombatState([attacker], [defender]);
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
   const resolution = resolveCombatAction({
     state,
     actor: state.actors[0],
@@ -2376,7 +2377,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     physicalDefenceDice: 1,
     physicalBlockPerSuccess: 1,
   });
-  const state = createCombatState([attacker], [defender]);
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
   const resolution = resolveCombatAction({
     state,
     actor: state.actors[0],
@@ -2619,7 +2620,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     physicalDefenceDice: 6,
     physicalBlockPerSuccess: 3,
   });
-  const state = createCombatState([attacker], [defender]);
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
   state.statusEffects.push({
     id: "guard-debuff-physical",
     sourceActorId: state.actors[0].id,
@@ -2648,7 +2649,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     physicalDefenceDice: 1,
     physicalBlockPerSuccess: 0,
   });
-  const state = createCombatState([attacker], [defender]);
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
   state.statusEffects.push({
     id: "guard-debuff-dodge",
     sourceActorId: state.actors[0].id,
@@ -2729,7 +2730,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     physicalBlockPerSuccess: 0,
     physicalProtection: 0,
   });
-  const state = createCombatState([attacker], [defender]);
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
   state.statusEffects.push({
     id: "mental-protection-only",
     sourceActorId: state.actors[1].id,
@@ -2754,7 +2755,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 {
   const attacker = fixtureActor("degrade-attacker", "players");
   const defender = fixtureActor("degrade-defender", "monsters", { dodgeDice: 1 });
-  const state = createCombatState([attacker], [defender]);
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
   const first = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: action(), rng: rngFrom([0.99, 0]) });
   const second = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: action(), rng: rngFrom([0.99, 0]) });
   if (first.dodgeDegradationApplied !== 0 || second.dodgeDegradationApplied !== 1) {
@@ -2766,7 +2767,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   const attacker = fixtureActor("resist-attacker", "players");
   const defender = fixtureActor("resist-defender", "monsters", { resist: { FORTITUDE: 0 } });
   defender.attributeDice.Fortitude = "D4";
-  const state = createCombatState([attacker], [defender]);
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
   const resolution = resolveCombatAction({
     state,
     actor: state.actors[0],
@@ -2781,6 +2782,259 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     resolution.stacksApplied !== 2
   ) {
     throw new Error("Resist did not cancel hostile successes success-by-success.");
+  }
+}
+
+{
+  const attacker = fixtureActor("debuff-resist-attacker", "players");
+  const defender = fixtureActor("debuff-resist-defender", "monsters", { resist: { ATTACK: 0 } });
+  defender.attributeDice.Attack = "D8";
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const debuff = action({
+    id: "fully-resisted-debuff",
+    name: "Fully Resisted Debuff",
+    sourceType: "power",
+    kind: "debuff",
+    targetPolicy: "enemy",
+    diceCount: 2,
+    potency: 1,
+    modifier: { attribute: "Attack", amount: 1, durationRounds: 2 },
+    resistAttribute: "ATTACK",
+  });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: debuff,
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99]),
+    lane: "power",
+  });
+  if (
+    resolution.resistRolls !== 1 ||
+    resolution.hostileSuccessesAfterResist !== 0 ||
+    resolution.debuffApplications !== 0 ||
+    state.statusEffects.some((effect) => effect.kind === "debuff")
+  ) {
+    throw new Error(`Fully resisted debuff should not create a status: ${JSON.stringify({ resolution, statuses: state.statusEffects })}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /rolled .* using Attack for Fully Resisted Debuff resist/i, "debuff resist roll");
+  expectTranscriptLine(state.transcriptLines, /Applied primary successes: 0/i, "fully resisted debuff applied successes");
+  expectTranscriptLine(state.transcriptLines, /Debuff result: .* resists Fully Resisted Debuff; no debuff is applied/i, "fully resisted debuff result");
+}
+
+{
+  const attacker = fixtureActor("debuff-partial-attacker", "players");
+  const defender = fixtureActor("debuff-partial-defender", "monsters", { resist: { ATTACK: 0 } });
+  defender.attributeDice.Attack = "D8";
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const debuff = action({
+    id: "partially-resisted-debuff",
+    name: "Partially Resisted Debuff",
+    sourceType: "power",
+    kind: "debuff",
+    targetPolicy: "enemy",
+    diceCount: 4,
+    potency: 2,
+    modifier: { attribute: "Attack", amount: 2, durationRounds: 2 },
+    resistAttribute: "ATTACK",
+  });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: debuff,
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99, 0, 0]),
+    lane: "power",
+  });
+  const status = state.statusEffects.find((effect) => effect.kind === "debuff" && effect.sourceActionName === debuff.name);
+  if (
+    resolution.resistRolls !== 1 ||
+    resolution.hostileSuccessesAfterResist !== 3 ||
+    resolution.debuffApplications !== 1 ||
+    !status ||
+    status.attribute !== "Attack"
+  ) {
+    throw new Error(`Partially resisted debuff did not apply correctly: ${JSON.stringify({ resolution, status, statuses: state.statusEffects })}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Applied primary successes: 3/i, "partially resisted debuff applied successes");
+  expectTranscriptLine(state.transcriptLines, /Debuff: Partially Resisted Debuff applies -2 Attack/i, "partially resisted debuff application");
+}
+
+{
+  const attacker = fixtureActor("debuff-no-gate-attacker", "players");
+  const defender = fixtureActor("debuff-no-gate-defender", "monsters");
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const debuff = action({
+    id: "ungated-debuff",
+    name: "Ungated Debuff",
+    sourceType: "power",
+    kind: "debuff",
+    targetPolicy: "enemy",
+    diceCount: 2,
+    potency: 1,
+    modifier: { attribute: "Guard", amount: 1, durationRounds: 2 },
+    resistAttribute: null,
+  });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: debuff,
+    rng: rngFrom([0.99, 0.99]),
+    lane: "power",
+  });
+  if (
+    resolution.resistRolls !== 0 ||
+    resolution.debuffApplications !== 1 ||
+    !state.statusEffects.some((effect) => effect.kind === "debuff" && effect.sourceActionName === debuff.name)
+  ) {
+    throw new Error(`Ungated debuff should apply from raw successes: ${JSON.stringify({ resolution, statuses: state.statusEffects })}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Applied primary successes: 2/i, "ungated debuff applied successes");
+}
+
+{
+  const predatorsReadPower: Power = {
+    id: "predators-read-fixture",
+    sortOrder: 1,
+    name: "Predators Read",
+    description: "Weakens a targets ability to attack",
+    descriptorChassis: "IMMEDIATE",
+    descriptorChassisConfig: {},
+    cooldownTurns: 1,
+    cooldownReduction: 0,
+    counterMode: "NO",
+    commitmentModifier: "STANDARD",
+    lifespanType: "NONE",
+    lifespanTurns: null,
+    rangeCategories: ["MELEE"],
+    meleeTargets: 1,
+    primaryDefenceGate: {
+      sourcePacketIndex: 0,
+      gateResult: "RESIST",
+      protectionChannel: null,
+      resistAttribute: "ATTACK",
+      hostileEntryPattern: null,
+      resolutionSource: "INFERRED",
+    },
+    effectPackets: [
+      {
+        sortOrder: 0,
+        packetIndex: 0,
+        hostility: "HOSTILE",
+        intention: "DEBUFF",
+        type: "DEBUFF",
+        specific: "Attack",
+        diceCount: 4,
+        potency: 4,
+        effectTimingType: "ON_CAST",
+        effectTimingTurns: null,
+        effectDurationType: "INSTANT",
+        effectDurationTurns: null,
+        dealsWounds: false,
+        woundChannel: null,
+        targetedAttribute: "ATTACK",
+        applicationModeKey: null,
+        resolutionOrigin: "CASTER",
+        applyTo: "PRIMARY_TARGET",
+        triggerConditionText: null,
+        detailsJson: {
+          statTarget: "Attack",
+          rangeCategory: "MELEE",
+          rangeValue: 1,
+          rangeExtra: {},
+          secondaryScalingMode: "PER_SUCCESS",
+          woundsPerSuccess: null,
+        },
+      },
+    ],
+    intentions: [],
+    diceCount: 4,
+    potency: 4,
+  };
+  const adapted = adaptPowerToCombatActions(predatorsReadPower);
+  const predatorsRead = adapted.actions[0];
+  if (
+    adapted.unsupported.length !== 0 ||
+    !predatorsRead ||
+    predatorsRead.kind !== "debuff" ||
+    predatorsRead.accuracyAttribute !== "Attack" ||
+    predatorsRead.resistAttribute !== "ATTACK" ||
+    predatorsRead.modifier?.attribute !== "Attack"
+  ) {
+    throw new Error(`Predators Read fixture did not hydrate as a supported Attack-resisted debuff: ${JSON.stringify(adapted)}.`);
+  }
+  const attacker = fixtureActor("predators-read-wolf", "monsters", { name: "Wolf Berzerker", actions: [predatorsRead] });
+  const defender = fixtureActor("predators-read-target", "players", { name: "CL-L3-Glass-Cannon", resist: { ATTACK: 0 } });
+  defender.attributeDice.Attack = "D8";
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: predatorsRead,
+    rng: rngFrom([0.99, 0.99, 0, 0, 0.99, 0, 0]),
+    lane: "power",
+  });
+  if (resolution.resistRolls !== 1 || resolution.hostileSuccessesAfterResist !== 1 || resolution.debuffApplications !== 1) {
+    throw new Error(`Predators Read fixture silently failed instead of resolving after Resist: ${JSON.stringify({ resolution, transcript: state.transcriptLines })}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Power Action: Wolf Berzerker uses Predators Read on CL-L3-Glass-Cannon/i, "Predators Read declaration");
+  expectTranscriptLine(state.transcriptLines, /rolled .* using Attack for Predators Read resist/i, "Predators Read resist roll");
+  expectTranscriptLine(state.transcriptLines, /Applied primary successes: 1/i, "Predators Read applied successes");
+  expectTranscriptLine(state.transcriptLines, /Debuff: Predators Read applies -4 Attack/i, "Predators Read debuff applied");
+}
+
+{
+  const unsupportedDebuffPower: Power = {
+    id: "unsupported-debuff-shape",
+    sortOrder: 0,
+    name: "Unsupported Debuff Shape",
+    description: null,
+    descriptorChassis: "IMMEDIATE",
+    descriptorChassisConfig: {},
+    cooldownTurns: 1,
+    cooldownReduction: 0,
+    counterMode: "NO",
+    commitmentModifier: "STANDARD",
+    lifespanType: "NONE",
+    lifespanTurns: null,
+    rangeCategories: ["MELEE"],
+    meleeTargets: 1,
+    primaryDefenceGate: null,
+    effectPackets: [
+      {
+        sortOrder: 0,
+        packetIndex: 0,
+        hostility: "HOSTILE",
+        intention: "DEBUFF",
+        type: "DEBUFF",
+        diceCount: 2,
+        potency: 1,
+        effectTimingType: "ON_CAST",
+        effectTimingTurns: null,
+        effectDurationType: "TURNS",
+        effectDurationTurns: 1,
+        dealsWounds: false,
+        woundChannel: null,
+        targetedAttribute: null,
+        applicationModeKey: null,
+        resolutionOrigin: "CASTER",
+        applyTo: "PRIMARY_TARGET",
+        triggerConditionText: null,
+        detailsJson: { rangeCategory: "MELEE" },
+      },
+    ],
+    intentions: [],
+    diceCount: 2,
+    potency: 1,
+  };
+  const adapted = adaptPowerToCombatActions(unsupportedDebuffPower);
+  if (
+    adapted.actions.length !== 0 ||
+    !adapted.unsupported.some((entry) => entry.reason.includes("Debuff packet does not identify a supported target attribute"))
+  ) {
+    throw new Error(`Unsupported debuff shape was not explicitly diagnosed: ${JSON.stringify(adapted)}.`);
   }
 }
 

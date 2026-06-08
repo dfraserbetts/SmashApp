@@ -1201,7 +1201,7 @@ function resolveSingleTargetAction(params: {
       },
     });
   } else if (
-    (action.kind === "attack" || action.kind === "control" || action.kind === "movement") &&
+    (action.kind === "attack" || action.kind === "debuff" || action.kind === "control" || action.kind === "movement") &&
     !counterDeclaration.declared
   ) {
     const resistMetrics = resolveResist(state, target, action, metrics.rawSuccesses, rng);
@@ -1235,6 +1235,46 @@ function resolveSingleTargetAction(params: {
     (Boolean(action.resistAttribute) || Boolean(action.usesPrimaryAppliedSuccesses)) &&
     !counterDeclaration.declared?.hasAttackPacket
   ) {
+    if (action.kind === "debuff") {
+      emitTranscriptEvent(state, {
+        type: "debuffApplied",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Debuff result: ${target.name} resists ${action.name}; no debuff is applied.`,
+        details: { appliedPrimarySuccesses: activeAppliedSuccesses, resisted: true },
+      });
+    } else if (action.kind === "control") {
+      emitTranscriptEvent(state, {
+        type: "statusCreated",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Control result: ${target.name} resists ${action.name}; no control effect is applied.`,
+        details: { appliedPrimarySuccesses: activeAppliedSuccesses, resisted: true },
+      });
+    } else if (action.kind === "movement") {
+      emitTranscriptEvent(state, {
+        type: "statusCreated",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Movement result: ${target.name} resists ${action.name}; no forced movement is applied.`,
+        details: { appliedPrimarySuccesses: activeAppliedSuccesses, resisted: true },
+      });
+    }
     return metrics;
   }
 
