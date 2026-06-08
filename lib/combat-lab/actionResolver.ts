@@ -633,7 +633,7 @@ function declareCounter(params: {
 
   const hasAttackPacket = counterAttackPackets(action).length > 0;
   const hasDefencePacket = counterDefencePackets(action, pool).length > 0;
-  const forfeitsNormalDefence = hasAttackPacket && !hasDefencePacket;
+  const forfeitsNormalDefence = true;
   const declared: DeclaredCounter = { action, hasAttackPacket, hasDefencePacket, forfeitsNormalDefence };
 
   emitTranscriptEvent(state, {
@@ -654,6 +654,18 @@ function declareCounter(params: {
       forfeitsNormalDefence,
     },
   });
+  emitTranscriptEvent(state, {
+    type: "counterDeclared",
+    actorId: target.id,
+    actorName: target.name,
+    targetId: attacker.id,
+    targetName: attacker.name,
+    actionId: action.id,
+    actionName: action.name,
+    lane: "response",
+    message: `Counter replacement: ${action.name} replaces normal Dodge, Physical Defence, Mental Defence, or Resist for this trigger.`,
+    details: { forfeitsNormalDefence: true },
+  });
   if (forfeitsNormalDefence) {
     emitTranscriptEvent(state, {
       type: "counterDeclared",
@@ -664,21 +676,12 @@ function declareCounter(params: {
       actionId: action.id,
       actionName: action.name,
       lane: "response",
-      message: `Counter tradeoff: ${action.name} includes an Attack packet and no Defence packet, so ${target.name} forfeits normal defence against ${incomingAction.name}.`,
+      message: hasAttackPacket && !hasDefencePacket
+        ? `Counter tradeoff: ${action.name} includes an Attack packet and no Defence packet, so it provides no incoming mitigation beyond already-active passive/static effects.`
+        : hasDefencePacket
+          ? `Counter tradeoff: ${action.name} uses its authored defensive packet instead of normal active defence against ${incomingAction.name}.`
+          : `Counter tradeoff: ${action.name} has no hydrated Attack or Defence packet; normal active defence is still replaced, so any benefit must come from its supported Counter effect.`,
       details: { forfeitsNormalDefence: true },
-    });
-  } else if (hasAttackPacket && hasDefencePacket) {
-    emitTranscriptEvent(state, {
-      type: "counterDeclared",
-      actorId: target.id,
-      actorName: target.name,
-      targetId: attacker.id,
-      targetName: attacker.name,
-      actionId: action.id,
-      actionName: action.name,
-      lane: "response",
-      message: `Counter tradeoff: ${action.name} includes Defence, so its authored defensive packet applies against ${incomingAction.name}.`,
-      details: { forfeitsNormalDefence: false },
     });
   }
 
@@ -920,6 +923,7 @@ function resolveSingleTargetAction(params: {
       ? declareCounter({ state, target, attacker: actor, incomingAction: action, pool: poolForCounterDeclaration })
       : { declared: null, metrics: emptyResolution() };
   addMetrics(metrics, counterDeclaration.metrics);
+  const counterRoll = rollDeclaredCounter(state, target, actor, counterDeclaration.declared, rng);
   const diceCount = Math.max(0, action.diceCount);
   const roll = skipOwnRoll
     ? null
@@ -943,7 +947,6 @@ function resolveSingleTargetAction(params: {
       details: { actionKind: action.kind, potency: action.potency, pool: action.pool ?? null },
     });
   }
-  const counterRoll = rollDeclaredCounter(state, target, actor, counterDeclaration.declared, rng);
 
   if (gateAlreadyResolved) {
     const linkedContext = params.linkedPrimaryContext;
@@ -976,7 +979,7 @@ function resolveSingleTargetAction(params: {
     });
   } else if (
     (action.kind === "attack" || action.kind === "control" || action.kind === "movement") &&
-    !counterDeclaration.declared?.forfeitsNormalDefence
+    !counterDeclaration.declared
   ) {
     const resistMetrics = resolveResist(state, target, action, metrics.rawSuccesses, rng);
     addMetrics(metrics, resistMetrics);
@@ -985,7 +988,7 @@ function resolveSingleTargetAction(params: {
   const activeAppliedSuccesses =
     gateAlreadyResolved && action.usesPrimaryAppliedSuccesses
       ? inheritedPrimaryAppliedSuccesses
-      : !gateAlreadyResolved && action.resistAttribute && !counterDeclaration.declared?.forfeitsNormalDefence
+      : !gateAlreadyResolved && action.resistAttribute && !counterDeclaration.declared
         ? metrics.hostileSuccessesAfterResist
         : metrics.rawSuccesses;
 
@@ -1041,7 +1044,7 @@ function resolveSingleTargetAction(params: {
           : `Declared damage: ${action.name} has ${activeHostileSuccesses} active successes x ${effectPerSuccess} = ${rawWounds} ${woundLabel} wounds before defence.`,
       details: { activeSuccesses: activeHostileSuccesses, potency: effectPerSuccess, rawWounds, pool, damageApplicationTiming },
     });
-    const normalDefenceMetrics = gateAlreadyResolved || counterDeclaration.declared?.forfeitsNormalDefence
+    const normalDefenceMetrics = gateAlreadyResolved || counterDeclaration.declared
       ? emptyResolution()
       : resolveBestNormalDefence({
           state,

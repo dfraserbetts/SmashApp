@@ -1486,7 +1486,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     ],
     { captureTranscript: true },
   );
-  resolveCombatAction({
+  const deflectResolution = resolveCombatAction({
     state: deflectState,
     actor: deflectState.actors[1],
     target: deflectState.actors[0],
@@ -1495,7 +1495,15 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     lane: "main",
   });
   expectTranscriptLine(deflectState.transcriptLines, /Counter declared: deflect-defender will use Deflect attack against Tusk Club/i, "Deflect counter declaration");
+  expectTranscriptLine(deflectState.transcriptLines, /Counter replacement: Deflect attack replaces normal Dodge, Physical Defence, Mental Defence, or Resist/i, "Deflect counter replacement");
   expectTranscriptLine(deflectState.transcriptLines, /Roll: deflect-defender rolled 3 x D6 using Guard for Deflect attack/i, "Deflect counter Guard roll");
+  expectTranscriptLine(deflectState.transcriptLines, /Counter mitigation: deflect-defender's Deflect attack prevents/i, "Deflect counter mitigation");
+  if (deflectResolution.counterMitigation <= 0 || deflectResolution.dodgeChosen !== 0 || deflectResolution.physicalDefenceChosen !== 0) {
+    throw new Error(`Deflect counter should mitigate without stacking Dodge or normal physical defence: ${JSON.stringify(deflectResolution)}.`);
+  }
+  if (deflectState.transcriptLines.some((line) => /Defence choice: deflect-defender chooses|Dodge succeeded|Dodge failed|using Guard for physical defence/i.test(line))) {
+    throw new Error(`Deflect counter stacked a normal active defence: ${deflectState.transcriptLines.join(" | ")}`);
+  }
   if (deflectState.transcriptLines.some((line) => /Deflect attack: .*using Synergy|using Synergy for Deflect attack/i.test(line))) {
     throw new Error(`Deflect counter used Synergy instead of Guard: ${deflectState.transcriptLines.join(" | ")}`);
   }
@@ -3011,7 +3019,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     actor: state.actors[0],
     target: state.actors[1],
     action: state.actors[0].actions[0],
-    rng: rngFrom([0, 0.99]),
+    rng: rngFrom([0.99, 0]),
     lane: "main",
   });
   if (resolution.counterDamage !== 3 || resolution.dodgeChosen !== 0 || resolution.physicalDefenceChosen !== 0) {
@@ -3115,7 +3123,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (resolution.counterDamage <= 0 || resolution.counterMitigation <= 0) {
     throw new Error(`Hybrid counter did not both mitigate and attack: ${JSON.stringify(resolution)}.`);
   }
-  expectTranscriptLine(state.transcriptLines, /Counter tradeoff: Hybrid Counter includes Defence/i, "hybrid counter defensive tradeoff");
+  expectTranscriptLine(state.transcriptLines, /Counter tradeoff: Hybrid Counter uses its authored defensive packet instead of normal active defence/i, "hybrid counter defensive tradeoff");
   expectTranscriptLine(state.transcriptLines, /Counter mitigation: .* prevents 2 mental wounds/i, "hybrid counter mitigation");
   expectTranscriptLine(state.transcriptLines, /Counter result: hybrid-counter-attacker suffers/i, "hybrid counter attack");
 }
@@ -3879,19 +3887,23 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     lane: "power",
   });
   const created = state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
-  if (!created || created.amount !== 3 || state.actors[1].physicalHpCurrent !== 100) {
-    throw new Error(`Protection/counter did not reduce pure DoT stored payload from 16 to 3 without immediate damage: ${JSON.stringify({ created, hp: state.actors[1].physicalHpCurrent })}.`);
+  if (!created || created.amount !== 15 || state.actors[1].physicalHpCurrent !== 100) {
+    throw new Error(`Counter replacement did not reduce pure DoT stored payload from 16 to 15 without immediate damage: ${JSON.stringify({ created, hp: state.actors[1].physicalHpCurrent })}.`);
   }
-  expectTranscriptLine(state.transcriptLines, /Physical Defence blocked 12 of 16 ongoing physical wounds per tick/i, "pure DoT physical defence per tick transcript");
-  expectTranscriptLine(state.transcriptLines, /Ongoing result: Protected Pure DoT stores 3 physical wounds per tick/i, "pure DoT stored net tick value");
+  expectTranscriptLine(state.transcriptLines, /Counter replacement: Protected Dot Counter replaces normal Dodge, Physical Defence, Mental Defence, or Resist/i, "pure DoT counter replacement transcript");
+  expectTranscriptLine(state.transcriptLines, /Counter mitigation: protected-dot-defender's Protected Dot Counter prevents 1 physical wounds/i, "pure DoT counter mitigation transcript");
+  expectTranscriptLine(state.transcriptLines, /Ongoing result: Protected Pure DoT stores 15 physical wounds per tick/i, "pure DoT stored net tick value");
   expectTranscriptLine(state.transcriptLines, /Declaration prevention .* reduced the stored tick value/i, "pure DoT protection reduction transcript");
+  if (state.transcriptLines.some((line) => /Physical Defence blocked|Defence choice: protected-dot-defender chooses/i.test(line))) {
+    throw new Error(`Pure DoT counter incorrectly stacked normal physical defence: ${state.transcriptLines.join(" | ")}`);
+  }
   if (state.transcriptLines.some((line) => /Attack result: protected-dot-defender suffers/i.test(line))) {
     throw new Error(`Protected pure DoT still reported immediate HP damage: ${state.transcriptLines.join(" | ")}`);
   }
   resolveStartOfTurnEffects(state, state.actors[1]);
   const protectedPureDotHpAfterTick = Number(state.actors[1].physicalHpCurrent);
-  if (protectedPureDotHpAfterTick !== 97) {
-    throw new Error(`Stored pure DoT tick did not deal 3 damage at start of turn: ${protectedPureDotHpAfterTick}.`);
+  if (protectedPureDotHpAfterTick !== 85) {
+    throw new Error(`Stored pure DoT tick did not deal 15 damage at start of turn: ${protectedPureDotHpAfterTick}.`);
   }
 }
 
@@ -4014,26 +4026,29 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     lane: "power",
   });
   const created = state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
-  if (!created || created.amount !== 4 || created.damageLabel !== "physical Slashing" || state.actors[0].physicalHpCurrent !== 100) {
-    throw new Error(`Live Swiping Claws path did not store 4 physical Slashing per tick without immediate damage: ${JSON.stringify({ action: swipingClaws, created, hp: state.actors[0].physicalHpCurrent })}.`);
+  if (!created || created.amount !== 13 || created.damageLabel !== "physical Slashing" || state.actors[0].physicalHpCurrent !== 100) {
+    throw new Error(`Live Swiping Claws path did not store 13 physical Slashing per tick without immediate damage: ${JSON.stringify({ action: swipingClaws, created, hp: state.actors[0].physicalHpCurrent })}.`);
   }
   if (getActionCooldownRemaining(state, state.actors[1].id, swipingClaws.id) !== 2) {
     throw new Error("Live Swiping Claws did not enter cooldown 2.");
   }
   expectTranscriptLine(state.transcriptLines, /Ongoing declaration: Swiping Claws has 2 active successes x 8 = 16 physical Slashing wounds per tick/i, "live Swiping Claws potential tick transcript");
-  expectTranscriptLine(state.transcriptLines, /Physical Defence blocked 9 of 16 ongoing physical wounds per tick/i, "live Swiping Claws defence prevention transcript");
+  expectTranscriptLine(state.transcriptLines, /Counter replacement: Live Swiping Counter replaces normal Dodge, Physical Defence, Mental Defence, or Resist/i, "live Swiping Claws counter replacement transcript");
   expectTranscriptLine(state.transcriptLines, /Counter mitigation: .* prevents 3 physical wounds/i, "live Swiping Claws counter mitigation transcript");
-  expectTranscriptLine(state.transcriptLines, /Ongoing result: Swiping Claws stores 4 physical Slashing wounds per tick.*Prevented 12/i, "live Swiping Claws stored tick transcript");
-  expectTranscriptLine(state.transcriptLines, /Status created: Swiping Claws ongoing damage .* 4 physical Slashing wounds per tick/i, "live Swiping Claws status transcript");
+  expectTranscriptLine(state.transcriptLines, /Ongoing result: Swiping Claws stores 13 physical Slashing wounds per tick.*Prevented 3/i, "live Swiping Claws stored tick transcript");
+  expectTranscriptLine(state.transcriptLines, /Status created: Swiping Claws ongoing damage .* 13 physical Slashing wounds per tick/i, "live Swiping Claws status transcript");
+  if (state.transcriptLines.some((line) => /Physical Defence blocked|Defence choice: live-swiping-target chooses/i.test(line))) {
+    throw new Error(`Live Swiping Claws counter incorrectly stacked normal physical defence: ${state.transcriptLines.join(" | ")}`);
+  }
   if (state.transcriptLines.some((line) => /Attack result: live-swiping-target suffers/i.test(line))) {
     throw new Error(`Live Swiping Claws still reported immediate HP damage: ${state.transcriptLines.join(" | ")}`);
   }
   resolveStartOfTurnEffects(state, state.actors[0]);
   const liveSwipingHpAfterTick = Number(state.actors[0].physicalHpCurrent);
-  if (liveSwipingHpAfterTick !== 96) {
-    throw new Error(`Live Swiping Claws start-turn tick did not deal stored value 4: ${liveSwipingHpAfterTick}.`);
+  if (liveSwipingHpAfterTick !== 87) {
+    throw new Error(`Live Swiping Claws start-turn tick did not deal stored value 13: ${liveSwipingHpAfterTick}.`);
   }
-  expectTranscriptLine(state.transcriptLines, /Start of Turn: live-swiping-target suffers 4 physical Slashing wounds from Swiping Claws\. Ticks remaining after this: 1/i, "live Swiping Claws tick transcript");
+  expectTranscriptLine(state.transcriptLines, /Start of Turn: live-swiping-target suffers 13 physical Slashing wounds from Swiping Claws\. Ticks remaining after this: 1/i, "live Swiping Claws tick transcript");
 }
 
 {
@@ -4909,15 +4924,18 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   expectTranscriptLine(state.transcriptLines, /Cooldown: Counterstrike enters cooldown 2/i, "counter cooldown applied");
   expectTranscriptLine(state.transcriptLines, /Cooldown tick: Counterstrike 2 -> 1/i, "counter cooldown tick");
   const counterDeclarationIndex = state.transcriptLines.findIndex((line) => /Counter declared:/i.test(line));
+  const counterRollIndex = state.transcriptLines.findIndex((line) => /Roll: transcript-counter-defender rolled .* for Counterstrike/i.test(line));
   const incomingRollIndex = state.transcriptLines.findIndex((line) => /Roll: transcript-counter-attacker rolled/i.test(line));
   const incomingResultIndex = state.transcriptLines.findIndex((line) => /Incoming result:/i.test(line));
   const counterResultIndex = state.transcriptLines.findIndex((line) => /Counter result:/i.test(line));
   if (
     counterDeclarationIndex < 0 ||
+    counterRollIndex < 0 ||
     incomingRollIndex < 0 ||
     incomingResultIndex < 0 ||
     counterResultIndex < 0 ||
     counterDeclarationIndex > incomingRollIndex ||
+    counterRollIndex > incomingRollIndex ||
     incomingResultIndex > counterResultIndex
   ) {
     throw new Error(`Counter transcript order was incorrect: ${state.transcriptLines.join(" | ")}`);
