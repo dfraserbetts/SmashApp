@@ -286,7 +286,11 @@ function resolvePowerRollAttribute(params: {
   targetPolicy: CombatAction["targetPolicy"];
   pool: CombatPool;
   modifierAttribute: CombatAttributeName;
-}): { attribute: CombatAttributeName; warning: string | null } {
+}): {
+  attribute: CombatAttributeName;
+  contextualAttributes?: CombatAction["contextualAccuracyAttributes"];
+  warning: string | null;
+} {
   const explicit = params.packet.targetedAttribute
     ? CORE_TO_COMBAT_ATTRIBUTE[params.packet.targetedAttribute]
     : authoredAttribute(params.details.rollAttribute ?? params.details.rollAttributeOverride ?? params.details.checkAttribute);
@@ -301,18 +305,28 @@ function resolvePowerRollAttribute(params: {
     return { attribute: "Synergy", warning: null };
   }
   if (params.kind === "defence") {
+    const themed = themedSelfDefenceAttribute(params.power, params.packet, params.details, params.pool);
     if (params.targetPolicy === "self") {
-      const themed = themedSelfDefenceAttribute(params.power, params.packet, params.details, params.pool);
       if (explicit && explicit !== themed.attribute) {
         return {
           attribute: themed.attribute,
+          contextualAttributes: { self: themed.attribute },
           warning: `Power "${params.power.name}" self-targeted ${params.pool} defence authored roll attribute ${explicit}, but its self-defence theme resolves to ${themed.attribute}; Combat Lab used ${themed.attribute} instead of defaulting to Synergy.`,
         };
       }
-      return explicit ? { attribute: explicit, warning: null } : themed;
+      return explicit
+        ? { attribute: explicit, contextualAttributes: { self: explicit }, warning: null }
+        : { ...themed, contextualAttributes: { self: themed.attribute } };
     }
-    if (explicit) return { attribute: explicit, warning: null };
-    return { attribute: "Synergy", warning: null };
+    const allyAttribute = explicit ?? "Synergy";
+    return {
+      attribute: allyAttribute,
+      contextualAttributes: {
+        self: themed.attribute,
+        ally: allyAttribute,
+      },
+      warning: null,
+    };
   }
   if (params.kind === "buff") {
     if (explicit && params.targetPolicy !== "self") return { attribute: explicit, warning: null };
@@ -534,6 +548,7 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       rangeCategory,
       targetCount,
       accuracyAttribute: rollAttributeResolution.attribute,
+      contextualAccuracyAttributes: rollAttributeResolution.contextualAttributes,
       diceCount,
       potency,
       protection: kind === "defence" ? potency : undefined,

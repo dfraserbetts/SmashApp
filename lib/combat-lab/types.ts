@@ -57,6 +57,11 @@ export type CombatAction = {
   damageTypeCount?: number;
   damageTypes?: string[];
   accuracyAttribute: CombatAttributeName;
+  contextualAccuracyAttributes?: {
+    self?: CombatAttributeName;
+    ally?: CombatAttributeName;
+    enemy?: CombatAttributeName;
+  };
   diceCount: number;
   potency: number;
   protection?: number;

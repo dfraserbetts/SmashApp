@@ -1443,6 +1443,143 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     throw new Error(`Self forcefield/guard defence should roll Guard, not Synergy: ${JSON.stringify(forcefieldPower)}.`);
   }
 
+  const interposeBase = makeFixturePower({
+    id: "interpose-context-attribute",
+    name: "Interpose Shield",
+    intention: "DEFENCE",
+    diceCount: 3,
+    potency: 4,
+    cooldownTurns: 2,
+  });
+  const interposePower = {
+    ...interposeBase,
+    counterMode: "YES" as const,
+    effectPackets: [
+      {
+        ...interposeBase.effectPackets[0],
+        applyTo: "PRIMARY_TARGET" as const,
+        targetedAttribute: null,
+        detailsJson: { attackMode: "PHYSICAL", rangeCategory: "MELEE", rangeValue: 1 },
+      },
+    ],
+  };
+  const interposeAdapted = adaptPowerToCombatActions(interposePower);
+  const interpose = interposeAdapted.actions[0];
+  if (
+    !interpose ||
+    interpose.targetPolicy !== "ally" ||
+    interpose.accuracyAttribute !== "Synergy" ||
+    interpose.contextualAccuracyAttributes?.self !== "Guard" ||
+    interpose.contextualAccuracyAttributes?.ally !== "Synergy"
+  ) {
+    throw new Error(`Interpose-style ally-capable defence should default ally use to Synergy and self use to Guard: ${JSON.stringify(interposeAdapted)}.`);
+  }
+
+  const { actor: interposeHydratedActor } = adaptCampaignCharacterToCombatActor(
+    makeCharacterRow({
+      builderData: makeCharacterBuilderData({ powers: [interposePower] }),
+      backpackItems: [],
+    }),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  const hydratedInterpose = interposeHydratedActor.actions.find((candidate) => candidate.name === "Interpose Shield");
+  if (
+    !hydratedInterpose ||
+    hydratedInterpose.targetPolicy !== "ally" ||
+    hydratedInterpose.accuracyAttribute !== "Synergy" ||
+    hydratedInterpose.contextualAccuracyAttributes?.self !== "Guard" ||
+    hydratedInterpose.contextualAccuracyAttributes?.ally !== "Synergy"
+  ) {
+    throw new Error(`Character Builder Interpose-style defence did not preserve context-sensitive attributes: ${JSON.stringify(hydratedInterpose)}.`);
+  }
+
+  const interposeSelfState = createCombatState(
+    [
+      fixtureActor("interpose-tank", "players", {
+        attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D4", Bravery: "D8" },
+        actions: [interpose],
+      }),
+    ],
+    [
+      fixtureActor("interpose-attacker", "monsters", {
+        actions: [action({ id: "interpose-trigger", name: "Swiping Claws", sourceType: "naturalAttack", diceCount: 1, potency: 10 })],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  resolveCombatAction({
+    state: interposeSelfState,
+    actor: interposeSelfState.actors[1],
+    target: interposeSelfState.actors[0],
+    action: interposeSelfState.actors[1].actions[0],
+    rng: rngFrom([0.99, 0.45, 0.45, 0.99]),
+    lane: "main",
+  });
+  expectTranscriptLine(interposeSelfState.transcriptLines, /Counter declared: interpose-tank will use Interpose Shield against Swiping Claws/i, "Interpose self counter declaration");
+  expectTranscriptLine(interposeSelfState.transcriptLines, /Roll: interpose-tank rolled 3 x D12 using Guard for Interpose Shield/i, "Interpose self Guard counter roll");
+  if (interposeSelfState.transcriptLines.some((line) => /using Synergy for Interpose Shield/i.test(line))) {
+    throw new Error(`Self Interpose Shield used Synergy instead of Guard: ${interposeSelfState.transcriptLines.join(" | ")}`);
+  }
+
+  const interposeAllyState = createCombatState(
+    [
+      fixtureActor("interpose-protector", "players", {
+        attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D6", Bravery: "D8" },
+        actions: [interpose],
+      }),
+      fixtureActor("interpose-ally", "players"),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  resolveCombatAction({
+    state: interposeAllyState,
+    actor: interposeAllyState.actors[0],
+    target: interposeAllyState.actors[1],
+    action: interpose,
+    rng: rngFrom([0.99, 0.45, 0.45]),
+    lane: "response",
+  });
+  expectTranscriptLine(interposeAllyState.transcriptLines, /Roll: interpose-protector rolled 3 x D6 using Synergy for Interpose Shield/i, "Interpose ally Synergy roll");
+
+  const damageCounterAction = {
+    ...action({
+      id: "damage-counter-attribute",
+      name: "Riposte",
+      sourceType: "power",
+      kind: "attack",
+      targetPolicy: "enemy",
+      counterMode: true,
+      accuracyAttribute: "Attack",
+      diceCount: 3,
+      potency: 3,
+      cooldownRounds: 1,
+    }),
+  };
+  const damageCounterState = createCombatState(
+    [
+      fixtureActor("damage-counter-defender", "players", {
+        attributeDice: { Attack: "D10", Guard: "D4", Fortitude: "D8", Intellect: "D8", Synergy: "D4", Bravery: "D8" },
+        actions: [damageCounterAction],
+      }),
+    ],
+    [
+      fixtureActor("damage-counter-attacker", "monsters", {
+        actions: [action({ id: "damage-counter-trigger", name: "Bite", sourceType: "naturalAttack", diceCount: 1, potency: 5 })],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  resolveCombatAction({
+    state: damageCounterState,
+    actor: damageCounterState.actors[1],
+    target: damageCounterState.actors[0],
+    action: damageCounterState.actors[1].actions[0],
+    rng: rngFrom([0.99, 0.45, 0.45, 0.99]),
+    lane: "main",
+  });
+  expectTranscriptLine(damageCounterState.transcriptLines, /Roll: damage-counter-defender rolled 3 x D10 using Attack for Riposte/i, "damage counter Attack roll");
+
   const deflectPower = adaptPowerToCombatActions({
     ...makeFixturePower({
       id: "deflect-counter-attribute",

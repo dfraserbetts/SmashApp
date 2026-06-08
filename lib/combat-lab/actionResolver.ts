@@ -109,8 +109,21 @@ function emptyResolution(): CombatResolutionMetrics {
   };
 }
 
-function getActorDie(actor: CombatActor, action: CombatAction) {
-  return actor.attributeDice[action.accuracyAttribute] ?? "D8";
+function effectiveAccuracyAttribute(actor: CombatActor, target: CombatActor, action: CombatAction): CombatAttributeName {
+  if (actor.id === target.id && action.contextualAccuracyAttributes?.self) {
+    return action.contextualAccuracyAttributes.self;
+  }
+  if (actor.side === target.side && actor.id !== target.id && action.contextualAccuracyAttributes?.ally) {
+    return action.contextualAccuracyAttributes.ally;
+  }
+  if (actor.side !== target.side && action.contextualAccuracyAttributes?.enemy) {
+    return action.contextualAccuracyAttributes.enemy;
+  }
+  return action.accuracyAttribute;
+}
+
+function getActorDie(actor: CombatActor, attribute: CombatAttributeName) {
+  return actor.attributeDice[attribute] ?? "D8";
 }
 
 type CombatDiceRoll = ReturnType<typeof rollDice> & { modifier: number };
@@ -891,13 +904,14 @@ function rollDeclaredCounter(
 ): DeclaredCounterRoll | null {
   if (!declared) return null;
   const action = declared.action;
+  const accuracyAttribute = effectiveAccuracyAttribute(target, target, action);
   const roll = rollDice(
     Math.max(1, action.diceCount),
-    getActorDie(target, action),
+    getActorDie(target, accuracyAttribute),
     rng,
-    getAttributeModifier(state, target.id, action.accuracyAttribute),
+    getAttributeModifier(state, target.id, accuracyAttribute),
   );
-  const rollSummary = summarizeRoll({ actor: target, reason: action.name, attribute: action.accuracyAttribute, roll });
+  const rollSummary = summarizeRoll({ actor: target, reason: action.name, attribute: accuracyAttribute, roll });
   emitTranscriptEvent(state, {
     type: "counterRoll",
     actorId: target.id,
@@ -1099,7 +1113,8 @@ function resolveSingleTargetAction(params: {
   const gateAlreadyResolved = Boolean(params.gateAlreadyResolved || params.fromSecondary);
   const metrics = emptyResolution();
   let linkedWoundBandContext: LinkedPrimaryContext | null = null;
-  const actorAttributeModifier = getAttributeModifier(state, actor.id, action.accuracyAttribute);
+  const accuracyAttribute = effectiveAccuracyAttribute(actor, target, action);
+  const actorAttributeModifier = getAttributeModifier(state, actor.id, accuracyAttribute);
   if (actorAttributeModifier > 0) metrics.buffedActions = 1;
   if (actorAttributeModifier < 0) metrics.debuffedActions = 1;
   const inheritedPrimaryAppliedSuccesses = Math.max(0, Math.trunc(params.primaryAppliedSuccesses ?? 0));
@@ -1114,9 +1129,9 @@ function resolveSingleTargetAction(params: {
   const diceCount = Math.max(0, action.diceCount);
   const roll = skipOwnRoll
     ? null
-    : rollDice(diceCount, getActorDie(actor, action), rng, actorAttributeModifier);
+    : rollDice(diceCount, getActorDie(actor, accuracyAttribute), rng, actorAttributeModifier);
   const rollSummary = roll
-    ? summarizeRoll({ actor, reason: action.name, attribute: action.accuracyAttribute, roll })
+    ? summarizeRoll({ actor, reason: action.name, attribute: accuracyAttribute, roll })
     : null;
   metrics.rawSuccesses = skipOwnRoll ? inheritedPrimaryAppliedSuccesses : (roll?.successes ?? 0);
   if (roll && rollSummary) {
