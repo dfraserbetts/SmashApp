@@ -423,7 +423,13 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
   for (const packet of packets) {
     if (skippedPacketIndexes.has(packet.packetIndex ?? -1)) continue;
     const castableIssue = packetIsCastableNow(power, packet);
+    const details = asRecord(packet.detailsJson);
     const kind = actionKindForIntention(packet.intention);
+    const applyTo = packet.applyTo ?? asString(details.applyTo).toUpperCase();
+    const selfTargetedMovementCounter =
+      power.counterMode === "YES" &&
+      kind === "movement" &&
+      (applyTo === "SELF" || asString(details.rangeCategory).toUpperCase() === "SELF");
     if (castableIssue || !kind) {
       unsupportedReasons.push(
         unsupported(
@@ -434,8 +440,12 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       );
       continue;
     }
+    if (!options.linkedSecondary && selfTargetedMovementCounter) {
+      warnings.push(
+        `Power "${power.name}" is authored as a self-targeted Movement Counter. Movement is not Dodge; Combat Lab kept it as movement. Author this as DEFENCE with defenceMode Dodge if it should be a Dodge Counter.`,
+      );
+    }
 
-    const details = asRecord(packet.detailsJson);
     const defenceMode = kind === "defence" ? normalizeDefenceMode(details.defenceMode) ?? "Block" : undefined;
     const defenceResistedAttribute =
       kind === "defence" && defenceMode === "Resist"

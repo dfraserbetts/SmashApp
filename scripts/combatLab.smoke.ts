@@ -1841,6 +1841,245 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     throw new Error(`Monster Dodge Counter should be legal and chosen when its EV is competitive: ${JSON.stringify({ resolution: monsterDodgeCounterResolution, transcript: monsterDodgeCounterState.transcriptLines })}.`);
   }
 
+  const ambiguousSuddenLeapPower = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "ambiguous-sudden-leap-like-power",
+      name: "Sudden Leap",
+      intention: "MOVEMENT",
+      diceCount: 2,
+      potency: 1,
+      applyTo: "SELF",
+      cooldownTurns: 4,
+    }),
+    counterMode: "YES",
+    effectPackets: [
+      {
+        ...makeFixturePower({
+          id: "ambiguous-sudden-leap-like-packet",
+          name: "Sudden Leap",
+          intention: "MOVEMENT",
+          diceCount: 2,
+          potency: 1,
+          applyTo: "SELF",
+        }).effectPackets[0],
+        applyTo: "SELF" as const,
+        detailsJson: { movementMode: "Run", rangeCategory: "SELF" },
+      },
+    ],
+  });
+  const ambiguousSuddenLeapCounter = ambiguousSuddenLeapPower.actions[0];
+  if (
+    !ambiguousSuddenLeapCounter ||
+    ambiguousSuddenLeapCounter.kind !== "movement" ||
+    ambiguousSuddenLeapCounter.defenceMode === "Dodge" ||
+    !ambiguousSuddenLeapCounter.counterMode ||
+    !ambiguousSuddenLeapPower.warnings.some((warning) =>
+      /self-targeted Movement Counter.*Movement is not Dodge.*DEFENCE with defenceMode Dodge/i.test(warning),
+    )
+  ) {
+    throw new Error(`Ambiguous self Movement Counter should stay movement and warn, not silently become Dodge: ${JSON.stringify(ambiguousSuddenLeapPower)}.`);
+  }
+
+  const authoredDodgeCounterPower = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "authored-dodge-counter-power",
+      name: "Sudden Leap",
+      intention: "DEFENCE",
+      diceCount: 2,
+      potency: 1,
+      applyTo: "SELF",
+      cooldownTurns: 4,
+    }),
+    counterMode: "YES",
+    effectPackets: [
+      {
+        ...makeFixturePower({
+          id: "authored-dodge-counter-packet",
+          name: "Sudden Leap",
+          intention: "DEFENCE",
+          diceCount: 2,
+          potency: 1,
+          applyTo: "SELF",
+        }).effectPackets[0],
+        applyTo: "SELF" as const,
+        detailsJson: { defenceMode: "Dodge", attackMode: "PHYSICAL", rangeCategory: "SELF" },
+      },
+    ],
+  });
+  const suddenLeapCounter = authoredDodgeCounterPower.actions[0];
+  if (
+    !suddenLeapCounter ||
+    suddenLeapCounter.kind !== "defence" ||
+    suddenLeapCounter.defenceMode !== "Dodge" ||
+    !suddenLeapCounter.counterMode
+  ) {
+    throw new Error(`DEFENCE + defenceMode Dodge Counter should hydrate as a Dodge Counter: ${JSON.stringify(authoredDodgeCounterPower)}.`);
+  }
+
+  const cleavePower = {
+    ...makeFixturePower({
+      id: "cleave-like-power",
+      name: "Cleave",
+      intention: "ATTACK",
+      diceCount: 2,
+      potency: 6,
+    }),
+    meleeTargets: 3,
+    primaryDefenceGate: {
+      gateResult: "DODGE_OR_PROTECTION" as const,
+      protectionChannel: "PHYSICAL" as const,
+      resistAttribute: null,
+      sourcePacketIndex: 0,
+      hostileEntryPattern: null,
+      resolutionSource: "INFERRED" as const,
+    },
+  };
+  const cleaveAction = {
+    ...action({
+      id: "cleave-like-action",
+      name: "Cleave",
+      sourceType: "power",
+      kind: "attack",
+      diceCount: 2,
+      potency: 6,
+      targetCount: 3,
+      pool: "physical",
+    }),
+    source: { power: cleavePower as Power, packet: cleavePower.effectPackets[0] },
+  };
+  const suddenLeapState = createCombatState(
+    [
+      fixtureActor("cleave-attacker", "players", {
+        actions: [cleaveAction],
+      }),
+    ],
+    [
+      fixtureActor("sudden-leap-defender", "monsters", {
+        attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        dodgeDice: 1,
+        physicalDefenceDice: 1,
+        physicalBlockPerSuccess: 0,
+        actions: [suddenLeapCounter],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  const suddenLeapResolution = resolveCombatAction({
+    state: suddenLeapState,
+    actor: suddenLeapState.actors[0],
+    target: suddenLeapState.actors[1],
+    action: suddenLeapState.actors[0].actions[0],
+    rng: rngFrom([0.45, 0.45, 0.99, 0.99]),
+    lane: "power",
+  });
+  expectTranscriptLine(suddenLeapState.transcriptLines, /Counter declared: sudden-leap-defender will use Sudden Leap against Cleave/i, "Sudden Leap counter declaration");
+  expectTranscriptLine(suddenLeapState.transcriptLines, /Dodge Counter: sudden-leap-defender's Sudden Leap rolls 2 successes x 1 = 2 Dodge against 2 incoming successes; the attack is avoided/i, "Sudden Leap match-or-exceed dodge");
+  if (
+    suddenLeapResolution.counterChosen !== 1 ||
+    suddenLeapResolution.responsesUsed !== 1 ||
+    suddenLeapResolution.woundsAvoidedByDodge <= 0 ||
+    suddenLeapResolution.netWounds !== 0 ||
+    suddenLeapState.counterCandidateDiagnostics[`${suddenLeapState.actors[1].id}:${suddenLeapCounter.id}`]?.skippedNonApplicable
+  ) {
+    throw new Error(`Sudden Leap should be legal against Cleave and avoid on match-or-exceed: ${JSON.stringify({ resolution: suddenLeapResolution, diagnostics: suddenLeapState.counterCandidateDiagnostics, transcript: suddenLeapState.transcriptLines })}.`);
+  }
+
+  const notTargetedState = createCombatState(
+    [
+      fixtureActor("not-targeted-cleave-attacker", "players", {
+        actions: [action({
+          id: "single-target-not-targeted-action",
+          name: "Single Target Strike",
+          sourceType: "power",
+          diceCount: 2,
+          potency: 6,
+          targetCount: 1,
+          pool: "physical",
+        })],
+      }),
+    ],
+    [
+      fixtureActor("not-targeted-sudden-leap-defender", "monsters", {
+        actions: [suddenLeapCounter],
+      }),
+      fixtureActor("actual-cleave-target", "monsters", {
+        dodgeDice: 1,
+        physicalDefenceDice: 1,
+        actions: [],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  const notTargetedAttacker = notTargetedState.actors.find((actor) => actor.id === "not-targeted-cleave-attacker");
+  const actualCleaveTarget = notTargetedState.actors.find((actor) => actor.id === "actual-cleave-target");
+  if (!notTargetedAttacker || !actualCleaveTarget) {
+    throw new Error(`Not-targeted Cleave fixture did not create expected actors: ${notTargetedState.actors.map((actor) => actor.id).join(", ")}`);
+  }
+  resolveCombatAction({
+    state: notTargetedState,
+    actor: notTargetedAttacker,
+    target: actualCleaveTarget,
+    action: notTargetedAttacker.actions[0],
+    rng: rngFrom([0.99, 0.99, 0.99]),
+    lane: "power",
+  });
+  if (notTargetedState.counterCandidateDiagnostics[`${notTargetedState.actors[1].id}:${suddenLeapCounter.id}`]) {
+    throw new Error(`Actor not targeted by Cleave should not declare or diagnose Sudden Leap: ${JSON.stringify(notTargetedState.counterCandidateDiagnostics)}.`);
+  }
+
+  const mentalNoDodgeState = createCombatState(
+    [
+      fixtureActor("mental-no-dodge-attacker", "players", {
+        actions: [action({
+          id: "mental-no-dodge-action",
+          name: "Mind Spike",
+          sourceType: "power",
+          pool: "mental",
+          diceCount: 2,
+          potency: 6,
+        })],
+      }),
+    ],
+    [
+      fixtureActor("mental-no-dodge-defender", "monsters", {
+        actions: [suddenLeapCounter],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  const mentalNoDodgeResolution = resolveCombatAction({
+    state: mentalNoDodgeState,
+    actor: mentalNoDodgeState.actors[0],
+    target: mentalNoDodgeState.actors[1],
+    action: mentalNoDodgeState.actors[0].actions[0],
+    rng: rngFrom([0.99, 0.99, 0.99]),
+    lane: "power",
+  });
+  const mentalDiagnostic = mentalNoDodgeState.counterCandidateDiagnostics[`${mentalNoDodgeState.actors[1].id}:${suddenLeapCounter.id}`];
+  if (
+    mentalNoDodgeResolution.counterChosen !== 0 ||
+    mentalDiagnostic?.skippedNonAvoidable !== 1 ||
+    !/non-physical and has no Dodge defence option/i.test(mentalDiagnostic.lastReason ?? "")
+  ) {
+    throw new Error(`Non-physical action without Dodge defence option should reject Sudden Leap for the real reason: ${JSON.stringify({ resolution: mentalNoDodgeResolution, diagnostic: mentalDiagnostic })}.`);
+  }
+
+  const hostileMovementCounterPower = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "hostile-movement-counter-power",
+      name: "Interrupting Rush",
+      intention: "MOVEMENT",
+      diceCount: 2,
+      potency: 1,
+      cooldownTurns: 1,
+    }),
+    counterMode: "YES",
+  });
+  const hostileMovementCounter = hostileMovementCounterPower.actions[0];
+  if (!hostileMovementCounter || hostileMovementCounter.kind !== "movement" || hostileMovementCounter.defenceMode === "Dodge") {
+    throw new Error(`Hostile movement Counter semantics should remain movement, not Dodge: ${JSON.stringify(hostileMovementCounterPower)}.`);
+  }
+
   const monsterFailedDodgeCounterState = createCombatState(
     [
       fixtureActor("failed-monster-dodge-attacker", "players", {

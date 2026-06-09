@@ -1357,7 +1357,14 @@ function counterAttackPackets(action: CombatAction) {
   return actionAndSecondaries(action).filter((entry) => entry.kind === "attack");
 }
 
-function isAvoidablePhysicalAttack(action: CombatAction, pool: "physical" | "mental") {
+function incomingActionExplicitlyAllowsDodge(action: CombatAction) {
+  const gateResult = action.source?.power?.primaryDefenceGate?.gateResult;
+  return gateResult === "DODGE" || gateResult === "DODGE_OR_PROTECTION";
+}
+
+function isDodgeableIncomingAction(action: CombatAction, pool: "physical" | "mental") {
+  if (action.kind !== "attack") return false;
+  if (incomingActionExplicitlyAllowsDodge(action)) return true;
   return action.kind === "attack" && pool === "physical" && !action.resistAttribute;
 }
 
@@ -1369,7 +1376,7 @@ function counterDefencePacketIsLegal(
   if (entry.kind !== "defence") return false;
   const mode = entry.defenceMode ?? "Block";
   if (mode === "Block") return (entry.pool ?? pool) === pool;
-  if (mode === "Dodge") return isAvoidablePhysicalAttack(incomingAction, pool);
+  if (mode === "Dodge") return isDodgeableIncomingAction(incomingAction, pool);
   if (mode === "Resist") {
     return Boolean(entry.defenceResistedAttribute && incomingAction.resistAttribute === entry.defenceResistedAttribute);
   }
@@ -1424,7 +1431,7 @@ function declareCounter(params: {
         action: candidate,
         reason: hasDodgePacket ? "nonAvoidable" : "nonApplicable",
         message: hasDodgePacket
-          ? `${incomingAction.name} is not an avoidable physical attack for ${candidate.name}`
+          ? `${incomingAction.name} is non-physical and has no Dodge defence option for ${candidate.name}`
           : `${candidate.name} has no legal counter packet for ${incomingAction.name}`,
       });
     }
