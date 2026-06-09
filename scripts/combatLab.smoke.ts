@@ -1698,6 +1698,205 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     throw new Error(`Deflect counter used Synergy instead of Guard: ${deflectState.transcriptLines.join(" | ")}`);
   }
 
+  const dodgeCounterPower = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "dodge-counter-power",
+      name: "Slip Aside",
+      intention: "DEFENCE",
+      diceCount: 3,
+      potency: 1,
+      cooldownTurns: 1,
+    }),
+    counterMode: "YES",
+    effectPackets: [
+      {
+        ...makeFixturePower({
+          id: "dodge-counter-packet",
+          name: "Slip Aside",
+          intention: "DEFENCE",
+          diceCount: 3,
+          potency: 1,
+        }).effectPackets[0],
+        applyTo: "SELF" as const,
+        detailsJson: { defenceMode: "Dodge", attackMode: "PHYSICAL", defenceTheme: "dodge" },
+      },
+    ],
+  });
+  const dodgeCounter = dodgeCounterPower.actions[0];
+  if (!dodgeCounter || dodgeCounter.defenceMode !== "Dodge" || dodgeCounter.protection !== undefined) {
+    throw new Error(`Dodge defence packet should hydrate as Dodge, not Block/protection: ${JSON.stringify(dodgeCounterPower)}.`);
+  }
+  const dodgeCounterState = createCombatState(
+    [
+      fixtureActor("dodge-counter-defender", "players", {
+        attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        dodgeDice: 1,
+        physicalDefenceDice: 1,
+        physicalBlockPerSuccess: 100,
+        actions: [dodgeCounter],
+      }),
+    ],
+    [
+      fixtureActor("dodge-counter-attacker", "monsters", {
+        actions: [action({ id: "dodge-counter-trigger", name: "Claw Strike", sourceType: "naturalAttack", diceCount: 2, potency: 10 })],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  const dodgeCounterResolution = resolveCombatAction({
+    state: dodgeCounterState,
+    actor: dodgeCounterState.actors[1],
+    target: dodgeCounterState.actors[0],
+    action: dodgeCounterState.actors[1].actions[0],
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99]),
+    lane: "main",
+  });
+  expectTranscriptLine(dodgeCounterState.transcriptLines, /Dodge Counter: dodge-counter-defender's Slip Aside rolls 6 successes x 1 = 6 Dodge against 2 incoming successes; the attack is avoided/i, "Dodge counter avoidance");
+  if (
+    dodgeCounterResolution.woundsAvoidedByDodge <= 0 ||
+    dodgeCounterResolution.netWounds !== 0 ||
+    dodgeCounterResolution.physicalDefenceChosen !== 0 ||
+    dodgeCounterState.transcriptLines.some((line) => /Defence choice: dodge-counter-defender chooses|using Guard for physical defence/i.test(line))
+  ) {
+    throw new Error(`Dodge counter should replace normal active defence and avoid the attack: ${JSON.stringify({ resolution: dodgeCounterResolution, transcript: dodgeCounterState.transcriptLines })}.`);
+  }
+
+  const resistCounterPower = adaptPowerToCombatActions({
+    ...makeFixturePower({
+      id: "resist-counter-power",
+      name: "Steel Mind",
+      intention: "DEFENCE",
+      diceCount: 3,
+      potency: 2,
+      cooldownTurns: 1,
+    }),
+    counterMode: "YES",
+    effectPackets: [
+      {
+        ...makeFixturePower({
+          id: "resist-counter-packet",
+          name: "Steel Mind",
+          intention: "DEFENCE",
+          diceCount: 3,
+          potency: 2,
+        }).effectPackets[0],
+        applyTo: "SELF" as const,
+        detailsJson: { defenceMode: "Resist", resistedAttribute: "BRAVERY", attackMode: "MENTAL" },
+      },
+    ],
+  });
+  const resistCounter = resistCounterPower.actions[0];
+  if (!resistCounter || resistCounter.defenceMode !== "Resist" || resistCounter.defenceResistedAttribute !== "BRAVERY") {
+    throw new Error(`Resist defence packet should hydrate resistedAttribute: ${JSON.stringify(resistCounterPower)}.`);
+  }
+  const resistCounterState = createCombatState(
+    [
+      fixtureActor("resist-counter-defender", "players", {
+        attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D12" },
+        resist: { BRAVERY: 0 },
+        actions: [resistCounter],
+      }),
+    ],
+    [
+      fixtureActor("resist-counter-attacker", "monsters", {
+        actions: [
+          action({
+            id: "resist-counter-trigger",
+            name: "Dread Command",
+            sourceType: "power",
+            kind: "control",
+            targetPolicy: "enemy",
+            diceCount: 2,
+            potency: 2,
+            resistAttribute: "BRAVERY",
+            cooldownRounds: 0,
+          }),
+        ],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  const resistCounterResolution = resolveCombatAction({
+    state: resistCounterState,
+    actor: resistCounterState.actors[1],
+    target: resistCounterState.actors[0],
+    action: resistCounterState.actors[1].actions[0],
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99]),
+    lane: "power",
+  });
+  expectTranscriptLine(resistCounterState.transcriptLines, /Resist Counter: resist-counter-defender's Steel Mind rolls 3 successes x 2 = 6 BRAVERY Resists; cancelled 2 of 2 hostile successes/i, "Resist counter cancellation");
+  if (
+    resistCounterResolution.hostileSuccessesCancelledByResist !== 2 ||
+    resistCounterResolution.controlTurnsApplied !== 0 ||
+    resistCounterState.statusEffects.some((effect) => effect.kind === "mainActionDenied")
+  ) {
+    throw new Error(`Resist counter should cancel matching hostile control successes: ${JSON.stringify({ resolution: resistCounterResolution, transcript: resistCounterState.transcriptLines })}.`);
+  }
+
+  const nonmatchingResistCounterState = createCombatState(
+    [
+      fixtureActor("nonmatching-resist-defender", "players", {
+        actions: [resistCounter],
+      }),
+    ],
+    [
+      fixtureActor("nonmatching-resist-attacker", "monsters", {
+        actions: [action({ id: "nonmatching-attack", name: "Sword Cut", sourceType: "naturalAttack", diceCount: 1, potency: 4 })],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  resolveCombatAction({
+    state: nonmatchingResistCounterState,
+    actor: nonmatchingResistCounterState.actors[1],
+    target: nonmatchingResistCounterState.actors[0],
+    action: nonmatchingResistCounterState.actors[1].actions[0],
+    rng: rngFrom([0.99, 0.99, 0.99]),
+    lane: "main",
+  });
+  if (nonmatchingResistCounterState.transcriptLines.some((line) => /Counter declared: nonmatching-resist-defender will use Steel Mind/i.test(line))) {
+    throw new Error(`Nonmatching Resist counter should not be tactically chosen against a plain physical attack: ${nonmatchingResistCounterState.transcriptLines.join(" | ")}`);
+  }
+
+  const authoredResistCleanupState = createCombatState(
+    [
+      fixtureActor("authored-resist-cleaner", "players", {
+        attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D12" },
+        actions: [resistCounter],
+      }),
+    ],
+    [
+      fixtureActor("authored-resist-source", "monsters"),
+    ],
+    { captureTranscript: true },
+  );
+  authoredResistCleanupState.statusEffects.push({
+    id: "hostile-bravery-stack",
+    sourceActorId: authoredResistCleanupState.actors[1].id,
+    targetActorId: authoredResistCleanupState.actors[0].id,
+    kind: "mainActionDenied",
+    amount: 4,
+    cleanupAttribute: "Bravery",
+    sourceActionId: "fear-net",
+    sourceActionName: "Fear Net",
+    remainingRounds: 3,
+  });
+  const authoredResistCleanupResolution = resolveCombatAction({
+    state: authoredResistCleanupState,
+    actor: authoredResistCleanupState.actors[0],
+    target: authoredResistCleanupState.actors[0],
+    action: { ...resistCounter, counterMode: false, cooldownRounds: 0 },
+    rng: rngFrom([0.99, 0.99, 0.99]),
+    lane: "main",
+  });
+  expectTranscriptLine(authoredResistCleanupState.transcriptLines, /Resist: Steel Mind rolls 3 successes x 2 = 6 BRAVERY Resists against Fear Net/i, "normal authored Resist cleanup roll");
+  if (
+    authoredResistCleanupResolution.stacksCleansed !== 4 ||
+    authoredResistCleanupState.statusEffects.some((effect) => effect.id === "hostile-bravery-stack")
+  ) {
+    throw new Error(`Normal-use authored Resist should clean matching hostile stacks: ${JSON.stringify({ resolution: authoredResistCleanupResolution, effects: authoredResistCleanupState.statusEffects, transcript: authoredResistCleanupState.transcriptLines })}.`);
+  }
+
   const inconsistentExplicitDeflect = adaptPowerToCombatActions({
     ...makeFixturePower({
       id: "deflect-explicit-synergy",

@@ -64,6 +64,8 @@ export type CombatAction = {
   };
   diceCount: number;
   potency: number;
+  defenceMode?: "Block" | "Dodge" | "Resist";
+  defenceResistedAttribute?: CoreAttribute | null;
   protection?: number;
   durationRounds?: number;
   modifier?: {

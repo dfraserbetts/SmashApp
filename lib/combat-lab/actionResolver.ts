@@ -764,6 +764,143 @@ function resolveUniversalCleanupAction(params: {
   return metrics;
 }
 
+function cleanableHostileEffectsForTarget(state: CombatState, actor: CombatActor, target: CombatActor) {
+  return state.statusEffects
+    .filter((effect) =>
+      effect.targetActorId === target.id &&
+      effect.sourceActorId !== actor.id &&
+      effect.amount > 0 &&
+      effect.remainingRounds > 0 &&
+      (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "debuff"),
+    )
+    .sort((left, right) => {
+      const leftUrgency = left.kind === "ongoingDamage"
+        ? left.amount * Math.max(1, left.remainingRounds - 1)
+        : left.amount;
+      const rightUrgency = right.kind === "ongoingDamage"
+        ? right.amount * Math.max(1, right.remainingRounds - 1)
+        : right.amount;
+      return rightUrgency - leftUrgency;
+    });
+}
+
+function resolveAuthoredResistCleanupAction(params: {
+  state: CombatState;
+  actor: CombatActor;
+  action: CombatAction;
+  target: CombatActor;
+  appliedSuccesses: number;
+  rollSummary: CombatRollSummary | null;
+  lane?: CombatActionLane;
+}): CombatResolutionMetrics {
+  const { state, actor, action, target, appliedSuccesses, rollSummary, lane } = params;
+  const metrics = emptyResolution();
+  const resistedAttribute = action.defenceResistedAttribute;
+  if (!resistedAttribute) {
+    metrics.wastedActions = 1;
+    emitTranscriptEvent(state, {
+      type: "actionSkipped",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Resist: ${action.name} has no authored resisted attribute; Combat Lab cannot match it to a hostile effect.`,
+      details: { reason: "missingDefenceResistedAttribute" },
+    });
+    return metrics;
+  }
+
+  const matching = cleanableHostileEffectsForTarget(state, actor, target).find(
+    (effect) => COMBAT_TO_CORE_ATTRIBUTE[cleanupAttributeForEffect(effect)] === resistedAttribute,
+  );
+  if (!matching) {
+    metrics.wastedActions = 1;
+    emitTranscriptEvent(state, {
+      type: "actionSkipped",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Resist: ${action.name} found no matching ${resistedAttribute} hostile effect on ${target.name}.`,
+      details: { resistedAttribute, reason: "noMatchingHostileEffect" },
+    });
+    return metrics;
+  }
+
+  const before = Math.max(0, matching.amount);
+  const totalResists = Math.max(0, appliedSuccesses * Math.max(1, action.potency));
+  const unitWounds = matching.kind === "ongoingDamage" ? cleanupUnitWoundsForEffect(matching) : 1;
+  const removed = matching.kind === "ongoingDamage"
+    ? Math.min(before, totalResists * unitWounds)
+    : Math.min(before, totalResists);
+  matching.amount = Math.max(0, before - removed);
+  metrics.resistRolls = 1;
+  metrics.resistSuccesses = totalResists;
+  metrics.mitigationApplied = removed;
+  if (matching.kind === "ongoingDamage") {
+    metrics.ongoingDamagePreventedOrCleansed = removed;
+  } else {
+    metrics.stacksCleansed = removed;
+  }
+  if (matching.amount <= 0) {
+    removeStatusEffectById(state, matching.id);
+  }
+
+  emitTranscriptEvent(state, {
+    type: "resistRoll",
+    actorId: actor.id,
+    actorName: actor.name,
+    targetId: target.id,
+    targetName: target.name,
+    actionId: action.id,
+    actionName: action.name,
+    lane,
+    message: `Resist: ${action.name} rolls ${appliedSuccesses} success${appliedSuccesses === 1 ? "" : "es"} x ${Math.max(1, action.potency)} = ${totalResists} ${resistedAttribute} Resists against ${matching.sourceActionName ?? matching.kind}.`,
+    roll: rollSummary ?? undefined,
+    details: {
+      resistedAttribute,
+      totalResists,
+      appliedSuccesses,
+      effect: matching.kind,
+      amountBefore: before,
+    },
+  });
+
+  const woundLabel = matching.damageLabel ?? matching.pool ?? "physical";
+  emitTranscriptEvent(state, {
+    type: "stackChanged",
+    actorId: actor.id,
+    actorName: actor.name,
+    targetId: target.id,
+    targetName: target.name,
+    actionId: action.id,
+    actionName: action.name,
+    lane,
+    message: matching.kind === "ongoingDamage"
+      ? matching.amount > 0
+        ? `Resist cleanup: ${action.name} removes ${removed} ${woundLabel} wounds per tick from ${matching.sourceActionName ?? "ongoing damage"}, reducing it from ${before} to ${matching.amount}.`
+        : `Resist cleanup: ${action.name} removes ${matching.sourceActionName ?? "ongoing damage"} from ${target.name}.`
+      : matching.amount > 0
+        ? `Resist cleanup: ${action.name} removes ${removed} stack${removed === 1 ? "" : "s"} from ${matching.sourceActionName ?? matching.kind}, reducing it from ${before} to ${matching.amount}.`
+        : `Resist cleanup: ${action.name} removes ${matching.sourceActionName ?? matching.kind} from ${target.name}.`,
+    details: {
+      effect: matching.kind,
+      removed,
+      amountBefore: before,
+      amountAfter: matching.amount,
+      cleanupUnitWounds: matching.kind === "ongoingDamage" ? unitWounds : undefined,
+    },
+  });
+
+  return metrics;
+}
+
 function passiveDefenceAmount(target: CombatActor, pool: "physical" | "mental") {
   return target.actions
     .filter((action) => action.passive && action.kind === "defence" && (action.pool ?? pool) === pool)
@@ -794,15 +931,34 @@ function counterAttackPackets(action: CombatAction) {
   return actionAndSecondaries(action).filter((entry) => entry.kind === "attack");
 }
 
-function counterDefencePackets(action: CombatAction, pool: "physical" | "mental") {
+function isAvoidablePhysicalAttack(action: CombatAction, pool: "physical" | "mental") {
+  return action.kind === "attack" && pool === "physical" && !action.resistAttribute;
+}
+
+function counterDefencePacketIsLegal(
+  entry: CombatAction,
+  pool: "physical" | "mental",
+  incomingAction: CombatAction,
+) {
+  if (entry.kind !== "defence") return false;
+  const mode = entry.defenceMode ?? "Block";
+  if (mode === "Block") return (entry.pool ?? pool) === pool;
+  if (mode === "Dodge") return isAvoidablePhysicalAttack(incomingAction, pool);
+  if (mode === "Resist") {
+    return Boolean(entry.defenceResistedAttribute && incomingAction.resistAttribute === entry.defenceResistedAttribute);
+  }
+  return false;
+}
+
+function counterDefencePackets(action: CombatAction, pool: "physical" | "mental", incomingAction: CombatAction) {
   return actionAndSecondaries(action).filter(
-    (entry) => entry.kind === "defence" && (entry.pool ?? pool) === pool,
+    (entry) => counterDefencePacketIsLegal(entry, pool, incomingAction),
   );
 }
 
-function counterPriority(action: CombatAction, pool: "physical" | "mental") {
+function counterPriority(action: CombatAction, pool: "physical" | "mental", incomingAction: CombatAction) {
   const hasAttackPacket = counterAttackPackets(action).length > 0;
-  const hasDefencePacket = counterDefencePackets(action, pool).length > 0;
+  const hasDefencePacket = counterDefencePackets(action, pool, incomingAction).length > 0;
   if (hasDefencePacket && !hasAttackPacket) return 0;
   if (hasDefencePacket && hasAttackPacket) return 1;
   if (hasAttackPacket) return 2;
@@ -820,8 +976,8 @@ function declareCounter(params: {
   const metrics = emptyResolution();
   const counterCandidates = target.actions
     .filter((action) => action.counterMode && !state.counterUses[`${state.round}:${target.id}:${action.id}`])
-    .filter((action) => counterPriority(action, pool) < 3)
-    .sort((left, right) => counterPriority(left, pool) - counterPriority(right, pool));
+    .filter((action) => counterPriority(action, pool, incomingAction) < 3)
+    .sort((left, right) => counterPriority(left, pool, incomingAction) - counterPriority(right, pool, incomingAction));
 
   for (const candidate of counterCandidates.filter((action) => isActionOnCooldown(state, target.id, action.id))) {
     recordCooldownPreventedUse(state, target, candidate);
@@ -835,7 +991,7 @@ function declareCounter(params: {
   }
 
   const hasAttackPacket = counterAttackPackets(action).length > 0;
-  const hasDefencePacket = counterDefencePackets(action, pool).length > 0;
+  const hasDefencePacket = counterDefencePackets(action, pool, incomingAction).length > 0;
   const forfeitsNormalDefence = true;
   const declared: DeclaredCounter = {
     action,
@@ -949,20 +1105,133 @@ function rollDeclaredCounter(
   return { declared, successes: roll.successes, rollSummary };
 }
 
+function resolveDeclaredCounterSuccessGate(params: {
+  state: CombatState;
+  target: CombatActor;
+  attacker: CombatActor;
+  counterRoll: DeclaredCounterRoll | null;
+  incomingAction: CombatAction;
+  incomingSuccesses: number;
+  pool: "physical" | "mental";
+}): CombatResolutionMetrics {
+  const { state, target, attacker, counterRoll, incomingAction, incomingSuccesses, pool } = params;
+  const metrics = emptyResolution();
+  metrics.hostileSuccessesBeforeResist = incomingSuccesses;
+  metrics.hostileSuccessesAfterResist = incomingSuccesses;
+  if (!counterRoll || incomingSuccesses <= 0) return metrics;
+  const resistPackets = counterDefencePackets(counterRoll.declared.action, pool, incomingAction).filter(
+    (entry) => (entry.defenceMode ?? "Block") === "Resist",
+  );
+  if (resistPackets.length === 0) return metrics;
+
+  const matchingPackets = resistPackets.filter(
+    (entry) => entry.defenceResistedAttribute && entry.defenceResistedAttribute === incomingAction.resistAttribute,
+  );
+  if (matchingPackets.length === 0) {
+    emitTranscriptEvent(state, {
+      type: "counterRoll",
+      actorId: target.id,
+      actorName: target.name,
+      targetId: attacker.id,
+      targetName: attacker.name,
+      actionId: counterRoll.declared.action.id,
+      actionName: counterRoll.declared.action.name,
+      lane: "response",
+      message: `Resist Counter: ${counterRoll.declared.action.name} has no matching resisted attribute for ${incomingAction.name}; no hostile successes are cancelled.`,
+      roll: counterRoll.rollSummary,
+      details: {
+        incomingResistAttribute: incomingAction.resistAttribute ?? null,
+        cancelled: 0,
+        remainingSuccesses: incomingSuccesses,
+      },
+    });
+    return metrics;
+  }
+
+  const totalResists = matchingPackets.reduce(
+    (sum, entry) => sum + counterRoll.successes * Math.max(1, entry.potency),
+    0,
+  );
+  const cancelled = Math.min(incomingSuccesses, totalResists);
+  metrics.resistRolls = 1;
+  metrics.resistSuccesses = totalResists;
+  metrics.resistCancelled = cancelled;
+  metrics.hostileSuccessesCancelledByResist = cancelled;
+  metrics.hostileSuccessesAfterResist = Math.max(0, incomingSuccesses - cancelled);
+  emitTranscriptEvent(state, {
+    type: "resistRoll",
+    actorId: target.id,
+    actorName: target.name,
+    targetId: attacker.id,
+    targetName: attacker.name,
+    actionId: counterRoll.declared.action.id,
+    actionName: counterRoll.declared.action.name,
+    lane: "response",
+    message: `Resist Counter: ${target.name}'s ${counterRoll.declared.action.name} rolls ${counterRoll.successes} success${counterRoll.successes === 1 ? "" : "es"} x ${matchingPackets.map((entry) => Math.max(1, entry.potency)).join(" + ")} = ${totalResists} ${incomingAction.resistAttribute} Resists; cancelled ${cancelled} of ${incomingSuccesses} hostile successes from ${incomingAction.name}.`,
+    roll: counterRoll.rollSummary,
+    details: {
+      resistedAttribute: incomingAction.resistAttribute ?? null,
+      totalResists,
+      incomingSuccesses,
+      cancelled,
+      remainingSuccesses: metrics.hostileSuccessesAfterResist,
+    },
+  });
+  return metrics;
+}
+
 function resolveDeclaredCounterDefence(params: {
   state: CombatState;
   target: CombatActor;
   attacker: CombatActor;
   counterRoll: DeclaredCounterRoll | null;
+  incomingAction: CombatAction;
+  incomingSuccesses: number;
   pool: "physical" | "mental";
   remainingWounds: number;
 }): CombatResolutionMetrics {
-  const { state, target, attacker, counterRoll, pool, remainingWounds } = params;
+  const { state, target, attacker, counterRoll, incomingAction, incomingSuccesses, pool, remainingWounds } = params;
   const metrics = emptyResolution();
   if (!counterRoll || remainingWounds <= 0) return metrics;
-  const defencePackets = counterDefencePackets(counterRoll.declared.action, pool);
+  const defencePackets = counterDefencePackets(counterRoll.declared.action, pool, incomingAction);
   if (defencePackets.length === 0) return metrics;
-  const mitigationPerSuccess = defencePackets.reduce(
+
+  const dodgePackets = defencePackets.filter((entry) => (entry.defenceMode ?? "Block") === "Dodge");
+  if (dodgePackets.length > 0) {
+    const totalDodge = dodgePackets.reduce(
+      (sum, action) => sum + counterRoll.successes * Math.max(1, action.potency),
+      0,
+    );
+    metrics.dodgeRolls = 1;
+    metrics.dodgeChosen = 1;
+    metrics.dodgeSuccesses = counterRoll.successes;
+    if (totalDodge >= incomingSuccesses) {
+      metrics.woundsAvoidedByDodge = remainingWounds;
+    }
+    emitTranscriptEvent(state, {
+      type: "dodgeRoll",
+      actorId: target.id,
+      actorName: target.name,
+      targetId: attacker.id,
+      targetName: attacker.name,
+      actionId: counterRoll.declared.action.id,
+      actionName: counterRoll.declared.action.name,
+      lane: "response",
+      message: `Dodge Counter: ${target.name}'s ${counterRoll.declared.action.name} rolls ${counterRoll.successes} success${counterRoll.successes === 1 ? "" : "es"} x ${dodgePackets.map((entry) => Math.max(1, entry.potency)).join(" + ")} = ${totalDodge} Dodge against ${incomingSuccesses} incoming successes; ${totalDodge >= incomingSuccesses ? "the attack is avoided" : "the attack is not avoided"}.`,
+      roll: counterRoll.rollSummary,
+      details: {
+        totalDodge,
+        incomingSuccesses,
+        dodgeSucceeded: totalDodge >= incomingSuccesses,
+        remainingWounds,
+      },
+    });
+    return metrics;
+  }
+
+  const blockPackets = defencePackets.filter((entry) => (entry.defenceMode ?? "Block") === "Block");
+  if (blockPackets.length === 0) return metrics;
+  const mitigationPerSuccess = blockPackets.reduce(
     (sum, action) => sum + Math.max(1, action.protection ?? action.potency),
     0,
   );
@@ -1142,7 +1411,9 @@ function resolveSingleTargetAction(params: {
   const skipOwnRoll = Boolean(params.fromSecondary && (action.skipOwnRoll || action.usesPrimaryAppliedSuccesses));
   const poolForCounterDeclaration = action.pool ?? "physical";
   const counterDeclaration =
-    !gateAlreadyResolved && !params.fromSecondary && action.kind === "attack"
+    !gateAlreadyResolved &&
+    !params.fromSecondary &&
+    (action.kind === "attack" || action.kind === "debuff" || action.kind === "control" || action.kind === "movement")
       ? declareCounter({ state, target, attacker: actor, incomingAction: action, pool: poolForCounterDeclaration })
       : { declared: null, metrics: emptyResolution() };
   addMetrics(metrics, counterDeclaration.metrics);
@@ -1170,6 +1441,20 @@ function resolveSingleTargetAction(params: {
       details: { actionKind: action.kind, potency: action.potency, pool: action.pool ?? null },
     });
   }
+
+  const counterGateMetrics =
+    !gateAlreadyResolved && !params.fromSecondary && counterRoll
+      ? resolveDeclaredCounterSuccessGate({
+          state,
+          target,
+          attacker: actor,
+          counterRoll,
+          incomingAction: action,
+          incomingSuccesses: metrics.rawSuccesses,
+          pool: poolForCounterDeclaration,
+        })
+      : emptyResolution();
+  addMetrics(metrics, counterGateMetrics);
 
   if (gateAlreadyResolved) {
     const linkedContext = params.linkedPrimaryContext;
@@ -1211,6 +1496,8 @@ function resolveSingleTargetAction(params: {
   const activeAppliedSuccesses =
     gateAlreadyResolved && action.usesPrimaryAppliedSuccesses
       ? inheritedPrimaryAppliedSuccesses
+      : counterGateMetrics.hostileSuccessesCancelledByResist > 0
+        ? counterGateMetrics.hostileSuccessesAfterResist
       : !gateAlreadyResolved && action.resistAttribute && !counterDeclaration.declared
         ? metrics.hostileSuccessesAfterResist
         : metrics.rawSuccesses;
@@ -1352,11 +1639,35 @@ function resolveSingleTargetAction(params: {
             target,
             attacker: actor,
             counterRoll,
+            incomingAction: action,
+            incomingSuccesses: activeHostileSuccesses,
             pool,
             remainingWounds: activeRawWounds - normalDefenceBlocked,
           })
         : emptyResolution();
     addMetrics(metrics, counterDefenceMetrics);
+    if (counterDefenceMetrics.woundsAvoidedByDodge > 0) {
+      metrics.rawWounds = rawWounds;
+      metrics.woundsAvoidedByDodge = rawWounds;
+      emitTranscriptEvent(state, {
+        type: "damageApplied",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: isPureOngoingDamage
+          ? `Application result: ${target.name}'s Dodge Counter avoids ${action.name}; no ongoing damage status is created.`
+          : `Incoming result: ${target.name}'s Dodge Counter avoids ${action.name}; 0 net wounds.`,
+        details: { rawWounds, netWounds: 0, pool },
+      });
+      const counterAttackMetrics =
+        gateAlreadyResolved ? emptyResolution() : resolveDeclaredCounterAttack({ state, target, attacker: actor, counterRoll });
+      addMetrics(metrics, counterAttackMetrics);
+      return metrics;
+    }
     const protection =
       gateAlreadyResolved
         ? 0
@@ -1659,6 +1970,30 @@ function resolveSingleTargetAction(params: {
         details: { effect: action.kind, durationRounds, durationSource: action.durationSource, passiveDuration },
       });
     }
+  } else if (action.kind === "defence" && (action.defenceMode ?? "Block") === "Resist") {
+    addMetrics(metrics, resolveAuthoredResistCleanupAction({
+      state,
+      actor,
+      action,
+      target,
+      appliedSuccesses: activeAppliedSuccesses,
+      rollSummary,
+      lane,
+    }));
+  } else if (action.kind === "defence" && (action.defenceMode ?? "Block") === "Dodge") {
+    metrics.wastedActions = 1;
+    emitTranscriptEvent(state, {
+      type: "actionSkipped",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Dodge: ${action.name} is resolved as a Counter against an incoming avoidable physical attack; normal use creates no persistent Dodge setup in Combat Lab V1.`,
+      details: { defenceMode: "Dodge", reason: "counterOnlyDodgeDefence" },
+    });
   } else if (action.kind === "defence") {
     const blockPerSuccess = Math.max(1, action.protection ?? action.potency);
     const amount = Math.max(1, activeAppliedSuccesses * blockPerSuccess);

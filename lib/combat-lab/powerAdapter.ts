@@ -69,6 +69,14 @@ function normalizeDomain(value: unknown): "MENTAL" | "PHYSICAL" | null {
   return null;
 }
 
+function normalizeDefenceMode(value: unknown): CombatAction["defenceMode"] | null {
+  const normalized = asString(value).toUpperCase();
+  if (!normalized || normalized === "BLOCK") return "Block";
+  if (normalized === "DODGE") return "Dodge";
+  if (normalized === "RESIST") return "Resist";
+  return null;
+}
+
 function formatDomainValue(value: "MENTAL" | "PHYSICAL" | null) {
   return value ?? "unset";
 }
@@ -143,9 +151,12 @@ function packetIsCastableNow(power: Power, packet: EffectPacket): string | null 
   }
   if (packet.intention === "DEFENCE") {
     const details = asRecord(packet.detailsJson);
-    const defenceMode = asString(details.defenceMode) || "Block";
-    if (defenceMode !== "Block") {
-      return `Defence mode ${defenceMode} is authored but not resolved by Combat Lab runtime yet.`;
+    const defenceMode = normalizeDefenceMode(details.defenceMode);
+    if (!defenceMode) {
+      return `Defence mode ${asString(details.defenceMode) || "unset"} is not supported by Combat Lab runtime.`;
+    }
+    if (defenceMode === "Resist" && !coreAttributeFromValue(details.resistedAttribute)) {
+      return "Defence mode Resist must identify a supported resistedAttribute for Combat Lab runtime.";
     }
   }
   return null;
@@ -425,6 +436,11 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
     }
 
     const details = asRecord(packet.detailsJson);
+    const defenceMode = kind === "defence" ? normalizeDefenceMode(details.defenceMode) ?? "Block" : undefined;
+    const defenceResistedAttribute =
+      kind === "defence" && defenceMode === "Resist"
+        ? coreAttributeFromValue(details.resistedAttribute)
+        : null;
     const attackDomainResolution =
       kind === "attack"
         ? resolveAttackPacketPool({ power, packet, details })
@@ -571,7 +587,9 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
       contextualAccuracyAttributes: rollAttributeResolution.contextualAttributes,
       diceCount,
       potency,
-      protection: kind === "defence" ? potency : undefined,
+      defenceMode,
+      defenceResistedAttribute,
+      protection: kind === "defence" && defenceMode === "Block" ? potency : undefined,
       durationRounds: durationRoundsForAction,
       modifier:
         kind === "buff" || kind === "debuff"

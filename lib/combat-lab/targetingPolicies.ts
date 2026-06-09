@@ -109,6 +109,17 @@ function cleanupAttributeForEffect(effect: CombatState["statusEffects"][number])
   return "Fortitude";
 }
 
+function cleanupCoreAttributeForEffect(effect: CombatState["statusEffects"][number]) {
+  const attribute = cleanupAttributeForEffect(effect).toUpperCase();
+  if (attribute === "ATTACK") return "ATTACK";
+  if (attribute === "GUARD") return "GUARD";
+  if (attribute === "FORTITUDE") return "FORTITUDE";
+  if (attribute === "INTELLECT") return "INTELLECT";
+  if (attribute === "SYNERGY") return "SYNERGY";
+  if (attribute === "BRAVERY") return "BRAVERY";
+  return null;
+}
+
 function cleanupUnitWoundsForEffect(effect: CombatState["statusEffects"][number]): number {
   return Math.max(1, Math.trunc(effect.cleanupUnitWounds ?? 1));
 }
@@ -195,6 +206,13 @@ function expectedEnemyAttackPools(actor: CombatActor, state: CombatState): Set<C
 
 function isDefencePowerUseful(actor: CombatActor, action: CombatAction, state: CombatState): boolean {
   if (action.counterMode) return false;
+  if ((action.defenceMode ?? "Block") === "Dodge") return false;
+  if ((action.defenceMode ?? "Block") === "Resist") {
+    if (!action.defenceResistedAttribute) return false;
+    return hostileCleanupEffects(actor, state).some(
+      (effect) => cleanupCoreAttributeForEffect(effect) === action.defenceResistedAttribute,
+    );
+  }
   const protectedPool = action.pool ?? "physical";
   const enemyPools = expectedEnemyAttackPools(actor, state);
   if (!enemyPools.has(protectedPool)) return false;
@@ -224,12 +242,12 @@ function shouldPrioritizeSelfDefence(actor: CombatActor, action: CombatAction, s
 
 function actionMitigatesPhysicalThreat(action: CombatAction): boolean {
   if (action.pool && action.pool !== "physical") return false;
-  if (action.kind === "defence" && action.protection && action.protection > 0) return true;
+  if (action.kind === "defence" && (action.defenceMode ?? "Block") === "Block" && action.protection && action.protection > 0) return true;
   return Boolean(action.secondaryActions?.some(actionMitigatesPhysicalThreat));
 }
 
 function actionMitigatesAnyThreat(action: CombatAction): boolean {
-  if (action.kind === "defence" && (action.protection ?? 0) > 0) return true;
+  if (action.kind === "defence" && (action.defenceMode ?? "Block") === "Block" && (action.protection ?? 0) > 0) return true;
   if (action.kind === "buff" && action.modifier) return true;
   return Boolean(action.secondaryActions?.some(actionMitigatesAnyThreat));
 }
