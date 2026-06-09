@@ -386,6 +386,12 @@ async function main() {
     const debug = outcome.debug ?? {};
     const powerDebug = asRecord(debug.powerContribution);
     const normalizationDebug = asRecord(asRecord(debug.normalizationBreakdown));
+    const swipingCostDebug = asRecord(swipingCost.breakdown.debug);
+    const runtimeOngoingDebug = asRecord(swipingCostDebug.runtimeOngoingDamageBreakdown);
+    const runtimeOngoingPacketDebug = (
+      (runtimeOngoingDebug.packetDebug as Array<Record<string, unknown>> | undefined) ?? []
+    ).find((entry) => Number(entry.packetIndex ?? 0) === Number(packet?.packetIndex ?? 0));
+    const packetMagnitudeDebug = asRecord(swipingCost.breakdown.packetCosts[0]?.debug).magnitude;
 
     const report = {
       audit: {
@@ -486,10 +492,13 @@ async function main() {
         },
         powerCostResolver: {
           basePowerValue: swipingCost.breakdown.basePowerValue,
+          runtimeOngoingDamageCost: swipingCost.breakdown.runtimeOngoingDamageCost,
           derivedCooldownTurns: swipingCost.derivedCooldownTurns,
           derivedCooldownLoad: round(swipingCost.derivedCooldown.cooldownLoad, 4),
           canonicalAxisVector: roundedAxes(swipingCost.breakdown.axisVector),
           packetCosts: swipingCost.breakdown.packetCosts,
+          attackWoundsValuation: packetMagnitudeDebug,
+          runtimeEquivalentOngoingDamage: runtimeOngoingPacketDebug ?? null,
           debug: swipingCost.breakdown.debug,
         },
         combatLabHydratedAction: combatSwiping
@@ -520,9 +529,13 @@ async function main() {
         percentileSuccesses: { p50, p75, p90, p95, max: maxSuccesses },
         sourceResolverWoundsPerSuccess: sourceWoundsPerSuccess,
         combatLabHydratedWoundsPerSuccess: combatLabWoundsPerSuccess,
+        resolverEffectiveWoundsPerSuccess:
+          Number(asRecord(runtimeOngoingPacketDebug).effectiveWoundsPerSuccess) ||
+          Number(asRecord(packetMagnitudeDebug).effectiveTableFacingWoundsPerSuccess) ||
+          null,
         woundsPerSuccessMismatch:
           sourceWoundsPerSuccess !== combatLabWoundsPerSuccess
-            ? "Power resolver prices source packet potency/details, while Combat Lab uses effectiveAttackWoundsPerSuccess from render semantics."
+            ? "Authored source potency differs from table-facing effectiveAttackWoundsPerSuccess; resolver diagnostics should now price the table-facing value."
             : null,
         woundsPerTickBeforeMitigationUsingCombatLabValue: {
           expected: round(expectedSuccesses * combatLabWoundsPerSuccess, 2),
@@ -589,14 +602,14 @@ async function main() {
       auditDiagnosis: {
         mismatchLocation: [
           "Source authoring stores Swiping Claws as ON_CAST + TURNS with potency 4, while Combat Lab/render semantics hydrate it as start-of-turn ongoing damage with 8 wounds per success.",
-          "Power Tuning prices the source packet potency/duration as scalar value and does not use the Combat Lab hydrated 8 wounds per success table-facing value.",
-          "Power Tuning recurring cadence spill does not fire because the packet timing is ON_CAST, even though Combat Lab treats the TURNS attack as start-of-turn ongoing damage.",
-          "Power Tuning does not explicitly model first-tick-before-cleanup danger or cleanup action tax.",
+          "Power Tuning attack magnitude should now use the same table-facing effectiveAttackWoundsPerSuccess value surfaced by render/Combat Lab.",
+          "Runtime-equivalent ongoing damage diagnostics should now fire for ATTACK + ON_CAST + TURNS packets.",
+          "Power Tuning now exposes first-tick-before-cleanup danger and cleanup action tax seams.",
           "Outcome Calculator uses the canonical/effective power axis vector and level/tier normalization; it does not simulate stored DoT spike percentiles.",
           "Combat Tuning and Character Builder Tuning are not the primary Swiping Claws valuation layer.",
         ],
         recommendation:
-          "Do not tune values yet. Next patch should align calculator valuation with render/Combat Lab effective attack wounds per success, then add Power Tuning diagnostics/seams for expected recurring damage, high-percentile spike pressure, first-tick-before-cleanup danger, and cleanup action tax.",
+          "Do not tune values yet. First compare this resolver-side diagnostic against the live Combat Lab transcript and only then tune the new Power Tuning seams if the resulting pressure is too high or too low.",
       },
     };
 

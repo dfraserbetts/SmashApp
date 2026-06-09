@@ -48,6 +48,13 @@ export const POWER_TUNING_DEFAULTS_NESTED = {
     maxTurns: 5,
   },
   axis: {
+    ongoing: {
+      cleanupActionTaxPressure: 0.25,
+      expectedDamageThreatShare: 0.1,
+      firstTickBeforeCleanupPressure: 0.5,
+      percentileForSpike: 0.9,
+      spikePressureShare: 0.05,
+    },
     presence: { passive: 0.4, turns: 0.2, recurringTurnTiming: 0.1 },
     structural: {
       attachedPressure: 0.4,

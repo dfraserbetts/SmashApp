@@ -100,6 +100,12 @@ function roundCost(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function createBaseMonster() {
   return {
     name: "Movement Smoke",
@@ -479,6 +485,14 @@ const physicalAttackGate = {
   hostileEntryPattern: null,
   resolutionSource: "INFERRED",
 } as const;
+const mentalAttackGate = {
+  sourcePacketIndex: 0,
+  gateResult: "DODGE_OR_PROTECTION",
+  protectionChannel: "MENTAL",
+  resistAttribute: null,
+  hostileEntryPattern: null,
+  resolutionSource: "INFERRED",
+} as const;
 const counterstrikePacket = createPacket("ATTACK", {
   diceCount: 3,
   potency: 4,
@@ -549,6 +563,132 @@ const openVeinPower = createPower({
   packets: [openVeinPrimaryPacket, openVeinOngoingPacket],
   primaryDefenceGate: physicalAttackGate,
 });
+
+function createRuntimeOngoingAttackPower(config: {
+  name: string;
+  diceCount?: number;
+  potency?: number;
+  attackMode?: "PHYSICAL" | "MENTAL";
+  durationTurns?: number;
+  timing?: EffectPacket["effectTimingType"];
+  damageTypes?: string[];
+}): Power {
+  const attackMode = config.attackMode ?? "PHYSICAL";
+  const packet = createPacket("ATTACK", {
+    diceCount: config.diceCount ?? 4,
+    potency: config.potency ?? 4,
+    effectTimingType: config.timing ?? "ON_CAST",
+    effectDurationType: "TURNS",
+    effectDurationTurns: config.durationTurns ?? 2,
+    woundChannel: attackMode,
+    detailsJson: {
+      attackMode,
+      damageTypes: config.damageTypes ?? [attackMode === "MENTAL" ? "Psychic" : "Slashing"],
+      rangeCategory: "MELEE",
+    },
+  });
+  return createPower({
+    name: config.name,
+    rangeCategories: ["MELEE"],
+    meleeTargets: 1,
+    packet,
+    primaryDefenceGate: attackMode === "MENTAL" ? mentalAttackGate : physicalAttackGate,
+  });
+}
+
+function getRuntimeOngoingDebug(power: Power, tuningValues = DEFAULT_POWER_TUNING_VALUES) {
+  const breakdown = resolvePowerCost(power, { values: tuningValues });
+  const runtimeDebug = asRecord(breakdown.debug.runtimeOngoingDamageBreakdown);
+  const packets = (runtimeDebug.packetDebug as Array<Record<string, unknown>> | undefined) ?? [];
+  const packet = asRecord(packets.find((entry) => entry.fired === true));
+  return { breakdown, packet };
+}
+
+const swipingLikeOngoing = getRuntimeOngoingDebug(
+  createRuntimeOngoingAttackPower({ name: "Swiping Claws Resolver Smoke" }),
+);
+const swipingMagnitude = asRecord(
+  swipingLikeOngoing.breakdown.packetCosts[0]?.debug.magnitude,
+);
+const swipingContributions = asRecord(swipingLikeOngoing.packet.contributions);
+assert.equal(swipingMagnitude.sourcePotency, 4);
+assert.equal(swipingMagnitude.effectiveTableFacingWoundsPerSuccess, 8);
+assert.equal(swipingMagnitude.potencyForValuation, 8);
+assert.equal(swipingLikeOngoing.packet.runtimeEquivalentTiming, "START_OF_TURN");
+assert.equal(swipingLikeOngoing.packet.tickCount, 2);
+assert.equal(swipingLikeOngoing.packet.effectiveWoundsPerSuccess, 8);
+assert.equal(swipingLikeOngoing.packet.expectedSuccessesPerTick, 3.2);
+assert.equal(swipingLikeOngoing.packet.spikePercentile, 0.9);
+assert.equal(swipingLikeOngoing.packet.spikeSuccessesPerTick, 5);
+assert.equal(swipingLikeOngoing.packet.expectedTickDamageBeforeMitigation, 25.6);
+assert.equal(swipingLikeOngoing.packet.spikeTickDamageBeforeMitigation, 40);
+assert.equal(swipingLikeOngoing.packet.expectedTotalOngoingBeforeMitigation, 51.2);
+assert.equal(swipingLikeOngoing.packet.firstTickBeforeCleanup, true);
+assert.equal(swipingContributions.expectedDamageThreat, 5.12);
+assert.equal(swipingContributions.spikePressure, 2);
+assert.equal(swipingContributions.firstTickBeforeCleanupPressure, 0.5);
+assert.equal(swipingContributions.cleanupActionTaxPressure, 0.5);
+assert.ok(swipingLikeOngoing.breakdown.runtimeOngoingDamageCost > 0);
+assert.ok(swipingLikeOngoing.breakdown.axisVector.physicalThreat > 0);
+assert.ok(swipingLikeOngoing.breakdown.axisVector.presence > 0);
+
+const instantAttackNoOngoing = getRuntimeOngoingDebug(createPower({
+  name: "Instant Slash Resolver Smoke",
+  rangeCategories: ["MELEE"],
+  meleeTargets: 1,
+  packet: createPacket("ATTACK", {
+    diceCount: 4,
+    potency: 4,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      damageTypes: ["Slashing"],
+      rangeCategory: "MELEE",
+    },
+  }),
+  primaryDefenceGate: physicalAttackGate,
+}));
+assert.equal(instantAttackNoOngoing.breakdown.runtimeOngoingDamageCost, 0);
+assert.equal(instantAttackNoOngoing.packet.fired, undefined);
+
+const mentalOngoing = getRuntimeOngoingDebug(
+  createRuntimeOngoingAttackPower({ name: "Mental Ongoing Smoke", attackMode: "MENTAL" }),
+);
+assert.ok(mentalOngoing.breakdown.axisVector.mentalThreat > 0);
+assert.equal(asRecord(mentalOngoing.packet.axisVector).physicalThreat, 0);
+
+const weakerOngoing = getRuntimeOngoingDebug(
+  createRuntimeOngoingAttackPower({ name: "Weak Ongoing Smoke", potency: 3 }),
+);
+assert.ok(swipingLikeOngoing.breakdown.basePowerValue > weakerOngoing.breakdown.basePowerValue);
+assert.ok(swipingLikeOngoing.breakdown.axisVector.physicalThreat > weakerOngoing.breakdown.axisVector.physicalThreat);
+assert.ok(swipingLikeOngoing.breakdown.axisVector.presence > weakerOngoing.breakdown.axisVector.presence);
+
+const longerOngoing = getRuntimeOngoingDebug(
+  createRuntimeOngoingAttackPower({ name: "Long Ongoing Smoke", durationTurns: 3 }),
+);
+assert.ok(longerOngoing.breakdown.basePowerValue > swipingLikeOngoing.breakdown.basePowerValue);
+assert.ok(longerOngoing.breakdown.axisVector.physicalThreat > swipingLikeOngoing.breakdown.axisVector.physicalThreat);
+assert.ok(longerOngoing.breakdown.axisVector.presence >= swipingLikeOngoing.breakdown.axisVector.presence);
+
+const moreDiceOngoing = getRuntimeOngoingDebug(
+  createRuntimeOngoingAttackPower({ name: "More Dice Ongoing Smoke", diceCount: 5 }),
+);
+assert.ok(moreDiceOngoing.breakdown.basePowerValue > swipingLikeOngoing.breakdown.basePowerValue);
+assert.ok(moreDiceOngoing.breakdown.axisVector.physicalThreat > swipingLikeOngoing.breakdown.axisVector.physicalThreat);
+assert.ok(moreDiceOngoing.breakdown.axisVector.presence >= swipingLikeOngoing.breakdown.axisVector.presence);
+
+const lowSpikePercentile = getRuntimeOngoingDebug(
+  createRuntimeOngoingAttackPower({ name: "Low Spike Percentile Smoke" }),
+  { ...DEFAULT_POWER_TUNING_VALUES, "axis.ongoing.percentileForSpike": 0.5 },
+);
+const highSpikePercentile = getRuntimeOngoingDebug(
+  createRuntimeOngoingAttackPower({ name: "High Spike Percentile Smoke" }),
+  { ...DEFAULT_POWER_TUNING_VALUES, "axis.ongoing.percentileForSpike": 0.9 },
+);
+assert.ok(highSpikePercentile.breakdown.basePowerValue >= lowSpikePercentile.breakdown.basePowerValue);
+assert.ok(highSpikePercentile.breakdown.axisVector.physicalThreat >= lowSpikePercentile.breakdown.axisVector.physicalThreat);
+assert.ok(highSpikePercentile.breakdown.axisVector.presence > lowSpikePercentile.breakdown.axisVector.presence);
+
 const defenceOnlyCounterPower = createPower({
   name: "Guard Snap",
   packet: createPacket("DEFENCE", {
@@ -877,11 +1017,8 @@ assert.equal(
 assert.equal(DEFAULT_POWER_TUNING_VALUES["packet.defenceMode.dodgeEvade"], undefined);
 assert.equal(DEFAULT_POWER_TUNING_VALUES["packet.defenceMode.reposition"], undefined);
 assert.equal(DEFAULT_POWER_TUNING_VALUES["packet.defenceMode.resistPurgeShakeOff"], undefined);
-assert.ok(
-  combatLabDodgeAdaptation.unsupported.some((entry) =>
-    entry.reason.includes("Defence mode Dodge is authored but not resolved by Combat Lab runtime yet"),
-  ),
-);
+assert.equal(combatLabDodgeAdaptation.unsupported.length, 0);
+assert.equal(combatLabDodgeAdaptation.actions[0]?.defenceMode, "Dodge");
 const triggeredSelfTeleportPacket = createPacket("MOVEMENT", {
   sortOrder: 1,
   packetIndex: 1,

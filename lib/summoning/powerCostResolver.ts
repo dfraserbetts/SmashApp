@@ -13,6 +13,7 @@ import {
   getPowerTuningValue,
   normalizePowerTuningValues,
 } from "@/lib/config/powerTuningShared";
+import { effectiveAttackWoundsPerSuccess } from "@/lib/summoning/render";
 
 export type PowerCostAxisVector = RadarAxes;
 
@@ -46,6 +47,7 @@ export type PowerCostBreakdown = {
   packetCosts: PowerCostPacketBreakdown[];
   packetCountComplexityCost: number;
   crossPacketSynergyCost: number;
+  runtimeOngoingDamageCost: number;
   basePowerValue: number;
   derivedCooldownTurns: number;
   derivedCooldown: DerivedPowerCooldown;
@@ -171,6 +173,11 @@ function roundCost(value: number): number {
 function roundRatio(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.round(value * 10000) / 10000;
+}
+
+function clampRatio(value: number, fallback: number): number {
+  const numeric = Number.isFinite(value) ? value : fallback;
+  return Math.max(0, Math.min(1, numeric));
 }
 
 function addAxisVectors(
@@ -392,6 +399,11 @@ function countDamageTypes(details: Record<string, unknown>): number {
     }
   }
   return seen.size;
+}
+
+function packetDealsWounds(packet: EffectPacket): boolean {
+  const details = asRecord(packet.detailsJson);
+  return details.dealsWounds !== false && packet.dealsWounds !== false;
 }
 
 function getSecondaryScalingMode(details: Record<string, unknown>): string {
@@ -1019,6 +1031,18 @@ function getPacketMagnitudeCost(
   const notes: string[] = [];
   const details = asRecord(packet.detailsJson);
   const intention = packet.intention ?? packet.type ?? "ATTACK";
+  const sourcePotency = Math.max(
+    1,
+    asInt(packet.potency, Math.max(1, asInt(power.potency, 1))),
+  );
+  const effectiveTableFacingWoundsPerSuccess =
+    intention === "ATTACK" && packetDealsWounds(packet)
+      ? effectiveAttackWoundsPerSuccess(packet)
+      : null;
+  const potencyForValuation =
+    intention === "ATTACK"
+      ? Math.max(1, effectiveTableFacingWoundsPerSuccess ?? sourcePotency)
+      : sourcePotency;
 
   const diceResolved = resolveNumericTuningValue(
     tuningValues,
@@ -1028,7 +1052,7 @@ function getPacketMagnitudeCost(
   const potencyResolved = resolveNumericTuningValue(
     tuningValues,
     "packet.magnitude.potency",
-    Math.max(1, asInt(packet.potency, Math.max(1, asInt(power.potency, 1)))),
+    potencyForValuation,
   );
   pushSelectedTuning(chosenKeys, notes, diceResolved);
   pushSelectedTuning(chosenKeys, notes, potencyResolved);
@@ -1115,6 +1139,13 @@ function getPacketMagnitudeCost(
     debug: {
       baseDiceCost: roundCost(diceResolved.value),
       basePotencyCost: roundCost(potencyResolved.value),
+      sourcePotency,
+      effectiveTableFacingWoundsPerSuccess,
+      potencyForValuation,
+      potencyValuationSource:
+        intention === "ATTACK" && effectiveTableFacingWoundsPerSuccess !== null
+          ? "effectiveAttackWoundsPerSuccess"
+          : "authoredPotency",
       movementTypeMultiplier: roundCost(movementTypeMultiplier),
       movementTypeMultiplierKey,
       movementMagnitude: roundCost(movementMagnitude),
@@ -1567,6 +1598,299 @@ function getRecurringCadenceAxisSpill(
       lifespanType,
       lifespanTurns,
       recurrenceCountModifier,
+      packetDebug,
+    },
+  };
+}
+
+type RuntimeOngoingDamageDebug = {
+  packetIndex: number;
+  fired: boolean;
+  reason?: string;
+  timing?: string | null;
+  runtimeEquivalentTiming?: string | null;
+  durationType?: string | null;
+  tickCount?: number;
+  sourcePotency?: number;
+  effectiveWoundsPerSuccess?: number;
+  assumedDieSize?: number;
+  diceCount?: number;
+  expectedSuccessesPerTick?: number;
+  spikePercentile?: number;
+  spikeSuccessesPerTick?: number;
+  expectedTickDamageBeforeMitigation?: number;
+  spikeTickDamageBeforeMitigation?: number;
+  expectedTotalOngoingBeforeMitigation?: number;
+  firstTickBeforeCleanup?: boolean;
+  cleanupActionTax?: number;
+  contributions?: {
+    expectedDamageThreat: number;
+    spikePressure: number;
+    firstTickBeforeCleanupPressure: number;
+    cleanupActionTaxPressure: number;
+    scalarCost: number;
+  };
+  axisVector?: PowerCostAxisVector;
+  tuningKeys?: string[];
+};
+
+type SuccessDistributionEntry = {
+  successes: number;
+  probability: number;
+};
+
+const BASELINE_POWER_VALUATION_DIE_SIDES = 10;
+
+function getSingleDieSuccessDistribution(dieSides: number): SuccessDistributionEntry[] {
+  const sides = Math.max(1, Math.trunc(dieSides));
+  let zero = 0;
+  let one = 0;
+  let two = 0;
+
+  for (let face = 1; face <= sides; face += 1) {
+    if (face >= 10) {
+      two += 1;
+    } else if (face >= 4) {
+      one += 1;
+    } else {
+      zero += 1;
+    }
+  }
+
+  return [
+    { successes: 0, probability: zero / sides },
+    { successes: 1, probability: one / sides },
+    { successes: 2, probability: two / sides },
+  ].filter((entry) => entry.probability > 0);
+}
+
+function getTotalSuccessDistribution(
+  diceCount: number,
+  dieSides: number,
+): SuccessDistributionEntry[] {
+  const dice = Math.max(1, Math.trunc(diceCount));
+  let distribution = new Map<number, number>([[0, 1]]);
+  const singleDieDistribution = getSingleDieSuccessDistribution(dieSides);
+
+  for (let die = 0; die < dice; die += 1) {
+    const next = new Map<number, number>();
+    for (const [currentSuccesses, currentProbability] of distribution.entries()) {
+      for (const entry of singleDieDistribution) {
+        const nextSuccesses = currentSuccesses + entry.successes;
+        next.set(
+          nextSuccesses,
+          (next.get(nextSuccesses) ?? 0) + currentProbability * entry.probability,
+        );
+      }
+    }
+    distribution = next;
+  }
+
+  return Array.from(distribution.entries())
+    .map(([successes, probability]) => ({ successes, probability }))
+    .sort((left, right) => left.successes - right.successes);
+}
+
+function getExpectedSuccesses(distribution: SuccessDistributionEntry[]): number {
+  return distribution.reduce(
+    (sum, entry) => sum + entry.successes * entry.probability,
+    0,
+  );
+}
+
+function getPercentileSuccesses(
+  distribution: SuccessDistributionEntry[],
+  percentile: number,
+): number {
+  const target = clampRatio(percentile, 0.9);
+  let cumulative = 0;
+  for (const entry of distribution) {
+    cumulative += entry.probability;
+    if (cumulative + Number.EPSILON >= target) return entry.successes;
+  }
+  return distribution.at(-1)?.successes ?? 0;
+}
+
+function getRuntimeEquivalentOngoingDamageAxisSpill(
+  tuningValues: Record<string, number>,
+  power: Power,
+  packets: EffectPacket[],
+): {
+  axisVector: PowerCostAxisVector;
+  scalarCost: number;
+  chosenKeys: string[];
+  packetDebug: RuntimeOngoingDamageDebug[];
+  debug: Record<string, unknown>;
+} {
+  const axisVector = cloneEmptyAxisVector();
+  const chosenKeys = new Set<string>();
+  const packetDebug: RuntimeOngoingDamageDebug[] = [];
+  let scalarCost = 0;
+
+  const expectedDamageShare = resolvePowerTuningValue(
+    tuningValues,
+    "axis.ongoing.expectedDamageThreatShare",
+  );
+  const spikePressureShare = resolvePowerTuningValue(
+    tuningValues,
+    "axis.ongoing.spikePressureShare",
+  );
+  const firstTickPressure = resolvePowerTuningValue(
+    tuningValues,
+    "axis.ongoing.firstTickBeforeCleanupPressure",
+  );
+  const cleanupTaxPressure = resolvePowerTuningValue(
+    tuningValues,
+    "axis.ongoing.cleanupActionTaxPressure",
+  );
+  const spikePercentileResolved = resolvePowerTuningValue(
+    tuningValues,
+    "axis.ongoing.percentileForSpike",
+  );
+
+  for (const resolved of [
+    expectedDamageShare,
+    spikePressureShare,
+    firstTickPressure,
+    cleanupTaxPressure,
+    spikePercentileResolved,
+  ]) {
+    if (resolved.tuningKey) chosenKeys.add(resolved.tuningKey);
+  }
+
+  for (const [packetIndex, packet] of packets.entries()) {
+    const intention = packet.intention ?? packet.type ?? "ATTACK";
+    const timing = asString(packet.effectTimingType).toUpperCase();
+    const durationType = asString(packet.effectDurationType).toUpperCase();
+    const tickCount = Math.max(0, asInt(packet.effectDurationTurns, 0));
+    const hasRuntimeEquivalentOngoingDamage =
+      intention === "ATTACK" &&
+      packetDealsWounds(packet) &&
+      durationType === "TURNS" &&
+      tickCount > 0 &&
+      (timing === "ON_CAST" ||
+        RECURRING_TIMINGS.has(timing as NonNullable<EffectPacket["effectTimingType"]>));
+
+    if (!hasRuntimeEquivalentOngoingDamage) {
+      packetDebug.push({
+        packetIndex,
+        fired: false,
+        reason:
+          intention !== "ATTACK"
+            ? "notAttack"
+            : !packetDealsWounds(packet)
+              ? "doesNotDealWounds"
+              : durationType !== "TURNS"
+                ? "notTurnDuration"
+                : tickCount <= 0
+                  ? "noTicks"
+                  : "notRuntimeEquivalentOngoingTiming",
+        timing: timing || null,
+        durationType: durationType || null,
+      });
+      continue;
+    }
+
+    const sourcePotency = Math.max(
+      1,
+      asInt(packet.potency, Math.max(1, asInt(power.potency, 1))),
+    );
+    const effectiveWoundsPerSuccess = Math.max(
+      1,
+      effectiveAttackWoundsPerSuccess(packet) ?? sourcePotency,
+    );
+    const diceCount = Math.max(
+      1,
+      asInt(packet.diceCount, Math.max(1, asInt(power.diceCount, 1))),
+    );
+    const distribution = getTotalSuccessDistribution(
+      diceCount,
+      BASELINE_POWER_VALUATION_DIE_SIDES,
+    );
+    const expectedSuccessesPerTick = getExpectedSuccesses(distribution);
+    const spikePercentile = clampRatio(spikePercentileResolved.value, 0.9);
+    const spikeSuccessesPerTick = getPercentileSuccesses(distribution, spikePercentile);
+    const expectedTickDamageBeforeMitigation =
+      expectedSuccessesPerTick * effectiveWoundsPerSuccess;
+    const spikeTickDamageBeforeMitigation =
+      spikeSuccessesPerTick * effectiveWoundsPerSuccess;
+    const expectedTotalOngoingBeforeMitigation =
+      expectedTickDamageBeforeMitigation * tickCount;
+    const firstTickBeforeCleanup =
+      timing === "ON_CAST" ||
+      timing === "START_OF_TURN" ||
+      timing === "START_OF_TURN_WHILST_CHANNELLED";
+    const expectedDamageThreat = roundCost(
+      expectedTotalOngoingBeforeMitigation * Math.max(0, expectedDamageShare.value),
+    );
+    const spikePressure = roundCost(
+      spikeTickDamageBeforeMitigation * Math.max(0, spikePressureShare.value),
+    );
+    const firstTickBeforeCleanupPressure = firstTickBeforeCleanup
+      ? roundCost(firstTickPressure.value)
+      : 0;
+    const cleanupActionTax = roundCost(tickCount * Math.max(0, cleanupTaxPressure.value));
+    const packetScalarCost = roundCost(
+      expectedDamageThreat + spikePressure + firstTickBeforeCleanupPressure + cleanupActionTax,
+    );
+    const packetAxisVector = cloneEmptyAxisVector();
+    applyAxisShare(packetAxisVector, getPacketThreatAxis(packet), expectedDamageThreat);
+    applyAxisShare(
+      packetAxisVector,
+      "presence",
+      roundCost(spikePressure + firstTickBeforeCleanupPressure + cleanupActionTax),
+    );
+
+    scalarCost += packetScalarCost;
+    Object.assign(axisVector, addAxisVectors(axisVector, packetAxisVector));
+
+    packetDebug.push({
+      packetIndex,
+      fired: true,
+      timing: timing || null,
+      runtimeEquivalentTiming:
+        timing === "ON_CAST" ? "START_OF_TURN" : timing || null,
+      durationType,
+      tickCount,
+      sourcePotency,
+      effectiveWoundsPerSuccess,
+      assumedDieSize: BASELINE_POWER_VALUATION_DIE_SIDES,
+      diceCount,
+      expectedSuccessesPerTick: roundRatio(expectedSuccessesPerTick),
+      spikePercentile: roundRatio(spikePercentile),
+      spikeSuccessesPerTick,
+      expectedTickDamageBeforeMitigation: roundCost(expectedTickDamageBeforeMitigation),
+      spikeTickDamageBeforeMitigation: roundCost(spikeTickDamageBeforeMitigation),
+      expectedTotalOngoingBeforeMitigation: roundCost(expectedTotalOngoingBeforeMitigation),
+      firstTickBeforeCleanup,
+      cleanupActionTax,
+      contributions: {
+        expectedDamageThreat,
+        spikePressure,
+        firstTickBeforeCleanupPressure,
+        cleanupActionTaxPressure: cleanupActionTax,
+        scalarCost: packetScalarCost,
+      },
+      axisVector: normalizeAxisVector(packetAxisVector),
+      tuningKeys: Array.from(chosenKeys),
+    });
+  }
+
+  return {
+    axisVector: normalizeAxisVector(axisVector),
+    scalarCost: roundCost(scalarCost),
+    chosenKeys: Array.from(chosenKeys),
+    packetDebug,
+    debug: {
+      scalarCost: roundCost(scalarCost),
+      axisVector: normalizeAxisVector(axisVector),
+      selectedTuning: {
+        expectedDamageThreatShare: expectedDamageShare,
+        spikePressureShare,
+        firstTickBeforeCleanupPressure: firstTickPressure,
+        cleanupActionTaxPressure: cleanupTaxPressure,
+        spikePercentile: spikePercentileResolved,
+      },
       packetDebug,
     },
   };
@@ -2607,9 +2931,15 @@ export function resolvePowerCost(
     packets,
     packetCosts,
   );
+  const runtimeOngoingDamage = getRuntimeEquivalentOngoingDamageAxisSpill(
+    tuningValues,
+    power,
+    packets,
+  );
 
   packetCosts.forEach((packetCost, index) => {
     packetCost.debug.recurringCadence = recurringCadence.packetDebug[index] ?? null;
+    packetCost.debug.runtimeOngoingDamage = runtimeOngoingDamage.packetDebug[index] ?? null;
   });
 
   for (const packetCost of packetCosts) {
@@ -2617,6 +2947,7 @@ export function resolvePowerCost(
   }
   Object.assign(axisVector, addAxisVectors(axisVector, structuralPresence.axisVector));
   Object.assign(axisVector, addAxisVectors(axisVector, recurringCadence.axisVector));
+  Object.assign(axisVector, addAxisVectors(axisVector, runtimeOngoingDamage.axisVector));
   Object.assign(axisVector, addAxisVectors(axisVector, crossPacketSynergy.axisVector));
 
   const basePowerValue = roundCost(
@@ -2625,6 +2956,7 @@ export function resolvePowerCost(
       access.cost +
       packetCostsTotal +
       packetCountComplexity.cost +
+      runtimeOngoingDamage.scalarCost +
       crossPacketSynergy.cost,
   );
   const derivedCooldown = derivePowerCooldown(basePowerValue, tuningValues, context);
@@ -2638,6 +2970,7 @@ export function resolvePowerCost(
     packetCosts,
     packetCountComplexityCost: roundCost(packetCountComplexity.cost),
     crossPacketSynergyCost: roundCost(crossPacketSynergy.cost),
+    runtimeOngoingDamageCost: roundCost(runtimeOngoingDamage.scalarCost),
     basePowerValue,
     derivedCooldownTurns: derivedCooldown.derivedCooldownTurns,
     derivedCooldown,
@@ -2650,12 +2983,14 @@ export function resolvePowerCost(
       accessBreakdown: access.debug,
       structuralPresenceBreakdown: structuralPresence.debug,
       recurringCadenceBreakdown: recurringCadence.debug,
+      runtimeOngoingDamageBreakdown: runtimeOngoingDamage.debug,
       relevantThreatAxes,
       selectedSharedContextKeys: shared.chosenKeys,
       selectedStructuralKeys: [
         ...structural.chosenKeys,
         ...structuralPresence.chosenKeys,
         ...recurringCadence.chosenKeys,
+        ...runtimeOngoingDamage.chosenKeys,
       ],
       selectedAccessKeys: access.chosenKeys,
       packetCountComplexityKeys: packetCountComplexity.chosenKeys,
@@ -2670,6 +3005,7 @@ export function resolvePowerCost(
         crossPacketSynergyAxisSynergy: crossPacketSynergy.axisVector.synergy,
         structuralPresenceAxisSynergy: structuralPresence.axisVector.synergy,
         recurringCadenceAxisSynergy: recurringCadence.axisVector.synergy,
+        runtimeOngoingDamageAxisSynergy: runtimeOngoingDamage.axisVector.synergy,
       },
       attachedHostileEntryPattern: hostileEntry.pattern,
       notes: [
@@ -2704,6 +3040,7 @@ export function resolvePowerCosts(
     accessCost: number;
     packetCountComplexityCost: number;
     crossPacketSynergyCost: number;
+    runtimeOngoingDamageCost: number;
     basePowerValue: number;
     axisVector: PowerCostAxisVector;
   };
@@ -2749,6 +3086,9 @@ export function resolvePowerCosts(
       ),
       crossPacketSynergyCost: roundCost(
         resolvedPowers.reduce((sum, row) => sum + row.breakdown.crossPacketSynergyCost, 0),
+      ),
+      runtimeOngoingDamageCost: roundCost(
+        resolvedPowers.reduce((sum, row) => sum + row.breakdown.runtimeOngoingDamageCost, 0),
       ),
       basePowerValue: roundCost(
         resolvedPowers.reduce((sum, row) => sum + row.breakdown.basePowerValue, 0),

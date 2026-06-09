@@ -88,6 +88,10 @@ const SEGMENT_LABELS: Record<string, string> = {
   onAttach: "On Attach",
   onCast: "On Cast",
   onExpiry: "On Expiry",
+  cleanupActionTaxPressure: "Cleanup Action Tax Pressure",
+  expectedDamageThreatShare: "Expected Ongoing Damage Threat Share",
+  firstTickBeforeCleanupPressure: "First Tick Before Cleanup Pressure",
+  ongoing: "Ongoing Damage",
   onPayload: "On Payload",
   onRelease: "On Release",
   onTrigger: "On Trigger",
@@ -104,10 +108,12 @@ const SEGMENT_LABELS: Record<string, string> = {
     resist: "Resist",
   recurringCarrierTurnShare: "Repeat Value per Active Turn",
   recurringTurnTiming: "Repeat Timing Pressure per Turn",
+  percentileForSpike: "Spike Percentile",
   reservePressure: "Reserve Pressure",
   resultScalingFollowThrough: "Result-Scaling Follow-Through",
   secondaryContingency: "Secondary Packet Contingency",
   sphereRadius: "Sphere Radius",
+  spikePressureShare: "Spike Pressure Share",
   startOfTurn: "Start of Turn",
   startOfTurnWhileChannelled: "Start of Turn While Channelled",
   targetThenArm: "Target, Then Arm",
@@ -212,6 +218,11 @@ function labelForKey(configKey: string): string {
   }
 
   if (section === "axis") {
+    if (family === "ongoing" && detail === "expectedDamageThreatShare") return "Expected Ongoing Damage Threat Share";
+    if (family === "ongoing" && detail === "spikePressureShare") return "Ongoing Spike Pressure Share";
+    if (family === "ongoing" && detail === "firstTickBeforeCleanupPressure") return "First Tick Before Cleanup Pressure";
+    if (family === "ongoing" && detail === "cleanupActionTaxPressure") return "Cleanup Action Tax Pressure";
+    if (family === "ongoing" && detail === "percentileForSpike") return "Ongoing Spike Percentile";
     if (family === "presence" && detail === "passive") return "Passive Pressure Spill";
     if (family === "presence" && detail === "turns") return "Turn-Based Pressure Spill";
     if (family === "presence" && detail === "recurringTurnTiming") return "Repeat Timing Pressure per Turn";
@@ -262,6 +273,9 @@ function formatForKey(configKey: string): PowerTuningValueFormat {
     configKey.startsWith("system.secondaryContingency.") ||
     configKey.startsWith("cooldown.load.") ||
     configKey.endsWith("recurringCarrierTurnShare") ||
+    configKey === "axis.ongoing.expectedDamageThreatShare" ||
+    configKey === "axis.ongoing.spikePressureShare" ||
+    configKey === "axis.ongoing.percentileForSpike" ||
     configKey.startsWith("packet.axisRouting.")
   ) {
     return "share";
@@ -309,6 +323,11 @@ function descriptionForKey(configKey: string): string {
   if (configKey.startsWith("system.packetCount.")) return "Raises or lowers scalar cost from adding more packets; this is cost-only.";
   if (configKey.startsWith("system.secondaryContingency.")) return "Sets how much contingent secondary packets count after the primary packet.";
   if (configKey.startsWith("system.synergy.")) return "Raises or lowers scalar cost for a specific cross-packet interaction.";
+  if (configKey === "axis.ongoing.expectedDamageThreatShare") return "Adds threat-axis value from expected runtime-equivalent ongoing damage before mitigation.";
+  if (configKey === "axis.ongoing.spikePressureShare") return "Adds Presence/Pressure from the selected high-percentile ongoing damage tick before mitigation.";
+  if (configKey === "axis.ongoing.firstTickBeforeCleanupPressure") return "Adds Presence/Pressure when ongoing damage ticks before the target gets a cleanup Main Action.";
+  if (configKey === "axis.ongoing.cleanupActionTaxPressure") return "Adds Presence/Pressure per ongoing tick to represent the Main Action tax if the target survives and cleans up.";
+  if (configKey === "axis.ongoing.percentileForSpike") return "Selects the success-distribution percentile used for ongoing spike pressure diagnostics.";
   if (configKey.startsWith("axis.presence.")) return "Raises or lowers pressure-axis expression from persistence and repeat timing.";
   if (configKey.startsWith("axis.structural.")) return "Raises or lowers axis expression from persistent structures and recurring carriers.";
   return "Power tuning value.";
