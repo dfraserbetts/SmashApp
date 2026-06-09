@@ -3,6 +3,8 @@ import type {
   CombatActor,
   CombatAggregateMetrics,
   CombatCooldownTrace,
+  CombatOngoingPressureMetrics,
+  CombatOngoingPressureSideTotals,
   CombatSide,
   CombatState,
   CombatTranscriptEvent,
@@ -494,6 +496,37 @@ export function getProtectionModifier(state: CombatState, actorId: string, pool:
     .reduce((sum, effect) => sum + effect.amount, 0);
 }
 
+export function createEmptyOngoingPressureSideTotals(): CombatOngoingPressureSideTotals {
+  return {
+    statusesCreated: 0,
+    storedTickTotal: 0,
+    storedTickMax: 0,
+    firstTicksApplied: 0,
+    firstTickDamageTotal: 0,
+    firstTickLethal: 0,
+    firstTickBeforeCleanup: 0,
+    ticksAppliedTotal: 0,
+    totalOngoingDamage: 0,
+    cleanupAttempts: 0,
+    cleanupSuccesses: 0,
+    cleanupUnitsRemoved: 0,
+    cleanupWoundsRemoved: 0,
+    cleanupRemainingTicksTotal: 0,
+    cleanupStoredTickRemovedTotal: 0,
+    cleanupPreventedWoundsEstimate: 0,
+  };
+}
+
+export function createEmptyOngoingPressureMetrics(): CombatOngoingPressureMetrics {
+  return {
+    bySourceSide: {
+      players: createEmptyOngoingPressureSideTotals(),
+      monsters: createEmptyOngoingPressureSideTotals(),
+    },
+    bySourceAction: {},
+  };
+}
+
 export function createEmptyMetrics(): CombatAggregateMetrics {
   return {
     damageDealt: { players: 0, monsters: 0 },
@@ -565,6 +598,7 @@ export function createEmptyMetrics(): CombatAggregateMetrics {
     defensiveContributions: {},
     cooldownTrace: {},
     counterCandidateDiagnostics: {},
+    ongoingPressure: createEmptyOngoingPressureMetrics(),
   };
 }
 

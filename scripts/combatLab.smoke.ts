@@ -4574,6 +4574,13 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (!actionContribution || actionContribution.ongoingDamageApplied <= 0 || actionContribution.ongoingDamageTicks <= 0) {
     throw new Error("Ongoing damage ticks were not credited back to the source attack action contribution.");
   }
+  const pressureRow = report.ongoingPressure.bySourceAction.find((entry) => entry.sourceActionId === ongoingAction.id);
+  if (!pressureRow || pressureRow.statusesCreated <= 0 || pressureRow.averageStoredTick <= 0 || pressureRow.firstTicksApplied <= 0) {
+    throw new Error(`Ongoing pressure diagnostics did not include the source action: ${JSON.stringify(report.ongoingPressure)}.`);
+  }
+  if (report.ongoingPressure.bySourceSide.players.statusesCreated <= 0 || report.ongoingPressure.bySourceSide.players.storedTickAverage <= 0) {
+    throw new Error("Ongoing pressure source-side summary did not report player-created ongoing statuses.");
+  }
 }
 
 {
@@ -4610,7 +4617,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     physicalProtection: 0,
   });
   const state = createCombatState([attacker], [defender], { captureTranscript: true });
-  resolveCombatAction({
+  const declarationResolution = resolveCombatAction({
     state,
     actor: state.actors[0],
     target: state.actors[1],
@@ -4622,14 +4629,28 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (!created || state.actors[1].physicalHpCurrent !== state.actors[1].physicalHpMax) {
     throw new Error(`Pure DoT dealt immediate damage or failed to create status: ${JSON.stringify({ hp: state.actors[1].physicalHpCurrent, created })}.`);
   }
+  if (
+    declarationResolution.ongoingPressure.bySourceSide.players.statusesCreated !== 1 ||
+    declarationResolution.ongoingPressure.bySourceSide.players.storedTickTotal <= 0
+  ) {
+    throw new Error(`Pure DoT declaration did not record stored tick diagnostics: ${JSON.stringify(declarationResolution.ongoingPressure)}.`);
+  }
   if (state.transcriptLines.some((line) => /Attack result: pure-dot-defender suffers/i.test(line))) {
     throw new Error(`Pure DoT transcript still reported immediate HP damage: ${state.transcriptLines.join(" | ")}`);
   }
   expectTranscriptLine(state.transcriptLines, /Status created: Pure Start Turn DoT ongoing damage/i, "pure DoT status creation");
-  resolveStartOfTurnEffects(state, state.actors[1]);
+  const firstTickResolution = resolveStartOfTurnEffects(state, state.actors[1]);
   if (state.actors[1].physicalHpCurrent >= state.actors[1].physicalHpMax) {
     throw new Error("Pure DoT did not apply damage at target start of turn.");
   }
+  if (
+    firstTickResolution.ongoingPressure.bySourceSide.players.firstTicksApplied !== 1 ||
+    firstTickResolution.ongoingPressure.bySourceSide.players.firstTickDamageTotal <= 0 ||
+    firstTickResolution.ongoingPressure.bySourceSide.players.firstTickBeforeCleanup !== 1
+  ) {
+    throw new Error(`Pure DoT first tick diagnostics were not recorded: ${JSON.stringify(firstTickResolution.ongoingPressure)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /First tick: Pure Start Turn DoT deals .* before cleanup opportunity/i, "pure DoT first tick transcript");
   expectTranscriptLine(state.transcriptLines, /Ticks remaining after this: 1/i, "pure DoT remaining tick wording");
 }
 
@@ -4877,7 +4898,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   const state = createCombatState([target], [actor], { captureTranscript: true });
   state.currentTurnActorId = state.actors[1].id;
   state.responsesRemaining[state.actors[0].id] = 2;
-  resolveCombatAction({
+  const swipingResolution = resolveCombatAction({
     state,
     actor: state.actors[1],
     target: state.actors[0],
@@ -4888,6 +4909,10 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   const created = state.statusEffects.find((effect) => effect.kind === "ongoingDamage");
   if (!created || created.amount !== 13 || created.cleanupUnitWounds !== 8 || created.damageLabel !== "physical Slashing" || state.actors[0].physicalHpCurrent !== 100) {
     throw new Error(`Live Swiping Claws path did not store 13 physical Slashing per tick without immediate damage: ${JSON.stringify({ action: swipingClaws, created, hp: state.actors[0].physicalHpCurrent })}.`);
+  }
+  const swipingStoredPressure = swipingResolution.ongoingPressure.bySourceSide.monsters;
+  if (swipingStoredPressure.statusesCreated !== 1 || swipingStoredPressure.storedTickTotal !== 13 || swipingStoredPressure.storedTickMax !== 13) {
+    throw new Error(`Live Swiping Claws did not record stored tick diagnostics: ${JSON.stringify(swipingResolution.ongoingPressure)}.`);
   }
   if (getActionCooldownRemaining(state, state.actors[1].id, swipingClaws.id) !== 2) {
     throw new Error("Live Swiping Claws did not enter cooldown 2.");
@@ -4903,11 +4928,22 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (state.transcriptLines.some((line) => /Attack result: live-swiping-target suffers/i.test(line))) {
     throw new Error(`Live Swiping Claws still reported immediate HP damage: ${state.transcriptLines.join(" | ")}`);
   }
-  resolveStartOfTurnEffects(state, state.actors[0]);
+  const liveSwipingTickResolution = resolveStartOfTurnEffects(state, state.actors[0]);
   const liveSwipingHpAfterTick = Number(state.actors[0].physicalHpCurrent);
   if (liveSwipingHpAfterTick !== 87) {
     throw new Error(`Live Swiping Claws start-turn tick did not deal stored value 13: ${liveSwipingHpAfterTick}.`);
   }
+  const swipingTickPressure = liveSwipingTickResolution.ongoingPressure.bySourceSide.monsters;
+  if (
+    swipingTickPressure.firstTicksApplied !== 1 ||
+    swipingTickPressure.firstTickDamageTotal !== 13 ||
+    swipingTickPressure.firstTickBeforeCleanup !== 1 ||
+    swipingTickPressure.ticksAppliedTotal !== 1 ||
+    swipingTickPressure.totalOngoingDamage !== 13
+  ) {
+    throw new Error(`Live Swiping Claws did not record first tick diagnostics: ${JSON.stringify(liveSwipingTickResolution.ongoingPressure)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /First tick: Swiping Claws deals 13 physical Slashing wounds to live-swiping-target before cleanup opportunity/i, "live Swiping Claws first tick transcript");
   expectTranscriptLine(state.transcriptLines, /Start of Turn: live-swiping-target suffers 13 physical Slashing wounds from Swiping Claws\. Ticks remaining after this: 1/i, "live Swiping Claws tick transcript");
 }
 
@@ -4950,9 +4986,15 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     },
   );
 
-  resolveStartOfTurnEffects(state, state.actors[0]);
+  const lethalTickResolution = resolveStartOfTurnEffects(state, state.actors[0]);
   if (!state.actors[0].defeated) {
     throw new Error("Start-turn ongoing damage did not defeat the actor.");
+  }
+  if (
+    lethalTickResolution.ongoingPressure.bySourceSide.monsters.firstTickLethal !== 1 ||
+    lethalTickResolution.ongoingPressure.bySourceSide.monsters.firstTickBeforeCleanup !== 1
+  ) {
+    throw new Error(`First-tick lethal diagnostics were not recorded: ${JSON.stringify(lethalTickResolution.ongoingPressure)}.`);
   }
   if (Object.keys(state.cooldowns).some((key) => key.startsWith(`${state.actors[0].id}:`))) {
     throw new Error(`Defeated actor cooldowns were not cleared: ${JSON.stringify(state.cooldowns)}.`);
@@ -4972,6 +5014,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     throw new Error(`Defeated actor refreshed responses after cleanup: ${state.transcriptLines.join(" | ")}`);
   }
   expectTranscriptLine(state.transcriptLines, /Start of Turn: defeated-start-turn-actor suffers 25 physical Slashing wounds from Swiping Claws\. Ticks remaining after this: 0/i, "start-turn defeat tick transcript");
+  expectTranscriptLine(state.transcriptLines, /First-tick lethal: defeated-start-turn-actor is defeated by Swiping Claws before they can attempt cleanup/i, "start-turn first-tick lethal transcript");
   expectTranscriptLine(state.transcriptLines, /Defeat: defeated-start-turn-actor is defeated/i, "start-turn defeat transcript");
   expectTranscriptLine(state.transcriptLines, /Defeat cleanup: defeated-start-turn-actor leaves active combat; cleared 2 cooldowns and 2 active statuses/i, "start-turn defeat cleanup transcript");
 }
@@ -5879,9 +5922,21 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (cleanupResolution.ongoingDamagePreventedOrCleansed !== 16 || cleanupResolution.stacksCleansed !== 0 || remaining) {
     throw new Error(`Physical ongoing cleanup did not remove one 8-wound unit per Fortitude success: ${JSON.stringify({ cleanupResolution, remaining })}.`);
   }
+  const cleanupPressure = cleanupResolution.ongoingPressure.bySourceSide.monsters;
+  if (
+    cleanupPressure.cleanupAttempts !== 1 ||
+    cleanupPressure.cleanupSuccesses !== 1 ||
+    cleanupPressure.cleanupUnitsRemoved !== 2 ||
+    cleanupPressure.cleanupWoundsRemoved !== 16 ||
+    cleanupPressure.cleanupPreventedWoundsEstimate !== 32
+  ) {
+    throw new Error(`Physical ongoing cleanup diagnostics were not recorded: ${JSON.stringify(cleanupResolution.ongoingPressure)}.`);
+  }
   if (chooseTurnAction(state.actors[0], state, "power")?.id !== cleanupPower.id) {
     throw new Error("Power Action was not available after Main Action cleanup.");
   }
+  expectTranscriptLine(state.transcriptLines, /Cleanup Resist: physical-cleanup-target attempts to remove Swiping Claws ongoing damage/i, "physical cleanup resist transcript");
+  expectTranscriptLine(state.transcriptLines, /Cleanup result: removed 2 ongoing units from Swiping Claws/i, "physical cleanup result transcript");
   expectTranscriptLine(state.transcriptLines, /using Fortitude for clean up Swiping Claws/i, "physical cleanup Fortitude roll");
   expectTranscriptLine(state.transcriptLines, /Cleanup: physical-cleanup-target removes 5 ongoing units from Swiping Claws \(5 x 8 = 40\), reducing it from 16 to 0 physical Slashing wounds per tick/i, "physical cleanup unit removal");
   expectTranscriptLine(state.transcriptLines, /Cleanup: Swiping Claws ongoing damage is removed from physical-cleanup-target/i, "physical cleanup removed");
@@ -5915,7 +5970,11 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   if (resolution.ongoingDamagePreventedOrCleansed !== 8 || remaining?.amount !== 3) {
     throw new Error(`One cleanup success should reduce 11 by one 8-wound unit to 3: ${JSON.stringify({ resolution, remaining })}.`);
   }
+  if (resolution.ongoingPressure.bySourceSide.monsters.cleanupUnitsRemoved !== 1) {
+    throw new Error(`Partial cleanup did not record one removed ongoing unit: ${JSON.stringify(resolution.ongoingPressure)}.`);
+  }
   expectTranscriptLine(state.transcriptLines, /removes 1 ongoing unit from Partially Prevented Bleed \(1 x 8 = 8\), reducing it from 11 to 3/i, "partial unit cleanup");
+  expectTranscriptLine(state.transcriptLines, /Cleanup result: removed 1 ongoing unit from Partially Prevented Bleed/i, "partial unit cleanup diagnostic transcript");
 }
 
 {

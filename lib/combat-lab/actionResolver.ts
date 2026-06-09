@@ -8,6 +8,8 @@ import {
   getProtectionModifier,
   isActionOnCooldown,
   markDefeatedActors,
+  createEmptyOngoingPressureMetrics,
+  createEmptyOngoingPressureSideTotals,
   recordActionUse,
   recordCooldownPreventedUse,
   removeStatusEffectById,
@@ -20,6 +22,9 @@ import type {
   CombatAttributeName,
   CombatRollSummary,
   CombatResolutionMetrics,
+  CombatOngoingPressureActionMetrics,
+  CombatOngoingPressureMetrics,
+  CombatOngoingPressureSideTotals,
   CombatState,
 } from "./types";
 
@@ -106,6 +111,7 @@ function emptyResolution(): CombatResolutionMetrics {
     aoePotentialTargets: 0,
     aoeActualTargets: 0,
     positionalAbstractionsUsed: 0,
+    ongoingPressure: createEmptyOngoingPressureMetrics(),
   };
 }
 
@@ -506,10 +512,162 @@ function healWounds(target: CombatActor, pool: "physical" | "mental", healing: n
   return target[currentKey] - before;
 }
 
+function addOngoingPressureSideTotals(
+  target: CombatOngoingPressureSideTotals,
+  source: CombatOngoingPressureSideTotals,
+) {
+  target.statusesCreated += source.statusesCreated;
+  target.storedTickTotal += source.storedTickTotal;
+  target.storedTickMax = Math.max(target.storedTickMax, source.storedTickMax);
+  target.firstTicksApplied += source.firstTicksApplied;
+  target.firstTickDamageTotal += source.firstTickDamageTotal;
+  target.firstTickLethal += source.firstTickLethal;
+  target.firstTickBeforeCleanup += source.firstTickBeforeCleanup;
+  target.ticksAppliedTotal += source.ticksAppliedTotal;
+  target.totalOngoingDamage += source.totalOngoingDamage;
+  target.cleanupAttempts += source.cleanupAttempts;
+  target.cleanupSuccesses += source.cleanupSuccesses;
+  target.cleanupUnitsRemoved += source.cleanupUnitsRemoved;
+  target.cleanupWoundsRemoved += source.cleanupWoundsRemoved;
+  target.cleanupRemainingTicksTotal += source.cleanupRemainingTicksTotal;
+  target.cleanupStoredTickRemovedTotal += source.cleanupStoredTickRemovedTotal;
+  target.cleanupPreventedWoundsEstimate += source.cleanupPreventedWoundsEstimate;
+}
+
+function addOngoingPressureMetrics(
+  target: CombatOngoingPressureMetrics,
+  source: CombatOngoingPressureMetrics,
+) {
+  addOngoingPressureSideTotals(target.bySourceSide.players, source.bySourceSide.players);
+  addOngoingPressureSideTotals(target.bySourceSide.monsters, source.bySourceSide.monsters);
+  for (const [key, sourceAction] of Object.entries(source.bySourceAction)) {
+    const targetAction = target.bySourceAction[key] ??= {
+      ...sourceAction,
+      ...createEmptyOngoingPressureSideTotals(),
+    };
+    addOngoingPressureSideTotals(targetAction, sourceAction);
+  }
+}
+
 function addMetrics(target: CombatResolutionMetrics, source: Partial<CombatResolutionMetrics>) {
   for (const key of Object.keys(source) as Array<keyof CombatResolutionMetrics>) {
-    target[key] += source[key] ?? 0;
+    if (key === "ongoingPressure") {
+      if (source.ongoingPressure) addOngoingPressureMetrics(target.ongoingPressure, source.ongoingPressure);
+      continue;
+    }
+    const targetValue = target[key];
+    const sourceValue = source[key];
+    if (typeof targetValue === "number" && typeof sourceValue === "number") {
+      target[key] = (targetValue + sourceValue) as never;
+    }
   }
+}
+
+function sourceActorForEffect(state: CombatState, effect: CombatState["statusEffects"][number]) {
+  return state.actors.find((actor) => actor.id === effect.sourceActorId) ?? null;
+}
+
+function ensureOngoingPressureAction(
+  metrics: CombatOngoingPressureMetrics,
+  sourceActor: CombatActor,
+  actionId: string,
+  actionName: string,
+): CombatOngoingPressureActionMetrics {
+  const key = `${sourceActor.id}:${actionId}`;
+  return metrics.bySourceAction[key] ??= {
+    ...createEmptyOngoingPressureSideTotals(),
+    sourceActorId: sourceActor.id,
+    sourceActorName: sourceActor.name,
+    sourceSide: sourceActor.side,
+    sourceActionId: actionId,
+    sourceActionName: actionName,
+  };
+}
+
+function recordOngoingPressure(
+  metrics: CombatResolutionMetrics,
+  sourceActor: CombatActor,
+  actionId: string,
+  actionName: string,
+  mutate: (totals: CombatOngoingPressureSideTotals) => void,
+) {
+  mutate(metrics.ongoingPressure.bySourceSide[sourceActor.side]);
+  mutate(ensureOngoingPressureAction(metrics.ongoingPressure, sourceActor, actionId, actionName));
+}
+
+function recordOngoingStatusCreated(params: {
+  metrics: CombatResolutionMetrics;
+  sourceActor: CombatActor;
+  action: CombatAction;
+  storedTick: number;
+}) {
+  recordOngoingPressure(
+    params.metrics,
+    params.sourceActor,
+    params.action.id,
+    params.action.name,
+    (totals) => {
+      totals.statusesCreated += 1;
+      totals.storedTickTotal += params.storedTick;
+      totals.storedTickMax = Math.max(totals.storedTickMax, params.storedTick);
+    },
+  );
+}
+
+function recordOngoingFirstTick(params: {
+  metrics: CombatResolutionMetrics;
+  state: CombatState;
+  effect: CombatState["statusEffects"][number];
+  damage: number;
+  firstTickBeforeCleanup: boolean;
+  lethal: boolean;
+}) {
+  const sourceActor = sourceActorForEffect(params.state, params.effect);
+  if (!sourceActor) return;
+  recordOngoingPressure(
+    params.metrics,
+    sourceActor,
+    params.effect.sourceActionId ?? params.effect.sourceActionName ?? "unknown-ongoing-action",
+    params.effect.sourceActionName ?? "Ongoing Damage",
+    (totals) => {
+      totals.ticksAppliedTotal += 1;
+      totals.totalOngoingDamage += params.damage;
+      if (!params.effect.firstTickApplied) {
+        totals.firstTicksApplied += 1;
+        totals.firstTickDamageTotal += params.damage;
+        totals.firstTickBeforeCleanup += params.firstTickBeforeCleanup ? 1 : 0;
+        totals.firstTickLethal += params.lethal ? 1 : 0;
+      }
+    },
+  );
+}
+
+function recordOngoingCleanup(params: {
+  metrics: CombatResolutionMetrics;
+  state: CombatState;
+  effect: CombatState["statusEffects"][number];
+  removedWounds: number;
+  cleanupUnitsRemoved: number;
+  amountBefore: number;
+  remainingTicksAtCleanup: number;
+}) {
+  const sourceActor = sourceActorForEffect(params.state, params.effect);
+  if (!sourceActor) return;
+  recordOngoingPressure(
+    params.metrics,
+    sourceActor,
+    params.effect.sourceActionId ?? params.effect.sourceActionName ?? "unknown-ongoing-action",
+    params.effect.sourceActionName ?? "Ongoing Damage",
+    (totals) => {
+      totals.cleanupAttempts += 1;
+      totals.cleanupSuccesses += params.removedWounds > 0 ? 1 : 0;
+      totals.cleanupUnitsRemoved += params.cleanupUnitsRemoved;
+      totals.cleanupWoundsRemoved += params.removedWounds;
+      totals.cleanupRemainingTicksTotal += params.remainingTicksAtCleanup;
+      totals.cleanupStoredTickRemovedTotal += Math.min(params.amountBefore, params.removedWounds);
+      totals.cleanupPreventedWoundsEstimate += params.removedWounds * params.remainingTicksAtCleanup;
+    },
+  );
 }
 
 function resolveTargets(state: CombatState, actor: CombatActor, action: CombatAction, primaryTarget: CombatActor): CombatActor[] {
@@ -658,6 +816,22 @@ function resolveUniversalCleanupAction(params: {
   const removed = removable.kind === "ongoingDamage"
     ? Math.min(before, cleanupUnits * unitWounds)
     : Math.min(before, cleanupUnits);
+  const cleanupUnitsRemoved =
+    removable.kind === "ongoingDamage" && removed > 0
+      ? Math.min(cleanupUnits, Math.max(1, Math.ceil(removed / unitWounds)))
+      : 0;
+  if (removable.kind === "ongoingDamage") {
+    removable.cleanupAttempted = true;
+    recordOngoingCleanup({
+      metrics,
+      state,
+      effect: removable,
+      removedWounds: removed,
+      cleanupUnitsRemoved,
+      amountBefore: before,
+      remainingTicksAtCleanup: Math.max(0, removable.remainingRounds),
+    });
+  }
   removable.amount = Math.max(0, before - removed);
 
   metrics.resistRolls = 1;
@@ -691,6 +865,24 @@ function resolveUniversalCleanupAction(params: {
       cleanupUnitWounds: removable.kind === "ongoingDamage" ? unitWounds : undefined,
     },
   });
+  if (removable.kind === "ongoingDamage") {
+    emitTranscriptEvent(state, {
+      type: "cleanseRoll",
+      actorId: actor.id,
+      actorName: actor.name,
+      actionId: action.id,
+      actionName: action.name,
+      targetId: actor.id,
+      targetName: actor.name,
+      lane,
+      message: `Cleanup Resist: ${actor.name} attempts to remove ${removable.sourceActionName ?? "ongoing damage"} ongoing damage.`,
+      details: {
+        effect: "ongoingDamage",
+        sourceActionName: removable.sourceActionName,
+        amountBefore: before,
+      },
+    });
+  }
   emitTranscriptEvent(state, {
     type: "cleanseRoll",
     actorId: actor.id,
@@ -714,6 +906,24 @@ function resolveUniversalCleanupAction(params: {
   });
   if (removable.kind === "ongoingDamage") {
     const woundLabel = removable.damageLabel ?? removable.pool ?? "physical";
+    emitTranscriptEvent(state, {
+      type: "stackChanged",
+      actorId: actor.id,
+      actorName: actor.name,
+      actionId: action.id,
+      actionName: action.name,
+      targetId: actor.id,
+      targetName: actor.name,
+      lane,
+      message: `Cleanup result: removed ${cleanupUnitsRemoved} ongoing unit${cleanupUnitsRemoved === 1 ? "" : "s"} from ${removable.sourceActionName ?? "ongoing damage"}.`,
+      details: {
+        effect: "ongoingDamage",
+        cleanupUnitsRemoved,
+        removedWounds: removed,
+        amountBefore: before,
+        amountAfter: removable.amount,
+      },
+    });
     emitTranscriptEvent(state, {
       type: "stackChanged",
       actorId: actor.id,
@@ -839,6 +1049,22 @@ function resolveAuthoredResistCleanupAction(params: {
   const removed = matching.kind === "ongoingDamage"
     ? Math.min(before, totalResists * unitWounds)
     : Math.min(before, totalResists);
+  const cleanupUnitsRemoved =
+    matching.kind === "ongoingDamage" && removed > 0
+      ? Math.min(totalResists, Math.max(1, Math.ceil(removed / unitWounds)))
+      : 0;
+  if (matching.kind === "ongoingDamage") {
+    matching.cleanupAttempted = true;
+    recordOngoingCleanup({
+      metrics,
+      state,
+      effect: matching,
+      removedWounds: removed,
+      cleanupUnitsRemoved,
+      amountBefore: before,
+      remainingTicksAtCleanup: Math.max(0, matching.remainingRounds),
+    });
+  }
   matching.amount = Math.max(0, before - removed);
   metrics.resistRolls = 1;
   metrics.resistSuccesses = totalResists;
@@ -871,8 +1097,46 @@ function resolveAuthoredResistCleanupAction(params: {
       amountBefore: before,
     },
   });
+  if (matching.kind === "ongoingDamage") {
+    emitTranscriptEvent(state, {
+      type: "cleanseRoll",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Cleanup Resist: ${target.name} attempts to remove ${matching.sourceActionName ?? "ongoing damage"} ongoing damage.`,
+      details: {
+        effect: "ongoingDamage",
+        sourceActionName: matching.sourceActionName,
+        amountBefore: before,
+      },
+    });
+  }
 
   const woundLabel = matching.damageLabel ?? matching.pool ?? "physical";
+  if (matching.kind === "ongoingDamage") {
+    emitTranscriptEvent(state, {
+      type: "stackChanged",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Cleanup result: removed ${cleanupUnitsRemoved} ongoing unit${cleanupUnitsRemoved === 1 ? "" : "s"} from ${matching.sourceActionName ?? "ongoing damage"}.`,
+      details: {
+        effect: "ongoingDamage",
+        cleanupUnitsRemoved,
+        removedWounds: removed,
+        amountBefore: before,
+        amountAfter: matching.amount,
+      },
+    });
+  }
   emitTranscriptEvent(state, {
     type: "stackChanged",
     actorId: actor.id,
@@ -1611,13 +1875,44 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
       metrics.healingOverTimeApplied += healed;
       metrics.healingTicks += 1;
     } else if (effect.kind === "ongoingDamage") {
+      const firstTick = !effect.firstTickApplied;
+      const firstTickBeforeCleanup = firstTick && !effect.cleanupAttempted;
       const overkill = applyWounds(actor, effect.pool ?? "physical", effect.amount);
       const remainingAfterTick = Math.max(0, effect.remainingRounds - 1);
       const woundLabel = effect.damageLabel ?? effect.pool ?? "physical";
+      const lethal = actor.physicalHpCurrent <= 0 || actor.mentalHpCurrent <= 0;
       metrics.netWounds += effect.amount;
       metrics.ongoingDamageApplied += effect.amount;
       metrics.ongoingDamageTicks += 1;
       metrics.overkill += overkill;
+      recordOngoingFirstTick({
+        metrics,
+        state,
+        effect,
+        damage: effect.amount,
+        firstTickBeforeCleanup,
+        lethal,
+      });
+      effect.firstTickApplied = true;
+      if (firstTick) {
+        emitTranscriptEvent(state, {
+          type: "statusTick",
+          actorId: actor.id,
+          actorName: actor.name,
+          actionId: effect.sourceActionId,
+          actionName: effect.sourceActionName,
+          lane: "startOfTurn",
+          message: firstTickBeforeCleanup
+            ? `First tick: ${effect.sourceActionName ?? "ongoing damage"} deals ${effect.amount} ${woundLabel} wounds to ${actor.name} before cleanup opportunity.`
+            : `First tick: ${effect.sourceActionName ?? "ongoing damage"} deals ${effect.amount} ${woundLabel} wounds to ${actor.name}.`,
+          details: {
+            effect: effect.kind,
+            wounds: effect.amount,
+            pool: effect.pool ?? "physical",
+            firstTickBeforeCleanup,
+          },
+        });
+      }
       emitTranscriptEvent(state, {
         type: "statusTick",
         actorId: actor.id,
@@ -1628,7 +1923,23 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
         message: `Start of Turn: ${actor.name} suffers ${effect.amount} ${woundLabel} wounds from ${effect.sourceActionName ?? "ongoing damage"}. Ticks remaining after this: ${remainingAfterTick}.`,
         details: { effect: effect.kind, wounds: effect.amount, pool: effect.pool ?? "physical", overkill, remainingRounds: effect.remainingRounds, remainingAfterTick },
       });
-      if (actor.physicalHpCurrent <= 0 || actor.mentalHpCurrent <= 0) {
+      if (lethal) {
+        if (firstTick && firstTickBeforeCleanup) {
+          emitTranscriptEvent(state, {
+            type: "actorDefeated",
+            actorId: actor.id,
+            actorName: actor.name,
+            actionId: effect.sourceActionId,
+            actionName: effect.sourceActionName,
+            lane: "startOfTurn",
+            message: `First-tick lethal: ${actor.name} is defeated by ${effect.sourceActionName ?? "ongoing damage"} before they can attempt cleanup.`,
+            details: {
+              effect: effect.kind,
+              wounds: effect.amount,
+              firstTickBeforeCleanup,
+            },
+          });
+        }
         markDefeatedActors(state);
         return metrics;
       }
@@ -2007,6 +2318,9 @@ function resolveSingleTargetAction(params: {
           targetActorId: target.id,
           kind: "ongoingDamage",
           amount: storedOngoingWounds,
+          initialAmount: storedOngoingWounds,
+          firstTickApplied: false,
+          cleanupAttempted: false,
           pool,
           damageLabel: woundLabel,
           cleanupAttribute: pool === "mental" ? "Bravery" : "Fortitude",
@@ -2017,6 +2331,7 @@ function resolveSingleTargetAction(params: {
         });
         metrics.ongoingDamageUnitsApplied += units;
         metrics.stacksApplied += units;
+        recordOngoingStatusCreated({ metrics, sourceActor: actor, action, storedTick: storedOngoingWounds });
         emitTranscriptEvent(state, {
           type: "damageApplied",
           actorId: actor.id,
@@ -2080,6 +2395,9 @@ function resolveSingleTargetAction(params: {
         targetActorId: target.id,
         kind: "ongoingDamage",
         amount: effectPerSuccess * units,
+        initialAmount: effectPerSuccess * units,
+        firstTickApplied: false,
+        cleanupAttempted: false,
         pool,
         damageLabel: actionDamageLabel(action, pool),
         cleanupAttribute: pool === "mental" ? "Bravery" : "Fortitude",
@@ -2090,6 +2408,7 @@ function resolveSingleTargetAction(params: {
       });
       metrics.ongoingDamageUnitsApplied += units;
       metrics.stacksApplied += units;
+      recordOngoingStatusCreated({ metrics, sourceActor: actor, action, storedTick: effectPerSuccess * units });
       emitTranscriptEvent(state, {
         type: "statusCreated",
         actorId: actor.id,
@@ -2366,6 +2685,23 @@ function resolveSingleTargetAction(params: {
       const cleansed = removable.kind === "ongoingDamage"
         ? Math.min(removable.amount, cleanseUnits * cleanupUnitWounds)
         : Math.min(removable.amount, cleanseUnits);
+      const cleanupUnitsRemoved =
+        removable.kind === "ongoingDamage" && cleansed > 0
+          ? Math.min(cleanseUnits, Math.max(1, Math.ceil(cleansed / cleanupUnitWounds)))
+          : 0;
+      const before = Math.max(0, removable.amount);
+      if (removable.kind === "ongoingDamage") {
+        removable.cleanupAttempted = true;
+        recordOngoingCleanup({
+          metrics,
+          state,
+          effect: removable,
+          removedWounds: cleansed,
+          cleanupUnitsRemoved,
+          amountBefore: before,
+          remainingTicksAtCleanup: Math.max(0, removable.remainingRounds),
+        });
+      }
       removable.amount = Math.max(0, removable.amount - cleansed);
       metrics.mitigationApplied = cleansed;
       metrics.ongoingDamagePreventedOrCleansed = removable.kind === "ongoingDamage" ? cleansed : 0;
@@ -2385,8 +2721,28 @@ function resolveSingleTargetAction(params: {
         message: removable.kind === "ongoingDamage"
           ? `Cleanse: ${action.name} removes ${cleanseUnits} ongoing unit${cleanseUnits === 1 ? "" : "s"} from ${removable.sourceActionName ?? removable.kind} on ${target.name} (${cleanseUnits} x ${cleanupUnitWounds} = ${cleanseUnits * cleanupUnitWounds}); ${Math.max(0, removable.amount)} wounds per tick remain.`
           : `Cleanse: ${action.name} removes ${cleansed} from ${removable.sourceActionName ?? removable.kind} on ${target.name}.`,
-        details: { cleansed, cleanseUnits, cleanupUnitWounds: removable.kind === "ongoingDamage" ? cleanupUnitWounds : undefined, effect: removable.kind, remainingAmount: removable.amount },
+        details: { cleansed, cleanseUnits, cleanupUnitsRemoved, cleanupUnitWounds: removable.kind === "ongoingDamage" ? cleanupUnitWounds : undefined, effect: removable.kind, remainingAmount: removable.amount },
       });
+      if (removable.kind === "ongoingDamage") {
+        emitTranscriptEvent(state, {
+          type: "stackChanged",
+          actorId: actor.id,
+          actorName: actor.name,
+          targetId: target.id,
+          targetName: target.name,
+          actionId: action.id,
+          actionName: action.name,
+          lane,
+          message: `Cleanup result: removed ${cleanupUnitsRemoved} ongoing unit${cleanupUnitsRemoved === 1 ? "" : "s"} from ${removable.sourceActionName ?? "ongoing damage"}.`,
+          details: {
+            effect: "ongoingDamage",
+            cleanupUnitsRemoved,
+            removedWounds: cleansed,
+            amountBefore: before,
+            amountAfter: removable.amount,
+          },
+        });
+      }
     } else {
       metrics.wastedActions = 1;
       emitTranscriptEvent(state, {

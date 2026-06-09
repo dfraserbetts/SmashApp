@@ -9,6 +9,11 @@ import type {
   CombatRunResult,
   CombatScenario,
   CombatHydrationIntegrity,
+  CombatOngoingPressureActionMetrics,
+  CombatOngoingPressureActionReport,
+  CombatOngoingPressureReport,
+  CombatOngoingPressureSideReport,
+  CombatOngoingPressureSideTotals,
   CombatSide,
   CombatSuiteReport,
   CombatStoppedByBreakdown,
@@ -423,6 +428,156 @@ function mergeCounterCandidateDiagnostics(runs: CombatRunResult[]): CombatCounte
   );
 }
 
+function emptyOngoingSideReport(): CombatOngoingPressureSideReport {
+  return {
+    statusesCreated: 0,
+    storedTickAverage: 0,
+    storedTickMax: 0,
+    firstTicksApplied: 0,
+    firstTickDamageAverage: 0,
+    firstTickLethalCount: 0,
+    firstTickLethalRate: 0,
+    firstTickBeforeCleanup: 0,
+    cleanupAttempts: 0,
+    cleanupSuccesses: 0,
+    cleanupUnitsRemoved: 0,
+    cleanupWoundsRemoved: 0,
+    cleanupPreventedWoundsEstimate: null,
+  };
+}
+
+function addOngoingTotals(
+  target: CombatOngoingPressureSideTotals,
+  source: CombatOngoingPressureSideTotals,
+) {
+  target.statusesCreated += source.statusesCreated;
+  target.storedTickTotal += source.storedTickTotal;
+  target.storedTickMax = Math.max(target.storedTickMax, source.storedTickMax);
+  target.firstTicksApplied += source.firstTicksApplied;
+  target.firstTickDamageTotal += source.firstTickDamageTotal;
+  target.firstTickLethal += source.firstTickLethal;
+  target.firstTickBeforeCleanup += source.firstTickBeforeCleanup;
+  target.ticksAppliedTotal += source.ticksAppliedTotal;
+  target.totalOngoingDamage += source.totalOngoingDamage;
+  target.cleanupAttempts += source.cleanupAttempts;
+  target.cleanupSuccesses += source.cleanupSuccesses;
+  target.cleanupUnitsRemoved += source.cleanupUnitsRemoved;
+  target.cleanupWoundsRemoved += source.cleanupWoundsRemoved;
+  target.cleanupRemainingTicksTotal += source.cleanupRemainingTicksTotal;
+  target.cleanupStoredTickRemovedTotal += source.cleanupStoredTickRemovedTotal;
+  target.cleanupPreventedWoundsEstimate += source.cleanupPreventedWoundsEstimate;
+}
+
+function emptyOngoingTotals(): CombatOngoingPressureSideTotals {
+  return {
+    statusesCreated: 0,
+    storedTickTotal: 0,
+    storedTickMax: 0,
+    firstTicksApplied: 0,
+    firstTickDamageTotal: 0,
+    firstTickLethal: 0,
+    firstTickBeforeCleanup: 0,
+    ticksAppliedTotal: 0,
+    totalOngoingDamage: 0,
+    cleanupAttempts: 0,
+    cleanupSuccesses: 0,
+    cleanupUnitsRemoved: 0,
+    cleanupWoundsRemoved: 0,
+    cleanupRemainingTicksTotal: 0,
+    cleanupStoredTickRemovedTotal: 0,
+    cleanupPreventedWoundsEstimate: 0,
+  };
+}
+
+function sideReportFromTotals(
+  totals: CombatOngoingPressureSideTotals,
+  runCount: number,
+): CombatOngoingPressureSideReport {
+  const divisor = Math.max(1, runCount);
+  return {
+    statusesCreated: totals.statusesCreated / divisor,
+    storedTickAverage: totals.storedTickTotal / Math.max(1, totals.statusesCreated),
+    storedTickMax: totals.storedTickMax,
+    firstTicksApplied: totals.firstTicksApplied / divisor,
+    firstTickDamageAverage: totals.firstTickDamageTotal / Math.max(1, totals.firstTicksApplied),
+    firstTickLethalCount: totals.firstTickLethal / divisor,
+    firstTickLethalRate: totals.firstTickLethal / Math.max(1, totals.firstTicksApplied),
+    firstTickBeforeCleanup: totals.firstTickBeforeCleanup / divisor,
+    cleanupAttempts: totals.cleanupAttempts / divisor,
+    cleanupSuccesses: totals.cleanupSuccesses / divisor,
+    cleanupUnitsRemoved: totals.cleanupUnitsRemoved / divisor,
+    cleanupWoundsRemoved: totals.cleanupWoundsRemoved / divisor,
+    cleanupPreventedWoundsEstimate:
+      totals.cleanupAttempts > 0 ? totals.cleanupPreventedWoundsEstimate / divisor : null,
+  };
+}
+
+function actionReportFromTotals(
+  totals: CombatOngoingPressureActionMetrics,
+  runCount: number,
+): CombatOngoingPressureActionReport {
+  const divisor = Math.max(1, runCount);
+  return {
+    sourceActorId: totals.sourceActorId,
+    sourceActorName: totals.sourceActorName,
+    sourceSide: totals.sourceSide,
+    sourceActionId: totals.sourceActionId,
+    sourceActionName: totals.sourceActionName,
+    statusesCreated: totals.statusesCreated / divisor,
+    averageStoredTick: totals.storedTickTotal / Math.max(1, totals.statusesCreated),
+    maxStoredTick: totals.storedTickMax,
+    firstTicksApplied: totals.firstTicksApplied / divisor,
+    averageFirstTickDamage: totals.firstTickDamageTotal / Math.max(1, totals.firstTicksApplied),
+    firstTickLethalCount: totals.firstTickLethal / divisor,
+    firstTickLethalRate: totals.firstTickLethal / Math.max(1, totals.firstTicksApplied),
+    ticksAppliedTotal: totals.ticksAppliedTotal / divisor,
+    totalOngoingDamage: totals.totalOngoingDamage / divisor,
+    cleanupAttempts: totals.cleanupAttempts / divisor,
+    cleanupSuccesses: totals.cleanupSuccesses / divisor,
+    cleanupUnitsRemoved: totals.cleanupUnitsRemoved / divisor,
+    averageRemainingTicksAtCleanup: totals.cleanupRemainingTicksTotal / Math.max(1, totals.cleanupAttempts),
+    averageStoredTickRemoved: totals.cleanupStoredTickRemovedTotal / Math.max(1, totals.cleanupSuccesses),
+    cleanupPreventedWoundsEstimate:
+      totals.cleanupAttempts > 0 ? totals.cleanupPreventedWoundsEstimate / divisor : null,
+  };
+}
+
+function mergeOngoingPressure(runs: CombatRunResult[]): CombatOngoingPressureReport {
+  const players = emptyOngoingTotals();
+  const monsters = emptyOngoingTotals();
+  const byAction = new Map<string, CombatOngoingPressureActionMetrics>();
+
+  for (const run of runs) {
+    addOngoingTotals(players, run.metrics.ongoingPressure.bySourceSide.players);
+    addOngoingTotals(monsters, run.metrics.ongoingPressure.bySourceSide.monsters);
+    for (const [key, action] of Object.entries(run.metrics.ongoingPressure.bySourceAction)) {
+      const current = byAction.get(key) ?? {
+        ...action,
+        ...emptyOngoingTotals(),
+      };
+      addOngoingTotals(current, action);
+      byAction.set(key, current);
+    }
+  }
+
+  return {
+    convention: "Ongoing pressure is grouped by source side: players/monsters means the side that created or dealt the ongoing damage.",
+    bySourceSide: {
+      players: runs.length > 0 ? sideReportFromTotals(players, runs.length) : emptyOngoingSideReport(),
+      monsters: runs.length > 0 ? sideReportFromTotals(monsters, runs.length) : emptyOngoingSideReport(),
+    },
+    bySourceAction: Array.from(byAction.values())
+      .map((entry) => actionReportFromTotals(entry, runs.length))
+      .sort((left, right) =>
+        right.totalOngoingDamage - left.totalOngoingDamage ||
+        right.statusesCreated - left.statusesCreated ||
+        left.sourceSide.localeCompare(right.sourceSide) ||
+        left.sourceActorName.localeCompare(right.sourceActorName) ||
+        left.sourceActionName.localeCompare(right.sourceActionName),
+      ),
+  };
+}
+
 function mergeRoleContribution(runs: CombatRunResult[]): CombatAggregateMetrics["roleContribution"] {
   const out: CombatAggregateMetrics["roleContribution"] = {};
   for (const run of runs) {
@@ -568,6 +723,7 @@ export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
     actorContributions: mergeActorContributions(runs),
     monsterGroupContributions: mergeMonsterGroupContributions(scenario, runs),
     defensiveContributions: mergeDefensiveContributions(runs),
+    ongoingPressure: mergeOngoingPressure(runs),
     cooldownTrace: mergeCooldownTrace(runs),
     counterCandidateDiagnostics: mergeCounterCandidateDiagnostics(runs),
     firstRunTranscript: runs[0]?.firstRunTranscript,

@@ -163,6 +163,9 @@ export type CombatStatusEffect = {
   damageLabel?: string;
   cleanupAttribute?: CombatAttributeName;
   cleanupUnitWounds?: number;
+  initialAmount?: number;
+  firstTickApplied?: boolean;
+  cleanupAttempted?: boolean;
   sourceActionId?: string;
   sourceActionName?: string;
   sourceCooldownActionId?: string;
@@ -400,6 +403,39 @@ export type CombatResolutionMetrics = {
   aoePotentialTargets: number;
   aoeActualTargets: number;
   positionalAbstractionsUsed: number;
+  ongoingPressure: CombatOngoingPressureMetrics;
+};
+
+export type CombatOngoingPressureSideTotals = {
+  statusesCreated: number;
+  storedTickTotal: number;
+  storedTickMax: number;
+  firstTicksApplied: number;
+  firstTickDamageTotal: number;
+  firstTickLethal: number;
+  firstTickBeforeCleanup: number;
+  ticksAppliedTotal: number;
+  totalOngoingDamage: number;
+  cleanupAttempts: number;
+  cleanupSuccesses: number;
+  cleanupUnitsRemoved: number;
+  cleanupWoundsRemoved: number;
+  cleanupRemainingTicksTotal: number;
+  cleanupStoredTickRemovedTotal: number;
+  cleanupPreventedWoundsEstimate: number;
+};
+
+export type CombatOngoingPressureActionMetrics = CombatOngoingPressureSideTotals & {
+  sourceActorId: string;
+  sourceActorName: string;
+  sourceSide: CombatSide;
+  sourceActionId: string;
+  sourceActionName: string;
+};
+
+export type CombatOngoingPressureMetrics = {
+  bySourceSide: Record<CombatSide, CombatOngoingPressureSideTotals>;
+  bySourceAction: Record<string, CombatOngoingPressureActionMetrics>;
 };
 
 export type CombatRunOptions = {
@@ -508,6 +544,7 @@ export type CombatAggregateMetrics = {
   defensiveContributions: Record<string, CombatDefensiveContribution>;
   cooldownTrace: Record<string, CombatCooldownTrace>;
   counterCandidateDiagnostics: Record<string, CombatCounterCandidateDiagnostic>;
+  ongoingPressure: CombatOngoingPressureMetrics;
 };
 
 export type CombatActionContribution = {
@@ -563,6 +600,51 @@ export type CombatActorContribution = {
   ongoingDamageTicks: number;
   topActionName: string | null;
   actionContributions: CombatActionContribution[];
+};
+
+export type CombatOngoingPressureSideReport = {
+  statusesCreated: number;
+  storedTickAverage: number;
+  storedTickMax: number;
+  firstTicksApplied: number;
+  firstTickDamageAverage: number;
+  firstTickLethalCount: number;
+  firstTickLethalRate: number;
+  firstTickBeforeCleanup: number;
+  cleanupAttempts: number;
+  cleanupSuccesses: number;
+  cleanupUnitsRemoved: number;
+  cleanupWoundsRemoved: number;
+  cleanupPreventedWoundsEstimate: number | null;
+};
+
+export type CombatOngoingPressureActionReport = {
+  sourceActorId: string;
+  sourceActorName: string;
+  sourceSide: CombatSide;
+  sourceActionId: string;
+  sourceActionName: string;
+  statusesCreated: number;
+  averageStoredTick: number;
+  maxStoredTick: number;
+  firstTicksApplied: number;
+  averageFirstTickDamage: number;
+  firstTickLethalCount: number;
+  firstTickLethalRate: number;
+  ticksAppliedTotal: number;
+  totalOngoingDamage: number;
+  cleanupAttempts: number;
+  cleanupSuccesses: number;
+  cleanupUnitsRemoved: number;
+  averageRemainingTicksAtCleanup: number;
+  averageStoredTickRemoved: number;
+  cleanupPreventedWoundsEstimate: number | null;
+};
+
+export type CombatOngoingPressureReport = {
+  convention: string;
+  bySourceSide: Record<CombatSide, CombatOngoingPressureSideReport>;
+  bySourceAction: CombatOngoingPressureActionReport[];
 };
 
 export type CombatDefensiveContribution = {
@@ -681,6 +763,7 @@ export type CombatSuiteReport = {
   actorContributions: CombatActorContribution[];
   monsterGroupContributions: CombatMonsterGroupContribution[];
   defensiveContributions: CombatDefensiveContribution[];
+  ongoingPressure: CombatOngoingPressureReport;
   cooldownTrace: CombatCooldownTrace[];
   counterCandidateDiagnostics: CombatCounterCandidateDiagnostic[];
   firstRunTranscript?: CombatTranscript;

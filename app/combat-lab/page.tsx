@@ -56,6 +56,46 @@ type RunPayload = {
     averageProtectionPrevented: { players: number; monsters: number };
     averageDodgeAvoided: { players: number; monsters: number };
     averageMechanics: Record<string, { players: number; monsters: number }>;
+    ongoingPressure: {
+      convention: string;
+      bySourceSide: Record<"players" | "monsters", {
+        statusesCreated: number;
+        storedTickAverage: number;
+        storedTickMax: number;
+        firstTicksApplied: number;
+        firstTickDamageAverage: number;
+        firstTickLethalCount: number;
+        firstTickLethalRate: number;
+        firstTickBeforeCleanup: number;
+        cleanupAttempts: number;
+        cleanupSuccesses: number;
+        cleanupUnitsRemoved: number;
+        cleanupWoundsRemoved: number;
+        cleanupPreventedWoundsEstimate: number | null;
+      }>;
+      bySourceAction: Array<{
+        sourceActorId: string;
+        sourceActorName: string;
+        sourceSide: "players" | "monsters";
+        sourceActionId: string;
+        sourceActionName: string;
+        statusesCreated: number;
+        averageStoredTick: number;
+        maxStoredTick: number;
+        firstTicksApplied: number;
+        averageFirstTickDamage: number;
+        firstTickLethalCount: number;
+        firstTickLethalRate: number;
+        ticksAppliedTotal: number;
+        totalOngoingDamage: number;
+        cleanupAttempts: number;
+        cleanupSuccesses: number;
+        cleanupUnitsRemoved: number;
+        averageRemainingTicksAtCleanup: number;
+        averageStoredTickRemoved: number;
+        cleanupPreventedWoundsEstimate: number | null;
+      }>;
+    };
     unsupported: {
       unsupportedPowerCount: number;
       unsupportedPowerNames: string[];
@@ -1000,6 +1040,75 @@ export default function CombatLabPage() {
                   </p>
                 ))}
               </div>
+            </div>
+
+            <div className="rounded border border-amber-700/70 bg-zinc-950 p-3 text-sm">
+              <h3 className="mb-2 font-semibold">Ongoing Pressure Diagnostics</h3>
+              <p className="mb-3 text-xs text-zinc-400">{result.report.ongoingPressure.convention}</p>
+              <div className="grid gap-2 md:grid-cols-2">
+                {(["players", "monsters"] as const).map((side) => {
+                  const summary = result.report.ongoingPressure.bySourceSide[side];
+                  return (
+                    <div key={side} className="rounded border border-zinc-800 p-2">
+                      <div className="font-semibold capitalize">{side}</div>
+                      <p className="text-xs text-zinc-400">
+                        statuses {num(summary.statusesCreated)}, avg stored tick{" "}
+                        {num(summary.storedTickAverage)}, max stored tick {num(summary.storedTickMax)}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        first ticks {num(summary.firstTicksApplied)}, avg first tick{" "}
+                        {num(summary.firstTickDamageAverage)}, first-tick lethal{" "}
+                        {num(summary.firstTickLethalCount)} ({pct(summary.firstTickLethalRate)})
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        before cleanup {num(summary.firstTickBeforeCleanup)}, cleanup attempts{" "}
+                        {num(summary.cleanupAttempts)}, successes {num(summary.cleanupSuccesses)}, units removed{" "}
+                        {num(summary.cleanupUnitsRemoved)}
+                        {summary.cleanupPreventedWoundsEstimate === null
+                          ? ""
+                          : `, prevented estimate ${num(summary.cleanupPreventedWoundsEstimate)}`}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              {result.report.ongoingPressure.bySourceAction.length === 0 ? (
+                <p className="mt-3 text-zinc-500">No ongoing damage pressure was recorded.</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {result.report.ongoingPressure.bySourceAction.map((entry) => (
+                    <div
+                      key={`${entry.sourceActorId}:${entry.sourceActionId}`}
+                      className="rounded border border-zinc-800 p-2"
+                    >
+                      <div className="font-semibold">
+                        {entry.sourceActionName} | {entry.sourceActorName} ({entry.sourceSide})
+                      </div>
+                      <p className="text-xs text-zinc-400">
+                        statuses {num(entry.statusesCreated)}, avg stored tick{" "}
+                        {num(entry.averageStoredTick)}, max stored tick {num(entry.maxStoredTick)}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        first ticks {num(entry.firstTicksApplied)}, avg first tick{" "}
+                        {num(entry.averageFirstTickDamage)}, first-tick lethal{" "}
+                        {num(entry.firstTickLethalCount)} ({pct(entry.firstTickLethalRate)})
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        ticks total {num(entry.ticksAppliedTotal)}, total ongoing damage{" "}
+                        {num(entry.totalOngoingDamage)}, cleanup attempts {num(entry.cleanupAttempts)}, cleanup successes{" "}
+                        {num(entry.cleanupSuccesses)}, units removed {num(entry.cleanupUnitsRemoved)}
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        avg remaining ticks at cleanup {num(entry.averageRemainingTicksAtCleanup)}, avg stored tick removed{" "}
+                        {num(entry.averageStoredTickRemoved)}
+                        {entry.cleanupPreventedWoundsEstimate === null
+                          ? ""
+                          : `, prevented estimate ${num(entry.cleanupPreventedWoundsEstimate)}`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">

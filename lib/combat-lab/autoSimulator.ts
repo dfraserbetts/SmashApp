@@ -27,12 +27,66 @@ import type {
   CombatAction,
   CombatActor,
   CombatActorContribution,
+  CombatOngoingPressureMetrics,
+  CombatOngoingPressureSideTotals,
   CombatRunResult,
   CombatScenario,
   CombatSide,
   CombatTranscript,
   CombatTurnOrder,
 } from "./types";
+
+function addOngoingPressureSideTotals(
+  target: CombatOngoingPressureSideTotals,
+  source: CombatOngoingPressureSideTotals,
+) {
+  target.statusesCreated += source.statusesCreated;
+  target.storedTickTotal += source.storedTickTotal;
+  target.storedTickMax = Math.max(target.storedTickMax, source.storedTickMax);
+  target.firstTicksApplied += source.firstTicksApplied;
+  target.firstTickDamageTotal += source.firstTickDamageTotal;
+  target.firstTickLethal += source.firstTickLethal;
+  target.firstTickBeforeCleanup += source.firstTickBeforeCleanup;
+  target.ticksAppliedTotal += source.ticksAppliedTotal;
+  target.totalOngoingDamage += source.totalOngoingDamage;
+  target.cleanupAttempts += source.cleanupAttempts;
+  target.cleanupSuccesses += source.cleanupSuccesses;
+  target.cleanupUnitsRemoved += source.cleanupUnitsRemoved;
+  target.cleanupWoundsRemoved += source.cleanupWoundsRemoved;
+  target.cleanupRemainingTicksTotal += source.cleanupRemainingTicksTotal;
+  target.cleanupStoredTickRemovedTotal += source.cleanupStoredTickRemovedTotal;
+  target.cleanupPreventedWoundsEstimate += source.cleanupPreventedWoundsEstimate;
+}
+
+function addOngoingPressureMetrics(
+  target: CombatOngoingPressureMetrics,
+  source: CombatOngoingPressureMetrics,
+) {
+  addOngoingPressureSideTotals(target.bySourceSide.players, source.bySourceSide.players);
+  addOngoingPressureSideTotals(target.bySourceSide.monsters, source.bySourceSide.monsters);
+  for (const [key, sourceAction] of Object.entries(source.bySourceAction)) {
+    const targetAction = target.bySourceAction[key] ??= {
+      ...sourceAction,
+      statusesCreated: 0,
+      storedTickTotal: 0,
+      storedTickMax: 0,
+      firstTicksApplied: 0,
+      firstTickDamageTotal: 0,
+      firstTickLethal: 0,
+      firstTickBeforeCleanup: 0,
+      ticksAppliedTotal: 0,
+      totalOngoingDamage: 0,
+      cleanupAttempts: 0,
+      cleanupSuccesses: 0,
+      cleanupUnitsRemoved: 0,
+      cleanupWoundsRemoved: 0,
+      cleanupRemainingTicksTotal: 0,
+      cleanupStoredTickRemovedTotal: 0,
+      cleanupPreventedWoundsEstimate: 0,
+    };
+    addOngoingPressureSideTotals(targetAction, sourceAction);
+  }
+}
 
 function addRoleContribution(metrics: CombatAggregateMetrics, actorRole: string, actionKind: string, values: {
   damage: number;
@@ -120,6 +174,7 @@ function addResolutionToAggregate(
   metrics.aoePotentialTargets[side] += resolution.aoePotentialTargets;
   metrics.aoeActualTargets[side] += resolution.aoeActualTargets;
   metrics.positionalAbstractionsUsed[side] += resolution.positionalAbstractionsUsed;
+  addOngoingPressureMetrics(metrics.ongoingPressure, resolution.ongoingPressure);
 }
 
 function isOffensiveAction(action: CombatAction): boolean {
