@@ -708,3 +708,47 @@ Self-only powers collapse packet-local recipient selection to Self only.
 Single-target Melee and single-target Ranged powers do not automatically exclude self. They may select self only when self is legal, within range / geometry, and counted as the one selected target.
 
 If a legally authored packet has no legal recipient when it would resolve, that packet does not apply to that recipient.
+
+52. Duration defensive powers create finite defensive pools
+
+Duration defensive powers do not reroll or reapply their full value for every incoming attack unless the power explicitly says they do.
+
+This applies to:
+
+- duration Dodge powers
+- duration Physical Defence Block powers
+- duration Mental Defence Block powers
+- duration Resist powers
+
+When the power is applied, roll it once.
+
+Pool size = successful power-roll successes x potency.
+
+The pool remains available until one of the following ends it:
+
+- the pool is spent to 0
+- the power duration expires
+- the effect is removed or cleansed
+- the source / target lifecycle ends the effect
+
+Per incoming trigger, the maximum committed from a single defensive pool is the power's potency unless the power explicitly modifies that cap.
+
+Commit timing is locked:
+
+1. Incoming hostile action is declared and rolled.
+2. Defender chooses the matching legal Dodge, Physical Defence, Mental Defence, or Resist path.
+3. Before rolling the normal defence or Resist, commit pool points up to the per-trigger cap and remaining pool.
+4. Roll the normal defence or Resist.
+5. Add the committed pool points to that result.
+6. Spent pool points are spent whether the defence succeeds or fails.
+7. Normal defence degradation still applies.
+
+The defender cannot wait to see the normal defence or Resist roll before deciding whether to spend pool points. Pool spending does not reset normal Dodge, Physical Defence, Mental Defence, or Resist degradation.
+
+Dodge Pool points add to normal Dodge successes. They are usable only against physical attacks or actions that explicitly allow Dodge. They do not make mental attacks dodgeable.
+
+Block Pool points add directly to wounds prevented in their matching lane. Physical Block Pool prevents physical wounds. Mental Block Pool prevents mental wounds.
+
+Resist Pool points add to the matching Resist result. Each point cancels one hostile success, stack, ongoing unit, or equivalent unit in the authored resisted Attribute lane. A Resist Pool is not generic unless explicitly authored as generic. One packet maps to one resisted Attribute.
+
+Counter Dodge remains a one-shot Counter use unless the power also explicitly creates a duration Dodge Pool. Counter use still replaces normal active defence for that trigger unless the power explicitly grants or modifies that defence. Already-active passive and static effects still apply.

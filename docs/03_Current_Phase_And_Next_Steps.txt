@@ -85,6 +85,7 @@ The following points should now be treated as stable design truth:
 - canonical attribute naming is Guard and Synergy, not Defence and Support
 - Bravery is the mental defence dice stat
 - Dodge now succeeds on match or exceed, not exceed-only
+- duration Dodge, Block, and Resist powers create finite Dodge Pool, Block Pool, and Resist Pool resources rather than rerolling or refreshing their full value on every incoming attack
 
 What Phase 6 Now Includes
 
@@ -148,6 +149,7 @@ The practical next work should stay focused on:
 - implementing shared power-builder support for Block, Dodge, and Resist defensive power options in both Summoning Circle and Character Builder
 - keeping Resist authored against one core Attribute lane per packet, while Cleanse remains the cleanup/removal mechanic
 - treating Defence -> Resist Potency as Resists per successful power-roll success; multi-attribute Resist requires multiple packets
+- implementing duration defensive powers as finite pools: roll once on apply, pool size equals successes x potency, commit up to potency per matching trigger before the normal defence / Resist roll, and spend committed points whether the defence succeeds or fails
 - updating descriptor wording so normal use and Counter use are clearly distinct: Counter-enabled powers remain normally usable, while Counter use replaces normal active defence
 - preserving the locked targeting split across shared builders, descriptors, and Combat Lab: range defines reach / area, target legality defines who may be selected, target count limits selected targets, and self consumes one target slot when self is legal
 - applying the same range-vs-target-legality rule to Dodge and Resist power implementation; Movement Counter remains a Movement-power rule, not a Defence mode

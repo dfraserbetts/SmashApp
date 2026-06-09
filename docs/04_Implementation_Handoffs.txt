@@ -99,6 +99,7 @@ All future builder work should assume:
 - canonical attribute naming is Guard and Synergy
 - Dodge succeeds on match or exceed
 - future chats must not reintroduce exceed-only dodge wording
+- duration Dodge, Block, and Resist powers create finite Dodge Pool, Block Pool, and Resist Pool resources; they roll once on apply and spend down per matching trigger unless explicitly authored to refresh or reroll
 
 Future builder work should also preserve the following implementation-facing direction:
 
@@ -140,6 +141,61 @@ Movement and Control interrupt Counters require strictly more successes than the
 Attack Counter damage does not cancel the triggering action unless the Counter explicitly interrupts or cancels.
 
 Counter-enabled powers remain normally usable; Counter: Yes adds an extra response mode, not exclusivity.
+
+
+Duration Defence Pool Runtime Rule
+
+Runtime-facing tools must represent duration Dodge, Block, and Resist powers as finite pools.
+
+Use these terms consistently:
+
+- Dodge Pool
+- Physical Block Pool
+- Mental Block Pool
+- Resist Pool
+
+Do not model duration defensive powers as repeated full-value rerolls on every incoming attack unless the authored power explicitly says it refreshes or rerolls on each trigger.
+
+On application:
+
+- roll the power once
+- calculate poolRemaining = successful power-roll successes x potency
+- set perTriggerCap = potency unless explicitly modified
+- store the matching lane:
+  - Dodge Pool: physical Dodge-legal triggers only
+  - Physical Block Pool: physical wound prevention
+  - Mental Block Pool: mental wound prevention
+  - Resist Pool: one authored resisted Attribute lane per packet
+- store sourcePowerId / sourcePowerName / sourcePacketId / sourceActorId where available
+- store owner / source actor and protected actor separately where those differ
+- store whether the pool is self-only, ally-targeted, or area-applied
+- store duration / expiry / cleanup ownership separately from the pool value
+
+On a matching incoming trigger:
+
+1. Resolve incoming declaration and roll first.
+2. Let the defender choose the matching legal active defence or Resist path.
+3. Before the normal defence / Resist roll, commit pool points up to min(poolRemaining, perTriggerCap).
+4. Roll the normal defence / Resist.
+5. Add committed points to that result.
+6. Spend committed points even if the defence fails.
+7. Apply normal defence degradation normally.
+
+Combat Lab and future runtime diagnostics should expose at least:
+
+- pool created
+- pool remaining
+- points committed per trigger
+- points spent per trigger
+- per-trigger cap
+- prevention or cancellation achieved
+- points wasted on failed defence where relevant
+- expiry or cleanup reason
+- resisted Attribute for Resist Pools
+- wound channel for Block Pools
+- whether a Counter was one-shot or created a persistent duration pool
+
+Counter Dodge remains one-shot unless it also explicitly creates a duration Dodge Pool. Movement is not a Defence mode and must not be used as a synonym for Dodge Pool.
 
 
 Cooldown Lifecycle Rule For Future Work

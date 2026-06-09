@@ -273,6 +273,35 @@ Preparation stacks. Panic buttons replace.
 Counter, Movement Counter, and Control interrupt Counter costs should be revisited after Combat Lab and runtime behaviour faithfully implement the response-stack rules.
 
 
+Duration Defence Pool Cost Guidance
+
+Duration Dodge, Physical Block, Mental Block, and Resist powers create finite pools.
+
+They must not be valued as if they rerolled or refreshed their full result on every incoming attack. They also must not be valued as a single instant defence if their duration allows selective spending across several triggers.
+
+The cost model should account for:
+
+- dice increasing pool depth through successful power-roll successes
+- potency increasing both total pool size and the standard per-trigger commitment cap
+- duration increasing the opportunity to spend the pool at the best moments
+- target count and recipient flexibility increasing how many actors can carry pools
+- Dodge Pool value being high because it can help match-or-exceed physical attacks before normal Dodge degradation continues
+- Resist Pool value being high because it can cancel hostile successes, stacks, ongoing units, or equivalent units in an authored resisted Attribute lane
+- Block Pool value being more linear because it adds direct wound prevention in the matching physical or mental lane
+
+For one applied duration defence:
+
+Pool size = successful power-roll successes x potency.
+
+Standard per-trigger cap = potency.
+
+Costing should treat high dice + high potency + duration as a spike-and-pressure risk because it creates both a deeper pool and stronger individual trigger commits.
+
+The calculator and Power Tuning should not value duration Dodge or duration Resist like ordinary attack potency, because those pools can avoid or cancel hostile packets rather than merely adding linear output.
+
+Counter Dodge remains a one-shot response unless the power also explicitly creates a duration pool. Do not price a simple Counter Dodge as a persistent Dodge Pool, and do not price a persistent Dodge Pool as if it were only a one-shot Counter.
+
+
 CombinedEffectPacketFormula
 
 CombinedEffectPacketFormula is the heart of the power cost model.

@@ -369,6 +369,53 @@ These options must be shared by Summoning Circle and Character Builder.
 Dodge and Resist Counter powers do not stack with normal Dodge or normal Resist. They are chosen active response paths. Resist is authored against one core Attribute lane and remains distinct from Cleanse cleanup/removal powers. One Defence -> Resist packet selects exactly one Resisted Attribute: Attack, Guard, Fortitude, Intellect, Synergy, or Bravery. Potency means Resists applied per successful power-roll success, so total Resists equals roll successes multiplied by Potency. Multi-attribute Resist requires multiple effect packets. Movement powers may be Counter-enabled and use Movement Counter timing, but Movement/Reposition is not a Defence mode.
 
 
+Duration defensive pools
+
+Duration Dodge, Physical Defence Block, Mental Defence Block, and Resist powers create finite defensive pools.
+
+They do not reroll or refresh their full value every time the protected actor is attacked unless explicitly authored to do so.
+
+When the power applies, roll it once.
+
+Pool size = successful power-roll successes x packet potency.
+
+The pool remains until:
+
+- the pool is spent to 0
+- the effect duration expires
+- the effect is removed, cleansed, or resisted away
+- the source / target lifecycle ends the effect
+
+The standard per-trigger commitment cap is packet potency unless the power explicitly modifies that cap.
+
+Commit timing:
+
+1. The incoming action is declared and rolled.
+2. The defender chooses the matching legal defence or Resist path.
+3. Before rolling the normal defence or Resist, the defender commits pool points up to the per-trigger cap and remaining pool.
+4. The defender rolls the normal Dodge, Physical Defence, Mental Defence, or Resist.
+5. Committed pool points add to that result.
+6. Committed pool points are spent whether the final defence succeeds or fails.
+7. Normal defence degradation still applies.
+
+Dodge Pool points add to normal Dodge successes. A Dodge Pool can be used only against physical attacks or actions that explicitly allow Dodge. It does not make mental attacks dodgeable.
+
+Final Dodge = normal Dodge successes + committed Dodge Pool points. If final Dodge equals or exceeds incoming successes, the incoming packet is avoided. If final Dodge is lower than incoming successes, the Dodge fails and the incoming packet resolves normally.
+
+Physical Block Pool and Mental Block Pool points add directly to wounds prevented in their matching lane. A Physical Block Pool does not block mental wounds. A Mental Block Pool does not block physical wounds.
+
+Resist Pool points add to the matching authored Resist result. Each pool point cancels one hostile success, stack, ongoing unit, or equivalent unit in the authored resisted Attribute lane. Resist Pool packets are not generic unless explicitly authored as generic, and one packet maps to one resisted Attribute.
+
+Counter Dodge remains a one-shot Counter by default. It rolls on declaration, applies successes x potency to that one trigger, and does not create a persistent pool unless the power also explicitly has a duration effect that creates a Dodge Pool. A Counter still replaces normal active defence unless the Counter explicitly grants or modifies that defence. Already-active passive/static effects still apply.
+
+Examples:
+
+- Dodge Pool: A duration Dodge power rolls 4 successes with potency 3. It creates a Dodge Pool of 12. The protected actor is attacked for 5 incoming successes. Before rolling normal Dodge, they commit 3 Dodge Pool points because potency caps the per-trigger spend at 3. They roll normal Dodge and get 2 successes. Final Dodge = 5, so the attack is avoided. The pool drops from 12 to 9.
+- Failed Dodge Pool spend: The protected actor commits 3 Dodge Pool points against 6 incoming successes. They roll normal Dodge and get 1 success. Final Dodge = 4, so the attack lands. The 3 committed pool points are still spent.
+- Block Pool: A Physical Defence duration power creates a Physical Block Pool of 10. The protected actor commits 3 points before rolling Physical Defence. Normal Physical Defence prevents 8 wounds. The committed pool adds 3 more prevention. Total prevention = 11 wounds. The pool drops from 10 to 7.
+- Resist Pool: A Fortitude Resist duration power creates a Resist Pool of 8. A hostile Fortitude-lane ongoing effect applies 3 units. The protected actor commits 2 Resist Pool points before rolling Fortitude Resist. They roll 1 Resist success. Final cancelled units = 3, so the hostile units are cancelled. The pool drops from 8 to 6.
+
+
 3. Shared Rules Grammar
 
 Shared Rules Grammar is the common language used across powers for readable mechanical communication.
@@ -1574,6 +1621,8 @@ packet-local recipient class must remain legal within the shared cast context un
 Persistent states use stacks and a stack-cleanup model, while repeating direct effects use ongoing value plus duration
 
 Physical ongoing-damage cleanup defaults to Fortitude Resist and mental ongoing-damage cleanup defaults to Bravery Resist
+
+Duration Dodge, Block, and Resist powers create finite Dodge Pool, Block Pool, and Resist Pool resources; they roll once on apply and spend down per matching trigger unless explicitly authored to refresh or reroll
 
 Ambiguous Cleanse targeting of Active Power or Channelled Power may use a narrow Cleanse Theme disambiguator to resolve one exact cleanup Resist Attribute
 

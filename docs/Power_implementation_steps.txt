@@ -100,6 +100,7 @@ The practical next work should stay focused on:
 - preserving that Counter use replaces normal active defence unless explicitly modified by the Counter
 - keeping Counter-enabled powers normally usable; Counter: Yes adds response use rather than exclusivity
 - adding shared Block, Dodge, and Resist defensive power options for Summoning Circle and Character Builder; Movement Counter remains a Movement-power rule, not a Defence mode
+- treating duration Dodge, Block, and Resist powers as finite Dodge Pool, Block Pool, and Resist Pool resources that roll once on apply, spend down per matching trigger, and do not refresh their full value unless explicitly authored
 - preserving the simplified targeting rule: target self legality is selected-target legality, not range exclusivity; descriptors and validation must count self against the authored target count
 - applying strictly-exceed timing for Movement and Control interrupt Counters; ties fail
 - using the now-aligned Canary Harness as the comparative tuning workspace
