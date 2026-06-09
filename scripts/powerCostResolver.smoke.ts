@@ -617,12 +617,12 @@ const counterstrikeDescriptor = renderPowerDescriptorLines(counterstrikePower).j
 const suddenDaggerDescriptor = renderPowerDescriptorLines(suddenDaggerPower).join("\n");
 const openVeinDescriptor = renderPowerDescriptorLines(openVeinPower).join("\n");
 const dodgePower = createPower({
-  name: "Slip Guard",
+  name: "Sudden Dive",
   packet: createPacket("DEFENCE", {
     hostility: "NON_HOSTILE",
     applyTo: "SELF",
-    diceCount: 3,
-    potency: 2,
+    diceCount: 2,
+    potency: 1,
     detailsJson: {
       attackMode: "PHYSICAL",
       defenceMode: "Dodge",
@@ -630,6 +630,20 @@ const dodgePower = createPower({
     },
   }),
   counterMode: "YES",
+});
+const strongDodgePower = createPower({
+  name: "Sudden Dive",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 2,
+    potency: 3,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Dodge",
+      rangeCategory: "SELF",
+    },
+  }),
 });
 const illegalRepositionPower = createPower({
   name: "Illegal Sidestep",
@@ -709,7 +723,9 @@ const dodgeDescriptor = renderPowerDescriptorLines(dodgePower).join("\n");
 const characterDodgeDescriptor = renderPowerDescriptorLines(
   normalizeCharacterPower(dodgePower, 0),
 ).join("\n");
+const strongDodgeDescriptor = renderPowerDescriptorLines(strongDodgePower).join("\n");
 const braveryResistDescriptor = renderPowerDescriptorLines(braveryResistPower).join("\n");
+const illegalRepositionDescriptor = renderPowerDescriptorLines(illegalRepositionPower).join("\n");
 const illegalRepositionNormalized = normalizeMonsterUpsertInput({
   ...createBaseMonster(),
   powers: [illegalRepositionPower],
@@ -761,18 +777,12 @@ assert.match(
   counterstrikeDescriptor,
   /The target may attempt a Dodge or Protection roll against Counterstrike as soon as the power is declared\./,
 );
-assert.match(
-  counterstrikeDescriptor,
-  /When used as a Counter, this attack does not allow the triggering attacker an active defence roll\. Passive\/static protection still applies\./,
-);
+assert.doesNotMatch(counterstrikeDescriptor, /When used as a Counter|Passive\/static protection still applies|Counter-enabled powers remain normally usable/);
 assert.match(
   suddenDaggerDescriptor,
   /The target may attempt a Dodge or Protection roll against Sudden Dagger as soon as the power is declared\./,
 );
-assert.match(
-  suddenDaggerDescriptor,
-  /When used as a Counter, this attack does not allow the triggering attacker an active defence roll\. Passive\/static protection still applies\./,
-);
+assert.doesNotMatch(suddenDaggerDescriptor, /When used as a Counter|Passive\/static protection still applies|Counter-enabled powers remain normally usable/);
 assert.match(
   openVeinDescriptor,
   /The target may attempt a Dodge or Protection roll against Open Vein as soon as the power is declared\./,
@@ -780,18 +790,19 @@ assert.match(
 assert.doesNotMatch(openVeinDescriptor, /When used as a Counter/);
 assert.match(
   dodgeDescriptor,
-  /creates a Dodge defence against an avoidable incoming action/,
+  /applies 1 Dodge per success/,
 );
 assert.match(
   characterDodgeDescriptor,
-  /creates a Dodge defence against an avoidable incoming action/,
+  /applies 1 Dodge per success/,
 );
 assert.match(
-  dodgeDescriptor,
-  /replaces normal Dodge, Physical Defence, Mental Defence, or Resist/,
+  strongDodgeDescriptor,
+  /applies 3 Dodge per success/,
 );
-assert.match(dodgeDescriptor, /does not stack with normal Dodge/);
-assert.doesNotMatch(dodgeDescriptor, /Dodge \/ Evade/);
+assert.equal(dodgePower.counterMode, "YES");
+assert.doesNotMatch(dodgeDescriptor, /When used as a Counter|creates a Dodge defence|avoidable incoming action|Dodge \/ Evade|Reposition/);
+assert.doesNotMatch(strongDodgeDescriptor, /When used as a Counter|creates a Dodge defence|avoidable incoming action|Dodge \/ Evade|Reposition/);
 assert.deepEqual([...POWER_DEFENCE_MODE_OPTIONS], ["Block", "Dodge", "Resist"]);
 assert.deepEqual([...CHARACTER_POWER_DEFENCE_MODES], ["Block", "Dodge", "Resist"]);
 assert.deepEqual([...POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS], [
@@ -849,13 +860,12 @@ assert.match(
   braveryResistDescriptor,
   /applies 3 Bravery Resists per success/,
 );
-assert.match(
-  resistDescriptor,
-  /does not stack with normal Resist/,
-);
+assert.equal(resistPower.counterMode, "YES");
+assert.doesNotMatch(resistDescriptor, /When used as a Counter|replaces normal Dodge|does not stack with normal Resist|Passive\/static protection still applies|Counter-enabled powers remain normally usable/);
 assert.doesNotMatch(resistDescriptor, /Resist \/ Purge \/ Shake Off/);
 assert.doesNotMatch(resistDescriptor, /cleanup|purge|shake off/i);
-assert.doesNotMatch(`${resistDescriptor}\n${braveryResistDescriptor}`, /attempts to Resist|removable hostile effect|all hostile effects|any hostile effect/i);
+assert.doesNotMatch(`${resistDescriptor}\n${braveryResistDescriptor}`, /attempts to Resist|removable hostile effect|all hostile effects|any hostile effect|Dodge \/ Evade|Resist \/ Purge \/ Shake Off|Reposition/i);
+assert.doesNotMatch(illegalRepositionDescriptor, /Reposition/);
 assert.equal(
   dodgeCost.packetSpecificCost,
   DEFAULT_POWER_TUNING_VALUES["packet.defenceMode.dodge"],

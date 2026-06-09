@@ -80,16 +80,6 @@ function renderDefenceResistApplicationClause(details: Record<string, unknown>, 
   return `applies ${potency} ${resistedAttribute} ${plural(potency, "Resist")}`;
 }
 
-function renderDefenceCounterSemantics(mode: DefenceMode): string | null {
-  if (mode === "Dodge") {
-    return "When used as a Counter, this replaces normal Dodge, Physical Defence, Mental Defence, or Resist for that trigger. It does not stack with normal Dodge. Passive/static protection still applies. Counter-enabled powers remain normally usable.";
-  }
-  if (mode === "Resist") {
-    return "When used as a Counter, this replaces normal Dodge, Physical Defence, Mental Defence, or Resist for that trigger. It does not stack with normal Resist. Passive/static protection still applies. Counter-enabled powers remain normally usable.";
-  }
-  return null;
-}
-
 function readStatTarget(details: Record<string, unknown>): string {
   const value = details.statTarget ?? details.statChoice ?? "Stat";
   return typeof value === "string" ? value : "Stat";
@@ -706,9 +696,8 @@ function formatSecondaryClause(
   if (intentionType === "DEFENCE") {
     const defenceMode = readDefenceMode(details);
     if (defenceMode === "Dodge") {
-      return omitRecipientContext
-        ? "creates a Dodge defence against an avoidable incoming action"
-        : `creates a Dodge defence for ${entity} against an avoidable incoming action`;
+      const dodgeClause = `applies ${powerPotency} Dodge`;
+      return omitRecipientContext ? dodgeClause : `${dodgeClause} for ${entity}`;
     }
     if (defenceMode === "Resist") {
       const resistClause = renderDefenceResistApplicationClause(details, powerPotency);
@@ -1776,7 +1765,7 @@ function renderPacketBaseClause(
   if (effectPacket.intention === "DEFENCE") {
     const defenceMode = readDefenceMode(details);
     if (defenceMode === "Dodge") {
-      return "creates a Dodge defence against an avoidable incoming action";
+      return `applies ${packetPotency} Dodge`;
     }
     if (defenceMode === "Resist") {
       return renderDefenceResistApplicationClause(details, packetPotency);
@@ -3000,23 +2989,6 @@ export function renderPowerDescriptorLines(
         `The target may attempt a ${primaryDefenceCheck.checkLabel} roll against ${power.name} ${defenceTimingText}.`,
       );
     }
-    if (
-      power.counterMode === "YES" &&
-      primaryPacket?.intention === "ATTACK"
-    ) {
-      lines.push(
-        "When used as a Counter, this attack does not allow the triggering attacker an active defence roll. Passive/static protection still applies.",
-      );
-    }
-  }
-  if (
-    power.counterMode === "YES" &&
-    primaryPacket?.intention === "DEFENCE"
-  ) {
-    const counterSemantics = renderDefenceCounterSemantics(
-      readDefenceMode((primaryPacket.detailsJson ?? {}) as Record<string, unknown>),
-    );
-    if (counterSemantics) lines.push(counterSemantics);
   }
   const primaryStackResistLine = buildStackResistRemovalLane({
     effectPacket: primaryPacket,
