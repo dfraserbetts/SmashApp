@@ -113,6 +113,7 @@ type MonsterPowerRow = {
   descriptorChassis?: Power["descriptorChassis"] | null;
   descriptorChassisConfig?: unknown;
   commitmentModifier?: Power["commitmentModifier"] | null;
+  counterMode?: Power["counterMode"] | null;
   cooldownTurns: number;
   cooldownReduction: number;
   primaryDefenceGate?: Power["primaryDefenceGate"] | null;
@@ -495,6 +496,7 @@ function mapPower(power: MonsterPowerRow): Power {
     descriptorChassis: power.descriptorChassis ?? "IMMEDIATE",
     descriptorChassisConfig: asRecord(power.descriptorChassisConfig),
     commitmentModifier: power.commitmentModifier ?? "STANDARD",
+    counterMode: power.counterMode === "YES" ? "YES" : "NO",
     cooldownTurns: power.cooldownTurns,
     cooldownReduction: power.cooldownReduction,
     primaryDefenceGate: power.primaryDefenceGate ?? null,

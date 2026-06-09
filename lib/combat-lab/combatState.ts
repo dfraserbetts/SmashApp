@@ -86,6 +86,7 @@ export function createCombatState(
     cooldowns: {},
     currentTurnActorId: null,
     cooldownTrace: {},
+    counterCandidateDiagnostics: {},
     counterUses: {},
     incomingActionsByTargetThisRound: {},
     responsesRemaining: Object.fromEntries(actors.filter((actor) => !actor.defeated).map((actor) => [actor.id, 2])),
@@ -563,6 +564,7 @@ export function createEmptyMetrics(): CombatAggregateMetrics {
     actorContributions: {},
     defensiveContributions: {},
     cooldownTrace: {},
+    counterCandidateDiagnostics: {},
   };
 }
 

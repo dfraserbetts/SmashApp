@@ -1,6 +1,7 @@
 import { runCombatScenario } from "./autoSimulator";
 import type {
   CombatActorContribution,
+  CombatCounterCandidateDiagnostic,
   CombatDefensiveContribution,
   CombatAggregateMetrics,
   CombatCooldownTrace,
@@ -380,6 +381,48 @@ function mergeCooldownTrace(runs: CombatRunResult[]): CombatCooldownTrace[] {
   );
 }
 
+function mergeCounterCandidateDiagnostics(runs: CombatRunResult[]): CombatCounterCandidateDiagnostic[] {
+  const merged = new Map<string, CombatCounterCandidateDiagnostic>();
+  const divisor = Math.max(1, runs.length);
+  for (const run of runs) {
+    for (const diagnostic of Object.values(run.metrics.counterCandidateDiagnostics)) {
+      const entry = merged.get(`${diagnostic.actorId}:${diagnostic.actionId}`) ?? {
+        ...diagnostic,
+        considered: 0,
+        selected: 0,
+        skippedNormalDefenceBetter: 0,
+        skippedNoResponse: 0,
+        skippedCooldown: 0,
+        skippedUnsupported: 0,
+        skippedNonAvoidable: 0,
+        skippedNonApplicable: 0,
+        totalExpectedCounterPrevention: 0,
+        totalExpectedNormalPrevention: 0,
+        expectedSamples: 0,
+      };
+      entry.considered += diagnostic.considered / divisor;
+      entry.selected += diagnostic.selected / divisor;
+      entry.skippedNormalDefenceBetter += diagnostic.skippedNormalDefenceBetter / divisor;
+      entry.skippedNoResponse += diagnostic.skippedNoResponse / divisor;
+      entry.skippedCooldown += diagnostic.skippedCooldown / divisor;
+      entry.skippedUnsupported += diagnostic.skippedUnsupported / divisor;
+      entry.skippedNonAvoidable += diagnostic.skippedNonAvoidable / divisor;
+      entry.skippedNonApplicable += diagnostic.skippedNonApplicable / divisor;
+      entry.totalExpectedCounterPrevention += diagnostic.totalExpectedCounterPrevention / divisor;
+      entry.totalExpectedNormalPrevention += diagnostic.totalExpectedNormalPrevention / divisor;
+      entry.expectedSamples += diagnostic.expectedSamples / divisor;
+      entry.lastReason = diagnostic.lastReason ?? entry.lastReason;
+      merged.set(`${diagnostic.actorId}:${diagnostic.actionId}`, entry);
+    }
+  }
+  return [...merged.values()].sort((a, b) =>
+    a.side.localeCompare(b.side) ||
+    (b.considered - b.selected) - (a.considered - a.selected) ||
+    a.actorName.localeCompare(b.actorName) ||
+    a.actionName.localeCompare(b.actionName),
+  );
+}
+
 function mergeRoleContribution(runs: CombatRunResult[]): CombatAggregateMetrics["roleContribution"] {
   const out: CombatAggregateMetrics["roleContribution"] = {};
   for (const run of runs) {
@@ -526,6 +569,7 @@ export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
     monsterGroupContributions: mergeMonsterGroupContributions(scenario, runs),
     defensiveContributions: mergeDefensiveContributions(runs),
     cooldownTrace: mergeCooldownTrace(runs),
+    counterCandidateDiagnostics: mergeCounterCandidateDiagnostics(runs),
     firstRunTranscript: runs[0]?.firstRunTranscript,
     unsupported: mergeUnsupported(runs),
     hydrationIntegrity: collectHydrationIntegrity(scenario),

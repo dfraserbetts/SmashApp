@@ -337,6 +337,7 @@ function monsterPowerRowFromFixture(
     descriptorChassis: power.descriptorChassis,
     descriptorChassisConfig: power.descriptorChassisConfig,
     commitmentModifier: power.commitmentModifier,
+    counterMode: power.counterMode,
     cooldownTurns: power.cooldownTurns,
     cooldownReduction: power.cooldownReduction,
     primaryDefenceGate: power.primaryDefenceGate ?? null,
@@ -807,6 +808,49 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   );
   if (actor.physicalDefenceDice !== 3 || actor.physicalBlockPerSuccess !== 4) {
     throw new Error("Monster defence hydration confused raw PPV/package value with final block-per-success.");
+  }
+}
+
+{
+  const monsterTuning = {
+    ...DEFAULT_COMBAT_TUNING_VALUES,
+    protectionK: 4,
+    protectionS: 6,
+  };
+  const liveDodgeCounterPower = {
+    ...makeFixturePower({
+      id: "live-dodge-counter-power",
+      name: "Sudden Dive",
+      intention: "DEFENCE",
+      diceCount: 3,
+      potency: 4,
+      cooldownTurns: 1,
+    }),
+    counterMode: "YES" as const,
+    effectPackets: [
+      {
+        ...makeFixturePower({
+          id: "live-dodge-counter-packet",
+          name: "Sudden Dive",
+          intention: "DEFENCE",
+          diceCount: 3,
+          potency: 4,
+        }).effectPackets[0],
+        applyTo: "SELF" as const,
+        detailsJson: { defenceMode: "Dodge", attackMode: "PHYSICAL", rangeCategory: "SELF" },
+      },
+    ],
+  };
+  const { actor } = adaptMonsterToCombatLabActor(
+    makeMonsterRow({
+      powers: [monsterPowerRowFromFixture(liveDodgeCounterPower)],
+    }),
+    new Map(),
+    monsterTuning,
+  );
+  const suddenDive = actor.actions.find((action) => action.name === "Sudden Dive");
+  if (!suddenDive?.counterMode || suddenDive.defenceMode !== "Dodge") {
+    throw new Error(`Live monster Dodge Counter did not preserve counterMode through hydration: ${JSON.stringify(suddenDive)}.`);
   }
 }
 
@@ -1732,7 +1776,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
         attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
         dodgeDice: 1,
         physicalDefenceDice: 1,
-        physicalBlockPerSuccess: 100,
+        physicalBlockPerSuccess: 0,
         actions: [dodgeCounter],
       }),
     ],
@@ -1759,6 +1803,180 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     dodgeCounterState.transcriptLines.some((line) => /Defence choice: dodge-counter-defender chooses|using Guard for physical defence/i.test(line))
   ) {
     throw new Error(`Dodge counter should replace normal active defence and avoid the attack: ${JSON.stringify({ resolution: dodgeCounterResolution, transcript: dodgeCounterState.transcriptLines })}.`);
+  }
+
+  const monsterDodgeCounterState = createCombatState(
+    [
+      fixtureActor("monster-dodge-attacker", "players", {
+        actions: [action({ id: "monster-dodge-trigger", name: "Heavy Axe", sourceType: "equippedWeapon", diceCount: 2, potency: 10 })],
+      }),
+    ],
+    [
+      fixtureActor("monster-dodge-defender", "monsters", {
+        attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        dodgeDice: 1,
+        physicalDefenceDice: 1,
+        physicalBlockPerSuccess: 0,
+        actions: [dodgeCounter],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  const monsterDodgeCounterResolution = resolveCombatAction({
+    state: monsterDodgeCounterState,
+    actor: monsterDodgeCounterState.actors[0],
+    target: monsterDodgeCounterState.actors[1],
+    action: monsterDodgeCounterState.actors[0].actions[0],
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99]),
+    lane: "main",
+  });
+  expectTranscriptLine(monsterDodgeCounterState.transcriptLines, /Counter declared: monster-dodge-defender will use Slip Aside against Heavy Axe/i, "monster Dodge counter declaration");
+  expectTranscriptLine(monsterDodgeCounterState.transcriptLines, /Dodge Counter: monster-dodge-defender's Slip Aside rolls 6 successes x 1 = 6 Dodge against 2 incoming successes; the attack is avoided/i, "monster Dodge counter avoidance");
+  if (
+    monsterDodgeCounterResolution.counterChosen !== 1 ||
+    monsterDodgeCounterResolution.responsesUsed !== 1 ||
+    monsterDodgeCounterResolution.woundsAvoidedByDodge <= 0 ||
+    monsterDodgeCounterResolution.physicalDefenceChosen !== 0
+  ) {
+    throw new Error(`Monster Dodge Counter should be legal and chosen when its EV is competitive: ${JSON.stringify({ resolution: monsterDodgeCounterResolution, transcript: monsterDodgeCounterState.transcriptLines })}.`);
+  }
+
+  const monsterFailedDodgeCounterState = createCombatState(
+    [
+      fixtureActor("failed-monster-dodge-attacker", "players", {
+        actions: [action({ id: "failed-monster-dodge-trigger", name: "Accurate Spear", sourceType: "equippedWeapon", diceCount: 2, potency: 5 })],
+      }),
+    ],
+    [
+      fixtureActor("failed-monster-dodge-defender", "monsters", {
+        attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        dodgeDice: 1,
+        physicalDefenceDice: 1,
+        physicalBlockPerSuccess: 0,
+        actions: [dodgeCounter],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  const monsterFailedDodgeCounterResolution = resolveCombatAction({
+    state: monsterFailedDodgeCounterState,
+    actor: monsterFailedDodgeCounterState.actors[0],
+    target: monsterFailedDodgeCounterState.actors[1],
+    action: monsterFailedDodgeCounterState.actors[0].actions[0],
+    rng: rngFrom([0.01, 0.01, 0.01, 0.99, 0.99]),
+    lane: "main",
+  });
+  expectTranscriptLine(monsterFailedDodgeCounterState.transcriptLines, /Dodge Counter: failed-monster-dodge-defender's Slip Aside rolls 0 successes x 1 = 0 Dodge against 2 incoming successes; the attack is not avoided/i, "failed monster Dodge counter");
+  if (
+    monsterFailedDodgeCounterResolution.counterChosen !== 1 ||
+    monsterFailedDodgeCounterResolution.netWounds <= 0 ||
+    monsterFailedDodgeCounterResolution.physicalDefenceChosen !== 0 ||
+    monsterFailedDodgeCounterState.transcriptLines.some((line) => /Defence choice: failed-monster-dodge-defender chooses|using Guard for physical defence/i.test(line))
+  ) {
+    throw new Error(`Failed Dodge Counter should not stack normal active defence and should allow incoming damage: ${JSON.stringify({ resolution: monsterFailedDodgeCounterResolution, transcript: monsterFailedDodgeCounterState.transcriptLines })}.`);
+  }
+
+  const strongNormalDefenceState = createCombatState(
+    [
+      fixtureActor("strong-defence-attacker", "players", {
+        actions: [action({ id: "strong-defence-trigger", name: "Low Pressure Cut", sourceType: "equippedWeapon", diceCount: 1, potency: 4 })],
+      }),
+    ],
+    [
+      fixtureActor("strong-defence-monster", "monsters", {
+        attributeDice: { Attack: "D8", Guard: "D4", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        dodgeDice: 1,
+        physicalDefenceDice: 4,
+        physicalBlockPerSuccess: 20,
+        actions: [dodgeCounter],
+      }),
+    ],
+    { captureTranscript: true },
+  );
+  const strongNormalDefenceResolution = resolveCombatAction({
+    state: strongNormalDefenceState,
+    actor: strongNormalDefenceState.actors[0],
+    target: strongNormalDefenceState.actors[1],
+    action: strongNormalDefenceState.actors[0].actions[0],
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99, 0.99]),
+    lane: "main",
+  });
+  expectTranscriptLine(strongNormalDefenceState.transcriptLines, /Counter skipped: strong-defence-monster keeps normal defence instead of Slip Aside/i, "Dodge counter skipped by EV");
+  if (
+    strongNormalDefenceResolution.counterChosen !== 0 ||
+    strongNormalDefenceResolution.physicalDefenceChosen !== 1 ||
+    !strongNormalDefenceState.counterCandidateDiagnostics[`${strongNormalDefenceState.actors[1].id}:${dodgeCounter.id}`] ||
+    strongNormalDefenceState.counterCandidateDiagnostics[`${strongNormalDefenceState.actors[1].id}:${dodgeCounter.id}`]?.skippedNormalDefenceBetter !== 1 ||
+    !strongNormalDefenceState.transcriptLines.some((line) => /Defence choice: strong-defence-monster chooses physical defence/i.test(line))
+  ) {
+    throw new Error(`Strong normal defence should be allowed to skip Dodge Counter: ${JSON.stringify({ resolution: strongNormalDefenceResolution, transcript: strongNormalDefenceState.transcriptLines })}.`);
+  }
+
+  const skippedCounterSuite = runScenarioSuite({
+    name: "monster skipped Dodge Counter diagnostics",
+    players: [
+      fixtureActor("suite-strong-defence-attacker", "players", {
+        actions: [action({ id: "suite-strong-defence-trigger", name: "Player Dagger", sourceType: "equippedWeapon", diceCount: 1, potency: 4 })],
+      }),
+    ],
+    monsters: [
+      fixtureActor("suite-strong-defence-monster", "monsters", {
+        attributeDice: { Attack: "D8", Guard: "D4", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        dodgeDice: 1,
+        physicalDefenceDice: 4,
+        physicalBlockPerSuccess: 20,
+        actions: [dodgeCounter],
+      }),
+    ],
+    runs: 1,
+    seed: 1727,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  const skippedDiagnostic = skippedCounterSuite.counterCandidateDiagnostics.find(
+    (entry) => entry.actionName === "Slip Aside" && entry.actorName === "suite-strong-defence-monster",
+  );
+  if (
+    !skippedDiagnostic ||
+    skippedDiagnostic.considered <= 0 ||
+    skippedDiagnostic.selected !== 0 ||
+    skippedDiagnostic.skippedNormalDefenceBetter <= 0 ||
+    skippedDiagnostic.expectedSamples <= 0 ||
+    skippedDiagnostic.totalExpectedNormalPrevention <= skippedDiagnostic.totalExpectedCounterPrevention
+  ) {
+    throw new Error(`Report-level skipped Dodge Counter diagnostics were not populated: ${JSON.stringify(skippedCounterSuite.counterCandidateDiagnostics)}.`);
+  }
+
+  const monsterCounterSuite = runScenarioSuite({
+    name: "monster Dodge Counter metrics",
+    players: [
+      fixtureActor("suite-dodge-counter-attacker", "players", {
+        actions: [action({ id: "suite-dodge-counter-trigger", name: "Player Axe", sourceType: "equippedWeapon", diceCount: 2, potency: 10 })],
+      }),
+    ],
+    monsters: [
+      fixtureActor("suite-dodge-counter-monster", "monsters", {
+        attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        dodgeDice: 1,
+        physicalDefenceDice: 1,
+        physicalBlockPerSuccess: 0,
+        actions: [dodgeCounter],
+      }),
+    ],
+    runs: 1,
+    seed: 1728,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  if (
+    monsterCounterSuite.averageMechanics.counterChosen.monsters <= 0 ||
+    monsterCounterSuite.averageMechanics.counterUses.monsters <= 0 ||
+    monsterCounterSuite.averageMechanics.responsesUsed.monsters <= 0 ||
+    !monsterCounterSuite.counterCandidateDiagnostics.some(
+      (entry) => entry.actionName === "Slip Aside" && entry.side === "monsters" && entry.selected > 0,
+    )
+  ) {
+    throw new Error(`Monster Dodge Counter did not increment monster-side report metrics/diagnostics: ${JSON.stringify({ mechanics: monsterCounterSuite.averageMechanics, diagnostics: monsterCounterSuite.counterCandidateDiagnostics })}.`);
   }
 
   const resistCounterPower = adaptPowerToCombatActions({

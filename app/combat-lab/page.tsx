@@ -189,6 +189,26 @@ type RunPayload = {
       availableTurns: number;
       unavailableTurns: number;
     }>;
+    counterCandidateDiagnostics: Array<{
+      actorId: string;
+      actorName: string;
+      side: "players" | "monsters";
+      actionId: string;
+      actionName: string;
+      sourceType: string;
+      considered: number;
+      selected: number;
+      skippedNormalDefenceBetter: number;
+      skippedNoResponse: number;
+      skippedCooldown: number;
+      skippedUnsupported: number;
+      skippedNonAvoidable: number;
+      skippedNonApplicable: number;
+      totalExpectedCounterPrevention: number;
+      totalExpectedNormalPrevention: number;
+      expectedSamples: number;
+      lastReason?: string | null;
+    }>;
     firstRunTranscript?: {
       runIndex: number;
       scenarioName: string;
@@ -1102,6 +1122,50 @@ export default function CombatLabPage() {
                       </p>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded border border-zinc-800 bg-zinc-950 p-3 text-sm">
+              <h3 className="mb-2 font-semibold">Counter Candidate Diagnostics</h3>
+              {result.report.counterCandidateDiagnostics.length === 0 ? (
+                <p className="text-zinc-500">No counter candidates were evaluated.</p>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {result.report.counterCandidateDiagnostics.map((diagnostic) => {
+                    const averageCounter =
+                      diagnostic.expectedSamples > 0
+                        ? diagnostic.totalExpectedCounterPrevention / diagnostic.expectedSamples
+                        : 0;
+                    const averageNormal =
+                      diagnostic.expectedSamples > 0
+                        ? diagnostic.totalExpectedNormalPrevention / diagnostic.expectedSamples
+                        : 0;
+                    return (
+                      <div key={`${diagnostic.actorId}-${diagnostic.actionId}`} className="rounded border border-zinc-800 p-2">
+                        <div className="font-semibold">
+                          {diagnostic.actionName} | {diagnostic.actorName} ({diagnostic.side})
+                        </div>
+                        <p className="text-xs text-zinc-400">
+                          considered {num(diagnostic.considered)}, selected {num(diagnostic.selected)}, skipped normal
+                          defence better {num(diagnostic.skippedNormalDefenceBetter)}, no response{" "}
+                          {num(diagnostic.skippedNoResponse)}, cooldown {num(diagnostic.skippedCooldown)}
+                        </p>
+                        <p className="text-xs text-zinc-400">
+                          unsupported {num(diagnostic.skippedUnsupported)}, non-avoidable{" "}
+                          {num(diagnostic.skippedNonAvoidable)}, non-applicable{" "}
+                          {num(diagnostic.skippedNonApplicable)}
+                        </p>
+                        <p className="text-xs text-zinc-400">
+                          average expected counter prevention {num(averageCounter)}, normal prevention{" "}
+                          {num(averageNormal)}
+                        </p>
+                        {diagnostic.lastReason ? (
+                          <p className="text-xs text-zinc-500">last reason: {diagnostic.lastReason}</p>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

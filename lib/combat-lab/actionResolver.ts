@@ -907,6 +907,168 @@ function passiveDefenceAmount(target: CombatActor, pool: "physical" | "mental") 
     .reduce((sum, action) => sum + Math.max(1, action.protection ?? action.potency), 0);
 }
 
+function expectedIncomingAttack(params: {
+  state: CombatState;
+  attacker: CombatActor;
+  target: CombatActor;
+  incomingAction: CombatAction;
+  pool: "physical" | "mental";
+}) {
+  const accuracyAttribute = effectiveAccuracyAttribute(params.attacker, params.target, params.incomingAction);
+  const incomingSuccesses = expectedSuccesses(
+    Math.max(0, params.incomingAction.diceCount),
+    getActorDie(params.attacker, accuracyAttribute),
+    getAttributeModifier(params.state, params.attacker.id, accuracyAttribute),
+  );
+  const effectPerSuccess = Math.max(1, params.incomingAction.effectPerPrimarySuccess ?? params.incomingAction.potency);
+  const rawWounds = incomingSuccesses * effectPerSuccess;
+  return { incomingSuccesses, rawWounds };
+}
+
+function estimateNormalDefenceTotalValue(params: {
+  state: CombatState;
+  target: CombatActor;
+  pool: "physical" | "mental";
+  incomingSuccesses: number;
+  rawWounds: number;
+}) {
+  const activeDefenceValue = params.pool === "physical"
+    ? Math.max(
+        estimateDodgeValue(params.state, params.target, params.incomingSuccesses, params.rawWounds),
+        estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds),
+      )
+    : estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds);
+  const passiveDefence = passiveDefenceAmount(params.target, params.pool);
+  const staticProtection =
+    (params.pool === "physical" ? params.target.physicalProtection : params.target.mentalProtection) +
+    getProtectionModifier(params.state, params.target.id, params.pool) +
+    passiveDefence;
+  return activeDefenceValue + Math.min(Math.max(0, params.rawWounds - activeDefenceValue), Math.max(0, staticProtection));
+}
+
+function estimateDodgeCounterValue(params: {
+  state: CombatState;
+  target: CombatActor;
+  attacker: CombatActor;
+  incomingAction: CombatAction;
+  counterAction: CombatAction;
+  pool: "physical" | "mental";
+}) {
+  const dodgePackets = actionAndSecondaries(params.counterAction).filter(
+    (entry) => counterDefencePacketIsLegal(entry, params.pool, params.incomingAction) && (entry.defenceMode ?? "Block") === "Dodge",
+  );
+  if (dodgePackets.length === 0) return null;
+  const { incomingSuccesses, rawWounds } = expectedIncomingAttack(params);
+  if (incomingSuccesses <= 0 || rawWounds <= 0) {
+    return {
+      counterExpectedValue: 0,
+      normalExpectedValue: 0,
+      incomingSuccesses,
+      rawWounds,
+      dodgeThreshold: 1,
+      dodgePotency: Math.max(1, dodgePackets[0]?.potency ?? 1),
+      skipReason: "incoming action has no expected successful wound pressure",
+    };
+  }
+  const protectedActor = params.target;
+  const accuracyAttribute = effectiveAccuracyAttribute(params.target, protectedActor, params.counterAction);
+  const totalPotency = dodgePackets.reduce((sum, entry) => sum + Math.max(1, entry.potency), 0);
+  const dodgeThreshold = Math.max(1, Math.ceil(incomingSuccesses / Math.max(1, totalPotency)));
+  const avoidProbability = probabilitySuccessesAtLeast({
+    diceCount: Math.max(1, params.counterAction.diceCount),
+    die: getActorDie(params.target, accuracyAttribute),
+    modifier: getAttributeModifier(params.state, params.target.id, accuracyAttribute),
+    threshold: dodgeThreshold,
+  });
+  const passiveDefence = passiveDefenceAmount(params.target, params.pool);
+  const staticProtection =
+    (params.pool === "physical" ? params.target.physicalProtection : params.target.mentalProtection) +
+    getProtectionModifier(params.state, params.target.id, params.pool) +
+    passiveDefence;
+  const staticOnlyPrevention = Math.min(rawWounds, Math.max(0, staticProtection));
+  const counterExpectedValue = avoidProbability * rawWounds + (1 - avoidProbability) * staticOnlyPrevention;
+  const normalExpectedValue = estimateNormalDefenceTotalValue({
+    state: params.state,
+    target: params.target,
+    pool: params.pool,
+    incomingSuccesses,
+    rawWounds,
+  });
+  const normalClearlyBetter = normalExpectedValue > counterExpectedValue + 0.5 && counterExpectedValue < normalExpectedValue * 0.9;
+  return {
+    counterExpectedValue,
+    normalExpectedValue,
+    incomingSuccesses,
+    rawWounds,
+    dodgeThreshold,
+    dodgePotency: totalPotency,
+    skipReason: normalClearlyBetter
+      ? "normal defence plus static/passive mitigation has better expected prevention"
+      : null,
+  };
+}
+
+type CounterCandidateDiagnosticReason =
+  | "selected"
+  | "normalDefenceBetter"
+  | "noResponse"
+  | "cooldown"
+  | "unsupported"
+  | "nonAvoidable"
+  | "nonApplicable";
+
+function recordCounterCandidateDiagnostic(params: {
+  state: CombatState;
+  actor: CombatActor;
+  action: CombatAction;
+  reason: CounterCandidateDiagnosticReason;
+  expectedCounterPrevention?: number | null;
+  expectedNormalPrevention?: number | null;
+  message?: string | null;
+}) {
+  const { state, actor, action, reason } = params;
+  const key = `${actor.id}:${action.id}`;
+  const entry = state.counterCandidateDiagnostics[key] ??= {
+    actorId: actor.id,
+    actorName: actor.name,
+    side: actor.side,
+    actionId: action.id,
+    actionName: action.name,
+    sourceType: action.sourceType,
+    considered: 0,
+    selected: 0,
+    skippedNormalDefenceBetter: 0,
+    skippedNoResponse: 0,
+    skippedCooldown: 0,
+    skippedUnsupported: 0,
+    skippedNonAvoidable: 0,
+    skippedNonApplicable: 0,
+    totalExpectedCounterPrevention: 0,
+    totalExpectedNormalPrevention: 0,
+    expectedSamples: 0,
+    lastReason: null,
+  };
+  entry.considered += 1;
+  if (reason === "selected") entry.selected += 1;
+  if (reason === "normalDefenceBetter") entry.skippedNormalDefenceBetter += 1;
+  if (reason === "noResponse") entry.skippedNoResponse += 1;
+  if (reason === "cooldown") entry.skippedCooldown += 1;
+  if (reason === "unsupported") entry.skippedUnsupported += 1;
+  if (reason === "nonAvoidable") entry.skippedNonAvoidable += 1;
+  if (reason === "nonApplicable") entry.skippedNonApplicable += 1;
+  if (
+    typeof params.expectedCounterPrevention === "number" &&
+    Number.isFinite(params.expectedCounterPrevention) &&
+    typeof params.expectedNormalPrevention === "number" &&
+    Number.isFinite(params.expectedNormalPrevention)
+  ) {
+    entry.totalExpectedCounterPrevention += params.expectedCounterPrevention;
+    entry.totalExpectedNormalPrevention += params.expectedNormalPrevention;
+    entry.expectedSamples += 1;
+  }
+  entry.lastReason = params.message ?? reason;
+}
+
 type DeclaredCounter = {
   action: CombatAction;
   counteringActorId: string;
@@ -974,21 +1136,112 @@ function declareCounter(params: {
 }): { declared: DeclaredCounter | null; metrics: CombatResolutionMetrics } {
   const { state, target, attacker, incomingAction, pool } = params;
   const metrics = emptyResolution();
-  const counterCandidates = target.actions
-    .filter((action) => action.counterMode && !state.counterUses[`${state.round}:${target.id}:${action.id}`])
+  const allCounterCandidates = target.actions
+    .filter((action) => action.counterMode && !state.counterUses[`${state.round}:${target.id}:${action.id}`]);
+
+  for (const candidate of allCounterCandidates) {
+    if (!candidate.supported) {
+      recordCounterCandidateDiagnostic({
+        state,
+        actor: target,
+        action: candidate,
+        reason: "unsupported",
+        message: "counter action is marked unsupported",
+      });
+      continue;
+    }
+    if (counterPriority(candidate, pool, incomingAction) >= 3) {
+      const hasDodgePacket = actionAndSecondaries(candidate).some(
+        (entry) => entry.kind === "defence" && (entry.defenceMode ?? "Block") === "Dodge",
+      );
+      recordCounterCandidateDiagnostic({
+        state,
+        actor: target,
+        action: candidate,
+        reason: hasDodgePacket ? "nonAvoidable" : "nonApplicable",
+        message: hasDodgePacket
+          ? `${incomingAction.name} is not an avoidable physical attack for ${candidate.name}`
+          : `${candidate.name} has no legal counter packet for ${incomingAction.name}`,
+      });
+    }
+  }
+
+  const legalCounterCandidates = allCounterCandidates
+    .filter((action) => action.supported)
     .filter((action) => counterPriority(action, pool, incomingAction) < 3)
     .sort((left, right) => counterPriority(left, pool, incomingAction) - counterPriority(right, pool, incomingAction));
 
-  for (const candidate of counterCandidates.filter((action) => isActionOnCooldown(state, target.id, action.id))) {
+  const offCooldownCandidates = legalCounterCandidates.filter((candidate) => {
+    if (!isActionOnCooldown(state, target.id, candidate.id)) return true;
     recordCooldownPreventedUse(state, target, candidate);
-  }
+    recordCounterCandidateDiagnostic({
+      state,
+      actor: target,
+      action: candidate,
+      reason: "cooldown",
+      message: `${candidate.name} is on cooldown`,
+    });
+    return false;
+  });
 
-  const action = counterCandidates.find((candidate) => !isActionOnCooldown(state, target.id, candidate.id));
-  if (!action) return { declared: null, metrics };
-  if ((state.responsesRemaining[target.id] ?? 0) <= 0) {
+  if (offCooldownCandidates.length > 0 && (state.responsesRemaining[target.id] ?? 0) <= 0) {
+    for (const candidate of offCooldownCandidates) {
+      recordCounterCandidateDiagnostic({
+        state,
+        actor: target,
+        action: candidate,
+        reason: "noResponse",
+        message: `${target.name} has no response available for ${candidate.name}`,
+      });
+    }
     metrics.responsesWastedOrUnavailable = 1;
     return { declared: null, metrics };
   }
+
+  const counterCandidates = offCooldownCandidates.filter((candidate) => {
+    const dodgeCounterEstimate = estimateDodgeCounterValue({
+      state,
+      target,
+      attacker,
+      incomingAction,
+      counterAction: candidate,
+      pool,
+    });
+    if (!dodgeCounterEstimate?.skipReason) return true;
+    recordCounterCandidateDiagnostic({
+      state,
+      actor: target,
+      action: candidate,
+      reason: "normalDefenceBetter",
+      expectedCounterPrevention: dodgeCounterEstimate.counterExpectedValue,
+      expectedNormalPrevention: dodgeCounterEstimate.normalExpectedValue,
+      message: dodgeCounterEstimate.skipReason,
+    });
+    emitTranscriptEvent(state, {
+      type: "counterDeclared",
+      actorId: target.id,
+      actorName: target.name,
+      targetId: attacker.id,
+      targetName: attacker.name,
+      actionId: candidate.id,
+      actionName: candidate.name,
+      lane: "response",
+      message: `Counter skipped: ${target.name} keeps normal defence instead of ${candidate.name}. ${dodgeCounterEstimate.skipReason}. Expected prevention: counter ${dodgeCounterEstimate.counterExpectedValue.toFixed(2)}, normal ${dodgeCounterEstimate.normalExpectedValue.toFixed(2)}.`,
+      details: {
+        reason: "normalDefenceBetter",
+        counterExpectedValue: Number(dodgeCounterEstimate.counterExpectedValue.toFixed(4)),
+        normalExpectedValue: Number(dodgeCounterEstimate.normalExpectedValue.toFixed(4)),
+        expectedIncomingSuccesses: Number(dodgeCounterEstimate.incomingSuccesses.toFixed(4)),
+        expectedRawWounds: Number(dodgeCounterEstimate.rawWounds.toFixed(4)),
+        dodgeThreshold: dodgeCounterEstimate.dodgeThreshold,
+        dodgePotency: dodgeCounterEstimate.dodgePotency,
+      },
+    });
+    return false;
+  });
+
+  const action = counterCandidates[0];
+  if (!action) return { declared: null, metrics };
 
   const hasAttackPacket = counterAttackPackets(action).length > 0;
   const hasDefencePacket = counterDefencePackets(action, pool, incomingAction).length > 0;
@@ -1059,6 +1312,13 @@ function declareCounter(params: {
   state.counterUses[`${state.round}:${target.id}:${action.id}`] = 1;
   recordActionUse(state, target, action);
   applyActionCooldown(state, target, action);
+  recordCounterCandidateDiagnostic({
+    state,
+    actor: target,
+    action,
+    reason: "selected",
+    message: `${action.name} selected against ${incomingAction.name}`,
+  });
   metrics.counterUses = 1;
   metrics.counterChosen = 1;
   metrics.responsesUsed = 1;

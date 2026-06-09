@@ -187,6 +187,7 @@ export type CombatState = {
   cooldowns: Record<string, CombatCooldownEntry>;
   currentTurnActorId?: string | null;
   cooldownTrace: Record<string, CombatCooldownTrace>;
+  counterCandidateDiagnostics: Record<string, CombatCounterCandidateDiagnostic>;
   counterUses: Record<string, number>;
   incomingActionsByTargetThisRound: Record<string, number>;
   statusEffects: CombatStatusEffect[];
@@ -223,6 +224,27 @@ export type CombatCooldownTrace = {
   cooldownTicks: number;
   availableTurns: number;
   unavailableTurns: number;
+};
+
+export type CombatCounterCandidateDiagnostic = {
+  actorId: string;
+  actorName: string;
+  side: CombatSide;
+  actionId: string;
+  actionName: string;
+  sourceType: CombatActionSourceType;
+  considered: number;
+  selected: number;
+  skippedNormalDefenceBetter: number;
+  skippedNoResponse: number;
+  skippedCooldown: number;
+  skippedUnsupported: number;
+  skippedNonAvoidable: number;
+  skippedNonApplicable: number;
+  totalExpectedCounterPrevention: number;
+  totalExpectedNormalPrevention: number;
+  expectedSamples: number;
+  lastReason?: string | null;
 };
 
 export type CombatLogEntry = {
@@ -485,6 +507,7 @@ export type CombatAggregateMetrics = {
   actorContributions: Record<string, CombatActorContribution>;
   defensiveContributions: Record<string, CombatDefensiveContribution>;
   cooldownTrace: Record<string, CombatCooldownTrace>;
+  counterCandidateDiagnostics: Record<string, CombatCounterCandidateDiagnostic>;
 };
 
 export type CombatActionContribution = {
@@ -659,6 +682,7 @@ export type CombatSuiteReport = {
   monsterGroupContributions: CombatMonsterGroupContribution[];
   defensiveContributions: CombatDefensiveContribution[];
   cooldownTrace: CombatCooldownTrace[];
+  counterCandidateDiagnostics: CombatCounterCandidateDiagnostic[];
   firstRunTranscript?: CombatTranscript;
   unsupported: UnsupportedPowerSummary;
   hydrationIntegrity: CombatHydrationIntegrity;

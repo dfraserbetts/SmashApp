@@ -796,6 +796,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
   const livingPlayers = getLivingActors(state, "players");
   const livingMonsters = getLivingActors(state, "monsters");
   metrics.cooldownTrace = state.cooldownTrace;
+  metrics.counterCandidateDiagnostics = state.counterCandidateDiagnostics;
   const winner: CombatRunResult["winner"] =
     stoppedBy === "monstersDefeated"
       ? "players"
