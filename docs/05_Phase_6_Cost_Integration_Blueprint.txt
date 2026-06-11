@@ -348,6 +348,391 @@ Pricing matrix future work should account for:
 Refresh/replace is the default repeated-application model. Additive or recharging defensive pools are not default behaviour and require explicit authoring, clear limits, and a heavy Power Tuning surcharge.
 
 
+Defensive Pool Pricing Matrix
+
+This section defines formula architecture and pricing inputs only. It does not set final numeric values.
+
+Defensive pool pricing must not reuse ordinary Attack potency valuation.
+
+The core problem is that defensive pools create finite defensive resources with two separate value shapes:
+
+- total resource depth
+- per-trigger burst capacity
+
+Attack potency usually scales wounds or direct output. Defensive pool potency does more than that.
+
+For Dodge Pools, potency scales both total pool size and the amount of Dodge threshold pressure that can be applied to one incoming physical / dodgeable packet.
+
+For Resist Pools, potency scales both total pool size and the amount of hostile success, stack, ongoing-unit, or equivalent-unit cancellation that can be applied to one incoming hostile packet in the authored resisted Attribute lane.
+
+For Block Pools, potency scales finite wound prevention and the per-trigger prevention cap.
+
+Duration and reapplication create opportunity value: the pool can be saved for meaningful triggers rather than spent immediately.
+
+Target scope creates multiplication value: more protected actors and more flexible recipient choices create more chances that the pool matters.
+
+Therefore defensive pool pricing needs separate depth, burst, duration, delivery, target, reapplication, and exception factors.
+
+
+Pool Depth Value Versus Per-Trigger Burst Value
+
+PoolDepthValue answers: how long can this resource last?
+
+It is based on expected total available pool points:
+
+PoolDepthValue starts from:
+
+expectedPowerSuccesses x potency
+
+Dice count primarily improves expected pool depth, reliability, and the chance that a pool exists at a useful size.
+
+PerTriggerBurstValue answers: how much can this pool change one incoming attack or effect?
+
+It is based on:
+
+potency / per-trigger commit cap
+
+Potency improves both total pool depth and the per-trigger cap. This makes potency more dangerous than dice when pricing defensive pools.
+
+High dice / low potency and low dice / high potency are not equivalent even if their expected total pool size is similar.
+
+High dice / low potency usually creates reliable shallow coverage.
+
+Low dice / high potency creates swingier but much more dangerous burst denial when it lands.
+
+Charged potency is especially dangerous because it increases both pool size and per-trigger cap at release. Charged dice mainly increases reliability and expected depth.
+
+BurstCapValue must be nonlinear for Dodge and Resist because threshold denial and cancellation can erase an entire hostile packet or key hostile unit package.
+
+
+Pool Type Hierarchy
+
+Physical Block Pool / Mental Block Pool
+
+- linear wound prevention
+- points add direct wound prevention, not defence successes
+- lower burst danger than Dodge or Resist because they reduce wounds rather than canceling the packet
+- still valuable because points can be saved for meaningful hits
+- physical and mental lanes may have different tuning weights if PPV / MPV economics diverge
+- Physical Block Pool and Mental Block Pool should remain separate tuning lanes if Combat Tuning keeps physical and mental survivability asymmetrical
+
+Dodge Pool
+
+- threshold-based
+- points add Dodge successes
+- can avoid a whole physical or explicitly dodgeable packet on match-or-exceed
+- value spikes near common incoming success bands
+- interacts with normal Dodge degradation because the normal Dodge roll still degrades while pool points are spent separately
+- high potency must be priced as burst packet-denial capacity, not merely extra mitigation
+- Dodge Pool does not make mental attacks dodgeable unless an action explicitly allows Dodge
+
+Resist Pool
+
+- lane-limited cancellation
+- points cancel hostile successes, stacks, ongoing units, or equivalent units in the authored resisted Attribute lane
+- strong against debuffs, control, ongoing pressure, and other high-impact hostile units
+- wrong lane does nothing
+- one Defence -> Resist packet maps to one resisted Attribute
+- multi-attribute Resist requires multiple packets and should pay packet/multi-lane costs
+- generic or omni Resist, if ever authored, requires a major surcharge because it bypasses the lane-risk constraint
+
+
+Delivery / Chassis Matrix
+
+Immediate one-time duration pool
+
+- baseline finite pool model
+- creates the pool once on application
+- prices depth + burst + duration opportunity
+- does not imply repeated full-value rerolls
+
+Trigger
+
+- follows normal finite pool rules after delivery
+- add trigger setup/access cost
+- value depends on trigger reliability and whether the trigger fires at a tactically ideal moment
+- if trigger timing gives strong tactical selection, price the timing advantage
+
+Reserve
+
+- follows normal finite pool rules after release
+- add hold/release flexibility cost
+- value depends on how much tactical timing control the user has
+- release flexibility can make the same pool more valuable than an immediate pool
+
+Field
+
+- creates target-specific pools
+- location-bound by default
+- cost increases with area size, expected legal targets, and delivery cadence
+- repeated refresh/replace increases reliability and availability but is not additive stacking
+- multi-target Field refresh is a major multiplier
+- field-bound limitation should reduce value compared with attached/following protection when targets can leave the area
+- lingering Field pools require explicit authoring and a surcharge
+
+Attached
+
+- follows the attached target while the attachment persists
+- more reliable for that target than location-bound Field
+- repeated refresh/replace increases availability
+- target-following protection costs more than equivalent location-bound protection
+- if the pool lingers after attachment ends, price that as a special exception
+
+Channel
+
+- refresh/replace while maintained
+- no compounding by default
+- receives action-economy credit/discount because the user pays maintenance cost
+- still more expensive than one-time duration because it can repeatedly refresh protection
+- channelled area or multi-target protection remains expensive despite action cost
+- Channel does not automatically repeat packet resolution; authored Effect Timing controls cadence
+
+Charge
+
+- priced at final release values
+- bonus dice increase reliability and expected pool depth
+- bonus potency increases pool depth and per-trigger cap
+- charged potency on Dodge or Resist needs heavy burst-denial pricing
+- charge action cost offsets some value but does not erase final-output danger
+- charge turns before release do not count against pool duration
+
+Additive / recharging pools
+
+- not default behaviour
+- special mechanic only
+- requires explicit authoring, maximum pool cap, clear expiry, explicit stack/recharge wording, and heavy surcharge
+- should have separate pricing from refresh/replace
+- should not be inferred from Field, Attached, Channel, Trigger, Reserve, or Charge
+
+
+Duration And Cadence Model
+
+Duration value depends on opportunity, not just number of turns.
+
+DurationOpportunityFactor should consider:
+
+- duration window
+- expected incoming trigger count
+- probability the protected target is attacked
+- target priority likelihood
+- start/end turn cadence
+- reapplication count
+- whether reapplication is refresh/replace or additive
+- whether the pool is field-bound, attached, channelled, or charged
+- whether the user can choose optimal spend moments
+
+Refresh/replace must not be priced as full additive pool generation.
+
+Refresh/replace increases reliability, uptime, and availability. It does not create stacked total capacity unless the power explicitly uses additive/recharging authoring.
+
+Repeated cadence should therefore price expected improvement in usable remaining pool, not sum every application as new independent pool value.
+
+
+Targeting / Recipient Matrix
+
+TargetScopeFactor should scale with both:
+
+- number of protected actors
+- flexibility of who can receive protection
+
+Targeting factors should distinguish:
+
+- self only
+- one ally
+- self or ally
+- multiple chosen targets
+- all allies in area
+- all legal targets in Field
+- attached to one target
+- attached to object / host / area
+- field-bound versus follows target
+- can affect self plus others
+
+Self-only is the baseline cheapest recipient profile.
+
+One chosen ally is narrower than self-or-ally if the caster cannot protect themself.
+
+Self or ally is more flexible than either self-only or ally-only.
+
+Multiple chosen targets multiply expected protected actors and should scale with target count.
+
+All allies in area and all legal targets in Field require both target-count and area/reach pricing.
+
+Target count and self-slot rules are locked elsewhere: self consumes a selected target slot unless a power explicitly says otherwise.
+
+
+Formula Skeleton
+
+Non-final formula shape:
+
+DefensivePoolPacketValue =
+  PoolTypeBase
+  x PoolDepthValue
+  x BurstCapValue
+  x DurationOpportunityFactor
+  x DeliveryReliabilityFactor
+  x TargetScopeFactor
+  x ReapplicationFactor
+  x SpecialMechanicFactor
+  + ComplexityPremiums
+
+PoolTypeBase:
+
+- baseline value for Block, Dodge, or Resist
+- may distinguish Physical Block and Mental Block if PPV / MPV economics diverge
+
+PoolDepthValue:
+
+- expectedPowerSuccesses x potency
+- includes dice reliability and expected generated points
+- mostly values how long the resource can last
+
+BurstCapValue:
+
+- potency / per-trigger cap
+- nonlinear for Dodge and Resist
+- more linear for Block
+- must account for cap overrides
+
+DurationOpportunityFactor:
+
+- estimates how many meaningful spend opportunities are expected
+- considers duration, target priority, incoming trigger count, and cadence
+
+DeliveryReliabilityFactor:
+
+- distinguishes Immediate, Trigger, Reserve, Field, Attached, Channel, and Charge
+- accounts for timing control, positional limits, maintenance cost, and final release values
+
+TargetScopeFactor:
+
+- prices who and how many actors can receive pools
+- accounts for self-only, ally-only, self-or-ally, multi-target, area, and attachment modes
+
+ReapplicationFactor:
+
+- prices refresh/replace cadence and reliability
+- must not treat refresh/replace as additive pool generation
+- additive only applies where explicitly authored
+
+SpecialMechanicFactor:
+
+- additive/recharging pools
+- generic Resist
+- multi-attribute Resist
+- combined-pool spending
+- lingering Field pools
+- cap overrides
+
+ComplexityPremiums:
+
+- additional cost for rule burden, multi-packet structure, exceptions, and exploit surface
+- should be cost-only unless the mechanic genuinely creates battlefield axis expression
+
+Actual numeric values belong in Power Tuning.
+
+Outcome Normalization must not hide bad defensive pool pricing.
+
+Combat Tuning must not be used to patch power-cost errors.
+
+
+Future Power Tuning Key-Family Plan
+
+The following are planning names only. Do not treat them as existing config keys.
+
+Likely future key families:
+
+packet.defensivePool.type.block.base
+packet.defensivePool.type.dodge.base
+packet.defensivePool.type.resist.base
+
+packet.defensivePool.depth.expectedWeight
+packet.defensivePool.depth.diceReliabilityWeight
+
+packet.defensivePool.burst.potencyCapWeight
+packet.defensivePool.burst.dodgeThresholdMultiplier
+packet.defensivePool.burst.resistCancellationMultiplier
+packet.defensivePool.burst.blockLinearMultiplier
+
+packet.defensivePool.duration.turns.1
+packet.defensivePool.duration.turns.2
+packet.defensivePool.duration.turns.3
+packet.defensivePool.duration.passive
+
+packet.defensivePool.reapplication.none
+packet.defensivePool.reapplication.refreshReplaceMultiplier
+packet.defensivePool.reapplication.additiveSurcharge
+
+packet.defensivePool.target.self
+packet.defensivePool.target.singleAlly
+packet.defensivePool.target.selfOrAlly
+packet.defensivePool.target.multiTarget
+packet.defensivePool.target.fieldArea
+packet.defensivePool.target.allAlliesInArea
+
+packet.defensivePool.delivery.immediate
+packet.defensivePool.delivery.trigger
+packet.defensivePool.delivery.reserve
+packet.defensivePool.delivery.field
+packet.defensivePool.delivery.attached
+
+packet.defensivePool.commitment.channelDiscount
+packet.defensivePool.commitment.chargeDiceWeight
+packet.defensivePool.commitment.chargePotencyWeight
+
+packet.defensivePool.resist.genericSurcharge
+packet.defensivePool.resist.multiAttributeSurcharge
+
+packet.defensivePool.exception.combinedPoolSpendSurcharge
+packet.defensivePool.exception.lingeringFieldSurcharge
+packet.defensivePool.exception.capOverrideSurcharge
+
+These names should be refined when the resolver seam is implemented. The important point is the axis of separation: pool type, depth, burst, duration, reapplication, target scope, delivery, commitment, and exceptions must be independently tunable enough to avoid one blunt defensive-pool multiplier.
+
+
+Defensive Pool Canary And Scenario Requirements
+
+Active numeric tuning must not begin until synthetic canaries exist that actually create and spend defensive pools.
+
+Required defensive pool canaries:
+
+- Immediate duration Dodge Pool self-only
+- Immediate duration Physical Block Pool
+- Immediate duration Mental Block Pool
+- Immediate duration Resist Pool against matching lane
+- wrong-lane Resist Pool
+- Field Block Pool protecting one ally in area
+- Field Block Pool protecting multiple allies in area
+- Attached Dodge or Block Pool following one target
+- Channelled Block Pool refresh/replace with action-economy sacrifice
+- Charged Dodge Pool with bonus dice
+- Charged Dodge Pool with bonus potency
+- refresh/replace does not add
+- multiple matching pools where only one can commit
+- additive/recharging pool test only if and when explicitly authored
+
+Each canary should report:
+
+- pool created
+- generated points
+- committed points
+- spent points
+- wasted points
+- remaining at expiry
+- refresh/replace events
+- Dodge avoids
+- Block wounds prevented
+- Resist units cancelled
+- win-rate or survivability delta versus no-pool baseline
+- comparison to equivalent direct damage, healing, or control where useful
+
+All future defensive-pool pricing evidence should come from named canary scenarios or Codex-run Combat Lab batches with provenance.
+
+Manual milestone testing remains required for major rules changes, large balance shifts, playtest packets, public/demo builds, UI/report readability, and table-feel judgement.
+
+Codex-run batches are preferred for incremental balance passes, variant comparison, canary checks, scenario matrices, outlier detection, and repeated evidence gathering.
+
+
 CombinedEffectPacketFormula
 
 CombinedEffectPacketFormula is the heart of the power cost model.
@@ -513,6 +898,9 @@ The immediate Phase 6 work should stay focused on:
 - adding a dedicated scenario matrix runner or minimal batch script, likely scripts/combatLab.scenarioMatrix.ts
 - defining Power Tuning key seams for defensive pool pricing
 - running Codex canary batches with full provenance before active numeric changes
+- tuning initial numeric values only after the pricing seams and canaries exist
+- running manual milestone verification for readability, UI, and table-feel checks after numeric changes
+- returning to Dire Wolf / Sudden Leap / Swiping Claws tuning only after the defensive pool pricing path is stable
 - tuning specific powers against the aligned live/harness baseline
 - tuning non-power monster baseline contribution where stripped monsters are too weak or too strong
 - tuning outcome normalization where radar display saturates too early or too late

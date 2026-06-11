@@ -129,4 +129,5 @@ Near-term ordered balance workflow:
 4. Power Tuning key seams for defensive pool pricing.
 5. Codex-run canary batches with full provenance.
 6. Active numeric tuning.
-7. Return to Dire Wolf / Sudden Leap / Swiping Claws tuning.
+7. Manual milestone verification for major readability, UI, and table-feel checks.
+8. Return to Dire Wolf / Sudden Leap / Swiping Claws tuning.

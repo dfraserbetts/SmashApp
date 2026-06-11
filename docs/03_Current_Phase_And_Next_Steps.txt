@@ -161,7 +161,7 @@ The practical next work should stay focused on:
 - preserving the locked response order: active effects, hostile declaration, Assist declaration, Counter declaration, Assists, Counters, trigger roll, normal active defence only if no Counter, prevention/effects, result application, cleanup
 - rerunning the 16-test response / defence / Counter matrix after runtime changes
 - revisiting Counter, Movement Counter, and Control interrupt Counter costs only after runtime behaviour faithfully follows the source rules
-- using the Canary Harness as the main comparative tuning workspace
+- using the Canary Harness for baseline/candidate tuning comparisons alongside Codex-run Combat Lab batches for repeated scenario evidence
 - preserving the three-layer split between:
   - Power Tuning
   - Combat Tuning
@@ -236,4 +236,5 @@ Near-Term Ordered Plan
 4. Power Tuning key seams for defensive pool pricing.
 5. Codex-run canary batches with full provenance.
 6. Active numeric tuning only after canary coverage and pricing seams are clear.
-7. Then return to Dire Wolf / Sudden Leap / Swiping Claws tuning.
+7. Manual milestone verification for major readability, UI, and table-feel checks.
+8. Then return to Dire Wolf / Sudden Leap / Swiping Claws tuning.

@@ -362,6 +362,17 @@ Future tooling should add a dedicated scenario-matrix runner, likely scripts/com
 
 That runner should eventually support named scenarios, run count, seed, active tuning selection/reporting, temporary in-memory overrides, JSON/table output, selected diagnostic columns, batch comparisons across variants, and a clear read-only / no data mutation mode.
 
+Near-term defensive pool pricing handoff:
+
+1. Use docs/05_Phase_6_Cost_Integration_Blueprint.txt as the source for the Defensive Pool Pricing Matrix.
+2. Define defensive-pool canary/scenario fixtures before numeric tuning.
+3. Build or extend a scenario matrix runner, likely scripts/combatLab.scenarioMatrix.ts.
+4. Add Power Tuning key seams for defensive pool pricing.
+5. Run Codex canary batches with full provenance.
+6. Tune initial numeric values.
+7. Run manual milestone verification for readability, UI, and table-feel checks.
+8. Then return to Dire Wolf / Sudden Leap / Swiping Claws tuning.
+
 
 Rule for Future Packet Resolution Work
 
