@@ -222,6 +222,7 @@ function runLinkedWoundBandFixture(prevention: number) {
   if (setup.defensivePools.bySourceSide.players.poolsCreated !== 1 || state.defensivePools[0]?.remainingPoints !== 4) {
     throw new Error("Duration Dodge defence did not create a 4-point defensive pool.");
   }
+  const startingDodgePoolPoints = state.defensivePools[0]?.remainingPoints ?? 0;
   const attackResolution = resolveCombatAction({
     state,
     actor: state.actors[1],
@@ -233,11 +234,18 @@ function runLinkedWoundBandFixture(prevention: number) {
   if (attackResolution.defensivePools.bySourceSide.players.committedPoints !== 2) {
     throw new Error("Dodge pool did not commit before the normal Dodge roll.");
   }
+  if (attackResolution.defensivePools.bySourceSide.players.committedPoints !== attackResolution.defensivePools.bySourceSide.players.spentPoints) {
+    throw new Error("Dodge pool commit/spend diverged in successful bridge canary.");
+  }
   if (attackResolution.defensivePools.bySourceSide.players.dodgeAvoids !== 1) {
     throw new Error("Successful Dodge pool commit was not counted as a Dodge avoid.");
   }
   if (attackResolution.woundsAvoidedByDodge <= 0 || attackResolution.netWounds !== 0) {
     throw new Error("Dodge pool did not add to normal Dodge successes for match-or-exceed avoidance.");
+  }
+  const a1DodgePool = state.defensivePools.find((pool) => pool.sourceActionId === dodgeSetup.id);
+  if (!a1DodgePool || a1DodgePool.remainingPoints !== startingDodgePoolPoints - attackResolution.defensivePools.bySourceSide.players.committedPoints) {
+    throw new Error("A1 pool remaining did not decrease by committed points.");
   }
 }
 
@@ -270,6 +278,7 @@ function runLinkedWoundBandFixture(prevention: number) {
     rng: rngFrom([0.99]),
     lane: "power",
   });
+  const startingDodgePoolPoints = state.defensivePools[0]?.remainingPoints ?? 0;
   const attackResolution = resolveCombatAction({
     state,
     actor: state.actors[1],
@@ -281,11 +290,21 @@ function runLinkedWoundBandFixture(prevention: number) {
   if (attackResolution.defensivePools.bySourceSide.players.committedPoints <= 0) {
     throw new Error("Failed Dodge pool smoke did not commit any pool points.");
   }
+  if (attackResolution.defensivePools.bySourceSide.players.spentPoints !== attackResolution.defensivePools.bySourceSide.players.committedPoints) {
+    throw new Error("Failed Dodge pool commit/spend diverged in failure canary.");
+  }
+  if (attackResolution.netWounds <= 0) {
+    throw new Error("Failed Dodge pool should not fully prevent the incoming packet.");
+  }
   if (attackResolution.defensivePools.bySourceSide.players.wastedPoints !== attackResolution.defensivePools.bySourceSide.players.committedPoints) {
     throw new Error("Failed Dodge pool spend did not count committed points as wasted.");
   }
   if (attackResolution.defensivePools.bySourceSide.players.dodgeAvoids !== 0) {
     throw new Error("Failed Dodge pool spend incorrectly counted an avoid.");
+  }
+  const a2DodgePool = state.defensivePools.find((pool) => pool.sourceActionId === "failed-dodge-pool-setup");
+  if (!a2DodgePool || a2DodgePool.remainingPoints !== startingDodgePoolPoints - attackResolution.defensivePools.bySourceSide.players.committedPoints) {
+    throw new Error("A2 pool remaining did not decrease by committed points on failed dodge.");
   }
 }
 
@@ -332,8 +351,14 @@ function runLinkedWoundBandFixture(prevention: number) {
   if (attackResolution.defensivePools.bySourceSide.players.committedPoints !== 0) {
     throw new Error("Dodge pool committed even though expected normal Dodge already covered incoming successes.");
   }
+  if (attackResolution.defensivePools.bySourceSide.players.spentPoints !== 0 || attackResolution.defensivePools.bySourceSide.players.wastedPoints !== 0) {
+    throw new Error("Overcommit canary produced unexpected pool spend/waste despite no need.");
+  }
   if (state.defensivePools[0]?.remainingPoints !== startingPoolPoints) {
     throw new Error("Dodge pool points changed when no pool commit was requested.");
+  }
+  if (attackResolution.dodgeSuccesses <= 0 || attackResolution.woundsAvoidedByDodge <= 0) {
+    throw new Error("No-overcommit canary did not resolve normal Dodge despite expected sufficient baseline.");
   }
 }
 
@@ -370,6 +395,7 @@ function runLinkedWoundBandFixture(prevention: number) {
     rng: rngFrom([0.99]),
     lane: "power",
   });
+  const startingPhysicalBlockPoints = state.defensivePools[0]?.remainingPoints ?? 0;
   const attackResolution = resolveCombatAction({
     state,
     actor: state.actors[1],
@@ -381,8 +407,18 @@ function runLinkedWoundBandFixture(prevention: number) {
   if (attackResolution.defensivePools.bySourceSide.players.blockWoundsPrevented !== 2) {
     throw new Error("Physical Block pool did not add direct wound prevention before normal defence result was finalized.");
   }
+  if (attackResolution.defensivePools.bySourceSide.players.committedPoints !== attackResolution.defensivePools.bySourceSide.players.spentPoints) {
+    throw new Error("Physical Block pool spend diverged from commit.");
+  }
+  if (attackResolution.defensivePools.bySourceSide.players.blockWoundsPrevented !== attackResolution.defensivePools.bySourceSide.players.committedPoints) {
+    throw new Error("Physical Block pool did not convert 1-to-1 into wound prevention.");
+  }
   if (attackResolution.defensivePools.bySourceSide.players.wastedPoints !== 0) {
     throw new Error("Physical Block pool unexpectedly wasted points in the deterministic block smoke.");
+  }
+  const a4BlockPool = state.defensivePools.find((pool) => pool.sourceActionId === "duration-physical-block");
+  if (!a4BlockPool || a4BlockPool.remainingPoints !== startingPhysicalBlockPoints - attackResolution.defensivePools.bySourceSide.players.committedPoints) {
+    throw new Error("Physical Block pool remaining did not decrease by committed points.");
   }
 }
 
@@ -428,6 +464,10 @@ function runLinkedWoundBandFixture(prevention: number) {
   if (physicalResolution.defensivePools.bySourceSide.players.committedPoints !== 0) {
     throw new Error("Mental Block pool committed against physical wounds.");
   }
+  const mentalBlockRemainingAfterPhysical = state.defensivePools[0]?.remainingPoints ?? 0;
+  if (mentalBlockRemainingAfterPhysical !== 4) {
+    throw new Error("Mental Block pool changed on physical pressure when it should not.");
+  }
   const mentalResolution = resolveCombatAction({
     state,
     actor: state.actors[1],
@@ -438,6 +478,12 @@ function runLinkedWoundBandFixture(prevention: number) {
   });
   if (mentalResolution.defensivePools.bySourceSide.players.blockWoundsPrevented <= 0) {
     throw new Error("Mental Block pool did not commit against mental wounds.");
+  }
+  if (mentalResolution.defensivePools.bySourceSide.players.committedPoints <= 0) {
+    throw new Error("Mental Block pool did not commit for mental pressure.");
+  }
+  if (state.defensivePools[0]?.remainingPoints !== mentalBlockRemainingAfterPhysical - mentalResolution.defensivePools.bySourceSide.players.committedPoints) {
+    throw new Error("Mental Block remaining did not decrease by committed points on legal mental use.");
   }
 }
 
@@ -495,8 +541,17 @@ function runLinkedWoundBandFixture(prevention: number) {
   if (debuffResolution.defensivePools.bySourceSide.players.resistUnitsCancelled !== 2) {
     throw new Error("Resist pool did not add cancellation units for the matching resisted attribute.");
   }
+  if (debuffResolution.defensivePools.bySourceSide.players.committedPoints !== debuffResolution.defensivePools.bySourceSide.players.spentPoints) {
+    throw new Error("Matching Resist pool commit/spend diverged.");
+  }
+  if (debuffResolution.hostileSuccessesBeforeResist <= 0) {
+    throw new Error("Matching lane hostile effect did not generate hostile success pressure for this canary.");
+  }
   if (debuffResolution.hostileSuccessesAfterResist !== 0) {
     throw new Error("Resist pool failed to combine with the normal Resist roll before hostile success application.");
+  }
+  if (debuffResolution.hostileSuccessesAfterResist >= debuffResolution.hostileSuccessesBeforeResist) {
+    throw new Error("Resist pool did not materially reduce hostile success pressure.");
   }
 }
 
@@ -550,8 +605,20 @@ function runLinkedWoundBandFixture(prevention: number) {
     rng: rngFrom([0.99, 0.0, 0.0, 0.0]),
     lane: "power",
   });
+  const wrongLaneAttackResistPool = state.defensivePools.find((pool) => pool.sourceActionId === "attack-only-resist-pool");
+  if (!wrongLaneAttackResistPool) {
+    throw new Error("Wrong-lane Resist canary did not create the ATTACK resist pool.");
+  }
+  const wrongLaneStartingPoints = wrongLaneAttackResistPool.remainingPoints;
   if (debuffResolution.defensivePools.bySourceSide.players.committedPoints !== 0) {
     throw new Error("ATTACK Resist pool committed against a BRAVERY resisted action.");
+  }
+  if (debuffResolution.defensivePools.bySourceSide.players.spentPoints !== 0 || debuffResolution.defensivePools.bySourceSide.players.resistUnitsCancelled !== 0) {
+    throw new Error("Wrong-lane Resist pool incorrectly spent against BRAVERY.");
+  }
+  const wrongLaneAfterPoints = state.defensivePools[0]?.remainingPoints ?? 0;
+  if (wrongLaneAfterPoints !== wrongLaneStartingPoints) {
+    throw new Error("Wrong-lane Resist pool changed despite no legal lane match.");
   }
 }
 
@@ -563,6 +630,7 @@ function runLinkedWoundBandFixture(prevention: number) {
   const setup = action({
     id: "refreshing-block-pool",
     name: "Refreshing Block Pool",
+    sourcePowerId: "refresh-source-power",
     sourceType: "power",
     kind: "defence",
     targetPolicy: "self",
@@ -570,7 +638,7 @@ function runLinkedWoundBandFixture(prevention: number) {
     pool: "physical",
     accuracyAttribute: "Synergy",
     diceCount: 1,
-    potency: 2,
+    potency: 1,
     durationKind: "turns",
     durationRounds: 2,
   });
@@ -584,11 +652,37 @@ function runLinkedWoundBandFixture(prevention: number) {
     rng: rngFrom([0.99]),
     lane: "power",
   });
-  if (state.defensivePools.length !== 1 || state.defensivePools[0].remainingPoints !== 3) {
-    throw new Error("Repeated defensive pool application stacked points instead of refresh/replacing by max remaining.");
+  const remainingAfterLowerReapply = state.defensivePools[0]?.remainingPoints ?? 0;
+  const refreshResolutionHigher = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[0],
+    action: { ...setup, potency: 4 },
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  const lowerReapplyActionKey = `${state.actors[0].id}:${setup.id}:PHYSICAL_BLOCK`;
+  const higherReapplyActionKey = `${state.actors[0].id}:${setup.id}:PHYSICAL_BLOCK`;
+  const expectedLowerGenerated = refreshResolution.defensivePools.bySourceAction[lowerReapplyActionKey]?.generatedPoints;
+  const expectedHigherGenerated = refreshResolutionHigher.defensivePools.bySourceAction[higherReapplyActionKey]?.generatedPoints;
+  if (typeof expectedLowerGenerated !== "number" || typeof expectedHigherGenerated !== "number") {
+    throw new Error("A8 failed to capture generated points from refresh actions.");
+  }
+  const expectedAfterLower = Math.max(3, expectedLowerGenerated);
+  if (state.defensivePools.length !== 1 || remainingAfterLowerReapply !== expectedAfterLower) {
+    throw new Error(
+      `Repeated defensive pool application stacked points instead of refresh/replacing by max remaining (pool count: ${state.defensivePools.length}, remaining: ${remainingAfterLowerReapply}, expected max: ${expectedAfterLower}, generated lower: ${expectedLowerGenerated}, keys: ${state.defensivePools.map((pool) => pool.reapplyKey).join(", ")}).`,
+    );
   }
   if (refreshResolution.defensivePools.bySourceSide.players.refreshReplaceEvents !== 1) {
-    throw new Error("Defensive pool refresh/replacement was not reported.");
+    throw new Error("Defensive pool refresh/replacement was not reported for lower reapply.");
+  }
+  if (refreshResolutionHigher.defensivePools.bySourceSide.players.refreshReplaceEvents !== 1) {
+    throw new Error("Defensive pool higher-replace did not report a second refresh/replacement event.");
+  }
+  const expectedAfterHigher = Math.max(expectedAfterLower, expectedHigherGenerated);
+  if (state.defensivePools[0]?.remainingPoints !== expectedAfterHigher) {
+    throw new Error(`Defensive pool did not keep max semantics on higher reapplication (expected ${expectedAfterHigher}, got ${state.defensivePools[0]?.remainingPoints ?? "missing"}).`);
   }
   const expired = tickTargetDefensivePools(state, state.actors[0].id);
   if (expired.length !== 0 || state.defensivePools[0].remainingRounds !== 1) {
@@ -679,6 +773,32 @@ function runLinkedWoundBandFixture(prevention: number) {
 }
 
 {
+  const defender = fixtureActor("instant-dodge-counter-defender", "players");
+  const state = createCombatState([defender], [], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[0],
+    action: action({
+      id: "instant-dodge-counter-only",
+      name: "Instant Dodge Counter Only",
+      sourceType: "power",
+      kind: "defence",
+      targetPolicy: "self",
+      defenceMode: "Dodge",
+      counterMode: true,
+      durationKind: "instant",
+      durationRounds: 1,
+    }),
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  if (state.defensivePools.length !== 0) {
+    throw new Error("Instant Counter Dodge alone created a persistent defensive pool.");
+  }
+}
+
+{
   const defender = fixtureActor("single-pool-commit-defender", "players", {
     physicalDefenceDice: 1,
     physicalBlockPerSuccess: 0,
@@ -688,6 +808,7 @@ function runLinkedWoundBandFixture(prevention: number) {
     attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
   });
   const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  const startingPoolPoints: Record<string, number> = {};
   for (const setup of [
     action({
       id: "first-matching-block-pool",
@@ -719,6 +840,11 @@ function runLinkedWoundBandFixture(prevention: number) {
     }),
   ]) {
     resolveCombatAction({ state, actor: state.actors[0], target: state.actors[0], action: setup, rng: rngFrom([0.99]), lane: "power" });
+    const createdPool = state.defensivePools.find((pool) => pool.sourceActionId === setup.id && pool.protectedActorId === state.actors[0].id);
+    if (!createdPool) {
+      throw new Error(`Matching pool setup did not create expected pool ${setup.name}.`);
+    }
+    startingPoolPoints[setup.id] = createdPool.remainingPoints;
   }
   const attackResolution = resolveCombatAction({
     state,
@@ -732,6 +858,30 @@ function runLinkedWoundBandFixture(prevention: number) {
     .filter((entry) => entry.committedPoints > 0);
   if (committedActions.length !== 1) {
     throw new Error(`Expected exactly one matching defensive pool to commit by default: ${JSON.stringify(attackResolution.defensivePools.bySourceAction)}.`);
+  }
+  const committedAction = committedActions[0];
+  if (!committedAction) {
+    throw new Error("A9 did not capture the committed pool source.");
+  }
+  const preCommittedPool = state.defensivePools.find((pool) => pool.sourceActionId === committedAction.sourceActionId);
+  if (!preCommittedPool) {
+    throw new Error("A9 committed pool could not be located post-resolution.");
+  }
+  if (committedAction.committedPoints > preCommittedPool.perTriggerCap) {
+    throw new Error(`A9 committed ${committedAction.committedPoints} points, exceeding selected pool cap ${preCommittedPool.perTriggerCap}.`);
+  }
+  if (startingPoolPoints[preCommittedPool.sourceActionId] !== undefined) {
+    const expectedRemaining = startingPoolPoints[preCommittedPool.sourceActionId] - committedAction.committedPoints;
+    if (preCommittedPool.remainingPoints !== expectedRemaining) {
+      throw new Error(`A9 committed pool did not spend only its own points by ${preCommittedPool.sourceActionId}.`);
+    }
+  }
+  for (const [sourceActionId, beforePoints] of Object.entries(startingPoolPoints)) {
+    const currentPool = state.defensivePools.find((pool) => pool.sourceActionId === sourceActionId);
+    if (!currentPool) continue;
+    if (sourceActionId !== preCommittedPool.sourceActionId && currentPool.remainingPoints !== beforePoints) {
+      throw new Error(`A9 non-committed matching pool ${sourceActionId} was changed unexpectedly.`);
+    }
   }
 }
 
@@ -785,6 +935,11 @@ function runLinkedWoundBandFixture(prevention: number) {
   }
   if (getActionCooldownRemaining(state, state.actors[0].id, passiveA.id) !== 3) {
     throw new Error("Pure passive defensive pool did not enter cooldown when removed.");
+  }
+  state.actors[0].physicalHpCurrent = 0;
+  markDefeatedActors(state);
+  if (state.defensivePools.length !== 0) {
+    throw new Error("Defeat cleanup did not clear passive pools owned/targeted by defeated actor.");
   }
 }
 
