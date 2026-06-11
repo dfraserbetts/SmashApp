@@ -416,6 +416,140 @@ Examples:
 - Resist Pool: A Fortitude Resist duration power creates a Resist Pool of 8. A hostile Fortitude-lane ongoing effect applies 3 units. The protected actor commits 2 Resist Pool points before rolling Fortitude Resist. They roll 1 Resist success. Final cancelled units = 3, so the hostile units are cancelled. The pool drops from 8 to 6.
 
 
+Defensive pool chassis interactions
+
+Trigger
+
+Trigger changes when a packet is delivered. Once a defensive pool packet is delivered, it follows the normal defensive pool rules.
+
+If Trigger delivers a duration Dodge, Block, or Resist effect:
+
+- create a finite pool
+- pool size = delivered power successes x potency
+- per-trigger commit cap = potency unless explicitly modified
+- duration begins when the Trigger packet is delivered unless the power explicitly says otherwise
+- repeated delivery from the same source power, packet, and protected target uses refresh/replace, not additive stacking by default
+
+Trigger does not get a special defensive pool exception.
+
+Reserve
+
+Reserve changes how a packet is prepared, held, and released. Once the packet is released, it follows the normal defensive pool rules.
+
+If Reserve releases a duration Dodge, Block, or Resist effect:
+
+- create a finite pool on release
+- use the released packet's final dice and potency
+- duration begins on release
+- repeated release/application from the same source power, packet, and protected target uses refresh/replace, not additive stacking by default
+
+Reserve does not get a special defensive pool exception.
+
+Field
+
+Field powers reapply or deliver effects according to authored chassis and Effect Timing.
+
+When a Field delivers a defensive pool to legal targets:
+
+- use the Field's existing roll/delivery cadence
+- each legal target receives its own target-specific pool instance
+- same source power + same packet + same protected target can have only one active pool instance at a time
+- if the same Field packet reapplies to a target that already has that pool, roll the new application and use refresh/replace
+
+Field refresh/replace means:
+
+- active remaining pool becomes the higher of current remaining pool points or newly generated pool points
+- duration/availability refreshes from the latest legal application
+- pools do not add together by default
+
+Field pools are location-bound by default:
+
+- the pool is usable only while the protected actor remains a legal target of the Field, unless the power explicitly says the pool lingers after leaving
+- when the Field ends, pools granted by that Field end unless explicitly authored to linger
+- if a target leaves the Field, the Field pool ends or becomes unavailable according to authored Field rules
+- if protection should follow the target independently, author it as Attached or as an explicit lingering rider
+
+Attached
+
+Attached powers follow the attached target while the attachment persists.
+
+When an Attached defensive pool reapplies to the attached target:
+
+- use the Attached power's authored delivery timing
+- same source power + same packet + same protected target can have only one active pool instance at a time
+- if reapplied, use refresh/replace
+- when the attachment ends, the pool ends unless the power explicitly says the pool lingers
+
+Refresh/replace rule
+
+For repeated applications from the same source power and packet to the same protected target, default behaviour is:
+
+- do not add pools together
+- roll the new pool
+- compare new pool points to current remaining pool points
+- keep the higher value
+- refresh duration/availability from the latest legal application
+
+Pure replacement can make a beneficial reapplication worse. Additive stacking creates an armour/avoidance battery exploit. Higher-of-current-or-new preserves benefit without allowing uncontrolled accumulation.
+
+Additive or recharging defensive pools
+
+Additive defensive pools are not default behaviour.
+
+A power may explicitly author additive or recharging pool behaviour, but this is a special mechanic requiring additional cost and limits. Likely constraints include:
+
+- maximum pool cap
+- clear expiry
+- explicit stack/recharge wording
+- likely lower per-trigger cap or separate cap
+- heavy Power Tuning surcharge
+- clear interaction with Field, Attached, and Channel delivery
+
+Multiple pool interaction
+
+A defender may commit from only one matching defensive pool per incoming action unless a power explicitly allows combined pool spending.
+
+Examples:
+
+- If two Dodge Pools are active, the defender chooses one Dodge Pool to commit from for that incoming attack.
+- If one Block Pool and one Dodge Pool are active, the chosen defence mode determines which pool can be used.
+- Defensive pools can still matter across multiple attacks because the defender may use different pools on different incoming actions.
+
+Channel
+
+Channel requires ongoing action economy sacrifice to maintain the power.
+
+Default Channel defensive pool rule:
+
+- Channelled defensive pools reapply while the channel is maintained according to authored Effect Timing
+- each reapplication rolls normally
+- if the same target already has a pool from the same source power and packet, use refresh/replace higher-of-current-or-new
+- Channelled defensive pools do not add by default
+- if the channel ends, channel-dependent pools end unless the power explicitly says they linger
+- Channel receives pricing credit/discount for action economy sacrifice, but repeated defensive refresh remains expensive
+
+Channel should not compound by default. Compounding or layering Channel powers require explicit additive/recharging authoring and heavy pricing.
+
+Charge
+
+Charge requires action economy sacrifice up front before release.
+
+Default Charge defensive pool rule:
+
+- Charged defensive pool powers use final charged values at release
+- if Charge grants bonus dice, those dice increase the release roll
+- if Charge grants bonus potency, final charged potency increases both pool size and per-trigger commit cap
+- duration begins on release, not during charge
+- charge turns before release do not count against pool duration
+- cooldown follows the existing lifecycle after the released effect fully resolves / after duration ends, according to existing cooldown rules
+
+Charge dice versus Charge potency:
+
+- bonus dice increase reliability and expected pool depth
+- bonus potency increases total pool depth and per-trigger burst protection
+- charged potency is especially expensive for Dodge and Resist because it increases denial/cancellation capability, not just total output
+
+
 3. Shared Rules Grammar
 
 Shared Rules Grammar is the common language used across powers for readable mechanical communication.
@@ -1623,6 +1757,8 @@ Persistent states use stacks and a stack-cleanup model, while repeating direct e
 Physical ongoing-damage cleanup defaults to Fortitude Resist and mental ongoing-damage cleanup defaults to Bravery Resist
 
 Duration Dodge, Block, and Resist powers create finite Dodge Pool, Block Pool, and Resist Pool resources; they roll once on apply and spend down per matching trigger unless explicitly authored to refresh or reroll
+
+Repeated defensive pool applications from the same source power, packet, and protected target use refresh/replace higher-of-current-or-new by default; additive/recharging pools require explicit special authoring
 
 Ambiguous Cleanse targeting of Active Power or Channelled Power may use a narrow Cleanse Theme disambiguator to resolve one exact cleanup Resist Attribute
 

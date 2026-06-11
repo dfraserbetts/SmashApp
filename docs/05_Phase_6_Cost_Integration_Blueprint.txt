@@ -301,6 +301,45 @@ The calculator and Power Tuning should not value duration Dodge or duration Resi
 
 Counter Dodge remains a one-shot response unless the power also explicitly creates a duration pool. Do not price a simple Counter Dodge as a persistent Dodge Pool, and do not price a persistent Dodge Pool as if it were only a one-shot Counter.
 
+Chassis-specific defensive pool pricing must distinguish:
+
+- one-time duration pool
+- repeated refresh/replace pool
+- Field repeated multi-target refresh
+- Attached repeated target-following refresh
+- Channelled repeated refresh with action economy cost
+- Charged release with bonus dice
+- Charged release with bonus potency
+- explicit additive/recharging pool
+
+Cost hierarchy guidance:
+
+- Immediate one-time duration pool = baseline
+- Trigger/Reserve delivery = normal pool rules after delivery, plus their own access/setup costs
+- Attached refresh/replace pool = more expensive than one-time duration
+- Field refresh/replace pool = more expensive when it affects multiple targets or an area
+- Channelled refresh/replace pool = discounted for action economy sacrifice but still more expensive than one-time duration
+- Charged dice/potency modifies the release pool and must be priced according to final release values
+- Additive/recharging pools = very expensive special mechanic
+
+Pricing matrix future work should account for:
+
+- pool type: Dodge / Physical Block / Mental Block / Resist
+- expected pool size
+- per-trigger cap
+- duration window
+- expected reapplication count
+- expected target count
+- delivery chassis
+- effect timing cadence
+- target scope
+- field-bound versus attached/follows-target behaviour
+- channel maintenance cost
+- charge dice versus charge potency
+- additive/recharging special mechanics
+
+Refresh/replace is the default repeated-application model. Additive or recharging defensive pools are not default behaviour and require explicit authoring, clear limits, and a heavy Power Tuning surcharge.
+
 
 CombinedEffectPacketFormula
 

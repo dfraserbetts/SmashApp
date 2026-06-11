@@ -100,6 +100,7 @@ All future builder work should assume:
 - Dodge succeeds on match or exceed
 - future chats must not reintroduce exceed-only dodge wording
 - duration Dodge, Block, and Resist powers create finite Dodge Pool, Block Pool, and Resist Pool resources; they roll once on apply and spend down per matching trigger unless explicitly authored to refresh or reroll
+- repeated defensive pool applications use refresh/replace higher-of-current-or-new by default; Field, Attached, Channel, Trigger, Reserve, and Charge do not create additive pools unless explicitly authored
 
 Future builder work should also preserve the following implementation-facing direction:
 
@@ -196,6 +197,66 @@ Combat Lab and future runtime diagnostics should expose at least:
 - whether a Counter was one-shot or created a persistent duration pool
 
 Counter Dodge remains one-shot unless it also explicitly creates a duration Dodge Pool. Movement is not a Defence mode and must not be used as a synonym for Dodge Pool.
+
+
+Defensive Pool Chassis Handoff
+
+Combat Lab and future runtime tools need to simulate defensive pools across all chassis rather than only Immediate powers.
+
+Runtime defensive pool state should track:
+
+- pool type: Dodge / Physical Block / Mental Block / Resist
+- source power id/name
+- source actor
+- protected actor
+- target scope
+- source chassis: Immediate / Trigger / Reserve / Field / Attached / Channel / Charge
+- source packet id/index
+- remaining pool points
+- generated pool points
+- potency-derived per-trigger commit cap
+- final charged potency/dice if applicable
+- duration/lifespan expiry
+- Field-bound availability
+- Attached dependency
+- Channel dependency
+- resistedAttribute for Resist pools
+- wound channel for Block pools
+- pool points committed per incoming action
+- pool points spent
+- successful Dodge Pool avoids
+- Block Pool wounds prevented
+- Resist Pool units cancelled
+- points wasted on failed defences
+- refresh/replace events
+- additive/recharging events if explicitly authored
+- expiry due to empty pool, duration end, field exit, attachment end, channel end, cleanse/removal, or defeat cleanup
+
+Combat Lab diagnostics should eventually expose:
+
+- pools created
+- pool points generated
+- pool points committed
+- pool points wasted
+- pool points remaining at expiry
+- refresh/replace events
+- field-bound expiries
+- channel-ended expiries
+- charged potency/dice used at release
+- Dodge avoids
+- Block wounds prevented
+- Resist units cancelled
+- per-action pool contribution
+
+Implementation defaults:
+
+- Trigger and Reserve create the pool when their packet is delivered/released.
+- Field creates target-specific pools and refresh/replaces repeated applications from the same source power, packet, and protected target.
+- Attached pools follow the attachment and end with it unless explicitly lingering.
+- Channelled pools refresh/replace while maintained and end with the channel unless explicitly lingering.
+- Charged pools use final release dice/potency; charged potency affects both pool size and per-trigger commit cap.
+- A defender commits from only one matching defensive pool per incoming action unless explicit combined spending is authored.
+- Additive/recharging pools require explicit authoring and should not be inferred.
 
 
 Cooldown Lifecycle Rule For Future Work

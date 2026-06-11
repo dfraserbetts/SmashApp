@@ -86,6 +86,8 @@ The following points should now be treated as stable design truth:
 - Bravery is the mental defence dice stat
 - Dodge now succeeds on match or exceed, not exceed-only
 - duration Dodge, Block, and Resist powers create finite Dodge Pool, Block Pool, and Resist Pool resources rather than rerolling or refreshing their full value on every incoming attack
+- repeated defensive pool applications from the same source power, packet, and protected target use refresh/replace higher-of-current-or-new by default, not additive stacking
+- Field, Attached, and Channel defensive pool delivery uses authored timing/cadence while preserving finite pool limits; Trigger and Reserve use normal pool rules once delivered/released; Charge uses final release dice/potency
 
 What Phase 6 Now Includes
 
@@ -150,6 +152,7 @@ The practical next work should stay focused on:
 - keeping Resist authored against one core Attribute lane per packet, while Cleanse remains the cleanup/removal mechanic
 - treating Defence -> Resist Potency as Resists per successful power-roll success; multi-attribute Resist requires multiple packets
 - implementing duration defensive powers as finite pools: roll once on apply, pool size equals successes x potency, commit up to potency per matching trigger before the normal defence / Resist roll, and spend committed points whether the defence succeeds or fails
+- implementing chassis-specific pool handling: Field target-specific pools, Attached following pools, Channel refresh/replace pools, Trigger/Reserve delivered pools, Charge release pools, and one matching pool commit per incoming action unless explicitly modified
 - updating descriptor wording so normal use and Counter use are clearly distinct: Counter-enabled powers remain normally usable, while Counter use replaces normal active defence
 - preserving the locked targeting split across shared builders, descriptors, and Combat Lab: range defines reach / area, target legality defines who may be selected, target count limits selected targets, and self consumes one target slot when self is legal
 - applying the same range-vs-target-legality rule to Dodge and Resist power implementation; Movement Counter remains a Movement-power rule, not a Defence mode

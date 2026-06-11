@@ -506,7 +506,7 @@ Scope:
   - Effect Packets
   - Primary Packet defence gate
   - shared cooldown lifecycle
-- Inherit shared Block, Dodge, and Resist defensive power options; do not create a character-only fork. Defence -> Resist selects one Resisted Attribute per packet, uses Potency as Resists per successful power-roll success, and requires multiple packets for multi-attribute Resist. Duration Dodge, Block, and Resist powers create finite Dodge Pool, Block Pool, and Resist Pool resources that roll once on apply and spend down per matching trigger; they do not refresh their full value on every incoming attack unless explicitly authored. Cleanse remains distinct. Movement Counter remains a Movement-power rule, not a Defence mode.
+- Inherit shared Block, Dodge, and Resist defensive power options; do not create a character-only fork. Defence -> Resist selects one Resisted Attribute per packet, uses Potency as Resists per successful power-roll success, and requires multiple packets for multi-attribute Resist. Duration Dodge, Block, and Resist powers create finite Dodge Pool, Block Pool, and Resist Pool resources that roll once on apply and spend down per matching trigger; they do not refresh their full value on every incoming attack unless explicitly authored. Repeated defensive pool applications from the same source power, packet, and protected target use refresh/replace higher-of-current-or-new by default, not additive stacking. Cleanse remains distinct. Movement Counter remains a Movement-power rule, not a Defence mode.
 - Remove or hide monster Outcome Calculator dependencies.
 - Use BasePowerValue as player Power Point spend in V1.
 - Use PowerPool = CharacterLevel * 50.
