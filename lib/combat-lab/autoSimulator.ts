@@ -14,6 +14,7 @@ import {
   isActionOnCooldown,
   sampleActorCooldownAvailability,
   tickActorCooldowns,
+  tickTargetDefensivePools,
   tickTargetTurnEffects,
 } from "./combatState";
 import { createSeededRng } from "./dice";
@@ -27,6 +28,8 @@ import type {
   CombatAction,
   CombatActor,
   CombatActorContribution,
+  CombatDefensivePoolMetrics,
+  CombatDefensivePoolSideTotals,
   CombatOngoingPressureMetrics,
   CombatOngoingPressureSideTotals,
   CombatRunResult,
@@ -85,6 +88,60 @@ function addOngoingPressureMetrics(
       cleanupPreventedWoundsEstimate: 0,
     };
     addOngoingPressureSideTotals(targetAction, sourceAction);
+  }
+}
+
+function addDefensivePoolSideTotals(
+  target: CombatDefensivePoolSideTotals,
+  source: CombatDefensivePoolSideTotals,
+) {
+  target.poolsCreated += source.poolsCreated;
+  target.generatedPoints += source.generatedPoints;
+  target.refreshReplaceEvents += source.refreshReplaceEvents;
+  target.committedPoints += source.committedPoints;
+  target.spentPoints += source.spentPoints;
+  target.wastedPoints += source.wastedPoints;
+  target.remainingAtExpiry += source.remainingAtExpiry;
+  target.expiredEmpty += source.expiredEmpty;
+  target.expiredDuration += source.expiredDuration;
+  target.expiredFieldExit += source.expiredFieldExit;
+  target.expiredAttachmentEnd += source.expiredAttachmentEnd;
+  target.expiredChannelEnd += source.expiredChannelEnd;
+  target.expiredCleanse += source.expiredCleanse;
+  target.expiredDefeatCleanup += source.expiredDefeatCleanup;
+  target.dodgeAvoids += source.dodgeAvoids;
+  target.blockWoundsPrevented += source.blockWoundsPrevented;
+  target.resistUnitsCancelled += source.resistUnitsCancelled;
+}
+
+function addDefensivePoolMetrics(
+  target: CombatDefensivePoolMetrics,
+  source: CombatDefensivePoolMetrics,
+) {
+  addDefensivePoolSideTotals(target.bySourceSide.players, source.bySourceSide.players);
+  addDefensivePoolSideTotals(target.bySourceSide.monsters, source.bySourceSide.monsters);
+  for (const [key, sourceAction] of Object.entries(source.bySourceAction)) {
+    const targetAction = target.bySourceAction[key] ??= {
+      ...sourceAction,
+      poolsCreated: 0,
+      generatedPoints: 0,
+      refreshReplaceEvents: 0,
+      committedPoints: 0,
+      spentPoints: 0,
+      wastedPoints: 0,
+      remainingAtExpiry: 0,
+      expiredEmpty: 0,
+      expiredDuration: 0,
+      expiredFieldExit: 0,
+      expiredAttachmentEnd: 0,
+      expiredChannelEnd: 0,
+      expiredCleanse: 0,
+      expiredDefeatCleanup: 0,
+      dodgeAvoids: 0,
+      blockWoundsPrevented: 0,
+      resistUnitsCancelled: 0,
+    };
+    addDefensivePoolSideTotals(targetAction, sourceAction);
   }
 }
 
@@ -175,6 +232,7 @@ function addResolutionToAggregate(
   metrics.aoeActualTargets[side] += resolution.aoeActualTargets;
   metrics.positionalAbstractionsUsed[side] += resolution.positionalAbstractionsUsed;
   addOngoingPressureMetrics(metrics.ongoingPressure, resolution.ongoingPressure);
+  addDefensivePoolMetrics(metrics.defensivePools, resolution.defensivePools);
 }
 
 function isOffensiveAction(action: CombatAction): boolean {
@@ -809,6 +867,42 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
       }
       if (!currentActor.defeated) {
         tickActorCooldowns(state, currentActor.id);
+        const expiredPools = tickTargetDefensivePools(state, currentActor.id);
+        for (const pool of expiredPools) {
+          const sideTotals = metrics.defensivePools.bySourceSide[pool.sourceSide];
+          const actionKey = `${pool.sourceActorId}:${pool.sourceActionId}:${pool.poolType}`;
+          const actionTotals = metrics.defensivePools.bySourceAction[actionKey] ??= {
+            sourceActorId: pool.sourceActorId,
+            sourceActorName: pool.sourceActorName,
+            sourceSide: pool.sourceSide,
+            sourceActionId: pool.sourceActionId,
+            sourceActionName: pool.sourceActionName,
+            poolType: pool.poolType,
+            poolsCreated: 0,
+            generatedPoints: 0,
+            refreshReplaceEvents: 0,
+            committedPoints: 0,
+            spentPoints: 0,
+            wastedPoints: 0,
+            remainingAtExpiry: 0,
+            expiredEmpty: 0,
+            expiredDuration: 0,
+            expiredFieldExit: 0,
+            expiredAttachmentEnd: 0,
+            expiredChannelEnd: 0,
+            expiredCleanse: 0,
+            expiredDefeatCleanup: 0,
+            dodgeAvoids: 0,
+            blockWoundsPrevented: 0,
+            resistUnitsCancelled: 0,
+          };
+          sideTotals.remainingAtExpiry += Math.max(0, pool.remainingPoints);
+          sideTotals.expiredDuration += pool.remainingPoints > 0 ? 1 : 0;
+          sideTotals.expiredEmpty += pool.remainingPoints <= 0 ? 1 : 0;
+          actionTotals.remainingAtExpiry += Math.max(0, pool.remainingPoints);
+          actionTotals.expiredDuration += pool.remainingPoints > 0 ? 1 : 0;
+          actionTotals.expiredEmpty += pool.remainingPoints <= 0 ? 1 : 0;
+        }
         const expired = tickTargetTurnEffects(state, currentActor.id);
         if (expired > 0) metrics.stacksExpired[currentActor.side] += expired;
       }

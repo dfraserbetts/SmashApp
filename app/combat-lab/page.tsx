@@ -96,6 +96,50 @@ type RunPayload = {
         cleanupPreventedWoundsEstimate: number | null;
       }>;
     };
+    defensivePools: {
+      convention: string;
+      unsupportedNotes: string[];
+      bySourceSide: Record<"players" | "monsters", {
+        poolsCreated: number;
+        averageGeneratedPoints: number;
+        committedPoints: number;
+        spentPoints: number;
+        wastedPoints: number;
+        remainingAtExpiry: number;
+        refreshReplaceEvents: number;
+        expiredEmpty: number;
+        expiredDuration: number;
+        expiredFieldExit: number;
+        expiredAttachmentEnd: number;
+        expiredChannelEnd: number;
+        expiredCleanse: number;
+        expiredDefeatCleanup: number;
+        dodgeAvoids: number;
+        blockWoundsPrevented: number;
+        resistUnitsCancelled: number;
+      }>;
+      bySourceAction: Array<{
+        sourceActorId: string;
+        sourceActorName: string;
+        sourceSide: "players" | "monsters";
+        sourceActionId: string;
+        sourceActionName: string;
+        poolType: string;
+        poolsCreated: number;
+        averageGeneratedPoints: number;
+        committedPoints: number;
+        spentPoints: number;
+        wastedPoints: number;
+        remainingAtExpiry: number;
+        refreshReplaceEvents: number;
+        expiredEmpty: number;
+        expiredDuration: number;
+        expiredCleanse: number;
+        dodgeAvoids: number;
+        blockWoundsPrevented: number;
+        resistUnitsCancelled: number;
+      }>;
+    };
     unsupported: {
       unsupportedPowerCount: number;
       unsupportedPowerNames: string[];
@@ -1104,6 +1148,69 @@ export default function CombatLabPage() {
                         {entry.cleanupPreventedWoundsEstimate === null
                           ? ""
                           : `, prevented estimate ${num(entry.cleanupPreventedWoundsEstimate)}`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded border border-cyan-700/70 bg-zinc-950 p-3 text-sm">
+              <h3 className="mb-2 font-semibold">Defensive Pool Diagnostics</h3>
+              <p className="mb-2 text-xs text-zinc-400">{result.report.defensivePools.convention}</p>
+              {result.report.defensivePools.unsupportedNotes.map((note) => (
+                <p key={note} className="mb-2 text-xs text-amber-300">{note}</p>
+              ))}
+              <div className="grid gap-2 md:grid-cols-2">
+                {(["players", "monsters"] as const).map((side) => {
+                  const summary = result.report.defensivePools.bySourceSide[side];
+                  return (
+                    <div key={side} className="rounded border border-zinc-800 p-2">
+                      <div className="font-semibold capitalize">{side}</div>
+                      <p className="text-xs text-zinc-400">
+                        pools {num(summary.poolsCreated)}, avg generated {num(summary.averageGeneratedPoints)}, refreshed{" "}
+                        {num(summary.refreshReplaceEvents)}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        committed {num(summary.committedPoints)}, spent {num(summary.spentPoints)}, wasted{" "}
+                        {num(summary.wastedPoints)}, expired remaining {num(summary.remainingAtExpiry)}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        dodge avoids {num(summary.dodgeAvoids)}, block prevented {num(summary.blockWoundsPrevented)}, resist cancelled{" "}
+                        {num(summary.resistUnitsCancelled)}
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        expired empty {num(summary.expiredEmpty)}, duration {num(summary.expiredDuration)}, cleanse{" "}
+                        {num(summary.expiredCleanse)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              {result.report.defensivePools.bySourceAction.length === 0 ? (
+                <p className="mt-3 text-zinc-500">No defensive pools were created.</p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {result.report.defensivePools.bySourceAction.map((entry) => (
+                    <div
+                      key={`${entry.sourceActorId}:${entry.sourceActionId}:${entry.poolType}`}
+                      className="rounded border border-zinc-800 p-2"
+                    >
+                      <div className="font-semibold">
+                        {entry.sourceActionName} | {entry.sourceActorName} ({entry.sourceSide}) | {entry.poolType}
+                      </div>
+                      <p className="text-xs text-zinc-400">
+                        pools {num(entry.poolsCreated)}, avg generated {num(entry.averageGeneratedPoints)}, refreshed{" "}
+                        {num(entry.refreshReplaceEvents)}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        committed {num(entry.committedPoints)}, spent {num(entry.spentPoints)}, wasted{" "}
+                        {num(entry.wastedPoints)}, expired remaining {num(entry.remainingAtExpiry)}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        dodge avoids {num(entry.dodgeAvoids)}, block prevented {num(entry.blockWoundsPrevented)}, resist cancelled{" "}
+                        {num(entry.resistUnitsCancelled)}, expired empty {num(entry.expiredEmpty)}, duration{" "}
+                        {num(entry.expiredDuration)}
                       </p>
                     </div>
                   ))}

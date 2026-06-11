@@ -60,6 +60,12 @@ function hasActiveSelfProtection(actor: CombatActor, action: CombatAction, state
       effect.kind === "protection" &&
       effect.sourceActionName === action.name &&
       effect.remainingRounds > 0,
+  ) || state.defensivePools.some(
+    (pool) =>
+      pool.protectedActorId === actor.id &&
+      pool.sourceActionName === action.name &&
+      pool.remainingRounds > 0 &&
+      pool.remainingPoints > 0,
   );
 }
 
@@ -206,9 +212,18 @@ function expectedEnemyAttackPools(actor: CombatActor, state: CombatState): Set<C
 
 function isDefencePowerUseful(actor: CombatActor, action: CombatAction, state: CombatState): boolean {
   if (action.counterMode) return false;
-  if ((action.defenceMode ?? "Block") === "Dodge") return false;
+  const isDurationSetup =
+    (action.durationKind ?? "instant") !== "instant" ||
+    action.passiveDuration === true ||
+    Math.max(0, Math.trunc(action.durationRounds ?? 0)) > 1;
+  if ((action.defenceMode ?? "Block") === "Dodge") {
+    if (!isDurationSetup) return false;
+    if (hasActiveSelfProtection(actor, action, state)) return false;
+    return expectedEnemyAttackPools(actor, state).has("physical");
+  }
   if ((action.defenceMode ?? "Block") === "Resist") {
     if (!action.defenceResistedAttribute) return false;
+    if (isDurationSetup) return !hasActiveSelfProtection(actor, action, state);
     return hostileCleanupEffects(actor, state).some(
       (effect) => cleanupCoreAttributeForEffect(effect) === action.defenceResistedAttribute,
     );

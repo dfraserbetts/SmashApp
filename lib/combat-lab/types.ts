@@ -22,6 +22,17 @@ export type CombatActionSourceType = "naturalAttack" | "equippedWeapon" | "power
 export type CombatActionLane = "combatStart" | "main" | "power" | "response" | "startOfTurn" | "endOfTurn";
 export type CombatDurationKind = "instant" | "turns" | "passive";
 export type CombatDurationSource = "authored" | "inheritedFromParent" | "defaulted";
+export type CombatDefensivePoolType = "DODGE" | "PHYSICAL_BLOCK" | "MENTAL_BLOCK" | "RESIST";
+export type CombatDefensivePoolSourceChassis = "IMMEDIATE" | "FIELD" | "ATTACHED" | "TRIGGER" | "RESERVE" | "UNKNOWN";
+export type CombatDefensivePoolCommitmentModifier = "STANDARD" | "CHANNEL" | "CHARGE" | "UNKNOWN";
+export type CombatDefensivePoolExpiryReason =
+  | "empty"
+  | "durationEnd"
+  | "fieldExit"
+  | "attachmentEnd"
+  | "channelEnd"
+  | "cleanse"
+  | "defeatCleanup";
 export type CombatActorRole =
   | "Glass Cannon"
   | "Bruiser"
@@ -177,6 +188,32 @@ export type CombatStatusEffect = {
   remainingRounds: number;
 };
 
+export type CombatDefensivePool = {
+  id: string;
+  sourceActorId: string;
+  sourceActorName: string;
+  sourceSide: CombatSide;
+  sourceActionId: string;
+  sourceActionName: string;
+  sourcePowerId?: string | null;
+  sourcePacketId?: string | null;
+  protectedActorId: string;
+  protectedActorName: string;
+  poolType: CombatDefensivePoolType;
+  woundChannel?: CombatPool | null;
+  resistedAttribute?: CoreAttribute | null;
+  remainingPoints: number;
+  initialPoints: number;
+  perTriggerCap: number;
+  remainingRounds: number;
+  durationKind: CombatDurationKind;
+  sourceChassis: CombatDefensivePoolSourceChassis;
+  sourceCommitmentModifier: CombatDefensivePoolCommitmentModifier;
+  createdRound: number;
+  createdTurnActorId?: string | null;
+  reapplyKey: string;
+};
+
 export type CombatCooldownEntry = {
   remaining: number;
   appliedRound: number;
@@ -194,6 +231,7 @@ export type CombatState = {
   counterUses: Record<string, number>;
   incomingActionsByTargetThisRound: Record<string, number>;
   statusEffects: CombatStatusEffect[];
+  defensivePools: CombatDefensivePool[];
   captureTranscript: boolean;
   transcriptEvents: CombatTranscriptEvent[];
   transcriptLines: string[];
@@ -293,6 +331,7 @@ export type CombatTranscriptEventType =
   | "movementRoll"
   | "cleanseRoll"
   | "defenceChoice"
+  | "defensivePool"
   | "dodgeRoll"
   | "physicalDefenceRoll"
   | "mentalDefenceRoll"
@@ -404,6 +443,41 @@ export type CombatResolutionMetrics = {
   aoeActualTargets: number;
   positionalAbstractionsUsed: number;
   ongoingPressure: CombatOngoingPressureMetrics;
+  defensivePools: CombatDefensivePoolMetrics;
+};
+
+export type CombatDefensivePoolSideTotals = {
+  poolsCreated: number;
+  generatedPoints: number;
+  refreshReplaceEvents: number;
+  committedPoints: number;
+  spentPoints: number;
+  wastedPoints: number;
+  remainingAtExpiry: number;
+  expiredEmpty: number;
+  expiredDuration: number;
+  expiredFieldExit: number;
+  expiredAttachmentEnd: number;
+  expiredChannelEnd: number;
+  expiredCleanse: number;
+  expiredDefeatCleanup: number;
+  dodgeAvoids: number;
+  blockWoundsPrevented: number;
+  resistUnitsCancelled: number;
+};
+
+export type CombatDefensivePoolActionMetrics = CombatDefensivePoolSideTotals & {
+  sourceActorId: string;
+  sourceActorName: string;
+  sourceSide: CombatSide;
+  sourceActionId: string;
+  sourceActionName: string;
+  poolType: CombatDefensivePoolType;
+};
+
+export type CombatDefensivePoolMetrics = {
+  bySourceSide: Record<CombatSide, CombatDefensivePoolSideTotals>;
+  bySourceAction: Record<string, CombatDefensivePoolActionMetrics>;
 };
 
 export type CombatOngoingPressureSideTotals = {
@@ -545,6 +619,7 @@ export type CombatAggregateMetrics = {
   cooldownTrace: Record<string, CombatCooldownTrace>;
   counterCandidateDiagnostics: Record<string, CombatCounterCandidateDiagnostic>;
   ongoingPressure: CombatOngoingPressureMetrics;
+  defensivePools: CombatDefensivePoolMetrics;
 };
 
 export type CombatActionContribution = {
@@ -645,6 +720,55 @@ export type CombatOngoingPressureReport = {
   convention: string;
   bySourceSide: Record<CombatSide, CombatOngoingPressureSideReport>;
   bySourceAction: CombatOngoingPressureActionReport[];
+};
+
+export type CombatDefensivePoolSideReport = {
+  poolsCreated: number;
+  averageGeneratedPoints: number;
+  committedPoints: number;
+  spentPoints: number;
+  wastedPoints: number;
+  remainingAtExpiry: number;
+  refreshReplaceEvents: number;
+  expiredEmpty: number;
+  expiredDuration: number;
+  expiredFieldExit: number;
+  expiredAttachmentEnd: number;
+  expiredChannelEnd: number;
+  expiredCleanse: number;
+  expiredDefeatCleanup: number;
+  dodgeAvoids: number;
+  blockWoundsPrevented: number;
+  resistUnitsCancelled: number;
+};
+
+export type CombatDefensivePoolActionReport = {
+  sourceActorId: string;
+  sourceActorName: string;
+  sourceSide: CombatSide;
+  sourceActionId: string;
+  sourceActionName: string;
+  poolType: CombatDefensivePoolType;
+  poolsCreated: number;
+  averageGeneratedPoints: number;
+  committedPoints: number;
+  spentPoints: number;
+  wastedPoints: number;
+  remainingAtExpiry: number;
+  refreshReplaceEvents: number;
+  expiredEmpty: number;
+  expiredDuration: number;
+  expiredCleanse: number;
+  dodgeAvoids: number;
+  blockWoundsPrevented: number;
+  resistUnitsCancelled: number;
+};
+
+export type CombatDefensivePoolReport = {
+  convention: string;
+  unsupportedNotes: string[];
+  bySourceSide: Record<CombatSide, CombatDefensivePoolSideReport>;
+  bySourceAction: CombatDefensivePoolActionReport[];
 };
 
 export type CombatDefensiveContribution = {
@@ -764,6 +888,7 @@ export type CombatSuiteReport = {
   monsterGroupContributions: CombatMonsterGroupContribution[];
   defensiveContributions: CombatDefensiveContribution[];
   ongoingPressure: CombatOngoingPressureReport;
+  defensivePools: CombatDefensivePoolReport;
   cooldownTrace: CombatCooldownTrace[];
   counterCandidateDiagnostics: CombatCounterCandidateDiagnostic[];
   firstRunTranscript?: CombatTranscript;

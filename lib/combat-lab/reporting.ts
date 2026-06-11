@@ -3,6 +3,10 @@ import type {
   CombatActorContribution,
   CombatCounterCandidateDiagnostic,
   CombatDefensiveContribution,
+  CombatDefensivePoolActionMetrics,
+  CombatDefensivePoolActionReport,
+  CombatDefensivePoolSideReport,
+  CombatDefensivePoolSideTotals,
   CombatAggregateMetrics,
   CombatCooldownTrace,
   CombatMonsterGroupContribution,
@@ -578,6 +582,140 @@ function mergeOngoingPressure(runs: CombatRunResult[]): CombatOngoingPressureRep
   };
 }
 
+function emptyDefensivePoolTotals(): CombatDefensivePoolSideTotals {
+  return {
+    poolsCreated: 0,
+    generatedPoints: 0,
+    refreshReplaceEvents: 0,
+    committedPoints: 0,
+    spentPoints: 0,
+    wastedPoints: 0,
+    remainingAtExpiry: 0,
+    expiredEmpty: 0,
+    expiredDuration: 0,
+    expiredFieldExit: 0,
+    expiredAttachmentEnd: 0,
+    expiredChannelEnd: 0,
+    expiredCleanse: 0,
+    expiredDefeatCleanup: 0,
+    dodgeAvoids: 0,
+    blockWoundsPrevented: 0,
+    resistUnitsCancelled: 0,
+  };
+}
+
+function addDefensivePoolTotals(target: CombatDefensivePoolSideTotals, source: CombatDefensivePoolSideTotals) {
+  target.poolsCreated += source.poolsCreated;
+  target.generatedPoints += source.generatedPoints;
+  target.refreshReplaceEvents += source.refreshReplaceEvents;
+  target.committedPoints += source.committedPoints;
+  target.spentPoints += source.spentPoints;
+  target.wastedPoints += source.wastedPoints;
+  target.remainingAtExpiry += source.remainingAtExpiry;
+  target.expiredEmpty += source.expiredEmpty;
+  target.expiredDuration += source.expiredDuration;
+  target.expiredFieldExit += source.expiredFieldExit;
+  target.expiredAttachmentEnd += source.expiredAttachmentEnd;
+  target.expiredChannelEnd += source.expiredChannelEnd;
+  target.expiredCleanse += source.expiredCleanse;
+  target.expiredDefeatCleanup += source.expiredDefeatCleanup;
+  target.dodgeAvoids += source.dodgeAvoids;
+  target.blockWoundsPrevented += source.blockWoundsPrevented;
+  target.resistUnitsCancelled += source.resistUnitsCancelled;
+}
+
+function defensivePoolSideReportFromTotals(
+  totals: CombatDefensivePoolSideTotals,
+  divisor: number,
+): CombatDefensivePoolSideReport {
+  return {
+    poolsCreated: totals.poolsCreated / divisor,
+    averageGeneratedPoints: totals.generatedPoints / Math.max(1, totals.poolsCreated),
+    committedPoints: totals.committedPoints / divisor,
+    spentPoints: totals.spentPoints / divisor,
+    wastedPoints: totals.wastedPoints / divisor,
+    remainingAtExpiry: totals.remainingAtExpiry / divisor,
+    refreshReplaceEvents: totals.refreshReplaceEvents / divisor,
+    expiredEmpty: totals.expiredEmpty / divisor,
+    expiredDuration: totals.expiredDuration / divisor,
+    expiredFieldExit: totals.expiredFieldExit / divisor,
+    expiredAttachmentEnd: totals.expiredAttachmentEnd / divisor,
+    expiredChannelEnd: totals.expiredChannelEnd / divisor,
+    expiredCleanse: totals.expiredCleanse / divisor,
+    expiredDefeatCleanup: totals.expiredDefeatCleanup / divisor,
+    dodgeAvoids: totals.dodgeAvoids / divisor,
+    blockWoundsPrevented: totals.blockWoundsPrevented / divisor,
+    resistUnitsCancelled: totals.resistUnitsCancelled / divisor,
+  };
+}
+
+function defensivePoolActionReportFromTotals(
+  totals: CombatDefensivePoolActionMetrics,
+  divisor: number,
+): CombatDefensivePoolActionReport {
+  return {
+    sourceActorId: totals.sourceActorId,
+    sourceActorName: totals.sourceActorName,
+    sourceSide: totals.sourceSide,
+    sourceActionId: totals.sourceActionId,
+    sourceActionName: totals.sourceActionName,
+    poolType: totals.poolType,
+    poolsCreated: totals.poolsCreated / divisor,
+    averageGeneratedPoints: totals.generatedPoints / Math.max(1, totals.poolsCreated),
+    committedPoints: totals.committedPoints / divisor,
+    spentPoints: totals.spentPoints / divisor,
+    wastedPoints: totals.wastedPoints / divisor,
+    remainingAtExpiry: totals.remainingAtExpiry / divisor,
+    refreshReplaceEvents: totals.refreshReplaceEvents / divisor,
+    expiredEmpty: totals.expiredEmpty / divisor,
+    expiredDuration: totals.expiredDuration / divisor,
+    expiredCleanse: totals.expiredCleanse / divisor,
+    dodgeAvoids: totals.dodgeAvoids / divisor,
+    blockWoundsPrevented: totals.blockWoundsPrevented / divisor,
+    resistUnitsCancelled: totals.resistUnitsCancelled / divisor,
+  };
+}
+
+function mergeDefensivePools(runs: CombatRunResult[]) {
+  const players = emptyDefensivePoolTotals();
+  const monsters = emptyDefensivePoolTotals();
+  const byAction = new Map<string, CombatDefensivePoolActionMetrics>();
+
+  for (const run of runs) {
+    addDefensivePoolTotals(players, run.metrics.defensivePools.bySourceSide.players);
+    addDefensivePoolTotals(monsters, run.metrics.defensivePools.bySourceSide.monsters);
+    for (const [key, action] of Object.entries(run.metrics.defensivePools.bySourceAction)) {
+      const current = byAction.get(key) ?? {
+        ...action,
+        ...emptyDefensivePoolTotals(),
+      };
+      addDefensivePoolTotals(current, action);
+      byAction.set(key, current);
+    }
+  }
+
+  return {
+    convention: "Defensive pools are duration-based prepared defences. Points are generated by source-side powers and spent before normal Dodge, Block, or Resist rolls.",
+    unsupportedNotes: [
+      "Field exit, attachment break, channel interruption, charge consumption, and cleanse-specific pool expiry are represented as runtime hooks but not fully simulated in V1 unless an existing supported path triggers them.",
+      "Pool metadata tracks descriptor chassis separately from commitment modifier; unknown commitment data is reported as UNKNOWN rather than inferred.",
+    ],
+    bySourceSide: {
+      players: defensivePoolSideReportFromTotals(players, Math.max(1, runs.length)),
+      monsters: defensivePoolSideReportFromTotals(monsters, Math.max(1, runs.length)),
+    },
+    bySourceAction: Array.from(byAction.values())
+      .map((entry) => defensivePoolActionReportFromTotals(entry, Math.max(1, runs.length)))
+      .sort((left, right) =>
+        right.committedPoints - left.committedPoints ||
+        right.poolsCreated - left.poolsCreated ||
+        left.sourceSide.localeCompare(right.sourceSide) ||
+        left.sourceActorName.localeCompare(right.sourceActorName) ||
+        left.sourceActionName.localeCompare(right.sourceActionName),
+      ),
+  };
+}
+
 function mergeRoleContribution(runs: CombatRunResult[]): CombatAggregateMetrics["roleContribution"] {
   const out: CombatAggregateMetrics["roleContribution"] = {};
   for (const run of runs) {
@@ -724,6 +862,7 @@ export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
     monsterGroupContributions: mergeMonsterGroupContributions(scenario, runs),
     defensiveContributions: mergeDefensiveContributions(runs),
     ongoingPressure: mergeOngoingPressure(runs),
+    defensivePools: mergeDefensivePools(runs),
     cooldownTrace: mergeCooldownTrace(runs),
     counterCandidateDiagnostics: mergeCounterCandidateDiagnostics(runs),
     firstRunTranscript: runs[0]?.firstRunTranscript,

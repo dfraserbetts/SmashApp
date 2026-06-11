@@ -8,6 +8,8 @@ import {
   getProtectionModifier,
   isActionOnCooldown,
   markDefeatedActors,
+  createEmptyDefensivePoolMetrics,
+  createEmptyDefensivePoolSideTotals,
   createEmptyOngoingPressureMetrics,
   createEmptyOngoingPressureSideTotals,
   recordActionUse,
@@ -20,6 +22,11 @@ import type {
   CombatActionLane,
   CombatActor,
   CombatAttributeName,
+  CombatDefensivePool,
+  CombatDefensivePoolActionMetrics,
+  CombatDefensivePoolMetrics,
+  CombatDefensivePoolSideTotals,
+  CombatDefensivePoolType,
   CombatRollSummary,
   CombatResolutionMetrics,
   CombatOngoingPressureActionMetrics,
@@ -112,6 +119,7 @@ function emptyResolution(): CombatResolutionMetrics {
     aoeActualTargets: 0,
     positionalAbstractionsUsed: 0,
     ongoingPressure: createEmptyOngoingPressureMetrics(),
+    defensivePools: createEmptyDefensivePoolMetrics(),
   };
 }
 
@@ -319,33 +327,59 @@ function recordModifiedResistRoll(metrics: CombatResolutionMetrics, modifier: nu
 function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses: number, rng: Rng): CombatResolutionMetrics {
   const metrics = emptyResolution();
   if (incomingSuccesses <= 0) return metrics;
+  const requestedPoolCommit = estimatePoolCommit(state, target, "DODGE", { incomingSuccesses });
+  const poolCommit = commitDefensivePool({
+    state,
+    metrics,
+    target,
+    poolType: "DODGE",
+    requested: requestedPoolCommit,
+  });
   const degradation = takeDefenceDegradation(state, target.id, "dodge");
   const baseDice = Math.max(1, Math.trunc(target.dodgeDice ?? target.dodgeValue ?? 1));
   const diceCount = Math.max(1, baseDice - degradation);
   const roll = rollAttributeDice({ state, actor: target, attribute: "Guard", diceCount, rng });
   const rollSummary = summarizeRoll({ actor: target, reason: "Dodge", attribute: "Guard", roll });
+  const poolSuccesses = poolCommit?.committed ?? 0;
+  const totalDodgeSuccesses = roll.successes + poolSuccesses;
   metrics.dodgeRolls = 1;
   metrics.dodgeChosen = 1;
   metrics.dodgeDegradationApplied = degradation;
   metrics.degradedDefenceRolls = degradation > 0 ? 1 : 0;
-  metrics.dodgeSuccesses = roll.successes;
+  metrics.dodgeSuccesses = totalDodgeSuccesses;
   recordModifiedDefenceRoll(metrics, roll.modifier);
-  if (roll.successes >= incomingSuccesses) {
+  if (totalDodgeSuccesses >= incomingSuccesses) {
     metrics.woundsAvoidedByDodge = incomingSuccesses;
+  }
+  if (poolCommit) {
+    finishDefensivePoolCommit({
+      metrics,
+      pool: poolCommit.pool,
+      committed: poolCommit.committed,
+      effective: totalDodgeSuccesses >= incomingSuccesses
+        ? Math.min(poolCommit.committed, Math.max(0, incomingSuccesses - roll.successes))
+        : 0,
+      result: "dodge",
+    });
+    if (poolCommit.pool.remainingPoints <= 0) {
+      state.defensivePools = state.defensivePools.filter((pool) => pool.id !== poolCommit.pool.id);
+    }
   }
   emitTranscriptEvent(state, {
     type: "dodgeRoll",
     actorId: target.id,
     actorName: target.name,
     lane: "response",
-    message: `${rollText(rollSummary)} Dodge ${roll.successes >= incomingSuccesses ? "succeeded" : "failed"} against ${incomingSuccesses} incoming successes. Degradation ${degradation}, final dice ${diceCount}.`,
+    message: `${rollText(rollSummary)}${poolSuccesses > 0 ? ` Defensive Dodge pool adds ${poolSuccesses} success${poolSuccesses === 1 ? "" : "es"}.` : ""} Dodge ${totalDodgeSuccesses >= incomingSuccesses ? "succeeded" : "failed"} against ${incomingSuccesses} incoming successes. Degradation ${degradation}, final dice ${diceCount}.`,
     roll: rollSummary,
     details: {
       incomingSuccesses,
       originalDice: baseDice,
       degradation,
       finalDice: diceCount,
-      dodgeSucceeded: roll.successes >= incomingSuccesses,
+      poolSuccesses,
+      totalDodgeSuccesses,
+      dodgeSucceeded: totalDodgeSuccesses >= incomingSuccesses,
     },
   });
   return metrics;
@@ -372,12 +406,37 @@ function resolveDefenceString(
         : target.mentalBlockPerSuccess ?? target.mentalDefenceBlock ?? 0,
     ),
   );
-  if (blockPerSuccess <= 0) return metrics;
   const degradation = takeDefenceDegradation(state, target.id, type);
+  const requestedPoolCommit = estimatePoolCommit(state, target, pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK", {
+    woundChannel: pool,
+    incomingWounds: wounds,
+  });
+  const poolCommit = commitDefensivePool({
+    state,
+    metrics,
+    target,
+    poolType: pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK",
+    requested: requestedPoolCommit,
+    woundChannel: pool,
+  });
   const diceCount = Math.max(1, baseDice - degradation);
   const roll = rollAttributeDice({ state, actor: target, attribute, diceCount, rng });
   const rollSummary = summarizeRoll({ actor: target, reason: `${pool} defence`, attribute, roll });
-  const blocked = Math.min(wounds, roll.successes * blockPerSuccess);
+  const rollBlocked = Math.min(wounds, roll.successes * blockPerSuccess);
+  const poolBlocked = Math.min(Math.max(0, wounds - rollBlocked), poolCommit?.committed ?? 0);
+  const blocked = Math.min(wounds, rollBlocked + poolBlocked);
+  if (poolCommit) {
+    finishDefensivePoolCommit({
+      metrics,
+      pool: poolCommit.pool,
+      committed: poolCommit.committed,
+      effective: poolBlocked,
+      result: "block",
+    });
+    if (poolCommit.pool.remainingPoints <= 0) {
+      state.defensivePools = state.defensivePools.filter((entry) => entry.id !== poolCommit.pool.id);
+    }
+  }
   metrics.defenceStringBlocked = blocked;
   metrics.protectionPrevented = blocked;
   recordModifiedDefenceRoll(metrics, roll.modifier);
@@ -396,12 +455,14 @@ function resolveDefenceString(
     actorId: target.id,
     actorName: target.name,
     lane: "response",
-    message: `${rollText(rollSummary)} ${pool === "physical" ? "Physical Defence" : "Mental Defence"} blocked ${blocked} of ${wounds} ${context.ongoingPerTick ? "ongoing " : ""}${pool} wounds${context.ongoingPerTick ? " per tick" : ""} (${blockPerSuccess} block per success). Degradation ${degradation}, final dice ${diceCount}.`,
+    message: `${rollText(rollSummary)} ${pool === "physical" ? "Physical Defence" : "Mental Defence"} blocked ${blocked} of ${wounds} ${context.ongoingPerTick ? "ongoing " : ""}${pool} wounds${context.ongoingPerTick ? " per tick" : ""} (${blockPerSuccess} block per success${poolCommit ? `, ${poolCommit.committed} defensive pool point${poolCommit.committed === 1 ? "" : "s"} committed` : ""}). Degradation ${degradation}, final dice ${diceCount}.`,
     roll: rollSummary,
     details: {
       pool,
       incomingWounds: wounds,
       blocked,
+      rollBlocked,
+      poolBlocked,
       blockPerSuccess,
       originalDice: baseDice,
       degradation,
@@ -417,11 +478,12 @@ function estimateDodgeValue(state: CombatState, target: CombatActor, incomingSuc
   const degradation = peekDefenceDegradation(state, target.id, "dodge");
   const baseDice = Math.max(1, Math.trunc(target.dodgeDice ?? target.dodgeValue ?? 1));
   const diceCount = Math.max(1, baseDice - degradation);
+  const poolCommit = estimatePoolCommit(state, target, "DODGE", { incomingSuccesses });
   return probabilitySuccessesAtLeast({
     diceCount,
     die: target.attributeDice.Guard ?? "D8",
     modifier,
-    threshold: incomingSuccesses,
+    threshold: Math.max(0, incomingSuccesses - poolCommit),
   }) * rawWounds;
 }
 
@@ -440,12 +502,16 @@ function estimateDefenceStringValue(state: CombatState, target: CombatActor, poo
         : target.mentalBlockPerSuccess ?? target.mentalDefenceBlock ?? 0,
     ),
   );
-  if (blockPerSuccess <= 0) return 0;
+  const poolCommit = estimatePoolCommit(state, target, pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK", {
+    woundChannel: pool,
+    incomingWounds: rawWounds,
+  });
+  if (blockPerSuccess <= 0) return Math.min(rawWounds, poolCommit);
   const expectedBlocked = expectedSuccesses(
     diceCount,
     target.attributeDice[attribute] ?? "D8",
     getAttributeModifier(state, target.id, attribute),
-  ) * blockPerSuccess;
+  ) * blockPerSuccess + poolCommit;
   return Math.min(rawWounds, expectedBlocked);
 }
 
@@ -549,10 +615,52 @@ function addOngoingPressureMetrics(
   }
 }
 
+function addDefensivePoolSideTotals(
+  target: CombatDefensivePoolSideTotals,
+  source: CombatDefensivePoolSideTotals,
+) {
+  target.poolsCreated += source.poolsCreated;
+  target.generatedPoints += source.generatedPoints;
+  target.refreshReplaceEvents += source.refreshReplaceEvents;
+  target.committedPoints += source.committedPoints;
+  target.spentPoints += source.spentPoints;
+  target.wastedPoints += source.wastedPoints;
+  target.remainingAtExpiry += source.remainingAtExpiry;
+  target.expiredEmpty += source.expiredEmpty;
+  target.expiredDuration += source.expiredDuration;
+  target.expiredFieldExit += source.expiredFieldExit;
+  target.expiredAttachmentEnd += source.expiredAttachmentEnd;
+  target.expiredChannelEnd += source.expiredChannelEnd;
+  target.expiredCleanse += source.expiredCleanse;
+  target.expiredDefeatCleanup += source.expiredDefeatCleanup;
+  target.dodgeAvoids += source.dodgeAvoids;
+  target.blockWoundsPrevented += source.blockWoundsPrevented;
+  target.resistUnitsCancelled += source.resistUnitsCancelled;
+}
+
+function addDefensivePoolMetrics(
+  target: CombatDefensivePoolMetrics,
+  source: CombatDefensivePoolMetrics,
+) {
+  addDefensivePoolSideTotals(target.bySourceSide.players, source.bySourceSide.players);
+  addDefensivePoolSideTotals(target.bySourceSide.monsters, source.bySourceSide.monsters);
+  for (const [key, sourceAction] of Object.entries(source.bySourceAction)) {
+    const targetAction = target.bySourceAction[key] ??= {
+      ...sourceAction,
+      ...createEmptyDefensivePoolSideTotals(),
+    };
+    addDefensivePoolSideTotals(targetAction, sourceAction);
+  }
+}
+
 function addMetrics(target: CombatResolutionMetrics, source: Partial<CombatResolutionMetrics>) {
   for (const key of Object.keys(source) as Array<keyof CombatResolutionMetrics>) {
     if (key === "ongoingPressure") {
       if (source.ongoingPressure) addOngoingPressureMetrics(target.ongoingPressure, source.ongoingPressure);
+      continue;
+    }
+    if (key === "defensivePools") {
+      if (source.defensivePools) addDefensivePoolMetrics(target.defensivePools, source.defensivePools);
       continue;
     }
     const targetValue = target[key];
@@ -612,6 +720,374 @@ function recordOngoingStatusCreated(params: {
       totals.storedTickMax = Math.max(totals.storedTickMax, params.storedTick);
     },
   );
+}
+
+function defensivePoolTypeForAction(action: CombatAction): CombatDefensivePoolType | null {
+  const mode = action.defenceMode ?? "Block";
+  if (mode === "Dodge") return "DODGE";
+  if (mode === "Resist") return "RESIST";
+  if ((action.pool ?? "physical") === "mental") return "MENTAL_BLOCK";
+  return "PHYSICAL_BLOCK";
+}
+
+function sourceChassisForAction(action: CombatAction): CombatDefensivePool["sourceChassis"] {
+  const chassis = String(action.source?.power?.descriptorChassis ?? "").toUpperCase();
+  if (chassis === "IMMEDIATE") return "IMMEDIATE";
+  if (chassis === "FIELD") return "FIELD";
+  if (chassis === "ATTACHED") return "ATTACHED";
+  if (chassis === "TRIGGER") return "TRIGGER";
+  if (chassis === "RESERVE") return "RESERVE";
+  return "UNKNOWN";
+}
+
+function sourceCommitmentModifierForAction(action: CombatAction): CombatDefensivePool["sourceCommitmentModifier"] {
+  const modifier = String(action.source?.power?.commitmentModifier ?? "").toUpperCase();
+  if (modifier === "STANDARD") return "STANDARD";
+  if (modifier === "CHANNEL") return "CHANNEL";
+  if (modifier === "CHARGE") return "CHARGE";
+  return "UNKNOWN";
+}
+
+function sourcePacketIdForAction(action: CombatAction): string | null {
+  const packet = action.source?.packet as { id?: unknown; packetIndex?: unknown } | undefined;
+  if (!packet) return null;
+  if (packet.id !== undefined && packet.id !== null) return String(packet.id);
+  if (packet.packetIndex !== undefined && packet.packetIndex !== null) return String(packet.packetIndex);
+  return null;
+}
+
+function ensureDefensivePoolAction(
+  metrics: CombatDefensivePoolMetrics,
+  pool: Pick<CombatDefensivePool, "sourceActorId" | "sourceActorName" | "sourceSide" | "sourceActionId" | "sourceActionName" | "poolType">,
+): CombatDefensivePoolActionMetrics {
+  const key = `${pool.sourceActorId}:${pool.sourceActionId}:${pool.poolType}`;
+  return metrics.bySourceAction[key] ??= {
+    ...createEmptyDefensivePoolSideTotals(),
+    sourceActorId: pool.sourceActorId,
+    sourceActorName: pool.sourceActorName,
+    sourceSide: pool.sourceSide,
+    sourceActionId: pool.sourceActionId,
+    sourceActionName: pool.sourceActionName,
+    poolType: pool.poolType,
+  };
+}
+
+function recordDefensivePool(
+  metrics: CombatResolutionMetrics,
+  pool: Pick<CombatDefensivePool, "sourceActorId" | "sourceActorName" | "sourceSide" | "sourceActionId" | "sourceActionName" | "poolType">,
+  mutate: (totals: CombatDefensivePoolSideTotals) => void,
+) {
+  mutate(metrics.defensivePools.bySourceSide[pool.sourceSide]);
+  mutate(ensureDefensivePoolAction(metrics.defensivePools, pool));
+}
+
+function recordDefensivePoolExpiry(
+  metrics: CombatResolutionMetrics,
+  pool: CombatDefensivePool,
+  reason: "empty" | "durationEnd" | "fieldExit" | "attachmentEnd" | "channelEnd" | "cleanse" | "defeatCleanup",
+) {
+  recordDefensivePool(metrics, pool, (totals) => {
+    totals.remainingAtExpiry += Math.max(0, pool.remainingPoints);
+    if (reason === "empty") totals.expiredEmpty += 1;
+    if (reason === "durationEnd") totals.expiredDuration += 1;
+    if (reason === "fieldExit") totals.expiredFieldExit += 1;
+    if (reason === "attachmentEnd") totals.expiredAttachmentEnd += 1;
+    if (reason === "channelEnd") totals.expiredChannelEnd += 1;
+    if (reason === "cleanse") totals.expiredCleanse += 1;
+    if (reason === "defeatCleanup") totals.expiredDefeatCleanup += 1;
+  });
+}
+
+function createOrRefreshDefensivePool(params: {
+  state: CombatState;
+  metrics: CombatResolutionMetrics;
+  actor: CombatActor;
+  action: CombatAction;
+  target: CombatActor;
+  generatedPoints: number;
+  durationRounds: number;
+  lane?: CombatActionLane;
+}) {
+  const poolType = defensivePoolTypeForAction(params.action);
+  if (!poolType || params.generatedPoints <= 0) return;
+  const woundChannel =
+    poolType === "PHYSICAL_BLOCK"
+      ? "physical"
+      : poolType === "MENTAL_BLOCK"
+        ? "mental"
+        : params.action.pool ?? null;
+  const resistedAttribute = poolType === "RESIST" ? params.action.defenceResistedAttribute ?? null : null;
+  const sourcePacketId = sourcePacketIdForAction(params.action);
+  const reapplyKey = [
+    params.actor.id,
+    params.action.sourcePowerId ?? params.action.id,
+    sourcePacketId ?? params.action.id,
+    params.target.id,
+    poolType,
+    resistedAttribute ?? woundChannel ?? "none",
+  ].join(":");
+  const existing = params.state.defensivePools.find((pool) => pool.reapplyKey === reapplyKey);
+  const basePool = existing ?? {
+    id: `${params.state.round}:${reapplyKey}`,
+    sourceActorId: params.actor.id,
+    sourceActorName: params.actor.name,
+    sourceSide: params.actor.side,
+    sourceActionId: params.action.id,
+    sourceActionName: params.action.name,
+    sourcePowerId: params.action.sourcePowerId ?? params.action.id,
+    sourcePacketId,
+    protectedActorId: params.target.id,
+    protectedActorName: params.target.name,
+    poolType,
+    woundChannel,
+    resistedAttribute,
+    remainingPoints: 0,
+    initialPoints: 0,
+    perTriggerCap: Math.max(1, params.action.potency),
+    remainingRounds: 0,
+    durationKind: params.action.durationKind ?? "turns",
+    sourceChassis: sourceChassisForAction(params.action),
+    sourceCommitmentModifier: sourceCommitmentModifierForAction(params.action),
+    createdRound: params.state.round,
+    createdTurnActorId: params.state.currentTurnActorId ?? null,
+    reapplyKey,
+  };
+  const nextPoints = existing
+    ? Math.max(existing.remainingPoints, params.generatedPoints)
+    : params.generatedPoints;
+  const nextPool: CombatDefensivePool = {
+    ...basePool,
+    remainingPoints: nextPoints,
+    initialPoints: Math.max(basePool.initialPoints, params.generatedPoints),
+    perTriggerCap: Math.max(1, params.action.potency),
+    remainingRounds: Math.max(1, params.durationRounds),
+    durationKind: params.action.durationKind ?? "turns",
+    sourceCommitmentModifier: sourceCommitmentModifierForAction(params.action),
+    createdRound: existing?.createdRound ?? params.state.round,
+    createdTurnActorId: existing?.createdTurnActorId ?? params.state.currentTurnActorId ?? null,
+  };
+  if (existing) {
+    Object.assign(existing, nextPool);
+  } else {
+    params.state.defensivePools.push(nextPool);
+  }
+  if (params.action.passiveDuration) {
+    const carrierExists = params.state.statusEffects.some(
+      (effect) =>
+        effect.passiveDuration &&
+        effect.kind === "protection" &&
+        effect.amount === 0 &&
+        effect.sourceActorId === params.actor.id &&
+        effect.targetActorId === params.target.id &&
+        effect.sourceActionId === params.action.id,
+    );
+    if (!carrierExists) {
+      params.state.statusEffects.push({
+        id: `${params.state.round}:${params.actor.id}:${params.action.id}:${params.target.id}:defensive-pool-carrier`,
+        sourceActorId: params.actor.id,
+        targetActorId: params.target.id,
+        kind: "protection",
+        amount: 0,
+        pool: woundChannel ?? "physical",
+        sourceActionId: params.action.id,
+        sourceActionName: params.action.name,
+        sourceCooldownActionId: params.action.cooldownActionId ?? params.action.id,
+        durationKind: "passive",
+        durationSource: params.action.durationSource,
+        passiveDuration: true,
+        modifiesRollResults: false,
+        remainingRounds: Number.MAX_SAFE_INTEGER,
+      });
+    }
+  }
+  recordDefensivePool(params.metrics, nextPool, (totals) => {
+    if (existing) {
+      totals.refreshReplaceEvents += 1;
+    } else {
+      totals.poolsCreated += 1;
+    }
+    totals.generatedPoints += params.generatedPoints;
+  });
+  emitTranscriptEvent(params.state, {
+    type: "defensivePool",
+    actorId: params.actor.id,
+    actorName: params.actor.name,
+    targetId: params.target.id,
+    targetName: params.target.name,
+    actionId: params.action.id,
+    actionName: params.action.name,
+    lane: params.lane,
+    message: existing
+      ? `Defensive pool refreshed: ${params.action.name} keeps ${params.target.name}'s ${poolType} pool at ${nextPool.remainingPoints} point${nextPool.remainingPoints === 1 ? "" : "s"} for ${nextPool.remainingRounds} turn${nextPool.remainingRounds === 1 ? "" : "s"}; repeated applications replace rather than add.`
+      : `Defensive pool created: ${params.action.name} gives ${params.target.name} ${params.generatedPoints} ${poolType} point${params.generatedPoints === 1 ? "" : "s"} for ${nextPool.remainingRounds} turn${nextPool.remainingRounds === 1 ? "" : "s"}; per-trigger cap ${nextPool.perTriggerCap}.`,
+    details: {
+      poolType,
+      generatedPoints: params.generatedPoints,
+      remainingPoints: nextPool.remainingPoints,
+      perTriggerCap: nextPool.perTriggerCap,
+      durationRounds: nextPool.remainingRounds,
+      sourceChassis: nextPool.sourceChassis,
+      sourceCommitmentModifier: nextPool.sourceCommitmentModifier,
+      refreshed: Boolean(existing),
+    },
+  });
+}
+
+function isDefensivePoolSetupAction(action: CombatAction): boolean {
+  if (action.kind !== "defence") return false;
+  const durationKind = action.durationKind ?? "instant";
+  const durationRounds = Math.max(0, Math.trunc(action.durationRounds ?? action.modifier?.durationRounds ?? 0));
+  return durationKind !== "instant" || action.passiveDuration === true || durationRounds > 1;
+}
+
+function poolMatches(params: {
+  pool: CombatDefensivePool;
+  target: CombatActor;
+  poolType: CombatDefensivePoolType;
+  woundChannel?: "physical" | "mental";
+  resistedAttribute?: CombatAction["defenceResistedAttribute"];
+}) {
+  if (params.pool.protectedActorId !== params.target.id) return false;
+  if (params.pool.remainingPoints <= 0 || params.pool.remainingRounds <= 0) return false;
+  if (params.pool.poolType !== params.poolType) return false;
+  if (params.poolType === "PHYSICAL_BLOCK" && params.pool.woundChannel !== "physical") return false;
+  if (params.poolType === "MENTAL_BLOCK" && params.pool.woundChannel !== "mental") return false;
+  if (params.poolType === "RESIST" && params.pool.resistedAttribute !== params.resistedAttribute) return false;
+  return true;
+}
+
+function estimatePoolCommit(
+  state: CombatState,
+  target: CombatActor,
+  poolType: CombatDefensivePoolType,
+  options: {
+    incomingSuccesses?: number;
+    incomingWounds?: number;
+    woundChannel?: "physical" | "mental";
+    resistedAttribute?: CombatAction["defenceResistedAttribute"];
+  },
+): number {
+  const pool = state.defensivePools.find((entry) =>
+    poolMatches({ pool: entry, target, poolType, woundChannel: options.woundChannel, resistedAttribute: options.resistedAttribute }),
+  );
+  if (!pool) return 0;
+  if (poolType === "DODGE") {
+    const degradation = peekDefenceDegradation(state, target.id, "dodge");
+    const baseDice = Math.max(1, Math.trunc(target.dodgeDice ?? target.dodgeValue ?? 1));
+    const diceCount = Math.max(1, baseDice - degradation);
+    const expected = expectedSuccesses(
+      diceCount,
+      target.attributeDice.Guard ?? "D8",
+      getAttributeModifier(state, target.id, "Guard"),
+    );
+    const needed = Math.max(0, Math.ceil((options.incomingSuccesses ?? 0) - expected));
+    if (needed <= 0) return 0;
+    return Math.min(pool.remainingPoints, pool.perTriggerCap, needed);
+  }
+  if (poolType === "PHYSICAL_BLOCK" || poolType === "MENTAL_BLOCK") {
+    const woundChannel = poolType === "PHYSICAL_BLOCK" ? "physical" : "mental";
+    const incomingWounds = Math.max(0, Math.trunc(options.incomingWounds ?? 0));
+    if (incomingWounds <= 0) return 0;
+    const defenceType = woundChannel;
+    const attribute = woundChannel === "physical" ? "Guard" : "Bravery";
+    const baseDice = Math.max(1, Math.trunc(woundChannel === "physical" ? target.physicalDefenceDice ?? 1 : target.mentalDefenceDice ?? 1));
+    const degradation = peekDefenceDegradation(state, target.id, defenceType);
+    const diceCount = Math.max(1, baseDice - degradation);
+    const blockPerSuccess = Math.max(
+      0,
+      Math.trunc(
+        woundChannel === "physical"
+          ? target.physicalBlockPerSuccess ?? target.physicalDefenceBlock ?? 0
+          : target.mentalBlockPerSuccess ?? target.mentalDefenceBlock ?? 0,
+      ),
+    );
+    const expectedBlocked = expectedSuccesses(
+      diceCount,
+      target.attributeDice[attribute] ?? "D8",
+      getAttributeModifier(state, target.id, attribute),
+    ) * blockPerSuccess;
+    const needed = Math.max(0, Math.ceil(incomingWounds - expectedBlocked));
+    return Math.min(pool.remainingPoints, pool.perTriggerCap, needed);
+  }
+  if (poolType === "RESIST") {
+    const incomingSuccesses = Math.max(0, Math.trunc(options.incomingSuccesses ?? 0));
+    if (!options.resistedAttribute || incomingSuccesses <= 0) return 0;
+    const resistDice = Math.max(1, 3 + (target.resist[options.resistedAttribute] ?? 0));
+    const attribute = CORE_TO_COMBAT_ATTRIBUTE[options.resistedAttribute] ?? "Guard";
+    const expectedCancelled = expectedSuccesses(
+      resistDice,
+      target.attributeDice[attribute] ?? "D8",
+      getAttributeModifier(state, target.id, attribute),
+    );
+    const needed = Math.max(0, Math.ceil(incomingSuccesses - expectedCancelled));
+    return Math.min(pool.remainingPoints, pool.perTriggerCap, needed);
+  }
+  return 0;
+}
+
+function commitDefensivePool(params: {
+  state: CombatState;
+  metrics: CombatResolutionMetrics;
+  target: CombatActor;
+  poolType: CombatDefensivePoolType;
+  requested: number;
+  woundChannel?: "physical" | "mental";
+  resistedAttribute?: CombatAction["defenceResistedAttribute"];
+}) {
+  const pool = params.state.defensivePools
+    .filter((entry) =>
+      poolMatches({
+        pool: entry,
+        target: params.target,
+        poolType: params.poolType,
+        woundChannel: params.woundChannel,
+        resistedAttribute: params.resistedAttribute,
+      }),
+    )
+    .sort((left, right) => right.remainingPoints - left.remainingPoints)[0];
+  if (!pool || params.requested <= 0) return null;
+  const committed = Math.min(pool.remainingPoints, pool.perTriggerCap, Math.max(0, Math.trunc(params.requested)));
+  if (committed <= 0) return null;
+  pool.remainingPoints -= committed;
+  recordDefensivePool(params.metrics, pool, (totals) => {
+    totals.committedPoints += committed;
+    totals.spentPoints += committed;
+  });
+  emitTranscriptEvent(params.state, {
+    type: "defensivePool",
+    actorId: params.target.id,
+    actorName: params.target.name,
+    actionId: pool.sourceActionId,
+    actionName: pool.sourceActionName,
+    lane: "response",
+    message: `Defensive pool commit: ${params.target.name} commits ${committed} point${committed === 1 ? "" : "s"} from ${pool.sourceActionName} ${pool.poolType}; ${pool.remainingPoints} remain.`,
+    details: {
+      poolType: pool.poolType,
+      committed,
+      remainingPoints: pool.remainingPoints,
+      perTriggerCap: pool.perTriggerCap,
+    },
+  });
+  return { pool, committed };
+}
+
+function finishDefensivePoolCommit(params: {
+  metrics: CombatResolutionMetrics;
+  pool: CombatDefensivePool;
+  committed: number;
+  effective: number;
+  result: "dodge" | "block" | "resist";
+}) {
+  const effective = Math.min(params.committed, Math.max(0, params.effective));
+  recordDefensivePool(params.metrics, params.pool, (totals) => {
+    totals.wastedPoints += Math.max(0, params.committed - effective);
+    if (params.result === "dodge" && effective > 0) totals.dodgeAvoids += 1;
+    if (params.result === "block") totals.blockWoundsPrevented += effective;
+    if (params.result === "resist") totals.resistUnitsCancelled += effective;
+  });
+  if (params.pool.remainingPoints <= 0) {
+    recordDefensivePoolExpiry(params.metrics, params.pool, "empty");
+  }
 }
 
 function recordOngoingFirstTick(params: {
@@ -713,13 +1189,38 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
   metrics.hostileSuccessesBeforeResist = successes;
   metrics.hostileSuccessesAfterResist = successes;
   if (!action.resistAttribute || successes <= 0) return metrics;
+  const requestedPoolCommit = estimatePoolCommit(state, target, "RESIST", {
+    resistedAttribute: action.resistAttribute,
+    incomingSuccesses: successes,
+  });
+  const poolCommit = commitDefensivePool({
+    state,
+    metrics,
+    target,
+    poolType: "RESIST",
+    requested: requestedPoolCommit,
+    resistedAttribute: action.resistAttribute,
+  });
   const resistDice = Math.max(1, 3 + (target.resist[action.resistAttribute] ?? 0));
   const attribute = CORE_TO_COMBAT_ATTRIBUTE[action.resistAttribute] ?? "Guard";
   const resistRoll = rollAttributeDice({ state, actor: target, attribute, diceCount: resistDice, rng });
   const rollSummary = summarizeRoll({ actor: target, reason: `${action.name} resist`, attribute, roll: resistRoll });
-  const cancelled = Math.min(successes, resistRoll.successes);
+  const poolCancelled = Math.min(Math.max(0, successes - resistRoll.successes), poolCommit?.committed ?? 0);
+  const cancelled = Math.min(successes, resistRoll.successes + poolCancelled);
+  if (poolCommit) {
+    finishDefensivePoolCommit({
+      metrics,
+      pool: poolCommit.pool,
+      committed: poolCommit.committed,
+      effective: poolCancelled,
+      result: "resist",
+    });
+    if (poolCommit.pool.remainingPoints <= 0) {
+      state.defensivePools = state.defensivePools.filter((entry) => entry.id !== poolCommit.pool.id);
+    }
+  }
   metrics.resistRolls = 1;
-  metrics.resistSuccesses = resistRoll.successes;
+  metrics.resistSuccesses = resistRoll.successes + (poolCommit?.committed ?? 0);
   metrics.resistCancelled = cancelled;
   recordModifiedResistRoll(metrics, resistRoll.modifier);
   metrics.hostileSuccessesCancelledByResist = cancelled;
@@ -731,13 +1232,14 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
     actionId: action.id,
     actionName: action.name,
     lane: "response",
-    message: `${rollText(rollSummary)} Resist formula 3 + ${action.resistAttribute} resist value = ${resistDice} dice; cancelled ${cancelled} of ${successes} hostile successes.`,
+    message: `${rollText(rollSummary)}${poolCommit ? ` Resist pool adds ${poolCommit.committed} cancellation unit${poolCommit.committed === 1 ? "" : "s"}.` : ""} Resist formula 3 + ${action.resistAttribute} resist value = ${resistDice} dice; cancelled ${cancelled} of ${successes} hostile successes.`,
     roll: rollSummary,
     details: {
       resistAttribute: action.resistAttribute,
       resistDice,
       incomingSuccesses: successes,
       cancelled,
+      poolCancelled,
       remainingSuccesses: metrics.hostileSuccessesAfterResist,
     },
   });
@@ -1797,16 +2299,40 @@ function resolveDeclaredCounterAttack(params: {
   for (const action of counterAttackPackets(counterRoll.declared.action)) {
     const pool = action.pool ?? "physical";
     const raw = counterRoll.successes * Math.max(1, action.potency);
+    const poolCommit = commitDefensivePool({
+      state,
+      metrics,
+      target: attacker,
+      poolType: pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK",
+      requested: estimatePoolCommit(state, attacker, pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK", {
+        woundChannel: pool,
+        incomingWounds: raw,
+      }),
+      woundChannel: pool,
+    });
+    const poolPrevented = Math.min(raw, poolCommit?.committed ?? 0);
+    if (poolCommit) {
+      finishDefensivePoolCommit({
+        metrics,
+        pool: poolCommit.pool,
+        committed: poolCommit.committed,
+        effective: poolPrevented,
+        result: "block",
+      });
+      if (poolCommit.pool.remainingPoints <= 0) {
+        state.defensivePools = state.defensivePools.filter((entry) => entry.id !== poolCommit.pool.id);
+      }
+    }
     const passiveDefence = passiveDefenceAmount(attacker, pool);
     const staticProtection =
       (pool === "physical" ? attacker.physicalProtection : attacker.mentalProtection) +
       getProtectionModifier(state, attacker.id, pool) +
       passiveDefence;
-    const prevented = Math.min(raw, Math.max(0, staticProtection));
+    const prevented = poolPrevented + Math.min(Math.max(0, raw - poolPrevented), Math.max(0, staticProtection));
     const damage = Math.max(0, raw - prevented);
     applyWounds(attacker, pool, damage);
     metrics.counterDamage += damage;
-    metrics.staticProtectionPrevented += prevented;
+    metrics.staticProtectionPrevented += Math.max(0, prevented - poolPrevented);
     metrics.protectionPrevented += prevented;
     metrics.passiveDefenceContribution += Math.min(raw, passiveDefence);
     emitTranscriptEvent(state, {
@@ -1818,8 +2344,8 @@ function resolveDeclaredCounterAttack(params: {
       actionId: counterRoll.declared.action.id,
       actionName: counterRoll.declared.action.name,
       lane: "response",
-      message: `Counter result: ${attacker.name} suffers ${damage} ${pool} wounds from ${counterRoll.declared.action.name}. Prevented ${prevented} passive/static.`,
-      details: { rawWounds: raw, prevented, netWounds: damage, pool },
+      message: `Counter result: ${attacker.name} suffers ${damage} ${pool} wounds from ${counterRoll.declared.action.name}. Prevented ${prevented} (${poolPrevented} defensive pool, ${Math.max(0, prevented - poolPrevented)} passive/static).`,
+      details: { rawWounds: raw, prevented, poolPrevented, netWounds: damage, pool },
     });
   }
   return metrics;
@@ -2556,6 +3082,53 @@ function resolveSingleTargetAction(params: {
         details: { effect: action.kind, durationRounds, durationSource: action.durationSource, passiveDuration },
       });
     }
+  } else if (action.kind === "defence" && isDefensivePoolSetupAction(action)) {
+    const mode = action.defenceMode ?? "Block";
+    const poolType = defensivePoolTypeForAction(action);
+    const generatedPoints = Math.max(0, activeAppliedSuccesses * Math.max(1, action.potency));
+    const durationRounds = action.passiveDuration
+      ? Number.MAX_SAFE_INTEGER
+      : Math.max(1, action.durationRounds ?? action.modifier?.durationRounds ?? 1);
+    if (mode === "Resist" && !action.defenceResistedAttribute) {
+      metrics.wastedActions = 1;
+      emitTranscriptEvent(state, {
+        type: "actionSkipped",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Defensive pool skipped: ${action.name} is a Resist setup but has no resisted attribute, so Combat Lab cannot create a legal Resist pool.`,
+        details: { defenceMode: mode, reason: "missingResistedAttribute" },
+      });
+    } else if (generatedPoints <= 0) {
+      metrics.wastedActions = 1;
+      emitTranscriptEvent(state, {
+        type: "actionSkipped",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Defensive pool skipped: ${action.name} rolled no successes, so no ${poolType ?? "defensive"} pool is created.`,
+        details: { defenceMode: mode, generatedPoints },
+      });
+    } else {
+      createOrRefreshDefensivePool({
+        state,
+        metrics,
+        actor,
+        action,
+        target,
+        generatedPoints,
+        durationRounds,
+        lane,
+      });
+    }
   } else if (action.kind === "defence" && (action.defenceMode ?? "Block") === "Resist") {
     addMetrics(metrics, resolveAuthoredResistCleanupAction({
       state,
@@ -2577,33 +3150,15 @@ function resolveSingleTargetAction(params: {
       actionId: action.id,
       actionName: action.name,
       lane,
-      message: `Dodge: ${action.name} is resolved as a Counter against an incoming avoidable physical attack; normal use creates no persistent Dodge setup in Combat Lab V1.`,
+      message: `Dodge: ${action.name} is resolved as an instant Counter against an incoming avoidable physical attack; normal use creates no persistent Dodge pool unless the power has authored duration.`,
       details: { defenceMode: "Dodge", reason: "counterOnlyDodgeDefence" },
     });
   } else if (action.kind === "defence") {
     const blockPerSuccess = Math.max(1, action.protection ?? action.potency);
     const amount = Math.max(1, activeAppliedSuccesses * blockPerSuccess);
-    const durationRounds = Math.max(1, action.durationRounds ?? action.modifier?.durationRounds ?? 1);
-    const isPassiveDuration = Boolean(action.passiveDuration);
-    state.statusEffects.push({
-      id: `${state.round}:${actor.id}:${action.id}:${target.id}`,
-      sourceActorId: actor.id,
-      targetActorId: target.id,
-      kind: "protection",
-      pool: action.pool ?? "physical",
-      amount,
-      sourceActionId: action.id,
-      sourceActionName: action.name,
-      sourceCooldownActionId: action.cooldownActionId ?? action.id,
-      durationKind: action.durationKind,
-      durationSource: action.durationSource,
-      passiveDuration: isPassiveDuration,
-      remainingRounds: durationRounds,
-    });
-    metrics.mitigationApplied = amount;
-    metrics.passiveDefenceContribution = amount;
+    metrics.mitigationApplied = 0;
     emitTranscriptEvent(state, {
-      type: "statusCreated",
+      type: "actionSkipped",
       actorId: actor.id,
       actorName: actor.name,
       targetId: target.id,
@@ -2611,25 +3166,9 @@ function resolveSingleTargetAction(params: {
       actionId: action.id,
       actionName: action.name,
       lane,
-      message: isPassiveDuration
-        ? `Passive defence: ${action.name} grants ${target.name} ${activeAppliedSuccesses} x ${blockPerSuccess} = ${amount} passive ${action.pool ?? "physical"} wound blocking until it ends or is removed.`
-        : `Defence power: ${action.name} gives ${target.name} ${amount} ${action.pool ?? "physical"} protection for ${durationRounds} turns.`,
-      details: { effect: "protection", amount, blockPerSuccess, appliedSuccesses: activeAppliedSuccesses, pool: action.pool ?? "physical", durationRounds, durationSource: action.durationSource, passiveDuration: isPassiveDuration },
+      message: `Defence power: ${action.name} has instant Block output (${activeAppliedSuccesses} x ${blockPerSuccess} = ${amount}) but Combat Lab V1 only spends Block as a duration defensive pool or Counter mitigation; no static protection status is created.`,
+      details: { defenceMode: action.defenceMode ?? "Block", amount, blockPerSuccess, appliedSuccesses: activeAppliedSuccesses, pool: action.pool ?? "physical", reason: "instantBlockNoPersistentPool" },
     });
-    if (isPassiveDuration) {
-      emitTranscriptEvent(state, {
-        type: "statusCreated",
-        actorId: actor.id,
-        actorName: actor.name,
-        targetId: target.id,
-        targetName: target.name,
-        actionId: action.id,
-        actionName: action.name,
-        lane,
-        message: `Status created: ${action.name} remains active until ended or removed.`,
-        details: { effect: "protection", durationRounds, durationSource: action.durationSource, passiveDuration: true },
-      });
-    }
   } else if (action.kind === "control") {
     const controlStacks = Math.max(1, activeAppliedSuccesses * Math.max(1, action.potency));
     const durationRounds = Math.max(1, Math.trunc(action.control?.durationRounds ?? 1));

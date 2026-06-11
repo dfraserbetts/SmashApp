@@ -3,6 +3,8 @@ import type {
   CombatActor,
   CombatAggregateMetrics,
   CombatCooldownTrace,
+  CombatDefensivePoolMetrics,
+  CombatDefensivePoolSideTotals,
   CombatOngoingPressureMetrics,
   CombatOngoingPressureSideTotals,
   CombatSide,
@@ -31,6 +33,10 @@ function cloneAction(action: CombatAction): CombatAction {
     cooldownActionId: action.cooldownActionId,
     source: action.source ? { ...action.source } : undefined,
   };
+}
+
+function cloneDefensivePool(pool: CombatState["defensivePools"][number]) {
+  return { ...pool };
 }
 
 export function cloneActor(actor: CombatActor): CombatActor {
@@ -94,6 +100,7 @@ export function createCombatState(
     responsesRemaining: Object.fromEntries(actors.filter((actor) => !actor.defeated).map((actor) => [actor.id, 2])),
     defenceDegradation: {},
     statusEffects: [],
+    defensivePools: [],
     captureTranscript: Boolean(options.captureTranscript),
     transcriptEvents: [],
     transcriptLines: [],
@@ -198,6 +205,11 @@ function cleanupDefeatedActorRuntime(state: CombatState, actor: CombatActor) {
     (effect) => effect.targetActorId !== actor.id && effect.sourceActorId !== actor.id,
   );
   const clearedStatuses = beforeStatusCount - state.statusEffects.length;
+  const beforePoolCount = state.defensivePools.length;
+  state.defensivePools = state.defensivePools.filter(
+    (pool) => pool.protectedActorId !== actor.id && pool.sourceActorId !== actor.id,
+  );
+  const clearedPools = beforePoolCount - state.defensivePools.length;
 
   emitTranscriptEvent(state, {
     type: "defeatCleanup",
@@ -205,10 +217,12 @@ function cleanupDefeatedActorRuntime(state: CombatState, actor: CombatActor) {
     actorName: actor.name,
     message:
       `Defeat cleanup: ${actor.name} leaves active combat; cleared ${clearedCooldowns} cooldown${clearedCooldowns === 1 ? "" : "s"} and ${clearedStatuses} active status${clearedStatuses === 1 ? "" : "es"}.` +
+      (clearedPools > 0 ? ` Cleared ${clearedPools} defensive pool${clearedPools === 1 ? "" : "s"}.` : "") +
       (hadResponses ? " Cleared refreshed responses." : ""),
     details: {
       clearedCooldowns,
       clearedStatuses,
+      clearedDefensivePools: clearedPools,
       clearedResponses: hadResponses ? 1 : 0,
       sourceOwnedEffectsEndOnDefeat: true,
     },
@@ -350,6 +364,20 @@ export function removeStatusEffectById(state: CombatState, effectId: string): bo
     : [effect];
   const linkedIds = new Set(linkedPassiveEffects.map((entry) => entry.id));
   state.statusEffects = state.statusEffects.filter((entry) => !linkedIds.has(entry.id));
+  state.defensivePools = state.defensivePools.filter(
+    (pool) =>
+      !linkedPassiveEffects.some((entry) => {
+        if (entry.sourceActorId !== pool.sourceActorId || entry.targetActorId !== pool.protectedActorId) {
+          return false;
+        }
+        const effectActionId = entry.sourceActionId;
+        const effectCooldownActionId = entry.sourceCooldownActionId;
+        return (
+          (Boolean(effectActionId) && pool.sourceActionId === effectActionId) ||
+          (Boolean(effectCooldownActionId) && pool.sourceActionId === effectCooldownActionId)
+        );
+      }),
+  );
   for (const removed of linkedPassiveEffects) {
     applyPassiveStatusRemovalCooldown(state, removed);
   }
@@ -471,6 +499,61 @@ export function tickTargetTurnEffects(state: CombatState, actorId: string): numb
   return expired;
 }
 
+export function tickTargetDefensivePools(state: CombatState, actorId: string): CombatState["defensivePools"] {
+  const actor = state.actors.find((entry) => entry.id === actorId);
+  const expired: CombatState["defensivePools"] = [];
+  state.defensivePools = state.defensivePools
+    .map((pool) => {
+      if (pool.protectedActorId !== actorId || pool.durationKind === "passive") return pool;
+      if (pool.createdRound === state.round && pool.createdTurnActorId === actorId) {
+        emitTranscriptEvent(state, {
+          type: "defensivePool",
+          actorId,
+          actorName: actor?.name,
+          actionId: pool.sourceActionId,
+          actionName: pool.sourceActionName,
+          lane: "endOfTurn",
+          message: `End of Turn: ${pool.sourceActionName} ${pool.poolType} pool on ${actor?.name ?? pool.protectedActorName} does not tick on its creation turn; ${pool.remainingRounds} turn${pool.remainingRounds === 1 ? "" : "s"} remain.`,
+          details: {
+            poolType: pool.poolType,
+            remainingDurationRounds: pool.remainingRounds,
+            remainingPoints: pool.remainingPoints,
+            creationTurnTickSkipped: true,
+          },
+        });
+        return pool;
+      }
+      const previous = pool.remainingRounds;
+      const remainingRounds = previous - 1;
+      emitTranscriptEvent(state, {
+        type: "defensivePool",
+        actorId,
+        actorName: actor?.name,
+        actionId: pool.sourceActionId,
+        actionName: pool.sourceActionName,
+        lane: "endOfTurn",
+        message:
+          remainingRounds <= 0
+            ? `End of Turn: ${pool.sourceActionName} ${pool.poolType} pool on ${actor?.name ?? pool.protectedActorName} expires with ${pool.remainingPoints} point${pool.remainingPoints === 1 ? "" : "s"} remaining.`
+            : `End of Turn: ${pool.sourceActionName} ${pool.poolType} pool on ${actor?.name ?? pool.protectedActorName} duration ticks down from ${previous} to ${remainingRounds}; ${pool.remainingPoints} point${pool.remainingPoints === 1 ? "" : "s"} remain.`,
+        details: {
+          poolType: pool.poolType,
+          previousDurationRounds: previous,
+          remainingDurationRounds: Math.max(0, remainingRounds),
+          remainingPoints: pool.remainingPoints,
+          expired: remainingRounds <= 0,
+        },
+      });
+      return { ...pool, remainingRounds };
+    })
+    .filter((pool) => {
+      const keep = pool.remainingRounds > 0 && pool.remainingPoints > 0;
+      if (!keep) expired.push(cloneDefensivePool(pool));
+      return keep;
+    });
+  return expired;
+}
+
 export function decrementRoundEffects(state: CombatState) {
   state.statusEffects = state.statusEffects
     .map((effect) => effect.passiveDuration ? effect : { ...effect, remainingRounds: effect.remainingRounds - 1 })
@@ -522,6 +605,38 @@ export function createEmptyOngoingPressureMetrics(): CombatOngoingPressureMetric
     bySourceSide: {
       players: createEmptyOngoingPressureSideTotals(),
       monsters: createEmptyOngoingPressureSideTotals(),
+    },
+    bySourceAction: {},
+  };
+}
+
+export function createEmptyDefensivePoolSideTotals(): CombatDefensivePoolSideTotals {
+  return {
+    poolsCreated: 0,
+    generatedPoints: 0,
+    refreshReplaceEvents: 0,
+    committedPoints: 0,
+    spentPoints: 0,
+    wastedPoints: 0,
+    remainingAtExpiry: 0,
+    expiredEmpty: 0,
+    expiredDuration: 0,
+    expiredFieldExit: 0,
+    expiredAttachmentEnd: 0,
+    expiredChannelEnd: 0,
+    expiredCleanse: 0,
+    expiredDefeatCleanup: 0,
+    dodgeAvoids: 0,
+    blockWoundsPrevented: 0,
+    resistUnitsCancelled: 0,
+  };
+}
+
+export function createEmptyDefensivePoolMetrics(): CombatDefensivePoolMetrics {
+  return {
+    bySourceSide: {
+      players: createEmptyDefensivePoolSideTotals(),
+      monsters: createEmptyDefensivePoolSideTotals(),
     },
     bySourceAction: {},
   };
@@ -599,6 +714,7 @@ export function createEmptyMetrics(): CombatAggregateMetrics {
     cooldownTrace: {},
     counterCandidateDiagnostics: {},
     ongoingPressure: createEmptyOngoingPressureMetrics(),
+    defensivePools: createEmptyDefensivePoolMetrics(),
   };
 }
 
