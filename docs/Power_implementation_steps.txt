@@ -110,7 +110,7 @@ The practical next work should stay focused on:
 - using Codex-run Combat Lab simulation batches for incremental balance passes, variant comparison, canary checks, scenario matrices, and outlier detection
 - keeping manual Combat Lab runs for major milestone confidence, UI/report readability, public/demo confidence, playtest packet confidence, and table-feel judgement
 - reporting commit SHA, worktree cleanliness, command/script/route/direct-runtime method, UI inspection status, run count, seed policy, scenario names, actor/monster names, active Power Tuning, active Combat Tuning, active Outcome Normalization, temporary in-memory overrides, no-mutation confirmation, and validation/smoke status when Codex runs simulations
-- adding a future dedicated scenario-matrix runner or minimal batch script, likely scripts/combatLab.scenarioMatrix.ts, before larger repeated balance passes
+- extending the existing scripts/combatLab.scenarioMatrix.ts runner with the defensive-pool canaries defined in docs/14_Defensive_Pool_Canary_Matrix.txt before larger defensive-pool balance passes
 - tuning canonical power values against the current builder surface
 - tuning non-power monster baseline contribution where stripped monsters prove too weak or too strong
 - tuning radar display curves only after canonical power and baseline contribution are understood
@@ -123,11 +123,12 @@ The practical next work should stay focused on:
 
 Near-term ordered balance workflow:
 
-1. Defensive pool pricing-matrix docs/spec.
-2. Defensive-pool canary/scenario fixture requirements.
-3. Dedicated scenario matrix runner or minimal batch script.
-4. Power Tuning key seams for defensive pool pricing.
-5. Codex-run canary batches with full provenance.
-6. Active numeric tuning.
-7. Manual milestone verification for major readability, UI, and table-feel checks.
-8. Return to Dire Wolf / Sudden Leap / Swiping Claws tuning.
+1. Defensive pool canary matrix spec in docs/14_Defensive_Pool_Canary_Matrix.txt.
+2. Implement defensive-pool canaries in scripts/combatLab.scenarioMatrix.ts and/or smoke assertions.
+3. Run Codex defensive-pool canary batch with provenance.
+4. Inspect canary outputs.
+5. Add Power Tuning key seams for defensive pool pricing.
+6. Run defensive-pool canaries again.
+7. Begin active numeric tuning.
+8. Manual milestone verification for major readability, UI, and table-feel checks.
+9. Return to Dire Wolf / Sudden Leap / Swiping Claws tuning.

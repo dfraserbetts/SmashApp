@@ -178,4 +178,4 @@ Codex-run Combat Lab simulation batches are an accepted incremental workflow for
 
 Codex-run results must include clear provenance: commit SHA, worktree status, exact command/script/route/direct-runtime method, browser inspection status, run count, seed policy, scenario and actor names, active Power Tuning, active Combat Tuning, active Outcome Normalization, any temporary in-memory overrides, no-mutation confirmation, and validation/smoke status where relevant.
 
-Future tooling should add a dedicated scenario-matrix runner, likely scripts/combatLab.scenarioMatrix.ts, before large repeated tuning batches become normal.
+The dedicated scenario-matrix runner now exists at scripts/combatLab.scenarioMatrix.ts. Defensive-pool canary implementation should use docs/14_Defensive_Pool_Canary_Matrix.txt as the source of truth before defensive-pool numeric tuning begins.

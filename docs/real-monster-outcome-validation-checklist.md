@@ -34,7 +34,7 @@ Record provenance for every Codex-run batch:
 - confirmation that no database, source-data, saved-monster, tuning, or code changes were made during read-only simulation
 - validation or smoke status where relevant
 
-Use Codex-run batches for repeated scenario matrices, variant comparison, canary checks, outlier detection, and checking whether a patch moved win rates or diagnostics.
+Use Codex-run batches for repeated scenario matrices, variant comparison, canary checks, outlier detection, and checking whether a patch moved win rates or diagnostics. Defensive-pool canary checks should use docs/14_Defensive_Pool_Canary_Matrix.txt as the named canary source of truth.
 
 Do not treat Codex-run results as magic truth. They are evidence only when runtime rules are current, active tuning is identified, scenario construction is clear, seed/run count are reported, no hidden data changes occurred, and diagnostics are readable.
 

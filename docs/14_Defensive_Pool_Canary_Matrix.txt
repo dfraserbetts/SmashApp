@@ -1,0 +1,829 @@
+14_Defensive_Pool_Canary_Matrix.txt
+
+Purpose
+
+This document defines the defensive-pool canary scenario matrix that must exist before defensive-pool numeric pricing begins.
+
+It is a specification, not an implementation patch.
+
+The canaries are intentionally synthetic and in-memory. They must not require database seeding, active tuning changes, saved monster changes, or source-data edits.
+
+The goal is to prove that Combat Lab can create, spend, waste, refresh, expire, reject, and report defensive pools before Power Tuning values are adjusted.
+
+
+Current Workflow Truth
+
+- Codex-run Combat Lab scenario batches are accepted for incremental balance passes when provenance is reported.
+- Manual Combat Lab runs remain required for major milestone confidence, UI/report readability, and table-feel checks.
+- The scenario matrix runner exists at scripts/combatLab.scenarioMatrix.ts.
+- The defensive-pool runtime exists.
+- Current Dire Wolf scenarios are not sufficient defensive-pool canaries because they currently produce zero duration defensive pool usage.
+- Defensive-pool canaries must therefore be synthetic, deliberate, and assertion-friendly.
+
+
+Locked Defensive Pool Rules Preserved By This Matrix
+
+- Pool size = successful power-roll successes x potency.
+- Per-trigger commit cap = potency unless explicitly modified.
+- Pool points are committed before the normal defence or Resist roll.
+- Committed points are spent whether the defence succeeds or fails.
+- Normal defence and Resist degradation still apply.
+- Pool spending does not reset degradation.
+- Dodge Pool adds Dodge successes and uses match-or-exceed.
+- Block Pool adds direct wound prevention, not defence successes.
+- Resist Pool cancels hostile units only in the matching resisted Attribute lane.
+- Repeated same-source, same-packet, same-protected-target applications use refresh/replace higher-of-current-or-new.
+- Refresh/replace does not add by default.
+- Only one matching defensive pool may commit per incoming action unless explicitly authored otherwise.
+- Movement is not a Defence mode.
+- Counter Dodge is one-shot unless explicitly duration-based.
+- Field, Attached, Channel, and Charge use their locked chassis interactions from the source docs.
+
+
+Canary Design Principles
+
+1. Every canary must create the condition it claims to test.
+2. The incoming pressure must be shaped so the pool can matter.
+3. Wrong-lane and wrong-mode canaries must prove non-application.
+4. Refresh/replace canaries must force lower and higher reapplication cases so additive bugs are visible.
+5. Multiple-pool canaries must use different source actions or source packets so they do not collapse into refresh/replace.
+6. Expected outputs must be metric-based and assertion-friendly.
+7. Win rate is secondary; Defensive Pool Diagnostics are primary.
+8. Canaries must be synthetic/in-memory and must not require database seeding or source mutation.
+9. Stochastic canaries must report seed, run count, and command provenance.
+10. Deterministic micro-canaries must document the forced roll or known-result approach.
+
+
+Canary Output Contract
+
+Every canary report should include:
+
+- canary ID
+- canary name
+- purpose
+- layer A or layer B
+- expected mechanic
+- run count
+- seed
+- actor names
+- active Power Tuning name
+- active Combat Tuning name
+- active Outcome Normalization name
+- pool type
+- pools created
+- generated points
+- committed points
+- spent points
+- wasted points
+- remaining at expiry
+- refresh/replace events
+- dodgeAvoids
+- blockWoundsPrevented
+- resistUnitsCancelled
+- unsupported notes
+- pass/fail assertion summary where assertions are implemented
+
+
+Codex-Run Provenance Contract
+
+Every canary batch must include:
+
+- commit SHA
+- worktree status / cleanliness
+- exact command used
+- method used
+- browserInspected true/false
+- runs
+- seed
+- scenario and canary names
+- actor and monster names
+- active Power Tuning name
+- active Combat Tuning name
+- active Outcome Normalization name
+- temporary overrides
+- dataMutation false unless explicitly stated otherwise
+- sourceMutation false unless explicitly stated otherwise
+- tuningMutation false unless explicitly stated otherwise
+- validation/smoke status where relevant
+
+
+Implementation Notes For scripts/combatLab.scenarioMatrix.ts
+
+Future implementation should extend the existing runner rather than creating a separate simulator.
+
+Required additions:
+
+- add preset defensive-pool-canaries
+- add stable canary IDs as well as display names
+- keep canary actors/actions synthetic and in-memory
+- do not seed database data
+- do not mutate active tuning
+- preserve --json and --out support through the existing runner
+- add enough reporting to show Defensive Pool Diagnostics per canary
+- mark unsupported Field, Attached, Channel, and Charge behaviours explicitly instead of silently skipping them
+- if exact deterministic forced rolls do not fit the scenario matrix runner cleanly, put deterministic assertions in scripts/combatLab.smoke.ts and reserve the runner for stochastic batch canaries
+
+Future runner output should include a canaryAssertions[] section for deterministic pass/fail statements. If a canary is only stochastic, its assertion section should say which diagnostic bands or deltas are expected and which hard mechanical assertions are not deterministic.
+
+
+Layer A - Core Deterministic Or Assertion Canaries
+
+Layer A canaries are mechanical correctness tests. They should prefer deterministic seeded rolls or direct forced-roll fixtures.
+
+
+A1. Duration Dodge Pool bridges normal Dodge failure into success
+
+Purpose:
+
+Prove that a duration Dodge Pool commits before normal Dodge, adds Dodge successes, and can turn a failed normal Dodge into a successful match-or-exceed avoid.
+
+Setup:
+
+- Synthetic defender: low natural Dodge and low Guard die so normal Dodge alone is not enough.
+- Synthetic defender action: self-target Defence / Dodge duration pool.
+- Synthetic attacker action: physical Dodge-legal attack.
+- Incoming successes: just above expected normal Dodge but within normal Dodge plus per-trigger cap.
+- Pool potency: high enough that one capped commit bridges the gap.
+- Defence degradation: present or explicitly checked as still available, so normal Dodge degradation remains part of the result.
+
+Pressure shape:
+
+- Incoming physical attack should land without the pool.
+- Incoming physical attack should be avoided with normal Dodge successes plus committed pool points.
+
+Expected diagnostics/assertions:
+
+- Dodge Pool created > 0.
+- generatedPoints = successful power-roll successes x potency.
+- committedPoints > 0 before the normal Dodge roll.
+- Final Dodge = normal Dodge successes + committed pool points.
+- Final Dodge >= incoming successes.
+- net wounds = 0 for the incoming packet.
+- committedPoints == spentPoints for the pool use.
+- dodgeAvoids increments.
+- Pool remaining decreases by committed amount.
+- No mental attack dodgeability is implied.
+
+Failure examples:
+
+- The pool commits after the normal Dodge roll.
+- The pool is reported as direct wound prevention.
+- Dodge still fails even though final Dodge meets incoming successes.
+- The pool makes a mental attack dodgeable without explicit permission.
+
+
+A2. Failed Dodge Pool spend is lost
+
+Purpose:
+
+Prove that committed Dodge Pool points are spent even if final Dodge still fails.
+
+Setup:
+
+- Synthetic defender: weak natural Dodge.
+- Synthetic defender action: small Dodge Pool or low potency cap.
+- Synthetic attacker action: high-success physical Dodge-legal attack.
+- Incoming successes: higher than normal Dodge plus max pool commit.
+
+Pressure shape:
+
+- Pool can help but cannot bridge the success gap.
+
+Expected diagnostics/assertions:
+
+- Dodge Pool created > 0.
+- committedPoints > 0.
+- Final Dodge < incoming successes.
+- net wounds > 0.
+- committedPoints == spentPoints.
+- wastedPoints == committedPoints or effective pool contribution is reported as 0.
+- dodgeAvoids does not increment.
+- Pool remaining decreases by committed amount.
+
+Failure examples:
+
+- Failed pool points are refunded.
+- wastedPoints remains 0 when the pool failed to change the result.
+- dodgeAvoids increments despite final Dodge failing.
+
+
+A3. Dodge Pool does not overcommit when expected normal Dodge is already sufficient
+
+Purpose:
+
+Prove the simulation policy does not drain a Dodge Pool when expected normal Dodge already covers the incoming attack.
+
+Setup:
+
+- Synthetic defender: strong expected normal Dodge.
+- Synthetic defender action: active Dodge Pool already exists.
+- Synthetic attacker action: weak physical Dodge-legal attack.
+- Incoming successes: at or below expected normal Dodge.
+
+Pressure shape:
+
+- The pool exists but should not be requested by the commit policy.
+
+Expected diagnostics/assertions:
+
+- Dodge Pool exists before incoming action.
+- committedPoints == 0.
+- spentPoints == 0.
+- Pool remaining unchanged.
+- Normal Dodge still resolves normally.
+
+Failure examples:
+
+- Pool commits its full per-trigger cap when expected normal Dodge is already sufficient.
+- Pool remaining drops despite no need to commit.
+
+
+A4. Physical Block Pool adds direct wound prevention
+
+Purpose:
+
+Prove Physical Block Pool adds direct wound prevention, not defence successes.
+
+Setup:
+
+- Synthetic defender: low or zero normal physical block-per-success.
+- Synthetic defender action: Physical Block Pool.
+- Synthetic attacker action: physical wound packet.
+- Pool cap: enough to prevent some but not necessarily all wounds.
+
+Pressure shape:
+
+- Normal physical defence contributes little or nothing.
+- Pool prevention is visible as direct wound reduction.
+
+Expected diagnostics/assertions:
+
+- Physical Block Pool created.
+- committedPoints > 0.
+- blockWoundsPrevented equals effective committed pool points.
+- Pool points reduce wounds directly.
+- No extra physical defence successes are created.
+- committedPoints == spentPoints.
+- Remaining pool decreases.
+
+Failure examples:
+
+- Pool points are multiplied by block-per-success.
+- Pool creates additional defence successes.
+- Pool prevents mental wounds.
+
+
+A5. Mental Block Pool applies only to mental wounds
+
+Purpose:
+
+Prove Mental Block Pool does not apply to physical wounds and does apply to mental wounds.
+
+Setup:
+
+- Synthetic defender: active Mental Block Pool.
+- Synthetic attacker action 1: physical wound attack.
+- Synthetic attacker action 2: mental wound attack.
+- Defender has low normal mental block so pool contribution is visible.
+
+Pressure shape:
+
+- Physical pressure arrives first to prove non-application.
+- Mental pressure arrives second to prove matching-lane application.
+
+Expected diagnostics/assertions:
+
+Physical attack:
+
+- committedPoints from Mental Block Pool == 0.
+- blockWoundsPrevented by Mental Block Pool == 0.
+- Pool remaining unchanged.
+
+Mental attack:
+
+- committedPoints > 0.
+- blockWoundsPrevented > 0.
+- Pool remaining decreases only on mental use.
+
+Failure examples:
+
+- Mental Block Pool commits against physical wounds.
+- Mental Block Pool never commits against mental wounds.
+
+
+A6. Matching Resist Pool cancels matching hostile lane
+
+Purpose:
+
+Prove Resist Pool applies to the authored resisted Attribute lane.
+
+Setup:
+
+- Synthetic defender: ATTACK Resist Pool.
+- Synthetic attacker action: hostile debuff/control/hostile unit resisted by ATTACK.
+- Defender's normal Resist is not enough to cancel everything alone, or the pool contribution is otherwise visible.
+
+Pressure shape:
+
+- Hostile successes should remain after normal Resist without pool.
+- Pool should cancel visible remaining hostile units.
+
+Expected diagnostics/assertions:
+
+- Resist Pool created with resistedAttribute ATTACK.
+- committedPoints > 0.
+- resistUnitsCancelled > 0.
+- hostileSuccessesAfterResist is lower because of pool contribution.
+- Pool does not behave as generic Resist.
+- committedPoints == spentPoints.
+
+Failure examples:
+
+- Resist Pool cancels the wrong resisted Attribute lane.
+- Resist Pool is reported as wound prevention.
+- Pool points are not spent after cancellation.
+
+
+A7. Wrong-lane Resist Pool does not apply
+
+Purpose:
+
+Prove a Resist Pool does not become omni-resist.
+
+Setup:
+
+- Synthetic defender: ATTACK Resist Pool.
+- Synthetic attacker action: BRAVERY or FORTITUDE resisted hostile effect.
+- The hostile effect must be real and must use the non-ATTACK Resist lane.
+
+Pressure shape:
+
+- Wrong-lane hostile pressure should resolve using normal Resist only.
+
+Expected diagnostics/assertions:
+
+- ATTACK Resist Pool exists.
+- Against BRAVERY or FORTITUDE hostile effect, committedPoints from that pool == 0.
+- resistUnitsCancelled from that pool == 0.
+- Pool remaining unchanged.
+- Wrong-lane effect resolves using normal Resist only.
+
+Failure examples:
+
+- ATTACK Resist Pool commits against BRAVERY/FORTITUDE.
+- Pool remaining decreases on the wrong lane.
+
+
+A8. Refresh/replace does not add
+
+Purpose:
+
+Prove repeated same-source, same-packet, same-protected-target application refreshes/replaces higher-of-current-or-new rather than additive stacking.
+
+Setup:
+
+- Synthetic defender creates pool from source action A.
+- Remaining pool is set or spent down to a known amount.
+- Reapply source action A, same packet, same protected target with lower generated pool.
+- Reapply again with higher generated pool.
+
+Pressure shape:
+
+- Lower reapplication catches additive bugs because current + new would exceed expected max.
+- Higher reapplication proves the replace path can raise the pool.
+
+Expected diagnostics/assertions:
+
+Lower reapplication:
+
+- refreshReplaceEvents increments.
+- remainingPool == max(currentRemaining, newlyGenerated).
+- remainingPool != currentRemaining + newlyGenerated.
+- pool count remains 1 for that reapply key.
+
+Higher reapplication:
+
+- remainingPool becomes newlyGenerated if newlyGenerated > currentRemaining.
+- pool still does not add.
+- duration or availability refreshes according to current runtime rule.
+
+Failure examples:
+
+- Pool count becomes 2 for the same reapply key.
+- Pool value becomes current + generated.
+- Lower reapplication incorrectly lowers the current remaining pool.
+
+
+A9. Multiple matching pools: only one commits
+
+Purpose:
+
+Prove separate matching pools from different source actions do not combine into one incoming defence.
+
+Setup:
+
+- Synthetic defender has two active Physical Block Pools or two active Dodge Pools.
+- Pools come from different sourceActionId or sourcePacketId.
+- Incoming action matches both pools.
+
+Pressure shape:
+
+- Both pools are eligible, but only one should be selected for the incoming action.
+
+Expected diagnostics/assertions:
+
+- Two matching pools exist before incoming action.
+- Exactly one source pool records committedPoints > 0 for the incoming action.
+- Total committed from pools does not exceed the selected pool's perTriggerCap.
+- The other matching pool remains unchanged.
+- No combined-pool spending occurs.
+
+Failure examples:
+
+- Both pools commit to the same incoming action.
+- Commit exceeds one selected pool's cap.
+- Pools collapse into refresh/replace despite different source actions.
+
+
+A10. Instant Counter Dodge remains one-shot
+
+Purpose:
+
+Prove instant Counter Dodge does not create a persistent Dodge Pool.
+
+Setup:
+
+- Synthetic defence action: Dodge, counterMode true.
+- durationKind instant or no duration.
+- Use normally or as counter according to current runtime path.
+
+Pressure shape:
+
+- Counter Dodge can resolve as response if legal, but no persistent pool should exist afterward.
+
+Expected diagnostics/assertions:
+
+- No persistent defensive pool is created.
+- Counter Dodge can still resolve as one-shot response where legal.
+- Defensive Pool Diagnostics poolsCreated remains 0 for this action.
+
+Failure examples:
+
+- Counter Dodge creates a duration Dodge Pool without authored duration.
+- Counter Dodge is treated as a reusable pool after the response.
+
+
+A11. Movement Counter is not Dodge Pool
+
+Purpose:
+
+Prove Movement is not treated as Defence mode.
+
+Setup:
+
+- Synthetic Movement action with counterMode true.
+- Give it duration if needed to catch bad "duration equals pool" assumptions.
+- It must not have defenceMode Dodge.
+
+Pressure shape:
+
+- Movement Counter may be considered through movement/control interrupt semantics, but never as Dodge Pool.
+
+Expected diagnostics/assertions:
+
+- No Dodge Pool created.
+- No defensive pool created.
+- Movement Counter remains governed by movement/control interrupt rules, not defence pool rules.
+
+Failure examples:
+
+- Self-targeted Movement Counter hydrates as Dodge Pool.
+- Movement duration creates a defensive pool.
+
+
+A12. Passive defensive pool lifecycle and unrelated pool preservation
+
+Purpose:
+
+Prove passive defensive pools do not tick down naturally and removal is scoped.
+
+Setup:
+
+- Synthetic defender creates passive defensive pool A.
+- Synthetic defender creates passive defensive pool B from a different action.
+- Preferred variant: both share a sourcePowerId if possible but have different sourceActionId or sourcePacketId.
+- Remove/end the carrier for pool A.
+- Trigger defeat cleanup after the removal case if the current runtime exposes this path cleanly.
+
+Pressure shape:
+
+- Time passing should not naturally tick passive pools.
+- Removing A must not delete B.
+
+Expected diagnostics/assertions:
+
+- Passive pools do not tick down naturally.
+- Removing A's carrier removes A's pool.
+- B's unrelated or sibling pool remains.
+- A enters cooldown if current runtime supports passive removal cooldown.
+- Defeat cleanup removes source-owned and target-owned pools.
+
+Failure examples:
+
+- Passive pool duration ticks down at end of turn.
+- Removing A removes B.
+- Broad sourcePowerId matching deletes unrelated sibling pools.
+- Defeat cleanup leaves dangling source-owned or target-owned pools.
+
+
+Layer B - Batch Balance Canaries
+
+Layer B canaries estimate survivability impact and pricing direction over repeated runs. They should be implemented in the scenario matrix runner and report full provenance.
+
+
+B1. Duration Dodge Pool survivability delta
+
+Purpose:
+
+Estimate survivability impact of a Dodge Pool versus an equivalent no-pool baseline.
+
+Setup:
+
+- Baseline scenario: defender without Dodge Pool versus repeated physical Dodge-legal attacks.
+- Pool scenario: same defender/attacker but defender can create a duration Dodge Pool.
+- Defender is expected to be attacked multiple times within the pool duration.
+
+Pressure shape:
+
+- Enemy attacks should sit near common Dodge threshold bands so pool commits matter.
+
+Report:
+
+- win/survival delta
+- dodgeAvoids
+- committed/spent/wasted
+- remaining at expiry
+- action use count
+- average rounds
+
+Failure examples:
+
+- Pool version creates no Dodge Pool.
+- Pool scenario shows no pool commits despite matching pressure.
+- Pool drains into attacks that normal expected Dodge already covers.
+
+
+B2. Physical Block Pool survivability delta
+
+Purpose:
+
+Estimate linear physical wound-prevention value.
+
+Setup:
+
+- Baseline scenario: defender without Physical Block Pool.
+- Pool scenario: same defender with Physical Block Pool.
+- Enemy uses repeated physical wound attacks.
+- Defender has low baseline block so pool contribution is visible.
+
+Pressure shape:
+
+- Physical wounds should exceed normal block enough that pool prevention is measurable.
+
+Report:
+
+- damage reduced
+- blockWoundsPrevented
+- committed/spent/wasted
+- remaining at expiry
+- survival/win delta
+
+Failure examples:
+
+- Physical Block Pool is created but never pressured.
+- Pool prevention is reported as defence successes rather than direct wound prevention.
+
+
+B3. Mental Block Pool survivability delta
+
+Purpose:
+
+Estimate mental wound-prevention value separately from physical.
+
+Setup:
+
+- Enemy uses mental wound attacks.
+- Optional mixed pressure includes physical attacks that should not consume the Mental Block Pool.
+- Baseline and pool variants use the same actors except for the pool action.
+
+Pressure shape:
+
+- Mental attacks should be frequent enough to spend the pool.
+- Physical attacks, if included, prove non-application.
+
+Report:
+
+- mental block prevented
+- physical non-application if mixed pressure is included
+- committed/spent/wasted
+- survival/win delta
+
+Failure examples:
+
+- Mental Block Pool commits against physical pressure.
+- Mental pressure never reaches the protected actor.
+
+
+B4. Resist Pool control/debuff prevention
+
+Purpose:
+
+Estimate Resist Pool value against hostile non-damage units.
+
+Setup:
+
+- Enemy repeatedly applies matching-lane debuff/control/ongoing hostile units.
+- Baseline without pool suffers meaningful effect.
+- Pool version can cancel some hostile units.
+
+Pressure shape:
+
+- Hostile effect must be strong enough to matter but not so strong that the pool cannot ever help.
+
+Report:
+
+- resistUnitsCancelled
+- hostile effects prevented or reduced
+- wasted spend
+- survival/output delta if measurable
+
+Failure examples:
+
+- Resist Pool is never pressured by matching-lane effects.
+- Pool behaves as generic Resist and cancels wrong-lane effects.
+
+
+B5. Field multi-target Block Pool
+
+Purpose:
+
+Estimate area/target multiplication and location-bound behaviour.
+
+Setup:
+
+- Synthetic Field grants Physical Block Pools to multiple allies or legal targets in area.
+- Incoming attacks pressure more than one protected actor.
+- If current Combat Lab cannot model field exit, output must state field exit as unsupported/deferred.
+
+Pressure shape:
+
+- At least two protected actors should receive incoming physical pressure.
+
+Report:
+
+- pools created per target
+- block prevented per target/source action
+- refresh/replace events
+- total protected actors
+- remaining at expiry
+- unsupported field-exit note if applicable
+
+Failure examples:
+
+- Field creates one shared global pool instead of target-specific pools.
+- Field refresh adds instead of refresh/replaces.
+- Unsupported field-exit behaviour is silently ignored.
+
+
+B6. Attached single-target pool
+
+Purpose:
+
+Estimate target-following protection compared with field-bound protection.
+
+Setup:
+
+- Synthetic Attached defensive pool follows one protected target.
+- Protected target receives repeated attacks.
+- Reapplication, if present, uses refresh/replace.
+
+Pressure shape:
+
+- Protected target remains the pressure focus so attached reliability is visible.
+
+Report:
+
+- created/committed/spent
+- refresh/replace
+- prevention/avoidance
+- comparison note versus Field if available
+
+Failure examples:
+
+- Attached pool behaves as field-bound without note.
+- Attached reapplication adds instead of refresh/replaces.
+
+
+B7. Channelled refresh/replace pool
+
+Purpose:
+
+Estimate repeated refresh value with action-economy cost.
+
+Setup:
+
+- Synthetic Channelled defensive pool reapplies while maintained.
+- Same protected target receives pressure across multiple turns.
+- Channel does not compound.
+- Action-economy sacrifice is represented or explicitly deferred if current runtime lacks full channel maintenance.
+
+Pressure shape:
+
+- Incoming pressure should persist long enough that refresh/replace matters.
+
+Report:
+
+- refresh/replace count
+- committed/spent/prevented
+- action opportunity cost if modelled
+- unsupported channel notes if not modelled
+
+Failure examples:
+
+- Channel automatically rerolls every attack.
+- Channelled pool value compounds by default.
+- Missing maintenance modelling is hidden instead of reported.
+
+
+B8. Charged Dodge Pool dice versus potency
+
+Purpose:
+
+Compare charge bonus dice and charge bonus potency.
+
+Setup:
+
+- Variant A: Charged Dodge Pool gains bonus dice.
+- Variant B: Charged Dodge Pool gains bonus potency.
+- Same release situation and incoming pressure.
+- Potency variant must show increased per-trigger cap.
+
+Pressure shape:
+
+- Incoming attacks should make the difference between deeper pool reliability and higher burst cap visible.
+
+Report:
+
+- generated pool
+- per-trigger cap
+- committed/spent
+- dodgeAvoids
+- wasted points
+- survivability delta
+- warning if charge release is not fully represented yet
+
+Failure examples:
+
+- Charged dice and charged potency produce identical diagnostics.
+- Charged potency increases pool depth but not per-trigger cap.
+- Charge turns are counted against pool duration before release.
+
+
+Known Unsupported Or Deferred Chassis Cases
+
+The initial canary implementation may not fully support every chassis behaviour. Unsupported cases must be visible in output.
+
+Deferred or partial behaviours to report explicitly:
+
+- Field exit or target leaving a field.
+- Attachment break or host invalidation.
+- Channel interruption and full action-economy maintenance if not yet modelled.
+- Charge release timing if not yet modelled as distinct from immediate setup.
+- Additive/recharging pools unless explicitly authored.
+- Combined pool spending unless explicitly authored.
+- Generic/omni Resist unless explicitly authored and priced.
+
+Silent success is not allowed for these cases. If a canary cannot test a chassis truth yet, the report must say unsupported/deferred.
+
+
+Near-Term Roadmap
+
+1. Defensive pool canary matrix spec.
+2. Implement defensive-pool canaries in the scenario matrix runner and/or smoke assertions.
+3. Run Codex defensive-pool canary batch with provenance.
+4. Inspect canary outputs.
+5. Add Power Tuning key seams.
+6. Run canaries again.
+7. Begin numeric tuning.
+8. Manual milestone verification.
+9. Return to Dire Wolf / Sudden Leap / Swiping Claws.
+
+
+Do Not Implement In This Spec Pass
+
+- Do not change runtime code.
+- Do not change scripts.
+- Do not change database data.
+- Do not change active tuning values.
+- Do not change monster source data.
+- Do not implement the canaries yet.

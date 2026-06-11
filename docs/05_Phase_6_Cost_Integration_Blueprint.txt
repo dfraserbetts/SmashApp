@@ -694,37 +694,18 @@ Defensive Pool Canary And Scenario Requirements
 
 Active numeric tuning must not begin until synthetic canaries exist that actually create and spend defensive pools.
 
-Required defensive pool canaries:
+The detailed canary source of truth is docs/14_Defensive_Pool_Canary_Matrix.txt.
 
-- Immediate duration Dodge Pool self-only
-- Immediate duration Physical Block Pool
-- Immediate duration Mental Block Pool
-- Immediate duration Resist Pool against matching lane
-- wrong-lane Resist Pool
-- Field Block Pool protecting one ally in area
-- Field Block Pool protecting multiple allies in area
-- Attached Dodge or Block Pool following one target
-- Channelled Block Pool refresh/replace with action-economy sacrifice
-- Charged Dodge Pool with bonus dice
-- Charged Dodge Pool with bonus potency
-- refresh/replace does not add
-- multiple matching pools where only one can commit
-- additive/recharging pool test only if and when explicitly authored
+That matrix defines:
 
-Each canary should report:
-
-- pool created
-- generated points
-- committed points
-- spent points
-- wasted points
-- remaining at expiry
-- refresh/replace events
-- Dodge avoids
-- Block wounds prevented
-- Resist units cancelled
-- win-rate or survivability delta versus no-pool baseline
-- comparison to equivalent direct damage, healing, or control where useful
+- Layer A deterministic/assertion canaries A1-A12
+- Layer B batch balance canaries B1-B8
+- exact synthetic setup and pressure shape for each canary
+- expected Defensive Pool Diagnostics
+- pass/fail assertions
+- unsupported/deferred chassis cases
+- implementation notes for scripts/combatLab.scenarioMatrix.ts
+- Codex-run provenance requirements
 
 All future defensive-pool pricing evidence should come from named canary scenarios or Codex-run Combat Lab batches with provenance.
 
@@ -855,7 +836,7 @@ Current Open Phase 6 Questions
 The following are still real open questions inside Phase 6:
 
 - how the defensive pool pricing matrix should value Dodge Pool, Physical Block Pool, Mental Block Pool, and Resist Pool across duration, potency, delivery chassis, refresh cadence, target count, and per-trigger cap
-- which defensive-pool canary fixtures and scenario matrices are required before numeric pricing changes
+- implementing the defensive-pool canary fixtures and scenario matrices defined in docs/14_Defensive_Pool_Canary_Matrix.txt before numeric pricing changes
 - which Power Tuning key seams are needed for defensive pool pricing without flattening every pool type into one generic modifier
 - which current costs should remain cost-only versus later translated into cadence, structural pressure, or realization
 - how the later monster-side realization modifier layer should gate typed contributor output through monster attributes
@@ -893,11 +874,11 @@ Immediate Practical Phase 6 Direction
 
 The immediate Phase 6 work should stay focused on:
 
-- documenting the defensive pool pricing matrix before numeric tuning
-- defining defensive-pool canary/scenario fixture requirements
-- adding a dedicated scenario matrix runner or minimal batch script, likely scripts/combatLab.scenarioMatrix.ts
+- using docs/14_Defensive_Pool_Canary_Matrix.txt as the defensive-pool canary/scenario fixture source of truth
+- implementing defensive-pool canaries in scripts/combatLab.scenarioMatrix.ts and/or smoke assertions
+- running Codex defensive-pool canary batches with full provenance and inspecting their outputs
 - defining Power Tuning key seams for defensive pool pricing
-- running Codex canary batches with full provenance before active numeric changes
+- running defensive-pool canaries again after Power Tuning key seams are added
 - tuning initial numeric values only after the pricing seams and canaries exist
 - running manual milestone verification for readability, UI, and table-feel checks after numeric changes
 - returning to Dire Wolf / Sudden Leap / Swiping Claws tuning only after the defensive pool pricing path is stable

@@ -358,20 +358,22 @@ Simulation reports must distinguish UI/browser inspection, API route execution, 
 
 Codex must not silently change tuning, source data, saved monsters, database data, or code when asked for read-only simulation results.
 
-Future tooling should add a dedicated scenario-matrix runner, likely scripts/combatLab.scenarioMatrix.ts.
+The dedicated scenario-matrix runner now exists at scripts/combatLab.scenarioMatrix.ts.
 
-That runner should eventually support named scenarios, run count, seed, active tuning selection/reporting, temporary in-memory overrides, JSON/table output, selected diagnostic columns, batch comparisons across variants, and a clear read-only / no data mutation mode.
+That runner should be extended for defensive-pool canaries using docs/14_Defensive_Pool_Canary_Matrix.txt as the source of truth. Future additions should support named canaries, stable canary IDs, run count, seed, active tuning reporting, temporary in-memory overrides, JSON/table output, selected diagnostic columns, batch comparisons across variants, assertion summaries, and a clear read-only / no data mutation mode.
 
 Near-term defensive pool pricing handoff:
 
 1. Use docs/05_Phase_6_Cost_Integration_Blueprint.txt as the source for the Defensive Pool Pricing Matrix.
-2. Define defensive-pool canary/scenario fixtures before numeric tuning.
-3. Build or extend a scenario matrix runner, likely scripts/combatLab.scenarioMatrix.ts.
-4. Add Power Tuning key seams for defensive pool pricing.
-5. Run Codex canary batches with full provenance.
-6. Tune initial numeric values.
-7. Run manual milestone verification for readability, UI, and table-feel checks.
-8. Then return to Dire Wolf / Sudden Leap / Swiping Claws tuning.
+2. Use docs/14_Defensive_Pool_Canary_Matrix.txt as the source for defensive-pool canary/scenario fixtures.
+3. Implement defensive-pool canaries in scripts/combatLab.scenarioMatrix.ts and/or smoke assertions.
+4. Run Codex defensive-pool canary batch with full provenance.
+5. Inspect canary outputs.
+6. Add Power Tuning key seams for defensive pool pricing.
+7. Run defensive-pool canaries again.
+8. Begin numeric tuning.
+9. Run manual milestone verification for readability, UI, and table-feel checks.
+10. Then return to Dire Wolf / Sudden Leap / Swiping Claws tuning.
 
 
 Rule for Future Packet Resolution Work

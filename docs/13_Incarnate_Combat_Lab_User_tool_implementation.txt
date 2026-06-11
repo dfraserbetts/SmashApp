@@ -500,7 +500,7 @@ temporary in-memory overrides
 confirmation that no database/source/tuning/saved-monster/code changes were made
 validation or smoke status where relevant
 
-Future internal tooling should add a dedicated scenario-matrix runner, likely scripts/combatLab.scenarioMatrix.ts, with named scenarios, run count, seed, active tuning reporting, temporary in-memory overrides, JSON/table output, selected diagnostic columns, batch comparisons, and a clear read-only mode.
+The dedicated scenario-matrix runner now exists at scripts/combatLab.scenarioMatrix.ts with named scenarios, run count, seed, active tuning reporting, JSON/table output, and a clear read-only mode. Future internal tooling should extend it with the defensive-pool canaries defined in docs/14_Defensive_Pool_Canary_Matrix.txt, temporary in-memory overrides, selected diagnostic columns, batch comparisons, and assertion summaries.
 
 Implementation Phases
 Phase 1 — Combat Lab Trust Foundation
