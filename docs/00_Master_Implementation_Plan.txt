@@ -139,6 +139,7 @@ Phase 6 cost integration is no longer hypothetical. The current codebase now inc
 - a separate versioned Outcome Normalization system for radar interpretation and display
 - a separate versioned Combat Tuning / Monster Baseline Tuning system for non-power monster baseline contribution
 - a Canary Harness that compares active baseline versus candidate Power Tuning, Outcome Normalization, and Combat Tuning sets
+- Codex-run Combat Lab simulation batches are accepted for incremental balance passes when provenance is reported
 - a shared stripped Summoning Circle baseline used by both the live editor and the harness
 - a cleaned radar pipeline where canonical power contribution is derived first, then combined with non-power monster contribution, then passed through outcome normalization
 
@@ -168,3 +169,13 @@ the same shared foundation supports monsters first and players later
 the cost model remains one shared underlying truth rather than splitting into contradictory systems
 
 the runtime implications of powers can eventually be tracked in print and digital forms without inventing a separate rules language
+
+Balance Workflow Direction
+
+Manual Combat Lab runs remain important for major milestone confidence, UI/report readability checks, playtest packet confidence, public/demo confidence, and table-feel judgement.
+
+Codex-run Combat Lab simulation batches are an accepted incremental workflow for repeated scenario matrices, power variant comparison, canary checks, outlier detection, diagnostic validation, and checking whether a patch moved win rates or runtime diagnostics.
+
+Codex-run results must include clear provenance: commit SHA, worktree status, exact command/script/route/direct-runtime method, browser inspection status, run count, seed policy, scenario and actor names, active Power Tuning, active Combat Tuning, active Outcome Normalization, any temporary in-memory overrides, no-mutation confirmation, and validation/smoke status where relevant.
+
+Future tooling should add a dedicated scenario-matrix runner, likely scripts/combatLab.scenarioMatrix.ts, before large repeated tuning batches become normal.

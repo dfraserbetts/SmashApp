@@ -799,3 +799,51 @@ A defender may commit from only one matching defensive pool per incoming action 
 Channelled defensive pools reapply while the channel is maintained according to authored Effect Timing. Each reapplication rolls normally and uses refresh/replace for the same source power, packet, and protected target. Channelled defensive pools do not add by default. If the channel ends, channel-dependent pools end unless the power explicitly says they linger.
 
 Charged defensive pool powers use final charged values at release. If Charge grants bonus dice, those dice increase the release roll. If Charge grants bonus potency, final charged potency increases both pool size and per-trigger commit cap. Duration begins on release; charge turns before release do not count against pool duration.
+
+54. Codex-run Combat Lab simulation batches are an accepted incremental balance workflow
+
+Manual Combat Lab runs remain important for major milestone confidence, UI/report readability checks, and table-feel judgement.
+
+Codex-run Combat Lab simulation batches may be used for incremental balance passes, variant comparison, canary checks, repeated scenario matrices, outlier detection, and checking whether a patch moved win rates or diagnostics in the expected direction.
+
+Codex-run results are evidence only when their provenance is reported. They are not magic truth.
+
+Every Codex-run simulation report must state:
+
+- commit SHA
+- git status / worktree cleanliness
+- exact command, script, route, API endpoint, direct runtime call, or other method used
+- whether the browser UI was visually inspected
+- run count
+- seed or seed policy
+- scenario names
+- actor and monster names
+- active Power Tuning name
+- active Combat Tuning name
+- active Outcome Normalization name
+- any temporary in-memory overrides
+- confirmation that no database, source-data, tuning, saved-monster, or code changes were made during a read-only simulation pass
+- validation or smoke status where relevant
+
+Recommended report fields include:
+
+- player win %
+- monster win %
+- stalemate %
+- average rounds
+- player damage per round
+- monster damage per round
+- action use counts
+- cooldown-prevented counts
+- defensive choice diagnostics
+- counter candidate diagnostics
+- ongoing pressure diagnostics
+- defensive pool diagnostics
+- transcript anomalies
+- unsupported runtime notes
+
+Simulation reports must distinguish whether results came from UI/browser inspection, API route execution, script execution, direct runtime calls, or another method.
+
+Codex must not silently change tuning, source data, saved monsters, database data, or runtime code when asked for read-only simulation results.
+
+Codex-run results are trusted only when runtime rules are current, active tuning is identified, scenario construction is clear, seed/run count are reported, no hidden data changes occurred, and diagnostics are readable rather than contradictory.

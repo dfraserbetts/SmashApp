@@ -457,6 +457,51 @@ effective/overkill analysis
 
 The current Combat Lab is closest to the Designer / Dev Diagnostic mode.
 
+Codex-Run Incremental Simulation Workflow
+
+The local Combat Lab runtime can also be driven by Codex-run simulation batches for incremental balance work.
+
+This is not a replacement for manual milestone testing or table-feel judgement.
+
+Use Codex-run batches for:
+
+comparing power variants
+repeated character-vs-monster matrices
+dice / potency / duration experiments
+checking whether a patch moved win rates
+canary scenario checks
+outlier detection before manual testing
+diagnostic validation
+
+Manual Combat Lab runs remain important for:
+
+major rules changes
+large balance shifts
+playtest packets
+public/demo builds
+report readability
+UI/browser behaviour
+does this feel right judgement
+
+Every Codex-run simulation report must include provenance:
+
+commit SHA
+worktree cleanliness
+exact command/script/route/API/direct-runtime method
+whether browser UI was visually inspected
+run count
+seed or seed policy
+scenario names
+actor and monster names
+active Power Tuning
+active Combat Tuning
+active Outcome Normalization
+temporary in-memory overrides
+confirmation that no database/source/tuning/saved-monster/code changes were made
+validation or smoke status where relevant
+
+Future internal tooling should add a dedicated scenario-matrix runner, likely scripts/combatLab.scenarioMatrix.ts, with named scenarios, run count, seed, active tuning reporting, temporary in-memory overrides, JSON/table output, selected diagnostic columns, batch comparisons, and a clear read-only mode.
+
 Implementation Phases
 Phase 1 — Combat Lab Trust Foundation
 

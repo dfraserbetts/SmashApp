@@ -75,7 +75,14 @@ The current implementation already includes:
   - Combat Tuning
 - shared stripped Summoning Circle baseline so live editor and harness now align
 
-6. Cleaned radar pipeline
+6. Codex-run Combat Lab simulation workflow
+- Codex-run Combat Lab simulation batches are accepted as an incremental balance workflow when provenance is reported
+- manual Combat Lab runs remain required for major milestone confidence, UI/report readability checks, and table-feel judgement
+- Codex-run simulations should be used for repeated scenario matrices, variant comparison, canary checks, outlier detection, and checking whether a patch moved win rates or diagnostics
+- simulation reports must distinguish whether results came from UI/browser inspection, API routes, scripts, direct runtime calls, or another method
+- Codex must not silently change tuning, source data, saved monsters, database data, or code during read-only simulation passes
+
+7. Cleaned radar pipeline
 - canonical power contribution is derived first
 - non-power monster contribution is added second
 - outcome normalization is applied last
@@ -462,6 +469,9 @@ Current Open Phase 6 Questions
 
 The following are still real open questions inside Phase 6:
 
+- how the defensive pool pricing matrix should value Dodge Pool, Physical Block Pool, Mental Block Pool, and Resist Pool across duration, potency, delivery chassis, refresh cadence, target count, and per-trigger cap
+- which defensive-pool canary fixtures and scenario matrices are required before numeric pricing changes
+- which Power Tuning key seams are needed for defensive pool pricing without flattening every pool type into one generic modifier
 - which current costs should remain cost-only versus later translated into cadence, structural pressure, or realization
 - how the later monster-side realization modifier layer should gate typed contributor output through monster attributes
 - which current downstream translation steps still under-report or over-report real battlefield strength
@@ -470,10 +480,39 @@ The following are still real open questions inside Phase 6:
 These are now implementation-facing tuning questions, not permission to reopen the whole formula architecture.
 
 
+Codex-Run Simulation Evidence Requirements
+
+For Phase 6 tuning, Codex-run Combat Lab results are evidence only when the report includes:
+
+- commit SHA
+- git status / worktree cleanliness
+- exact command, script, route, API endpoint, direct runtime call, or other method used
+- whether browser UI was visually inspected
+- run count
+- seed or seed policy
+- scenario names
+- actor and monster names
+- active Power Tuning name
+- active Combat Tuning name
+- active Outcome Normalization name
+- any temporary in-memory overrides
+- confirmation that no database, source-data, saved-monster, tuning, or code changes were made during read-only simulation
+- validation or smoke status where relevant
+
+Recommended report fields are player win %, monster win %, stalemate %, average rounds, player damage per round, monster damage per round, action use counts, cooldown-prevented counts, defensive choice diagnostics, counter candidate diagnostics, ongoing pressure diagnostics, defensive pool diagnostics, transcript anomalies, and unsupported runtime notes.
+
+Codex-run simulation results are not a replacement for manual milestone testing. They are a repeatable evidence layer for narrowing candidate values before human feel checks.
+
+
 Immediate Practical Phase 6 Direction
 
 The immediate Phase 6 work should stay focused on:
 
+- documenting the defensive pool pricing matrix before numeric tuning
+- defining defensive-pool canary/scenario fixture requirements
+- adding a dedicated scenario matrix runner or minimal batch script, likely scripts/combatLab.scenarioMatrix.ts
+- defining Power Tuning key seams for defensive pool pricing
+- running Codex canary batches with full provenance before active numeric changes
 - tuning specific powers against the aligned live/harness baseline
 - tuning non-power monster baseline contribution where stripped monsters are too weak or too strong
 - tuning outcome normalization where radar display saturates too early or too late

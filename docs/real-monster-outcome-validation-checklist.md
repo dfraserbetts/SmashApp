@@ -13,6 +13,31 @@ Before manual validation, refresh and confirm the live calibration state:
 
 If the active harness is not clean, stop and resolve that first. Defaults mode is only for smoke-test coverage; it is not live balance evidence.
 
+## Codex-Run Incremental Simulation Pass
+
+For incremental balance checks before the manual pass, Codex may run Combat Lab simulation batches against the local repo/runtime.
+
+Record provenance for every Codex-run batch:
+
+- commit SHA
+- git status / worktree cleanliness
+- exact command, script, route, API endpoint, direct runtime call, or other method used
+- whether browser UI was visually inspected
+- run count
+- seed or seed policy
+- scenario names
+- actor and monster names
+- active Power Tuning name
+- active Combat Tuning name
+- active Outcome Normalization name
+- any temporary in-memory overrides
+- confirmation that no database, source-data, saved-monster, tuning, or code changes were made during read-only simulation
+- validation or smoke status where relevant
+
+Use Codex-run batches for repeated scenario matrices, variant comparison, canary checks, outlier detection, and checking whether a patch moved win rates or diagnostics.
+
+Do not treat Codex-run results as magic truth. They are evidence only when runtime rules are current, active tuning is identified, scenario construction is clear, seed/run count are reported, no hidden data changes occurred, and diagnostics are readable.
+
 ## Manual Pass
 
 - Pick 6-10 real monsters that represent different levels, tiers, and combat jobs.
@@ -66,6 +91,7 @@ Add 2-4 more monsters if any result feels ambiguous, especially:
 Use these prompts before tuning anything:
 
 - Do not tune from one manual monster unless it exposes a clear routing/code bug.
+- Do not tune from one Codex-run scenario unless it exposes a clear routing/code bug or joins an established canary pattern.
 - If a mismatch seems real, add it as a future calibration fixture first, then tune against the fixture set.
 - If the actual result matches the authored monster better than the expectation, mark `fixture expectation`.
 - If the monster has missing attacks, wrong tier, stale pools, missing protection, or mis-modeled powers, mark `monster authoring`.

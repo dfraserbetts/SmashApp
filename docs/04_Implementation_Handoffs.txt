@@ -42,6 +42,7 @@ The current Phase 6 toolchain already exists:
 - shared canary catalog
 - shared scenario catalog
 - Canary Harness
+- Codex-run Combat Lab simulation batches for incremental balance passes when provenance is reported
 - aligned live/harness stripped baseline
 
 The next work is now real tuning, remaining translation gaps, and later the monster-side realization layer.
@@ -326,6 +327,42 @@ Current non-power baseline truths that future chats must preserve:
 - do not invent mental dodge merely to fake symmetry
 
 
+Combat Lab Simulation Workflow Rule
+
+Manual Combat Lab runs remain required for major rules changes, before merging large balance shifts, before playtest packets, before public/demo builds, report readability checks, UI/browser behaviour checks, and table-feel judgement.
+
+Codex-run Combat Lab simulation batches are accepted for comparing power variants, repeated character-vs-monster matrices, dice / potency / duration experiments, checking whether a patch moved win rates, testing canary scenarios, outlier detection before manual testing, and validating Combat Lab diagnostics.
+
+Codex-run results are only useful if provenance is explicit.
+
+Every Codex-run simulation report should state:
+
+- commit SHA
+- git status / worktree cleanliness
+- exact command, script, route, API endpoint, direct runtime call, or other method used
+- whether the browser UI was visually inspected
+- run count
+- seed or seed policy
+- scenario names
+- actor and monster names
+- active Power Tuning name
+- active Combat Tuning name
+- active Outcome Normalization name
+- any temporary in-memory overrides
+- confirmation that no database, source-data, saved-monster, tuning, or code changes were made during a read-only simulation pass
+- validation or smoke status where relevant
+
+Recommended simulation report fields are player win %, monster win %, stalemate %, average rounds, player damage per round, monster damage per round, action use counts, cooldown-prevented counts, defensive choice diagnostics, counter candidate diagnostics, ongoing pressure diagnostics, defensive pool diagnostics, transcript anomalies, and unsupported runtime notes.
+
+Simulation reports must distinguish UI/browser inspection, API route execution, script execution, direct runtime calls, or another method.
+
+Codex must not silently change tuning, source data, saved monsters, database data, or code when asked for read-only simulation results.
+
+Future tooling should add a dedicated scenario-matrix runner, likely scripts/combatLab.scenarioMatrix.ts.
+
+That runner should eventually support named scenarios, run count, seed, active tuning selection/reporting, temporary in-memory overrides, JSON/table output, selected diagnostic columns, batch comparisons across variants, and a clear read-only / no data mutation mode.
+
+
 Rule for Future Packet Resolution Work
 
 All future packet-resolution work should assume:
@@ -427,6 +464,7 @@ Phase 6 is now in active implementation and already includes:
 - versioned Combat Tuning / Monster Baseline Tuning
 - shared canary catalog and scenario catalog
 - a Canary Harness that compares active baseline versus candidate tuning sets
+- Codex-run Combat Lab simulation batches are accepted for incremental balance passes when full provenance is reported
 - a shared stripped Summoning Circle baseline used by both live editor and harness
 - a cleaned radar pipeline where canonical power contribution feeds monster outcome calculation before outcome normalization
 
@@ -492,7 +530,7 @@ Scope for this session:
 - preserve the existing shared power architecture
 - preserve the distinction between authored data, derived resolver logic, and preview wording
 - preserve the three-layer tuning split
-- tune against the now-aligned live/harness baseline
+- tune against the now-aligned live/harness baseline using Codex-run simulation batches for incremental checks and manual Combat Lab runs for milestone confidence / feel checks
 - resolve only genuinely blocking remaining builder, descriptor, or translation edge cases
 
 Non-goals:

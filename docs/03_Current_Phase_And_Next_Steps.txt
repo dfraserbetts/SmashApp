@@ -104,6 +104,7 @@ The current implementation now includes:
 - a Canary Harness that compares:
   - Active Power Tuning + Active Outcome Normalization + Active Combat Tuning
   - versus selected candidate tuning sets
+- Codex-run Combat Lab simulation batches as an accepted incremental balance workflow when provenance is reported
 - a shared stripped Summoning Circle baseline so live editor and harness comparisons now align
 - a cleaned monster radar pipeline where:
   - canonical power contribution is derived first
@@ -169,8 +170,33 @@ The practical next work should stay focused on:
 - tuning physical dodge and PPV tradeoffs so the physical survivability lane has a believable breakpoint shape
 - tuning mental protection contribution so the mental lane can stand beside the physical lane while preserving asymmetry
 - resolving only genuinely blocking remaining builder / descriptor edge cases
+- using Codex-run Combat Lab batches for incremental balance passes, scenario matrices, variant comparison, canary checks, and outlier detection where possible
+- reserving manual Combat Lab runs for major milestone confidence, UI/report readability checks, playtest-packet confidence, public/demo build confidence, and table-feel judgement
 - beginning the monster-side realization modifier layer only after the current tuning layers are behaving honestly
 - keeping the source docs aligned with current code reality
+
+Codex-Run Simulation Provenance Rule
+
+Codex-run Combat Lab results are evidence only when the report states:
+
+- commit SHA
+- git status / worktree cleanliness
+- exact command, script, route, API endpoint, direct runtime call, or other method used
+- whether browser UI was visually inspected
+- run count
+- seed or seed policy
+- scenario names
+- actor and monster names
+- active Power Tuning name
+- active Combat Tuning name
+- active Outcome Normalization name
+- any temporary in-memory overrides
+- confirmation that no database, source-data, saved-monster, tuning, or code changes were made during read-only simulation
+- validation or smoke status where relevant
+
+Recommended report fields are player win %, monster win %, stalemate %, average rounds, player and monster damage per round, action use counts, cooldown-prevented counts, defensive choice diagnostics, counter candidate diagnostics, ongoing pressure diagnostics, defensive pool diagnostics, transcript anomalies, and unsupported runtime notes.
+
+Simulation reports must say whether results came from UI/browser inspection, an API route, a script, direct runtime calls, or another method.
 
 Near-Term Priority Questions
 
@@ -178,6 +204,10 @@ The next real questions are no longer broad architecture questions.
 
 They are:
 
+- how the defensive pool pricing matrix should value Dodge Pool, Physical Block Pool, Mental Block Pool, and Resist Pool across duration, potency, delivery chassis, refresh cadence, and target count
+- which defensive-pool canary fixtures and scenario matrices are required before numeric pricing changes
+- whether a dedicated scripts/combatLab.scenarioMatrix.ts runner should be added before larger repeated balance batches
+- which Power Tuning key seams are needed for defensive pool pricing without collapsing pool types into one generic modifier
 - which powers are still over- or under-valued in canonical Power Tuning
 - whether stripped monsters are too weak or too strong before powers are added
 - whether radar curves are saturating too early or too late once power plus non-power contribution are combined
@@ -197,3 +227,13 @@ If a problem belongs to:
 - the radar display curve -> fix in Outcome Normalization
 
 Only escalate to code changes when the issue is routing law, realization law, or a genuinely missing implementation seam rather than a numeric tuning problem.
+
+Near-Term Ordered Plan
+
+1. Defensive pool pricing-matrix docs/spec.
+2. Defensive-pool canary/scenario fixture requirements.
+3. Dedicated scenario matrix runner or minimal batch script, likely scripts/combatLab.scenarioMatrix.ts.
+4. Power Tuning key seams for defensive pool pricing.
+5. Codex-run canary batches with full provenance.
+6. Active numeric tuning only after canary coverage and pricing seams are clear.
+7. Then return to Dire Wolf / Sudden Leap / Swiping Claws tuning.
