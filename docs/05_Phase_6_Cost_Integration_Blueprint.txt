@@ -295,6 +295,7 @@ The cost model should account for:
 - Dodge Pool value being high because it can help match-or-exceed physical attacks before normal Dodge degradation continues
 - Resist Pool value being high because it can cancel hostile successes, stacks, ongoing units, or equivalent units in an authored resisted Attribute lane
 - Block Pool value being more linear because it adds direct wound prevention in the matching physical or mental lane
+- defensive-pool pricing must not assume cross-lane degradation; Physical Defence, Mental Defence, Dodge, and active Resist degradation are independent defence-lane tracks
 
 For one applied duration defence:
 
@@ -422,7 +423,7 @@ Dodge Pool
 - points add Dodge successes
 - can avoid a whole physical or explicitly dodgeable packet on match-or-exceed
 - value spikes near common incoming success bands
-- interacts with normal Dodge degradation because the normal Dodge roll still degrades while pool points are spent separately
+- interacts with normal Dodge degradation because the Dodge lane still degrades while pool points are spent separately
 - high potency must be priced as burst packet-denial capacity, not merely extra mitigation
 - Dodge Pool does not make mental attacks dodgeable unless an action explicitly allows Dodge
 

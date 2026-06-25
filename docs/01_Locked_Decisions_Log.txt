@@ -265,7 +265,7 @@ When a hostile action is declared, the response window resolves in this order:
 7. Roll the triggering hostile action.
 
 
-8. If no Counter was declared by a defender, that defender rolls the chosen normal active defence.
+8. If no Counter was declared by a defender and the hostile action produced one or more actionable hostile successes, that defender rolls the chosen normal active defence.
 
 
 9. Calculate prevention and effects.
@@ -281,6 +281,54 @@ All declared actions, Assists, Counters, and Responses resolve before defeat and
 
 
 Attack Counter damage does not cancel the triggering action unless the Counter explicitly says it interrupts or cancels.
+
+
+25A-1. Zero-success hostile actions preserve declaration timing but do not degrade normal defence
+
+A legal hostile action that targets a defender creates the normal declaration/reaction window before the attacker rolls.
+
+Actionable hostile successes are incoming successes or hostile units that create something the defender must actually oppose, prevent, avoid, cancel, or suffer. Examples include attack successes, wound-bearing successes, hostile effect successes, control/debuff units, ongoing-effect application successes, or resistible hostile units. If the incoming hostile action produces zero actionable hostile successes, normal defence does not roll and does not degrade.
+
+A zero-success hostile action still counts as an attack/targeting event for declaration-based triggers. "When attacked" and "when targeted by a hostile action" effects may trigger from a zero-success hostile action.
+
+A zero-success hostile action is not a hit and does not apply successful hostile effects. "When hit", "when damaged", "when wounded", "when affected", or "when successfully struck" effects do not trigger from a zero-success hostile action.
+
+The defender does not roll normal Dodge, Physical Defence, Mental Defence, or active Resist against zero actionable hostile successes. The defender does not commit defensive-pool points and does not suffer resolution-based defence degradation from normal defence against that action.
+
+Counters, Assists, and declaration-triggered responses that were declared still count as used and resolve according to their own rules unless they specifically require the incoming action to hit, wound, damage, affect, or succeed.
+
+Design intent:
+
+- characters react to a declared threat before knowing whether the attacker rolled well
+- defence degradation represents meaningful defensive exertion against actual pressure, not merely raising a shield against an attack that whiffs before contact
+- zero-success attacks can still trigger "when attacked" or "when targeted" reactions
+- zero-success attacks should not tax normal defence degradation or defensive pools
+- this preserves cinematic reaction timing without punishing defenders for attacks that produced no actionable pressure
+
+
+25A-2. Independent defence-lane degradation is locked
+
+Defence degradation is tracked independently by defence lane.
+
+A defence lane degrades only when that specific lane actually resolves against one or more actionable hostile successes.
+
+Physical Defence degradation does not affect Mental Defence.
+
+Mental Defence degradation does not affect Physical Defence.
+
+Dodge uses its own degradation track and does not degrade Physical Defence or Mental Defence.
+
+Active Resist degradation applies only to the relevant resisted lane or attribute unless an explicit rule says otherwise.
+
+Repeated pressure in one defensive channel does not automatically weaken unrelated defensive channels. Blocking or defending against several physical attacks does not make the defender worse at resisting a later mental attack. Resisting several mental attacks does not make the defender worse at blocking or defending against later physical attacks.
+
+Design intent:
+
+- defence degradation represents repeated pressure in the same defensive channel, not generic exhaustion that weakens every defensive response
+- raising a shield, blocking weapon strikes, or enduring physical pressure should not make the defender worse at resisting psychic screams, fear, mental assault, or other mental pressure
+- resisting repeated mental pressure should not make the defender worse at blocking physical attacks
+- this preserves lane identity and prevents mixed-threat groups from creating abusive cross-lane defence stripping
+- four physical attackers should not be able to wear down Physical Defence with sword strikes so that a weak later mental attack lands more easily through cross-lane degradation
 
 
 25B. Any Counter replaces the defender's normal active defence
@@ -622,7 +670,7 @@ During a Main Action, an actor may choose exactly one of the following legal opt
 - Attack with one currently equipped weapon.
 - Interact with an object or use an item. Examples include interacting with an artifact, pulling a lever, reloading a weapon, drinking a medicinal tonic, or accessing a computer.
 - Rush, moving an additional distance up to half the actor's maximum move distance.
-- Brace, allowing failed physical or mental defence rolls to be rerolled once while the Brace benefit is available. A rerolled defence roll cannot be rerolled again by the same Brace.
+- Brace, allowing each failed die in a Physical Defence or Mental Defence roll to be rerolled once while the Brace benefit is available. A die rerolled by Brace cannot be rerolled again.
 - Resist, rolling the relevant Resist Attribute value against persistent stacks or one ongoing damage effect.
 
 The Main Action Resist option has two cleanup uses:
@@ -788,14 +836,14 @@ Per incoming trigger, the maximum committed from a single defensive pool is the 
 Commit timing is locked:
 
 1. Incoming hostile action is declared and rolled.
-2. Defender chooses the matching legal Dodge, Physical Defence, Mental Defence, or Resist path.
+2. If the hostile action produced one or more actionable hostile successes, the defender chooses the matching legal Dodge, Physical Defence, Mental Defence, or Resist path.
 3. Before rolling the normal defence or Resist, commit pool points up to the per-trigger cap and remaining pool.
 4. Roll the normal defence or Resist.
 5. Add the committed pool points to that result.
 6. Spent pool points are spent whether the defence succeeds or fails.
-7. Normal defence degradation still applies.
+7. Resolution-based degradation applies only to the independent defence lane that actually resolves against one or more actionable hostile successes.
 
-The defender cannot wait to see the normal defence or Resist roll before deciding whether to spend pool points. Pool spending does not reset normal Dodge, Physical Defence, Mental Defence, or Resist degradation.
+The defender cannot wait to see the normal defence or Resist roll before deciding whether to spend pool points. Pool spending does not reset normal Dodge, Physical Defence, Mental Defence, or active Resist degradation in the lane being resolved.
 
 Dodge Pool points add to normal Dodge successes. They are usable only against physical attacks or actions that explicitly allow Dodge. They do not make mental attacks dodgeable.
 

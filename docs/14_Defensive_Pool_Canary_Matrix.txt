@@ -27,7 +27,7 @@ Locked Defensive Pool Rules Preserved By This Matrix
 - Per-trigger commit cap = potency unless explicitly modified.
 - Pool points are committed before the normal defence or Resist roll.
 - Committed points are spent whether the defence succeeds or fails.
-- Normal defence and Resist degradation still apply.
+- Normal defence and active Resist degradation still apply only in the independent defence lane that actually resolves against one or more actionable hostile successes.
 - Pool spending does not reset degradation.
 - Dodge Pool adds Dodge successes and uses match-or-exceed.
 - Block Pool adds direct wound prevention, not defence successes.
@@ -144,7 +144,7 @@ Setup:
 - Synthetic attacker action: physical Dodge-legal attack.
 - Incoming successes: just above expected normal Dodge but within normal Dodge plus per-trigger cap.
 - Pool potency: high enough that one capped commit bridges the gap.
-- Defence degradation: present or explicitly checked as still available, so normal Dodge degradation remains part of the result.
+- Defence degradation: present or explicitly checked as still available, so normal Dodge-lane degradation remains part of the result.
 
 Pressure shape:
 

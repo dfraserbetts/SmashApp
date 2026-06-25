@@ -124,7 +124,7 @@ All runtime-facing systems must use one response-stack model:
 5. Roll and apply Assists.
 6. Roll and apply Counters.
 7. Roll the triggering hostile action.
-8. If no Counter was declared, roll the chosen normal active defence.
+8. If no Counter was declared and the hostile action produced one or more actionable hostile successes, roll the chosen normal active defence.
 9. Calculate prevention and effects.
 10. Apply the incoming result and the Counter result.
 11. Process defeats and cleanup.
@@ -145,6 +145,24 @@ Attack Counter damage does not cancel the triggering action unless the Counter e
 
 Counter-enabled powers remain normally usable; Counter: Yes adds an extra response mode, not exclusivity.
 
+Zero-Success Hostile Action Handoff
+
+Runtime-facing systems must preserve declaration timing without taxing normal defence for attacks that produce no actionable pressure.
+
+Actionable hostile successes are incoming successes or hostile units that create something the defender must actually oppose, prevent, avoid, cancel, or suffer. Examples include attack successes, wound-bearing successes, hostile effect successes, control/debuff units, ongoing-effect application successes, or resistible hostile units.
+
+A legal hostile action that targets a defender creates the normal declaration/reaction window before the attacker rolls. A zero-success hostile action still counts as an attack/targeting event for declaration-based triggers, including "when attacked" and "when targeted by a hostile action" effects.
+
+A zero-success hostile action is not a hit and does not apply successful hostile effects. Do not trigger "when hit", "when damaged", "when wounded", "when affected", or "when successfully struck" effects from zero actionable hostile successes.
+
+Normal active defence does not roll against zero actionable hostile successes. Dodge, Physical Defence, Mental Defence, and active Resist use resolution-based defence degradation: they degrade only when the defender actually resolves that defence against one or more actionable hostile successes. Defensive-pool points are not committed against zero actionable hostile successes.
+
+Independent defence-lane degradation is required. Physical Defence degradation must not affect Mental Defence. Mental Defence degradation must not affect Physical Defence. Dodge must use its own degradation track and must not degrade Physical Defence or Mental Defence. Active Resist degradation applies only to the relevant resisted lane or attribute unless an explicit rule says otherwise. Repeated pressure in one defensive channel must not automatically weaken unrelated defensive channels.
+
+Counters, Assists, and declaration-triggered responses that were declared still count as used and resolve according to their own rules unless they explicitly require the incoming action to hit, wound, damage, affect, or succeed.
+
+This handoff documents rules truth only. Runtime and test alignment should be checked in a separate implementation pass if current coverage does not already prove it.
+
 
 Main Action Runtime Rule
 
@@ -153,7 +171,7 @@ Runtime-facing systems should treat the legal Main Action menu as:
 - attack with one currently equipped weapon
 - interact with an object or use an item, including examples such as artifacts, levers, reloading, medicinal tonics, or computers
 - Rush, moving an additional distance up to half maximum move distance
-- Brace, allowing failed physical or mental defence rolls to be rerolled once while the Brace benefit is available; a rerolled defence roll cannot be rerolled again by the same Brace
+- Brace, allowing each failed die in a Physical Defence or Mental Defence roll to be rerolled once while the Brace benefit is available; a die rerolled by Brace cannot be rerolled again
 - Resist, rolling the relevant Resist Attribute value against persistent stacks or one chosen ongoing damage effect
 
 Main Action Resist against persistent stacks removes stacks equal to successes rolled against the authored cleanup Resist Attribute.
@@ -213,12 +231,12 @@ On application:
 On a matching incoming trigger:
 
 1. Resolve incoming declaration and roll first.
-2. Let the defender choose the matching legal active defence or Resist path.
-3. Before the normal defence / Resist roll, commit pool points up to min(poolRemaining, perTriggerCap).
-4. Roll the normal defence / Resist.
+2. If the incoming trigger produced one or more actionable hostile successes, let the defender choose the matching legal active defence or Resist path.
+3. Before the normal defence / Resist roll, commit pool points up to min(poolRemaining, perTriggerCap), only when there is at least one actionable hostile success to oppose.
+4. Roll the normal defence / Resist only against one or more actionable hostile successes.
 5. Add committed points to that result.
 6. Spend committed points even if the defence fails.
-7. Apply normal defence degradation normally.
+7. Apply resolution-based degradation only to the independent defence lane that actually resolves against one or more actionable hostile successes.
 
 Combat Lab and future runtime diagnostics should expose at least:
 
