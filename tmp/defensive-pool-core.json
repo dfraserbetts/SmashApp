@@ -1,0 +1,1638 @@
+{
+  "provenance": {
+    "commitSha": "f276abcd40b2bca88d7d0ca8acdb5f67c83ded0a",
+    "gitStatusShort": "M scripts/combatLab.scenarioMatrix.ts",
+    "cleanWorktree": false,
+    "command": "\"C:\\\\nvm4w\\\\nodejs\\\\node.exe\" \"D:\\\\Code\\\\smashapp\\\\scripts\\\\combatLab.scenarioMatrix.ts\" \"--preset\" \"defensive-pool-core\" \"--runs\" \"20\" \"--seed\" \"4242\" \"--out\" \"tmp/defensive-pool-core.json\"",
+    "method": "direct-runtime-script",
+    "browserInspected": false,
+    "generatedAt": "2026-06-11T15:52:02.410Z",
+    "runCount": 20,
+    "seed": 4242,
+    "seedPolicy": "scenario seed 4242; run index adds the committed Combat Lab runtime offset",
+    "selectedScenarios": [
+      "B1 Dodge Baseline",
+      "B1 Dodge Pool",
+      "B2 Block Baseline",
+      "B2 Physical Block Pool",
+      "B3 Mental Block Baseline",
+      "B3 Mental Block Pool",
+      "B4 Resist Baseline",
+      "B4 Resist Pool"
+    ],
+    "actorMonsterNames": [
+      {
+        "scenarioName": "B1 Dodge Baseline",
+        "players": [
+          "B1 Dodge Defender"
+        ],
+        "monsters": [
+          "B1 Dodge Attacker"
+        ]
+      },
+      {
+        "scenarioName": "B1 Dodge Pool",
+        "players": [
+          "B1 Dodge Defender"
+        ],
+        "monsters": [
+          "B1 Dodge Attacker"
+        ]
+      },
+      {
+        "scenarioName": "B2 Block Baseline",
+        "players": [
+          "B2 Block Defender"
+        ],
+        "monsters": [
+          "B2 Block Attacker"
+        ]
+      },
+      {
+        "scenarioName": "B2 Physical Block Pool",
+        "players": [
+          "B2 Block Defender"
+        ],
+        "monsters": [
+          "B2 Block Attacker"
+        ]
+      },
+      {
+        "scenarioName": "B3 Mental Block Baseline",
+        "players": [
+          "B3 Mental Defender"
+        ],
+        "monsters": [
+          "B3 Mental Attacker"
+        ]
+      },
+      {
+        "scenarioName": "B3 Mental Block Pool",
+        "players": [
+          "B3 Mental Defender"
+        ],
+        "monsters": [
+          "B3 Mental Attacker"
+        ]
+      },
+      {
+        "scenarioName": "B4 Resist Baseline",
+        "players": [
+          "B4 Resistant Defender"
+        ],
+        "monsters": [
+          "B4 Debuff Attacker"
+        ]
+      },
+      {
+        "scenarioName": "B4 Resist Pool",
+        "players": [
+          "B4 Resistant Defender"
+        ],
+        "monsters": [
+          "B4 Debuff Attacker"
+        ]
+      }
+    ],
+    "activeTuningNames": {
+      "powerTuning": "Augment Guard vs Bravery pass",
+      "combatTuning": "Combat Tuning Default v1",
+      "outcomeNormalization": "Outcome Normalization Default v1"
+    },
+    "temporaryOverrides": [],
+    "dataMutation": false,
+    "sourceMutation": false,
+    "tuningMutation": false,
+    "validationSmokeStatus": null
+  },
+  "options": {
+    "runs": 20,
+    "seed": 4242,
+    "json": false,
+    "out": "tmp/defensive-pool-core.json",
+    "includeTranscript": false
+  },
+  "scenarios": [
+    {
+      "scenarioName": "B1 Dodge Baseline",
+      "canaryMetadata": {
+        "canaryId": "B1_DURATION_DODGE_POOL_SURVIVABILITY",
+        "canaryLayer": "B",
+        "purpose": "Baseline for Dodge Pool survivability delta.",
+        "baselineScenarioName": "B1 Dodge Baseline",
+        "poolScenarioName": "B1 Dodge Pool",
+        "poolType": "DODGE",
+        "expectedMechanic": "Duration Dodge Pool should absorb part of repeated physical attacks and improve survival via committed pool points.",
+        "unsupportedNotes": []
+      },
+      "playerSide": "B1 Dodge Defender",
+      "monsterSide": "B1 Dodge Attacker",
+      "playerWinPercent": 0,
+      "monsterWinPercent": 100,
+      "stalematePercent": 0,
+      "averageRounds": 11.3,
+      "playerDamagePerRound": 0,
+      "monsterDamagePerRound": 7.26,
+      "runCount": 20,
+      "seed": 4242,
+      "activeTuningNames": {
+        "powerTuning": "Augment Guard vs Bravery pass",
+        "combatTuning": "Combat Tuning Default v1",
+        "outcomeNormalization": "Outcome Normalization Default v1"
+      },
+      "unsupportedNotesCount": 0,
+      "unsupportedPowerNames": [],
+      "verdict": "monsters too lethal",
+      "actionUseCounts": [
+        {
+          "actorName": "B1 Dodge Attacker",
+          "side": "monsters",
+          "actionName": "b1-claw-strike",
+          "uses": 22.2,
+          "damage": 82,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        }
+      ],
+      "cooldowns": [],
+      "defensiveChoiceSummary": {
+        "dodgeChosen": {
+          "players": 18.7,
+          "monsters": 0
+        },
+        "physicalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "dodgeDegradationApplied": {
+          "players": 7.85,
+          "monsters": 0
+        },
+        "physicalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "defenceStringBlocked": {
+          "players": 0,
+          "monsters": 0
+        }
+      },
+      "counterCandidateDiagnostics": [],
+      "ongoingPressureSummary": {
+        "convention": "Ongoing pressure is grouped by source side: players/monsters means the side that created or dealt the ongoing damage.",
+        "bySourceSide": {
+          "players": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          },
+          "monsters": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          }
+        },
+        "bySourceAction": []
+      },
+      "defensivePoolSummary": {
+        "convention": "Defensive pools are duration-based prepared defences. Points are generated by source-side powers and spent before normal Dodge, Block, or Resist rolls.",
+        "unsupportedNotes": [
+          "Field exit, attachment break, channel interruption, charge consumption, and cleanse-specific pool expiry are represented as runtime hooks but not fully simulated in V1 unless an existing supported path triggers them.",
+          "Pool metadata tracks descriptor chassis separately from commitment modifier; unknown commitment data is reported as UNKNOWN rather than inferred."
+        ],
+        "bySourceSide": {
+          "players": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          },
+          "monsters": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          }
+        },
+        "bySourceAction": []
+      },
+      "transcriptAnomalyCount": null
+    },
+    {
+      "scenarioName": "B1 Dodge Pool",
+      "canaryMetadata": {
+        "canaryId": "B1_DURATION_DODGE_POOL_SURVIVABILITY",
+        "canaryLayer": "B",
+        "purpose": "Duration Dodge Pool survivability delta.",
+        "baselineScenarioName": "B1 Dodge Baseline",
+        "poolScenarioName": "B1 Dodge Pool",
+        "poolType": "DODGE",
+        "expectedMechanic": "Duration Dodge Pool should be created, committed before roll, and improve survivability versus repeated attacks.",
+        "unsupportedNotes": []
+      },
+      "playerSide": "B1 Dodge Defender",
+      "monsterSide": "B1 Dodge Attacker",
+      "playerWinPercent": 0,
+      "monsterWinPercent": 10,
+      "stalematePercent": 90,
+      "averageRounds": 10,
+      "playerDamagePerRound": 0,
+      "monsterDamagePerRound": 3.06,
+      "runCount": 20,
+      "seed": 4242,
+      "activeTuningNames": {
+        "powerTuning": "Augment Guard vs Bravery pass",
+        "combatTuning": "Combat Tuning Default v1",
+        "outcomeNormalization": "Outcome Normalization Default v1"
+      },
+      "unsupportedNotesCount": 0,
+      "unsupportedPowerNames": [],
+      "verdict": "likely stalemate",
+      "actionUseCounts": [
+        {
+          "actorName": "B1 Dodge Attacker",
+          "side": "monsters",
+          "actionName": "b1-claw-strike",
+          "uses": 20,
+          "damage": 30.6,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        },
+        {
+          "actorName": "B1 Dodge Defender",
+          "side": "players",
+          "actionName": "B1 Dodge Pool",
+          "uses": 10.8,
+          "damage": 0,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        }
+      ],
+      "cooldowns": [],
+      "defensiveChoiceSummary": {
+        "dodgeChosen": {
+          "players": 17.1,
+          "monsters": 0
+        },
+        "physicalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "dodgeDegradationApplied": {
+          "players": 7.2,
+          "monsters": 0
+        },
+        "physicalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "defenceStringBlocked": {
+          "players": 0,
+          "monsters": 0
+        }
+      },
+      "counterCandidateDiagnostics": [],
+      "ongoingPressureSummary": {
+        "convention": "Ongoing pressure is grouped by source side: players/monsters means the side that created or dealt the ongoing damage.",
+        "bySourceSide": {
+          "players": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          },
+          "monsters": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          }
+        },
+        "bySourceAction": []
+      },
+      "defensivePoolSummary": {
+        "convention": "Defensive pools are duration-based prepared defences. Points are generated by source-side powers and spent before normal Dodge, Block, or Resist rolls.",
+        "unsupportedNotes": [
+          "Field exit, attachment break, channel interruption, charge consumption, and cleanse-specific pool expiry are represented as runtime hooks but not fully simulated in V1 unless an existing supported path triggers them.",
+          "Pool metadata tracks descriptor chassis separately from commitment modifier; unknown commitment data is reported as UNKNOWN rather than inferred."
+        ],
+        "bySourceSide": {
+          "players": {
+            "poolsCreated": 5.55,
+            "averageGeneratedPoints": 4.936936936936937,
+            "committedPoints": 15.85,
+            "spentPoints": 15.85,
+            "wastedPoints": 6.85,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 3.75,
+            "expiredEmpty": 4.7,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 7.15,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          },
+          "monsters": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          }
+        },
+        "bySourceAction": [
+          {
+            "sourceActorId": "b1-defender-pool",
+            "sourceActorName": "B1 Dodge Defender",
+            "sourceSide": "players",
+            "sourceActionId": "b1-dodge-pool",
+            "sourceActionName": "B1 Dodge Pool",
+            "poolType": "DODGE",
+            "poolsCreated": 5.55,
+            "averageGeneratedPoints": 4.936936936936937,
+            "committedPoints": 15.85,
+            "spentPoints": 15.85,
+            "wastedPoints": 6.85,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 3.75,
+            "expiredEmpty": 4.7,
+            "expiredDuration": 0,
+            "expiredCleanse": 0,
+            "dodgeAvoids": 7.15,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          }
+        ]
+      },
+      "transcriptAnomalyCount": null
+    },
+    {
+      "scenarioName": "B2 Block Baseline",
+      "canaryMetadata": {
+        "canaryId": "B2_PHYSICAL_BLOCK_POOL_SURVIVABILITY",
+        "canaryLayer": "B",
+        "purpose": "Baseline for Physical Block Pool survivability delta.",
+        "baselineScenarioName": "B2 Block Baseline",
+        "poolScenarioName": "B2 Physical Block Pool",
+        "poolType": "PHYSICAL_BLOCK",
+        "expectedMechanic": "Physical Block Pool should directly prevent physical wounds when available.",
+        "unsupportedNotes": []
+      },
+      "playerSide": "B2 Block Defender",
+      "monsterSide": "B2 Block Attacker",
+      "playerWinPercent": 40,
+      "monsterWinPercent": 60,
+      "stalematePercent": 0,
+      "averageRounds": 10.05,
+      "playerDamagePerRound": 6.71,
+      "monsterDamagePerRound": 7.32,
+      "runCount": 20,
+      "seed": 4242,
+      "activeTuningNames": {
+        "powerTuning": "Augment Guard vs Bravery pass",
+        "combatTuning": "Combat Tuning Default v1",
+        "outcomeNormalization": "Outcome Normalization Default v1"
+      },
+      "unsupportedNotesCount": 0,
+      "unsupportedPowerNames": [],
+      "verdict": "expected",
+      "actionUseCounts": [
+        {
+          "actorName": "B2 Block Attacker",
+          "side": "monsters",
+          "actionName": "b2-physical-charge",
+          "uses": 19.65,
+          "damage": 73.6,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        },
+        {
+          "actorName": "B2 Block Defender",
+          "side": "players",
+          "actionName": "b2-physical-pressure",
+          "uses": 19.3,
+          "damage": 67.4,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        }
+      ],
+      "cooldowns": [],
+      "defensiveChoiceSummary": {
+        "dodgeChosen": {
+          "players": 16.6,
+          "monsters": 16.1
+        },
+        "physicalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "dodgeDegradationApplied": {
+          "players": 7.1,
+          "monsters": 6.6
+        },
+        "physicalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "defenceStringBlocked": {
+          "players": 0,
+          "monsters": 0
+        }
+      },
+      "counterCandidateDiagnostics": [],
+      "ongoingPressureSummary": {
+        "convention": "Ongoing pressure is grouped by source side: players/monsters means the side that created or dealt the ongoing damage.",
+        "bySourceSide": {
+          "players": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          },
+          "monsters": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          }
+        },
+        "bySourceAction": []
+      },
+      "defensivePoolSummary": {
+        "convention": "Defensive pools are duration-based prepared defences. Points are generated by source-side powers and spent before normal Dodge, Block, or Resist rolls.",
+        "unsupportedNotes": [
+          "Field exit, attachment break, channel interruption, charge consumption, and cleanse-specific pool expiry are represented as runtime hooks but not fully simulated in V1 unless an existing supported path triggers them.",
+          "Pool metadata tracks descriptor chassis separately from commitment modifier; unknown commitment data is reported as UNKNOWN rather than inferred."
+        ],
+        "bySourceSide": {
+          "players": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          },
+          "monsters": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          }
+        },
+        "bySourceAction": []
+      },
+      "transcriptAnomalyCount": null
+    },
+    {
+      "scenarioName": "B2 Physical Block Pool",
+      "canaryMetadata": {
+        "canaryId": "B2_PHYSICAL_BLOCK_POOL_SURVIVABILITY",
+        "canaryLayer": "B",
+        "purpose": "Physical Block Pool survivability delta.",
+        "baselineScenarioName": "B2 Block Baseline",
+        "poolScenarioName": "B2 Physical Block Pool",
+        "poolType": "PHYSICAL_BLOCK",
+        "expectedMechanic": "Physical Block Pool should be committed before normal block to reduce physical wounds.",
+        "unsupportedNotes": []
+      },
+      "playerSide": "B2 Block Defender",
+      "monsterSide": "B2 Block Attacker",
+      "playerWinPercent": 90,
+      "monsterWinPercent": 10,
+      "stalematePercent": 0,
+      "averageRounds": 13.05,
+      "playerDamagePerRound": 6.1,
+      "monsterDamagePerRound": 4.8,
+      "runCount": 20,
+      "seed": 4242,
+      "activeTuningNames": {
+        "powerTuning": "Augment Guard vs Bravery pass",
+        "combatTuning": "Combat Tuning Default v1",
+        "outcomeNormalization": "Outcome Normalization Default v1"
+      },
+      "unsupportedNotesCount": 0,
+      "unsupportedPowerNames": [],
+      "verdict": "player too lethal",
+      "actionUseCounts": [
+        {
+          "actorName": "B2 Block Attacker",
+          "side": "monsters",
+          "actionName": "b2-physical-charge",
+          "uses": 25.2,
+          "damage": 62.7,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        },
+        {
+          "actorName": "B2 Block Defender",
+          "side": "players",
+          "actionName": "b2-physical-pressure",
+          "uses": 21.2,
+          "damage": 79.6,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        },
+        {
+          "actorName": "B2 Block Defender",
+          "side": "players",
+          "actionName": "B2 Physical Block Pool",
+          "uses": 4.5,
+          "damage": 0,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        }
+      ],
+      "cooldowns": [
+        {
+          "actorName": "B2 Block Defender",
+          "side": "players",
+          "actionName": "B2 Physical Block Pool",
+          "isCounter": false,
+          "cooldownRounds": 2,
+          "uses": 4.5,
+          "preventedByCooldown": 0,
+          "attemptedUsesWhileOnCooldown": 0,
+          "availableTurns": 5,
+          "unavailableTurns": 8.05
+        }
+      ],
+      "defensiveChoiceSummary": {
+        "dodgeChosen": {
+          "players": 17.75,
+          "monsters": 18.15
+        },
+        "physicalDefenceChosen": {
+          "players": 3.55,
+          "monsters": 0
+        },
+        "mentalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "dodgeDegradationApplied": {
+          "players": 6.85,
+          "monsters": 5.55
+        },
+        "physicalDefenceDegradationApplied": {
+          "players": 0.4,
+          "monsters": 0
+        },
+        "mentalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "defenceStringBlocked": {
+          "players": 9.6,
+          "monsters": 0
+        }
+      },
+      "counterCandidateDiagnostics": [],
+      "ongoingPressureSummary": {
+        "convention": "Ongoing pressure is grouped by source side: players/monsters means the side that created or dealt the ongoing damage.",
+        "bySourceSide": {
+          "players": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          },
+          "monsters": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          }
+        },
+        "bySourceAction": []
+      },
+      "defensivePoolSummary": {
+        "convention": "Defensive pools are duration-based prepared defences. Points are generated by source-side powers and spent before normal Dodge, Block, or Resist rolls.",
+        "unsupportedNotes": [
+          "Field exit, attachment break, channel interruption, charge consumption, and cleanse-specific pool expiry are represented as runtime hooks but not fully simulated in V1 unless an existing supported path triggers them.",
+          "Pool metadata tracks descriptor chassis separately from commitment modifier; unknown commitment data is reported as UNKNOWN rather than inferred."
+        ],
+        "bySourceSide": {
+          "players": {
+            "poolsCreated": 2.75,
+            "averageGeneratedPoints": 4,
+            "committedPoints": 9.6,
+            "spentPoints": 9.6,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0.35,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 2.1,
+            "expiredDuration": 0.35,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 9.6,
+            "resistUnitsCancelled": 0
+          },
+          "monsters": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          }
+        },
+        "bySourceAction": [
+          {
+            "sourceActorId": "b2-defender-pool",
+            "sourceActorName": "B2 Block Defender",
+            "sourceSide": "players",
+            "sourceActionId": "b2-physical-block-pool",
+            "sourceActionName": "B2 Physical Block Pool",
+            "poolType": "PHYSICAL_BLOCK",
+            "poolsCreated": 2.75,
+            "averageGeneratedPoints": 4,
+            "committedPoints": 9.6,
+            "spentPoints": 9.6,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0.35,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 2.1,
+            "expiredDuration": 0.35,
+            "expiredCleanse": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 9.6,
+            "resistUnitsCancelled": 0
+          }
+        ]
+      },
+      "transcriptAnomalyCount": null
+    },
+    {
+      "scenarioName": "B3 Mental Block Baseline",
+      "canaryMetadata": {
+        "canaryId": "B3_MENTAL_BLOCK_POOL_SURVIVABILITY",
+        "canaryLayer": "B",
+        "purpose": "Baseline for Mental Block Pool survivability delta.",
+        "baselineScenarioName": "B3 Mental Block Baseline",
+        "poolScenarioName": "B3 Mental Block Pool",
+        "poolType": "MENTAL_BLOCK",
+        "expectedMechanic": "Mental pressure should be partially prevented only by Mental Block Pool and leave physical unaffected.",
+        "unsupportedNotes": []
+      },
+      "playerSide": "B3 Mental Defender",
+      "monsterSide": "B3 Mental Attacker",
+      "playerWinPercent": 30,
+      "monsterWinPercent": 70,
+      "stalematePercent": 0,
+      "averageRounds": 10.7,
+      "playerDamagePerRound": 6.71,
+      "monsterDamagePerRound": 7.16,
+      "runCount": 20,
+      "seed": 4242,
+      "activeTuningNames": {
+        "powerTuning": "Augment Guard vs Bravery pass",
+        "combatTuning": "Combat Tuning Default v1",
+        "outcomeNormalization": "Outcome Normalization Default v1"
+      },
+      "unsupportedNotesCount": 0,
+      "unsupportedPowerNames": [],
+      "verdict": "expected",
+      "actionUseCounts": [
+        {
+          "actorName": "B3 Mental Attacker",
+          "side": "monsters",
+          "actionName": "b3-mental-strike",
+          "uses": 20.7,
+          "damage": 76.65,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        },
+        {
+          "actorName": "B3 Mental Defender",
+          "side": "players",
+          "actionName": "b3-mental-pressure",
+          "uses": 20.45,
+          "damage": 71.85,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        }
+      ],
+      "cooldowns": [],
+      "defensiveChoiceSummary": {
+        "dodgeChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "physicalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceChosen": {
+          "players": 17.55,
+          "monsters": 16.95
+        },
+        "dodgeDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "physicalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceDegradationApplied": {
+          "players": 7.45,
+          "monsters": 6.9
+        },
+        "defenceStringBlocked": {
+          "players": 0,
+          "monsters": 0
+        }
+      },
+      "counterCandidateDiagnostics": [],
+      "ongoingPressureSummary": {
+        "convention": "Ongoing pressure is grouped by source side: players/monsters means the side that created or dealt the ongoing damage.",
+        "bySourceSide": {
+          "players": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          },
+          "monsters": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          }
+        },
+        "bySourceAction": []
+      },
+      "defensivePoolSummary": {
+        "convention": "Defensive pools are duration-based prepared defences. Points are generated by source-side powers and spent before normal Dodge, Block, or Resist rolls.",
+        "unsupportedNotes": [
+          "Field exit, attachment break, channel interruption, charge consumption, and cleanse-specific pool expiry are represented as runtime hooks but not fully simulated in V1 unless an existing supported path triggers them.",
+          "Pool metadata tracks descriptor chassis separately from commitment modifier; unknown commitment data is reported as UNKNOWN rather than inferred."
+        ],
+        "bySourceSide": {
+          "players": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          },
+          "monsters": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          }
+        },
+        "bySourceAction": []
+      },
+      "transcriptAnomalyCount": null
+    },
+    {
+      "scenarioName": "B3 Mental Block Pool",
+      "canaryMetadata": {
+        "canaryId": "B3_MENTAL_BLOCK_POOL_SURVIVABILITY",
+        "canaryLayer": "B",
+        "purpose": "Mental Block Pool survivability delta.",
+        "baselineScenarioName": "B3 Mental Block Baseline",
+        "poolScenarioName": "B3 Mental Block Pool",
+        "poolType": "MENTAL_BLOCK",
+        "expectedMechanic": "Mental Block Pool should prevent matching-lane mental wounds after attack pool generation.",
+        "unsupportedNotes": []
+      },
+      "playerSide": "B3 Mental Defender",
+      "monsterSide": "B3 Mental Attacker",
+      "playerWinPercent": 50,
+      "monsterWinPercent": 50,
+      "stalematePercent": 0,
+      "averageRounds": 11.1,
+      "playerDamagePerRound": 6.57,
+      "monsterDamagePerRound": 6.84,
+      "runCount": 20,
+      "seed": 4242,
+      "activeTuningNames": {
+        "powerTuning": "Augment Guard vs Bravery pass",
+        "combatTuning": "Combat Tuning Default v1",
+        "outcomeNormalization": "Outcome Normalization Default v1"
+      },
+      "unsupportedNotesCount": 0,
+      "unsupportedPowerNames": [],
+      "verdict": "expected",
+      "actionUseCounts": [
+        {
+          "actorName": "B3 Mental Attacker",
+          "side": "monsters",
+          "actionName": "b3-mental-strike",
+          "uses": 21.25,
+          "damage": 75.9,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        },
+        {
+          "actorName": "B3 Mental Defender",
+          "side": "players",
+          "actionName": "b3-mental-pressure",
+          "uses": 20.45,
+          "damage": 72.9,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        },
+        {
+          "actorName": "B3 Mental Defender",
+          "side": "players",
+          "actionName": "B3 Mental Block Pool",
+          "uses": 1,
+          "damage": 0,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        }
+      ],
+      "cooldowns": [
+        {
+          "actorName": "B3 Mental Defender",
+          "side": "players",
+          "actionName": "B3 Mental Block Pool",
+          "isCounter": false,
+          "cooldownRounds": 2,
+          "uses": 1,
+          "preventedByCooldown": 0,
+          "attemptedUsesWhileOnCooldown": 0,
+          "availableTurns": 8.8,
+          "unavailableTurns": 2
+        }
+      ],
+      "defensiveChoiceSummary": {
+        "dodgeChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "physicalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceChosen": {
+          "players": 17.95,
+          "monsters": 17.2
+        },
+        "dodgeDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "physicalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceDegradationApplied": {
+          "players": 7.7,
+          "monsters": 6.8
+        },
+        "defenceStringBlocked": {
+          "players": 2.4,
+          "monsters": 0
+        }
+      },
+      "counterCandidateDiagnostics": [],
+      "ongoingPressureSummary": {
+        "convention": "Ongoing pressure is grouped by source side: players/monsters means the side that created or dealt the ongoing damage.",
+        "bySourceSide": {
+          "players": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          },
+          "monsters": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          }
+        },
+        "bySourceAction": []
+      },
+      "defensivePoolSummary": {
+        "convention": "Defensive pools are duration-based prepared defences. Points are generated by source-side powers and spent before normal Dodge, Block, or Resist rolls.",
+        "unsupportedNotes": [
+          "Field exit, attachment break, channel interruption, charge consumption, and cleanse-specific pool expiry are represented as runtime hooks but not fully simulated in V1 unless an existing supported path triggers them.",
+          "Pool metadata tracks descriptor chassis separately from commitment modifier; unknown commitment data is reported as UNKNOWN rather than inferred."
+        ],
+        "bySourceSide": {
+          "players": {
+            "poolsCreated": 0.6,
+            "averageGeneratedPoints": 4,
+            "committedPoints": 2.4,
+            "spentPoints": 2.4,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0.6,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 2.4,
+            "resistUnitsCancelled": 0
+          },
+          "monsters": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          }
+        },
+        "bySourceAction": [
+          {
+            "sourceActorId": "b3-defender-pool",
+            "sourceActorName": "B3 Mental Defender",
+            "sourceSide": "players",
+            "sourceActionId": "b3-mental-block-pool",
+            "sourceActionName": "B3 Mental Block Pool",
+            "poolType": "MENTAL_BLOCK",
+            "poolsCreated": 0.6,
+            "averageGeneratedPoints": 4,
+            "committedPoints": 2.4,
+            "spentPoints": 2.4,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0.6,
+            "expiredDuration": 0,
+            "expiredCleanse": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 2.4,
+            "resistUnitsCancelled": 0
+          }
+        ]
+      },
+      "transcriptAnomalyCount": null
+    },
+    {
+      "scenarioName": "B4 Resist Baseline",
+      "canaryMetadata": {
+        "canaryId": "B4_RESIST_POOL_CONTROL_PREVENTION",
+        "canaryLayer": "B",
+        "purpose": "Baseline for Resist Pool control/debuff prevention delta.",
+        "baselineScenarioName": "B4 Resist Baseline",
+        "poolScenarioName": "B4 Resist Pool",
+        "poolType": "RESIST",
+        "expectedMechanic": "Resist Pool should cancel matching-lane hostile effects only.",
+        "unsupportedNotes": [
+          "Layer B Resist canary uses ATTACK lane matching against hostile debuff packets."
+        ]
+      },
+      "playerSide": "B4 Resistant Defender",
+      "monsterSide": "B4 Debuff Attacker",
+      "playerWinPercent": 55,
+      "monsterWinPercent": 0,
+      "stalematePercent": 45,
+      "averageRounds": 19.2,
+      "playerDamagePerRound": 3.95,
+      "monsterDamagePerRound": 0,
+      "runCount": 20,
+      "seed": 4242,
+      "activeTuningNames": {
+        "powerTuning": "Augment Guard vs Bravery pass",
+        "combatTuning": "Combat Tuning Default v1",
+        "outcomeNormalization": "Outcome Normalization Default v1"
+      },
+      "unsupportedNotesCount": 0,
+      "unsupportedPowerNames": [],
+      "verdict": "likely stalemate",
+      "actionUseCounts": [
+        {
+          "actorName": "B4 Resistant Defender",
+          "side": "players",
+          "actionName": "b4-attack-pressure",
+          "uses": 38.2,
+          "damage": 75.8,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        },
+        {
+          "actorName": "B4 Debuff Attacker",
+          "side": "monsters",
+          "actionName": "b4-hostile-pressure",
+          "uses": 32.9,
+          "damage": 0,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        }
+      ],
+      "cooldowns": [],
+      "defensiveChoiceSummary": {
+        "dodgeChosen": {
+          "players": 0,
+          "monsters": 32.55
+        },
+        "physicalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "dodgeDegradationApplied": {
+          "players": 0,
+          "monsters": 13.8
+        },
+        "physicalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "defenceStringBlocked": {
+          "players": 0,
+          "monsters": 0
+        }
+      },
+      "counterCandidateDiagnostics": [],
+      "ongoingPressureSummary": {
+        "convention": "Ongoing pressure is grouped by source side: players/monsters means the side that created or dealt the ongoing damage.",
+        "bySourceSide": {
+          "players": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          },
+          "monsters": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          }
+        },
+        "bySourceAction": []
+      },
+      "defensivePoolSummary": {
+        "convention": "Defensive pools are duration-based prepared defences. Points are generated by source-side powers and spent before normal Dodge, Block, or Resist rolls.",
+        "unsupportedNotes": [
+          "Field exit, attachment break, channel interruption, charge consumption, and cleanse-specific pool expiry are represented as runtime hooks but not fully simulated in V1 unless an existing supported path triggers them.",
+          "Pool metadata tracks descriptor chassis separately from commitment modifier; unknown commitment data is reported as UNKNOWN rather than inferred."
+        ],
+        "bySourceSide": {
+          "players": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          },
+          "monsters": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          }
+        },
+        "bySourceAction": []
+      },
+      "transcriptAnomalyCount": null
+    },
+    {
+      "scenarioName": "B4 Resist Pool",
+      "canaryMetadata": {
+        "canaryId": "B4_RESIST_POOL_CONTROL_PREVENTION",
+        "canaryLayer": "B",
+        "purpose": "Resist Pool control/debuff prevention delta.",
+        "baselineScenarioName": "B4 Resist Baseline",
+        "poolScenarioName": "B4 Resist Pool",
+        "poolType": "RESIST",
+        "expectedMechanic": "Resist Pool should spend against matching ATTACK hostile units and reduce hostile success retention.",
+        "unsupportedNotes": [
+          "Layer B Resist canary uses ATTACK lane matching against hostile debuff packets."
+        ]
+      },
+      "playerSide": "B4 Resistant Defender",
+      "monsterSide": "B4 Debuff Attacker",
+      "playerWinPercent": 25,
+      "monsterWinPercent": 0,
+      "stalematePercent": 75,
+      "averageRounds": 19.6,
+      "playerDamagePerRound": 3.6,
+      "monsterDamagePerRound": 0,
+      "runCount": 20,
+      "seed": 4242,
+      "activeTuningNames": {
+        "powerTuning": "Augment Guard vs Bravery pass",
+        "combatTuning": "Combat Tuning Default v1",
+        "outcomeNormalization": "Outcome Normalization Default v1"
+      },
+      "unsupportedNotesCount": 0,
+      "unsupportedPowerNames": [],
+      "verdict": "likely stalemate",
+      "actionUseCounts": [
+        {
+          "actorName": "B4 Resistant Defender",
+          "side": "players",
+          "actionName": "b4-attack-pressure",
+          "uses": 38.05,
+          "damage": 70.5,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        },
+        {
+          "actorName": "B4 Debuff Attacker",
+          "side": "monsters",
+          "actionName": "b4-hostile-pressure",
+          "uses": 34.05,
+          "damage": 0,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        },
+        {
+          "actorName": "B4 Resistant Defender",
+          "side": "players",
+          "actionName": "B4 Resist Pool",
+          "uses": 1,
+          "damage": 0,
+          "healing": 0,
+          "mitigation": 0,
+          "counterUses": 0,
+          "ongoingDamageApplied": 0
+        }
+      ],
+      "cooldowns": [],
+      "defensiveChoiceSummary": {
+        "dodgeChosen": {
+          "players": 0,
+          "monsters": 31.95
+        },
+        "physicalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceChosen": {
+          "players": 0,
+          "monsters": 0
+        },
+        "dodgeDegradationApplied": {
+          "players": 0,
+          "monsters": 12.9
+        },
+        "physicalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "mentalDefenceDegradationApplied": {
+          "players": 0,
+          "monsters": 0
+        },
+        "defenceStringBlocked": {
+          "players": 0,
+          "monsters": 0
+        }
+      },
+      "counterCandidateDiagnostics": [],
+      "ongoingPressureSummary": {
+        "convention": "Ongoing pressure is grouped by source side: players/monsters means the side that created or dealt the ongoing damage.",
+        "bySourceSide": {
+          "players": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          },
+          "monsters": {
+            "statusesCreated": 0,
+            "storedTickAverage": 0,
+            "storedTickMax": 0,
+            "firstTicksApplied": 0,
+            "firstTickDamageAverage": 0,
+            "firstTickLethalCount": 0,
+            "firstTickLethalRate": 0,
+            "firstTickBeforeCleanup": 0,
+            "cleanupAttempts": 0,
+            "cleanupSuccesses": 0,
+            "cleanupUnitsRemoved": 0,
+            "cleanupWoundsRemoved": 0,
+            "cleanupPreventedWoundsEstimate": null
+          }
+        },
+        "bySourceAction": []
+      },
+      "defensivePoolSummary": {
+        "convention": "Defensive pools are duration-based prepared defences. Points are generated by source-side powers and spent before normal Dodge, Block, or Resist rolls.",
+        "unsupportedNotes": [
+          "Field exit, attachment break, channel interruption, charge consumption, and cleanse-specific pool expiry are represented as runtime hooks but not fully simulated in V1 unless an existing supported path triggers them.",
+          "Pool metadata tracks descriptor chassis separately from commitment modifier; unknown commitment data is reported as UNKNOWN rather than inferred."
+        ],
+        "bySourceSide": {
+          "players": {
+            "poolsCreated": 0.6,
+            "averageGeneratedPoints": 2,
+            "committedPoints": 0.9,
+            "spentPoints": 0.9,
+            "wastedPoints": 0.7,
+            "remainingAtExpiry": 0.3,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0.4,
+            "expiredDuration": 0.2,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0.2
+          },
+          "monsters": {
+            "poolsCreated": 0,
+            "averageGeneratedPoints": 0,
+            "committedPoints": 0,
+            "spentPoints": 0,
+            "wastedPoints": 0,
+            "remainingAtExpiry": 0,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0,
+            "expiredDuration": 0,
+            "expiredFieldExit": 0,
+            "expiredAttachmentEnd": 0,
+            "expiredChannelEnd": 0,
+            "expiredCleanse": 0,
+            "expiredDefeatCleanup": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0
+          }
+        },
+        "bySourceAction": [
+          {
+            "sourceActorId": "b4-defender-pool",
+            "sourceActorName": "B4 Resistant Defender",
+            "sourceSide": "players",
+            "sourceActionId": "b4-resist-pool",
+            "sourceActionName": "B4 Resist Pool",
+            "poolType": "RESIST",
+            "poolsCreated": 0.6,
+            "averageGeneratedPoints": 2,
+            "committedPoints": 0.9,
+            "spentPoints": 0.9,
+            "wastedPoints": 0.7,
+            "remainingAtExpiry": 0.3,
+            "refreshReplaceEvents": 0,
+            "expiredEmpty": 0.4,
+            "expiredDuration": 0.2,
+            "expiredCleanse": 0,
+            "dodgeAvoids": 0,
+            "blockWoundsPrevented": 0,
+            "resistUnitsCancelled": 0.2
+          }
+        ]
+      },
+      "transcriptAnomalyCount": null
+    }
+  ],
+  "warnings": [],
+  "unsupportedNotes": [
+    "Field exit, attachment break, channel interruption, charge consumption, and cleanse-specific pool expiry are represented as runtime hooks but not fully simulated in V1 unless an existing supported path triggers them.",
+    "Pool metadata tracks descriptor chassis separately from commitment modifier; unknown commitment data is reported as UNKNOWN rather than inferred."
+  ]
+}
