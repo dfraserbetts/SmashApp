@@ -17,7 +17,7 @@ import {
   type PlayerTraitDefinition,
 } from "@/lib/characterBuilder/core";
 import { summarizeEquipmentItem } from "@/lib/characterBuilder/equipment";
-import { validateCharacterPowers } from "@/lib/characterBuilder/powers";
+import { signatureMovePointPool, validateCharacterPowers } from "@/lib/characterBuilder/powers";
 import { prisma } from "@/prisma/client";
 
 const DEFAULT_CHARACTER_NAME = "UNNAMED";
@@ -459,6 +459,15 @@ export async function PATCH(
         powers: builderData.powers,
         tuningSnapshot: powerTuning,
         playerPowerSpendScalar: characterBuilderTuning.playerPowerSpendScalar,
+      }),
+      ...validateCharacterPowers({
+        level: validationLevel,
+        powers: builderData.signatureMove ? [builderData.signatureMove] : [],
+        tuningSnapshot: powerTuning,
+        playerPowerSpendScalar: characterBuilderTuning.playerPowerSpendScalar,
+        powerPool: signatureMovePointPool(validationLevel),
+        powerLabel: "Signature Move",
+        poolDescription: "Character Level x 20",
       }),
     ];
     if (validationErrors.length > 0) {

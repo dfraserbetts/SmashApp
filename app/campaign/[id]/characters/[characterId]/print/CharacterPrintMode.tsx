@@ -25,7 +25,7 @@ import {
   buildCharacterDerivedCombatStats,
   type CharacterBuilderDerivedBackpackItem,
 } from "@/lib/characterBuilder/derivedStats";
-import { summarizeCharacterPowers } from "@/lib/characterBuilder/powers";
+import { signatureMovePointPool, summarizeCharacterPowers } from "@/lib/characterBuilder/powers";
 import type { CharacterBuilderTuningSnapshot } from "@/lib/config/characterBuilderTuningShared";
 import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
 
@@ -135,6 +135,17 @@ export function CharacterPrintMode({
       powers: payload.character.builderData.powers,
       tuningSnapshot: payload.powerTuning,
       playerPowerSpendScalar: payload.characterBuilderTuning.playerPowerSpendScalar,
+    });
+  }, [payload]);
+
+  const signatureMoveBudget = useMemo(() => {
+    if (!payload) return null;
+    return summarizeCharacterPowers({
+      level: payload.character.level,
+      powers: payload.character.builderData.signatureMove ? [payload.character.builderData.signatureMove] : [],
+      tuningSnapshot: payload.powerTuning,
+      playerPowerSpendScalar: payload.characterBuilderTuning.playerPowerSpendScalar,
+      powerPool: signatureMovePointPool(payload.character.level),
     });
   }, [payload]);
 
@@ -279,6 +290,7 @@ export function CharacterPrintMode({
         backpackItems={payload.backpackItems}
         derivedStats={derivedStats}
         powerBudget={powerBudget}
+        signatureMoveBudget={signatureMoveBudget}
         traitSummary={traitSummary}
         printType={printType}
         theme={theme}

@@ -91,6 +91,7 @@ import {
   isCharacterPowerPacketTimingAuthorable,
   isCharacterPowerSecondaryDiceAuthored,
   readCharacterPowerAttachedHostileEntryPattern,
+  signatureMovePointPool,
   summarizeCharacterPowers,
   validateCharacterPowers,
   type CharacterPower,
@@ -224,6 +225,7 @@ type BuilderDraft = {
 
 const EMPTY_BACKPACK_ITEMS: BuilderBackpackItem[] = [];
 const EMPTY_TRANSFER_TARGETS: BackpackTransferTarget[] = [];
+const SIGNATURE_MOVE_POWER_INDEX = -1;
 const POWER_CHASSIS_OPTIONS: DescriptorChassisType[] = [
   "IMMEDIATE",
   "FIELD",
@@ -1230,6 +1232,36 @@ export default function CharacterBuilderPage() {
     equippedSlotsSignature(persistedEquippedSlots);
   const getAttributeModifierValue = (attribute: CharacterAttribute) =>
     derivedCombatStats.itemModifiers[ATTRIBUTE_MODIFIER_FIELDS[attribute]] ?? 0;
+  const signatureMoveDraft = useMemo(
+    () => builderData.signatureMove ?? createDefaultCharacterPower(0),
+    [builderData.signatureMove],
+  );
+  const signatureMovePowers = useMemo(
+    () => (builderData.signatureMove ? [builderData.signatureMove] : []),
+    [builderData.signatureMove],
+  );
+  const signatureMoveBudget = useMemo(
+    () =>
+      summarizeCharacterPowers({
+        level: currentLevel,
+        powers: signatureMovePowers,
+        tuningSnapshot: payload?.powerTuning ?? null,
+        playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
+        powerPool: signatureMovePointPool(currentLevel),
+      }),
+    [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
+  );
+  const signatureMoveEditorBudget = useMemo(
+    () =>
+      summarizeCharacterPowers({
+        level: currentLevel,
+        powers: [signatureMoveDraft],
+        tuningSnapshot: payload?.powerTuning ?? null,
+        playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
+        powerPool: signatureMovePointPool(currentLevel),
+      }),
+    [signatureMoveDraft, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
+  );
   const powerBudget = useMemo(
     () =>
       summarizeCharacterPowers({
@@ -1250,11 +1282,31 @@ export default function CharacterBuilderPage() {
       }),
     [builderData.powers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
   );
+  const signatureMoveValidationErrors = useMemo(
+    () =>
+      validateCharacterPowers({
+        level: currentLevel,
+        powers: signatureMovePowers,
+        tuningSnapshot: payload?.powerTuning ?? null,
+        playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
+        powerPool: signatureMovePointPool(currentLevel),
+        powerLabel: "Signature Move",
+        poolDescription: "Character Level x 20",
+      }),
+    [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
+  );
+  const blockingSaveErrors = useMemo(
+    () => [
+      ...builderValidationErrors,
+      ...powerValidationErrors,
+      ...signatureMoveValidationErrors,
+    ],
+    [builderValidationErrors, powerValidationErrors, signatureMoveValidationErrors],
+  );
   const canSave =
     canEdit &&
     !saving &&
-    builderValidationErrors.length === 0 &&
-    powerValidationErrors.length === 0;
+    blockingSaveErrors.length === 0;
 
   const builderApiUrl = useMemo(() => {
     if (!campaignId || !characterId) return "";
@@ -1385,6 +1437,12 @@ export default function CharacterBuilderPage() {
     });
   }
 
+  function updateSignatureMove(power: CharacterPower | null) {
+    updateBuilderData({
+      signatureMove: power ? reconcilePowerPacketTimingForUi({ ...power, sortOrder: 0 }) : null,
+    });
+  }
+
   function addPower() {
     updatePowers([...builderData.powers, createDefaultCharacterPower(builderData.powers.length)]);
   }
@@ -1404,6 +1462,10 @@ export default function CharacterBuilderPage() {
   }
 
   function updatePower(index: number, patch: Partial<CharacterPower>) {
+    if (index === SIGNATURE_MOVE_POWER_INDEX) {
+      updateSignatureMove({ ...signatureMoveDraft, ...patch } as CharacterPower);
+      return;
+    }
     updatePowers(
       builderData.powers.map((power, candidateIndex) => {
         if (candidateIndex !== index) return power;
@@ -1417,7 +1479,9 @@ export default function CharacterBuilderPage() {
     packetIndex: number,
     patch: Partial<CharacterPower["effectPackets"][number]>,
   ) {
-    const power = builderData.powers[powerIndex];
+    const power = powerIndex === SIGNATURE_MOVE_POWER_INDEX
+      ? signatureMoveDraft
+      : builderData.powers[powerIndex];
     if (!power) return;
     const packets = power.effectPackets.length > 0 ? power.effectPackets : [
       createDefaultCharacterPowerPacket("ATTACK", 0),
@@ -1433,7 +1497,10 @@ export default function CharacterBuilderPage() {
     packetIndex: number,
     detailsPatch: Record<string, unknown>,
   ) {
-    const packet = builderData.powers[powerIndex]?.effectPackets[packetIndex];
+    const sourcePower = powerIndex === SIGNATURE_MOVE_POWER_INDEX
+      ? signatureMoveDraft
+      : builderData.powers[powerIndex];
+    const packet = sourcePower?.effectPackets[packetIndex];
     if (!packet) return;
     const woundChannelPatch =
       packet.intention === "ATTACK" && (detailsPatch.attackMode === "PHYSICAL" || detailsPatch.attackMode === "MENTAL")
@@ -1451,7 +1518,9 @@ export default function CharacterBuilderPage() {
   }
 
   function addPowerPacket(powerIndex: number) {
-    const power = builderData.powers[powerIndex];
+    const power = powerIndex === SIGNATURE_MOVE_POWER_INDEX
+      ? signatureMoveDraft
+      : builderData.powers[powerIndex];
     if (!power || power.effectPackets.length >= 4) return;
     const nextPacket = createDefaultCharacterPowerPacket("ATTACK", power.effectPackets.length);
     const nextPackets = [...power.effectPackets, nextPacket];
@@ -1459,7 +1528,9 @@ export default function CharacterBuilderPage() {
   }
 
   function removePowerPacket(powerIndex: number, packetIndex: number) {
-    const power = builderData.powers[powerIndex];
+    const power = powerIndex === SIGNATURE_MOVE_POWER_INDEX
+      ? signatureMoveDraft
+      : builderData.powers[powerIndex];
     if (!power || power.effectPackets.length <= 1) return;
     const nextPackets = power.effectPackets
       .filter((_, candidateIndex) => candidateIndex !== packetIndex)
@@ -1474,1333 +1545,34 @@ export default function CharacterBuilderPage() {
     }));
   }
 
-  function updateGreatSecretField(index: number, value: string) {
-    const fields = [...builderData.greatSecret.fields];
-    fields[index] = value;
-    updateBuilderData({
-      greatSecret: {
-        ...builderData.greatSecret,
-        fields,
-      },
-    });
-  }
 
-  function addCharacteristic() {
-    updateBuilderData({
-      characteristics: [
-        ...builderData.characteristics,
-        {
-          id: `characteristic-${Date.now()}`,
-          name: "",
-          keyword: "",
-          additionalDice: 1,
-          resultModifier: undefined,
-          rerollOnes: undefined,
-          attributeSwaps: [],
-        },
-      ],
-    });
-  }
+  function renderPowerEditorCards(params: {
+    powers: CharacterPower[];
+    budget: ReturnType<typeof summarizeCharacterPowers>;
+    emptyMessage: string;
+    getPowerIndex?: (index: number) => number;
+    getPowerFallbackName?: (index: number) => string;
+    allowRemove?: boolean;
+  }) {
+    const {
+      powers,
+      budget,
+      emptyMessage,
+      getPowerIndex = (index) => index,
+      getPowerFallbackName = (index) => `Power ${index + 1}`,
+      allowRemove = true,
+    } = params;
 
-  function updateCharacteristic(characteristicId: string, patch: Partial<CharacteristicState>) {
-    updateBuilderData({
-      characteristics: builderData.characteristics.map((characteristic) =>
-        characteristic.id === characteristicId
-          ? {
-              ...characteristic,
-              ...patch,
-            }
-          : characteristic,
-      ),
-    });
-  }
-
-  function removeCharacteristic(characteristicId: string) {
-    updateBuilderData({
-      characteristics: builderData.characteristics.filter(
-        (characteristic) => characteristic.id !== characteristicId,
-      ),
-    });
-    setAttributeSwapDrafts((current) => {
-      const next = { ...current };
-      delete next[characteristicId];
-      return next;
-    });
-  }
-
-  function addAttributeSwap(characteristic: CharacteristicState) {
-    const selected = attributeSwapDrafts[characteristic.id] as CharacterAttribute | undefined;
-    if (
-      !selected ||
-      !CHARACTER_ATTRIBUTES.includes(selected) ||
-      characteristic.attributeSwaps.includes(selected) ||
-      !getCanAddAttributeSwapForBudget(characteristic, getCharacteristicGlobalBudget(characteristic))
-    ) {
-      return;
-    }
-    updateCharacteristic(characteristic.id, {
-      attributeSwaps: [...characteristic.attributeSwaps, selected],
-    });
-    setAttributeSwapDrafts((current) => ({
-      ...current,
-      [characteristic.id]: "",
-    }));
-  }
-
-  function removeAttributeSwap(characteristic: CharacteristicState, attribute: CharacterAttribute) {
-    updateCharacteristic(characteristic.id, {
-      attributeSwaps: characteristic.attributeSwaps.filter((swap) => swap !== attribute),
-    });
-  }
-
-  function updateAttributeMethod(method: AttributeMethod) {
-    updateBuilderData({
-      attributeMethod: method,
-      attributes: method === "HEROIC" ? { ...builderData.attributes } : builderData.attributes,
-    });
-  }
-
-  function updateAttribute(attribute: CharacterAttribute, value: CharacterAttributeValue) {
-    updateBuilderData({
-      attributes: {
-        ...builderData.attributes,
-        [attribute]: value,
-      },
-    });
-  }
-
-  function getCharacteristicGlobalBudget(characteristic: CharacteristicState) {
-    const currentCost = characteristicCost(characteristic);
-    return Math.max(0, characteristicBudget - (characteristicSpent - currentCost));
-  }
-
-  function updateResistPoint(attribute: CharacterAttribute, value: string) {
-    const digits = normalizeWholeNumberInput(value);
-    const requested = Number.parseInt(digits || "0", 10) || 0;
-    const current = builderData.resistPoints[attribute] ?? 0;
-    const remainingWithoutCurrent = Math.max(0, resistBudget - (resistSpent - current));
-    const numeric = Math.min(requested, remainingWithoutCurrent);
-    updateBuilderData({
-      resistPoints: {
-        ...builderData.resistPoints,
-        [attribute]: numeric,
-      },
-    });
-  }
-
-  function isHeroicValueAvailable(attribute: CharacterAttribute, value: number) {
-    if (builderData.attributeMethod !== "HEROIC") return true;
-    const required = heroicRequiredCounts();
-    const used = CHARACTER_ATTRIBUTES.reduce<Map<number, number>>((counts, candidate) => {
-      if (candidate === attribute) return counts;
-      const candidateValue = builderData.attributes[candidate];
-      if (candidateValue === "") return counts;
-      counts.set(candidateValue, (counts.get(candidateValue) ?? 0) + 1);
-      return counts;
-    }, new Map());
-    return (used.get(value) ?? 0) < (required.get(value) ?? 0);
-  }
-
-  function toggleTrait(trait: PlayerTraitDefinition) {
-    if (trait.isActive === false) return;
-    const selected = new Set(builderData.selectedTraitKeys);
-    if (selected.has(trait.id)) {
-      selected.delete(trait.id);
-    } else {
-      const negativeSelectedCount = activeTraitCatalog.filter(
-        (candidate) =>
-          candidate.classification === "NEGATIVE" &&
-          selected.has(candidate.id),
-      ).length;
-      if (trait.classification === "NEGATIVE" && negativeSelectedCount >= 2) {
-        return;
-      }
-      selected.add(trait.id);
-    }
-    updateBuilderData({ selectedTraitKeys: Array.from(selected) });
-  }
-
-  function updateEquipmentSlot(slot: EquipmentSlotKey, backpackItemId: string) {
-    const next = {
-      ...builderData.equippedSlots,
-      [slot]: backpackItemId || undefined,
-    };
-    if (!backpackItemId) {
-      delete next[slot];
-    }
-    const selectedItem = backpackItems.find((item) => item.id === backpackItemId);
-    if (
-      slot === "mainHand" &&
-      selectedItem?.itemTemplate.type === "WEAPON" &&
-      selectedItem.itemTemplate.size === "TWO_HANDED"
-    ) {
-      delete next.offHand;
-    }
-    updateBuilderData({ equippedSlots: next });
-  }
-
-  function getLegalBackpackItemsForSlot(slot: EquipmentSlotKey) {
-    const currentBackpackItemId = builderData.equippedSlots[slot];
-    const useCounts = getEquipmentSlotUseCounts(builderData.equippedSlots);
-    return backpackItems.filter((item) => {
-      if (!isBackpackItemLegalForEquipmentSlot(slot, item)) return false;
-      if (slot === "offHand" && isOffHandLocked && currentBackpackItemId !== item.id) {
-        return false;
-      }
-      const usedByOtherSlots =
-        (useCounts.get(item.id) ?? 0) - (currentBackpackItemId === item.id ? 1 : 0);
-      return usedByOtherSlots < item.quantity || currentBackpackItemId === item.id;
-    });
-  }
-
-  function getShortcutLegalSlots(item: BuilderBackpackItem): EquipmentSlotKey[] {
-    return EQUIPMENT_SLOTS.filter((slot) =>
-      getLegalBackpackItemsForSlot(slot).some((candidate) => candidate.id === item.id),
-    );
-  }
-
-  function equipBackpackItemToSlot(item: BuilderBackpackItem, slot: EquipmentSlotKey) {
-    setError(null);
-    setPendingHandEquipItemId("");
-    setSelectedBackpackItemId(item.id);
-    updateEquipmentSlot(slot, item.id);
-  }
-
-  function handleEquipBackpackItem(item: BuilderBackpackItem) {
-    if (!canEdit || saving) return;
-    const legalSlots = getShortcutLegalSlots(item);
-    if (legalSlots.length === 0) {
-      setError("No legal equipment slot is currently available for this item.");
-      return;
-    }
-
-    const targetSlot = legalSlots[0];
-    const isOneHandedHandItem =
-      (item.itemTemplate.type === "WEAPON" || item.itemTemplate.type === "SHIELD") &&
-      item.itemTemplate.size === "ONE_HANDED";
-    const handChoices = legalSlots.filter((slot) => slot === "mainHand" || slot === "offHand");
-
-    if (isOneHandedHandItem && handChoices.length > 1) {
-      setError(null);
-      setSelectedBackpackItemId(item.id);
-      setPendingHandEquipItemId(item.id);
-      return;
-    }
-
-    equipBackpackItemToSlot(item, targetSlot);
-  }
-
-  function handleUnequipBackpackItem(item: BuilderBackpackItem) {
-    if (!canEdit || saving) return;
-    const next = { ...builderData.equippedSlots };
-    for (const slot of EQUIPMENT_SLOTS) {
-      if (next[slot] === item.id) {
-        delete next[slot];
-      }
-    }
-    setSelectedBackpackItemId(item.id);
-    updateBuilderData({ equippedSlots: next });
-  }
-
-  function getTransferableBackpackQuantity(item: BuilderBackpackItem) {
-    const usedCount = equippedUseCounts.get(item.id) ?? 0;
-    return Math.max(0, item.quantity - usedCount);
-  }
-
-  function openBackpackTransfer(item: BuilderBackpackItem) {
-    if (!canEdit || saving || transferringBackpackItem) return;
-    const targetCharacterId = transferTargets[0]?.characterId ?? "";
-    if (!targetCharacterId) {
-      setError("No active recipient characters are available.");
-      return;
-    }
-    if (getTransferableBackpackQuantity(item) <= 0) {
-      setError("Unequip this item before transferring the equipped quantity.");
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    setSelectedBackpackItemId(item.id);
-    setTransferDraft({
-      backpackItemId: item.id,
-      targetCharacterId,
-      quantity: "1",
-    });
-  }
-
-  async function reloadBackpackAfterTransfer() {
-    if (!builderApiUrl) return;
-    const res = await fetch(builderApiUrl, { cache: "no-store" });
-    const data = (await res.json().catch(() => ({}))) as BuilderPayload;
-    if (!res.ok) {
-      throw new Error(data.error ?? "Item transferred, but Backpack refresh failed.");
-    }
-    setPayload((current) =>
-      current
-        ? {
-            ...current,
-            backpackItems: data.backpackItems ?? current.backpackItems,
-            transferTargets: data.transferTargets ?? current.transferTargets,
-          }
-        : data,
-    );
-  }
-
-  async function syncDraftBeforeBackpackTransfer() {
-    if (!builderApiUrl || !draft || !canEdit) {
-      throw new Error("Character Builder is not ready to sync equipment.");
-    }
-    if (!hasUnsavedEquipmentChanges) return;
-    if (builderValidationErrors.length > 0 || powerValidationErrors.length > 0) {
-      throw new Error("Resolve blocking Character Builder validation errors before giving items.");
-    }
-
-    const res = await fetch(builderApiUrl, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        name: draft.name,
-        imageUrl: draft.imageUrl,
-        age: draft.age,
-        race: draft.race,
-        description: draft.description,
-        level: Number(draft.level),
-        builderData: draft.builderData,
-      }),
-    });
-      const data = (await res.json().catch(() => ({}))) as {
-        character?: CharacterBuilderRecord;
-        traitCatalog?: PlayerTraitDefinition[];
-        backpackItems?: BuilderBackpackItem[];
-        powerTuning?: PowerTuningSnapshot;
-        characterBuilderTuning?: CharacterBuilderTuningSnapshot;
-        error?: string;
-      };
-    if (!res.ok || !data.character) {
-      throw new Error(data.error ?? (await readApiError(res, "Failed to sync equipment.")));
-    }
-    const savedCharacter = data.character;
-
-    setPayload((current) =>
-      current
-        ? {
-            ...current,
-            character: savedCharacter,
-            traitCatalog: data.traitCatalog ?? current.traitCatalog,
-            backpackItems: data.backpackItems ?? current.backpackItems,
-            powerTuning: data.powerTuning ?? current.powerTuning,
-            characterBuilderTuning: data.characterBuilderTuning ?? current.characterBuilderTuning,
-          }
-        : current,
-    );
-    setDraft(makeDraft(savedCharacter));
-  }
-
-  async function handleBackpackTransfer(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!builderApiUrl || !transferDraft || !transferBackpackItem) return;
-    const quantity = Number(transferDraft.quantity);
-    if (!Number.isInteger(quantity) || quantity <= 0) {
-      setError("Transfer quantity must be a positive whole number.");
-      return;
-    }
-    if (quantity > getTransferableBackpackQuantity(transferBackpackItem)) {
-      setError("Transfer quantity exceeds unequipped Backpack quantity.");
-      return;
-    }
-
-    setTransferringBackpackItem(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await syncDraftBeforeBackpackTransfer();
-      const res = await fetch(
-        `/api/campaigns/${encodeURIComponent(campaignId)}/characters/${encodeURIComponent(
-          characterId,
-        )}/backpack-transfer`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sourceBackpackItemId: transferDraft.backpackItemId,
-            targetCharacterId: transferDraft.targetCharacterId,
-            quantity,
-          }),
-        },
-      );
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        throw new Error(data.error ?? (await readApiError(res, "Failed to transfer item.")));
-      }
-      await reloadBackpackAfterTransfer();
-      setTransferDraft(null);
-      setMessage("Item transferred.");
-    } catch (transferError) {
-      setError(transferError instanceof Error ? transferError.message : "Failed to transfer item.");
-    } finally {
-      setTransferringBackpackItem(false);
-    }
-  }
-
-  async function handleSave(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!builderApiUrl || !draft || !canEdit) return;
-    if (builderValidationErrors.length > 0 || powerValidationErrors.length > 0) {
-      setError("Resolve blocking Character Builder validation errors before saving.");
-      return;
-    }
-
-    setSaving(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const res = await fetch(builderApiUrl, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          name: draft.name,
-          imageUrl: draft.imageUrl,
-          age: draft.age,
-          race: draft.race,
-          description: draft.description,
-          level: Number(draft.level),
-          builderData: draft.builderData,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        character?: CharacterBuilderRecord;
-        traitCatalog?: PlayerTraitDefinition[];
-        powerTuning?: PowerTuningSnapshot;
-        characterBuilderTuning?: CharacterBuilderTuningSnapshot;
-        error?: string;
-      };
-      if (!res.ok || !data.character) {
-        throw new Error(data.error ?? (await readApiError(res, "Failed to save character.")));
-      }
-
-      const savedCharacter = data.character;
-      setPayload((current) =>
-        current
-          ? {
-              ...current,
-              character: savedCharacter,
-              traitCatalog: data.traitCatalog ?? current.traitCatalog,
-              powerTuning: data.powerTuning ?? current.powerTuning,
-              characterBuilderTuning: data.characterBuilderTuning ?? current.characterBuilderTuning,
-            }
-          : current,
-      );
-      setDraft(makeDraft(savedCharacter));
-      setMessage("Character details saved.");
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Failed to save character.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const editorPanel = (
-    <form onSubmit={handleSave} className="space-y-4">
-      <div className="sticky top-3 z-20 rounded-xl border border-zinc-800 bg-black/95 p-3 shadow-lg shadow-black/30 backdrop-blur">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="text-sm font-medium text-zinc-200">Character Builder</div>
-            <div className="text-xs text-zinc-500">
-              Save applies Character Details, Narrative Details, Characteristics,
-              Attributes, Resist Points, and Traits.
-            </div>
-          </div>
-          <button
-            type="submit"
-            disabled={!canSave}
-            data-testid="save-character-button"
-            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? "Saving..." : "Save Character"}
-          </button>
-        </div>
-        {builderValidationErrors.length > 0 ? (
-          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
-            {builderValidationErrors.map((validationError) => (
-              <li key={validationError}>{validationError}</li>
-            ))}
-          </ul>
-        ) : null}
-        {!canEdit ? (
-          <span className="mt-2 block text-sm text-zinc-500">
-            This character is not editable from your account.
-          </span>
-        ) : null}
-      </div>
-
-      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-        <summary className="cursor-pointer">
-          <div>
-            <h2 className="text-lg font-semibold">Character Details</h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              Basic identity only. Character mechanics arrive in later steps.
-            </p>
-          </div>
-        </summary>
-
-        <div className="mt-4 grid gap-4">
-          <label className="block">
-            <span className="text-xs text-zinc-400">Character Name</span>
-            <input
-              type="text"
-              value={draft?.name ?? ""}
-              onChange={(event) => updateDraft({ name: event.target.value })}
-              disabled={!canEdit || saving}
-              placeholder="UNNAMED"
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-xs text-zinc-400">Portrait URL</span>
-            <input
-              type="url"
-              value={draft?.imageUrl ?? ""}
-              onChange={(event) => updateDraft({ imageUrl: event.target.value })}
-              disabled={!canEdit || saving}
-              placeholder="https://..."
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-            />
-          </label>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <label className="block">
-              <span className="text-xs text-zinc-400">Level</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={draft?.level ?? "1"}
-                onChange={(event) => updateDraft({ level: event.target.value })}
-                disabled={!canEdit || saving}
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs text-zinc-400">Age</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={draft?.age ?? ""}
-                onBeforeInput={(event) => {
-                  if (event.data && /\D/.test(event.data)) {
-                    event.preventDefault();
-                  }
-                }}
-                onPaste={(event) => {
-                  const text = event.clipboardData.getData("text");
-                  if (/\D/.test(text)) {
-                    event.preventDefault();
-                    updateDraft({ age: normalizeAgeInput(text) });
-                  }
-                }}
-                onChange={(event) => updateDraft({ age: normalizeAgeInput(event.target.value) })}
-                disabled={!canEdit || saving}
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs text-zinc-400">Race</span>
-              <input
-                type="text"
-                value={draft?.race ?? ""}
-                onChange={(event) => updateDraft({ race: event.target.value })}
-                disabled={!canEdit || saving}
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-              />
-            </label>
-          </div>
-
-          <label className="block">
-            <span className="text-xs text-zinc-400">Description / Backstory</span>
-            <textarea
-              value={draft?.description ?? ""}
-              onChange={(event) => updateDraft({ description: event.target.value })}
-              disabled={!canEdit || saving}
-              rows={6}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-            />
-          </label>
-        </div>
-
-      </details>
-
-      <details
-        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
-        data-testid="character-builder-section-narrative"
-      >
-        <summary className="cursor-pointer">
-          <h2 className="text-lg font-semibold">Narrative Details</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Great Secret and narrative notes. Bonds remain Game Director-assigned later.
-          </p>
-        </summary>
-        <div className="mt-4 grid gap-4" data-testid="character-builder-section-narrative-body">
-          <label className="block">
-            <span className="text-xs text-zinc-400">Great Secret Template</span>
-            <select
-              value={builderData.greatSecret.templateKey}
-              onChange={(event) => {
-                const template = GREAT_SECRET_TEMPLATES.find(
-                  (candidate) => candidate.key === event.target.value,
-                ) ?? GREAT_SECRET_TEMPLATES[0];
-                updateBuilderData({
-                  greatSecret: {
-                    templateKey: template.key,
-                    fields: template.fieldLabels.map(
-                      (_, index) => builderData.greatSecret.fields[index] ?? "",
-                    ),
-                  },
-                });
-              }}
-              disabled={!canEdit || saving}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-            >
-              {GREAT_SECRET_TEMPLATES.map((template) => (
-                <option key={template.key} value={template.key}>
-                  {template.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {(
-            GREAT_SECRET_TEMPLATES.find(
-              (template) => template.key === builderData.greatSecret.templateKey,
-            ) ?? GREAT_SECRET_TEMPLATES[0]
-          ).fieldLabels.map((label, index) => (
-            <label key={label} className="block">
-              <span className="text-xs text-zinc-400">{label}</span>
-              <input
-                type="text"
-                value={builderData.greatSecret.fields[index] ?? ""}
-                onChange={(event) => updateGreatSecretField(index, event.target.value)}
-                disabled={!canEdit || saving}
-                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-              />
-            </label>
-          ))}
-          <div className="rounded-lg border border-zinc-800 bg-black p-3 text-sm text-zinc-300">
-            {renderGreatSecret(builderData.greatSecret)}
-          </div>
-          <label className="block">
-            <span className="text-xs text-zinc-400">Narrative Notes</span>
-            <textarea
-              value={builderData.narrativeNotes}
-              onChange={(event) => updateBuilderData({ narrativeNotes: event.target.value })}
-              disabled={!canEdit || saving}
-              rows={4}
-              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-            />
-          </label>
-          <div className="rounded-lg border border-dashed border-zinc-800 p-3 text-sm text-zinc-500">
-            Bonds are assigned by the Game Director in a later Character Management step.
-          </div>
-        </div>
-      </details>
-
-      <details
-        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
-        data-testid="character-builder-section-traits"
-      >
-        <summary className="cursor-pointer">
-          <h2 className="text-lg font-semibold">Player Traits</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Trait Points: {traitSummary.positiveCost}/{traitSummary.available} spent
-            ({traitPointBudget(currentLevel)} base + {traitSummary.negativeBonusAllowed} allowed negative bonus).
-          </p>
-        </summary>
-        <div className="mt-4 space-y-5">
-          {activeTraitCatalog.length === 0 ? (
-            <p className="text-sm text-zinc-500">
-              No active Character Traits are available yet.
-            </p>
-          ) : null}
-          <div>
-            <div className="flex items-baseline justify-between gap-3">
-              <h3 className="font-medium text-zinc-200">Positive Traits</h3>
-              <span className="text-xs text-zinc-500">These cost Trait Points.</span>
-            </div>
-            <div className="mt-2 space-y-2">
-              {positiveTraits.length === 0 ? (
-                <p className="text-sm text-zinc-500">No active Positive Traits.</p>
-              ) : null}
-              {positiveTraits.map((trait) => {
-                const selected = builderData.selectedTraitKeys.includes(trait.id);
-                return (
-                  <label
-                    key={trait.id}
-                    className="flex w-full gap-3 rounded-lg border border-zinc-800 bg-black px-3 py-2"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      onChange={() => toggleTrait(trait)}
-                      disabled={!canEdit || saving}
-                      className="mt-1 h-4 w-4"
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-zinc-200">
-                        {trait.name} ({signedTraitPointDisplay(trait)})
-                      </span>
-                      <span className="mt-0.5 block text-xs text-zinc-500">
-                        {trait.descriptor}
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-              <h3 className="font-medium text-zinc-200">Negative Traits</h3>
-              <span className="text-xs text-zinc-500">
-                These grant bonus Trait Points, up to 2 total bonus points and 2 Negative Traits.
-              </span>
-            </div>
-            <div className="mt-2 space-y-2">
-              {visibleNegativeTraits.length === 0 ? (
-                <p className="text-sm text-zinc-500">
-                  {selectedNegativeTraitCount >= 2
-                    ? "Negative Trait cap reached."
-                    : "No active Negative Traits."}
-                </p>
-              ) : null}
-              {visibleNegativeTraits.map((trait) => {
-                const selected = builderData.selectedTraitKeys.includes(trait.id);
-                return (
-                  <label
-                    key={trait.id}
-                    className="flex w-full gap-3 rounded-lg border border-zinc-800 bg-black px-3 py-2"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      onChange={() => toggleTrait(trait)}
-                      disabled={!canEdit || saving}
-                      className="mt-1 h-4 w-4"
-                    />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-zinc-200">
-                        {trait.name} ({signedTraitPointDisplay(trait)})
-                      </span>
-                      <span className="mt-0.5 block text-xs text-zinc-500">
-                        {trait.descriptor}
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </details>
-
-      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-        <summary className="cursor-pointer">
-          <div>
-            <h2 className="text-lg font-semibold">Characteristics</h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              Character Points: {characteristicSpent}/{characteristicBudget} spent.
-            </p>
-          </div>
-        </summary>
-        <div className="mt-4 flex justify-end">
-          <button
-            type="button"
-            onClick={addCharacteristic}
-            disabled={!canEdit || saving || characteristicSpent >= characteristicBudget}
-            className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Add Characteristic
-          </button>
-        </div>
-        <div className="mt-4 space-y-4">
-          {builderData.characteristics.length === 0 ? (
-            <p className="text-sm text-zinc-500">No Characteristics yet.</p>
-          ) : null}
-          {builderData.characteristics.map((characteristic) => {
-            const cost = characteristicCost(characteristic);
-            const units = getCharacteristicUnits(characteristic);
-            const characteristicErrors = validateCharacteristic(characteristic);
-            const characteristicGlobalBudget = getCharacteristicGlobalBudget(characteristic);
-            const canAddSwap = getCanAddAttributeSwapForBudget(
-              characteristic,
-              characteristicGlobalBudget,
-            );
-            return (
-              <div key={characteristic.id} className="rounded-lg border border-zinc-800 bg-black p-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block">
-                    <span className="text-xs text-zinc-400">Name</span>
-                    <input
-                      type="text"
-                      value={characteristic.name}
-                      onChange={(event) =>
-                        updateCharacteristic(characteristic.id, { name: event.target.value })
-                      }
-                      disabled={!canEdit || saving}
-                      className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs text-zinc-400">Keyword</span>
-                    <input
-                      type="text"
-                      value={characteristic.keyword}
-                      onChange={(event) =>
-                        updateCharacteristic(characteristic.id, { keyword: event.target.value })
-                      }
-                      disabled={!canEdit || saving}
-                      placeholder="e.g. Gambling"
-                      className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                    />
-                  </label>
-                </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-4">
-                  {[
-                    ["additionalDice", "Additional Dice"],
-                    ["resultModifier", "Result Modifier"],
-                    ["rerollOnes", "Reroll Ones"],
-                  ].map(([field, label]) => {
-                    const family = field as CharacteristicEffectFamily;
-                    const options = getLegalMagnitudeOptionsForBudget(
-                      characteristic,
-                      family,
-                      characteristicGlobalBudget,
-                    );
-                    return (
-                      <label key={field} className="block">
-                        <span className="text-xs text-zinc-400">{label}</span>
-                        <select
-                          value={String(characteristic[family] ?? "")}
-                          onChange={(event) =>
-                            updateCharacteristic(characteristic.id, {
-                              [field]: event.target.value ? Number(event.target.value) : undefined,
-                            } as Partial<CharacteristicState>)
-                          }
-                          disabled={!canEdit || saving}
-                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                        >
-                          <option value="">None</option>
-                          {options.map((value) => (
-                            <option key={value} value={value}>
-                              +{value}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    );
-                  })}
-                  <div>
-                    <span className="text-xs text-zinc-400">Attribute Swap</span>
-                    <div className="mt-1 flex gap-2">
-                      <select
-                        value={attributeSwapDrafts[characteristic.id] ?? ""}
-                        onChange={(event) =>
-                          setAttributeSwapDrafts((current) => ({
-                            ...current,
-                            [characteristic.id]: event.target.value,
-                          }))
-                        }
-                        disabled={!canEdit || saving || !canAddSwap}
-                        className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                      >
-                        <option value="">Add swap...</option>
-                        {CHARACTER_ATTRIBUTES.filter(
-                          (attribute) => !characteristic.attributeSwaps.includes(attribute),
-                        ).map((attribute) => (
-                          <option key={attribute} value={attribute}>
-                            {attribute}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => addAttributeSwap(characteristic)}
-                        disabled={
-                          !canEdit ||
-                          saving ||
-                          !attributeSwapDrafts[characteristic.id] ||
-                          !canAddSwap
-                        }
-                        className="rounded-lg border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    {characteristic.attributeSwaps.length > 0 ? (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {characteristic.attributeSwaps.map((attribute) => (
-                          <button
-                            key={attribute}
-                            type="button"
-                            onClick={() => removeAttributeSwap(characteristic, attribute)}
-                            disabled={!canEdit || saving}
-                            className="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {attribute} x
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                  <div
-                    className={
-                      units > MAX_CHARACTERISTIC_UNITS ||
-                      cost > 15 ||
-                      cost > characteristicGlobalBudget
-                        ? "text-sm text-red-300"
-                        : "text-sm text-zinc-400"
-                    }
-                  >
-                    Cost: {cost}/15 ({units}/{MAX_CHARACTERISTIC_UNITS} units),{" "}
-                    {characteristicGlobalBudget} points available for this Characteristic
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeCharacteristic(characteristic.id)}
-                    disabled={!canEdit || saving}
-                    className="rounded-lg border border-red-900 px-3 py-1 text-xs text-red-300 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Remove
-                  </button>
-                </div>
-                <p className="mt-3 text-sm text-zinc-300">
-                  {renderCharacteristicDescriptor(characteristic)}
-                </p>
-                {characteristicErrors.length > 0 ? (
-                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
-                    {characteristicErrors.map((validationError) => (
-                      <li key={validationError}>{validationError}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            );
-          })}
-          {characteristicSpent > characteristicBudget ? (
-            <p className="text-sm text-red-300">
-              Total Characteristic cost exceeds available Character Points.
-            </p>
-          ) : null}
-        </div>
-      </details>
-
-      <details
-        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
-        data-testid="character-builder-section-attributes"
-      >
-        <summary className="cursor-pointer">
-          <h2 className="text-lg font-semibold">Attributes / Resist Points</h2>
-        </summary>
-        <div className="mt-4 space-y-4">
-          <div className="rounded-lg border border-zinc-800 bg-black p-3">
-            <div className="grid gap-4">
-              <div>
-                <label className="block">
-                  <span className="text-xs text-zinc-400">Attribute Generation Method</span>
-                  <select
-                    value={builderData.attributeMethod}
-                    onChange={(event) => updateAttributeMethod(event.target.value as AttributeMethod)}
-                    disabled={!canEdit || saving}
-                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                  >
-                    <option value="HEROIC">Heroic</option>
-                    <option value="DESTINY">Destiny</option>
-                    <option value="ROLLED">Rolled</option>
-                  </select>
-                </label>
-                <p className="mt-2 text-xs text-zinc-500">
-                  Heroic uses 12, 10, 8, 8, 6, 4. Destiny must total 48. Rolled allows legal table values.
-                </p>
-                <div className="mt-4">
-                  <div className="grid grid-cols-[minmax(90px,0.8fr)_minmax(92px,120px)_72px] gap-x-2 gap-y-2 xl:grid-cols-[minmax(90px,0.8fr)_minmax(92px,120px)_72px_minmax(450px,1fr)]">
-                    <div className="text-xs uppercase text-zinc-500">Attribute</div>
-                    <div className="text-center text-xs uppercase text-zinc-500">Base</div>
-                    <div className="text-center text-xs uppercase text-zinc-500">Modifier</div>
-                    <div className="hidden xl:block" aria-hidden="true" />
-                    <div className="hidden xl:block xl:col-start-4 xl:row-span-6 xl:row-start-2 xl:-ml-2">
-                      <DerivedSkillRoutingDiagram stats={derivedCombatStats} />
-                    </div>
-                    {CHARACTER_ATTRIBUTES.map((attribute) => {
-                      const modifier = getAttributeModifierValue(attribute);
-                      return (
-                        <div key={attribute} className="contents">
-                          <span className="flex items-center text-sm text-zinc-300">{attribute}</span>
-                          <select
-                            value={builderData.attributes[attribute]}
-                            onChange={(event) =>
-                              updateAttribute(
-                                attribute,
-                                event.target.value ? Number(event.target.value) : "",
-                              )
-                            }
-                            disabled={!canEdit || saving}
-                            className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-center text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                          >
-                            <option value="">Choose...</option>
-                            {LEGAL_ATTRIBUTE_VALUES.map((value) => (
-                              <option
-                                key={value}
-                                value={value}
-                                disabled={!isHeroicValueAvailable(attribute, value)}
-                              >
-                                {value}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            readOnly
-                            type="text"
-                            value={formatSignedModifierValue(modifier)}
-                            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-2 text-center text-sm text-zinc-200 opacity-80"
-                            aria-label={`${attribute} equipped item modifier`}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-4 xl:hidden">
-                    <DerivedSkillValueColumn stats={derivedCombatStats} />
-                  </div>
-                </div>
-                <div className="mt-3 text-sm text-zinc-400">
-                  Attribute total:{" "}
-                  {CHARACTER_ATTRIBUTES.reduce(
-                    (sum, attribute) =>
-                      sum +
-                      (typeof builderData.attributes[attribute] === "number"
-                        ? builderData.attributes[attribute]
-                        : 0),
-                    0,
-                  )}
-                  {builderData.attributeMethod === "DESTINY" ? " / 48" : ""}
-                </div>
-                {builderData.attributeMethod === "DESTINY" ? (
-                  <div className="mt-1 text-sm text-zinc-500">
-                    Remaining to 48:{" "}
-                    {48 -
-                      CHARACTER_ATTRIBUTES.reduce(
-                        (sum, attribute) =>
-                          sum +
-                          (typeof builderData.attributes[attribute] === "number"
-                            ? builderData.attributes[attribute]
-                            : 0),
-                        0,
-                      )}
-                  </div>
-                ) : null}
-                {attributeValidationErrors.length > 0 ? (
-                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
-                    {attributeValidationErrors.map((validationError) => (
-                      <li key={validationError}>{validationError}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-zinc-800 bg-black p-3">
-            <h3 className="font-semibold">Resist Points</h3>
-            <p className="mt-1 text-sm text-zinc-500">
-              Budget: {resistSpent}/{resistBudget}. Add assigned points as dice to Resist rolls.
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {CHARACTER_ATTRIBUTES.map((attribute) => (
-                <label key={attribute} className="block">
-                  <span className="text-xs text-zinc-400">{attribute}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={Math.max(
-                      0,
-                      resistBudget -
-                        (resistSpent - (builderData.resistPoints[attribute] ?? 0)),
-                    )}
-                    step={1}
-                    value={builderData.resistPoints[attribute]}
-                    onKeyDown={(event) => {
-                      if (["e", "E", "+", "-", "."].includes(event.key)) {
-                        event.preventDefault();
-                      }
-                    }}
-                    onBeforeInput={(event) => {
-                      if (event.data && /\D/.test(event.data)) {
-                        event.preventDefault();
-                      }
-                    }}
-                    onPaste={(event) => {
-                      const text = event.clipboardData.getData("text");
-                      if (/\D/.test(text)) {
-                        event.preventDefault();
-                        updateResistPoint(attribute, normalizeWholeNumberInput(text));
-                      }
-                    }}
-                    onChange={(event) => updateResistPoint(attribute, event.target.value)}
-                    disabled={!canEdit || saving}
-                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                  />
-                </label>
-              ))}
-            </div>
-            {resistValidationErrors.length > 0 ? (
-              <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
-                {resistValidationErrors.map((validationError) => (
-                  <li key={validationError}>{validationError}</li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        </div>
-      </details>
-
-      <details
-        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
-        data-testid="character-builder-section-equipment"
-      >
-        <summary className="cursor-pointer">
-          <h2 className="text-lg font-semibold">Equipped Gear / Backpack</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Equip only from this character&apos;s assigned Backpack. A Game Director manages
-            Party Inventory and Backpack quantities.
-          </p>
-        </summary>
-        <div className="mt-4 space-y-5">
-          {EQUIPMENT_SLOT_GROUPS.map((group) => (
-            <div key={group.label}>
-              <h3 className="text-sm font-medium text-zinc-200">{group.label}</h3>
-              <div className="mt-2 grid gap-3 lg:grid-cols-2">
-                {group.slots.map((slot) => {
-                  const legalItems = getLegalBackpackItemsForSlot(slot);
-                  const selectedItemId = builderData.equippedSlots[slot] ?? "";
-                  const selectedItem = backpackItems.find((item) => item.id === selectedItemId);
-                  const disabledByTwoHanded = slot === "offHand" && isOffHandLocked;
-                  if (selectedItem) {
-                    return (
-                      <EquippedItemMiniCard
-                        key={slot}
-                        slot={slot}
-                        item={selectedItem}
-                        canEdit={canEdit}
-                        saving={saving}
-                        onClear={() => updateEquipmentSlot(slot, "")}
-                      />
-                    );
-                  }
-
-                  return (
-                    <label
-                      key={slot}
-                      className="block rounded-lg border border-zinc-800 bg-black p-3"
-                    >
-                      <span className="text-sm font-medium text-zinc-200">
-                        {EQUIPMENT_SLOT_LABELS[slot]}
-                      </span>
-                      <select
-                        value={selectedItemId}
-                        onChange={(event) => updateEquipmentSlot(slot, event.target.value)}
-                        disabled={!canEdit || saving || disabledByTwoHanded}
-                        className="mt-2 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                      >
-                        <option value="">
-                          {disabledByTwoHanded
-                            ? "Unavailable - two-handed weapon equipped"
-                            : "Empty"}
-                        </option>
-                        {legalItems.map((item) => {
-                          const usedCount = equippedUseCounts.get(item.id) ?? 0;
-                          return (
-                            <option key={item.id} value={item.id}>
-                              {item.itemTemplate.name ?? "(Unnamed item)"} ({usedCount}/
-                              {item.quantity} used)
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-5 space-y-3">
-          <h3 className="font-medium text-zinc-200">Backpack</h3>
-          {backpackItems.length === 0 ? (
-            <p className="rounded-lg border border-zinc-800 bg-black p-3 text-sm text-zinc-500">
-              No Backpack items assigned to this character yet.
-            </p>
-          ) : (
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.95fr)]">
-              <div className="space-y-2">
-                {backpackItems.map((item) => {
-                  const usedCount = equippedUseCounts.get(item.id) ?? 0;
-                  const selected = selectedBackpackItemId === item.id;
-                  const isEquipped = usedCount > 0;
-                  const transferableQuantity = getTransferableBackpackQuantity(item);
-                  return (
-                    <article
-                      key={item.id}
-                      className={`rounded-lg border p-2 transition ${
-                        selected
-                          ? "border-emerald-500 bg-emerald-950/20"
-                          : "border-zinc-800 bg-black hover:border-zinc-700 hover:bg-zinc-950"
-                      }`}
-                    >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <button
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() => setSelectedBackpackItemId(item.id)}
-                          className="min-w-0 flex-1 rounded-md px-1 py-1 text-left focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium text-zinc-100">
-                              {item.itemTemplate.name ?? "(Unnamed item)"}
-                            </div>
-                            <div className="mt-1 text-xs text-zinc-500">
-                              {formatBackpackItemMeta(item) || "No item details"}
-                            </div>
-                          </div>
-                        </button>
-                        <div className="flex shrink-0 flex-wrap items-center gap-1 text-[11px] text-zinc-300">
-                          <span className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1">
-                            Qty {item.quantity}
-                          </span>
-                          <span className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1">
-                            Used {usedCount}
-                          </span>
-                          {selected ? (
-                            <span className="rounded border border-emerald-600 bg-emerald-950/40 px-2 py-1 text-emerald-100">
-                              Selected
-                            </span>
-                          ) : null}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              isEquipped
-                                ? handleUnequipBackpackItem(item)
-                                : handleEquipBackpackItem(item)
-                            }
-                            disabled={!canEdit || saving}
-                            className={`rounded border px-2 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-60 ${
-                              isEquipped
-                                ? "border-amber-700 text-amber-200 hover:bg-amber-950/30"
-                                : "border-emerald-700 text-emerald-100 hover:bg-emerald-950/30"
-                            }`}
-                          >
-                            {isEquipped ? "Unequip" : "Equip"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openBackpackTransfer(item)}
-                            disabled={
-                              !canEdit ||
-                              saving ||
-                              transferringBackpackItem ||
-                              transferTargets.length === 0 ||
-                              transferableQuantity <= 0
-                            }
-                            className="rounded border border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-100 hover:bg-sky-950/30 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            Give
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-
-              <div className="min-w-0">
-                {selectedBackpackItem ? (
-                  <BackpackItemPreview item={selectedBackpackItem} />
-                ) : (
-                  <div className="rounded-lg border border-dashed border-zinc-800 bg-black p-4 text-sm text-zinc-500">
-                    Select a Backpack item to preview its details.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </details>
-
-      <details
-        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
-        data-testid="character-builder-section-powers"
-      >
-        <summary className="cursor-pointer">
-          <h2 className="text-lg font-semibold">Powers</h2>
-        </summary>
-        <div className="mt-4 space-y-4">
-          <div
-            className={`rounded-lg border p-3 ${
-              powerBudget.overspent
-                ? "border-red-800 bg-red-950/20"
-                : "border-zinc-800 bg-black"
-            }`}
-          >
-            <div className="grid gap-3 text-sm sm:grid-cols-4">
-              <div>
-                <div className="text-xs text-zinc-500">Power Pool</div>
-                <div className="text-lg font-semibold">{powerBudget.powerPool}</div>
-              </div>
-              <div>
-                <div className="text-xs text-zinc-500">Spend Scalar</div>
-                <div className="text-lg font-semibold">x{formatPowerNumber(powerBudget.playerPowerSpendScalar)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-zinc-500">Spent</div>
-                <div className="text-lg font-semibold">{formatPowerNumber(powerBudget.totalSpent)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-zinc-500">Remaining</div>
-                <div className={powerBudget.overspent ? "text-lg font-semibold text-red-300" : "text-lg font-semibold"}>
-                  {formatPowerNumber(powerBudget.remaining)}
-                </div>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-zinc-500">
-              Player powers spend BasePowerValue from the shared Phase 6 resolver. Spark and
-              Restrictions are reserved at 0% in this version.
-            </p>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={addPower}
-              disabled={!canEdit || saving}
-              className="rounded-lg border border-emerald-700 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-950/30 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Add Power
-            </button>
-          </div>
-
-          {builderData.powers.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-zinc-800 bg-black p-4 text-sm text-zinc-500">
-              No powers authored yet.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {builderData.powers.map((power, powerIndex) => {
-                const summary = powerBudget.powers[powerIndex];
+    return powers.length === 0 ? (
+      <p className="rounded-lg border border-dashed border-zinc-800 bg-black p-4 text-sm text-zinc-500">
+        {emptyMessage}
+      </p>
+    ) : (
+      <div className="space-y-4">
+        {powers.map((power, localPowerIndex) => {
+          const powerIndex = getPowerIndex(localPowerIndex);
+          const powerFallbackName = getPowerFallbackName(localPowerIndex);
+                const summary = budget.powers[localPowerIndex];
                 const primaryPacket =
                   power.effectPackets[0] ?? createDefaultCharacterPowerPacket("ATTACK", 0);
                 const primaryDetails =
@@ -2878,7 +1650,7 @@ export default function CharacterBuilderPage() {
                             <span className="mr-2 text-zinc-400" aria-hidden="true">
                               {powerCollapsed ? ">" : "v"}
                             </span>
-                            {power.name.trim() || `Power ${powerIndex + 1}`}
+                            {power.name.trim() || powerFallbackName}
                           </h3>
                           {powerCollapsed ? (
                             <span className="shrink-0 text-[11px] text-zinc-500">
@@ -2915,6 +1687,7 @@ export default function CharacterBuilderPage() {
                           </div>
                         )}
                       </button>
+                      {allowRemove ? (
                       <button
                         type="button"
                         onClick={() => removePower(powerIndex)}
@@ -2923,6 +1696,7 @@ export default function CharacterBuilderPage() {
                       >
                         Remove Power
                       </button>
+                      ) : null}
                     </div>
 
                     {!powerCollapsed ? (
@@ -4057,8 +2831,1392 @@ export default function CharacterBuilderPage() {
                   </article>
                 );
               })}
+      </div>
+    );
+  }  function updateGreatSecretField(index: number, value: string) {
+    const fields = [...builderData.greatSecret.fields];
+    fields[index] = value;
+    updateBuilderData({
+      greatSecret: {
+        ...builderData.greatSecret,
+        fields,
+      },
+    });
+  }
+
+  function addCharacteristic() {
+    updateBuilderData({
+      characteristics: [
+        ...builderData.characteristics,
+        {
+          id: `characteristic-${Date.now()}`,
+          name: "",
+          keyword: "",
+          additionalDice: 1,
+          resultModifier: undefined,
+          rerollOnes: undefined,
+          attributeSwaps: [],
+        },
+      ],
+    });
+  }
+
+  function updateCharacteristic(characteristicId: string, patch: Partial<CharacteristicState>) {
+    updateBuilderData({
+      characteristics: builderData.characteristics.map((characteristic) =>
+        characteristic.id === characteristicId
+          ? {
+              ...characteristic,
+              ...patch,
+            }
+          : characteristic,
+      ),
+    });
+  }
+
+  function removeCharacteristic(characteristicId: string) {
+    updateBuilderData({
+      characteristics: builderData.characteristics.filter(
+        (characteristic) => characteristic.id !== characteristicId,
+      ),
+    });
+    setAttributeSwapDrafts((current) => {
+      const next = { ...current };
+      delete next[characteristicId];
+      return next;
+    });
+  }
+
+  function addAttributeSwap(characteristic: CharacteristicState) {
+    const selected = attributeSwapDrafts[characteristic.id] as CharacterAttribute | undefined;
+    if (
+      !selected ||
+      !CHARACTER_ATTRIBUTES.includes(selected) ||
+      characteristic.attributeSwaps.includes(selected) ||
+      !getCanAddAttributeSwapForBudget(characteristic, getCharacteristicGlobalBudget(characteristic))
+    ) {
+      return;
+    }
+    updateCharacteristic(characteristic.id, {
+      attributeSwaps: [...characteristic.attributeSwaps, selected],
+    });
+    setAttributeSwapDrafts((current) => ({
+      ...current,
+      [characteristic.id]: "",
+    }));
+  }
+
+  function removeAttributeSwap(characteristic: CharacteristicState, attribute: CharacterAttribute) {
+    updateCharacteristic(characteristic.id, {
+      attributeSwaps: characteristic.attributeSwaps.filter((swap) => swap !== attribute),
+    });
+  }
+
+  function updateAttributeMethod(method: AttributeMethod) {
+    updateBuilderData({
+      attributeMethod: method,
+      attributes: method === "HEROIC" ? { ...builderData.attributes } : builderData.attributes,
+    });
+  }
+
+  function updateAttribute(attribute: CharacterAttribute, value: CharacterAttributeValue) {
+    updateBuilderData({
+      attributes: {
+        ...builderData.attributes,
+        [attribute]: value,
+      },
+    });
+  }
+
+  function getCharacteristicGlobalBudget(characteristic: CharacteristicState) {
+    const currentCost = characteristicCost(characteristic);
+    return Math.max(0, characteristicBudget - (characteristicSpent - currentCost));
+  }
+
+  function updateResistPoint(attribute: CharacterAttribute, value: string) {
+    const digits = normalizeWholeNumberInput(value);
+    const requested = Number.parseInt(digits || "0", 10) || 0;
+    const current = builderData.resistPoints[attribute] ?? 0;
+    const remainingWithoutCurrent = Math.max(0, resistBudget - (resistSpent - current));
+    const numeric = Math.min(requested, remainingWithoutCurrent);
+    updateBuilderData({
+      resistPoints: {
+        ...builderData.resistPoints,
+        [attribute]: numeric,
+      },
+    });
+  }
+
+  function isHeroicValueAvailable(attribute: CharacterAttribute, value: number) {
+    if (builderData.attributeMethod !== "HEROIC") return true;
+    const required = heroicRequiredCounts();
+    const used = CHARACTER_ATTRIBUTES.reduce<Map<number, number>>((counts, candidate) => {
+      if (candidate === attribute) return counts;
+      const candidateValue = builderData.attributes[candidate];
+      if (candidateValue === "") return counts;
+      counts.set(candidateValue, (counts.get(candidateValue) ?? 0) + 1);
+      return counts;
+    }, new Map());
+    return (used.get(value) ?? 0) < (required.get(value) ?? 0);
+  }
+
+  function toggleTrait(trait: PlayerTraitDefinition) {
+    if (trait.isActive === false) return;
+    const selected = new Set(builderData.selectedTraitKeys);
+    if (selected.has(trait.id)) {
+      selected.delete(trait.id);
+    } else {
+      const negativeSelectedCount = activeTraitCatalog.filter(
+        (candidate) =>
+          candidate.classification === "NEGATIVE" &&
+          selected.has(candidate.id),
+      ).length;
+      if (trait.classification === "NEGATIVE" && negativeSelectedCount >= 2) {
+        return;
+      }
+      selected.add(trait.id);
+    }
+    updateBuilderData({ selectedTraitKeys: Array.from(selected) });
+  }
+
+  function updateEquipmentSlot(slot: EquipmentSlotKey, backpackItemId: string) {
+    const next = {
+      ...builderData.equippedSlots,
+      [slot]: backpackItemId || undefined,
+    };
+    if (!backpackItemId) {
+      delete next[slot];
+    }
+    const selectedItem = backpackItems.find((item) => item.id === backpackItemId);
+    if (
+      slot === "mainHand" &&
+      selectedItem?.itemTemplate.type === "WEAPON" &&
+      selectedItem.itemTemplate.size === "TWO_HANDED"
+    ) {
+      delete next.offHand;
+    }
+    updateBuilderData({ equippedSlots: next });
+  }
+
+  function getLegalBackpackItemsForSlot(slot: EquipmentSlotKey) {
+    const currentBackpackItemId = builderData.equippedSlots[slot];
+    const useCounts = getEquipmentSlotUseCounts(builderData.equippedSlots);
+    return backpackItems.filter((item) => {
+      if (!isBackpackItemLegalForEquipmentSlot(slot, item)) return false;
+      if (slot === "offHand" && isOffHandLocked && currentBackpackItemId !== item.id) {
+        return false;
+      }
+      const usedByOtherSlots =
+        (useCounts.get(item.id) ?? 0) - (currentBackpackItemId === item.id ? 1 : 0);
+      return usedByOtherSlots < item.quantity || currentBackpackItemId === item.id;
+    });
+  }
+
+  function getShortcutLegalSlots(item: BuilderBackpackItem): EquipmentSlotKey[] {
+    return EQUIPMENT_SLOTS.filter((slot) =>
+      getLegalBackpackItemsForSlot(slot).some((candidate) => candidate.id === item.id),
+    );
+  }
+
+  function equipBackpackItemToSlot(item: BuilderBackpackItem, slot: EquipmentSlotKey) {
+    setError(null);
+    setPendingHandEquipItemId("");
+    setSelectedBackpackItemId(item.id);
+    updateEquipmentSlot(slot, item.id);
+  }
+
+  function handleEquipBackpackItem(item: BuilderBackpackItem) {
+    if (!canEdit || saving) return;
+    const legalSlots = getShortcutLegalSlots(item);
+    if (legalSlots.length === 0) {
+      setError("No legal equipment slot is currently available for this item.");
+      return;
+    }
+
+    const targetSlot = legalSlots[0];
+    const isOneHandedHandItem =
+      (item.itemTemplate.type === "WEAPON" || item.itemTemplate.type === "SHIELD") &&
+      item.itemTemplate.size === "ONE_HANDED";
+    const handChoices = legalSlots.filter((slot) => slot === "mainHand" || slot === "offHand");
+
+    if (isOneHandedHandItem && handChoices.length > 1) {
+      setError(null);
+      setSelectedBackpackItemId(item.id);
+      setPendingHandEquipItemId(item.id);
+      return;
+    }
+
+    equipBackpackItemToSlot(item, targetSlot);
+  }
+
+  function handleUnequipBackpackItem(item: BuilderBackpackItem) {
+    if (!canEdit || saving) return;
+    const next = { ...builderData.equippedSlots };
+    for (const slot of EQUIPMENT_SLOTS) {
+      if (next[slot] === item.id) {
+        delete next[slot];
+      }
+    }
+    setSelectedBackpackItemId(item.id);
+    updateBuilderData({ equippedSlots: next });
+  }
+
+  function getTransferableBackpackQuantity(item: BuilderBackpackItem) {
+    const usedCount = equippedUseCounts.get(item.id) ?? 0;
+    return Math.max(0, item.quantity - usedCount);
+  }
+
+  function openBackpackTransfer(item: BuilderBackpackItem) {
+    if (!canEdit || saving || transferringBackpackItem) return;
+    const targetCharacterId = transferTargets[0]?.characterId ?? "";
+    if (!targetCharacterId) {
+      setError("No active recipient characters are available.");
+      return;
+    }
+    if (getTransferableBackpackQuantity(item) <= 0) {
+      setError("Unequip this item before transferring the equipped quantity.");
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    setSelectedBackpackItemId(item.id);
+    setTransferDraft({
+      backpackItemId: item.id,
+      targetCharacterId,
+      quantity: "1",
+    });
+  }
+
+  async function reloadBackpackAfterTransfer() {
+    if (!builderApiUrl) return;
+    const res = await fetch(builderApiUrl, { cache: "no-store" });
+    const data = (await res.json().catch(() => ({}))) as BuilderPayload;
+    if (!res.ok) {
+      throw new Error(data.error ?? "Item transferred, but Backpack refresh failed.");
+    }
+    setPayload((current) =>
+      current
+        ? {
+            ...current,
+            backpackItems: data.backpackItems ?? current.backpackItems,
+            transferTargets: data.transferTargets ?? current.transferTargets,
+          }
+        : data,
+    );
+  }
+
+  async function syncDraftBeforeBackpackTransfer() {
+    if (!builderApiUrl || !draft || !canEdit) {
+      throw new Error("Character Builder is not ready to sync equipment.");
+    }
+    if (!hasUnsavedEquipmentChanges) return;
+    if (blockingSaveErrors.length > 0) {
+      throw new Error(`Resolve blocking Character Builder validation errors before giving items: ${blockingSaveErrors.join(" ")}`);
+    }
+
+    const res = await fetch(builderApiUrl, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        name: draft.name,
+        imageUrl: draft.imageUrl,
+        age: draft.age,
+        race: draft.race,
+        description: draft.description,
+        level: Number(draft.level),
+        builderData: draft.builderData,
+      }),
+    });
+      const data = (await res.json().catch(() => ({}))) as {
+        character?: CharacterBuilderRecord;
+        traitCatalog?: PlayerTraitDefinition[];
+        backpackItems?: BuilderBackpackItem[];
+        powerTuning?: PowerTuningSnapshot;
+        characterBuilderTuning?: CharacterBuilderTuningSnapshot;
+        error?: string;
+      };
+    if (!res.ok || !data.character) {
+      throw new Error(data.error ?? (await readApiError(res, "Failed to sync equipment.")));
+    }
+    const savedCharacter = data.character;
+
+    setPayload((current) =>
+      current
+        ? {
+            ...current,
+            character: savedCharacter,
+            traitCatalog: data.traitCatalog ?? current.traitCatalog,
+            backpackItems: data.backpackItems ?? current.backpackItems,
+            powerTuning: data.powerTuning ?? current.powerTuning,
+            characterBuilderTuning: data.characterBuilderTuning ?? current.characterBuilderTuning,
+          }
+        : current,
+    );
+    setDraft(makeDraft(savedCharacter));
+  }
+
+  async function handleBackpackTransfer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!builderApiUrl || !transferDraft || !transferBackpackItem) return;
+    const quantity = Number(transferDraft.quantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      setError("Transfer quantity must be a positive whole number.");
+      return;
+    }
+    if (quantity > getTransferableBackpackQuantity(transferBackpackItem)) {
+      setError("Transfer quantity exceeds unequipped Backpack quantity.");
+      return;
+    }
+
+    setTransferringBackpackItem(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await syncDraftBeforeBackpackTransfer();
+      const res = await fetch(
+        `/api/campaigns/${encodeURIComponent(campaignId)}/characters/${encodeURIComponent(
+          characterId,
+        )}/backpack-transfer`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceBackpackItemId: transferDraft.backpackItemId,
+            targetCharacterId: transferDraft.targetCharacterId,
+            quantity,
+          }),
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error ?? (await readApiError(res, "Failed to transfer item.")));
+      }
+      await reloadBackpackAfterTransfer();
+      setTransferDraft(null);
+      setMessage("Item transferred.");
+    } catch (transferError) {
+      setError(transferError instanceof Error ? transferError.message : "Failed to transfer item.");
+    } finally {
+      setTransferringBackpackItem(false);
+    }
+  }
+
+  async function handleSave(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!builderApiUrl || !draft || !canEdit) return;
+    if (blockingSaveErrors.length > 0) {
+      setError(`Resolve blocking Character Builder validation errors before saving: ${blockingSaveErrors.join(" ")}`);
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await fetch(builderApiUrl, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: draft.name,
+          imageUrl: draft.imageUrl,
+          age: draft.age,
+          race: draft.race,
+          description: draft.description,
+          level: Number(draft.level),
+          builderData: draft.builderData,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        character?: CharacterBuilderRecord;
+        traitCatalog?: PlayerTraitDefinition[];
+        powerTuning?: PowerTuningSnapshot;
+        characterBuilderTuning?: CharacterBuilderTuningSnapshot;
+        error?: string;
+      };
+      if (!res.ok || !data.character) {
+        throw new Error(data.error ?? (await readApiError(res, "Failed to save character.")));
+      }
+
+      const savedCharacter = data.character;
+      setPayload((current) =>
+        current
+          ? {
+              ...current,
+              character: savedCharacter,
+              traitCatalog: data.traitCatalog ?? current.traitCatalog,
+              powerTuning: data.powerTuning ?? current.powerTuning,
+              characterBuilderTuning: data.characterBuilderTuning ?? current.characterBuilderTuning,
+            }
+          : current,
+      );
+      setDraft(makeDraft(savedCharacter));
+      setMessage("Character details saved.");
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Failed to save character.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const editorPanel = (
+    <form onSubmit={handleSave} className="space-y-4">
+      <div className="sticky top-3 z-20 rounded-xl border border-zinc-800 bg-black/95 p-3 shadow-lg shadow-black/30 backdrop-blur">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-sm font-medium text-zinc-200">Character Builder</div>
+            <div className="text-xs text-zinc-500">
+              Save applies Character Details, Narrative Details, Characteristics,
+              Attributes, Resist Points, Traits, Signature Move, and Powers.
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={!canSave}
+            title={blockingSaveErrors.length > 0 ? blockingSaveErrors.join(" ") : undefined}
+            data-testid="save-character-button"
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? "Saving..." : "Save Character"}
+          </button>
+        </div>
+        {blockingSaveErrors.length > 0 ? (
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
+            {blockingSaveErrors.map((validationError) => (
+              <li key={validationError}>{validationError}</li>
+            ))}
+          </ul>
+        ) : null}
+        {!canEdit ? (
+          <span className="mt-2 block text-sm text-zinc-500">
+            This character is not editable from your account.
+          </span>
+        ) : null}
+      </div>
+
+      <details open className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <summary className="cursor-pointer">
+          <div>
+            <h2 className="text-lg font-semibold">Character Details</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Basic identity only. Character mechanics arrive in later steps.
+            </p>
+          </div>
+        </summary>
+
+        <div className="mt-4 grid gap-4">
+          <label className="block">
+            <span className="text-xs text-zinc-400">Character Name</span>
+            <input
+              type="text"
+              value={draft?.name ?? ""}
+              onChange={(event) => updateDraft({ name: event.target.value })}
+              disabled={!canEdit || saving}
+              placeholder="UNNAMED"
+              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-xs text-zinc-400">Portrait URL</span>
+            <input
+              type="url"
+              value={draft?.imageUrl ?? ""}
+              onChange={(event) => updateDraft({ imageUrl: event.target.value })}
+              disabled={!canEdit || saving}
+              placeholder="https://..."
+              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+            />
+          </label>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <label className="block">
+              <span className="text-xs text-zinc-400">Level</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={draft?.level ?? "1"}
+                onChange={(event) => updateDraft({ level: event.target.value })}
+                disabled={!canEdit || saving}
+                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-zinc-400">Age</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={draft?.age ?? ""}
+                onBeforeInput={(event) => {
+                  if (event.data && /\D/.test(event.data)) {
+                    event.preventDefault();
+                  }
+                }}
+                onPaste={(event) => {
+                  const text = event.clipboardData.getData("text");
+                  if (/\D/.test(text)) {
+                    event.preventDefault();
+                    updateDraft({ age: normalizeAgeInput(text) });
+                  }
+                }}
+                onChange={(event) => updateDraft({ age: normalizeAgeInput(event.target.value) })}
+                disabled={!canEdit || saving}
+                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-zinc-400">Race</span>
+              <input
+                type="text"
+                value={draft?.race ?? ""}
+                onChange={(event) => updateDraft({ race: event.target.value })}
+                disabled={!canEdit || saving}
+                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+              />
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="text-xs text-zinc-400">Description / Backstory</span>
+            <textarea
+              value={draft?.description ?? ""}
+              onChange={(event) => updateDraft({ description: event.target.value })}
+              disabled={!canEdit || saving}
+              rows={6}
+              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+            />
+          </label>
+        </div>
+
+      </details>
+
+      <details
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-narrative"
+      >
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Narrative Details</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Great Secret and narrative notes. Bonds remain Game Director-assigned later.
+          </p>
+        </summary>
+        <div className="mt-4 grid gap-4" data-testid="character-builder-section-narrative-body">
+          <label className="block">
+            <span className="text-xs text-zinc-400">Great Secret Template</span>
+            <select
+              value={builderData.greatSecret.templateKey}
+              onChange={(event) => {
+                const template = GREAT_SECRET_TEMPLATES.find(
+                  (candidate) => candidate.key === event.target.value,
+                ) ?? GREAT_SECRET_TEMPLATES[0];
+                updateBuilderData({
+                  greatSecret: {
+                    templateKey: template.key,
+                    fields: template.fieldLabels.map(
+                      (_, index) => builderData.greatSecret.fields[index] ?? "",
+                    ),
+                  },
+                });
+              }}
+              disabled={!canEdit || saving}
+              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+            >
+              {GREAT_SECRET_TEMPLATES.map((template) => (
+                <option key={template.key} value={template.key}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {(
+            GREAT_SECRET_TEMPLATES.find(
+              (template) => template.key === builderData.greatSecret.templateKey,
+            ) ?? GREAT_SECRET_TEMPLATES[0]
+          ).fieldLabels.map((label, index) => (
+            <label key={label} className="block">
+              <span className="text-xs text-zinc-400">{label}</span>
+              <input
+                type="text"
+                value={builderData.greatSecret.fields[index] ?? ""}
+                onChange={(event) => updateGreatSecretField(index, event.target.value)}
+                disabled={!canEdit || saving}
+                className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+              />
+            </label>
+          ))}
+          <div className="rounded-lg border border-zinc-800 bg-black p-3 text-sm text-zinc-300">
+            {renderGreatSecret(builderData.greatSecret)}
+          </div>
+          <label className="block">
+            <span className="text-xs text-zinc-400">Narrative Notes</span>
+            <textarea
+              value={builderData.narrativeNotes}
+              onChange={(event) => updateBuilderData({ narrativeNotes: event.target.value })}
+              disabled={!canEdit || saving}
+              rows={4}
+              className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+            />
+          </label>
+          <div className="rounded-lg border border-dashed border-zinc-800 p-3 text-sm text-zinc-500">
+            Bonds are assigned by the Game Director in a later Character Management step.
+          </div>
+        </div>
+      </details>
+
+      <details
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-traits"
+      >
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Player Traits</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Trait Points: {traitSummary.positiveCost}/{traitSummary.available} spent
+            ({traitPointBudget(currentLevel)} base + {traitSummary.negativeBonusAllowed} allowed negative bonus).
+          </p>
+        </summary>
+        <div className="mt-4 space-y-5">
+          {activeTraitCatalog.length === 0 ? (
+            <p className="text-sm text-zinc-500">
+              No active Character Traits are available yet.
+            </p>
+          ) : null}
+          <div>
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 className="font-medium text-zinc-200">Positive Traits</h3>
+              <span className="text-xs text-zinc-500">These cost Trait Points.</span>
+            </div>
+            <div className="mt-2 space-y-2">
+              {positiveTraits.length === 0 ? (
+                <p className="text-sm text-zinc-500">No active Positive Traits.</p>
+              ) : null}
+              {positiveTraits.map((trait) => {
+                const selected = builderData.selectedTraitKeys.includes(trait.id);
+                return (
+                  <label
+                    key={trait.id}
+                    className="flex w-full gap-3 rounded-lg border border-zinc-800 bg-black px-3 py-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleTrait(trait)}
+                      disabled={!canEdit || saving}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-zinc-200">
+                        {trait.name} ({signedTraitPointDisplay(trait)})
+                      </span>
+                      <span className="mt-0.5 block text-xs text-zinc-500">
+                        {trait.descriptor}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+              <h3 className="font-medium text-zinc-200">Negative Traits</h3>
+              <span className="text-xs text-zinc-500">
+                These grant bonus Trait Points, up to 2 total bonus points and 2 Negative Traits.
+              </span>
+            </div>
+            <div className="mt-2 space-y-2">
+              {visibleNegativeTraits.length === 0 ? (
+                <p className="text-sm text-zinc-500">
+                  {selectedNegativeTraitCount >= 2
+                    ? "Negative Trait cap reached."
+                    : "No active Negative Traits."}
+                </p>
+              ) : null}
+              {visibleNegativeTraits.map((trait) => {
+                const selected = builderData.selectedTraitKeys.includes(trait.id);
+                return (
+                  <label
+                    key={trait.id}
+                    className="flex w-full gap-3 rounded-lg border border-zinc-800 bg-black px-3 py-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleTrait(trait)}
+                      disabled={!canEdit || saving}
+                      className="mt-1 h-4 w-4"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium text-zinc-200">
+                        {trait.name} ({signedTraitPointDisplay(trait)})
+                      </span>
+                      <span className="mt-0.5 block text-xs text-zinc-500">
+                        {trait.descriptor}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+        <summary className="cursor-pointer">
+          <div>
+            <h2 className="text-lg font-semibold">Characteristics</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Character Points: {characteristicSpent}/{characteristicBudget} spent.
+            </p>
+          </div>
+        </summary>
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={addCharacteristic}
+            disabled={!canEdit || saving || characteristicSpent >= characteristicBudget}
+            className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Add Characteristic
+          </button>
+        </div>
+        <div className="mt-4 space-y-4">
+          {builderData.characteristics.length === 0 ? (
+            <p className="text-sm text-zinc-500">No Characteristics yet.</p>
+          ) : null}
+          {builderData.characteristics.map((characteristic) => {
+            const cost = characteristicCost(characteristic);
+            const units = getCharacteristicUnits(characteristic);
+            const characteristicErrors = validateCharacteristic(characteristic);
+            const characteristicGlobalBudget = getCharacteristicGlobalBudget(characteristic);
+            const canAddSwap = getCanAddAttributeSwapForBudget(
+              characteristic,
+              characteristicGlobalBudget,
+            );
+            return (
+              <div key={characteristic.id} className="rounded-lg border border-zinc-800 bg-black p-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-xs text-zinc-400">Name</span>
+                    <input
+                      type="text"
+                      value={characteristic.name}
+                      onChange={(event) =>
+                        updateCharacteristic(characteristic.id, { name: event.target.value })
+                      }
+                      disabled={!canEdit || saving}
+                      className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-zinc-400">Keyword</span>
+                    <input
+                      type="text"
+                      value={characteristic.keyword}
+                      onChange={(event) =>
+                        updateCharacteristic(characteristic.id, { keyword: event.target.value })
+                      }
+                      disabled={!canEdit || saving}
+                      placeholder="e.g. Gambling"
+                      className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-4">
+                  {[
+                    ["additionalDice", "Additional Dice"],
+                    ["resultModifier", "Result Modifier"],
+                    ["rerollOnes", "Reroll Ones"],
+                  ].map(([field, label]) => {
+                    const family = field as CharacteristicEffectFamily;
+                    const options = getLegalMagnitudeOptionsForBudget(
+                      characteristic,
+                      family,
+                      characteristicGlobalBudget,
+                    );
+                    return (
+                      <label key={field} className="block">
+                        <span className="text-xs text-zinc-400">{label}</span>
+                        <select
+                          value={String(characteristic[family] ?? "")}
+                          onChange={(event) =>
+                            updateCharacteristic(characteristic.id, {
+                              [field]: event.target.value ? Number(event.target.value) : undefined,
+                            } as Partial<CharacteristicState>)
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          <option value="">None</option>
+                          {options.map((value) => (
+                            <option key={value} value={value}>
+                              +{value}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })}
+                  <div>
+                    <span className="text-xs text-zinc-400">Attribute Swap</span>
+                    <div className="mt-1 flex gap-2">
+                      <select
+                        value={attributeSwapDrafts[characteristic.id] ?? ""}
+                        onChange={(event) =>
+                          setAttributeSwapDrafts((current) => ({
+                            ...current,
+                            [characteristic.id]: event.target.value,
+                          }))
+                        }
+                        disabled={!canEdit || saving || !canAddSwap}
+                        className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                      >
+                        <option value="">Add swap...</option>
+                        {CHARACTER_ATTRIBUTES.filter(
+                          (attribute) => !characteristic.attributeSwaps.includes(attribute),
+                        ).map((attribute) => (
+                          <option key={attribute} value={attribute}>
+                            {attribute}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => addAttributeSwap(characteristic)}
+                        disabled={
+                          !canEdit ||
+                          saving ||
+                          !attributeSwapDrafts[characteristic.id] ||
+                          !canAddSwap
+                        }
+                        className="rounded-lg border border-zinc-700 px-3 py-2 text-xs hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    {characteristic.attributeSwaps.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {characteristic.attributeSwaps.map((attribute) => (
+                          <button
+                            key={attribute}
+                            type="button"
+                            onClick={() => removeAttributeSwap(characteristic, attribute)}
+                            disabled={!canEdit || saving}
+                            className="rounded-full border border-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {attribute} x
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <div
+                    className={
+                      units > MAX_CHARACTERISTIC_UNITS ||
+                      cost > 15 ||
+                      cost > characteristicGlobalBudget
+                        ? "text-sm text-red-300"
+                        : "text-sm text-zinc-400"
+                    }
+                  >
+                    Cost: {cost}/15 ({units}/{MAX_CHARACTERISTIC_UNITS} units),{" "}
+                    {characteristicGlobalBudget} points available for this Characteristic
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeCharacteristic(characteristic.id)}
+                    disabled={!canEdit || saving}
+                    className="rounded-lg border border-red-900 px-3 py-1 text-xs text-red-300 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <p className="mt-3 text-sm text-zinc-300">
+                  {renderCharacteristicDescriptor(characteristic)}
+                </p>
+                {characteristicErrors.length > 0 ? (
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
+                    {characteristicErrors.map((validationError) => (
+                      <li key={validationError}>{validationError}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            );
+          })}
+          {characteristicSpent > characteristicBudget ? (
+            <p className="text-sm text-red-300">
+              Total Characteristic cost exceeds available Character Points.
+            </p>
+          ) : null}
+        </div>
+      </details>
+
+      <details
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-attributes"
+      >
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Attributes / Resist Points</h2>
+        </summary>
+        <div className="mt-4 space-y-4">
+          <div className="rounded-lg border border-zinc-800 bg-black p-3">
+            <div className="grid gap-4">
+              <div>
+                <label className="block">
+                  <span className="text-xs text-zinc-400">Attribute Generation Method</span>
+                  <select
+                    value={builderData.attributeMethod}
+                    onChange={(event) => updateAttributeMethod(event.target.value as AttributeMethod)}
+                    disabled={!canEdit || saving}
+                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                  >
+                    <option value="HEROIC">Heroic</option>
+                    <option value="DESTINY">Destiny</option>
+                    <option value="ROLLED">Rolled</option>
+                  </select>
+                </label>
+                <p className="mt-2 text-xs text-zinc-500">
+                  Heroic uses 12, 10, 8, 8, 6, 4. Destiny must total 48. Rolled allows legal table values.
+                </p>
+                <div className="mt-4">
+                  <div className="grid grid-cols-[minmax(90px,0.8fr)_minmax(92px,120px)_72px] gap-x-2 gap-y-2 xl:grid-cols-[minmax(90px,0.8fr)_minmax(92px,120px)_72px_minmax(450px,1fr)]">
+                    <div className="text-xs uppercase text-zinc-500">Attribute</div>
+                    <div className="text-center text-xs uppercase text-zinc-500">Base</div>
+                    <div className="text-center text-xs uppercase text-zinc-500">Modifier</div>
+                    <div className="hidden xl:block" aria-hidden="true" />
+                    <div className="hidden xl:block xl:col-start-4 xl:row-span-6 xl:row-start-2 xl:-ml-2">
+                      <DerivedSkillRoutingDiagram stats={derivedCombatStats} />
+                    </div>
+                    {CHARACTER_ATTRIBUTES.map((attribute) => {
+                      const modifier = getAttributeModifierValue(attribute);
+                      return (
+                        <div key={attribute} className="contents">
+                          <span className="flex items-center text-sm text-zinc-300">{attribute}</span>
+                          <select
+                            value={builderData.attributes[attribute]}
+                            onChange={(event) =>
+                              updateAttribute(
+                                attribute,
+                                event.target.value ? Number(event.target.value) : "",
+                              )
+                            }
+                            disabled={!canEdit || saving}
+                            className="w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-center text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                          >
+                            <option value="">Choose...</option>
+                            {LEGAL_ATTRIBUTE_VALUES.map((value) => (
+                              <option
+                                key={value}
+                                value={value}
+                                disabled={!isHeroicValueAvailable(attribute, value)}
+                              >
+                                {value}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            readOnly
+                            type="text"
+                            value={formatSignedModifierValue(modifier)}
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-2 text-center text-sm text-zinc-200 opacity-80"
+                            aria-label={`${attribute} equipped item modifier`}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 xl:hidden">
+                    <DerivedSkillValueColumn stats={derivedCombatStats} />
+                  </div>
+                </div>
+                <div className="mt-3 text-sm text-zinc-400">
+                  Attribute total:{" "}
+                  {CHARACTER_ATTRIBUTES.reduce(
+                    (sum, attribute) =>
+                      sum +
+                      (typeof builderData.attributes[attribute] === "number"
+                        ? builderData.attributes[attribute]
+                        : 0),
+                    0,
+                  )}
+                  {builderData.attributeMethod === "DESTINY" ? " / 48" : ""}
+                </div>
+                {builderData.attributeMethod === "DESTINY" ? (
+                  <div className="mt-1 text-sm text-zinc-500">
+                    Remaining to 48:{" "}
+                    {48 -
+                      CHARACTER_ATTRIBUTES.reduce(
+                        (sum, attribute) =>
+                          sum +
+                          (typeof builderData.attributes[attribute] === "number"
+                            ? builderData.attributes[attribute]
+                            : 0),
+                        0,
+                      )}
+                  </div>
+                ) : null}
+                {attributeValidationErrors.length > 0 ? (
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
+                    {attributeValidationErrors.map((validationError) => (
+                      <li key={validationError}>{validationError}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-zinc-800 bg-black p-3">
+            <h3 className="font-semibold">Resist Points</h3>
+            <p className="mt-1 text-sm text-zinc-500">
+              Budget: {resistSpent}/{resistBudget}. Add assigned points as dice to Resist rolls.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {CHARACTER_ATTRIBUTES.map((attribute) => (
+                <label key={attribute} className="block">
+                  <span className="text-xs text-zinc-400">{attribute}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={Math.max(
+                      0,
+                      resistBudget -
+                        (resistSpent - (builderData.resistPoints[attribute] ?? 0)),
+                    )}
+                    step={1}
+                    value={builderData.resistPoints[attribute]}
+                    onKeyDown={(event) => {
+                      if (["e", "E", "+", "-", "."].includes(event.key)) {
+                        event.preventDefault();
+                      }
+                    }}
+                    onBeforeInput={(event) => {
+                      if (event.data && /\D/.test(event.data)) {
+                        event.preventDefault();
+                      }
+                    }}
+                    onPaste={(event) => {
+                      const text = event.clipboardData.getData("text");
+                      if (/\D/.test(text)) {
+                        event.preventDefault();
+                        updateResistPoint(attribute, normalizeWholeNumberInput(text));
+                      }
+                    }}
+                    onChange={(event) => updateResistPoint(attribute, event.target.value)}
+                    disabled={!canEdit || saving}
+                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                  />
+                </label>
+              ))}
+            </div>
+            {resistValidationErrors.length > 0 ? (
+              <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-300">
+                {resistValidationErrors.map((validationError) => (
+                  <li key={validationError}>{validationError}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </div>
+      </details>
+
+      <details
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-equipment"
+      >
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Equipped Gear / Backpack</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Equip only from this character&apos;s assigned Backpack. A Game Director manages
+            Party Inventory and Backpack quantities.
+          </p>
+        </summary>
+        <div className="mt-4 space-y-5">
+          {EQUIPMENT_SLOT_GROUPS.map((group) => (
+            <div key={group.label}>
+              <h3 className="text-sm font-medium text-zinc-200">{group.label}</h3>
+              <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                {group.slots.map((slot) => {
+                  const legalItems = getLegalBackpackItemsForSlot(slot);
+                  const selectedItemId = builderData.equippedSlots[slot] ?? "";
+                  const selectedItem = backpackItems.find((item) => item.id === selectedItemId);
+                  const disabledByTwoHanded = slot === "offHand" && isOffHandLocked;
+                  if (selectedItem) {
+                    return (
+                      <EquippedItemMiniCard
+                        key={slot}
+                        slot={slot}
+                        item={selectedItem}
+                        canEdit={canEdit}
+                        saving={saving}
+                        onClear={() => updateEquipmentSlot(slot, "")}
+                      />
+                    );
+                  }
+
+                  return (
+                    <label
+                      key={slot}
+                      className="block rounded-lg border border-zinc-800 bg-black p-3"
+                    >
+                      <span className="text-sm font-medium text-zinc-200">
+                        {EQUIPMENT_SLOT_LABELS[slot]}
+                      </span>
+                      <select
+                        value={selectedItemId}
+                        onChange={(event) => updateEquipmentSlot(slot, event.target.value)}
+                        disabled={!canEdit || saving || disabledByTwoHanded}
+                        className="mt-2 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                      >
+                        <option value="">
+                          {disabledByTwoHanded
+                            ? "Unavailable - two-handed weapon equipped"
+                            : "Empty"}
+                        </option>
+                        {legalItems.map((item) => {
+                          const usedCount = equippedUseCounts.get(item.id) ?? 0;
+                          return (
+                            <option key={item.id} value={item.id}>
+                              {item.itemTemplate.name ?? "(Unnamed item)"} ({usedCount}/
+                              {item.quantity} used)
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <h3 className="font-medium text-zinc-200">Backpack</h3>
+          {backpackItems.length === 0 ? (
+            <p className="rounded-lg border border-zinc-800 bg-black p-3 text-sm text-zinc-500">
+              No Backpack items assigned to this character yet.
+            </p>
+          ) : (
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.95fr)]">
+              <div className="space-y-2">
+                {backpackItems.map((item) => {
+                  const usedCount = equippedUseCounts.get(item.id) ?? 0;
+                  const selected = selectedBackpackItemId === item.id;
+                  const isEquipped = usedCount > 0;
+                  const transferableQuantity = getTransferableBackpackQuantity(item);
+                  return (
+                    <article
+                      key={item.id}
+                      className={`rounded-lg border p-2 transition ${
+                        selected
+                          ? "border-emerald-500 bg-emerald-950/20"
+                          : "border-zinc-800 bg-black hover:border-zinc-700 hover:bg-zinc-950"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <button
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => setSelectedBackpackItemId(item.id)}
+                          className="min-w-0 flex-1 rounded-md px-1 py-1 text-left focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-zinc-100">
+                              {item.itemTemplate.name ?? "(Unnamed item)"}
+                            </div>
+                            <div className="mt-1 text-xs text-zinc-500">
+                              {formatBackpackItemMeta(item) || "No item details"}
+                            </div>
+                          </div>
+                        </button>
+                        <div className="flex shrink-0 flex-wrap items-center gap-1 text-[11px] text-zinc-300">
+                          <span className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1">
+                            Qty {item.quantity}
+                          </span>
+                          <span className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1">
+                            Used {usedCount}
+                          </span>
+                          {selected ? (
+                            <span className="rounded border border-emerald-600 bg-emerald-950/40 px-2 py-1 text-emerald-100">
+                              Selected
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              isEquipped
+                                ? handleUnequipBackpackItem(item)
+                                : handleEquipBackpackItem(item)
+                            }
+                            disabled={!canEdit || saving}
+                            className={`rounded border px-2 py-1 text-[11px] font-medium disabled:cursor-not-allowed disabled:opacity-60 ${
+                              isEquipped
+                                ? "border-amber-700 text-amber-200 hover:bg-amber-950/30"
+                                : "border-emerald-700 text-emerald-100 hover:bg-emerald-950/30"
+                            }`}
+                          >
+                            {isEquipped ? "Unequip" : "Equip"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openBackpackTransfer(item)}
+                            disabled={
+                              !canEdit ||
+                              saving ||
+                              transferringBackpackItem ||
+                              transferTargets.length === 0 ||
+                              transferableQuantity <= 0
+                            }
+                            className="rounded border border-sky-700 px-2 py-1 text-[11px] font-medium text-sky-100 hover:bg-sky-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Give
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="min-w-0">
+                {selectedBackpackItem ? (
+                  <BackpackItemPreview item={selectedBackpackItem} />
+                ) : (
+                  <div className="rounded-lg border border-dashed border-zinc-800 bg-black p-4 text-sm text-zinc-500">
+                    Select a Backpack item to preview its details.
+                  </div>
+                )}
+              </div>
             </div>
           )}
+        </div>
+      </details>
+
+      <details
+        open
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-signature-move"
+      >
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Signature Move</h2>
+        </summary>
+        <div className="mt-4 space-y-4">
+          <div
+            className={`rounded-lg border p-3 ${
+              signatureMoveEditorBudget.overspent
+                ? "border-red-800 bg-red-950/20"
+                : "border-zinc-800 bg-black"
+            }`}
+          >
+            <div className="grid gap-3 text-sm sm:grid-cols-4">
+              <div>
+                <div className="text-xs text-zinc-500">Signature Pool</div>
+                <div className="text-lg font-semibold">{signatureMoveEditorBudget.powerPool}</div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">Spend Scalar</div>
+                <div className="text-lg font-semibold">x{formatPowerNumber(signatureMoveEditorBudget.playerPowerSpendScalar)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">Spent</div>
+                <div className="text-lg font-semibold">{formatPowerNumber(signatureMoveEditorBudget.totalSpent)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">Remaining</div>
+                <div className={signatureMoveEditorBudget.overspent ? "text-lg font-semibold text-red-300" : "text-lg font-semibold"}>
+                  {formatPowerNumber(signatureMoveEditorBudget.remaining)}
+                </div>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-zinc-500">
+              Signature Move uses the same power builder rules with a separate Character Level x 20 pool.
+            </p>
+          </div>
+
+          {renderPowerEditorCards({
+            powers: [signatureMoveDraft],
+            budget: signatureMoveEditorBudget,
+            emptyMessage: "No Signature Move authored yet.",
+            getPowerIndex: () => SIGNATURE_MOVE_POWER_INDEX,
+            getPowerFallbackName: () => "Signature Move",
+            allowRemove: false,
+          })}
+          {signatureMoveValidationErrors.length > 0 ? (
+            <ul className="list-disc space-y-1 pl-5 text-sm text-red-300">
+              {signatureMoveValidationErrors.map((validationError) => (
+                <li key={validationError}>{validationError}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </details>
+
+      <details
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-powers"
+      >
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Powers</h2>
+        </summary>
+        <div className="mt-4 space-y-4">
+          <div
+            className={`rounded-lg border p-3 ${
+              powerBudget.overspent
+                ? "border-red-800 bg-red-950/20"
+                : "border-zinc-800 bg-black"
+            }`}
+          >
+            <div className="grid gap-3 text-sm sm:grid-cols-4">
+              <div>
+                <div className="text-xs text-zinc-500">Power Pool</div>
+                <div className="text-lg font-semibold">{powerBudget.powerPool}</div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">Spend Scalar</div>
+                <div className="text-lg font-semibold">x{formatPowerNumber(powerBudget.playerPowerSpendScalar)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">Spent</div>
+                <div className="text-lg font-semibold">{formatPowerNumber(powerBudget.totalSpent)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500">Remaining</div>
+                <div className={powerBudget.overspent ? "text-lg font-semibold text-red-300" : "text-lg font-semibold"}>
+                  {formatPowerNumber(powerBudget.remaining)}
+                </div>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-zinc-500">
+              Player powers spend BasePowerValue from the shared Phase 6 resolver. Spark and
+              Restrictions are reserved at 0% in this version.
+            </p>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={addPower}
+              disabled={!canEdit || saving}
+              className="rounded-lg border border-emerald-700 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Add Power
+            </button>
+          </div>
+
+          {renderPowerEditorCards({
+            powers: builderData.powers,
+            budget: powerBudget,
+            emptyMessage: "No powers authored yet.",
+          })}
           {powerValidationErrors.length > 0 ? (
             <ul className="list-disc space-y-1 pl-5 text-sm text-red-300">
               {powerValidationErrors.map((validationError) => (
@@ -4115,6 +4273,7 @@ export default function CharacterBuilderPage() {
         backpackItems={backpackItems as CharacterBuilderDerivedBackpackItem[]}
         derivedStats={derivedCombatStats}
         powerBudget={powerBudget}
+        signatureMoveBudget={signatureMoveBudget}
         traitSummary={traitSummary}
         printType="compact-colour"
         theme={previewTheme}

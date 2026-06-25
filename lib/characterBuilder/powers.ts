@@ -931,6 +931,10 @@ export function powerPointPool(level: number) {
   return Math.max(1, Math.trunc(level || 1)) * 50;
 }
 
+export function signatureMovePointPool(level: number) {
+  return Math.max(1, Math.trunc(level || 1)) * 20;
+}
+
 function collectCharacterPowerValidationErrors(power: CharacterPower) {
   const errors: string[] = [];
   const primaryPacket = power.effectPackets[0];
@@ -1126,6 +1130,7 @@ export function summarizeCharacterPowers(params: {
   powers: CharacterPower[];
   tuningSnapshot?: PowerTuningSnapshot | null;
   playerPowerSpendScalar?: number | null;
+  powerPool?: number | null;
 }): CharacterPowerBudget {
   const playerPowerSpendScalar = normalizeCharacterPowerSpendScalar(
     params.playerPowerSpendScalar ?? DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
@@ -1163,7 +1168,7 @@ export function summarizeCharacterPowers(params: {
     };
   });
   const totalSpent = Math.round(summaries.reduce((sum, row) => sum + (row.spend ?? 0), 0) * 100) / 100;
-  const pool = powerPointPool(params.level);
+  const pool = params.powerPool ?? powerPointPool(params.level);
   return {
     powerPool: pool,
     playerPowerSpendScalar,
@@ -1179,13 +1184,17 @@ export function validateCharacterPowers(params: {
   powers: CharacterPower[];
   tuningSnapshot?: PowerTuningSnapshot | null;
   playerPowerSpendScalar?: number | null;
+  powerPool?: number | null;
+  powerLabel?: string;
+  poolDescription?: string;
 }) {
   const summary = summarizeCharacterPowers(params);
+  const powerLabel = params.powerLabel ?? "Power";
   const errors = summary.powers.flatMap((row, index) =>
-    row.errors.map((error) => `Power ${index + 1}: ${error}`),
+    row.errors.map((error) => `${powerLabel} ${index + 1}: ${error}`),
   );
   if (summary.overspent) {
-    errors.push("Total Power Point spend cannot exceed Character Level x 50.");
+    errors.push(`Total ${powerLabel} Point spend cannot exceed ${params.poolDescription ?? "Character Level x 50"}.`);
   }
   return Array.from(new Set(errors));
 }

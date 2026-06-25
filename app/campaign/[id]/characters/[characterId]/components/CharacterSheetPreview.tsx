@@ -87,6 +87,7 @@ type CharacterSheetPreviewProps = {
   backpackItems: CharacterBuilderDerivedBackpackItem[];
   derivedStats: CharacterDerivedCombatStats;
   powerBudget: CharacterPowerBudget;
+  signatureMoveBudget?: CharacterPowerBudget | null;
   traitSummary: CharacterTraitSummary;
   printType?: CharacterSheetPrintType;
   theme?: CharacterSheetTheme;
@@ -1694,67 +1695,85 @@ function PowerCardTitle({ children }: { children: string }) {
   );
 }
 
-function PowerReferenceSheet({ powerBudget }: { powerBudget: CharacterPowerBudget }) {
+function PowerReferenceSheet({
+  powerBudget,
+  signatureMoveBudget,
+}: {
+  powerBudget: CharacterPowerBudget;
+  signatureMoveBudget?: CharacterPowerBudget | null;
+}) {
+  const signatureMove = signatureMoveBudget?.powers[0] ?? null;
+  const renderPowerCard = (
+    summary: CharacterPowerBudget["powers"][number],
+    index: number,
+    fallbackName: string,
+    wide = false,
+  ) => (
+    <section
+      key={`${summary.power.name}-${index}-${wide ? "signature" : "power"}`}
+      className={`cb-power-card border-2 border-zinc-800 bg-black/60 p-2.5 ${wide ? "col-span-2" : ""}`}
+    >
+      <div className="cb-power-card-header border-b border-zinc-800 pb-2 pt-1.5">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+          <div className="min-w-0 overflow-hidden">
+            <PowerCardTitle>
+              {summary.power.name || fallbackName}
+            </PowerCardTitle>
+            {summary.power.description?.trim() ? (
+              <p className="mt-0.5 text-xs italic leading-snug text-zinc-400">{summary.power.description}</p>
+            ) : null}
+          </div>
+          <div className={summary.costValid ? "flex gap-1.5 text-center text-xs text-zinc-300" : "text-xs font-medium text-red-300"}>
+            {summary.costValid ? (
+              <>
+                <span className="block min-w-16 border border-zinc-800 px-1.5 py-1">
+                  <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Counter</span>
+                  {titleCase(summary.power.counterMode)}
+                </span>
+                <span className="block min-w-16 border border-zinc-800 px-1.5 py-1">
+                  <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Cooldown</span>
+                  {summary.derivedCooldownTurns ?? 1}
+                </span>
+              </>
+            ) : (
+              `Invalid: ${summary.invalidCostReason ?? "Power is invalid."}`
+            )}
+          </div>
+        </div>
+      </div>
+      {summary.descriptorLines.length > 0 ? (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-300">
+          {summary.descriptorLines.map((line, lineIndex) => (
+            <li key={`${summary.power.name}-${lineIndex}`}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-zinc-500">No descriptor output yet.</p>
+      )}
+      {summary.errors.length > 0 ? (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-red-300">
+          {summary.errors.map((error) => (
+            <li key={error}>{error}</li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+
   return (
     <SheetFrame
       title="Power Sheet(s)"
       subtitle="Power references generated from the shared descriptor and resolver output."
       className="cb-power-sheet"
     >
-      {powerBudget.powers.length === 0 ? (
+      {!signatureMove && powerBudget.powers.length === 0 ? (
         <SheetPanel title="Powers">
           <p className="text-sm text-zinc-500">No powers authored.</p>
         </SheetPanel>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {powerBudget.powers.map((summary, index) => (
-            <section key={`${summary.power.name}-${index}`} className="cb-power-card border-2 border-zinc-800 bg-black/60 p-2.5">
-              <div className="cb-power-card-header border-b border-zinc-800 pb-2 pt-1.5">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
-                  <div className="min-w-0 overflow-hidden">
-                    <PowerCardTitle>
-                      {summary.power.name || `Power ${index + 1}`}
-                    </PowerCardTitle>
-                    {summary.power.description?.trim() ? (
-                      <p className="mt-0.5 text-xs italic leading-snug text-zinc-400">{summary.power.description}</p>
-                    ) : null}
-                  </div>
-                  <div className={summary.costValid ? "flex gap-1.5 text-center text-xs text-zinc-300" : "text-xs font-medium text-red-300"}>
-                    {summary.costValid ? (
-                      <>
-                        <span className="block min-w-16 border border-zinc-800 px-1.5 py-1">
-                          <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Counter</span>
-                          {titleCase(summary.power.counterMode)}
-                        </span>
-                        <span className="block min-w-16 border border-zinc-800 px-1.5 py-1">
-                          <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Cooldown</span>
-                          {summary.derivedCooldownTurns ?? 1}
-                        </span>
-                      </>
-                    ) : (
-                      `Invalid: ${summary.invalidCostReason ?? "Power is invalid."}`
-                    )}
-                  </div>
-                </div>
-              </div>
-              {summary.descriptorLines.length > 0 ? (
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-300">
-                  {summary.descriptorLines.map((line, lineIndex) => (
-                    <li key={`${summary.power.name}-${lineIndex}`}>{line}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-2 text-sm text-zinc-500">No descriptor output yet.</p>
-              )}
-              {summary.errors.length > 0 ? (
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-red-300">
-                  {summary.errors.map((error) => (
-                    <li key={error}>{error}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </section>
-          ))}
+          {signatureMove ? renderPowerCard(signatureMove, 0, "Signature Move", true) : null}
+          {powerBudget.powers.map((summary, index) => renderPowerCard(summary, index, `Power ${index + 1}`))}
         </div>
       )}
     </SheetFrame>
@@ -1817,6 +1836,7 @@ export function CharacterSheetPreview({
   backpackItems,
   derivedStats,
   powerBudget,
+  signatureMoveBudget,
   traitSummary,
   printType = "full-colour",
   theme = "classic",
@@ -1850,6 +1870,7 @@ export function CharacterSheetPreview({
       selectedSheets.inventory ? "inventory" : "",
       backpackItems.length,
       powerBudget.powers.length,
+      signatureMoveBudget?.powers.length ?? 0,
     ].join("|"),
   });
   const previewClassName = [
@@ -1881,7 +1902,9 @@ export function CharacterSheetPreview({
           compact={compact}
         />
       ) : null}
-      {selectedSheets.powers ? <PowerReferenceSheet powerBudget={powerBudget} /> : null}
+      {selectedSheets.powers ? (
+        <PowerReferenceSheet powerBudget={powerBudget} signatureMoveBudget={signatureMoveBudget} />
+      ) : null}
       {selectedSheets.inventory ? (
         <InventorySheet
           backpackItems={backpackItems}
