@@ -7,12 +7,15 @@ import {
   adaptMonsterToCombatLabActor,
   itemTemplateToSummoningEquipmentItem,
 } from "../lib/combat-lab/liveAdapters";
+import { createFixtureActor } from "../lib/combat-lab/powerAdapter";
 import { createActorInstances } from "../lib/combat-lab/combatState";
 import { runScenarioSuite } from "../lib/combat-lab/reporting";
 import { normalizeCombatTuning, normalizeCombatTuningFlatValues } from "../lib/config/combatTuningShared";
 import { normalizeOutcomeNormalizationValues } from "../lib/config/outcomeNormalizationShared";
 import { normalizePowerTuningValues, type PowerTuningSnapshot } from "../lib/config/powerTuningShared";
+import type { CoreAttribute } from "../lib/summoning/types";
 import type {
+  CombatAction,
   CombatActor,
   CombatCounterCandidateDiagnostic,
   CombatCooldownTrace,
@@ -41,12 +44,32 @@ type TuningSnapshot = {
   values: Record<string, number>;
 };
 
-type ScenarioDefinition = {
+type ScenarioDefinition = DbScenarioDefinition | SyntheticScenarioDefinition;
+type ScenarioLayer = "B";
+type CanaryMetadata = {
+  canaryId: string;
+  canaryLayer: ScenarioLayer;
+  purpose: string;
+  baselineScenarioName: string;
+  poolScenarioName: string;
+  poolType: string;
+  expectedMechanic: string;
+  unsupportedNotes: string[];
+};
+type BaseScenarioMetadata = {
   name: string;
   aliases: string[];
+};
+type DbScenarioDefinition = BaseScenarioMetadata & {
+  kind: "db";
   characterNames: string[];
   monsterName: string;
   monsterQuantity: number;
+};
+type SyntheticScenarioDefinition = BaseScenarioMetadata & {
+  kind: "synthetic";
+  canary: CanaryMetadata;
+  scenarioBuilder: (options: Pick<CliOptions, "runs" | "seed">) => CombatScenario;
 };
 
 type PrismaClientLike = typeof import("../prisma/client").prisma;
@@ -58,6 +81,172 @@ type BuiltScenario = {
   scenario: CombatScenario;
   hydrationWarnings: string[];
 };
+
+type SyntheticActorDescriptor = {
+  id: string;
+  side: CombatActor["side"];
+  name: string;
+  role: string;
+  actions?: CombatAction[];
+  resist?: Partial<Record<CoreAttribute, number>>;
+  physicalHp?: number;
+  mentalHp?: number;
+  physicalProtection?: number;
+  mentalProtection?: number;
+  dodgeValue?: number;
+  dodgeDice?: number;
+  physicalDefenceDice?: number;
+  physicalBlockPerSuccess?: number;
+  physicalDefenceBlock?: number;
+  mentalDefenceDice?: number;
+  mentalBlockPerSuccess?: number;
+  mentalDefenceBlock?: number;
+  attack?: number;
+  guard?: number;
+  fortitude?: number;
+  intellect?: number;
+  synergy?: number;
+  bravery?: number;
+  attributes?: Partial<Record<string, number>>;
+};
+
+type SyntheticAttackOptions = {
+  name?: string;
+  accuracyAttribute?: CombatAction["accuracyAttribute"];
+  diceCount?: number;
+  potency?: number;
+  pool?: "physical" | "mental";
+  durationRounds?: number;
+  cooldownRounds?: number;
+  linkedToPrimary?: boolean;
+  damageApplicationTiming?: CombatAction["damageApplicationTiming"];
+  recurring?: CombatAction["recurring"];
+};
+
+type SyntheticDefenceOptions = Omit<SyntheticAttackOptions, "damageApplicationTiming" | "recurring"> & {
+  name?: string;
+  targetPolicy?: CombatAction["targetPolicy"];
+  defenceMode?: CombatAction["defenceMode"];
+  defenceResistedAttribute?: CombatAction["defenceResistedAttribute"];
+  protection?: number;
+  durationKind?: CombatAction["durationKind"];
+  passiveDuration?: boolean;
+  counterMode?: boolean;
+};
+
+type SyntheticDebuffOptions = Omit<SyntheticAttackOptions, "damageApplicationTiming" | "recurring"> & {
+  name?: string;
+  targetPolicy?: CombatAction["targetPolicy"];
+  resistAttribute?: CoreAttribute | null;
+  modifier?: CombatAction["modifier"];
+  counterMode?: boolean;
+};
+
+function syntheticFixtureActor(params: SyntheticActorDescriptor): CombatActor {
+  const actor = createFixtureActor({
+    id: params.id,
+    side: params.side,
+    name: params.name,
+    role: params.role,
+    physicalHp: params.physicalHp ?? 80,
+    mentalHp: params.mentalHp ?? 80,
+    physicalProtection: params.physicalProtection ?? 0,
+    mentalProtection: params.mentalProtection ?? 0,
+    dodgeValue: params.dodgeValue ?? 6,
+    attack: params.attack ?? 8,
+    guard: params.guard ?? 8,
+    fortitude: params.fortitude ?? 8,
+    intellect: params.intellect ?? 8,
+    synergy: params.synergy ?? 8,
+    bravery: params.bravery ?? 8,
+    dodgeDice: params.dodgeDice ?? 1,
+    physicalDefenceDice: params.physicalDefenceDice ?? 1,
+    physicalBlockPerSuccess: params.physicalBlockPerSuccess ?? params.physicalDefenceBlock ?? 0,
+    physicalDefenceBlock: params.physicalDefenceBlock ?? 0,
+    mentalDefenceDice: params.mentalDefenceDice ?? 1,
+    mentalBlockPerSuccess: params.mentalBlockPerSuccess ?? params.mentalDefenceBlock ?? 0,
+    mentalDefenceBlock: params.mentalDefenceBlock ?? 0,
+    powers: [],
+  });
+  return {
+    ...actor,
+    resist: params.resist ?? actor.resist,
+    actions: params.actions ?? actor.actions,
+  };
+}
+
+function makeAttackAction(id: string, params: SyntheticAttackOptions = {}): CombatAction {
+  return {
+    id,
+    name: params.name ?? id,
+    sourceType: "power",
+    kind: "attack",
+    targetPolicy: "enemy",
+    supported: true,
+    unsupportedReasons: [],
+    pool: params.pool ?? "physical",
+    rangeCategory: "MELEE",
+    targetCount: 1,
+    accuracyAttribute: params.accuracyAttribute ?? "Attack",
+    diceCount: params.diceCount ?? 1,
+    potency: params.potency ?? 3,
+    cooldownRounds: params.cooldownRounds ?? 0,
+    durationRounds: params.durationRounds,
+    damageApplicationTiming: params.damageApplicationTiming ?? "immediate",
+    recurring: params.recurring,
+  };
+}
+
+function makeDefenceAction(id: string, params: SyntheticDefenceOptions = {}): CombatAction {
+  return {
+    id,
+    name: params.name ?? id,
+    sourceType: "power",
+    kind: "defence",
+    targetPolicy: params.targetPolicy ?? "self",
+    supported: true,
+    unsupportedReasons: [],
+    pool: params.pool ?? "physical",
+    rangeCategory: "MELEE",
+    targetCount: 1,
+    accuracyAttribute: params.accuracyAttribute ?? "Synergy",
+    diceCount: params.diceCount ?? 1,
+    potency: params.potency ?? 3,
+    defenceMode: params.defenceMode ?? "Block",
+    defenceResistedAttribute: params.defenceResistedAttribute,
+    protection: params.protection,
+    durationKind: params.durationKind,
+    durationRounds: params.durationRounds,
+    passiveDuration: params.passiveDuration,
+    cooldownRounds: params.cooldownRounds ?? 0,
+    counterMode: params.counterMode,
+    ...(params.durationKind === "turns" || params.durationRounds
+      ? { durationSource: "authored" }
+      : {}),
+  };
+}
+
+function makeDebuffAction(id: string, params: SyntheticDebuffOptions = {}): CombatAction {
+  return {
+    id,
+    name: params.name ?? id,
+    sourceType: "power",
+    kind: "debuff",
+    targetPolicy: params.targetPolicy ?? "enemy",
+    supported: true,
+    unsupportedReasons: [],
+    pool: "physical",
+    rangeCategory: "MELEE",
+    targetCount: 1,
+    accuracyAttribute: params.accuracyAttribute ?? "Attack",
+    diceCount: params.diceCount ?? 1,
+    potency: params.potency ?? 1,
+    cooldownRounds: params.cooldownRounds ?? 0,
+    resistAttribute: params.resistAttribute,
+    modifier: params.modifier,
+    counterMode: params.counterMode,
+  };
+}
 
 type MatrixPayload = {
   provenance: {
@@ -98,6 +287,7 @@ type MatrixPayload = {
 
 type ScenarioMatrixRow = {
   scenarioName: string;
+  canaryMetadata?: CanaryMetadata;
   playerSide: string;
   monsterSide: string;
   playerWinPercent: number;
@@ -150,6 +340,7 @@ const SCENARIOS: ScenarioDefinition[] = [
   {
     name: "Bruiser vs Dire Wolf",
     aliases: ["bruiser", "cl-l3-bruiser", "bruiser-vs-dire-wolf"],
+    kind: "db",
     characterNames: ["CL-L3-Bruiser", "Bruiser"],
     monsterName: "Dire Wolf",
     monsterQuantity: 1,
@@ -157,6 +348,7 @@ const SCENARIOS: ScenarioDefinition[] = [
   {
     name: "Tank vs Dire Wolf",
     aliases: ["tank", "cl-l3-tank", "tank-vs-dire-wolf"],
+    kind: "db",
     characterNames: ["CL-L3-Tank", "Tank"],
     monsterName: "Dire Wolf",
     monsterQuantity: 1,
@@ -164,14 +356,475 @@ const SCENARIOS: ScenarioDefinition[] = [
   {
     name: "Support vs Dire Wolf",
     aliases: ["support", "cl-l3-support", "support-vs-dire-wolf"],
+    kind: "db",
     characterNames: ["CL-L3-Support", "Support"],
     monsterName: "Dire Wolf",
     monsterQuantity: 1,
   },
+  {
+    name: "B1 Dodge Baseline",
+    aliases: ["b1-baseline", "b1-dodge-baseline", "b1-baseline-dodge"],
+    kind: "synthetic",
+    canary: {
+      canaryId: "B1_DURATION_DODGE_POOL_SURVIVABILITY",
+      canaryLayer: "B",
+      purpose: "Baseline for Dodge Pool survivability delta.",
+      baselineScenarioName: "B1 Dodge Baseline",
+      poolScenarioName: "B1 Dodge Pool",
+      poolType: "DODGE",
+      expectedMechanic: "Duration Dodge Pool should absorb part of repeated physical attacks and improve survival via committed pool points.",
+      unsupportedNotes: [],
+    },
+    scenarioBuilder: (options) => ({
+      name: "B1 Dodge Baseline",
+      players: [syntheticFixtureActor({
+        id: "b1-defender",
+        side: "players",
+        name: "B1 Dodge Defender",
+        role: "Tank",
+        dodgeValue: 10,
+        dodgeDice: 1,
+        attack: 6,
+        guard: 6,
+        fortitude: 8,
+        intellect: 8,
+        synergy: 8,
+        bravery: 7,
+        physicalDefenceDice: 1,
+        physicalBlockPerSuccess: 0,
+      })],
+      monsters: [syntheticFixtureActor({
+        id: "b1-attacker",
+        side: "monsters",
+        name: "B1 Dodge Attacker",
+        role: "Bruiser",
+        actions: [makeAttackAction("b1-claw-strike", {
+          accuracyAttribute: "Attack",
+          diceCount: 2,
+          potency: 4,
+          pool: "physical",
+        })],
+        dodgeValue: 4,
+        attack: 11,
+        guard: 7,
+        fortitude: 8,
+        intellect: 8,
+        synergy: 9,
+        bravery: 7,
+      })],
+      runs: options.runs,
+      seed: options.seed,
+      maxRounds: 20,
+      turnOrder: "alternatingByRound",
+    }),
+  } as SyntheticScenarioDefinition,
+  {
+    name: "B1 Dodge Pool",
+    aliases: ["b1-pool", "b1-dodge-pool", "b1-defense-pool", "b1-dodge-with-pool"],
+    kind: "synthetic",
+    canary: {
+      canaryId: "B1_DURATION_DODGE_POOL_SURVIVABILITY",
+      canaryLayer: "B",
+      purpose: "Duration Dodge Pool survivability delta.",
+      baselineScenarioName: "B1 Dodge Baseline",
+      poolScenarioName: "B1 Dodge Pool",
+      poolType: "DODGE",
+      expectedMechanic: "Duration Dodge Pool should be created, committed before roll, and improve survivability versus repeated attacks.",
+      unsupportedNotes: [],
+    },
+    scenarioBuilder: (options) => {
+      const defender = syntheticFixtureActor({
+        id: "b1-defender-pool",
+        side: "players",
+        name: "B1 Dodge Defender",
+        role: "Tank",
+        actions: [
+          makeDefenceAction("b1-dodge-pool", {
+            name: "B1 Dodge Pool",
+            targetPolicy: "self",
+            defenceMode: "Dodge",
+            accuracyAttribute: "Synergy",
+            diceCount: 2,
+            potency: 2,
+            durationKind: "turns",
+            durationRounds: 2,
+          }),
+        ],
+        dodgeValue: 10,
+        dodgeDice: 1,
+        attack: 6,
+        guard: 6,
+        fortitude: 8,
+        intellect: 8,
+        synergy: 8,
+        bravery: 7,
+        physicalDefenceDice: 1,
+        physicalBlockPerSuccess: 0,
+      });
+      return {
+        name: "B1 Dodge Pool",
+        players: [defender],
+        monsters: [syntheticFixtureActor({
+          id: "b1-attacker",
+          side: "monsters",
+          name: "B1 Dodge Attacker",
+          role: "Bruiser",
+          actions: [makeAttackAction("b1-claw-strike", {
+            accuracyAttribute: "Attack",
+            diceCount: 2,
+            potency: 4,
+            pool: "physical",
+          })],
+          dodgeValue: 4,
+          attack: 11,
+          guard: 7,
+          fortitude: 8,
+          intellect: 8,
+          synergy: 9,
+          bravery: 7,
+        })],
+        runs: options.runs,
+        seed: options.seed,
+        maxRounds: 20,
+        turnOrder: "alternatingByRound",
+      };
+    },
+  } as SyntheticScenarioDefinition,
+  {
+    name: "B2 Block Baseline",
+    aliases: ["b2-baseline", "b2-block-baseline", "b2-physical-block-baseline"],
+    kind: "synthetic",
+    canary: {
+      canaryId: "B2_PHYSICAL_BLOCK_POOL_SURVIVABILITY",
+      canaryLayer: "B",
+      purpose: "Baseline for Physical Block Pool survivability delta.",
+      baselineScenarioName: "B2 Block Baseline",
+      poolScenarioName: "B2 Physical Block Pool",
+      poolType: "PHYSICAL_BLOCK",
+      expectedMechanic: "Physical Block Pool should directly prevent physical wounds when available.",
+      unsupportedNotes: [],
+    },
+    scenarioBuilder: (options) => ({
+      name: "B2 Block Baseline",
+      players: [syntheticFixtureActor({
+        id: "b2-defender",
+        side: "players",
+        name: "B2 Block Defender",
+        role: "Tank",
+        actions: [makeAttackAction("b2-physical-pressure", { accuracyAttribute: "Attack", diceCount: 2, potency: 4, pool: "physical" })],
+        dodgeValue: 6,
+        attack: 8,
+        guard: 6,
+        fortitude: 9,
+        intellect: 8,
+        synergy: 8,
+        bravery: 7,
+        physicalDefenceDice: 1,
+        physicalBlockPerSuccess: 0,
+      })],
+      monsters: [syntheticFixtureActor({
+        id: "b2-attacker",
+        side: "monsters",
+        name: "B2 Block Attacker",
+        role: "Bruiser",
+        actions: [makeAttackAction("b2-physical-charge", { accuracyAttribute: "Attack", diceCount: 2, potency: 4, pool: "physical" })],
+      })],
+      runs: options.runs,
+      seed: options.seed,
+      maxRounds: 20,
+      turnOrder: "alternatingByRound",
+    }),
+  },
+  {
+    name: "B2 Physical Block Pool",
+    aliases: ["b2-pool", "b2-block-pool", "b2-physical-block", "b2-block-with-pool"],
+    kind: "synthetic",
+    canary: {
+      canaryId: "B2_PHYSICAL_BLOCK_POOL_SURVIVABILITY",
+      canaryLayer: "B",
+      purpose: "Physical Block Pool survivability delta.",
+      baselineScenarioName: "B2 Block Baseline",
+      poolScenarioName: "B2 Physical Block Pool",
+      poolType: "PHYSICAL_BLOCK",
+      expectedMechanic: "Physical Block Pool should be committed before normal block to reduce physical wounds.",
+      unsupportedNotes: [],
+    },
+    scenarioBuilder: (options) => ({
+      name: "B2 Physical Block Pool",
+      players: [syntheticFixtureActor({
+        id: "b2-defender-pool",
+        side: "players",
+        name: "B2 Block Defender",
+        role: "Tank",
+        actions: [
+          makeDefenceAction("b2-physical-block-pool", {
+            name: "B2 Physical Block Pool",
+            targetPolicy: "self",
+            defenceMode: "Block",
+            pool: "physical",
+            accuracyAttribute: "Synergy",
+            diceCount: 1,
+            potency: 4,
+            durationKind: "turns",
+            durationRounds: 2,
+            cooldownRounds: 2,
+            protection: 0,
+          }),
+          makeAttackAction("b2-physical-pressure", { accuracyAttribute: "Attack", diceCount: 2, potency: 4, pool: "physical" }),
+        ],
+        dodgeValue: 6,
+        attack: 8,
+        guard: 6,
+        fortitude: 9,
+        intellect: 8,
+        synergy: 8,
+        bravery: 7,
+        physicalDefenceDice: 1,
+        physicalBlockPerSuccess: 0,
+      })],
+      monsters: [syntheticFixtureActor({
+        id: "b2-attacker",
+        side: "monsters",
+        name: "B2 Block Attacker",
+        role: "Bruiser",
+        actions: [makeAttackAction("b2-physical-charge", { accuracyAttribute: "Attack", diceCount: 2, potency: 3, pool: "physical" })],
+      })],
+      runs: options.runs,
+      seed: options.seed,
+      maxRounds: 20,
+      turnOrder: "alternatingByRound",
+    }),
+  },
+  {
+    name: "B3 Mental Block Baseline",
+    aliases: ["b3-baseline", "b3-mental-block-baseline", "b3-mental-baseline"],
+    kind: "synthetic",
+    canary: {
+      canaryId: "B3_MENTAL_BLOCK_POOL_SURVIVABILITY",
+      canaryLayer: "B",
+      purpose: "Baseline for Mental Block Pool survivability delta.",
+      baselineScenarioName: "B3 Mental Block Baseline",
+      poolScenarioName: "B3 Mental Block Pool",
+      poolType: "MENTAL_BLOCK",
+      expectedMechanic: "Mental pressure should be partially prevented only by Mental Block Pool and leave physical unaffected.",
+      unsupportedNotes: [],
+    },
+    scenarioBuilder: (options) => ({
+      name: "B3 Mental Block Baseline",
+      players: [syntheticFixtureActor({
+        id: "b3-defender",
+        side: "players",
+        name: "B3 Mental Defender",
+        role: "Support",
+        actions: [makeAttackAction("b3-mental-pressure", { accuracyAttribute: "Attack", diceCount: 2, potency: 3, pool: "mental" })],
+        dodgeValue: 6,
+        attack: 8,
+        guard: 6,
+        fortitude: 9,
+        intellect: 8,
+        synergy: 8,
+        bravery: 7,
+        physicalDefenceDice: 1,
+        mentalDefenceDice: 1,
+        mentalBlockPerSuccess: 0,
+      })],
+      monsters: [syntheticFixtureActor({
+        id: "b3-attacker",
+        side: "monsters",
+        name: "B3 Mental Attacker",
+        role: "Bruiser",
+        actions: [makeAttackAction("b3-mental-strike", { accuracyAttribute: "Attack", diceCount: 2, potency: 3, pool: "mental" })],
+      })],
+      runs: options.runs,
+      seed: options.seed,
+      maxRounds: 20,
+      turnOrder: "alternatingByRound",
+    }),
+  },
+  {
+    name: "B3 Mental Block Pool",
+    aliases: ["b3-pool", "b3-mental-block-pool", "b3-mental-pool"],
+    kind: "synthetic",
+    canary: {
+      canaryId: "B3_MENTAL_BLOCK_POOL_SURVIVABILITY",
+      canaryLayer: "B",
+      purpose: "Mental Block Pool survivability delta.",
+      baselineScenarioName: "B3 Mental Block Baseline",
+      poolScenarioName: "B3 Mental Block Pool",
+      poolType: "MENTAL_BLOCK",
+      expectedMechanic: "Mental Block Pool should prevent matching-lane mental wounds after attack pool generation.",
+      unsupportedNotes: [],
+    },
+    scenarioBuilder: (options) => ({
+      name: "B3 Mental Block Pool",
+      players: [syntheticFixtureActor({
+        id: "b3-defender-pool",
+        side: "players",
+        name: "B3 Mental Defender",
+        role: "Support",
+        actions: [
+          makeDefenceAction("b3-mental-block-pool", {
+            name: "B3 Mental Block Pool",
+            targetPolicy: "self",
+            defenceMode: "Block",
+            pool: "mental",
+            accuracyAttribute: "Synergy",
+            diceCount: 1,
+            potency: 4,
+            durationKind: "turns",
+            durationRounds: 2,
+            cooldownRounds: 2,
+            protection: 0,
+          }),
+          makeAttackAction("b3-mental-pressure", { accuracyAttribute: "Attack", diceCount: 2, potency: 3, pool: "mental" }),
+        ],
+        dodgeValue: 6,
+        attack: 8,
+        guard: 6,
+        fortitude: 9,
+        intellect: 8,
+        synergy: 8,
+        bravery: 7,
+        physicalDefenceDice: 1,
+        mentalDefenceDice: 1,
+        mentalBlockPerSuccess: 0,
+      })],
+      monsters: [syntheticFixtureActor({
+        id: "b3-attacker",
+        side: "monsters",
+        name: "B3 Mental Attacker",
+        role: "Bruiser",
+        actions: [makeAttackAction("b3-mental-strike", { accuracyAttribute: "Attack", diceCount: 2, potency: 3, pool: "mental" })],
+      })],
+      runs: options.runs,
+      seed: options.seed,
+      maxRounds: 20,
+      turnOrder: "alternatingByRound",
+    }),
+  },
+  {
+    name: "B4 Resist Baseline",
+    aliases: ["b4-baseline", "b4-resist-baseline", "b4-hostile-baseline"],
+    kind: "synthetic",
+    canary: {
+      canaryId: "B4_RESIST_POOL_CONTROL_PREVENTION",
+      canaryLayer: "B",
+      purpose: "Baseline for Resist Pool control/debuff prevention delta.",
+      baselineScenarioName: "B4 Resist Baseline",
+      poolScenarioName: "B4 Resist Pool",
+      poolType: "RESIST",
+      expectedMechanic: "Resist Pool should cancel matching-lane hostile effects only.",
+      unsupportedNotes: ["Layer B Resist canary uses ATTACK lane matching against hostile debuff packets."],
+    },
+    scenarioBuilder: (options) => ({
+      name: "B4 Resist Baseline",
+      players: [syntheticFixtureActor({
+        id: "b4-defender",
+        side: "players",
+        name: "B4 Resistant Defender",
+        role: "Support",
+        resist: { ATTACK: 0 },
+        actions: [makeAttackAction("b4-attack-pressure", { accuracyAttribute: "Attack", diceCount: 2, potency: 2, pool: "physical" })],
+        dodgeValue: 8,
+        attack: 7,
+        guard: 8,
+        fortitude: 8,
+        intellect: 8,
+        synergy: 8,
+        bravery: 8,
+      })],
+      monsters: [syntheticFixtureActor({
+        id: "b4-attacker",
+        side: "monsters",
+        name: "B4 Debuff Attacker",
+        role: "Bruiser",
+        actions: [
+          makeDebuffAction("b4-hostile-pressure", {
+            accuracyAttribute: "Attack",
+            diceCount: 2,
+            potency: 4,
+            resistAttribute: "ATTACK",
+            modifier: { attribute: "Attack", amount: 1, durationRounds: 2, modifiesRollResults: false },
+          }),
+        ],
+      })],
+      runs: options.runs,
+      seed: options.seed,
+      maxRounds: 20,
+      turnOrder: "alternatingByRound",
+    }),
+  },
+  {
+    name: "B4 Resist Pool",
+    aliases: ["b4-pool", "b4-resist-pool", "b4-hostile-pool"],
+    kind: "synthetic",
+    canary: {
+      canaryId: "B4_RESIST_POOL_CONTROL_PREVENTION",
+      canaryLayer: "B",
+      purpose: "Resist Pool control/debuff prevention delta.",
+      baselineScenarioName: "B4 Resist Baseline",
+      poolScenarioName: "B4 Resist Pool",
+      poolType: "RESIST",
+      expectedMechanic: "Resist Pool should spend against matching ATTACK hostile units and reduce hostile success retention.",
+      unsupportedNotes: ["Layer B Resist canary uses ATTACK lane matching against hostile debuff packets."],
+    },
+    scenarioBuilder: (options) => ({
+      name: "B4 Resist Pool",
+      players: [syntheticFixtureActor({
+        id: "b4-defender-pool",
+        side: "players",
+        name: "B4 Resistant Defender",
+        role: "Support",
+        resist: { ATTACK: 0 },
+        actions: [
+          makeDefenceAction("b4-resist-pool", {
+            name: "B4 Resist Pool",
+            targetPolicy: "self",
+            defenceMode: "Resist",
+            defenceResistedAttribute: "ATTACK",
+            accuracyAttribute: "Synergy",
+            diceCount: 1,
+            potency: 2,
+            durationKind: "turns",
+            durationRounds: 2,
+          }),
+          makeAttackAction("b4-attack-pressure", { accuracyAttribute: "Attack", diceCount: 2, potency: 2, pool: "physical" }),
+        ],
+        dodgeValue: 8,
+        attack: 7,
+        guard: 8,
+        fortitude: 8,
+        intellect: 8,
+        synergy: 8,
+        bravery: 8,
+      })],
+      monsters: [syntheticFixtureActor({
+        id: "b4-attacker",
+        side: "monsters",
+        name: "B4 Debuff Attacker",
+        role: "Bruiser",
+        resist: {},
+        actions: [
+          makeDebuffAction("b4-hostile-pressure", {
+            accuracyAttribute: "Attack",
+            diceCount: 2,
+            potency: 4,
+            resistAttribute: "ATTACK",
+            modifier: { attribute: "Attack", amount: 1, durationRounds: 2, modifiesRollResults: false },
+          }),
+        ],
+      })],
+      runs: options.runs,
+      seed: options.seed,
+      maxRounds: 20,
+      turnOrder: "alternatingByRound",
+    }),
+  },
 ];
 
 const PRESETS: Record<string, string[]> = {
-  "dire-wolf-core": SCENARIOS.map((scenario) => scenario.name),
+  "dire-wolf-core": SCENARIOS.slice(0, 3).map((scenario) => scenario.name),
+  "defensive-pool-core": SCENARIOS.slice(3).map((scenario) => scenario.name),
 };
 
 const POWER_INCLUDE = {
@@ -207,7 +860,7 @@ function usage() {
     "Flags:",
     "  --list",
     "  --scenario <name>       Repeatable. Friendly aliases are accepted.",
-    "  --preset <name>         Supported: dire-wolf-core",
+    "  --preset <name>         Supported: dire-wolf-core, defensive-pool-core",
     "  --runs <number>         Default: 500",
     "  --seed <number>         Default: 4242",
     "  --json                  Print valid JSON only",
@@ -458,6 +1111,7 @@ function scenarioToRow(
 ): ScenarioMatrixRow {
   const row: ScenarioMatrixRow = {
     scenarioName: report.scenarioName,
+    canaryMetadata: built.definition.kind === "synthetic" ? built.definition.canary : undefined,
     playerSide: actorNames(built.scenario.players).join(", "),
     monsterSide: actorNames(built.scenario.monsters).join(", "),
     playerWinPercent: pct(report.playerWinRate),
@@ -565,7 +1219,24 @@ async function buildScenarios(
   options: CliOptions,
   tuning: Awaited<ReturnType<typeof loadActiveTuning>>,
 ): Promise<BuiltScenario[]> {
-  const monsterNames = Array.from(new Set(definitions.map((definition) => definition.monsterName)));
+  const syntheticDefinitions = definitions.filter((definition): definition is SyntheticScenarioDefinition =>
+    definition.kind === "synthetic",
+  );
+  const dbDefinitions = definitions.filter((definition): definition is DbScenarioDefinition =>
+    definition.kind === "db",
+  );
+
+  const syntheticBuilt: BuiltScenario[] = syntheticDefinitions.map((definition) => ({
+    definition,
+    hydrationWarnings: [],
+    scenario: definition.scenarioBuilder({ runs: options.runs, seed: options.seed }),
+  }));
+
+  if (dbDefinitions.length === 0) {
+    return syntheticBuilt;
+  }
+
+  const monsterNames = Array.from(new Set(dbDefinitions.map((definition) => definition.monsterName)));
   const primaryMonsterName = monsterNames[0];
   if (!primaryMonsterName) throw new Error("No monster names selected.");
 
@@ -587,7 +1258,8 @@ async function buildScenarios(
       include: {
         naturalAttack: true,
         attacks: { orderBy: { sortOrder: "asc" } },
-        traits: { orderBy: { sortOrder: "asc" }, include: { trait: { select: { name: true, effectText: true } } } },
+        traits: { orderBy: { sortOrder: "asc" }, include: { trait: { select: { name: true, effectText: true } } },
+        },
         powers: { orderBy: { sortOrder: "asc" }, include: POWER_INCLUDE },
       },
     }),
@@ -642,7 +1314,7 @@ async function buildScenarios(
     itemRows.map((item) => [item.id, itemTemplateToSummoningEquipmentItem(item)]),
   );
 
-  return definitions.map((definition) => {
+  const dbBuilt = dbDefinitions.map((definition) => {
     const character = findByPreferredName(characters as CharacterRow[], definition.characterNames);
     if (!character) {
       throw new Error(
@@ -672,9 +1344,17 @@ async function buildScenarios(
         runs: options.runs,
         seed: options.seed,
         maxRounds: 20,
-        turnOrder: "alternatingByRound",
+        turnOrder: "alternatingByRound" as const,
       },
     };
+  });
+
+  return definitions.map((definition) => {
+    const existing = definition.kind === "synthetic"
+      ? syntheticBuilt.find((entry) => entry.definition.name === definition.name)
+      : dbBuilt.find((entry) => entry.definition.name === definition.name);
+    if (!existing) throw new Error(`Failed to build scenario "${definition.name}".`);
+    return existing;
   });
 }
 
@@ -747,6 +1427,83 @@ function printHumanSummary(payload: MatrixPayload) {
     console.log("");
     console.log("Unsupported Notes:");
     for (const note of payload.unsupportedNotes) console.log(`- ${note}`);
+  }
+
+  const canaryGroups = new Map<string, { metadata: ScenarioMatrixRow["canaryMetadata"]; baselineName: string; poolName: string }>();
+  for (const scenario of payload.scenarios) {
+    if (!scenario.canaryMetadata) continue;
+    const metadata = scenario.canaryMetadata;
+    canaryGroups.set(metadata.canaryId, {
+      metadata,
+      baselineName: metadata.baselineScenarioName,
+      poolName: metadata.poolScenarioName,
+    });
+  }
+
+  if (canaryGroups.size > 0) {
+    const scenarioByName = new Map(payload.scenarios.map((scenario) => [scenario.scenarioName, scenario]));
+    const bySourceSideMetric = (report: CombatSuiteReport["defensivePools"]) => ({
+      poolsCreated: report.bySourceSide.players.poolsCreated + report.bySourceSide.monsters.poolsCreated,
+      generatedPoints: report.bySourceSide.players.averageGeneratedPoints + report.bySourceSide.monsters.averageGeneratedPoints,
+      committedPoints: report.bySourceSide.players.committedPoints + report.bySourceSide.monsters.committedPoints,
+      spentPoints: report.bySourceSide.players.spentPoints + report.bySourceSide.monsters.spentPoints,
+      wastedPoints: report.bySourceSide.players.wastedPoints + report.bySourceSide.monsters.wastedPoints,
+      remainingAtExpiry: report.bySourceSide.players.remainingAtExpiry + report.bySourceSide.monsters.remainingAtExpiry,
+      refreshReplaceEvents:
+        report.bySourceSide.players.refreshReplaceEvents + report.bySourceSide.monsters.refreshReplaceEvents,
+      dodgeAvoids: report.bySourceSide.players.dodgeAvoids + report.bySourceSide.monsters.dodgeAvoids,
+      blockWoundsPrevented:
+        report.bySourceSide.players.blockWoundsPrevented + report.bySourceSide.monsters.blockWoundsPrevented,
+      resistUnitsCancelled:
+        report.bySourceSide.players.resistUnitsCancelled + report.bySourceSide.monsters.resistUnitsCancelled,
+    });
+    const delta = (after: number, before: number, precision = 1) =>
+      `${after >= before ? "+" : ""}${round((after - before) * 10 ** precision) / 10 ** precision}`;
+
+    console.log("");
+    console.log("Canary Deltas:");
+    for (const [canaryId, group] of canaryGroups) {
+      const baseline = scenarioByName.get(group.baselineName);
+      const pool = scenarioByName.get(group.poolName);
+      if (!baseline || !pool) {
+        console.log(`- ${canaryId}: baseline/pool pairing incomplete`);
+        continue;
+      }
+      const baseDefense = bySourceSideMetric(baseline.defensivePoolSummary);
+      const poolDefense = bySourceSideMetric(pool.defensivePoolSummary);
+      console.log(`${group.metadata?.canaryLayer ? `${group.metadata.canaryLayer}: ` : ""}${canaryId}`);
+      console.log(`  Mechanic: ${group.metadata?.expectedMechanic ?? "unknown"}`);
+      console.log(
+        `  Delta: P Win ${delta(pool.playerWinPercent, baseline.playerWinPercent)} | M Win ${delta(
+          pool.monsterWinPercent,
+          baseline.monsterWinPercent,
+        )} | Rounds ${delta(pool.averageRounds, baseline.averageRounds)} | P DPR ${delta(
+          pool.playerDamagePerRound,
+          baseline.playerDamagePerRound,
+        )} | M DPR ${delta(pool.monsterDamagePerRound, baseline.monsterDamagePerRound)}`,
+      );
+      console.log(
+        `  Defensive Pools: created ${delta(poolDefense.poolsCreated, baseDefense.poolsCreated)} | committed ${delta(
+          poolDefense.committedPoints,
+          baseDefense.committedPoints,
+        )} | spent ${delta(poolDefense.spentPoints, baseDefense.spentPoints)} | wasted ${delta(
+          poolDefense.wastedPoints,
+          baseDefense.wastedPoints,
+        )} | remain ${delta(poolDefense.remainingAtExpiry, baseDefense.remainingAtExpiry)} | refresh ${delta(
+          poolDefense.refreshReplaceEvents,
+          baseDefense.refreshReplaceEvents,
+        )}`,
+      );
+      console.log(
+        `  Defensive Effects: dodgeAvoids ${delta(poolDefense.dodgeAvoids, baseDefense.dodgeAvoids)} | blockWoundsPrevented ${delta(
+          poolDefense.blockWoundsPrevented,
+          baseDefense.blockWoundsPrevented,
+        )} | resistUnitsCancelled ${delta(
+          poolDefense.resistUnitsCancelled,
+          baseDefense.resistUnitsCancelled,
+        )}`,
+      );
+    }
   }
 }
 
