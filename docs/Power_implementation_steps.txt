@@ -106,6 +106,7 @@ The practical next work should stay focused on:
 - using refresh/replace higher-of-current-or-new for repeated defensive pool applications from the same source power, packet, and protected target; additive/recharging pools require explicit special authoring and pricing
 - preserving the simplified targeting rule: target self legality is selected-target legality, not range exclusivity; descriptors and validation must count self against the authored target count
 - applying strictly-exceed timing for Movement and Control interrupt Counters; ties fail
+- checking runtime and tests for the locked modifier/failure ruling in a separate implementation pass: natural 1 hard failure, natural 2/3 recoverable failure capped at 1 normal rescued success, and natural successes as the only spike-eligible rolls
 - using the now-aligned Canary Harness as the comparative tuning workspace
 - using Codex-run Combat Lab simulation batches for incremental balance passes, variant comparison, canary checks, scenario matrices, and outlier detection
 - keeping manual Combat Lab runs for major milestone confidence, UI/report readability, public/demo confidence, playtest packet confidence, and table-feel judgement

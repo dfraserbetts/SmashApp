@@ -499,6 +499,8 @@ Result Modifier family:
 - gain +4 to the result of any dice rolled: 4 choice-units
 - gain +5 to the result of any dice rolled: 5 choice-units
 
+Result modifiers follow the locked roll-quality rule: natural 1 is always a hard failure; natural 2 and natural 3 are recoverable failures that may be rescued to at most 1 normal success; only natural successes can become greater, critical, or higher-tier successes.
+
 Reroll Ones family:
 
 - reroll a single result of 1, keeping the second result: 1 choice-unit

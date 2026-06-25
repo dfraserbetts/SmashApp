@@ -369,6 +369,19 @@ These options must be shared by Summoning Circle and Character Builder.
 Dodge and Resist Counter powers do not stack with normal Dodge or normal Resist. They are chosen active response paths. Resist is authored against one core Attribute lane and remains distinct from Cleanse cleanup/removal powers. One Defence -> Resist packet selects exactly one Resisted Attribute: Attack, Guard, Fortitude, Intellect, Synergy, or Bravery. Potency means Resists applied per successful power-roll success, so total Resists equals roll successes multiplied by Potency. Multi-attribute Resist requires multiple effect packets. Movement powers may be Counter-enabled and use Movement Counter timing, but Movement/Reposition is not a Defence mode.
 
 
+Roll modifiers, failures, and success quality
+
+Modifiers are applied to individual die results before success quality is determined, with one exception: a natural 1 is always a hard failure and cannot be modified into a success.
+
+A natural 2 or 3 is a recoverable failure. Positive modifiers may raise a natural 2 or 3 to the normal success threshold, but a rescued recoverable failure can produce at most 1 normal success and cannot become a greater, critical, or higher-tier success.
+
+A natural roll that already meets the normal success threshold is a natural success. Natural successes may be modified normally and may be upgraded or downgraded according to the current success-tier thresholds. Negative modifiers may reduce natural successes, including reducing them below the success threshold.
+
+This rule preserves modifier usefulness for low-die characters while preventing positive modifiers from erasing all failure risk or granting spike output to rolls that were not natural successes.
+
+Do not change the existing success thresholds, dice sizes, maximum modifier, or success-tier definitions as part of this ruling.
+
+
 Duration defensive pools
 
 Duration Dodge, Physical Defence Block, Mental Defence Block, and Resist powers create finite defensive pools.
@@ -1011,11 +1024,28 @@ For Immediate + Standard packets that resolve On Cast and use a non-instant dura
 This first-pass default cadence is a convenience rule for currently supported immediate repeating direct effects. It is not a new universal timing category.
 
 
-6.7 Cleanup model for persistent states and ongoing damage
+6.7 Legal Main Action choices and cleanup model
+
+During a Main Action, an actor may choose exactly one legal Main Action option:
+
+- Attack with one currently equipped weapon.
+- Interact with an object or use an item, such as interacting with an artifact, pulling a lever, reloading a weapon, drinking a medicinal tonic, or accessing a computer.
+- Rush, moving an additional distance up to half the actor's maximum move distance.
+- Brace, allowing failed physical or mental defence rolls to be rerolled once while the Brace benefit is available. A rerolled defence roll cannot be rerolled again by the same Brace.
+- Resist, rolling the relevant Resist Attribute value against persistent stacks or one chosen ongoing damage effect.
+
+Power use is not a Main Action by default. Powers are declared using a Power Action or legal Response unless a more specific future rule explicitly creates an exception.
+
+The Resist Main Action has two cleanup lanes:
+
+- Persistent-state cleanup removes stack count.
+- Ongoing-damage cleanup removes ongoing damage units from one chosen ongoing damage effect.
+
+This keeps normal active defence Resist, Defence -> Resist powers, Cleanse effects, and Main Action cleanup Resist separate.
 
 Persistent-state cleanup uses the following first-pass model:
 
-- the target may use a Main Action to attempt the authored cleanup Resist Attribute and remove stacks equal to rolled successes
+- the target may use the Main Action Resist option to attempt the authored cleanup Resist Attribute and remove stacks equal to rolled successes
 - Cleanse effects remove stacks per success
 - persistent-state stacks naturally degrade by 1 at the end of each turn unless a more specific rule overrides this
 - when the source duration ends, the remaining stacks are removed
@@ -1024,7 +1054,7 @@ Ongoing-damage cleanup uses the following first-pass model:
 
 - ongoing damage is not tracked as stacks
 - Cleanse removes ongoing damage units from the target per success
-- the target may use a Main Action to attempt a cleanup Resist roll against one chosen ongoing damage effect
+- the target may use the Main Action Resist option to attempt a cleanup Resist roll against one chosen ongoing damage effect
 - Physical ongoing damage uses Fortitude Resist by default for this cleanup roll
 - Mental ongoing damage uses Bravery Resist by default for this cleanup roll
 - each cleanup-roll success removes 1 ongoing damage unit from the chosen effect
@@ -1787,6 +1817,8 @@ Self-origin sphere wording must distinguish static areas centered on the user's 
 Overlapping areas from the same packet at the same timing multiply hostile result before one defence roll rather than creating extra defended entry points
 
 Dodge succeeds on match or exceed, not exceed-only
+
+natural 1s are hard failures, natural 2s and 3s are recoverable failures, and only natural successes can produce greater / critical / higher-tier spike results
 
 simple powers must stay simple
 

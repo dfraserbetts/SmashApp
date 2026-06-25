@@ -100,6 +100,7 @@ All future builder work should assume:
 - canonical attribute naming is Guard and Synergy
 - Dodge succeeds on match or exceed
 - future chats must not reintroduce exceed-only dodge wording
+- natural 1s are hard failures, natural 2s and 3s are recoverable failures, and only natural successes can produce greater / critical / higher-tier spike results
 - duration Dodge, Block, and Resist powers create finite Dodge Pool, Block Pool, and Resist Pool resources; they roll once on apply and spend down per matching trigger unless explicitly authored to refresh or reroll
 - repeated defensive pool applications use refresh/replace higher-of-current-or-new by default; Field, Attached, Channel, Trigger, Reserve, and Charge do not create additive pools unless explicitly authored
 
@@ -143,6 +144,42 @@ Movement and Control interrupt Counters require strictly more successes than the
 Attack Counter damage does not cancel the triggering action unless the Counter explicitly interrupts or cancels.
 
 Counter-enabled powers remain normally usable; Counter: Yes adds an extra response mode, not exclusivity.
+
+
+Main Action Runtime Rule
+
+Runtime-facing systems should treat the legal Main Action menu as:
+
+- attack with one currently equipped weapon
+- interact with an object or use an item, including examples such as artifacts, levers, reloading, medicinal tonics, or computers
+- Rush, moving an additional distance up to half maximum move distance
+- Brace, allowing failed physical or mental defence rolls to be rerolled once while the Brace benefit is available; a rerolled defence roll cannot be rerolled again by the same Brace
+- Resist, rolling the relevant Resist Attribute value against persistent stacks or one chosen ongoing damage effect
+
+Main Action Resist against persistent stacks removes stacks equal to successes rolled against the authored cleanup Resist Attribute.
+
+Main Action Resist against ongoing damage chooses one ongoing damage effect. Physical ongoing damage defaults to Fortitude Resist, mental ongoing damage defaults to Bravery Resist, and each success removes 1 ongoing damage unit from that chosen effect.
+
+Power use remains a Power Action or legal Response unless a later explicit rule says otherwise.
+
+
+Roll Modifier / Failure Handoff
+
+Runtime-facing systems must preserve the locked modifier/failure distinction:
+
+- natural 1 is a hard failure
+- natural 1 cannot be modified into any success tier
+- natural 2 and natural 3 are recoverable failures
+- positive modifiers may rescue natural 2 or 3 to the normal success threshold
+- a rescued natural 2 or 3 can produce at most 1 normal success
+- a rescued natural 2 or 3 cannot become a greater success, critical success, or higher-tier success
+- natural rolls that already meet the normal success threshold are natural successes
+- only natural successes may spike into higher success tiers according to current documented thresholds
+- negative modifiers may reduce natural successes, including below the success threshold
+
+Do not change the existing success thresholds, dice sizes, maximum modifier, or success-tier definitions while implementing this ruling.
+
+This document does not claim current runtime code or tests already comply. Runtime/code alignment should be checked in a separate implementation pass.
 
 
 Duration Defence Pool Runtime Rule
@@ -525,6 +562,7 @@ The following are treated as locked for this session:
 - Charge is front-loaded and lifespan tracking begins only when the charged power is released, cast, or otherwise executed
 - overlapping areas from the same packet at the same timing use one power roll, pre-defence multiplication by overlap count, and one defence roll
 - Dodge succeeds on match or exceed
+- natural 1s are hard failures, natural 2s and 3s are recoverable failures, and only natural successes can produce greater / critical / higher-tier spike results
 - natural and equipped at-will attack anchors are normalized to the same baseline law
 - natural and equipped protection anchors are normalized to the same baseline law
 - dodge is physical-only in monster survivability baseline work

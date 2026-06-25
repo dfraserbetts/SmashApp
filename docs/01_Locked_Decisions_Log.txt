@@ -379,6 +379,41 @@ These options must be shared by Summoning Circle and Character Builder rather th
 Dodge and Resist Counter powers do not stack with normal Dodge or Resist. They are chosen active response paths. Resist is authored against one core Attribute lane and remains distinct from Cleanse cleanup/removal powers. One Defence -> Resist packet selects exactly one Resisted Attribute: Attack, Guard, Fortitude, Intellect, Synergy, or Bravery. Potency means Resists applied per successful power-roll success, so total Resists equals roll successes multiplied by Potency. Multi-attribute Resist requires multiple effect packets. Movement powers may be Counter-enabled and use Movement Counter timing, but Movement/Reposition is not a Defence mode.
 
 
+25H. Natural failures, recoverable failures, and spike eligibility are locked
+
+A natural 1 is always a hard failure.
+
+A natural 1 cannot be modified into a success by positive modifiers.
+
+A natural 1 cannot become a greater success, critical success, or any higher success tier.
+
+A natural 2 or natural 3 is a recoverable failure.
+
+Positive modifiers may raise a natural 2 or 3 to the normal success threshold.
+
+If a natural 2 or 3 is rescued by modifiers, it can produce at most 1 normal success.
+
+A rescued natural 2 or 3 cannot become a greater success, critical success, or higher-tier success, even if the final modified value would otherwise reach that tier.
+
+A natural roll that already meets the normal success threshold is a natural success.
+
+Natural successes may be modified normally.
+
+Natural successes may be upgraded or downgraded into higher or lower success tiers according to the current documented success-tier thresholds.
+
+Negative modifiers may reduce natural successes, including reducing them below the success threshold.
+
+Do not change the existing success thresholds, dice sizes, maximum modifier, or success-tier definitions unless that is explicitly reopened in a separate rules pass.
+
+Design intent:
+
+- modifiers should remain meaningful, especially for low-die characters
+- a strong positive modifier should be able to rescue weak rolls of 2 or 3 into competence
+- a strong positive modifier should not erase all failure risk
+- a buffed weak character may become reliable, but should not gain the spike ceiling of a true specialist
+- true spike output belongs to natural successes, preserving the value of high attributes, high skill, and lane mastery
+
+
 26. Charge and Channel are not Descriptor Chassis
 
 
@@ -580,11 +615,28 @@ If an Immediate Packet 1 resolves On Cast and does not create a beyond-turn carr
 
 Secondary scaling from the Primary Packet’s result class is derived rather than manually authored in the current builder surface.
 
+41A. Legal Main Action choices are locked
+
+During a Main Action, an actor may choose exactly one of the following legal options:
+
+- Attack with one currently equipped weapon.
+- Interact with an object or use an item. Examples include interacting with an artifact, pulling a lever, reloading a weapon, drinking a medicinal tonic, or accessing a computer.
+- Rush, moving an additional distance up to half the actor's maximum move distance.
+- Brace, allowing failed physical or mental defence rolls to be rerolled once while the Brace benefit is available. A rerolled defence roll cannot be rerolled again by the same Brace.
+- Resist, rolling the relevant Resist Attribute value against persistent stacks or one ongoing damage effect.
+
+The Main Action Resist option has two cleanup uses:
+
+- Against persistent stacks, roll the authored cleanup Resist Attribute and remove stacks equal to rolled successes.
+- Against ongoing damage, choose one ongoing damage effect and roll the cleanup Resist Attribute for that effect. Each success removes 1 ongoing damage unit from the chosen effect.
+
+Power use remains a Power Action or legal Response unless a more specific future rule explicitly says otherwise.
+
 42. Persistent states use stacks and a stack-cleanup model
 
 Persistent states such as Control stacks and other stack-based states are tracked as stacks rather than as ongoing direct-value effects.
 
-A target may use a Main Action to attempt the authored cleanup Resist Attribute and remove stacks equal to rolled successes.
+A target may use the Main Action Resist option to attempt the authored cleanup Resist Attribute and remove stacks equal to rolled successes.
 
 Cleanse effects remove stacks per success.
 
@@ -598,7 +650,7 @@ Repeating direct effects such as ongoing damage, healing-over-time, or repeated 
 
 For Immediate + Standard packets that resolve On Cast and use a non-instant duration for a repeating direct effect, the effect applies initially on cast and then reapplies at the start of the affected target’s next turns for the authored duration.
 
-Ongoing damage may be reduced by Cleanse or by a Main Action cleanup Resist roll against one chosen ongoing damage effect.
+Ongoing damage may be reduced by Cleanse or by the Main Action Resist option against one chosen ongoing damage effect.
 
 Physical ongoing damage uses Fortitude Resist by default for this cleanup roll. Mental ongoing damage uses Bravery Resist by default.
 

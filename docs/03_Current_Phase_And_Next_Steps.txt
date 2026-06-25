@@ -85,6 +85,7 @@ The following points should now be treated as stable design truth:
 - canonical attribute naming is Guard and Synergy, not Defence and Support
 - Bravery is the mental defence dice stat
 - Dodge now succeeds on match or exceed, not exceed-only
+- natural 1s are hard failures, natural 2s and 3s are recoverable failures, and only natural successes can produce greater / critical / higher-tier spike results
 - duration Dodge, Block, and Resist powers create finite Dodge Pool, Block Pool, and Resist Pool resources rather than rerolling or refreshing their full value on every incoming attack
 - repeated defensive pool applications from the same source power, packet, and protected target use refresh/replace higher-of-current-or-new by default, not additive stacking
 - Field, Attached, and Channel defensive pool delivery uses authored timing/cadence while preserving finite pool limits; Trigger and Reserve use normal pool rules once delivered/released; Charge uses final release dice/potency
