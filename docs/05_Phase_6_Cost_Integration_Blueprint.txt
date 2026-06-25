@@ -292,10 +292,11 @@ The cost model should account for:
 - potency increasing both total pool size and the standard per-trigger commitment cap
 - duration increasing the opportunity to spend the pool at the best moments
 - target count and recipient flexibility increasing how many actors can carry pools
-- Dodge Pool value being high because it can help match-or-exceed physical attacks before normal Dodge degradation continues
+- Dodge Pool value being high because it can help match-or-exceed physical attacks either as pool-only protection or as a supplement before an optional normal Dodge roll
 - Resist Pool value being high because it can cancel hostile successes, stacks, ongoing units, or equivalent units in an authored resisted Attribute lane
 - Block Pool value being more linear because it adds direct wound prevention in the matching physical or mental lane
 - defensive-pool pricing must not assume cross-lane degradation; Physical Defence, Mental Defence, Dodge, and active Resist degradation are independent defence-lane tracks
+- defensive-pool pricing must not assume pool spending always causes normal defence degradation; pool-only commitment spends finite points without rolling or degrading Dodge, Physical Defence, Mental Defence, or active Resist
 
 For one applied duration defence:
 
@@ -372,7 +373,9 @@ Duration and reapplication create opportunity value: the pool can be saved for m
 
 Target scope creates multiplication value: more protected actors and more flexible recipient choices create more chances that the pool matters.
 
-Therefore defensive pool pricing needs separate depth, burst, duration, delivery, target, reapplication, and exception factors.
+Pool-only use adds option value: a protected actor can spend finite pool points without also consuming a normal active defence degradation step. Pool plus normal defence still has supplement value when the defender chooses to roll the matching active lane.
+
+Therefore defensive pool pricing needs separate depth, burst, duration, delivery, target, reapplication, pool-only option value, and exception factors.
 
 
 Pool Depth Value Versus Per-Trigger Burst Value
@@ -423,7 +426,7 @@ Dodge Pool
 - points add Dodge successes
 - can avoid a whole physical or explicitly dodgeable packet on match-or-exceed
 - value spikes near common incoming success bands
-- interacts with normal Dodge degradation because the Dodge lane still degrades while pool points are spent separately
+- interacts with normal Dodge degradation only when normal Dodge is also rolled; pool-only Dodge Pool commitment does not degrade the Dodge lane
 - high potency must be priced as burst packet-denial capacity, not merely extra mitigation
 - Dodge Pool does not make mental attacks dodgeable unless an action explicitly allows Dodge
 

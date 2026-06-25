@@ -231,12 +231,15 @@ On application:
 On a matching incoming trigger:
 
 1. Resolve incoming declaration and roll first.
-2. If the incoming trigger produced one or more actionable hostile successes, let the defender choose the matching legal active defence or Resist path.
-3. Before the normal defence / Resist roll, commit pool points up to min(poolRemaining, perTriggerCap), only when there is at least one actionable hostile success to oppose.
-4. Roll the normal defence / Resist only against one or more actionable hostile successes.
-5. Add committed points to that result.
-6. Spend committed points even if the defence fails.
-7. Apply resolution-based degradation only to the independent defence lane that actually resolves against one or more actionable hostile successes.
+2. If the incoming trigger produced one or more actionable hostile successes, let the defender choose one legal path: take the hit/effect, commit one matching defensive pool only, roll the matching normal active defence / active Resist only, or commit one matching pool and roll the matching normal active defence / active Resist.
+3. If a pool is used, commit pool points up to min(poolRemaining, perTriggerCap), only when there is at least one actionable hostile success to oppose.
+4. If normal active defence / active Resist is also chosen, commit pool points before that roll is made.
+5. Add committed points to the normal result when a normal roll exists; for pool-only use, apply committed points directly as lane-specific Dodge successes, wound prevention, or hostile-unit cancellation.
+6. Spend committed points even if they do not fully stop the incoming result.
+7. Pool-only commitment does not roll or resolve Dodge, Physical Defence, Mental Defence, or active Resist, so it does not cause resolution-based degradation.
+8. Apply resolution-based degradation only to an independent defence lane that actually rolls/resolves against one or more actionable hostile successes.
+
+Implementation alignment note: Combat Lab and future runtime tests must explicitly cover pool-only commitment, pool plus normal defence, and normal defence without pool. Do not claim runtime compliance from documentation alone.
 
 Combat Lab and future runtime diagnostics should expose at least:
 

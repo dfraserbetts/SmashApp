@@ -25,8 +25,10 @@ Locked Defensive Pool Rules Preserved By This Matrix
 
 - Pool size = successful power-roll successes x potency.
 - Per-trigger commit cap = potency unless explicitly modified.
-- Pool points are committed before the normal defence or Resist roll.
-- Committed points are spent whether the defence succeeds or fails.
+- Defensive pools may be committed as pool-only protection or as a supplement to a matching normal defence / active Resist roll.
+- If a normal defence / active Resist roll is also chosen, pool points are committed before that roll.
+- Committed points are spent whether they fully stop the incoming result or prove ineffective.
+- Pool-only commitment spends relevant pool points but does not degrade Dodge, Physical Defence, Mental Defence, or active Resist because no normal defence lane is rolled/resolved.
 - Normal defence and active Resist degradation still apply only in the independent defence lane that actually resolves against one or more actionable hostile successes.
 - Pool spending does not reset degradation.
 - Dodge Pool adds Dodge successes and uses match-or-exceed.
@@ -135,7 +137,7 @@ A1. Duration Dodge Pool bridges normal Dodge failure into success
 
 Purpose:
 
-Prove that a duration Dodge Pool commits before normal Dodge, adds Dodge successes, and can turn a failed normal Dodge into a successful match-or-exceed avoid.
+Prove that a duration Dodge Pool can be committed before an optional normal Dodge roll, adds Dodge successes in the pool-plus-normal case, and can turn a failed normal Dodge into a successful match-or-exceed avoid.
 
 Setup:
 
@@ -155,8 +157,8 @@ Expected diagnostics/assertions:
 
 - Dodge Pool created > 0.
 - generatedPoints = successful power-roll successes x potency.
-- committedPoints > 0 before the normal Dodge roll.
-- Final Dodge = normal Dodge successes + committed pool points.
+- committedPoints > 0 before the optional normal Dodge roll.
+- In the pool-plus-normal case, Final Dodge = normal Dodge successes + committed pool points.
 - Final Dodge >= incoming successes.
 - net wounds = 0 for the incoming packet.
 - committedPoints == spentPoints for the pool use.
@@ -236,6 +238,40 @@ Failure examples:
 
 - Pool commits its full per-trigger cap when expected normal Dodge is already sufficient.
 - Pool remaining drops despite no need to commit.
+
+
+A3B. Pool-only commitment does not degrade normal defence
+
+Purpose:
+
+Prove a matching defensive pool can be committed without rolling the normal active defence lane, and that pool-only commitment does not degrade Dodge, Physical Defence, Mental Defence, or active Resist.
+
+Setup:
+
+- Synthetic defender: active Dodge Pool, Physical Block Pool, Mental Block Pool, or Resist Pool.
+- Synthetic attacker action: matching actionable hostile pressure.
+- Runtime choice policy or direct resolver fixture: choose pool-only commitment.
+- No normal active defence / active Resist roll is made.
+
+Pressure shape:
+
+- The pool has enough per-trigger cap to affect the incoming result.
+- The matching normal defence lane has a known degradation value before the trigger.
+
+Expected diagnostics/assertions:
+
+- committedPoints > 0.
+- spentPoints increases by committedPoints.
+- Relevant dodgeAvoids, blockWoundsPrevented, or resistUnitsCancelled reflects only the pool contribution.
+- No normal Dodge, Physical Defence, Mental Defence, or active Resist roll is recorded.
+- The matching degradation lane is unchanged after resolution.
+- Pool remaining decreases by committed amount.
+
+Failure examples:
+
+- Pool-only commitment silently rolls normal defence.
+- Pool-only commitment degrades the matching normal defence lane.
+- Pool-only commitment is rejected even though actionable hostile pressure and a matching pool exist.
 
 
 A4. Physical Block Pool adds direct wound prevention

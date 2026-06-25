@@ -429,32 +429,38 @@ The pool remains until:
 
 The standard per-trigger commitment cap is packet potency unless the power explicitly modifies that cap.
 
+Defensive pools may be used as pool-only protection or as a supplement to normal active defence. For each incoming hostile action, the defender chooses one legal path: take the hit/effect, commit one matching defensive pool only, roll the matching normal Dodge / Physical Defence / Mental Defence / active Resist only, or commit one matching defensive pool and roll the matching normal defence.
+
 Commit timing:
 
 1. The incoming action is declared and rolled.
-2. If the incoming action produced one or more actionable hostile successes, the defender chooses the matching legal defence or Resist path.
-3. Before rolling the normal defence or Resist, the defender commits pool points up to the per-trigger cap and remaining pool.
-4. The defender rolls the normal Dodge, Physical Defence, Mental Defence, or Resist.
-5. Committed pool points add to that result.
-6. Committed pool points are spent whether the final defence succeeds or fails.
-7. Resolution-based degradation applies only to the independent defence lane that actually resolves against one or more actionable hostile successes.
+2. If the incoming action produced one or more actionable hostile successes, the defender chooses whether to take the result, commit a matching pool only, roll the matching normal defence only, or use both.
+3. If a pool is used, commit pool points up to the per-trigger cap and remaining pool before any normal defence or active Resist roll is made.
+4. If a normal defence or active Resist is chosen, the defender rolls normal Dodge, Physical Defence, Mental Defence, or active Resist against the remaining hostile pressure.
+5. Committed pool points add to the relevant result when a normal defence or active Resist is also rolled. In pool-only use, they directly provide their lane-specific cancellation or prevention.
+6. Committed pool points are spent whether the final outcome succeeds or fails.
+7. Pool-only commitment does not roll or resolve Dodge, Physical Defence, Mental Defence, or active Resist, so it does not cause resolution-based degradation.
+8. If a normal defence or active Resist is rolled, resolution-based degradation applies only to the independent defence lane that actually resolves against one or more actionable hostile successes.
 
-Dodge Pool points add to normal Dodge successes. A Dodge Pool can be used only against physical attacks or actions that explicitly allow Dodge. It does not make mental attacks dodgeable.
+Dodge Pool points add to normal Dodge successes when Dodge is also rolled. In pool-only use, they count as Dodge successes for that incoming packet without rolling Dodge or degrading the Dodge lane. A Dodge Pool can be used only against physical attacks or actions that explicitly allow Dodge. It does not make mental attacks dodgeable.
 
-Final Dodge = normal Dodge successes + committed Dodge Pool points. If final Dodge equals or exceeds incoming successes, the incoming packet is avoided. If final Dodge is lower than incoming successes, the Dodge fails and the incoming packet resolves normally.
+Final Dodge with a normal Dodge roll = normal Dodge successes + committed Dodge Pool points. Pool-only Dodge result = committed Dodge Pool points. If the final Dodge result equals or exceeds incoming successes, the incoming packet is avoided. If the final Dodge result is lower than incoming successes, the Dodge fails and the incoming packet resolves normally.
 
-Physical Block Pool and Mental Block Pool points add directly to wounds prevented in their matching lane. A Physical Block Pool does not block mental wounds. A Mental Block Pool does not block physical wounds.
+Physical Block Pool and Mental Block Pool points add directly to wounds prevented in their matching lane, whether used pool-only or alongside normal Physical Defence / Mental Defence. A Physical Block Pool does not block mental wounds. A Mental Block Pool does not block physical wounds.
 
-Resist Pool points add to the matching authored Resist result. Each pool point cancels one hostile success, stack, ongoing unit, or equivalent unit in the authored resisted Attribute lane. Resist Pool packets are not generic unless explicitly authored as generic, and one packet maps to one resisted Attribute.
+Resist Pool points add to the matching authored active Resist result when active Resist is also rolled. In pool-only use, each pool point cancels one hostile success, stack, ongoing unit, or equivalent unit in the authored resisted Attribute lane without rolling active Resist or degrading that lane. Resist Pool packets are not generic unless explicitly authored as generic, and one packet maps to one resisted Attribute.
 
 Counter Dodge remains a one-shot Counter by default. It rolls on declaration, applies successes x potency to that one trigger, and does not create a persistent pool unless the power also explicitly has a duration effect that creates a Dodge Pool. A Counter still replaces normal active defence unless the Counter explicitly grants or modifies that defence. Already-active passive/static effects still apply.
 
 Examples:
 
-- Dodge Pool: A duration Dodge power rolls 4 successes with potency 3. It creates a Dodge Pool of 12. The protected actor is attacked for 5 incoming successes. Before rolling normal Dodge, they commit 3 Dodge Pool points because potency caps the per-trigger spend at 3. They roll normal Dodge and get 2 successes. Final Dodge = 5, so the attack is avoided. The pool drops from 12 to 9.
+- Dodge Pool plus normal Dodge: A duration Dodge power rolls 4 successes with potency 3. It creates a Dodge Pool of 12. The protected actor is attacked for 5 incoming successes. Before rolling normal Dodge, they commit 3 Dodge Pool points because potency caps the per-trigger spend at 3. They roll normal Dodge and get 2 successes. Final Dodge = 5, so the attack is avoided. The pool drops from 12 to 9 and the Dodge lane degrades because normal Dodge resolved.
+- Dodge Pool only: The protected actor is attacked for 2 incoming successes and commits 2 Dodge Pool points without rolling normal Dodge. Final Dodge result = 2, so the attack is avoided. The pool drops by 2, and the Dodge lane does not degrade because no normal Dodge roll resolved.
 - Failed Dodge Pool spend: The protected actor commits 3 Dodge Pool points against 6 incoming successes. They roll normal Dodge and get 1 success. Final Dodge = 4, so the attack lands. The 3 committed pool points are still spent.
-- Block Pool: A Physical Defence duration power creates a Physical Block Pool of 10. The protected actor commits 3 points before rolling Physical Defence. Normal Physical Defence prevents 8 wounds. The committed pool adds 3 more prevention. Total prevention = 11 wounds. The pool drops from 10 to 7.
-- Resist Pool: A Fortitude Resist duration power creates a Resist Pool of 8. A hostile Fortitude-lane ongoing effect applies 3 units. The protected actor commits 2 Resist Pool points before rolling Fortitude Resist. They roll 1 Resist success. Final cancelled units = 3, so the hostile units are cancelled. The pool drops from 8 to 6.
+- Block Pool: A Physical Defence duration power creates a Physical Block Pool of 10. The protected actor commits 3 points before rolling Physical Defence. Normal Physical Defence prevents 8 wounds. The committed pool adds 3 more prevention. Total prevention = 11 wounds. The pool drops from 10 to 7 and the Physical Defence lane degrades because normal Physical Defence resolved.
+- Block Pool only: A protected actor commits 3 Physical Block Pool points against 7 physical wounds without rolling Physical Defence. The pool prevents 3 wounds, 4 physical wounds remain, and Physical Defence does not degrade.
+- Resist Pool: A Fortitude Resist duration power creates a Resist Pool of 8. A hostile Fortitude-lane ongoing effect applies 3 units. The protected actor commits 2 Resist Pool points before rolling Fortitude Resist. They roll 1 Resist success. Final cancelled units = 3, so the hostile units are cancelled. The pool drops from 8 to 6 and active Resist degrades because it resolved.
+- Resist Pool only: The protected actor commits 2 Fortitude Resist Pool points against 2 Fortitude-lane ongoing units without rolling active Resist. Both units are cancelled, the pool drops by 2, and active Resist does not degrade.
 
 
 Defensive pool chassis interactions

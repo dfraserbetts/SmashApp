@@ -153,7 +153,7 @@ The practical next work should stay focused on:
 - implementing shared power-builder support for Block, Dodge, and Resist defensive power options in both Summoning Circle and Character Builder
 - keeping Resist authored against one core Attribute lane per packet, while Cleanse remains the cleanup/removal mechanic
 - treating Defence -> Resist Potency as Resists per successful power-roll success; multi-attribute Resist requires multiple packets
-- implementing duration defensive powers as finite pools: roll once on apply, pool size equals successes x potency, commit up to potency per matching trigger before the normal defence / Resist roll, and spend committed points whether the defence succeeds or fails
+- implementing duration defensive powers as finite pools: roll once on apply, pool size equals successes x potency, commit up to potency per matching trigger as pool-only protection or before an optional matching normal defence / active Resist roll, and spend committed points whether they fully stop the incoming result or prove ineffective
 - implementing chassis-specific pool handling: Field target-specific pools, Attached following pools, Channel refresh/replace pools, Trigger/Reserve delivered pools, Charge release pools, and one matching pool commit per incoming action unless explicitly modified
 - updating descriptor wording so normal use and Counter use are clearly distinct: Counter-enabled powers remain normally usable, while Counter use replaces normal active defence
 - preserving the locked targeting split across shared builders, descriptors, and Combat Lab: range defines reach / area, target legality defines who may be selected, target count limits selected targets, and self consumes one target slot when self is legal
@@ -162,6 +162,7 @@ The practical next work should stay focused on:
 - preserving the locked response order: active effects, hostile declaration, Assist declaration, Counter declaration, Assists, Counters, trigger roll, normal active defence only if no Counter and one or more actionable hostile successes were produced, prevention/effects, result application, cleanup
 - checking runtime/tests for the zero-success hostile action ruling: declaration/reaction triggers still fire, declared Counters/Assists remain spent, but normal defence, defensive-pool commits, and defence degradation do not occur without actionable hostile successes
 - checking runtime/tests for independent defence-lane degradation: Physical Defence, Mental Defence, Dodge, and active Resist tracks must degrade only in the lane that actually resolves against actionable hostile successes
+- checking runtime/tests for the defensive-pool-only commitment ruling: pool-only spending is legal against matching actionable hostile pressure, spends finite pool points, and does not degrade Dodge, Physical Defence, Mental Defence, or active Resist unless a normal active defence is also rolled
 - rerunning the 16-test response / defence / Counter matrix after runtime changes
 - revisiting Counter, Movement Counter, and Control interrupt Counter costs only after runtime behaviour faithfully follows the source rules
 - using the Canary Harness for baseline/candidate tuning comparisons alongside Codex-run Combat Lab batches for repeated scenario evidence
