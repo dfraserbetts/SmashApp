@@ -58,6 +58,12 @@ function createPower(config: {
   packet: EffectPacket;
   packets?: EffectPacket[];
   counterMode?: Power["counterMode"];
+  descriptorChassis?: Power["descriptorChassis"];
+  descriptorChassisConfig?: Power["descriptorChassisConfig"];
+  commitmentModifier?: Power["commitmentModifier"];
+  attachedHostAnchorType?: Power["attachedHostAnchorType"];
+  lifespanType?: Power["lifespanType"];
+  lifespanTurns?: number | null;
   primaryDefenceGate?: Power["primaryDefenceGate"];
 }): Power {
   const packets = config.packets ?? [config.packet];
@@ -65,14 +71,15 @@ function createPower(config: {
     sortOrder: 0,
     name: config.name,
     description: null,
-    descriptorChassis: "IMMEDIATE",
-    descriptorChassisConfig: {},
+    descriptorChassis: config.descriptorChassis ?? "IMMEDIATE",
+    descriptorChassisConfig: config.descriptorChassisConfig ?? {},
     cooldownTurns: 1,
     cooldownReduction: 0,
     counterMode: config.counterMode ?? "NO",
-    commitmentModifier: "STANDARD",
-    lifespanType: "NONE",
-    lifespanTurns: null,
+    commitmentModifier: config.commitmentModifier ?? "STANDARD",
+    attachedHostAnchorType: config.attachedHostAnchorType ?? null,
+    lifespanType: config.lifespanType ?? "NONE",
+    lifespanTurns: config.lifespanTurns ?? null,
     rangeCategories: config.rangeCategories ?? [],
     meleeTargets: config.meleeTargets ?? null,
     rangedDistanceFeet: config.rangedDistanceFeet ?? null,
@@ -864,6 +871,154 @@ const characterDodgeDescriptor = renderPowerDescriptorLines(
   normalizeCharacterPower(dodgePower, 0),
 ).join("\n");
 const strongDodgeDescriptor = renderPowerDescriptorLines(strongDodgePower).join("\n");
+const physicalBlockPoolDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Silver Shield",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 5,
+    potency: 5,
+    effectDurationType: "TURNS",
+    effectDurationTurns: 2,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Block",
+      rangeCategory: "SELF",
+    },
+  }),
+  rangeCategories: ["MELEE"],
+})).join("\n");
+const singularPhysicalBlockPoolDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Silver Shield",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 1,
+    potency: 1,
+    effectDurationType: "TURNS",
+    effectDurationTurns: 2,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Block",
+      rangeCategory: "SELF",
+    },
+  }),
+  rangeCategories: ["MELEE"],
+})).join("\n");
+const mentalBlockPoolDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Mind Ward",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 3,
+    potency: 4,
+    effectDurationType: "TURNS",
+    effectDurationTurns: 2,
+    detailsJson: {
+      attackMode: "MENTAL",
+      defenceMode: "Block",
+      rangeCategory: "SELF",
+    },
+  }),
+  rangeCategories: ["MELEE"],
+})).join("\n");
+const dodgePoolDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Blur",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 3,
+    potency: 4,
+    effectDurationType: "TURNS",
+    effectDurationTurns: 2,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Dodge",
+      rangeCategory: "SELF",
+    },
+  }),
+  rangeCategories: ["MELEE"],
+})).join("\n");
+const attachedSilverShieldDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Silver Shield",
+  descriptorChassis: "ATTACHED",
+  attachedHostAnchorType: "SELF",
+  lifespanType: "PASSIVE",
+  primaryDefenceGate: {
+    sourcePacketIndex: 0,
+    gateResult: "NONE",
+    protectionChannel: null,
+    resistAttribute: null,
+    hostileEntryPattern: "ON_PAYLOAD",
+    resolutionSource: "EXPLICIT",
+  },
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 5,
+    potency: 5,
+    effectTimingType: "START_OF_TURN",
+    effectDurationType: "INSTANT",
+    effectDurationTurns: null,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Block",
+      rangeCategory: "SELF",
+    },
+  }),
+})).join("\n");
+const fieldBlockPoolDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Aegis Field",
+  descriptorChassis: "FIELD",
+  lifespanType: "TURNS",
+  lifespanTurns: 3,
+  rangeCategories: ["AOE"],
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "ALLIES",
+    diceCount: 2,
+    potency: 3,
+    effectTimingType: "START_OF_TURN",
+    effectDurationType: "INSTANT",
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Block",
+      rangeCategory: "AOE",
+      rangeValue: 30,
+      rangeExtra: { count: 1, shape: "SPHERE", sphereRadiusFeet: 10 },
+    },
+  }),
+})).join("\n");
+const instantPhysicalBlockDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Silver Shield",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 2,
+    potency: 5,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Block",
+      rangeCategory: "SELF",
+    },
+  }),
+  rangeCategories: ["MELEE"],
+})).join("\n");
+const instantMentalBlockDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Mind Ward",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 2,
+    potency: 5,
+    detailsJson: {
+      attackMode: "MENTAL",
+      defenceMode: "Block",
+      rangeCategory: "SELF",
+    },
+  }),
+  rangeCategories: ["MELEE"],
+})).join("\n");
 const braveryResistDescriptor = renderPowerDescriptorLines(braveryResistPower).join("\n");
 const illegalRepositionDescriptor = renderPowerDescriptorLines(illegalRepositionPower).join("\n");
 const illegalRepositionNormalized = normalizeMonsterUpsertInput({
@@ -940,6 +1095,52 @@ assert.match(
   strongDodgeDescriptor,
   /applies 3 Dodge per success/,
 );
+assert.match(
+  physicalBlockPoolDescriptor,
+  /Silver Shield creates a Physical Block Pool with 5 points per success/,
+);
+assert.match(
+  singularPhysicalBlockPoolDescriptor,
+  /Silver Shield creates a Physical Block Pool with 1 point per success/,
+);
+assert.match(
+  mentalBlockPoolDescriptor,
+  /Mind Ward creates a Mental Block Pool with 4 points per success/,
+);
+assert.match(
+  dodgePoolDescriptor,
+  /Blur creates a Dodge Pool with 4 points per success/,
+);
+assert.match(
+  attachedSilverShieldDescriptor,
+  /Attach Silver Shield to yourself until it ends or is removed\. At the start of each turn, roll 5 dice\. Silver Shield creates a Physical Block Pool with 5 points per success\./,
+);
+assert.match(
+  fieldBlockPoolDescriptor,
+  /Aegis Field creates a Physical Block Pool with 3 points per success/,
+);
+assert.match(
+  instantPhysicalBlockDescriptor,
+  /Silver Shield blocks 5 physical wounds per success/,
+);
+assert.match(
+  instantMentalBlockDescriptor,
+  /Mind Ward blocks 5 mental wounds per success/,
+);
+assert.doesNotMatch(instantPhysicalBlockDescriptor, /Physical Block Pool/);
+assert.doesNotMatch(instantMentalBlockDescriptor, /Mental Block Pool/);
+assert.doesNotMatch(dodgeDescriptor, /Dodge Pool/);
+assert.doesNotMatch(
+  [
+    physicalBlockPoolDescriptor,
+    singularPhysicalBlockPoolDescriptor,
+    mentalBlockPoolDescriptor,
+    dodgePoolDescriptor,
+    attachedSilverShieldDescriptor,
+    fieldBlockPoolDescriptor,
+  ].join("\n"),
+  /(?:blocks \d+ (?:physical|mental) wounds per success|applies \d+ Dodge per success)/,
+);
 assert.equal(dodgePower.counterMode, "YES");
 assert.doesNotMatch(dodgeDescriptor, /When used as a Counter|creates a Dodge defence|avoidable incoming action|Dodge \/ Evade|Reposition/);
 assert.doesNotMatch(strongDodgeDescriptor, /When used as a Counter|creates a Dodge defence|avoidable incoming action|Dodge \/ Evade|Reposition/);
@@ -996,6 +1197,7 @@ assert.match(
   resistDescriptor,
   /applies 1 Guard Resist per success/,
 );
+assert.doesNotMatch(resistDescriptor, /Pool/);
 assert.match(
   braveryResistDescriptor,
   /applies 3 Bravery Resists per success/,

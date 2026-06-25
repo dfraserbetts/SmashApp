@@ -800,6 +800,8 @@ Channelled defensive pools reapply while the channel is maintained according to 
 
 Charged defensive pool powers use final charged values at release. If Charge grants bonus dice, those dice increase the release roll. If Charge grants bonus potency, final charged potency increases both pool size and per-trigger commit cap. Duration begins on release; charge turns before release do not count against pool duration.
 
+Descriptor terminology for pool-generating Defence powers is canonical: "creates a Physical Block Pool with N point(s) per success", "creates a Mental Block Pool with N point(s) per success", and "creates a Dodge Pool with N point(s) per success". Individual power descriptors must not repeat global pool operation, refresh/replace, or commitment-cap rules.
+
 54. Codex-run Combat Lab simulation batches are an accepted incremental balance workflow
 
 Manual Combat Lab runs remain important for major milestone confidence, UI/report readability checks, and table-feel judgement.

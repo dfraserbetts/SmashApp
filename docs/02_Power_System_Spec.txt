@@ -373,6 +373,8 @@ Duration defensive pools
 
 Duration Dodge, Physical Defence Block, Mental Defence Block, and Resist powers create finite defensive pools.
 
+Power descriptors use the canonical pool terms only: Physical Block Pool, Mental Block Pool, and Dodge Pool. The descriptor clause is "creates a [Pool Name] with N point(s) per success"; detailed pool operation remains in the shared rules.
+
 They do not reroll or refresh their full value every time the protected actor is attacked unless explicitly authored to do so.
 
 When the power applies, roll it once.

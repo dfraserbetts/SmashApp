@@ -210,6 +210,7 @@ function formatPrimaryBaseClauseForRange(
   rangeCategory: string,
 ): string {
   if (!effectPacket || rangeCategory !== "AOE") return baseClause;
+  if (/^creates a .* Pool with /i.test(baseClause)) return baseClause;
 
   if (effectPacket.intention === "MOVEMENT") {
     const replaced = baseClause.replace(/\bthe target\b/gi, "targets within the area");
@@ -680,20 +681,75 @@ function derivePrimaryDefenceCheckFromGate(
   return derivePrimaryDefenceCheck(effectPacket, "SELF", 1, 1);
 }
 
+type DefensivePoolDescriptorPower = Pick<
+  Power,
+  "descriptorChassis" | "commitmentModifier" | "counterMode" | "lifespanType"
+>;
+
+function defensivePoolDescriptorName(
+  effectPacket: Pick<EffectPacket, "intention" | "effectTimingType" | "effectDurationType" | "detailsJson">,
+  power: DefensivePoolDescriptorPower,
+): "Physical Block Pool" | "Mental Block Pool" | "Dodge Pool" | null {
+  if (effectPacket.intention !== "DEFENCE") return null;
+  const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
+  const defenceMode = readDefenceMode(details);
+  if (defenceMode === "Resist") return null;
+  if (defenceMode !== "Block" && defenceMode !== "Dodge") return null;
+
+  const durationType = effectPacket.effectDurationType ?? "INSTANT";
+  const timingType = effectPacket.effectTimingType ?? "ON_CAST";
+  const hasAuthoredDuration =
+    durationType === "TURNS" ||
+    durationType === "PASSIVE" ||
+    durationType === "UNTIL_TARGET_NEXT_TURN";
+  const hasPersistentDeliveryContext =
+    power.lifespanType === "TURNS" ||
+    power.lifespanType === "PASSIVE" ||
+    power.commitmentModifier === "CHANNEL" ||
+    power.descriptorChassis === "FIELD" ||
+    power.descriptorChassis === "ATTACHED" ||
+    power.descriptorChassis === "TRIGGER" ||
+    power.descriptorChassis === "RESERVE";
+  const hasRecurringDeliveryTiming =
+    timingType === "START_OF_TURN" ||
+    timingType === "END_OF_TURN" ||
+    timingType === "START_OF_TURN_WHILST_CHANNELLED" ||
+    timingType === "END_OF_TURN_WHILST_CHANNELLED" ||
+    timingType === "ON_TRIGGER" ||
+    timingType === "ON_EXPIRY";
+
+  if (!hasAuthoredDuration && !(hasPersistentDeliveryContext && hasRecurringDeliveryTiming)) {
+    return null;
+  }
+
+  if (defenceMode === "Dodge") return "Dodge Pool";
+  const mode = getDetailsString(details, "attackMode").trim().toUpperCase() === "MENTAL" ? "Mental" : "Physical";
+  return `${mode} Block Pool`;
+}
+
+function renderDefensivePoolBaseClause(poolName: NonNullable<ReturnType<typeof defensivePoolDescriptorName>>, potency: number): string {
+  return `creates a ${poolName} with ${formatCountedUnit(potency, "point")}`;
+}
+
 function formatSecondaryClause(
   intentionType: EffectPacket["intention"],
   baseClause: string,
   details: Record<string, unknown>,
   applyTo: "PRIMARY_TARGET" | "ALLIES" | "SELF",
   powerPotency: number,
-  power: Pick<Power, "descriptorChassis" | "descriptorChassisConfig" | "rangeCategories">,
-  effectPacket: Pick<EffectPacket, "effectTimingType">,
+  power: Pick<Power, "descriptorChassis" | "descriptorChassisConfig" | "rangeCategories"> & DefensivePoolDescriptorPower,
+  effectPacket: Pick<EffectPacket, "intention" | "effectTimingType" | "effectDurationType" | "detailsJson">,
   omitRecipientContext?: boolean,
 ): string {
   const entity = applyToEntity(applyTo, power, effectPacket);
 
   // Intention-specific grammar for secondary intentions:
   if (intentionType === "DEFENCE") {
+    const poolName = defensivePoolDescriptorName(effectPacket, power);
+    if (poolName) {
+      const poolClause = renderDefensivePoolBaseClause(poolName, powerPotency);
+      return omitRecipientContext ? poolClause : `${poolClause} for ${entity}`;
+    }
     const defenceMode = readDefenceMode(details);
     if (defenceMode === "Dodge") {
       const dodgeClause = `applies ${powerPotency} Dodge`;
@@ -1738,7 +1794,7 @@ function isWhilstChannelledTiming(
 
 function renderPacketBaseClause(
   effectPacket: EffectPacket,
-  power: Pick<Power, "potency">,
+  power: Pick<Power, "potency"> & DefensivePoolDescriptorPower,
 ): string {
   const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
   const packetPotency = getPacketPotency(effectPacket, power);
@@ -1763,6 +1819,10 @@ function renderPacketBaseClause(
   }
 
   if (effectPacket.intention === "DEFENCE") {
+    const poolName = defensivePoolDescriptorName(effectPacket, power);
+    if (poolName) {
+      return renderDefensivePoolBaseClause(poolName, packetPotency);
+    }
     const defenceMode = readDefenceMode(details);
     if (defenceMode === "Dodge") {
       return `applies ${packetPotency} Dodge`;
@@ -1884,6 +1944,8 @@ type SecondaryRenderPower = Pick<
   | "descriptorChassis"
   | "descriptorChassisConfig"
   | "commitmentModifier"
+  | "counterMode"
+  | "lifespanType"
   | "rangeCategories"
 >;
 

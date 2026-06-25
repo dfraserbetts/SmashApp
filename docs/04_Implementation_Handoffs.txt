@@ -546,6 +546,8 @@ Scope for this session:
 - tune against the now-aligned live/harness baseline using Codex-run simulation batches for incremental checks and manual Combat Lab runs for milestone confidence / feel checks
 - resolve only genuinely blocking remaining builder, descriptor, or translation edge cases
 
+Descriptor handoff note: pool-generating Defence descriptors must use the canonical short clauses "creates a Physical Block Pool with N point(s) per success", "creates a Mental Block Pool with N point(s) per success", or "creates a Dodge Pool with N point(s) per success". Keep refresh/replace and spend-cap details in handbook/global rules, not individual power text.
+
 Non-goals:
 - do not reopen Phase 1–4 architecture unless a direct contradiction appears
 - do not redesign the whole UI visually
