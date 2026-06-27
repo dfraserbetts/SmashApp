@@ -1,0 +1,358 @@
+01_Locked_Rules_And_Combat_Bible.txt
+
+Purpose
+
+This is the active rule-law document for Incarnate combat and runtime
+resolution. It consolidates locked rules from the previous locked decision log,
+power system spec, and implementation handoff notes.
+
+If implementation disagrees with this document, treat the mismatch as a runtime
+alignment issue unless the Architect explicitly changes the rule.
+
+
+Roll Grammar And Success Quality
+
+Use the existing documented success thresholds, dice sizes, maximum modifier,
+and success-tier definitions. This consolidation pass does not change the
+numeric threshold table.
+
+Locked modifier/failure ruling:
+
+- Natural 1s are hard failures.
+- A natural 1 cannot be modified into a success by positive modifiers.
+- A natural 1 cannot become a greater success, critical success, or any higher
+  success tier.
+- Natural 2s and 3s are recoverable failures.
+- Positive modifiers may raise a natural 2 or 3 to the normal success threshold.
+- A rescued natural 2 or 3 can produce at most 1 normal success.
+- A rescued natural 2 or 3 cannot become a greater success, critical success, or
+  higher-tier success, even if the final modified value would otherwise reach
+  that tier.
+- Only natural successes can spike into greater, critical, or higher-tier
+  success results.
+- Negative modifiers may reduce natural successes, including reducing them below
+  the success threshold.
+
+
+Action Economy: Legal Main Action Choices
+
+During a Main Action, an actor may choose exactly one legal option:
+
+- Attack with one currently equipped weapon.
+- Interact with an object or use an item, such as interacting with an artifact,
+  pulling a lever, reloading a weapon, drinking a medicinal tonic, or accessing
+  a computer.
+- Rush, moving an additional distance up to half the actor's maximum move
+  distance.
+- Brace, allowing each failed die in a Physical Defence or Mental Defence roll
+  to be rerolled once while the Brace benefit is available. A die rerolled by
+  Brace cannot be rerolled again.
+- Resist, making a cleanup Resist roll against either persistent stacks or one
+  ongoing damage effect.
+
+Power use is not a Main Action by default. Powers are declared using a Power
+Action or legal Response unless a more specific future rule explicitly creates
+an exception.
+
+Main Action Resist has two cleanup lanes:
+
+- Against persistent stacks, roll the authored cleanup Resist Attribute and
+  remove stacks equal to rolled successes.
+- Against one chosen ongoing damage effect, roll the cleanup Resist lane for
+  that effect. Physical ongoing damage defaults to Fortitude Resist. Mental
+  ongoing damage defaults to Bravery Resist. Each success removes 1 ongoing
+  damage unit from that chosen effect.
+
+Normal active defence Resist, Defence -> Resist powers, Cleanse effects, and
+Main Action cleanup Resist remain separate.
+
+
+Response Window / Incarnate Stack
+
+When a hostile action is declared, resolve in this order:
+
+1. Apply already-active effects.
+2. Declare the hostile action and targets.
+3. Declare legal Assists.
+4. Declare legal Counters.
+5. Roll and apply Assists.
+6. Roll and apply Counters.
+7. Roll the triggering hostile action.
+8. If no Counter was declared by a defender and the hostile action produced one
+   or more actionable hostile successes, that defender rolls the chosen normal
+   active defence.
+9. Calculate prevention and effects.
+10. Apply the incoming result and the Counter result.
+11. Process defeats and cleanup.
+
+All declared actions, Assists, Counters, and Responses resolve before defeat and
+cleanup unless a power explicitly interrupts or cancels the triggering action.
+
+Assist is universal by system rule and is not authored per power. Assists are
+declared before Counters and roll/apply before Counters. The assisted actor
+still chooses one active response path: normal defence or Counter.
+
+
+Zero-Success Hostile Action Ruling
+
+Actionable hostile successes are incoming successes or hostile units that create
+something the defender must actually oppose, prevent, avoid, cancel, or suffer.
+Examples include attack successes, wound-bearing successes, hostile effect
+successes, control/debuff units, ongoing-effect application successes, or
+resistible hostile units.
+
+Zero-success hostile actions trigger declaration-based effects but do not cause
+normal defence roll/degradation without actionable hostile successes.
+
+A zero-success hostile action still counts as an attack/targeting event for
+"when attacked" or "when targeted by a hostile action" effects.
+
+A zero-success hostile action is not a hit and does not apply successful hostile
+effects. Do not trigger "when hit", "when damaged", "when wounded", "when
+affected", or "when successfully struck" effects from zero actionable hostile
+successes.
+
+The defender does not roll normal Dodge, Physical Defence, Mental Defence, or
+active Resist against zero actionable hostile successes. The defender does not
+commit defensive-pool points and does not suffer resolution-based defence
+degradation from normal defence against that action.
+
+Counters, Assists, and declaration-triggered responses that were declared still
+count as used and resolve according to their own rules unless they specifically
+require the incoming action to hit, wound, damage, affect, or succeed.
+
+
+Counter Rules
+
+Counter: Yes adds a legal Counter mode. It does not make the power Counter-only.
+The same power may still be used normally with a Power Action.
+
+Counter replacement rule:
+
+- A Counter replaces normal active defence unless explicit authored defensive
+  packets say otherwise.
+- If a Counter is declared, the defender does not also roll Dodge, Physical
+  Defence, Mental Defence, or Resist unless the Counter explicitly grants or
+  modifies that defence.
+- Already-active passive effects, static protection, buffs, debuffs, and
+  prepared states still apply because they were established before the response
+  window.
+
+Attack Counters are legal. They roll during the Counter step before the
+triggering hostile action rolls. The triggering attacker does not get an active
+defence roll against the Attack Counter. Attack Counter damage does not cancel
+the triggering action unless the Counter explicitly has interrupt or cancel text.
+
+Defence Counters are specialist alternative defensive responses. They replace
+normal Dodge, Physical Defence, Mental Defence, or Resist rather than stacking
+with those normal gates by default.
+
+Movement Counters can avoid or cancel a trigger only if both timing and geometry
+are sufficient. First-pass Movement Counter timing is a Clash against triggering
+successes and must strictly exceed the trigger successes. Ties fail.
+
+Control interrupt Counters, including Force No Main Action and Force No Power
+Action, can cancel the trigger only if they strictly exceed the triggering
+action successes. Ties fail.
+
+Counter Dodge remains one-shot unless it also explicitly creates a duration
+Dodge Pool.
+
+
+Legal Defence Modes
+
+The legal Defence modes are:
+
+- Block
+- Dodge
+- Resist
+
+Block may operate through Physical Defence or Mental Defence according to the
+incoming damage lane.
+
+Dodge uses match-or-exceed. If the defender's Dodge successes match or exceed
+the attacker's successes on a dodgeable hostile Primary Packet, the hostile
+packet is avoided.
+
+Dodge is not normal defence against mental attacks. Mental attacks require
+Mental Defence unless a specific action explicitly allows Dodge.
+
+Resist cancels hostile successes or hostile units in the relevant authored
+Attribute lane. Resist powers are authored against one core Attribute lane per
+packet: Attack, Guard, Fortitude, Intellect, Synergy, or Bravery.
+
+Movement/Reposition is not a Defence mode.
+
+
+Defence Degradation
+
+Defence degradation is tracked independently by lane.
+
+The independent lanes are:
+
+- Physical Defence
+- Mental Defence
+- Dodge
+- relevant active Resist lane
+
+A defence lane degrades only when that specific lane actually resolves against
+one or more actionable hostile successes.
+
+Physical Defence degradation does not affect Mental Defence. Mental Defence
+degradation does not affect Physical Defence. Dodge uses its own degradation
+track and does not degrade Physical Defence or Mental Defence.
+
+Active Resist degradation applies only to the relevant resisted lane or
+attribute unless an explicit rule says otherwise.
+
+Defensive pool-only commitment does not degrade normal defence.
+
+
+Defensive Pools
+
+Duration Dodge, Physical Block, Mental Block, and Resist powers create finite
+defensive pools.
+
+Pool size = successful power-roll successes x potency.
+
+The standard per-trigger commitment cap is potency unless the power explicitly
+modifies that cap.
+
+Defensive pools may be committed without normal active defence. A protected
+actor may choose one legal path for each matching incoming hostile action:
+
+- take the hit/effect
+- commit one matching defensive pool only
+- roll the matching normal Dodge / Physical Defence / Mental Defence / active
+  Resist only
+- commit one matching defensive pool and roll the matching normal defence
+
+If a pool is used with a normal defence or active Resist roll, commit pool points
+before the normal roll. The defender cannot wait to see the normal defence or
+Resist roll before deciding whether to spend pool points.
+
+Committed points are spent whether they fully stop the incoming result or prove
+ineffective.
+
+Pool-only commitment spends finite pool points but does not roll or resolve
+Dodge, Physical Defence, Mental Defence, or active Resist, so it does not cause
+resolution-based degradation.
+
+Dodge Pool:
+
+- Adds Dodge successes.
+- Uses match-or-exceed.
+- Can be used only against physical attacks or actions that explicitly allow
+  Dodge.
+- Does not make mental attacks dodgeable.
+
+Physical Block Pool and Mental Block Pool:
+
+- Add direct wound prevention in the matching lane.
+- Physical Block Pool does not block mental wounds.
+- Mental Block Pool does not block physical wounds.
+
+Resist Pool:
+
+- Cancels hostile successes, stacks, ongoing units, or equivalent units in the
+  authored resisted Attribute lane.
+- One packet maps to one resisted Attribute unless explicitly authored otherwise.
+- Wrong lane does nothing.
+
+Repeated defensive pool applications from the same source power, packet, and
+protected target use refresh/replace higher-of-current-or-new by default.
+Additive or recharging pools are not default behaviour and require explicit
+special authoring, limiting rules, and added cost.
+
+A defender may commit from only one matching defensive pool per incoming action
+unless a power explicitly allows combined pool spending.
+
+
+Passive Defensive Pool Lifecycle
+
+Passive defensive pools do not naturally tick down.
+
+They end when voluntarily ended, removed, cleansed, their carrier ends, source
+or target lifecycle ends them, or defeat/cleanup applies.
+
+Passive defensive pools do not become timed pools merely because turns pass.
+
+
+Ongoing Damage And Persistent Stack Timing
+
+Persistent-state stacks naturally degrade by 1 at the end of each affected
+target's turn unless a more specific rule says otherwise.
+
+Ongoing damage does not naturally degrade by 1 each turn. Ongoing damage has an
+authored value and duration/tick model.
+
+Pure start-of-turn damage over time does not deal immediate HP damage on
+declaration. Stored tick value is the net ongoing value after declaration
+defence, counter mitigation, and applicable passive/static mitigation.
+
+Start-of-turn ongoing damage ticks at the affected target's start of turn. Stack
+or duration decay follows the relevant end-of-turn or authored lifecycle rule.
+
+
+Cooldown Lifecycle
+
+Cooldown begins only after a power has completely resolved.
+
+Immediate powers enter cooldown after their immediate resolution sequence
+completes and any continuing duration tracking has been noted.
+
+Non-Immediate Lifespan Turns powers treat cast / execution / release as Turn 0
+and enter cooldown only after the final resolution window of the last lifespan
+turn closes.
+
+Passive Lifespan powers enter cooldown only when voluntarily ended by the caster
+or when Cleanse / Resist reduces currently active successes to 0.
+
+Counters and Assists use the same cooldown lifecycle as the power being
+executed, treating the executing Response as Turn 0.
+
+Charge is front-loaded and lifespan tracking begins only when the charged power
+is released, cast, or otherwise executed.
+
+
+Target Legality And Self Targeting
+
+Range defines reach or area. Target legality defines who may be selected. Target
+count limits selected targets.
+
+Self targeting is selected-target legality, not range exclusivity. Self consumes
+one target slot when self is legal.
+
+Packet-local recipient classes may distinguish Primary Targets, Allies, and
+Self where a Secondary Packet needs a different target class from Packet 1.
+Allies includes self by default unless an explicit authored restriction says
+otherwise.
+
+
+AoE Overlap
+
+Overlapping areas from the same packet at the same timing use one power roll,
+pre-defence multiplication by overlap count, and one defence roll.
+
+
+Defeat Cleanup And Source-Owned Effects
+
+When an actor is defeated and leaves active combat, runtime systems must clean
+up source-owned persistent effects, target-owned active statuses, active
+defensive pools, cooldown/runtime state as appropriate, and refreshed responses.
+
+Effects whose source or carrier has ended must not silently persist unless an
+explicit rule says they linger.
+
+
+Open Items
+
+OPEN / NEEDS ARCHITECT DECISION:
+
+- This pass does not add a Secondary Packet simultaneous bundle ruling. That
+  topic has been discussed but was not already explicitly locked in the source
+  docs inspected for this consolidation.
+- The complete numeric success-threshold table should be cross-checked against
+  current runtime and source tables in a future rules-formatting pass if it is
+  needed directly in this document.
+

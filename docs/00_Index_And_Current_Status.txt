@@ -1,0 +1,152 @@
+00_Index_And_Current_Status.txt
+
+Purpose
+
+This is the active index for the Incarnate source documents after docs
+consolidation Pass 1.
+
+Pass 1 creates the reduced active document set and updates its content, but it
+does not archive, delete, or move older source documents. Older docs remain in
+place temporarily as source history until a later archive pass.
+
+
+Active Source-Of-Truth Hierarchy
+
+1. docs/01_Locked_Rules_And_Combat_Bible.txt
+   Authoritative combat and runtime rule law.
+
+2. docs/02_Power_System_And_Costing.txt
+   Authoritative power grammar, packet model, chassis/timing model, and costing
+   architecture.
+
+3. docs/04_Combat_Lab_Balance_And_Validation.txt
+   Authoritative balance evidence doctrine, Combat Lab validation workflow, and
+   canary policy.
+
+4. docs/03_Builders_And_Implementation_Roadmap.txt
+   Current builder implementation roadmap for Character Builder, Summoning
+   Circle, Forge, and related app surfaces.
+
+5. docs/05_Implementation_Handoffs.txt
+   Durable implementation notes and verification expectations for Codex and
+   developers.
+
+6. docs/06_Product_Brand_And_Kickstarter_Strategy.txt
+   Product, brand, Kickstarter, and commercial positioning.
+
+This index is navigational and status-oriented. If this file conflicts with a
+locked rule in docs/01_Locked_Rules_And_Combat_Bible.txt, the locked rules doc
+wins.
+
+
+Current Known Implementation State
+
+The shared power architecture is no longer hypothetical. Current source docs and
+runtime inspection show:
+
+- Summoning Circle is the first live implementation surface for the shared power
+  model.
+- The power model uses Power-Level Fields, one Descriptor Chassis, and one or
+  more Effect Packets.
+- The practical Descriptor Chassis set is Immediate, Field, Attached, Trigger,
+  and Reserve.
+- Counter and Commitment Modifier are power-level controls.
+- Commitment Modifier uses Standard, Channel, and Charge.
+- Phase 6 cost integration exists in code through a canonical power-cost
+  resolver.
+- Versioned Power Tuning, Combat Tuning / Monster Baseline Tuning, and Outcome
+  Normalization exist as separate tuning layers.
+- A Canary Harness and scenario catalogs exist for baseline/candidate
+  comparisons.
+- scripts/combatLab.scenarioMatrix.ts exists and should be extended rather than
+  bypassed for scenario-matrix work.
+- Combat Lab can be driven by local scripts or runtime calls for incremental
+  balance checks when provenance is reported.
+- Character Builder now uses the shared power builder direction and has runtime
+  support for player-authored powers.
+- Character Builder Signature Move support is present in current code with a
+  separate Character Level x 20 pool. Older docs that say Signature Move is
+  deferred are superseded by current implementation state, but save/load,
+  validation, preview, and print parity should continue to be verified.
+- Character Builder power pool remains Character Level x 50 unless explicitly
+  changed later.
+- Character Builder power spend derives from BasePowerValue through the
+  player-facing spend scalar.
+- Campaign-local Backpack and equipped gear flows exist as the current asset
+  model; future Setting Packages remain a later protected-asset layer.
+
+
+Current Balance And Tuning State
+
+The current tuning model has three distinct layers:
+
+- Power Tuning: canonical underlying power-cost truth.
+- Combat Tuning / Monster Baseline Tuning: non-power monster baseline
+  contribution.
+- Outcome Normalization: downstream radar interpretation and display.
+
+Anti-drift rule:
+
+- If a problem belongs to the power itself, fix it in Power Tuning.
+- If a problem belongs to stripped monster body or non-power baseline, fix it in
+  Combat Tuning.
+- If a problem belongs to radar display curve, fix it in Outcome Normalization.
+- Escalate to code only when the issue is routing law, realization law, or a
+  missing implementation seam.
+
+Current defensive-pool pricing work should not begin from raw win rate alone.
+Layer A deterministic canaries must protect mechanics first, Layer B synthetic
+batches are targeted diagnostics, and real authored scenarios remain primary
+table-truth balance evidence.
+
+
+Immediate Ordered Work
+
+1. Keep the new active docs aligned with current code reality.
+2. Preserve the locked Response Window / Incarnate Stack in runtime-facing tools.
+3. Keep Counter use replacing normal active defence unless explicit authored
+   defensive packets say otherwise.
+4. Keep Movement Counter as a Movement-power rule, not a Defence mode.
+5. Maintain finite defensive pools with refresh/replace higher-of-current-or-new
+   as the default repeated-application rule.
+6. Extend or maintain defensive-pool canary coverage before numeric defensive
+   pool pricing changes.
+7. Use Codex-run Combat Lab batches for incremental checks with provenance.
+8. Reserve manual Combat Lab/browser checks for UI/report readability, public
+   confidence, playtest packet confidence, and table-feel judgement.
+9. Continue tuning power values, non-power monster baselines, and radar display
+   curves without collapsing those layers together.
+
+
+Consolidation Pass 1 Note
+
+The following older documents remain temporarily in docs/ and are not archived
+or deleted in this pass:
+
+- docs/00_Master_Implementation_Plan.txt
+- docs/01_Locked_Decisions_Log.txt
+- docs/02_Power_System_Spec.txt
+- docs/03_Current_Phase_And_Next_Steps.txt
+- docs/04_Implementation_Handoffs.txt
+- docs/05_Phase_6_Cost_Integration_Blueprint.txt
+- docs/07_Natural_Baseline_Output_Bands.txt
+- docs/08_Forge_Output_Bands_Blueprint.txt
+- docs/09_Forge_Implementation_Plan.txt
+- docs/10_Character_Builder_Implementation_Plan.txt
+- docs/10_Forge_Output_Tuning_Recommendations.txt
+- docs/11_Character_Builder_Implementation_Sequence.txt
+- docs/12_Incarnate_Kickstarter_Brand_Strategy.txt
+- docs/13_Incarnate_Combat_Lab_User_tool_implementation.txt
+- docs/14_Defensive_Pool_Canary_Matrix.txt
+- docs/15_Balance_Charter.docx
+- docs/Power_implementation_steps.txt
+- docs/real-monster-outcome-validation-checklist.md
+- docs/ui-tooltip-audit.md
+- docs/data-model.md
+- docs/decisions.md
+- docs/codex/environment-prompt.md
+- docs/codex/execution-brief-template.md
+
+Later consolidation may archive or delete superseded docs only after explicit
+confirmation.
+

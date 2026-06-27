@@ -1,0 +1,283 @@
+02_Power_System_And_Costing.txt
+
+Purpose
+
+This is the active source document for power grammar, packet model,
+chassis/timing/duration structure, Power Tuning cost integration, defensive pool
+pricing, and durable natural/Forge parity principles.
+
+
+Core Power Grammar
+
+The shared power model is:
+
+- Power-Level Fields
+- one Descriptor Chassis
+- one or more Effect Packets
+
+Power-Level Fields define use context and shared rules grammar. Examples include
+name, description, range, targeting, dice, Counter, Lifespan where relevant,
+Commitment Modifier, and shared cast context.
+
+Descriptor Chassis is structural. It changes sentence structure, required
+fields, broad resolution pattern, and timing constraints. It is not flavour.
+
+Effect Packets define mechanical outcomes. Packets own intention, potency,
+timing, duration, recipient class, and packet-specific effect details.
+
+
+Primary And Secondary Packets
+
+Packet 1 is always the Primary Packet.
+
+Only the Primary Packet creates the defended entry point.
+
+If the Primary Packet does not land, contingent Secondary Packets do not land.
+
+Secondary Packets do not create separate defended entry points unless a future
+explicit rule reopens that model.
+
+Packet 1 lands if, after its Trial or Clash resolution and prevention gates, it
+applies at least one operative result unit.
+
+For wound-based Primary results, secondary scaling uses Applied Success Bands =
+CEILING(Net Wounds / Wounds Per Success).
+
+For non-wound Primary results, operative result is measured in net applied
+successes, stacks, heals, or other effect units.
+
+Where a Secondary Packet scales from the Primary Packet, it scales from the
+Primary Packet's applied result value rather than bypassing the defended entry
+point.
+
+Important Pass 1 boundary:
+
+- Do not add a Secondary Packet simultaneous bundle ruling here unless it is
+  later explicitly locked by the Architect.
+
+
+Descriptor Chassis
+
+The practical chassis matrix is:
+
+- Immediate
+- Field
+- Attached
+- Trigger
+- Reserve
+
+Immediate has no persistent structural presence by default.
+
+Field creates a location or area presence that can deliver packets according to
+authored timing and legal targets.
+
+Attached creates a hosted structural presence attached to a target, object,
+weapon, mark, curse, or state.
+
+Trigger arms or watches for a condition and delivers packets when the trigger
+condition is satisfied.
+
+Reserve prepares a power for later release according to authored release rules.
+
+Missing old reference:
+
+- Do not preserve docs/06_Natural_Baseline_Forge_Bridge_Plan.txt as an active
+  live reference. The file is not present in the current repo source set.
+
+
+Timing, Lifespan, Duration, And Commitment
+
+Lifespan, Effect Timing, and Effect Duration are separate concepts.
+
+Lifespan describes how long the power's structural presence or readiness exists.
+
+Effect Timing describes when a packet resolves, such as on cast, start of turn,
+end of turn, on trigger, on attach, or on payload where legal.
+
+Effect Duration describes how long the packet's result persists.
+
+Commitment Modifier is a Power-Level Field, not a chassis. The current choices
+are:
+
+- Standard
+- Channel
+- Charge
+
+Standard is the default.
+
+Channel means the user may or must continue spending later Power Actions to
+maintain, reapply, or sustain the power after initial use. First-pass Channel
+support is limited to Immediate, Field, and Attached.
+
+Charge means the user spends or may spend later Power Actions building power
+before release/cast. Current Charge types include Delayed Cast and Build Power.
+
+Commitment Modifier does not replace Lifespan, Effect Timing, or Effect
+Duration.
+
+
+Counter And Response Cost Principles
+
+Counter: Yes is added use permission, not exclusivity.
+
+Do not discount a power because Counter-enabled use replaces normal active
+defence; the power remains normally usable as a Power Action.
+
+Attack Counters carry a premium because they create off-turn damage or effects
+and the triggering attacker does not receive an active defence roll against
+them.
+
+Defence Counters are priced as specialist active-response alternatives, not as
+free stacks on top of Dodge, Physical Defence, Mental Defence, or Resist.
+
+Movement and Control interrupt Counters need high premium because a strict
+timing win can avoid, cancel, or deny an incoming action. First-pass timing
+requires strictly more successes than the trigger; ties fail.
+
+Preparation stacks. Panic buttons replace.
+
+
+Power / Combat / Outcome Tuning Split
+
+Keep the three tuning layers separate:
+
+- Power Tuning: canonical power truth and BasePowerValue.
+- Combat Tuning / Monster Baseline Tuning: non-power monster body, natural
+  output, equipped baseline contribution, and survivability contribution.
+- Outcome Normalization: radar interpretation and display curves.
+
+Outcome Normalization must not hide bad canonical power value or missing combat
+baseline law.
+
+
+Cost Integration Architecture
+
+BasePowerValue remains the canonical Phase 6 power-cost truth.
+
+Character Builder may convert BasePowerValue into player-facing Power Point
+spend through a player economy scalar, but that scalar must not change canonical
+power truth.
+
+Derived cooldown should continue to derive from BasePowerValue unless a future
+explicit rule changes that pipeline.
+
+Costing should account for:
+
+- packet family
+- packet magnitude
+- packet count
+- primary/secondary relationship
+- chassis burden
+- timing burden
+- duration burden
+- range and target access
+- Counter access
+- Commitment Modifier
+- repeats, refreshes, and delayed payloads
+- defensive pool depth and burst where relevant
+
+
+Defensive Pool Pricing Matrix Principles
+
+Duration Dodge, Physical Block, Mental Block, and Resist powers create finite
+pools. They must not be valued as if they rerolled or refreshed their full
+result on every incoming attack, and they must not be valued as a single instant
+defence when their duration allows selective spending across several triggers.
+
+Pool size = expected successful power-roll successes x potency.
+
+Standard per-trigger cap = potency.
+
+Defensive pool pricing must distinguish:
+
+- pool type: Dodge / Physical Block / Mental Block / Resist
+- expected pool size
+- per-trigger cap
+- duration window
+- target count and recipient flexibility
+- delivery chassis
+- effect timing cadence
+- refresh/replace cadence
+- field-bound versus target-following behaviour
+- channel maintenance cost
+- charge dice versus charge potency
+- pool-only option value
+- additive/recharging special mechanics
+
+Potency is especially important because it increases both total pool depth and
+per-trigger burst capacity.
+
+Dodge Pool value is threshold-based and can avoid an entire physical or
+explicitly dodgeable packet on match-or-exceed.
+
+Resist Pool value is lane-limited cancellation against hostile successes,
+stacks, ongoing units, or equivalent units.
+
+Physical Block Pool and Mental Block Pool are more linear because they add
+direct wound prevention in the matching lane.
+
+Pool-only use adds option value because the protected actor can spend finite
+points without consuming a normal active defence degradation step.
+
+Refresh/replace higher-of-current-or-new is the default repeated-application
+model. Additive or recharging defensive pools require explicit authoring,
+limits, and heavy surcharge.
+
+
+Primitive Family Benchmark Approach
+
+Power families should be priced against primitive benchmark shapes before being
+trusted in complex combinations. Useful primitive anchors include:
+
+- direct physical attack
+- direct mental attack
+- physical Block Pool
+- mental Block Pool
+- Dodge Pool
+- Resist Pool
+- healing
+- cleanse
+- movement
+- control
+- debuff
+- augment
+
+Primitive benchmarks are not final balance proof. They are calibration anchors
+for the cost resolver and tuning seams.
+
+
+Natural And Forge Parity Principles
+
+Final table-facing output should compare equivalently regardless of whether it
+comes from natural biology, equipped item, shield, modifier, or power.
+
+Source origin is debug metadata, not separate balance law.
+
+Natural-only output bands establish baseline monster expectations before Forge
+item balancing.
+
+Forge should price and validate items by final table-facing output profile, not
+raw backend values and not source origin.
+
+Rarity and item level should preserve item-level throughput truth. Broad features
+may create feature pressure or effective profile level pressure, but a higher
+rarity item should not simply become "same item, more damage" by default.
+
+Shield is a hybrid item, not a free second full item.
+
+PPV and MPV item bands should be calibrated against monster defence
+expectations, with physical and mental protection allowed to remain asymmetric
+if Combat Tuning supports that asymmetry.
+
+
+Open Items
+
+OPEN / NEEDS ARCHITECT DECISION:
+
+- Final numeric defensive-pool tuning values.
+- Whether any generic or omni Resist Pool should exist, and if so what surcharge
+  and limits it requires.
+- Any future additive/recharging defensive pool authoring shape.
+- Future Setting Package asset policy beyond the protected/global principles
+  already captured in the builder and balance docs.
+

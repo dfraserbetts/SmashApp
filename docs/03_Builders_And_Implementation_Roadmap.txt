@@ -1,0 +1,152 @@
+03_Builders_And_Implementation_Roadmap.txt
+
+Purpose
+
+This is the active roadmap for Character Builder, Summoning Circle, Forge, and
+remaining app work. It consolidates useful current roadmap content and removes
+stale step-by-step prompt chains.
+
+
+Current Builder Surfaces
+
+Summoning Circle:
+
+- First live implementation surface for the shared power architecture.
+- Uses the shared power core in first-pass form.
+- Supports practical chassis selection, packet-local authoring, Counter,
+  Commitment Modifier, Lifespan where relevant, timing-gated descriptor
+  rendering, and power-cost integration.
+- Remains the reference authoring surface for shared power legality.
+
+Character Builder:
+
+- Reuses the shared power builder direction rather than a character-only fork.
+- Stores player-authored powers in CampaignCharacter.builderData.
+- Uses the shared power descriptor renderer and canonical Phase 6 cost resolver.
+- Uses a player-facing Power Point pool: Character Level x 50.
+- Converts BasePowerValue to player Power Point spend through the current
+  player power spend scalar.
+- Has current runtime support for Signature Move with a separate pool:
+  Character Level x 20.
+- Signature Move should remain one authored move, use the same power builder
+  rules, and render at the top of the Power Sheet.
+- Equipment and Backpack flows are campaign-local and must hydrate current item
+  details rather than copying stale item data into the character.
+
+Forge:
+
+- Forge creates and renders campaign-local items.
+- Forge output work should compare item output by table-facing profile, not raw
+  backend fields or source origin.
+- Forge implementation should not be rewritten merely to support Character
+  Builder. Reuse descriptor and output helpers where possible.
+
+
+Current Complete Or Substantially Complete Areas
+
+- Shared power foundation phases 1 through 5 are complete enough to close as
+  design phases.
+- Summoning Circle shared power implementation is substantially complete.
+- Monster power builder has a minimal but real implementation.
+- Builder-surface validation and preview formatting are well advanced.
+- Phase 6 infrastructure exists: Power Tuning, Combat Tuning, Outcome
+  Normalization, Canary Harness, and Combat Lab batch paths.
+- Character Builder has real save/load/editor/preview/print paths and shared
+  power-builder usage.
+- Character Builder Signature Move is implemented in current runtime, despite
+  older roadmap text that said it was deferred unless reopened.
+
+
+Remaining Work
+
+- Keep Character Builder and Summoning Circle power legality in sync through
+  shared pure helpers where practical.
+- Continue validating Character Builder save/load, budget validation, preview,
+  and print parity.
+- Continue removing duplicated or stale power-builder logic between Summoning
+  Circle and Character Builder.
+- Preserve Packet 1 as the sole defence gate.
+- Keep secondary packet dice ownership out of Character Builder V1 unless a
+  later rule changes it.
+- Keep packet duration turns capped according to current validation rules.
+- Continue real-monster and real-character validation after mechanical changes.
+- Build printable power reference output and effect-slip output when scheduled.
+- Add runtime active-effect model and optional encounter runner later.
+- Build future Setting Package policy and tooling after campaign-local workflows
+  are stable.
+
+
+Campaign-Local Asset Model
+
+At the current development stage, Characters, Monsters, and Forge Items are
+campaign-local.
+
+Character Builder should equip from the character's Backpack, not from every
+campaign item.
+
+Equipped selections should be slot-based references to assigned Backpack rows.
+The Builder should hydrate current item details from Party Inventory / Forge item
+templates and sanitize slot selections against current Backpack quantities on
+load/save.
+
+Backpack items do not affect derived combat stats unless equipped.
+
+Future Setting Packages may introduce global protected source assets. When that
+happens, active/global package assets require Architect approval before mutation.
+Campaign-local clones remain editable inside approved balance-test campaigns.
+
+
+Source Mutation Policy Summary
+
+Codex may create and edit Characters, Monsters, and Forge Items only inside an
+approved balance-testing scope.
+
+Inside the dedicated balance campaign, campaign-local calibration characters,
+monsters, Forge items, temporary variants, cloned test assets, and
+simulation-only overrides may be edited for calibration.
+
+Codex may not freely alter:
+
+- assets marked baseline
+- assets marked canonical
+- assets marked locked
+- accepted calibration anchors
+- demo/playtest campaign assets outside the balance-test scope
+- any campaign or asset explicitly reserved by the Architect
+
+If an asset is used as a comparison baseline, clone it before mutation.
+
+
+Builder Rules To Preserve
+
+- Summoning Circle remains the reference implementation for shared power
+  authoring legality.
+- Character Builder must not invent a character-only targeting fork.
+- Range defines reach/area; target legality defines who may be selected; target
+  count limits selected targets; self consumes one target slot when legal.
+- Shared builders inherit Block, Dodge, and Resist defensive power options.
+- Movement powers may be Counter-enabled, but Movement/Reposition is not a
+  Defence mode.
+- Cleanse remains distinct from Resist.
+- Attack packets require damage type selection.
+- Primary Defence Gate is derived from Packet 1, not chosen freely by default.
+
+
+Docs And References Not To Preserve As Live Links
+
+Do not preserve the missing docs/06_Natural_Baseline_Forge_Bridge_Plan.txt
+reference as a live link. Older documents that mention it are historical until
+archived.
+
+
+Open Items
+
+OPEN / NEEDS ARCHITECT DECISION:
+
+- Exact future Setting Package authoring and promotion workflow.
+- Final Spark and Restriction implementation scope.
+- Final Transformation, Summoning, object, structure, machine, and mount builder
+  scopes.
+- Whether Signature Move eventually becomes Spark-aligned beyond the current
+  separate-pool implementation.
+

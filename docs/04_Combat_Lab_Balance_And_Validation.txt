@@ -1,0 +1,248 @@
+04_Combat_Lab_Balance_And_Validation.txt
+
+Purpose
+
+This is the active balance doctrine and Combat Lab validation document. It
+defines evidence hierarchy, canary policy, scenario provenance, human playtester
+protection, source mutation policy, and asset-promotion status.
+
+
+Balance Authority And Change Control
+
+Mechanical rules and resolution order require Architect approval.
+
+Balance experiments, Codex simulation batches, synthetic canaries, calibration
+characters, calibration monsters, calibration Forge items, and allowlisted draft
+tuning candidates may be created for balance work within approved scope.
+
+Promoting a draft tuning set to ACTIVE requires Architect approval.
+
+Runtime code changes require approval and normal review.
+
+
+Evidence Ladder
+
+1. Locked rules and mechanical canaries.
+   Rules must be mechanically coherent before numeric tuning begins.
+
+2. Layer A deterministic canaries.
+   These are mandatory mechanical guardrails. They prove specific mechanics such
+   as defensive pool creation, commit, spend, waste, expiry, wrong-lane
+   rejection, and lifecycle.
+
+3. Real authored actor scenarios.
+   Real authored scenarios are primary table-truth balance evidence.
+
+4. Manual Combat Lab/browser inspection.
+   Required for major milestone confidence, UI/report readability, table-feel,
+   public/demo confidence, and playtest packet confidence.
+
+5. Layer B synthetic batches.
+   Layer B synthetic batches are targeted diagnostics only. They estimate
+   survivability impact or pricing direction, but they are not final balance
+   truth.
+
+6. Human playtest.
+   Human playtest validates table experience after automation and mechanical
+   checks have already caught obvious defects.
+
+Synthetic canaries are guardrails/diagnostics, not table-truth balance evidence.
+
+
+Codex Usage Preservation Policy
+
+Codex may build tools, run local scripts, inspect reports, compare variants, and
+interpret failures.
+
+Large simulation batches should run in the local terminal where possible.
+
+Codex-run Combat Lab results are acceptable incremental evidence only when
+provenance is reported.
+
+Required provenance for Codex-run batches:
+
+- commit SHA
+- git status / worktree cleanliness
+- exact command, script, route, API endpoint, direct runtime call, or other
+  method used
+- whether browser UI was visually inspected
+- run count
+- seed or seed policy
+- scenario names
+- actor and monster names
+- active Power Tuning name
+- active Combat Tuning name
+- active Outcome Normalization name
+- temporary in-memory overrides
+- confirmation of no database, source-data, saved-monster, tuning, or code
+  changes during read-only simulation unless explicitly stated
+- validation or smoke status where relevant
+
+
+Canonical Regression Matrix
+
+The scenario-matrix runner exists at scripts/combatLab.scenarioMatrix.ts.
+
+Future defensive-pool scenario work should extend the existing runner rather
+than creating a separate simulator.
+
+Layer A canaries should prefer deterministic seeded rolls or direct forced-roll
+fixtures. If deterministic forced rolls do not fit the runner cleanly, put hard
+mechanical assertions in scripts/combatLab.smoke.ts and reserve the runner for
+stochastic batch canaries.
+
+Layer B canaries should report full provenance and diagnostic bands/deltas
+rather than pretending stochastic win rate is a hard proof.
+
+
+Defensive Pool Canary Policy
+
+Before defensive-pool numeric pricing begins, canaries must prove that Combat
+Lab can create, spend, waste, refresh, expire, reject, and report defensive
+pools.
+
+Layer A deterministic canaries are mandatory mechanical guardrails.
+
+Layer B synthetic batches are targeted diagnostics only.
+
+Real authored actor scenarios are primary table-truth balance evidence.
+
+Canary report fields should include:
+
+- canary ID and name
+- purpose
+- layer A or layer B
+- run count and seed
+- actor names
+- active Power Tuning
+- active Combat Tuning
+- active Outcome Normalization
+- pool type
+- pools created
+- generated points
+- committed points
+- spent points
+- wasted points
+- remaining at expiry
+- refresh/replace events
+- dodgeAvoids
+- blockWoundsPrevented
+- resistUnitsCancelled
+- unsupported notes
+- pass/fail assertion summary where assertions exist
+
+Current defensive-pool canaries must preserve:
+
+- pool size = successes x potency
+- per-trigger cap = potency unless explicitly modified
+- pool-only commitment is legal against matching actionable hostile pressure
+- pool-only commitment does not degrade normal defence
+- normal defence degradation remains lane-specific when normal defence is rolled
+- committed points are spent whether useful or wasted
+- only one matching pool commits per incoming action unless explicitly authored
+- Movement is not a Defence mode
+- Counter Dodge is one-shot unless duration-based
+- passive defensive pools do not naturally tick down
+
+
+Scenario Source Labels
+
+Every scenario or asset used in balance reports should identify source:
+
+- synthetic-canary
+- temporary-in-memory-variant
+- campaign-local calibration asset
+- calibration clone
+- live-authored
+- regression anchor
+- canonical
+
+Reports must distinguish source mutation, data mutation, tuning mutation, and
+in-memory overrides.
+
+
+Automated Tuning Guardrails
+
+Never:
+
+- use Outcome Normalization to hide incorrect canonical power value
+- alter a scenario during an optimization run without recording it
+- alter runtime rules to reach a target score
+- weaken an unrelated subsystem to rescue the current target
+- promote a tuning candidate without holdout validation
+- interpret synthetic canary wins as final real-game balance
+- ask human playtesters to discover defects that automation should have caught
+
+
+Source Mutation Policy For Balance Assets
+
+At the current development stage, assets are campaign-local. A dedicated balance
+campaign may be used as a mutable testing environment.
+
+Codex may freely alter approved campaign-local calibration characters,
+calibration monsters, calibration Forge items, temporary variants, cloned test
+assets, and simulation-only overrides.
+
+Codex may not freely alter protected baseline, canonical, locked, accepted
+calibration anchor, demo/playtest, or Architect-reserved assets.
+
+If an asset is used as a comparison baseline, clone it before mutation rather
+than editing the baseline directly.
+
+Future global Setting Package active assets are protected and require Architect
+approval before active mutation.
+
+
+Asset Status Ladder
+
+Experimental:
+
+- Rough test asset created for probing mechanics or balance behaviour.
+- Freely editable.
+- Not trusted.
+
+Calibration Candidate:
+
+- Asset has a defined testing purpose and is being evaluated as a possible
+  anchor.
+- Editable with notes.
+- Do not overwrite comparison baselines.
+
+Regression Anchor:
+
+- Asset has passed checks and is used to detect future balance drift.
+- Protected.
+- Changes require approval and changelog.
+
+Canonical:
+
+- Asset is approved as official reference, demo, or package-ready content.
+- Protected.
+- Architect approval required for mutation.
+
+Promotion requires a defined purpose, source label, baseline protection,
+mechanical validity, no unsupported runtime behaviour in intended scope,
+relevant canary checks, relevant diagnostics, comparison against baseline, target
+band review, no catastrophic ceiling breach, regression impact check, manual
+Architect review, human playtest evidence where required, and explicit approval.
+
+
+Human Playtester Protection
+
+Human playtesters should not be used as the first line of detection for defects
+that local validation, canaries, smoke tests, or Combat Lab diagnostics should
+have caught.
+
+Before playtest, core mechanics must pass relevant Layer A mechanical canaries,
+major runtime diagnostics must be readable, and any known unsupported behaviour
+must be disclosed.
+
+
+Open Items
+
+OPEN / NEEDS ARCHITECT DECISION:
+
+- Final defensive-pool numeric pricing bands.
+- Final holdout scenario list for canonical tuning promotion.
+- Final human playtest readiness checklist for public/demo packets.
+

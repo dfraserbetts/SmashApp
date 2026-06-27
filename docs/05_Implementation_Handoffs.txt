@@ -1,0 +1,176 @@
+05_Implementation_Handoffs.txt
+
+Purpose
+
+This document contains durable implementation notes for Codex and developers. It
+does not replace the rule-law document. It exists to prevent future work from
+assuming runtime compliance without checking code and tests.
+
+
+General Implementation Rule
+
+Inspect current local files before patching. Do not assume older docs, prior
+chat memory, or GitHub state is source of truth.
+
+When docs and runtime disagree:
+
+- If the doc is a locked rule, treat runtime mismatch as an implementation issue.
+- If the doc is a roadmap or historical prompt chain, verify current code before
+  preserving it.
+- If the issue is unclear, mark OPEN / NEEDS ARCHITECT DECISION.
+
+
+Current Runtime Alignment Notes
+
+The current codebase has:
+
+- shared power-cost resolution
+- Power Tuning
+- Combat Tuning / Monster Baseline Tuning
+- Outcome Normalization
+- Combat Lab runtime and reporting
+- scenario matrix runner
+- Character Builder shared power authoring
+- Character Builder Signature Move support
+- defensive-pool runtime and diagnostics
+
+These features still require local verification when touched. Presence in code
+does not prove all edge cases are correct.
+
+
+Validation Expectations
+
+For runtime or calculator changes, validation normally includes relevant subset
+of:
+
+- npx prisma validate
+- npx prisma generate
+- npx tsc --noEmit
+- targeted ESLint on changed files
+- npm run build
+- relevant smoke scripts
+- Combat Lab smoke or scenario matrix where combat runtime changes are involved
+- browser/dev-server inspection when UI hydration or report readability is being
+  changed
+
+For docs-only changes, use targeted text searches, git diff --stat, git diff,
+and git status --short.
+
+
+Rules That Need Runtime Protection
+
+Future implementation work must keep checking:
+
+- Natural 1s are hard failures.
+- Natural 2s and 3s are recoverable failures.
+- Only natural successes can spike.
+- Zero-success hostile actions trigger declaration-based effects but do not
+  cause normal defence roll/degradation without actionable hostile successes.
+- Defence degradation is tracked independently by lane.
+- Pool-only defensive-pool commitment does not degrade normal defence.
+- Counter use replaces normal active defence unless the Counter explicitly
+  grants or modifies that defence.
+- Passive defensive pools do not naturally tick down.
+- Movement/Reposition is not a Defence mode.
+- Dodge succeeds on match-or-exceed.
+- Mental attacks require Mental Defence unless a specific action explicitly
+  allows Dodge.
+- Main Action Resist cleanup remains distinct from active defence Resist,
+  Defence -> Resist powers, and Cleanse.
+
+
+Combat Lab Handoff Notes
+
+Combat Lab and future runtime tools should implement one Response Window /
+Incarnate Stack model.
+
+Normal active defence should only roll if no Counter was declared by that
+defender and the hostile action produced one or more actionable hostile
+successes.
+
+Defensive-pool state should track at least:
+
+- source actor
+- source power
+- source packet/action where available
+- protected actor
+- pool type
+- lane / resisted Attribute where relevant
+- remaining points
+- initial points
+- per-trigger cap
+- remaining duration or passive lifecycle
+- chassis/commitment metadata where available
+- refresh/replace key
+
+Reports should expose defensive-pool diagnostics clearly enough to see pools
+created, generated, committed, spent, wasted, remaining at expiry,
+refresh/replace events, Dodge avoids, Block prevented, and Resist cancelled.
+
+
+Builder Handoff Notes
+
+Shared builder helpers should be preferred over character-only or monster-only
+forks.
+
+Character Builder and Summoning Circle must share legal power authoring concepts
+where practical:
+
+- packet model
+- chassis legality
+- timing/duration legality
+- apply-to legality
+- defence modes
+- range-vs-target split
+- descriptor rendering
+- BasePowerValue calculation
+
+When a UI dropdown or hydrated option list looks wrong, inspect both:
+
+- the visible editor state the UI actually writes
+- the helper source fields used to derive legal options
+
+The Character Builder may have adapter fields that differ from Summoning Circle
+storage. Do not assume top-level power fields are the freshest source if the UI
+edits packet-local details.
+
+
+Balance Handoff Notes
+
+Do not tune from one scenario unless it exposes a clear code/routing bug or
+matches an established canary failure.
+
+Keep the split between:
+
+- Power Tuning
+- Combat Tuning
+- Outcome Normalization
+
+Layer A deterministic canaries are mandatory mechanical guardrails. Layer B
+synthetic batches are diagnostic only. Real authored scenarios are primary
+table-truth balance evidence.
+
+
+Codex Tooling Guidance
+
+Use attached prompts as task instructions, but still inspect local files before
+patching.
+
+Use local terminal commands for repo inspection and validation.
+
+When running simulations, report provenance. When modifying files, report files
+changed and validation results.
+
+Do not commit unless the user explicitly asks for commit/push or approves it
+after a no-commit task.
+
+
+Open Items
+
+OPEN / NEEDS ARCHITECT DECISION:
+
+- Which runtime gaps remain between docs/01 locked rules and current Combat Lab
+  implementation after the latest defensive-pool work.
+- Whether a future implementation checklist should be generated mechanically
+  from the locked rules document.
+

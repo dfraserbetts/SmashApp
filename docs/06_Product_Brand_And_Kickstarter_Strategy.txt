@@ -1,0 +1,170 @@
+06_Product_Brand_And_Kickstarter_Strategy.txt
+
+Purpose
+
+This is the active product, brand, and Kickstarter strategy document. It keeps
+commercial and messaging material separate from rules, costing, and
+implementation handoffs.
+
+
+Product Identity
+
+Working product identity:
+
+- Incarnate
+
+Studio line:
+
+- A Sanctuary Gaming Studios Manifestation.
+
+Optional clarity usage:
+
+- Incarnate TTRPG
+
+
+Core Brand Thesis
+
+Incarnate is imagination-first.
+
+The player provides the conscious layer:
+
+- fantasy
+- intention
+- character identity
+- table choices
+- creativity
+
+The app/system provides the mechanical subconscious:
+
+- legality
+- balance
+- output
+- sheets
+- consistency
+
+The core promise is that player intent becomes playable form.
+
+
+Tagline Direction
+
+Current tagline direction:
+
+- Be anyone.
+- Do anything.
+- Try everything.
+
+Each line maps to a real system promise:
+
+- Be anyone: character-expression freedom.
+- Do anything: broad build and power grammar.
+- Try everything: lateral table culture and experimentation.
+
+
+Brand Posture
+
+Incarnate should feel:
+
+- vivid
+- flexible
+- empowering
+- mechanically trustworthy
+- imaginative without becoming vague
+- accessible without being shallow
+
+The game should not market itself as a spreadsheet, a balance engine, or a
+replacement for imagination. The app is the quiet machinery that makes the
+fantasy reliable.
+
+
+Product Promise
+
+Incarnate lets players imagine a character first and then make that character
+mechanically legal, balanced, playable, and printable.
+
+The app turns fantasy into mechanics without forcing the player into narrow
+class or archetype lanes.
+
+This is not "pick from these classes and we tell you how your character plays."
+It is "how do you imagine your character, and how do we make that work at the
+table?"
+
+
+Kickstarter Demonstration Strategy
+
+Recommended sequence:
+
+1. Show the logo and tagline.
+2. Show a short, impossible-seeming character fantasy.
+3. Show the app turning that fantasy into legal mechanics.
+4. Show the live preview updating.
+5. Show the printable character sheet.
+6. Show table application.
+7. Show the over-limit or cinematic moment.
+8. Then explain the system for viewers who want detail.
+
+The strongest proof is a live transformation from concept to table-ready output.
+
+
+Cover And Category Strategy
+
+The cover should signal:
+
+- product name
+- TTRPG category
+- imagination-first promise
+- a concrete hint that the system supports broad character realization
+
+Open cover decisions remain:
+
+- final logo form
+- whether "Core Rulebook" appears on the cover
+- single hero image versus triptych or another structure
+- how strongly front cover must signal TTRPG category versus relying on back
+  cover, Kickstarter, and metadata
+
+
+Mechanic Naming
+
+The over-limit / cinematic push mechanic has candidate naming:
+
+- Breakthrough
+- Smash
+- another later name
+
+This remains open. Do not lock final mechanic naming from this document alone.
+
+
+Studio-Level Language
+
+Sanctuary Gaming Studios can use "Manifestation" as a philosophical studio line
+where appropriate.
+
+This positions the studio around turning imagination into playable form, not
+only around one product.
+
+
+What Not To Do
+
+Avoid:
+
+- leading with math before fantasy
+- calling the app the point of the game
+- implying the game removes human judgement
+- overpromising that every conceivable build is effortless
+- hiding the tabletop category
+- making brand language so abstract that the product promise disappears
+
+
+Open Brand Decisions
+
+OPEN / NEEDS ARCHITECT DECISION:
+
+- Final over-limit mechanic name.
+- Whether "Core Rulebook" appears on the front cover.
+- Final Incarnate logo form.
+- Final cover art structure.
+- Whether "Manifestation" is used on all Sanctuary products or only major
+  releases.
+- Whether "SMASH" remains a mechanic name, internal legacy term, or disappears
+  entirely.
+
