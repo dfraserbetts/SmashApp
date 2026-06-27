@@ -167,10 +167,10 @@ function renderFieldAlliesPhrase(
 ): string {
   const timing = effectTimingType ?? "ON_CAST";
   if (timing === "START_OF_TURN" || timing === "START_OF_TURN_WHILST_CHANNELLED") {
-    return "allies that start their turn inside the field";
+    return "that ally";
   }
   if (timing === "END_OF_TURN" || timing === "END_OF_TURN_WHILST_CHANNELLED") {
-    return "allies that end their turn inside the field";
+    return "that ally";
   }
   if (timing === "ON_EXPIRY") {
     return "allies inside the field when it ends";
@@ -185,6 +185,19 @@ function applyToEntity(
 ): string {
   if (applyTo === "SELF") return "the caster";
   if (applyTo === "PRIMARY_TARGET") {
+    const timing = effectPacket.effectTimingType ?? "ON_CAST";
+    if (
+      power.descriptorChassis === "FIELD" &&
+      (
+        timing === "START_OF_TURN" ||
+        timing === "START_OF_TURN_WHILST_CHANNELLED" ||
+        timing === "END_OF_TURN" ||
+        timing === "END_OF_TURN_WHILST_CHANNELLED" ||
+        timing === "ON_TRIGGER"
+      )
+    ) {
+      return "that target";
+    }
     const primaryRangeCategory = getPrimaryRangeCategory(power);
     if (primaryRangeCategory === "AOE") return "targets within the area";
     return "the target";
@@ -208,9 +221,26 @@ function formatPrimaryBaseClauseForRange(
   effectPacket: EffectPacket | undefined,
   baseClause: string,
   rangeCategory: string,
+  power?: Pick<Power, "descriptorChassis" | "descriptorChassisConfig" | "rangeCategories">,
 ): string {
   if (!effectPacket || rangeCategory !== "AOE") return baseClause;
   if (/^creates a .* Pool with /i.test(baseClause)) return baseClause;
+  const triggerConditionKey = readTriggerConditionKey(readPacketTriggerConditionText(effectPacket));
+  const fieldUsesTargetLocalTrigger =
+    power?.descriptorChassis === "FIELD" &&
+    Boolean(triggerConditionKey && TRIGGER_AREA_PRESENCE_KEYS.has(triggerConditionKey));
+  if (fieldUsesTargetLocalTrigger) {
+    if (effectPacket.intention === "MOVEMENT") {
+      const replaced = baseClause.replace(/\bthe target\b/gi, "that target");
+      return replaced === baseClause ? `${baseClause} for that target` : replaced;
+    }
+
+    if (effectPacket.intention === "CLEANSE") {
+      return `${baseClause} from that target`;
+    }
+
+    return `${baseClause} to that target`;
+  }
 
   if (effectPacket.intention === "MOVEMENT") {
     const replaced = baseClause.replace(/\bthe target\b/gi, "targets within the area");
@@ -1007,6 +1037,12 @@ function buildRangeLead(
         }
         return `Create a ${sphereRadius ?? "?"} ft radius sphere centered on your current space.`;
       }
+      if (descriptorChassis === "FIELD") {
+        if (aoeCount > 1) {
+          return `Create ${aoeCount} spheres, each with a ${sphereRadius ?? "?"} ft radius ${castRangePhrase}.`;
+        }
+        return `Create ${aoeCount} ${plural(aoeCount, "sphere")} with a ${sphereRadius ?? "?"} ft radius ${castRangePhrase}.`;
+      }
       return `Choose ${aoeCount} ${plural(aoeCount, "sphere")} with a ${sphereRadius ?? "?"} ft radius ${castRangePhrase}.`;
     }
     if (aoeShape === "CONE") {
@@ -1222,10 +1258,10 @@ function renderFieldAffectedTargetQualifier(
 ): string | null {
   const timing = effectTimingType ?? "ON_CAST";
   if (timing === "START_OF_TURN" || timing === "START_OF_TURN_WHILST_CHANNELLED") {
-    return "to targets that start their turn inside the field";
+    return "to that target";
   }
   if (timing === "END_OF_TURN" || timing === "END_OF_TURN_WHILST_CHANNELLED") {
-    return "to targets that end their turn inside the field";
+    return "to that target";
   }
   if (timing === "ON_EXPIRY") {
     return "to targets inside the field when it ends";
@@ -1498,6 +1534,7 @@ function renderPacketTriggerSubject(
   const applyTo = readPacketApplyTo(effectPacket);
   if (applyTo === "SELF") return "you";
   if (applyTo === "ALLIES") return "an ally";
+  if (power.descriptorChassis === "FIELD" && (power.rangeCategories ?? []).includes("AOE")) return "a target";
   return "the target";
 }
 
@@ -1723,8 +1760,22 @@ function renderPacketTimingPrefix(params: {
     }
     return "When triggered,";
   }
-  if (timing === "START_OF_TURN") return "At the start of each turn,";
-  if (timing === "END_OF_TURN") return "At the end of each turn,";
+  if (timing === "START_OF_TURN") {
+    if (descriptorChassis === "FIELD" && !isPrimary) {
+      const applyTo = readPacketApplyTo(params.effectPacket);
+      if (applyTo === "ALLIES") return "When an ally starts their turn in the area,";
+      if (applyTo === "PRIMARY_TARGET") return "When a target starts its turn in the area,";
+    }
+    return "At the start of each turn,";
+  }
+  if (timing === "END_OF_TURN") {
+    if (descriptorChassis === "FIELD" && !isPrimary) {
+      const applyTo = readPacketApplyTo(params.effectPacket);
+      if (applyTo === "ALLIES") return "When an ally ends their turn in the area,";
+      if (applyTo === "PRIMARY_TARGET") return "When a target ends its turn in the area,";
+    }
+    return "At the end of each turn,";
+  }
   if (timing === "START_OF_TURN_WHILST_CHANNELLED") {
     return "While you maintain the channel, at the start of each turn,";
   }
@@ -1934,6 +1985,154 @@ function renderSecondaryScalingLead(
   const woundsPerSuccess = deriveWoundsPerSuccessFromPrimaryPacket(primaryPacket);
   if (!woundsPerSuccess) return null;
   return `For every ${woundsPerSuccess} wounds inflicted, rounding up, it also`;
+}
+
+function isRoundStoredTriggerChassis(
+  power: Pick<Power, "descriptorChassis">,
+): boolean {
+  return power.descriptorChassis === "FIELD" ||
+    power.descriptorChassis === "ATTACHED" ||
+    power.descriptorChassis === "TRIGGER";
+}
+
+function usesRoundStoredPrimaryResult(params: {
+  power: Pick<Power, "descriptorChassis">;
+  primaryTimingKey: EffectPacket["effectTimingType"];
+  hasSecondaryPackets: boolean;
+}): boolean {
+  if (!params.hasSecondaryPackets) return false;
+  if (!isRoundStoredTriggerChassis(params.power)) return false;
+  return (params.primaryTimingKey ?? "ON_CAST") !== "ON_CAST";
+}
+
+function renderRoundStoredPrimaryRollSentence(params: {
+  power: Pick<Power, "name" | "descriptorChassis">;
+  primaryTimingKey: EffectPacket["effectTimingType"];
+  hasSecondaryPackets: boolean;
+  diceCount: number;
+}): string | null {
+  void params;
+  return null;
+}
+
+function renderSecondaryScalingTail(params: {
+  power: Pick<Power, "name" | "potency" | "effectPackets" | "intentions" | "descriptorChassis">;
+  effectPacket: EffectPacket;
+  repeatingPrimary: boolean;
+}): string | null {
+  const primaryPacket = getSortedEffectPackets(params.power)[0];
+  const applyTo = readPacketApplyTo(params.effectPacket);
+  const usesPrimaryTargetLocalResult = applyTo === "PRIMARY_TARGET";
+  const scalingMode = deriveSecondaryScalingModeFromPrimaryPacket(primaryPacket);
+
+  if (scalingMode === "PRIMARY_APPLIED_SUCCESSES") {
+    if (params.repeatingPrimary && !usesPrimaryTargetLocalResult) {
+      return `for each applied success in ${params.power.name}'s Primary result this round`;
+    }
+    if (params.repeatingPrimary && usesPrimaryTargetLocalResult) {
+      return "for each applied success in that target's Primary result this round";
+    }
+    if (usesPrimaryTargetLocalResult) {
+      return "for each applied success on that target from the primary effect";
+    }
+    return "for each applied success from the primary effect";
+  }
+
+  const woundsPerSuccess = deriveWoundsPerSuccessFromPrimaryPacket(primaryPacket);
+  if (!woundsPerSuccess) return null;
+  if (params.repeatingPrimary && !usesPrimaryTargetLocalResult) {
+    return `for every ${woundsPerSuccess} wounds in ${params.power.name}'s Primary result this round, rounding up`;
+  }
+  if (params.repeatingPrimary && usesPrimaryTargetLocalResult) {
+    return `for every ${woundsPerSuccess} wounds in that target's Primary result this round, rounding up`;
+  }
+  if (usesPrimaryTargetLocalResult) {
+    return `for every ${woundsPerSuccess} wounds inflicted on that target by the primary effect, rounding up`;
+  }
+  return `for every ${woundsPerSuccess} wounds inflicted by the primary effect, rounding up`;
+}
+
+function renderSecondaryDependencyTriggerClause(params: {
+  power: Pick<Power, "name" | "descriptorChassis" | "effectPackets" | "intentions">;
+  effectPacket: EffectPacket;
+  repeatingPrimary: boolean;
+}): string {
+  const applyTo = readPacketApplyTo(params.effectPacket);
+  const primaryPacket = getSortedEffectPackets(params.power)[0];
+  const isWoundScaling = deriveSecondaryScalingModeFromPrimaryPacket(primaryPacket) === "PRIMARY_WOUND_BANDS";
+  if (isWoundScaling && params.repeatingPrimary && applyTo !== "PRIMARY_TARGET") {
+    return `If ${params.power.name} inflicts wounds this round`;
+  }
+  if (isWoundScaling && params.repeatingPrimary && applyTo === "PRIMARY_TARGET") {
+    return `If ${params.power.name} inflicts wounds on that primary target`;
+  }
+  if (isWoundScaling) {
+    return `If ${params.power.name} inflicts wounds`;
+  }
+  if (params.repeatingPrimary && applyTo !== "PRIMARY_TARGET") {
+    return `If ${params.power.name} applies its Primary Packet this round`;
+  }
+  if (params.repeatingPrimary && applyTo === "PRIMARY_TARGET") {
+    return `If ${params.power.name} applies its Primary Packet to that target`;
+  }
+  return `If ${params.power.name} applies its Primary Packet`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderSecondaryDependencyConditionFragment(params: {
+  power: Pick<Power, "name" | "descriptorChassis" | "effectPackets" | "intentions">;
+  effectPacket: EffectPacket;
+  repeatingPrimary: boolean;
+}): string {
+  return renderSecondaryDependencyTriggerClause(params)
+    .replace(/^If\s+/i, "")
+    .replace(new RegExp(`^${escapeRegExp(params.power.name)} inflicts\\b`, "i"), `${params.power.name} inflicted`)
+    .replace(new RegExp(`^${escapeRegExp(params.power.name)} applies\\b`, "i"), `${params.power.name} applied`);
+}
+
+function renderSubsequentTimingPrefix(timingPrefix: string): string | null {
+  const timing = capitalizeSentenceStart(stripTrailingComma(timingPrefix));
+  const match = /^When (an ally|a target|the target) (.+)$/i.exec(timing);
+  if (!match) return null;
+  return `When ${match[1]} subsequently ${match[2]}`;
+}
+
+function renderDependentSecondarySentence(params: {
+  power: SecondaryRenderPower & Pick<Power, "name">;
+  timingPrefix: string | null;
+  entries: SecondaryRenderEntry[];
+  bodies: string[];
+  repeatingPrimary: boolean;
+}): string | null {
+  if (params.entries.length === 0 || params.bodies.length === 0) return null;
+  const leadEntry = params.entries[0];
+  const scalingTail = renderSecondaryScalingTail({
+    power: params.power,
+    effectPacket: leadEntry.effectPacket,
+    repeatingPrimary: params.repeatingPrimary,
+  });
+  if (!scalingTail) return null;
+
+  const timing = lowercaseSentenceStart(stripTrailingComma(params.timingPrefix ?? "after the primary effect"));
+  const body = stripTrailingPeriod(joinWithCommasAnd(params.bodies));
+  const triggerClause = renderSecondaryDependencyTriggerClause({
+    power: params.power,
+    effectPacket: leadEntry.effectPacket,
+    repeatingPrimary: params.repeatingPrimary,
+  });
+  const subsequentTiming = renderSubsequentTimingPrefix(params.timingPrefix ?? "");
+  if (subsequentTiming) {
+    const condition = renderSecondaryDependencyConditionFragment({
+      power: params.power,
+      effectPacket: leadEntry.effectPacket,
+      repeatingPrimary: params.repeatingPrimary,
+    });
+    return `${subsequentTiming}, and ${condition}, ${params.power.name} ${body} ${scalingTail}.`;
+  }
+  return `${triggerClause}, then ${timing}, ${params.power.name} ${body} ${scalingTail}.`;
 }
 
 type SecondaryRenderPower = Pick<
@@ -2213,24 +2412,6 @@ function buildSecondaryContextBodies(
   });
 }
 
-function renderSecondaryMergedBodyWithInlineTiming(
-  entries: SecondaryRenderEntry[],
-  power: SecondaryRenderPower,
-  timingPrefix: string,
-): string[] {
-  const cleanTiming = lowercaseSentenceStart(stripTrailingComma(timingPrefix));
-  return buildSecondaryContextBodies(entries, power).map((body) => {
-    if (!cleanTiming) return body;
-    const cleanBody = stripTrailingPeriod(body);
-    const durationSuffix = renderPacketEffectDurationSuffix(entries[0]?.effectPacket);
-    if (durationSuffix && cleanBody.endsWith(` ${durationSuffix}`)) {
-      const baseWithoutDuration = cleanBody.slice(0, -(` ${durationSuffix}`).length);
-      return `${baseWithoutDuration} ${cleanTiming} ${durationSuffix}`;
-    }
-    return `${cleanBody} ${cleanTiming}`;
-  });
-}
-
 export function renderPowerSuccessClause(power: Pick<Power, "potency" | "effectPackets" | "intentions">): string {
   const sorted = getSortedEffectPackets(power);
   const details = sorted.map((packet) => renderEffectPacketDetail(packet, getPacketPotency(packet, power)));
@@ -2381,6 +2562,7 @@ export function renderPowerDescriptorLines(
         primaryPacket,
         renderPacketBaseClause(primaryPacket, power),
         rangeCategory,
+        power,
       )
     : "resolves the effect";
   const primaryEffectDuration = primaryPacket ? renderPacketEffectDurationSuffix(primaryPacket) : null;
@@ -2516,6 +2698,17 @@ export function renderPowerDescriptorLines(
     return null;
   })();
   const primaryTimingKey = primaryDisplayTimingType;
+  const primaryUsesRoundStoredResult = usesRoundStoredPrimaryResult({
+    power,
+    primaryTimingKey,
+    hasSecondaryPackets: effectPackets.length > 1,
+  });
+  const primaryRoundStoredRollSentence = renderRoundStoredPrimaryRollSentence({
+    power,
+    primaryTimingKey,
+    hasSecondaryPackets: effectPackets.length > 1,
+    diceCount: getPacketDiceCount(primaryPacket, power),
+  });
   const shouldExplainReestablishChannel =
     power.commitmentModifier === "CHANNEL" &&
     power.descriptorChassis === "ATTACHED" &&
@@ -2761,9 +2954,16 @@ export function renderPowerDescriptorLines(
             chargeConfig,
           });
       const fieldRepeatingDirectSentence = renderFieldRepeatingDirectEffectSentence(primaryPacket);
-      const fieldEffectClause = `${fieldRollClause} ${power.name} ${primaryBaseClause} per success${fieldAffectedTargetQualifier ? ` ${fieldAffectedTargetQualifier}` : ""}${fieldRepeatingDirectSentence ? "" : primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}${primaryTimingPrefix ? "" : fieldTimingSuffix ? ` ${fieldTimingSuffix}` : ""}.`;
+      const fieldTriggerLead = primaryRoundStoredRollSentence && primaryTimingPrefix
+        ? stripTrailingComma(primaryTimingPrefix)
+        : null;
+      const fieldEffectLead = fieldTriggerLead
+        ? `${fieldTriggerLead}, ${power.name}`
+        : `${fieldRollClause} ${power.name}`;
+      const fieldEffectClause = `${fieldEffectLead} ${primaryBaseClause} per success${fieldAffectedTargetQualifier ? ` ${fieldAffectedTargetQualifier}` : ""}${fieldRepeatingDirectSentence ? "" : primaryEffectDuration ? ` ${primaryEffectDuration}` : ""}${fieldTriggerLead || primaryTimingPrefix ? "" : fieldTimingSuffix ? ` ${fieldTimingSuffix}` : ""}.`;
       return [
         rangeLead,
+        primaryRoundStoredRollSentence,
         fieldEffectClause,
         fieldRepeatingDirectSentence,
         ...sameTimingSecondaryClauses,
@@ -2975,33 +3175,33 @@ export function renderPowerDescriptorLines(
       useCastWordingForOnCast: useNonReserveDelayedCastPrefix,
     });
     const sharedScalingLead = renderSecondaryScalingLead(power);
+    const secondaryEntriesForGroup =
+      timingPrefix && sharedScalingLead
+        ? packets
+            .map((effectPacket, authoringIndex) => {
+              const body = renderSecondaryPacketBody({
+                effectPacket,
+                power,
+              });
+              if (!body) return null;
+              return {
+                effectPacket,
+                authoringIndex,
+                displayTimingKey: getSecondaryDisplayTimingType(
+                  power.descriptorChassis,
+                  effectPacket?.effectTimingType,
+                  chargeConfig,
+                ),
+                timingPrefix,
+                inlineClause: renderSecondaryPacketClause({ effectPacket, power }) ?? "",
+                body,
+              };
+            })
+            .filter((entry): entry is SecondaryRenderEntry => Boolean(entry))
+        : [];
     const contingentBodies =
       timingPrefix && sharedScalingLead
-        ? renderSecondaryMergedBodyWithInlineTiming(
-            packets
-              .map((effectPacket, authoringIndex) => {
-                const body = renderSecondaryPacketBody({
-                  effectPacket,
-                  power,
-                });
-                if (!body) return null;
-                return {
-                  effectPacket,
-                  authoringIndex,
-                  displayTimingKey: getSecondaryDisplayTimingType(
-                    power.descriptorChassis,
-                    effectPacket?.effectTimingType,
-                    chargeConfig,
-                  ),
-                  timingPrefix,
-                  inlineClause: renderSecondaryPacketClause({ effectPacket, power }) ?? "",
-                  body,
-                };
-              })
-              .filter((entry): entry is SecondaryRenderEntry => Boolean(entry)),
-            power,
-            timingPrefix,
-          )
+        ? buildSecondaryContextBodies(secondaryEntriesForGroup, power)
         : [];
     const shouldAppendReestablishChannelSentence =
       !hasAppendedReestablishChannelSentence && isWhilstChannelledTiming(getPacketTimingKey(leadPacket));
@@ -3009,8 +3209,15 @@ export function renderPowerDescriptorLines(
       hasAppendedReestablishChannelSentence = true;
     }
     if (timingPrefix && sharedScalingLead) {
+      const dependentSentence = renderDependentSecondarySentence({
+        power,
+        timingPrefix,
+        entries: secondaryEntriesForGroup,
+        bodies: contingentBodies,
+        repeatingPrimary: primaryUsesRoundStoredResult,
+      });
       return [
-        `${sharedScalingLead} ${joinWithCommasAnd(contingentBodies) || "it also resolves an additional effect"}.`,
+        dependentSentence ?? `${sharedScalingLead} ${joinWithCommasAnd(contingentBodies) || "it also resolves an additional effect"}.`,
         shouldAppendReestablishChannelSentence ? reestablishChannelSentence : null,
       ]
         .filter((segment): segment is string => Boolean(segment))

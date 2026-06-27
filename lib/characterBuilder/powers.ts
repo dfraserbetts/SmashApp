@@ -342,10 +342,19 @@ function controlModeNeedsTheme(controlMode: string) {
 
 export function getCharacterPowerAllowedApplyToOptions(power: CharacterPower, packet: EffectPacket): EffectPacketApplyTo[] {
   if (packet.localTargetingOverride) return APPLY_TO_OPTIONS;
-  const category = power.rangeCategories?.[0] ?? "MELEE";
+  const primaryPacket = power.effectPackets[0] ?? power.intentions?.[0] ?? null;
+  const primaryDetails = asRecord(primaryPacket?.detailsJson);
+  const range = normalizeRangeDetails(primaryDetails);
+  const category = range.rangeCategory ?? power.rangeCategories?.[0] ?? "MELEE";
   if (!category) return ["SELF"];
-  if (category === "MELEE" && (power.meleeTargets ?? 1) <= 1) return ["PRIMARY_TARGET", "SELF"];
-  if (category === "RANGED" && (power.rangedTargets ?? 1) <= 1) return ["PRIMARY_TARGET", "SELF"];
+  const meleeTargets = category === "MELEE"
+    ? Math.max(1, range.rangeValue || power.meleeTargets || 1)
+    : 1;
+  const rangedTargets = category === "RANGED"
+    ? asInteger(asRecord(range.rangeExtra).targets ?? power.rangedTargets, 1, 1, 20)
+    : 1;
+  if (category === "MELEE" && meleeTargets <= 1) return ["PRIMARY_TARGET", "SELF"];
+  if (category === "RANGED" && rangedTargets <= 1) return ["PRIMARY_TARGET", "SELF"];
   return APPLY_TO_OPTIONS;
 }
 

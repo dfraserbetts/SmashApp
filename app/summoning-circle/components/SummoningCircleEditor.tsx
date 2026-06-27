@@ -9584,16 +9584,13 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                   <button
                     type="button"
                     onClick={() => {
-                      const existingPowerCollapseState = Object.fromEntries(
-                        editor.powers.map((power, index) => [getPowerCollapseKey(power, index), true]),
-                      );
                       const nextPowerIndex = editor.powers.length;
                       const nextPower = defaultPower();
                       const nextPowerKey = getPowerCollapseKey(nextPower, nextPowerIndex);
 
                       setEditor((p) => (p ? { ...p, powers: [...p.powers, nextPower] } : p));
-                      setCollapsedPowerIds(() => {
-                        const next = { ...existingPowerCollapseState };
+                      setCollapsedPowerIds((prev) => {
+                        const next = { ...prev };
                         delete next[nextPowerKey];
                         return next;
                       });

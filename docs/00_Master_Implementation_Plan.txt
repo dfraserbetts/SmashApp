@@ -80,7 +80,7 @@ Complexity has a meaningful cost in Incarnate and must continue to do so. More i
 
 Packet Resolution Direction
 
-Packet 1 lands if, after its required Trial or Clash resolution, it applies at least one operative result unit. Secondary Packets remain contingent on Packet 1 landing. Where a Secondary Packet scales from Packet 1, it scales from the Primary Packet’s applied result value rather than bypassing the result of the defended entry point.
+Packet 1 lands if, after its required Trial or Clash resolution, it applies at least one operative result unit. Secondary Packets remain contingent on Packet 1 landing. Where a Secondary Packet scales from Packet 1, it scales from the Primary Packet’s applied result value rather than bypassing the result of the defended entry point. For wound-band Secondary scaling, the default band size is the Primary Packet's total simultaneous wounds per success across all damage components, not one free band engine per damage type.
 
 Stack effects are tied to packet resolution, not just chassis existence. Repeating packet timings such as START_OF_TURN, END_OF_TURN, or the channel-gated recurring timings create repeating stack application opportunities only when those packets actually resolve.
 

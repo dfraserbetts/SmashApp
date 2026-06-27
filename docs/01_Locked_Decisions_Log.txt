@@ -55,7 +55,7 @@ A power has one defended entry point. Only Packet 1 sets the defence gate.
 6. Secondary packets only land if the Primary Packet lands
 
 
-If the Primary Packet is defended, Secondary Packets do not resolve. This is a global simplification rule for speed, clarity, and cleaner authored powers.
+If the Primary Packet is fully defended or otherwise applies no operative result, Secondary Packets do not resolve. This is a global simplification rule for speed, clarity, and cleaner authored powers.
 
 
 7. Secondary packets never create separate defended entry points
@@ -572,6 +572,41 @@ use net applied successes for non-wound primaries
 
 use Applied Success Bands = CEILING(Net Wounds / Wounds Per Success) for wound-dealing primaries
 
+Secondary Packets are always powered by Packet 1's operative result. If Packet
+1 does not land or is fully defended, Secondary Packets do not resolve later
+even if their authored timing occurs.
+
+For Field, Attached, Triggered, and other recurring delivery, the first matching
+Primary trigger each round rolls once and stores that roll for that round. Later
+matching Primary triggers that round reuse the stored roll. Each Primary Target
+defends separately, so applied Primary results may differ per target.
+
+If a Secondary Packet targets the Primary Target, use that target's own applied
+Primary result. If it targets Self, Allies, Field context, attached-host allies,
+or another non-primary recipient, the first successful Primary application in
+that round sets the Secondary payload for that round. A fully defended first
+trigger sets no payload; the next successful trigger may set it. Once set,
+later same-round Primary triggers do not replace, improve, reduce, or add to it
+unless explicitly authored. Descriptors for these non-primary Secondary payloads
+should refer to the power's Primary result this round rather than cumulative
+wounds or successes across all same-round triggers.
+
+For Field trigger descriptors, per-recipient area triggers default to the
+triggering recipient. "A target enters / starts / ends / leaves the area" affects
+that target unless the packet is explicitly authored as area-wide. A Field
+Secondary timed to "an ally starts / ends their turn in the area" affects that
+ally unless explicitly authored to affect all allies in the area.
+
+Secondary Packets own their own Effect Timing and Effect Duration. They do not
+inherit the parent power duration, Packet 1 duration, or chassis lifespan as
+their own packet duration. An Instant Secondary Packet must not render as
+lasting for 1 turn.
+
+Individual power descriptors should not repeat the global one-roll-per-round /
+stored Primary result rule unless the authored power explicitly changes that
+rule. Preferred split-timing wording is "When [recipient] subsequently [timing],
+and [Power] [Primary condition] this round..." rather than "then when...".
+
 32. Mixed-intention legality is constrained by hostile-primary ordering
 
 Hostile-primary into hostile-secondary is legal.
@@ -952,3 +987,23 @@ Simulation reports must distinguish whether results came from UI/browser inspect
 Codex must not silently change tuning, source data, saved monsters, database data, or runtime code when asked for read-only simulation results.
 
 Codex-run results are trusted only when runtime rules are current, active tuning is identified, scenario construction is clear, seed/run count are reported, no hidden data changes occurred, and diagnostics are readable rather than contradictory.
+
+55. Secondary wound-band scaling uses total Primary wounds per success by default
+
+When a Secondary Packet scales from Primary wound bands, the default band size equals the Primary Packet's total simultaneous wounds per success across all damage components. Multi-damage Primary Packets increase the band size; they do not generate separate bands per damage type unless explicitly authored.
+
+A single Primary Packet outputs the same wound total per success for every simultaneous damage component / damage type. Example: Potency 3 means 6 wounds per success. If the Primary has Fire, Ice, and Slashing damage, each damage type outputs 6 wounds per success, for 18 total simultaneous wounds per success. A default wound-band Secondary therefore uses one band per 18 wounds in the Primary result, rounding up. It does not create three separate "for every 6 wounds" band engines.
+
+Default examples:
+
+- Single damage type: Primary Packet deals 6 physical Slashing wounds per success. A Secondary Packet that scales from Primary wound bands uses one band per 6 applied Primary wounds, rounding up.
+- Three simultaneous damage types: Primary Packet has Potency 3 and deals Fire, Ice, and Slashing wounds. Each type deals 6 wounds per success. Total simultaneous wounds per success is 18. A default wound-band Secondary uses one band per 18 wounds in the Primary result, rounding up.
+
+Explicit exceptions:
+
+- Component-specific wound-band scaling may be authored as a special rider, such as "for every 6 Slashing wounds in the Primary result". That uses only the Slashing component and must be explicitly authored and priced.
+- Per-component additive wound-band scaling may be authored only as a special multi-component band engine, such as "each damage component generates its own wound bands". This is not default and requires additional pricing.
+
+Unresolved future design debt: overkill-scaling and wound-band source.
+
+Should Primary wound-band scaling use actual wounds suffered after remaining-health cap, or net wounds before overkill is discarded? The current recommendation is that default scaling should probably use actual wounds suffered to avoid farming riders from overkilling 1 HP targets. Overkill-scaling may be allowed later only as an explicit premium mechanic. This pass does not lock the final overkill answer.

@@ -51,6 +51,11 @@ The following points should now be treated as stable design truth:
 - Secondary Packets do not create separate defended entry points
 - Packet 1 lands if it applies at least one operative result unit
 - wound-based Secondary scaling uses Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
+- default wound-band size uses the Primary Packet's total simultaneous wounds per success across all damage components; multi-damage primaries do not create separate free rider bands per damage type
+- Secondary Packets are always powered by the Primary Packet result; if Packet 1 applies no operative result, later Secondary timing does not fire
+- Field, Attached, Triggered, and recurring Primary delivery rolls once on the first matching trigger each round and reuses that stored roll for later same-round triggers
+- non-primary-recipient Secondary payloads use the first successful Primary application in the round; Primary Target secondaries use that target's own applied Primary result
+- Secondary Packets own their own Timing and Duration and must not inherit a parent / Primary / chassis duration
 - Lifespan, Effect Timing, and Effect Duration are separate concepts
 - Summoning Circle is the first implementation surface for the shared core
 - Character Builder is expected to reuse the same foundation later

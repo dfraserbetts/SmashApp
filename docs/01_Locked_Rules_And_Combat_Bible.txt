@@ -328,6 +328,75 @@ Self where a Secondary Packet needs a different target class from Packet 1.
 Allies includes self by default unless an explicit authored restriction says
 otherwise.
 
+Secondary Packet Dependency And Timed Delivery
+
+Secondary Packets are always powered by the Primary Packet result. They never
+make an independent roll or create an independent gate. If the Primary Packet
+does not apply an operative result, the Secondary Packet does not fire even if
+the Secondary Packet's authored timing later occurs.
+
+Where a wound-based Secondary Packet scales from Primary wound bands, use:
+
+Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
+
+The default Wounds Per Success denominator is the Primary Packet's total
+simultaneous wounds per success across all damage components. Multi-damage
+Primary Packets increase the band size; they do not generate separate bands per
+damage type unless explicitly authored and priced.
+
+Examples:
+
+- Single damage type: Primary deals 6 physical Slashing wounds per success, so
+  the Secondary gains one band per 6 applied Primary wounds, rounding up.
+- Three simultaneous damage types: a Potency 3 Primary deals 6 Fire, 6 Ice, and
+  6 Slashing wounds per success. Total simultaneous wounds per success is 18,
+  so a default wound-band Secondary gains one band per 18 wounds in the Primary
+  result, rounding up.
+- Component-specific exception: "for every 6 Slashing wounds in the Primary
+  result" uses only the Slashing component and must be explicitly authored and
+  priced.
+- Per-component additive exception: "each damage component generates its own
+  wound bands" is a special multi-component band engine, not the default.
+
+Open design debt: should wound-band scaling use actual wounds suffered after
+remaining-health cap, or net wounds before overkill is discarded? Default should
+probably use actual wounds suffered to avoid farming riders from overkilling 1
+HP targets, but overkill-scaling is not finally locked here.
+
+For Field, Attached, Triggered, and other recurring packet delivery, the first
+matching Primary trigger in a round rolls once and stores that roll for that
+round. Later matching Primary triggers in the same round reuse that stored roll.
+Each affected Primary Target still defends separately, so target-local Primary
+results may differ after defence and prevention.
+
+If a Secondary Packet affects the Primary Target, use that target's own applied
+Primary result. If a Secondary Packet affects Self, Allies, the Field, an
+attached host's allies, or another non-primary recipient, the first successful
+Primary application that round sets the Secondary payload for that round. A
+fully defended first trigger sets no payload; the next successful trigger in
+that round may set it. Once set, later same-round Primary triggers do not
+replace, improve, reduce, or add to that payload unless explicitly authored.
+When that non-primary Secondary payload is described, refer to the power's
+Primary result this round rather than cumulative wounds or successes across all
+same-round triggers.
+
+For Field area triggers, per-recipient trigger wording is target-local by
+default. "A target enters / starts / ends / leaves the area" affects that target
+unless the packet is explicitly authored as area-wide. "An ally starts / ends
+their turn in the area" affects that ally unless explicitly authored as
+all-allies delivery.
+
+Each packet owns its own Timing and Duration. Secondary Packets do not inherit
+the parent power duration, Primary Packet duration, or chassis lifespan as their
+own Effect Duration. An Instant Secondary Packet must not be described as
+lasting for 1 turn.
+
+The one-roll-per-round stored Primary result rule belongs in global rules
+documentation. Individual descriptors should not repeat it unless an authored
+power changes that default. Preferred split-timing descriptor shape is "When
+[recipient] subsequently [timing], and [Power] [Primary condition] this
+round..." rather than "then when...".
+
 
 AoE Overlap
 
@@ -349,10 +418,6 @@ Open Items
 
 OPEN / NEEDS ARCHITECT DECISION:
 
-- This pass does not add a Secondary Packet simultaneous bundle ruling. That
-  topic has been discussed but was not already explicitly locked in the source
-  docs inspected for this consolidation.
 - The complete numeric success-threshold table should be cross-checked against
   current runtime and source tables in a future rules-formatting pass if it is
   needed directly in this document.
-

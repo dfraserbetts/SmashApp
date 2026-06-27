@@ -43,6 +43,32 @@ applies at least one operative result unit.
 For wound-based Primary results, secondary scaling uses Applied Success Bands =
 CEILING(Net Wounds / Wounds Per Success).
 
+For default wound-band scaling, Wounds Per Success means the Primary Packet's
+total simultaneous wounds per success across all damage components. Multi-damage
+Primary Packets increase the denominator / band size. They do not create
+separate free wound-band engines per damage type unless explicitly authored and
+priced.
+
+Examples:
+
+- Single damage type: 6 physical Slashing wounds per success creates one band
+  per 6 applied Primary wounds, rounding up.
+- Three simultaneous damage types: Potency 3 deals 6 Fire, 6 Ice, and 6
+  Slashing wounds per success, for 18 total simultaneous wounds per success. A
+  default wound-band Secondary uses one band per 18 wounds in the Primary
+  result, rounding up.
+- Component-specific exception: "for every 6 Slashing wounds in the Primary
+  result" is allowed only as an explicit component-specific rider.
+- Per-component additive exception: "each damage component generates its own
+  wound bands" is a special multi-component band engine and requires additional
+  pricing.
+
+TODO / unresolved design debt: overkill-scaling and wound-band source. Decide
+later whether default wound-band scaling should use actual wounds suffered after
+remaining-health cap or net wounds before overkill is discarded. Current
+recommendation is actual wounds suffered by default, with overkill-scaling only
+as an explicit premium mechanic if allowed later.
+
 For non-wound Primary results, operative result is measured in net applied
 successes, stacks, heals, or other effect units.
 
@@ -50,10 +76,49 @@ Where a Secondary Packet scales from the Primary Packet, it scales from the
 Primary Packet's applied result value rather than bypassing the defended entry
 point.
 
-Important Pass 1 boundary:
+Secondary Packet timing and dependency are locked:
 
-- Do not add a Secondary Packet simultaneous bundle ruling here unless it is
-  later explicitly locked by the Architect.
+- Secondary Packets are always contingent on the Primary Packet result.
+- If the Primary Packet does not apply an operative result, the Secondary Packet
+  does not fire even if the Secondary Packet's authored timing later occurs.
+- A same-timing Secondary Packet may be rendered as a compact dependent rider.
+- A different-timing or triggered Secondary Packet must render as a dependent
+  timed sentence that states both the dependency and the timing.
+- Secondary Packets own their own Timing and Duration. They do not inherit the
+  Primary Packet duration, the parent power duration, or the chassis lifespan as
+  their own Effect Duration.
+- Packet 2 with Instant duration must not render as lasting for 1 turn.
+
+For Field, Attached, Triggered, and other recurring Primary delivery, the
+default is one roll per round:
+
+- the first matching Primary trigger in a round rolls once and stores that roll
+  for that round
+- later matching Primary triggers in that same round reuse the stored roll
+- each affected Primary Target still defends separately
+- if a Secondary Packet targets the Primary Target, use that target's own
+  applied Primary result
+- if a Secondary Packet targets Self, Allies, the Field, an attached host's
+  allies, or another non-primary recipient, the first successful Primary
+  application in that round sets the Secondary payload for that round
+- a fully defended first trigger sets no payload; the next successful trigger
+  that round may set it
+- once set, later same-round Primary triggers do not replace, improve, reduce,
+  or add to the payload unless explicitly authored
+
+Descriptor wording for those non-primary Secondary payloads should reference the
+power's Primary result this round, not cumulative wounds or successes from all
+same-round triggers.
+
+Field trigger descriptors are target-local by default. A target entering,
+starting in, ending in, or leaving the area affects that target unless the packet
+is explicitly authored as area-wide. An ally starting or ending their turn in the
+area affects that ally unless explicitly authored as all-allies delivery.
+
+The one-roll-per-round stored Primary result rule is a global rule. Individual
+power descriptors should not repeat it unless the power explicitly changes that
+rule. Prefer "When [recipient] subsequently [timing], and [Power] [Primary
+condition] this round..." over "then when...".
 
 
 Descriptor Chassis
@@ -280,4 +345,3 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Any future additive/recharging defensive pool authoring shape.
 - Future Setting Package asset policy beyond the protected/global principles
   already captured in the builder and balance docs.
-

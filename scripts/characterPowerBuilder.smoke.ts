@@ -9,6 +9,7 @@ import {
   CHARACTER_POWER_RANGE_TARGET_OPTIONS,
   CHARACTER_POWER_RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
   getCharacterPowerAllowedCommitmentOptions,
+  getCharacterPowerAllowedApplyToOptions,
   getCharacterPowerAllowedTimingOptions,
   getCharacterPowerPrimaryDefenceLabel,
   normalizeCharacterPower,
@@ -67,6 +68,63 @@ assert(
 );
 assert(levelOneSummary.totalSpent > 0, "Power spend should be positive.");
 assert(levelOneSummary.remaining === 50 - levelOneSummary.totalSpent, "Spend should deduct from pool.");
+
+const staleTopLevelMeleeTwoPower = {
+  ...createDefaultCharacterPower(0),
+  name: "Melee Two Secondary Apply To",
+  rangeCategories: ["MELEE" as const],
+  meleeTargets: 1,
+  effectPackets: [
+    {
+      ...createDefaultCharacterPowerPacket("ATTACK", 0),
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        damageTypes: ["Slash"],
+        rangeCategory: "MELEE",
+        rangeValue: 2,
+        rangeExtra: {},
+      },
+    },
+    {
+      ...createDefaultCharacterPowerPacket("CLEANSE", 1),
+      detailsJson: {
+        cleanseEffectType: "Active Power",
+      },
+    },
+  ],
+};
+staleTopLevelMeleeTwoPower.intentions = staleTopLevelMeleeTwoPower.effectPackets;
+const meleeTwoApplyToOptions = getCharacterPowerAllowedApplyToOptions(
+  staleTopLevelMeleeTwoPower,
+  staleTopLevelMeleeTwoPower.effectPackets[1],
+);
+assert(
+  meleeTwoApplyToOptions.includes("ALLIES"),
+  "Character Builder Apply To should include Allies when Packet 1 is Melee 2 even if stale top-level meleeTargets is 1.",
+);
+
+const meleeOnePower = {
+  ...staleTopLevelMeleeTwoPower,
+  effectPackets: [
+    {
+      ...staleTopLevelMeleeTwoPower.effectPackets[0],
+      detailsJson: {
+        ...(staleTopLevelMeleeTwoPower.effectPackets[0].detailsJson ?? {}),
+        rangeValue: 1,
+      },
+    },
+    staleTopLevelMeleeTwoPower.effectPackets[1],
+  ],
+};
+meleeOnePower.intentions = meleeOnePower.effectPackets;
+const meleeOneApplyToOptions = getCharacterPowerAllowedApplyToOptions(
+  meleeOnePower,
+  meleeOnePower.effectPackets[1],
+);
+assert(
+  !meleeOneApplyToOptions.includes("ALLIES"),
+  "Character Builder Apply To should not include Allies for single-target Melee without local targeting override.",
+);
 assert(
   levelOneSummary.powers[0]?.derivedCooldownTurns,
   "Derived cooldown should be present.",
@@ -924,12 +982,12 @@ assert(
   "Character Builder and equivalent Summoning Circle-shaped Case B should resolve to the same BasePowerValue.",
 );
 assert(
-  diagnosticOutputs.caseB.resolverTotalBasePowerValue === 32,
-  "Case B BasePowerValue should be 32 after potency 12 is priced explicitly.",
+  diagnosticOutputs.caseB.resolverTotalBasePowerValue === 40,
+  "Case B BasePowerValue should be 40 with current conservative potency fallback.",
 );
 assert(
-  chosenTuningKeysForDiagnostic(diagnosticOutputs.caseB).includes("packet.magnitude.potency.12"),
-  "Case B should use exact packet.magnitude.potency.12 tuning instead of falling back to potency.5.",
+  chosenTuningKeysForDiagnostic(diagnosticOutputs.caseB).includes("packet.magnitude.potency.20"),
+  "Case B should use conservative packet.magnitude.potency.20 fallback for effective wounds above the explicit table.",
 );
 assert(
   chosenTuningKeysForDiagnostic(diagnosticOutputs.caseB).includes("packet.magnitude.dice.6"),
@@ -940,8 +998,8 @@ assert(
   "Case B should use default player spend scalar 3.",
 );
 assert(
-  diagnosticOutputs.caseB.characterBuilderPlayerSpend === 96,
-  "Case B PlayerPowerSpend should be ceil(32 * 3) = 96.",
+  diagnosticOutputs.caseB.characterBuilderPlayerSpend === 120,
+  "Case B PlayerPowerSpend should be ceil(40 * 3) = 120.",
 );
 assert(
   diagnosticOutputs.caseB.derivedCooldown?.derivedCooldownTurns === 5,
@@ -953,8 +1011,8 @@ const caseBScalarTwoSummary = summarizeCharacterPowers({
   playerPowerSpendScalar: 2,
 });
 assert(
-  caseBScalarTwoSummary.powers[0]?.spend === 64,
-  "Changing scalar to 2 should change Case B PlayerPowerSpend to 64.",
+  caseBScalarTwoSummary.powers[0]?.spend === 80,
+  "Changing scalar to 2 should change Case B PlayerPowerSpend to 80.",
 );
 const caseBOverspendErrors = validateCharacterPowers({
   level: 1,
@@ -1005,8 +1063,8 @@ const summoningHighMagnitudePower = makeSummoningCircleShapedAttackPower({
 const summoningHighMagnitudeKeys = resolveChosenTuningKeys(summoningHighMagnitudePower);
 assert(
   summoningHighMagnitudeKeys.includes("packet.magnitude.dice.11") &&
-    summoningHighMagnitudeKeys.includes("packet.magnitude.potency.12"),
-  "Summoning Circle-shaped high magnitude power should use exact dice.11 and potency.12 keys.",
+    summoningHighMagnitudeKeys.includes("packet.magnitude.potency.20"),
+  "Summoning Circle-shaped high magnitude power should use exact dice.11 and conservative potency.20 fallback.",
 );
 assert(
   resolveBasePowerValue(summoningHighMagnitudePower) > diagnosticOutputs.caseB.resolverTotalBasePowerValue,

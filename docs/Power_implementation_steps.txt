@@ -56,6 +56,8 @@ The builder already supports the current core chassis, Counter, Commitment, pack
 Phase 9 — Validate descriptor clarity with real monster powers
 Late-stage and close enough to close for the current builder surface.
 Real authored monster powers have already exposed and corrected multiple failures in descriptor truth, timing expression, field gating, builder clarity, delayed-cast framing, persistent-state cleanup wording, ongoing-damage cadence wording, packet-local ally-targeting clarity, Trigger watched-target honesty, self-origin area wording, Reserve primed wording, AoE recipient wording, packet-local recipient legality gating, and attached self-target wording.
+Secondary Packet preview wording must now distinguish compact same-timing riders from different-timing dependent delivery: delayed or triggered secondaries must state that they are powered by Packet 1's applied result and must not imply an independent roll, independent gate, or inherited one-turn duration.
+Wound-band Secondary preview wording must treat multi-damage Primary Packets as one total simultaneous Primary result by default: multiple damage types increase the band denominator and do not create separate free rider band engines unless explicitly authored and priced.
 
 Phase 10 — Add monster-specific policy layers
 Not materially started.

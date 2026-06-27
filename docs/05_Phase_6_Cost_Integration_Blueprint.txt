@@ -756,6 +756,17 @@ Secondary Packets are real value but contingent.
 
 Each SecondaryPacketFormula should therefore be calculated as its own packet value and then reduced by a contingency factor rather than treated as either free or fully independent.
 
+For wound-band Secondary scaling, the default band size is the Primary Packet's
+total simultaneous wounds per success across all damage components. Multiple
+simultaneous damage types increase the denominator; they do not create separate
+free Secondary rider engines. Component-specific or per-component additive
+wound-band engines are special authored mechanics and require explicit pricing.
+
+TODO / unresolved design debt: decide whether wound-band source should use
+actual wounds suffered after remaining-health cap or net wounds before overkill
+is discarded. Current recommendation is actual wounds suffered by default, with
+overkill-scaling reserved for a future explicit premium mechanic if allowed.
+
 SecondaryPacketFormula_i =
   (PacketCoreFormula_i + PacketModifierFormulae_i)
   × SecondaryContingencyMultiplier_i

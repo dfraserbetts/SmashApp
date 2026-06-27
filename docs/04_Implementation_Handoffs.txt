@@ -75,6 +75,13 @@ All future builder work should assume:
 - Immediate + Standard Packet 1 currently uses On Cast only in the builder surface
 - if an Immediate Packet 1 resolves On Cast and creates no beyond-turn carrier, later Immediate packets remain On Cast only in first implementation
 - secondary scaling from the Primary result class is derived in the current builder surface rather than manually guessed
+- Secondary Packets are always powered by Packet 1's applied result; if Packet 1 fully fails or is fully defended, later Secondary timing does not fire
+- Field, Attached, Triggered, and recurring packet delivery rolls once on the first matching Primary trigger each round and reuses that roll for later same-round Primary triggers
+- Secondary Packets that target Primary Targets use each target's own applied Primary result; Secondary Packets that target Self, Allies, Field context, attached-host allies, or another non-primary recipient use the first successful Primary application in that round
+- descriptor text for non-primary Secondary payloads should reference the power's Primary result this round, not cumulative all-trigger wounds or successes
+- Field per-recipient area triggers are target-local by default: target-enter/start/end/leave affects that target, and ally-start/end affects that ally unless area-wide/all-allies delivery is explicitly authored
+- individual power descriptors should not repeat the global one-roll-per-round stored Primary result rule; split-timing Secondary wording should prefer "When [recipient] subsequently..., and [Power] [Primary condition] this round..." and avoid "then when..."
+- Secondary Packets own their own Timing and Duration. Do not infer a one-turn duration from parent power, Packet 1, or chassis lifespan.
 - persistent states use a stack-cleanup model distinct from ongoing direct effects
 - ongoing damage uses ongoing value plus duration rather than stacks
 - physical ongoing-damage cleanup defaults to Fortitude Resist and mental ongoing-damage cleanup defaults to Bravery Resist
@@ -443,6 +450,7 @@ All future packet-resolution work should assume:
 - Secondary Packets remain contingent
 - Packet 1 lands if it applies at least one operative result unit
 - wound-based Secondary scaling uses Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
+- default wound-band size is total simultaneous Primary wounds per success across all damage components; component-specific or per-component additive band engines require explicit authoring and pricing
 - mixed-intention legality is constrained by hostile-primary ordering
 - packet timing legality must not smuggle in a different chassis
 - Attached powers distinguish initial legal range from later host-bound persistence
@@ -550,6 +558,7 @@ The following are treated as locked for this session:
 - Secondary Packets never create separate defended entry points and only resolve if the Primary Packet lands
 - Packet 1 lands if it applies at least one operative result unit
 - wound-based Secondary scaling uses Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
+- default wound-band size is total simultaneous Primary wounds per success across all damage components, not one free band engine per damage type
 - mixed-intention legality is constrained by hostile-primary ordering
 - Lifespan, Effect Timing, and Effect Duration are separate concepts
 - Counter is an authored Power-Level Field with No / Yes

@@ -1444,7 +1444,14 @@ export default function CharacterBuilderPage() {
   }
 
   function addPower() {
-    updatePowers([...builderData.powers, createDefaultCharacterPower(builderData.powers.length)]);
+    const nextPowerIndex = builderData.powers.length;
+    const nextPower = createDefaultCharacterPower(nextPowerIndex);
+    const nextPowerCollapseKey = getCharacterPowerCollapseKey(nextPower, nextPowerIndex);
+    updatePowers([...builderData.powers, nextPower]);
+    setCollapsedPowerKeys((prev) => ({
+      ...prev,
+      [nextPowerCollapseKey]: false,
+    }));
   }
 
   function removePower(index: number) {
@@ -1452,7 +1459,7 @@ export default function CharacterBuilderPage() {
     if (power) {
       const collapseKey = getCharacterPowerCollapseKey(power, index);
       setCollapsedPowerKeys((prev) => {
-        if (!prev[collapseKey]) return prev;
+        if (!(collapseKey in prev)) return prev;
         const next = { ...prev };
         delete next[collapseKey];
         return next;
@@ -1538,11 +1545,14 @@ export default function CharacterBuilderPage() {
     updatePower(powerIndex, { effectPackets: nextPackets, intentions: nextPackets });
   }
 
-  function togglePowerCollapsed(collapseKey: string) {
-    setCollapsedPowerKeys((prev) => ({
-      ...prev,
-      [collapseKey]: !prev[collapseKey],
-    }));
+  function togglePowerCollapsed(collapseKey: string, defaultCollapsed = false) {
+    setCollapsedPowerKeys((prev) => {
+      const collapsed = prev[collapseKey] ?? defaultCollapsed;
+      return {
+        ...prev,
+        [collapseKey]: !collapsed,
+      };
+    });
   }
 
 
@@ -1553,6 +1563,7 @@ export default function CharacterBuilderPage() {
     getPowerIndex?: (index: number) => number;
     getPowerFallbackName?: (index: number) => string;
     allowRemove?: boolean;
+    defaultCollapsed?: boolean;
   }) {
     const {
       powers,
@@ -1561,6 +1572,7 @@ export default function CharacterBuilderPage() {
       getPowerIndex = (index) => index,
       getPowerFallbackName = (index) => `Power ${index + 1}`,
       allowRemove = true,
+      defaultCollapsed = false,
     } = params;
 
     return powers.length === 0 ? (
@@ -1629,7 +1641,7 @@ export default function CharacterBuilderPage() {
                     ? power.descriptorChassisConfig.releaseBehaviour
                     : "";
                 const powerCollapseKey = getCharacterPowerCollapseKey(power, powerIndex);
-                const powerCollapsed = Boolean(collapsedPowerKeys[powerCollapseKey]);
+                const powerCollapsed = collapsedPowerKeys[powerCollapseKey] ?? defaultCollapsed;
                 const powerBodyId = `character-power-body-${powerIndex}`;
                 return (
                   <article
@@ -1640,7 +1652,7 @@ export default function CharacterBuilderPage() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <button
                         type="button"
-                        onClick={() => togglePowerCollapsed(powerCollapseKey)}
+                        onClick={() => togglePowerCollapsed(powerCollapseKey, defaultCollapsed)}
                         className="min-w-0 flex-1 rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-left hover:bg-zinc-900/40"
                         aria-expanded={!powerCollapsed}
                         aria-controls={powerBodyId}
@@ -4102,7 +4114,6 @@ export default function CharacterBuilderPage() {
       </details>
 
       <details
-        open
         className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
         data-testid="character-builder-section-signature-move"
       >
@@ -4216,6 +4227,7 @@ export default function CharacterBuilderPage() {
             powers: builderData.powers,
             budget: powerBudget,
             emptyMessage: "No powers authored yet.",
+            defaultCollapsed: true,
           })}
           {powerValidationErrors.length > 0 ? (
             <ul className="list-disc space-y-1 pl-5 text-sm text-red-300">

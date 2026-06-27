@@ -55,6 +55,13 @@ function createPower(config: {
   meleeTargets?: number | null;
   rangedDistanceFeet?: number | null;
   rangedTargets?: number | null;
+  aoeCenterRangeFeet?: number | null;
+  aoeCount?: number | null;
+  aoeShape?: Power["aoeShape"];
+  aoeSphereRadiusFeet?: number | null;
+  aoeConeLengthFeet?: number | null;
+  aoeLineWidthFeet?: number | null;
+  aoeLineLengthFeet?: number | null;
   packet: EffectPacket;
   packets?: EffectPacket[];
   counterMode?: Power["counterMode"];
@@ -84,6 +91,13 @@ function createPower(config: {
     meleeTargets: config.meleeTargets ?? null,
     rangedDistanceFeet: config.rangedDistanceFeet ?? null,
     rangedTargets: config.rangedTargets ?? null,
+    aoeCenterRangeFeet: config.aoeCenterRangeFeet ?? null,
+    aoeCount: config.aoeCount ?? null,
+    aoeShape: config.aoeShape ?? null,
+    aoeSphereRadiusFeet: config.aoeSphereRadiusFeet ?? null,
+    aoeConeLengthFeet: config.aoeConeLengthFeet ?? null,
+    aoeLineWidthFeet: config.aoeLineWidthFeet ?? null,
+    aoeLineLengthFeet: config.aoeLineLengthFeet ?? null,
     primaryDefenceGate: config.primaryDefenceGate,
     defenceRequirement: config.primaryDefenceGate?.gateResult ?? undefined,
     effectPackets: packets,
@@ -1266,7 +1280,7 @@ const secondarySelfTeleportDescriptor = renderPowerDescriptorLines({
 }).join("\n");
 assert.match(
   secondarySelfTeleportDescriptor,
-  /For each applied success from the primary effect, it also teleports the caster 10 ft when triggered\./,
+  /If Secondary Self Teleport Descriptor Smoke applies its Primary Packet, then when triggered, Secondary Self Teleport Descriptor Smoke teleports the caster 10 ft for each applied success from the primary effect\./,
 );
 const secondarySelfAugmentDescriptor = renderPowerDescriptorLines({
   ...createPower({
@@ -1286,6 +1300,167 @@ const secondarySelfAugmentDescriptor = renderPowerDescriptorLines({
   intentions: [hostilePrimaryControlPacket, triggeredSelfAugmentPacket],
 }).join("\n");
 assert.match(secondarySelfAugmentDescriptor, /applies 1 stack of \+1 Guard to the caster/);
+const sameTimingPrimaryAttackPacket = createPacket("ATTACK", {
+  diceCount: 1,
+  potency: 1,
+  detailsJson: {
+    attackMode: "PHYSICAL",
+    damageTypes: ["Necrotic"],
+    rangeCategory: "MELEE",
+  },
+});
+const sameTimingSecondaryHealPacket = createPacket("HEALING", {
+  sortOrder: 1,
+  packetIndex: 1,
+  hostility: "NON_HOSTILE",
+  potency: 2,
+  applyTo: "SELF",
+  effectTimingType: "ON_CAST",
+  effectDurationType: "INSTANT",
+  detailsJson: {
+    healingMode: "PHYSICAL",
+    rangeCategory: "SELF",
+  },
+});
+const sameTimingSecondaryDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Same Timing Rider",
+  rangeCategories: ["MELEE"],
+  packet: sameTimingPrimaryAttackPacket,
+  packets: [sameTimingPrimaryAttackPacket, sameTimingSecondaryHealPacket],
+  primaryDefenceGate: physicalAttackGate,
+})).join("\n");
+assert.match(
+  sameTimingSecondaryDescriptor,
+  /For every 2 wounds inflicted, rounding up, it also heals the caster for 2 physical wounds\./,
+);
+const fieldPrimaryAttackPacket = createPacket("ATTACK", {
+  diceCount: 1,
+  potency: 1,
+  effectTimingType: "ON_TRIGGER",
+  effectDurationType: "INSTANT",
+  triggerConditionText: "AREA_ENTERS",
+  detailsJson: {
+    attackMode: "PHYSICAL",
+    damageTypes: ["Necrotic"],
+    rangeCategory: "AOE",
+    rangeValue: 30,
+    rangeExtra: { count: 1, shape: "SPHERE", sphereRadiusFeet: 10 },
+  },
+});
+const fieldSecondaryAllyHealPacket = createPacket("HEALING", {
+  sortOrder: 1,
+  packetIndex: 1,
+  hostility: "NON_HOSTILE",
+  potency: 3,
+  applyTo: "ALLIES",
+  effectTimingType: "START_OF_TURN",
+  effectDurationType: "INSTANT",
+  detailsJson: {
+    healingMode: "PHYSICAL",
+    rangeCategory: "AOE",
+  },
+});
+const fieldSecondaryPrimaryTargetHealPacket = createPacket("HEALING", {
+  ...fieldSecondaryAllyHealPacket,
+  applyTo: "PRIMARY_TARGET",
+});
+const fieldDependentSecondaryDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Field Test",
+  descriptorChassis: "FIELD",
+  lifespanType: "TURNS",
+  lifespanTurns: 2,
+  rangeCategories: ["AOE"],
+  aoeCenterRangeFeet: 30,
+  aoeCount: 1,
+  aoeShape: "SPHERE",
+  aoeSphereRadiusFeet: 10,
+  packet: fieldPrimaryAttackPacket,
+  packets: [fieldPrimaryAttackPacket, fieldSecondaryAllyHealPacket],
+  primaryDefenceGate: physicalAttackGate,
+})).join("\n");
+assert.match(
+  fieldDependentSecondaryDescriptor,
+  /Create 1 sphere with a 10 ft radius within 30 ft\./,
+);
+assert.match(
+  fieldDependentSecondaryDescriptor,
+  /When a target enters the area, roll 1 die\. Field Test inflicts 2 physical Necrotic wounds to that target per success\./,
+);
+assert.match(
+  fieldDependentSecondaryDescriptor,
+  /When an ally subsequently starts their turn in the area, and Field Test inflicted wounds this round, Field Test heals that ally for 3 physical wounds for every 2 wounds in Field Test's Primary result this round, rounding up\./,
+);
+assert.doesNotMatch(fieldDependentSecondaryDescriptor, /first time .*triggered each round/i);
+assert.doesNotMatch(fieldDependentSecondaryDescriptor, /use that roll for each later trigger this round/i);
+assert.doesNotMatch(fieldDependentSecondaryDescriptor, /targets within the area per success/i);
+assert.doesNotMatch(fieldDependentSecondaryDescriptor, /allies inside the field/i);
+assert.doesNotMatch(fieldDependentSecondaryDescriptor, /it also heals/i);
+assert.doesNotMatch(fieldDependentSecondaryDescriptor, /then when an ally/i);
+assert.doesNotMatch(fieldDependentSecondaryDescriptor, /\bfor 1 turn\b/);
+const fieldPrimaryTargetSecondaryDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Target Field test",
+  descriptorChassis: "FIELD",
+  lifespanType: "TURNS",
+  lifespanTurns: 2,
+  rangeCategories: ["AOE"],
+  aoeCenterRangeFeet: 30,
+  aoeCount: 1,
+  aoeShape: "SPHERE",
+  aoeSphereRadiusFeet: 10,
+  packet: fieldPrimaryAttackPacket,
+  packets: [fieldPrimaryAttackPacket, fieldSecondaryPrimaryTargetHealPacket],
+  primaryDefenceGate: physicalAttackGate,
+})).join("\n");
+assert.match(
+  fieldPrimaryTargetSecondaryDescriptor,
+  /When a target subsequently starts its turn in the area, and Target Field test inflicted wounds on that primary target, Target Field test heals that target for 3 physical wounds for every 2 wounds in that target's Primary result this round, rounding up\./,
+);
+const attachedSecondaryDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Attached Aid",
+  descriptorChassis: "ATTACHED",
+  attachedHostAnchorType: "SELF",
+  lifespanType: "TURNS",
+  lifespanTurns: 2,
+  rangeCategories: ["RANGED"],
+  packet: createPacket("CONTROL", {
+    ...hostilePrimaryControlPacket,
+    effectTimingType: "ON_TRIGGER",
+    triggerConditionText: "MAKES_ATTACK",
+  }),
+  packets: [
+    createPacket("CONTROL", {
+      ...hostilePrimaryControlPacket,
+      effectTimingType: "ON_TRIGGER",
+      triggerConditionText: "MAKES_ATTACK",
+    }),
+    createPacket("HEALING", {
+      sortOrder: 1,
+      packetIndex: 1,
+      hostility: "NON_HOSTILE",
+      potency: 2,
+      applyTo: "ALLIES",
+      effectTimingType: "START_OF_TURN",
+      effectDurationType: "TURNS",
+      effectDurationTurns: 2,
+      detailsJson: {
+        healingMode: "MENTAL",
+        rangeCategory: "SELF",
+      },
+    }),
+  ],
+  primaryDefenceGate: {
+    sourcePacketIndex: 0,
+    gateResult: "RESIST",
+    protectionChannel: null,
+    resistAttribute: "FORTITUDE",
+    hostileEntryPattern: "ON_PAYLOAD",
+    resolutionSource: "INFERRED",
+  },
+})).join("\n");
+assert.match(
+  attachedSecondaryDescriptor,
+  /If Attached Aid applies its Primary Packet this round, then at the start of each turn, Attached Aid heals allies within range of the attached host for 2 mental wounds for 2 turns for each applied success in Attached Aid's Primary result this round\./,
+);
 assert.equal(
   (
     weakestMovementAfterPacket.debug as {
