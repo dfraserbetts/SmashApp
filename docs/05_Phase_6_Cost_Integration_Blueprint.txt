@@ -767,6 +767,17 @@ actual wounds suffered after remaining-health cap or net wounds before overkill
 is discarded. Current recommendation is actual wounds suffered by default, with
 overkill-scaling reserved for a future explicit premium mechanic if allowed.
 
+Vulnerability, Resistance, and Protection modify the defence roll when their
+triggering damage types are present. They do not modify wounds directly and do
+not alter Primary wound-band denominators. Resolve the Primary Packet normally,
+including V/R/P effects on the defence roll, then calculate wound bands from the
+resulting Primary wound total using the Primary Packet's authored total
+simultaneous wounds per success as the default band size.
+
+There is no active general Immunity rule. Damage immunities are future Monster
+Trait design debt and must define their own costing and interaction with
+defence rolls, wound results, and Secondary wound-band scaling if implemented.
+
 SecondaryPacketFormula_i =
   (PacketCoreFormula_i + PacketModifierFormulae_i)
   × SecondaryContingencyMultiplier_i

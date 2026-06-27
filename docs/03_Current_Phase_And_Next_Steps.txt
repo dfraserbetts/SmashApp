@@ -52,6 +52,8 @@ The following points should now be treated as stable design truth:
 - Packet 1 lands if it applies at least one operative result unit
 - wound-based Secondary scaling uses Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
 - default wound-band size uses the Primary Packet's total simultaneous wounds per success across all damage components; multi-damage primaries do not create separate free rider bands per damage type
+- Vulnerability, Resistance, and Protection trigger from incoming damage types and modify the relevant defence roll only; they do not modify wounds directly and do not alter wound-band denominators
+- there is no active general Immunity rule; future Monster Trait immunities must define their own interaction with defence rolls, wound results, and Secondary wound-band scaling
 - Secondary Packets are always powered by the Primary Packet result; if Packet 1 applies no operative result, later Secondary timing does not fire
 - Field, Attached, Triggered, and recurring Primary delivery rolls once on the first matching trigger each round and reuses that stored roll for later same-round triggers
 - non-primary-recipient Secondary payloads use the first successful Primary application in the round; Primary Target secondaries use that target's own applied Primary result

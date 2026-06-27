@@ -559,6 +559,8 @@ The following are treated as locked for this session:
 - Packet 1 lands if it applies at least one operative result unit
 - wound-based Secondary scaling uses Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
 - default wound-band size is total simultaneous Primary wounds per success across all damage components, not one free band engine per damage type
+- Vulnerability, Resistance, and Protection trigger from incoming damage types and modify the relevant defence roll only; they do not modify wounds directly or alter wound-band denominators
+- there is no active general Immunity rule; damage immunities are future Monster Trait design debt
 - mixed-intention legality is constrained by hostile-primary ordering
 - Lifespan, Effect Timing, and Effect Duration are separate concepts
 - Counter is an authored Power-Level Field with No / Yes

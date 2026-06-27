@@ -1007,3 +1007,30 @@ Explicit exceptions:
 Unresolved future design debt: overkill-scaling and wound-band source.
 
 Should Primary wound-band scaling use actual wounds suffered after remaining-health cap, or net wounds before overkill is discarded? The current recommendation is that default scaling should probably use actual wounds suffered to avoid farming riders from overkilling 1 HP targets. Overkill-scaling may be allowed later only as an explicit premium mechanic. This pass does not lock the final overkill answer.
+
+56. Vulnerability, Resistance, and Protection modify defence rolls, not wounds
+
+Incarnate has no active general Immunity rule. Damage immunities may be added later through Monster Traits, but they are future design debt and must define their own interaction with defence rolls, wound results, and Secondary wound-band scaling when implemented.
+
+Vulnerability, Resistance, and Protection trigger from damage types on the incoming packet. If the incoming packet has a triggering damage type, apply the relevant Vulnerability / Resistance modifiers and Protection dice to the one defence roll against that packet, then calculate the Primary result normally.
+
+Vulnerability applies a negative modifier to the relevant defence roll. It does not increase wounds directly, multiply wounds, or alter the wound-band denominator.
+
+Resistance applies a positive modifier to the relevant defence roll. It does not reduce wounds directly, divide wounds, or alter the wound-band denominator.
+
+Protection adds additional dice to the relevant defence roll. It does not reduce wounds directly, subtract wounds, or alter the wound-band denominator.
+
+Vulnerability and Resistance compare and combine as defence-roll modifiers. Example: Vulnerability Ice 2 and Resistance Ice 1 against an incoming Ice packet yields net -1 to the defence roll. The result is not extra Ice wounds or reduced Ice wounds. It is simply a net defence modifier before the defence roll is resolved.
+
+Multi-damage packets still produce one Primary result. If an incoming packet has multiple damage types, each relevant Vulnerability, Resistance, or Protection entry may trigger. Apply all relevant defence modifiers and bonus dice before the one defence roll against that packet. Do not split the packet into separate defence rolls by damage type unless an explicit future rule says otherwise.
+
+Wound-band interaction:
+
+Vulnerability, Resistance, and Protection modify the defence roll against an incoming packet when their triggering damage types are present. They do not modify wounds directly and do not alter Primary wound-band denominators. For Secondary Packet wound-band scaling, resolve the Primary Packet normally, including any Vulnerability / Resistance / Protection effects on the defence roll, then calculate wound bands from the resulting Primary wound total using the Primary Packet's authored total simultaneous wounds per success as the default band size.
+
+Examples:
+
+- Vulnerability and Resistance: an incoming Primary Packet includes Ice. The target has Vulnerability Ice 2 and Resistance Ice 1. Net defence modifier is -1. Resolve one defence roll with that modifier. The resulting Primary wound total is then used for any Secondary wound-band scaling.
+- Protection: an incoming Primary Packet includes Fire. The target has Protection Fire 2. Add 2 dice to the relevant defence roll. Protection does not subtract wounds directly. After defence is resolved, the resulting Primary wound total is used for Secondary wound-band scaling.
+- Multi-damage Primary: a Primary Packet deals 6 Fire, 6 Ice, and 6 Slashing wounds per success. Total authored simultaneous wounds per success is 18. The target has Vulnerability Ice 2, Resistance Fire 1, and Protection Slashing 1. Apply -2 defence modifier from Ice Vulnerability, +1 defence modifier from Fire Resistance, and +1 defence die from Slashing Protection, then resolve one defence roll against the packet. After the Primary result is calculated, default Secondary wound-band scaling still uses one band per 18 wounds in the Primary result, rounding up.
+- No active immunity rule: do not say "Fire immunity reduces Fire wounds to 0" as an active rule. Damage immunity is not currently part of the active Vulnerability / Resistance / Protection system. Future Monster Trait immunities must define their interaction with defence rolls, wound results, and Secondary wound-band scaling when implemented.

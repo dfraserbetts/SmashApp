@@ -363,6 +363,37 @@ remaining-health cap, or net wounds before overkill is discarded? Default should
 probably use actual wounds suffered to avoid farming riders from overkilling 1
 HP targets, but overkill-scaling is not finally locked here.
 
+Vulnerability, Resistance, Protection, And Wound Bands
+
+Vulnerability, Resistance, and Protection trigger from damage types on the
+incoming packet. If the incoming packet has a triggering damage type, apply the
+relevant Vulnerability / Resistance modifiers and Protection dice to the one
+defence roll against that packet, then calculate the Primary result normally.
+
+Vulnerability is a negative modifier to the relevant defence roll. Resistance
+is a positive modifier to the relevant defence roll. Protection adds additional
+dice to the relevant defence roll. None of these effects directly increases,
+reduces, multiplies, divides, subtracts, or blocks wounds, and none alters the
+Primary wound-band denominator.
+
+For Secondary Packet wound-band scaling, resolve the Primary Packet normally,
+including any Vulnerability / Resistance / Protection effects on the defence
+roll, then calculate wound bands from the resulting Primary wound total using
+the Primary Packet's authored total simultaneous wounds per success as the
+default band size.
+
+Example: if an Ice packet meets Vulnerability Ice 2 and Resistance Ice 1, the
+defence roll receives net -1. If a Fire packet meets Protection Fire 2, add 2
+dice to the relevant defence roll. If one Primary Packet deals 6 Fire, 6 Ice,
+and 6 Slashing wounds per success, total authored simultaneous wounds per
+success is 18; any triggered V/R/P modifies the one defence roll, and default
+Secondary wound-band scaling still uses one band per 18 wounds in the resulting
+Primary result.
+
+There is no active general Immunity rule. Damage immunities are future Monster
+Trait design debt and must define their interaction with defence rolls, wound
+results, and Secondary wound-band scaling if implemented.
+
 For Field, Attached, Triggered, and other recurring packet delivery, the first
 matching Primary trigger in a round rolls once and stores that roll for that
 round. Later matching Primary triggers in the same round reuse that stored roll.
