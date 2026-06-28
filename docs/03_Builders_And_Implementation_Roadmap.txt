@@ -132,13 +132,6 @@ Builder Rules To Preserve
 - Primary Defence Gate is derived from Packet 1, not chosen freely by default.
 
 
-Docs And References Not To Preserve As Live Links
-
-Do not preserve the missing docs/06_Natural_Baseline_Forge_Bridge_Plan.txt
-reference as a live link. Older documents that mention it are historical until
-archived.
-
-
 Open Items
 
 OPEN / NEEDS ARCHITECT DECISION:
@@ -149,4 +142,3 @@ OPEN / NEEDS ARCHITECT DECISION:
   scopes.
 - Whether Signature Move eventually becomes Spark-aligned beyond the current
   separate-pool implementation.
-

@@ -3,14 +3,18 @@
 Purpose
 
 This is the active index for the Incarnate source documents after docs
-consolidation Pass 1.
+consolidation Pass 2.
 
-Pass 1 creates the reduced active document set and updates its content, but it
-does not archive, delete, or move older source documents. Older docs remain in
-place temporarily as source history until a later archive pass.
+Pass 2 makes the reduced 00-06 document set the active source-document set.
+Legacy source documents have been moved into docs/archive/ as historical
+snapshots. Archive documents are not authoritative unless an active source doc
+explicitly references them.
 
 
 Active Source-Of-Truth Hierarchy
+
+0. docs/00_Index_And_Current_Status.txt
+   Active source-doc index and current status.
 
 1. docs/01_Locked_Rules_And_Combat_Bible.txt
    Authoritative combat and runtime rule law.
@@ -37,6 +41,14 @@ Active Source-Of-Truth Hierarchy
 This index is navigational and status-oriented. If this file conflicts with a
 locked rule in docs/01_Locked_Rules_And_Combat_Bible.txt, the locked rules doc
 wins.
+
+
+Archive Policy
+
+Legacy documents live under docs/archive/. They are historical snapshots and may
+contain stale, duplicated, or superseded rulings. Current locked rules live in
+docs/01_Locked_Rules_And_Combat_Bible.txt. Current balance and validation policy
+lives in docs/04_Combat_Lab_Balance_And_Validation.txt.
 
 
 Current Known Implementation State
@@ -124,34 +136,9 @@ Immediate Ordered Work
    curves without collapsing those layers together.
 
 
-Consolidation Pass 1 Note
+Consolidation Pass 2 Note
 
-The following older documents remain temporarily in docs/ and are not archived
-or deleted in this pass:
-
-- docs/00_Master_Implementation_Plan.txt
-- docs/01_Locked_Decisions_Log.txt
-- docs/02_Power_System_Spec.txt
-- docs/03_Current_Phase_And_Next_Steps.txt
-- docs/04_Implementation_Handoffs.txt
-- docs/05_Phase_6_Cost_Integration_Blueprint.txt
-- docs/07_Natural_Baseline_Output_Bands.txt
-- docs/08_Forge_Output_Bands_Blueprint.txt
-- docs/09_Forge_Implementation_Plan.txt
-- docs/10_Character_Builder_Implementation_Plan.txt
-- docs/10_Forge_Output_Tuning_Recommendations.txt
-- docs/11_Character_Builder_Implementation_Sequence.txt
-- docs/12_Incarnate_Kickstarter_Brand_Strategy.txt
-- docs/13_Incarnate_Combat_Lab_User_tool_implementation.txt
-- docs/14_Defensive_Pool_Canary_Matrix.txt
-- docs/15_Balance_Charter.docx
-- docs/Power_implementation_steps.txt
-- docs/real-monster-outcome-validation-checklist.md
-- docs/ui-tooltip-audit.md
-- docs/data-model.md
-- docs/decisions.md
-- docs/codex/environment-prompt.md
-- docs/codex/execution-brief-template.md
-
-Later consolidation may archive or delete superseded docs only after explicit
-confirmation.
+Pass 2 is complete. The active source docs are the seven 00-06 files listed
+above. Legacy docs are archived under docs/archive/ and are not current source
+of truth unless explicitly referenced by an active doc. No files were deleted in
+this consolidation pass.

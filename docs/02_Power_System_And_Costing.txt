@@ -163,11 +163,6 @@ condition is satisfied.
 
 Reserve prepares a power for later release according to authored release rules.
 
-Missing old reference:
-
-- Do not preserve docs/06_Natural_Baseline_Forge_Bridge_Plan.txt as an active
-  live reference. The file is not present in the current repo source set.
-
 
 Timing, Lifespan, Duration, And Commitment
 
