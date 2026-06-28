@@ -1033,6 +1033,235 @@ const instantMentalBlockDescriptor = renderPowerDescriptorLines(createPower({
   }),
   rangeCategories: ["MELEE"],
 })).join("\n");
+const dualLaneDefenceCounterDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Split Guard",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 3,
+    potency: 4,
+    woundChannel: "PHYSICAL",
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Block",
+      rangeCategory: "SELF",
+    },
+  }),
+  packets: [
+    createPacket("DEFENCE", {
+      packetIndex: 0,
+      sortOrder: 0,
+      hostility: "NON_HOSTILE",
+      applyTo: "SELF",
+      diceCount: 3,
+      potency: 4,
+      woundChannel: "PHYSICAL",
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        defenceMode: "Block",
+        rangeCategory: "SELF",
+      },
+    }),
+    createPacket("DEFENCE", {
+      packetIndex: 1,
+      sortOrder: 1,
+      hostility: "NON_HOSTILE",
+      applyTo: "SELF",
+      diceCount: 1,
+      potency: 2,
+      woundChannel: "MENTAL",
+      detailsJson: {
+        attackMode: "MENTAL",
+        defenceMode: "Block",
+        rangeCategory: "SELF",
+      },
+    }),
+  ],
+  counterMode: "YES",
+})).join("\n");
+const reverseDualLaneDefenceCounterDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Mind And Body Guard",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 2,
+    potency: 3,
+    woundChannel: "MENTAL",
+    detailsJson: {
+      attackMode: "MENTAL",
+      defenceMode: "Block",
+      rangeCategory: "SELF",
+    },
+  }),
+  packets: [
+    createPacket("DEFENCE", {
+      packetIndex: 0,
+      sortOrder: 0,
+      hostility: "NON_HOSTILE",
+      applyTo: "SELF",
+      diceCount: 2,
+      potency: 3,
+      woundChannel: "MENTAL",
+      detailsJson: {
+        attackMode: "MENTAL",
+        defenceMode: "Block",
+        rangeCategory: "SELF",
+      },
+    }),
+    createPacket("DEFENCE", {
+      packetIndex: 1,
+      sortOrder: 1,
+      hostility: "NON_HOSTILE",
+      applyTo: "SELF",
+      diceCount: 1,
+      potency: 5,
+      woundChannel: "PHYSICAL",
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        defenceMode: "Block",
+        rangeCategory: "SELF",
+      },
+    }),
+  ],
+  counterMode: "YES",
+})).join("\n");
+const dodgeAndPhysicalCounterDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Dodge And Guard",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 3,
+    potency: 2,
+    woundChannel: "PHYSICAL",
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Dodge",
+      rangeCategory: "SELF",
+    },
+  }),
+  packets: [
+    createPacket("DEFENCE", {
+      packetIndex: 0,
+      sortOrder: 0,
+      hostility: "NON_HOSTILE",
+      applyTo: "SELF",
+      diceCount: 3,
+      potency: 2,
+      woundChannel: "PHYSICAL",
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        defenceMode: "Dodge",
+        rangeCategory: "SELF",
+      },
+    }),
+    createPacket("DEFENCE", {
+      packetIndex: 1,
+      sortOrder: 1,
+      hostility: "NON_HOSTILE",
+      applyTo: "SELF",
+      potency: 2,
+      woundChannel: "PHYSICAL",
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        defenceMode: "Block",
+        rangeCategory: "SELF",
+      },
+    }),
+  ],
+  counterMode: "YES",
+})).join("\n");
+const sameLaneDefenceCounterDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Double Guard",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 3,
+    potency: 2,
+    woundChannel: "PHYSICAL",
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      defenceMode: "Block",
+      rangeCategory: "SELF",
+    },
+  }),
+  packets: [
+    createPacket("DEFENCE", {
+      packetIndex: 0,
+      sortOrder: 0,
+      hostility: "NON_HOSTILE",
+      applyTo: "SELF",
+      diceCount: 3,
+      potency: 2,
+      woundChannel: "PHYSICAL",
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        defenceMode: "Block",
+        rangeCategory: "SELF",
+      },
+    }),
+    createPacket("DEFENCE", {
+      packetIndex: 1,
+      sortOrder: 1,
+      hostility: "NON_HOSTILE",
+      applyTo: "SELF",
+      potency: 1,
+      woundChannel: "PHYSICAL",
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        defenceMode: "Block",
+        rangeCategory: "SELF",
+      },
+    }),
+  ],
+  counterMode: "YES",
+})).join("\n");
+const resistAndPhysicalCounterDescriptor = renderPowerDescriptorLines(createPower({
+  name: "Resist And Guard",
+  packet: createPacket("DEFENCE", {
+    hostility: "NON_HOSTILE",
+    applyTo: "SELF",
+    diceCount: 3,
+    potency: 2,
+    woundChannel: "MENTAL",
+    detailsJson: {
+      attackMode: "MENTAL",
+      defenceMode: "Resist",
+      resistedAttribute: "Bravery",
+      rangeCategory: "SELF",
+    },
+  }),
+  packets: [
+    createPacket("DEFENCE", {
+      packetIndex: 0,
+      sortOrder: 0,
+      hostility: "NON_HOSTILE",
+      applyTo: "SELF",
+      diceCount: 3,
+      potency: 2,
+      woundChannel: "MENTAL",
+      detailsJson: {
+        attackMode: "MENTAL",
+        defenceMode: "Resist",
+        resistedAttribute: "Bravery",
+        rangeCategory: "SELF",
+      },
+    }),
+    createPacket("DEFENCE", {
+      packetIndex: 1,
+      sortOrder: 1,
+      hostility: "NON_HOSTILE",
+      applyTo: "SELF",
+      potency: 2,
+      woundChannel: "PHYSICAL",
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        defenceMode: "Block",
+        rangeCategory: "SELF",
+      },
+    }),
+  ],
+  counterMode: "YES",
+})).join("\n");
 const braveryResistDescriptor = renderPowerDescriptorLines(braveryResistPower).join("\n");
 const illegalRepositionDescriptor = renderPowerDescriptorLines(illegalRepositionPower).join("\n");
 const illegalRepositionNormalized = normalizeMonsterUpsertInput({
@@ -1141,6 +1370,26 @@ assert.match(
   instantMentalBlockDescriptor,
   /Mind Ward blocks 5 mental wounds per success/,
 );
+assert.match(
+  dualLaneDefenceCounterDescriptor,
+  /Split Guard is a dual-lane Defence Counter: it blocks 4 physical wounds per success and, using the same successes, blocks 2 mental wounds per success\./,
+);
+assert.match(
+  dualLaneDefenceCounterDescriptor,
+  /When used as a Counter, roll 3 dice once\./,
+);
+assert.match(
+  dualLaneDefenceCounterDescriptor,
+  /Against a single-lane incoming attack, only the matching wound lane applies; against a dual-lane incoming attack, each matching lane applies to its own wounds\./,
+);
+assert.doesNotMatch(dualLaneDefenceCounterDescriptor, /For each applied success from the primary effect|Packet 1|Packet 2/);
+assert.match(
+  reverseDualLaneDefenceCounterDescriptor,
+  /Mind And Body Guard is a dual-lane Defence Counter: it blocks 3 mental wounds per success and, using the same successes, blocks 5 physical wounds per success\./,
+);
+assert.doesNotMatch(dodgeAndPhysicalCounterDescriptor, /dual-lane Defence Counter|using the same successes/);
+assert.doesNotMatch(sameLaneDefenceCounterDescriptor, /dual-lane Defence Counter|using the same successes/);
+assert.doesNotMatch(resistAndPhysicalCounterDescriptor, /dual-lane Defence Counter|using the same successes/);
 assert.doesNotMatch(instantPhysicalBlockDescriptor, /Physical Block Pool/);
 assert.doesNotMatch(instantMentalBlockDescriptor, /Mental Block Pool/);
 assert.doesNotMatch(dodgeDescriptor, /Dodge Pool/);

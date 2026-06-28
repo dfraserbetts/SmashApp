@@ -224,6 +224,14 @@ power explicitly buys Adaptive Counter or Layered Defence Counter wording.
 Adaptive Counter and Layered Defence Counter are premium / explicit exceptions,
 not default pricing assumptions.
 
+Dual-Lane Defence Responses are also explicit paid exceptions. A Counter or
+Assist that contains complementary Physical Defence / Block and Mental Defence
+/ Block packets for the same trigger rolls once and uses that same success
+result for both authored wound lanes. Price the power as buying dual-lane
+coverage, not as a free secondary defence roll. This exception is limited to
+complementary physical/mental wound lanes and does not apply to Dodge + Block,
+same-lane Block + Block, or Resist packets.
+
 Movement and Control Primary interrupt Counters need high premium because a
 strict timing win can avoid, cancel, or deny an incoming action. First-pass
 timing requires strictly more successes than the trigger; ties fail.

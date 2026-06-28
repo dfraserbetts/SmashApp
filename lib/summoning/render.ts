@@ -761,6 +761,60 @@ function renderDefensivePoolBaseClause(poolName: NonNullable<ReturnType<typeof d
   return `creates a ${poolName} with ${formatCountedUnit(potency, "point")}`;
 }
 
+type DefenceWoundLane = "PHYSICAL" | "MENTAL";
+
+function readDefenceWoundLane(effectPacket: Pick<EffectPacket, "woundChannel" | "detailsJson">): DefenceWoundLane | null {
+  const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
+  const rawLane = String(effectPacket.woundChannel ?? getDetailsString(details, "attackMode")).trim().toUpperCase();
+  if (rawLane === "PHYSICAL" || rawLane === "MENTAL") return rawLane;
+  return null;
+}
+
+function isInstantBlockDefenceResponsePacket(
+  effectPacket: Pick<
+    EffectPacket,
+    "intention" | "effectTimingType" | "effectDurationType" | "woundChannel" | "detailsJson"
+  >,
+  power: DefensivePoolDescriptorPower,
+): boolean {
+  if (effectPacket.intention !== "DEFENCE") return false;
+  if ((effectPacket.effectTimingType ?? "ON_CAST") !== "ON_CAST") return false;
+  if ((effectPacket.effectDurationType ?? "INSTANT") !== "INSTANT") return false;
+  if (defensivePoolDescriptorName(effectPacket, power)) return false;
+  const details = (effectPacket.detailsJson ?? {}) as Record<string, unknown>;
+  return readDefenceMode(details) === "Block" && Boolean(readDefenceWoundLane(effectPacket));
+}
+
+function renderDualLaneDefenceCounterLine(
+  power: Pick<Power, "name" | "counterMode" | "diceCount" | "potency"> & DefensivePoolDescriptorPower,
+  effectPackets: EffectPacket[],
+  rangeLead: string,
+): string | null {
+  if (power.counterMode !== "YES") return null;
+  if (effectPackets.length !== 2) return null;
+  if (!effectPackets.every((effectPacket) => isInstantBlockDefenceResponsePacket(effectPacket, power))) {
+    return null;
+  }
+
+  const primaryPacket = effectPackets[0];
+  const secondaryPacket = effectPackets[1];
+  const primaryLane = readDefenceWoundLane(primaryPacket);
+  const secondaryLane = readDefenceWoundLane(secondaryPacket);
+  if (!primaryLane || !secondaryLane || primaryLane === secondaryLane) return null;
+
+  const primaryLaneText = primaryLane.toLowerCase();
+  const secondaryLaneText = secondaryLane.toLowerCase();
+  return [
+    rangeLead,
+    `When used as a Counter, roll ${formatDieCount(getPacketDiceCount(primaryPacket, power))} once.`,
+    `${power.name} is a dual-lane Defence Counter: it blocks ${getPacketPotency(primaryPacket, power)} ${primaryLaneText} wounds per success and, using the same successes, blocks ${getPacketPotency(secondaryPacket, power)} ${secondaryLaneText} wounds per success.`,
+    "Against a single-lane incoming attack, only the matching wound lane applies; against a dual-lane incoming attack, each matching lane applies to its own wounds.",
+  ]
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function formatSecondaryClause(
   intentionType: EffectPacket["intention"],
   baseClause: string,
@@ -2586,6 +2640,14 @@ export function renderPowerDescriptorLines(
   const primaryDefenceCheck =
     derivePrimaryDefenceCheckFromGate(power.primaryDefenceGate, primaryPacket, isMultiTarget) ??
     derivePrimaryDefenceCheck(primaryPacket, rangeCategory, meleeTargets, rangedTargets);
+  const dualLaneDefenceCounterLine = renderDualLaneDefenceCounterLine(
+    power,
+    effectPackets,
+    rangeLead,
+  );
+  if (dualLaneDefenceCounterLine) {
+    return [dualLaneDefenceCounterLine];
+  }
   const channelLine = (() => {
     if (power.commitmentModifier !== "CHANNEL") return null;
     if (power.lifespanType === "PASSIVE") {

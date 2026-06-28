@@ -73,24 +73,95 @@ When a hostile action is declared, resolve in this order:
 
 1. Apply already-active effects.
 2. Declare the hostile action and targets.
-3. Declare legal Assists.
-4. Declare legal Counters.
-5. Roll and apply Assists.
-6. Roll and apply Counters.
-7. Roll the triggering hostile action.
-8. If no Counter was declared by a defender and the hostile action produced one
+3. Declare legal acting-side supporting Responses.
+4. Declare legal target-side answering Responses, including Assists and
+   Counters.
+5. Close the response window.
+6. Resolve acting-side support to establish the final incoming threat.
+7. Resolve target-side support to establish the final answer.
+8. Roll the triggering hostile action.
+9. Roll declared Counters.
+10. If no Counter was declared by a defender and the hostile action produced one
    or more actionable hostile successes, that defender rolls the chosen normal
    active defence.
-9. Calculate prevention and effects.
-10. Apply the incoming result and the Counter result.
-11. Process defeats and cleanup.
+11. Resolve defensive and mitigation pieces.
+12. Calculate prevention and effects.
+13. Apply the incoming result.
+14. Apply the Counter result.
+15. Process defeats and cleanup.
 
 All declared actions, Assists, Counters, and Responses resolve before defeat and
 cleanup unless a power explicitly interrupts or cancels the triggering action.
 
 Assist is universal by system rule and is not authored per power. Assists are
-declared before Counters and roll/apply before Counters. The assisted actor
-still chooses one active response path: normal defence or Counter.
+declared inside the response window. The assisted actor still chooses one
+active response path: normal defence or Counter.
+
+Multiple responders declare acting side first, target side second:
+
+When both sides have Responses to the same triggering action, the acting side
+declares its supporting Responses first, then the target side declares its
+answering Responses. After both sides have declared, the response window closes;
+neither side may add more Responses unless an explicit rule allows it. During
+resolution, acting-side support resolves first to establish the final incoming
+threat, then target-side support resolves second to establish the final answer,
+before the triggering action and defensive/counter results are applied under
+the normal resolution order.
+
+Use "acting side" and "target side" rather than only "attacker" and "defender",
+because not every triggering action is a simple attack.
+
+This preserves the table rhythm: threat is declared -> threat is supported ->
+defence answers -> resolve.
+
+The acting side already chooses the action, target, timing, and pressure point,
+so it declares its support first. The target side is reacting to a known threat
+package, so it declares second. This prevents gotcha play where the target side
+spends Responses first and the acting side then selectively piles on support
+after seeing the defence commitment.
+
+There is no response bidding war by default. Once acting-side and target-side
+Responses are declared, the response window closes. A character cannot respond
+to a Response unless a specific rule explicitly creates that permission.
+
+Acting-side Assists resolve first because they build or modify the incoming
+threat. Target-side Assists resolve second because they build or modify the
+answer to that threat. This does not mean damage is applied before defence. It
+means support effects are assembled in threat-first, answer-second order before
+final application.
+
+The multiple-responder declaration rule sits inside the declaration / response
+window before rolls are resolved. It does not replace the normal Counter timing
+order: incoming hostile action is declared; Counter is declared; incoming action
+is rolled; Counter is rolled; defensive and mitigation pieces resolve; incoming
+result is applied; Counter result is applied; defeats are processed.
+
+Example 1 - monsters attacking, characters assisting:
+
+- Monster 1 declares a hostile action against Character 1.
+- Monster side declares any supporting Responses / Assists to Monster 1 first.
+- Character side declares any answering Responses / Assists / Counters second.
+- Window closes.
+- Monster-side support resolves first and establishes the final incoming threat.
+- Character-side support resolves second and establishes the final defence /
+  answer.
+- The action resolves under normal timing.
+
+Example 2 - characters attacking, monsters responding:
+
+- Character 1 declares a hostile action against Monster 1.
+- Character side declares support first.
+- Monster side declares answers second.
+- Window closes.
+- Character-side support resolves first.
+- Monster-side support resolves second.
+- Resolve normally.
+
+Example 3 - no infinite chain:
+
+If Character 2 Assists Character 1, Monster 2 cannot then add a new Response to
+Character 2's Assist unless an explicit future rule permits Responses to
+Responses. The ordinary response window is one declaration pass per side.
 
 
 Zero-Success Hostile Action Ruling
@@ -162,12 +233,41 @@ Block Counter therefore chooses Dodge mode or Block mode on declaration. If
 Dodge mode fails, Block does not then apply unless the power is explicitly
 authored as a Layered Defence Counter.
 
+Dual-Lane Defence Responses are a paid exception to the normal one-active-
+defence-path rule. A Dual-Lane Defence Response is a Counter or Assist that
+contains complementary Physical Defence / Block and Mental Defence / Block
+packets for the same incoming trigger.
+
+When a Dual-Lane Defence Response is used, roll once using the primary packet's
+dice. Those successes also power the complementary defensive packet. The
+secondary defensive packet is not rolled separately and does not create an
+independent defended entry point.
+
+Each defensive packet applies only to its authored wound lane. Against a
+dual-lane incoming action, Physical Defence applies to physical wounds and
+Mental Defence applies to mental wounds from the same triggering action.
+Against a single-lane incoming action, only the matching lane applies. Packet
+order does not prevent the matching lane from applying.
+
+Dual-Lane Defence is about wound lanes, not damage type tags. Physical and
+Mental are wound lanes. Fire, Ice, Slashing, Holy, and similar tags are damage
+types. Vulnerability, Resistance, and Protection still key from damage types on
+the incoming packet unless a more specific rule says otherwise.
+
+Dual-Lane Defence does not include Dodge + Physical Defence, Dodge + Mental
+Defence, Physical Defence + Physical Defence, Mental Defence + Mental Defence,
+or Resist packets. Those remain modal, adaptive, layered, or otherwise governed
+by their own explicit authoring.
+
 Counter terminology:
 
 - Single-lane Counter: a Counter with one active defence path, such as Dodge,
   Physical Defence / Block, Mental Defence / Block, or Resist.
 - Modal Defence Counter: the default for a Counter with multiple active defence
   paths; choose one eligible active defence path on declaration.
+- Dual-Lane Defence Response: a paid Counter or Assist exception that rolls
+  once and applies complementary Physical Defence and Mental Defence packets to
+  their matching wound lanes from the same triggering action.
 - Adaptive Counter: explicit premium wording that allows the actor to choose
   the active defence path after seeing the relevant roll/result.
 - Layered Defence Counter: explicit premium wording that allows more than one

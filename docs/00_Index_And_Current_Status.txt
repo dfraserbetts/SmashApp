@@ -209,23 +209,26 @@ Immediate Ordered Work
 
 1. Keep the new active docs aligned with current code reality.
 2. Preserve the locked Response Window / Incarnate Stack in runtime-facing tools.
-3. Keep Counter use replacing normal active defence unless explicit authored
+3. Preserve multiple-responder declaration order: acting side declares
+   supporting Responses first, target side declares answering Responses second,
+   then the response window closes.
+4. Keep Counter use replacing normal active defence unless explicit authored
    defensive packets say otherwise.
-4. Keep mixed defensive Counters modal by default: choose one active defence
+5. Keep mixed defensive Counters modal by default: choose one active defence
    path on declaration, with no fallback Block after failed Dodge unless
    explicitly authored.
-5. Preserve Control Primary interruption: Control Counters and Control Assists
+6. Preserve Control Primary interruption: Control Counters and Control Assists
    can halt incoming actions only when Control is Primary, logically relevant,
    and strictly exceeds; Secondary Control is after-effect only.
-6. Keep Movement Counter as a Movement-power rule, not a Defence mode.
-7. Maintain finite defensive pools with refresh/replace higher-of-current-or-new
+7. Keep Movement Counter as a Movement-power rule, not a Defence mode.
+8. Maintain finite defensive pools with refresh/replace higher-of-current-or-new
    as the default repeated-application rule.
-8. Extend or maintain defensive-pool canary coverage before numeric defensive
+9. Extend or maintain defensive-pool canary coverage before numeric defensive
    pool pricing changes.
-9. Use Codex-run Combat Lab batches for incremental checks with provenance.
-10. Reserve manual Combat Lab/browser checks for UI/report readability, public
+10. Use Codex-run Combat Lab batches for incremental checks with provenance.
+11. Reserve manual Combat Lab/browser checks for UI/report readability, public
    confidence, playtest packet confidence, and table-feel judgement.
-11. Continue tuning power values, non-power monster baselines, and radar display
+12. Continue tuning power values, non-power monster baselines, and radar display
    curves without collapsing those layers together.
 
 

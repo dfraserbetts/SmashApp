@@ -70,6 +70,12 @@ Future implementation work must keep checking:
 - Pool-only defensive-pool commitment does not degrade normal defence.
 - Counter use replaces normal active defence unless the Counter explicitly
   grants or modifies that defence.
+- Dual-Lane Defence Responses are a narrow Counter/Assist exception: roll once
+  and apply complementary Physical Defence and Mental Defence packets to their
+  matching wound lanes from the same trigger.
+- Multiple responders use one declaration pass per side: acting side declares
+  supporting Responses first, target side declares answering Responses second,
+  then the response window closes.
 - Passive defensive pools do not naturally tick down.
 - Movement/Reposition is not a Defence mode.
 - Dodge succeeds on match-or-exceed.
@@ -83,6 +89,13 @@ Combat Lab Handoff Notes
 
 Combat Lab and future runtime tools should implement one Response Window /
 Incarnate Stack model.
+
+When both sides have Responses to the same triggering action, runtime-facing
+tools should assemble declarations in acting-side-first, target-side-second
+order. Acting-side support resolves first to establish the final incoming
+threat; target-side support resolves second to establish the final answer. The
+window then remains closed unless a future explicit rule allows Responses to
+Responses.
 
 Normal active defence should only roll if no Counter was declared by that
 defender and the hostile action produced one or more actionable hostile
@@ -173,4 +186,3 @@ OPEN / NEEDS ARCHITECT DECISION:
   implementation after the latest defensive-pool work.
 - Whether a future implementation checklist should be generated mechanically
   from the locked rules document.
-
