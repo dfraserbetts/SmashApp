@@ -51,6 +51,99 @@ docs/01_Locked_Rules_And_Combat_Bible.txt. Current balance and validation policy
 lives in docs/04_Combat_Lab_Balance_And_Validation.txt.
 
 
+Active Doc Routing
+
+Use this routing when adding or updating source documentation:
+
+- New locked combat rules go in docs/01_Locked_Rules_And_Combat_Bible.txt.
+- Power grammar, packet model, chassis/timing, costing interpretation, and
+  power-value implications go in docs/02_Power_System_And_Costing.txt.
+- Builder implementation roadmap items for Character Builder, Summoning Circle,
+  Forge, and related app surfaces go in
+  docs/03_Builders_And_Implementation_Roadmap.txt.
+- Combat Lab, balance evidence hierarchy, canary policy, validation doctrine,
+  and scenario provenance go in
+  docs/04_Combat_Lab_Balance_And_Validation.txt.
+- Durable implementation handoffs, validation expectations, and future Codex /
+  developer continuity notes go in docs/05_Implementation_Handoffs.txt.
+- Product, brand, Kickstarter, cover, and commercial positioning content goes in
+  docs/06_Product_Brand_And_Kickstarter_Strategy.txt.
+- Archived and historical documents live in docs/archive/. Reference material
+  that supports implementation but is not authoritative lives in docs/reference/.
+
+
+Open Decisions Index
+
+The following items are intentionally unresolved. Do not treat them as locked
+law until the owning active doc is updated with an explicit decision.
+
+- Complete numeric success-threshold table cross-check.
+  Status: NEEDS RUNTIME CHECK.
+  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt.
+  Note: Verify the full threshold table against current runtime/source tables
+  before embedding numeric details directly in the combat bible.
+- Wound-band scaling: actual wounds suffered vs net wounds before overkill.
+  Status: NEEDS ARCHITECT DECISION.
+  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt.
+  Note: Current recommendation leans actual wounds suffered, but overkill
+  interaction is not finally locked.
+- Secondary Packet simultaneous bundle law.
+  Status: OPEN.
+  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
+  docs/02_Power_System_And_Costing.txt.
+  Note: Current docs lock dependency, timing ownership, wound-band scaling, and
+  recurring delivery defaults; a broader simultaneous-bundle law remains open.
+- Final defensive-pool numeric tuning values.
+  Status: NEEDS BALANCE EVIDENCE.
+  Owner: docs/02_Power_System_And_Costing.txt and
+  docs/04_Combat_Lab_Balance_And_Validation.txt.
+  Note: Requires canary protection and real authored scenario evidence.
+- Generic/omni Resist Pool existence and surcharge.
+  Status: NEEDS ARCHITECT DECISION.
+  Owner: docs/02_Power_System_And_Costing.txt.
+  Note: Current Resist Pool law is lane-limited unless explicitly authored.
+- Additive/recharging defensive pool authoring.
+  Status: NEEDS ARCHITECT DECISION.
+  Owner: docs/02_Power_System_And_Costing.txt.
+  Note: Refresh/replace is default; additive/recharging requires explicit
+  authoring and pricing.
+- Future Setting Package policy.
+  Status: NEEDS ARCHITECT DECISION.
+  Owner: docs/03_Builders_And_Implementation_Roadmap.txt.
+  Note: Campaign-local workflows are current; global protected asset policy is
+  future work.
+- Spark/Restriction scope.
+  Status: OPEN.
+  Owner: docs/03_Builders_And_Implementation_Roadmap.txt.
+  Note: Final builder scope is not locked.
+- Transformation/Summoning/object/structure/machine/mount builder scopes.
+  Status: OPEN.
+  Owner: docs/03_Builders_And_Implementation_Roadmap.txt.
+  Note: These future builder families remain unscheduled / unfinalized.
+- Signature Move future Spark alignment.
+  Status: NEEDS ARCHITECT DECISION.
+  Owner: docs/03_Builders_And_Implementation_Roadmap.txt.
+  Note: Current implementation uses a separate Character Level x 20 pool.
+- Holdout scenario list and playtest readiness checklist.
+  Status: NEEDS BALANCE EVIDENCE.
+  Owner: docs/04_Combat_Lab_Balance_And_Validation.txt.
+  Note: Needed before canonical tuning promotion and public/demo playtest
+  readiness.
+- Runtime gaps between locked docs and Combat Lab.
+  Status: NEEDS RUNTIME CHECK.
+  Owner: docs/05_Implementation_Handoffs.txt.
+  Note: Requires local code/test inspection whenever relevant mechanics are
+  touched.
+- Over-limit mechanic name.
+  Status: NEEDS ARCHITECT DECISION.
+  Owner: docs/06_Product_Brand_And_Kickstarter_Strategy.txt.
+  Note: Candidate names exist, but none are final.
+- Logo, cover, and remaining brand decisions.
+  Status: NEEDS ARCHITECT DECISION.
+  Owner: docs/06_Product_Brand_And_Kickstarter_Strategy.txt.
+  Note: Includes final logo form, cover structure, and product-facing wording.
+
+
 Current Known Implementation State
 
 The shared power architecture is no longer hypothetical. Current source docs and

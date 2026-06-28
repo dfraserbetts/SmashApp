@@ -6,6 +6,10 @@ This is the active source document for power grammar, packet model,
 chassis/timing/duration structure, Power Tuning cost integration, defensive pool
 pricing, and durable natural/Forge parity principles.
 
+Combat rule law lives in docs/01_Locked_Rules_And_Combat_Bible.txt. This
+document explains power grammar, costing interpretation, and build/cost
+implications. If wording conflicts, 01 controls rule resolution.
+
 
 Core Power Grammar
 
@@ -27,6 +31,9 @@ timing, duration, recipient class, and packet-specific effect details.
 
 
 Primary And Secondary Packets
+
+Authoritative packet-resolution law lives in 01. This section preserves
+power-building and costing implications only.
 
 Packet 1 is always the Primary Packet.
 

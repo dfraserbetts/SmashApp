@@ -6,6 +6,10 @@ This is the active roadmap for Character Builder, Summoning Circle, Forge, and
 remaining app work. It consolidates useful current roadmap content and removes
 stale step-by-step prompt chains.
 
+This document is implementation roadmap authority, not combat rule authority or
+final costing law. Combat rules live in 01; power grammar and costing live in
+02.
+
 
 Current Builder Surfaces
 

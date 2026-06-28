@@ -6,6 +6,9 @@ This is the active product, brand, and Kickstarter strategy document. It keeps
 commercial and messaging material separate from rules, costing, and
 implementation handoffs.
 
+This document is product, brand, and commercial strategy authority only. It is
+not combat rule, costing, validation, or implementation authority.
+
 
 Product Identity
 
@@ -167,4 +170,3 @@ OPEN / NEEDS ARCHITECT DECISION:
   releases.
 - Whether "SMASH" remains a mechanic name, internal legacy term, or disappears
   entirely.
-
