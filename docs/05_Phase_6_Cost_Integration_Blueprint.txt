@@ -271,13 +271,17 @@ Attack Counters carry a high premium because they create off-turn damage or effe
 
 Defence Counters are priced as specialist active-response alternatives, not as free stacks on top of Dodge, Physical Defence, Mental Defence, or Resist.
 
-Movement and Control interrupt Counters need a high premium because a strict timing win can avoid, cancel, or deny an incoming action. First-pass timing requires strictly more successes than the trigger; ties fail.
+Mixed defensive Counters are priced as Modal Defence Counters by default: the defender chooses one eligible active defence path on declaration before incoming and Counter rolls are made, and only that path resolves. A mixed Dodge + Block Counter is matchup versatility, not post-roll insurance. Do not price post-roll path choice unless the power explicitly buys Adaptive Counter wording, and do not price layered Dodge-plus-Block resolution unless the power explicitly buys Layered Defence Counter wording.
+
+Movement and Control Primary interrupt Counters need a high premium because a strict timing win can avoid, cancel, or deny an incoming action. First-pass timing requires strictly more successes than the trigger; ties fail.
+
+Do not price Secondary Control as an interrupt by default. Attack Primary + Control Secondary is priced as an Attack Counter with an after-effect Control rider: the Attack may resolve as counter damage, but the Secondary Control does not use strict-exceed interruption and does not halt the incoming action. Control Primary + Attack Secondary may buy strict-exceed interruption if the Control effect is logically capable of stopping the incoming action; the Attack Secondary resolves only if powered by the successful Primary Control result unless explicitly authored otherwise. Failed interrupting Control gives no partial mitigation, no damage/potency/success reduction, and no separate attacker Resist roll.
 
 Persistent or passive setup remains valuable because it is established before the response window and can stack with later response choices.
 
 Preparation stacks. Panic buttons replace.
 
-Counter, Movement Counter, and Control interrupt Counter costs should be revisited after Combat Lab and runtime behaviour faithfully implement the response-stack rules.
+Counter, Movement Counter, and Primary Control interrupt Counter / Assist costs should be revisited after Combat Lab and runtime behaviour faithfully implement the response-stack rules.
 
 
 Duration Defence Pool Cost Guidance

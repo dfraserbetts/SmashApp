@@ -147,13 +147,83 @@ Defence Counters are specialist alternative defensive responses. They replace
 normal Dodge, Physical Defence, Mental Defence, or Resist rather than stacking
 with those normal gates by default.
 
+Mixed defensive Counters are Modal Defence Counters by default. If a Counter
+contains multiple active defence packets, the actor chooses one eligible active
+defence path when declaring the Counter, after the incoming hostile action is
+declared but before incoming and Counter rolls are made. The actor may use known
+declared information such as attack type, target, damage type, range, and
+visible threat context. The actor may not wait to see roll results before
+choosing unless the power explicitly has Adaptive Counter wording.
+
+Only the chosen active defence path resolves. Unchosen active defence packets do
+not apply, do not create pools, do not provide successes, do not mitigate, and
+do not act as fallback protection against that incoming packet. A mixed Dodge +
+Block Counter therefore chooses Dodge mode or Block mode on declaration. If
+Dodge mode fails, Block does not then apply unless the power is explicitly
+authored as a Layered Defence Counter.
+
+Counter terminology:
+
+- Single-lane Counter: a Counter with one active defence path, such as Dodge,
+  Physical Defence / Block, Mental Defence / Block, or Resist.
+- Modal Defence Counter: the default for a Counter with multiple active defence
+  paths; choose one eligible active defence path on declaration.
+- Adaptive Counter: explicit premium wording that allows the actor to choose
+  the active defence path after seeing the relevant roll/result.
+- Layered Defence Counter: explicit premium wording that allows more than one
+  active defence path against the same incoming packet.
+
+Adaptive Counter and Layered Defence Counter are not default behaviour and are
+future / explicit authoring only. Passive/static mitigation remains governed by
+existing mitigation rules.
+
 Movement Counters can avoid or cancel a trigger only if both timing and geometry
 are sufficient. First-pass Movement Counter timing is a Clash against triggering
 successes and must strictly exceed the trigger successes. Ties fail.
 
-Control interrupt Counters, including Force No Main Action and Force No Power
-Action, can cancel the trigger only if they strictly exceed the triggering
-action successes. Ties fail.
+Control Counters and Control Assists can halt an incoming action only when
+Control is the Primary packet / Primary intention of that Counter or Assist,
+and only when the chosen Control effect could logically stop the incoming
+action.
+
+An interrupting Control Counter or Assist succeeds only if its Control result
+strictly exceeds the incoming action's successes. Ties fail. If the
+interrupting Control result does not strictly exceed the incoming action, the
+interrupt fails completely: the incoming action resolves normally, and its
+successes, wounds, potency, stacks, duration, movement, target count, and other
+outputs are not reduced. Failed interrupting Control is not partial mitigation
+and does not become weaker Block, Resist, Dodge, tax, or damage reduction.
+
+The attacker does not make a separate Resist roll against an interrupting
+Control Counter or Assist by default. The incoming action's successes are the
+interruption contest value.
+
+Force No Main Action can interrupt an incoming Main Action if it strictly
+exceeds. Force No Power Action can interrupt an incoming Power Action if it
+strictly exceeds. A movement-stopping Control may interrupt a charge or
+movement-dependent action if it logically prevents the action. A Control that
+only affects later movement cannot cancel a melee attack already in range
+unless explicitly authored.
+
+Control as a Secondary packet is after-effect Control by default. It cannot
+interrupt, cancel, halt, weaken, reduce, or partially mitigate the triggering
+incoming action. It applies only after the triggering action resolves, if
+powered by the Primary result and if its own timing / legality conditions are
+met.
+
+If a Counter has Attack Primary + Control Secondary, the Control does not use
+strict-exceed interruption. The Attack may resolve as counter damage, and the
+Control is an after-effect only; the incoming action is not halted.
+
+If a Counter has Control Primary + Attack Secondary, the Control may use
+strict-exceed interruption. The Attack Secondary does not resolve regardless; it
+resolves only if powered by the successful Primary Control result, unless the
+power explicitly says otherwise.
+
+If a successful interrupting Control also applies persistent Control stacks,
+duration, or an ongoing effect, those follow normal Primary-result scaling.
+Default scaling uses applied / net interrupt success, not raw successes, unless
+explicitly authored otherwise.
 
 Counter Dodge remains one-shot unless it also explicitly creates a duration
 Dodge Pool.

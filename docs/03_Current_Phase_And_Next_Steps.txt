@@ -64,6 +64,7 @@ The following points should now be treated as stable design truth:
 - live preview is mandatory
 - the practical Descriptor Chassis matrix is Immediate, Field, Attached, Trigger, and Reserve
 - Counter is an authored Power-Level Field permission with No / Yes
+- mixed defensive Counters are Modal Defence Counters by default: choose one eligible active defence path on declaration; post-roll Adaptive Counter and layered multi-path defence are explicit premium exceptions only
 - Assist is universal by system rule and is not authored per power
 - Responses are the player-facing resource and are not the authored power permission field
 - Commitment Modifier uses Standard / Channel / Charge
@@ -167,11 +168,12 @@ The practical next work should stay focused on:
 - applying the same range-vs-target-legality rule to Dodge and Resist power implementation; Movement Counter remains a Movement-power rule, not a Defence mode
 - implementing Combat Lab and future runtime handling through one Response Window / Incarnate Stack model
 - preserving the locked response order: active effects, hostile declaration, Assist declaration, Counter declaration, Assists, Counters, trigger roll, normal active defence only if no Counter and one or more actionable hostile successes were produced, prevention/effects, result application, cleanup
+- preserving the locked Control Response rule: Control Counters and Control Assists interrupt only when Control is Primary, logically capable of stopping the incoming action, and strictly exceeds triggering successes; Secondary Control is after-effect only and failed interruption gives no mitigation
 - checking runtime/tests for the zero-success hostile action ruling: declaration/reaction triggers still fire, declared Counters/Assists remain spent, but normal defence, defensive-pool commits, and defence degradation do not occur without actionable hostile successes
 - checking runtime/tests for independent defence-lane degradation: Physical Defence, Mental Defence, Dodge, and active Resist tracks must degrade only in the lane that actually resolves against actionable hostile successes
 - checking runtime/tests for the defensive-pool-only commitment ruling: pool-only spending is legal against matching actionable hostile pressure, spends finite pool points, and does not degrade Dodge, Physical Defence, Mental Defence, or active Resist unless a normal active defence is also rolled
 - rerunning the 16-test response / defence / Counter matrix after runtime changes
-- revisiting Counter, Movement Counter, and Control interrupt Counter costs only after runtime behaviour faithfully follows the source rules
+- revisiting Counter, Movement Counter, and Primary Control interrupt Counter / Assist costs only after runtime behaviour faithfully follows the source rules
 - using the Canary Harness for baseline/candidate tuning comparisons alongside Codex-run Combat Lab batches for repeated scenario evidence
 - preserving the three-layer split between:
   - Power Tuning

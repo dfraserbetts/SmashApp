@@ -146,7 +146,9 @@ Already-active passive effects, static protection, buffs, debuffs, and prepared 
 
 Preparation stacks. Panic buttons replace.
 
-Movement and Control interrupt Counters require strictly more successes than the triggering action. Ties fail.
+Movement interrupt Counters require strictly more successes than the triggering action. Ties fail.
+
+Control Counters and Control Assists can halt an incoming action only when Control is the Primary packet / Primary intention, the Control effect could logically stop that incoming action, and the Control result strictly exceeds the triggering action successes. Secondary Control is after-effect only by default and cannot interrupt, cancel, halt, weaken, reduce, or partially mitigate the triggering action. Failed interrupting Control gives no mitigation, does not reduce successes/wounds/potency/stacks/duration/movement/target count, and does not grant the attacker a separate Resist roll.
 
 Attack Counter damage does not cancel the triggering action unless the Counter explicitly interrupts or cancels.
 
@@ -564,6 +566,8 @@ The following are treated as locked for this session:
 - mixed-intention legality is constrained by hostile-primary ordering
 - Lifespan, Effect Timing, and Effect Duration are separate concepts
 - Counter is an authored Power-Level Field with No / Yes
+- mixed defensive Counters are Modal Defence Counters by default: choose one eligible active defence path on declaration; unchosen active defence packets do not apply, create pools, mitigate, or act as fallback protection
+- Control Counters and Control Assists interrupt only when Control is Primary, logically relevant, and strictly exceeds triggering successes; Secondary Control is after-effect only
 - Assist is universal by system rule
 - Responses are the player-facing resource
 - Commitment Modifier is a Power-Level Field with Standard / Channel / Charge

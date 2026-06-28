@@ -214,9 +214,28 @@ them.
 Defence Counters are priced as specialist active-response alternatives, not as
 free stacks on top of Dodge, Physical Defence, Mental Defence, or Resist.
 
-Movement and Control interrupt Counters need high premium because a strict
-timing win can avoid, cancel, or deny an incoming action. First-pass timing
-requires strictly more successes than the trigger; ties fail.
+Mixed defensive Counters are Modal Defence Counters by default. If one Counter
+contains multiple active defence paths, the actor chooses one eligible path on
+declaration before rolls are made. Only that path resolves. Do not price a mixed
+Dodge + Block Counter as Dodge upside plus fallback Block insurance unless the
+power explicitly buys Adaptive Counter or Layered Defence Counter wording.
+Adaptive Counter and Layered Defence Counter are premium / explicit exceptions,
+not default pricing assumptions.
+
+Movement and Control Primary interrupt Counters need high premium because a
+strict timing win can avoid, cancel, or deny an incoming action. First-pass
+timing requires strictly more successes than the trigger; ties fail.
+
+Do not price Secondary Control as an interrupt by default. Attack Primary +
+Control Secondary is priced as an Attack Counter with an after-effect Control
+rider: the Attack may resolve as counter damage, but the Secondary Control does
+not use strict-exceed interruption and does not halt the incoming action.
+Control Primary + Attack Secondary may buy strict-exceed interruption if the
+Control effect is logically capable of stopping the incoming action; the Attack
+Secondary resolves only if powered by the successful Primary Control result
+unless explicitly authored otherwise. Failed interrupting Control gives no
+partial mitigation, no damage/potency/success reduction, and no separate
+attacker Resist roll.
 
 Preparation stacks. Panic buttons replace.
 

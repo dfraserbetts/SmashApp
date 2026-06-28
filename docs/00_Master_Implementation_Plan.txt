@@ -36,6 +36,10 @@ Shared Rules Grammar
 
 These are the common fields that keep the system readable and consistent, such as Range, Targeting, Dice, and Counter. Responses remain the player-facing resource; Assist is universal by system rule; Counter is the authored power permission field.
 
+Mixed defensive Counters are modal by default. If one Counter contains multiple active defence paths, the actor chooses one eligible path when declaring the Counter, before rolls are made. Unchosen active defence packets do not apply or act as fallback mitigation unless explicitly authored as Adaptive Counter or Layered Defence Counter exceptions.
+
+Control Counters and Control Assists interrupt only when Control is the Primary packet / Primary intention, the Control effect can logically stop the incoming action, and the Control result strictly exceeds the triggering action successes. Secondary Control is after-effect only by default: Attack Primary + Control Secondary can deal counter damage but cannot halt the incoming action, while Control Primary + Attack Secondary may interrupt only on strict exceed and powers the Attack Secondary only from the successful Primary Control result unless explicitly authored otherwise.
+
 Descriptor Chassis
 
 Delivery Method is treated as a descriptor chassis. It changes sentence structure, required fields, and broad resolution pattern. It is not just a flavour tag.
