@@ -73,6 +73,9 @@ Future implementation work must keep checking:
 - Dual-Lane Defence Responses are a narrow Counter/Assist exception: roll once
   and apply complementary Physical Defence and Mental Defence packets to their
   matching wound lanes from the same trigger.
+- Independent eligible Secondary Packets resolve as one simultaneous result
+  bundle after the Primary Packet; authored order is presentation order unless
+  explicit sequential/dependent/triggered language says otherwise.
 - Multiple responders use one declaration pass per side: acting side declares
   supporting Responses first, target side declares answering Responses second,
   then the response window closes.
@@ -119,6 +122,11 @@ Defensive-pool state should track at least:
 Reports should expose defensive-pool diagnostics clearly enough to see pools
 created, generated, committed, spent, wasted, remaining at expiry,
 refresh/replace events, Dodge avoids, Block prevented, and Resist cancelled.
+
+Secondary Packet simultaneous-bundle runtime/test alignment should be checked
+in a separate implementation pass. Do not assume current runtime already nets
+same-target, same-timing, same-lane independent Secondary damage/healing before
+defeat, Major Injury, or cleanup checks unless code/tests prove it.
 
 
 Builder Handoff Notes

@@ -505,6 +505,61 @@ make an independent roll or create an independent gate. If the Primary Packet
 does not apply an operative result, the Secondary Packet does not fire even if
 the Secondary Packet's authored timing later occurs.
 
+Secondary Packet simultaneous bundle law:
+
+After the Primary Packet resolves, all independent eligible Secondary Packets
+resolve as a simultaneous result bundle. Independent Secondary Packets do not
+resolve in authored order and do not modify one another unless explicit
+sequential, dependent, or triggered language says otherwise. Numeric effects
+that apply to the same target, same timing window, and same pool/lane are
+netted before final state changes are applied. Defeat, Major Injury, defeat
+cleanup, and other final-state checks occur after the full action result bundle
+resolves. Authored packet order is presentation order only unless the power
+explicitly defines dependency.
+
+Primary Packet resolves first. Independent Secondary Packets that are eligible
+to apply from the Primary result are then collected into one simultaneous
+result bundle. Authored packet order is presentation / authoring order only; it
+is not a hidden mechanical priority unless a packet is explicitly marked or
+worded as sequential, dependent, or triggered.
+
+Examples:
+
+- Physical damage and Physical healing on the same target in the same bundle
+  net into one final Physical result.
+- Mental damage and Mental healing on the same target in the same bundle net
+  into one final Mental result.
+- Physical damage and Mental healing do not net because they affect different
+  pools / lanes.
+- Effects on different targets do not net.
+
+A target is not defeated mid-bundle by one independent Secondary Packet if
+another simultaneous Secondary Packet in the same bundle nets the relevant pool
+/ lane above the defeat threshold before final state is applied.
+
+Explicit dependent or sequential packets are allowed only when the power text /
+authoring explicitly says the packet depends on a prior result. Examples of
+dependent / sequential packet language include:
+
+- "Heal the caster equal to net wounds dealt."
+- "If this defeats the target, apply Fear to nearby enemies."
+- "After the shield is broken, deal damage."
+- "Cleanse the poison, then heal extra if poison was removed."
+
+A dependent or sequential packet is not created merely by placing packets in a
+particular authored order.
+
+Design intent:
+
+- Prevent hidden optimisation through packet ordering.
+- Prevent "Packet 2 before Packet 3" becoming a secret balance lever.
+- Preserve cinematic fairness for simultaneous mixed effects.
+- Allow explicit special mechanics like lifesteal, execute riders, or
+  conditional follow-ups, but require clear authoring and future pricing
+  treatment.
+- Keep ordinary multi-packet powers predictable for players, Game Directors,
+  Codex, and Combat Lab simulation.
+
 Where a wound-based Secondary Packet scales from Primary wound bands, use:
 
 Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)

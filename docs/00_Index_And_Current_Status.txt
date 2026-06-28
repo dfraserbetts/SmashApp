@@ -88,11 +88,12 @@ law until the owning active doc is updated with an explicit decision.
   Note: Current recommendation leans actual wounds suffered, but overkill
   interaction is not finally locked.
 - Secondary Packet simultaneous bundle law.
-  Status: OPEN.
-  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
-  docs/02_Power_System_And_Costing.txt.
-  Note: Current docs lock dependency, timing ownership, wound-band scaling, and
-  recurring delivery defaults; a broader simultaneous-bundle law remains open.
+  Status: LOCKED / RESOLVED.
+  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt.
+  Note: Independent eligible Secondary Packets resolve as one simultaneous
+  result bundle after the Primary Packet. Authored packet order is presentation
+  order only unless explicit sequential, dependent, or triggered language says
+  otherwise.
 - Final defensive-pool numeric tuning values.
   Status: NEEDS BALANCE EVIDENCE.
   Owner: docs/02_Power_System_And_Costing.txt and

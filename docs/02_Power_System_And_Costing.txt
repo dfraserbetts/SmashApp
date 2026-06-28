@@ -107,13 +107,27 @@ Secondary Packet timing and dependency are locked:
 - Secondary Packets are always contingent on the Primary Packet result.
 - If the Primary Packet does not apply an operative result, the Secondary Packet
   does not fire even if the Secondary Packet's authored timing later occurs.
-- A same-timing Secondary Packet may be rendered as a compact dependent rider.
+- Same-timing independent Secondary Packets resolve under the simultaneous
+  result-bundle law in 01. They may be rendered as compact riders, but they do
+  not resolve in authored order and do not modify one another unless explicit
+  sequential, dependent, or triggered language says otherwise.
 - A different-timing or triggered Secondary Packet must render as a dependent
   timed sentence that states both the dependency and the timing.
 - Secondary Packets own their own Timing and Duration. They do not inherit the
   Primary Packet duration, the parent power duration, or the chassis lifespan as
   their own Effect Duration.
 - Packet 2 with Instant duration must not render as lasting for 1 turn.
+
+Do not price ordinary packet order as a hidden balance lever. Authored order is
+presentation order unless the power explicitly buys sequential, dependent, or
+triggered wording. Special mechanics such as lifesteal, execute riders,
+shield-break follow-ups, or conditional post-cleanse bonuses require clear
+authoring and future pricing treatment.
+
+When independent Secondary Packets in the same timing window apply numeric
+effects to the same target and same pool/lane, price and describe them as a
+single simultaneous result bundle. Same-lane damage/healing nets before final
+state checks; different lanes or different targets do not net.
 
 For Field, Attached, Triggered, and other recurring Primary delivery, the
 default is one roll per round:
