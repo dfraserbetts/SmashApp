@@ -48,13 +48,18 @@ Packet 1 lands if, after its Trial or Clash resolution and prevention gates, it
 applies at least one operative result unit.
 
 For wound-based Primary results, secondary scaling uses Applied Success Bands =
-CEILING(Net Wounds / Wounds Per Success).
+CEILING(Actual Wounds Suffered / Wounds Per Success).
 
 For default wound-band scaling, Wounds Per Success means the Primary Packet's
 total simultaneous wounds per success across all damage components. Multi-damage
 Primary Packets increase the denominator / band size. They do not create
 separate free wound-band engines per damage type unless explicitly authored and
 priced.
+
+Actual Wounds Suffered means wounds that remain after defence, prevention,
+pool/prevention spending, and the target's remaining-health cap. Overkill wounds
+do not count for default wound-band scaling. Overkill-scaling is allowed only as
+an explicit premium exception if authored and costed.
 
 Examples:
 
@@ -69,12 +74,11 @@ Examples:
 - Per-component additive exception: "each damage component generates its own
   wound bands" is a special multi-component band engine and requires additional
   pricing.
-
-TODO / unresolved design debt: overkill-scaling and wound-band source. Decide
-later whether default wound-band scaling should use actual wounds suffered after
-remaining-health cap or net wounds before overkill is discarded. Current
-recommendation is actual wounds suffered by default, with overkill-scaling only
-as an explicit premium mechanic if allowed later.
+- Action-level multi-target exception: when a Secondary explicitly scales from
+  the whole action across multiple Primary targets, pool actual wounds suffered
+  across valid Primary targets once, then calculate bands from that total.
+- Target-local default: when the Secondary affects the Primary Target, calculate
+  bands from that target's own actual Primary wounds suffered only.
 
 Vulnerability, Resistance, and Protection modify the defence roll against an
 incoming packet when their triggering damage types are present. They do not

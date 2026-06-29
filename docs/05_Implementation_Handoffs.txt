@@ -96,6 +96,23 @@ Future implementation work must keep checking:
   allows Dodge.
 - Main Action Resist cleanup remains distinct from active defence Resist,
   Defence -> Resist powers, and Cleanse.
+- Full damage-prevention order must preserve the layer split: Protection adds
+  dice, Resistance/Vulnerability modify defence rolls, Block and defensive
+  pools prevent output-stage wounds, Dodge avoids legal packets, and Assist
+  pressure suppresses opposition without becoming damage.
+- Cleanse must use declared target/source/category eligibility. Do not let a
+  generic Cleanse silently remove every hostile state on the target.
+- Same-source effect reapplication refreshes/replaces by default; different
+  sources can coexist; same-condition binary burdens resolve as one burden while
+  their source instances remain individually tracked.
+- Default wound-band scaling uses actual wounds suffered after prevention and
+  remaining-health cap. Overkill wounds do not count unless explicitly authored
+  as a premium overkill-scaling exception.
+- Action-level wound-band Secondaries may pool actual wounds across valid
+  Primary targets once. Target-local Secondaries use only that target's own
+  actual Primary wounds.
+- Health-channel defeat, Major Injury, Blaze of Glory, and defeat cleanup must
+  wait until the current simultaneous packet/result bundle is complete.
 
 
 Combat Lab Handoff Notes
@@ -143,6 +160,32 @@ alignment should be checked in a separate implementation pass. Do not assume
 current runtime already converts hostile Assist payload into Assist pressure,
 prevents independent hostile Assist payload, or enforces duplicate generic
 Assist Power Intention limits unless code/tests prove it.
+
+Pool-with-Counter runtime/test alignment should be checked whenever Counter or
+defensive-pool code is touched. A Counter does not automatically spend existing
+defensive pools. Pool points may contribute only when the Counter resolves a
+matching defensive path or explicitly grants pool compatibility. Attack-only,
+Movement-only, and Control-only Counters should leave nonmatching pools active
+and unspent.
+
+Cleanse taxonomy runtime/test alignment should verify declared effect/source
+selection, source-category eligibility, potency/success scaling, and separation
+from cooldown immunity, source lifecycle cleanup, passive carrier ending, field
+ending, and attachment breaking.
+
+Duplicate effect runtime/test alignment should verify same-source
+refresh/replace, different-source coexistence, same-condition combined burden
+presentation, source-specific removal, lowest-stack-first removal where no
+source is declared, and oldest-first tie-breaks.
+
+Wound-band runtime/test alignment should verify actual-wounds-suffered scaling,
+remaining-health cap, no default overkill farming, action-level multi-target
+pooling where explicitly authored, and target-local isolation by default.
+
+Health-channel runtime/test alignment should verify physical and mental defeat
+checks, Major Injury from actual wounds, one defeat event for simultaneous
+dual-channel defeat, Blaze of Glory timing before cleanup, and no mid-bundle
+defeat cleanup.
 
 
 Builder Handoff Notes

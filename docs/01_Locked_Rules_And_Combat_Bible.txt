@@ -67,6 +67,37 @@ Normal active defence Resist, Defence -> Resist powers, Cleanse effects, and
 Main Action cleanup Resist remain separate.
 
 
+Cleanse Eligibility And Declared Source Taxonomy
+
+Cleanse and Main Action Resist must both declare the specific target effect,
+source, or source category before rolling.
+
+Cleanse eligibility is determined by authored cleanse taxonomy:
+
+- Cleanse Targeted Effect: remove a selected active effect from the target if
+  the cleanse result is sufficient.
+- Cleanse Source Category: remove or reduce effects from a declared source
+  category, such as poison, disease, fire, fear, curse, active power, field,
+  attachment, or another explicitly authored category.
+- Cleanse All Eligible: affect all currently eligible effects in the authored
+  category on the target, subject to potency, scaling, and any per-effect
+  limits.
+- Cleanse Self Source: remove or reduce effects sourced from the cleansing
+  actor or power when explicitly authored.
+
+Cleanse does not automatically remove every hostile state on a target. If a
+cleanse does not name the relevant effect, source, source category, or "all
+eligible" category, it is not eligible.
+
+Cleanse potency and successes scale against the declared eligible effect or
+eligible set. A cleanse that removes one source category does not remove
+unrelated categories merely because they share the same target.
+
+Cooldown immunity, passive carrier ending, field ending, attachment breaking,
+and source lifecycle removal are separate from Cleanse. They may remove effects
+without using Cleanse, but they do not broaden what a Cleanse packet can target.
+
+
 Response Window / Incarnate Stack
 
 When a hostile action is declared, resolve in this order:
@@ -92,6 +123,52 @@ When a hostile action is declared, resolve in this order:
 
 All declared actions, Assists, Counters, and Responses resolve before defeat and
 cleanup unless a power explicitly interrupts or cancels the triggering action.
+
+
+Full Damage-Prevention Order
+
+Every roll at the table should be fast to mentally compile before the roll and
+fast to parse after the roll. Damage prevention uses intuitive layers:
+
+- roll modifiers affect dice/results before success conversion.
+- Protection adds damage-type-triggered defence dice.
+- Resistance adds damage-type-triggered positive defence-roll modifiers.
+- Vulnerability adds damage-type-triggered negative defence-roll modifiers.
+- Block affects wounds after success conversion.
+- Dodge avoids the packet if it succeeds.
+- Assist Pressure suppresses defensive/opposition output and never becomes
+  extra damage.
+
+Hostile action resolution order:
+
+1. Declare the action, packets, targets, damage lanes, and damage types.
+2. Apply legal already-active effects and response declarations.
+3. Build the relevant defence or opposition roll.
+4. Apply Protection, Resistance, Vulnerability, and other roll-affecting effects
+   before success conversion.
+5. Roll and convert successes using the locked roll grammar.
+6. Apply Dodge, Block, Resist, defensive pools, Assist pressure, and other
+   output/prevention mechanics in their legal lanes.
+7. Calculate net wounds or net hostile units.
+8. Apply remaining-health cap for actual wounds suffered.
+9. Apply wound-band, "when wounded", defeat, Major Injury, and cleanup triggers
+   from the resulting actual game-state change unless a rule explicitly uses a
+   different source.
+
+Protection, Resistance, and Vulnerability do not directly add, subtract,
+multiply, divide, or block wounds. They modify the defence/opposition roll
+before output-stage prevention.
+
+Block and block pools prevent wounds after success conversion and before actual
+wounds are suffered. Dodge prevents the packet by matching or exceeding the
+incoming successes when Dodge is legal. Resist cancels hostile successes or
+units in its authored lane.
+
+Assist pressure is output-stage opposition suppression. It can reduce matching
+defence, prevention, cancellation, Dodge opposition, Resist cancellation, or
+other legal opposition, but it never becomes damage, never creates wound bands,
+and never increases the triggering ally's payload beyond that ally's generated
+payload.
 
 Assist is universal by system rule and is not authored per power. Assists are
 declared inside the response window. The assisted actor still chooses one
@@ -615,6 +692,44 @@ A defender may commit from only one matching defensive pool per incoming action
 unless a power explicitly allows combined pool spending.
 
 
+Defensive Pools With Counters
+
+Using a Counter replaces normal active defence. Already-active defensive pools
+are not erased by declaring a Counter, but they do not create a free extra
+defence path.
+
+A defensive pool may contribute during a Counter only when at least one of these
+is true:
+
+- the Counter contains a matching defensive packet/path for that pool; or
+- the power explicitly authors permission for that pool to apply during that
+  Counter.
+
+Matching examples:
+
+- A Dodge Counter may use a matching Dodge Pool if the incoming action is
+  dodgeable.
+- A Physical Defence / Block Counter may use a matching Physical Block Pool.
+- A Mental Defence / Block Counter may use a matching Mental Block Pool.
+- A Resist Counter may use a matching Resist Pool in the same resisted
+  Attribute lane.
+- A Dual-Lane Defence Response may use matching pools only in the lanes it
+  actually resolves.
+
+Nonmatching examples:
+
+- An Attack-only Counter does not get to use a Block Pool merely because the
+  protected actor owns one.
+- A Movement Counter does not get a Dodge Pool unless it is also authored as a
+  Dodge defensive path or explicit pool-compatible exception.
+- A Control Counter does not get a Block, Dodge, or Resist Pool merely because
+  Control is defensive in purpose.
+- A pool in the wrong wound lane or resisted Attribute lane does nothing.
+
+If no matching Counter path or explicit permission exists, the pool remains
+active and unspent.
+
+
 Passive Defensive Pool Lifecycle
 
 Passive defensive pools do not naturally tick down.
@@ -623,6 +738,35 @@ They end when voluntarily ended, removed, cleansed, their carrier ends, source
 or target lifecycle ends them, or defeat/cleanup applies.
 
 Passive defensive pools do not become timed pools merely because turns pass.
+
+
+Duplicate, Same-Name, And Same-Condition Effect Reapplication
+
+Runtime and table handling should track effect instances individually even when
+multiple instances share a display name or create the same condition.
+
+Same-source reapplication refreshes or replaces the existing effect by default.
+Use the higher-of-current-or-new remaining strength when a finite pool or stack
+effect is reapplied from the same source power, packet, and target, unless the
+power explicitly says it stacks additively.
+
+Different-source applications can coexist unless a rule or condition explicitly
+says they are exclusive. Coexisting sources remain individually traceable for
+expiry, cleanse, source cleanup, and contribution reporting.
+
+When multiple source instances create the same binary restrictive condition on a
+target, the target experiences one combined burden of that condition. Removing
+one source instance does not remove the whole condition if another active source
+still maintains it.
+
+For stack or unit removal from multiple active same-condition sources, remove
+from the lowest-stack eligible source first unless the cleanse/resist effect
+declares a source. If stacks are tied, remove from the oldest eligible source
+first. Explicit source-targeted removal overrides this default.
+
+Source cleanup, carrier ending, field ending, attachment ending, and defeat
+cleanup remove only the effects tied to that source, carrier, field, attachment,
+or defeated actor unless the effect explicitly says it lingers or spreads.
 
 
 Ongoing Damage And Persistent Stack Timing
@@ -739,12 +883,17 @@ Design intent:
 
 Where a wound-based Secondary Packet scales from Primary wound bands, use:
 
-Applied Success Bands = CEILING(Net Wounds / Wounds Per Success)
+Applied Success Bands = CEILING(Actual Wounds Suffered / Wounds Per Success)
 
 The default Wounds Per Success denominator is the Primary Packet's total
 simultaneous wounds per success across all damage components. Multi-damage
 Primary Packets increase the band size; they do not generate separate bands per
 damage type unless explicitly authored and priced.
+
+Actual Wounds Suffered means wounds that remain after defence, prevention,
+pool/prevention spending, and the target's remaining-health cap. Overkill wounds
+do not count for default wound-band scaling. A power may scale from overkill
+only if it explicitly authors overkill-scaling as a premium exception.
 
 Examples:
 
@@ -760,10 +909,13 @@ Examples:
 - Per-component additive exception: "each damage component generates its own
   wound bands" is a special multi-component band engine, not the default.
 
-Open design debt: should wound-band scaling use actual wounds suffered after
-remaining-health cap, or net wounds before overkill is discarded? Default should
-probably use actual wounds suffered to avoid farming riders from overkilling 1
-HP targets, but overkill-scaling is not finally locked here.
+For an action-level Secondary that scales from multiple Primary targets, pool
+actual wounds suffered across all valid Primary targets once, then calculate
+bands from that pooled actual-wound total.
+
+For a target-local Secondary, calculate bands from that target's own actual
+Primary wounds suffered only. Target-local Secondaries do not borrow excess
+wounds from other targets unless explicitly authored.
 
 Vulnerability, Resistance, Protection, And Wound Bands
 
@@ -835,6 +987,34 @@ AoE Overlap
 
 Overlapping areas from the same packet at the same timing use one power roll,
 pre-defence multiplication by overlap count, and one defence roll.
+
+
+Health-Channel Defeat, Major Injury, And Blaze Of Glory
+
+Physical HP and Mental HP are separate health channels. A packet that deals
+physical wounds checks physical HP. A packet that deals mental wounds checks
+mental HP. A packet that deals both lanes checks each affected lane after the
+full simultaneous result for that packet or Secondary bundle has been applied.
+
+An actor is defeated when any health channel reaches its defeat threshold unless
+an explicit rule says otherwise. Defeat and cleanup are processed after the
+current simultaneous result bundle finishes, not between independent same-bundle
+packets.
+
+Major Injury is evaluated from actual wounds suffered in the relevant channel
+after prevention and remaining-health cap. Overkill wounds do not increase Major
+Injury severity unless a future explicit overkill rule says otherwise.
+
+Blaze of Glory and similar "on defeat" or "before leaving combat" mechanics
+trigger from the defeat event after the current result bundle has resolved and
+before normal defeat cleanup removes the actor from active combat. Such effects
+do not interrupt the middle of a simultaneous Secondary bundle unless explicitly
+authored as an interrupt.
+
+If both physical and mental channels would defeat an actor in the same
+simultaneous result bundle, treat it as one defeat event with both channels
+recorded as contributing causes for reporting and future rules that care about
+defeat source.
 
 
 Defeat Cleanup And Source-Owned Effects

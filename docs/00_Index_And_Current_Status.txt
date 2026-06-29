@@ -82,11 +82,12 @@ law until the owning active doc is updated with an explicit decision.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt.
   Note: Verify the full threshold table against current runtime/source tables
   before embedding numeric details directly in the combat bible.
-- Wound-band scaling: actual wounds suffered vs net wounds before overkill.
-  Status: NEEDS ARCHITECT DECISION.
+- Wound-band scaling source and overkill interaction.
+  Status: LOCKED / RESOLVED.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt.
-  Note: Current recommendation leans actual wounds suffered, but overkill
-  interaction is not finally locked.
+  Note: Default wound-band scaling uses actual wounds suffered after defence,
+  prevention, and remaining-health cap. Overkill wounds do not count unless a
+  power explicitly authors overkill-scaling as a premium exception.
 - Secondary Packet simultaneous bundle law.
   Status: LOCKED / RESOLVED.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt.
