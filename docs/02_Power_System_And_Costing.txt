@@ -61,6 +61,11 @@ pool/prevention spending, and the target's remaining-health cap. Overkill wounds
 do not count for default wound-band scaling. Overkill-scaling is allowed only as
 an explicit premium exception if authored and costed.
 
+Major Injury overflow severity is a separate defeat-model rule in
+docs/01_Locked_Rules_And_Combat_Bible.txt. Do not use Major Injury overflow as
+a default wound-band or costing source unless a power explicitly authors and
+prices an overkill-scaling exception.
+
 Examples:
 
 - Single damage type: 6 physical Slashing wounds per success creates one band

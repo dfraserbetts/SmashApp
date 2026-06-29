@@ -104,11 +104,42 @@ law until the owning active doc is updated with an explicit decision.
   payload, damage type application, wound-band source, or damage trigger.
   Multiple generic Assists on one trigger stack only through distinct Power
   Intentions unless explicit special authoring says otherwise.
+- C14 defeat model, Major Injury core rule, and Blaze availability.
+  Status: LOCKED / RESOLVED.
+  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt.
+  Note: Combat actors require an explicit defeat model: NORMAL_MONSTER,
+  PLAYER_CHARACTER, or LEGENDARY_MONSTER. Normal monsters are defeated at 0 in
+  either health channel. Player Characters and Legendary Monsters use the
+  affected-channel Major Injury / Blaze of Glory flow after the full triggering
+  action, effect tick, or simultaneous result bundle. Physical and Mental
+  injury tracks are separate, and three Major Injuries on one side causes
+  defeat.
 - Final defensive-pool numeric tuning values.
   Status: NEEDS BALANCE EVIDENCE.
   Owner: docs/02_Power_System_And_Costing.txt and
   docs/04_Combat_Lab_Balance_And_Validation.txt.
   Note: Requires canary protection and real authored scenario evidence.
+- C14 automatic Major Injury Attribute choice policy.
+  Status: DEFERRED / NEEDS RUNTIME EVIDENCE.
+  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
+  docs/05_Implementation_Handoffs.txt.
+  Note: Simulation should prefer affected-side Attributes seldom used by that
+  actor, but runtime may start with deterministic hooks until Attribute usage
+  tracking is strong enough.
+- Limit Break dice in Major Injury Trials.
+  Status: DEFERRED.
+  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and future Limit Break
+  runtime work.
+  Note: Table law allows legal Limit Break dice before the Major Injury roll,
+  but current Combat Lab implementation planning may ignore them until Limit
+  Break runtime exists.
+- Full Blaze of Glory runtime flow and Blaze AI.
+  Status: DEFERRED / NEEDS ARCHITECT DECISION.
+  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
+  docs/05_Implementation_Handoffs.txt.
+  Note: Blaze is available only to Player Characters and Legendary Monsters.
+  Auto-sim defaults to "Blaze available but not used." Manual/test forcing may
+  be added later; do not invent tactical Blaze AI.
 - Generic/omni Resist Pool existence and surcharge.
   Status: NEEDS ARCHITECT DECISION.
   Owner: docs/02_Power_System_And_Costing.txt.

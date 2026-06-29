@@ -116,7 +116,9 @@ Future implementation work must keep checking:
   follow actor type: non-Legendary Monsters die at 0 in either health channel;
   Player Characters and Legendary Monsters make affected-channel Major Injury
   Trials after the current simultaneous packet/result bundle unless same-bundle
-  healing restores the pool above 0 or Blaze of Glory is declared.
+  healing restores the pool above 0 or Blaze of Glory is declared. Runtime
+  should represent this through an explicit defeat model / actor category rather
+  than inferring only from monster tier.
 
 
 Combat Lab Handoff Notes
@@ -193,9 +195,38 @@ channel; overflow severity modifier of -1 per full actor level of overflow,
 rounded down and capped; 0-1 successes = Major Injury, 2 = Minor Injury, and
 3+ = No Injury; separate Physical and Mental injury tracks; dual-channel 0 in
 one bundle creates both Major Injury events for PC / Legendary actors unless
-Blaze of Glory is declared; same-bundle healing can prevent a trial if the
-relevant pool is restored above 0 before injury processing; Blaze of Glory
+Blaze of Glory is declared; Mental injury events resolve before Physical injury
+events as a runtime ordering rule; same-bundle healing can prevent a trial if
+the relevant pool is restored above 0 before injury processing; Blaze of Glory
 timing and final removal; and no mid-bundle defeat cleanup.
+
+C14 implementation staging:
+
+Current Combat Lab runtime must not be assumed to fully implement Major Injury
+or Blaze of Glory until code and smoke tests prove it. The first runtime pass
+may be staged:
+
+- add an explicit defeat model / actor category for NORMAL_MONSTER,
+  PLAYER_CHARACTER, and LEGENDARY_MONSTER semantics;
+- add Physical and Mental Major Injury counters / affected-side injury state;
+- queue pending Major Injury events after the full action, effect tick, or
+  simultaneous result bundle;
+- preserve same-bundle healing timing before injury processing;
+- resolve dual-channel pending events Mental first, then Physical;
+- use deterministic test hooks or smoke helpers to force Major Injury, Minor
+  Injury, and No Injury outcomes before full automatic Attribute-choice policy
+  exists;
+- default auto-sim to "Blaze available but not used";
+- report Blaze availability without simulating tactical Blaze.
+
+Deferred C14 work:
+
+- final automatic Major Injury Attribute choice policy based on actor usage
+  profile;
+- Limit Break dice in Major Injury Trials;
+- full Blaze of Glory final-turn flow;
+- tactical Blaze AI;
+- UI controls for manual Blaze declaration.
 
 
 Builder Handoff Notes

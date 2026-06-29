@@ -1049,6 +1049,22 @@ physical wounds checks physical HP. A packet that deals mental wounds checks
 mental HP. A packet that deals both lanes checks each affected lane after the
 full simultaneous result for that packet or Secondary bundle has been applied.
 
+Actor defeat model:
+
+Combat actors require an explicit defeat model / actor category for defeat
+handling. Use current project naming conventions in code and data, but the
+semantic categories are:
+
+- NORMAL_MONSTER
+- PLAYER_CHARACTER
+- LEGENDARY_MONSTER
+
+Normal monsters are defeated when either Physical HP or Mental HP reaches 0.
+Player Characters and Legendary Monsters do not immediately leave combat at 0;
+they enter the Major Injury / Blaze of Glory flow. Do not overload monster tier
+alone as the defeat model. Tier may inform defaulting, but defeat model should
+be explicit where possible.
+
 Non-Legendary Monsters:
 
 - Non-Legendary Monsters are defeated immediately when either Physical Health
@@ -1093,6 +1109,8 @@ Overflow severity:
 
 Examples:
 
+- Level 5 actor suffers 12 overflow damage. 12 / 5 = 2 full level chunks, so
+  the Major Injury Trial suffers -2.
 - Level 9 actor suffers 18 overflow damage. 18 / 9 = 2 full level chunks, so
   the Major Injury Trial suffers -2.
 - Level 9 actor suffers 17 overflow damage. 17 / 9 = 1 full level chunk, so the
@@ -1121,6 +1139,9 @@ Both channels hit 0 in the same bundle:
 - If the same action bundle reduces both Physical and Mental Health to 0 for a
   Player Character or Legendary Monster, resolve both Major Injury events after
   the bundle resolves.
+- Resolve Mental Major Injury events before Physical Major Injury events. This
+  is a simulation/runtime ordering rule only; it does not change separate
+  Physical and Mental injury tracking.
 - Do not collapse this into one defeat event for PC / Legendary Major Injury
   handling.
 - For ordinary non-Legendary Monsters, either channel at 0 defeats them.
@@ -1149,6 +1170,23 @@ Blaze of Glory:
 - If one triggering bundle would cause both Physical and Mental Major Injury
   Trials, one Blaze of Glory declaration cancels all pending Major Injury Trials
   from that bundle.
+
+Combat Lab / simulation policy:
+
+- Automated simulations do not automatically declare Blaze of Glory by default.
+  The default auto-sim state is "Blaze available but not used."
+- Manual or test mode may force Blaze of Glory later. Do not invent tactical
+  Blaze AI until it is explicitly designed and priced.
+- When automated simulation must choose an Attribute for a Major Injury Trial,
+  choose from the affected side and prefer Attributes seldom used by that actor.
+  A Supporter likely chooses Attack more readily than a Glass Cannon. A
+  physically focused character should not always get to roll their best physical
+  Attribute if that Attribute is already central to their normal build loop.
+- If runtime does not yet track Attribute usage frequency well enough, use
+  deterministic test hooks first and defer automatic Attribute-choice policy.
+- Limit Break dice may be committed by the table rule above, but current Combat
+  Lab implementation may ignore Limit Break dice until Limit Break runtime is
+  modeled.
 
 
 Defeat Cleanup And Source-Owned Effects
