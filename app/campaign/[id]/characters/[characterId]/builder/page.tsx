@@ -91,6 +91,8 @@ import {
   isCharacterPowerPacketTimingAuthorable,
   isCharacterPowerSecondaryDiceAuthored,
   readCharacterPowerAttachedHostileEntryPattern,
+  SECONDARY_DEPENDENCY_MODE_LABELS,
+  SECONDARY_DEPENDENCY_MODE_OPTIONS,
   signatureMovePointPool,
   summarizeCharacterPowers,
   validateCharacterPowers,
@@ -107,6 +109,7 @@ import type {
   EffectTimingType,
   EffectPacketApplyTo,
   PowerIntention,
+  SecondaryDependencyMode,
   TriggerConditionKey,
 } from "@/lib/summoning/types";
 
@@ -2249,6 +2252,30 @@ export default function CharacterBuilderPage() {
                                     disabled={!canEdit || saving}
                                     className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                                   />
+                                </label>
+                              ) : null}
+                              {packetIndex > 0 ? (
+                                <label className="block">
+                                  <span className="text-xs text-zinc-400">Dependency</span>
+                                  <select
+                                    value={packet.secondaryDependencyMode ?? "LINKED_TO_PRIMARY"}
+                                    onChange={(event) =>
+                                      updatePowerPacket(powerIndex, packetIndex, {
+                                        secondaryDependencyMode: event.target.value as SecondaryDependencyMode,
+                                      })
+                                    }
+                                    disabled={!canEdit || saving}
+                                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                  >
+                                    {SECONDARY_DEPENDENCY_MODE_OPTIONS.map((option) => (
+                                      <option key={option} value={option}>
+                                        {SECONDARY_DEPENDENCY_MODE_LABELS[option]}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <p className="mt-1 text-[11px] text-zinc-500">
+                                    Independent can join same-timing bundles; linked/dependent/triggered packets remain outside that bundle.
+                                  </p>
                                 </label>
                               ) : null}
                             </div>

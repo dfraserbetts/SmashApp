@@ -125,6 +125,40 @@ assert(
   !meleeOneApplyToOptions.includes("ALLIES"),
   "Character Builder Apply To should not include Allies for single-target Melee without local targeting override.",
 );
+
+const dependencyModePower = normalizeCharacterPower({
+  ...levelOnePower,
+  name: "Dependency Mode Probe",
+  effectPackets: [
+    levelOnePower.effectPackets[0],
+    {
+      ...createDefaultCharacterPowerPacket("HEALING", 1),
+      secondaryDependencyMode: "INDEPENDENT",
+    },
+  ],
+}, 0);
+assert(
+  dependencyModePower.effectPackets[1]?.secondaryDependencyMode === "INDEPENDENT",
+  "Character Builder should preserve explicit secondaryDependencyMode on packet 2+.",
+);
+
+const legacyDependencyModePower = normalizeCharacterPower({
+  ...levelOnePower,
+  name: "Legacy Dependency Mode Probe",
+  effectPackets: [
+    levelOnePower.effectPackets[0],
+    {
+      ...createDefaultCharacterPowerPacket("HEALING", 1),
+      secondaryDependencyMode: undefined,
+    },
+  ],
+}, 0);
+assert(
+  legacyDependencyModePower.effectPackets[0]?.secondaryDependencyMode == null &&
+    legacyDependencyModePower.effectPackets[1]?.secondaryDependencyMode === "LINKED_TO_PRIMARY",
+  "Legacy packet 2+ powers should default secondaryDependencyMode to LINKED_TO_PRIMARY while Packet 1 remains unset.",
+);
+
 assert(
   levelOneSummary.powers[0]?.derivedCooldownTurns,
   "Derived cooldown should be present.",

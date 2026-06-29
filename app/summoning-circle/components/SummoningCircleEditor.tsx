@@ -34,6 +34,7 @@ import {
   type MonsterUpsertInput,
   type ResistTheme,
   type ReserveReleaseBehaviour,
+  type SecondaryDependencyMode,
 } from "@/lib/summoning/types";
 import {
   getArmorSkillDiceCountFromAttributes,
@@ -424,6 +425,18 @@ const SECONDARY_SCALING_OPTIONS = [
   "PRIMARY_WOUND_BANDS",
 ] as const;
 type SecondaryScalingMode = (typeof SECONDARY_SCALING_OPTIONS)[number];
+const SECONDARY_DEPENDENCY_MODE_OPTIONS = [
+  "INDEPENDENT",
+  "LINKED_TO_PRIMARY",
+  "DEPENDENT_SEQUENTIAL",
+  "TRIGGERED_CONDITIONAL",
+] as const satisfies ReadonlyArray<SecondaryDependencyMode>;
+const SECONDARY_DEPENDENCY_MODE_LABELS: Record<SecondaryDependencyMode, string> = {
+  INDEPENDENT: "Independent simultaneous",
+  LINKED_TO_PRIMARY: "Linked to Primary",
+  DEPENDENT_SEQUENTIAL: "Dependent sequential",
+  TRIGGERED_CONDITIONAL: "Triggered / conditional",
+};
 const EFFECT_TIMING_LABELS: Record<SupportedEffectTimingType, string> = {
   ON_CAST: "On Cast",
   ON_TRIGGER: "On Trigger",
@@ -640,6 +653,16 @@ function getSecondaryScalingMode(details: Record<string, unknown>): SecondarySca
   if (value === "PRIMARY_APPLIED_SUCCESSES") return "PRIMARY_APPLIED_SUCCESSES";
   if (value === "PRIMARY_WOUND_BANDS") return "PRIMARY_WOUND_BANDS";
   return "PER_SUCCESS";
+}
+
+function normalizeSecondaryDependencyMode(
+  value: unknown,
+  sortOrder: number,
+): SecondaryDependencyMode | null {
+  if (sortOrder <= 0) return null;
+  return SECONDARY_DEPENDENCY_MODE_OPTIONS.includes(value as SecondaryDependencyMode)
+    ? (value as SecondaryDependencyMode)
+    : "LINKED_TO_PRIMARY";
 }
 
 function deriveSecondaryScalingModeFromPrimaryPacket(
@@ -1892,6 +1915,7 @@ function createDefaultPowerPacket(
     type,
     intention: type,
     applyTo: "PRIMARY_TARGET",
+    secondaryDependencyMode: normalizeSecondaryDependencyMode(null, sortOrder),
     triggerConditionText: null,
     effectTimingType: "ON_CAST",
     effectTimingTurns: null,
@@ -2014,6 +2038,7 @@ function normalizePowerEffectPacket(
         : null,
     applicationModeKey: null,
     applyTo: normalizedApplyTo,
+    secondaryDependencyMode: normalizeSecondaryDependencyMode(packet?.secondaryDependencyMode, sortOrder),
     triggerConditionText: triggerConditionText || null,
     detailsJson: {
       ...nextDetails,
@@ -2630,7 +2655,7 @@ function setPowerEffectPacketField(
   setEditor: Dispatch<SetStateAction<EditableMonster | null>>,
   powerIndex: number,
   effectPacketIndex: number,
-  patch: Partial<Pick<MonsterPower["effectPackets"][number], "applyTo" | "triggerConditionText">>,
+  patch: Partial<Pick<MonsterPower["effectPackets"][number], "applyTo" | "secondaryDependencyMode" | "triggerConditionText">>,
 ) {
   setEditor((prev) => {
     if (!prev) return prev;
@@ -3044,6 +3069,7 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
                   it.applyTo === "SELF" || it.applyTo === "ALLIES" || it.applyTo === "PRIMARY_TARGET"
                     ? (it.applyTo as MonsterPower["effectPackets"][number]["applyTo"])
                     : undefined,
+                secondaryDependencyMode: normalizeSecondaryDependencyMode(it.secondaryDependencyMode, j),
                 triggerConditionText:
                   typeof it.triggerConditionText === "string"
                     ? it.triggerConditionText
@@ -11511,6 +11537,29 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
 
                               {j > 0 && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                  <label className="space-y-1">
+                                    <span className="text-[11px] text-zinc-500">Dependency</span>
+                                    <select
+                                      disabled={readOnly}
+                                      value={it.secondaryDependencyMode ?? "LINKED_TO_PRIMARY"}
+                                      onChange={(e) =>
+                                        setPowerEffectPacketField(setEditor, i, j, {
+                                          secondaryDependencyMode: e.target.value as SecondaryDependencyMode,
+                                        })
+                                      }
+                                      className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm"
+                                    >
+                                      {SECONDARY_DEPENDENCY_MODE_OPTIONS.map((option) => (
+                                        <option key={option} value={option}>
+                                          {SECONDARY_DEPENDENCY_MODE_LABELS[option]}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <p className="text-[11px] text-zinc-500">
+                                      Independent can join same-timing bundles; other modes stay sequential or conditional.
+                                    </p>
+                                  </label>
+
                                   <label className="space-y-1">
                                     <span className="text-[11px] text-zinc-500">Secondary Scaling</span>
                                     <input

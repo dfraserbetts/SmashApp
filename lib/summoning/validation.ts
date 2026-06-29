@@ -860,6 +860,7 @@ function normalizeDerivedSecondaryScaling(effectPackets: EffectPacket[]): Effect
         : null;
     return {
       ...effectPacket,
+      secondaryDependencyMode: effectPacket.secondaryDependencyMode ?? "LINKED_TO_PRIMARY",
       detailsJson: {
         ...details,
         secondaryScalingMode: scalingMode,
@@ -1630,11 +1631,17 @@ export function normalizeMonsterUpsertInput(body: unknown): {
     if (power.effectDurationType !== "TURNS" && power.effectDurationTurns !== null) {
       return { ok: false, error: "effectDurationTurns is only allowed when effectDurationType is TURNS" };
     }
-    for (const packet of power.effectPackets) {
+    for (const [packetIndex, packet] of power.effectPackets.entries()) {
       const details =
         packet.detailsJson && typeof packet.detailsJson === "object" && !Array.isArray(packet.detailsJson)
           ? (packet.detailsJson as Record<string, unknown>)
           : {};
+      if (packetIndex > 0 && packet.secondaryDependencyMode === "TRIGGERED_CONDITIONAL" && !asString(packet.triggerConditionText, "")) {
+        return {
+          ok: false,
+          error: "Triggered / conditional secondary packets require a trigger condition",
+        };
+      }
       if (
         (packet.intention ?? packet.type ?? "ATTACK") === "DEFENCE" &&
         asString(details.defenceMode, "Block") === "Resist" &&

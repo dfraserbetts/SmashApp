@@ -3,6 +3,7 @@ import type {
   DescriptorChassisType,
   EffectPacket,
   Power,
+  SecondaryDependencyMode,
 } from "@/lib/summoning/types";
 
 export type CombatSide = "players" | "monsters";
@@ -92,6 +93,7 @@ export type CombatAction = {
   };
   resistAttribute?: CoreAttribute | null;
   secondaryActions?: CombatAction[];
+  secondaryDependencyMode?: SecondaryDependencyMode | null;
   linkedToPrimary?: boolean;
   usesPrimaryAppliedSuccesses?: boolean;
   linkedScalingMode?: "primaryAppliedSuccesses" | "primaryWoundBands";

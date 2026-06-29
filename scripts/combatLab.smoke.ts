@@ -451,6 +451,189 @@ function runLinkedWoundBandFixture(prevention: number) {
 }
 
 {
+  const base = makeFixturePower({
+    id: "authored-independent-secondary-bundle",
+    name: "Authored Independent Secondary Bundle",
+    intention: "ATTACK",
+    diceCount: 1,
+    potency: 1,
+  });
+  const primary = {
+    ...base.effectPackets[0],
+    detailsJson: {
+      ...(base.effectPackets[0]?.detailsJson ?? {}),
+      attackMode: "PHYSICAL",
+      damageTypes: ["Slash"],
+    },
+  };
+  const independentDamage = {
+    ...primary,
+    packetIndex: 1,
+    sortOrder: 1,
+    diceCount: 1,
+    potency: 5,
+    secondaryDependencyMode: "INDEPENDENT" as const,
+  };
+  const independentHealing = {
+    ...primary,
+    packetIndex: 2,
+    sortOrder: 2,
+    intention: "HEALING" as const,
+    type: "HEALING" as const,
+    hostility: "NON_HOSTILE" as const,
+    dealsWounds: false,
+    diceCount: 1,
+    potency: 4,
+    secondaryDependencyMode: "INDEPENDENT" as const,
+    detailsJson: {
+      healingMode: "PHYSICAL",
+    },
+  };
+  const power: Power = {
+    ...base,
+    effectPackets: [primary, independentDamage, independentHealing],
+    intentions: [primary, independentDamage, independentHealing],
+  };
+  const adapted = adaptPowerToCombatActions(power);
+  const primaryAction = adapted.actions[0];
+  if (!primaryAction || (primaryAction.secondaryActions?.length ?? 0) !== 2) {
+    throw new Error(`Explicit INDEPENDENT secondaries did not hydrate under the primary action: ${JSON.stringify(adapted)}.`);
+  }
+  if (
+    !primaryAction.secondaryActions?.every(
+      (secondaryAction) =>
+        secondaryAction.secondaryDependencyMode === "INDEPENDENT" &&
+        !secondaryAction.linkedToPrimary &&
+        !secondaryAction.usesPrimaryAppliedSuccesses &&
+        !secondaryAction.skipOwnRoll &&
+        !secondaryAction.skipOwnDefenceGate,
+    )
+  ) {
+    throw new Error(`Explicit INDEPENDENT secondaries were still hydrated as linked riders: ${JSON.stringify(primaryAction.secondaryActions)}.`);
+  }
+  const attacker = fixtureActor("authored-independent-attacker", "players", {
+    actions: [primaryAction],
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("authored-independent-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 96,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    dodgeDice: 1,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: primaryAction,
+    rng: rngFrom([0.99, 0.99, 0.99, 0.0]),
+    lane: "power",
+  });
+  if (!state.transcriptLines.some((line) => /Secondary bundle result: authored-independent-defender physical lane nets/i.test(line))) {
+    throw new Error(`Explicit INDEPENDENT real-authored secondaries did not reach bundle resolution: ${state.transcriptLines.join(" | ")}`);
+  }
+}
+
+{
+  const base = makeFixturePower({
+    id: "explicit-linked-secondary-mode",
+    name: "Explicit Linked Secondary Mode",
+    intention: "ATTACK",
+    diceCount: 1,
+    potency: 2,
+  });
+  const primary = {
+    ...base.effectPackets[0],
+    detailsJson: {
+      ...(base.effectPackets[0]?.detailsJson ?? {}),
+      damageTypes: ["Slash"],
+    },
+  };
+  const linked = {
+    ...primary,
+    packetIndex: 1,
+    sortOrder: 1,
+    potency: 3,
+    secondaryDependencyMode: "LINKED_TO_PRIMARY" as const,
+  };
+  const adapted = adaptPowerToCombatActions({
+    ...base,
+    effectPackets: [primary, linked],
+    intentions: [primary, linked],
+  });
+  const linkedAction = adapted.actions[0]?.secondaryActions?.[0];
+  if (
+    !linkedAction ||
+    linkedAction.secondaryDependencyMode !== "LINKED_TO_PRIMARY" ||
+    !linkedAction.linkedToPrimary ||
+    !linkedAction.usesPrimaryAppliedSuccesses ||
+    !linkedAction.skipOwnRoll ||
+    !linkedAction.skipOwnDefenceGate
+  ) {
+    throw new Error(`Explicit LINKED_TO_PRIMARY secondary did not preserve linked rider hydration: ${JSON.stringify(adapted)}.`);
+  }
+}
+
+{
+  const base = makeFixturePower({
+    id: "triggered-conditional-secondary-mode",
+    name: "Triggered Conditional Secondary Mode",
+    intention: "ATTACK",
+    diceCount: 1,
+    potency: 2,
+  });
+  const primary = {
+    ...base.effectPackets[0],
+    detailsJson: {
+      ...(base.effectPackets[0]?.detailsJson ?? {}),
+      damageTypes: ["Slash"],
+    },
+  };
+  const triggered = {
+    ...primary,
+    packetIndex: 1,
+    sortOrder: 1,
+    potency: 3,
+    secondaryDependencyMode: "TRIGGERED_CONDITIONAL" as const,
+    triggerConditionText: "TARGET_DEFEATED",
+  };
+  const adapted = adaptPowerToCombatActions({
+    ...base,
+    effectPackets: [primary, triggered],
+    intentions: [primary, triggered],
+  });
+  const triggeredAction = adapted.actions[0]?.secondaryActions?.[0];
+  if (!triggeredAction || triggeredAction.secondaryDependencyMode !== "TRIGGERED_CONDITIONAL" || !triggeredAction.linkedToPrimary) {
+    throw new Error(`TRIGGERED_CONDITIONAL secondary did not stay out of independent hydration: ${JSON.stringify(adapted)}.`);
+  }
+  const attacker = fixtureActor("triggered-conditional-attacker", "players", {
+    actions: adapted.actions,
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("triggered-conditional-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 96,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    dodgeDice: 1,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: adapted.actions[0],
+    rng: rngFrom([0.99, 0.99, 0.0]),
+    lane: "power",
+  });
+  if (state.transcriptLines.some((line) => /Secondary bundle/i.test(line))) {
+    throw new Error(`TRIGGERED_CONDITIONAL secondary incorrectly entered simultaneous bundle: ${state.transcriptLines.join(" | ")}`);
+  }
+}
+
+{
   const defender = fixtureActor("pool-defender", "players", {
     dodgeDice: 1,
     physicalDefenceDice: 1,

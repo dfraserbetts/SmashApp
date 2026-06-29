@@ -1033,6 +1033,7 @@ model EffectPacket {
   applicationModeKey     String?
   resolutionOrigin       ResolutionOrigin                    @default(CASTER)
   applyTo                EffectPacketApplyTo?
+  secondaryDependencyMode SecondaryDependencyMode?
   triggerConditionText   String?
   detailsJson            Json                                @default("{}")
   power                  Power                               @relation(fields: [powerId], references: [id], onDelete: Cascade)
@@ -1243,6 +1244,13 @@ enum EffectPacketApplyTo {
   PRIMARY_TARGET
   ALLIES
   SELF
+}
+
+enum SecondaryDependencyMode {
+  INDEPENDENT
+  LINKED_TO_PRIMARY
+  DEPENDENT_SEQUENTIAL
+  TRIGGERED_CONDITIONAL
 }
 
 enum PrimaryDefenceGateResult {

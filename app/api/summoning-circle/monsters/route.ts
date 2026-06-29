@@ -894,6 +894,9 @@ function buildPowerCreateData(power: Power) {
           applicationModeKey: null,
           resolutionOrigin: effectPacket.resolutionOrigin ?? "CASTER",
           applyTo: readPacketApplyTo(effectPacket),
+          secondaryDependencyMode: effectPacket.packetIndex === 0 || effectPacket.sortOrder === 0
+            ? null
+            : (effectPacket.secondaryDependencyMode ?? "LINKED_TO_PRIMARY"),
           triggerConditionText: readPacketTriggerConditionText(effectPacket),
           detailsJson: sanitizeEffectPacketDetails(effectPacket.detailsJson, effectPacket),
           localTargetingOverride: effectPacket.localTargetingOverride
@@ -1039,6 +1042,7 @@ function serializePower(
         applyTo: normalizeEffectPacketApplyTo(
           (effectPacket as { applyTo?: unknown }).applyTo ?? rawDetails.applyTo,
         ) ?? "PRIMARY_TARGET",
+        secondaryDependencyMode: effectPacket.secondaryDependencyMode,
         triggerConditionText:
           descriptorChassis === "TRIGGER" && effectPacket.packetIndex === 0
             ? (readTriggerConditionKey(
@@ -1097,6 +1101,7 @@ function serializePower(
         applyTo: normalizeEffectPacketApplyTo(
           (effectPacket as { applyTo?: unknown }).applyTo ?? rawDetails.applyTo,
         ) ?? "PRIMARY_TARGET",
+        secondaryDependencyMode: effectPacket.secondaryDependencyMode,
         triggerConditionText:
           descriptorChassis === "TRIGGER" && effectPacket.packetIndex === 0
             ? (readTriggerConditionKey(

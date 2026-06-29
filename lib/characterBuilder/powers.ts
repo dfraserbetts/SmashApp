@@ -10,6 +10,7 @@ import type {
   PrimaryDefenceGate,
   RangeCategory,
   ResistTheme,
+  SecondaryDependencyMode,
 } from "@/lib/summoning/types";
 import {
   RESIST_THEME_VALUES,
@@ -127,6 +128,27 @@ const EFFECT_DURATIONS: EffectDurationType[] = [
 const RANGE_CATEGORIES: RangeCategory[] = ["MELEE", "RANGED", "AOE"];
 const ATTACK_MODES = ["PHYSICAL", "MENTAL"] as const;
 const APPLY_TO_OPTIONS: EffectPacketApplyTo[] = ["PRIMARY_TARGET", "ALLIES", "SELF"];
+export const SECONDARY_DEPENDENCY_MODE_OPTIONS: SecondaryDependencyMode[] = [
+  "INDEPENDENT",
+  "LINKED_TO_PRIMARY",
+  "DEPENDENT_SEQUENTIAL",
+  "TRIGGERED_CONDITIONAL",
+];
+
+export const SECONDARY_DEPENDENCY_MODE_LABELS: Record<SecondaryDependencyMode, string> = {
+  INDEPENDENT: "Independent simultaneous",
+  LINKED_TO_PRIMARY: "Linked to Primary",
+  DEPENDENT_SEQUENTIAL: "Dependent sequential",
+  TRIGGERED_CONDITIONAL: "Triggered / conditional",
+};
+
+function normalizeSecondaryDependencyMode(
+  value: unknown,
+  sortOrder: number,
+): SecondaryDependencyMode | null {
+  if (sortOrder <= 0) return null;
+  return oneOf(value, SECONDARY_DEPENDENCY_MODE_OPTIONS, "LINKED_TO_PRIMARY");
+}
 const CORE_ATTRIBUTES: CoreAttribute[] = [
   "ATTACK",
   "GUARD",
@@ -662,6 +684,7 @@ export function createDefaultCharacterPowerPacket(
     applicationModeKey: null,
     resolutionOrigin: "CASTER",
     applyTo: "PRIMARY_TARGET",
+    secondaryDependencyMode: normalizeSecondaryDependencyMode(null, sortOrder),
     triggerConditionText: null,
     detailsJson: {
       ...defaultDetailsForIntention(intention),
@@ -765,6 +788,7 @@ function normalizePacket(
       "CASTER",
     ),
     applyTo,
+    secondaryDependencyMode: normalizeSecondaryDependencyMode(raw.secondaryDependencyMode, sortOrder),
     triggerConditionText: asString(raw.triggerConditionText, "") || null,
     detailsJson: details,
     localTargetingOverride: raw.localTargetingOverride && typeof raw.localTargetingOverride === "object"
@@ -1076,6 +1100,9 @@ function collectCharacterPowerValidationErrors(power: CharacterPower) {
     }
     if (packetIndex > 0 && (packet.diceCount ?? 1) !== 1) {
       errors.push(`${packetLabel} secondary packet dice are derived by the shared power authoring surface and cannot be independently authored.`);
+    }
+    if (packetIndex > 0 && packet.secondaryDependencyMode === "TRIGGERED_CONDITIONAL" && !asString(packet.triggerConditionText, "")) {
+      errors.push(`${packetLabel} triggered / conditional dependency requires a trigger condition.`);
     }
     const allowedTimings = getCharacterPowerAllowedTimingOptions(power, packetIndex);
     if (!isPowerPacketTimingAuthorable(power, packetIndex)) {

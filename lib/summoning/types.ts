@@ -102,6 +102,11 @@ export type EffectTimingType =
 export type EffectDurationType = "INSTANT" | "TURNS" | "PASSIVE" | "UNTIL_TARGET_NEXT_TURN";
 export type WoundChannel = "PHYSICAL" | "MENTAL";
 export type EffectPacketApplyTo = "PRIMARY_TARGET" | "ALLIES" | "SELF";
+export type SecondaryDependencyMode =
+  | "INDEPENDENT"
+  | "LINKED_TO_PRIMARY"
+  | "DEPENDENT_SEQUENTIAL"
+  | "TRIGGERED_CONDITIONAL";
 
 export type EffectPacketDetails = Record<string, unknown>;
 
@@ -138,6 +143,7 @@ export type EffectPacket = {
   applicationModeKey?: string | null;
   resolutionOrigin?: ResolutionOrigin;
   applyTo?: EffectPacketApplyTo | null;
+  secondaryDependencyMode?: SecondaryDependencyMode | null;
   triggerConditionText?: string | null;
   detailsJson: EffectPacketDetails;
   localTargetingOverride?: EffectPacketLocalTargetingOverride | null;

@@ -2677,6 +2677,7 @@ type SecondaryBundleDelta = {
 };
 
 function isIndependentBundleSecondary(action: CombatAction): boolean {
+  if (action.secondaryDependencyMode && action.secondaryDependencyMode !== "INDEPENDENT") return false;
   if (action.linkedToPrimary || action.usesPrimaryAppliedSuccesses || action.skipOwnRoll || action.skipOwnDefenceGate) {
     return false;
   }

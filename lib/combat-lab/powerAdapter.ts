@@ -117,6 +117,21 @@ function getPackets(power: Power): EffectPacket[] {
   }));
 }
 
+function secondaryDependencyModeForPacket(packet: EffectPacket): NonNullable<EffectPacket["secondaryDependencyMode"]> | null {
+  const packetIndex = packet.packetIndex ?? packet.sortOrder ?? 0;
+  if (packetIndex <= 0) return null;
+  const mode = packet.secondaryDependencyMode;
+  if (
+    mode === "INDEPENDENT" ||
+    mode === "LINKED_TO_PRIMARY" ||
+    mode === "DEPENDENT_SEQUENTIAL" ||
+    mode === "TRIGGERED_CONDITIONAL"
+  ) {
+    return mode;
+  }
+  return "LINKED_TO_PRIMARY";
+}
+
 function unsupported(
   power: Power,
   reason: string,
@@ -519,6 +534,10 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
     );
     const secondaryActions = linkedPackets.flatMap((secondaryPacket) => {
       const secondaryDetails = asRecord(secondaryPacket.detailsJson);
+      const secondaryDependencyMode = secondaryDependencyModeForPacket(secondaryPacket) ?? "LINKED_TO_PRIMARY";
+      if (secondaryDependencyMode === "TRIGGERED_CONDITIONAL" && !asString(secondaryPacket.triggerConditionText)) {
+        warnings.push(`Secondary packet ${secondaryPacket.packetIndex ?? secondaryPacket.sortOrder ?? "?"} is TRIGGERED_CONDITIONAL but has no trigger condition; Combat Lab keeps it out of independent bundle resolution.`);
+      }
       const secondaryDurationKind = durationKindForPacket(secondaryPacket);
       const secondaryHasExplicitTimedDuration =
         secondaryPacket.effectDurationType === "TURNS" ||
@@ -547,6 +566,18 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
         skippedPacketIndexes.add(secondaryPacket.packetIndex);
       }
       return secondaryAdaptation.actions.map((action) => {
+        if (secondaryDependencyMode === "INDEPENDENT") {
+          return {
+            ...action,
+            name:
+              action.kind === "buff" && action.modifier
+                ? `${power.name} (+${action.modifier.attribute})`
+                : `${power.name} (${action.kind})`,
+            cooldownRounds: 0,
+            secondaryDependencyMode,
+            cooldownActionId: actionId,
+          };
+        }
         const inheritedDefenceRider =
           inheritsPrimaryPassiveDuration && kind === "defence" && action.kind === "buff";
         return {
@@ -568,6 +599,7 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
               ? `${power.name} (+${action.modifier.attribute})`
               : `${power.name} (${action.kind})`,
           cooldownRounds: 0,
+          secondaryDependencyMode,
           linkedToPrimary: true,
           usesPrimaryAppliedSuccesses: true,
           linkedScalingMode,
@@ -627,7 +659,12 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
         ...(power.descriptorChassis === "FIELD" ? ["Field positioning abstracted using 60% potential target capacity."] : []),
         ...(kind === "movement" ? ["Movement position not simulated; forced movement tracked as control metric."] : []),
         ...(power.counterMode === "YES" ? ["Counter economy uses Responses and is limited to one reaction per incoming action."] : []),
-        ...(secondaryActions.length > 0 ? [`Linked ${secondaryActions.length} secondary packet(s) resolved under this power action.`] : []),
+        ...(secondaryActions.some((secondaryAction) => secondaryAction.secondaryDependencyMode === "INDEPENDENT")
+          ? [`${secondaryActions.filter((secondaryAction) => secondaryAction.secondaryDependencyMode === "INDEPENDENT").length} independent secondary packet(s) may enter simultaneous bundle resolution when supported.`]
+          : []),
+        ...(secondaryActions.some((secondaryAction) => secondaryAction.secondaryDependencyMode !== "INDEPENDENT")
+          ? [`${secondaryActions.filter((secondaryAction) => secondaryAction.secondaryDependencyMode !== "INDEPENDENT").length} linked/dependent secondary packet(s) resolved under this power action.`]
+          : []),
       ],
       cooldownRounds: options.linkedSecondary ? 0 : cooldownRounds,
       source: { power, packet },
