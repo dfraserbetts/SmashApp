@@ -101,6 +101,19 @@ function expectTranscriptLine(lines: string[], pattern: RegExp, label: string) {
   }
 }
 
+function expectActiveResistDegradation(
+  state: CombatState,
+  actorId: string,
+  attribute: "ATTACK" | "GUARD" | "FORTITUDE" | "INTELLECT" | "SYNERGY" | "BRAVERY",
+  expected: number,
+  label: string,
+) {
+  const actual = state.defenceDegradation[actorId]?.resist?.[attribute] ?? 0;
+  if (actual !== expected) {
+    throw new Error(`${label}: expected ${attribute} active Resist degradation ${expected}, got ${actual}.`);
+  }
+}
+
 function expectSuccessCount(roll: number, modifier: number, expected: number, label: string) {
   const actual = successCountForRoll(roll, modifier);
   if (actual !== expected) {
@@ -4826,6 +4839,141 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   ) {
     throw new Error("Resist did not cancel hostile successes success-by-success.");
   }
+}
+
+{
+  const attacker = fixtureActor("active-resist-degrade-attacker", "players");
+  const defender = fixtureActor("active-resist-degrade-defender", "monsters", {
+    resist: { ATTACK: 0, BRAVERY: 0 },
+    attributeDice: { Attack: "D4", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D4" },
+  });
+  const attackPressure = action({
+    id: "attack-lane-pressure",
+    name: "Attack Lane Pressure",
+    kind: "control",
+    diceCount: 2,
+    potency: 1,
+    resistAttribute: "ATTACK",
+  });
+  const braveryPressure = action({
+    id: "bravery-lane-pressure",
+    name: "Bravery Lane Pressure",
+    kind: "control",
+    diceCount: 2,
+    potency: 1,
+    resistAttribute: "BRAVERY",
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const firstAttack = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: attackPressure,
+    rng: rngFrom([0.99, 0.99, 0, 0, 0]),
+  });
+  if (firstAttack.resistRolls !== 1 || firstAttack.degradedDefenceRolls !== 0) {
+    throw new Error("First ATTACK active Resist should resolve fresh.");
+  }
+  expectActiveResistDegradation(state, state.actors[1].id, "ATTACK", 1, "first ATTACK active Resist");
+  expectActiveResistDegradation(state, state.actors[1].id, "BRAVERY", 0, "ATTACK active Resist must not degrade BRAVERY");
+  const afterAttack = state.defenceDegradation[state.actors[1].id];
+  if (afterAttack?.dodge !== 0 || afterAttack.physical !== 0 || afterAttack.mental !== 0) {
+    throw new Error(`Active Resist degraded unrelated normal defence lanes: ${JSON.stringify(afterAttack)}.`);
+  }
+
+  const bravery = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: braveryPressure,
+    rng: rngFrom([0.99, 0.99, 0, 0, 0]),
+  });
+  if (bravery.resistRolls !== 1 || bravery.degradedDefenceRolls !== 0) {
+    throw new Error("BRAVERY active Resist should not inherit ATTACK lane degradation.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Bravery Lane Pressure resist.*degradation 0, final dice 3/i, "fresh BRAVERY active Resist after ATTACK degradation");
+  expectActiveResistDegradation(state, state.actors[1].id, "ATTACK", 1, "BRAVERY active Resist must not increment ATTACK");
+  expectActiveResistDegradation(state, state.actors[1].id, "BRAVERY", 1, "first BRAVERY active Resist");
+
+  const secondAttack = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: attackPressure,
+    rng: rngFrom([0.99, 0.99, 0, 0, 0]),
+  });
+  if (secondAttack.resistRolls !== 1 || secondAttack.degradedDefenceRolls !== 1) {
+    throw new Error("Second ATTACK active Resist should be degraded by same-lane pressure.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Attack Lane Pressure resist.*degradation 1, final dice 2/i, "same-lane ATTACK active Resist degradation");
+  expectActiveResistDegradation(state, state.actors[1].id, "ATTACK", 2, "second ATTACK active Resist");
+}
+
+{
+  const attacker = fixtureActor("bravery-first-degrade-attacker", "players");
+  const defender = fixtureActor("bravery-first-degrade-defender", "monsters", {
+    resist: { ATTACK: 0, BRAVERY: 0 },
+    attributeDice: { Attack: "D4", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D4" },
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({
+      id: "bravery-first-pressure",
+      name: "Bravery First Pressure",
+      kind: "control",
+      diceCount: 2,
+      potency: 1,
+      resistAttribute: "BRAVERY",
+    }),
+    rng: rngFrom([0.99, 0.99, 0, 0, 0]),
+  });
+  expectActiveResistDegradation(state, state.actors[1].id, "BRAVERY", 1, "BRAVERY-first active Resist");
+  expectActiveResistDegradation(state, state.actors[1].id, "ATTACK", 0, "BRAVERY active Resist must not degrade ATTACK");
+  const attack = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({
+      id: "attack-after-bravery-pressure",
+      name: "Attack After Bravery Pressure",
+      kind: "control",
+      diceCount: 2,
+      potency: 1,
+      resistAttribute: "ATTACK",
+    }),
+    rng: rngFrom([0.99, 0.99, 0, 0, 0]),
+  });
+  if (attack.resistRolls !== 1 || attack.degradedDefenceRolls !== 0) {
+    throw new Error("ATTACK active Resist should remain fresh after BRAVERY-only degradation.");
+  }
+  expectTranscriptLine(state.transcriptLines, /Attack After Bravery Pressure resist.*degradation 0, final dice 3/i, "fresh ATTACK active Resist after BRAVERY degradation");
+}
+
+{
+  const attacker = fixtureActor("zero-success-resist-attacker", "players");
+  const defender = fixtureActor("zero-success-resist-defender", "monsters", { resist: { ATTACK: 0 } });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const zero = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({
+      id: "zero-success-attack-resist-pressure",
+      name: "Zero Success Attack Resist Pressure",
+      kind: "control",
+      diceCount: 1,
+      potency: 1,
+      resistAttribute: "ATTACK",
+    }),
+    rng: rngFrom([0]),
+  });
+  if (zero.rawSuccesses !== 0 || zero.resistRolls !== 0 || zero.degradedDefenceRolls !== 0) {
+    throw new Error(`Zero-success hostile action should not roll or degrade active Resist: ${JSON.stringify(zero)}.`);
+  }
+  expectActiveResistDegradation(state, state.actors[1].id, "ATTACK", 0, "zero-success active Resist");
 }
 
 {

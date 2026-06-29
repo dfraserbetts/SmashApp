@@ -248,6 +248,7 @@ export type CombatState = {
       dodge: number;
       physical: number;
       mental: number;
+      resist?: Partial<Record<CoreAttribute, number>>;
     }
   >;
   log: CombatLogEntry[];

@@ -270,6 +270,26 @@ function peekDefenceDegradation(state: CombatState, actorId: string, type: "dodg
   return state.defenceDegradation[actorId]?.[type] ?? 0;
 }
 
+function takeActiveResistDegradation(
+  state: CombatState,
+  actorId: string,
+  resistedAttribute: NonNullable<CombatAction["resistAttribute"]>,
+) {
+  state.defenceDegradation[actorId] ??= { dodge: 0, physical: 0, mental: 0 };
+  const resist = state.defenceDegradation[actorId].resist ??= {};
+  const previousRolls = resist[resistedAttribute] ?? 0;
+  resist[resistedAttribute] = previousRolls + 1;
+  return previousRolls;
+}
+
+function peekActiveResistDegradation(
+  state: CombatState,
+  actorId: string,
+  resistedAttribute: NonNullable<CombatAction["resistAttribute"]>,
+) {
+  return state.defenceDegradation[actorId]?.resist?.[resistedAttribute] ?? 0;
+}
+
 function successDistribution(diceCount: number, die: CombatActor["attributeDice"][CombatAttributeName], modifier: number): number[] {
   const count = Math.max(0, Math.trunc(diceCount));
   let distribution = [1];
@@ -1088,7 +1108,9 @@ function estimatePoolCommit(
   if (poolType === "RESIST") {
     const incomingSuccesses = Math.max(0, Math.trunc(options.incomingSuccesses ?? 0));
     if (!options.resistedAttribute || incomingSuccesses <= 0) return 0;
-    const resistDice = Math.max(1, 3 + (target.resist[options.resistedAttribute] ?? 0));
+    const baseResistDice = Math.max(1, 3 + (target.resist[options.resistedAttribute] ?? 0));
+    const degradation = peekActiveResistDegradation(state, target.id, options.resistedAttribute);
+    const resistDice = Math.max(1, baseResistDice - degradation);
     const attribute = CORE_TO_COMBAT_ATTRIBUTE[options.resistedAttribute] ?? "Guard";
     const expectedCancelled = expectedSuccesses(
       resistDice,
@@ -1379,7 +1401,9 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
     requested: requestedPoolCommit,
     resistedAttribute: action.resistAttribute,
   });
-  const resistDice = Math.max(1, 3 + (target.resist[action.resistAttribute] ?? 0));
+  const degradation = takeActiveResistDegradation(state, target.id, action.resistAttribute);
+  const baseResistDice = Math.max(1, 3 + (target.resist[action.resistAttribute] ?? 0));
+  const resistDice = Math.max(1, baseResistDice - degradation);
   const attribute = CORE_TO_COMBAT_ATTRIBUTE[action.resistAttribute] ?? "Guard";
   const resistRoll = rollAttributeDice({ state, actor: target, attribute, diceCount: resistDice, rng });
   const rollSummary = summarizeRoll({ actor: target, reason: `${action.name} resist`, attribute, roll: resistRoll });
@@ -1400,6 +1424,7 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
   metrics.resistRolls = 1;
   metrics.resistSuccesses = resistRoll.successes + (poolCommit?.committed ?? 0);
   metrics.resistCancelled = cancelled;
+  metrics.degradedDefenceRolls = degradation > 0 ? 1 : 0;
   recordModifiedResistRoll(metrics, resistRoll.modifier);
   metrics.hostileSuccessesCancelledByResist = cancelled;
   metrics.hostileSuccessesAfterResist = Math.max(0, successes - cancelled);
@@ -1410,10 +1435,12 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
     actionId: action.id,
     actionName: action.name,
     lane: "response",
-    message: `${rollText(rollSummary)}${poolCommit ? ` Resist pool adds ${poolCommit.committed} cancellation unit${poolCommit.committed === 1 ? "" : "s"}.` : ""} Resist formula 3 + ${action.resistAttribute} resist value = ${resistDice} dice; cancelled ${cancelled} of ${successes} hostile successes.`,
+    message: `${rollText(rollSummary)}${poolCommit ? ` Resist pool adds ${poolCommit.committed} cancellation unit${poolCommit.committed === 1 ? "" : "s"}.` : ""} Resist formula 3 + ${action.resistAttribute} resist value = ${baseResistDice} dice; degradation ${degradation}, final dice ${resistDice}; cancelled ${cancelled} of ${successes} hostile successes.`,
     roll: rollSummary,
     details: {
       resistAttribute: action.resistAttribute,
+      baseResistDice,
+      degradation,
       resistDice,
       incomingSuccesses: successes,
       cancelled,
