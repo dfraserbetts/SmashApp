@@ -437,6 +437,178 @@ function runLinkedWoundBandFixture(prevention: number) {
   if (!a4BlockPool || a4BlockPool.remainingPoints !== startingPhysicalBlockPoints - attackResolution.defensivePools.bySourceSide.players.committedPoints) {
     throw new Error("Physical Block pool remaining did not decrease by committed points.");
   }
+  if (attackResolution.physicalDefenceRolls !== 1 || attackResolution.degradedDefenceRolls !== 0) {
+    throw new Error("Pool + normal Physical Defence did not roll exactly once before first-lane degradation applied.");
+  }
+  if (state.defenceDegradation[state.actors[0].id]?.physical !== 1) {
+    throw new Error("Pool + normal Physical Defence did not advance physical defence degradation.");
+  }
+}
+
+{
+  const defender = fixtureActor("pool-only-block-defender", "players", {
+    defensivePoolCommitmentMode: "poolOnly",
+    physicalDefenceDice: 6,
+    physicalBlockPerSuccess: 4,
+    attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D12", Bravery: "D8" },
+  });
+  const attacker = fixtureActor("pool-only-block-attacker", "monsters", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[0],
+    action: action({
+      id: "pool-only-physical-block",
+      name: "Pool Only Physical Block",
+      sourceType: "power",
+      kind: "defence",
+      targetPolicy: "self",
+      defenceMode: "Block",
+      pool: "physical",
+      accuracyAttribute: "Synergy",
+      diceCount: 1,
+      potency: 2,
+      durationKind: "turns",
+      durationRounds: 2,
+    }),
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  const startingPoolPoints = state.defensivePools[0]?.remainingPoints ?? 0;
+  const attackResolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: action({ id: "pool-only-block-attack", diceCount: 2, potency: 3 }),
+    rng: rngFrom([0.99, 0.99]),
+    lane: "main",
+  });
+  if (attackResolution.defensivePools.bySourceSide.players.committedPoints !== 2) {
+    throw new Error("Pool-only Physical Block did not commit the expected per-trigger pool points.");
+  }
+  if (attackResolution.defensivePools.bySourceSide.players.blockWoundsPrevented !== 2) {
+    throw new Error("Pool-only Physical Block did not prevent wounds from committed pool points.");
+  }
+  if (attackResolution.physicalDefenceRolls !== 0 || attackResolution.physicalDefenceChosen !== 0 || attackResolution.degradedDefenceRolls !== 0) {
+    throw new Error("Pool-only Physical Block rolled or degraded normal Physical Defence.");
+  }
+  if (state.defenceDegradation[state.actors[0].id]?.physical) {
+    throw new Error("Pool-only Physical Block advanced physical defence degradation.");
+  }
+  if (state.defensivePools[0]?.remainingPoints !== startingPoolPoints - attackResolution.defensivePools.bySourceSide.players.committedPoints) {
+    throw new Error("Pool-only Physical Block did not spend committed pool points.");
+  }
+}
+
+{
+  const defender = fixtureActor("pool-only-dodge-defender", "players", {
+    defensivePoolCommitmentMode: "poolOnly",
+    dodgeDice: 8,
+    attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D12", Bravery: "D8" },
+  });
+  const attacker = fixtureActor("pool-only-dodge-attacker", "monsters", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[0],
+    action: action({
+      id: "pool-only-dodge",
+      name: "Pool Only Dodge",
+      sourceType: "power",
+      kind: "defence",
+      targetPolicy: "self",
+      defenceMode: "Dodge",
+      accuracyAttribute: "Synergy",
+      diceCount: 1,
+      potency: 2,
+      durationKind: "turns",
+      durationRounds: 2,
+    }),
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  const startingPoolPoints = state.defensivePools[0]?.remainingPoints ?? 0;
+  const attackResolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: action({ id: "pool-only-dodge-attack", diceCount: 1, potency: 5 }),
+    rng: rngFrom([0.99]),
+    lane: "main",
+  });
+  if (attackResolution.defensivePools.bySourceSide.players.committedPoints !== 2 || attackResolution.defensivePools.bySourceSide.players.dodgeAvoids !== 1) {
+    throw new Error("Pool-only Dodge did not commit enough pool points to avoid the incoming attack.");
+  }
+  if (attackResolution.netWounds !== 0 || attackResolution.woundsAvoidedByDodge <= 0) {
+    throw new Error("Pool-only Dodge did not determine the Dodge outcome from pool points.");
+  }
+  if (attackResolution.dodgeRolls !== 0 || attackResolution.dodgeChosen !== 0 || attackResolution.degradedDefenceRolls !== 0) {
+    throw new Error("Pool-only Dodge rolled or degraded normal Dodge.");
+  }
+  if (state.defenceDegradation[state.actors[0].id]?.dodge) {
+    throw new Error("Pool-only Dodge advanced dodge degradation.");
+  }
+  if (state.defensivePools[0]?.remainingPoints !== startingPoolPoints - attackResolution.defensivePools.bySourceSide.players.committedPoints) {
+    throw new Error("Pool-only Dodge did not spend committed pool points.");
+  }
+}
+
+{
+  const defender = fixtureActor("pool-only-failed-dodge-defender", "players", {
+    defensivePoolCommitmentMode: "poolOnly",
+    dodgeDice: 8,
+    attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D12", Bravery: "D8" },
+  });
+  const attacker = fixtureActor("pool-only-failed-dodge-attacker", "monsters", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[0],
+    action: action({
+      id: "pool-only-failed-dodge",
+      name: "Pool Only Failed Dodge",
+      sourceType: "power",
+      kind: "defence",
+      targetPolicy: "self",
+      defenceMode: "Dodge",
+      accuracyAttribute: "Synergy",
+      diceCount: 1,
+      potency: 1,
+      durationKind: "turns",
+      durationRounds: 2,
+    }),
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  const attackResolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: action({ id: "pool-only-failed-dodge-attack", diceCount: 2, potency: 4 }),
+    rng: rngFrom([0.99, 0.99]),
+    lane: "main",
+  });
+  if (attackResolution.defensivePools.bySourceSide.players.committedPoints !== 1) {
+    throw new Error("Insufficient pool-only Dodge did not spend its available per-trigger point.");
+  }
+  if (attackResolution.defensivePools.bySourceSide.players.wastedPoints !== 1 || attackResolution.defensivePools.bySourceSide.players.dodgeAvoids !== 0) {
+    throw new Error("Failed pool-only Dodge did not count spent points as wasted without an avoid.");
+  }
+  if (attackResolution.netWounds <= 0) {
+    throw new Error("Insufficient pool-only Dodge should allow the incoming attack to land.");
+  }
+  if (attackResolution.dodgeRolls !== 0 || attackResolution.dodgeChosen !== 0 || state.defenceDegradation[state.actors[0].id]?.dodge) {
+    throw new Error("Failed pool-only Dodge rolled or degraded normal Dodge.");
+  }
 }
 
 {

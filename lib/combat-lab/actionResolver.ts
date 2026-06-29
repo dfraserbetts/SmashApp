@@ -515,6 +515,44 @@ function estimateDefenceStringValue(state: CombatState, target: CombatActor, poo
   return Math.min(rawWounds, expectedBlocked);
 }
 
+function estimatePoolOnlyCommit(
+  state: CombatState,
+  target: CombatActor,
+  poolType: CombatDefensivePoolType,
+  options: {
+    incomingSuccesses?: number;
+    incomingWounds?: number;
+    woundChannel?: "physical" | "mental";
+    resistedAttribute?: CombatAction["defenceResistedAttribute"];
+  },
+): number {
+  const pool = state.defensivePools.find((entry) =>
+    poolMatches({ pool: entry, target, poolType, woundChannel: options.woundChannel, resistedAttribute: options.resistedAttribute }),
+  );
+  if (!pool) return 0;
+  if (poolType === "DODGE" || poolType === "RESIST") {
+    const incomingSuccesses = Math.max(0, Math.trunc(options.incomingSuccesses ?? 0));
+    return Math.min(pool.remainingPoints, pool.perTriggerCap, incomingSuccesses);
+  }
+  const incomingWounds = Math.max(0, Math.trunc(options.incomingWounds ?? 0));
+  return Math.min(pool.remainingPoints, pool.perTriggerCap, incomingWounds);
+}
+
+function estimateDodgePoolOnlyValue(state: CombatState, target: CombatActor, incomingSuccesses: number, rawWounds: number): number {
+  if (incomingSuccesses <= 0 || rawWounds <= 0) return 0;
+  const poolCommit = estimatePoolOnlyCommit(state, target, "DODGE", { incomingSuccesses });
+  return poolCommit >= incomingSuccesses ? rawWounds : 0;
+}
+
+function estimateBlockPoolOnlyValue(state: CombatState, target: CombatActor, pool: "physical" | "mental", rawWounds: number): number {
+  if (rawWounds <= 0) return 0;
+  const poolCommit = estimatePoolOnlyCommit(state, target, pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK", {
+    woundChannel: pool,
+    incomingWounds: rawWounds,
+  });
+  return Math.min(rawWounds, poolCommit);
+}
+
 function resolveBestNormalDefence(params: {
   state: CombatState;
   target: CombatActor;
@@ -524,6 +562,44 @@ function resolveBestNormalDefence(params: {
   rng: Rng;
   ongoingPerTick?: boolean;
 }): CombatResolutionMetrics {
+  if (params.target.defensivePoolCommitmentMode === "poolOnly") {
+    const blockPoolOnlyCommit = estimatePoolOnlyCommit(params.state, params.target, params.pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK", {
+      woundChannel: params.pool,
+      incomingWounds: params.rawWounds,
+    });
+    const dodgePoolOnlyCommit = params.pool === "physical"
+      ? estimatePoolOnlyCommit(params.state, params.target, "DODGE", { incomingSuccesses: params.incomingSuccesses })
+      : 0;
+    const blockPoolOnlyValue = estimateBlockPoolOnlyValue(params.state, params.target, params.pool, params.rawWounds);
+    const dodgePoolOnlyValue = params.pool === "physical"
+      ? estimateDodgePoolOnlyValue(params.state, params.target, params.incomingSuccesses, params.rawWounds)
+      : 0;
+    const useBlockPoolOnly = blockPoolOnlyValue > dodgePoolOnlyValue ||
+      (blockPoolOnlyValue === dodgePoolOnlyValue && blockPoolOnlyCommit >= dodgePoolOnlyCommit);
+    const poolOnlyChosen = useBlockPoolOnly ? `${params.pool} pool-only defence` : "dodge pool-only defence";
+    if (Math.max(blockPoolOnlyCommit, dodgePoolOnlyCommit) > 0) {
+      emitTranscriptEvent(params.state, {
+        type: "defenceChoice",
+        actorId: params.target.id,
+        actorName: params.target.name,
+        lane: "response",
+        message: `Defence choice: ${params.target.name} chooses ${poolOnlyChosen}. Expected prevention: dodge pool ${dodgePoolOnlyValue.toFixed(2)}, ${params.pool} pool ${blockPoolOnlyValue.toFixed(2)}.`,
+        details: {
+          dodgePoolOnlyExpectedValue: dodgePoolOnlyValue,
+          blockPoolOnlyExpectedValue: blockPoolOnlyValue,
+          chosen: poolOnlyChosen,
+          normalDefenceSkipped: true,
+        },
+      });
+      const metrics =
+        useBlockPoolOnly
+          ? resolveBlockPoolOnly(params.state, params.target, params.pool, params.rawWounds, { ongoingPerTick: params.ongoingPerTick })
+          : resolveDodgePoolOnly(params.state, params.target, params.incomingSuccesses);
+      metrics.defenceChoiceExpectedValue = Math.max(blockPoolOnlyValue, dodgePoolOnlyValue);
+      return metrics;
+    }
+  }
+
   const defenceStringValue = estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds);
   if (params.pool === "mental") {
     emitTranscriptEvent(params.state, {
@@ -1088,6 +1164,108 @@ function finishDefensivePoolCommit(params: {
   if (params.pool.remainingPoints <= 0) {
     recordDefensivePoolExpiry(params.metrics, params.pool, "empty");
   }
+}
+
+function removeEmptyDefensivePool(state: CombatState, pool: CombatDefensivePool) {
+  if (pool.remainingPoints <= 0) {
+    state.defensivePools = state.defensivePools.filter((entry) => entry.id !== pool.id);
+  }
+}
+
+function resolveDodgePoolOnly(state: CombatState, target: CombatActor, incomingSuccesses: number): CombatResolutionMetrics {
+  const metrics = emptyResolution();
+  if (incomingSuccesses <= 0) return metrics;
+  const poolCommit = commitDefensivePool({
+    state,
+    metrics,
+    target,
+    poolType: "DODGE",
+    requested: estimatePoolOnlyCommit(state, target, "DODGE", { incomingSuccesses }),
+  });
+  if (!poolCommit) return metrics;
+  const dodgeSucceeded = poolCommit.committed >= incomingSuccesses;
+  metrics.dodgeSuccesses = poolCommit.committed;
+  if (dodgeSucceeded) {
+    metrics.woundsAvoidedByDodge = incomingSuccesses;
+  }
+  finishDefensivePoolCommit({
+    metrics,
+    pool: poolCommit.pool,
+    committed: poolCommit.committed,
+    effective: dodgeSucceeded ? Math.min(poolCommit.committed, incomingSuccesses) : 0,
+    result: "dodge",
+  });
+  removeEmptyDefensivePool(state, poolCommit.pool);
+  emitTranscriptEvent(state, {
+    type: "defensivePool",
+    actorId: target.id,
+    actorName: target.name,
+    lane: "response",
+    actionId: poolCommit.pool.sourceActionId,
+    actionName: poolCommit.pool.sourceActionName,
+    message: `Defensive pool-only Dodge: ${target.name} spends ${poolCommit.committed} ${poolCommit.pool.sourceActionName} point${poolCommit.committed === 1 ? "" : "s"} against ${incomingSuccesses} incoming success${incomingSuccesses === 1 ? "" : "es"}; normal Dodge is not rolled and Dodge degradation is not applied. Dodge ${dodgeSucceeded ? "succeeds" : "fails"}.`,
+    details: {
+      poolType: "DODGE",
+      committed: poolCommit.committed,
+      incomingSuccesses,
+      dodgeSucceeded,
+      normalDefenceSkipped: true,
+    },
+  });
+  return metrics;
+}
+
+function resolveBlockPoolOnly(
+  state: CombatState,
+  target: CombatActor,
+  pool: "physical" | "mental",
+  wounds: number,
+  context: { ongoingPerTick?: boolean } = {},
+): CombatResolutionMetrics {
+  const metrics = emptyResolution();
+  if (wounds <= 0) return metrics;
+  const poolType = pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK";
+  const poolCommit = commitDefensivePool({
+    state,
+    metrics,
+    target,
+    poolType,
+    requested: estimatePoolOnlyCommit(state, target, poolType, {
+      woundChannel: pool,
+      incomingWounds: wounds,
+    }),
+    woundChannel: pool,
+  });
+  if (!poolCommit) return metrics;
+  const blocked = Math.min(wounds, poolCommit.committed);
+  metrics.defenceStringBlocked = blocked;
+  metrics.protectionPrevented = blocked;
+  finishDefensivePoolCommit({
+    metrics,
+    pool: poolCommit.pool,
+    committed: poolCommit.committed,
+    effective: blocked,
+    result: "block",
+  });
+  removeEmptyDefensivePool(state, poolCommit.pool);
+  emitTranscriptEvent(state, {
+    type: "defensivePool",
+    actorId: target.id,
+    actorName: target.name,
+    lane: "response",
+    actionId: poolCommit.pool.sourceActionId,
+    actionName: poolCommit.pool.sourceActionName,
+    message: `Defensive pool-only Block: ${target.name} spends ${poolCommit.committed} ${poolCommit.pool.sourceActionName} point${poolCommit.committed === 1 ? "" : "s"} to prevent ${blocked} of ${wounds} ${context.ongoingPerTick ? "ongoing " : ""}${pool} wound${wounds === 1 ? "" : "s"}; normal ${pool} defence is not rolled and defence degradation is not applied.`,
+    details: {
+      poolType,
+      pool,
+      committed: poolCommit.committed,
+      blocked,
+      incomingWounds: wounds,
+      normalDefenceSkipped: true,
+    },
+  });
+  return metrics;
 }
 
 function recordOngoingFirstTick(params: {

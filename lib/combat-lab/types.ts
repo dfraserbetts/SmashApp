@@ -25,6 +25,7 @@ export type CombatDurationSource = "authored" | "inheritedFromParent" | "default
 export type CombatDefensivePoolType = "DODGE" | "PHYSICAL_BLOCK" | "MENTAL_BLOCK" | "RESIST";
 export type CombatDefensivePoolSourceChassis = "IMMEDIATE" | "FIELD" | "ATTACHED" | "TRIGGER" | "RESERVE" | "UNKNOWN";
 export type CombatDefensivePoolCommitmentModifier = "STANDARD" | "CHANNEL" | "CHARGE" | "UNKNOWN";
+export type CombatDefensivePoolCommitmentMode = "auto" | "poolOnly";
 export type CombatDefensivePoolExpiryReason =
   | "empty"
   | "durationEnd"
@@ -158,6 +159,7 @@ export type CombatActor = {
   resist: Partial<Record<CoreAttribute, number>>;
   actionsPerTurn: number;
   actions: CombatAction[];
+  defensivePoolCommitmentMode?: CombatDefensivePoolCommitmentMode;
   unsupportedPowers: UnsupportedPowerReason[];
   hydration: CombatActorHydration;
   defeated: boolean;
