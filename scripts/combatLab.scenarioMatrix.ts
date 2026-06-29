@@ -332,6 +332,8 @@ type ScenarioMatrixRow = {
   >>;
   ongoingPressureSummary: CombatSuiteReport["ongoingPressure"];
   defensivePoolSummary: CombatSuiteReport["defensivePools"];
+  majorInjuryDiagnostics: CombatSuiteReport["majorInjuryDiagnostics"];
+  assistDiagnostics: CombatSuiteReport["assistDiagnostics"];
   transcriptAnomalyCount: number | null;
   firstRunTranscript?: CombatSuiteReport["firstRunTranscript"];
 };
@@ -1162,6 +1164,8 @@ function scenarioToRow(
     counterCandidateDiagnostics: summarizeCounters(report),
     ongoingPressureSummary: report.ongoingPressure,
     defensivePoolSummary: report.defensivePools,
+    majorInjuryDiagnostics: report.majorInjuryDiagnostics,
+    assistDiagnostics: report.assistDiagnostics,
     transcriptAnomalyCount: options.includeTranscript ? transcriptAnomalyCount(report) : null,
   };
   if (options.includeTranscript) row.firstRunTranscript = report.firstRunTranscript;
@@ -1428,6 +1432,70 @@ function printHumanSummary(payload: MatrixPayload) {
     console.log("");
     console.log("Unsupported Notes:");
     for (const note of payload.unsupportedNotes) console.log(`- ${note}`);
+  }
+
+  const hasMajorInjuryDiagnostics = payload.scenarios.some((scenario) =>
+    Object.values(scenario.majorInjuryDiagnostics).some((value) => value > 0),
+  );
+  console.log("");
+  console.log("C14 Major Injury Diagnostics:");
+  if (hasMajorInjuryDiagnostics) {
+    console.log("Scenario | Major | Minor | No Injury | Phys Major | Ment Major | Injury Defeats | Normal Defeats | No-Auto-Blaze");
+    console.log("--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:");
+    for (const scenario of payload.scenarios) {
+      const c14 = scenario.majorInjuryDiagnostics;
+      console.log([
+        scenario.scenarioName,
+        c14.majorInjuryEvents,
+        c14.minorInjuryEvents,
+        c14.noInjuryEvents,
+        c14.physicalMajorInjuries,
+        c14.mentalMajorInjuries,
+        c14.injuryDefeats,
+        c14.normalMonsterDefeats,
+        c14.noAutoBlazeEvents,
+      ].join(" | "));
+    }
+  } else {
+    console.log("- none recorded");
+  }
+
+  const hasAssistDiagnostics = payload.scenarios.some((scenario) =>
+    scenario.assistDiagnostics.assistDeclared > 0 ||
+    scenario.assistDiagnostics.assistRejected > 0 ||
+    scenario.assistDiagnostics.assistPressureGenerated > 0 ||
+    scenario.assistDiagnostics.assistPressureSpent > 0 ||
+    scenario.assistDiagnostics.assistPressureWasted > 0,
+  );
+  console.log("");
+  console.log("Assist Pressure Diagnostics:");
+  if (hasAssistDiagnostics) {
+    console.log("Scenario | Declared | Rejected | Generated | Spent | Wasted | Duplicate Rejected | Response Spent | Independent Damage");
+    console.log("--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:");
+    for (const scenario of payload.scenarios) {
+      const assist = scenario.assistDiagnostics;
+      console.log([
+        scenario.scenarioName,
+        assist.assistDeclared,
+        assist.assistRejected,
+        assist.assistPressureGenerated,
+        assist.assistPressureSpent,
+        assist.assistPressureWasted,
+        assist.assistDuplicateIntentRejected,
+        assist.assistResponseSpent,
+        assist.assistIndependentDamageApplied,
+      ].join(" | "));
+      for (const [lane, bucket] of Object.entries(assist.assistPressureByLane)) {
+        console.log(`  ${lane}: generated ${bucket.generated}, spent ${bucket.spent}, wasted ${bucket.wasted}`);
+      }
+      for (const [intention, bucket] of Object.entries(assist.assistPressureByIntention)) {
+        console.log(
+          `  ${intention}: declared ${bucket.declared}, rejected ${bucket.rejected}, generated ${bucket.generated}, spent ${bucket.spent}, wasted ${bucket.wasted}`,
+        );
+      }
+    }
+  } else {
+    console.log("- none recorded");
   }
 
   const canaryGroups = new Map<string, { metadata: ScenarioMatrixRow["canaryMetadata"]; baselineName: string; poolName: string }>();

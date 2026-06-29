@@ -23,11 +23,15 @@ import {
   makeFixturePower,
 } from "./powerAdapter";
 import { chooseActionLaneOrder, chooseTarget, chooseTurnAction } from "./targetingPolicies";
+import type { PowerIntention } from "../summoning/types";
 import type {
   CombatAggregateMetrics,
   CombatAction,
   CombatActor,
   CombatActorContribution,
+  CombatAssistIntentionBucket,
+  CombatAssistPressureBucket,
+  CombatAssistPressureLane,
   CombatDefensivePoolMetrics,
   CombatDefensivePoolSideTotals,
   CombatOngoingPressureMetrics,
@@ -38,6 +42,8 @@ import type {
   CombatTranscript,
   CombatTurnOrder,
 } from "./types";
+
+type CombatRuntimeState = ReturnType<typeof createCombatState>;
 
 function addOngoingPressureSideTotals(
   target: CombatOngoingPressureSideTotals,
@@ -142,6 +148,92 @@ function addDefensivePoolMetrics(
       resistUnitsCancelled: 0,
     };
     addDefensivePoolSideTotals(targetAction, sourceAction);
+  }
+}
+
+function ensureAssistLaneBucket(
+  metrics: CombatAggregateMetrics,
+  lane: CombatAssistPressureLane,
+): CombatAssistPressureBucket {
+  return metrics.assistDiagnostics.assistPressureByLane[lane] ??= {
+    generated: 0,
+    spent: 0,
+    wasted: 0,
+  };
+}
+
+function ensureAssistIntentionBucket(
+  metrics: CombatAggregateMetrics,
+  intention: PowerIntention,
+): CombatAssistIntentionBucket {
+  return metrics.assistDiagnostics.assistPressureByIntention[intention] ??= {
+    declared: 0,
+    rejected: 0,
+    generated: 0,
+    spent: 0,
+    wasted: 0,
+  };
+}
+
+function addEndOfRunDiagnostics(metrics: CombatAggregateMetrics, state: CombatRuntimeState) {
+  const actorsById = new Map(state.actors.map((actor) => [actor.id, actor]));
+  for (const event of state.pendingMajorInjuryEvents) {
+    const actor = actorsById.get(event.actorId);
+    if (event.forcedOutcome === "MAJOR_INJURY") {
+      metrics.majorInjuryDiagnostics.majorInjuryEvents += 1;
+      if (event.channel === "PHYSICAL") metrics.majorInjuryDiagnostics.physicalMajorInjuries += 1;
+      if (event.channel === "MENTAL") metrics.majorInjuryDiagnostics.mentalMajorInjuries += 1;
+    } else if (event.forcedOutcome === "MINOR_INJURY") {
+      metrics.majorInjuryDiagnostics.minorInjuryEvents += 1;
+      if (event.channel === "PHYSICAL") metrics.majorInjuryDiagnostics.physicalMinorInjuries += 1;
+      if (event.channel === "MENTAL") metrics.majorInjuryDiagnostics.mentalMinorInjuries += 1;
+    } else if (event.forcedOutcome === "NO_INJURY") {
+      metrics.majorInjuryDiagnostics.noInjuryEvents += 1;
+    }
+    if (event.blazeAvailable) metrics.majorInjuryDiagnostics.blazeAvailable += 1;
+    if (event.blazeDeclared) metrics.majorInjuryDiagnostics.blazeDeclared += 1;
+    if (event.blazeAvailable && !event.blazeDeclared) metrics.majorInjuryDiagnostics.noAutoBlazeEvents += 1;
+    if (event.status === "resolved") metrics.majorInjuryDiagnostics.pendingInjuryEventsResolved += 1;
+    if (actor?.defeatModel === "PLAYER_CHARACTER") metrics.majorInjuryDiagnostics.playerCharacterInjuryFlowCount += 1;
+    if (actor?.defeatModel === "LEGENDARY_MONSTER") metrics.majorInjuryDiagnostics.legendaryMonsterInjuryFlowCount += 1;
+  }
+
+  for (const actor of state.actors) {
+    if (!actor.defeated) continue;
+    if (actor.defeatModel === "NORMAL_MONSTER") {
+      metrics.majorInjuryDiagnostics.normalMonsterDefeats += 1;
+    } else if (actor.defeatModel === "PLAYER_CHARACTER" || actor.defeatModel === "LEGENDARY_MONSTER") {
+      metrics.majorInjuryDiagnostics.injuryDefeats += 1;
+    }
+  }
+
+  for (const declaration of state.assistDeclarations) {
+    const bucket = ensureAssistIntentionBucket(metrics, declaration.chosenAssistIntention);
+    if (declaration.legal) {
+      metrics.assistDiagnostics.assistDeclared += 1;
+      metrics.assistDiagnostics.assistResponseSpent += declaration.responseCost;
+      bucket.declared += 1;
+    } else {
+      metrics.assistDiagnostics.assistRejected += 1;
+      bucket.rejected += 1;
+      if (/duplicate generic .* Assist/i.test(declaration.rejectionReason ?? "")) {
+        metrics.assistDiagnostics.assistDuplicateIntentRejected += 1;
+      }
+    }
+  }
+
+  for (const pressure of state.assistPressures) {
+    const laneBucket = ensureAssistLaneBucket(metrics, pressure.lane);
+    const intentionBucket = ensureAssistIntentionBucket(metrics, pressure.chosenAssistIntention);
+    metrics.assistDiagnostics.assistPressureGenerated += pressure.amountGenerated;
+    metrics.assistDiagnostics.assistPressureSpent += pressure.amountSpent;
+    metrics.assistDiagnostics.assistPressureWasted += pressure.amountWasted;
+    laneBucket.generated += pressure.amountGenerated;
+    laneBucket.spent += pressure.amountSpent;
+    laneBucket.wasted += pressure.amountWasted;
+    intentionBucket.generated += pressure.amountGenerated;
+    intentionBucket.spent += pressure.amountSpent;
+    intentionBucket.wasted += pressure.amountWasted;
   }
 }
 
@@ -949,6 +1041,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
 
   const livingPlayers = getLivingActors(state, "players");
   const livingMonsters = getLivingActors(state, "monsters");
+  addEndOfRunDiagnostics(metrics, state);
   metrics.cooldownTrace = state.cooldownTrace;
   metrics.counterCandidateDiagnostics = state.counterCandidateDiagnostics;
   const winner: CombatRunResult["winner"] =

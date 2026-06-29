@@ -568,6 +568,48 @@ export type CombatDefensivePoolMetrics = {
   bySourceAction: Record<string, CombatDefensivePoolActionMetrics>;
 };
 
+export type CombatMajorInjuryDiagnostics = {
+  majorInjuryEvents: number;
+  minorInjuryEvents: number;
+  noInjuryEvents: number;
+  physicalMajorInjuries: number;
+  mentalMajorInjuries: number;
+  physicalMinorInjuries: number;
+  mentalMinorInjuries: number;
+  blazeAvailable: number;
+  blazeDeclared: number;
+  injuryDefeats: number;
+  normalMonsterDefeats: number;
+  playerCharacterInjuryFlowCount: number;
+  legendaryMonsterInjuryFlowCount: number;
+  pendingInjuryEventsResolved: number;
+  noAutoBlazeEvents: number;
+};
+
+export type CombatAssistPressureBucket = {
+  generated: number;
+  spent: number;
+  wasted: number;
+};
+
+export type CombatAssistIntentionBucket = CombatAssistPressureBucket & {
+  declared: number;
+  rejected: number;
+};
+
+export type CombatAssistDiagnostics = {
+  assistDeclared: number;
+  assistRejected: number;
+  assistPressureGenerated: number;
+  assistPressureSpent: number;
+  assistPressureWasted: number;
+  assistDuplicateIntentRejected: number;
+  assistResponseSpent: number;
+  assistIndependentDamageApplied: number;
+  assistPressureByLane: Partial<Record<CombatAssistPressureLane, CombatAssistPressureBucket>>;
+  assistPressureByIntention: Partial<Record<PowerIntention, CombatAssistIntentionBucket>>;
+};
+
 export type CombatOngoingPressureSideTotals = {
   statusesCreated: number;
   storedTickTotal: number;
@@ -713,6 +755,8 @@ export type CombatAggregateMetrics = {
   counterCandidateDiagnostics: Record<string, CombatCounterCandidateDiagnostic>;
   ongoingPressure: CombatOngoingPressureMetrics;
   defensivePools: CombatDefensivePoolMetrics;
+  majorInjuryDiagnostics: CombatMajorInjuryDiagnostics;
+  assistDiagnostics: CombatAssistDiagnostics;
 };
 
 export type CombatActionContribution = {
@@ -982,6 +1026,8 @@ export type CombatSuiteReport = {
   defensiveContributions: CombatDefensiveContribution[];
   ongoingPressure: CombatOngoingPressureReport;
   defensivePools: CombatDefensivePoolReport;
+  majorInjuryDiagnostics: CombatMajorInjuryDiagnostics;
+  assistDiagnostics: CombatAssistDiagnostics;
   cooldownTrace: CombatCooldownTrace[];
   counterCandidateDiagnostics: CombatCounterCandidateDiagnostic[];
   firstRunTranscript?: CombatTranscript;

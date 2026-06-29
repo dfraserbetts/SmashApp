@@ -3,11 +3,13 @@ import type {
   CombatActor,
   CombatAggregateMetrics,
   CombatActionLane,
+  CombatAssistDiagnostics,
   CombatCooldownTrace,
   CombatDefensivePoolMetrics,
   CombatDefensivePoolSideTotals,
   CombatDefeatModel,
   CombatInjuryChannel,
+  CombatMajorInjuryDiagnostics,
   CombatMajorInjuryOutcome,
   CombatOngoingPressureMetrics,
   CombatOngoingPressureSideTotals,
@@ -834,6 +836,41 @@ export function createEmptyDefensivePoolMetrics(): CombatDefensivePoolMetrics {
   };
 }
 
+export function createEmptyMajorInjuryDiagnostics(): CombatMajorInjuryDiagnostics {
+  return {
+    majorInjuryEvents: 0,
+    minorInjuryEvents: 0,
+    noInjuryEvents: 0,
+    physicalMajorInjuries: 0,
+    mentalMajorInjuries: 0,
+    physicalMinorInjuries: 0,
+    mentalMinorInjuries: 0,
+    blazeAvailable: 0,
+    blazeDeclared: 0,
+    injuryDefeats: 0,
+    normalMonsterDefeats: 0,
+    playerCharacterInjuryFlowCount: 0,
+    legendaryMonsterInjuryFlowCount: 0,
+    pendingInjuryEventsResolved: 0,
+    noAutoBlazeEvents: 0,
+  };
+}
+
+export function createEmptyAssistDiagnostics(): CombatAssistDiagnostics {
+  return {
+    assistDeclared: 0,
+    assistRejected: 0,
+    assistPressureGenerated: 0,
+    assistPressureSpent: 0,
+    assistPressureWasted: 0,
+    assistDuplicateIntentRejected: 0,
+    assistResponseSpent: 0,
+    assistIndependentDamageApplied: 0,
+    assistPressureByLane: {},
+    assistPressureByIntention: {},
+  };
+}
+
 export function createEmptyMetrics(): CombatAggregateMetrics {
   return {
     damageDealt: { players: 0, monsters: 0 },
@@ -912,6 +949,8 @@ export function createEmptyMetrics(): CombatAggregateMetrics {
     counterCandidateDiagnostics: {},
     ongoingPressure: createEmptyOngoingPressureMetrics(),
     defensivePools: createEmptyDefensivePoolMetrics(),
+    majorInjuryDiagnostics: createEmptyMajorInjuryDiagnostics(),
+    assistDiagnostics: createEmptyAssistDiagnostics(),
   };
 }
 

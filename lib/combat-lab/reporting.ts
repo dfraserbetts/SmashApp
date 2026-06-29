@@ -1,6 +1,9 @@
 import { runCombatScenario } from "./autoSimulator";
 import type {
   CombatActorContribution,
+  CombatAssistDiagnostics,
+  CombatAssistIntentionBucket,
+  CombatAssistPressureBucket,
   CombatCounterCandidateDiagnostic,
   CombatDefensiveContribution,
   CombatDefensivePoolActionMetrics,
@@ -13,6 +16,7 @@ import type {
   CombatRunResult,
   CombatScenario,
   CombatHydrationIntegrity,
+  CombatMajorInjuryDiagnostics,
   CombatOngoingPressureActionMetrics,
   CombatOngoingPressureActionReport,
   CombatOngoingPressureReport,
@@ -716,6 +720,116 @@ function mergeDefensivePools(runs: CombatRunResult[]) {
   };
 }
 
+function mergeMajorInjuryDiagnostics(runs: CombatRunResult[]): CombatMajorInjuryDiagnostics {
+  const divisor = Math.max(1, runs.length);
+  const totals: CombatMajorInjuryDiagnostics = {
+    majorInjuryEvents: 0,
+    minorInjuryEvents: 0,
+    noInjuryEvents: 0,
+    physicalMajorInjuries: 0,
+    mentalMajorInjuries: 0,
+    physicalMinorInjuries: 0,
+    mentalMinorInjuries: 0,
+    blazeAvailable: 0,
+    blazeDeclared: 0,
+    injuryDefeats: 0,
+    normalMonsterDefeats: 0,
+    playerCharacterInjuryFlowCount: 0,
+    legendaryMonsterInjuryFlowCount: 0,
+    pendingInjuryEventsResolved: 0,
+    noAutoBlazeEvents: 0,
+  };
+  for (const run of runs) {
+    for (const key of Object.keys(totals) as Array<keyof CombatMajorInjuryDiagnostics>) {
+      totals[key] += run.metrics.majorInjuryDiagnostics[key];
+    }
+  }
+  for (const key of Object.keys(totals) as Array<keyof CombatMajorInjuryDiagnostics>) {
+    totals[key] /= divisor;
+  }
+  return totals;
+}
+
+function addAssistPressureBucket(target: CombatAssistPressureBucket, source: CombatAssistPressureBucket) {
+  target.generated += source.generated;
+  target.spent += source.spent;
+  target.wasted += source.wasted;
+}
+
+function addAssistIntentionBucket(target: CombatAssistIntentionBucket, source: CombatAssistIntentionBucket) {
+  target.declared += source.declared;
+  target.rejected += source.rejected;
+  addAssistPressureBucket(target, source);
+}
+
+function divideAssistPressureBucket(target: CombatAssistPressureBucket, divisor: number) {
+  target.generated /= divisor;
+  target.spent /= divisor;
+  target.wasted /= divisor;
+}
+
+function divideAssistIntentionBucket(target: CombatAssistIntentionBucket, divisor: number) {
+  target.declared /= divisor;
+  target.rejected /= divisor;
+  divideAssistPressureBucket(target, divisor);
+}
+
+function mergeAssistDiagnostics(runs: CombatRunResult[]): CombatAssistDiagnostics {
+  const divisor = Math.max(1, runs.length);
+  const totals: CombatAssistDiagnostics = {
+    assistDeclared: 0,
+    assistRejected: 0,
+    assistPressureGenerated: 0,
+    assistPressureSpent: 0,
+    assistPressureWasted: 0,
+    assistDuplicateIntentRejected: 0,
+    assistResponseSpent: 0,
+    assistIndependentDamageApplied: 0,
+    assistPressureByLane: {},
+    assistPressureByIntention: {},
+  };
+  for (const run of runs) {
+    const source = run.metrics.assistDiagnostics;
+    totals.assistDeclared += source.assistDeclared;
+    totals.assistRejected += source.assistRejected;
+    totals.assistPressureGenerated += source.assistPressureGenerated;
+    totals.assistPressureSpent += source.assistPressureSpent;
+    totals.assistPressureWasted += source.assistPressureWasted;
+    totals.assistDuplicateIntentRejected += source.assistDuplicateIntentRejected;
+    totals.assistResponseSpent += source.assistResponseSpent;
+    totals.assistIndependentDamageApplied += source.assistIndependentDamageApplied;
+    for (const [lane, bucket] of Object.entries(source.assistPressureByLane)) {
+      const current = totals.assistPressureByLane[lane as keyof typeof totals.assistPressureByLane] ??= {
+        generated: 0,
+        spent: 0,
+        wasted: 0,
+      };
+      addAssistPressureBucket(current, bucket);
+    }
+    for (const [intention, bucket] of Object.entries(source.assistPressureByIntention)) {
+      const current = totals.assistPressureByIntention[intention as keyof typeof totals.assistPressureByIntention] ??= {
+        declared: 0,
+        rejected: 0,
+        generated: 0,
+        spent: 0,
+        wasted: 0,
+      };
+      addAssistIntentionBucket(current, bucket);
+    }
+  }
+  totals.assistDeclared /= divisor;
+  totals.assistRejected /= divisor;
+  totals.assistPressureGenerated /= divisor;
+  totals.assistPressureSpent /= divisor;
+  totals.assistPressureWasted /= divisor;
+  totals.assistDuplicateIntentRejected /= divisor;
+  totals.assistResponseSpent /= divisor;
+  totals.assistIndependentDamageApplied /= divisor;
+  for (const bucket of Object.values(totals.assistPressureByLane)) divideAssistPressureBucket(bucket, divisor);
+  for (const bucket of Object.values(totals.assistPressureByIntention)) divideAssistIntentionBucket(bucket, divisor);
+  return totals;
+}
+
 function mergeRoleContribution(runs: CombatRunResult[]): CombatAggregateMetrics["roleContribution"] {
   const out: CombatAggregateMetrics["roleContribution"] = {};
   for (const run of runs) {
@@ -863,6 +977,8 @@ export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
     defensiveContributions: mergeDefensiveContributions(runs),
     ongoingPressure: mergeOngoingPressure(runs),
     defensivePools: mergeDefensivePools(runs),
+    majorInjuryDiagnostics: mergeMajorInjuryDiagnostics(runs),
+    assistDiagnostics: mergeAssistDiagnostics(runs),
     cooldownTrace: mergeCooldownTrace(runs),
     counterCandidateDiagnostics: mergeCounterCandidateDiagnostics(runs),
     firstRunTranscript: runs[0]?.firstRunTranscript,
