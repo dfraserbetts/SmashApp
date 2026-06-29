@@ -33,6 +33,8 @@ type CliOptions = {
   json: boolean;
   out: string | null;
   includeTranscript: boolean;
+  campaignId: string | null;
+  campaignName: string | null;
 };
 
 type TuningSnapshot = {
@@ -54,6 +56,12 @@ type ScenarioAssetSource =
   | "balance-campaign-authored"
   | "temporary-override"
   | "unscoped-live-adapter";
+type CampaignScopeStatus =
+  | "not_applicable_synthetic"
+  | "unscoped"
+  | "scoped"
+  | "scoped_missing_assets"
+  | "unsupported";
 type CanaryMetadata = {
   canaryId: string;
   canaryLayer: ScenarioLayer;
@@ -91,6 +99,9 @@ type BuiltScenario = {
   assetSource: ScenarioAssetSource;
   campaignId: string | null;
   campaignName: string | null;
+  campaignScopeRequested: boolean;
+  campaignScopeStatus: CampaignScopeStatus;
+  campaignScopeWarning: string | null;
 };
 
 type SyntheticActorDescriptor = {
@@ -286,6 +297,10 @@ type MatrixPayload = {
     balanceCampaignScope: {
       campaignId: string;
       campaignName: string;
+      requestedCampaignId: string | null;
+      requestedCampaignName: string | null;
+      campaignScopeRequested: boolean;
+      scopeStatuses: CampaignScopeStatus[];
       trueCampaignScopingImplemented: boolean;
       unsupportedReason: string | null;
     };
@@ -319,6 +334,9 @@ type ScenarioMatrixRow = {
   campaignId: string | null;
   campaignName: string | null;
   assetSource: ScenarioAssetSource;
+  campaignScopeRequested: boolean;
+  campaignScopeStatus: CampaignScopeStatus;
+  campaignScopeWarning: string | null;
   unsupportedNotesCount: number;
   unsupportedPowerNames: string[];
   verdict: string;
@@ -889,6 +907,9 @@ function usage() {
     "  --json                  Print valid JSON only",
     "  --out <path>            Write full JSON payload to path",
     "  --include-transcript    Include first-run transcript in JSON output",
+    "  --campaign-id <uuid>    Scope live-authored DB assets to a campaign. No unscoped fallback is used.",
+    "  --campaign-name <name>  Optional display name for the requested campaign scope",
+    "  --balance-environment   Shortcut for the official Balance Environment campaign scope",
     "  --help",
   ].join("\n");
 }
@@ -904,6 +925,8 @@ function parseArgs(argv: string[]): CliOptions {
     json: false,
     out: null,
     includeTranscript: false,
+    campaignId: null,
+    campaignName: null,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -936,6 +959,17 @@ function parseArgs(argv: string[]): CliOptions {
       options.out = value;
     } else if (arg === "--include-transcript") {
       options.includeTranscript = true;
+    } else if (arg === "--campaign-id") {
+      const value = argv[++index];
+      if (!value) throw new Error("--campaign-id requires a campaign id");
+      options.campaignId = value;
+    } else if (arg === "--campaign-name") {
+      const value = argv[++index];
+      if (!value) throw new Error("--campaign-name requires a campaign name");
+      options.campaignName = value;
+    } else if (arg === "--balance-environment") {
+      options.campaignId = BALANCE_ENVIRONMENT_CAMPAIGN_ID;
+      options.campaignName = BALANCE_ENVIRONMENT_CAMPAIGN_NAME;
     } else {
       throw new Error(`Unknown flag: ${arg}`);
     }
@@ -1149,6 +1183,9 @@ function scenarioToRow(
     campaignId: built.campaignId,
     campaignName: built.campaignName,
     assetSource: built.assetSource,
+    campaignScopeRequested: built.campaignScopeRequested,
+    campaignScopeStatus: built.campaignScopeStatus,
+    campaignScopeWarning: built.campaignScopeWarning,
     unsupportedNotesCount: report.unsupported.unsupportedEffectCount + report.hydrationIntegrity.hydrationWarnings.length,
     unsupportedPowerNames: report.unsupported.unsupportedPowerNames,
     verdict: report.verdict,
@@ -1261,6 +1298,11 @@ async function buildScenarios(
     assetSource: "synthetic-in-memory",
     campaignId: null,
     campaignName: null,
+    campaignScopeRequested: Boolean(options.campaignId),
+    campaignScopeStatus: "not_applicable_synthetic",
+    campaignScopeWarning: options.campaignId
+      ? `Campaign scope ${options.campaignName ?? options.campaignId} was requested, but synthetic scenarios are in-memory fixtures and do not query campaign assets.`
+      : null,
   }));
 
   if (dbDefinitions.length === 0) {
@@ -1271,8 +1313,27 @@ async function buildScenarios(
   const primaryMonsterName = monsterNames[0];
   if (!primaryMonsterName) throw new Error("No monster names selected.");
 
+  let requestedCampaignName = options.campaignName;
+  if (options.campaignId) {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: options.campaignId },
+      select: { id: true, name: true },
+    });
+    if (!campaign) {
+      throw new Error(
+        `Campaign scope status: scoped_missing_assets. Campaign scope not found: ${options.campaignName ?? "requested campaign"} (${options.campaignId}). No unscoped fallback was used.`,
+      );
+    }
+    requestedCampaignName = options.campaignName ?? campaign.name;
+  }
+
   const anchorMonster = await prisma.monster.findFirst({
-    where: { name: primaryMonsterName, source: "CAMPAIGN", isReadOnly: false },
+    where: {
+      name: primaryMonsterName,
+      source: "CAMPAIGN",
+      isReadOnly: false,
+      ...(options.campaignId ? { campaignId: options.campaignId } : {}),
+    },
     orderBy: [{ updatedAt: "desc" }],
     include: {
       naturalAttack: true,
@@ -1281,11 +1342,24 @@ async function buildScenarios(
       powers: { orderBy: { sortOrder: "asc" }, include: POWER_INCLUDE },
     },
   });
-  if (!anchorMonster?.campaignId) throw new Error(`${primaryMonsterName} campaign monster not found.`);
+  if (!anchorMonster?.campaignId) {
+    if (options.campaignId) {
+      throw new Error(
+        `Campaign scope status: scoped_missing_assets. Campaign-scoped scenario assets missing: monster "${primaryMonsterName}" was not found in campaign "${requestedCampaignName ?? options.campaignName ?? options.campaignId}" (${options.campaignId}). No unscoped fallback was used.`,
+      );
+    }
+    throw new Error(`${primaryMonsterName} campaign monster not found.`);
+  }
+
+  const liveCampaignId = options.campaignId ?? anchorMonster.campaignId;
+  const liveCampaignName = options.campaignId ? requestedCampaignName : null;
+  const campaignScopeDescription = options.campaignId
+    ? ` in campaign "${liveCampaignName ?? options.campaignId}" (${liveCampaignId})`
+    : "";
 
   const [monsters, characters] = await Promise.all([
     prisma.monster.findMany({
-      where: { campaignId: anchorMonster.campaignId, name: { in: monsterNames }, source: "CAMPAIGN", isReadOnly: false },
+      where: { campaignId: liveCampaignId, name: { in: monsterNames }, source: "CAMPAIGN", isReadOnly: false },
       include: {
         naturalAttack: true,
         attacks: { orderBy: { sortOrder: "asc" } },
@@ -1296,7 +1370,7 @@ async function buildScenarios(
     }),
     prisma.campaignCharacter.findMany({
       where: {
-        campaignId: anchorMonster.campaignId,
+        campaignId: liveCampaignId,
         archivedAt: null,
       },
       include: {
@@ -1337,7 +1411,7 @@ async function buildScenarios(
   );
   const itemRows = monsterItemIds.length > 0
     ? await prisma.itemTemplate.findMany({
-        where: { campaignId: anchorMonster.campaignId, id: { in: monsterItemIds } },
+        where: { campaignId: liveCampaignId, id: { in: monsterItemIds } },
         include: ITEM_TEMPLATE_INCLUDE,
       })
     : [];
@@ -1349,11 +1423,15 @@ async function buildScenarios(
     const character = findByPreferredName(characters as CharacterRow[], definition.characterNames);
     if (!character) {
       throw new Error(
-        `Scenario "${definition.name}" could not find character. Tried: ${definition.characterNames.join(", ")}.`,
+        `${options.campaignId ? "Campaign scope status: scoped_missing_assets. " : ""}Scenario "${definition.name}" could not find character${campaignScopeDescription}. Tried: ${definition.characterNames.join(", ")}.`,
       );
     }
     const monster = findByPreferredName(monsters as MonsterRow[], [definition.monsterName]);
-    if (!monster) throw new Error(`Scenario "${definition.name}" could not find monster "${definition.monsterName}".`);
+    if (!monster) {
+      throw new Error(
+        `${options.campaignId ? "Campaign scope status: scoped_missing_assets. " : ""}Scenario "${definition.name}" could not find monster "${definition.monsterName}"${campaignScopeDescription}.`,
+      );
+    }
 
     const adaptedCharacter = adaptCampaignCharacterToCombatActor(character, tuning.combatValues, tuning.powerSnapshot);
     const adaptedMonster = adaptMonsterToCombatLabActor(
@@ -1368,9 +1446,14 @@ async function buildScenarios(
       hydrationWarnings: [...adaptedCharacter.warnings, ...adaptedMonster.warnings].map((warning) =>
         typeof warning === "string" ? warning : JSON.stringify(warning),
       ),
-      assetSource: "unscoped-live-adapter" as const,
-      campaignId: null,
-      campaignName: null,
+      assetSource: options.campaignId ? "balance-campaign-authored" as const : "unscoped-live-adapter" as const,
+      campaignId: options.campaignId ? liveCampaignId : null,
+      campaignName: options.campaignId ? liveCampaignName : null,
+      campaignScopeRequested: Boolean(options.campaignId),
+      campaignScopeStatus: options.campaignId ? "scoped" as const : "unscoped" as const,
+      campaignScopeWarning: options.campaignId
+        ? null
+        : `Live-authored DB scenario "${definition.name}" was loaded without --campaign-id using the unscoped live adapter; it is not authoritative Balance Environment evidence.`,
       scenario: {
         name: definition.name,
         players: [adaptedCharacter.actor],
@@ -1417,10 +1500,19 @@ function printHumanSummary(payload: MatrixPayload) {
     `Balance Campaign: ${payload.provenance.balanceCampaignScope.campaignName} (${payload.provenance.balanceCampaignScope.campaignId})`,
   );
   console.log(
+    `Requested Campaign: ${
+      payload.provenance.balanceCampaignScope.requestedCampaignId
+        ? `${payload.provenance.balanceCampaignScope.requestedCampaignName ?? "unnamed"} (${payload.provenance.balanceCampaignScope.requestedCampaignId})`
+        : "none"
+    }`,
+  );
+  console.log(
     `Campaign Scoping: ${
-      payload.provenance.balanceCampaignScope.trueCampaignScopingImplemented
-        ? "implemented"
-        : `not implemented (${payload.provenance.balanceCampaignScope.unsupportedReason ?? "unknown reason"})`
+      payload.provenance.balanceCampaignScope.campaignScopeRequested ? "requested" : "not requested"
+    }; statuses ${payload.provenance.balanceCampaignScope.scopeStatuses.join(", ") || "none"}${
+      payload.provenance.balanceCampaignScope.unsupportedReason
+        ? ` (${payload.provenance.balanceCampaignScope.unsupportedReason})`
+        : ""
     }`,
   );
   console.log("");
@@ -1430,6 +1522,7 @@ function printHumanSummary(payload: MatrixPayload) {
     "Monsters",
     "Asset Source",
     "Campaign",
+    "Scope",
     "P Win",
     "M Win",
     "Stale",
@@ -1439,6 +1532,7 @@ function printHumanSummary(payload: MatrixPayload) {
     "Unsupported",
   ].join(" | "));
   console.log([
+    "---",
     "---",
     "---",
     "---",
@@ -1458,7 +1552,8 @@ function printHumanSummary(payload: MatrixPayload) {
       scenario.playerSide,
       scenario.monsterSide,
       scenario.assetSource,
-      scenario.campaignName ?? "unsupported",
+      scenario.campaignName ?? "n/a",
+      scenario.campaignScopeStatus,
       `${scenario.playerWinPercent}%`,
       `${scenario.monsterWinPercent}%`,
       `${scenario.stalematePercent}%`,
@@ -1664,6 +1759,14 @@ async function main() {
         ...scenarioRows.flatMap((scenario) => scenario.unsupportedPowerNames.map((name) => `Unsupported power: ${name}`)),
       ]),
     );
+    const campaignScopeWarnings = Array.from(
+      new Set(scenarioRows.map((scenario) => scenario.campaignScopeWarning).filter((warning): warning is string => Boolean(warning))),
+    );
+    const campaignScopeStatuses = Array.from(new Set(scenarioRows.map((scenario) => scenario.campaignScopeStatus)));
+    const resolvedRequestedCampaignName =
+      options.campaignName ??
+      scenarioRows.find((scenario) => scenario.campaignId === options.campaignId && scenario.campaignName)?.campaignName ??
+      null;
     const gitStatusShort = runGit(["status", "--short"]);
     const command = process.argv.map((arg) => JSON.stringify(arg)).join(" ");
     const payload: MatrixPayload = {
@@ -1693,9 +1796,12 @@ async function main() {
         balanceCampaignScope: {
           campaignId: BALANCE_ENVIRONMENT_CAMPAIGN_ID,
           campaignName: BALANCE_ENVIRONMENT_CAMPAIGN_NAME,
-          trueCampaignScopingImplemented: false,
-          unsupportedReason:
-            "scenarioMatrix synthetic fixtures are campaignless; DB-backed scenarios currently use the first matching campaign monster as an anchor and are not filtered to the Balance Environment campaignId.",
+          requestedCampaignId: options.campaignId,
+          requestedCampaignName: resolvedRequestedCampaignName,
+          campaignScopeRequested: Boolean(options.campaignId),
+          scopeStatuses: campaignScopeStatuses,
+          trueCampaignScopingImplemented: scenarioRows.some((scenario) => scenario.assetSource === "balance-campaign-authored"),
+          unsupportedReason: campaignScopeWarnings.length > 0 ? campaignScopeWarnings.join(" ") : null,
         },
       },
       options: {
@@ -1706,7 +1812,7 @@ async function main() {
         includeTranscript: options.includeTranscript,
       },
       scenarios: scenarioRows,
-      warnings: [],
+      warnings: campaignScopeWarnings,
       unsupportedNotes,
     };
 
