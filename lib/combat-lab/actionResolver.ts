@@ -2669,6 +2669,152 @@ type LinkedPrimaryContext = {
   primaryWoundsPerSuccess?: number;
 };
 
+type SecondaryBundleDelta = {
+  target: CombatActor;
+  pool: "physical" | "mental";
+  damage: number;
+  healing: number;
+};
+
+function isIndependentBundleSecondary(action: CombatAction): boolean {
+  if (action.linkedToPrimary || action.usesPrimaryAppliedSuccesses || action.skipOwnRoll || action.skipOwnDefenceGate) {
+    return false;
+  }
+  if (action.secondaryActions?.length) return false;
+  if (action.resistAttribute || action.runtimeCleanup) return false;
+  if (action.kind !== "attack" && action.kind !== "healing") return false;
+  if (action.recurring) return false;
+  if (action.kind === "attack" && damageApplicationTimingForAction(action) !== "immediate") return false;
+  return true;
+}
+
+function resolveIndependentSecondaryTargets(
+  state: CombatState,
+  actor: CombatActor,
+  action: CombatAction,
+  primaryTarget: CombatActor,
+): CombatActor[] {
+  if (action.targetPolicy === "self") return [actor].filter((target) => !target.defeated);
+  if (action.targetPolicy === "ally") {
+    if (primaryTarget.side === actor.side && !primaryTarget.defeated) return [primaryTarget];
+    return getLivingActors(state, actor.side).slice(0, Math.max(1, action.targetCount ?? 1));
+  }
+  if (action.targetPolicy === "enemy") {
+    if (primaryTarget.side !== actor.side && !primaryTarget.defeated) return [primaryTarget];
+    return getLivingActors(state, getOppositeSide(actor.side)).slice(0, Math.max(1, action.targetCount ?? 1));
+  }
+  return resolveTargets(state, actor, action, primaryTarget);
+}
+
+function resolveIndependentSecondaryBundle(params: {
+  state: CombatState;
+  actor: CombatActor;
+  primaryAction: CombatAction;
+  primaryTarget: CombatActor;
+  secondaryActions: CombatAction[];
+  rng: Rng;
+  lane?: CombatActionLane;
+}): CombatResolutionMetrics {
+  const metrics = emptyResolution();
+  const deltas = new Map<string, SecondaryBundleDelta>();
+
+  for (const action of params.secondaryActions) {
+    const targets = resolveIndependentSecondaryTargets(params.state, params.actor, action, params.primaryTarget);
+    const accuracyAttribute = effectiveAccuracyAttribute(params.actor, params.primaryTarget, action);
+    const modifier = getAttributeModifier(params.state, params.actor.id, accuracyAttribute);
+    if (modifier > 0) metrics.buffedActions += 1;
+    if (modifier < 0) metrics.debuffedActions += 1;
+
+    for (const target of targets) {
+      const roll = rollDice(Math.max(0, action.diceCount), getActorDie(params.actor, accuracyAttribute), params.rng, modifier);
+      const rollSummary = summarizeRoll({ actor: params.actor, reason: action.name, attribute: accuracyAttribute, roll });
+      metrics.rawSuccesses += roll.successes;
+      emitTranscriptEvent(params.state, {
+        type: rollEventType(action),
+        actorId: params.actor.id,
+        actorName: params.actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane: params.lane,
+        message: `Secondary bundle roll: ${rollText(rollSummary)}`,
+        roll: rollSummary,
+        details: {
+          actionKind: action.kind,
+          potency: action.potency,
+          pool: action.pool ?? null,
+          independentSecondaryBundle: true,
+          primaryActionId: params.primaryAction.id,
+        },
+      });
+
+      const pool = action.pool ?? "physical";
+      const amount = roll.successes * Math.max(1, action.effectPerPrimarySuccess ?? action.potency);
+      const key = `${target.id}:${pool}`;
+      const delta = deltas.get(key) ?? { target, pool, damage: 0, healing: 0 };
+      if (action.kind === "attack") {
+        delta.damage += amount;
+        metrics.rawWounds += amount;
+      } else {
+        delta.healing += amount;
+      }
+      deltas.set(key, delta);
+
+      emitTranscriptEvent(params.state, {
+        type: action.kind === "attack" ? "damageApplied" : "healingApplied",
+        actorId: params.actor.id,
+        actorName: params.actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane: params.lane,
+        message: `Secondary bundle pending: ${action.name} contributes ${amount} ${pool} ${action.kind === "attack" ? "damage" : "healing"} to ${target.name}; final same-target/same-lane state changes apply after the bundle is netted.`,
+        details: {
+          amount,
+          pool,
+          actionKind: action.kind,
+          independentSecondaryBundle: true,
+          targetId: target.id,
+        },
+      });
+    }
+  }
+
+  for (const delta of deltas.values()) {
+    const net = delta.damage - delta.healing;
+    if (net > 0) {
+      const overkill = applyWounds(delta.target, delta.pool, net);
+      metrics.netWounds += net;
+      metrics.overkill += overkill;
+    } else if (net < 0) {
+      metrics.healingDone += healWounds(delta.target, delta.pool, -net);
+    }
+    emitTranscriptEvent(params.state, {
+      type: net > 0 ? "damageApplied" : net < 0 ? "healingApplied" : "statusCreated",
+      actorId: params.actor.id,
+      actorName: params.actor.name,
+      targetId: delta.target.id,
+      targetName: delta.target.name,
+      actionId: params.primaryAction.id,
+      actionName: params.primaryAction.name,
+      lane: params.lane,
+      message: `Secondary bundle result: ${delta.target.name} ${delta.pool} lane nets ${delta.damage} damage and ${delta.healing} healing into ${Math.abs(net)} ${net > 0 ? "damage" : net < 0 ? "healing" : "net change"}.`,
+      details: {
+        targetId: delta.target.id,
+        pool: delta.pool,
+        damage: delta.damage,
+        healing: delta.healing,
+        net,
+        independentSecondaryBundle: true,
+      },
+    });
+  }
+
+  return metrics;
+}
+
 function resolveSingleTargetAction(params: {
   state: CombatState;
   actor: CombatActor;
@@ -3484,7 +3630,22 @@ function resolveSingleTargetAction(params: {
   }
 
   if (!params.fromSecondary) {
-    for (const secondaryAction of action.secondaryActions ?? []) {
+    const independentBundleActions = (action.secondaryActions ?? []).filter(isIndependentBundleSecondary);
+    const dependentSecondaryActions = (action.secondaryActions ?? []).filter((secondaryAction) => !isIndependentBundleSecondary(secondaryAction));
+
+    if (independentBundleActions.length > 0) {
+      addMetrics(metrics, resolveIndependentSecondaryBundle({
+        state,
+        actor,
+        primaryAction: action,
+        primaryTarget: target,
+        secondaryActions: independentBundleActions,
+        rng,
+        lane,
+      }));
+    }
+
+    for (const secondaryAction of dependentSecondaryActions) {
       const scalingMode = secondaryAction.linkedScalingMode ?? (action.kind === "attack" ? "primaryWoundBands" : "primaryAppliedSuccesses");
       const linkedPrimaryContext: LinkedPrimaryContext | null =
         scalingMode === "primaryWoundBands"

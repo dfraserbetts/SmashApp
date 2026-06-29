@@ -205,6 +205,252 @@ function runLinkedWoundBandFixture(prevention: number) {
 }
 
 {
+  const runBundleOrder = (secondaryActions: CombatAction[]) => {
+    const primary = action({
+      id: "simultaneous-secondary-primary",
+      name: "Simultaneous Secondary Primary",
+      sourceType: "power",
+      kind: "buff",
+      targetPolicy: "enemy",
+      diceCount: 0,
+      potency: 1,
+      secondaryActions,
+    });
+    const attacker = fixtureActor("simultaneous-secondary-attacker", "players", {
+      attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    });
+    const defender = fixtureActor("simultaneous-secondary-defender", "monsters", {
+      physicalHpMax: 100,
+      physicalHpCurrent: 96,
+      physicalDefenceDice: 1,
+      physicalBlockPerSuccess: 0,
+      dodgeDice: 1,
+    });
+    const state = createCombatState([attacker], [defender], { captureTranscript: true });
+    const resolution = resolveCombatAction({
+      state,
+      actor: state.actors[0],
+      target: state.actors[1],
+      action: primary,
+      rng: rngFrom([0.99, 0.99]),
+      lane: "power",
+    });
+    return { state, resolution };
+  };
+  const damage = action({
+    id: "independent-physical-secondary-damage",
+    name: "Independent Physical Secondary Damage",
+    sourceType: "power",
+    kind: "attack",
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 10,
+  });
+  const healing = action({
+    id: "independent-physical-secondary-healing",
+    name: "Independent Physical Secondary Healing",
+    sourceType: "power",
+    kind: "healing",
+    targetPolicy: "enemy",
+    diceCount: 1,
+    potency: 4,
+  });
+  const damageFirst = runBundleOrder([damage, healing]);
+  const healingFirst = runBundleOrder([healing, damage]);
+  if (
+    damageFirst.state.actors[1].physicalHpCurrent !== healingFirst.state.actors[1].physicalHpCurrent ||
+    damageFirst.state.actors[1].physicalHpCurrent >= 96
+  ) {
+    throw new Error(`Same-target same-lane independent secondaries did not net order-independently: ${JSON.stringify({
+      damageFirst: damageFirst.state.actors[1].physicalHpCurrent,
+      healingFirst: healingFirst.state.actors[1].physicalHpCurrent,
+    })}.`);
+  }
+  if (!damageFirst.state.transcriptLines.some((line) => /Secondary bundle result: simultaneous-secondary-defender physical lane nets \d+ damage and \d+ healing into \d+ damage/i.test(line))) {
+    throw new Error(`Same-lane secondary bundle transcript did not report netting: ${damageFirst.state.transcriptLines.join(" | ")}`);
+  }
+}
+
+{
+  const primary = action({
+    id: "no-mid-bundle-defeat-primary",
+    name: "No Mid Bundle Defeat Primary",
+    sourceType: "power",
+    kind: "buff",
+    targetPolicy: "enemy",
+    diceCount: 0,
+    potency: 1,
+    secondaryActions: [
+      action({
+        id: "would-defeat-secondary-damage",
+        name: "Would Defeat Secondary Damage",
+        sourceType: "power",
+        kind: "attack",
+        targetPolicy: "enemy",
+        diceCount: 1,
+        potency: 5,
+      }),
+      action({
+        id: "saving-secondary-healing",
+        name: "Saving Secondary Healing",
+        sourceType: "power",
+        kind: "healing",
+        targetPolicy: "enemy",
+        diceCount: 1,
+        potency: 4,
+      }),
+    ],
+  });
+  const attacker = fixtureActor("no-mid-bundle-defeat-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("no-mid-bundle-defeat-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 5,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    dodgeDice: 1,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: primary,
+    rng: rngFrom([0.99, 0.99]),
+    lane: "power",
+  });
+  if (state.actors[1].defeated || state.actors[1].physicalHpCurrent <= 0) {
+    throw new Error(`Target was defeated mid-bundle instead of after netting: ${JSON.stringify(state.actors[1])}.`);
+  }
+  if (state.transcriptLines.some((line) => /Defeat: no-mid-bundle-defeat-defender|Defeat cleanup: no-mid-bundle-defeat-defender/i.test(line))) {
+    throw new Error(`Defeat or cleanup fired during simultaneous secondary bundle: ${state.transcriptLines.join(" | ")}`);
+  }
+}
+
+{
+  const primary = action({
+    id: "different-lane-bundle-primary",
+    name: "Different Lane Bundle Primary",
+    sourceType: "power",
+    kind: "buff",
+    targetPolicy: "enemy",
+    diceCount: 0,
+    potency: 1,
+    secondaryActions: [
+      action({
+        id: "physical-secondary-damage",
+        name: "Physical Secondary Damage",
+        sourceType: "power",
+        kind: "attack",
+        targetPolicy: "enemy",
+        pool: "physical",
+        diceCount: 1,
+        potency: 5,
+      }),
+      action({
+        id: "mental-secondary-healing",
+        name: "Mental Secondary Healing",
+        sourceType: "power",
+        kind: "healing",
+        targetPolicy: "enemy",
+        pool: "mental",
+        diceCount: 1,
+        potency: 4,
+      }),
+    ],
+  });
+  const attacker = fixtureActor("different-lane-bundle-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("different-lane-bundle-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 96,
+    mentalHpMax: 100,
+    mentalHpCurrent: 50,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    dodgeDice: 1,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: primary,
+    rng: rngFrom([0.99, 0.99]),
+    lane: "power",
+  });
+  if (state.actors[1].physicalHpCurrent >= 96 || state.actors[1].mentalHpCurrent <= 50) {
+    throw new Error(`Different-lane secondary bundle incorrectly netted across pools: ${JSON.stringify({
+      physical: state.actors[1].physicalHpCurrent,
+      mental: state.actors[1].mentalHpCurrent,
+    })}.`);
+  }
+}
+
+{
+  const primary = action({
+    id: "different-target-bundle-primary",
+    name: "Different Target Bundle Primary",
+    sourceType: "power",
+    kind: "buff",
+    targetPolicy: "enemy",
+    diceCount: 0,
+    potency: 1,
+    secondaryActions: [
+      action({
+        id: "enemy-secondary-damage",
+        name: "Enemy Secondary Damage",
+        sourceType: "power",
+        kind: "attack",
+        targetPolicy: "enemy",
+        pool: "physical",
+        diceCount: 1,
+        potency: 5,
+      }),
+      action({
+        id: "self-secondary-healing",
+        name: "Self Secondary Healing",
+        sourceType: "power",
+        kind: "healing",
+        targetPolicy: "self",
+        pool: "physical",
+        diceCount: 1,
+        potency: 4,
+      }),
+    ],
+  });
+  const attacker = fixtureActor("different-target-bundle-attacker", "players", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 90,
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("different-target-bundle-defender", "monsters", {
+    physicalHpMax: 100,
+    physicalHpCurrent: 96,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    dodgeDice: 1,
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: primary,
+    rng: rngFrom([0.99, 0.99]),
+    lane: "power",
+  });
+  if (state.actors[1].physicalHpCurrent >= 96 || state.actors[0].physicalHpCurrent <= 90) {
+    throw new Error(`Different-target secondary bundle incorrectly netted across actors: ${JSON.stringify({
+      attackerPhysical: state.actors[0].physicalHpCurrent,
+      defenderPhysical: state.actors[1].physicalHpCurrent,
+    })}.`);
+  }
+}
+
+{
   const defender = fixtureActor("pool-defender", "players", {
     dodgeDice: 1,
     physicalDefenceDice: 1,
