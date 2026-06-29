@@ -17,6 +17,9 @@ import type {
   CombatPool,
   CombatSide,
   CombatActionSourceType,
+  CombatDefeatModel,
+  CombatInjuryChannel,
+  CombatMajorInjuryOutcome,
   UnsupportedPowerReason,
 } from "./types";
 
@@ -943,6 +946,12 @@ export function createFixtureActor(params: {
   mentalDefenceDice?: number;
   mentalBlockPerSuccess?: number;
   mentalDefenceBlock?: number;
+  defeatModel?: CombatDefeatModel;
+  physicalMajorInjuries?: number;
+  mentalMajorInjuries?: number;
+  physicalMinorInjuries?: number;
+  mentalMinorInjuries?: number;
+  forcedMajorInjuryOutcomes?: Partial<Record<CombatInjuryChannel, CombatMajorInjuryOutcome[]>>;
 }): CombatActor {
   const adapted = params.powers.map((power) => adaptPowerToCombatActions(power));
   const actions = adapted.flatMap((row) => row.actions);
@@ -982,6 +991,19 @@ export function createFixtureActor(params: {
     resist: {},
     actionsPerTurn: params.actionsPerTurn ?? 1,
     actions,
+    defeatModel: params.defeatModel ?? (params.side === "players" ? "PLAYER_CHARACTER" : "NORMAL_MONSTER"),
+    physicalMajorInjuries: params.physicalMajorInjuries ?? 0,
+    mentalMajorInjuries: params.mentalMajorInjuries ?? 0,
+    physicalMinorInjuries: params.physicalMinorInjuries ?? 0,
+    mentalMinorInjuries: params.mentalMinorInjuries ?? 0,
+    physicalInjuryResolvedAtZero: false,
+    mentalInjuryResolvedAtZero: false,
+    forcedMajorInjuryOutcomes: params.forcedMajorInjuryOutcomes
+      ? {
+          PHYSICAL: params.forcedMajorInjuryOutcomes.PHYSICAL ? [...params.forcedMajorInjuryOutcomes.PHYSICAL] : undefined,
+          MENTAL: params.forcedMajorInjuryOutcomes.MENTAL ? [...params.forcedMajorInjuryOutcomes.MENTAL] : undefined,
+        }
+      : undefined,
     unsupportedPowers: adapted.flatMap((row) => row.unsupported),
     hydration: {
       source: "fixture",

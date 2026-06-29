@@ -1006,6 +1006,13 @@ function applyWounds(target: CombatActor, pool: "physical" | "mental", wounds: n
   const key = pool === "physical" ? "physicalHpCurrent" : "mentalHpCurrent";
   const before = target[key];
   target[key] = before - wounds;
+  if ((target.defeatModel === "PLAYER_CHARACTER" || target.defeatModel === "LEGENDARY_MONSTER") && target[key] <= 0) {
+    if (pool === "physical") {
+      target.physicalInjuryResolvedAtZero = false;
+    } else {
+      target.mentalInjuryResolvedAtZero = false;
+    }
+  }
   return Math.max(0, wounds - Math.max(0, before));
 }
 
@@ -1015,6 +1022,13 @@ function healWounds(target: CombatActor, pool: "physical" | "mental", healing: n
   const maxKey = pool === "physical" ? "physicalHpMax" : "mentalHpMax";
   const before = target[currentKey];
   target[currentKey] = Math.min(target[maxKey], before + healing);
+  if ((target.defeatModel === "PLAYER_CHARACTER" || target.defeatModel === "LEGENDARY_MONSTER") && target[currentKey] > 0) {
+    if (pool === "physical") {
+      target.physicalInjuryResolvedAtZero = false;
+    } else {
+      target.mentalInjuryResolvedAtZero = false;
+    }
+  }
   return target[currentKey] - before;
 }
 
@@ -3119,6 +3133,7 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
       });
       if (lethal) {
         if (firstTick && firstTickBeforeCleanup) {
+          const usesInjuryFlow = actor.defeatModel === "PLAYER_CHARACTER" || actor.defeatModel === "LEGENDARY_MONSTER";
           emitTranscriptEvent(state, {
             type: "actorDefeated",
             actorId: actor.id,
@@ -3126,20 +3141,29 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
             actionId: effect.sourceActionId,
             actionName: effect.sourceActionName,
             lane: "startOfTurn",
-            message: `First-tick lethal: ${actor.name} is defeated by ${effect.sourceActionName ?? "ongoing damage"} before they can attempt cleanup.`,
+            message: usesInjuryFlow
+              ? `First-tick lethal: ${actor.name} must resolve Major Injury from ${effect.sourceActionName ?? "ongoing damage"} before they can attempt cleanup.`
+              : `First-tick lethal: ${actor.name} is defeated by ${effect.sourceActionName ?? "ongoing damage"} before they can attempt cleanup.`,
             details: {
               effect: effect.kind,
               wounds: effect.amount,
               firstTickBeforeCleanup,
+              injuryFlow: usesInjuryFlow,
             },
           });
         }
-        markDefeatedActors(state);
+        markDefeatedActors(state, {
+          sourceActorId: effect.sourceActorId,
+          sourceActionId: effect.sourceActionId,
+          sourceActionName: effect.sourceActionName,
+          triggerId: effect.id,
+          lane: "startOfTurn",
+        });
         return metrics;
       }
     }
   }
-  markDefeatedActors(state);
+  markDefeatedActors(state, { lane: "startOfTurn" });
   return metrics;
 }
 
@@ -4281,7 +4305,13 @@ export function resolveCombatAction(params: {
     applyActionCooldown(state, actor, action);
   }
 
-  const defeated = markDefeatedActors(state);
+  const defeated = markDefeatedActors(state, {
+    sourceActorId: actor.id,
+    sourceActionId: action.id,
+    sourceActionName: action.name,
+    triggerId: action.id,
+    lane,
+  });
   state.log.push({
     round: state.round,
     actorId: actor.id,

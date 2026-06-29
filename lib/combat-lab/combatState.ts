@@ -2,9 +2,13 @@ import type {
   CombatAction,
   CombatActor,
   CombatAggregateMetrics,
+  CombatActionLane,
   CombatCooldownTrace,
   CombatDefensivePoolMetrics,
   CombatDefensivePoolSideTotals,
+  CombatDefeatModel,
+  CombatInjuryChannel,
+  CombatMajorInjuryOutcome,
   CombatOngoingPressureMetrics,
   CombatOngoingPressureSideTotals,
   CombatSide,
@@ -14,6 +18,15 @@ import type {
 } from "./types";
 
 const MAX_TRANSCRIPT_LINES = 1200;
+const MAJOR_INJURIES_TO_DEFEAT = 3;
+
+type DefeatProcessingContext = {
+  sourceActorId?: string | null;
+  sourceActionId?: string | null;
+  sourceActionName?: string | null;
+  triggerId?: string | null;
+  lane?: CombatActionLane;
+};
 
 function cloneAction(action: CombatAction): CombatAction {
   return {
@@ -39,8 +52,31 @@ function cloneDefensivePool(pool: CombatState["defensivePools"][number]) {
   return { ...pool };
 }
 
-export function cloneActor(actor: CombatActor): CombatActor {
+function defaultDefeatModel(actor: Pick<CombatActor, "side"> & { defeatModel?: CombatDefeatModel }): CombatDefeatModel {
+  return actor.defeatModel ?? (actor.side === "players" ? "PLAYER_CHARACTER" : "NORMAL_MONSTER");
+}
+
+function normalizeActorRuntimeState(actor: CombatActor): CombatActor {
   return {
+    ...actor,
+    defeatModel: defaultDefeatModel(actor),
+    physicalMajorInjuries: actor.physicalMajorInjuries ?? 0,
+    mentalMajorInjuries: actor.mentalMajorInjuries ?? 0,
+    physicalMinorInjuries: actor.physicalMinorInjuries ?? 0,
+    mentalMinorInjuries: actor.mentalMinorInjuries ?? 0,
+    physicalInjuryResolvedAtZero: actor.physicalInjuryResolvedAtZero ?? false,
+    mentalInjuryResolvedAtZero: actor.mentalInjuryResolvedAtZero ?? false,
+    forcedMajorInjuryOutcomes: actor.forcedMajorInjuryOutcomes
+      ? {
+          PHYSICAL: actor.forcedMajorInjuryOutcomes.PHYSICAL ? [...actor.forcedMajorInjuryOutcomes.PHYSICAL] : undefined,
+          MENTAL: actor.forcedMajorInjuryOutcomes.MENTAL ? [...actor.forcedMajorInjuryOutcomes.MENTAL] : undefined,
+        }
+      : undefined,
+  };
+}
+
+export function cloneActor(actor: CombatActor): CombatActor {
+  return normalizeActorRuntimeState({
     ...actor,
     attributes: { ...actor.attributes },
     attributeDice: { ...actor.attributeDice },
@@ -57,7 +93,7 @@ export function cloneActor(actor: CombatActor): CombatActor {
       unsupportedCombatTraits: [...(actor.hydration.unsupportedCombatTraits ?? [])],
       fallbackActions: [...actor.hydration.fallbackActions],
     },
-  };
+  });
 }
 
 export function createActorInstances(actor: CombatActor, quantity: number): CombatActor[] {
@@ -74,6 +110,8 @@ export function createActorInstances(actor: CombatActor, quantity: number): Comb
       defeated: false,
       physicalHpCurrent: actor.physicalHpMax,
       mentalHpCurrent: actor.mentalHpMax,
+      physicalInjuryResolvedAtZero: false,
+      mentalInjuryResolvedAtZero: false,
     };
   });
 }
@@ -88,6 +126,8 @@ export function createCombatState(
     defeated: false,
     physicalHpCurrent: actor.physicalHpMax,
     mentalHpCurrent: actor.mentalHpMax,
+    physicalInjuryResolvedAtZero: false,
+    mentalInjuryResolvedAtZero: false,
   }));
   return {
     round: 1,
@@ -99,6 +139,7 @@ export function createCombatState(
     counterUses: {},
     assistDeclarations: [],
     assistPressures: [],
+    pendingMajorInjuryEvents: [],
     incomingActionsByTargetThisRound: {},
     responsesRemaining: Object.fromEntries(actors.filter((actor) => !actor.defeated).map((actor) => [actor.id, 2])),
     defenceDegradation: {},
@@ -167,21 +208,169 @@ export function getOppositeSide(side: CombatSide): CombatSide {
   return side === "players" ? "monsters" : "players";
 }
 
-export function markDefeatedActors(state: CombatState): string[] {
+function usesMajorInjuryFlow(actor: CombatActor): boolean {
+  return actor.defeatModel === "PLAYER_CHARACTER" || actor.defeatModel === "LEGENDARY_MONSTER";
+}
+
+function injuryCount(actor: CombatActor, channel: CombatInjuryChannel): number {
+  return channel === "PHYSICAL" ? actor.physicalMajorInjuries : actor.mentalMajorInjuries;
+}
+
+function minorInjuryCount(actor: CombatActor, channel: CombatInjuryChannel): number {
+  return channel === "PHYSICAL" ? actor.physicalMinorInjuries : actor.mentalMinorInjuries;
+}
+
+function setMajorInjuryCount(actor: CombatActor, channel: CombatInjuryChannel, value: number) {
+  if (channel === "PHYSICAL") {
+    actor.physicalMajorInjuries = value;
+  } else {
+    actor.mentalMajorInjuries = value;
+  }
+}
+
+function setMinorInjuryCount(actor: CombatActor, channel: CombatInjuryChannel, value: number) {
+  if (channel === "PHYSICAL") {
+    actor.physicalMinorInjuries = value;
+  } else {
+    actor.mentalMinorInjuries = value;
+  }
+}
+
+function injuryResolvedAtZero(actor: CombatActor, channel: CombatInjuryChannel): boolean {
+  return channel === "PHYSICAL" ? actor.physicalInjuryResolvedAtZero : actor.mentalInjuryResolvedAtZero;
+}
+
+function setInjuryResolvedAtZero(actor: CombatActor, channel: CombatInjuryChannel, value: boolean) {
+  if (channel === "PHYSICAL") {
+    actor.physicalInjuryResolvedAtZero = value;
+  } else {
+    actor.mentalInjuryResolvedAtZero = value;
+  }
+}
+
+function hpCurrentForInjuryChannel(actor: CombatActor, channel: CombatInjuryChannel): number {
+  return channel === "PHYSICAL" ? actor.physicalHpCurrent : actor.mentalHpCurrent;
+}
+
+function forcedInjuryOutcome(actor: CombatActor, channel: CombatInjuryChannel): CombatMajorInjuryOutcome {
+  const queue = actor.forcedMajorInjuryOutcomes?.[channel];
+  return queue && queue.length > 0 ? queue.shift() ?? "MAJOR_INJURY" : "MAJOR_INJURY";
+}
+
+function processMajorInjuryEvent(
+  state: CombatState,
+  actor: CombatActor,
+  channel: CombatInjuryChannel,
+  context: DefeatProcessingContext,
+): boolean {
+  const hpCurrent = hpCurrentForInjuryChannel(actor, channel);
+  const overflow = Math.max(0, -hpCurrent);
+  const severityModifier = -Math.floor(overflow / Math.max(1, actor.level));
+  const forcedOutcome = forcedInjuryOutcome(actor, channel);
+  const event = {
+    id: `${state.round}:${actor.id}:${channel}:${state.pendingMajorInjuryEvents.length + 1}`,
+    actorId: actor.id,
+    actorName: actor.name,
+    channel,
+    overflow,
+    severityModifier,
+    sourceActorId: context.sourceActorId ?? null,
+    sourceActionId: context.sourceActionId ?? null,
+    sourceActionName: context.sourceActionName ?? null,
+    triggerId: context.triggerId ?? null,
+    forcedOutcome,
+    blazeAvailable: true,
+    blazeDeclared: false,
+    status: "resolved" as const,
+  };
+  state.pendingMajorInjuryEvents.push(event);
+  setInjuryResolvedAtZero(actor, channel, true);
+
+  if (forcedOutcome === "MAJOR_INJURY") {
+    const nextCount = injuryCount(actor, channel) + 1;
+    setMajorInjuryCount(actor, channel, nextCount);
+    emitTranscriptEvent(state, {
+      type: "majorInjury",
+      actorId: actor.id,
+      actorName: actor.name,
+      actionId: context.sourceActionId ?? undefined,
+      actionName: context.sourceActionName ?? undefined,
+      lane: context.lane,
+      message:
+        `Major Injury: ${actor.name} suffers a ${channel === "PHYSICAL" ? "Physical" : "Mental"} Major Injury ` +
+        `(${nextCount}/${MAJOR_INJURIES_TO_DEFEAT}). Severity modifier ${severityModifier}. Blaze available but not used by auto-sim.`,
+      details: event,
+    });
+    return nextCount >= MAJOR_INJURIES_TO_DEFEAT;
+  }
+
+  if (forcedOutcome === "MINOR_INJURY") {
+    const nextCount = minorInjuryCount(actor, channel) + 1;
+    setMinorInjuryCount(actor, channel, nextCount);
+    emitTranscriptEvent(state, {
+      type: "majorInjury",
+      actorId: actor.id,
+      actorName: actor.name,
+      actionId: context.sourceActionId ?? undefined,
+      actionName: context.sourceActionName ?? undefined,
+      lane: context.lane,
+      message:
+        `Minor Injury: ${actor.name} suffers a ${channel === "PHYSICAL" ? "Physical" : "Mental"} Minor Injury ` +
+        `(${nextCount} total). Severity modifier ${severityModifier}. Blaze available but not used by auto-sim.`,
+      details: event,
+    });
+    return false;
+  }
+
+  emitTranscriptEvent(state, {
+    type: "majorInjury",
+    actorId: actor.id,
+    actorName: actor.name,
+    actionId: context.sourceActionId ?? undefined,
+    actionName: context.sourceActionName ?? undefined,
+    lane: context.lane,
+    message:
+      `No Injury: ${actor.name} avoids a ${channel === "PHYSICAL" ? "Physical" : "Mental"} injury. ` +
+      `Severity modifier ${severityModifier}. Blaze available but not used by auto-sim.`,
+    details: event,
+  });
+  return false;
+}
+
+export function markDefeatedActors(state: CombatState, context: DefeatProcessingContext = {}): string[] {
   const defeated: string[] = [];
   for (const actor of state.actors) {
     if (actor.defeated) continue;
+    let shouldDefeat = false;
     if (actor.physicalHpCurrent <= 0 || actor.mentalHpCurrent <= 0) {
+      if (usesMajorInjuryFlow(actor)) {
+        const pendingChannels: CombatInjuryChannel[] = [];
+        if (actor.mentalHpCurrent <= 0 && !injuryResolvedAtZero(actor, "MENTAL")) pendingChannels.push("MENTAL");
+        if (actor.physicalHpCurrent <= 0 && !injuryResolvedAtZero(actor, "PHYSICAL")) pendingChannels.push("PHYSICAL");
+        for (const channel of pendingChannels) {
+          shouldDefeat = processMajorInjuryEvent(state, actor, channel, context) || shouldDefeat;
+        }
+      } else {
+        shouldDefeat = true;
+      }
+    }
+    if (shouldDefeat) {
       actor.defeated = true;
       defeated.push(actor.id);
       emitTranscriptEvent(state, {
         type: "actorDefeated",
         actorId: actor.id,
         actorName: actor.name,
+        actionId: context.sourceActionId ?? undefined,
+        actionName: context.sourceActionName ?? undefined,
+        lane: context.lane,
         message: `Defeat: ${actor.name} is defeated.`,
         details: {
           physicalHpCurrent: actor.physicalHpCurrent,
           mentalHpCurrent: actor.mentalHpCurrent,
+          physicalMajorInjuries: actor.physicalMajorInjuries,
+          mentalMajorInjuries: actor.mentalMajorInjuries,
+          defeatModel: actor.defeatModel,
         },
       });
       cleanupDefeatedActorRuntime(state, actor);

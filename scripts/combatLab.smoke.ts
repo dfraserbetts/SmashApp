@@ -244,6 +244,277 @@ function runLinkedWoundBandFixture(
   return { state, resolution };
 }
 
+function majorInjuryEventsFor(state: CombatState, actorId: string) {
+  return state.pendingMajorInjuryEvents.filter((event) => event.actorId === actorId);
+}
+
+{
+  const normalPhysical = createCombatState(
+    [],
+    [fixtureActor("c14-normal-physical", "monsters", { physicalHpMax: 5, mentalHpMax: 5 })],
+    { captureTranscript: true },
+  );
+  normalPhysical.actors[0].physicalHpCurrent = 0;
+  markDefeatedActors(normalPhysical);
+  if (!normalPhysical.actors[0].defeated) {
+    throw new Error("C14 normal monster did not use binary physical defeat at 0 HP.");
+  }
+
+  const normalMental = createCombatState(
+    [],
+    [fixtureActor("c14-normal-mental", "monsters", { physicalHpMax: 5, mentalHpMax: 5 })],
+    { captureTranscript: true },
+  );
+  normalMental.actors[0].mentalHpCurrent = 0;
+  markDefeatedActors(normalMental);
+  if (!normalMental.actors[0].defeated) {
+    throw new Error("C14 normal monster did not use binary mental defeat at 0 HP.");
+  }
+}
+
+{
+  const state = createCombatState(
+    [
+      fixtureActor("c14-pc-physical-major", "players", {
+        physicalHpMax: 5,
+        mentalHpMax: 5,
+        forcedMajorInjuryOutcomes: { PHYSICAL: ["MAJOR_INJURY"] },
+      }),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  state.actors[0].physicalHpCurrent = 0;
+  markDefeatedActors(state, { triggerId: "c14-physical-major-test" });
+  if (state.actors[0].defeated || state.actors[0].physicalMajorInjuries !== 1) {
+    throw new Error(`C14 PC physical Major Injury did not resolve without binary defeat: ${JSON.stringify(state.actors[0])}.`);
+  }
+  markDefeatedActors(state, { triggerId: "c14-repeat-loop-test" });
+  if (majorInjuryEventsFor(state, state.actors[0].id).length !== 1) {
+    throw new Error("C14 PC repeated zero-HP state queued another injury without new damage.");
+  }
+}
+
+{
+  const state = createCombatState(
+    [
+      fixtureActor("c14-pc-mental-major", "players", {
+        physicalHpMax: 5,
+        mentalHpMax: 5,
+        forcedMajorInjuryOutcomes: { MENTAL: ["MAJOR_INJURY"] },
+      }),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  state.actors[0].mentalHpCurrent = 0;
+  markDefeatedActors(state, { triggerId: "c14-mental-major-test" });
+  if (state.actors[0].defeated || state.actors[0].mentalMajorInjuries !== 1 || state.actors[0].physicalMajorInjuries !== 0) {
+    throw new Error(`C14 PC mental Major Injury did not stay on the mental injury track: ${JSON.stringify(state.actors[0])}.`);
+  }
+}
+
+{
+  const state = createCombatState(
+    [
+      fixtureActor("c14-third-physical-major", "players", {
+        physicalHpMax: 5,
+        mentalHpMax: 5,
+        physicalMajorInjuries: 2,
+        forcedMajorInjuryOutcomes: { PHYSICAL: ["MAJOR_INJURY"] },
+      }),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  state.actors[0].physicalHpCurrent = 0;
+  markDefeatedActors(state, { triggerId: "c14-third-major-test" });
+  if (!state.actors[0].defeated || state.actors[0].physicalMajorInjuries !== 3) {
+    throw new Error(`C14 third same-channel Major Injury did not defeat the actor: ${JSON.stringify(state.actors[0])}.`);
+  }
+}
+
+{
+  const state = createCombatState(
+    [
+      fixtureActor("c14-separate-tracks", "players", {
+        physicalHpMax: 5,
+        mentalHpMax: 5,
+        physicalMajorInjuries: 2,
+        mentalMajorInjuries: 2,
+        forcedMajorInjuryOutcomes: { MENTAL: ["NO_INJURY"] },
+      }),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  state.actors[0].mentalHpCurrent = 0;
+  markDefeatedActors(state, { triggerId: "c14-separate-tracks-test" });
+  if (state.actors[0].defeated || state.actors[0].physicalMajorInjuries !== 2 || state.actors[0].mentalMajorInjuries !== 2) {
+    throw new Error(`C14 separate injury tracks collapsed into binary or cross-channel defeat: ${JSON.stringify(state.actors[0])}.`);
+  }
+}
+
+{
+  const state = createCombatState(
+    [
+      fixtureActor("c14-minor-injury", "players", {
+        physicalHpMax: 5,
+        mentalHpMax: 5,
+        forcedMajorInjuryOutcomes: { PHYSICAL: ["MINOR_INJURY"] },
+      }),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  state.actors[0].physicalHpCurrent = 0;
+  markDefeatedActors(state, { triggerId: "c14-minor-test" });
+  if (state.actors[0].defeated || state.actors[0].physicalMinorInjuries !== 1 || state.actors[0].physicalMajorInjuries !== 0) {
+    throw new Error(`C14 forced Minor Injury did not increment the minor track only: ${JSON.stringify(state.actors[0])}.`);
+  }
+}
+
+{
+  const state = createCombatState(
+    [
+      fixtureActor("c14-no-injury", "players", {
+        physicalHpMax: 5,
+        mentalHpMax: 5,
+        forcedMajorInjuryOutcomes: { PHYSICAL: ["NO_INJURY"] },
+      }),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  state.actors[0].physicalHpCurrent = 0;
+  markDefeatedActors(state, { triggerId: "c14-no-injury-test" });
+  if (state.actors[0].defeated || state.actors[0].physicalMinorInjuries !== 0 || state.actors[0].physicalMajorInjuries !== 0) {
+    throw new Error(`C14 forced No Injury changed injury counters or defeated actor: ${JSON.stringify(state.actors[0])}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("c14-bundle-heal-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("c14-bundle-heal-target", "monsters", {
+    defeatModel: "LEGENDARY_MONSTER",
+    physicalHpMax: 5,
+    mentalHpMax: 5,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    forcedMajorInjuryOutcomes: { PHYSICAL: ["MAJOR_INJURY"] },
+  });
+  const bundled = action({
+    id: "c14-same-bundle-heal",
+    name: "C14 Same Bundle Heal",
+    sourceType: "power",
+    kind: "attack",
+    potency: 10,
+    diceCount: 1,
+    secondaryActions: [
+      action({
+        id: "c14-same-bundle-heal-secondary",
+        name: "C14 Same Bundle Heal Secondary",
+        sourceType: "power",
+        kind: "healing",
+        targetPolicy: "enemy",
+        potency: 8,
+        diceCount: 1,
+        secondaryDependencyMode: "INDEPENDENT",
+      }),
+    ],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: bundled,
+    rng: rngFrom([0.99, 0.99]),
+    lane: "power",
+  });
+  if (state.actors[1].physicalHpCurrent <= 0 || majorInjuryEventsFor(state, state.actors[1].id).length !== 0) {
+    throw new Error(`C14 same-bundle healing did not prevent Major Injury after net bundle resolution: ${JSON.stringify({ actor: state.actors[1], events: state.pendingMajorInjuryEvents })}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("c14-dual-channel-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("c14-dual-channel-target", "monsters", {
+    defeatModel: "LEGENDARY_MONSTER",
+    physicalHpMax: 5,
+    mentalHpMax: 5,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    mentalDefenceDice: 1,
+    mentalBlockPerSuccess: 0,
+    forcedMajorInjuryOutcomes: { PHYSICAL: ["NO_INJURY"], MENTAL: ["NO_INJURY"] },
+  });
+  const bundled = action({
+    id: "c14-dual-channel-bundle",
+    name: "C14 Dual Channel Bundle",
+    sourceType: "power",
+    kind: "attack",
+    pool: "physical",
+    potency: 10,
+    diceCount: 1,
+    secondaryActions: [
+      action({
+        id: "c14-dual-channel-mental-secondary",
+        name: "C14 Dual Channel Mental Secondary",
+        sourceType: "power",
+        kind: "attack",
+        pool: "mental",
+        potency: 10,
+        diceCount: 1,
+        secondaryDependencyMode: "INDEPENDENT",
+      }),
+    ],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: bundled,
+    rng: rngFrom([0.99, 0.99]),
+    lane: "power",
+  });
+  const channels = majorInjuryEventsFor(state, state.actors[1].id).map((event) => event.channel);
+  if (channels.join(",") !== "MENTAL,PHYSICAL") {
+    throw new Error(`C14 dual-channel Major Injury ordering was not Mental then Physical: ${JSON.stringify(channels)}.`);
+  }
+}
+
+{
+  const actor = fixtureActor("c14-start-turn-dot-pc", "players", {
+    physicalHpMax: 5,
+    mentalHpMax: 5,
+    forcedMajorInjuryOutcomes: { PHYSICAL: ["MAJOR_INJURY"] },
+  });
+  const source = fixtureActor("c14-start-turn-dot-source", "monsters");
+  const state = createCombatState([actor], [source], { captureTranscript: true });
+  state.statusEffects.push({
+    id: "c14-start-turn-dot-effect",
+    sourceActorId: state.actors[1].id,
+    targetActorId: state.actors[0].id,
+    kind: "ongoingDamage",
+    amount: 10,
+    pool: "physical",
+    sourceActionId: "c14-start-turn-dot",
+    sourceActionName: "C14 Start Turn DoT",
+    remainingRounds: 1,
+  });
+  resolveStartOfTurnEffects(state, state.actors[0]);
+  if (state.actors[0].defeated || state.actors[0].physicalMajorInjuries !== 1) {
+    throw new Error(`C14 start-turn DoT did not route PC/Legendary through injury flow: ${JSON.stringify(state.actors[0])}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /First-tick lethal: c14-start-turn-dot-pc must resolve Major Injury/i, "C14 start-turn injury transcript");
+}
+
 {
   const attacker = fixtureActor("vrp-attacker", "players", {
     attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D12", Synergy: "D8", Bravery: "D8" },
@@ -2148,6 +2419,7 @@ function runLinkedWoundBandFixture(
     cooldownRounds: 4,
   });
   const defender = fixtureActor("pure-passive-pool-defender", "players", {
+    defeatModel: "NORMAL_MONSTER",
     actions: [passiveA, passiveB],
     attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D12", Bravery: "D8" },
   });
@@ -7479,6 +7751,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 
 {
   const defeatedActor = fixtureActor("defeated-start-turn-actor", "players", {
+    defeatModel: "NORMAL_MONSTER",
     physicalHpMax: 20,
     physicalHpCurrent: 20,
     actions: [
@@ -7551,6 +7824,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 
 {
   const firstPlayer = fixtureActor("future-target-defeated", "players", {
+    defeatModel: "NORMAL_MONSTER",
     physicalHpMax: 10,
     physicalHpCurrent: 10,
   });
@@ -7585,6 +7859,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 
 {
   const player = fixtureActor("sot-stop-player", "players", {
+    defeatModel: "NORMAL_MONSTER",
     actions: [action({ id: "sot-stop-player-extra", name: "Player Extra Turn", potency: 1 })],
   });
   const monster = fixtureActor("sot-stop-monster", "monsters", {
@@ -7751,6 +8026,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     potency: 20,
   });
   const player = fixtureActor("simul-stop-player", "players", {
+    defeatModel: "NORMAL_MONSTER",
     physicalHpMax: 5,
     physicalHpCurrent: 5,
     actions: [counter],
@@ -7796,6 +8072,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 
 {
   const source = fixtureActor("source-defeat-owner", "players", {
+    defeatModel: "NORMAL_MONSTER",
     physicalHpMax: 10,
     physicalHpCurrent: 0,
   });
@@ -8787,6 +9064,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 
 {
   const actor = fixtureActor("cleanup-defeated-before-act", "players", {
+    defeatModel: "NORMAL_MONSTER",
     physicalHpMax: 10,
     physicalHpCurrent: 10,
     actions: [action({ id: "defeated-before-cleanup-attack", sourceType: "naturalAttack" })],

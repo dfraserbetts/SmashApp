@@ -29,6 +29,9 @@ export type CombatDefensivePoolSourceChassis = "IMMEDIATE" | "FIELD" | "ATTACHED
 export type CombatDefensivePoolCommitmentModifier = "STANDARD" | "CHANNEL" | "CHARGE" | "UNKNOWN";
 export type CombatDefensivePoolCommitmentMode = "auto" | "poolOnly";
 export type CombatVrpEffectKind = "VULNERABILITY" | "RESISTANCE" | "PROTECTION";
+export type CombatDefeatModel = "NORMAL_MONSTER" | "PLAYER_CHARACTER" | "LEGENDARY_MONSTER";
+export type CombatInjuryChannel = "PHYSICAL" | "MENTAL";
+export type CombatMajorInjuryOutcome = "MAJOR_INJURY" | "MINOR_INJURY" | "NO_INJURY";
 export type CombatDefensivePoolExpiryReason =
   | "empty"
   | "durationEnd"
@@ -168,6 +171,14 @@ export type CombatActor = {
   actions: CombatAction[];
   vrp?: CombatVrpEntry[];
   defensivePoolCommitmentMode?: CombatDefensivePoolCommitmentMode;
+  defeatModel: CombatDefeatModel;
+  physicalMajorInjuries: number;
+  mentalMajorInjuries: number;
+  physicalMinorInjuries: number;
+  mentalMinorInjuries: number;
+  physicalInjuryResolvedAtZero: boolean;
+  mentalInjuryResolvedAtZero: boolean;
+  forcedMajorInjuryOutcomes?: Partial<Record<CombatInjuryChannel, CombatMajorInjuryOutcome[]>>;
   unsupportedPowers: UnsupportedPowerReason[];
   hydration: CombatActorHydration;
   defeated: boolean;
@@ -262,6 +273,23 @@ export type CombatAssistPressure = {
   amountWasted: number;
 };
 
+export type CombatPendingMajorInjuryEvent = {
+  id: string;
+  actorId: string;
+  actorName: string;
+  channel: CombatInjuryChannel;
+  overflow: number;
+  severityModifier: number;
+  sourceActorId?: string | null;
+  sourceActionId?: string | null;
+  sourceActionName?: string | null;
+  triggerId?: string | null;
+  forcedOutcome: CombatMajorInjuryOutcome;
+  blazeAvailable: boolean;
+  blazeDeclared: boolean;
+  status: "pending" | "resolved";
+};
+
 export type CombatCooldownEntry = {
   remaining: number;
   appliedRound: number;
@@ -279,6 +307,7 @@ export type CombatState = {
   counterUses: Record<string, number>;
   assistDeclarations: CombatDeclaredAssist[];
   assistPressures: CombatAssistPressure[];
+  pendingMajorInjuryEvents: CombatPendingMajorInjuryEvent[];
   incomingActionsByTargetThisRound: Record<string, number>;
   statusEffects: CombatStatusEffect[];
   defensivePools: CombatDefensivePool[];
@@ -401,6 +430,7 @@ export type CombatTranscriptEventType =
   | "cooldownApplied"
   | "cooldownTicked"
   | "actionSkipped"
+  | "majorInjury"
   | "actorDefeated"
   | "defeatCleanup"
   | "combatEnd"
