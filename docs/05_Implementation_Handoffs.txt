@@ -200,24 +200,30 @@ events as a runtime ordering rule; same-bundle healing can prevent a trial if
 the relevant pool is restored above 0 before injury processing; Blaze of Glory
 timing and final removal; and no mid-bundle defeat cleanup.
 
-C14 implementation staging:
+C14 implementation status:
 
-Current Combat Lab runtime must not be assumed to fully implement Major Injury
-or Blaze of Glory until code and smoke tests prove it. The first runtime pass
-may be staged:
+Combat Lab C14 Phase 1 is implemented and smoke-covered. The current runtime
+now represents:
 
-- add an explicit defeat model / actor category for NORMAL_MONSTER,
-  PLAYER_CHARACTER, and LEGENDARY_MONSTER semantics;
-- add Physical and Mental Major Injury counters / affected-side injury state;
-- queue pending Major Injury events after the full action, effect tick, or
-  simultaneous result bundle;
-- preserve same-bundle healing timing before injury processing;
-- resolve dual-channel pending events Mental first, then Physical;
-- use deterministic test hooks or smoke helpers to force Major Injury, Minor
-  Injury, and No Injury outcomes before full automatic Attribute-choice policy
-  exists;
-- default auto-sim to "Blaze available but not used";
-- report Blaze availability without simulating tactical Blaze.
+- explicit defeat model / actor category semantics for NORMAL_MONSTER,
+  PLAYER_CHARACTER, and LEGENDARY_MONSTER;
+- normal monster binary defeat at 0 Physical or Mental HP;
+- Player Character / Legendary Monster injury flow at 0 instead of immediate
+  defeat cleanup;
+- separate Physical and Mental Major/Minor Injury counters;
+- pending injury events processed after the full action, effect tick, or
+  simultaneous result bundle resolves;
+- same-bundle healing prevention when the relevant pool is restored above 0
+  before injury processing;
+- dual-channel pending event ordering of Mental first, then Physical;
+- deterministic smoke/test hooks for Major Injury, Minor Injury, and No Injury
+  outcomes before full automatic Attribute-choice policy exists;
+- default auto-sim state of "Blaze available but not used";
+- cleanup only on true defeat, not on non-defeating injury.
+
+This Phase 1 alignment does not mean the full table-facing Major Injury / Blaze
+experience is complete. It provides the runtime guardrails needed before the
+remaining declaration, trial-intelligence, and UI/reporting passes.
 
 Deferred C14 work:
 
@@ -226,7 +232,9 @@ Deferred C14 work:
 - Limit Break dice in Major Injury Trials;
 - full Blaze of Glory final-turn flow;
 - tactical Blaze AI;
-- UI controls for manual Blaze declaration.
+- UI controls for manual Blaze declaration;
+- richer Major Injury / Blaze reporting surfaces if required beyond current
+  runtime events and smoke diagnostics.
 
 
 Builder Handoff Notes

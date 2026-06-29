@@ -105,15 +105,20 @@ law until the owning active doc is updated with an explicit decision.
   Multiple generic Assists on one trigger stack only through distinct Power
   Intentions unless explicit special authoring says otherwise.
 - C14 defeat model, Major Injury core rule, and Blaze availability.
-  Status: LOCKED / RESOLVED.
-  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt.
+  Status: LOCKED / RESOLVED; COMBAT LAB C14 PHASE 1 IMPLEMENTED / ALIGNED.
+  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
+  docs/05_Implementation_Handoffs.txt.
   Note: Combat actors require an explicit defeat model: NORMAL_MONSTER,
   PLAYER_CHARACTER, or LEGENDARY_MONSTER. Normal monsters are defeated at 0 in
   either health channel. Player Characters and Legendary Monsters use the
   affected-channel Major Injury / Blaze of Glory flow after the full triggering
   action, effect tick, or simultaneous result bundle. Physical and Mental
   injury tracks are separate, and three Major Injuries on one side causes
-  defeat.
+  defeat. Combat Lab Phase 1 now represents explicit defeat models, separate
+  Physical/Mental injury counters, pending post-resolution injury events,
+  same-bundle healing prevention, Mental-before-Physical ordering,
+  deterministic Major/Minor/No Injury smoke hooks, no-auto-Blaze default, and
+  cleanup only on true defeat.
 - Final defensive-pool numeric tuning values.
   Status: NEEDS BALANCE EVIDENCE.
   Owner: docs/02_Power_System_And_Costing.txt and
@@ -140,6 +145,11 @@ law until the owning active doc is updated with an explicit decision.
   Note: Blaze is available only to Player Characters and Legendary Monsters.
   Auto-sim defaults to "Blaze available but not used." Manual/test forcing may
   be added later; do not invent tactical Blaze AI.
+- C14 UI controls and reporting polish.
+  Status: DEFERRED.
+  Owner: docs/05_Implementation_Handoffs.txt and future UI/reporting pass.
+  Note: Phase 1 exposes runtime events/state for testing, but richer report
+  surfaces and manual Blaze declaration controls remain future work.
 - Generic/omni Resist Pool existence and surcharge.
   Status: NEEDS ARCHITECT DECISION.
   Owner: docs/02_Power_System_And_Costing.txt.
