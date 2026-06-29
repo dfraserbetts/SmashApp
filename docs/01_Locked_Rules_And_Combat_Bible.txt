@@ -72,6 +72,14 @@ Cleanse Eligibility And Declared Source Taxonomy
 Cleanse and Main Action Resist must both declare the specific target effect,
 source, or source category before rolling.
 
+Successes cannot be rolled first and then distributed across several unrelated
+effects. Each Cleanse or Main Action Resist roll applies only to the declared
+effect, source, or source category.
+
+Exception: a multi-packet or multi-intention power with multiple Cleanse packets
+may declare a separate target effect, source, or source category for each
+Cleanse packet.
+
 Cleanse eligibility is determined by authored cleanse taxonomy:
 
 - Cleanse Targeted Effect: remove a selected active effect from the target if
@@ -89,9 +97,47 @@ Cleanse does not automatically remove every hostile state on a target. If a
 cleanse does not name the relevant effect, source, source category, or "all
 eligible" category, it is not eligible.
 
-Cleanse potency and successes scale against the declared eligible effect or
-eligible set. A cleanse that removes one source category does not remove
-unrelated categories merely because they share the same target.
+Cleanse can remove, if authored and eligible:
+
+- effect stacks from powers.
+- effect stacks from items, weapons, armour, shields, or other item-sourced
+  effects.
+- damage-over-time units.
+- control stacks.
+- debuffs.
+- persistent forced-movement states, movement-control stacks, forced relocation
+  states, or pending movement effects.
+- active powers, if the Cleanse specifically targets Active Power.
+- attached effects, fields, passive effects, channels, and charge states, if
+  the Cleanse specifically targets Active Power.
+
+Cleanse cannot:
+
+- remove cooldowns.
+- undo movement that has already resolved unless explicitly authored.
+- remove multiple unrelated effects with one roll unless multi-packet or
+  multi-cleanse authoring allows separate declarations.
+
+Cleanse removal = rolled Cleanse successes x Cleanse potency.
+
+Example: Potency 3 Cleanse with 2 successes removes 6 stacks or units from the
+declared target effect, source, or category, assuming the Cleanse is not
+resisted.
+
+A cleanse that removes one source category does not remove unrelated categories
+merely because they share the same target.
+
+Natural expiry removes all stacks or units belonging to the expiring effect. It
+does not clean every condition from the target.
+
+Cleansing a specific affected target removes the effect only from that target.
+Cleansing the source, carrier, or active power can remove that source effect
+from all affected targets. Cleansing the source is stronger; the source may
+resist.
+
+Cleansing an ally of a hostile effect is normally not resisted by that ally.
+Cleansing a hostile target of a beneficial effect may be resisted by that
+hostile target.
 
 Cooldown immunity, passive carrier ending, field ending, attachment breaking,
 and source lifecycle removal are separate from Cleanse. They may remove effects
@@ -103,23 +149,23 @@ Response Window / Incarnate Stack
 When a hostile action is declared, resolve in this order:
 
 1. Apply already-active effects.
-2. Declare the hostile action and targets.
-3. Declare legal acting-side supporting Responses.
-4. Declare legal target-side answering Responses, including Assists and
-   Counters.
-5. Close the response window.
-6. Resolve acting-side support to establish the final incoming threat.
-7. Resolve target-side support to establish the final answer.
-8. Roll the triggering hostile action.
-9. Roll declared Counters.
-10. If no Counter was declared by a defender and the hostile action produced one
-   or more actionable hostile successes, that defender rolls the chosen normal
-   active defence.
-11. Resolve defensive and mitigation pieces.
-12. Calculate prevention and effects.
-13. Apply the incoming result.
-14. Apply the Counter result.
-15. Process defeats and cleanup.
+2. Acting actor declares the hostile action, intended areas, and intended
+   targets.
+3. Response Window opens.
+4. Acting-side allies declare and resolve legal Assists that build or modify the
+   incoming threat.
+5. Target-side allies declare and resolve legal Assists that build or modify the
+   defence or answer.
+6. Targeted defenders declare their defence choice or Counter, including any
+   legal pool commitments.
+7. Response Window closes.
+8. Acting actor rolls the triggering hostile action.
+9. Defenders roll declared Counter or Defence String if required.
+10. Convert rolls into outputs.
+11. Apply prevention, Assist pressure, comparisons, results, and cleanup in the
+   legal lanes.
+12. Process defeats and cleanup after the full triggering attack, power, effect
+   tick, or simultaneous result bundle resolves.
 
 All declared actions, Assists, Counters, and Responses resolve before defeat and
 cleanup unless a power explicitly interrupts or cancels the triggering action.
@@ -351,32 +397,37 @@ using it as intended on the actor's own turn. Multiple Assists should be allowed
 when they are tactically distinct, not when they all duplicate the same
 mechanical route.
 
-Multiple responders declare acting side first, target side second:
+Multiple responders assemble support in acting-side-first, target-side-second
+order:
 
 When both sides have Responses to the same triggering action, the acting side
-declares its supporting Responses first, then the target side declares its
-answering Responses. After both sides have declared, the response window closes;
-neither side may add more Responses unless an explicit rule allows it. During
-resolution, acting-side support resolves first to establish the final incoming
-threat, then target-side support resolves second to establish the final answer,
-before the triggering action and defensive/counter results are applied under
-the normal resolution order.
+declares and resolves supporting Assists first to establish the final incoming
+threat. The target side then declares and resolves supporting Assists that build
+or modify the defence / answer. After support is known, targeted defenders
+declare their defence choice or Counter, including any legal pool commitments.
+The response window then closes; neither side may add more Responses unless an
+explicit rule allows it. The triggering action, defensive rolls, Counter rolls,
+prevention, comparisons, results, and cleanup then resolve under the normal
+resolution order.
 
 Use "acting side" and "target side" rather than only "attacker" and "defender",
 because not every triggering action is a simple attack.
 
 This preserves the table rhythm: threat is declared -> threat is supported ->
-defence answers -> resolve.
+answer is supported -> defenders choose defence or Counter -> resolve.
 
 The acting side already chooses the action, target, timing, and pressure point,
 so it declares its support first. The target side is reacting to a known threat
-package, so it declares second. This prevents gotcha play where the target side
-spends Responses first and the acting side then selectively piles on support
-after seeing the defence commitment.
+package, so it builds support second. Defenders then choose normal defence or
+Counter with the supported threat and supported answer visible. This prevents
+gotcha play where the target side spends defence commitments before the acting
+side support is known, while also preventing a response bidding war after
+defence choices are declared.
 
 There is no response bidding war by default. Once acting-side and target-side
-Responses are declared, the response window closes. A character cannot respond
-to a Response unless a specific rule explicitly creates that permission.
+support and targeted defenders' choices are declared, the response window
+closes. A character cannot respond to a Response unless a specific rule
+explicitly creates that permission.
 
 Acting-side Assists resolve first because they build or modify the incoming
 threat. Target-side Assists resolve second because they build or modify the
@@ -384,38 +435,40 @@ answer to that threat. This does not mean damage is applied before defence. It
 means support effects are assembled in threat-first, answer-second order before
 final application.
 
-The multiple-responder declaration rule sits inside the declaration / response
-window before rolls are resolved. It does not replace the normal Counter timing
-order: incoming hostile action is declared; Counter is declared; incoming action
-is rolled; Counter is rolled; defensive and mitigation pieces resolve; incoming
-result is applied; Counter result is applied; defeats are processed.
+The multiple-responder support rule sits inside the declaration / response
+window before rolls are resolved. It does not change interrupt law or make a
+Counter resolve before the triggering action unless that Counter is separately
+authored as an interrupt. Ordinary timing remains: support is assembled,
+defence/Counter choices are declared, the incoming action is rolled, declared
+Counter or Defence String rolls are made if required, outputs and prevention
+resolve, results are applied, and defeats are processed after the full
+triggering bundle.
 
 Example 1 - monsters attacking, characters assisting:
 
 - Monster 1 declares a hostile action against Character 1.
-- Monster side declares any supporting Responses / Assists to Monster 1 first.
-- Character side declares any answering Responses / Assists / Counters second.
+- Monster side declares and resolves supporting Assists to Monster 1 first.
+- Character side declares and resolves answering Assists second.
+- Targeted Character 1 declares normal defence or Counter, including legal pool
+  commitments.
 - Window closes.
-- Monster-side support resolves first and establishes the final incoming threat.
-- Character-side support resolves second and establishes the final defence /
-  answer.
 - The action resolves under normal timing.
 
 Example 2 - characters attacking, monsters responding:
 
 - Character 1 declares a hostile action against Monster 1.
-- Character side declares support first.
-- Monster side declares answers second.
+- Character side declares and resolves support first.
+- Monster side declares and resolves answering support second.
+- Targeted Monster 1 declares normal defence or Counter if it has legal access.
 - Window closes.
-- Character-side support resolves first.
-- Monster-side support resolves second.
 - Resolve normally.
 
 Example 3 - no infinite chain:
 
 If Character 2 Assists Character 1, Monster 2 cannot then add a new Response to
 Character 2's Assist unless an explicit future rule permits Responses to
-Responses. The ordinary response window is one declaration pass per side.
+Responses. The ordinary response window is one closed support-and-choice pass,
+not a bidding chain.
 
 
 Zero-Success Hostile Action Ruling
@@ -996,25 +1049,106 @@ physical wounds checks physical HP. A packet that deals mental wounds checks
 mental HP. A packet that deals both lanes checks each affected lane after the
 full simultaneous result for that packet or Secondary bundle has been applied.
 
-An actor is defeated when any health channel reaches its defeat threshold unless
-an explicit rule says otherwise. Defeat and cleanup are processed after the
-current simultaneous result bundle finishes, not between independent same-bundle
-packets.
+Non-Legendary Monsters:
 
-Major Injury is evaluated from actual wounds suffered in the relevant channel
-after prevention and remaining-health cap. Overkill wounds do not increase Major
-Injury severity unless a future explicit overkill rule says otherwise.
+- Non-Legendary Monsters are defeated immediately when either Physical Health
+  or Mental Health reaches 0.
+- They do not use the Major Injury system.
+- They do not use Blaze of Glory unless explicitly promoted to Legendary or
+  specially authored.
 
-Blaze of Glory and similar "on defeat" or "before leaving combat" mechanics
-trigger from the defeat event after the current result bundle has resolved and
-before normal defeat cleanup removes the actor from active combat. Such effects
-do not interrupt the middle of a simultaneous Secondary bundle unless explicitly
-authored as an interrupt.
+Player Characters and Legendary Monsters:
 
-If both physical and mental channels would defeat an actor in the same
-simultaneous result bundle, treat it as one defeat event with both channels
-recorded as contributing causes for reporting and future rules that care about
-defeat source.
+- When Physical or Mental Health is reduced to 0, they do not immediately leave
+  combat.
+- After the full triggering action, effect tick, or simultaneous result bundle
+  resolves, they make a Major Injury Trial for the affected side unless they
+  declare Blaze of Glory.
+- Physical side attributes are Attack, Defence, and Fortitude.
+- Mental side attributes are Intellect, Support, and Bravery.
+- The actor chooses one attribute from the affected side to place at risk.
+
+Major Injury Trial:
+
+- Roll 3 dice using the chosen at-risk Attribute.
+- The actor may commit legal Limit Break dice before rolling.
+- Limit Break dice are added to the dice pool and use the same chosen Attribute
+  die size unless explicitly stated otherwise.
+- Apply overflow severity modifier to non-natural-1 dice.
+- Natural 1s remain hard failures and ignore modifiers.
+- 0-1 total successes = Major Injury.
+- 2 total successes = Minor Injury.
+- 3+ total successes = No Injury.
+
+Overflow severity:
+
+- Calculate overflow damage after the full action bundle resolves.
+- Overflow damage means damage in the affected channel that passes the 0 HP
+  point.
+- At 0 HP, 100% of any further incoming damage in that channel is overflow.
+- For every full amount of overflow equal to the actor's level, apply -1 to the
+  Major Injury Trial.
+- Round down.
+- Apply the normal modifier cap.
+
+Examples:
+
+- Level 9 actor suffers 18 overflow damage. 18 / 9 = 2 full level chunks, so
+  the Major Injury Trial suffers -2.
+- Level 9 actor suffers 17 overflow damage. 17 / 9 = 1 full level chunk, so the
+  Major Injury Trial suffers -1.
+
+Major Injury severity does not use actual-wounds-after-cap. Actual wounds after
+remaining-health cap is the default wound-band scaling source, not the Major
+Injury overflow-severity source.
+
+Trial outcomes:
+
+- No Injury: the actor avoids injury, remains at 0 Health in that channel, and
+  must repeat the Trial if struck again in that channel.
+- Minor Injury: the actor suffers a persistent penalty or thematic impairment,
+  but the chosen attribute remains usable.
+- Major Injury: the chosen attribute suffers a Major Injury and becomes
+  unusable.
+- Physical and Mental injury tracks are separate.
+- A character can have 2 Physical Major Injuries and 2 Mental Major Injuries and
+  still not be defeated.
+- Once all three attributes on one side have suffered Major Injuries, the actor
+  is defeated or killed.
+
+Both channels hit 0 in the same bundle:
+
+- If the same action bundle reduces both Physical and Mental Health to 0 for a
+  Player Character or Legendary Monster, resolve both Major Injury events after
+  the bundle resolves.
+- Do not collapse this into one defeat event for PC / Legendary Major Injury
+  handling.
+- For ordinary non-Legendary Monsters, either channel at 0 defeats them.
+
+Same-bundle healing:
+
+- Injury checks happen only after the full action result bundle resolves.
+- If same-bundle healing restores the relevant pool above 0 before injury
+  processing, no Major Injury Trial occurs for that pool.
+
+Removal timing:
+
+- Actors are not removed mid-packet and not at end of round by default.
+- A defeated target is removed after the full triggering attack, power, effect
+  tick, or simultaneous result bundle that defeated them resolves.
+
+Blaze of Glory:
+
+- Only Player Characters and Legendary Monsters may declare Blaze of Glory.
+- Blaze of Glory is declared after the triggering attack or effect bundle would
+  prompt a Major Injury Trial and before the Major Injury Trial is rolled.
+- Declaring Blaze of Glory cancels the pending Major Injury Trial.
+- The actor immediately takes their Blaze of Glory turn.
+- Once all Blaze actions resolve, including movement, Main Action, Power Action,
+  and Limit Breaks if legal, the actor is defeated and removed from combat.
+- If one triggering bundle would cause both Physical and Mental Major Injury
+  Trials, one Blaze of Glory declaration cancels all pending Major Injury Trials
+  from that bundle.
 
 
 Defeat Cleanup And Source-Owned Effects

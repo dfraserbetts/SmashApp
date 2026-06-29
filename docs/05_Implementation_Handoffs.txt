@@ -86,9 +86,10 @@ Future implementation work must keep checking:
 - Independent eligible Secondary Packets resolve as one simultaneous result
   bundle after the Primary Packet; authored order is presentation order unless
   explicit sequential/dependent/triggered language says otherwise.
-- Multiple responders use one declaration pass per side: acting side declares
-  supporting Responses first, target side declares answering Responses second,
-  then the response window closes.
+- Multiple responders use acting-side-first support assembly: acting-side
+  Assists declare and resolve first, target-side Assists declare and resolve
+  second, targeted defenders then declare defence or Counter choices, then the
+  response window closes.
 - Passive defensive pools do not naturally tick down.
 - Movement/Reposition is not a Defence mode.
 - Dodge succeeds on match-or-exceed.
@@ -112,7 +113,10 @@ Future implementation work must keep checking:
   Primary targets once. Target-local Secondaries use only that target's own
   actual Primary wounds.
 - Health-channel defeat, Major Injury, Blaze of Glory, and defeat cleanup must
-  wait until the current simultaneous packet/result bundle is complete.
+  follow actor type: non-Legendary Monsters die at 0 in either health channel;
+  Player Characters and Legendary Monsters make affected-channel Major Injury
+  Trials after the current simultaneous packet/result bundle unless same-bundle
+  healing restores the pool above 0 or Blaze of Glory is declared.
 
 
 Combat Lab Handoff Notes
@@ -121,11 +125,12 @@ Combat Lab and future runtime tools should implement one Response Window /
 Incarnate Stack model.
 
 When both sides have Responses to the same triggering action, runtime-facing
-tools should assemble declarations in acting-side-first, target-side-second
-order. Acting-side support resolves first to establish the final incoming
-threat; target-side support resolves second to establish the final answer. The
-window then remains closed unless a future explicit rule allows Responses to
-Responses.
+tools should assemble support in acting-side-first, target-side-second order.
+Acting-side support declares and resolves first to establish the final incoming
+threat. Target-side support declares and resolves second to establish the final
+answer. Targeted defenders then declare normal defence or Counter choices,
+including legal pool commitments. The window then closes unless a future
+explicit rule allows Responses to Responses.
 
 Normal active defence should only roll if no Counter was declared by that
 defender and the hostile action produced one or more actionable hostile
@@ -182,10 +187,15 @@ Wound-band runtime/test alignment should verify actual-wounds-suffered scaling,
 remaining-health cap, no default overkill farming, action-level multi-target
 pooling where explicitly authored, and target-local isolation by default.
 
-Health-channel runtime/test alignment should verify physical and mental defeat
-checks, Major Injury from actual wounds, one defeat event for simultaneous
-dual-channel defeat, Blaze of Glory timing before cleanup, and no mid-bundle
-defeat cleanup.
+Health-channel runtime/test alignment should verify Non-Legendary Monsters die
+at 0 in either health channel; PC / Legendary Major Injury Trials by affected
+channel; overflow severity modifier of -1 per full actor level of overflow,
+rounded down and capped; 0-1 successes = Major Injury, 2 = Minor Injury, and
+3+ = No Injury; separate Physical and Mental injury tracks; dual-channel 0 in
+one bundle creates both Major Injury events for PC / Legendary actors unless
+Blaze of Glory is declared; same-bundle healing can prevent a trial if the
+relevant pool is restored above 0 before injury processing; Blaze of Glory
+timing and final removal; and no mid-bundle defeat cleanup.
 
 
 Builder Handoff Notes

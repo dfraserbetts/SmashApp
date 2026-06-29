@@ -220,9 +220,10 @@ Immediate Ordered Work
 
 1. Keep the new active docs aligned with current code reality.
 2. Preserve the locked Response Window / Incarnate Stack in runtime-facing tools.
-3. Preserve multiple-responder declaration order: acting side declares
-   supporting Responses first, target side declares answering Responses second,
-   then the response window closes.
+3. Preserve the multiple-responder support order: acting-side support declares
+   and resolves first, target-side support declares and resolves second,
+   targeted defenders then declare defence or Counter choices, then the response
+   window closes.
 4. Keep Counter use replacing normal active defence unless explicit authored
    defensive packets say otherwise.
 5. Keep mixed defensive Counters modal by default: choose one active defence
