@@ -181,6 +181,13 @@ law until the owning active doc is updated with an explicit decision.
   Owner: docs/04_Combat_Lab_Balance_And_Validation.txt.
   Note: Needed before canonical tuning promotion and public/demo playtest
   readiness.
+- Balance Environment live-authored testing scope.
+  Status: LOCKED / ACTIVE POLICY.
+  Owner: docs/04_Combat_Lab_Balance_And_Validation.txt.
+  Note: Live-authored balance assets must use campaignId
+  250aee5e-632f-405c-ba36-a49ed12a5afc / campaignName Balance Environment
+  unless explicitly instructed otherwise. Synthetic smoke/canary fixtures remain
+  campaignless and should report assetSource synthetic-in-memory.
 - Runtime gaps between locked docs and Combat Lab.
   Status: NEEDS RUNTIME CHECK.
   Owner: docs/05_Implementation_Handoffs.txt.

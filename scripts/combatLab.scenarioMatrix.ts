@@ -44,8 +44,16 @@ type TuningSnapshot = {
   values: Record<string, number>;
 };
 
+const BALANCE_ENVIRONMENT_CAMPAIGN_ID = "250aee5e-632f-405c-ba36-a49ed12a5afc";
+const BALANCE_ENVIRONMENT_CAMPAIGN_NAME = "Balance Environment";
+
 type ScenarioDefinition = DbScenarioDefinition | SyntheticScenarioDefinition;
 type ScenarioLayer = "B";
+type ScenarioAssetSource =
+  | "synthetic-in-memory"
+  | "balance-campaign-authored"
+  | "temporary-override"
+  | "unscoped-live-adapter";
 type CanaryMetadata = {
   canaryId: string;
   canaryLayer: ScenarioLayer;
@@ -80,6 +88,9 @@ type BuiltScenario = {
   definition: ScenarioDefinition;
   scenario: CombatScenario;
   hydrationWarnings: string[];
+  assetSource: ScenarioAssetSource;
+  campaignId: string | null;
+  campaignName: string | null;
 };
 
 type SyntheticActorDescriptor = {
@@ -272,6 +283,12 @@ type MatrixPayload = {
     sourceMutation: false;
     tuningMutation: false;
     validationSmokeStatus: string | null;
+    balanceCampaignScope: {
+      campaignId: string;
+      campaignName: string;
+      trueCampaignScopingImplemented: boolean;
+      unsupportedReason: string | null;
+    };
   };
   options: {
     runs: number;
@@ -299,6 +316,9 @@ type ScenarioMatrixRow = {
   runCount: number;
   seed: number;
   activeTuningNames: MatrixPayload["provenance"]["activeTuningNames"];
+  campaignId: string | null;
+  campaignName: string | null;
+  assetSource: ScenarioAssetSource;
   unsupportedNotesCount: number;
   unsupportedPowerNames: string[];
   verdict: string;
@@ -1126,6 +1146,9 @@ function scenarioToRow(
     runCount: report.runs,
     seed: built.scenario.seed,
     activeTuningNames,
+    campaignId: built.campaignId,
+    campaignName: built.campaignName,
+    assetSource: built.assetSource,
     unsupportedNotesCount: report.unsupported.unsupportedEffectCount + report.hydrationIntegrity.hydrationWarnings.length,
     unsupportedPowerNames: report.unsupported.unsupportedPowerNames,
     verdict: report.verdict,
@@ -1235,6 +1258,9 @@ async function buildScenarios(
     definition,
     hydrationWarnings: [],
     scenario: definition.scenarioBuilder({ runs: options.runs, seed: options.seed }),
+    assetSource: "synthetic-in-memory",
+    campaignId: null,
+    campaignName: null,
   }));
 
   if (dbDefinitions.length === 0) {
@@ -1342,6 +1368,9 @@ async function buildScenarios(
       hydrationWarnings: [...adaptedCharacter.warnings, ...adaptedMonster.warnings].map((warning) =>
         typeof warning === "string" ? warning : JSON.stringify(warning),
       ),
+      assetSource: "unscoped-live-adapter" as const,
+      campaignId: null,
+      campaignName: null,
       scenario: {
         name: definition.name,
         players: [adaptedCharacter.actor],
@@ -1384,11 +1413,23 @@ function printHumanSummary(payload: MatrixPayload) {
     `Tuning: Power "${payload.provenance.activeTuningNames.powerTuning}", Combat "${payload.provenance.activeTuningNames.combatTuning}", Outcome "${payload.provenance.activeTuningNames.outcomeNormalization}"`,
   );
   console.log(`Runs: ${payload.options.runs}, Seed: ${payload.options.seed}, Method: ${payload.provenance.method}`);
+  console.log(
+    `Balance Campaign: ${payload.provenance.balanceCampaignScope.campaignName} (${payload.provenance.balanceCampaignScope.campaignId})`,
+  );
+  console.log(
+    `Campaign Scoping: ${
+      payload.provenance.balanceCampaignScope.trueCampaignScopingImplemented
+        ? "implemented"
+        : `not implemented (${payload.provenance.balanceCampaignScope.unsupportedReason ?? "unknown reason"})`
+    }`,
+  );
   console.log("");
   console.log([
     "Scenario",
     "Players",
     "Monsters",
+    "Asset Source",
+    "Campaign",
     "P Win",
     "M Win",
     "Stale",
@@ -1398,6 +1439,8 @@ function printHumanSummary(payload: MatrixPayload) {
     "Unsupported",
   ].join(" | "));
   console.log([
+    "---",
+    "---",
     "---",
     "---",
     "---",
@@ -1414,6 +1457,8 @@ function printHumanSummary(payload: MatrixPayload) {
       scenario.scenarioName,
       scenario.playerSide,
       scenario.monsterSide,
+      scenario.assetSource,
+      scenario.campaignName ?? "unsupported",
       `${scenario.playerWinPercent}%`,
       `${scenario.monsterWinPercent}%`,
       `${scenario.stalematePercent}%`,
@@ -1645,6 +1690,13 @@ async function main() {
         sourceMutation: false,
         tuningMutation: false,
         validationSmokeStatus: null,
+        balanceCampaignScope: {
+          campaignId: BALANCE_ENVIRONMENT_CAMPAIGN_ID,
+          campaignName: BALANCE_ENVIRONMENT_CAMPAIGN_NAME,
+          trueCampaignScopingImplemented: false,
+          unsupportedReason:
+            "scenarioMatrix synthetic fixtures are campaignless; DB-backed scenarios currently use the first matching campaign monster as an anchor and are not filtered to the Balance Environment campaignId.",
+        },
       },
       options: {
         runs: options.runs,

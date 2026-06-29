@@ -290,6 +290,14 @@ Use local terminal commands for repo inspection and validation.
 When running simulations, report provenance. When modifying files, report files
 changed and validation results.
 
+Live-authored balance testing must report campaign provenance. The official
+balance campaign is Balance Environment
+(250aee5e-632f-405c-ba36-a49ed12a5afc). Future scripts and reports that use
+live-authored Characters, Monsters, Forge Items, or encounters should include
+campaignId, campaignName, and assetSource. If a runner cannot yet scope to that
+campaignId, report that as unsupported/unscoped in provenance instead of
+silently using default/global data.
+
 Do not commit unless the user explicitly asks for commit/push or approves it
 after a no-commit task.
 

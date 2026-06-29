@@ -77,6 +77,41 @@ Required provenance for Codex-run batches:
 - confirmation of no database, source-data, saved-monster, tuning, or code
   changes during read-only simulation unless explicitly stated
 - validation or smoke status where relevant
+- campaignId and campaignName when live-authored balance assets are used
+- assetSource label: synthetic-in-memory, balance-campaign-authored,
+  temporary-override, or an explicit unsupported/unscoped label when a runner
+  cannot yet prove campaign scoping
+
+
+Balance Environment Campaign
+
+The official live-authored balance testing scope is:
+
+- campaignName: Balance Environment
+- campaignId: 250aee5e-632f-405c-ba36-a49ed12a5afc
+
+Live-authored balance Characters, Monsters, Forge Items, encounters, and
+scenario assets must come from this campaign unless the Architect explicitly
+instructs otherwise.
+
+Reports using live-authored balance assets must include campaignId,
+campaignName, and assetSource in provenance.
+
+Asset source labels:
+
+- synthetic-in-memory: campaignless smoke/canary fixtures created directly in
+  code for deterministic or diagnostic checks.
+- balance-campaign-authored: live-authored assets proven to be scoped to the
+  Balance Environment campaign.
+- temporary-override: explicitly permitted temporary in-memory override or
+  variant.
+- unscoped-live-adapter: live adapter / database-backed asset loading that is
+  not yet proven to be scoped to the Balance Environment campaign.
+
+Do not use assets from other campaigns as authoritative balance evidence unless
+explicitly instructed. If a script or runner cannot currently scope to the
+Balance Environment campaignId, its provenance must say so clearly instead of
+silently treating unscoped/default data as authoritative.
 
 
 Canonical Regression Matrix
@@ -245,4 +280,3 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Final defensive-pool numeric pricing bands.
 - Final holdout scenario list for canonical tuning promotion.
 - Final human playtest readiness checklist for public/demo packets.
-
