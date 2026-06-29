@@ -94,6 +94,14 @@ law until the owning active doc is updated with an explicit decision.
   result bundle after the Primary Packet. Authored packet order is presentation
   order only unless explicit sequential, dependent, or triggered language says
   otherwise.
+- Assist output, Assist pressure, and distinct Power Intention stacking.
+  Status: LOCKED / RESOLVED.
+  Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
+  docs/02_Power_System_And_Costing.txt.
+  Note: Generic Assist cannot create an independent hostile action. Offensive
+  Assist output becomes Assist pressure, and multiple generic Assists on one
+  trigger stack only through distinct Power Intentions unless explicit special
+  authoring says otherwise.
 - Final defensive-pool numeric tuning values.
   Status: NEEDS BALANCE EVIDENCE.
   Owner: docs/02_Power_System_And_Costing.txt and
@@ -221,15 +229,18 @@ Immediate Ordered Work
 6. Preserve Control Primary interruption: Control Counters and Control Assists
    can halt incoming actions only when Control is Primary, logically relevant,
    and strictly exceeds; Secondary Control is after-effect only.
-7. Keep Movement Counter as a Movement-power rule, not a Defence mode.
-8. Maintain finite defensive pools with refresh/replace higher-of-current-or-new
+7. Preserve Assist output law: generic Assist cannot create independent hostile
+   payload; hostile Assist output becomes Assist pressure and duplicate generic
+   Assists require distinct Power Intentions unless explicitly authored.
+8. Keep Movement Counter as a Movement-power rule, not a Defence mode.
+9. Maintain finite defensive pools with refresh/replace higher-of-current-or-new
    as the default repeated-application rule.
-9. Extend or maintain defensive-pool canary coverage before numeric defensive
+10. Extend or maintain defensive-pool canary coverage before numeric defensive
    pool pricing changes.
-10. Use Codex-run Combat Lab batches for incremental checks with provenance.
-11. Reserve manual Combat Lab/browser checks for UI/report readability, public
+11. Use Codex-run Combat Lab batches for incremental checks with provenance.
+12. Reserve manual Combat Lab/browser checks for UI/report readability, public
    confidence, playtest packet confidence, and table-feel judgement.
-12. Continue tuning power values, non-power monster baselines, and radar display
+13. Continue tuning power values, non-power monster baselines, and radar display
    curves without collapsing those layers together.
 
 

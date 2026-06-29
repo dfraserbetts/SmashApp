@@ -246,6 +246,42 @@ coverage, not as a free secondary defence roll. This exception is limited to
 complementary physical/mental wound lanes and does not apply to Dodge + Block,
 same-lane Block + Block, or Resist packets.
 
+Assist Cost And Payload Principles
+
+Authoritative Assist rule law lives in 01. For power building and costing, the
+important consequence is that generic Assist is not free off-turn payload.
+
+A generic Assist must assist the triggering ally's intended action or defence.
+If an offensive or hostile power is used as an Assist, its hostile output is
+converted into Assist pressure. Assist pressure may occupy or reduce the
+target's defence, prevention, Dodge opposition, Resist cancellation, or other
+relevant opposition against the triggering ally's action, but it does not deal
+independent damage, apply independent hostile effects, or overflow into damage.
+
+Offensive Assist pressure is not free extra damage. It cannot increase the
+triggering ally's final payload beyond the triggering ally's own generated
+payload. The assisting power's normal output profile still determines the size
+and lane of the Assist pressure, but that output is used only as pressure
+against opposition.
+
+Direct payload-boosting support must be explicitly authored and costed. If a
+power is meant to add wounds, add successes directly to an ally's payload,
+multiply an ally's output, create independent off-turn damage, or apply an
+independent hostile rider during another actor's turn, that permission must be
+written as a Counter, Trigger, interrupt, retaliation, trap, group-assist,
+combo, formation, ritual, squad tactic, or similarly explicit mechanic.
+
+Multiple Assists may support the same trigger by default only when each generic
+Assist uses a distinct Power Intention. Current Power Intentions include
+Attack, Defence, Augmentation, Debuff, Healing, Cleanse, Movement, and Control.
+Duplicate generic Assists using the same Power Intention do not stack on one
+trigger unless explicit special authoring says otherwise.
+
+Multi-intention Assist use must not bypass the duplicate-intention limit. If a
+multi-intention power resolves as written and applies several intentions to the
+same trigger, it occupies each Power Intention it actually applies for duplicate
+Assist purposes.
+
 Movement and Control Primary interrupt Counters need high premium because a
 strict timing win can avoid, cancel, or deny an incoming action. First-pass
 timing requires strictly more successes than the trigger; ties fail.

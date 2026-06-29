@@ -97,6 +97,138 @@ Assist is universal by system rule and is not authored per power. Assists are
 declared inside the response window. The assisted actor still chooses one
 active response path: normal defence or Counter.
 
+Assist Output, Assist Pressure, And Intention Stacking
+
+An Assist must assist the triggering ally's intended action or defence.
+
+If the ally is defending, the Assist must help that ally defend. If the ally is
+performing a hostile action, the Assist must help that hostile action land,
+overcome opposition, or resolve more effectively.
+
+A generic Assist cannot create an independent hostile action. A generic Assist
+cannot independently apply wounds, damage, control, debuffs, hostile statuses,
+forced movement, or other hostile payload to an enemy.
+
+When an offensive or hostile power is used as an Assist, its normal hostile
+output is converted into Assist pressure rather than applied as independent
+payload. Assist pressure may reduce, occupy, or consume the target's defence,
+prevention, Dodge opposition, Resist cancellation, or other relevant opposition
+against the triggering ally's action.
+
+Assist pressure never applies as wounds or damage itself. Assist pressure does
+not overflow into damage if it exceeds the target's defence, prevention, or
+cancellation. Assist pressure cannot increase the triggering ally's final
+payload beyond the triggering ally's own generated payload.
+
+The assisting actor's power still uses its own normal output profile to
+determine the size and type of Assist pressure, but that output is used only to
+interfere with the target's defence or opposition against the ally's action.
+
+Example:
+
+- Actor 1 declares a high-damage attack and generates 40 wounds of payload.
+- Actor 2 Assists with an attack power and generates 8 wounds worth of Assist
+  pressure.
+- Target rolls Physical Defence and generates 28 wounds of prevention.
+- Actor 2's Assist pressure occupies 8 of the 28 prevention.
+- 20 prevention remains against Actor 1's attack.
+- Actor 1 deals 20 wounds.
+- Actor 2 deals 0 wounds.
+- If the target had only generated 5 prevention, Actor 2's Assist pressure
+  would occupy 5 prevention, Actor 1 would deal their full 40 wounds, and the
+  remaining 3 Assist pressure would be wasted. It would not become damage.
+
+Against Dodge or success-based opposition, Assist pressure may help the
+triggering ally overcome the opposed success result. It still cannot create
+independent payload and still cannot increase final payload beyond the
+triggering ally's own generated payload.
+
+Against Block, Physical Defence, Mental Defence, or wound prevention, Assist
+pressure may occupy or reduce wound prevention before the triggering ally's
+payload is applied. Assist pressure does not itself wound the target.
+
+Against Resist or cancellation, Assist pressure may occupy or reduce relevant
+cancellation only if the Game Director agrees the assisting power plausibly
+applies to that lane or effect. Assist pressure does not itself apply the
+hostile effect.
+
+Against an ally's defence, an Assist may add defensive help according to the
+approved Assist procedure. If using an improvised Assist, successes may add to
+the ally's defensive result where the Game Director agrees the power can
+plausibly help. If using a written defensive or supportive power, it may resolve
+as written where legal. This defensive use does not create hostile payload.
+
+Assist modes:
+
+1. Supportive Assist. If the power's written effect is beneficial, defensive,
+   restorative, protective, positional, or otherwise directly helpful to the
+   ally's triggering action or defence, it may resolve as written where legal.
+2. Improvised Assist. If the power is not written as a support power, but the
+   Game Director agrees it could plausibly help the ally's triggering action or
+   defence, the power is rolled using its normal roll descriptor and an
+   appropriate attribute chosen by the Game Director. Its normal hostile or
+   non-applicable payload is converted into Assist successes or Assist pressure
+   instead of resolving as written.
+3. Explicit off-turn hostile exception. A power may deal independent off-turn
+   damage or hostile effects only if explicitly authored as a Counter, Trigger,
+   interrupt, retaliation, trap, or other special off-turn hostile mechanic.
+   Generic Assist does not grant this permission.
+
+Multiple Assists may apply to the same triggering action or defence, but each
+generic Assist must use a distinct Power Intention. Current Power Intentions
+include Attack, Defence, Augmentation, Debuff, Healing, Cleanse, Movement, and
+Control.
+
+The declared Assist Power Intention is the mechanical route by which the Assist
+helps. Duplicate generic Assists using the same Power Intention do not stack on
+the same trigger unless an explicit group-assist, combo, formation, ritual,
+squad tactic, or similar authored mechanic allows it.
+
+An offensive power used creatively as an Assist keeps its assisting Power
+Intention. A Fireball used to burn incoming arrows is an Attack-intention Assist
+that creates Assist pressure. It does not become a Defence-intention Assist
+merely because the ally is defending.
+
+Allowed multi-Assist example:
+
+- Assist 1: Attack intention - Fireball creates Assist pressure against the
+  target's defence.
+- Assist 2: Debuff intention - Curse weakens the target's Defence Attribute.
+- Assist 3: Augmentation intention - Bless empowers the ally's Attack
+  Attribute.
+
+These may all apply to the same trigger because each uses a distinct Power
+Intention.
+
+Blocked duplicate example:
+
+- Assist 1: Attack intention - Fireball creates Assist pressure against Block.
+- Assist 2: Attack intention - Arrow barrage creates Assist pressure against
+  Block.
+- Assist 3: Attack intention - Multi-strike creates Assist pressure against
+  Block.
+
+By default, these are duplicate Attack-intention Assists on the same trigger and
+do not stack.
+
+If a multi-intention power is used as an Assist, the assisting player must
+declare which Power Intention is being used for the Assist if only one intention
+is relevant. If the power resolves as written and applies multiple intentions
+to the same trigger, it occupies each Power Intention it actually applies.
+Multi-intention Assist use must not bypass the duplicate-intention limit unless
+explicitly authored.
+
+Design intent: Assist exists to make characters reactive and able to help
+allies outside their own turn. Assist should feel cinematic, tactical, and
+generous without becoming hidden extra off-turn attacks. Offensive powers can
+be used creatively to help, but their hostile payload becomes Assist pressure,
+not independent damage. The privilege of Assist is action-economy potency:
+helping an ally's action land or helping an ally survive. The cost is that
+using a power as an Assist may give up its normal direct payload compared with
+using it as intended on the actor's own turn. Multiple Assists should be allowed
+when they are tactically distinct, not when they all duplicate the same
+mechanical route.
+
 Multiple responders declare acting side first, target side second:
 
 When both sides have Responses to the same triggering action, the acting side

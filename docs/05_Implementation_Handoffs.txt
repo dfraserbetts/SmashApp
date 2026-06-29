@@ -70,6 +70,12 @@ Future implementation work must keep checking:
 - Pool-only defensive-pool commitment does not degrade normal defence.
 - Counter use replaces normal active defence unless the Counter explicitly
   grants or modifies that defence.
+- Generic Assist cannot create an independent hostile action or independent
+  hostile payload. Offensive Assist output becomes Assist pressure against the
+  triggering ally's opposition, not damage or hostile effects.
+- Multiple generic Assists on the same trigger stack only through distinct Power
+  Intentions unless explicit group-assist, combo, formation, ritual, squad
+  tactic, or similar authoring says otherwise.
 - Dual-Lane Defence Responses are a narrow Counter/Assist exception: roll once
   and apply complementary Physical Defence and Mental Defence packets to their
   matching wound lanes from the same trigger.
@@ -127,6 +133,12 @@ Secondary Packet simultaneous-bundle runtime/test alignment should be checked
 in a separate implementation pass. Do not assume current runtime already nets
 same-target, same-timing, same-lane independent Secondary damage/healing before
 defeat, Major Injury, or cleanup checks unless code/tests prove it.
+
+Assist pressure and distinct-Power-Intention Assist stacking runtime/test
+alignment should be checked in a separate implementation pass. Do not assume
+current runtime already converts hostile Assist payload into Assist pressure,
+prevents independent hostile Assist payload, or enforces duplicate generic
+Assist Power Intention limits unless code/tests prove it.
 
 
 Builder Handoff Notes
