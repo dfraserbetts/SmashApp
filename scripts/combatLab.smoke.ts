@@ -19,6 +19,11 @@ import {
 } from "../lib/config/combatTuningShared";
 import { DEFAULT_POWER_TUNING_VALUES, type PowerTuningSnapshot } from "../lib/config/powerTuningShared";
 import { defaultBuilderData, type CharacterBuilderData } from "../lib/characterBuilder/core";
+import {
+  createDefaultCharacterPower,
+  createDefaultCharacterPowerPacket,
+  normalizeCharacterPower,
+} from "../lib/characterBuilder/powers";
 import { buildCharacterDerivedCombatStats } from "../lib/characterBuilder/derivedStats";
 import {
   adaptCampaignCharacterToCombatActor,
@@ -130,6 +135,124 @@ expectSuccessCount(4, 6, 2, "natural success can spike when modified high enough
 expectSuccessCount(4, -1, 0, "natural success can be downgraded below threshold");
 expectSuccessCount(4, 0, 1, "unmodified normal success remains one success");
 expectSuccessCount(10, 0, 2, "unmodified greater success remains two successes");
+
+function characterAttackPower(name: string, diceCount: number, potency: number) {
+  const packet = {
+    ...createDefaultCharacterPowerPacket("ATTACK", 0),
+    diceCount,
+    potency,
+    woundChannel: "PHYSICAL" as const,
+    detailsJson: {
+      attackMode: "PHYSICAL",
+      damageTypes: ["Slash"],
+      rangeCategory: "MELEE",
+      rangeValue: 1,
+      rangeExtra: {},
+    },
+  };
+  return normalizeCharacterPower({
+    ...createDefaultCharacterPower(0),
+    name,
+    diceCount,
+    potency,
+    rangeCategories: ["MELEE"],
+    meleeTargets: 1,
+    effectPackets: [packet],
+    intentions: [packet],
+  }, 0);
+}
+
+function unsupportedSignatureMovePower(name: string) {
+  const packet = {
+    ...createDefaultCharacterPowerPacket("SUMMONING", 0),
+    detailsJson: {
+      rangeCategory: "MELEE",
+      rangeValue: 1,
+      rangeExtra: {},
+    },
+  };
+  return normalizeCharacterPower({
+    ...createDefaultCharacterPower(0),
+    name,
+    effectPackets: [packet],
+    intentions: [packet],
+  }, 0);
+}
+
+function characterRowWithBuilder(
+  id: string,
+  builderData: CharacterBuilderData,
+  level = 3,
+): CombatLabCharacterRow {
+  return {
+    id,
+    name: id,
+    level,
+    builderData,
+    backpackItems: [],
+  };
+}
+
+{
+  const builderData: CharacterBuilderData = {
+    ...defaultBuilderData(),
+    powers: [],
+    signatureMove: characterAttackPower("Signature Strike", 2, 2),
+  };
+  const hydrated = adaptCampaignCharacterToCombatActor(
+    characterRowWithBuilder("signature-only-character", builderData),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  const signatureActions = hydrated.actor.actions.filter((entry) => entry.sourceType === "signatureMove");
+  if (signatureActions.length !== 1 || signatureActions[0].kind !== "attack" || !signatureActions[0].supported) {
+    throw new Error(`Signature Move attack did not hydrate as a supported action: ${JSON.stringify(hydrated.actor.actions)}.`);
+  }
+  if (!signatureActions[0].name.startsWith("Signature Move:") || !signatureActions[0].id.startsWith("signatureMove:")) {
+    throw new Error(`Signature Move action was not labelled/source-marked: ${JSON.stringify(signatureActions[0])}.`);
+  }
+  if (hydrated.actor.actions.some((entry) => entry.sourceType === "fallback")) {
+    throw new Error("Signature Move attack did not suppress fallback basic attack.");
+  }
+}
+
+{
+  const builderData: CharacterBuilderData = {
+    ...defaultBuilderData(),
+    powers: [characterAttackPower("Normal Power Strike", 1, 1)],
+    signatureMove: characterAttackPower("Signature Finisher", 2, 2),
+  };
+  const hydrated = adaptCampaignCharacterToCombatActor(
+    characterRowWithBuilder("normal-plus-signature-character", builderData),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  if (!hydrated.actor.actions.some((entry) => entry.sourceType === "power" && entry.name === "Normal Power Strike")) {
+    throw new Error(`Normal power action did not hydrate beside Signature Move: ${JSON.stringify(hydrated.actor.actions)}.`);
+  }
+  if (!hydrated.actor.actions.some((entry) => entry.sourceType === "signatureMove" && entry.name === "Signature Move: Signature Finisher")) {
+    throw new Error(`Signature Move action did not hydrate beside normal power: ${JSON.stringify(hydrated.actor.actions)}.`);
+  }
+}
+
+{
+  const builderData: CharacterBuilderData = {
+    ...defaultBuilderData(),
+    powers: [],
+    signatureMove: unsupportedSignatureMovePower("Unsupported Signature"),
+  };
+  const hydrated = adaptCampaignCharacterToCombatActor(
+    characterRowWithBuilder("unsupported-signature-character", builderData),
+    DEFAULT_COMBAT_TUNING_VALUES,
+  );
+  if (!hydrated.actor.hydration.warnings.some((warning) => /Signature Move .*not supported/i.test(warning))) {
+    throw new Error(`Unsupported Signature Move did not emit a hydration warning: ${JSON.stringify(hydrated.actor.hydration.warnings)}.`);
+  }
+  if (!hydrated.actor.unsupportedPowers.some((entry) => entry.powerName.includes("Signature Move: Unsupported Signature"))) {
+    throw new Error(`Unsupported Signature Move was not included in unsupported powers: ${JSON.stringify(hydrated.actor.unsupportedPowers)}.`);
+  }
+  if (!hydrated.actor.actions.some((entry) => entry.sourceType === "fallback")) {
+    throw new Error("Unsupported Signature Move with no other attack should still allow fallback basic attack.");
+  }
+}
 
 function setCooldown(
   state: CombatState,

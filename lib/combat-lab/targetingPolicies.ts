@@ -296,7 +296,12 @@ function enemyPhysicalBurstOrCounterThreat(actor: CombatActor, state: CombatStat
 }
 
 export function isDefensiveSetupPower(actor: CombatActor, action: CombatAction, state: CombatState): boolean {
-  if (action.sourceType !== "power" || action.counterMode || action.passive || action.targetPolicy !== "self") return false;
+  if (
+    (action.sourceType !== "power" && action.sourceType !== "signatureMove") ||
+    action.counterMode ||
+    action.passive ||
+    action.targetPolicy !== "self"
+  ) return false;
   if (!hasLegalTarget(actor, action, state)) return false;
   if (isActionOnCooldown(state, actor.id, action.id)) return false;
   if (hasActiveSelfSetup(actor, action, state)) return false;
@@ -409,14 +414,16 @@ export function chooseTurnAction(
     const weapon = weaponAttackActions(available).sort((a, b) => actionScore(b) - actionScore(a))[0];
     if (weapon) return weapon;
     const nonPowerAttack = available
-      .filter((action) => action.kind === "attack" && action.sourceType !== "power")
+      .filter((action) => action.kind === "attack" && action.sourceType !== "power" && action.sourceType !== "signatureMove")
       .sort((a, b) => actionScore(b) - actionScore(a))[0];
     if (nonPowerAttack) return nonPowerAttack;
   }
 
   if (lane === "power") {
     const powerPool = available.filter(
-      (action) => action.sourceType === "power" && isContextuallyUsefulPower(actor, action, state),
+      (action) =>
+        (action.sourceType === "power" || action.sourceType === "signatureMove") &&
+        isContextuallyUsefulPower(actor, action, state),
     );
     const selfDefence = powerPool
       .filter((action) => shouldPrioritizeSelfDefence(actor, action, state))

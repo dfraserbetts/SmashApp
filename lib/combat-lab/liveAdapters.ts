@@ -2,7 +2,7 @@ import { normalizeBuilderData } from "@/lib/characterBuilder/core";
 import type { CharacterBuilderData } from "@/lib/characterBuilder/core";
 import type { ProtectionTuningValues } from "@/lib/config/combatTuningShared";
 import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
-import { summarizeCharacterPowers } from "@/lib/characterBuilder/powers";
+import { signatureMovePointPool, summarizeCharacterPowers } from "@/lib/characterBuilder/powers";
 import {
   buildAttackConfig,
   buildCharacterDerivedCombatStats,
@@ -624,6 +624,71 @@ function characterPowersWithDerivedCooldowns(params: {
   return { powers, warnings };
 }
 
+function characterSignatureMoveWithDerivedCooldown(params: {
+  row: Pick<CharacterRow, "id" | "name">;
+  level: number;
+  builderData: CharacterBuilderData;
+  powerTuning?: PowerTuningSnapshot | null;
+}): { powers: Power[]; warnings: CombatLabHydrationWarning[]; present: boolean } {
+  const signatureMove = params.builderData.signatureMove;
+  if (!signatureMove) return { powers: [], warnings: [], present: false };
+
+  const sourceName = signatureMove.name.trim() || "Unnamed Signature Move";
+  const sourceId = signatureMove.id ?? `${params.row.id}:signatureMove`;
+  const labelledPower: Power = {
+    ...signatureMove,
+    id: sourceId,
+    sortOrder: 0,
+    name: `Signature Move: ${sourceName}`,
+  };
+  const budget = summarizeCharacterPowers({
+    level: params.level,
+    powers: [labelledPower],
+    tuningSnapshot: params.powerTuning ?? null,
+    powerPool: signatureMovePointPool(params.level),
+  });
+  const derivedCooldownTurns = budget.powers[0]?.derivedCooldownTurns;
+  if (!Number.isFinite(derivedCooldownTurns) || !derivedCooldownTurns || derivedCooldownTurns < 1) {
+    return { powers: [labelledPower], warnings: [], present: true };
+  }
+
+  const cooldownTurns = Math.max(1, Math.trunc(derivedCooldownTurns));
+  const warnings: CombatLabHydrationWarning[] = [];
+  const storedCooldown = readEffectiveStoredCooldown(labelledPower);
+  if (storedCooldown !== null && storedCooldown !== cooldownTurns) {
+    warnings.push(
+      makeWarning(
+        params.row.id,
+        params.row.name,
+        `signatureMoveCooldown:${signatureMove.id ?? signatureMove.name ?? "signatureMove"}`,
+        `Signature Move "${sourceName}" stored cooldown ${storedCooldown} differs from Character Builder derived/display cooldown ${cooldownTurns}; Combat Lab used ${cooldownTurns}.`,
+      ),
+    );
+  }
+
+  return {
+    powers: [{
+      ...labelledPower,
+      cooldownTurns,
+      cooldownReduction: 0,
+    }],
+    warnings,
+    present: true,
+  };
+}
+
+function markSignatureMoveAction(action: CombatAction): CombatAction {
+  const nextId = `signatureMove:${action.id}`;
+  return {
+    ...action,
+    id: nextId,
+    sourceType: "signatureMove",
+    sourcePowerId: action.sourcePowerId ? `signatureMove:${action.sourcePowerId}` : action.sourcePowerId,
+    cooldownActionId: action.cooldownActionId ? `signatureMove:${action.cooldownActionId}` : nextId,
+    secondaryActions: action.secondaryActions?.map(markSignatureMoveAction),
+  };
+}
+
 function monsterPowersWithDerivedCooldowns(params: {
   row: Pick<MonsterRow, "id" | "name" | "level" | "tier">;
   powers: MonsterPowerRow[];
@@ -702,15 +767,40 @@ export function adaptCampaignCharacterToCombatActor(
     builderData,
     powerTuning,
   });
+  const signatureMoveHydration = characterSignatureMoveWithDerivedCooldown({
+    row,
+    level,
+    builderData,
+    powerTuning,
+  });
   warnings.push(...characterPowerHydration.warnings);
+  warnings.push(...signatureMoveHydration.warnings);
   const adaptedPowers = characterPowerHydration.powers.map((power) => adaptPowerToCombatActions(power));
+  const adaptedSignatureMoves = signatureMoveHydration.powers.map((power) => adaptPowerToCombatActions(power));
   const powerActions = adaptedPowers.flatMap((entry) => entry.actions);
+  const signatureMoveActions = adaptedSignatureMoves.flatMap((entry) => entry.actions).map(markSignatureMoveAction);
   warnings.push(
     ...adaptedPowers.flatMap((entry) =>
       entry.warnings.map((message) => makeWarning(row.id, row.name, "powerDomain", message)),
     ),
+    ...adaptedSignatureMoves.flatMap((entry) =>
+      entry.warnings.map((message) => makeWarning(row.id, row.name, "signatureMoveDomain", message)),
+    ),
+    ...adaptedSignatureMoves.flatMap((entry) =>
+      entry.unsupported.map((reason) =>
+        makeWarning(
+          row.id,
+          row.name,
+          "signatureMoveUnsupported",
+          `Signature Move "${reason.powerName}" is not supported by Combat Lab V1: ${reason.reason}`,
+        ),
+      ),
+    ),
     ...Array.from(new Set(powerActions.flatMap((action) => action.abstractionNotes ?? []))).map((message) =>
       makeWarning(row.id, row.name, "powerAbstraction", message),
+    ),
+    ...Array.from(new Set(signatureMoveActions.flatMap((action) => action.abstractionNotes ?? []))).map((message) =>
+      makeWarning(row.id, row.name, "signatureMoveAbstraction", message),
     ),
   );
   const equipmentActions = equippedEntries.flatMap(({ slot, backpackItem }) => {
@@ -751,7 +841,7 @@ export function adaptCampaignCharacterToCombatActor(
     return actions;
   });
 
-  const fallbackActions = needsFallback([...equipmentActions, ...powerActions])
+  const fallbackActions = needsFallback([...equipmentActions, ...powerActions, ...signatureMoveActions])
     ? [
         makeBasicAttackAction({
           id: "character-fallback-basic-attack",
@@ -767,7 +857,9 @@ export function adaptCampaignCharacterToCombatActor(
         row.id,
         row.name,
         "fallbackAction",
-        "No real equipped or power attack could be derived; Combat Lab V1 uses a fallback basic attack.",
+        signatureMoveHydration.present
+          ? "No real equipped, power, or Signature Move attack could be derived; Combat Lab V1 uses a fallback basic attack."
+          : "No real equipped or power attack could be derived; Combat Lab V1 uses a fallback basic attack.",
       ),
     );
   }
@@ -780,7 +872,7 @@ export function adaptCampaignCharacterToCombatActor(
   warnings.push(...unsupportedActionWarnings(row, equipmentActions));
   warnings.push(...actionAbstractionWarnings(row, equipmentActions));
 
-  const actions = [...equipmentActions, ...fallbackActions, ...powerActions];
+  const actions = [...equipmentActions, ...fallbackActions, ...powerActions, ...signatureMoveActions];
   const attributeDice = {
     Attack: toDie(attack),
     Guard: toDie(guard),
@@ -830,7 +922,10 @@ export function adaptCampaignCharacterToCombatActor(
       mentalMinorInjuries: 0,
       physicalInjuryResolvedAtZero: false,
       mentalInjuryResolvedAtZero: false,
-      unsupportedPowers: adaptedPowers.flatMap((entry) => entry.unsupported),
+      unsupportedPowers: [
+        ...adaptedPowers.flatMap((entry) => entry.unsupported),
+        ...adaptedSignatureMoves.flatMap((entry) => entry.unsupported),
+      ],
       hydration: {
         source: "campaignCharacter",
         realData: true,

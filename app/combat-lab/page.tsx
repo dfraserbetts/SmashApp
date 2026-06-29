@@ -316,7 +316,7 @@ type RunPayload = {
 type ActionSummary = {
   id: string;
   name: string;
-  sourceType: "naturalAttack" | "equippedWeapon" | "power" | "fallback";
+  sourceType: "naturalAttack" | "equippedWeapon" | "power" | "signatureMove" | "fallback";
   supported: boolean;
   kind?: string;
   targetCount?: number;

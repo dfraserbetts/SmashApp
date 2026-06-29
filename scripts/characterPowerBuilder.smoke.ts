@@ -14,6 +14,7 @@ import {
   getCharacterPowerPrimaryDefenceLabel,
   normalizeCharacterPower,
   powerPointPool,
+  signatureMovePointPool,
   summarizeCharacterPowers,
   validateCharacterPowers,
   type CharacterPower,
@@ -864,6 +865,38 @@ function makeSummoningCircleShapedPowerForCaseB(): Power {
     diceCount: 6,
     potency: 12,
   });
+}
+
+{
+  const costlySignatureMove = normalizeCharacterPower(makeSummoningCircleShapedPowerForCaseB(), 0);
+  const normalPowerSummary = summarizeCharacterPowers({
+    level: 3,
+    powers: [costlySignatureMove],
+  });
+  const signatureMoveSummary = summarizeCharacterPowers({
+    level: 3,
+    powers: [costlySignatureMove],
+    powerPool: signatureMovePointPool(3),
+  });
+  const normalPowerErrors = validateCharacterPowers({
+    level: 3,
+    powers: [costlySignatureMove],
+  });
+  const signatureMoveErrors = validateCharacterPowers({
+    level: 3,
+    powers: [costlySignatureMove],
+    powerPool: signatureMovePointPool(3),
+    powerLabel: "Signature Move",
+    poolDescription: "Character Level x 20",
+  });
+
+  assert(normalPowerSummary.powerPool === powerPointPool(3), "Level 3 normal powers should use Character Level x 50.");
+  assert(signatureMoveSummary.powerPool === 60, "Level 3 Signature Move should use Character Level x 20.");
+  assert(!normalPowerErrors.some((error) => error.includes("Power Point spend")), "Normal power pool should validate separately from Signature Move pool.");
+  assert(
+    signatureMoveErrors.some((error) => error.includes("Signature Move Point spend") && error.includes("Character Level x 20")),
+    "Signature Move overspend should be checked against its separate Character Level x 20 pool.",
+  );
 }
 
 function printPowerCostDiagnostic(label: string, power: Power) {

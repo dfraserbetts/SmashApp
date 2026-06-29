@@ -352,7 +352,11 @@ function hasLegalActionTarget(actor: CombatActor, action: CombatAction, state: R
 
 function powerActionSkipReason(actor: CombatActor, state: ReturnType<typeof createCombatState>): string {
   const supportedPowers = actor.actions.filter(
-    (action) => action.sourceType === "power" && action.supported && !action.counterMode && !action.passive,
+    (action) =>
+      (action.sourceType === "power" || action.sourceType === "signatureMove") &&
+      action.supported &&
+      !action.counterMode &&
+      !action.passive,
   );
   if (supportedPowers.length === 0) return "no supported ready powers are hydrated for this actor";
 
@@ -939,7 +943,9 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
         if (action && lane === "main") metrics.mainActionsUsed[currentActor.side] += 1;
         if (action && lane === "power") {
           metrics.powerActionsUsed[currentActor.side] += 1;
-          if (action.sourceType !== "power") metrics.secondWeaponAttacksUsed[currentActor.side] += 1;
+          if (action.sourceType !== "power" && action.sourceType !== "signatureMove") {
+            metrics.secondWeaponAttacksUsed[currentActor.side] += 1;
+          }
         }
         addResolutionToAggregate(metrics, currentActor.side, resolution, { defensiveSide: target?.side });
         addActorContribution(metrics, currentActor, action, resolution);
