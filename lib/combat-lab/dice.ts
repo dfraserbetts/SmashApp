@@ -27,6 +27,8 @@ export function diceSides(die: CombatDieSize): number {
 
 export function successCountForRoll(roll: number, modifier = 0): number {
   const modifiedRoll = roll + modifier;
+  if (roll <= 1) return 0;
+  if (roll < 4) return modifiedRoll >= 4 ? 1 : 0;
   if (modifiedRoll >= 10) return 2;
   if (modifiedRoll >= 4) return 1;
   return 0;

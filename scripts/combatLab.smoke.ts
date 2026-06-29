@@ -12,7 +12,7 @@ import {
   tickTargetDefensivePools,
   tickTargetTurnEffects,
 } from "../lib/combat-lab/combatState";
-import type { Rng } from "../lib/combat-lab/dice";
+import { successCountForRoll, type Rng } from "../lib/combat-lab/dice";
 import {
   DEFAULT_COMBAT_TUNING_VALUES,
   type ProtectionTuningValues,
@@ -100,6 +100,23 @@ function expectTranscriptLine(lines: string[], pattern: RegExp, label: string) {
     throw new Error(`Transcript missing ${label}: ${lines.slice(0, 12).join(" | ")}`);
   }
 }
+
+function expectSuccessCount(roll: number, modifier: number, expected: number, label: string) {
+  const actual = successCountForRoll(roll, modifier);
+  if (actual !== expected) {
+    throw new Error(`${label}: expected ${expected} successes for natural ${roll} with modifier ${modifier}, got ${actual}.`);
+  }
+}
+
+expectSuccessCount(1, 5, 0, "natural 1 hard failure");
+expectSuccessCount(2, 2, 1, "natural 2 rescued to normal success");
+expectSuccessCount(3, 7, 1, "natural 3 rescued but capped below greater success");
+expectSuccessCount(2, 1, 0, "natural 2 not rescued below threshold");
+expectSuccessCount(3, 0, 0, "natural 3 not rescued without modifier");
+expectSuccessCount(4, 6, 2, "natural success can spike when modified high enough");
+expectSuccessCount(4, -1, 0, "natural success can be downgraded below threshold");
+expectSuccessCount(4, 0, 1, "unmodified normal success remains one success");
+expectSuccessCount(10, 0, 2, "unmodified greater success remains two successes");
 
 function setCooldown(
   state: CombatState,
@@ -3512,7 +3529,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   });
   expectTranscriptLine(
     legitBuffState.transcriptLines,
-    /using Bravery for mental defence: raw results .* modified results .* per-die successes 2, 2, 2, 2; total 8 successes/i,
+    /using Bravery for mental defence: raw results .* modified results .* per-die successes 2, 2, 0, 2; total 6 successes/i,
     "legitimate Bravery buff still modifies mental defence dice",
   );
 
