@@ -1290,6 +1290,62 @@ function resolveBlockPoolOnly(
   return metrics;
 }
 
+function resolveResistPoolOnly(
+  state: CombatState,
+  target: CombatActor,
+  action: CombatAction,
+  successes: number,
+): CombatResolutionMetrics {
+  const metrics = emptyResolution();
+  metrics.hostileSuccessesBeforeResist = successes;
+  metrics.hostileSuccessesAfterResist = successes;
+  if (!action.resistAttribute || successes <= 0) return metrics;
+  const poolCommit = commitDefensivePool({
+    state,
+    metrics,
+    target,
+    poolType: "RESIST",
+    requested: estimatePoolOnlyCommit(state, target, "RESIST", {
+      resistedAttribute: action.resistAttribute,
+      incomingSuccesses: successes,
+    }),
+    resistedAttribute: action.resistAttribute,
+  });
+  if (!poolCommit) return metrics;
+  const cancelled = Math.min(successes, poolCommit.committed);
+  finishDefensivePoolCommit({
+    metrics,
+    pool: poolCommit.pool,
+    committed: poolCommit.committed,
+    effective: cancelled,
+    result: "resist",
+  });
+  removeEmptyDefensivePool(state, poolCommit.pool);
+  metrics.resistSuccesses = poolCommit.committed;
+  metrics.resistCancelled = cancelled;
+  metrics.hostileSuccessesCancelledByResist = cancelled;
+  metrics.hostileSuccessesAfterResist = Math.max(0, successes - cancelled);
+  emitTranscriptEvent(state, {
+    type: "defensivePool",
+    actorId: target.id,
+    actorName: target.name,
+    lane: "response",
+    actionId: poolCommit.pool.sourceActionId,
+    actionName: poolCommit.pool.sourceActionName,
+    message: `Defensive pool-only Resist: ${target.name} spends ${poolCommit.committed} ${poolCommit.pool.sourceActionName} point${poolCommit.committed === 1 ? "" : "s"} against ${successes} ${action.resistAttribute} hostile success${successes === 1 ? "" : "es"}; normal active Resist is not rolled and active Resist degradation is not applied. Cancelled ${cancelled}.`,
+    details: {
+      poolType: "RESIST",
+      resistedAttribute: action.resistAttribute,
+      committed: poolCommit.committed,
+      cancelled,
+      incomingSuccesses: successes,
+      remainingSuccesses: metrics.hostileSuccessesAfterResist,
+      normalDefenceSkipped: true,
+    },
+  });
+  return metrics;
+}
+
 function recordOngoingFirstTick(params: {
   metrics: CombatResolutionMetrics;
   state: CombatState;
@@ -1389,6 +1445,12 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
   metrics.hostileSuccessesBeforeResist = successes;
   metrics.hostileSuccessesAfterResist = successes;
   if (!action.resistAttribute || successes <= 0) return metrics;
+  if (target.defensivePoolCommitmentMode === "poolOnly") {
+    const poolOnlyMetrics = resolveResistPoolOnly(state, target, action, successes);
+    if (poolOnlyMetrics.defensivePools.bySourceSide[target.side].committedPoints > 0) {
+      return poolOnlyMetrics;
+    }
+  }
   const requestedPoolCommit = estimatePoolCommit(state, target, "RESIST", {
     resistedAttribute: action.resistAttribute,
     incomingSuccesses: successes,

@@ -1184,10 +1184,151 @@ function runLinkedWoundBandFixture(prevention: number) {
   if (debuffResolution.hostileSuccessesAfterResist >= debuffResolution.hostileSuccessesBeforeResist) {
     throw new Error("Resist pool did not materially reduce hostile success pressure.");
   }
+  if (debuffResolution.resistRolls !== 1) {
+    throw new Error("Auto-mode Resist pool should still combine with an active Resist roll.");
+  }
+  expectActiveResistDegradation(state, state.actors[0].id, "ATTACK", 1, "pool plus active ATTACK Resist");
+}
+
+{
+  const defender = fixtureActor("pool-only-resist-defender", "players", {
+    defensivePoolCommitmentMode: "poolOnly",
+    resist: { ATTACK: 0 },
+    attributeDice: { Attack: "D4", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D12", Bravery: "D8" },
+  });
+  const attacker = fixtureActor("pool-only-resist-attacker", "monsters", {
+    attributeDice: { Attack: "D4", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[0],
+    action: action({
+      id: "pool-only-attack-resist",
+      name: "Pool Only Attack Resist",
+      sourceType: "power",
+      kind: "defence",
+      targetPolicy: "self",
+      defenceMode: "Resist",
+      defenceResistedAttribute: "ATTACK",
+      accuracyAttribute: "Synergy",
+      diceCount: 1,
+      potency: 2,
+      durationKind: "turns",
+      durationRounds: 2,
+    }),
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  const remainingBefore = state.defensivePools[0]?.remainingPoints ?? 0;
+  const debuffResolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: action({
+      id: "pool-only-attack-debuff",
+      name: "Pool Only Attack Debuff",
+      sourceType: "power",
+      kind: "debuff",
+      targetPolicy: "enemy",
+      accuracyAttribute: "Attack",
+      diceCount: 1,
+      potency: 1,
+      resistAttribute: "ATTACK",
+      modifier: { attribute: "Attack", amount: 1, durationRounds: 1 },
+    }),
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  if (debuffResolution.resistRolls !== 0 || debuffResolution.degradedDefenceRolls !== 0) {
+    throw new Error("Matching Resist pool-only should not roll or degrade active Resist.");
+  }
+  if (
+    debuffResolution.defensivePools.bySourceSide.players.committedPoints !== 1 ||
+    debuffResolution.defensivePools.bySourceSide.players.spentPoints !== 1 ||
+    debuffResolution.defensivePools.bySourceSide.players.resistUnitsCancelled !== 1
+  ) {
+    throw new Error(`Matching Resist pool-only did not commit/spend/cancel expected units: ${JSON.stringify(debuffResolution.defensivePools.bySourceSide.players)}.`);
+  }
+  if (debuffResolution.hostileSuccessesAfterResist !== 0 || debuffResolution.debuffApplications !== 0) {
+    throw new Error("Matching Resist pool-only should fully cancel the debuff before application.");
+  }
+  if ((state.defensivePools[0]?.remainingPoints ?? 0) !== remainingBefore - 1) {
+    throw new Error("Matching Resist pool-only did not spend exactly the committed points.");
+  }
+  expectActiveResistDegradation(state, state.actors[0].id, "ATTACK", 0, "matching ATTACK Resist pool-only");
+  expectTranscriptLine(state.transcriptLines, /Defensive pool-only Resist: pool-only-resist-defender spends 1 Pool Only Attack Resist point against 1 ATTACK hostile success/i, "matching Resist pool-only transcript");
+}
+
+{
+  const defender = fixtureActor("partial-pool-only-resist-defender", "players", {
+    defensivePoolCommitmentMode: "poolOnly",
+    resist: { ATTACK: 0 },
+    attributeDice: { Attack: "D4", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D12", Bravery: "D8" },
+  });
+  const attacker = fixtureActor("partial-pool-only-resist-attacker", "monsters", {
+    attributeDice: { Attack: "D4", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[0],
+    action: action({
+      id: "partial-pool-only-attack-resist",
+      name: "Partial Pool Only Attack Resist",
+      sourceType: "power",
+      kind: "defence",
+      targetPolicy: "self",
+      defenceMode: "Resist",
+      defenceResistedAttribute: "ATTACK",
+      accuracyAttribute: "Synergy",
+      diceCount: 1,
+      potency: 1,
+      durationKind: "turns",
+      durationRounds: 2,
+    }),
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  const controlResolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: action({
+      id: "partial-pool-only-control",
+      name: "Partial Pool Only Control",
+      sourceType: "power",
+      kind: "control",
+      targetPolicy: "enemy",
+      accuracyAttribute: "Attack",
+      diceCount: 4,
+      potency: 1,
+      resistAttribute: "ATTACK",
+    }),
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99]),
+    lane: "power",
+  });
+  if (
+    controlResolution.defensivePools.bySourceSide.players.committedPoints !== 1 ||
+    controlResolution.defensivePools.bySourceSide.players.spentPoints !== 1 ||
+    controlResolution.defensivePools.bySourceSide.players.resistUnitsCancelled !== 1
+  ) {
+    throw new Error(`Partial Resist pool-only did not spend one capped point: ${JSON.stringify(controlResolution.defensivePools.bySourceSide.players)}.`);
+  }
+  if (controlResolution.resistRolls !== 0 || controlResolution.degradedDefenceRolls !== 0) {
+    throw new Error("Partial Resist pool-only should not roll or degrade active Resist.");
+  }
+  if (controlResolution.hostileSuccessesAfterResist !== 3 || controlResolution.stacksApplied !== 3 || controlResolution.controlTurnsApplied !== 1) {
+    throw new Error(`Partial Resist pool-only should leave three hostile successes to apply: ${JSON.stringify(controlResolution)}.`);
+  }
+  expectActiveResistDegradation(state, state.actors[0].id, "ATTACK", 0, "partial ATTACK Resist pool-only");
 }
 
 {
   const defender = fixtureActor("wrong-lane-resist-defender", "players", {
+    defensivePoolCommitmentMode: "poolOnly",
     resist: { ATTACK: 0, BRAVERY: 0 },
     attributeDice: { Attack: "D4", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D12", Bravery: "D4" },
   });
@@ -1246,6 +1387,9 @@ function runLinkedWoundBandFixture(prevention: number) {
   }
   if (debuffResolution.defensivePools.bySourceSide.players.spentPoints !== 0 || debuffResolution.defensivePools.bySourceSide.players.resistUnitsCancelled !== 0) {
     throw new Error("Wrong-lane Resist pool incorrectly spent against BRAVERY.");
+  }
+  if (debuffResolution.hostileSuccessesAfterResist !== debuffResolution.hostileSuccessesBeforeResist) {
+    throw new Error("Wrong-lane Resist pool-only should not cancel BRAVERY hostile successes.");
   }
   const wrongLaneAfterPoints = state.defensivePools[0]?.remainingPoints ?? 0;
   if (wrongLaneAfterPoints !== wrongLaneStartingPoints) {
