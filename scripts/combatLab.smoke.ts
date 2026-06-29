@@ -146,7 +146,50 @@ function setCooldown(
   };
 }
 
-function runLinkedWoundBandFixture(prevention: number) {
+function addPreparedPool(
+  state: CombatState,
+  actorId: string,
+  poolType: CombatState["defensivePools"][number]["poolType"],
+  options: Partial<CombatState["defensivePools"][number]> = {},
+) {
+  const actor = state.actors.find((entry) => entry.id === actorId);
+  if (!actor) throw new Error(`Missing actor for prepared pool fixture: ${actorId}`);
+  state.defensivePools.push({
+    id: options.id ?? `${actorId}:${poolType}:fixture-pool`,
+    sourceActorId: options.sourceActorId ?? actor.id,
+    sourceActorName: options.sourceActorName ?? actor.name,
+    sourceSide: options.sourceSide ?? actor.side,
+    sourceActionId: options.sourceActionId ?? `${poolType.toLowerCase()}-fixture-source`,
+    sourceActionName: options.sourceActionName ?? `${poolType} Fixture Pool`,
+    sourcePowerId: options.sourcePowerId ?? null,
+    sourcePacketId: options.sourcePacketId ?? null,
+    protectedActorId: options.protectedActorId ?? actor.id,
+    protectedActorName: options.protectedActorName ?? actor.name,
+    poolType,
+    woundChannel: options.woundChannel ?? (poolType === "MENTAL_BLOCK" ? "mental" : poolType === "PHYSICAL_BLOCK" ? "physical" : null),
+    resistedAttribute: options.resistedAttribute ?? null,
+    remainingPoints: options.remainingPoints ?? 6,
+    initialPoints: options.initialPoints ?? options.remainingPoints ?? 6,
+    perTriggerCap: options.perTriggerCap ?? 3,
+    remainingRounds: options.remainingRounds ?? 2,
+    durationKind: options.durationKind ?? "turns",
+    sourceChassis: options.sourceChassis ?? "UNKNOWN",
+    sourceCommitmentModifier: options.sourceCommitmentModifier ?? "UNKNOWN",
+    createdRound: options.createdRound ?? state.round,
+    createdTurnActorId: options.createdTurnActorId ?? null,
+    reapplyKey: options.reapplyKey ?? `${actorId}:${poolType}:fixture-pool`,
+  });
+  return state.defensivePools[state.defensivePools.length - 1];
+}
+
+function runLinkedWoundBandFixture(
+  prevention: number,
+  options: {
+    primaryOverrides?: Partial<CombatAction>;
+    defenderOverrides?: Partial<CombatActor>;
+    rngValues?: number[];
+  } = {},
+) {
   const secondary = action({
     id: "linked-wound-rider",
     name: "Linked Wound Rider",
@@ -174,6 +217,7 @@ function runLinkedWoundBandFixture(prevention: number) {
     diceCount: 4,
     potency: 8,
     secondaryActions: [secondary],
+    ...options.primaryOverrides,
   });
   const attacker = fixtureActor("linked-wound-attacker", "players", {
     attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
@@ -186,6 +230,7 @@ function runLinkedWoundBandFixture(prevention: number) {
     dodgeDice: 1,
     physicalDefenceDice: 1,
     physicalBlockPerSuccess: 0,
+    ...options.defenderOverrides,
   });
   const state = createCombatState([attacker], [defender], { captureTranscript: true });
   const resolution = resolveCombatAction({
@@ -193,10 +238,130 @@ function runLinkedWoundBandFixture(prevention: number) {
     actor: state.actors[0],
     target: state.actors[1],
     action: primary,
-    rng: rngFrom([0.1, 0.45, 0.45, 0.9, 0]),
+    rng: rngFrom(options.rngValues ?? [0.1, 0.45, 0.45, 0.9, 0]),
     lane: "power",
   });
   return { state, resolution };
+}
+
+{
+  const attacker = fixtureActor("vrp-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D12", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("vrp-vulnerable-defender", "monsters", {
+    mentalDefenceDice: 1,
+    mentalBlockPerSuccess: 1,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    vrp: [{ effectKind: "VULNERABILITY", magnitude: 2, damageType: "Fire" }],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ id: "vrp-fire-vulnerability", name: "VRP Fire Vulnerability", pool: "mental", accuracyAttribute: "Intellect", diceCount: 1, potency: 4, damageTypes: ["Fire"] }),
+    rng: rngFrom([0.99, 0.5]),
+    lane: "main",
+  });
+  if (resolution.rawWounds !== 8 || resolution.defenceStringBlocked !== 0 || resolution.staticProtectionPrevented !== 0 || resolution.netWounds !== 8) {
+    throw new Error(`Vulnerability did not apply only as a negative defence-roll modifier: ${JSON.stringify(resolution)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /V\/R\/P applied before success conversion: 0 Protection dice, \+0 Resistance, -2 Vulnerability/i, "VRP vulnerability transcript");
+}
+
+{
+  const attacker = fixtureActor("vrp-resistance-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D12", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("vrp-resistant-defender", "monsters", {
+    mentalDefenceDice: 1,
+    mentalBlockPerSuccess: 1,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    vrp: [{ effectKind: "RESISTANCE", magnitude: 1, damageType: "Fire" }],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ id: "vrp-fire-resistance", name: "VRP Fire Resistance", pool: "mental", accuracyAttribute: "Intellect", diceCount: 1, potency: 4, damageTypes: ["Fire"] }),
+    rng: rngFrom([0.99, 0.25]),
+    lane: "main",
+  });
+  if (resolution.rawWounds !== 8 || resolution.defenceStringBlocked !== 1 || resolution.staticProtectionPrevented !== 0 || resolution.netWounds !== 7) {
+    throw new Error(`Resistance did not apply only as a positive defence-roll modifier: ${JSON.stringify(resolution)}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("vrp-protection-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D12", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("vrp-protected-defender", "monsters", {
+    mentalDefenceDice: 1,
+    mentalBlockPerSuccess: 1,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    vrp: [{ effectKind: "PROTECTION", magnitude: 1, damageType: "Fire" }],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ id: "vrp-fire-protection", name: "VRP Fire Protection", pool: "mental", accuracyAttribute: "Intellect", diceCount: 1, potency: 4, damageTypes: ["Fire"] }),
+    rng: rngFrom([0.99, 0, 0.99]),
+    lane: "main",
+  });
+  if (resolution.defenceStringBlocked !== 1 || resolution.staticProtectionPrevented !== 0 || resolution.netWounds !== 7) {
+    throw new Error(`Protection did not add defence dice without direct wound subtraction: ${JSON.stringify(resolution)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /V\/R\/P applied before success conversion: 1 Protection dice, \+0 Resistance, -0 Vulnerability.*final dice 2/i, "VRP protection dice transcript");
+}
+
+{
+  const attacker = fixtureActor("vrp-multi-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D12", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("vrp-multi-defender", "monsters", {
+    mentalDefenceDice: 1,
+    mentalBlockPerSuccess: 1,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    vrp: [
+      { effectKind: "RESISTANCE", magnitude: 1, damageType: "Fire" },
+      { effectKind: "VULNERABILITY", magnitude: 2, damageType: "Ice" },
+      { effectKind: "PROTECTION", magnitude: 1, damageType: "Slashing" },
+    ],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: action({ id: "vrp-multi-damage", name: "VRP Multi Damage", pool: "mental", accuracyAttribute: "Intellect", diceCount: 1, potency: 4, damageTypes: ["Fire", "Ice", "Slashing"] }),
+    rng: rngFrom([0.99, 0.5, 0.25]),
+    lane: "main",
+  });
+  if (resolution.mentalDefenceRolls !== 1 || resolution.defenceStringBlocked !== 1 || resolution.netWounds !== 7) {
+    throw new Error(`Multi-damage V/R/P did not apply to one defence roll: ${JSON.stringify(resolution)}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /V\/R\/P applied before success conversion: 1 Protection dice, \+1 Resistance, -2 Vulnerability/i, "VRP multi-damage transcript");
+}
+
+{
+  const vrpBand = runLinkedWoundBandFixture(0, {
+    primaryOverrides: { damageTypes: ["Slashing"] },
+    defenderOverrides: {
+      physicalDefenceDice: 1,
+      physicalBlockPerSuccess: 1,
+      attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+      vrp: [{ effectKind: "PROTECTION", magnitude: 1, damageType: "Slashing" }],
+    },
+    rngValues: [0.1, 0.45, 0.45, 0.9, 0.99, 0.99],
+  });
+  if (vrpBand.resolution.netWounds !== 30) {
+    throw new Error(`V/R/P wound-band fixture produced unexpected primary wounds: ${JSON.stringify(vrpBand.resolution)}.`);
+  }
+  expectTranscriptLine(vrpBand.state.transcriptLines, /Linked effect: Linked Wound Rider rides 30 net primary wounds from Linked Wound Primary\. Applied wound bands: ceil\(30 \/ 8\) = 4/i, "VRP wound-band denominator transcript");
 }
 
 {
@@ -4666,6 +4831,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     throw new Error(`Iron Skin passive block pool did not commit its per-trigger cap against later physical incoming damage: ${JSON.stringify(directHitResolution)}.`);
   }
 
+  const remainingPoolBeforeCounter = protectionPool.remainingPoints;
   const counterResolution = resolveCombatAction({
     state,
     actor: state.actors[1],
@@ -4675,12 +4841,14 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     lane: "main",
   });
   if (
-    counterResolution.defensivePools.bySourceSide.monsters.blockWoundsPrevented !== 5 ||
-    counterResolution.counterDamage !== 35
+    counterResolution.defensivePools.bySourceSide.monsters.committedPoints !== 0 ||
+    counterResolution.defensivePools.bySourceSide.monsters.blockWoundsPrevented !== 0 ||
+    counterResolution.counterDamage !== 40 ||
+    protectionPool.remainingPoints !== remainingPoolBeforeCounter
   ) {
-    throw new Error(`Iron Skin passive block pool did not reduce Counterstrike damage by its per-trigger cap: ${JSON.stringify(counterResolution)}.`);
+    throw new Error(`Iron Skin passive block pool was incorrectly spent against attack-only Counterstrike damage: ${JSON.stringify({ counterResolution, pool: protectionPool })}.`);
   }
-  expectTranscriptLine(state.transcriptLines, /Counter result: Wolf Berzerker suffers 35 physical wounds from Counterstrike\. Prevented 5 \(5 defensive pool, 0 passive\/static\)/i, "Iron Skin counter prevention transcript");
+  expectTranscriptLine(state.transcriptLines, /Counter result: Wolf Berzerker suffers 40 physical wounds from Counterstrike\. Prevented 0 \(0 defensive pool, 0 passive\/static\)/i, "Iron Skin attack-only counter no-pool transcript");
 
   const removalState = createCombatState([glassCannon], [wolf], { captureTranscript: true });
   const removalResolution = resolveCombatAction({
@@ -4760,7 +4928,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   }
   expectTranscriptLine(tacticalLines, /Roll: Wolf Berzerker rolled 4 x D10 using Fortitude for Iron Skin/i, "tactical Iron Skin Fortitude roll");
   expectTranscriptLine(tacticalLines, /Counter declared: CL-L3-Glass-Cannon will use Counterstrike against Mindbreak Gaze/i, "tactical counter declaration");
-  expectTranscriptLine(tacticalLines, /Counter result: Wolf Berzerker suffers .* from Counterstrike\. Prevented [1-9]\d* \([1-9]\d* defensive pool, 0 passive\/static\)/i, "tactical Iron Skin same-turn counter prevention");
+  expectTranscriptLine(tacticalLines, /Counter result: Wolf Berzerker suffers .* from Counterstrike\. Prevented 0 \(0 defensive pool, 0 passive\/static\)/i, "tactical Iron Skin same-turn attack-only counter no-pool prevention");
 }
 
 {
@@ -6112,6 +6280,152 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   const incomingRollIndex = state.transcriptLines.findIndex((line) => /Roll: zero-success-counter-attacker rolled/i.test(line));
   if (counterDeclarationIndex < 0 || incomingRollIndex < 0 || counterDeclarationIndex > incomingRollIndex) {
     throw new Error(`Counter was not declared before the incoming roll: ${state.transcriptLines.join(" | ")}`);
+  }
+}
+
+{
+  const runAttackOnlyCounterPoolCase = (pool: "physical" | "mental") => {
+    const counterstrike = action({
+      id: `${pool}-pool-locked-counterstrike`,
+      name: `${pool} Pool Locked Counterstrike`,
+      kind: "attack",
+      pool,
+      counterMode: true,
+      targetPolicy: "enemy",
+      diceCount: 1,
+      potency: 5,
+    });
+    const attacker = fixtureActor(`${pool}-pool-counter-attacker`, "players", {
+      physicalProtection: pool === "physical" ? 2 : 0,
+      mentalProtection: pool === "mental" ? 2 : 0,
+      actions: [action({ id: `${pool}-pool-counter-trigger`, name: `${pool} Pool Counter Trigger`, pool, diceCount: 1, potency: 10 })],
+    });
+    const defender = fixtureActor(`${pool}-pool-counter-defender`, "monsters", {
+      actions: [counterstrike],
+    });
+    const state = createCombatState([attacker], [defender], { captureTranscript: true });
+    refreshActorResponses(state, state.actors[1].id);
+    const poolType = pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK";
+    const preparedPool = addPreparedPool(state, state.actors[0].id, poolType, {
+      id: `${pool}-attack-only-counter-pool`,
+      remainingPoints: 9,
+      initialPoints: 9,
+      perTriggerCap: 5,
+      woundChannel: pool,
+    });
+    const resolution = resolveCombatAction({
+      state,
+      actor: state.actors[0],
+      target: state.actors[1],
+      action: state.actors[0].actions[0],
+      rng: rngFrom([0.99, 0]),
+      lane: "main",
+    });
+    if (
+      resolution.counterDamage !== 3 ||
+      resolution.defensivePools.bySourceSide.players.committedPoints !== 0 ||
+      resolution.defensivePools.bySourceSide.players.blockWoundsPrevented !== 0 ||
+      preparedPool.remainingPoints !== 9
+    ) {
+      throw new Error(`Attack-only Counter consumed or benefited from a ${pool} Block Pool: ${JSON.stringify({ resolution, pools: state.defensivePools })}.`);
+    }
+    expectTranscriptLine(state.transcriptLines, new RegExp(`Counter result: ${pool}-pool-counter-attacker suffers 3 ${pool} wounds from ${pool} Pool Locked Counterstrike\\. Prevented 2 \\(0 defensive pool, 2 passive/static\\)`, "i"), `${pool} attack-only counter pool transcript`);
+  };
+  runAttackOnlyCounterPoolCase("physical");
+  runAttackOnlyCounterPoolCase("mental");
+}
+
+{
+  const attacker = fixtureActor("physical-defence-counter-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [action({ id: "physical-defence-counter-trigger", name: "Physical Defence Counter Trigger", diceCount: 1, potency: 6 })],
+  });
+  const defender = fixtureActor("physical-defence-counter-defender", "monsters", {
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    actions: [action({ id: "physical-defence-counter", name: "Physical Defence Counter", kind: "defence", counterMode: true, targetPolicy: "self", pool: "physical", protection: 1, potency: 1 })],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  refreshActorResponses(state, state.actors[1].id);
+  const preparedPool = addPreparedPool(state, state.actors[1].id, "PHYSICAL_BLOCK", { remainingPoints: 4, initialPoints: 4, perTriggerCap: 3, woundChannel: "physical" });
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: state.actors[0].actions[0], rng: rngFrom([0.99, 0.99]), lane: "main" });
+  if (resolution.counterMitigation !== 4 || resolution.defensivePools.bySourceSide.monsters.blockWoundsPrevented !== 3 || preparedPool.remainingPoints !== 1) {
+    throw new Error(`Physical Defence Counter did not use matching Physical Block Pool: ${JSON.stringify({ resolution, pools: state.defensivePools })}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("mental-defence-counter-attacker", "players", {
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D12", Synergy: "D8", Bravery: "D8" },
+    actions: [action({ id: "mental-defence-counter-trigger", name: "Mental Defence Counter Trigger", pool: "mental", accuracyAttribute: "Intellect", diceCount: 1, potency: 6 })],
+  });
+  const defender = fixtureActor("mental-defence-counter-defender", "monsters", {
+    mentalDefenceDice: 1,
+    mentalBlockPerSuccess: 0,
+    actions: [action({ id: "mental-defence-counter", name: "Mental Defence Counter", kind: "defence", counterMode: true, targetPolicy: "self", pool: "mental", protection: 1, potency: 1 })],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  refreshActorResponses(state, state.actors[1].id);
+  const preparedPool = addPreparedPool(state, state.actors[1].id, "MENTAL_BLOCK", { remainingPoints: 4, initialPoints: 4, perTriggerCap: 3, woundChannel: "mental" });
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: state.actors[0].actions[0], rng: rngFrom([0.99, 0.99]), lane: "main" });
+  if (resolution.counterMitigation !== 4 || resolution.defensivePools.bySourceSide.monsters.blockWoundsPrevented !== 3 || preparedPool.remainingPoints !== 1) {
+    throw new Error(`Mental Defence Counter did not use matching Mental Block Pool: ${JSON.stringify({ resolution, pools: state.defensivePools })}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("dodge-counter-pool-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [action({ id: "dodge-counter-pool-trigger", name: "Dodge Counter Pool Trigger", diceCount: 1, potency: 6 })],
+  });
+  const defender = fixtureActor("dodge-counter-pool-defender", "monsters", {
+    actions: [action({ id: "dodge-counter-with-pool", name: "Dodge Counter With Pool", kind: "defence", defenceMode: "Dodge", counterMode: true, targetPolicy: "self", pool: "physical", potency: 1 })],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  refreshActorResponses(state, state.actors[1].id);
+  const preparedPool = addPreparedPool(state, state.actors[1].id, "DODGE", { remainingPoints: 3, initialPoints: 3, perTriggerCap: 2, woundChannel: null });
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: state.actors[0].actions[0], rng: rngFrom([0.99, 0.99]), lane: "main" });
+  if (
+    resolution.woundsAvoidedByDodge <= 0 ||
+    resolution.defensivePools.bySourceSide.monsters.committedPoints !== 2 ||
+    resolution.defensivePools.bySourceSide.monsters.dodgeAvoids !== 1 ||
+    preparedPool.remainingPoints !== 1
+  ) {
+    throw new Error(`Dodge Counter did not use matching Dodge Pool in a legal physical Dodge lane: ${JSON.stringify({ resolution, pools: state.defensivePools })}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("resist-counter-pool-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [action({ id: "resist-counter-pool-trigger", name: "Resist Counter Pool Trigger", kind: "debuff", resistAttribute: "ATTACK", modifier: { attribute: "Attack", amount: 1, durationRounds: 1 }, diceCount: 1, potency: 1 })],
+  });
+  const defender = fixtureActor("resist-counter-pool-defender", "monsters", {
+    actions: [action({ id: "resist-counter-with-pool", name: "Resist Counter With Pool", kind: "defence", defenceMode: "Resist", defenceResistedAttribute: "ATTACK", counterMode: true, targetPolicy: "self", potency: 1 })],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  refreshActorResponses(state, state.actors[1].id);
+  const preparedPool = addPreparedPool(state, state.actors[1].id, "RESIST", { remainingPoints: 3, initialPoints: 3, perTriggerCap: 2, resistedAttribute: "ATTACK" });
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: state.actors[0].actions[0], rng: rngFrom([0.99, 0.99]), lane: "main" });
+  if (resolution.hostileSuccessesAfterResist !== 0 || resolution.defensivePools.bySourceSide.monsters.resistUnitsCancelled !== 1 || preparedPool.remainingPoints !== 2) {
+    throw new Error(`Resist Counter did not use matching Resist Pool: ${JSON.stringify({ resolution, pools: state.defensivePools })}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("wrong-lane-counter-pool-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+    actions: [action({ id: "wrong-lane-counter-pool-trigger", name: "Wrong Lane Counter Pool Trigger", diceCount: 1, potency: 6 })],
+  });
+  const defender = fixtureActor("wrong-lane-counter-pool-defender", "monsters", {
+    actions: [action({ id: "wrong-lane-physical-counter", name: "Wrong Lane Physical Counter", kind: "defence", counterMode: true, targetPolicy: "self", pool: "physical", protection: 1, potency: 1 })],
+  });
+  const state = createCombatState([attacker], [defender], { captureTranscript: true });
+  refreshActorResponses(state, state.actors[1].id);
+  const wrongLanePool = addPreparedPool(state, state.actors[1].id, "MENTAL_BLOCK", { remainingPoints: 4, initialPoints: 4, perTriggerCap: 3, woundChannel: "mental" });
+  const resolution = resolveCombatAction({ state, actor: state.actors[0], target: state.actors[1], action: state.actors[0].actions[0], rng: rngFrom([0.99, 0.99]), lane: "main" });
+  if (resolution.defensivePools.bySourceSide.monsters.committedPoints !== 0 || wrongLanePool.remainingPoints !== 4) {
+    throw new Error(`Wrong-lane defensive pool committed during Counter defence: ${JSON.stringify({ resolution, pools: state.defensivePools })}.`);
   }
 }
 

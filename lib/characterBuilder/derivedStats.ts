@@ -63,6 +63,11 @@ export type CharacterBuilderDerivedBackpackItem = {
     attackEffectsMelee?: string[];
     attackEffectsRanged?: string[];
     attackEffectsAoE?: string[];
+    vrpEntries?: Array<{
+      effectKind: "VULNERABILITY" | "RESISTANCE" | "PROTECTION";
+      magnitude: number;
+      damageType: string;
+    }> | null;
     descriptorSections?: Array<{
       title: string;
       lines: string[];

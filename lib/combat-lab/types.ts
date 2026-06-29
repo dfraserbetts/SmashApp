@@ -28,6 +28,7 @@ export type CombatDefensivePoolType = "DODGE" | "PHYSICAL_BLOCK" | "MENTAL_BLOCK
 export type CombatDefensivePoolSourceChassis = "IMMEDIATE" | "FIELD" | "ATTACHED" | "TRIGGER" | "RESERVE" | "UNKNOWN";
 export type CombatDefensivePoolCommitmentModifier = "STANDARD" | "CHANNEL" | "CHARGE" | "UNKNOWN";
 export type CombatDefensivePoolCommitmentMode = "auto" | "poolOnly";
+export type CombatVrpEffectKind = "VULNERABILITY" | "RESISTANCE" | "PROTECTION";
 export type CombatDefensivePoolExpiryReason =
   | "empty"
   | "durationEnd"
@@ -165,10 +166,17 @@ export type CombatActor = {
   resist: Partial<Record<CoreAttribute, number>>;
   actionsPerTurn: number;
   actions: CombatAction[];
+  vrp?: CombatVrpEntry[];
   defensivePoolCommitmentMode?: CombatDefensivePoolCommitmentMode;
   unsupportedPowers: UnsupportedPowerReason[];
   hydration: CombatActorHydration;
   defeated: boolean;
+};
+
+export type CombatVrpEntry = {
+  effectKind: CombatVrpEffectKind;
+  magnitude: number;
+  damageType: string;
 };
 
 export type CombatStatusEffect = {

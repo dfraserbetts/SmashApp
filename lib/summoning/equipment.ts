@@ -25,6 +25,11 @@ export type SummoningEquipmentItem = {
   melee?: MonsterNaturalAttackConfig["melee"];
   ranged?: MonsterNaturalAttackConfig["ranged"];
   aoe?: MonsterNaturalAttackConfig["aoe"];
+  vrpEntries?: Array<{
+    effectKind: "VULNERABILITY" | "RESISTANCE" | "PROTECTION";
+    magnitude: number;
+    damageType: string;
+  }> | null;
 };
 
 export type EquipmentSlotKey =

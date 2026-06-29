@@ -46,6 +46,7 @@ export function cloneActor(actor: CombatActor): CombatActor {
     attributeDice: { ...actor.attributeDice },
     resist: { ...actor.resist },
     actions: actor.actions.map(cloneAction),
+    vrp: actor.vrp?.map((entry) => ({ ...entry })),
     unsupportedPowers: actor.unsupportedPowers.map((reason) => ({ ...reason })),
     hydration: {
       ...actor.hydration,

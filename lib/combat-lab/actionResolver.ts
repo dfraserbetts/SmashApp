@@ -482,6 +482,59 @@ function actionDamageLabel(action: CombatAction, pool: "physical" | "mental") {
   return `${pool} ${damageTypes.join("/")}`;
 }
 
+function actionDamageTypes(action: CombatAction): string[] {
+  const details =
+    action.source?.packet?.detailsJson &&
+    typeof action.source.packet.detailsJson === "object" &&
+    !Array.isArray(action.source.packet.detailsJson)
+      ? (action.source.packet.detailsJson as Record<string, unknown>)
+      : {};
+  const rawTypes = Array.isArray(action.damageTypes)
+    ? action.damageTypes
+    : Array.isArray(details.damageTypes)
+    ? details.damageTypes
+    : [];
+  return Array.from(
+    new Set(rawTypes.map((entry) => String(entry).trim()).filter(Boolean).map((entry) => entry.toLowerCase())),
+  );
+}
+
+function vrpRollAdjustment(target: CombatActor, action?: CombatAction | null) {
+  const damageTypes = action ? actionDamageTypes(action) : [];
+  if (damageTypes.length === 0 || !target.vrp || target.vrp.length === 0) {
+    return { modifier: 0, extraDice: 0, vulnerability: 0, resistance: 0, protection: 0 };
+  }
+  const highest = new Map<string, number>();
+  for (const entry of target.vrp) {
+    const damageType = entry.damageType.trim().toLowerCase();
+    if (!damageTypes.includes(damageType)) continue;
+    const amount = Math.max(0, Math.trunc(entry.magnitude));
+    if (amount <= 0) continue;
+    const key = `${entry.effectKind}:${damageType}`;
+    highest.set(key, Math.max(highest.get(key) ?? 0, amount));
+  }
+  let vulnerability = 0;
+  let resistance = 0;
+  let protection = 0;
+  for (const [key, amount] of highest.entries()) {
+    if (key.startsWith("VULNERABILITY:")) vulnerability += amount;
+    if (key.startsWith("RESISTANCE:")) resistance += amount;
+    if (key.startsWith("PROTECTION:")) protection += amount;
+  }
+  return {
+    modifier: resistance - vulnerability,
+    extraDice: protection,
+    vulnerability,
+    resistance,
+    protection,
+  };
+}
+
+function legacyStaticPreventionAmount(state: CombatState, actor: CombatActor, pool: "physical" | "mental") {
+  return (pool === "physical" ? actor.physicalProtection : actor.mentalProtection) +
+    getProtectionModifier(state, actor.id, pool);
+}
+
 function protectionBreakdown(
   state: CombatState,
   actor: CombatActor,
@@ -589,8 +642,10 @@ function rollAttributeDice(params: {
   attribute: keyof CombatActor["attributeDice"];
   diceCount: number;
   rng: Rng;
+  extraModifier?: number;
 }) {
-  const modifier = getAttributeModifier(params.state, params.actor.id, String(params.attribute));
+  const modifier = getAttributeModifier(params.state, params.actor.id, String(params.attribute)) +
+    Math.trunc(params.extraModifier ?? 0);
   return {
     ...rollDice(params.diceCount, params.actor.attributeDice[params.attribute] ?? "D8", params.rng, modifier),
     modifier,
@@ -685,7 +740,7 @@ function resolveDefenceString(
   pool: "physical" | "mental",
   wounds: number,
   rng: Rng,
-  context: { ongoingPerTick?: boolean } = {},
+  context: { ongoingPerTick?: boolean; incomingAction?: CombatAction } = {},
 ): CombatResolutionMetrics {
   const metrics = emptyResolution();
   if (wounds <= 0) return metrics;
@@ -713,8 +768,9 @@ function resolveDefenceString(
     requested: requestedPoolCommit,
     woundChannel: pool,
   });
-  const diceCount = Math.max(1, baseDice - degradation);
-  const roll = rollAttributeDice({ state, actor: target, attribute, diceCount, rng });
+  const vrp = vrpRollAdjustment(target, context.incomingAction);
+  const diceCount = Math.max(1, baseDice + vrp.extraDice - degradation);
+  const roll = rollAttributeDice({ state, actor: target, attribute, diceCount, rng, extraModifier: vrp.modifier });
   const rollSummary = summarizeRoll({ actor: target, reason: `${pool} defence`, attribute, roll });
   const rollBlocked = Math.min(wounds, roll.successes * blockPerSuccess);
   const poolBlocked = Math.min(Math.max(0, wounds - rollBlocked), poolCommit?.committed ?? 0);
@@ -749,7 +805,7 @@ function resolveDefenceString(
     actorId: target.id,
     actorName: target.name,
     lane: "response",
-    message: `${rollText(rollSummary)} ${pool === "physical" ? "Physical Defence" : "Mental Defence"} blocked ${blocked} of ${wounds} ${context.ongoingPerTick ? "ongoing " : ""}${pool} wounds${context.ongoingPerTick ? " per tick" : ""} (${blockPerSuccess} block per success${poolCommit ? `, ${poolCommit.committed} defensive pool point${poolCommit.committed === 1 ? "" : "s"} committed` : ""}). Degradation ${degradation}, final dice ${diceCount}.`,
+    message: `${rollText(rollSummary)} ${pool === "physical" ? "Physical Defence" : "Mental Defence"} blocked ${blocked} of ${wounds} ${context.ongoingPerTick ? "ongoing " : ""}${pool} wounds${context.ongoingPerTick ? " per tick" : ""} (${blockPerSuccess} block per success${poolCommit ? `, ${poolCommit.committed} defensive pool point${poolCommit.committed === 1 ? "" : "s"} committed` : ""}).${vrp.vulnerability || vrp.resistance || vrp.protection ? ` V/R/P applied before success conversion: ${vrp.protection} Protection dice, +${vrp.resistance} Resistance, -${vrp.vulnerability} Vulnerability.` : ""} Degradation ${degradation}, final dice ${diceCount}.`,
     roll: rollSummary,
     details: {
       pool,
@@ -759,6 +815,9 @@ function resolveDefenceString(
       poolBlocked,
       blockPerSuccess,
       originalDice: baseDice,
+      vrpProtectionDice: vrp.protection,
+      vrpResistanceModifier: vrp.resistance,
+      vrpVulnerabilityModifier: vrp.vulnerability,
       degradation,
       finalDice: diceCount,
     },
@@ -781,13 +840,20 @@ function estimateDodgeValue(state: CombatState, target: CombatActor, incomingSuc
   }) * rawWounds;
 }
 
-function estimateDefenceStringValue(state: CombatState, target: CombatActor, pool: "physical" | "mental", rawWounds: number): number {
+function estimateDefenceStringValue(
+  state: CombatState,
+  target: CombatActor,
+  pool: "physical" | "mental",
+  rawWounds: number,
+  incomingAction?: CombatAction,
+): number {
   if (rawWounds <= 0) return 0;
   const type = pool === "physical" ? "physical" : "mental";
   const attribute = pool === "physical" ? "Guard" : "Bravery";
   const baseDice = Math.max(1, Math.trunc(pool === "physical" ? target.physicalDefenceDice ?? 1 : target.mentalDefenceDice ?? 1));
   const degradation = peekDefenceDegradation(state, target.id, type);
-  const diceCount = Math.max(1, baseDice - degradation);
+  const vrp = vrpRollAdjustment(target, incomingAction);
+  const diceCount = Math.max(1, baseDice + vrp.extraDice - degradation);
   const blockPerSuccess = Math.max(
     0,
     Math.trunc(
@@ -804,7 +870,7 @@ function estimateDefenceStringValue(state: CombatState, target: CombatActor, poo
   const expectedBlocked = expectedSuccesses(
     diceCount,
     target.attributeDice[attribute] ?? "D8",
-    getAttributeModifier(state, target.id, attribute),
+    getAttributeModifier(state, target.id, attribute) + vrp.modifier,
   ) * blockPerSuccess + poolCommit;
   return Math.min(rawWounds, expectedBlocked);
 }
@@ -853,6 +919,7 @@ function resolveBestNormalDefence(params: {
   pool: "physical" | "mental";
   incomingSuccesses: number;
   rawWounds: number;
+  incomingAction: CombatAction;
   rng: Rng;
   ongoingPerTick?: boolean;
   assistTriggerId?: string | null;
@@ -895,7 +962,7 @@ function resolveBestNormalDefence(params: {
     }
   }
 
-  const defenceStringValue = estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds);
+  const defenceStringValue = estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds, params.incomingAction);
   if (params.pool === "mental") {
     emitTranscriptEvent(params.state, {
       type: "defenceChoice",
@@ -907,6 +974,7 @@ function resolveBestNormalDefence(params: {
     });
     const metrics = resolveDefenceString(params.state, params.target, params.pool, params.rawWounds, params.rng, {
       ongoingPerTick: params.ongoingPerTick,
+      incomingAction: params.incomingAction,
     });
     metrics.defenceChoiceExpectedValue = defenceStringValue;
     return metrics;
@@ -926,6 +994,7 @@ function resolveBestNormalDefence(params: {
     defenceStringValue > dodgeValue
       ? resolveDefenceString(params.state, params.target, params.pool, params.rawWounds, params.rng, {
           ongoingPerTick: params.ongoingPerTick,
+          incomingAction: params.incomingAction,
         })
       : resolveDodge(params.state, params.target, params.incomingSuccesses, params.rng, params.assistTriggerId);
   metrics.defenceChoiceExpectedValue = Math.max(dodgeValue, defenceStringValue);
@@ -2249,20 +2318,18 @@ function estimateNormalDefenceTotalValue(params: {
   state: CombatState;
   target: CombatActor;
   pool: "physical" | "mental";
+  incomingAction: CombatAction;
   incomingSuccesses: number;
   rawWounds: number;
 }) {
   const activeDefenceValue = params.pool === "physical"
     ? Math.max(
         estimateDodgeValue(params.state, params.target, params.incomingSuccesses, params.rawWounds),
-        estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds),
+        estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds, params.incomingAction),
       )
-    : estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds);
+    : estimateDefenceStringValue(params.state, params.target, params.pool, params.rawWounds, params.incomingAction);
   const passiveDefence = passiveDefenceAmount(params.target, params.pool);
-  const staticProtection =
-    (params.pool === "physical" ? params.target.physicalProtection : params.target.mentalProtection) +
-    getProtectionModifier(params.state, params.target.id, params.pool) +
-    passiveDefence;
+  const staticProtection = legacyStaticPreventionAmount(params.state, params.target, params.pool) + passiveDefence;
   return activeDefenceValue + Math.min(Math.max(0, params.rawWounds - activeDefenceValue), Math.max(0, staticProtection));
 }
 
@@ -2301,16 +2368,14 @@ function estimateDodgeCounterValue(params: {
     threshold: dodgeThreshold,
   });
   const passiveDefence = passiveDefenceAmount(params.target, params.pool);
-  const staticProtection =
-    (params.pool === "physical" ? params.target.physicalProtection : params.target.mentalProtection) +
-    getProtectionModifier(params.state, params.target.id, params.pool) +
-    passiveDefence;
+  const staticProtection = legacyStaticPreventionAmount(params.state, params.target, params.pool) + passiveDefence;
   const staticOnlyPrevention = Math.min(rawWounds, Math.max(0, staticProtection));
   const counterExpectedValue = avoidProbability * rawWounds + (1 - avoidProbability) * staticOnlyPrevention;
   const normalExpectedValue = estimateNormalDefenceTotalValue({
     state: params.state,
     target: params.target,
     pool: params.pool,
+    incomingAction: params.incomingAction,
     incomingSuccesses,
     rawWounds,
   });
@@ -2735,10 +2800,33 @@ function resolveDeclaredCounterSuccessGate(params: {
     return metrics;
   }
 
-  const totalResists = matchingPackets.reduce(
+  const counterResists = matchingPackets.reduce(
     (sum, entry) => sum + counterRoll.successes * Math.max(1, entry.potency),
     0,
   );
+  const poolCommit = commitDefensivePool({
+    state,
+    metrics,
+    target,
+    poolType: "RESIST",
+    requested: estimatePoolOnlyCommit(state, target, "RESIST", {
+      incomingSuccesses: Math.max(0, incomingSuccesses - counterResists),
+      resistedAttribute: incomingAction.resistAttribute,
+    }),
+    resistedAttribute: incomingAction.resistAttribute,
+  });
+  const poolCancelled = Math.min(Math.max(0, incomingSuccesses - counterResists), poolCommit?.committed ?? 0);
+  if (poolCommit) {
+    finishDefensivePoolCommit({
+      metrics,
+      pool: poolCommit.pool,
+      committed: poolCommit.committed,
+      effective: poolCancelled,
+      result: "resist",
+    });
+    removeEmptyDefensivePool(state, poolCommit.pool);
+  }
+  const totalResists = counterResists + poolCancelled;
   const cancelled = Math.min(incomingSuccesses, totalResists);
   metrics.resistRolls = 1;
   metrics.resistSuccesses = totalResists;
@@ -2754,11 +2842,12 @@ function resolveDeclaredCounterSuccessGate(params: {
     actionId: counterRoll.declared.action.id,
     actionName: counterRoll.declared.action.name,
     lane: "response",
-    message: `Resist Counter: ${target.name}'s ${counterRoll.declared.action.name} rolls ${counterRoll.successes} success${counterRoll.successes === 1 ? "" : "es"} x ${matchingPackets.map((entry) => Math.max(1, entry.potency)).join(" + ")} = ${totalResists} ${incomingAction.resistAttribute} Resists; cancelled ${cancelled} of ${incomingSuccesses} hostile successes from ${incomingAction.name}.`,
+    message: `Resist Counter: ${target.name}'s ${counterRoll.declared.action.name} rolls ${counterRoll.successes} success${counterRoll.successes === 1 ? "" : "es"} x ${matchingPackets.map((entry) => Math.max(1, entry.potency)).join(" + ")} = ${counterResists} ${incomingAction.resistAttribute} Resists${poolCancelled > 0 ? `, plus ${poolCancelled} matching Resist pool` : ""}; cancelled ${cancelled} of ${incomingSuccesses} hostile successes from ${incomingAction.name}.`,
     roll: counterRoll.rollSummary,
     details: {
       resistedAttribute: incomingAction.resistAttribute ?? null,
       totalResists,
+      poolCancelled,
       incomingSuccesses,
       cancelled,
       remainingSuccesses: metrics.hostileSuccessesAfterResist,
@@ -2785,13 +2874,34 @@ function resolveDeclaredCounterDefence(params: {
 
   const dodgePackets = defencePackets.filter((entry) => (entry.defenceMode ?? "Block") === "Dodge");
   if (dodgePackets.length > 0) {
-    const totalDodge = dodgePackets.reduce(
+    const counterDodge = dodgePackets.reduce(
       (sum, action) => sum + counterRoll.successes * Math.max(1, action.potency),
       0,
     );
+    const poolCommit = commitDefensivePool({
+      state,
+      metrics,
+      target,
+      poolType: "DODGE",
+      requested: estimatePoolOnlyCommit(state, target, "DODGE", {
+        incomingSuccesses: Math.max(0, incomingSuccesses - counterDodge),
+      }),
+    });
+    const poolDodge = Math.min(Math.max(0, incomingSuccesses - counterDodge), poolCommit?.committed ?? 0);
+    if (poolCommit) {
+      finishDefensivePoolCommit({
+        metrics,
+        pool: poolCommit.pool,
+        committed: poolCommit.committed,
+        effective: counterDodge + poolDodge >= incomingSuccesses ? poolDodge : 0,
+        result: "dodge",
+      });
+      removeEmptyDefensivePool(state, poolCommit.pool);
+    }
+    const totalDodge = counterDodge + poolDodge;
     metrics.dodgeRolls = 1;
     metrics.dodgeChosen = 1;
-    metrics.dodgeSuccesses = counterRoll.successes;
+    metrics.dodgeSuccesses = totalDodge;
     if (totalDodge >= incomingSuccesses) {
       metrics.woundsAvoidedByDodge = remainingWounds;
     }
@@ -2804,10 +2914,11 @@ function resolveDeclaredCounterDefence(params: {
       actionId: counterRoll.declared.action.id,
       actionName: counterRoll.declared.action.name,
       lane: "response",
-      message: `Dodge Counter: ${target.name}'s ${counterRoll.declared.action.name} rolls ${counterRoll.successes} success${counterRoll.successes === 1 ? "" : "es"} x ${dodgePackets.map((entry) => Math.max(1, entry.potency)).join(" + ")} = ${totalDodge} Dodge against ${incomingSuccesses} incoming successes; ${totalDodge >= incomingSuccesses ? "the attack is avoided" : "the attack is not avoided"}.`,
+      message: `Dodge Counter: ${target.name}'s ${counterRoll.declared.action.name} rolls ${counterRoll.successes} success${counterRoll.successes === 1 ? "" : "es"} x ${dodgePackets.map((entry) => Math.max(1, entry.potency)).join(" + ")} = ${counterDodge} Dodge${poolDodge > 0 ? `, plus ${poolDodge} matching Dodge pool` : ""} against ${incomingSuccesses} incoming successes; ${totalDodge >= incomingSuccesses ? "the attack is avoided" : "the attack is not avoided"}.`,
       roll: counterRoll.rollSummary,
       details: {
         totalDodge,
+        poolDodge,
         incomingSuccesses,
         dodgeSucceeded: totalDodge >= incomingSuccesses,
         remainingWounds,
@@ -2823,7 +2934,29 @@ function resolveDeclaredCounterDefence(params: {
     0,
   );
   const rawMitigation = Math.max(1, counterRoll.successes * mitigationPerSuccess);
-  const mitigation = Math.min(remainingWounds, rawMitigation);
+  const poolCommit = commitDefensivePool({
+    state,
+    metrics,
+    target,
+    poolType: pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK",
+    requested: estimatePoolOnlyCommit(state, target, pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK", {
+      woundChannel: pool,
+      incomingWounds: Math.max(0, remainingWounds - rawMitigation),
+    }),
+    woundChannel: pool,
+  });
+  const poolMitigation = Math.min(Math.max(0, remainingWounds - rawMitigation), poolCommit?.committed ?? 0);
+  if (poolCommit) {
+    finishDefensivePoolCommit({
+      metrics,
+      pool: poolCommit.pool,
+      committed: poolCommit.committed,
+      effective: poolMitigation,
+      result: "block",
+    });
+    removeEmptyDefensivePool(state, poolCommit.pool);
+  }
+  const mitigation = Math.min(remainingWounds, rawMitigation + poolMitigation);
   metrics.counterMitigation = mitigation;
   emitTranscriptEvent(state, {
     type: "counterRoll",
@@ -2834,9 +2967,9 @@ function resolveDeclaredCounterDefence(params: {
     actionId: counterRoll.declared.action.id,
     actionName: counterRoll.declared.action.name,
     lane: "response",
-    message: `Counter mitigation: ${target.name}'s ${counterRoll.declared.action.name} prevents ${mitigation} ${pool} wounds from ${attacker.name}'s attack.`,
+    message: `Counter mitigation: ${target.name}'s ${counterRoll.declared.action.name} prevents ${mitigation} ${pool} wounds from ${attacker.name}'s attack${poolMitigation > 0 ? ` (${poolMitigation} matching defensive pool)` : ""}.`,
     roll: counterRoll.rollSummary,
-    details: { counterMitigation: mitigation, rawMitigation, mitigationPerSuccess, pool },
+    details: { counterMitigation: mitigation, rawMitigation, poolMitigation, mitigationPerSuccess, pool },
   });
   return metrics;
 }
@@ -2853,40 +2986,14 @@ function resolveDeclaredCounterAttack(params: {
   for (const action of counterAttackPackets(counterRoll.declared.action)) {
     const pool = action.pool ?? "physical";
     const raw = counterRoll.successes * Math.max(1, action.potency);
-    const poolCommit = commitDefensivePool({
-      state,
-      metrics,
-      target: attacker,
-      poolType: pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK",
-      requested: estimatePoolCommit(state, attacker, pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK", {
-        woundChannel: pool,
-        incomingWounds: raw,
-      }),
-      woundChannel: pool,
-    });
-    const poolPrevented = Math.min(raw, poolCommit?.committed ?? 0);
-    if (poolCommit) {
-      finishDefensivePoolCommit({
-        metrics,
-        pool: poolCommit.pool,
-        committed: poolCommit.committed,
-        effective: poolPrevented,
-        result: "block",
-      });
-      if (poolCommit.pool.remainingPoints <= 0) {
-        state.defensivePools = state.defensivePools.filter((entry) => entry.id !== poolCommit.pool.id);
-      }
-    }
+    const poolPrevented = 0;
     const passiveDefence = passiveDefenceAmount(attacker, pool);
-    const staticProtection =
-      (pool === "physical" ? attacker.physicalProtection : attacker.mentalProtection) +
-      getProtectionModifier(state, attacker.id, pool) +
-      passiveDefence;
-    const prevented = poolPrevented + Math.min(Math.max(0, raw - poolPrevented), Math.max(0, staticProtection));
+    const staticProtection = legacyStaticPreventionAmount(state, attacker, pool) + passiveDefence;
+    const prevented = Math.min(raw, Math.max(0, staticProtection));
     const damage = Math.max(0, raw - prevented);
     applyWounds(attacker, pool, damage);
     metrics.counterDamage += damage;
-    metrics.staticProtectionPrevented += Math.max(0, prevented - poolPrevented);
+    metrics.staticProtectionPrevented += prevented;
     metrics.protectionPrevented += prevented;
     metrics.passiveDefenceContribution += Math.min(raw, passiveDefence);
     emitTranscriptEvent(state, {
@@ -3408,6 +3515,7 @@ function resolveSingleTargetAction(params: {
           pool,
           incomingSuccesses: activeHostileSuccesses,
           rawWounds,
+          incomingAction: action,
           rng,
           ongoingPerTick: isPureOngoingDamage,
           assistTriggerId: currentAssistTriggerId,
@@ -3478,9 +3586,7 @@ function resolveSingleTargetAction(params: {
     const protection =
       gateAlreadyResolved
         ? 0
-        : (pool === "physical" ? target.physicalProtection : target.mentalProtection) +
-          getProtectionModifier(state, target.id, pool) +
-          passiveDefence;
+        : legacyStaticPreventionAmount(state, target, pool) + passiveDefence;
     const staticPrevented = Math.min(
       Math.max(0, activeRawWounds - normalDefenceBlocked - counterDefenceMetrics.counterMitigation),
       Math.max(0, protection),

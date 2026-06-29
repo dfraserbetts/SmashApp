@@ -40,6 +40,11 @@ import {
 type RawRangeCategory = { rangeCategory: string };
 type DamageTypeRow = { damageType: { name: string; attackMode: string } };
 type AttackEffectRow = { attackEffect: { name: string } };
+type VrpEntryRow = {
+  effectKind: "VULNERABILITY" | "RESISTANCE" | "PROTECTION";
+  magnitude: number;
+  damageType: { name: string };
+};
 
 export type CombatLabHydrationWarning = {
   actorId: string;
@@ -87,6 +92,7 @@ type ItemTemplateRow = {
   attackEffectsMelee?: AttackEffectRow[];
   attackEffectsRanged?: AttackEffectRow[];
   attackEffectsAoE?: AttackEffectRow[];
+  vrpEntries?: VrpEntryRow[];
 };
 
 type CharacterBackpackItemRow = {
@@ -240,6 +246,32 @@ function mapAttackEffects(rows: AttackEffectRow[] | undefined) {
   return (rows ?? []).map((row) => row.attackEffect.name).filter(Boolean);
 }
 
+function mapVrpEntries(rows: VrpEntryRow[] | undefined) {
+  return (rows ?? [])
+    .map((row) => ({
+      effectKind: row.effectKind,
+      magnitude: Math.max(0, Math.trunc(Number(row.magnitude ?? 0))),
+      damageType: row.damageType.name,
+    }))
+    .filter((row) => row.magnitude > 0 && row.damageType.trim().length > 0);
+}
+
+function vrpEntriesFromItems(items: Array<SummoningEquipmentItem | CharacterBuilderDerivedBackpackItem | null | undefined>) {
+  return items
+    .flatMap((item) => {
+      if (!item) return [];
+      return "itemTemplate" in item
+        ? item.itemTemplate.vrpEntries ?? []
+        : item.vrpEntries ?? [];
+    })
+    .map((entry) => ({
+      effectKind: entry.effectKind,
+      magnitude: Math.max(0, Math.trunc(Number(entry.magnitude ?? 0))),
+      damageType: String(entry.damageType ?? "").trim(),
+    }))
+    .filter((entry) => entry.magnitude > 0 && entry.damageType.length > 0);
+}
+
 function toDerivedBackpackItem(row: CharacterBackpackItemRow): CharacterBuilderDerivedBackpackItem {
   const template = row.partyInventoryItem.itemTemplate;
   return {
@@ -283,6 +315,7 @@ function toDerivedBackpackItem(row: CharacterBackpackItemRow): CharacterBuilderD
       attackEffectsMelee: mapAttackEffects(template.attackEffectsMelee),
       attackEffectsRanged: mapAttackEffects(template.attackEffectsRanged),
       attackEffectsAoE: mapAttackEffects(template.attackEffectsAoE),
+      vrpEntries: mapVrpEntries(template.vrpEntries),
       descriptorSections: [],
     },
   };
@@ -381,6 +414,7 @@ export function itemTemplateToSummoningEquipmentItem(template: ItemTemplateRow):
     ppv: template.ppv ?? null,
     mpv: template.mpv ?? null,
     globalAttributeModifiers: readGlobalAttributeModifiers(template.globalAttributeModifiers),
+    vrpEntries: mapVrpEntries(template.vrpEntries),
     melee: {
       enabled: rangeCategories.some((row) => row.rangeCategory === "MELEE"),
       targets: Math.max(1, Math.trunc(asNumber(template.meleeTargets, 1))),
@@ -650,6 +684,8 @@ export function adaptCampaignCharacterToCombatActor(
   const unsupportedCombatTraits: string[] = [];
   const builderData = normalizeBuilderData(row.builderData);
   const backpackItems = (row.backpackItems ?? []).map(toDerivedBackpackItem);
+  const equippedEntries = getEquippedEntries(builderData, backpackItems);
+  const equippedBackpackItems = equippedEntries.map((entry) => entry.backpackItem);
   const level = Math.max(1, Math.trunc(row.level || 1));
   const derived = buildCharacterDerivedCombatStats({ level, builderData, backpackItems, protectionTuning });
   const modifiers = derived.itemModifiers;
@@ -677,7 +713,7 @@ export function adaptCampaignCharacterToCombatActor(
       makeWarning(row.id, row.name, "powerAbstraction", message),
     ),
   );
-  const equipmentActions = getEquippedEntries(builderData, backpackItems).flatMap(({ slot, backpackItem }) => {
+  const equipmentActions = equippedEntries.flatMap(({ slot, backpackItem }) => {
     const type = backpackItem.itemTemplate.type;
     if (type !== "WEAPON" && type !== "SHIELD") return [];
     const label = `${slot}: ${backpackItem.itemTemplate.name ?? "Equipped item"}`;
@@ -786,6 +822,7 @@ export function adaptCampaignCharacterToCombatActor(
       },
       actionsPerTurn: 1,
       actions,
+      vrp: vrpEntriesFromItems(equippedBackpackItems),
       unsupportedPowers: adaptedPowers.flatMap((entry) => entry.unsupported),
       hydration: {
         source: "campaignCharacter",
@@ -1047,6 +1084,7 @@ export function adaptMonsterToCombatLabActor(
       },
       actionsPerTurn: row.tier === "BOSS" ? 2 : 1,
       actions,
+      vrp: vrpEntriesFromItems(equippedItems),
       unsupportedPowers: adaptedPowers.flatMap((entry) => entry.unsupported),
       hydration: {
         source: "campaignMonster",

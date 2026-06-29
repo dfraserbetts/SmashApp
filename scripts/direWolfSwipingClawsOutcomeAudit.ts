@@ -37,6 +37,7 @@ const ITEM_TEMPLATE_INCLUDE = {
   attackEffectsMelee: { select: { attackEffect: { select: { name: true } } } },
   attackEffectsRanged: { select: { attackEffect: { select: { name: true } } } },
   attackEffectsAoE: { select: { attackEffect: { select: { name: true } } } },
+  vrpEntries: { select: { effectKind: true, magnitude: true, damageType: { select: { name: true } } } },
 };
 
 const AXES: Array<keyof RadarAxes> = [
