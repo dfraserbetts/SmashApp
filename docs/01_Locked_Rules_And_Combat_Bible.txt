@@ -124,6 +124,50 @@ The assisting actor's power still uses its own normal output profile to
 determine the size and type of Assist pressure, but that output is used only to
 interfere with the target's defence or opposition against the ally's action.
 
+Assist Pressure Is Output-Stage Opposition Suppression, Not Payload
+
+Assist pressure is output-stage pressure, not a roll modifier. It does not add
+or subtract dice, alter an Attribute, modify die results, add attack successes,
+or change the triggering actor's generated payload.
+
+After the triggering action and the relevant defence/opposition are rolled and
+converted into outputs, matching Assist pressure reduces the relevant
+defensive/opposition output before final comparison.
+
+In the damage-prevention sequence, Assist pressure is applied after rolls are
+converted into outputs and after matching defensive prevention is summed, but
+before final hostile payload is compared against remaining defence.
+
+Against Dodge, Assist pressure reduces the defender's final Dodge successes
+before the Dodge match-or-exceed comparison. It does not add attack successes
+and does not become wounds.
+
+Against Block, Physical Defence, Mental Defence, or wound prevention, Assist
+pressure reduces wounds blocked or prevented before the triggering ally's
+payload is applied.
+
+Against Resist or cancellation, Assist pressure reduces relevant cancellation
+only when the assisting effect plausibly applies to that lane or effect. It
+does not itself apply the hostile effect.
+
+Assist pressure cannot reduce defensive output, Dodge successes, Resist
+cancellation, or prevention below 0. Excess Assist pressure is wasted.
+
+Assist pressure does not generate wound bands and cannot be used as a Primary
+wound result.
+
+Damage types on the assisting power may describe what opposition the pressure
+can plausibly affect, but Assist pressure does not apply those damage types to
+the target and does not trigger "when damaged", "when wounded", "when hit by
+[damage type]", or similar damage-triggered effects.
+
+Assist pressure only reduces opposition it can legally pressure. Physical Assist
+pressure reduces physical prevention or physical defence opposition. Mental
+Assist pressure reduces mental prevention or mental defence opposition.
+Resist/cancellation pressure applies only when the assisting effect plausibly
+matches the resisted lane or effect. A power may explicitly author broader
+pressure, but generic Assist does not assume universal pressure.
+
 Example:
 
 - Actor 1 declares a high-damage attack and generates 40 wounds of payload.
@@ -167,8 +211,9 @@ Assist modes:
    Game Director agrees it could plausibly help the ally's triggering action or
    defence, the power is rolled using its normal roll descriptor and an
    appropriate attribute chosen by the Game Director. Its normal hostile or
-   non-applicable payload is converted into Assist successes or Assist pressure
-   instead of resolving as written.
+   non-applicable payload is converted into defensive/supportive Assist
+   successes where the ally is defending, or Assist pressure where the ally is
+   making a hostile action, instead of resolving as written.
 3. Explicit off-turn hostile exception. A power may deal independent off-turn
    damage or hostile effects only if explicitly authored as a Counter, Trigger,
    interrupt, retaliation, trap, or other special off-turn hostile mechanic.

@@ -99,9 +99,10 @@ law until the owning active doc is updated with an explicit decision.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
   docs/02_Power_System_And_Costing.txt.
   Note: Generic Assist cannot create an independent hostile action. Offensive
-  Assist output becomes Assist pressure, and multiple generic Assists on one
-  trigger stack only through distinct Power Intentions unless explicit special
-  authoring says otherwise.
+  Assist output becomes output-stage Assist pressure, not a roll modifier,
+  payload, damage type application, wound-band source, or damage trigger.
+  Multiple generic Assists on one trigger stack only through distinct Power
+  Intentions unless explicit special authoring says otherwise.
 - Final defensive-pool numeric tuning values.
   Status: NEEDS BALANCE EVIDENCE.
   Owner: docs/02_Power_System_And_Costing.txt and
@@ -230,8 +231,10 @@ Immediate Ordered Work
    can halt incoming actions only when Control is Primary, logically relevant,
    and strictly exceeds; Secondary Control is after-effect only.
 7. Preserve Assist output law: generic Assist cannot create independent hostile
-   payload; hostile Assist output becomes Assist pressure and duplicate generic
-   Assists require distinct Power Intentions unless explicitly authored.
+   payload; hostile Assist output becomes output-stage Assist pressure, not a
+   roll modifier, payload boost, wound-band source, damage type application, or
+   damage trigger; duplicate generic Assists require distinct Power Intentions
+   unless explicitly authored.
 8. Keep Movement Counter as a Movement-power rule, not a Defence mode.
 9. Maintain finite defensive pools with refresh/replace higher-of-current-or-new
    as the default repeated-application rule.

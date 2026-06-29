@@ -264,6 +264,16 @@ payload. The assisting power's normal output profile still determines the size
 and lane of the Assist pressure, but that output is used only as pressure
 against opposition.
 
+Assist pressure is output-stage opposition suppression, not a roll modifier or
+payload boost. It does not add attack successes, alter dice, modify Attributes,
+increase generated payload, create wound bands, apply damage types, trigger
+damage/wound effects, or overflow into damage. After rolls are converted into
+outputs, matching Assist pressure reduces only the legal opposing output:
+Dodge successes before match-or-exceed, Block or wound prevention before
+payload comparison, or relevant Resist/cancellation where the assisting effect
+plausibly matches that lane or effect. It cannot reduce any defensive output
+below 0; excess Assist pressure is wasted.
+
 Direct payload-boosting support must be explicitly authored and costed. If a
 power is meant to add wounds, add successes directly to an ally's payload,
 multiply an ally's output, create independent off-turn damage, or apply an

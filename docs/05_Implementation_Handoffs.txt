@@ -72,7 +72,11 @@ Future implementation work must keep checking:
   grants or modifies that defence.
 - Generic Assist cannot create an independent hostile action or independent
   hostile payload. Offensive Assist output becomes Assist pressure against the
-  triggering ally's opposition, not damage or hostile effects.
+  triggering ally's opposition, not damage or hostile effects. Assist pressure
+  is output-stage opposition suppression, not a roll modifier or payload boost:
+  it reduces only legal matching opposition after rolls become outputs, floors
+  at 0, wastes excess pressure, does not create wound bands, does not apply
+  damage types, and does not trigger damage/wound effects.
 - Multiple generic Assists on the same trigger stack only through distinct Power
   Intentions unless explicit group-assist, combo, formation, ritual, squad
   tactic, or similar authoring says otherwise.
