@@ -1,5 +1,5 @@
 import { buildCombatLabSmokeScenarios, runCombatScenario } from "../lib/combat-lab/autoSimulator";
-import { resolveCombatAction, resolveStartOfTurnEffects } from "../lib/combat-lab/actionResolver";
+import { declareManualAssistPressure, resolveCombatAction, resolveStartOfTurnEffects } from "../lib/combat-lab/actionResolver";
 import {
   createCombatState,
   createActorInstances,
@@ -643,6 +643,304 @@ function runLinkedWoundBandFixture(prevention: number) {
   });
   if (state.transcriptLines.some((line) => /Secondary bundle/i.test(line))) {
     throw new Error(`TRIGGERED_CONDITIONAL secondary incorrectly entered simultaneous bundle: ${state.transcriptLines.join(" | ")}`);
+  }
+}
+
+{
+  const attacker = fixtureActor("assist-block-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const assistant = fixtureActor("assist-block-helper", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("assist-block-defender", "monsters", {
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 5,
+    attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const trigger = action({ id: "assist-block-trigger", name: "Assist Block Trigger", diceCount: 1, potency: 5 });
+  const assist = action({ id: "assist-block-pressure", name: "Assist Block Pressure", diceCount: 1, potency: 4, cooldownRounds: 2 });
+  const state = createCombatState([attacker, assistant], [defender], { captureTranscript: true });
+  const declaration = declareManualAssistPressure({
+    state,
+    assistingActor: state.actors[1],
+    triggeringAlly: state.actors[0],
+    triggeringAction: trigger,
+    assistingAction: assist,
+    targetActor: state.actors[2],
+    chosenAssistIntention: "ATTACK",
+    pressureLane: "physicalBlock",
+    generatedPressure: 4,
+  });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[2],
+    action: trigger,
+    rng: rngFrom([0.99, 0.99]),
+    lane: "main",
+  });
+  if (declaration.assistDeclared !== 1 || declaration.responsesUsed !== 1 || getActionCooldownRemaining(state, state.actors[1].id, assist.id) !== 2) {
+    throw new Error(`Legal Assist did not spend response/apply cooldown: ${JSON.stringify({ declaration, responses: state.responsesRemaining, cooldowns: state.cooldowns })}.`);
+  }
+  if (resolution.rawWounds !== 10 || resolution.protectionPrevented !== 6 || resolution.netWounds !== 4) {
+    throw new Error(`Assist pressure did not reduce Block prevention without changing ally payload: ${JSON.stringify(resolution)}.`);
+  }
+  if (resolution.assistPressureSpent !== 4 || resolution.assistPressureWasted !== 0) {
+    throw new Error(`Assist pressure spending against Block was not reported: ${JSON.stringify(resolution)}.`);
+  }
+  if (state.actors[2].physicalHpCurrent !== state.actors[2].physicalHpMax - 4) {
+    throw new Error("Assisting actor appears to have dealt independent damage instead of only occupying prevention.");
+  }
+}
+
+{
+  const attacker = fixtureActor("assist-overflow-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const assistant = fixtureActor("assist-overflow-helper", "players");
+  const defender = fixtureActor("assist-overflow-defender", "monsters", {
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 5,
+    attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const trigger = action({ id: "assist-overflow-trigger", name: "Assist Overflow Trigger", diceCount: 1, potency: 5 });
+  const assist = action({ id: "assist-overflow-pressure", name: "Assist Overflow Pressure", cooldownRounds: 2 });
+  const state = createCombatState([attacker, assistant], [defender], { captureTranscript: true });
+  declareManualAssistPressure({
+    state,
+    assistingActor: state.actors[1],
+    triggeringAlly: state.actors[0],
+    triggeringAction: trigger,
+    assistingAction: assist,
+    targetActor: state.actors[2],
+    chosenAssistIntention: "ATTACK",
+    pressureLane: "physicalBlock",
+    generatedPressure: 15,
+  });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[2],
+    action: trigger,
+    rng: rngFrom([0.99, 0.99]),
+    lane: "main",
+  });
+  if (resolution.rawWounds !== 10 || resolution.netWounds !== 10 || state.actors[2].physicalHpCurrent !== state.actors[2].physicalHpMax - 10) {
+    throw new Error(`Excess Assist pressure overflowed or changed triggering payload: ${JSON.stringify(resolution)}.`);
+  }
+  if (resolution.assistPressureSpent !== 10 || resolution.assistPressureWasted !== 5 || resolution.protectionPrevented !== 0) {
+    throw new Error(`Excess Assist pressure was not spent/wasted correctly: ${JSON.stringify(resolution)}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("assist-dodge-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const assistant = fixtureActor("assist-dodge-helper", "players");
+  const defender = fixtureActor("assist-dodge-defender", "monsters", {
+    dodgeDice: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const trigger = action({ id: "assist-dodge-trigger", name: "Assist Dodge Trigger", diceCount: 1, potency: 4 });
+  const assist = action({ id: "assist-dodge-pressure", name: "Assist Dodge Pressure" });
+  const state = createCombatState([attacker, assistant], [defender], { captureTranscript: true });
+  declareManualAssistPressure({
+    state,
+    assistingActor: state.actors[1],
+    triggeringAlly: state.actors[0],
+    triggeringAction: trigger,
+    assistingAction: assist,
+    targetActor: state.actors[2],
+    chosenAssistIntention: "ATTACK",
+    pressureLane: "dodge",
+    generatedPressure: 2,
+  });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[2],
+    action: trigger,
+    rng: rngFrom([0.5, 0.99]),
+    lane: "main",
+  });
+  if (resolution.rawSuccesses !== 1 || resolution.rawWounds !== 4 || resolution.dodgeSuccesses !== 0 || resolution.netWounds !== 4) {
+    throw new Error(`Assist pressure against Dodge added payload or failed to reduce opposition: ${JSON.stringify(resolution)}.`);
+  }
+  if (resolution.assistPressureSpent !== 2 || resolution.woundsAvoidedByDodge !== 0) {
+    throw new Error(`Dodge Assist pressure was not tracked correctly: ${JSON.stringify(resolution)}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("assist-resist-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const helper = fixtureActor("assist-resist-helper", "players");
+  const wrongHelper = fixtureActor("assist-resist-wrong-helper", "players");
+  const defender = fixtureActor("assist-resist-defender", "monsters", {
+    resist: { ATTACK: 0, BRAVERY: 0 },
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const trigger = action({
+    id: "assist-resist-trigger",
+    name: "Assist Resist Trigger",
+    kind: "debuff",
+    diceCount: 1,
+    potency: 1,
+    resistAttribute: "ATTACK",
+    modifier: { attribute: "Attack", amount: 1, durationRounds: 1 },
+  });
+  const assist = action({ id: "assist-resist-pressure", name: "Assist Resist Pressure" });
+  const wrongAssist = action({ id: "assist-resist-wrong-pressure", name: "Assist Resist Wrong Pressure" });
+  const state = createCombatState([attacker, helper, wrongHelper], [defender], { captureTranscript: true });
+  declareManualAssistPressure({
+    state,
+    assistingActor: state.actors[1],
+    triggeringAlly: state.actors[0],
+    triggeringAction: trigger,
+    assistingAction: assist,
+    targetActor: state.actors[3],
+    chosenAssistIntention: "ATTACK",
+    pressureLane: "resist",
+    resistedAttribute: "ATTACK",
+    generatedPressure: 1,
+  });
+  declareManualAssistPressure({
+    state,
+    assistingActor: state.actors[2],
+    triggeringAlly: state.actors[0],
+    triggeringAction: trigger,
+    assistingAction: wrongAssist,
+    targetActor: state.actors[3],
+    chosenAssistIntention: "DEBUFF",
+    pressureLane: "resist",
+    resistedAttribute: "BRAVERY",
+    generatedPressure: 1,
+  });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[3],
+    action: trigger,
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99]),
+    lane: "power",
+  });
+  if (resolution.hostileSuccessesBeforeResist !== 2 || resolution.hostileSuccessesAfterResist !== 1 || resolution.debuffApplications !== 1) {
+    throw new Error(`Matching Assist pressure did not reduce Resist cancellation: ${JSON.stringify(resolution)}.`);
+  }
+  if (resolution.assistPressureSpent !== 1 || state.assistPressures.find((pressure) => pressure.sourceActionId === wrongAssist.id)?.amountSpent !== 0) {
+    throw new Error(`Wrong-lane Resist Assist pressure applied unexpectedly: ${JSON.stringify({ resolution, pressures: state.assistPressures })}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("assist-stack-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const firstHelper = fixtureActor("assist-stack-first-helper", "players");
+  const secondHelper = fixtureActor("assist-stack-second-helper", "players");
+  const augmentHelper = fixtureActor("assist-stack-augment-helper", "players");
+  const defender = fixtureActor("assist-stack-defender", "monsters", {
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 5,
+    attributeDice: { Attack: "D8", Guard: "D12", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const trigger = action({ id: "assist-stack-trigger", name: "Assist Stack Trigger", diceCount: 1, potency: 5 });
+  const firstAssist = action({ id: "assist-stack-attack-one", name: "Assist Stack Attack One", cooldownRounds: 2 });
+  const duplicateAssist = action({ id: "assist-stack-attack-two", name: "Assist Stack Attack Two", cooldownRounds: 2 });
+  const augmentAssist = action({ id: "assist-stack-augment", name: "Assist Stack Augment", kind: "buff", targetPolicy: "ally", cooldownRounds: 2 });
+  const state = createCombatState([attacker, firstHelper, secondHelper, augmentHelper], [defender], { captureTranscript: true });
+  const first = declareManualAssistPressure({
+    state,
+    assistingActor: state.actors[1],
+    triggeringAlly: state.actors[0],
+    triggeringAction: trigger,
+    assistingAction: firstAssist,
+    targetActor: state.actors[4],
+    chosenAssistIntention: "ATTACK",
+    pressureLane: "physicalBlock",
+    generatedPressure: 2,
+  });
+  const duplicate = declareManualAssistPressure({
+    state,
+    assistingActor: state.actors[2],
+    triggeringAlly: state.actors[0],
+    triggeringAction: trigger,
+    assistingAction: duplicateAssist,
+    targetActor: state.actors[4],
+    chosenAssistIntention: "ATTACK",
+    pressureLane: "physicalBlock",
+    generatedPressure: 9,
+  });
+  const augment = declareManualAssistPressure({
+    state,
+    assistingActor: state.actors[3],
+    triggeringAlly: state.actors[0],
+    triggeringAction: trigger,
+    assistingAction: augmentAssist,
+    targetActor: state.actors[4],
+    chosenAssistIntention: "AUGMENT",
+    pressureLane: "physicalBlock",
+    generatedPressure: 3,
+  });
+  if (first.assistDeclared !== 1 || duplicate.assistRejected !== 1 || augment.assistDeclared !== 1) {
+    throw new Error(`Assist stacking declarations did not distinguish duplicate and distinct intentions: ${JSON.stringify({ first, duplicate, augment })}.`);
+  }
+  if (state.responsesRemaining[state.actors[2].id] !== 2 || isActionOnCooldown(state, state.actors[2].id, duplicateAssist.id)) {
+    throw new Error("Rejected duplicate Assist spent response or applied cooldown.");
+  }
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[4],
+    action: trigger,
+    rng: rngFrom([0.99, 0.99]),
+    lane: "main",
+  });
+  if (resolution.assistPressureSpent !== 5 || resolution.netWounds !== 5) {
+    throw new Error(`Distinct-intention Assists did not both contribute or duplicate Assist leaked pressure: ${JSON.stringify({ resolution, pressures: state.assistPressures })}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("assist-zero-attacker", "players", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const assistant = fixtureActor("assist-zero-helper", "players");
+  const defender = fixtureActor("assist-zero-defender", "monsters");
+  const trigger = action({ id: "assist-zero-trigger", name: "Assist Zero Trigger", diceCount: 1, potency: 5 });
+  const assist = action({ id: "assist-zero-pressure", name: "Assist Zero Pressure" });
+  const state = createCombatState([attacker, assistant], [defender], { captureTranscript: true });
+  declareManualAssistPressure({
+    state,
+    assistingActor: state.actors[1],
+    triggeringAlly: state.actors[0],
+    triggeringAction: trigger,
+    assistingAction: assist,
+    targetActor: state.actors[2],
+    chosenAssistIntention: "ATTACK",
+    pressureLane: "physicalBlock",
+    generatedPressure: 10,
+  });
+  const resolution = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[2],
+    action: trigger,
+    rng: rngFrom([0.0]),
+    lane: "main",
+  });
+  if (resolution.rawWounds !== 0 || resolution.netWounds !== 0 || state.actors[2].physicalHpCurrent !== state.actors[2].physicalHpMax) {
+    throw new Error(`Assist pressure created payload from a zero-success trigger: ${JSON.stringify(resolution)}.`);
+  }
+  if (resolution.assistPressureSpent !== 0) {
+    throw new Error("Zero-payload Assist pressure should not be spent as damage.");
   }
 }
 

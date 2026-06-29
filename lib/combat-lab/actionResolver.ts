@@ -22,6 +22,9 @@ import type {
   CombatActionLane,
   CombatActor,
   CombatAttributeName,
+  CombatAssistMode,
+  CombatAssistPressureLane,
+  CombatAssistTriggerType,
   CombatDefensivePool,
   CombatDefensivePoolActionMetrics,
   CombatDefensivePoolMetrics,
@@ -34,6 +37,7 @@ import type {
   CombatOngoingPressureSideTotals,
   CombatState,
 } from "./types";
+import type { CoreAttribute, PowerIntention } from "@/lib/summoning/types";
 
 const CORE_TO_COMBAT_ATTRIBUTE: Record<string, CombatAttributeName> = {
   ATTACK: "Attack",
@@ -51,6 +55,24 @@ const COMBAT_TO_CORE_ATTRIBUTE: Record<CombatAttributeName, keyof CombatActor["r
   Intellect: "INTELLECT",
   Synergy: "SYNERGY",
   Bravery: "BRAVERY",
+};
+
+export type ManualAssistDeclarationParams = {
+  state: CombatState;
+  assistingActor: CombatActor;
+  triggeringAlly: CombatActor;
+  triggeringAction: CombatAction;
+  assistingAction: CombatAction;
+  targetActor?: CombatActor | null;
+  triggerId?: string;
+  triggerType?: CombatAssistTriggerType;
+  chosenAssistIntention?: PowerIntention;
+  occupiedIntentions?: PowerIntention[];
+  mode?: CombatAssistMode;
+  pressureLane: CombatAssistPressureLane;
+  resistedAttribute?: CoreAttribute | null;
+  generatedPressure?: number;
+  rng?: Rng;
 };
 
 function emptyResolution(): CombatResolutionMetrics {
@@ -110,6 +132,11 @@ function emptyResolution(): CombatResolutionMetrics {
     counterMitigation: 0,
     responsesUsed: 0,
     responsesWastedOrUnavailable: 0,
+    assistDeclared: 0,
+    assistRejected: 0,
+    assistPressureGenerated: 0,
+    assistPressureSpent: 0,
+    assistPressureWasted: 0,
     passiveDefenceContribution: 0,
     stacksApplied: 0,
     stacksExpired: 0,
@@ -121,6 +148,242 @@ function emptyResolution(): CombatResolutionMetrics {
     ongoingPressure: createEmptyOngoingPressureMetrics(),
     defensivePools: createEmptyDefensivePoolMetrics(),
   };
+}
+
+function assistTriggerId(params: {
+  state: CombatState;
+  triggeringAlly: CombatActor;
+  triggeringAction: CombatAction;
+  targetActor?: CombatActor | null;
+}) {
+  return [
+    params.state.round,
+    params.triggeringAlly.id,
+    params.triggeringAction.id,
+    params.targetActor?.id ?? "none",
+  ].join(":");
+}
+
+function intentionForAction(action: CombatAction): PowerIntention {
+  const sourceIntention = action.source?.packet?.intention;
+  if (sourceIntention) return sourceIntention;
+  if (action.kind === "attack") return "ATTACK";
+  if (action.kind === "defence") return "DEFENCE";
+  if (action.kind === "healing") return "HEALING";
+  if (action.kind === "cleanse") return "CLEANSE";
+  if (action.kind === "control") return "CONTROL";
+  if (action.kind === "movement") return "MOVEMENT";
+  if (action.kind === "buff") return "AUGMENT";
+  if (action.kind === "debuff") return "DEBUFF";
+  return "SUPPORT";
+}
+
+function calculateAssistPressure(params: ManualAssistDeclarationParams): {
+  amount: number;
+  rollSummary?: CombatRollSummary;
+} {
+  if (params.generatedPressure !== undefined) {
+    return { amount: Math.max(0, Math.trunc(params.generatedPressure)) };
+  }
+  if (!params.rng) return { amount: 0 };
+  const target = params.targetActor ?? params.triggeringAlly;
+  const attribute = effectiveAccuracyAttribute(params.assistingActor, target, params.assistingAction);
+  const modifier = getAttributeModifier(params.state, params.assistingActor.id, attribute);
+  const roll = rollDice(Math.max(0, params.assistingAction.diceCount), getActorDie(params.assistingActor, attribute), params.rng, modifier);
+  const rollSummary = summarizeRoll({
+    actor: params.assistingActor,
+    reason: `${params.assistingAction.name} Assist`,
+    attribute,
+    roll,
+  });
+  return { amount: roll.successes * Math.max(1, params.assistingAction.potency), rollSummary };
+}
+
+export function declareManualAssistPressure(params: ManualAssistDeclarationParams): CombatResolutionMetrics {
+  const metrics = emptyResolution();
+  const triggerId = params.triggerId ?? assistTriggerId(params);
+  const chosenAssistIntention = params.chosenAssistIntention ?? intentionForAction(params.assistingAction);
+  const occupiedIntentions = params.occupiedIntentions?.length
+    ? params.occupiedIntentions
+    : [chosenAssistIntention];
+  const mode = params.mode ?? "improvised";
+  const duplicate = mode !== "explicitSpecial" && params.state.assistDeclarations.some(
+    (assist) =>
+      assist.legal &&
+      assist.mode !== "explicitSpecial" &&
+      assist.triggerId === triggerId &&
+      assist.occupiedIntentions.some((intention) => occupiedIntentions.includes(intention)),
+  );
+
+  const reject = (reason: string) => {
+    const declaration = {
+      id: `${triggerId}:assist:${params.assistingActor.id}:${params.assistingAction.id}:${params.state.assistDeclarations.length + 1}`,
+      triggerId,
+      triggerType: params.triggerType ?? "allyAction",
+      assistingActorId: params.assistingActor.id,
+      triggeringAllyId: params.triggeringAlly.id,
+      triggeringActionId: params.triggeringAction.id,
+      assistingActionId: params.assistingAction.id,
+      targetActorId: params.targetActor?.id ?? null,
+      chosenAssistIntention,
+      occupiedIntentions,
+      mode,
+      pressureLane: params.pressureLane,
+      resistedAttribute: params.resistedAttribute ?? null,
+      responseCost: 1 as const,
+      legal: false,
+      rejectionReason: reason,
+    };
+    params.state.assistDeclarations.push(declaration);
+    metrics.assistRejected = 1;
+    emitTranscriptEvent(params.state, {
+      type: "assistDeclared",
+      actorId: params.assistingActor.id,
+      actorName: params.assistingActor.name,
+      targetId: params.targetActor?.id ?? params.triggeringAlly.id,
+      targetName: params.targetActor?.name ?? params.triggeringAlly.name,
+      actionId: params.assistingAction.id,
+      actionName: params.assistingAction.name,
+      lane: "response",
+      message: `Assist rejected: ${params.assistingActor.name}'s ${params.assistingAction.name} cannot assist ${params.triggeringAction.name}. ${reason}.`,
+      details: {
+        triggerId,
+        chosenAssistIntention,
+        pressureLane: params.pressureLane,
+        reason,
+      },
+    });
+    return metrics;
+  };
+
+  if (duplicate) return reject(`duplicate generic ${chosenAssistIntention} Assist on this trigger`);
+  if ((params.state.responsesRemaining[params.assistingActor.id] ?? 0) < 1) {
+    metrics.responsesWastedOrUnavailable = 1;
+    return reject("no Response available");
+  }
+  if (isActionOnCooldown(params.state, params.assistingActor.id, params.assistingAction.id)) {
+    recordCooldownPreventedUse(params.state, params.assistingActor, params.assistingAction);
+    return reject("assisting power is on cooldown");
+  }
+
+  const declarationId = `${triggerId}:assist:${params.assistingActor.id}:${params.assistingAction.id}:${params.state.assistDeclarations.length + 1}`;
+  const { amount, rollSummary } = calculateAssistPressure(params);
+  params.state.assistDeclarations.push({
+    id: declarationId,
+    triggerId,
+    triggerType: params.triggerType ?? "allyAction",
+    assistingActorId: params.assistingActor.id,
+    triggeringAllyId: params.triggeringAlly.id,
+    triggeringActionId: params.triggeringAction.id,
+    assistingActionId: params.assistingAction.id,
+    targetActorId: params.targetActor?.id ?? null,
+    chosenAssistIntention,
+    occupiedIntentions,
+    mode,
+    pressureLane: params.pressureLane,
+    resistedAttribute: params.resistedAttribute ?? null,
+    responseCost: 1,
+    legal: true,
+    rejectionReason: null,
+  });
+  if (amount > 0) {
+    params.state.assistPressures.push({
+      triggerId,
+      sourceAssistId: declarationId,
+      sourceActorId: params.assistingActor.id,
+      sourceActionId: params.assistingAction.id,
+      chosenAssistIntention,
+      lane: params.pressureLane,
+      resistedAttribute: params.resistedAttribute ?? null,
+      amountGenerated: amount,
+      amountSpent: 0,
+      amountWasted: 0,
+    });
+  }
+  spendActorResponse(params.state, params.assistingActor.id);
+  recordActionUse(params.state, params.assistingActor, params.assistingAction);
+  applyActionCooldown(params.state, params.assistingActor, params.assistingAction);
+  metrics.assistDeclared = 1;
+  metrics.assistPressureGenerated = amount;
+  metrics.responsesUsed = 1;
+  emitTranscriptEvent(params.state, {
+    type: "assistDeclared",
+    actorId: params.assistingActor.id,
+    actorName: params.assistingActor.name,
+    targetId: params.targetActor?.id ?? params.triggeringAlly.id,
+    targetName: params.targetActor?.name ?? params.triggeringAlly.name,
+    actionId: params.assistingAction.id,
+    actionName: params.assistingAction.name,
+    lane: "response",
+    message: `Assist declared: ${params.assistingActor.name} uses ${params.assistingAction.name} as a ${chosenAssistIntention} Assist for ${params.triggeringAlly.name}'s ${params.triggeringAction.name}; generated ${amount} ${params.pressureLane} Assist pressure.`,
+    roll: rollSummary,
+    details: {
+      triggerId,
+      chosenAssistIntention,
+      pressureLane: params.pressureLane,
+      generatedPressure: amount,
+      responseCost: 1,
+      resistedAttribute: params.resistedAttribute ?? null,
+    },
+  });
+  return metrics;
+}
+
+function consumeAssistPressure(params: {
+  state: CombatState;
+  metrics: CombatResolutionMetrics;
+  triggerId?: string | null;
+  lane: CombatAssistPressureLane;
+  maxReduction: number;
+  resistedAttribute?: CoreAttribute | null;
+}): { spent: number; wasted: number } {
+  if (!params.triggerId || params.maxReduction <= 0) return { spent: 0, wasted: 0 };
+  let remainingReduction = Math.max(0, params.maxReduction);
+  let spent = 0;
+  let wasted = 0;
+  for (const pressure of params.state.assistPressures) {
+    if (pressure.triggerId !== params.triggerId || pressure.lane !== params.lane) continue;
+    if (
+      params.lane === "resist" &&
+      pressure.resistedAttribute &&
+      params.resistedAttribute &&
+      pressure.resistedAttribute !== params.resistedAttribute
+    ) {
+      continue;
+    }
+    const available = Math.max(0, pressure.amountGenerated - pressure.amountSpent - pressure.amountWasted);
+    if (available <= 0) continue;
+    const use = Math.min(available, remainingReduction);
+    pressure.amountSpent += use;
+    spent += use;
+    remainingReduction -= use;
+    const excess = available - use;
+    if (excess > 0) {
+      pressure.amountWasted += excess;
+      wasted += excess;
+    }
+    if (remainingReduction <= 0) {
+      continue;
+    }
+  }
+  params.metrics.assistPressureSpent += spent;
+  params.metrics.assistPressureWasted += wasted;
+  if (spent > 0 || wasted > 0) {
+    emitTranscriptEvent(params.state, {
+      type: "assistPressure",
+      lane: "response",
+      message: `Assist pressure: ${params.lane} pressure spent ${spent}, wasted ${wasted}; opposition cannot be reduced below 0 and no pressure becomes payload.`,
+      details: {
+        triggerId: params.triggerId,
+        lane: params.lane,
+        spent,
+        wasted,
+        maxReduction: params.maxReduction,
+        resistedAttribute: params.resistedAttribute ?? null,
+      },
+    });
+  }
+  return { spent, wasted };
 }
 
 function effectiveAccuracyAttribute(actor: CombatActor, target: CombatActor, action: CombatAction): CombatAttributeName {
@@ -344,7 +607,7 @@ function recordModifiedResistRoll(metrics: CombatResolutionMetrics, modifier: nu
   if (modifier < 0) metrics.debuffedResistRolls += 1;
 }
 
-function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses: number, rng: Rng): CombatResolutionMetrics {
+function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses: number, rng: Rng, assistTriggerId?: string | null): CombatResolutionMetrics {
   const metrics = emptyResolution();
   if (incomingSuccesses <= 0) return metrics;
   const requestedPoolCommit = estimatePoolCommit(state, target, "DODGE", { incomingSuccesses });
@@ -362,13 +625,21 @@ function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses
   const rollSummary = summarizeRoll({ actor: target, reason: "Dodge", attribute: "Guard", roll });
   const poolSuccesses = poolCommit?.committed ?? 0;
   const totalDodgeSuccesses = roll.successes + poolSuccesses;
+  const assistPressure = consumeAssistPressure({
+    state,
+    metrics,
+    triggerId: assistTriggerId,
+    lane: "dodge",
+    maxReduction: totalDodgeSuccesses,
+  });
+  const effectiveDodgeSuccesses = Math.max(0, totalDodgeSuccesses - assistPressure.spent);
   metrics.dodgeRolls = 1;
   metrics.dodgeChosen = 1;
   metrics.dodgeDegradationApplied = degradation;
   metrics.degradedDefenceRolls = degradation > 0 ? 1 : 0;
-  metrics.dodgeSuccesses = totalDodgeSuccesses;
+  metrics.dodgeSuccesses = effectiveDodgeSuccesses;
   recordModifiedDefenceRoll(metrics, roll.modifier);
-  if (totalDodgeSuccesses >= incomingSuccesses) {
+  if (effectiveDodgeSuccesses >= incomingSuccesses) {
     metrics.woundsAvoidedByDodge = incomingSuccesses;
   }
   if (poolCommit) {
@@ -376,7 +647,7 @@ function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses
       metrics,
       pool: poolCommit.pool,
       committed: poolCommit.committed,
-      effective: totalDodgeSuccesses >= incomingSuccesses
+      effective: effectiveDodgeSuccesses >= incomingSuccesses
         ? Math.min(poolCommit.committed, Math.max(0, incomingSuccesses - roll.successes))
         : 0,
       result: "dodge",
@@ -390,7 +661,7 @@ function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses
     actorId: target.id,
     actorName: target.name,
     lane: "response",
-    message: `${rollText(rollSummary)}${poolSuccesses > 0 ? ` Defensive Dodge pool adds ${poolSuccesses} success${poolSuccesses === 1 ? "" : "es"}.` : ""} Dodge ${totalDodgeSuccesses >= incomingSuccesses ? "succeeded" : "failed"} against ${incomingSuccesses} incoming successes. Degradation ${degradation}, final dice ${diceCount}.`,
+    message: `${rollText(rollSummary)}${poolSuccesses > 0 ? ` Defensive Dodge pool adds ${poolSuccesses} success${poolSuccesses === 1 ? "" : "es"}.` : ""}${assistPressure.spent > 0 ? ` Assist pressure reduces Dodge opposition by ${assistPressure.spent}.` : ""} Dodge ${effectiveDodgeSuccesses >= incomingSuccesses ? "succeeded" : "failed"} against ${incomingSuccesses} incoming successes. Degradation ${degradation}, final dice ${diceCount}.`,
     roll: rollSummary,
     details: {
       incomingSuccesses,
@@ -399,7 +670,10 @@ function resolveDodge(state: CombatState, target: CombatActor, incomingSuccesses
       finalDice: diceCount,
       poolSuccesses,
       totalDodgeSuccesses,
-      dodgeSucceeded: totalDodgeSuccesses >= incomingSuccesses,
+      assistPressureSpent: assistPressure.spent,
+      assistPressureWasted: assistPressure.wasted,
+      effectiveDodgeSuccesses,
+      dodgeSucceeded: effectiveDodgeSuccesses >= incomingSuccesses,
     },
   });
   return metrics;
@@ -581,6 +855,7 @@ function resolveBestNormalDefence(params: {
   rawWounds: number;
   rng: Rng;
   ongoingPerTick?: boolean;
+  assistTriggerId?: string | null;
 }): CombatResolutionMetrics {
   if (params.target.defensivePoolCommitmentMode === "poolOnly") {
     const blockPoolOnlyCommit = estimatePoolOnlyCommit(params.state, params.target, params.pool === "physical" ? "PHYSICAL_BLOCK" : "MENTAL_BLOCK", {
@@ -652,7 +927,7 @@ function resolveBestNormalDefence(params: {
       ? resolveDefenceString(params.state, params.target, params.pool, params.rawWounds, params.rng, {
           ongoingPerTick: params.ongoingPerTick,
         })
-      : resolveDodge(params.state, params.target, params.incomingSuccesses, params.rng);
+      : resolveDodge(params.state, params.target, params.incomingSuccesses, params.rng, params.assistTriggerId);
   metrics.defenceChoiceExpectedValue = Math.max(dodgeValue, defenceStringValue);
   return metrics;
 }
@@ -1440,7 +1715,7 @@ function aoePotentialTargetCount(action: CombatAction): number {
   return Math.max(1, action.targetCount ?? 4);
 }
 
-function resolveResist(state: CombatState, target: CombatActor, action: CombatAction, successes: number, rng: Rng): CombatResolutionMetrics {
+function resolveResist(state: CombatState, target: CombatActor, action: CombatAction, successes: number, rng: Rng, assistTriggerId?: string | null): CombatResolutionMetrics {
   const metrics = emptyResolution();
   metrics.hostileSuccessesBeforeResist = successes;
   metrics.hostileSuccessesAfterResist = successes;
@@ -1470,7 +1745,16 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
   const resistRoll = rollAttributeDice({ state, actor: target, attribute, diceCount: resistDice, rng });
   const rollSummary = summarizeRoll({ actor: target, reason: `${action.name} resist`, attribute, roll: resistRoll });
   const poolCancelled = Math.min(Math.max(0, successes - resistRoll.successes), poolCommit?.committed ?? 0);
-  const cancelled = Math.min(successes, resistRoll.successes + poolCancelled);
+  const cancelledBeforeAssist = Math.min(successes, resistRoll.successes + poolCancelled);
+  const assistPressure = consumeAssistPressure({
+    state,
+    metrics,
+    triggerId: assistTriggerId,
+    lane: "resist",
+    maxReduction: cancelledBeforeAssist,
+    resistedAttribute: action.resistAttribute,
+  });
+  const cancelled = Math.max(0, cancelledBeforeAssist - assistPressure.spent);
   if (poolCommit) {
     finishDefensivePoolCommit({
       metrics,
@@ -1484,7 +1768,7 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
     }
   }
   metrics.resistRolls = 1;
-  metrics.resistSuccesses = resistRoll.successes + (poolCommit?.committed ?? 0);
+  metrics.resistSuccesses = Math.max(0, resistRoll.successes + (poolCommit?.committed ?? 0) - assistPressure.spent);
   metrics.resistCancelled = cancelled;
   metrics.degradedDefenceRolls = degradation > 0 ? 1 : 0;
   recordModifiedResistRoll(metrics, resistRoll.modifier);
@@ -1497,7 +1781,7 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
     actionId: action.id,
     actionName: action.name,
     lane: "response",
-    message: `${rollText(rollSummary)}${poolCommit ? ` Resist pool adds ${poolCommit.committed} cancellation unit${poolCommit.committed === 1 ? "" : "s"}.` : ""} Resist formula 3 + ${action.resistAttribute} resist value = ${baseResistDice} dice; degradation ${degradation}, final dice ${resistDice}; cancelled ${cancelled} of ${successes} hostile successes.`,
+    message: `${rollText(rollSummary)}${poolCommit ? ` Resist pool adds ${poolCommit.committed} cancellation unit${poolCommit.committed === 1 ? "" : "s"}.` : ""}${assistPressure.spent > 0 ? ` Assist pressure reduces Resist cancellation by ${assistPressure.spent}.` : ""} Resist formula 3 + ${action.resistAttribute} resist value = ${baseResistDice} dice; degradation ${degradation}, final dice ${resistDice}; cancelled ${cancelled} of ${successes} hostile successes.`,
     roll: rollSummary,
     details: {
       resistAttribute: action.resistAttribute,
@@ -1507,6 +1791,9 @@ function resolveResist(state: CombatState, target: CombatActor, action: CombatAc
       incomingSuccesses: successes,
       cancelled,
       poolCancelled,
+      cancelledBeforeAssist,
+      assistPressureSpent: assistPressure.spent,
+      assistPressureWasted: assistPressure.wasted,
       remainingSuccesses: metrics.hostileSuccessesAfterResist,
     },
   });
@@ -2928,6 +3215,7 @@ function resolveSingleTargetAction(params: {
   const inheritedPrimaryAppliedSuccesses = Math.max(0, Math.trunc(params.primaryAppliedSuccesses ?? 0));
   const skipOwnRoll = Boolean(params.fromSecondary && (action.skipOwnRoll || action.usesPrimaryAppliedSuccesses));
   const poolForCounterDeclaration = action.pool ?? "physical";
+  const currentAssistTriggerId = assistTriggerId({ state, triggeringAlly: actor, triggeringAction: action, targetActor: target });
   const counterDeclaration =
     !gateAlreadyResolved &&
     !params.fromSecondary &&
@@ -3007,7 +3295,7 @@ function resolveSingleTargetAction(params: {
     (action.kind === "attack" || action.kind === "debuff" || action.kind === "control" || action.kind === "movement") &&
     !counterDeclaration.declared
   ) {
-    const resistMetrics = resolveResist(state, target, action, metrics.rawSuccesses, rng);
+    const resistMetrics = resolveResist(state, target, action, metrics.rawSuccesses, rng, currentAssistTriggerId);
     addMetrics(metrics, resistMetrics);
   }
 
@@ -3122,6 +3410,7 @@ function resolveSingleTargetAction(params: {
           rawWounds,
           rng,
           ongoingPerTick: isPureOngoingDamage,
+          assistTriggerId: currentAssistTriggerId,
         });
     addMetrics(metrics, normalDefenceMetrics);
     if (normalDefenceMetrics.woundsAvoidedByDodge > 0) {
@@ -3204,14 +3493,22 @@ function resolveSingleTargetAction(params: {
           pool,
           Math.max(0, activeRawWounds - normalDefenceBlocked - counterDefenceMetrics.counterMitigation),
         );
-    const prevented = normalDefenceBlocked + counterDefenceMetrics.counterMitigation + staticPrevented;
+    const preventedBeforeAssist = normalDefenceBlocked + counterDefenceMetrics.counterMitigation + staticPrevented;
+    const preventionAssistPressure = consumeAssistPressure({
+      state,
+      metrics,
+      triggerId: currentAssistTriggerId,
+      lane: pool === "physical" ? "physicalBlock" : "mentalBlock",
+      maxReduction: preventedBeforeAssist,
+    });
+    const prevented = Math.max(0, preventedBeforeAssist - preventionAssistPressure.spent);
     const netWounds = isPureOngoingDamage ? 0 : Math.max(0, activeRawWounds - prevented);
     const storedOngoingWounds = isPureOngoingDamage ? Math.max(0, activeRawWounds - prevented) : 0;
     const overkill = isPureOngoingDamage ? 0 : applyWounds(target, pool, netWounds);
 
     metrics.rawWounds = rawWounds;
     metrics.protectionPrevented = prevented;
-    metrics.staticProtectionPrevented = staticPrevented;
+    metrics.staticProtectionPrevented = Math.max(0, staticPrevented - preventionAssistPressure.spent);
     metrics.passiveDefenceContribution = Math.min(activeRawWounds, passiveDefence);
     metrics.netWounds = netWounds;
     metrics.overkill = overkill;
@@ -3254,8 +3551,8 @@ function resolveSingleTargetAction(params: {
           actionId: action.id,
           actionName: action.name,
           lane,
-          message: `Application result: ${target.name}'s declaration defence fully prevents ${action.name}; no ongoing damage status is created. Prevented ${prevented} (${normalDefenceBlocked} defence, ${counterDefenceMetrics.counterMitigation} counter, ${staticPrevented} static/passive).`,
-          details: { rawWounds: activeRawWounds, prevented, storedOngoingWounds: 0, pool },
+          message: `Application result: ${target.name}'s declaration defence fully prevents ${action.name}; no ongoing damage status is created. Prevented ${prevented} (${normalDefenceBlocked} defence, ${counterDefenceMetrics.counterMitigation} counter, ${staticPrevented} static/passive${preventionAssistPressure.spent > 0 ? `, ${preventionAssistPressure.spent} Assist pressure occupied prevention` : ""}).`,
+          details: { rawWounds: activeRawWounds, prevented, preventedBeforeAssist, assistPressureSpent: preventionAssistPressure.spent, assistPressureWasted: preventionAssistPressure.wasted, storedOngoingWounds: 0, pool },
         });
       } else if (action.recurring?.kind === "ongoingDamage") {
         const units = Math.max(1, Math.ceil(storedOngoingWounds / Math.max(1, effectPerSuccess)));
@@ -3293,6 +3590,9 @@ function resolveSingleTargetAction(params: {
             effect: "ongoingDamage",
             storedOngoingWounds,
             prevented,
+            preventedBeforeAssist,
+            assistPressureSpent: preventionAssistPressure.spent,
+            assistPressureWasted: preventionAssistPressure.wasted,
             rawWounds: activeRawWounds,
             durationRounds: action.recurring.durationRounds,
           },
@@ -3315,6 +3615,9 @@ function resolveSingleTargetAction(params: {
             durationRounds: action.recurring.durationRounds,
             pool,
             prevented,
+            preventedBeforeAssist,
+            assistPressureSpent: preventionAssistPressure.spent,
+            assistPressureWasted: preventionAssistPressure.wasted,
             rawWounds: activeRawWounds,
             damageApplicationTiming,
           },
@@ -3330,8 +3633,8 @@ function resolveSingleTargetAction(params: {
         actionId: action.id,
         actionName: action.name,
         lane,
-        message: `${counterDeclaration.declared ? "Incoming result" : "Attack result"}: ${target.name} suffers ${netWounds} ${pool} wounds from ${action.name}. Prevented ${prevented} (${normalDefenceBlocked} defence, ${counterDefenceMetrics.counterMitigation} counter, ${staticPrevented} static/passive).`,
-        details: { rawWounds: activeRawWounds, prevented, netWounds, overkill, pool },
+        message: `${counterDeclaration.declared ? "Incoming result" : "Attack result"}: ${target.name} suffers ${netWounds} ${pool} wounds from ${action.name}. Prevented ${prevented} (${normalDefenceBlocked} defence, ${counterDefenceMetrics.counterMitigation} counter, ${staticPrevented} static/passive${preventionAssistPressure.spent > 0 ? `, ${preventionAssistPressure.spent} Assist pressure occupied prevention` : ""}).`,
+        details: { rawWounds: activeRawWounds, prevented, preventedBeforeAssist, assistPressureSpent: preventionAssistPressure.spent, assistPressureWasted: preventionAssistPressure.wasted, netWounds, overkill, pool },
       });
     }
     if (!isPureOngoingDamage && action.recurring?.kind === "ongoingDamage" && netWounds > 0) {

@@ -3,6 +3,7 @@ import type {
   DescriptorChassisType,
   EffectPacket,
   Power,
+  PowerIntention,
   SecondaryDependencyMode,
 } from "@/lib/summoning/types";
 
@@ -35,6 +36,9 @@ export type CombatDefensivePoolExpiryReason =
   | "channelEnd"
   | "cleanse"
   | "defeatCleanup";
+export type CombatAssistTriggerType = "allyAction" | "allyDefence";
+export type CombatAssistMode = "supportiveAsWritten" | "improvised" | "explicitSpecial";
+export type CombatAssistPressureLane = "dodge" | "physicalBlock" | "mentalBlock" | "resist" | "generic";
 export type CombatActorRole =
   | "Glass Cannon"
   | "Bruiser"
@@ -218,6 +222,38 @@ export type CombatDefensivePool = {
   reapplyKey: string;
 };
 
+export type CombatDeclaredAssist = {
+  id: string;
+  triggerId: string;
+  triggerType: CombatAssistTriggerType;
+  assistingActorId: string;
+  triggeringAllyId: string;
+  triggeringActionId: string;
+  assistingActionId: string;
+  targetActorId?: string | null;
+  chosenAssistIntention: PowerIntention;
+  occupiedIntentions: PowerIntention[];
+  mode: CombatAssistMode;
+  pressureLane: CombatAssistPressureLane;
+  resistedAttribute?: CoreAttribute | null;
+  responseCost: 1;
+  legal: boolean;
+  rejectionReason?: string | null;
+};
+
+export type CombatAssistPressure = {
+  triggerId: string;
+  sourceAssistId: string;
+  sourceActorId: string;
+  sourceActionId: string;
+  chosenAssistIntention: PowerIntention;
+  lane: CombatAssistPressureLane;
+  resistedAttribute?: CoreAttribute | null;
+  amountGenerated: number;
+  amountSpent: number;
+  amountWasted: number;
+};
+
 export type CombatCooldownEntry = {
   remaining: number;
   appliedRound: number;
@@ -233,6 +269,8 @@ export type CombatState = {
   cooldownTrace: Record<string, CombatCooldownTrace>;
   counterCandidateDiagnostics: Record<string, CombatCounterCandidateDiagnostic>;
   counterUses: Record<string, number>;
+  assistDeclarations: CombatDeclaredAssist[];
+  assistPressures: CombatAssistPressure[];
   incomingActionsByTargetThisRound: Record<string, number>;
   statusEffects: CombatStatusEffect[];
   defensivePools: CombatDefensivePool[];
@@ -336,6 +374,8 @@ export type CombatTranscriptEventType =
   | "movementRoll"
   | "cleanseRoll"
   | "defenceChoice"
+  | "assistDeclared"
+  | "assistPressure"
   | "defensivePool"
   | "dodgeRoll"
   | "physicalDefenceRoll"
@@ -439,6 +479,11 @@ export type CombatResolutionMetrics = {
   counterMitigation: number;
   responsesUsed: number;
   responsesWastedOrUnavailable: number;
+  assistDeclared: number;
+  assistRejected: number;
+  assistPressureGenerated: number;
+  assistPressureSpent: number;
+  assistPressureWasted: number;
   passiveDefenceContribution: number;
   stacksApplied: number;
   stacksExpired: number;
@@ -611,6 +656,11 @@ export type CombatAggregateMetrics = {
   counterMitigation: Record<CombatSide, number>;
   responsesUsed: Record<CombatSide, number>;
   responsesWastedOrUnavailable: Record<CombatSide, number>;
+  assistDeclared: Record<CombatSide, number>;
+  assistRejected: Record<CombatSide, number>;
+  assistPressureGenerated: Record<CombatSide, number>;
+  assistPressureSpent: Record<CombatSide, number>;
+  assistPressureWasted: Record<CombatSide, number>;
   passiveDefenceContribution: Record<CombatSide, number>;
   stacksApplied: Record<CombatSide, number>;
   stacksExpired: Record<CombatSide, number>;

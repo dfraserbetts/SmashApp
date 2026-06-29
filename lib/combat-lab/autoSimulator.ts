@@ -223,6 +223,11 @@ function addResolutionToAggregate(
   metrics.counterMitigation[defensiveSide] += resolution.counterMitigation;
   metrics.responsesUsed[defensiveSide] += resolution.responsesUsed;
   metrics.responsesWastedOrUnavailable[defensiveSide] += resolution.responsesWastedOrUnavailable;
+  metrics.assistDeclared[side] += resolution.assistDeclared;
+  metrics.assistRejected[side] += resolution.assistRejected;
+  metrics.assistPressureGenerated[side] += resolution.assistPressureGenerated;
+  metrics.assistPressureSpent[side] += resolution.assistPressureSpent;
+  metrics.assistPressureWasted[side] += resolution.assistPressureWasted;
   metrics.passiveDefenceContribution[defensiveSide] += resolution.passiveDefenceContribution;
   metrics.stacksApplied[side] += resolution.stacksApplied;
   metrics.stacksExpired[side] += resolution.stacksExpired;
