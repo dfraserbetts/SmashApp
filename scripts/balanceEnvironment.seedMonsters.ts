@@ -15,14 +15,17 @@ import {
   type PowerTuningSnapshot,
 } from "../lib/config/powerTuningShared";
 import { adaptMonsterToCombatLabActor } from "../lib/combat-lab/liveAdapters";
+import { evaluateAttributeBalancingGuide } from "../lib/summoning/attributeBalancingGuide";
 import {
   normalizeMonsterUpsertInput,
 } from "../lib/summoning/validation";
+import { isSelectableDamageTypeName } from "../lib/damageTypes/selectable";
 import type {
   CoreAttribute,
   EffectDurationType,
   EffectPacketApplyTo,
   MonsterCalculatorArchetype,
+  MonsterNaturalAttackConfig,
   MonsterTier,
   MonsterUpsertInput,
   Power,
@@ -36,6 +39,12 @@ import type {
 const BALANCE_CAMPAIGN_ID = "250aee5e-632f-405c-ba36-a49ed12a5afc";
 const BALANCE_CAMPAIGN_NAME = "Balance Environment";
 const LEVEL = 3;
+const EXPECTED_LEVEL_3_SOLDIER_ATTRIBUTE_TOTAL = 38;
+
+type SelectableDamageType = {
+  name: string;
+  attackMode: WoundChannel;
+};
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
@@ -113,6 +122,128 @@ function loadLocalEnv() {
       const rawValue = trimmed.slice(index + 1).trim();
       if (!key || process.env[key] !== undefined) continue;
       process.env[key] = rawValue.replace(/^['"]|['"]$/g, "");
+    }
+  }
+}
+
+function normalizeDamageTypeAttackMode(value: unknown): WoundChannel {
+  return String(value ?? "").toUpperCase() === "MENTAL" ? "MENTAL" : "PHYSICAL";
+}
+
+function selectableDamageTypeMap(damageTypes: SelectableDamageType[]) {
+  return new Map(
+    damageTypes.map((damageType) => [
+      damageType.name.trim().toLowerCase(),
+      {
+        name: damageType.name.trim(),
+        attackMode: normalizeDamageTypeAttackMode(damageType.attackMode),
+      },
+    ]),
+  );
+}
+
+function assertLegalDamageTypes(params: {
+  ownerName: string;
+  actionName: string;
+  source: string;
+  attackMode: WoundChannel;
+  damageTypes: string[];
+  selectableDamageTypes: SelectableDamageType[];
+}) {
+  if (params.damageTypes.length === 0) {
+    throw new Error(`${params.ownerName}: ${params.source} ${params.actionName} must have at least one damage type.`);
+  }
+  const legalByName = selectableDamageTypeMap(params.selectableDamageTypes);
+  for (const damageType of params.damageTypes) {
+    const legal = legalByName.get(damageType.trim().toLowerCase());
+    if (!legal) {
+      throw new Error(`${params.ownerName}: ${params.source} ${params.actionName} uses illegal damage type "${damageType}".`);
+    }
+    if (legal.name !== damageType) {
+      throw new Error(
+        `${params.ownerName}: ${params.source} ${params.actionName} must use canonical damage type "${legal.name}", not "${damageType}".`,
+      );
+    }
+    if (legal.attackMode !== params.attackMode) {
+      throw new Error(
+        `${params.ownerName}: ${params.source} ${params.actionName} uses ${damageType} (${legal.attackMode}) on ${params.attackMode} attack mode.`,
+      );
+    }
+  }
+}
+
+function assertMonsterSpecDamageTypes(params: {
+  spec: MonsterSpec;
+  selectableDamageTypes: SelectableDamageType[];
+}) {
+  for (const power of params.spec.powers) {
+    if (power.intention !== "ATTACK") continue;
+    assertLegalDamageTypes({
+      ownerName: params.spec.name,
+      actionName: power.name,
+      source: "power spec",
+      attackMode: normalizeDamageTypeAttackMode(power.attackMode),
+      damageTypes: power.damageTypes ?? (power.attackMode === "MENTAL" ? ["Psychic"] : ["Slashing"]),
+      selectableDamageTypes: params.selectableDamageTypes,
+    });
+  }
+}
+
+function assertPowerDamageTypes(params: {
+  ownerName: string;
+  power: Power;
+  selectableDamageTypes: SelectableDamageType[];
+}) {
+  for (const [packetIndex, packet] of params.power.effectPackets.entries()) {
+    if ((packet.intention ?? packet.type) !== "ATTACK" && packet.dealsWounds !== true) continue;
+    const details =
+      packet.detailsJson && typeof packet.detailsJson === "object"
+        ? packet.detailsJson as Record<string, unknown>
+        : {};
+    const damageTypes = Array.isArray(details.damageTypes)
+      ? details.damageTypes.map((entry) => String(entry)).filter(Boolean)
+      : [];
+    assertLegalDamageTypes({
+      ownerName: params.ownerName,
+      actionName: `${params.power.name} packet ${packetIndex + 1}`,
+      source: "power packet",
+      attackMode: normalizeDamageTypeAttackMode(details.attackMode ?? packet.woundChannel),
+      damageTypes,
+      selectableDamageTypes: params.selectableDamageTypes,
+    });
+  }
+}
+
+function assertNaturalAttackDamageTypes(params: {
+  ownerName: string;
+  actionName: string;
+  attackConfig: MonsterNaturalAttackConfig | null | undefined;
+  selectableDamageTypes: SelectableDamageType[];
+}) {
+  const legalByName = selectableDamageTypeMap(params.selectableDamageTypes);
+  for (const range of ["melee", "ranged", "aoe"] as const) {
+    const config = params.attackConfig?.[range];
+    if (!config?.enabled) continue;
+    if (!Array.isArray(config.damageTypes) || config.damageTypes.length === 0) {
+      throw new Error(`${params.ownerName}: ${params.actionName} ${range} attack must have at least one damage type object.`);
+    }
+    for (const damageType of config.damageTypes) {
+      const name = String(damageType?.name ?? "");
+      const mode = normalizeDamageTypeAttackMode(damageType?.mode);
+      const legal = legalByName.get(name.trim().toLowerCase());
+      if (!legal) {
+        throw new Error(`${params.ownerName}: ${params.actionName} ${range} attack uses illegal damage type "${name}".`);
+      }
+      if (legal.name !== name) {
+        throw new Error(
+          `${params.ownerName}: ${params.actionName} ${range} attack must use canonical damage type "${legal.name}", not "${name}".`,
+        );
+      }
+      if (legal.attackMode !== mode) {
+        throw new Error(
+          `${params.ownerName}: ${params.actionName} ${range} attack uses ${name} (${legal.attackMode}) with ${mode} mode.`,
+        );
+      }
     }
   }
 }
@@ -211,7 +342,7 @@ function buildPower(spec: PowerSpec, sortOrder: number): Power {
   };
   if (spec.intention === "ATTACK") {
     detailsJson.attackMode = spec.attackMode ?? "PHYSICAL";
-    detailsJson.damageTypes = spec.damageTypes ?? (spec.attackMode === "MENTAL" ? ["Psychic"] : ["Slash"]);
+    detailsJson.damageTypes = spec.damageTypes ?? (spec.attackMode === "MENTAL" ? ["Psychic"] : ["Slashing"]);
   }
   if (spec.intention === "CONTROL") {
     detailsJson.controlMode = spec.controlMode ?? "Force no main action";
@@ -356,13 +487,13 @@ const MONSTERS: MonsterSpec[] = [
     guardDie: "D8",
     guardResistDie: 0,
     guardModifier: 0,
-    fortitudeDie: "D8",
+    fortitudeDie: "D6",
     fortitudeResistDie: 1,
     fortitudeModifier: 0,
-    intellectDie: "D6",
+    intellectDie: "D4",
     intellectResistDie: 0,
     intellectModifier: 0,
-    synergyDie: "D6",
+    synergyDie: "D4",
     synergyResistDie: 0,
     synergyModifier: 0,
     braveryDie: "D6",
@@ -382,7 +513,7 @@ const MONSTERS: MonsterSpec[] = [
       rangeCategory: "MELEE",
       rangeValue: 1,
       attackMode: "PHYSICAL",
-      damageTypes: ["Slash"],
+      damageTypes: ["Slashing"],
     }],
   },
   {
@@ -425,19 +556,19 @@ const MONSTERS: MonsterSpec[] = [
     mentalProtection: 1,
     naturalPhysicalProtection: 0,
     naturalMentalProtection: 1,
-    attackDie: "D8",
+    attackDie: "D6",
     attackResistDie: 0,
     attackModifier: 0,
-    guardDie: "D6",
+    guardDie: "D4",
     guardResistDie: 0,
     guardModifier: 0,
-    fortitudeDie: "D6",
+    fortitudeDie: "D4",
     fortitudeResistDie: 0,
     fortitudeModifier: 0,
     intellectDie: "D10",
     intellectResistDie: 1,
     intellectModifier: 0,
-    synergyDie: "D8",
+    synergyDie: "D6",
     synergyResistDie: 1,
     synergyModifier: 0,
     braveryDie: "D8",
@@ -501,10 +632,10 @@ const MONSTERS: MonsterSpec[] = [
     mentalProtection: 1,
     naturalPhysicalProtection: 0,
     naturalMentalProtection: 1,
-    attackDie: "D6",
+    attackDie: "D4",
     attackResistDie: 0,
     attackModifier: 0,
-    guardDie: "D6",
+    guardDie: "D4",
     guardResistDie: 0,
     guardModifier: 0,
     fortitudeDie: "D6",
@@ -516,7 +647,7 @@ const MONSTERS: MonsterSpec[] = [
     synergyDie: "D8",
     synergyResistDie: 1,
     synergyModifier: 0,
-    braveryDie: "D8",
+    braveryDie: "D6",
     braveryResistDie: 0,
     braveryModifier: 0,
     weaponSkillValue: 1,
@@ -597,16 +728,16 @@ const MONSTERS: MonsterSpec[] = [
     attackDie: "D10",
     attackResistDie: 1,
     attackModifier: 0,
-    guardDie: "D10",
+    guardDie: "D8",
     guardResistDie: 1,
     guardModifier: 0,
     fortitudeDie: "D6",
     fortitudeResistDie: 0,
     fortitudeModifier: 0,
-    intellectDie: "D8",
+    intellectDie: "D4",
     intellectResistDie: 0,
     intellectModifier: 0,
-    synergyDie: "D6",
+    synergyDie: "D4",
     synergyResistDie: 0,
     synergyModifier: 0,
     braveryDie: "D6",
@@ -627,7 +758,7 @@ const MONSTERS: MonsterSpec[] = [
       rangeCategory: "MELEE",
       rangeValue: 2,
       attackMode: "PHYSICAL",
-      damageTypes: ["Slash"],
+      damageTypes: ["Slashing"],
     }],
   },
   {
@@ -670,7 +801,7 @@ const MONSTERS: MonsterSpec[] = [
     mentalProtection: 1,
     naturalPhysicalProtection: 2,
     naturalMentalProtection: 1,
-    attackDie: "D8",
+    attackDie: "D6",
     attackResistDie: 0,
     attackModifier: 0,
     guardDie: "D10",
@@ -679,13 +810,13 @@ const MONSTERS: MonsterSpec[] = [
     fortitudeDie: "D10",
     fortitudeResistDie: 1,
     fortitudeModifier: 0,
-    intellectDie: "D6",
+    intellectDie: "D4",
     intellectResistDie: 0,
     intellectModifier: 0,
-    synergyDie: "D6",
+    synergyDie: "D4",
     synergyResistDie: 0,
     synergyModifier: 0,
-    braveryDie: "D8",
+    braveryDie: "D4",
     braveryResistDie: 1,
     braveryModifier: 0,
     weaponSkillValue: 2,
@@ -703,7 +834,7 @@ const MONSTERS: MonsterSpec[] = [
       rangeCategory: "MELEE",
       rangeValue: 1,
       attackMode: "PHYSICAL",
-      damageTypes: ["Bludgeon"],
+      damageTypes: ["Blunt"],
     }],
   },
 ];
@@ -806,6 +937,9 @@ async function upsertMonster(prisma: PrismaClient, data: MonsterUpsertInput) {
   const existing = matches[0] ?? null;
   if (existing && (existing.source !== "CAMPAIGN" || existing.isReadOnly || existing.campaignId !== BALANCE_CAMPAIGN_ID)) {
     throw new Error(`Refusing to update protected or out-of-scope monster ${data.name}.`);
+  }
+  if (!existing) {
+    throw new Error(`Refusing to create ${data.name}: Balance Environment calibration pass may only update existing monster records.`);
   }
 
   const monsterData = {
@@ -920,37 +1054,7 @@ async function upsertMonster(prisma: PrismaClient, data: MonsterUpsertInput) {
       });
     }
 
-    return tx.monster.create({
-      data: {
-        ...monsterData,
-        tags: { create: data.tags.map((tag) => ({ tag })) },
-        traits: {
-          create: data.traits.map((trait) => ({
-            sortOrder: trait.sortOrder,
-            traitDefinitionId: trait.traitDefinitionId,
-          })),
-        },
-        attacks: {
-          create: data.attacks.map((attack) => ({
-            sortOrder: attack.sortOrder,
-            attackMode: attack.attackMode,
-            attackName: attack.attackName,
-            attackConfig: jsonValue(attack.attackConfig),
-            equippedWeaponId: (attack as { equippedWeaponId?: string | null }).equippedWeaponId ?? null,
-          })),
-        },
-        naturalAttack: data.naturalAttack
-          ? {
-              create: {
-                attackName: data.naturalAttack.attackName,
-                attackConfig: jsonValue(data.naturalAttack.attackConfig),
-              },
-            }
-          : undefined,
-        powers: { create: data.powers.map(buildPowerCreateData) },
-      },
-      include: MONSTER_INCLUDE,
-    });
+    throw new Error(`Unexpected create path reached for ${data.name}.`);
   });
 }
 
@@ -1008,14 +1112,89 @@ async function main() {
       throw new Error(`Campaign name mismatch: expected ${BALANCE_CAMPAIGN_NAME}, found ${campaign.name}.`);
     }
 
+    const damageTypeRows = await prisma.damageType.findMany({
+      orderBy: { name: "asc" },
+      select: { name: true, attackMode: true },
+    });
+    const selectableDamageTypes = damageTypeRows
+      .filter((row) => isSelectableDamageTypeName(row.name))
+      .map((row) => ({
+        name: row.name,
+        attackMode: normalizeDamageTypeAttackMode(row.attackMode),
+      }));
+    for (const spec of MONSTERS) {
+      assertMonsterSpecDamageTypes({ spec, selectableDamageTypes });
+    }
+
     const { powerTuning, protectionTuning } = await loadTuning(prisma);
     const normalized = MONSTERS.map((spec) => {
       const result = normalizeMonsterUpsertInput(baseMonster(spec));
       if (!result.ok) {
         throw new Error(`${spec.name}: ${result.error}`);
       }
+      for (const power of result.data.powers) {
+        assertPowerDamageTypes({
+          ownerName: result.data.name,
+          power,
+          selectableDamageTypes,
+        });
+      }
+      for (const attack of result.data.attacks) {
+        assertNaturalAttackDamageTypes({
+          ownerName: result.data.name,
+          actionName: attack.attackName ?? "Natural Weapon",
+          attackConfig: attack.attackConfig,
+          selectableDamageTypes,
+        });
+      }
+      if (result.data.naturalAttack) {
+        assertNaturalAttackDamageTypes({
+          ownerName: result.data.name,
+          actionName: result.data.naturalAttack.attackName,
+          attackConfig: result.data.naturalAttack.attackConfig,
+          selectableDamageTypes,
+        });
+      }
+      const guide = evaluateAttributeBalancingGuide({
+        level: result.data.level,
+        tier: result.data.tier,
+        archetype: result.data.calculatorArchetype ?? "BALANCED",
+        attributes: {
+          attackDie: result.data.attackDie,
+          guardDie: result.data.guardDie,
+          fortitudeDie: result.data.fortitudeDie,
+          intellectDie: result.data.intellectDie,
+          synergyDie: result.data.synergyDie,
+          braveryDie: result.data.braveryDie,
+        },
+      });
+      if (
+        guide.currentTotal !== EXPECTED_LEVEL_3_SOLDIER_ATTRIBUTE_TOTAL ||
+        guide.budgetStatus !== "On Budget"
+      ) {
+        throw new Error(
+          `${spec.name}: attribute total ${guide.currentTotal}, expected ${EXPECTED_LEVEL_3_SOLDIER_ATTRIBUTE_TOTAL} and On Budget status.`,
+        );
+      }
       return result.data;
     });
+
+    const existingExpectedRows = await prisma.monster.findMany({
+      where: { campaignId: BALANCE_CAMPAIGN_ID, name: { in: MONSTERS.map((entry) => entry.name) } },
+      select: { id: true, name: true, source: true, isReadOnly: true, campaignId: true },
+      orderBy: { name: "asc" },
+    });
+    if (existingExpectedRows.length !== MONSTERS.length) {
+      throw new Error(
+        `Expected ${MONSTERS.length} existing Balance Environment monsters before update, found ${existingExpectedRows.length}.`,
+      );
+    }
+    const protectedRows = existingExpectedRows.filter(
+      (row) => row.source !== "CAMPAIGN" || row.isReadOnly || row.campaignId !== BALANCE_CAMPAIGN_ID,
+    );
+    if (protectedRows.length > 0) {
+      throw new Error(`Refusing protected or out-of-scope monsters: ${protectedRows.map((row) => row.name).join(", ")}`);
+    }
 
     const outputs = [];
     for (const data of normalized) {
@@ -1024,8 +1203,24 @@ async function main() {
         select: { id: true },
       });
       const row = await upsertMonster(prisma, data);
+      if (!before || before.id !== row.id) {
+        throw new Error(`${data.name}: expected to preserve existing monster id.`);
+      }
+      const attributeGuide = evaluateAttributeBalancingGuide({
+        level: row.level,
+        tier: row.tier,
+        archetype: row.calculatorArchetype as MonsterCalculatorArchetype,
+        attributes: {
+          attackDie: row.attackDie,
+          guardDie: row.guardDie,
+          fortitudeDie: row.fortitudeDie,
+          intellectDie: row.intellectDie,
+          synergyDie: row.synergyDie,
+          braveryDie: row.braveryDie,
+        },
+      });
       outputs.push({
-        operation: before ? "updated" : "created",
+        operation: "updated",
         id: row.id,
         name: row.name,
         level: row.level,
@@ -1039,7 +1234,13 @@ async function main() {
           physical: row.physicalProtection,
           mental: row.mentalProtection,
         },
-        powers: row.powers.map((power) => ({
+        attributeBudget: {
+          currentTotal: attributeGuide.currentTotal,
+          expectedTotal: attributeGuide.expectedTotal,
+          budgetDelta: attributeGuide.budgetDelta,
+          budgetStatus: attributeGuide.budgetStatus,
+        },
+      powers: row.powers.map((power) => ({
           name: power.name,
           packets: power.effectPackets.map((packet) => ({
             intention: packet.intention,
@@ -1047,6 +1248,10 @@ async function main() {
             potency: packet.potency,
             woundChannel: packet.woundChannel,
             applyTo: packet.applyTo,
+            damageTypes:
+              packet.detailsJson && typeof packet.detailsJson === "object"
+                ? (packet.detailsJson as Record<string, unknown>).damageTypes
+                : [],
           })),
         })),
       });
@@ -1065,6 +1270,50 @@ async function main() {
     }
     if (rows.some((row) => row.legendary)) {
       throw new Error("Legendary Anchor was not requested; one or more seeded rows are legendary.");
+    }
+    for (const row of rows) {
+      const guide = evaluateAttributeBalancingGuide({
+        level: row.level,
+        tier: row.tier,
+        archetype: row.calculatorArchetype as MonsterCalculatorArchetype,
+        attributes: {
+          attackDie: row.attackDie,
+          guardDie: row.guardDie,
+          fortitudeDie: row.fortitudeDie,
+          intellectDie: row.intellectDie,
+          synergyDie: row.synergyDie,
+          braveryDie: row.braveryDie,
+        },
+      });
+      if (
+        guide.currentTotal !== EXPECTED_LEVEL_3_SOLDIER_ATTRIBUTE_TOTAL ||
+        guide.budgetStatus !== "On Budget"
+      ) {
+        throw new Error(`${row.name}: final attribute budget is ${guide.currentTotal} / ${guide.budgetStatus}.`);
+      }
+      for (const power of row.powers) {
+        assertPowerDamageTypes({
+          ownerName: row.name,
+          power: power as unknown as Power,
+          selectableDamageTypes,
+        });
+      }
+      for (const attack of row.attacks) {
+        assertNaturalAttackDamageTypes({
+          ownerName: row.name,
+          actionName: attack.attackName ?? "Natural Weapon",
+          attackConfig: attack.attackConfig as MonsterNaturalAttackConfig | null,
+          selectableDamageTypes,
+        });
+      }
+      if (row.naturalAttack) {
+        assertNaturalAttackDamageTypes({
+          ownerName: row.name,
+          actionName: row.naturalAttack.attackName,
+          attackConfig: row.naturalAttack.attackConfig as MonsterNaturalAttackConfig,
+          selectableDamageTypes,
+        });
+      }
     }
 
     const hydration = rows.map((row) => {

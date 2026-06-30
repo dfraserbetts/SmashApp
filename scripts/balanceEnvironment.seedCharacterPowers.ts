@@ -28,6 +28,7 @@ import {
   type PowerTuningSnapshot,
 } from "../lib/config/powerTuningShared";
 import { adaptCampaignCharacterToCombatActor } from "../lib/combat-lab/liveAdapters";
+import { isSelectableDamageTypeName } from "../lib/damageTypes/selectable";
 import type {
   CoreAttribute,
   EffectDurationType,
@@ -40,6 +41,15 @@ import type {
 const BALANCE_CAMPAIGN_ID = "250aee5e-632f-405c-ba36-a49ed12a5afc";
 const BALANCE_CAMPAIGN_NAME = "Balance Environment";
 const LEVEL = 3;
+const NORMAL_POWER_MIN_SPEND = 130;
+const NORMAL_POWER_MAX_SPEND = 150;
+const SIGNATURE_MOVE_MIN_SPEND = 50;
+const SIGNATURE_MOVE_MAX_SPEND = 60;
+
+type SelectableDamageType = {
+  name: string;
+  attackMode: WoundChannel;
+};
 
 type PowerSpec = {
   id: string;
@@ -69,6 +79,19 @@ type PowerSpec = {
 type CharacterKit = {
   name: string;
   powers: PowerSpec[];
+  signatureMove: PowerSpec;
+};
+
+type PreparedCharacterUpdate = {
+  row: {
+    id: string;
+    name: string;
+    level: number;
+    builderData: unknown;
+  };
+  nextBuilderData: CharacterBuilderData;
+  normalSummary: ReturnType<typeof summarizeCharacterPowers>;
+  signatureSummary: ReturnType<typeof summarizeCharacterPowers>;
 };
 
 const CHARACTER_KITS: CharacterKit[] = [
@@ -116,7 +139,79 @@ const CHARACTER_KITS: CharacterKit[] = [
         applyTo: "ALLIES",
         healingMode: "PHYSICAL",
       },
+      {
+        id: "balance-arcane-sage-astral-binding",
+        name: "Astral Binding",
+        description: "A short hostile control weave for testing clean mental control pressure.",
+        intention: "CONTROL",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "RANGED",
+        rangeValue: 30,
+        rangeExtra: { targets: 1 },
+        durationType: "TURNS",
+        durationTurns: 1,
+        controlMode: "Force no main action",
+        controlTheme: "MIND_COGNITION",
+      },
+      {
+        id: "balance-arcane-sage-warding-cipher",
+        name: "Warding Cipher",
+        description: "A ranged ally mental Block pool for support-side durability calibration.",
+        intention: "DEFENCE",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "RANGED",
+        rangeValue: 30,
+        rangeExtra: { targets: 1 },
+        applyTo: "ALLIES",
+        durationType: "TURNS",
+        durationTurns: 2,
+        attackMode: "MENTAL",
+        defenceMode: "Block",
+      },
+      {
+        id: "balance-arcane-sage-purifying-arc",
+        name: "Purifying Arc",
+        description: "A small ranged cleanse for status cleanup calibration.",
+        intention: "CLEANSE",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "RANGED",
+        rangeValue: 30,
+        rangeExtra: { targets: 1 },
+        applyTo: "ALLIES",
+        cleanseEffectType: "Active Power",
+      },
+      {
+        id: "balance-arcane-sage-mind-lance",
+        name: "Mind Lance",
+        description: "A focused mental strike that anchors the Sage's personal pressure.",
+        intention: "ATTACK",
+        diceCount: 3,
+        potency: 3,
+        rangeCategory: "RANGED",
+        rangeValue: 60,
+        rangeExtra: { targets: 1 },
+        attackMode: "MENTAL",
+        damageTypes: ["Psychic"],
+      },
     ],
+    signatureMove: {
+      id: "balance-arcane-sage-signature-sigil-of-still-waters",
+      name: "Sigil of Still Waters",
+      description: "A role-defining support-control sigil that steadies allies while binding one threat.",
+      intention: "CONTROL",
+      diceCount: 5,
+      potency: 4,
+      rangeCategory: "RANGED",
+      rangeValue: 60,
+      rangeExtra: { targets: 1 },
+      durationType: "TURNS",
+      durationTurns: 2,
+      controlMode: "Force no main action",
+      controlTheme: "MIND_COGNITION",
+    },
   },
   {
     name: "BALANCE_Ranger Commander",
@@ -132,7 +227,7 @@ const CHARACTER_KITS: CharacterKit[] = [
         rangeValue: 30,
         rangeExtra: { targets: 1 },
         attackMode: "PHYSICAL",
-        damageTypes: ["Pierce"],
+        damageTypes: ["Piercing"],
       },
       {
         id: "balance-ranger-commander-rallying-order",
@@ -150,18 +245,92 @@ const CHARACTER_KITS: CharacterKit[] = [
         statTarget: "GUARD",
       },
       {
-        id: "balance-ranger-commander-tactical-step",
-        name: "Tactical Step",
-        description: "A self movement utility for tactical repositioning.",
-        intention: "MOVEMENT",
-        diceCount: 1,
-        potency: 1,
-        rangeCategory: "SELF",
-        rangeValue: 0,
-        applyTo: "SELF",
-        movementMode: "Run",
+        id: "balance-ranger-commander-covering-orders",
+        name: "Covering Orders",
+        description: "A tactical repositioning call represented as a resolvable ally Dodge pool.",
+        intention: "DEFENCE",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "RANGED",
+        rangeValue: 30,
+        rangeExtra: { targets: 1 },
+        applyTo: "ALLIES",
+        durationType: "TURNS",
+        durationTurns: 2,
+        attackMode: "PHYSICAL",
+        defenceMode: "Dodge",
+      },
+      {
+        id: "balance-ranger-commander-marked-volley",
+        name: "Marked Volley",
+        description: "A heavier ranged strike for martial pressure calibration.",
+        intention: "ATTACK",
+        diceCount: 3,
+        potency: 3,
+        rangeCategory: "RANGED",
+        rangeValue: 60,
+        rangeExtra: { targets: 1 },
+        attackMode: "PHYSICAL",
+        damageTypes: ["Piercing"],
+      },
+      {
+        id: "balance-ranger-commander-focus-fire",
+        name: "Focus Fire",
+        description: "A team Attack augment for Assist-friendly leadership pressure.",
+        intention: "AUGMENT",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "RANGED",
+        rangeValue: 30,
+        rangeExtra: { targets: 1 },
+        applyTo: "ALLIES",
+        durationType: "TURNS",
+        durationTurns: 2,
+        statTarget: "ATTACK",
+      },
+      {
+        id: "balance-ranger-commander-disrupting-shot",
+        name: "Disrupting Shot",
+        description: "A clean Guard debuff used to test tactical pressure without movement abstraction.",
+        intention: "DEBUFF",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "RANGED",
+        rangeValue: 60,
+        rangeExtra: { targets: 1 },
+        durationType: "TURNS",
+        durationTurns: 1,
+        statTarget: "GUARD",
+      },
+      {
+        id: "balance-ranger-commander-rallying-tonic",
+        name: "Rallying Tonic",
+        description: "A small tactical recovery order represented as physical healing.",
+        intention: "HEALING",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "RANGED",
+        rangeValue: 30,
+        rangeExtra: { targets: 1 },
+        applyTo: "ALLIES",
+        healingMode: "PHYSICAL",
       },
     ],
+    signatureMove: {
+      id: "balance-ranger-commander-signature-killbox-command",
+      name: "Killbox Command",
+      description: "A precise command shot that sets the squad's focus point.",
+      intention: "ATTACK",
+      diceCount: 5,
+      potency: 4,
+      rangeCategory: "RANGED",
+      rangeValue: 60,
+      rangeExtra: { targets: 1 },
+      durationType: "TURNS",
+      durationTurns: 2,
+      attackMode: "PHYSICAL",
+      damageTypes: ["Piercing"],
+    },
   },
   {
     name: "BALANCE_Stoneguard",
@@ -205,7 +374,89 @@ const CHARACTER_KITS: CharacterKit[] = [
         applyTo: "SELF",
         healingMode: "PHYSICAL",
       },
+      {
+        id: "balance-stoneguard-granite-guard",
+        name: "Granite Guard",
+        description: "A stronger self Block pool for physical endurance calibration.",
+        intention: "DEFENCE",
+        diceCount: 3,
+        potency: 2,
+        rangeCategory: "SELF",
+        rangeValue: 0,
+        applyTo: "SELF",
+        durationType: "TURNS",
+        durationTurns: 2,
+        attackMode: "PHYSICAL",
+        defenceMode: "Block",
+      },
+      {
+        id: "balance-stoneguard-bracing-roar",
+        name: "Bracing Roar",
+        description: "A self Guard augment that represents planted defensive footwork.",
+        intention: "AUGMENT",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "SELF",
+        rangeValue: 0,
+        applyTo: "SELF",
+        durationType: "TURNS",
+        durationTurns: 2,
+        statTarget: "GUARD",
+      },
+      {
+        id: "balance-stoneguard-breaker-slam",
+        name: "Breaker Slam",
+        description: "A heavier melee strike for tank pressure calibration.",
+        intention: "ATTACK",
+        diceCount: 3,
+        potency: 3,
+        rangeCategory: "MELEE",
+        rangeValue: 1,
+        attackMode: "PHYSICAL",
+        damageTypes: ["Blunt"],
+      },
+      {
+        id: "balance-stoneguard-steel-breath",
+        name: "Steel Breath",
+        description: "A sturdier self sustain tool for endurance calibration.",
+        intention: "HEALING",
+        diceCount: 2,
+        potency: 3,
+        rangeCategory: "SELF",
+        rangeValue: 0,
+        applyTo: "SELF",
+        healingMode: "PHYSICAL",
+      },
+      {
+        id: "balance-stoneguard-anchor-taunt",
+        name: "Anchor Taunt",
+        description: "A clean Guard debuff that turns tank presence into simulated pressure.",
+        intention: "DEBUFF",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "MELEE",
+        rangeValue: 1,
+        durationType: "TURNS",
+        durationTurns: 1,
+        statTarget: "GUARD",
+      },
     ],
+    signatureMove: {
+      id: "balance-stoneguard-signature-hold-the-line",
+      name: "Hold the Line",
+      description: "A defining tank stance that turns the Stoneguard into the line of battle.",
+      intention: "DEFENCE",
+      diceCount: 5,
+      potency: 5,
+      rangeCategory: "RANGED",
+      rangeValue: 30,
+      rangeExtra: { targets: 2 },
+      applyTo: "ALLIES",
+      durationType: "TURNS",
+      durationTurns: 3,
+      attackMode: "PHYSICAL",
+      defenceMode: "Block",
+    },
   },
   {
     name: "BALANCE_Hawkshot Archer",
@@ -221,7 +472,7 @@ const CHARACTER_KITS: CharacterKit[] = [
         rangeValue: 60,
         rangeExtra: { targets: 1 },
         attackMode: "PHYSICAL",
-        damageTypes: ["Pierce"],
+        damageTypes: ["Piercing"],
       },
       {
         id: "balance-hawkshot-archer-evasive-roll",
@@ -244,7 +495,7 @@ const CHARACTER_KITS: CharacterKit[] = [
         description: "A light Guard debuff for precision pressure tests.",
         intention: "DEBUFF",
         diceCount: 1,
-        potency: 1,
+        potency: 2,
         rangeCategory: "RANGED",
         rangeValue: 30,
         rangeExtra: { targets: 1 },
@@ -252,7 +503,78 @@ const CHARACTER_KITS: CharacterKit[] = [
         durationTurns: 1,
         statTarget: "GUARD",
       },
+      {
+        id: "balance-hawkshot-archer-raking-shot",
+        name: "Raking Shot",
+        description: "A heavier precision shot for ranged pressure calibration.",
+        intention: "ATTACK",
+        diceCount: 3,
+        potency: 3,
+        rangeCategory: "RANGED",
+        rangeValue: 60,
+        rangeExtra: { targets: 1 },
+        attackMode: "PHYSICAL",
+        damageTypes: ["Piercing"],
+      },
+      {
+        id: "balance-hawkshot-archer-hawk-eye",
+        name: "Hawk Eye",
+        description: "A self Attack augment for precision setup turns.",
+        intention: "AUGMENT",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "SELF",
+        rangeValue: 0,
+        applyTo: "SELF",
+        durationType: "TURNS",
+        durationTurns: 2,
+        statTarget: "ATTACK",
+      },
+      {
+        id: "balance-hawkshot-archer-slip-the-line",
+        name: "Slip the Line",
+        description: "A stronger Dodge pool that keeps the evasive fantasy mechanically simulated.",
+        intention: "DEFENCE",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "SELF",
+        rangeValue: 0,
+        applyTo: "SELF",
+        durationType: "TURNS",
+        durationTurns: 2,
+        attackMode: "PHYSICAL",
+        defenceMode: "Dodge",
+      },
+      {
+        id: "balance-hawkshot-archer-bleeder-mark",
+        name: "Bleeder Mark",
+        description: "A sharper Guard debuff for precision pressure testing.",
+        intention: "DEBUFF",
+        diceCount: 2,
+        potency: 2,
+        rangeCategory: "RANGED",
+        rangeValue: 60,
+        rangeExtra: { targets: 1 },
+        durationType: "TURNS",
+        durationTurns: 1,
+        statTarget: "GUARD",
+      },
     ],
+    signatureMove: {
+      id: "balance-hawkshot-archer-signature-skyline-shot",
+      name: "Skyline Shot",
+      description: "A high-precision ranged finisher for glass-cannon calibration.",
+      intention: "ATTACK",
+      diceCount: 5,
+      potency: 4,
+      rangeCategory: "RANGED",
+      rangeValue: 60,
+      rangeExtra: { targets: 1 },
+      durationType: "TURNS",
+      durationTurns: 2,
+      attackMode: "PHYSICAL",
+      damageTypes: ["Piercing"],
+    },
   },
 ];
 
@@ -365,6 +687,128 @@ function buildPower(spec: PowerSpec, sortOrder: number): CharacterPower {
   return normalizeCharacterPower(power, sortOrder);
 }
 
+function hasPureMovementOnlyPower(powers: CharacterPower[]) {
+  return powers.some((power) =>
+    power.effectPackets.length > 0 &&
+    power.effectPackets.every((packet) => packet.intention === "MOVEMENT")
+  );
+}
+
+function assertSpendBand(params: {
+  characterName: string;
+  label: string;
+  totalSpent: number;
+  min: number;
+  max: number;
+}) {
+  if (params.totalSpent < params.min || params.totalSpent > params.max) {
+    throw new Error(
+      `${params.characterName}: ${params.label} spend ${params.totalSpent} must be ${params.min}-${params.max}.`,
+    );
+  }
+}
+
+function normalizeDamageTypeAttackMode(value: unknown): WoundChannel {
+  return String(value ?? "").toUpperCase() === "MENTAL" ? "MENTAL" : "PHYSICAL";
+}
+
+function selectableDamageTypeMap(damageTypes: SelectableDamageType[]) {
+  return new Map(
+    damageTypes.map((damageType) => [
+      damageType.name.trim().toLowerCase(),
+      {
+        name: damageType.name.trim(),
+        attackMode: normalizeDamageTypeAttackMode(damageType.attackMode),
+      },
+    ]),
+  );
+}
+
+function assertLegalSpecDamageTypes(params: {
+  characterName: string;
+  powerName: string;
+  source: "normal power" | "Signature Move";
+  attackMode: WoundChannel;
+  damageTypes: string[];
+  selectableDamageTypes: SelectableDamageType[];
+}) {
+  if (params.damageTypes.length === 0) {
+    throw new Error(`${params.characterName}: ${params.source} ${params.powerName} must have at least one damage type.`);
+  }
+  const legalByName = selectableDamageTypeMap(params.selectableDamageTypes);
+  for (const damageType of params.damageTypes) {
+    const legal = legalByName.get(damageType.trim().toLowerCase());
+    if (!legal) {
+      throw new Error(
+        `${params.characterName}: ${params.source} ${params.powerName} uses illegal damage type "${damageType}".`,
+      );
+    }
+    if (legal.name !== damageType) {
+      throw new Error(
+        `${params.characterName}: ${params.source} ${params.powerName} must use canonical damage type "${legal.name}", not "${damageType}".`,
+      );
+    }
+    if (legal.attackMode !== params.attackMode) {
+      throw new Error(
+        `${params.characterName}: ${params.source} ${params.powerName} uses ${damageType} (${legal.attackMode}) on ${params.attackMode} attack mode.`,
+      );
+    }
+  }
+}
+
+function assertKitDamageTypes(params: {
+  kit: CharacterKit;
+  selectableDamageTypes: SelectableDamageType[];
+}) {
+  for (const spec of params.kit.powers) {
+    if (spec.intention !== "ATTACK") continue;
+    assertLegalSpecDamageTypes({
+      characterName: params.kit.name,
+      powerName: spec.name,
+      source: "normal power",
+      attackMode: normalizeDamageTypeAttackMode(spec.attackMode),
+      damageTypes: spec.damageTypes ?? ["Blunt"],
+      selectableDamageTypes: params.selectableDamageTypes,
+    });
+  }
+  if (params.kit.signatureMove.intention === "ATTACK") {
+    assertLegalSpecDamageTypes({
+      characterName: params.kit.name,
+      powerName: params.kit.signatureMove.name,
+      source: "Signature Move",
+      attackMode: normalizeDamageTypeAttackMode(params.kit.signatureMove.attackMode),
+      damageTypes: params.kit.signatureMove.damageTypes ?? ["Blunt"],
+      selectableDamageTypes: params.selectableDamageTypes,
+    });
+  }
+}
+
+function assertBuiltPowerDamageTypes(params: {
+  characterName: string;
+  power: CharacterPower;
+  source: "normal power" | "Signature Move";
+  selectableDamageTypes: SelectableDamageType[];
+}) {
+  for (const [packetIndex, packet] of params.power.effectPackets.entries()) {
+    if (packet.intention !== "ATTACK") continue;
+    const details =
+      packet.detailsJson && typeof packet.detailsJson === "object"
+        ? packet.detailsJson as Record<string, unknown>
+        : {};
+    const damageTypes = Array.isArray(details.damageTypes)
+      ? details.damageTypes.map((entry) => String(entry)).filter(Boolean)
+      : [];
+    assertLegalSpecDamageTypes({
+      characterName: params.characterName,
+      powerName: `${params.power.name} packet ${packetIndex + 1}`,
+      source: params.source,
+      attackMode: normalizeDamageTypeAttackMode(details.attackMode ?? packet.woundChannel),
+      damageTypes,
+      selectableDamageTypes: params.selectableDamageTypes,
+    });
+  }
+}
+
 function loadTraitCatalog(rows: Array<{
   id: string;
   name: string;
@@ -467,7 +911,7 @@ async function main() {
       throw new Error(`Campaign name mismatch: expected ${BALANCE_CAMPAIGN_NAME}, found ${campaign.name}.`);
     }
 
-    const [traitRows, activePowerTuning, characterBuilderTuning] = await Promise.all([
+    const [traitRows, activePowerTuning, characterBuilderTuning, damageTypeRows] = await Promise.all([
       prisma.playerTrait.findMany({
         where: { isActive: true },
         orderBy: [{ name: "asc" }],
@@ -489,7 +933,20 @@ async function main() {
         where: { id: "default" },
         select: { playerPowerSpendScalar: true },
       }),
+      prisma.damageType.findMany({
+        orderBy: { name: "asc" },
+        select: { name: true, attackMode: true },
+      }),
     ]);
+    const selectableDamageTypes = damageTypeRows
+      .filter((row) => isSelectableDamageTypeName(row.name))
+      .map((row) => ({
+        name: row.name,
+        attackMode: normalizeDamageTypeAttackMode(row.attackMode),
+      }));
+    for (const kit of CHARACTER_KITS) {
+      assertKitDamageTypes({ kit, selectableDamageTypes });
+    }
     const traitCatalog = loadTraitCatalog(traitRows);
     const powerTuning = activePowerTuning
       ? toPowerTuningSnapshot(activePowerTuning)
@@ -509,9 +966,12 @@ async function main() {
       id: string;
       name: string;
       level: number;
-      powerPool: number;
-      totalSpent: number;
-      remaining: number;
+      normalPowerPool: number;
+      normalPowerSpent: number;
+      normalPowerRemaining: number;
+      signatureMovePool: number;
+      signatureMoveSpent: number;
+      signatureMoveRemaining: number;
       fallbackBasicAttack: boolean;
       hydrationWarnings: string[];
       powers: Array<{
@@ -521,7 +981,14 @@ async function main() {
         basePowerValue: number | null;
         derivedCooldownTurns: number | null;
       }>;
+      signatureMove: {
+        name: string;
+        spend: number | null;
+        basePowerValue: number | null;
+        derivedCooldownTurns: number | null;
+      } | null;
     }> = [];
+    const preparedUpdates: PreparedCharacterUpdate[] = [];
 
     for (const kit of CHARACTER_KITS) {
       const rows = await prisma.campaignCharacter.findMany({
@@ -548,11 +1015,26 @@ async function main() {
         [],
       );
       const powers = kit.powers.map((spec, index) => buildPower(spec, index));
+      const signatureMove = buildPower(kit.signatureMove, 0);
+      for (const power of powers) {
+        assertBuiltPowerDamageTypes({
+          characterName: kit.name,
+          power,
+          source: "normal power",
+          selectableDamageTypes,
+        });
+      }
+      assertBuiltPowerDamageTypes({
+        characterName: kit.name,
+        power: signatureMove,
+        source: "Signature Move",
+        selectableDamageTypes,
+      });
       const nextBuilderData: CharacterBuilderData = {
         ...builderData,
         narrativeNotes: updateNarrativeNotes(builderData.narrativeNotes, kit.name),
         powers,
-        signatureMove: null,
+        signatureMove,
         equippedSlots: {},
       };
       const validationErrors = validateCharacterKit({
@@ -576,12 +1058,47 @@ async function main() {
       if (summary.overspent) {
         throw new Error(`${kit.name}: power spend ${summary.totalSpent} exceeds pool ${summary.powerPool}.`);
       }
+      assertSpendBand({
+        characterName: kit.name,
+        label: "normal Power Point",
+        totalSpent: summary.totalSpent,
+        min: NORMAL_POWER_MIN_SPEND,
+        max: NORMAL_POWER_MAX_SPEND,
+      });
+      const signatureSummary = summarizeCharacterPowers({
+        level: row.level,
+        powers: [signatureMove],
+        tuningSnapshot: powerTuning,
+        playerPowerSpendScalar,
+        powerPool: signatureMovePointPool(row.level),
+      });
+      if (signatureSummary.overspent) {
+        throw new Error(`${kit.name}: Signature Move spend ${signatureSummary.totalSpent} exceeds pool ${signatureSummary.powerPool}.`);
+      }
+      assertSpendBand({
+        characterName: kit.name,
+        label: "Signature Move",
+        totalSpent: signatureSummary.totalSpent,
+        min: SIGNATURE_MOVE_MIN_SPEND,
+        max: SIGNATURE_MOVE_MAX_SPEND,
+      });
+      if (hasPureMovementOnlyPower([...powers, signatureMove])) {
+        throw new Error(`${kit.name}: pure Movement-only powers are not allowed in Balance Environment calibration kits.`);
+      }
+      preparedUpdates.push({
+        row,
+        nextBuilderData,
+        normalSummary: summary,
+        signatureSummary,
+      });
+    }
 
+    for (const prepared of preparedUpdates) {
       const updated = await prisma.campaignCharacter.update({
-        where: { id: row.id },
+        where: { id: prepared.row.id },
         data: {
-          builderData: JSON.parse(JSON.stringify(nextBuilderData)),
-          description: updateNarrativeNotes("", kit.name),
+          builderData: JSON.parse(JSON.stringify(prepared.nextBuilderData)),
+          description: updateNarrativeNotes("", prepared.row.name),
           archivedAt: null,
           archivedByUserId: null,
           archiveReason: null,
@@ -603,25 +1120,34 @@ async function main() {
         action.id.includes("fallback-basic-attack"),
       );
       if (fallbackBasicAttack) {
-        throw new Error(`${kit.name}: Combat Lab still produced fallback basic attack after power kit hydration.`);
+        throw new Error(`${prepared.row.name}: Combat Lab still produced fallback basic attack after power kit hydration.`);
       }
 
       outputs.push({
         id: updated.id,
         name: updated.name,
         level: updated.level,
-        powerPool: summary.powerPool,
-        totalSpent: summary.totalSpent,
-        remaining: summary.remaining,
+        normalPowerPool: prepared.normalSummary.powerPool,
+        normalPowerSpent: prepared.normalSummary.totalSpent,
+        normalPowerRemaining: prepared.normalSummary.remaining,
+        signatureMovePool: prepared.signatureSummary.powerPool,
+        signatureMoveSpent: prepared.signatureSummary.totalSpent,
+        signatureMoveRemaining: prepared.signatureSummary.remaining,
         fallbackBasicAttack,
         hydrationWarnings: hydration.warnings.map((warning) => warning.message),
-        powers: summary.powers.map((entry) => ({
+        powers: prepared.normalSummary.powers.map((entry) => ({
           name: entry.power.name,
           intention: entry.power.effectPackets[0]?.intention ?? "UNKNOWN",
           spend: entry.spend,
           basePowerValue: entry.basePowerValue,
           derivedCooldownTurns: entry.derivedCooldownTurns,
         })),
+        signatureMove: prepared.signatureSummary.powers.map((entry) => ({
+          name: entry.power.name,
+          spend: entry.spend,
+          basePowerValue: entry.basePowerValue,
+          derivedCooldownTurns: entry.derivedCooldownTurns,
+        }))[0] ?? null,
       });
     }
 
@@ -659,6 +1185,52 @@ async function main() {
       if (validationErrors.length > 0) {
         throw new Error(validationErrors.join("\n"));
       }
+      const normalSummary = summarizeCharacterPowers({
+        level: row.level,
+        powers: builderData.powers,
+        tuningSnapshot: powerTuning,
+        playerPowerSpendScalar,
+      });
+      const signatureSummary = summarizeCharacterPowers({
+        level: row.level,
+        powers: builderData.signatureMove ? [builderData.signatureMove] : [],
+        tuningSnapshot: powerTuning,
+        playerPowerSpendScalar,
+        powerPool: signatureMovePointPool(row.level),
+      });
+      assertSpendBand({
+        characterName: row.name,
+        label: "normal Power Point",
+        totalSpent: normalSummary.totalSpent,
+        min: NORMAL_POWER_MIN_SPEND,
+        max: NORMAL_POWER_MAX_SPEND,
+      });
+      assertSpendBand({
+        characterName: row.name,
+        label: "Signature Move",
+        totalSpent: signatureSummary.totalSpent,
+        min: SIGNATURE_MOVE_MIN_SPEND,
+        max: SIGNATURE_MOVE_MAX_SPEND,
+      });
+      if (hasPureMovementOnlyPower([...builderData.powers, ...(builderData.signatureMove ? [builderData.signatureMove] : [])])) {
+        throw new Error(`${row.name}: focused verification found a pure Movement-only power.`);
+      }
+      for (const power of builderData.powers) {
+        assertBuiltPowerDamageTypes({
+          characterName: row.name,
+          power,
+          source: "normal power",
+          selectableDamageTypes,
+        });
+      }
+      if (builderData.signatureMove) {
+        assertBuiltPowerDamageTypes({
+          characterName: row.name,
+          power: builderData.signatureMove,
+          source: "Signature Move",
+          selectableDamageTypes,
+        });
+      }
       const hydration = adaptCampaignCharacterToCombatActor(
         { ...row, backpackItems: [] },
         undefined,
@@ -695,7 +1267,7 @@ async function main() {
         itemTemplates: finalCounts[2],
       },
       characters: outputs,
-      signatureMovesCreated: false,
+      signatureMovesCreated: true,
       equipmentCreatedOrEquipped: false,
     }, null, 2));
   } finally {
