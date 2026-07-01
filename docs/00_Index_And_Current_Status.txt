@@ -136,10 +136,14 @@ law until the owning active doc is updated with an explicit decision.
 - Balance Environment formula legality.
   Status: DATA-PATH READY / NOT FINAL BALANCE EVIDENCE.
   Owner: docs/04_Combat_Lab_Balance_And_Validation.txt.
-  Note: Current Balance Environment characters hydrate but overspend Level 3
-  budgets under active playerPowerSpendScalar 3: Arcane Sage 296/150 and 84/60,
-  Hawkshot Archer 298/150 and 114/60, Ranger Commander 311/150 and 114/60,
-  Stoneguard 294/150 and 83/60. Use them for hydration and runner testing, not
+  Note: Current Balance Environment characters hydrate. The live Character
+  Builder tuning source is characterBuilderTuning/default, which the recent
+  scalar provenance audit found at playerPowerSpendScalar 2. The earlier scalar
+  3 report was a formula-harness fallback artifact and is not live app truth.
+  Under scalar 2, normal pools are close to target but some assets still
+  overspend Level 3 budgets: Arcane Sage 161/150 normal and 54/60 Signature,
+  Hawkshot Archer 155/150 and 98/60, Ranger Commander 162/150 and 98/60,
+  Stoneguard 148/150 and 53/60. Use them for hydration and runner testing, not
   final tuning proof, until formula architecture and asset pricing are
   corrected or explicitly accepted.
 - C14 automatic Major Injury Attribute choice policy.
@@ -253,7 +257,9 @@ runtime inspection show:
 - Character Builder power pool remains Character Level x 50 unless explicitly
   changed later.
 - Character Builder power spend derives from BasePowerValue through the
-  player-facing spend scalar.
+  player-facing spend scalar. Formula harnesses must load the same active
+  Character Builder tuning source as the live app, currently
+  characterBuilderTuning/default, instead of falling back to stale audit values.
 - Campaign-local Backpack and equipped gear flows exist as the current asset
   model; future Setting Packages remain a later protected-asset layer.
 

@@ -304,6 +304,17 @@ J. Run small smoke batches.
 K. Run medium baselines.
 L. Tune constants.
 
+Character Builder scalar provenance:
+
+- Live Character Builder save/load and UI paths use the active/default
+  Character Builder tuning row, currently characterBuilderTuning/default.
+- Formula harnesses and calibration reports must load that same source. If the
+  row cannot be loaded, they may fall back to the code default only if
+  provenance clearly labels the fallback.
+- The earlier scalar 3 formula report was a fallback artifact from querying a
+  non-current "global" row. Treat scalar 2 as the current provisional live
+  calibration state until a deliberate tuning pass changes it.
+
 Formula implementation guardrails:
 
 - expected table impact is the basis; do not rely on tag accumulation

@@ -38,6 +38,7 @@ import type { EffectPacket, MonsterCalculatorArchetype, MonsterTier } from "../l
 
 const BALANCE_CAMPAIGN_ID = "250aee5e-632f-405c-ba36-a49ed12a5afc";
 const BALANCE_CAMPAIGN_NAME = "Balance Environment";
+const CHARACTER_BUILDER_TUNING_ID = "default";
 
 loadEnvConfig(process.cwd());
 
@@ -1180,6 +1181,7 @@ function printHuman(report: Report) {
   console.log(`Commit: ${report.provenance.commitSha}`);
   console.log(`Git status: ${report.provenance.gitStatusShort || "clean"}`);
   console.log(`Power tuning: ${JSON.stringify(report.provenance.activeTuningNames)}`);
+  console.log(`Character Builder tuning: ${JSON.stringify(report.provenance.characterBuilderTuning)}`);
   console.log("");
 
   console.log("Character Builder Power Cost Examples");
@@ -1256,8 +1258,8 @@ async function main() {
       orderBy: { updatedAt: "desc" },
     }),
     db().characterBuilderTuning.findUnique({
-      where: { id: "global" },
-      select: { playerPowerSpendScalar: true },
+      where: { id: CHARACTER_BUILDER_TUNING_ID },
+      select: { id: true, playerPowerSpendScalar: true, updatedAt: true },
     }).catch(() => null),
   ]);
 
@@ -1269,6 +1271,14 @@ async function main() {
   const playerPowerSpendScalar = normalizeCharacterPowerSpendScalar(
     characterBuilderTuning?.playerPowerSpendScalar ?? DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
   );
+  const characterBuilderTuningProvenance = {
+    id: characterBuilderTuning?.id ?? CHARACTER_BUILDER_TUNING_ID,
+    source: characterBuilderTuning ? "characterBuilderTuning.default" : "code-default-fallback",
+    playerPowerSpendScalar,
+    fallbackUsed: !characterBuilderTuning,
+    fallbackScalar: DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
+    updatedAt: characterBuilderTuning?.updatedAt?.toISOString() ?? null,
+  };
 
   const syntheticPowers = createCharacterPowerExamples();
   const signatureMoveKeys = new Set(["signature-baseline"]);
@@ -1327,6 +1337,7 @@ async function main() {
         outcomeNormalization: outcomeSnapshot?.name ?? null,
         playerPowerSpendScalar,
       },
+      characterBuilderTuning: characterBuilderTuningProvenance,
       campaignId: BALANCE_CAMPAIGN_ID,
       campaignName: BALANCE_CAMPAIGN_NAME,
       assetSource: {

@@ -373,23 +373,33 @@ Current Character Builder pools remain:
 Signature Move uses its own separate budget and must not be mixed into ordinary
 power spend.
 
-Current Character Builder spend uses the active playerPowerSpendScalar. The
-current active scalar at the time of audit was 3:
+Current Character Builder spend uses the active playerPowerSpendScalar from the
+same Character Builder tuning source used by the live app. That source is the
+active/default Character Builder tuning row, currently
+characterBuilderTuning/default. The recent scalar provenance audit found that
+row at scalar 2. Earlier reports that showed scalar 3 were using a formula
+harness fallback after querying a non-current "global" row, and must not be
+treated as live app truth.
 
 - spend = CEILING(BasePowerValue x playerPowerSpendScalar)
 
 The current Balance Environment calibration characters are hydratable, but they
-are not legal calibration evidence under the active scalar and formula state:
+are not legal calibration evidence under the active scalar and formula state.
+Under the live scalar 2 source at the time of audit:
 
-- BALANCE_Arcane Sage: 296 / 150 normal, 84 / 60 Signature Move
-- BALANCE_Hawkshot Archer: 298 / 150 normal, 114 / 60 Signature Move
-- BALANCE_Ranger Commander: 311 / 150 normal, 114 / 60 Signature Move
-- BALANCE_Stoneguard: 294 / 150 normal, 83 / 60 Signature Move
+- BALANCE_Arcane Sage: 161 / 150 normal, 54 / 60 Signature Move
+- BALANCE_Hawkshot Archer: 155 / 150 normal, 98 / 60 Signature Move
+- BALANCE_Ranger Commander: 162 / 150 normal, 98 / 60 Signature Move
+- BALANCE_Stoneguard: 148 / 150 normal, 53 / 60 Signature Move
 
 These assets remain useful for data-path, hydration, UI, and scenario-runner
 testing. They must not be treated as final balance conclusions until formula
 architecture is corrected or explicitly accepted, and the assets are revalidated
 against that formula.
+
+Scalar 2 is provisional calibration state, not locked economics. It may still
+be rebased after expected-output constants and Balance Environment assets are
+calibrated.
 
 Current resolver shape is mostly additive:
 

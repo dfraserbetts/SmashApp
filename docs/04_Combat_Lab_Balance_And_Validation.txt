@@ -143,8 +143,13 @@ Known formula blockers from the audit:
 
 - target count and AoE delivery are currently additive where expected table
   impact should multiply payload
-- active playerPowerSpendScalar 3 makes the current Level 3 Balance Environment
-  characters massively over budget
+- the live Character Builder tuning source is characterBuilderTuning/default;
+  the recent scalar provenance audit found scalar 2 there. Scalar 3 was a
+  formula-harness fallback artifact from querying a non-current row, not live
+  app truth.
+- current Level 3 Balance Environment characters are close on normal pools
+  under scalar 2, but some Signature Moves remain over budget and require
+  repricing before final balance evidence
 - potency is not yet sufficiently tied to multiplied payload delivery
 - Monster Outcome Calculator remains a radar heuristic rather than Combat Lab
   parity
