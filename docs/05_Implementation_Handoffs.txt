@@ -269,6 +269,11 @@ Balance Handoff Notes
 Do not tune from one scenario unless it exposes a clear code/routing bug or
 matches an established canary failure.
 
+Do not tune against the current post-c89338d formula shape as final truth. The
+formula-shape audit found that current data paths are useful, but serious
+balance tuning is blocked until formula architecture is corrected or explicitly
+accepted as an interim model.
+
 Keep the split between:
 
 - Power Tuning
@@ -278,6 +283,40 @@ Keep the split between:
 Layer A deterministic canaries are mandatory mechanical guardrails. Layer B
 synthetic batches are diagnostic only. Real authored scenarios are primary
 table-truth balance evidence.
+
+Formula architecture implementation sequence:
+
+A. Lock formula architecture spec. This docs pass.
+B. Add formula unit/example tests without changing formulas.
+C. Refactor Character Power Builder cost formula shape around expected table
+   impact.
+D. Rebaseline playerPowerSpendScalar after formula correction.
+E. Refactor Signature Move validation/reporting if needed, while preserving the
+   same formula and separate Character Level x 20 pool.
+F. Refactor Monster Outcome Calculator to use compatible expected-output
+   assumptions.
+G. Review Forge output/value formula and decide whether bands become validation
+   gates.
+H. Reseed/reprice Balance Environment characters and monsters after formula
+   correction.
+I. Add a campaign-scoped Balance Environment scenarioMatrix preset.
+J. Run small smoke batches.
+K. Run medium baselines.
+L. Tune constants.
+
+Formula implementation guardrails:
+
+- expected table impact is the basis; do not rely on tag accumulation
+- target count and AoE must multiply or curve-scale payload impact
+- potency must feed payload per success before target/duration delivery
+  multipliers
+- cooldown affects frequency, but must not erase peak impact
+- unsupported runtime mechanics receive no or reduced balance credit until
+  supported
+- Signature Move uses the same base formula as ordinary powers unless a future
+  explicit rule says otherwise
+- pure Movement powers stay out of automated balance evidence until Movement
+  Abstraction V1 exists
 
 
 Codex Tooling Guidance

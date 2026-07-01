@@ -124,6 +124,24 @@ law until the owning active doc is updated with an explicit decision.
   Owner: docs/02_Power_System_And_Costing.txt and
   docs/04_Combat_Lab_Balance_And_Validation.txt.
   Note: Requires canary protection and real authored scenario evidence.
+- Formula architecture correction before serious balance tuning.
+  Status: BLOCKED UNTIL FORMULA ARCHITECTURE PASS.
+  Owner: docs/02_Power_System_And_Costing.txt,
+  docs/04_Combat_Lab_Balance_And_Validation.txt, and
+  docs/05_Implementation_Handoffs.txt.
+  Note: Post-c89338d audit found current formula paths hydratable but too
+  additive for final balance evidence. Expected table impact, not tag
+  accumulation, is the required architecture. Target count, AoE, duration,
+  potency, and repeat mechanics must multiply or curve-scale payload impact.
+- Balance Environment formula legality.
+  Status: DATA-PATH READY / NOT FINAL BALANCE EVIDENCE.
+  Owner: docs/04_Combat_Lab_Balance_And_Validation.txt.
+  Note: Current Balance Environment characters hydrate but overspend Level 3
+  budgets under active playerPowerSpendScalar 3: Arcane Sage 296/150 and 84/60,
+  Hawkshot Archer 298/150 and 114/60, Ranger Commander 311/150 and 114/60,
+  Stoneguard 294/150 and 83/60. Use them for hydration and runner testing, not
+  final tuning proof, until formula architecture and asset pricing are
+  corrected or explicitly accepted.
 - C14 automatic Major Injury Attribute choice policy.
   Status: DEFERRED / NEEDS RUNTIME EVIDENCE.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
@@ -263,6 +281,13 @@ Layer A deterministic canaries must protect mechanics first, Layer B synthetic
 batches are targeted diagnostics, and real authored scenarios remain primary
 table-truth balance evidence.
 
+Serious numeric balance tuning is additionally gated by formula architecture.
+The current post-c89338d audit found the system too additive in places where
+expected table impact should multiply payload. Balance Environment assets are
+currently useful for data-path testing but are not final balance evidence until
+formula architecture is corrected or consciously accepted and those assets are
+revalidated.
+
 
 Immediate Ordered Work
 
@@ -293,7 +318,9 @@ Immediate Ordered Work
 11. Use Codex-run Combat Lab batches for incremental checks with provenance.
 12. Reserve manual Combat Lab/browser checks for UI/report readability, public
    confidence, playtest packet confidence, and table-feel judgement.
-13. Continue tuning power values, non-power monster baselines, and radar display
+13. Lock and implement the expected-table-impact formula architecture before
+   serious numeric tuning.
+14. Continue tuning power values, non-power monster baselines, and radar display
    curves without collapsing those layers together.
 
 

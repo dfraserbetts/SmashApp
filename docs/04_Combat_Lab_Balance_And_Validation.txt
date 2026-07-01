@@ -114,6 +114,43 @@ Balance Environment campaignId, its provenance must say so clearly instead of
 silently treating unscoped/default data as authoritative.
 
 
+Formula Architecture Balance Testing Gate
+
+The post-c89338d formula audit found that Balance Environment assets are
+hydratable, but they are not yet valid final balance evidence under the current
+active scalar and formula shape.
+
+Do not treat Balance Environment win rates as balance evidence until:
+
+- formula architecture is corrected or consciously accepted as the intended
+  interim model
+- Balance Environment assets are revalidated against the corrected or accepted
+  formula
+- unsupported mechanics are excluded from evidence or explicitly marked
+- scenarioMatrix has a campaign-scoped Balance Environment preset or equivalent
+  command path
+- the campaign-scoped run has fallback 0 and clear hydration diagnostics
+- active provenance includes campaignId, campaignName, assetSource, active
+  Power Tuning, active Combat Tuning, active Outcome Normalization, commit SHA,
+  and worktree status
+
+Until this gate is passed, current Balance Environment assets may be used for
+data-path testing, hydration testing, Combat Lab reporting checks, and
+campaign-scoped runner verification. They must not be used as final tuning
+proof.
+
+Known formula blockers from the audit:
+
+- target count and AoE delivery are currently additive where expected table
+  impact should multiply payload
+- active playerPowerSpendScalar 3 makes the current Level 3 Balance Environment
+  characters massively over budget
+- potency is not yet sufficiently tied to multiplied payload delivery
+- Monster Outcome Calculator remains a radar heuristic rather than Combat Lab
+  parity
+- Forge output bands are report-only and do not block over-band saves
+
+
 Canonical Regression Matrix
 
 The scenario-matrix runner exists at scripts/combatLab.scenarioMatrix.ts.

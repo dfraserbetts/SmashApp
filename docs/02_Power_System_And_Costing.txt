@@ -359,6 +359,375 @@ Costing should account for:
 - defensive pool depth and burst where relevant
 
 
+Formula Architecture Status
+
+The post-c89338d formula-shape audit is complete. It found that current data
+paths are hydratable, but serious balance tuning is blocked until the formula
+architecture is corrected or explicitly accepted as a conscious interim model.
+
+Current Character Builder pools remain:
+
+- normal powers: Character Level x 50; Level 3 = 150
+- Signature Move: Character Level x 20; Level 3 = 60
+
+Signature Move uses its own separate budget and must not be mixed into ordinary
+power spend.
+
+Current Character Builder spend uses the active playerPowerSpendScalar. The
+current active scalar at the time of audit was 3:
+
+- spend = CEILING(BasePowerValue x playerPowerSpendScalar)
+
+The current Balance Environment calibration characters are hydratable, but they
+are not legal calibration evidence under the active scalar and formula state:
+
+- BALANCE_Arcane Sage: 296 / 150 normal, 84 / 60 Signature Move
+- BALANCE_Hawkshot Archer: 298 / 150 normal, 114 / 60 Signature Move
+- BALANCE_Ranger Commander: 311 / 150 normal, 114 / 60 Signature Move
+- BALANCE_Stoneguard: 294 / 150 normal, 83 / 60 Signature Move
+
+These assets remain useful for data-path, hydration, UI, and scenario-runner
+testing. They must not be treated as final balance conclusions until formula
+architecture is corrected or explicitly accepted, and the assets are revalidated
+against that formula.
+
+Current resolver shape is mostly additive:
+
+- shared context
+- structural cost
+- access cost
+- packet totals
+- packet count
+- ongoing runtime estimate
+- cross-packet synergy
+
+The audit red flag is that variables that multiply table impact are often
+represented as small flat increments. Examples from the active tuning at audit
+time:
+
+- baseline melee 1 target: BasePowerValue 12
+- same melee 2 targets: BasePowerValue 13
+- ranged 60 ft, 1 target: BasePowerValue 13.5
+- ranged 60 ft, 2 targets: BasePowerValue 14.5
+- AoE count 3 sphere: BasePowerValue 19
+
+Those numbers are useful diagnostics, not locked final constants. The locked
+architecture principle is that cost and outcome should be based on expected
+table impact, not tag accumulation. A power or item that delivers the same
+payload to more targets must not be priced as a tiny flat addition. Delivery
+and repeat mechanics multiply payload impact.
+
+
+Shared Expected-Output Vocabulary
+
+Use these terms consistently across Character Builder, Signature Move,
+Summoning Circle, Forge, Monster Outcome Calculator, and Combat Lab:
+
+- payload: wounds, healing, block units, resist cancellation, control units,
+  augment/debuff magnitude, movement-equivalent effect, or other mechanical
+  output.
+- expected successes: expected output successes from dice count and the assumed
+  success model.
+- table-facing output: the value players see at the table, such as wounds per
+  success.
+- expected target count: expected number of meaningful affected targets, not
+  necessarily maximum possible targets.
+- uptime: how often the effect can matter over expected encounter length.
+- delivery risk: melee exposure, range safety, area placement, trigger
+  condition, setup requirement, or similar delivery friction.
+- action economy value: whether the effect uses normal action, response,
+  Counter, trigger, passive, field, attached, or another timing lane.
+- reliability: accuracy, dice, Attribute route, reroll, advantage-like
+  improvement, or consistency.
+- flexibility: target choice, ally/enemy applicability, multiple packets,
+  multiple damage types, broad application, or broad condition coverage.
+
+
+Character Power Builder Formula Shape
+
+Conceptual architecture, not final constants:
+
+baseExpectedImpact =
+  expectedSuccesses(diceCount)
+  x payloadPerSuccess
+  x expectedTargetMultiplier
+  x durationOrRepeatMultiplier
+  x uptimeMultiplier
+
+powerValue =
+  baseExpectedImpact
+  x deliveryMultiplier
+  x actionEconomyMultiplier
+  x flexibilityMultiplier
+  x reliabilityMultiplier
+  x packetInteractionMultiplier
+  + flatStructuralCosts
+  - explicitLimitationsDiscounts
+
+Potency must feed payloadPerSuccess. It must not live only as a small isolated
+flat add-on.
+
+Target count must multiply payload value. AoE must multiply or curve-scale
+expected target value.
+
+Duration and repeat effects must be valued by expected meaningful applications
+over time, not merely by a small duration tag.
+
+Cooldown should affect frequency, but it must not erase burst value. A high
+burst effect with a cooldown still has encounter-shaping peak impact.
+
+Range should not be a tiny flat add-on when it changes safety, uptime, and
+target access.
+
+Secondary Packets must be priced according to dependency:
+
+- independent same-bundle packets
+- linked-to-primary packets
+- dependent sequential packets
+- triggered / conditional packets
+
+Unsupported runtime mechanics should not receive full calibration credit until
+they are supported and measured.
+
+
+Potency Treatment
+
+Potency should not be priced only as a flat additive.
+
+Potency increases payload per success and therefore scales with:
+
+- dice count / expected successes
+- target count
+- AoE
+- duration / repeat
+- secondary packet dependency
+- action economy modifiers
+
+Higher potency may need nonlinear scaling. At minimum, potency must be inside
+the expected-output multiplication before delivery and target multipliers are
+applied.
+
+
+Target / Range / AoE Treatment
+
+Target count and AoE are force multipliers.
+
+Required doctrine:
+
+- single target is baseline
+- additional targets multiply expected payload
+- ranged targets multiply expected payload by expected meaningful targets
+- AoE count and AoE geometry estimate expected affected targets and placement
+  flexibility
+- AoE radius and shape are not cosmetic geometry
+- a 60 ft sphere cannot be priced as a tiny flat increase over a single target
+- target and AoE modifiers may be capped or use expected-target curves to avoid
+  pricing only by theoretical maximum, but they must not be flat trivial
+  additions
+
+
+Duration / Ongoing / Repeating Effects
+
+Duration should be valued by expected number of meaningful applications.
+
+The formula must account for:
+
+- first tick timing
+- cleanup, Resist, or removal chance
+- target survival
+- action economy
+- repeat / trigger cadence
+- front-loaded versus delayed output
+
+
+Cooldown / Availability
+
+Cooldown should affect frequency but should not fully discount peak impact.
+
+Use a two-component concept:
+
+- peak impact value
+- expected encounter contribution value
+
+Cooldown can reduce repeated contribution, but it should not make high burst
+cheap enough to decide encounters for free.
+
+
+Defensive Powers Formula Policy
+
+Defensive powers should normalize against offensive powers without erasing the
+game by default.
+
+Doctrine:
+
+- damage must generally outweigh defence to prevent stalemate
+- equal-cost defence should meaningfully mitigate equal-cost offence, not erase
+  it by default
+- Block Pool, Dodge Pool, and Resist Pool need different value models
+- pool depth and per-trigger cap must be split
+- passive and persistent defences need uptime and removal assumptions
+- defensive pools are finite committed resources, not static armour
+
+Block Pool value is comparatively linear wound prevention. Dodge Pool value is
+threshold-based because match-or-exceed can avoid an entire legal packet.
+Resist Pool value is lane-limited cancellation against hostile successes,
+stacks, ongoing units, or equivalent effect units.
+
+
+Control / Debuff / Resist Pricing
+
+Control and debuff pricing should account for:
+
+- expected cancelled enemy output
+- severity of denied action
+- duration
+- resistance or cleanup chance
+- target count / AoE
+- action economy
+
+Resist powers should be priced against expected prevented hostile impact, not
+merely raw cancellation points.
+
+
+Healing / Cleanse Pricing
+
+Healing value should account for:
+
+- timing
+- expected wounds restored
+- overheal waste
+- target survival value
+- action economy
+- duration / repeat
+- cleanse severity
+
+Cleanse should price the severity and expected value of what it can remove, not
+just the word Cleanse.
+
+
+Assist / Counter / Response Timing
+
+Off-turn and response effects have high action-economy value.
+
+Counter damage or punishment must be priced distinctly from normal main-action
+attacks.
+
+Assist pressure is not payload and should not be priced as independent damage.
+
+Response-lane powers may require extra cost or strict limitations because they
+interact with another actor's turn and can change action outcome timing.
+
+
+Signature Move Formula Policy
+
+Signature Moves use the same base cost model as ordinary powers unless an
+explicit future rule says otherwise.
+
+The difference is budget pool, not a cheaper formula.
+
+Signature Move budget is Character Level x 20.
+
+Signature Move must remain separate from normal powers.
+
+Signature Move should still be included in Combat Lab action hydration and
+campaign balance evidence.
+
+
+Monster Outcome Calculator Formula Shape
+
+Monster Outcome Calculator should remain a shaping/radar tool, but its expected
+output assumptions should become compatible with the power and Combat Lab model.
+
+Intended shape:
+
+physicalThreat =
+  expectedPhysicalOutputFromNaturalAttacks
+  + expectedPhysicalOutputFromWeapons
+  + expectedPhysicalOutputFromPowers
+  + physicalTraitModifiers
+  adjusted by Attributes, accuracy, target count, cooldown, uptime, and
+  reliability.
+
+mentalThreat =
+  expectedMentalOutputFromNaturalAttacks
+  + expectedMentalOutputFromPowers
+  + mentalTraitModifiers
+  adjusted by Attributes, accuracy, target count, cooldown, uptime, and
+  reliability.
+
+controlThreat =
+  expectedDeniedActionsOrDebuffValue
+  adjusted by resistance, duration, targets, and reliability.
+
+durability =
+  effectiveHealth
+  adjusted by protection, defence dice, block per success, resistances,
+  defensive powers, healing, and C14 / legendary model where applicable.
+
+A D12 Attack monster with the same weapon should show much higher threat than a
+D6 Attack monster. Rerolls and traits must matter when mechanically supported.
+Natural attacks, weapons, powers, protections, and traits must combine into the
+outcome model. The outcome calculator is not Combat Lab, but it should use
+compatible expected-output assumptions.
+
+
+Forge Formula Shape
+
+Forge item value should estimate contribution to:
+
+- attack output
+- defence / protection
+- Attribute modification
+- special mechanics
+- range / targets / AoE
+- level / rarity scaling
+
+Forge values should be compatible with:
+
+- Character Builder equipment-derived output
+- Summoning Circle equipment use
+- Monster Outcome Calculator threat / durability
+- Combat Lab hydration
+
+Current Forge output profile uses Strength x 2 as table-facing wounds per
+success. Current Forge output bands are useful diagnostics, but report-only
+bands are not sufficient balance enforcement if overpowered items can save
+freely.
+
+
+Unsupported Mechanics Policy
+
+If a mechanic is not currently simulated or represented in outcome calculators,
+it should not receive full balance evidence credit.
+
+Pure Movement powers are excluded from current automated balance evidence until
+Movement Abstraction V1 exists. Movement-flavoured powers may count only when
+they resolve through currently supported mechanics.
+
+Unsupported traits, rerolls, effects, and special mechanics must be clearly
+marked. Unsupported mechanics should receive no or reduced balance credit until
+the relevant runtime and calculator support exists.
+
+
+Current Formula Red Flags
+
+Critical / High:
+
+- target count and AoE delivery are additive instead of payload-multiplicative
+- current active playerPowerSpendScalar makes Balance Environment characters
+  massively overspend Level 3 budgets
+- potency appears insufficiently tied to multiplied payload delivery
+- Monster Outcome Calculator is a radar heuristic, not Combat Lab parity
+- Forge output bands are report-only
+
+Medium:
+
+- cooldown warning/noise and derived-vs-stored mismatch
+- secondary packet interaction needs careful multiplier treatment
+- unsupported runtime mechanics can distort evidence if counted fully
+- Movement currently lacks Movement Abstraction V1 balance support
+
+
 Defensive Pool Pricing Matrix Principles
 
 Duration Dodge, Physical Block, Mental Block, and Resist powers create finite
