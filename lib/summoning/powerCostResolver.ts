@@ -122,6 +122,50 @@ const COOLDOWN_TUNING_KEYS = {
   maxTurns: "cooldown.maxTurns",
 } as const;
 
+const PHASE1_ATTACK_MELEE_TARGET_MULTIPLIER: Record<number, number> = {
+  1: 1,
+  2: 1.65,
+  3: 2.15,
+  4: 2.55,
+  5: 2.9,
+};
+
+const PHASE1_ATTACK_RANGED_TARGET_MULTIPLIER: Record<number, number> = {
+  1: 1,
+  2: 1.7,
+  3: 2.25,
+  4: 2.7,
+  5: 3.1,
+};
+
+const PHASE1_ATTACK_RANGED_DISTANCE_MULTIPLIER: Record<number, number> = {
+  30: 1,
+  60: 1.08,
+  120: 1.18,
+  200: 1.3,
+};
+
+const PHASE1_ATTACK_AOE_COUNT_MULTIPLIER: Record<number, number> = {
+  1: 1,
+  2: 1.75,
+  3: 2.35,
+  4: 2.85,
+  5: 3.25,
+};
+
+const PHASE1_ATTACK_DAMAGE_TYPE_COVERAGE_FACTOR: Record<number, number> = {
+  1: 1,
+  2: 1.25,
+  3: 1.45,
+  4: 1.6,
+};
+
+const PHASE1_ATTACK_AOE_SHAPE_MULTIPLIER = {
+  sphere: 1,
+  cone: 1,
+  line: 0.95,
+} as const;
+
 const EMPTY_AXIS_VECTOR: PowerCostAxisVector = {
   physicalThreat: 0,
   mentalThreat: 0,
@@ -399,6 +443,185 @@ function countDamageTypes(details: Record<string, unknown>): number {
     }
   }
   return seen.size;
+}
+
+function valueFromCurve(curve: Record<number, number>, rawValue: number): number {
+  const bands = Object.keys(curve)
+    .map(Number)
+    .filter(Number.isFinite)
+    .sort((left, right) => left - right);
+  if (bands.length === 0) return 1;
+  const normalized = Math.max(0, rawValue);
+  let selected = bands[0];
+  for (const band of bands) {
+    if (normalized >= band) selected = band;
+  }
+  return curve[selected] ?? 1;
+}
+
+function expectedSuccessUnitsForAuthoredDice(diceCount: number): number {
+  return roundCost(
+    getExpectedSuccesses(
+      getTotalSuccessDistribution(
+        Math.max(1, Math.trunc(diceCount)),
+        BASELINE_POWER_VALUATION_DIE_SIDES,
+      ),
+    ),
+  );
+}
+
+function readAttackDeliveryInputs(
+  power: Power,
+  packet: EffectPacket,
+  canonicalRangeCategory: CanonicalRangeCategory,
+) {
+  const override = packet.localTargetingOverride;
+  const details = asRecord(packet.detailsJson);
+  const rangeExtra = asRecord(details.rangeExtra);
+  const detailsRangeCategory = asString(details.rangeCategory).toUpperCase();
+  const detailsRangeValue =
+    detailsRangeCategory === "MELEE" ||
+    detailsRangeCategory === "RANGED" ||
+    detailsRangeCategory === "AOE"
+      ? details.rangeValue
+      : null;
+  const rawAoeShape = asString(
+    override?.aoeShape ?? rangeExtra.shape ?? power.aoeShape,
+  ).toLowerCase();
+  const aoeShape: keyof typeof PHASE1_ATTACK_AOE_SHAPE_MULTIPLIER =
+    rawAoeShape === "cone" || rawAoeShape === "line" ? rawAoeShape : "sphere";
+  return {
+    meleeTargets: Math.max(
+      1,
+      asInt(
+        override?.meleeTargets ??
+          (detailsRangeCategory === "MELEE" ? detailsRangeValue : null) ??
+          power.meleeTargets,
+        1,
+      ),
+    ),
+    rangedTargets: Math.max(
+      1,
+      asInt(override?.rangedTargets ?? rangeExtra.targets ?? power.rangedTargets, 1),
+    ),
+    rangedDistanceFeet: asInt(
+      override?.rangedDistanceFeet ??
+        (detailsRangeCategory === "RANGED" ? detailsRangeValue : null) ??
+        power.rangedDistanceFeet,
+      0,
+    ),
+    aoeCenterRangeFeet: asInt(
+      override?.aoeCenterRangeFeet ??
+        (detailsRangeCategory === "AOE" ? detailsRangeValue : null) ??
+        power.aoeCenterRangeFeet,
+      0,
+    ),
+    aoeCount: Math.max(
+      1,
+      asInt(override?.aoeCount ?? rangeExtra.count ?? power.aoeCount, 1),
+    ),
+    aoeShape,
+    aoeSphereRadiusFeet: asInt(
+      override?.aoeSphereRadiusFeet ??
+        rangeExtra.sphereRadiusFeet ??
+        power.aoeSphereRadiusFeet,
+      0,
+    ),
+    aoeConeLengthFeet: asInt(
+      override?.aoeConeLengthFeet ?? rangeExtra.coneLengthFeet ?? power.aoeConeLengthFeet,
+      0,
+    ),
+    aoeLineWidthFeet: asInt(
+      override?.aoeLineWidthFeet ?? rangeExtra.lineWidthFeet ?? power.aoeLineWidthFeet,
+      0,
+    ),
+    aoeLineLengthFeet: asInt(
+      override?.aoeLineLengthFeet ?? rangeExtra.lineLengthFeet ?? power.aoeLineLengthFeet,
+      0,
+    ),
+    source: override ? "packetLocalTargetingOverride" : "powerSharedTargeting",
+    canonicalRangeCategory,
+  };
+}
+
+function getAoeGeometryFlexMultiplier(inputs: ReturnType<typeof readAttackDeliveryInputs>): number {
+  if (inputs.aoeShape === "sphere") {
+    if (inputs.aoeSphereRadiusFeet >= 30) return 1.12;
+    if (inputs.aoeSphereRadiusFeet >= 20) return 1.07;
+    return 1;
+  }
+  if (inputs.aoeShape === "cone") {
+    if (inputs.aoeConeLengthFeet >= 60) return 1.08;
+    if (inputs.aoeConeLengthFeet >= 30) return 1.04;
+    return 1;
+  }
+  const lengthFlex = inputs.aoeLineLengthFeet >= 120
+    ? 1.08
+    : inputs.aoeLineLengthFeet >= 90
+      ? 1.05
+      : inputs.aoeLineLengthFeet >= 60
+        ? 1.03
+        : 1;
+  const widthFlex = inputs.aoeLineWidthFeet >= 20
+    ? 1.06
+    : inputs.aoeLineWidthFeet >= 15
+      ? 1.04
+      : inputs.aoeLineWidthFeet >= 10
+        ? 1.02
+        : 1;
+  return roundRatio(lengthFlex * widthFlex);
+}
+
+function getPhase1AttackDeliveryMultiplier(
+  power: Power,
+  packet: EffectPacket,
+  canonicalRangeCategory: CanonicalRangeCategory,
+) {
+  const inputs = readAttackDeliveryInputs(power, packet, canonicalRangeCategory);
+  const rangeCategoryMultiplier =
+    canonicalRangeCategory === "self"
+      ? 0.9
+      : canonicalRangeCategory === "ranged"
+        ? 1
+        : canonicalRangeCategory === "aoe"
+          ? 1
+          : 1;
+  const targetMultiplier =
+    canonicalRangeCategory === "melee"
+      ? valueFromCurve(PHASE1_ATTACK_MELEE_TARGET_MULTIPLIER, inputs.meleeTargets)
+      : canonicalRangeCategory === "ranged"
+        ? valueFromCurve(PHASE1_ATTACK_RANGED_TARGET_MULTIPLIER, inputs.rangedTargets)
+        : canonicalRangeCategory === "aoe"
+          ? valueFromCurve(PHASE1_ATTACK_AOE_COUNT_MULTIPLIER, inputs.aoeCount)
+          : 1;
+  const rangeSafetyMultiplier =
+    canonicalRangeCategory === "ranged"
+      ? valueFromCurve(PHASE1_ATTACK_RANGED_DISTANCE_MULTIPLIER, inputs.rangedDistanceFeet)
+      : canonicalRangeCategory === "aoe"
+        ? valueFromCurve(PHASE1_ATTACK_RANGED_DISTANCE_MULTIPLIER, inputs.aoeCenterRangeFeet || 30)
+        : 1;
+  const shapeMultiplier =
+    canonicalRangeCategory === "aoe"
+      ? PHASE1_ATTACK_AOE_SHAPE_MULTIPLIER[inputs.aoeShape] ?? 1
+      : 1;
+  const geometryFlexMultiplier =
+    canonicalRangeCategory === "aoe" ? getAoeGeometryFlexMultiplier(inputs) : 1;
+  const deliveryMultiplier = roundRatio(
+    rangeCategoryMultiplier *
+      targetMultiplier *
+      rangeSafetyMultiplier *
+      shapeMultiplier *
+      geometryFlexMultiplier,
+  );
+  return {
+    deliveryMultiplier,
+    rangeCategoryMultiplier,
+    targetMultiplier,
+    rangeSafetyMultiplier,
+    shapeMultiplier,
+    geometryFlexMultiplier,
+    inputs,
+  };
 }
 
 function packetDealsWounds(packet: EffectPacket): boolean {
@@ -1021,6 +1244,7 @@ function getPacketMagnitudeCost(
   tuningValues: Record<string, number>,
   power: Power,
   packet: EffectPacket,
+  canonicalRangeCategory: CanonicalRangeCategory,
 ): {
   cost: number;
   chosenKeys: string[];
@@ -1063,22 +1287,38 @@ function getPacketMagnitudeCost(
   let damageTypeCount = 0;
   let damageTypeMultiplier = 1;
   let damageTypeMultiplierKey: string | null = null;
+  let expectedSuccesses: number | null = null;
+  let tableFacingWoundsPerSuccessForPayload: number | null = null;
+  let damageTypeCoverageFactor = 1;
+  let attackPayloadBeforeDelivery: number | null = null;
+  let attackDeliveryMultiplier = 1;
+  let attackDeliveryDebug: Record<string, unknown> | null = null;
   let movementTypeMultiplier = 1;
   let movementTypeMultiplierKey: string | null = null;
 
   if (intention === "ATTACK") {
     damageTypeCount = countDamageTypes(details);
     if (damageTypeCount > 0) {
-      const damageTypeResolved = resolveNumericTuningValue(
-        tuningValues,
-        "packet.magnitude.damageTypeCount",
+      damageTypeMultiplier = valueFromCurve(
+        PHASE1_ATTACK_DAMAGE_TYPE_COVERAGE_FACTOR,
         damageTypeCount,
       );
-      damageTypeMultiplier = damageTypeResolved.value || 1;
-      damageTypeMultiplierKey = damageTypeResolved.tuningKey;
-      pushSelectedTuning(chosenKeys, notes, damageTypeResolved);
+      damageTypeCoverageFactor = damageTypeMultiplier;
+      damageTypeMultiplierKey = "phase1.local.damageTypeCoverageFactor";
     }
-    woundAdjustedMagnitude = baseMagnitude * damageTypeMultiplier;
+    expectedSuccesses = expectedSuccessUnitsForAuthoredDice(
+      Math.max(1, asInt(packet.diceCount, Math.max(1, asInt(power.diceCount, 1)))),
+    );
+    tableFacingWoundsPerSuccessForPayload = Math.max(1, sourcePotency * 2);
+    attackPayloadBeforeDelivery = roundCost(
+      expectedSuccesses *
+        tableFacingWoundsPerSuccessForPayload *
+        damageTypeCoverageFactor,
+    );
+    const delivery = getPhase1AttackDeliveryMultiplier(power, packet, canonicalRangeCategory);
+    attackDeliveryMultiplier = delivery.deliveryMultiplier;
+    attackDeliveryDebug = delivery;
+    woundAdjustedMagnitude = roundCost(attackPayloadBeforeDelivery * attackDeliveryMultiplier);
   }
 
   if (intention === "MOVEMENT") {
@@ -1152,6 +1392,18 @@ function getPacketMagnitudeCost(
       damageTypeCount,
       damageTypeMultiplier: roundCost(damageTypeMultiplier),
       damageTypeMultiplierKey,
+      phase1ExpectedOutputAttack:
+        intention === "ATTACK"
+          ? {
+              expectedSuccesses,
+              tableFacingWoundsPerSuccessForPayload,
+              damageTypeCoverageFactor: roundRatio(damageTypeCoverageFactor),
+              attackPayloadBeforeDelivery,
+              deliveryMultiplier: roundRatio(attackDeliveryMultiplier),
+              delivery: attackDeliveryDebug,
+              active: true,
+            }
+          : null,
       buildPowerMultiplier: roundCost(buildPowerMultiplier),
       buildPowerMultiplierKey,
       buildPowerBonusCost: roundCost(buildPowerBonusCost),
@@ -1900,6 +2152,7 @@ function getSharedContextCost(
   tuningValues: Record<string, number>,
   power: Power,
   canonicalRangeCategory: CanonicalRangeCategory,
+  phase1AttackDeliveryScaled: boolean,
 ): {
   cost: number;
   chosenKeys: string[];
@@ -1929,8 +2182,12 @@ function getSharedContextCost(
       "shared.meleeTargets",
       Math.max(1, asInt(power.meleeTargets, 1)),
     );
-    cost += meleeResolved.value;
-    pushSelectedTuning(chosenKeys, notes, meleeResolved);
+    if (phase1AttackDeliveryScaled) {
+      notes.push("Phase 1 attack formula moved melee target count from flat shared cost into the attack delivery multiplier.");
+    } else {
+      cost += meleeResolved.value;
+      pushSelectedTuning(chosenKeys, notes, meleeResolved);
+    }
   }
 
   if (canonicalRangeCategory === "ranged") {
@@ -1945,13 +2202,18 @@ function getSharedContextCost(
       "shared.rangedTargets",
       Math.max(1, asInt(power.rangedTargets, 1)),
     );
-    cost += distanceResolved.value + targetsResolved.value;
-    pushSelectedTuning(chosenKeys, notes, distanceResolved);
-    pushSelectedTuning(chosenKeys, notes, targetsResolved);
+    if (phase1AttackDeliveryScaled) {
+      notes.push("Phase 1 attack formula moved ranged distance and target count from flat shared cost into the attack delivery multiplier.");
+    } else {
+      cost += distanceResolved.value + targetsResolved.value;
+      pushSelectedTuning(chosenKeys, notes, distanceResolved);
+      pushSelectedTuning(chosenKeys, notes, targetsResolved);
+    }
     rangedDistanceDebug = {
       rawDistanceFeet: rangedDistance,
       tuningKey: distanceResolved.tuningKey,
-      contribution: roundCost(distanceResolved.value),
+      contribution: phase1AttackDeliveryScaled ? 0 : roundCost(distanceResolved.value),
+      suppressedByPhase1AttackDeliveryScaling: phase1AttackDeliveryScaled,
       note: distanceResolved.note ?? null,
     };
   }
@@ -1973,26 +2235,33 @@ function getSharedContextCost(
       "shared.aoeShape",
       asString(power.aoeShape).toLowerCase() || "sphere",
     );
-    cost += castRangeResolved.value + countResolved.value + shapeResolved.value;
-    pushSelectedTuning(chosenKeys, notes, castRangeResolved);
-    pushSelectedTuning(chosenKeys, notes, countResolved);
-    pushSelectedTuning(chosenKeys, notes, shapeResolved);
+    if (phase1AttackDeliveryScaled) {
+      notes.push("Phase 1 attack formula moved AoE cast range, count, shape, and geometry from flat shared cost into the attack delivery multiplier.");
+    } else {
+      cost += castRangeResolved.value + countResolved.value + shapeResolved.value;
+      pushSelectedTuning(chosenKeys, notes, castRangeResolved);
+      pushSelectedTuning(chosenKeys, notes, countResolved);
+      pushSelectedTuning(chosenKeys, notes, shapeResolved);
+    }
     aoeCastRangeDebug = {
       rawCastRangeFeet: aoeCastRange,
       tuningKey: castRangeResolved.tuningKey,
-      contribution: roundCost(castRangeResolved.value),
+      contribution: phase1AttackDeliveryScaled ? 0 : roundCost(castRangeResolved.value),
+      suppressedByPhase1AttackDeliveryScaling: phase1AttackDeliveryScaled,
       note: castRangeResolved.note ?? null,
     };
     aoeCountDebug = {
       rawCount: Math.max(1, asInt(power.aoeCount, 1)),
       tuningKey: countResolved.tuningKey,
-      contribution: roundCost(countResolved.value),
+      contribution: phase1AttackDeliveryScaled ? 0 : roundCost(countResolved.value),
+      suppressedByPhase1AttackDeliveryScaling: phase1AttackDeliveryScaled,
       note: countResolved.note ?? null,
     };
     aoeShapeDebug = {
       rawShape: asString(power.aoeShape).toUpperCase() || "SPHERE",
       tuningKey: shapeResolved.tuningKey,
-      contribution: roundCost(shapeResolved.value),
+      contribution: phase1AttackDeliveryScaled ? 0 : roundCost(shapeResolved.value),
+      suppressedByPhase1AttackDeliveryScaling: phase1AttackDeliveryScaled,
       note: shapeResolved.note ?? null,
     };
 
@@ -2002,13 +2271,16 @@ function getSharedContextCost(
         "shared.sphereRadius",
         asInt(power.aoeSphereRadiusFeet, 0),
       );
-      cost += sphereResolved.value;
-      pushSelectedTuning(chosenKeys, notes, sphereResolved);
+      if (!phase1AttackDeliveryScaled) {
+        cost += sphereResolved.value;
+        pushSelectedTuning(chosenKeys, notes, sphereResolved);
+      }
       aoeGeometryDebug = {
         type: "SPHERE",
         rawValue: asInt(power.aoeSphereRadiusFeet, 0),
         tuningKey: sphereResolved.tuningKey,
-        contribution: roundCost(sphereResolved.value),
+        contribution: phase1AttackDeliveryScaled ? 0 : roundCost(sphereResolved.value),
+        suppressedByPhase1AttackDeliveryScaling: phase1AttackDeliveryScaled,
         note: sphereResolved.note ?? null,
       };
     }
@@ -2018,13 +2290,16 @@ function getSharedContextCost(
         "shared.coneLength",
         asInt(power.aoeConeLengthFeet, 0),
       );
-      cost += coneResolved.value;
-      pushSelectedTuning(chosenKeys, notes, coneResolved);
+      if (!phase1AttackDeliveryScaled) {
+        cost += coneResolved.value;
+        pushSelectedTuning(chosenKeys, notes, coneResolved);
+      }
       aoeGeometryDebug = {
         type: "CONE",
         rawValue: asInt(power.aoeConeLengthFeet, 0),
         tuningKey: coneResolved.tuningKey,
-        contribution: roundCost(coneResolved.value),
+        contribution: phase1AttackDeliveryScaled ? 0 : roundCost(coneResolved.value),
+        suppressedByPhase1AttackDeliveryScaling: phase1AttackDeliveryScaled,
         note: coneResolved.note ?? null,
       };
     }
@@ -2039,21 +2314,25 @@ function getSharedContextCost(
         "shared.lineLength",
         asInt(power.aoeLineLengthFeet, 0),
       );
-      cost += lineWidthResolved.value + lineLengthResolved.value;
-      pushSelectedTuning(chosenKeys, notes, lineWidthResolved);
-      pushSelectedTuning(chosenKeys, notes, lineLengthResolved);
+      if (!phase1AttackDeliveryScaled) {
+        cost += lineWidthResolved.value + lineLengthResolved.value;
+        pushSelectedTuning(chosenKeys, notes, lineWidthResolved);
+        pushSelectedTuning(chosenKeys, notes, lineLengthResolved);
+      }
       aoeGeometryDebug = {
         type: "LINE",
         width: {
           rawValue: asInt(power.aoeLineWidthFeet, 0),
           tuningKey: lineWidthResolved.tuningKey,
-          contribution: roundCost(lineWidthResolved.value),
+          contribution: phase1AttackDeliveryScaled ? 0 : roundCost(lineWidthResolved.value),
+          suppressedByPhase1AttackDeliveryScaling: phase1AttackDeliveryScaled,
           note: lineWidthResolved.note ?? null,
         },
         length: {
           rawValue: asInt(power.aoeLineLengthFeet, 0),
           tuningKey: lineLengthResolved.tuningKey,
-          contribution: roundCost(lineLengthResolved.value),
+          contribution: phase1AttackDeliveryScaled ? 0 : roundCost(lineLengthResolved.value),
+          suppressedByPhase1AttackDeliveryScaling: phase1AttackDeliveryScaled,
           note: lineLengthResolved.note ?? null,
         },
       };
@@ -2073,6 +2352,7 @@ function getSharedContextCost(
       aoeCount: aoeCountDebug,
       aoeShape: aoeShapeDebug,
       aoeGeometry: aoeGeometryDebug,
+      phase1AttackDeliveryScaled,
     },
   };
 }
@@ -2283,7 +2563,7 @@ function getCounterIntentPremiumCost(
     if (intention !== "ATTACK") continue;
 
     const identity = getPacketIdentityCost(tuningValues, packet);
-    const magnitude = getPacketMagnitudeCost(tuningValues, power, packet);
+    const magnitude = getPacketMagnitudeCost(tuningValues, power, packet, canonicalRangeCategory);
     const timing = getPacketTimingCost(tuningValues, packet);
     const duration = getPacketDurationCost(tuningValues, packet);
     const recipient = getPacketRecipientCost(
@@ -2793,8 +3073,16 @@ export function resolvePowerCost(
   const relevantThreatAxes = getRelevantThreatAxes(packets);
   const axisVector = cloneEmptyAxisVector();
   const topLevelNotes: string[] = [];
+  const hasAttackPackets = packets.some(
+    (packet) => (packet.intention ?? packet.type ?? "ATTACK") === "ATTACK",
+  );
 
-  const shared = getSharedContextCost(tuningValues, power, canonicalRangeCategory);
+  const shared = getSharedContextCost(
+    tuningValues,
+    power,
+    canonicalRangeCategory,
+    hasAttackPackets,
+  );
   const hostileEntry = deriveHostileEntryPattern(power, packets);
   topLevelNotes.push(...hostileEntry.notes);
   const structural = getStructuralCost(tuningValues, power, hostileEntry.pattern);
@@ -2810,7 +3098,7 @@ export function resolvePowerCost(
     if (identity.tuningKey) chosenKeys.push(identity.tuningKey);
     packetNotes.push(...identity.notes);
 
-    const magnitude = getPacketMagnitudeCost(tuningValues, power, packet);
+    const magnitude = getPacketMagnitudeCost(tuningValues, power, packet, canonicalRangeCategory);
     chosenKeys.push(...magnitude.chosenKeys);
     packetNotes.push(...magnitude.notes);
 

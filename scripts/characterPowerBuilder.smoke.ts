@@ -868,7 +868,14 @@ function makeSummoningCircleShapedPowerForCaseB(): Power {
 }
 
 {
-  const costlySignatureMove = normalizeCharacterPower(makeSummoningCircleShapedPowerForCaseB(), 0);
+  const costlySignatureMove = normalizeCharacterPower(
+    makeSummoningCircleShapedAttackPower({
+      name: "Signature Move budget separation fixture",
+      diceCount: 2,
+      potency: 8,
+    }),
+    0,
+  );
   const normalPowerSummary = summarizeCharacterPowers({
     level: 3,
     powers: [costlySignatureMove],
@@ -1049,8 +1056,8 @@ assert(
   "Character Builder and equivalent Summoning Circle-shaped Case B should resolve to the same BasePowerValue.",
 );
 assert(
-  diagnosticOutputs.caseB.resolverTotalBasePowerValue === 40,
-  "Case B BasePowerValue should be 40 with current conservative potency fallback.",
+  diagnosticOutputs.caseB.resolverTotalBasePowerValue === 117.2,
+  "Case B BasePowerValue should be 117.2 with Phase 1 expected-output attack payload pricing.",
 );
 assert(
   chosenTuningKeysForDiagnostic(diagnosticOutputs.caseB).includes("packet.magnitude.potency.20"),
@@ -1065,8 +1072,8 @@ assert(
   "Case B should use default player spend scalar 3.",
 );
 assert(
-  diagnosticOutputs.caseB.characterBuilderPlayerSpend === 120,
-  "Case B PlayerPowerSpend should be ceil(40 * 3) = 120.",
+  diagnosticOutputs.caseB.characterBuilderPlayerSpend === 352,
+  "Case B PlayerPowerSpend should be ceil(117.2 * 3) = 352.",
 );
 assert(
   diagnosticOutputs.caseB.derivedCooldown?.derivedCooldownTurns === 5,
@@ -1078,8 +1085,8 @@ const caseBScalarTwoSummary = summarizeCharacterPowers({
   playerPowerSpendScalar: 2,
 });
 assert(
-  caseBScalarTwoSummary.powers[0]?.spend === 80,
-  "Changing scalar to 2 should change Case B PlayerPowerSpend to 80.",
+  caseBScalarTwoSummary.powers[0]?.spend === 235,
+  "Changing scalar to 2 should change Case B PlayerPowerSpend to 235.",
 );
 const caseBOverspendErrors = validateCharacterPowers({
   level: 1,

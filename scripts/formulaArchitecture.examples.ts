@@ -164,6 +164,12 @@ function entriesToRecord(entries: Array<{ key?: string; configKey?: string; valu
   return Object.fromEntries(entries.map((entry) => [entry.key ?? entry.configKey ?? "", Number(entry.value)]));
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
 function round(value: number | null | undefined, digits = 3): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   const factor = 10 ** digits;
@@ -314,6 +320,28 @@ function makeCharacterPower(params: {
   aoeSphereRadiusFeet?: number;
   packets: EffectPacket[];
 }): CharacterPower & { exampleKey: string } {
+  const rangeDetails =
+    params.range === "MELEE"
+      ? {
+          rangeCategory: "MELEE",
+          rangeValue: params.meleeTargets ?? 1,
+          rangeExtra: {},
+        }
+      : params.range === "RANGED"
+        ? {
+            rangeCategory: "RANGED",
+            rangeValue: params.rangedDistanceFeet ?? 60,
+            rangeExtra: { targets: params.rangedTargets ?? 1 },
+          }
+        : {
+            rangeCategory: "AOE",
+            rangeValue: params.aoeCenterRangeFeet ?? 30,
+            rangeExtra: {
+              count: params.aoeCount ?? 1,
+              shape: "SPHERE",
+              sphereRadiusFeet: params.aoeSphereRadiusFeet ?? 10,
+            },
+          };
   const power = {
     ...createDefaultCharacterPower(0),
     id: params.key,
@@ -329,7 +357,14 @@ function makeCharacterPower(params: {
     aoeCount: params.range === "AOE" ? params.aoeCount ?? 1 : null,
     aoeShape: params.range === "AOE" ? "SPHERE" as const : null,
     aoeSphereRadiusFeet: params.range === "AOE" ? params.aoeSphereRadiusFeet ?? 10 : null,
-    effectPackets: params.packets.map((packet, index) => ({ ...packet, packetIndex: index })),
+    effectPackets: params.packets.map((packet, index) => ({
+      ...packet,
+      packetIndex: index,
+      detailsJson: {
+        ...asRecord(packet.detailsJson),
+        ...rangeDetails,
+      },
+    })),
     intentions: [] as EffectPacket[],
     exampleKey: params.key,
   };
@@ -460,6 +495,32 @@ function ratio(label: string, rows: Map<string, FormulaPowerExample>, numeratorK
     denominator,
     note,
   };
+}
+
+function requireRatioBand(
+  rows: RatioRow[],
+  label: string,
+  minInclusive: number,
+  maxInclusive: number,
+) {
+  const row = rows.find((entry) => entry.label === label);
+  if (!row || row.ratio === null) {
+    throw new Error(`Missing Formula Architecture ratio assertion row: ${label}`);
+  }
+  if (row.ratio < minInclusive || row.ratio > maxInclusive) {
+    throw new Error(
+      `Formula Architecture ratio ${label} expected ${minInclusive}-${maxInclusive}, got ${row.ratio}.`,
+    );
+  }
+}
+
+function assertPhase1AttackFormulaRatios(rows: RatioRow[]) {
+  requireRatioBand(rows, "melee 2 / melee 1", 1.35, 1.8);
+  requireRatioBand(rows, "ranged 2 targets / ranged 1 target", 1.35, 1.85);
+  requireRatioBand(rows, "AoE count 3 / AoE count 1", 1.8, 2.35);
+  requireRatioBand(rows, "potency 4 / potency 1", 2.4, 3.4);
+  requireRatioBand(rows, "dice 4 / dice 1", 2.4, 3.4);
+  requireRatioBand(rows, "two damage types / one damage type", 1.1, 1.45);
 }
 
 function createCharacterPowerExamples() {
@@ -1229,6 +1290,7 @@ async function main() {
     ratio("dice 4 / dice 1", byKey, "dice-4", "dice-1", "Exposes dice scaling shape."),
     ratio("two damage types / one damage type", byKey, "damage-types-2", "damage-types-1", "Exposes multi-damage-type pricing."),
   ];
+  assertPhase1AttackFormulaRatios(formulaRatios);
 
   const monsterOutcomeExamples = createMonsterOutcomeExamples(calculatorConfig);
   const forgeExamples = createForgeExamples();
@@ -1239,9 +1301,9 @@ async function main() {
   );
 
   const redFlags = [
-    "Target count currently appears as small additive BasePowerValue movement rather than payload multiplication.",
-    "AoE count/geometry currently needs expected-target architecture before final tuning.",
-    "Potency scaling is visible, but should be evaluated inside multiplied expected table impact.",
+    "Character Builder and Signature Move ATTACK pricing now uses Phase 1 expected-output delivery scaling; constants still need campaign calibration.",
+    "Additional damage types are treated as coverage premium rather than full duplicated payload.",
+    "Secondary ATTACK packets use Phase 1 packet-local payload/delivery pricing, but full Secondary Packet formula architecture remains deferred.",
     "Cooldown is derived from BasePowerValue; player spend is not frequency-normalized in this harness.",
     "Monster Outcome Calculator remains a radar/heuristic model, not Combat Lab parity.",
     "Forge output bands are report-only/no-save-blocking diagnostics.",
