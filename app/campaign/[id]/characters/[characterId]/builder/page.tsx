@@ -3302,7 +3302,7 @@ export default function CharacterBuilderPage() {
 
   const editorPanel = (
     <form onSubmit={handleSave} className="space-y-4">
-      <div className="sticky top-3 z-20 rounded-xl border border-zinc-800 bg-black/95 p-3 shadow-lg shadow-black/30 backdrop-blur">
+      <div className="sticky top-3 z-30 rounded-xl border border-zinc-800 bg-black/95 p-3 shadow-lg shadow-black/30 backdrop-blur">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-sm font-medium text-zinc-200">Character Builder</div>
@@ -4207,9 +4207,9 @@ export default function CharacterBuilderPage() {
         </summary>
         <div className="mt-4 space-y-4">
           <div
-            className={`rounded-lg border p-3 ${
+            className={`sticky top-24 z-20 rounded-lg border p-3 shadow-lg shadow-black/30 ${
               powerBudget.overspent
-                ? "border-red-800 bg-red-950/20"
+                ? "border-red-800 bg-red-950"
                 : "border-zinc-800 bg-black"
             }`}
           >
