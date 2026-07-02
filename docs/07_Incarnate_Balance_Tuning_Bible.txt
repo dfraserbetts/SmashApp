@@ -1,0 +1,419 @@
+07_Incarnate_Balance_Tuning_Bible.txt
+
+Incarnate Balance Tuning Bible
+
+Purpose
+
+This is the operational source document for Incarnate balance tuning. It
+consolidates current balance/tuning doctrine, current state, locked
+assumptions, Balance Environment details, formula architecture, scenario
+interpretation, and next-step sequencing.
+
+This document does not replace the combat rules bible or the power system spec.
+Use it as the practical guide for keeping tuning work pointed in the right
+direction across chats, Codex sessions, scripts, and reports.
+
+
+SECTION 1 - Authority And Purpose
+
+This is the operational source for balance tuning.
+
+It does not override locked combat rules in
+docs/01_Locked_Rules_And_Combat_Bible.txt.
+
+It does not override detailed formula, packet, or costing law in
+docs/02_Power_System_And_Costing.txt.
+
+It does not override validation and evidence policy in
+docs/04_Combat_Lab_Balance_And_Validation.txt.
+
+Implementation sequencing and runtime handoff detail still live in
+docs/05_Implementation_Handoffs.txt.
+
+This document exists to keep balance tuning doctrine-driven and evidence-driven
+rather than random number tweaking.
+
+
+SECTION 2 - Current Project State
+
+The project is at the boundary between baseline diagnostics and the first true
+balance tuning pass.
+
+Current state:
+
+- Combat Lab runtime has been aligned through recent combat-rule waves.
+- Balance Environment campaign exists and is the official live-authored testing
+  campaign.
+- Campaign-scoped scenarioMatrix support exists.
+- Character Builder ATTACK delivery scaling Phase 1 has been implemented.
+- Formula harness scalar provenance has been fixed.
+- Balance Environment characters have been repriced under live scalar 2.
+- Monster Outcome Calculator Phase 1 expected-output corrections have been
+  implemented.
+- Monster tier defeat doctrine has been locked.
+- First campaign-scoped 50-run Soldier solo diagnostic has been run.
+- A new chat should be opened before the first actual Balance tuning pass.
+
+The next work should move carefully from diagnostics into tuning. Do not begin
+by globally raising or lowering all monster damage.
+
+
+SECTION 3 - Balance Environment
+
+Official live-authored balance campaign:
+
+- campaignName: Balance Environment
+- campaignId: 250aee5e-632f-405c-ba36-a49ed12a5afc
+- assetSource label: balance-campaign-authored
+
+Policy:
+
+- Live-authored balance assets must come from this campaign unless explicitly
+  stated otherwise.
+- Synthetic smoke and canary fixtures remain synthetic-in-memory.
+- Unscoped live adapters are not balance evidence.
+- Temporary overrides must be declared in provenance.
+
+Current campaign Characters:
+
+- BALANCE_Arcane Sage
+- BALANCE_Ranger Commander
+- BALANCE_Stoneguard
+- BALANCE_Hawkshot Archer
+
+Current campaign Monsters:
+
+- BALANCE_Physical Striker
+- BALANCE_Mental Wailer
+- BALANCE_Control Hexer
+- BALANCE_Dodge Pressure Skirmisher
+- BALANCE_Durable Soldier
+
+Current asset status:
+
+- Characters are Level 3 calibration candidates.
+- Characters have legal normal power spend under live scalar 2.
+- Characters have legal Signature Moves under the Level x 20 pool.
+- Characters have equipped loadouts.
+- Monsters are Level 3 Soldier calibration candidates.
+- Monsters have on-budget core attributes.
+- Monsters have powers and natural attacks.
+- Damage types are canonical and UI-matchable.
+- Fallback actions are 0 after latest smoke.
+- Equipment slots must be preserved by seeders.
+
+Critical seeder lesson:
+
+scripts/balanceEnvironment.seedCharacterPowers.ts must preserve
+builderData.equippedSlots and must not wipe equipment state.
+
+
+SECTION 4 - Current Active Scalar And Budget Truth
+
+Character normal power pool:
+
+- Character Level x 50
+- Level 3 normal pool: 150
+
+Signature Move pool:
+
+- Character Level x 20
+- Level 3 Signature Move pool: 60
+
+Current live Character Builder scalar:
+
+- characterBuilderTuning.id = "default"
+- playerPowerSpendScalar = 2
+
+The formula harness previously used fallback scalar 3 because it queried the
+wrong tuning row. That has been fixed. Scalar 3 was a harness fallback artifact,
+not live app truth.
+
+Do not treat scalar 3 reports as current truth.
+
+
+SECTION 5 - Locked Monster Tier Doctrine
+
+At equal level, in a non-hard-counter matchup, assuming meaningful offensive
+actions and excluding extreme low attack rolls or extreme defence rolls:
+
+- Minion: usually dies in 1 meaningful attack/power.
+- Soldier: usually dies in 2-3 meaningful attacks/powers.
+- Elite: usually dies in 5-8 meaningful attacks/powers.
+- Boss/Legendary: usually requires 16+ meaningful attacks/powers.
+
+Encounter equivalence:
+
+- 1 Elite ~= 80% of 1 PC.
+- Non-hard-counter PC vs Elite duel target: 55-65% PC win rate.
+- 1 PC ~= 2-3 Soldiers.
+- Soldiers are standard bad guys.
+- Minions are fast-cut enemies.
+- Bosses/Legendaries are party-scale threats.
+
+Clarifications:
+
+- Soldier solo tests are diagnostics, not fair duel targets.
+- Elite duels are the near-peer tests.
+- Boss/Legendary tests are party-scale tests.
+
+
+SECTION 6 - Action Economy Doctrine
+
+Both Characters and Monsters may feasibly make up to two offensive attacks in
+one turn:
+
+- one weapon/natural attack;
+- one Power attack, if available/off cooldown.
+
+Therefore:
+
+- attacks-to-defeat is the primary durability metric;
+- turns-to-defeat and rounds-to-defeat are secondary metrics;
+- one actor turn may contain multiple meaningful offensive actions;
+- a Soldier expected to die in 2-3 attacks/powers may die in 1-2 turns if the
+  attacker lands both a weapon/natural attack and a Power attack;
+- party focus fire can compress boss round count dramatically.
+
+Balance reports must eventually distinguish weapon/natural attack contribution
+from Power attack contribution.
+
+
+SECTION 7 - Current Formula Architecture Doctrine
+
+Cost and outcome should be based on expected table impact, not tag accumulation.
+
+Current formula doctrine:
+
+- payload x expected successes x expected target count x uptime x delivery risk
+  x action economy x reliability/flexibility.
+- target count and AoE are force multipliers, not tiny flat add-ons.
+- potency feeds payload per success.
+- duration/repeat effects multiply expected output over meaningful
+  applications.
+- cooldown affects availability but should not make burst cheap.
+- Signature Moves use the same formula as ordinary powers but a separate pool.
+- unsupported mechanics should not receive full balance credit.
+
+Current state:
+
+- Character Builder ATTACK pricing Phase 1 has been implemented.
+- Target/range/AoE now scale ATTACK payload.
+- Extra damage types are coverage/flexibility premium, not duplicated full
+  payload by default.
+- Non-attack formula normalization is still future work.
+- Secondary packet full dependency costing is still future work.
+- Forge formula/value enforcement is still future work.
+- Monster Outcome Calculator Phase 1 expected-output corrections are
+  implemented for supported attack outputs.
+
+
+SECTION 8 - Monster Outcome Calculator Doctrine
+
+Important design correction:
+
+Mental damage does not automatically imply Intellect roll.
+
+Doctrine:
+
+- Roll attribute answers how reliable the action is.
+- Threat lane answers what kind of harm or pressure the action creates.
+- Natural/weapon-style attacks generally use Attack, even if they deal mental
+  wounds.
+- Intellect matters for problem solving, control/domination, information
+  extraction, analysis, and authored powers whose roll theme is Intellect.
+
+Current Monster Outcome Phase 1 status:
+
+- uses expected tiered successes instead of any-success probability for
+  supported attack outputs.
+- natural/equipped attacks use more Combat Lab-compatible semantics.
+- protection survivability monotonicity has been addressed.
+- preliminary C14/Legendary durability recognition exists.
+- structured reroll helper exists, but trait wiring remains pending unless
+  canonical structured trait semantics exist.
+- some non-attack power/control/debuff outcome logic remains later-phase work.
+
+
+SECTION 9 - Movement Policy
+
+Pure Movement powers are valid authored powers but excluded from current
+automated balance evidence until Movement Abstraction V1 exists.
+
+Calibration assets should not spend meaningful budget on pure Movement-only
+powers.
+
+Movement-flavoured powers may be used only if they resolve through currently
+supported mechanics:
+
+- Dodge Pool
+- Block Pool
+- Resist Pool
+- Augment
+- Debuff
+- Assist pressure
+- Healing
+- Cleanse
+- other currently simulated effects
+
+Do not build full map/LOS/pathfinding now.
+
+
+SECTION 10 - Current Diagnostic Warnings
+
+Known non-blocking warning classes:
+
+- stored cooldown differs from derived/display cooldown; Combat Lab uses
+  derived/display cooldown.
+- raw Strength displays as table-facing doubled wounds; Combat Lab uses
+  table-facing value.
+- defence summary notes are diagnostic.
+- shield contributes defence only; no attack generated is expected.
+- Slip the Line Guard fallback exists because physical defence roll theme is
+  unclear; cleanup later if Hawkshot defence matters.
+
+Warnings should not be ignored, but these known warning classes are not blockers
+for current baseline smoke.
+
+
+SECTION 11 - Current Scenario Presets And Evidence Status
+
+Preset:
+
+- balance-environment-core
+
+Current matchups:
+
+- BALANCE_Stoneguard vs BALANCE_Physical Striker
+- BALANCE_Hawkshot Archer vs BALANCE_Dodge Pressure Skirmisher
+- BALANCE_Arcane Sage vs BALANCE_Mental Wailer
+- BALANCE_Arcane Sage vs BALANCE_Control Hexer
+- BALANCE_Ranger Commander vs BALANCE_Durable Soldier
+
+Current interpretation:
+
+These are Soldier solo diagnostics, not fair duel targets.
+
+First 50-run diagnostic result summary:
+
+- Stoneguard vs Physical Striker: Stoneguard heavily favoured.
+- Hawkshot vs Dodge Skirmisher: Hawkshot heavily favoured and fast.
+- Arcane Sage vs Mental Wailer: Mental Wailer heavily favoured; this is the
+  biggest Soldier red flag.
+- Arcane Sage vs Control Hexer: Arcane heavily favoured; Control Hexer
+  damage/pressure may not translate alone.
+- Ranger Commander vs Durable Soldier: Ranger heavily favoured.
+
+Do not present these as final balance truth.
+
+Next metrics needed include:
+
+- attacks-to-defeat;
+- successful hits-to-defeat;
+- weapon/natural attack contribution;
+- Power attack contribution;
+- same-turn burst;
+- median rounds;
+- early deletion;
+- overkill;
+- stale rate.
+
+
+SECTION 12 - Evidence Ladder For Tuning
+
+Evidence sequence:
+
+1. Static formula examples.
+2. Formula smoke/harness tests.
+3. Synthetic deterministic canaries for mechanical truth.
+4. Campaign-scoped smoke runs.
+5. Soldier solo diagnostics.
+6. Soldier group-pressure tests.
+7. Elite duel tests.
+8. Boss/Legendary party tests.
+9. Medium baselines.
+10. Human playtest.
+
+Human playtesters are finite premium resource and should not be used until
+simulation knocks off obvious problems.
+
+
+SECTION 13 - What Must Not Happen
+
+Anti-patterns:
+
+- Do not tune Soldiers to 1v1 Elite standards.
+- Do not treat Soldier solo losses as automatic monster weakness.
+- Do not treat Soldier solo wins against PCs as acceptable unless hard-counter
+  intent is clear.
+- Do not run huge batches before smoke diagnostics are clean.
+- Do not tune off unscoped assets.
+- Do not tune from old pre-formula-refactor numbers.
+- Do not ignore action economy.
+- Do not count pure Movement as full balance value yet.
+- Do not fix formula shape by only changing scalar.
+- Do not mutate Balance Environment assets without updating seeders.
+- Do not manually fix seeded assets in UI without fixing reproducible scripts.
+
+
+SECTION 14 - Current Blockers / Deferred Work
+
+Immediate before actual tuning:
+
+- Decide the first tuning target using tier doctrine.
+- Open a new chat before first actual Balance tuning pass.
+
+High-priority likely next improvements:
+
+- Add attacks-to-defeat / meaningful offensive actions-to-defeat reporting.
+- Add weapon/natural vs Power contribution reporting.
+- Add Soldier group-pressure preset once team/multiple actor support is clean.
+- Add Elite duel calibration assets/preset.
+- Investigate Mental Wailer as a Soldier red flag.
+- Investigate Hawkshot/Ranger same-turn burst once attacks-to-defeat reporting
+  exists.
+
+Deferred:
+
+- Movement Abstraction V1.
+- Full non-attack formula normalization.
+- Full secondary dependency costing.
+- Full Forge value enforcement.
+- Full trait/reroll wiring if structured trait semantics are absent.
+- Full C14/Blaze final-turn flow.
+- party/team scenario support if current runner remains limited.
+
+
+SECTION 15 - First Tuning Pass Instruction
+
+Before the first actual tuning pass, open a new chat.
+
+The new chat should start by:
+
+- reading this Tuning Bible;
+- confirming current git status/latest commit;
+- confirming active docs;
+- confirming Balance Environment campaign assets;
+- reviewing current Soldier solo diagnostic results;
+- selecting one narrow first tuning target;
+- not randomly changing multiple values.
+
+First tuning pass should not begin by globally raising or lowering all monster
+damage.
+
+The first likely decision should be whether to:
+
+- add reporting for attacks-to-defeat first;
+- create Soldier group-pressure/Elite duel presets first;
+- or adjust a clearly isolated outlier such as Mental Wailer only after evidence
+  supports it.
+
+
+SECTION 16 - Handoff Prompt Marker
+
+New Chat Handoff Anchor
+
+We are beginning Incarnate's first Balance tuning phase. Read docs/07 first. Do
+not tune randomly. Use Balance Environment campaign only. Soldier solo tests are
+diagnostics. Elite duel tests use the 55-65% PC win target. Primary durability
+metric is attacks-to-defeat, not rounds alone.

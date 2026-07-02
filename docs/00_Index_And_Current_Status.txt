@@ -5,10 +5,15 @@ Purpose
 This is the active index for the Incarnate source documents after docs
 consolidation Pass 2.
 
-Pass 2 makes the reduced 00-06 document set the active source-document set.
+Pass 2 made the reduced 00-06 document set the active source-document set.
 Legacy source documents have been moved into docs/archive/ as historical
 snapshots. Archive documents are not authoritative unless an active source doc
 explicitly references them.
+
+The active set now includes docs/07_Incarnate_Balance_Tuning_Bible.txt as the
+operational tuning guide. It summarizes and operationalizes combat law, costing
+law, and validation doctrine for balance work; it does not override docs/01,
+docs/02, or docs/04.
 
 
 Active Source-Of-Truth Hierarchy
@@ -37,6 +42,11 @@ Active Source-Of-Truth Hierarchy
 
 6. docs/06_Product_Brand_And_Kickstarter_Strategy.txt
    Product, brand, Kickstarter, and commercial positioning.
+
+7. docs/07_Incarnate_Balance_Tuning_Bible.txt
+   Operational balance tuning bible. Use this as the first practical routing
+   document for Incarnate tuning passes, scenario interpretation, Balance
+   Environment provenance, tuning anti-patterns, and next-step sequencing.
 
 This index is navigational and status-oriented. If this file conflicts with a
 locked rule in docs/01_Locked_Rules_And_Combat_Bible.txt, the locked rules doc
@@ -68,6 +78,11 @@ Use this routing when adding or updating source documentation:
   developer continuity notes go in docs/05_Implementation_Handoffs.txt.
 - Product, brand, Kickstarter, cover, and commercial positioning content goes in
   docs/06_Product_Brand_And_Kickstarter_Strategy.txt.
+- Operational balance tuning guidance, tuning-pass sequencing, Balance
+  Environment tuning context, and scenario interpretation go in
+  docs/07_Incarnate_Balance_Tuning_Bible.txt. This document summarizes and
+  operationalizes docs/01, docs/02, and docs/04 for tuning; it does not override
+  them.
 - Archived and historical documents live in docs/archive/. Reference material
   that supports implementation but is not authoritative lives in docs/reference/.
 
@@ -335,9 +350,10 @@ count before running medium baselines.
 
 Immediate Ordered Work
 
-1. Open a fresh chat before the first actual Balance tuning pass so the tuning
-   pass starts from the locked monster tier attacks-to-defeat doctrine and the
-   latest campaign-scoped baseline.
+1. Open a fresh chat before the first actual Balance tuning pass, read
+   docs/07_Incarnate_Balance_Tuning_Bible.txt first, and start from the locked
+   monster tier attacks-to-defeat doctrine and the latest campaign-scoped
+   baseline.
 2. Keep the new active docs aligned with current code reality.
 3. Preserve the locked Response Window / Incarnate Stack in runtime-facing tools.
 4. Preserve the multiple-responder support order: acting-side support declares
@@ -373,7 +389,8 @@ Immediate Ordered Work
 
 Consolidation Pass 2 Note
 
-Pass 2 is complete. The active source docs are the seven 00-06 files listed
-above. Legacy docs are archived under docs/archive/ and are not current source
-of truth unless explicitly referenced by an active doc. No files were deleted in
-this consolidation pass.
+Pass 2 is complete. The original active source docs are the seven 00-06 files
+listed above, with docs/07_Incarnate_Balance_Tuning_Bible.txt now added as the
+operational tuning bible. Legacy docs are archived under docs/archive/ and are
+not current source of truth unless explicitly referenced by an active doc. No
+files were deleted in this consolidation pass.
