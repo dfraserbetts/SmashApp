@@ -157,6 +157,23 @@ law until the owning active doc is updated with an explicit decision.
   packet data is supplied. Resolver-axis-only callers, control/debuff
   denied-output, structured trait rerolls, and full Blaze / Major Injury
   intelligence remain future work.
+- Monster tier equivalence and attacks-to-defeat doctrine.
+  Status: LOCKED / RESOLVED.
+  Owner: docs/02_Power_System_And_Costing.txt and
+  docs/04_Combat_Lab_Balance_And_Validation.txt.
+  Note: Use attacks-to-defeat / meaningful offensive actions-to-defeat as the
+  core durability metric. Minions usually die in 1 meaningful attack/power,
+  Soldiers in 2-3 attacks/powers, Elites in 5-8 attacks/powers, and
+  Boss/Legendary monsters in 16+ attacks/powers. 1 Elite ~= 80% of 1 PC, and 1
+  PC should roughly equal 2-3 Soldiers.
+- Action-economy distinction for monster durability.
+  Status: LOCKED / RESOLVED.
+  Owner: docs/02_Power_System_And_Costing.txt and
+  docs/04_Combat_Lab_Balance_And_Validation.txt.
+  Note: One actor turn may include a weapon/natural attack plus a Power attack,
+  if available. Count both toward attacks-to-defeat. Turns-to-defeat and
+  rounds-to-defeat are secondary metrics affected by action economy, cooldowns,
+  number of actors, and party focus fire.
 - C14 automatic Major Injury Attribute choice policy.
   Status: DEFERRED / NEEDS RUNTIME EVIDENCE.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
@@ -318,31 +335,34 @@ count before running medium baselines.
 
 Immediate Ordered Work
 
-1. Keep the new active docs aligned with current code reality.
-2. Preserve the locked Response Window / Incarnate Stack in runtime-facing tools.
-3. Preserve the multiple-responder support order: acting-side support declares
+1. Open a fresh chat before the first actual Balance tuning pass so the tuning
+   pass starts from the locked monster tier attacks-to-defeat doctrine and the
+   latest campaign-scoped baseline.
+2. Keep the new active docs aligned with current code reality.
+3. Preserve the locked Response Window / Incarnate Stack in runtime-facing tools.
+4. Preserve the multiple-responder support order: acting-side support declares
    and resolves first, target-side support declares and resolves second,
    targeted defenders then declare defence or Counter choices, then the response
    window closes.
-4. Keep Counter use replacing normal active defence unless explicit authored
+5. Keep Counter use replacing normal active defence unless explicit authored
    defensive packets say otherwise.
-5. Keep mixed defensive Counters modal by default: choose one active defence
+6. Keep mixed defensive Counters modal by default: choose one active defence
    path on declaration, with no fallback Block after failed Dodge unless
    explicitly authored.
-6. Preserve Control Primary interruption: Control Counters and Control Assists
+7. Preserve Control Primary interruption: Control Counters and Control Assists
    can halt incoming actions only when Control is Primary, logically relevant,
    and strictly exceeds; Secondary Control is after-effect only.
-7. Preserve Assist output law: generic Assist cannot create independent hostile
+8. Preserve Assist output law: generic Assist cannot create independent hostile
    payload; hostile Assist output becomes output-stage Assist pressure, not a
    roll modifier, payload boost, wound-band source, damage type application, or
    damage trigger; duplicate generic Assists require distinct Power Intentions
    unless explicitly authored.
-8. Keep Movement Counter as a Movement-power rule, not a Defence mode.
-9. Maintain finite defensive pools with refresh/replace higher-of-current-or-new
+9. Keep Movement Counter as a Movement-power rule, not a Defence mode.
+10. Maintain finite defensive pools with refresh/replace higher-of-current-or-new
    as the default repeated-application rule.
-10. Extend or maintain defensive-pool canary coverage before numeric defensive
+11. Extend or maintain defensive-pool canary coverage before numeric defensive
    pool pricing changes.
-11. Use Codex-run Combat Lab batches for incremental checks with provenance.
+12. Use Codex-run Combat Lab batches for incremental checks with provenance.
 12. Reserve manual Combat Lab/browser checks for UI/report readability, public
    confidence, playtest packet confidence, and table-feel judgement.
 13. Lock and implement the expected-table-impact formula architecture before

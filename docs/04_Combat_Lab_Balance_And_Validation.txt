@@ -139,6 +139,53 @@ data-path testing, hydration testing, Combat Lab reporting checks, and
 campaign-scoped runner verification. They must not be used as final tuning
 proof.
 
+Monster Tier Scenario Interpretation
+
+Use attacks-to-defeat or meaningful offensive actions-to-defeat as the core
+durability lens for monster tiers. A single actor turn may include both a
+weapon/natural attack and a Power attack, so attacks-to-defeat is not the same
+as turns-to-defeat or rounds-to-defeat.
+
+Soldier 1v1 scenarios are solo-lane diagnostics. They should ask whether the
+Soldier expresses its role and survives around the expected 2-3 attacks/powers,
+not whether it beats a PC in a fair duel. Do not tune Soldiers to 1v1 Elite
+standards.
+
+Soldier group-pressure scenarios are required for real Soldier encounter
+calibration. 1 PC should roughly equal 2-3 Soldiers, so Soldier balance evidence
+must eventually include group pressure, focus fire, and action-economy context.
+
+Elite 1v1 scenarios are the proper near-peer duel tests. A non-hard-counter PC
+vs Elite duel should usually land around 55-65% PC win rate, because 1 Elite ~=
+80% of 1 PC.
+
+Boss/Legendary scenarios are party-scale tests. Boss/Legendary durability
+should be judged by total meaningful offensive actions absorbed, not simply by
+combat rounds. Bosses/Legendaries should usually require 16+ attacks/powers or
+equivalent pressure and survive multiple brutal injury phases or equivalent
+pressure before defeat.
+
+Current win-rate results must not be overinterpreted without tier context and
+action-economy context. A Soldier dying in 1-2 turns can still be plausible if
+the PC delivered 2-3 meaningful attacks/powers through same-turn burst. A
+Boss/Legendary falling quickly in rounds may still be plausible if a party
+concentrated many meaningful offensive actions.
+
+Combat reports should eventually include:
+
+- attacks-to-defeat
+- successful hits-to-defeat
+- turns-to-defeat
+- rounds-to-defeat
+- offensive actions per turn
+- weapon/natural attack contribution
+- Power attack contribution
+- same-turn burst contribution
+- overkill
+- median rounds
+- first-turn deletion
+- stale rate
+
 Known formula / evidence blockers:
 
 - target count and AoE delivery have Phase 1 expected-output support in the

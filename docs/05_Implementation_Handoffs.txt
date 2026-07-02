@@ -356,6 +356,34 @@ Monster Outcome Calculator Phase 1 implementation notes:
   mechanics expose canonical machine-readable reroll semantics
 
 
+Monster Tier Reporting And Tuning Handoff
+
+Before tuning Balance Environment assets heavily, add or improve reporting for
+attacks-to-defeat / meaningful offensive actions-to-defeat if feasible.
+Reports should distinguish:
+
+- weapon/natural attack damage
+- Power attack damage
+- same-turn burst where a weapon/natural attack and Power attack both land in
+  the same actor turn
+- successful hits-to-defeat
+- turns-to-defeat
+- rounds-to-defeat
+- overkill
+- first-turn deletion
+- stale rate
+
+Do not tune Soldiers to 1v1 Elite standards. Soldier solo scenarios are
+diagnostics for role expression and whether a Soldier survives around the
+expected 2-3 attacks/powers. Add future presets for Soldier group pressure and
+Elite duel core before using results as stronger balance evidence.
+
+Mental Wailer remains a specific Soldier red flag if it beats a PC heavily in
+1v1. That does not mean all Soldiers should be tuned to win 1v1; it means the
+Mental Wailer lane, control/damage pressure, or counter-matchup shape needs
+inspection against the locked Soldier attacks-to-defeat doctrine.
+
+
 Codex Tooling Guidance
 
 Use attached prompts as task instructions, but still inspect local files before

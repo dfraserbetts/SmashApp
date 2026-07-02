@@ -11,6 +11,62 @@ document explains power grammar, costing interpretation, and build/cost
 implications. If wording conflicts, 01 controls rule resolution.
 
 
+Monster Tier Time-To-Kill And Action Economy Doctrine
+
+At equal level, in a non-hard-counter matchup, monster durability should be
+judged primarily by attacks-to-defeat or meaningful offensive
+actions-to-defeat. Do not treat attacks-to-defeat as identical to
+turns-to-defeat or rounds-to-defeat.
+
+A meaningful offensive action is an attack or power output that had a real
+chance to advance defeat, including a weapon/natural attack or a Power attack.
+Both Characters and Monsters may feasibly make up to two offensive attacks in
+one turn:
+
+- one weapon/natural attack
+- one Power attack, if available/off cooldown
+
+If an actor uses both a weapon/natural attack and a Power attack in the same
+turn, both count toward attacks-to-defeat. A Soldier expected to die in 2-3
+attacks/powers may die in 1-2 turns if the attacker lands both a weapon/natural
+attack and a Power attack. A Boss/Legendary requiring 16+ attacks/powers may
+still fall faster in party rounds when multiple heroes focus it.
+
+Turns-to-defeat is a secondary metric: it is affected by whether one actor can
+deliver same-turn burst through a weapon/natural attack plus a Power attack,
+cooldown availability, and action-selection behavior.
+
+Rounds-to-defeat is also secondary: it is affected by number of actors, party
+focus fire, encounter shape, initiative/turn order, and whether multiple
+attackers can concentrate meaningful offensive actions on one target.
+
+Monster tier defeat expectations at equal level, assuming meaningful offensive
+actions and excluding extreme low attack rolls or extreme monster defence rolls:
+
+- Minion: should usually die in 1 meaningful attack/power.
+- Soldier: should usually die in 2-3 meaningful attacks/powers.
+- Elite: should usually die in 5-8 meaningful attacks/powers.
+- Boss/Legendary: should usually require 16+ meaningful attacks/powers.
+
+Encounter equivalence:
+
+- 1 Elite ~= 80% of 1 PC.
+- A non-hard-counter PC vs Elite duel should usually land around 55-65% PC win
+  rate.
+- Soldiers are below Elites and represent typical bad guys.
+- 1 PC should roughly equal 2-3 Soldiers.
+- Minions are below Soldiers and can be cut down quickly, sometimes multiple in
+  one strong attack/AoE.
+- Bosses/Legendaries are party-scale threats and should survive multiple brutal
+  injury phases or equivalent pressure before defeat.
+
+Damage, defence, health, protection, weapons, natural attacks, and powers should
+be calibrated against these attacks-to-defeat bands. Pricing follows table
+impact, not the other way around. Once a level's outputs feel correct, builder
+costs should be assigned so that the correct level-equivalent outputs
+correspond to fair spend. Then scaling can be extended across levels.
+
+
 Core Power Grammar
 
 The shared power model is:
