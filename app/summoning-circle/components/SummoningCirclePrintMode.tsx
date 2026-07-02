@@ -12,7 +12,21 @@ type Props = {
   campaignId: string;
 };
 
-type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
+type PrintLayoutMode =
+  | "COMPACT_1P"
+  | "LEGENDARY_2P"
+  | "DARK_PRESTIGE_COMPACT_1P"
+  | "DARK_PRESTIGE_LEGENDARY_2P";
+
+function getBasePrintLayout(layout: PrintLayoutMode): "COMPACT_1P" | "LEGENDARY_2P" {
+  if (layout === "DARK_PRESTIGE_COMPACT_1P") return "COMPACT_1P";
+  if (layout === "DARK_PRESTIGE_LEGENDARY_2P") return "LEGENDARY_2P";
+  return layout;
+}
+
+function isDarkPrestigeLayout(layout: PrintLayoutMode) {
+  return layout === "DARK_PRESTIGE_COMPACT_1P" || layout === "DARK_PRESTIGE_LEGENDARY_2P";
+}
 
 const LAST_PRINT_PAGE_STYLE: CSSProperties = {
   breakAfter: "auto",
@@ -149,8 +163,10 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
       .map((monster) => detailsById[monster.id])
       .filter((monster): monster is MonsterUpsertInput => !!monster);
   }, [detailsById, monsters, selectedIds]);
+  const basePrintLayout = getBasePrintLayout(printLayout);
+  const darkPrestigeLayout = isDarkPrestigeLayout(printLayout);
   const compactOverflowWarnings = useMemo(() => {
-    if (printLayout !== "COMPACT_1P") return [];
+    if (basePrintLayout !== "COMPACT_1P") return [];
     return selectedMonsters
       .map((m) => {
         const traitCount = Array.isArray(m.traits) ? m.traits.length : 0;
@@ -166,7 +182,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
         return likelyOverflow ? `${m.name || "Unnamed Monster"} may overflow in 1-page layout.` : null;
       })
       .filter((x): x is string => Boolean(x));
-  }, [printLayout, selectedMonsters]);
+  }, [basePrintLayout, selectedMonsters]);
   const {
     wrapRef: previewWrapRef,
     innerRef: previewInnerRef,
@@ -233,11 +249,18 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
   const printablePages = useMemo(
     () =>
       selectedMonsters.map((monster, idx) => {
-        if (printLayout === "COMPACT_1P") {
+        const pageClassName = [
+          "sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl",
+          darkPrestigeLayout ? "sc-print-page--dark-prestige" : "",
+        ]
+          .join(" ")
+          .trim();
+
+        if (basePrintLayout === "COMPACT_1P") {
           return (
             <article
               key={`${monster.name ?? "monster"}-${idx}`}
-              className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl"
+              className={pageClassName}
               style={idx === selectedMonsters.length - 1 ? LAST_PRINT_PAGE_STYLE : PAGE_BREAK_STYLE}
             >
               <div className="sc-print-card-wrap">
@@ -256,7 +279,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
 
         return (
           <div key={`${monster.name ?? "monster"}-${idx}`} className="space-y-6">
-            <article className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl">
+            <article className={pageClassName}>
               <div className="sc-print-card-wrap">
                 <MonsterBlockCard
                   monster={monster}
@@ -269,7 +292,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
               </div>
             </article>
 
-            <article className="sc-print-page mx-auto rounded border border-zinc-700 bg-white shadow-xl">
+            <article className={pageClassName}>
               <div className="sc-print-card-wrap">
                 <MonsterBlockCard
                   monster={monster}
@@ -284,7 +307,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
           </div>
         );
       }),
-    [printLayout, protectionTuning, selectedMonsters, weaponById],
+    [basePrintLayout, darkPrestigeLayout, printLayout, protectionTuning, selectedMonsters, weaponById],
   );
 
   return (
@@ -306,6 +329,8 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
                 >
                   <option value="COMPACT_1P">1 Page - Compact</option>
                   <option value="LEGENDARY_2P">2 Page - Legendary Layout</option>
+                  <option value="DARK_PRESTIGE_COMPACT_1P">Dark Prestigue Compact</option>
+                  <option value="DARK_PRESTIGE_LEGENDARY_2P">Dark Prestigue - Legendary Layout</option>
                 </select>
               </label>
               <Link
@@ -448,6 +473,15 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
             min-height: 297mm;
             padding: 10mm;
           }
+          .sc-print-page.sc-print-page--dark-prestige {
+            border-color: #8b5e2e;
+            background:
+              linear-gradient(180deg, rgba(8, 7, 6, 0.28), rgba(8, 7, 6, 0.58)),
+              url("/assets/character-sheet/dark-prestige/dark_prestigue_background.png") center / cover no-repeat,
+              #080706;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
         }
 
         .sc-print-only {
@@ -555,6 +589,14 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
           }
+          .sc-print-page.sc-print-page--dark-prestige {
+            background:
+              linear-gradient(180deg, rgba(8, 7, 6, 0.28), rgba(8, 7, 6, 0.58)),
+              url("/assets/character-sheet/dark-prestige/dark_prestigue_background.png") center / cover no-repeat,
+              #080706 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
           .sc-is-print {
             margin: 0 !important;
           }
@@ -605,6 +647,17 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
 
           .sc-monster-block * {
             color: inherit !important;
+          }
+
+          .sc-monster-block.sc-theme-dark-prestige {
+            border-color: #8b5e2e !important;
+            background:
+              linear-gradient(180deg, rgba(8, 7, 6, 0.58), rgba(8, 7, 6, 0.9)),
+              url("/assets/character-sheet/dark-prestige/dark_prestigue_background.png") center / cover no-repeat,
+              #080706 !important;
+            color: #eadfc7 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
         }
       `}</style>

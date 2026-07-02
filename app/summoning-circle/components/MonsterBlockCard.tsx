@@ -89,7 +89,11 @@ type MonsterBlockCardProps = {
   protectionTuning?: ProtectionTuningValues;
   derivedPowerCooldownTurns?: Array<number | null | undefined>;
 };
-type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
+type PrintLayoutMode =
+  | "COMPACT_1P"
+  | "LEGENDARY_2P"
+  | "DARK_PRESTIGE_COMPACT_1P"
+  | "DARK_PRESTIGE_LEGENDARY_2P";
 type PrintPageMode = "COMPACT" | "PAGE1_MAIN" | "PAGE2_POWER";
 
 const ATTR_ROWS = [
@@ -381,7 +385,7 @@ function formatNaturalAttackLines(
 }
 
 const MECHANICS_HIGHLIGHT_RE =
-  /\b\d+\s*dice\b|\b\d+\s*(?:mental|physical)?\s*[a-z-]*\s*wounds\b|\bchoose\s+\d+\b|\b\d+\s*stacks?\b|\b\d+\s*ft\b|\bcooldown:\s*\d+\b|\bunder\s*\d+%/gi;
+  /\b(?:up to\s+)?\d+\s+(?:adjacent\s+)?targets?(?:\s+within\s+\d+\s*ft)?\b|\b\d+\s*dice\b|\b\d+\s*(?:mental|physical)?\s*[a-z-]*\s*wounds\b|\b\d+\s*stacks?\b|\b\d+\s*ft\b|\bcooldown:\s*\d+\b|\bunder\s*\d+%/gi;
 
 function highlightMechanics(text: string | null | undefined): ReactNode {
   if (!text) return text ?? "";
@@ -683,7 +687,17 @@ export function MonsterBlockCard({
   derivedPowerCooldownTurns,
 }: MonsterBlockCardProps) {
   const inPrint = Boolean(isPrint);
-  const is2Page = inPrint && printLayout === "LEGENDARY_2P";
+  const basePrintLayout =
+    printLayout === "DARK_PRESTIGE_COMPACT_1P"
+      ? "COMPACT_1P"
+      : printLayout === "DARK_PRESTIGE_LEGENDARY_2P"
+        ? "LEGENDARY_2P"
+        : printLayout;
+  const isDarkPrestigePrint =
+    inPrint &&
+    (printLayout === "DARK_PRESTIGE_COMPACT_1P" ||
+      printLayout === "DARK_PRESTIGE_LEGENDARY_2P");
+  const is2Page = inPrint && basePrintLayout === "LEGENDARY_2P";
   const isMainPage = inPrint && printPage === "PAGE1_MAIN";
   const isPowerPage = inPrint && printPage === "PAGE2_POWER";
   const imageUrl = isHttpUrl(monster.imageUrl) ? monster.imageUrl.trim() : null;
@@ -1360,13 +1374,14 @@ export function MonsterBlockCard({
   const powerCount = Array.isArray(monster.powers) ? monster.powers.length : 0;
   const powerGridClass = powerCount <= 1 ? "sc-print-power-grid sc-grid-1" : "sc-print-power-grid";
   const nonPrintAttrGapClass =
-    printLayout === "LEGENDARY_2P" ? "gap-2 lg:gap-4" : "gap-2 lg:gap-4";
+    basePrintLayout === "LEGENDARY_2P" ? "gap-2 lg:gap-4" : "gap-2 lg:gap-4";
 
   return (
     <div
       className={[
         "sc-monster-block sc-monster-card mx-auto w-full rounded border border-zinc-800 bg-zinc-950 p-4 space-y-3 text-sm",
-        inPrint ? `sc-is-print sc-print-layout-${printLayout} sc-print-page-${printPage}` : "",
+        inPrint ? `sc-is-print sc-print-layout-${basePrintLayout} sc-print-source-layout-${printLayout} sc-print-page-${printPage}` : "",
+        isDarkPrestigePrint ? "sc-theme-dark-prestige" : "",
         is2Page ? "sc-is-2p" : "",
         className ?? "",
       ]
@@ -2100,6 +2115,85 @@ export function MonsterBlockCard({
         }
         .sc-is-print.sc-monster-card .text-\\[clamp\\(1\\.5rem\\,4vw\\,2\\.25rem\\)\\] {
           font-size: 22px !important;
+        }
+
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card {
+          --sc-dp-bg: #080706;
+          --sc-dp-panel: rgba(21, 17, 13, 0.88);
+          --sc-dp-panel-soft: rgba(33, 25, 20, 0.72);
+          --sc-dp-border: #8b5e2e;
+          --sc-dp-border-soft: rgba(139, 94, 46, 0.54);
+          --sc-dp-text: #eadfc7;
+          --sc-dp-muted: #b79b6b;
+          --sc-dp-gold: #c4974d;
+          --sc-dp-ember: #c2412d;
+          border-color: var(--sc-dp-border) !important;
+          background:
+            radial-gradient(circle at 50% 0%, rgba(196, 151, 77, 0.12), transparent 26%),
+            linear-gradient(180deg, rgba(8, 7, 6, 0.58), rgba(8, 7, 6, 0.9)),
+            url("/assets/character-sheet/dark-prestige/dark_prestigue_background.png") center / cover no-repeat,
+            var(--sc-dp-bg) !important;
+          color: var(--sc-dp-text) !important;
+          box-shadow:
+            inset 0 0 0 1px rgba(234, 223, 199, 0.1),
+            inset 0 0 0 3px rgba(75, 47, 28, 0.72),
+            0 0 0 1px rgba(0, 0, 0, 0.9) !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card * {
+          border-color: var(--sc-dp-border-soft) !important;
+        }
+
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card :where(.rounded.border.border-zinc-800, .sc-attr-card, .sc-print-attack-card, .sc-print-power-card, .sc-defence-chip) {
+          background:
+            linear-gradient(180deg, rgba(33, 25, 20, 0.7), rgba(8, 7, 6, 0.62)) !important;
+          box-shadow:
+            inset 0 0 0 1px rgba(234, 223, 199, 0.06),
+            0 1px 0 rgba(196, 151, 77, 0.16) !important;
+        }
+
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card .sc-hero-header,
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card .sc-power-header {
+          background:
+            linear-gradient(90deg, rgba(8, 7, 6, 0.16), rgba(196, 151, 77, 0.16), rgba(8, 7, 6, 0.16)) !important;
+          border-color: var(--sc-dp-border) !important;
+        }
+
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card :where(.text-zinc-300, .text-zinc-400, .text-zinc-500),
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card :where(p, span, li, div) {
+          color: var(--sc-dp-text) !important;
+        }
+
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card :where(.text-xs.uppercase.tracking-wide, .sc-power-header-name, .font-semibold) {
+          color: var(--sc-dp-gold) !important;
+          font-family: Georgia, "Times New Roman", serif;
+          letter-spacing: 0.055em;
+          text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9);
+        }
+
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card .sc-attr-card p:last-child,
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card .text-\\[clamp\\(0\\.9rem\\,1\\.7vw\\,1\\.35rem\\)\\],
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card .text-lg.font-semibold.leading-none {
+          color: #fff3dc !important;
+          text-shadow:
+            0 0 7px rgba(194, 65, 45, 0.24),
+            0 1px 0 #000;
+        }
+
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card .sc-image-wrap {
+          border-color: var(--sc-dp-border) !important;
+          background:
+            linear-gradient(180deg, rgba(33, 25, 20, 0.64), rgba(8, 7, 6, 0.8)) !important;
+          box-shadow:
+            inset 0 0 0 2px rgba(196, 151, 77, 0.22),
+            0 0 0 1px rgba(0, 0, 0, 0.82) !important;
+        }
+
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card .sc-print-power-grid,
+        .sc-is-print.sc-theme-dark-prestige.sc-monster-card .sc-print-attack-grid {
+          color: var(--sc-dp-text) !important;
         }
 
         @media print {

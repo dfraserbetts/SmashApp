@@ -392,44 +392,6 @@ function parseTieredName(name: string): { base: string; tier: number | null } {
   return { base: (m[1] ?? "").trim(), tier: Number.parseInt(m[2] ?? "", 10) };
 }
 
-const AURA_PHYSICAL_REROLL_TEMPLATE =
-  "Aura (Physical) [AuraPhysical]: Allies within 10ft may reroll up to [AuraPhysical] failed Physical Defence dice per defence roll.";
-const AURA_MENTAL_REROLL_TEMPLATE =
-  "Aura (Mental) [AuraMental]: Allies within 10ft may reroll up to [AuraMental] failed Mental Defence dice per defence roll.";
-
-function convertAuraProtectionTemplateToReroll(template: string): string | null {
-  const raw = String(template ?? "");
-  const normalized = raw.toLowerCase();
-  const hasPhysicalToken = raw.includes("[AuraPhysical]");
-  const hasMentalToken = raw.includes("[AuraMental]");
-
-  const alreadyPhysicalReroll =
-    hasPhysicalToken &&
-    normalized.includes(
-      "aura (physical) [auraphysical]: allies within 10ft may reroll up to [auraphysical] failed physical defence dice per defence roll.",
-    );
-  const alreadyMentalReroll =
-    hasMentalToken &&
-    normalized.includes(
-      "aura (mental) [auramental]: allies within 10ft may reroll up to [auramental] failed mental defence dice per defence roll.",
-    );
-
-  const mentionsPhysicalProtection =
-    /physical\s+protection/i.test(raw) || /\+\s*\[AuraPhysical\]/i.test(raw);
-  const mentionsMentalProtection =
-    /mental\s+protection/i.test(raw) || /\+\s*\[AuraMental\]/i.test(raw);
-
-  const convertPhysical = hasPhysicalToken && mentionsPhysicalProtection && !alreadyPhysicalReroll;
-  const convertMental = hasMentalToken && mentionsMentalProtection && !alreadyMentalReroll;
-
-  if (convertPhysical && convertMental) {
-    return `${AURA_PHYSICAL_REROLL_TEMPLATE}\n${AURA_MENTAL_REROLL_TEMPLATE}`;
-  }
-  if (convertPhysical) return AURA_PHYSICAL_REROLL_TEMPLATE;
-  if (convertMental) return AURA_MENTAL_REROLL_TEMPLATE;
-  return null;
-}
-
 export default function AdminForgeValuesPage() {
   const [category, setCategory] = useState<ForgeValueCategory>("WEAPON_ATTRIBUTES");
 
@@ -1996,26 +1958,6 @@ function renderTemplatePreview(
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        className="rounded border px-3 py-2 text-sm"
-                        type="button"
-                        disabled={savingDescriptor || !selected}
-                        onClick={() => {
-                          if (!selected) return;
-                          const converted = convertAuraProtectionTemplateToReroll(descriptorTemplate);
-                          if (!converted) {
-                            setFlash("No Aura Protection pattern found.");
-                            setTimeout(() => setFlash(null), 2000);
-                            return;
-                          }
-                          setDescriptorTemplate(converted);
-                          setFlash("Converted Aura template to reroll format.");
-                          setTimeout(() => setFlash(null), 2000);
-                        }}
-                        title="Convert aura protection descriptors to reroll format"
-                      >
-                        Convert Aura to Reroll
-                      </button>
                       <button
                         className="rounded border px-3 py-2 text-sm"
                         disabled={savingDescriptor || !selected}

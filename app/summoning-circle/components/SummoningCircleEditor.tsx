@@ -134,7 +134,17 @@ type Props = {
   campaignId: string;
   canDeleteMonsters?: boolean;
 };
-type PrintLayoutMode = "COMPACT_1P" | "LEGENDARY_2P";
+type PrintLayoutMode =
+  | "COMPACT_1P"
+  | "LEGENDARY_2P"
+  | "DARK_PRESTIGE_COMPACT_1P"
+  | "DARK_PRESTIGE_LEGENDARY_2P";
+
+function getBasePrintLayout(layout: PrintLayoutMode): "COMPACT_1P" | "LEGENDARY_2P" {
+  if (layout === "DARK_PRESTIGE_COMPACT_1P") return "COMPACT_1P";
+  if (layout === "DARK_PRESTIGE_LEGENDARY_2P") return "LEGENDARY_2P";
+  return layout;
+}
 
 type EditableMonster = MonsterUpsertInput & {
   id?: string;
@@ -6868,6 +6878,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
   const previewMobileVisibility = mobileView === "preview" ? "block" : "hidden";
   const previewMonsterName = previewMonster?.name ?? "none";
   const previewScaleEnabled = mobileView === "preview" && Boolean(previewMonster);
+  const basePreviewPrintLayout = getBasePrintLayout(previewPrintLayout);
   const {
     wrapRef: previewScaleWrapRef,
     innerRef: previewScaleInnerRef,
@@ -12405,6 +12416,8 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                   >
                     <option value="COMPACT_1P">1 Page - Compact</option>
                     <option value="LEGENDARY_2P">2 Page - Legendary Layout</option>
+                    <option value="DARK_PRESTIGE_COMPACT_1P">Dark Prestigue Compact</option>
+                    <option value="DARK_PRESTIGE_LEGENDARY_2P">Dark Prestigue - Legendary Layout</option>
                   </select>
                 </label>
               </div>
@@ -12429,7 +12442,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                     transform: `scale(${previewScale})`,
                   }}
                 >
-                  {previewMonster && previewPrintLayout === "COMPACT_1P" && (
+                  {previewMonster && basePreviewPrintLayout === "COMPACT_1P" && (
                     <MonsterBlockCard
                       monster={previewMonster}
                       weaponById={weaponById}
@@ -12441,7 +12454,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                     />
                   )}
 
-                  {previewMonster && previewPrintLayout === "LEGENDARY_2P" && (
+                  {previewMonster && basePreviewPrintLayout === "LEGENDARY_2P" && (
                     <div className="space-y-3">
                       <div className="space-y-1">
                         <p className="text-xs uppercase tracking-wide text-zinc-500">Page 1 - Main Action</p>
