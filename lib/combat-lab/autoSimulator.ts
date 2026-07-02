@@ -181,15 +181,15 @@ function addEndOfRunDiagnostics(metrics: CombatAggregateMetrics, state: CombatRu
   const actorsById = new Map(state.actors.map((actor) => [actor.id, actor]));
   for (const event of state.pendingMajorInjuryEvents) {
     const actor = actorsById.get(event.actorId);
-    if (event.forcedOutcome === "MAJOR_INJURY") {
+    if (event.outcome === "MAJOR_INJURY") {
       metrics.majorInjuryDiagnostics.majorInjuryEvents += 1;
       if (event.channel === "PHYSICAL") metrics.majorInjuryDiagnostics.physicalMajorInjuries += 1;
       if (event.channel === "MENTAL") metrics.majorInjuryDiagnostics.mentalMajorInjuries += 1;
-    } else if (event.forcedOutcome === "MINOR_INJURY") {
+    } else if (event.outcome === "MINOR_INJURY") {
       metrics.majorInjuryDiagnostics.minorInjuryEvents += 1;
       if (event.channel === "PHYSICAL") metrics.majorInjuryDiagnostics.physicalMinorInjuries += 1;
       if (event.channel === "MENTAL") metrics.majorInjuryDiagnostics.mentalMinorInjuries += 1;
-    } else if (event.forcedOutcome === "NO_INJURY") {
+    } else if (event.outcome === "NO_INJURY") {
       metrics.majorInjuryDiagnostics.noInjuryEvents += 1;
     }
     if (event.blazeAvailable) metrics.majorInjuryDiagnostics.blazeAvailable += 1;
@@ -963,7 +963,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
       sampleActorCooldownAvailability(state, currentActor);
       const timedStatusContributions = collectStartOfTurnStatusContributions(state, currentActor);
       const deniedMainActionBy = mainActionDenialSource(state, currentActor);
-      const startTurnResolution = resolveStartOfTurnEffects(state, currentActor);
+      const startTurnResolution = resolveStartOfTurnEffects(state, currentActor, rng);
       addResolutionToAggregate(metrics, currentActor.side, startTurnResolution);
       addTimedStatusContributions(metrics, state, timedStatusContributions);
       recordTimedStatusContributionEvents({

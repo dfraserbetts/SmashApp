@@ -131,7 +131,8 @@ law until the owning active doc is updated with an explicit decision.
   injury tracks are separate, and three Major Injuries on one side causes
   defeat. Combat Lab Phase 1 now represents explicit defeat models, separate
   Physical/Mental injury counters, pending post-resolution injury events,
-  same-bundle healing prevention, Mental-before-Physical ordering,
+  same-bundle healing prevention, Mental-before-Physical ordering, 3-dice Major
+  Injury rolls with overflow modifiers applied to total successes,
   deterministic Major/Minor/No Injury smoke hooks, no-auto-Blaze default, and
   cleanup only on true defeat.
 - Final defensive-pool numeric tuning values.

@@ -3,6 +3,7 @@ import type {
   CombatActor,
   CombatAggregateMetrics,
   CombatActionLane,
+  CombatAttributeName,
   CombatAssistDiagnostics,
   CombatCooldownTrace,
   CombatDefensivePoolMetrics,
@@ -18,6 +19,7 @@ import type {
   CombatTranscriptEvent,
   UnsupportedPowerSummary,
 } from "./types";
+import { createSeededRng, rollDice, type Rng } from "./dice";
 
 const MAX_TRANSCRIPT_LINES = 1200;
 const MAJOR_INJURIES_TO_DEFEAT = 3;
@@ -28,6 +30,7 @@ type DefeatProcessingContext = {
   sourceActionName?: string | null;
   triggerId?: string | null;
   lane?: CombatActionLane;
+  rng?: Rng;
 };
 
 function cloneAction(action: CombatAction): CombatAction {
@@ -254,9 +257,49 @@ function hpCurrentForInjuryChannel(actor: CombatActor, channel: CombatInjuryChan
   return channel === "PHYSICAL" ? actor.physicalHpCurrent : actor.mentalHpCurrent;
 }
 
-function forcedInjuryOutcome(actor: CombatActor, channel: CombatInjuryChannel): CombatMajorInjuryOutcome {
+function nextForcedInjuryOutcome(actor: CombatActor, channel: CombatInjuryChannel): CombatMajorInjuryOutcome | null {
   const queue = actor.forcedMajorInjuryOutcomes?.[channel];
-  return queue && queue.length > 0 ? queue.shift() ?? "MAJOR_INJURY" : "MAJOR_INJURY";
+  return queue && queue.length > 0 ? queue.shift() ?? "MAJOR_INJURY" : null;
+}
+
+const PHYSICAL_INJURY_ATTRIBUTES: CombatAttributeName[] = ["Attack", "Guard", "Fortitude"];
+const MENTAL_INJURY_ATTRIBUTES: CombatAttributeName[] = ["Intellect", "Synergy", "Bravery"];
+
+function injuryAttributesForChannel(channel: CombatInjuryChannel): CombatAttributeName[] {
+  return channel === "PHYSICAL" ? PHYSICAL_INJURY_ATTRIBUTES : MENTAL_INJURY_ATTRIBUTES;
+}
+
+function chooseMajorInjuryAttribute(actor: CombatActor, channel: CombatInjuryChannel): CombatAttributeName {
+  return injuryAttributesForChannel(channel)
+    .slice()
+    .sort((left, right) => {
+      const valueDelta = (actor.attributes[right] ?? 0) - (actor.attributes[left] ?? 0);
+      if (valueDelta !== 0) return valueDelta;
+      const dieDelta = diceRank(actor.attributeDice[right] ?? "D8") - diceRank(actor.attributeDice[left] ?? "D8");
+      if (dieDelta !== 0) return dieDelta;
+      return injuryAttributesForChannel(channel).indexOf(left) - injuryAttributesForChannel(channel).indexOf(right);
+    })[0];
+}
+
+function diceRank(die: CombatActor["attributeDice"][CombatAttributeName]): number {
+  switch (die) {
+    case "D4":
+      return 4;
+    case "D6":
+      return 6;
+    case "D8":
+      return 8;
+    case "D10":
+      return 10;
+    case "D12":
+      return 12;
+  }
+}
+
+function injuryOutcomeFromSuccesses(finalSuccesses: number): CombatMajorInjuryOutcome {
+  if (finalSuccesses <= 1) return "MAJOR_INJURY";
+  if (finalSuccesses === 2) return "MINOR_INJURY";
+  return "NO_INJURY";
 }
 
 function processMajorInjuryEvent(
@@ -267,15 +310,36 @@ function processMajorInjuryEvent(
 ): boolean {
   const hpCurrent = hpCurrentForInjuryChannel(actor, channel);
   const overflow = Math.max(0, -hpCurrent);
-  const severityModifier = -Math.floor(overflow / Math.max(1, actor.level));
-  const forcedOutcome = forcedInjuryOutcome(actor, channel);
+  const safeLevel = Math.max(1, Math.trunc(actor.level || 1));
+  const overflowModifier = -Math.floor(overflow / safeLevel);
+  const selectedAttribute = chooseMajorInjuryAttribute(actor, channel);
+  const dieSize = actor.attributeDice[selectedAttribute] ?? "D8";
+  const roll = rollDice(
+    3,
+    dieSize,
+    context.rng ?? createSeededRng(state.round * 1000 + state.pendingMajorInjuryEvents.length + 1),
+  );
+  const rawSuccesses = roll.successes;
+  const finalSuccesses = Math.max(0, rawSuccesses + overflowModifier);
+  const rolledOutcome = injuryOutcomeFromSuccesses(finalSuccesses);
+  const forcedOutcome = nextForcedInjuryOutcome(actor, channel);
+  const outcome = forcedOutcome ?? rolledOutcome;
   const event = {
     id: `${state.round}:${actor.id}:${channel}:${state.pendingMajorInjuryEvents.length + 1}`,
     actorId: actor.id,
     actorName: actor.name,
     channel,
     overflow,
-    severityModifier,
+    overflowModifier,
+    severityModifier: overflowModifier,
+    selectedAttribute,
+    dieSize,
+    diceCount: 3,
+    rawResults: roll.rawResults,
+    perDieSuccesses: roll.perDieSuccesses,
+    rawSuccesses,
+    finalSuccesses,
+    outcome,
     sourceActorId: context.sourceActorId ?? null,
     sourceActionId: context.sourceActionId ?? null,
     sourceActionName: context.sourceActionName ?? null,
@@ -288,7 +352,13 @@ function processMajorInjuryEvent(
   state.pendingMajorInjuryEvents.push(event);
   setInjuryResolvedAtZero(actor, channel, true);
 
-  if (forcedOutcome === "MAJOR_INJURY") {
+  const rollText =
+    `Major Injury roll: ${actor.name} rolls 3 x ${dieSize} using ${selectedAttribute} for ${channel === "PHYSICAL" ? "Physical" : "Mental"} injury; ` +
+    `raw results ${roll.rawResults.join(", ")}, per-die successes ${roll.perDieSuccesses.join(", ")}, raw total ${rawSuccesses}, ` +
+    `overflow ${overflow} at level ${safeLevel} gives modifier ${overflowModifier}, final total ${finalSuccesses}, outcome ${outcome}` +
+    `${forcedOutcome ? ` (forced test outcome ${forcedOutcome})` : ""}.`;
+
+  if (outcome === "MAJOR_INJURY") {
     const nextCount = injuryCount(actor, channel) + 1;
     setMajorInjuryCount(actor, channel, nextCount);
     emitTranscriptEvent(state, {
@@ -299,14 +369,14 @@ function processMajorInjuryEvent(
       actionName: context.sourceActionName ?? undefined,
       lane: context.lane,
       message:
-        `Major Injury: ${actor.name} suffers a ${channel === "PHYSICAL" ? "Physical" : "Mental"} Major Injury ` +
-        `(${nextCount}/${MAJOR_INJURIES_TO_DEFEAT}). Severity modifier ${severityModifier}. Blaze available but not used by auto-sim.`,
+        `${rollText} Major Injury: ${actor.name} suffers a ${channel === "PHYSICAL" ? "Physical" : "Mental"} Major Injury ` +
+        `(${nextCount}/${MAJOR_INJURIES_TO_DEFEAT}). ${selectedAttribute} is the selected at-risk attribute. Blaze available but not used by auto-sim.`,
       details: event,
     });
     return nextCount >= MAJOR_INJURIES_TO_DEFEAT;
   }
 
-  if (forcedOutcome === "MINOR_INJURY") {
+  if (outcome === "MINOR_INJURY") {
     const nextCount = minorInjuryCount(actor, channel) + 1;
     setMinorInjuryCount(actor, channel, nextCount);
     emitTranscriptEvent(state, {
@@ -317,8 +387,8 @@ function processMajorInjuryEvent(
       actionName: context.sourceActionName ?? undefined,
       lane: context.lane,
       message:
-        `Minor Injury: ${actor.name} suffers a ${channel === "PHYSICAL" ? "Physical" : "Mental"} Minor Injury ` +
-        `(${nextCount} total). Severity modifier ${severityModifier}. Blaze available but not used by auto-sim.`,
+        `${rollText} Minor Injury: ${actor.name} suffers a ${channel === "PHYSICAL" ? "Physical" : "Mental"} Minor Injury ` +
+        `(${nextCount} total). No current simulation state change beyond logging/counter. Blaze available but not used by auto-sim.`,
       details: event,
     });
     return false;
@@ -332,8 +402,8 @@ function processMajorInjuryEvent(
     actionName: context.sourceActionName ?? undefined,
     lane: context.lane,
     message:
-      `No Injury: ${actor.name} avoids a ${channel === "PHYSICAL" ? "Physical" : "Mental"} injury. ` +
-      `Severity modifier ${severityModifier}. Blaze available but not used by auto-sim.`,
+      `${rollText} No Injury: ${actor.name} avoids a ${channel === "PHYSICAL" ? "Physical" : "Mental"} injury. ` +
+      `No state change. Blaze available but not used by auto-sim.`,
     details: event,
   });
   return false;

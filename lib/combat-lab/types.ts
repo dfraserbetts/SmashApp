@@ -288,12 +288,21 @@ export type CombatPendingMajorInjuryEvent = {
   actorName: string;
   channel: CombatInjuryChannel;
   overflow: number;
+  overflowModifier: number;
   severityModifier: number;
+  selectedAttribute: CombatAttributeName;
+  dieSize: CombatDieSize;
+  diceCount: number;
+  rawResults: number[];
+  perDieSuccesses: number[];
+  rawSuccesses: number;
+  finalSuccesses: number;
+  outcome: CombatMajorInjuryOutcome;
   sourceActorId?: string | null;
   sourceActionId?: string | null;
   sourceActionName?: string | null;
   triggerId?: string | null;
-  forcedOutcome: CombatMajorInjuryOutcome;
+  forcedOutcome?: CombatMajorInjuryOutcome | null;
   blazeAvailable: boolean;
   blazeDeclared: boolean;
   status: "pending" | "resolved";
@@ -459,7 +468,7 @@ export type CombatTranscriptEvent = {
   lane?: CombatActionLane;
   message: string;
   roll?: CombatRollSummary;
-  details?: Record<string, string | number | boolean | null | undefined>;
+  details?: Record<string, unknown>;
 };
 
 export type CombatTranscript = {

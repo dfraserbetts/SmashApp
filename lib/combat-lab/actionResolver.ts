@@ -3026,7 +3026,7 @@ function resolveDeclaredCounterAttack(params: {
   return metrics;
 }
 
-export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor): CombatResolutionMetrics {
+export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor, rng?: Rng): CombatResolutionMetrics {
   const metrics = emptyResolution();
   const actorEffects = state.statusEffects.filter((entry) => entry.targetActorId === actor.id);
   const actionDeniedEffects = actorEffects.filter(
@@ -3158,12 +3158,13 @@ export function resolveStartOfTurnEffects(state: CombatState, actor: CombatActor
           sourceActionName: effect.sourceActionName,
           triggerId: effect.id,
           lane: "startOfTurn",
+          rng,
         });
         return metrics;
       }
     }
   }
-  markDefeatedActors(state, { lane: "startOfTurn" });
+  markDefeatedActors(state, { lane: "startOfTurn", rng });
   return metrics;
 }
 
@@ -4311,6 +4312,7 @@ export function resolveCombatAction(params: {
     sourceActionName: action.name,
     triggerId: action.id,
     lane,
+    rng,
   });
   state.log.push({
     round: state.round,

@@ -384,6 +384,11 @@ function majorInjuryEventsFor(state: CombatState, actorId: string) {
   return state.pendingMajorInjuryEvents.filter((event) => event.actorId === actorId);
 }
 
+function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
+  const events = majorInjuryEventsFor(state, actorId);
+  return events[events.length - 1];
+}
+
 {
   const normalPhysical = createCombatState(
     [],
@@ -406,6 +411,145 @@ function majorInjuryEventsFor(state: CombatState, actorId: string) {
   if (!normalMental.actors[0].defeated) {
     throw new Error("C14 normal monster did not use binary mental defeat at 0 HP.");
   }
+}
+
+{
+  const state = createCombatState(
+    [
+      fixtureActor("c14-roll-no-injury", "players", {
+        physicalHpMax: 5,
+        mentalHpMax: 5,
+        attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+      }),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  state.actors[0].physicalHpCurrent = 0;
+  markDefeatedActors(state, { triggerId: "c14-roll-no-injury-test", rng: rngFrom([0.99, 0.99, 0.99]) });
+  const event = latestMajorInjuryEventFor(state, state.actors[0].id);
+  if (!event || event.outcome !== "NO_INJURY" || event.rawSuccesses !== 6 || event.finalSuccesses !== 6 || state.actors[0].physicalMajorInjuries !== 0 || state.actors[0].defeated) {
+    throw new Error(`C14 rolled No Injury did not preserve actor state: ${JSON.stringify({ actor: state.actors[0], event })}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Major Injury roll: c14-roll-no-injury rolls 3 x D12 using Attack/i, "C14 No Injury roll transcript");
+  expectTranscriptLine(state.transcriptLines, /outcome NO_INJURY.*No Injury: c14-roll-no-injury avoids/i, "C14 No Injury outcome transcript");
+}
+
+{
+  const state = createCombatState(
+    [
+      fixtureActor("c14-roll-overflow-minor", "players", {
+        level: 3,
+        physicalHpMax: 5,
+        mentalHpMax: 5,
+        attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+      }),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  state.actors[0].physicalHpCurrent = -7;
+  markDefeatedActors(state, { triggerId: "c14-roll-overflow-minor-test", rng: rngFrom([0.99, 0.99, 0]) });
+  const event = latestMajorInjuryEventFor(state, state.actors[0].id);
+  if (!event || event.outcome !== "MINOR_INJURY" || event.overflow !== 7 || event.overflowModifier !== -2 || event.rawSuccesses !== 4 || event.finalSuccesses !== 2) {
+    throw new Error(`C14 overflow Minor Injury math was wrong: ${JSON.stringify({ actor: state.actors[0], event })}.`);
+  }
+  if (state.actors[0].physicalMinorInjuries !== 1 || state.actors[0].physicalMajorInjuries !== 0 || state.actors[0].defeated) {
+    throw new Error(`C14 Minor Injury changed the wrong state: ${JSON.stringify(state.actors[0])}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /overflow 7 at level 3 gives modifier -2, final total 2, outcome MINOR_INJURY/i, "C14 overflow Minor Injury transcript");
+}
+
+{
+  const state = createCombatState(
+    [
+      fixtureActor("c14-roll-overflow-major", "players", {
+        level: 3,
+        physicalHpMax: 5,
+        mentalHpMax: 5,
+        attributeDice: { Attack: "D4", Guard: "D4", Fortitude: "D4", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+      }),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  state.actors[0].physicalHpCurrent = -7;
+  markDefeatedActors(state, { triggerId: "c14-roll-overflow-major-test", rng: rngFrom([0.99, 0.99, 0.99]) });
+  const event = latestMajorInjuryEventFor(state, state.actors[0].id);
+  if (!event || event.outcome !== "MAJOR_INJURY" || event.rawSuccesses !== 3 || event.finalSuccesses !== 1 || state.actors[0].physicalMajorInjuries !== 1) {
+    throw new Error(`C14 overflow Major Injury math was wrong: ${JSON.stringify({ actor: state.actors[0], event })}.`);
+  }
+}
+
+{
+  const state = createCombatState(
+    [
+      fixtureActor("c14-exact-zero-overflow", "players", {
+        level: 3,
+        physicalHpMax: 5,
+        mentalHpMax: 5,
+        attributeDice: { Attack: "D4", Guard: "D4", Fortitude: "D4", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+      }),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  state.actors[0].physicalHpCurrent = 0;
+  markDefeatedActors(state, { triggerId: "c14-exact-zero-overflow-test", rng: rngFrom([0, 0, 0]) });
+  const event = latestMajorInjuryEventFor(state, state.actors[0].id);
+  if (!event || event.overflow !== 0 || event.overflowModifier !== 0 || event.finalSuccesses !== 0 || event.outcome !== "MAJOR_INJURY") {
+    throw new Error(`C14 exact-zero overflow did not apply zero penalty: ${JSON.stringify({ actor: state.actors[0], event })}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("c14-already-zero-attacker", "monsters", {
+    attributeDice: { Attack: "D4", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("c14-already-zero-defender", "players", {
+    level: 3,
+    mentalHpMax: 5,
+    mentalDefenceDice: 1,
+    mentalBlockPerSuccess: 0,
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D12", Synergy: "D8", Bravery: "D8" },
+  });
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  state.actors[0].mentalHpCurrent = 0;
+  state.actors[0].mentalInjuryResolvedAtZero = true;
+  resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: action({ id: "c14-already-zero-mental-hit", name: "C14 Already Zero Mental Hit", pool: "mental", diceCount: 1, potency: 7 }),
+    rng: rngFrom([0.99, 0, 0.99, 0.99, 0]),
+    lane: "main",
+  });
+  const event = latestMajorInjuryEventFor(state, state.actors[0].id);
+  if (!event || event.channel !== "MENTAL" || event.overflow !== 7 || event.overflowModifier !== -2 || event.rawSuccesses !== 4 || event.finalSuccesses !== 2 || event.outcome !== "MINOR_INJURY") {
+    throw new Error(`C14 already-at-zero damage did not calculate new overflow from normal wounds: ${JSON.stringify({ actor: state.actors[0], event })}.`);
+  }
+}
+
+{
+  const state = createCombatState(
+    [
+      fixtureActor("c14-roll-third-major-defeat", "players", {
+        physicalHpMax: 5,
+        mentalHpMax: 5,
+        physicalMajorInjuries: 2,
+        attributeDice: { Attack: "D4", Guard: "D4", Fortitude: "D4", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+      }),
+    ],
+    [],
+    { captureTranscript: true },
+  );
+  state.actors[0].physicalHpCurrent = 0;
+  markDefeatedActors(state, { triggerId: "c14-roll-third-major-defeat-test", rng: rngFrom([0, 0, 0]) });
+  const event = latestMajorInjuryEventFor(state, state.actors[0].id);
+  if (!event || event.outcome !== "MAJOR_INJURY" || state.actors[0].physicalMajorInjuries !== 3 || !state.actors[0].defeated) {
+    throw new Error(`C14 rolled third Major Injury did not defeat actor: ${JSON.stringify({ actor: state.actors[0], event })}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Blaze available but not used by auto-sim/i, "C14 Blaze availability transcript");
 }
 
 {
@@ -8041,6 +8185,8 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   const player = fixtureActor("sot-player-stop-player", "players", {
     physicalHpMax: 10,
     physicalHpCurrent: 10,
+    physicalMajorInjuries: 2,
+    forcedMajorInjuryOutcomes: { PHYSICAL: ["MAJOR_INJURY"] },
     actions: [action({ id: "sot-player-stop-action", name: "Player Should Not Act", potency: 1 })],
   });
   const monster = fixtureActor("sot-player-stop-monster", "monsters", {

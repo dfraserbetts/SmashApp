@@ -1083,8 +1083,8 @@ Player Characters and Legendary Monsters:
 - After the full triggering action, effect tick, or simultaneous result bundle
   resolves, they make a Major Injury Trial for the affected side unless they
   declare Blaze of Glory.
-- Physical side attributes are Attack, Defence, and Fortitude.
-- Mental side attributes are Intellect, Support, and Bravery.
+- Physical side attributes are Attack, Guard, and Fortitude.
+- Mental side attributes are Intellect, Synergy, and Bravery.
 - The actor chooses one attribute from the affected side to place at risk.
 
 Major Injury Trial:
@@ -1093,11 +1093,13 @@ Major Injury Trial:
 - The actor may commit legal Limit Break dice before rolling.
 - Limit Break dice are added to the dice pool and use the same chosen Attribute
   die size unless explicitly stated otherwise.
-- Apply overflow severity modifier to non-natural-1 dice.
-- Natural 1s remain hard failures and ignore modifiers.
-- 0-1 total successes = Major Injury.
-- 2 total successes = Minor Injury.
-- 3+ total successes = No Injury.
+- Count successes using the normal success doctrine: 1-3 = 0 successes, 4-9 =
+  1 success, 10+ = 2 successes, maximum 2 successes per die.
+- Apply the overflow severity modifier to the total successes after rolling.
+  Final successes cannot be reduced below 0.
+- 0-1 final successes = Major Injury.
+- 2 final successes = Minor Injury.
+- 3+ final successes = No Injury.
 
 Overflow severity:
 
@@ -1118,6 +1120,9 @@ Examples:
   the Major Injury Trial suffers -2.
 - Level 9 actor suffers 17 overflow damage. 17 / 9 = 1 full level chunk, so the
   Major Injury Trial suffers -1.
+- Level 3 actor suffers 7 overflow damage. 7 / 3 = 2 full level chunks, so the
+  Major Injury Trial suffers -2. If the 3-dice roll generated 4 raw successes,
+  the final total is 2 successes and the result is Minor Injury.
 
 Major Injury severity does not use actual-wounds-after-cap. Actual wounds after
 remaining-health cap is the default wound-band scaling source, not the Major
@@ -1127,8 +1132,8 @@ Trial outcomes:
 
 - No Injury: the actor avoids injury, remains at 0 Health in that channel, and
   must repeat the Trial if struck again in that channel.
-- Minor Injury: the actor suffers a persistent penalty or thematic impairment,
-  but the chosen attribute remains usable.
+- Minor Injury: the actor suffers no current gameplay effect unless a future
+  rule explicitly adds one; it may still be tracked and should be logged.
 - Major Injury: the chosen attribute suffers a Major Injury and becomes
   unusable.
 - Physical and Mental injury tracks are separate.
