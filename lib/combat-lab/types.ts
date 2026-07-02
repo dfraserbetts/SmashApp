@@ -21,6 +21,15 @@ export type CombatDieSize = "D4" | "D6" | "D8" | "D10" | "D12";
 export type CombatActionKind = "attack" | "healing" | "buff" | "debuff" | "defence" | "control" | "movement" | "cleanse";
 export type CombatTargetPolicy = "enemy" | "ally" | "self" | "allAllies" | "allEnemies";
 export type CombatActionSourceType = "naturalAttack" | "equippedWeapon" | "power" | "signatureMove" | "fallback";
+export type CombatContributionSourceBucket =
+  | "equippedAttack"
+  | "naturalAttack"
+  | "power"
+  | "signatureMove"
+  | "ongoing"
+  | "counter"
+  | "other"
+  | "unknown";
 export type CombatActionLane = "combatStart" | "main" | "power" | "response" | "startOfTurn" | "endOfTurn";
 export type CombatDurationKind = "instant" | "turns" | "passive";
 export type CombatDurationSource = "authored" | "inheritedFromParent" | "defaulted";
@@ -660,6 +669,28 @@ export type CombatRunResult = {
   firstRunTranscript?: CombatTranscript;
   unsupported: UnsupportedPowerSummary;
   log: CombatLogEntry[];
+  offensiveContributionEvents: CombatOffensiveContributionEvent[];
+};
+
+export type CombatOffensiveContributionEvent = {
+  round: number;
+  turnActorId: string | null;
+  actorId: string;
+  actorName: string;
+  actorSide: CombatSide;
+  targetId: string | null;
+  targetName: string | null;
+  targetSide: CombatSide | null;
+  targetTier: string | null;
+  actionId: string;
+  actionName: string;
+  sourceType: CombatActionSourceType | null;
+  kind: CombatActionKind | "ongoing" | "counter" | null;
+  sourceBucket: CombatContributionSourceBucket;
+  meaningfulOffensiveAction: boolean;
+  successfulHit: boolean;
+  damage: number;
+  overkill: number;
 };
 
 export type CombatStoppedByBreakdown = {
@@ -1033,7 +1064,31 @@ export type CombatSuiteReport = {
   firstRunTranscript?: CombatTranscript;
   unsupported: UnsupportedPowerSummary;
   hydrationIntegrity: CombatHydrationIntegrity;
+  defeatMetrics: CombatDefeatMetricsReport;
   verdict: string;
+};
+
+export type CombatDefeatMetricSideReport = {
+  sampleCount: number;
+  avgMeaningfulActionsToDefeat: number | null;
+  medianMeaningfulActionsToDefeat: number | null;
+  avgSuccessfulHitsToDefeat: number | null;
+  medianSuccessfulHitsToDefeat: number | null;
+  earlyDeletionRate: number | null;
+  avgOverkill: number | null;
+  medianRoundsToDefeat: number | null;
+  sourceDamage: Record<CombatContributionSourceBucket, number>;
+  sourceDamageShare: Record<CombatContributionSourceBucket, number | null>;
+  sameTurnBurstTurnRate: number | null;
+  avgSameTurnBurstDamage: number | null;
+  avgSameTurnBurstExtraDamage: number | null;
+};
+
+export type CombatDefeatMetricsReport = {
+  finishedRunCount: number;
+  staleRunCount: number;
+  monsterDefeated: CombatDefeatMetricSideReport;
+  playerDefeated: CombatDefeatMetricSideReport;
 };
 
 export type CombatMonsterGroupContribution = {

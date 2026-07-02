@@ -337,8 +337,13 @@ type ScenarioMatrixRow = {
   monsterWinPercent: number;
   stalematePercent: number;
   averageRounds: number;
+  medianRounds: number;
   playerDamagePerRound: number;
   monsterDamagePerRound: number;
+  averageOverkill: {
+    players: number;
+    monsters: number;
+  };
   runCount: number;
   seed: number;
   activeTuningNames: MatrixPayload["provenance"]["activeTuningNames"];
@@ -368,6 +373,7 @@ type ScenarioMatrixRow = {
     actorName: string;
     side: string;
     actionName: string;
+    sourceType: string;
     uses: number;
     damage: number;
     healing: number;
@@ -394,6 +400,7 @@ type ScenarioMatrixRow = {
   >>;
   ongoingPressureSummary: CombatSuiteReport["ongoingPressure"];
   defensivePoolSummary: CombatSuiteReport["defensivePools"];
+  defeatMetrics: CombatSuiteReport["defeatMetrics"];
   majorInjuryDiagnostics: CombatSuiteReport["majorInjuryDiagnostics"];
   assistDiagnostics: CombatSuiteReport["assistDiagnostics"];
   transcriptAnomalyCount: number | null;
@@ -1151,6 +1158,7 @@ function summarizeActions(report: CombatSuiteReport): ScenarioMatrixRow["actionU
         actorName: actor.actorName,
         side: actor.side,
         actionName: action.actionName,
+        sourceType: action.sourceType,
         uses: round(action.uses),
         damage: round(action.damage),
         healing: round(action.healing + action.healingOverTimeApplied + action.healingTicks),
@@ -1274,8 +1282,13 @@ function scenarioToRow(
     monsterWinPercent: pct(report.monsterWinRate),
     stalematePercent: pct(report.stalemateRate),
     averageRounds: round(report.averageRounds),
+    medianRounds: round(report.medianRounds),
     playerDamagePerRound: round(report.averageDamagePerRound.players),
     monsterDamagePerRound: round(report.averageDamagePerRound.monsters),
+    averageOverkill: {
+      players: round(report.averageOverkill.players),
+      monsters: round(report.averageOverkill.monsters),
+    },
     runCount: report.runs,
     seed: built.scenario.seed,
     activeTuningNames,
@@ -1324,6 +1337,7 @@ function scenarioToRow(
     counterCandidateDiagnostics: summarizeCounters(report),
     ongoingPressureSummary: report.ongoingPressure,
     defensivePoolSummary: report.defensivePools,
+    defeatMetrics: report.defeatMetrics,
     majorInjuryDiagnostics: report.majorInjuryDiagnostics,
     assistDiagnostics: report.assistDiagnostics,
     transcriptAnomalyCount: options.includeTranscript ? transcriptAnomalyCount(report) : null,

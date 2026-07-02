@@ -4,8 +4,10 @@ import type {
   CombatAssistDiagnostics,
   CombatAssistIntentionBucket,
   CombatAssistPressureBucket,
+  CombatContributionSourceBucket,
   CombatCounterCandidateDiagnostic,
   CombatDefensiveContribution,
+  CombatDefeatMetricSideReport,
   CombatDefensivePoolActionMetrics,
   CombatDefensivePoolActionReport,
   CombatDefensivePoolSideReport,
@@ -37,6 +39,39 @@ function percentile(values: number[], p: number): number {
 
 function avg(values: number[]): number {
   return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+const CONTRIBUTION_SOURCE_BUCKETS: CombatContributionSourceBucket[] = [
+  "equippedAttack",
+  "naturalAttack",
+  "power",
+  "signatureMove",
+  "ongoing",
+  "counter",
+  "other",
+  "unknown",
+];
+
+function emptySourceBuckets(): Record<CombatContributionSourceBucket, number> {
+  return {
+    equippedAttack: 0,
+    naturalAttack: 0,
+    power: 0,
+    signatureMove: 0,
+    ongoing: 0,
+    counter: 0,
+    other: 0,
+    unknown: 0,
+  };
+}
+
+function sourceBucketShares(
+  sourceDamage: Record<CombatContributionSourceBucket, number>,
+): Record<CombatContributionSourceBucket, number | null> {
+  const total = CONTRIBUTION_SOURCE_BUCKETS.reduce((sum, bucket) => sum + sourceDamage[bucket], 0);
+  return Object.fromEntries(
+    CONTRIBUTION_SOURCE_BUCKETS.map((bucket) => [bucket, total > 0 ? sourceDamage[bucket] / total : null]),
+  ) as Record<CombatContributionSourceBucket, number | null>;
 }
 
 function sumBySide(runs: CombatRunResult[], selector: (metrics: CombatAggregateMetrics) => Record<CombatSide, number>) {
@@ -880,6 +915,119 @@ function verdict(report: Omit<CombatSuiteReport, "verdict">): string {
   return "expected";
 }
 
+function earlyDeletionFloor(tier: string | null): number | null {
+  const normalized = (tier ?? "").toLowerCase();
+  if (normalized.includes("minion")) return 1;
+  if (normalized.includes("soldier")) return 2;
+  if (normalized.includes("elite")) return 5;
+  if (normalized.includes("boss") || normalized.includes("legendary")) return 16;
+  return null;
+}
+
+function emptyDefeatMetricSideReport(): CombatDefeatMetricSideReport {
+  const sourceDamage = emptySourceBuckets();
+  return {
+    sampleCount: 0,
+    avgMeaningfulActionsToDefeat: null,
+    medianMeaningfulActionsToDefeat: null,
+    avgSuccessfulHitsToDefeat: null,
+    medianSuccessfulHitsToDefeat: null,
+    earlyDeletionRate: null,
+    avgOverkill: null,
+    medianRoundsToDefeat: null,
+    sourceDamage,
+    sourceDamageShare: sourceBucketShares(sourceDamage),
+    sameTurnBurstTurnRate: null,
+    avgSameTurnBurstDamage: null,
+    avgSameTurnBurstExtraDamage: null,
+  };
+}
+
+function mergeDefeatMetricSide(
+  runs: CombatRunResult[],
+  defeatedSide: CombatSide,
+): CombatDefeatMetricSideReport {
+  const stoppedBy = defeatedSide === "monsters" ? "monstersDefeated" : "playersDefeated";
+  const victorSide: CombatSide = defeatedSide === "monsters" ? "players" : "monsters";
+  const samples = runs.filter((run) => run.stoppedBy === stoppedBy);
+  if (samples.length === 0) return emptyDefeatMetricSideReport();
+
+  const meaningfulCounts: number[] = [];
+  const successfulHitCounts: number[] = [];
+  const roundsToDefeat: number[] = [];
+  const overkill: number[] = [];
+  const sourceDamage = emptySourceBuckets();
+  const burstDamages: number[] = [];
+  const burstExtras: number[] = [];
+  let burstTurnCount = 0;
+  let damageTurnCount = 0;
+  let earlyDeletionSamples = 0;
+  let earlyDeletionEligibleSamples = 0;
+
+  for (const run of samples) {
+    const relevantEvents = (run.offensiveContributionEvents ?? []).filter(
+      (event) => event.actorSide === victorSide && event.targetSide === defeatedSide,
+    );
+    const meaningful = relevantEvents.filter((event) => event.meaningfulOffensiveAction).length;
+    const successfulHits = relevantEvents.filter((event) => event.successfulHit).length;
+    meaningfulCounts.push(meaningful);
+    successfulHitCounts.push(successfulHits);
+    roundsToDefeat.push(run.rounds);
+    overkill.push(run.metrics.overkill[victorSide]);
+    for (const event of relevantEvents) {
+      sourceDamage[event.sourceBucket] += Math.max(0, event.damage);
+    }
+
+    const floor = earlyDeletionFloor(relevantEvents.find((event) => event.targetTier)?.targetTier ?? null);
+    if (floor !== null) {
+      earlyDeletionEligibleSamples += 1;
+      if (meaningful < floor) earlyDeletionSamples += 1;
+    }
+
+    const damageGroups = new Map<string, number[]>();
+    for (const event of relevantEvents.filter((entry) => entry.damage > 0)) {
+      const key = `${event.round}:${event.turnActorId ?? "none"}:${event.actorId}:${event.targetId ?? "none"}`;
+      const group = damageGroups.get(key) ?? [];
+      group.push(event.damage);
+      damageGroups.set(key, group);
+    }
+    damageTurnCount += damageGroups.size;
+    for (const damages of damageGroups.values()) {
+      if (damages.length <= 1) continue;
+      const total = damages.reduce((sum, value) => sum + value, 0);
+      const largest = Math.max(...damages);
+      burstTurnCount += 1;
+      burstDamages.push(total);
+      burstExtras.push(Math.max(0, total - largest));
+    }
+  }
+
+  return {
+    sampleCount: samples.length,
+    avgMeaningfulActionsToDefeat: avg(meaningfulCounts),
+    medianMeaningfulActionsToDefeat: percentile(meaningfulCounts, 0.5),
+    avgSuccessfulHitsToDefeat: avg(successfulHitCounts),
+    medianSuccessfulHitsToDefeat: percentile(successfulHitCounts, 0.5),
+    earlyDeletionRate: earlyDeletionEligibleSamples > 0 ? earlyDeletionSamples / earlyDeletionEligibleSamples : null,
+    avgOverkill: avg(overkill),
+    medianRoundsToDefeat: percentile(roundsToDefeat, 0.5),
+    sourceDamage,
+    sourceDamageShare: sourceBucketShares(sourceDamage),
+    sameTurnBurstTurnRate: damageTurnCount > 0 ? burstTurnCount / damageTurnCount : null,
+    avgSameTurnBurstDamage: burstDamages.length > 0 ? avg(burstDamages) : null,
+    avgSameTurnBurstExtraDamage: burstExtras.length > 0 ? avg(burstExtras) : null,
+  };
+}
+
+function mergeDefeatMetrics(runs: CombatRunResult[]) {
+  return {
+    finishedRunCount: runs.filter((run) => run.stoppedBy === "monstersDefeated" || run.stoppedBy === "playersDefeated").length,
+    staleRunCount: runs.filter((run) => run.stoppedBy === "maxRounds" || run.stoppedBy === "stalemate").length,
+    monsterDefeated: mergeDefeatMetricSide(runs, "monsters"),
+    playerDefeated: mergeDefeatMetricSide(runs, "players"),
+  };
+}
+
 export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
   const runs = Array.from({ length: scenario.runs }, (_, index) => runCombatScenario(scenario, index));
   const rounds = runs.map((run) => run.rounds);
@@ -984,6 +1132,7 @@ export function runScenarioSuite(scenario: CombatScenario): CombatSuiteReport {
     firstRunTranscript: runs[0]?.firstRunTranscript,
     unsupported: mergeUnsupported(runs),
     hydrationIntegrity: collectHydrationIntegrity(scenario),
+    defeatMetrics: mergeDefeatMetrics(runs),
   };
   return {
     ...reportWithoutVerdict,

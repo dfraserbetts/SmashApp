@@ -29,6 +29,7 @@ import type {
   CombatAction,
   CombatActor,
   CombatActorContribution,
+  CombatContributionSourceBucket,
   CombatAssistIntentionBucket,
   CombatAssistPressureBucket,
   CombatAssistPressureLane,
@@ -36,6 +37,7 @@ import type {
   CombatDefensivePoolSideTotals,
   CombatOngoingPressureMetrics,
   CombatOngoingPressureSideTotals,
+  CombatOffensiveContributionEvent,
   CombatRunResult,
   CombatScenario,
   CombatSide,
@@ -341,6 +343,114 @@ function isOffensiveAction(action: CombatAction): boolean {
     action.kind === "control" ||
     action.kind === "movement"
   );
+}
+
+function sourceBucketForAction(action: CombatAction | null): CombatContributionSourceBucket {
+  if (!action) return "unknown";
+  if (action.sourceType === "equippedWeapon") return "equippedAttack";
+  if (action.sourceType === "naturalAttack") return "naturalAttack";
+  if (action.sourceType === "power") return "power";
+  if (action.sourceType === "signatureMove") return "signatureMove";
+  if (action.sourceType === "fallback") return "other";
+  return "unknown";
+}
+
+function isMeaningfulOffensiveAction(actor: CombatActor, action: CombatAction | null, target: CombatActor | null): boolean {
+  if (!action || !target || action.sourceType === "fallback") return false;
+  return action.kind === "attack" && target.side !== actor.side;
+}
+
+function recordActionContributionEvents(params: {
+  events: CombatOffensiveContributionEvent[];
+  state: CombatRuntimeState;
+  actor: CombatActor;
+  target: CombatActor | null;
+  action: CombatAction | null;
+  resolution: ReturnType<typeof resolveCombatAction>;
+}) {
+  const directDamage = Math.max(0, params.resolution.netWounds);
+  const meaningful =
+    isMeaningfulOffensiveAction(params.actor, params.action, params.target) ||
+    (params.action?.sourceType !== "fallback" && directDamage > 0);
+  if (meaningful || directDamage > 0) {
+    params.events.push({
+      round: params.state.round,
+      turnActorId: params.state.currentTurnActorId ?? null,
+      actorId: params.actor.id,
+      actorName: params.actor.name,
+      actorSide: params.actor.side,
+      targetId: params.target?.id ?? null,
+      targetName: params.target?.name ?? null,
+      targetSide: params.target?.side ?? null,
+      targetTier: params.target?.tier ?? null,
+      actionId: params.action?.id ?? "unknown-action",
+      actionName: params.action?.name ?? "Unknown Action",
+      sourceType: params.action?.sourceType ?? null,
+      kind: params.action?.kind ?? null,
+      sourceBucket: sourceBucketForAction(params.action),
+      meaningfulOffensiveAction: meaningful,
+      successfulHit: directDamage > 0,
+      damage: directDamage,
+      overkill: Math.max(0, params.resolution.overkill),
+    });
+  }
+
+  const counterDamage = Math.max(0, params.resolution.counterDamage);
+  if (counterDamage > 0 && params.target) {
+    params.events.push({
+      round: params.state.round,
+      turnActorId: params.state.currentTurnActorId ?? null,
+      actorId: params.target.id,
+      actorName: params.target.name,
+      actorSide: params.target.side,
+      targetId: params.actor.id,
+      targetName: params.actor.name,
+      targetSide: params.actor.side,
+      targetTier: params.actor.tier ?? null,
+      actionId: `${params.action?.id ?? "unknown-action"}:counter`,
+      actionName: `${params.action?.name ?? "Unknown Action"} counter damage`,
+      sourceType: params.action?.sourceType ?? null,
+      kind: "counter",
+      sourceBucket: "counter",
+      meaningfulOffensiveAction: true,
+      successfulHit: true,
+      damage: counterDamage,
+      overkill: 0,
+    });
+  }
+}
+
+function recordTimedStatusContributionEvents(params: {
+  events: CombatOffensiveContributionEvent[];
+  state: CombatRuntimeState;
+  target: CombatActor;
+  contributions: TimedStatusContribution[];
+}) {
+  for (const contribution of params.contributions) {
+    const damage = Math.max(0, contribution.ongoingDamageApplied);
+    if (damage <= 0) continue;
+    const sourceActor = params.state.actors.find((actor) => actor.id === contribution.sourceActorId);
+    params.events.push({
+      round: params.state.round,
+      turnActorId: params.state.currentTurnActorId ?? null,
+      actorId: sourceActor?.id ?? contribution.sourceActorId,
+      actorName: sourceActor?.name ?? "Unknown source",
+      actorSide: sourceActor?.side ?? getOppositeSide(params.target.side),
+      targetId: params.target.id,
+      targetName: params.target.name,
+      targetSide: params.target.side,
+      targetTier: params.target.tier ?? null,
+      actionId: contribution.sourceActionId ?? "ongoing",
+      actionName: contribution.sourceActionName ?? "Ongoing damage",
+      sourceType: null,
+      kind: "ongoing",
+      sourceBucket: "ongoing",
+      meaningfulOffensiveAction: true,
+      successfulHit: true,
+      damage,
+      overkill: 0,
+    });
+  }
 }
 
 function hasLegalActionTarget(actor: CombatActor, action: CombatAction, state: ReturnType<typeof createCombatState>): boolean {
@@ -819,6 +929,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
   const state = createCombatState(scenario.players, scenario.monsters, { captureTranscript });
   state.statusEffects.push(...(scenario.initialStatusEffects ?? []).map((effect) => ({ ...effect })));
   const metrics = createEmptyMetrics();
+  const offensiveContributionEvents: CombatOffensiveContributionEvent[] = [];
   let stoppedBy: CombatRunResult["stoppedBy"] = "maxRounds";
   let roundsWithoutDamage = 0;
 
@@ -855,6 +966,12 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
       const startTurnResolution = resolveStartOfTurnEffects(state, currentActor);
       addResolutionToAggregate(metrics, currentActor.side, startTurnResolution);
       addTimedStatusContributions(metrics, state, timedStatusContributions);
+      recordTimedStatusContributionEvents({
+        events: offensiveContributionEvents,
+        state,
+        target: currentActor,
+        contributions: timedStatusContributions,
+      });
       const mainActionDenied = startTurnResolution.actionsDenied > 0;
       if (mainActionDenied) {
         state.log.push({
@@ -949,6 +1066,14 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
         }
         addResolutionToAggregate(metrics, currentActor.side, resolution, { defensiveSide: target?.side });
         addActorContribution(metrics, currentActor, action, resolution);
+        recordActionContributionEvents({
+          events: offensiveContributionEvents,
+          state,
+          actor: currentActor,
+          target,
+          action,
+          resolution,
+        });
         addDefensiveContribution(metrics, target, resolution);
         addRoleContribution(metrics, currentActor.role, action?.kind ?? "attack", {
           damage: resolution.netWounds,
@@ -1082,6 +1207,7 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
     firstRunTranscript,
     unsupported: collectUnsupportedSummary(state.actors),
     log: state.log,
+    offensiveContributionEvents,
   };
 }
 
