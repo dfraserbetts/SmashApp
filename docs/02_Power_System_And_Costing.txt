@@ -483,8 +483,8 @@ Summoning Circle, Forge, Monster Outcome Calculator, and Combat Lab:
 - payload: wounds, healing, block units, resist cancellation, control units,
   augment/debuff magnitude, movement-equivalent effect, or other mechanical
   output.
-- expected successes: expected output successes from dice count and the assumed
-  success model.
+- expected successes: expected output successes from dice count and the locked
+  two-tier success model: 1-3 = 0, 4-9 = 1, 10+ = 2, maximum 2 per die.
 - table-facing output: the value players see at the table, such as wounds per
   success.
 - expected target count: expected number of meaningful affected targets, not
@@ -729,7 +729,7 @@ compatible expected-output assumptions.
 
 Current Phase 1 implementation:
 
-- supported natural and equipped attack outputs use expected tiered successes,
+- supported natural and equipped attack outputs use expected two-tier successes,
   not chance of any success
 - natural and equipped attack dice count follows current Weapon Skill-style
   semantics rather than one implicit die

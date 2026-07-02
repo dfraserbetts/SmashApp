@@ -2233,7 +2233,7 @@ function printCooldownLifecycleSemantics(): void {
   console.log("- Therefore cooldown 1 does not mean available on the next own turn in this smoke model.");
   console.log("- v0.1 approximates 1v1 final-resolution-window closure after the opponent completes the relevant turn in the final lifespan round.");
   console.log("- Control powers use legal action-slot restrictions and a smoke Resist gate; they do not skip an entire turn.");
-  console.log("- All success rolls use SMASH tiers: 1-3 = 0, 4-7 = 1, 8-10 = 2, 11+ = 3.");
+  console.log("- All success rolls use SMASH tiers: 1-3 = 0, 4-9 = 1, 10+ = 2.");
   console.log("- Passive powers are not exercised; they do not enter cooldown from time passing.");
   console.log("- Counters/Assists follow the same lifecycle but Response simulation is out of scope.");
   console.log("- Charge is front-loaded and out of scope for these fixtures.");

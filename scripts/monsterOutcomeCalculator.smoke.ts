@@ -103,10 +103,11 @@ function assertApprox(actual: number, expected: number, epsilon: number, label: 
 
 assertApprox(expectedTieredSuccessesPerDie(4), 0.25, 0.000001, "D4 expected successes");
 assertApprox(expectedTieredSuccessesPerDie(6), 0.5, 0.000001, "D6 expected successes");
-assertApprox(expectedTieredSuccessesPerDie(8), 0.75, 0.000001, "D8 expected successes");
-assertApprox(expectedTieredSuccessesPerDie(10), 1, 0.000001, "D10 expected successes");
-assertApprox(expectedTieredSuccessesPerDie(12), 4 / 3, 0.000001, "D12 expected successes");
-assert.equal(expectedTieredSuccesses({ dieSides: 8, diceCount: 3 }), 2.25);
+assertApprox(expectedTieredSuccessesPerDie(8), 0.625, 0.000001, "D8 expected successes");
+assertApprox(expectedTieredSuccessesPerDie(10), 0.8, 0.000001, "D10 expected successes");
+assertApprox(expectedTieredSuccessesPerDie(12), 1, 0.000001, "D12 expected successes");
+assert.equal(expectedTieredSuccesses({ dieSides: 8, diceCount: 3 }), 1.875);
+assertApprox(expectedTieredSuccesses({ dieSides: 12, diceCount: 4 }), 4, 0.000001, "4 x D12 expected successes");
 assert.ok(
   expectedTieredSuccesses({ dieSides: 8, diceCount: 3, rerollFailedDiceOnce: true }) >
     expectedTieredSuccesses({ dieSides: 8, diceCount: 3 }),

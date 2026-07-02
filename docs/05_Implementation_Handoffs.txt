@@ -338,8 +338,8 @@ Formula implementation guardrails:
 
 Monster Outcome Calculator Phase 1 implementation notes:
 
-- supported natural/equipped attack outputs now use Incarnate expected tiered
-  successes: natural 1-3 = 0, 4+ = 1, 8+ = 2, 11+ = 3
+- supported natural/equipped attack outputs now use Incarnate expected two-tier
+  successes: natural 1-3 = 0, 4-9 = 1, 10+ = 2, maximum 2 successes per die
 - attack-style natural/equipped outputs use Attack as the roll Attribute unless
   a future explicit authoring field says otherwise; physical/mental threat lane
   remains a separate routing decision

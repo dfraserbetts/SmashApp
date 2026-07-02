@@ -225,7 +225,8 @@ Doctrine:
 
 Current Monster Outcome Phase 1 status:
 
-- uses expected tiered successes instead of any-success probability for
+- uses expected two-tier successes instead of any-success probability for
+  supported attack output (1-3 = 0, 4-9 = 1, 10+ = 2, maximum 2 per die)
   supported attack outputs.
 - natural/equipped attacks use more Combat Lab-compatible semantics.
 - protection survivability monotonicity has been addressed.

@@ -2074,8 +2074,7 @@ export function successChanceFromDieSides(sides: number): number {
 }
 
 function successCountForNaturalMonsterOutcomeRoll(roll: number): number {
-  if (roll >= 11) return 3;
-  if (roll >= 8) return 2;
+  if (roll >= 10) return 2;
   if (roll >= 4) return 1;
   return 0;
 }

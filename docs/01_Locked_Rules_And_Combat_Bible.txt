@@ -12,24 +12,27 @@ alignment issue unless the Architect explicitly changes the rule.
 
 Roll Grammar And Success Quality
 
-Use the existing documented success thresholds, dice sizes, maximum modifier,
-and success-tier definitions. This consolidation pass does not change the
-numeric threshold table.
+Use the two-tier mechanical success model:
+
+- Natural or modified 1-3 = failure / 0 successes.
+- Natural or modified 4-9 = 1 success.
+- Natural or modified 10+ = greater success / 2 successes.
+- Maximum mechanical successes per die = 2.
+- There is no mechanical 11+ / 3-success tier. Any historical "epic success"
+  language is not active mechanical law unless a future explicit rule redefines
+  it as non-numeric flavour.
 
 Locked modifier/failure ruling:
 
 - Natural 1s are hard failures.
 - A natural 1 cannot be modified into a success by positive modifiers.
-- A natural 1 cannot become a greater success, critical success, or any higher
-  success tier.
+- A natural 1 cannot become a greater success or any higher result.
 - Natural 2s and 3s are recoverable failures.
 - Positive modifiers may raise a natural 2 or 3 to the normal success threshold.
 - A rescued natural 2 or 3 can produce at most 1 normal success.
-- A rescued natural 2 or 3 cannot become a greater success, critical success, or
-  higher-tier success, even if the final modified value would otherwise reach
-  that tier.
-- Only natural successes can spike into greater, critical, or higher-tier
-  success results.
+- A rescued natural 2 or 3 cannot become a greater success, even if the final
+  modified value would otherwise reach 10+.
+- Only natural successes can spike into greater success results.
 - Negative modifiers may reduce natural successes, including reducing them below
   the success threshold.
 

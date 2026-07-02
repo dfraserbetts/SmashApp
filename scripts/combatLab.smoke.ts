@@ -12,7 +12,7 @@ import {
   tickTargetDefensivePools,
   tickTargetTurnEffects,
 } from "../lib/combat-lab/combatState";
-import { successCountForRoll, type Rng } from "../lib/combat-lab/dice";
+import { expectedSuccesses, expectedSuccessesPerDie, successCountForRoll, type Rng } from "../lib/combat-lab/dice";
 import {
   DEFAULT_COMBAT_TUNING_VALUES,
   type ProtectionTuningValues,
@@ -135,6 +135,19 @@ expectSuccessCount(4, 6, 2, "natural success can spike when modified high enough
 expectSuccessCount(4, -1, 0, "natural success can be downgraded below threshold");
 expectSuccessCount(4, 0, 1, "unmodified normal success remains one success");
 expectSuccessCount(10, 0, 2, "unmodified greater success remains two successes");
+
+function expectExpectedSuccesses(actual: number, expected: number, label: string) {
+  if (Math.abs(actual - expected) > 0.000001) {
+    throw new Error(`${label}: expected ${expected}, got ${actual}.`);
+  }
+}
+
+expectExpectedSuccesses(expectedSuccessesPerDie("D4"), 0.25, "D4 expected successes");
+expectExpectedSuccesses(expectedSuccessesPerDie("D6"), 0.5, "D6 expected successes");
+expectExpectedSuccesses(expectedSuccessesPerDie("D8"), 0.625, "D8 expected successes");
+expectExpectedSuccesses(expectedSuccessesPerDie("D10"), 0.8, "D10 expected successes");
+expectExpectedSuccesses(expectedSuccessesPerDie("D12"), 1, "D12 expected successes");
+expectExpectedSuccesses(expectedSuccesses(4, "D12"), 4, "4 x D12 expected successes");
 
 function characterAttackPower(name: string, diceCount: number, potency: number) {
   const packet = {
