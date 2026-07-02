@@ -9,8 +9,10 @@ import type {
 import {
   getArmorSkillDiceCountFromAttributes,
   getDodgeValue,
+  getWeaponSkillDiceCountFromAttributes,
   getWillpowerDiceCountFromAttributes,
 } from "@/lib/summoning/attributes";
+import { strengthToTableWoundsPerSuccess } from "@/lib/forge/outputProfile";
 import type { CalculatorConfig, LevelCurvePoint } from "@/lib/calculators/calculatorConfig";
 import {
   DEFAULT_COMBAT_TUNING_VALUES,
@@ -132,6 +134,8 @@ type MonsterOutcomeInput = Pick<
   | "tier"
   | "legendary"
   | "attackDie"
+  | "weaponSkillValue"
+  | "weaponSkillModifier"
   | "attackResistDie"
   | "attacks"
   | "guardDie"
@@ -168,6 +172,7 @@ export type CanonicalPowerContribution = {
     name?: string | null;
     axisVector?: Partial<RadarAxes> | null;
     basePowerValue?: number | null;
+    authoredPower?: MonsterUpsertInput["powers"][number] | null;
     derivedCooldownTurns?: number | null;
     derivedCooldownLoad?: number | null;
     cooldownTurns?: number | null;
@@ -225,6 +230,9 @@ type NormalizedAtWillAttackSegment = {
   diceCount: number;
   dieSides: number;
   successChance: number;
+  expectedSuccessesPerDie: number;
+  expectedSuccesses: number;
+  reliabilityMultiplier: number;
   authoredStrength: number;
   damageTypeCount: number;
   woundsPerSuccess: number;
@@ -256,6 +264,7 @@ type NormalizedDefensiveProfile = {
 
 type DefensiveProfileContext = {
   dodgeDice: number;
+  unarmoredDodgeDice?: number;
   armorSkillDice: number;
   willpowerDice: number;
   totalPhysicalProtection: number;
@@ -278,6 +287,9 @@ type DefensiveContribution = {
     expectedIncomingAttackDice: number;
     expectedDodgeDice: number;
     baselineDodgeDice: number;
+    scoringDodgeDice: number;
+    authoredDodgeDice: number;
+    unarmoredDodgeDice: number;
     dodgeDiceAboveExpectation: number;
     dodgeAboveExpectationRatio: number;
     physicalDodgeRawBonus: number;
@@ -637,6 +649,12 @@ function normalizeRawAxisBonuses(
     mobility: clampNonNegative(bonuses.mobility ?? 0),
     presence: clampNonNegative(bonuses.presence ?? 0),
   };
+}
+
+function readRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function scaleRawAxisBonuses(bonuses: RadarAxes, weight: number): RadarAxes {
@@ -1298,6 +1316,10 @@ function pushNormalizedAtWillSegments(
   rangeCategory: NormalizedAtWillAttackSegment["rangeCategory"],
   dieSides: number,
   successChance: number,
+  diceCount: number,
+  expectedSuccessesPerDie: number,
+  expectedSuccesses: number,
+  reliabilityMultiplier: number,
   targetCount: number,
   targetMultiplier: number,
   levelWoundBonus: number,
@@ -1324,14 +1346,16 @@ function pushNormalizedAtWillSegments(
       attackKind,
       threatLane,
       rangeCategory,
-      diceCount: 1,
+      diceCount,
       dieSides,
       successChance,
+      expectedSuccessesPerDie,
+      expectedSuccesses,
+      reliabilityMultiplier,
       authoredStrength,
       damageTypeCount,
-      // Radar normalization is level-relative, so the numerator keeps authored attack strength level-neutral.
-      woundsPerSuccess: authoredStrength,
-      levelAdjustedWoundsPerSuccess: authoredStrength + levelWoundBonus,
+      woundsPerSuccess: strengthToTableWoundsPerSuccess(authoredStrength),
+      levelAdjustedWoundsPerSuccess: strengthToTableWoundsPerSuccess(authoredStrength) + levelWoundBonus,
       levelWoundBonus,
       targetCount,
       targetMultiplier,
@@ -1350,6 +1374,10 @@ function normalizeAtWillAttackProfile(params: {
   attackConfig: AttackConfigLike;
   dieSides: number;
   successChance: number;
+  diceCount: number;
+  expectedSuccessesPerDie: number;
+  expectedSuccesses: number;
+  reliabilityMultiplier?: number;
   aoeMultiplier: number;
   level: number;
   levelWoundBonusDivisor?: number;
@@ -1367,6 +1395,10 @@ function normalizeAtWillAttackProfile(params: {
       "MELEE",
       params.dieSides,
       params.successChance,
+      params.diceCount,
+      params.expectedSuccessesPerDie,
+      params.expectedSuccesses,
+      params.reliabilityMultiplier ?? 1,
       targets,
       targets,
       levelWoundBonus,
@@ -1382,6 +1414,10 @@ function normalizeAtWillAttackProfile(params: {
       "RANGED",
       params.dieSides,
       params.successChance,
+      params.diceCount,
+      params.expectedSuccessesPerDie,
+      params.expectedSuccesses,
+      params.reliabilityMultiplier ?? 1,
       targets,
       targets,
       levelWoundBonus,
@@ -1397,6 +1433,10 @@ function normalizeAtWillAttackProfile(params: {
       "AOE",
       params.dieSides,
       params.successChance,
+      params.diceCount,
+      params.expectedSuccessesPerDie,
+      params.expectedSuccesses,
+      params.reliabilityMultiplier ?? 1,
       count,
       params.aoeMultiplier * count,
       levelWoundBonus,
@@ -1424,7 +1464,7 @@ function computeAtWillContributionFromProfile(
 
   for (const segment of profile.segments) {
     const scalar =
-      segment.successChance * netSuccessMultiplier * Math.max(0, segment.targetMultiplier);
+      segment.expectedSuccesses * netSuccessMultiplier * Math.max(0, segment.targetMultiplier);
     const contribution = segment.woundsPerSuccess * scalar * segment.damageTypeCount;
     if (segment.threatLane === "PHYSICAL") physical += contribution;
     if (segment.threatLane === "MENTAL") mental += contribution;
@@ -1439,6 +1479,105 @@ function computeAtWillContributionFromProfile(
     hasRanged,
     hasAoe,
   };
+}
+
+type ExpectedPowerAttackContribution = {
+  axisVector: Pick<RadarAxes, "physicalThreat" | "mentalThreat">;
+  packetCount: number;
+  source: "authored_power_packets" | "missing_authored_power_packets";
+  notes: string[];
+};
+
+function getPowerRangeCategory(power: MonsterUpsertInput["powers"][number]): "MELEE" | "RANGED" | "AOE" | null {
+  const ranges = Array.isArray(power.rangeCategories) ? power.rangeCategories : [];
+  if (ranges.includes("AOE")) return "AOE";
+  if (ranges.includes("RANGED")) return "RANGED";
+  if (ranges.includes("MELEE")) return "MELEE";
+  return null;
+}
+
+function getPowerTargetCount(power: MonsterUpsertInput["powers"][number], rangeCategory: string | null): number {
+  if (rangeCategory === "AOE") return readMultiplier(power.aoeCount, 1);
+  if (rangeCategory === "RANGED") return readMultiplier(power.rangedTargets, 1);
+  if (rangeCategory === "MELEE") return readMultiplier(power.meleeTargets, 1);
+  return 1;
+}
+
+function getExpectedPowerAttackContribution(params: {
+  monster: MonsterOutcomeInput;
+  powerContribution?: CanonicalPowerContribution | null;
+  perPowerAvailability: ReturnType<typeof resolveEffectivePowerAxisContribution>["perPower"];
+  netSuccessMultiplier: number;
+  aoeMultiplier: number;
+}): ExpectedPowerAttackContribution {
+  const out: ExpectedPowerAttackContribution = {
+    axisVector: { physicalThreat: 0, mentalThreat: 0 },
+    packetCount: 0,
+    source: "missing_authored_power_packets",
+    notes: [],
+  };
+  const powers = params.powerContribution?.powers ?? [];
+  const availabilityByKey = new Map<string, number>();
+  for (const entry of params.perPowerAvailability) {
+    const factor = Math.max(0, Number(entry.axisEffectivePowerFactors.physicalThreat ?? entry.availabilityFactor));
+    if (entry.id) availabilityByKey.set(`id:${entry.id}`, factor);
+    if (entry.name) availabilityByKey.set(`name:${entry.name}`, factor);
+  }
+
+  for (const powerEntry of powers) {
+    const power = powerEntry.authoredPower;
+    if (!power) continue;
+    const rangeCategory = getPowerRangeCategory(power);
+    const targetCount = getPowerTargetCount(power, rangeCategory);
+    const targetMultiplier =
+      rangeCategory === "AOE"
+        ? targetCount * Math.max(0, params.aoeMultiplier)
+        : targetCount;
+    const availability =
+      availabilityByKey.get(`id:${powerEntry.id ?? ""}`) ??
+      availabilityByKey.get(`name:${powerEntry.name ?? ""}`) ??
+      1;
+    const powerDiceFallback = Math.max(1, Math.trunc(Number(power.diceCount ?? 1)));
+    const packets = Array.isArray(power.intentions) ? power.intentions : [];
+    for (const packet of packets) {
+      const packetRecord = readRecord(packet);
+      const details = readRecord(packetRecord.detailsJson);
+      const intention = String(packetRecord.intention ?? packetRecord.type ?? "").toUpperCase();
+      if (intention !== "ATTACK") continue;
+      const rawMode = String(details.attackMode ?? packetRecord.woundChannel ?? "PHYSICAL").toUpperCase();
+      const threatLane: Mode = rawMode === "MENTAL" ? "MENTAL" : "PHYSICAL";
+      const diceCount = Math.max(1, Math.trunc(Number(packetRecord.diceCount ?? powerDiceFallback)));
+      const rawPotency = Math.max(1, Number(packetRecord.potency ?? power.potency ?? 1));
+      const tableFacingWoundsPerSuccess = strengthToTableWoundsPerSuccess(rawPotency);
+      const damageTypeCount = Math.max(1, readStringArray(details.damageTypes).length);
+      const expectedSuccessesForPacket = expectedTieredSuccesses({
+        dieSides: dieSidesFromDieString(params.monster.attackDie),
+        diceCount,
+      });
+      const contribution =
+        expectedSuccessesForPacket *
+        tableFacingWoundsPerSuccess *
+        Math.max(0, targetMultiplier) *
+        Math.max(0, availability) *
+        Math.max(0, params.netSuccessMultiplier) *
+        damageTypeCount;
+      if (threatLane === "MENTAL") {
+        out.axisVector.mentalThreat += contribution;
+      } else {
+        out.axisVector.physicalThreat += contribution;
+      }
+      out.packetCount += 1;
+    }
+  }
+
+  if (out.packetCount > 0) {
+    out.source = "authored_power_packets";
+  } else {
+    out.notes.push(
+      "No authored ATTACK packet data was supplied to the outcome calculator; resolver-axis power threat remains the fallback.",
+    );
+  }
+  return out;
 }
 
 function getExpectedIncomingAttackDiceForDodge(level: number, tier: MonsterTier): number {
@@ -1727,9 +1866,25 @@ function resolveDefensiveProfileContext(
         )),
     ) || 0,
   );
+  const unarmoredDodgeDice = Math.max(
+    0,
+    Math.trunc(
+      provided?.unarmoredDodgeDice ??
+        Math.ceil(
+          getDodgeValue(
+            monster.guardDie,
+            monster.intellectDie,
+            monster.level,
+            0,
+            tuning,
+          ) / 6,
+        ),
+    ) || 0,
+  );
 
   return {
     dodgeDice,
+    unarmoredDodgeDice,
     armorSkillDice,
     willpowerDice,
     totalPhysicalProtection,
@@ -1747,14 +1902,15 @@ function computeDefensiveContributionFromProfiles(
 ): DefensiveContribution {
   const expectedIncomingAttackDice = getExpectedIncomingAttackDiceForDodge(level, tier);
   const expectedDodgeDice = getExpectedDodgeDiceForSurvivability(level, tier);
+  const scoringDodgeDice = Math.max(context.dodgeDice, context.unarmoredDodgeDice ?? 0);
   const normalizedLevel = Math.max(1, Math.trunc(level || 1));
   const baselineDodgeDice =
     normalizedLevel >= 16
-      ? Math.min(context.dodgeDice, Math.max(1, expectedDodgeDice - 1))
-      : context.dodgeDice;
-  const dodgeDiceAboveExpectation = Math.max(0, context.dodgeDice - expectedDodgeDice);
+      ? Math.min(scoringDodgeDice, Math.max(1, expectedDodgeDice - 1))
+      : scoringDodgeDice;
+  const dodgeDiceAboveExpectation = Math.max(0, scoringDodgeDice - expectedDodgeDice);
   const dodgeAboveExpectationRatio = getDodgeAboveExpectationRatio(
-    context.dodgeDice,
+    scoringDodgeDice,
     expectedDodgeDice,
   );
   const baselineDodgeShare = getSmoothDodgeShare(
@@ -1867,6 +2023,9 @@ function computeDefensiveContributionFromProfiles(
       expectedIncomingAttackDice,
       expectedDodgeDice,
       baselineDodgeDice,
+      scoringDodgeDice,
+      authoredDodgeDice: context.dodgeDice,
+      unarmoredDodgeDice: context.unarmoredDodgeDice ?? context.dodgeDice,
       dodgeDiceAboveExpectation,
       dodgeAboveExpectationRatio,
       physicalDodgeRawBonus,
@@ -1914,6 +2073,66 @@ export function successChanceFromDieSides(sides: number): number {
   return raw;
 }
 
+function successCountForNaturalMonsterOutcomeRoll(roll: number): number {
+  if (roll >= 11) return 3;
+  if (roll >= 8) return 2;
+  if (roll >= 4) return 1;
+  return 0;
+}
+
+export function expectedTieredSuccessesPerDie(sides: number): number {
+  const dieSides = Math.max(0, Math.trunc(Number(sides)));
+  if (!Number.isFinite(dieSides) || dieSides <= 0) return 0;
+  let total = 0;
+  for (let roll = 1; roll <= dieSides; roll += 1) {
+    total += successCountForNaturalMonsterOutcomeRoll(roll);
+  }
+  return total / dieSides;
+}
+
+export function expectedTieredSuccesses(params: {
+  dieSides: number;
+  diceCount: number;
+  rerollFailedDiceOnce?: boolean;
+}): number {
+  const diceCount = Math.max(0, Math.trunc(Number(params.diceCount)));
+  if (!Number.isFinite(diceCount) || diceCount <= 0) return 0;
+  const perDie = expectedTieredSuccessesPerDie(params.dieSides);
+  const baseExpected = perDie * diceCount;
+  if (!params.rerollFailedDiceOnce) return baseExpected;
+  const dieSides = Math.max(0, Math.trunc(Number(params.dieSides)));
+  if (!Number.isFinite(dieSides) || dieSides <= 0) return baseExpected;
+  const failProbability = Math.min(3, dieSides) / dieSides;
+  return baseExpected + failProbability * perDie * diceCount;
+}
+
+function resolveAtWillAttackDiceCount(
+  monster: MonsterOutcomeInput,
+  tuning?: Partial<ProtectionTuningValues>,
+): number {
+  const stored = Number(monster.weaponSkillValue);
+  if (Number.isFinite(stored) && stored > 0) return Math.max(1, Math.trunc(stored));
+  const weaponSkillTuning = {
+    weaponSkillAttackWeight:
+      tuning?.weaponSkillAttackWeight ?? DEFAULT_COMBAT_TUNING_VALUES.weaponSkillAttackWeight,
+    weaponSkillBraveryWeight:
+      tuning?.weaponSkillBraveryWeight ?? DEFAULT_COMBAT_TUNING_VALUES.weaponSkillBraveryWeight,
+    weaponSkillBaselineOffset:
+      tuning?.weaponSkillBaselineOffset ??
+      DEFAULT_COMBAT_TUNING_VALUES.weaponSkillBaselineOffset,
+    weaponSkillScale:
+      tuning?.weaponSkillScale ?? DEFAULT_COMBAT_TUNING_VALUES.weaponSkillScale,
+  };
+  return Math.max(
+    1,
+    getWeaponSkillDiceCountFromAttributes(
+      monster.attackDie,
+      monster.braveryDie,
+      weaponSkillTuning,
+    ),
+  );
+}
+
 export function computeMonsterOutcomes(
   monster: MonsterOutcomeInput,
   config: CalculatorConfig,
@@ -1933,6 +2152,12 @@ export function computeMonsterOutcomes(
   const netSuccessMultiplier = cfg.baselineParty.netSuccessMultiplier;
   const dieSides = dieSidesFromDieString(monster.attackDie);
   const successChance = successChanceFromDieSides(dieSides);
+  const atWillDiceCount = resolveAtWillAttackDiceCount(monster, opts?.protectionTuning);
+  const atWillExpectedSuccessesPerDie = expectedTieredSuccessesPerDie(dieSides);
+  const atWillExpectedSuccesses = expectedTieredSuccesses({
+    dieSides,
+    diceCount: atWillDiceCount,
+  });
 
   const atWillProfiles: NormalizedAtWillAttackProfile[] = [];
   const naturalAttacks = (monster.attacks ?? []).filter((attack) => attack.attackMode === "NATURAL");
@@ -1945,6 +2170,9 @@ export function computeMonsterOutcomes(
         attackConfig: withEffectiveNaturalAoeTargetCount(attack.attackConfig as AttackConfigLike),
         dieSides,
         successChance,
+        diceCount: atWillDiceCount,
+        expectedSuccessesPerDie: atWillExpectedSuccessesPerDie,
+        expectedSuccesses: atWillExpectedSuccesses,
         aoeMultiplier: cfg.baselineParty.aoeMultiplier,
         level: monster.level,
       }),
@@ -1961,6 +2189,9 @@ export function computeMonsterOutcomes(
         ),
         dieSides,
         successChance,
+        diceCount: atWillDiceCount,
+        expectedSuccessesPerDie: atWillExpectedSuccessesPerDie,
+        expectedSuccesses: atWillExpectedSuccesses,
         aoeMultiplier: cfg.baselineParty.aoeMultiplier,
         level: monster.level,
       }),
@@ -1975,6 +2206,9 @@ export function computeMonsterOutcomes(
         attackConfig: equippedWeaponSource.attackConfig as AttackConfigLike,
         dieSides,
         successChance,
+        diceCount: atWillDiceCount,
+        expectedSuccessesPerDie: atWillExpectedSuccessesPerDie,
+        expectedSuccesses: atWillExpectedSuccesses,
         aoeMultiplier: cfg.baselineParty.aoeMultiplier,
         level: monster.level,
       }),
@@ -1992,7 +2226,24 @@ export function computeMonsterOutcomes(
   const tsuPerRound = 0;
   const powerAvailability = resolveEffectivePowerAxisContribution(opts?.powerContribution);
   const canonicalPowerAxisVector = powerAvailability.canonicalPowerAxisVector;
-  const effectivePowerAxisVector = powerAvailability.effectivePowerAxisVector;
+  const expectedPowerAttackContribution = getExpectedPowerAttackContribution({
+    monster,
+    powerContribution: opts?.powerContribution,
+    perPowerAvailability: powerAvailability.perPower,
+    netSuccessMultiplier,
+    aoeMultiplier: cfg.baselineParty.aoeMultiplier,
+  });
+  const effectivePowerAxisVector = {
+    ...powerAvailability.effectivePowerAxisVector,
+    physicalThreat:
+      expectedPowerAttackContribution.axisVector.physicalThreat > 0
+        ? expectedPowerAttackContribution.axisVector.physicalThreat
+        : powerAvailability.effectivePowerAxisVector.physicalThreat,
+    mentalThreat:
+      expectedPowerAttackContribution.axisVector.mentalThreat > 0
+        ? expectedPowerAttackContribution.axisVector.mentalThreat
+        : powerAvailability.effectivePowerAxisVector.mentalThreat,
+  };
 
   const sustainedTotal = sustainedPhysical + sustainedMental;
 
@@ -2309,6 +2560,12 @@ export function computeMonsterOutcomes(
   const routedEquipmentMentalThreatBonus = hasMentalThreat
     ? equipmentAttackThreatBonus
     : 0;
+  const c14LegendaryDurabilityBonus = Boolean(monster.legendary)
+    ? {
+        physicalSurvivability: axisBudgetTargets.physicalSurvivability * 0.25,
+        mentalSurvivability: axisBudgetTargets.mentalSurvivability * 0.25,
+      }
+    : { physicalSurvivability: 0, mentalSurvivability: 0 };
   const nonPowerContribution: RadarAxes = {
     physicalThreat:
       sustainedPhysicalThreatAxis +
@@ -2334,6 +2591,7 @@ export function computeMonsterOutcomes(
       equipmentModifierAxisBonuses.physicalSurvivability +
       naturalAttackGsAxisBonuses.physicalSurvivability +
       customLimitBreakAxisBonuses.physicalSurvivability +
+      c14LegendaryDurabilityBonus.physicalSurvivability +
       traitAxisBonuses.physicalSurvivability,
     mentalSurvivability:
       mentalPoolLane.rawBonus +
@@ -2342,6 +2600,7 @@ export function computeMonsterOutcomes(
       equipmentModifierAxisBonuses.mentalSurvivability +
       naturalAttackGsAxisBonuses.mentalSurvivability +
       customLimitBreakAxisBonuses.mentalSurvivability +
+      c14LegendaryDurabilityBonus.mentalSurvivability +
       traitAxisBonuses.mentalSurvivability,
     manipulation:
       equipmentModifierAxisBonuses.manipulation +
@@ -2458,6 +2717,7 @@ export function computeMonsterOutcomes(
         powerCount: opts?.powerContribution?.powerCount ?? null,
         resolverDebug: opts?.powerContribution?.debug ?? null,
         source: opts?.powerContribution ? "canonical_phase6_resolver" : "none_provided",
+        expectedAttackOutput: expectedPowerAttackContribution,
       },
       nonPowerContribution: {
         axisVector: nonPowerContribution,
@@ -2491,6 +2751,11 @@ export function computeMonsterOutcomes(
           },
           traitAxisBonuses,
           customLimitBreakAxisBonuses,
+          c14LegendaryDurabilityBonus: {
+            ...c14LegendaryDurabilityBonus,
+            policy:
+              "preliminary Phase 1 effective durability bonus for legendary/C14 monsters; full Blaze and Major Injury decision policy remains Combat Lab/runtime work",
+          },
           rawSurvivabilityBudgetTargets: {
             source: "combat_tuning.raw_survivability_budget_level_neutral_numerator",
             referenceLevel: RAW_NUMERATOR_REFERENCE_LEVEL,

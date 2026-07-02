@@ -293,8 +293,11 @@ C. Refactor Character Power Builder cost formula shape around expected table
 D. Rebaseline playerPowerSpendScalar after formula correction.
 E. Refactor Signature Move validation/reporting if needed, while preserving the
    same formula and separate Character Level x 20 pool.
-F. Refactor Monster Outcome Calculator to use compatible expected-output
-   assumptions.
+F. Monster Outcome Calculator Phase 1 expected-output alignment is implemented
+   for supported natural/equipped attacks and authored ATTACK power packets
+   when packet data is supplied. Remaining work: packet-data plumbing for every
+   report surface, control/debuff denied-output, structured trait
+   rerolls/reliability, and fuller C14/Blaze durability intelligence.
 G. Review Forge output/value formula and decide whether bands become validation
    gates.
 H. Reseed/reprice Balance Environment characters and monsters after formula
@@ -328,6 +331,25 @@ Formula implementation guardrails:
   explicit rule says otherwise
 - pure Movement powers stay out of automated balance evidence until Movement
   Abstraction V1 exists
+
+Monster Outcome Calculator Phase 1 implementation notes:
+
+- supported natural/equipped attack outputs now use Incarnate expected tiered
+  successes: natural 1-3 = 0, 4+ = 1, 8+ = 2, 11+ = 3
+- attack-style natural/equipped outputs use Attack as the roll Attribute unless
+  a future explicit authoring field says otherwise; physical/mental threat lane
+  remains a separate routing decision
+- Weapon Skill-style dice count and table-facing Strength x 2 wounds per
+  success are used for supported natural/equipped attack threat
+- protection survivability scoring is monotonic for supported lanes
+- Legendary/C14 monsters receive a conservative Phase 1 effective durability
+  adjustment from the existing legendary flag
+- authored ATTACK power packet data can produce expected-output threat using
+  roll Attribute, dice, potency, target/AoE, and cooldown availability; callers
+  that only pass resolver-axis summaries still fall back to resolver-axis power
+  contribution
+- structured trait reroll/reliability math remains pending until trait
+  mechanics expose canonical machine-readable reroll semantics
 
 
 Codex Tooling Guidance

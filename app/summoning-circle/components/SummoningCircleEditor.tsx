@@ -6211,6 +6211,11 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
           name: power.name,
           axisVector: power.breakdown.axisVector,
           basePowerValue: power.breakdown.basePowerValue,
+          authoredPower:
+            previewMonster.powers.find(
+              (authoredPower) =>
+                authoredPower.id === power.powerId || authoredPower.name === power.name,
+            ) ?? null,
           derivedCooldownTurns: power.derivedCooldownTurns,
           derivedCooldownLoad: power.derivedCooldown.cooldownLoad,
           cooldownTurns: power.cooldownTurns,

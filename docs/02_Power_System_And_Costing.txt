@@ -383,19 +383,10 @@ treated as live app truth.
 
 - spend = CEILING(BasePowerValue x playerPowerSpendScalar)
 
-The current Balance Environment calibration characters are hydratable, but they
-are not legal calibration evidence under the active scalar and formula state.
-Under the live scalar 2 source at the time of audit:
-
-- BALANCE_Arcane Sage: 161 / 150 normal, 54 / 60 Signature Move
-- BALANCE_Hawkshot Archer: 155 / 150 normal, 98 / 60 Signature Move
-- BALANCE_Ranger Commander: 162 / 150 normal, 98 / 60 Signature Move
-- BALANCE_Stoneguard: 148 / 150 normal, 53 / 60 Signature Move
-
-These assets remain useful for data-path, hydration, UI, and scenario-runner
-testing. They must not be treated as final balance conclusions until formula
-architecture is corrected or explicitly accepted, and the assets are revalidated
-against that formula.
+Balance Environment calibration characters are hydratable and have been repriced
+against the active/default scalar 2 path. They still require scenario evidence
+before any win-rate conclusion is promoted to balance truth. Treat older
+overspend tables as historical audit snapshots, not current source law.
 
 Scalar 2 is provisional calibration state, not locked economics. It may still
 be rebased after expected-output constants and Balance Environment assets are
@@ -680,6 +671,35 @@ Natural attacks, weapons, powers, protections, and traits must combine into the
 outcome model. The outcome calculator is not Combat Lab, but it should use
 compatible expected-output assumptions.
 
+Current Phase 1 implementation:
+
+- supported natural and equipped attack outputs use expected tiered successes,
+  not chance of any success
+- natural and equipped attack dice count follows current Weapon Skill-style
+  semantics rather than one implicit die
+- raw attack Strength is converted through the current table-facing
+  Strength x 2 wounds-per-success convention
+- physical versus mental threat lane is separate from roll Attribute; a mental
+  natural or weapon-style attack still rolls Attack unless a future explicit
+  authoring field says otherwise
+- authored ATTACK power packets can feed expected-output threat when callers
+  pass packet data into the calculator
+- protection survivability scoring is monotonic for supported protection lanes
+- Legendary/C14 monsters receive a preliminary effective durability adjustment
+  where the current monster model exposes the legendary flag
+
+Remaining Monster Outcome gaps:
+
+- callers that pass only resolver-axis summaries still fall back to resolver
+  axes for ATTACK power threat; richer packet-data plumbing is still needed
+  across every reporting surface
+- CONTROL, DEBUFF, SUPPORT, healing, and defensive power expected-denied-output
+  remain resolver-axis or diagnostic based
+- structured trait reroll/reliability semantics are not yet available for full
+  reroll math
+- the Legendary/C14 adjustment is conservative Phase 1 shaping, not the full
+  Blaze / Major Injury decision model
+
 
 Forge Formula Shape
 
@@ -724,10 +744,13 @@ Current Formula Red Flags
 Critical / High:
 
 - target count and AoE delivery are additive instead of payload-multiplicative
-- current active playerPowerSpendScalar makes Balance Environment characters
-  massively overspend Level 3 budgets
+- older Balance Environment overspend tables are historical after the scalar
+  provenance and repricing passes; current assets still need scenario evidence
+  before promotion to balance truth
 - potency appears insufficiently tied to multiplied payload delivery
-- Monster Outcome Calculator is a radar heuristic, not Combat Lab parity
+- Monster Outcome Calculator Phase 1 now uses compatible expected-output math
+  for supported natural/equipped attacks, but remains a shaping/radar tool
+  rather than full Combat Lab parity
 - Forge output bands are report-only
 
 Medium:

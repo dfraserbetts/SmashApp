@@ -4,6 +4,8 @@ import { calculatorConfig } from "../lib/calculators/calculatorConfig";
 import { DEFAULT_COMBAT_TUNING_VALUES } from "../lib/config/combatTuningShared";
 import {
   computeMonsterOutcomes,
+  expectedTieredSuccesses,
+  expectedTieredSuccessesPerDie,
   type DefensiveProfileSource,
   type WeaponAttackSource,
 } from "../lib/calculators/monsterOutcomeCalculator";
@@ -91,6 +93,24 @@ function createNaturalAttack(attack: MonsterAttack["attackConfig"]): MonsterAtta
     attackConfig: attack,
   };
 }
+
+function assertApprox(actual: number, expected: number, epsilon: number, label: string) {
+  assert.ok(
+    Math.abs(actual - expected) <= epsilon,
+    `${label}: expected ${actual} to be within ${epsilon} of ${expected}`,
+  );
+}
+
+assertApprox(expectedTieredSuccessesPerDie(4), 0.25, 0.000001, "D4 expected successes");
+assertApprox(expectedTieredSuccessesPerDie(6), 0.5, 0.000001, "D6 expected successes");
+assertApprox(expectedTieredSuccessesPerDie(8), 0.75, 0.000001, "D8 expected successes");
+assertApprox(expectedTieredSuccessesPerDie(10), 1, 0.000001, "D10 expected successes");
+assertApprox(expectedTieredSuccessesPerDie(12), 4 / 3, 0.000001, "D12 expected successes");
+assert.equal(expectedTieredSuccesses({ dieSides: 8, diceCount: 3 }), 2.25);
+assert.ok(
+  expectedTieredSuccesses({ dieSides: 8, diceCount: 3, rerollFailedDiceOnce: true }) >
+    expectedTieredSuccesses({ dieSides: 8, diceCount: 3 }),
+);
 
 function getNonPowerPhysicalThreat(result: ReturnType<typeof computeMonsterOutcomes>): number {
   const debug = result.debug as {
@@ -280,6 +300,11 @@ function getOutcomePowerDebug(result: ReturnType<typeof computeMonsterOutcomes>)
       axisVector?: { mobility?: number };
       canonicalPowerAxisVector?: { mobility?: number };
       effectivePowerAxisVector?: { mobility?: number };
+      expectedAttackOutput?: {
+        source?: string;
+        packetCount?: number;
+        axisVector?: { physicalThreat?: number; mentalThreat?: number };
+      };
       availabilityFactor?: number | null;
       effectivePowerFactor?: number | null;
       factorFormulaLabel?: string;
@@ -318,6 +343,42 @@ const slashAttackConfig = {
   },
 };
 
+const mentalSlashAttackConfig = {
+  melee: {
+    enabled: true,
+    targets: 1,
+    physicalStrength: 0,
+    mentalStrength: 1,
+    damageTypes: [{ name: "Psychic", mode: "MENTAL" as const }],
+    attackEffects: [],
+  },
+};
+
+const twoTargetSlashAttackConfig = {
+  melee: {
+    enabled: true,
+    targets: 2,
+    physicalStrength: 1,
+    mentalStrength: 0,
+    damageTypes: [{ name: "Slashing", mode: "PHYSICAL" as const }],
+    attackEffects: [],
+  },
+};
+
+const aoeSlashAttackConfig = {
+  aoe: {
+    enabled: true,
+    count: 3,
+    centerRange: 30,
+    shape: "SPHERE" as const,
+    sphereRadiusFeet: 10,
+    physicalStrength: 1,
+    mentalStrength: 0,
+    damageTypes: [{ name: "Slashing", mode: "PHYSICAL" as const }],
+    attackEffects: [],
+  },
+};
+
 const clubWeaponSource: WeaponAttackSource = {
   id: "club",
   label: "Main Hand: Club",
@@ -336,6 +397,139 @@ const naturalSlash = computeMonsterOutcomes(
   {
     ...createBaseMonster(),
     attacks: [createNaturalAttack(slashAttackConfig)],
+  },
+  calculatorConfig,
+);
+
+const lowAttackPhysicalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D6",
+    braveryDie: "D6",
+    weaponSkillValue: 1,
+    attacks: [createNaturalAttack(slashAttackConfig)],
+  },
+  calculatorConfig,
+);
+
+const highAttackPhysicalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D12",
+    braveryDie: "D6",
+    weaponSkillValue: 1,
+    attacks: [createNaturalAttack(slashAttackConfig)],
+  },
+  calculatorConfig,
+);
+
+const lowAttackMentalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D6",
+    intellectDie: "D12",
+    braveryDie: "D6",
+    weaponSkillValue: 1,
+    attacks: [createNaturalAttack(mentalSlashAttackConfig)],
+  },
+  calculatorConfig,
+);
+
+const highAttackMentalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D12",
+    intellectDie: "D6",
+    braveryDie: "D6",
+    weaponSkillValue: 1,
+    attacks: [createNaturalAttack(mentalSlashAttackConfig)],
+  },
+  calculatorConfig,
+);
+
+const highIntellectOnlyMentalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D6",
+    intellectDie: "D12",
+    braveryDie: "D6",
+    weaponSkillValue: 1,
+    attacks: [createNaturalAttack(mentalSlashAttackConfig)],
+  },
+  calculatorConfig,
+);
+
+const oneDiePhysicalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D8",
+    braveryDie: "D8",
+    weaponSkillValue: 1,
+    attacks: [createNaturalAttack(slashAttackConfig)],
+  },
+  calculatorConfig,
+);
+
+const threeDicePhysicalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D8",
+    braveryDie: "D8",
+    weaponSkillValue: 3,
+    attacks: [createNaturalAttack(slashAttackConfig)],
+  },
+  calculatorConfig,
+);
+
+const strengthOnePhysicalSlash = oneDiePhysicalSlash;
+const strengthTwoPhysicalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D8",
+    braveryDie: "D8",
+    weaponSkillValue: 1,
+    attacks: [createNaturalAttack({
+      melee: {
+        ...slashAttackConfig.melee,
+        physicalStrength: 2,
+      },
+    })],
+  },
+  calculatorConfig,
+);
+const strengthThreePhysicalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D8",
+    braveryDie: "D8",
+    weaponSkillValue: 1,
+    attacks: [createNaturalAttack({
+      melee: {
+        ...slashAttackConfig.melee,
+        physicalStrength: 3,
+      },
+    })],
+  },
+  calculatorConfig,
+);
+const targetOnePhysicalSlash = oneDiePhysicalSlash;
+const targetTwoPhysicalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D8",
+    braveryDie: "D8",
+    weaponSkillValue: 1,
+    attacks: [createNaturalAttack(twoTargetSlashAttackConfig)],
+  },
+  calculatorConfig,
+);
+const aoePhysicalSlash = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D8",
+    braveryDie: "D8",
+    weaponSkillValue: 1,
+    attacks: [createNaturalAttack(aoeSlashAttackConfig)],
   },
   calculatorConfig,
 );
@@ -382,6 +576,40 @@ assert.equal(getNonPowerPhysicalThreat(highIntellectResistNaked), 0);
 assert.equal(getNonPowerMentalThreat(highIntellectResistNaked), 0);
 assert.equal(getAtWillProfiles(highIntellectResistNaked).length, 0);
 assert.ok(Number(highIntellectResistSuppressed.intellectResistContribution ?? 0) > 0);
+
+assert.ok(
+  getNonPowerPhysicalThreat(highAttackPhysicalSlash) >
+    getNonPowerPhysicalThreat(lowAttackPhysicalSlash),
+);
+assert.ok(
+  getNonPowerMentalThreat(highAttackMentalSlash) >
+    getNonPowerMentalThreat(lowAttackMentalSlash),
+);
+assert.equal(
+  getNonPowerMentalThreat(lowAttackMentalSlash),
+  getNonPowerMentalThreat(highIntellectOnlyMentalSlash),
+);
+assert.ok(
+  getNonPowerPhysicalThreat(threeDicePhysicalSlash) >
+    getNonPowerPhysicalThreat(oneDiePhysicalSlash),
+);
+assert.ok(
+  getNonPowerPhysicalThreat(strengthTwoPhysicalSlash) >
+    getNonPowerPhysicalThreat(strengthOnePhysicalSlash),
+);
+assert.ok(
+  getNonPowerPhysicalThreat(strengthThreePhysicalSlash) >
+    getNonPowerPhysicalThreat(strengthTwoPhysicalSlash),
+);
+assert.ok(
+  getNonPowerPhysicalThreat(targetTwoPhysicalSlash) >
+    getNonPowerPhysicalThreat(targetOnePhysicalSlash),
+);
+assert.ok(
+  getNonPowerPhysicalThreat(aoePhysicalSlash) >
+    getNonPowerPhysicalThreat(targetOnePhysicalSlash),
+);
+assert.equal((getAtWillProfiles(threeDicePhysicalSlash)[0] as { segments?: Array<{ diceCount?: number }> }).segments?.[0]?.diceCount, 3);
 
 assert.equal(naturalSlash.sustainedPhysical, equippedClub.sustainedPhysical);
 assert.equal(getNonPowerPhysicalThreat(naturalSlash), getNonPowerPhysicalThreat(equippedClub));
@@ -781,6 +1009,43 @@ const mpvLadderAfter = buildProtectionLadder(
   protectionLadderValues,
   tunedMentalProtectionOverrides,
 );
+const physicalProtectionMonotonicity = [0, 2, 4].map((protection) =>
+  getNonPowerPhysicalSurvivability(
+    computeMonsterOutcomes(
+      {
+        ...createBaseMonster(),
+        physicalProtection: protection,
+        naturalPhysicalProtection: protection,
+      },
+      calculatorConfig,
+    ),
+  ),
+);
+const normalDurableMonster = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    physicalResilienceMax: 30,
+    mentalPerseveranceMax: 30,
+    physicalProtection: 2,
+    mentalProtection: 2,
+    naturalPhysicalProtection: 2,
+    naturalMentalProtection: 2,
+  },
+  calculatorConfig,
+);
+const legendaryDurableMonster = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    legendary: true,
+    physicalResilienceMax: 30,
+    mentalPerseveranceMax: 30,
+    physicalProtection: 2,
+    mentalProtection: 2,
+    naturalPhysicalProtection: 2,
+    naturalMentalProtection: 2,
+  },
+  calculatorConfig,
+);
 assert.equal(ppvOnlyContribution.mental, 0);
 assert.ok(ppvOnlyContribution.physical > 0);
 assert.equal(mpvOnlyContribution.physical, 0);
@@ -799,6 +1064,12 @@ assert.equal(ppvOnlyDodgeContribution.physical, ppvOnlyDefenceTotals.physicalDod
 assert.equal(ppvOnlyDodgeContribution.mental, ppvOnlyDefenceTotals.mentalDodge);
 assert.ok(
   mpvLadderAfter[mpvLadderAfter.length - 1].total > mpvLadderBefore[mpvLadderBefore.length - 1].total,
+);
+assert.ok(physicalProtectionMonotonicity[1] >= physicalProtectionMonotonicity[0]);
+assert.ok(physicalProtectionMonotonicity[2] >= physicalProtectionMonotonicity[1]);
+assert.ok(
+  legendaryDurableMonster.radarAxes.physicalSurvivability >
+    normalDurableMonster.radarAxes.physicalSurvivability,
 );
 
 const canonicalMobilityPower = {
@@ -854,9 +1125,81 @@ const derivedCooldownPowerOutcome = computeMonsterOutcomes(createBaseMonster(), 
     ],
   },
 });
+const authoredAttackPower = {
+  id: "authored-attack-power",
+  name: "Authored Attack Power",
+  diceCount: 1,
+  potency: 1,
+  rangeCategories: ["MELEE"],
+  meleeTargets: 1,
+  rangedTargets: 1,
+  aoeCount: 1,
+  intentions: [
+    {
+      packetIndex: 0,
+      sortOrder: 0,
+      intention: "ATTACK",
+      type: "ATTACK",
+      diceCount: 1,
+      potency: 1,
+      detailsJson: {
+        attackMode: "PHYSICAL",
+        damageTypes: [{ name: "Slashing", mode: "PHYSICAL" }],
+      },
+    },
+  ],
+};
+const lowAttackPowerOutcome = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D6",
+  },
+  calculatorConfig,
+  {
+    powerContribution: {
+      axisVector: { physicalThreat: 1 },
+      powerCount: 1,
+      powers: [
+        {
+          id: "authored-attack-power",
+          name: "Authored Attack Power",
+          axisVector: { physicalThreat: 1 },
+          authoredPower: authoredAttackPower as never,
+          derivedCooldownTurns: 0,
+          derivedCooldownLoad: 0,
+        },
+      ],
+    },
+  },
+);
+const highAttackPowerOutcome = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    attackDie: "D12",
+  },
+  calculatorConfig,
+  {
+    powerContribution: {
+      axisVector: { physicalThreat: 1 },
+      powerCount: 1,
+      powers: [
+        {
+          id: "authored-attack-power",
+          name: "Authored Attack Power",
+          axisVector: { physicalThreat: 1 },
+          authoredPower: authoredAttackPower as never,
+          derivedCooldownTurns: 0,
+          derivedCooldownLoad: 0,
+        },
+      ],
+    },
+  },
+);
 const cooldownOneDebug = getOutcomePowerDebug(cooldownOnePowerOutcome);
 const cooldownThreeDebug = getOutcomePowerDebug(cooldownThreePowerOutcome);
 const derivedCooldownDebug = getOutcomePowerDebug(derivedCooldownPowerOutcome);
+const lowAttackPowerDebug = getOutcomePowerDebug(lowAttackPowerOutcome);
+const highAttackPowerDebug = getOutcomePowerDebug(highAttackPowerOutcome);
 const cooldownOneFinalDebug = cooldownOnePowerOutcome.debug as {
   finalPreNormalizationAxes?: { mobility?: number };
 };
@@ -940,26 +1283,47 @@ assert.ok(
   Number(cooldownOneDebug.effectivePowerAxisVector?.mobility ?? 0) >
     Number(cooldownThreeDebug.effectivePowerAxisVector?.mobility ?? 0),
 );
-
-const legacyNaturalSlashPhysicalThreat =
-  1 *
-  ((8 - 3) / 8) *
-  calculatorConfig.baselineParty.netSuccessMultiplier *
-  1 *
-  2;
+assert.equal(lowAttackPowerDebug.expectedAttackOutput?.source, "authored_power_packets");
+assert.equal(lowAttackPowerDebug.expectedAttackOutput?.packetCount, 1);
+assert.ok(
+  Number(highAttackPowerDebug.expectedAttackOutput?.axisVector?.physicalThreat ?? 0) >
+    Number(lowAttackPowerDebug.expectedAttackOutput?.axisVector?.physicalThreat ?? 0),
+);
 
 console.log(
   JSON.stringify(
     {
+      expectedTieredSuccesses: {
+        d4: expectedTieredSuccessesPerDie(4),
+        d6: expectedTieredSuccessesPerDie(6),
+        d8: expectedTieredSuccessesPerDie(8),
+        d10: expectedTieredSuccessesPerDie(10),
+        d12: expectedTieredSuccessesPerDie(12),
+      },
       clubVsSlash: {
-        before: {
-          naturalSlashPhysicalThreat: legacyNaturalSlashPhysicalThreat,
-          equippedClubPhysicalThreat: getNonPowerPhysicalThreat(equippedClub),
-        },
         after: {
           naturalSlashPhysicalThreat: getNonPowerPhysicalThreat(naturalSlash),
           equippedClubPhysicalThreat: getNonPowerPhysicalThreat(equippedClub),
         },
+      },
+      attackAttributeImpact: {
+        physicalNaturalAttackD6: getNonPowerPhysicalThreat(lowAttackPhysicalSlash),
+        physicalNaturalAttackD12: getNonPowerPhysicalThreat(highAttackPhysicalSlash),
+        mentalNaturalAttackAttackD6: getNonPowerMentalThreat(lowAttackMentalSlash),
+        mentalNaturalAttackAttackD12: getNonPowerMentalThreat(highAttackMentalSlash),
+        mentalNaturalAttackHighIntellectOnly: getNonPowerMentalThreat(highIntellectOnlyMentalSlash),
+      },
+      weaponSkillDiceCount: {
+        oneDie: getNonPowerPhysicalThreat(oneDiePhysicalSlash),
+        threeDice: getNonPowerPhysicalThreat(threeDicePhysicalSlash),
+      },
+      attackDeliveryScaling: {
+        strengthOne: getNonPowerPhysicalThreat(strengthOnePhysicalSlash),
+        strengthTwo: getNonPowerPhysicalThreat(strengthTwoPhysicalSlash),
+        strengthThree: getNonPowerPhysicalThreat(strengthThreePhysicalSlash),
+        targetOne: getNonPowerPhysicalThreat(targetOnePhysicalSlash),
+        targetTwo: getNonPowerPhysicalThreat(targetTwoPhysicalSlash),
+        aoeThree: getNonPowerPhysicalThreat(aoePhysicalSlash),
       },
       duplicateNaturalIngress: {
         naturalProfileCount: getAtWillProfiles(duplicatedNaturalSlash).length,
@@ -1014,6 +1378,19 @@ console.log(
         ppvRawPhysicalTotals: ppvLadder,
         mpvRawMentalTotalsBefore: mpvLadderBefore,
         mpvRawMentalTotalsAfter: mpvLadderAfter,
+        physicalSurvivabilityRadarZeroTwoFour: physicalProtectionMonotonicity,
+      },
+      c14LegendaryDurability: {
+        normalPhysicalSurvivability: normalDurableMonster.radarAxes.physicalSurvivability,
+        legendaryPhysicalSurvivability:
+          legendaryDurableMonster.radarAxes.physicalSurvivability,
+      },
+      authoredAttackPowerExpectedOutput: {
+        source: lowAttackPowerDebug.expectedAttackOutput?.source,
+        d6PhysicalThreat:
+          lowAttackPowerDebug.expectedAttackOutput?.axisVector?.physicalThreat,
+        d12PhysicalThreat:
+          highAttackPowerDebug.expectedAttackOutput?.axisVector?.physicalThreat,
       },
       powerAvailability: {
         cooldownOne: {

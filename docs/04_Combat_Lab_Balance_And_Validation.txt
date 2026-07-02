@@ -139,20 +139,28 @@ data-path testing, hydration testing, Combat Lab reporting checks, and
 campaign-scoped runner verification. They must not be used as final tuning
 proof.
 
-Known formula blockers from the audit:
+Known formula / evidence blockers:
 
-- target count and AoE delivery are currently additive where expected table
-  impact should multiply payload
+- target count and AoE delivery have Phase 1 expected-output support in the
+  Monster Outcome Calculator for natural/equipped attack outputs, but full
+  power formula calibration still needs evidence
 - the live Character Builder tuning source is characterBuilderTuning/default;
   the recent scalar provenance audit found scalar 2 there. Scalar 3 was a
   formula-harness fallback artifact from querying a non-current row, not live
   app truth.
-- current Level 3 Balance Environment characters are close on normal pools
-  under scalar 2, but some Signature Moves remain over budget and require
-  repricing before final balance evidence
+- Balance Environment characters have been repriced after the scalar
+  provenance pass; treat older over-budget lists as historical unless a fresh
+  audit reproduces them
 - potency is not yet sufficiently tied to multiplied payload delivery
-- Monster Outcome Calculator remains a radar heuristic rather than Combat Lab
-  parity
+- Monster Outcome Calculator Phase 1 now uses expected tiered successes,
+  Weapon Skill-style dice count, table-facing Strength x 2 output, monotonic
+  protection survivability, and preliminary Legendary/C14 durability for
+  supported natural/equipped attack outputs; authored ATTACK power packets can
+  also use expected-output threat when packet data is supplied
+- Monster Outcome Calculator remains a radar/shaping tool rather than full
+  Combat Lab parity; callers that supply only resolver-axis summaries still use
+  resolver-axis power fallback, and control/debuff denied-output, structured
+  trait rerolls, and full Blaze / Major Injury intelligence remain future work
 - Forge output bands are report-only and do not block over-band saves
 
 
