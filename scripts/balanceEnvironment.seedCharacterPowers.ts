@@ -1010,10 +1010,7 @@ async function main() {
         throw new Error(`${kit.name} is level ${row.level}; expected ${LEVEL}.`);
       }
 
-      const builderData = sanitizeBuilderEquipment(
-        cleanBuilderTraits(normalizeBuilderData(row.builderData), traitCatalog),
-        [],
-      );
+      const builderData = cleanBuilderTraits(normalizeBuilderData(row.builderData), traitCatalog);
       const powers = kit.powers.map((spec, index) => buildPower(spec, index));
       const signatureMove = buildPower(kit.signatureMove, 0);
       for (const power of powers) {
@@ -1035,7 +1032,6 @@ async function main() {
         narrativeNotes: updateNarrativeNotes(builderData.narrativeNotes, kit.name),
         powers,
         signatureMove,
-        equippedSlots: {},
       };
       const validationErrors = validateCharacterKit({
         characterName: kit.name,
