@@ -436,6 +436,59 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
 }
 
 {
+  const attacker = fixtureActor("c14-crossing-overflow-attacker", "monsters", {
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("c14-crossing-overflow-defender", "players", {
+    level: 3,
+    physicalHpMax: 5,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: action({ id: "c14-crossing-overflow-hit", name: "C14 Crossing Overflow Hit", diceCount: 1, potency: 4 }),
+    rng: rngFrom([0.99, 0, 0.99, 0.99, 0.99]),
+    lane: "main",
+  });
+  const event = latestMajorInjuryEventFor(state, state.actors[0].id);
+  if (!event || event.overflow !== 3 || event.overflowModifier !== -1 || state.actors[0].physicalHpCurrent !== 0) {
+    throw new Error(`C14 crossing-to-zero overflow was not event-local or HP was not clamped: ${JSON.stringify({ actor: state.actors[0], event })}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /overflow from this damage event 3 at level 3 gives modifier -1/i, "C14 crossing overflow transcript");
+}
+
+{
+  const attacker = fixtureActor("c14-exact-zero-action-attacker", "monsters", {
+    attributeDice: { Attack: "D4", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("c14-exact-zero-action-defender", "players", {
+    level: 3,
+    physicalHpMax: 2,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    attributeDice: { Attack: "D4", Guard: "D4", Fortitude: "D4", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: action({ id: "c14-exact-zero-action-hit", name: "C14 Exact Zero Action Hit", diceCount: 1, potency: 2 }),
+    rng: rngFrom([0.99, 0, 0, 0, 0]),
+    lane: "main",
+  });
+  const event = latestMajorInjuryEventFor(state, state.actors[0].id);
+  if (!event || event.overflow !== 0 || event.overflowModifier !== 0 || state.actors[0].physicalHpCurrent !== 0) {
+    throw new Error(`C14 exact-zero action damage did not store zero overflow and clamp HP: ${JSON.stringify({ actor: state.actors[0], event })}.`);
+  }
+}
+
+{
   const state = createCombatState(
     [
       fixtureActor("c14-roll-overflow-minor", "players", {
@@ -457,7 +510,7 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
   if (state.actors[0].physicalMinorInjuries !== 1 || state.actors[0].physicalMajorInjuries !== 0 || state.actors[0].defeated) {
     throw new Error(`C14 Minor Injury changed the wrong state: ${JSON.stringify(state.actors[0])}.`);
   }
-  expectTranscriptLine(state.transcriptLines, /overflow 7 at level 3 gives modifier -2, final total 2, outcome MINOR_INJURY/i, "C14 overflow Minor Injury transcript");
+  expectTranscriptLine(state.transcriptLines, /overflow from this damage event 7 at level 3 gives modifier -2, final total 2, outcome MINOR_INJURY/i, "C14 overflow Minor Injury transcript");
 }
 
 {
@@ -527,6 +580,53 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
   const event = latestMajorInjuryEventFor(state, state.actors[0].id);
   if (!event || event.channel !== "MENTAL" || event.overflow !== 7 || event.overflowModifier !== -2 || event.rawSuccesses !== 4 || event.finalSuccesses !== 2 || event.outcome !== "MINOR_INJURY") {
     throw new Error(`C14 already-at-zero damage did not calculate new overflow from normal wounds: ${JSON.stringify({ actor: state.actors[0], event })}.`);
+  }
+  if (state.actors[0].mentalHpCurrent !== 0) {
+    throw new Error(`C14 already-at-zero damage left mental HP below 0: ${JSON.stringify(state.actors[0])}.`);
+  }
+}
+
+{
+  const attacker = fixtureActor("c14-repeat-overflow-attacker", "monsters", {
+    attributeDice: { Attack: "D4", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const defender = fixtureActor("c14-repeat-overflow-defender", "players", {
+    level: 3,
+    physicalHpMax: 1,
+    physicalDefenceDice: 1,
+    physicalBlockPerSuccess: 0,
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const state = createCombatState([defender], [attacker], { captureTranscript: true });
+  resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: action({ id: "c14-repeat-overflow-first", name: "C14 Repeat Overflow First", diceCount: 1, potency: 12 }),
+    rng: rngFrom([0.99, 0, 0.99, 0.99, 0.99]),
+    lane: "main",
+  });
+  resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: action({ id: "c14-repeat-overflow-second", name: "C14 Repeat Overflow Second", diceCount: 1, potency: 7 }),
+    rng: rngFrom([0.99, 0, 0.99, 0.99, 0]),
+    lane: "main",
+  });
+  const events = majorInjuryEventsFor(state, state.actors[0].id);
+  if (
+    events.length !== 2 ||
+    events[0].overflow !== 11 ||
+    events[0].overflowModifier !== -3 ||
+    events[1].overflow !== 7 ||
+    events[1].overflowModifier !== -2 ||
+    state.actors[0].physicalHpCurrent !== 0
+  ) {
+    throw new Error(`C14 repeated attacks accumulated overflow or left negative HP: ${JSON.stringify({ actor: state.actors[0], events })}.`);
+  }
+  if (state.transcriptLines.some((line) => /overflow from this damage event 18|modifier -6/i.test(line))) {
+    throw new Error(`C14 repeated overflow transcript accumulated old overflow: ${state.transcriptLines.join(" | ")}`);
   }
 }
 

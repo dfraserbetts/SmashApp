@@ -71,6 +71,8 @@ function normalizeActorRuntimeState(actor: CombatActor): CombatActor {
     mentalMinorInjuries: actor.mentalMinorInjuries ?? 0,
     physicalInjuryResolvedAtZero: actor.physicalInjuryResolvedAtZero ?? false,
     mentalInjuryResolvedAtZero: actor.mentalInjuryResolvedAtZero ?? false,
+    physicalPendingInjuryOverflow: actor.physicalPendingInjuryOverflow ?? null,
+    mentalPendingInjuryOverflow: actor.mentalPendingInjuryOverflow ?? null,
     forcedMajorInjuryOutcomes: actor.forcedMajorInjuryOutcomes
       ? {
           PHYSICAL: actor.forcedMajorInjuryOutcomes.PHYSICAL ? [...actor.forcedMajorInjuryOutcomes.PHYSICAL] : undefined,
@@ -117,6 +119,8 @@ export function createActorInstances(actor: CombatActor, quantity: number): Comb
       mentalHpCurrent: actor.mentalHpMax,
       physicalInjuryResolvedAtZero: false,
       mentalInjuryResolvedAtZero: false,
+      physicalPendingInjuryOverflow: null,
+      mentalPendingInjuryOverflow: null,
     };
   });
 }
@@ -133,6 +137,8 @@ export function createCombatState(
     mentalHpCurrent: actor.mentalHpMax,
     physicalInjuryResolvedAtZero: false,
     mentalInjuryResolvedAtZero: false,
+    physicalPendingInjuryOverflow: null,
+    mentalPendingInjuryOverflow: null,
   }));
   return {
     round: 1,
@@ -257,6 +263,26 @@ function hpCurrentForInjuryChannel(actor: CombatActor, channel: CombatInjuryChan
   return channel === "PHYSICAL" ? actor.physicalHpCurrent : actor.mentalHpCurrent;
 }
 
+function setHpCurrentForInjuryChannel(actor: CombatActor, channel: CombatInjuryChannel, value: number) {
+  if (channel === "PHYSICAL") {
+    actor.physicalHpCurrent = value;
+  } else {
+    actor.mentalHpCurrent = value;
+  }
+}
+
+function pendingOverflowForInjuryChannel(actor: CombatActor, channel: CombatInjuryChannel): number | null {
+  return channel === "PHYSICAL" ? actor.physicalPendingInjuryOverflow : actor.mentalPendingInjuryOverflow;
+}
+
+function clearPendingOverflowForInjuryChannel(actor: CombatActor, channel: CombatInjuryChannel) {
+  if (channel === "PHYSICAL") {
+    actor.physicalPendingInjuryOverflow = null;
+  } else {
+    actor.mentalPendingInjuryOverflow = null;
+  }
+}
+
 function nextForcedInjuryOutcome(actor: CombatActor, channel: CombatInjuryChannel): CombatMajorInjuryOutcome | null {
   const queue = actor.forcedMajorInjuryOutcomes?.[channel];
   return queue && queue.length > 0 ? queue.shift() ?? "MAJOR_INJURY" : null;
@@ -309,7 +335,9 @@ function processMajorInjuryEvent(
   context: DefeatProcessingContext,
 ): boolean {
   const hpCurrent = hpCurrentForInjuryChannel(actor, channel);
-  const overflow = Math.max(0, -hpCurrent);
+  const pendingOverflow = pendingOverflowForInjuryChannel(actor, channel);
+  const overflow = pendingOverflow ?? Math.max(0, -hpCurrent);
+  clearPendingOverflowForInjuryChannel(actor, channel);
   const safeLevel = Math.max(1, Math.trunc(actor.level || 1));
   const overflowModifier = -Math.floor(overflow / safeLevel);
   const selectedAttribute = chooseMajorInjuryAttribute(actor, channel);
@@ -351,11 +379,14 @@ function processMajorInjuryEvent(
   };
   state.pendingMajorInjuryEvents.push(event);
   setInjuryResolvedAtZero(actor, channel, true);
+  if (hpCurrentForInjuryChannel(actor, channel) < 0) {
+    setHpCurrentForInjuryChannel(actor, channel, 0);
+  }
 
   const rollText =
     `Major Injury roll: ${actor.name} rolls 3 x ${dieSize} using ${selectedAttribute} for ${channel === "PHYSICAL" ? "Physical" : "Mental"} injury; ` +
     `raw results ${roll.rawResults.join(", ")}, per-die successes ${roll.perDieSuccesses.join(", ")}, raw total ${rawSuccesses}, ` +
-    `overflow ${overflow} at level ${safeLevel} gives modifier ${overflowModifier}, final total ${finalSuccesses}, outcome ${outcome}` +
+    `overflow from this damage event ${overflow} at level ${safeLevel} gives modifier ${overflowModifier}, final total ${finalSuccesses}, outcome ${outcome}` +
     `${forcedOutcome ? ` (forced test outcome ${forcedOutcome})` : ""}.`;
 
   if (outcome === "MAJOR_INJURY") {

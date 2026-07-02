@@ -922,6 +922,8 @@ export function adaptCampaignCharacterToCombatActor(
       mentalMinorInjuries: 0,
       physicalInjuryResolvedAtZero: false,
       mentalInjuryResolvedAtZero: false,
+      physicalPendingInjuryOverflow: null,
+      mentalPendingInjuryOverflow: null,
       unsupportedPowers: [
         ...adaptedPowers.flatMap((entry) => entry.unsupported),
         ...adaptedSignatureMoves.flatMap((entry) => entry.unsupported),
@@ -1194,6 +1196,8 @@ export function adaptMonsterToCombatLabActor(
       mentalMinorInjuries: 0,
       physicalInjuryResolvedAtZero: false,
       mentalInjuryResolvedAtZero: false,
+      physicalPendingInjuryOverflow: null,
+      mentalPendingInjuryOverflow: null,
       unsupportedPowers: adaptedPowers.flatMap((entry) => entry.unsupported),
       hydration: {
         source: "campaignMonster",

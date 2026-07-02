@@ -201,7 +201,9 @@ PC / Legendary actors unless Blaze of Glory is declared; Mental injury events
 resolve before Physical injury events as a runtime ordering rule; same-bundle
 healing can prevent a trial if the relevant pool is restored above 0 before
 injury processing; Blaze of Glory timing and final removal; and no mid-bundle
-defeat cleanup.
+defeat cleanup. Overflow must be captured from the triggering damage event and
+must not be recomputed from accumulated negative HP; after injury resolution,
+the affected Health pool should be normalized to 0 unless the actor is defeated.
 
 C14 implementation status:
 
@@ -217,6 +219,8 @@ now represents:
 - pending injury events processed after the full action, effect tick, or
   simultaneous result bundle resolves;
 - 3-dice Major Injury rolls with overflow severity applied to total successes;
+- event-local overflow capture with affected Health pools normalized to 0 after
+  injury resolution;
 - same-bundle healing prevention when the relevant pool is restored above 0
   before injury processing;
 - dual-channel pending event ordering of Mental first, then Physical;

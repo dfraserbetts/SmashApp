@@ -998,6 +998,8 @@ export function createFixtureActor(params: {
     mentalMinorInjuries: params.mentalMinorInjuries ?? 0,
     physicalInjuryResolvedAtZero: false,
     mentalInjuryResolvedAtZero: false,
+    physicalPendingInjuryOverflow: null,
+    mentalPendingInjuryOverflow: null,
     forcedMajorInjuryOutcomes: params.forcedMajorInjuryOutcomes
       ? {
           PHYSICAL: params.forcedMajorInjuryOutcomes.PHYSICAL ? [...params.forcedMajorInjuryOutcomes.PHYSICAL] : undefined,

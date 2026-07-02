@@ -187,6 +187,8 @@ export type CombatActor = {
   mentalMinorInjuries: number;
   physicalInjuryResolvedAtZero: boolean;
   mentalInjuryResolvedAtZero: boolean;
+  physicalPendingInjuryOverflow: number | null;
+  mentalPendingInjuryOverflow: number | null;
   forcedMajorInjuryOutcomes?: Partial<Record<CombatInjuryChannel, CombatMajorInjuryOutcome[]>>;
   unsupportedPowers: UnsupportedPowerReason[];
   hydration: CombatActorHydration;

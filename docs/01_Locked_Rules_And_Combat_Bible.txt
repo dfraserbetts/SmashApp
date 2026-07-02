@@ -1104,9 +1104,15 @@ Major Injury Trial:
 Overflow severity:
 
 - Calculate overflow damage after the full action bundle resolves.
-- Overflow damage means damage in the affected channel that passes the 0 HP
-  point.
-- At 0 HP, 100% of any further incoming damage in that channel is overflow.
+- Overflow damage means damage from the triggering attack, effect tick, or
+  netted result bundle in the affected channel that passes the 0 HP point.
+- Overflow is event-local. It is not an accumulated negative-HP pool.
+- After the Major Injury Trial resolves, the affected Health pool is normalized
+  to 0 unless the actor is defeated.
+- Future attacks or effects calculate fresh overflow from their own damage
+  event.
+- At 0 HP, 100% of any further incoming damage in that channel from that future
+  event is overflow for that future Trial.
 - For every full amount of overflow equal to the actor's level, apply -1 to the
   Major Injury Trial.
 - Round down.
@@ -1123,6 +1129,12 @@ Examples:
 - Level 3 actor suffers 7 overflow damage. 7 / 3 = 2 full level chunks, so the
   Major Injury Trial suffers -2. If the 3-dice roll generated 4 raw successes,
   the final total is 2 successes and the result is Minor Injury.
+- Level 3 actor at 5 HP suffers 8 damage. The event-local overflow is 3 and the
+  Trial suffers -1. The Health pool is then normalized to 0.
+- Level 3 actor already at 0 HP suffers 7 damage. The event-local overflow is 7
+  and the Trial suffers -2.
+- If that actor previously suffered a separate 11-overflow injury event, the
+  later 7-damage hit still uses overflow 7, not 18.
 
 Major Injury severity does not use actual-wounds-after-cap. Actual wounds after
 remaining-health cap is the default wound-band scaling source, not the Major

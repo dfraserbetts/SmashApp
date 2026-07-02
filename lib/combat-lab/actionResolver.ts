@@ -1005,12 +1005,18 @@ function applyWounds(target: CombatActor, pool: "physical" | "mental", wounds: n
   if (wounds <= 0) return 0;
   const key = pool === "physical" ? "physicalHpCurrent" : "mentalHpCurrent";
   const before = target[key];
-  target[key] = before - wounds;
+  const after = before - wounds;
+  const eventOverflow = Math.max(0, wounds - Math.max(0, before));
+  target[key] = target.defeatModel === "PLAYER_CHARACTER" || target.defeatModel === "LEGENDARY_MONSTER"
+    ? Math.max(0, after)
+    : after;
   if ((target.defeatModel === "PLAYER_CHARACTER" || target.defeatModel === "LEGENDARY_MONSTER") && target[key] <= 0) {
     if (pool === "physical") {
       target.physicalInjuryResolvedAtZero = false;
+      target.physicalPendingInjuryOverflow = eventOverflow;
     } else {
       target.mentalInjuryResolvedAtZero = false;
+      target.mentalPendingInjuryOverflow = eventOverflow;
     }
   }
   return Math.max(0, wounds - Math.max(0, before));
@@ -1025,8 +1031,10 @@ function healWounds(target: CombatActor, pool: "physical" | "mental", healing: n
   if ((target.defeatModel === "PLAYER_CHARACTER" || target.defeatModel === "LEGENDARY_MONSTER") && target[currentKey] > 0) {
     if (pool === "physical") {
       target.physicalInjuryResolvedAtZero = false;
+      target.physicalPendingInjuryOverflow = null;
     } else {
       target.mentalInjuryResolvedAtZero = false;
+      target.mentalPendingInjuryOverflow = null;
     }
   }
   return target[currentKey] - before;
