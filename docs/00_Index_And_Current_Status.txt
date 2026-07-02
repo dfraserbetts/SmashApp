@@ -215,12 +215,15 @@ law until the owning active doc is updated with an explicit decision.
   Note: Needed before canonical tuning promotion and public/demo playtest
   readiness.
 - Balance Environment live-authored testing scope.
-  Status: LOCKED / ACTIVE POLICY.
+  Status: LOCKED / ACTIVE POLICY; CAMPAIGN-SCOPED SMOKE PRESET ADDED.
   Owner: docs/04_Combat_Lab_Balance_And_Validation.txt.
   Note: Live-authored balance assets must use campaignId
   250aee5e-632f-405c-ba36-a49ed12a5afc / campaignName Balance Environment
   unless explicitly instructed otherwise. Synthetic smoke/canary fixtures remain
-  campaignless and should report assetSource synthetic-in-memory.
+  campaignless and should report assetSource synthetic-in-memory. The
+  balance-environment-core scenarioMatrix preset is a campaign-scoped smoke
+  path for hydration/provenance/fallback diagnostics, not final balance
+  evidence.
 - Runtime gaps between locked docs and Combat Lab.
   Status: NEEDS RUNTIME CHECK.
   Owner: docs/05_Implementation_Handoffs.txt.
@@ -306,6 +309,11 @@ trait reliability, Forge enforcement, and final scenario evidence remain open.
 Balance Environment assets are currently useful for data-path testing but are
 not final balance evidence until campaign-scoped runs validate the current
 formula/runtime state.
+
+The balance-environment-core scenarioMatrix preset exists for tiny
+campaign-scoped smoke runs against live-authored Balance Environment assets.
+Use it to confirm hydration, action sources, unsupported notes, and fallback
+count before running medium baselines.
 
 
 Immediate Ordered Work

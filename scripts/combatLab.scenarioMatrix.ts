@@ -11,6 +11,10 @@ import { createFixtureActor } from "../lib/combat-lab/powerAdapter";
 import { createActorInstances } from "../lib/combat-lab/combatState";
 import { runScenarioSuite } from "../lib/combat-lab/reporting";
 import { normalizeCombatTuning, normalizeCombatTuningFlatValues } from "../lib/config/combatTuningShared";
+import {
+  DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
+  normalizeCharacterPowerSpendScalar,
+} from "../lib/config/characterBuilderTuningShared";
 import { normalizeOutcomeNormalizationValues } from "../lib/config/outcomeNormalizationShared";
 import { normalizePowerTuningValues, type PowerTuningSnapshot } from "../lib/config/powerTuningShared";
 import type { CoreAttribute } from "../lib/summoning/types";
@@ -289,6 +293,13 @@ type MatrixPayload = {
       combatTuning: string;
       outcomeNormalization: string;
     };
+    characterBuilderTuning: {
+      id: string;
+      source: "characterBuilderTuning.default" | "code-default-fallback";
+      playerPowerSpendScalar: number;
+      fallbackUsed: boolean;
+      updatedAt: string | null;
+    };
     temporaryOverrides: [];
     dataMutation: false;
     sourceMutation: false;
@@ -340,6 +351,19 @@ type ScenarioMatrixRow = {
   unsupportedNotesCount: number;
   unsupportedPowerNames: string[];
   verdict: string;
+  hydrationDiagnostics: {
+    playerActorIds: string[];
+    monsterActorIds: string[];
+    fallbackActionCount: number;
+    fallbackActions: string[];
+    equippedCharacterAttackCount: number;
+    characterProtectionOrDefenceSourcePresent: boolean;
+    monsterNaturalAttackCount: number;
+    monsterPowerActionCount: number;
+    signatureMoveActionCount: number;
+    illegalDamageTypeWarningCount: number;
+    hydrationWarningCount: number;
+  };
   actionUseCounts: Array<{
     actorName: string;
     side: string;
@@ -399,6 +423,46 @@ const SCENARIOS: ScenarioDefinition[] = [
     kind: "db",
     characterNames: ["CL-L3-Support", "Support"],
     monsterName: "Dire Wolf",
+    monsterQuantity: 1,
+  },
+  {
+    name: "BALANCE Stoneguard vs Physical Striker",
+    aliases: ["balance-stoneguard-physical-striker", "stoneguard-vs-physical-striker"],
+    kind: "db",
+    characterNames: ["BALANCE_Stoneguard"],
+    monsterName: "BALANCE_Physical Striker",
+    monsterQuantity: 1,
+  },
+  {
+    name: "BALANCE Hawkshot Archer vs Dodge Pressure Skirmisher",
+    aliases: ["balance-hawkshot-dodge-pressure", "hawkshot-vs-dodge-pressure-skirmisher"],
+    kind: "db",
+    characterNames: ["BALANCE_Hawkshot Archer"],
+    monsterName: "BALANCE_Dodge Pressure Skirmisher",
+    monsterQuantity: 1,
+  },
+  {
+    name: "BALANCE Arcane Sage vs Mental Wailer",
+    aliases: ["balance-arcane-sage-mental-wailer", "arcane-sage-vs-mental-wailer"],
+    kind: "db",
+    characterNames: ["BALANCE_Arcane Sage"],
+    monsterName: "BALANCE_Mental Wailer",
+    monsterQuantity: 1,
+  },
+  {
+    name: "BALANCE Arcane Sage vs Control Hexer",
+    aliases: ["balance-arcane-sage-control-hexer", "arcane-sage-vs-control-hexer"],
+    kind: "db",
+    characterNames: ["BALANCE_Arcane Sage"],
+    monsterName: "BALANCE_Control Hexer",
+    monsterQuantity: 1,
+  },
+  {
+    name: "BALANCE Ranger Commander vs Durable Soldier",
+    aliases: ["balance-ranger-durable-soldier", "ranger-commander-vs-durable-soldier"],
+    kind: "db",
+    characterNames: ["BALANCE_Ranger Commander"],
+    monsterName: "BALANCE_Durable Soldier",
     monsterQuantity: 1,
   },
   {
@@ -864,7 +928,8 @@ const SCENARIOS: ScenarioDefinition[] = [
 
 const PRESETS: Record<string, string[]> = {
   "dire-wolf-core": SCENARIOS.slice(0, 3).map((scenario) => scenario.name),
-  "defensive-pool-core": SCENARIOS.slice(3).map((scenario) => scenario.name),
+  "balance-environment-core": SCENARIOS.slice(3, 8).map((scenario) => scenario.name),
+  "defensive-pool-core": SCENARIOS.slice(8).map((scenario) => scenario.name),
 };
 
 const POWER_INCLUDE = {
@@ -901,7 +966,7 @@ function usage() {
     "Flags:",
     "  --list",
     "  --scenario <name>       Repeatable. Friendly aliases are accepted.",
-    "  --preset <name>         Supported: dire-wolf-core, defensive-pool-core",
+    "  --preset <name>         Supported: dire-wolf-core, balance-environment-core, defensive-pool-core",
     "  --runs <number>         Default: 500",
     "  --seed <number>         Default: 4242",
     "  --json                  Print valid JSON only",
@@ -1155,6 +1220,40 @@ function summarizeCounters(report: CombatSuiteReport): ScenarioMatrixRow["counte
     .slice(0, 20);
 }
 
+function hasIllegalDamageTypeWarning(warning: string): boolean {
+  return /illegal damage type|unsupported damage type|damage type .*not/i.test(warning);
+}
+
+function scenarioHydrationDiagnostics(built: BuiltScenario): ScenarioMatrixRow["hydrationDiagnostics"] {
+  const playerActions = built.scenario.players.flatMap((actor) => actor.actions);
+  const monsterActions = built.scenario.monsters.flatMap((actor) => actor.actions);
+  const allActions = [...playerActions, ...monsterActions];
+  const fallbackActions = allActions.filter((action) => /fallback/i.test(action.id) || /fallback/i.test(action.name));
+
+  return {
+    playerActorIds: built.scenario.players.map((actor) => actor.id),
+    monsterActorIds: built.scenario.monsters.map((actor) => actor.id),
+    fallbackActionCount: fallbackActions.length,
+    fallbackActions: fallbackActions.map((action) => action.name),
+    equippedCharacterAttackCount: playerActions.filter(
+      (action) => action.sourceType === "equippedWeapon" && action.kind === "attack",
+    ).length,
+    characterProtectionOrDefenceSourcePresent: built.scenario.players.some(
+      (actor) =>
+        actor.physicalProtection > 0 ||
+        actor.mentalProtection > 0 ||
+        (actor.physicalBlockPerSuccess ?? 0) > 0 ||
+        (actor.mentalBlockPerSuccess ?? 0) > 0 ||
+        actor.actions.some((action) => action.kind === "defence"),
+    ),
+    monsterNaturalAttackCount: monsterActions.filter((action) => action.sourceType === "naturalAttack").length,
+    monsterPowerActionCount: monsterActions.filter((action) => action.sourceType === "power").length,
+    signatureMoveActionCount: playerActions.filter((action) => action.sourceType === "signatureMove").length,
+    illegalDamageTypeWarningCount: built.hydrationWarnings.filter(hasIllegalDamageTypeWarning).length,
+    hydrationWarningCount: built.hydrationWarnings.length,
+  };
+}
+
 function transcriptAnomalyCount(report: CombatSuiteReport): number {
   const lines = report.firstRunTranscript?.lines ?? [];
   return lines.filter((line) => /\bNaN\b|undefined|\[object Object\]/i.test(line)).length;
@@ -1189,6 +1288,7 @@ function scenarioToRow(
     unsupportedNotesCount: report.unsupported.unsupportedEffectCount + report.hydrationIntegrity.hydrationWarnings.length,
     unsupportedPowerNames: report.unsupported.unsupportedPowerNames,
     verdict: report.verdict,
+    hydrationDiagnostics: scenarioHydrationDiagnostics(built),
     actionUseCounts: summarizeActions(report),
     cooldowns: summarizeCooldowns(report),
     defensiveChoiceSummary: {
@@ -1233,7 +1333,7 @@ function scenarioToRow(
 }
 
 async function loadActiveTuning(prisma: PrismaClientLike) {
-  const [powerSet, combatSet, outcomeSet] = await Promise.all([
+  const [powerSet, combatSet, outcomeSet, characterBuilderTuning] = await Promise.all([
     prisma.powerTuningConfigSet.findFirst({
       where: { status: "ACTIVE" },
       orderBy: [{ activatedAt: "desc" }, { updatedAt: "desc" }],
@@ -1249,6 +1349,10 @@ async function loadActiveTuning(prisma: PrismaClientLike) {
       orderBy: [{ activatedAt: "desc" }, { updatedAt: "desc" }],
       include: { entries: { orderBy: [{ sortOrder: "asc" }, { configKey: "asc" }] } },
     }),
+    prisma.characterBuilderTuning.findUnique({
+      where: { id: "default" },
+      select: { id: true, playerPowerSpendScalar: true, updatedAt: true },
+    }),
   ]);
   const missing = [
     !powerSet ? "Power Tuning" : null,
@@ -1261,10 +1365,20 @@ async function loadActiveTuning(prisma: PrismaClientLike) {
   const powerSnapshot = toTuningSnapshot(powerSet!, normalizePowerTuningValues) as PowerTuningSnapshot;
   const combatSnapshot = toTuningSnapshot(combatSet!, normalizeCombatTuningFlatValues);
   const outcomeSnapshot = toTuningSnapshot(outcomeSet!, normalizeOutcomeNormalizationValues);
+  const playerPowerSpendScalar = normalizeCharacterPowerSpendScalar(
+    characterBuilderTuning?.playerPowerSpendScalar ?? DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
+  );
   return {
     powerSnapshot,
     combatSnapshot,
     outcomeSnapshot,
+    characterBuilderTuning: {
+      id: characterBuilderTuning?.id ?? "default",
+      source: characterBuilderTuning ? "characterBuilderTuning.default" as const : "code-default-fallback" as const,
+      playerPowerSpendScalar,
+      fallbackUsed: !characterBuilderTuning,
+      updatedAt: characterBuilderTuning?.updatedAt?.toISOString() ?? null,
+    },
     combatValues: normalizeCombatTuning(combatSnapshot.values),
   };
 }
@@ -1495,6 +1609,9 @@ function printHumanSummary(payload: MatrixPayload) {
   console.log(
     `Tuning: Power "${payload.provenance.activeTuningNames.powerTuning}", Combat "${payload.provenance.activeTuningNames.combatTuning}", Outcome "${payload.provenance.activeTuningNames.outcomeNormalization}"`,
   );
+  console.log(
+    `Character Builder Scalar: ${payload.provenance.characterBuilderTuning.playerPowerSpendScalar} (${payload.provenance.characterBuilderTuning.source}${payload.provenance.characterBuilderTuning.fallbackUsed ? ", fallback" : ""})`,
+  );
   console.log(`Runs: ${payload.options.runs}, Seed: ${payload.options.seed}, Method: ${payload.provenance.method}`);
   console.log(
     `Balance Campaign: ${payload.provenance.balanceCampaignScope.campaignName} (${payload.provenance.balanceCampaignScope.campaignId})`,
@@ -1530,6 +1647,7 @@ function printHumanSummary(payload: MatrixPayload) {
     "P DPR",
     "M DPR",
     "Unsupported",
+    "Fallbacks",
   ].join(" | "));
   console.log([
     "---",
@@ -1538,6 +1656,7 @@ function printHumanSummary(payload: MatrixPayload) {
     "---",
     "---",
     "---",
+    "---:",
     "---:",
     "---:",
     "---:",
@@ -1561,6 +1680,7 @@ function printHumanSummary(payload: MatrixPayload) {
       scenario.playerDamagePerRound,
       scenario.monsterDamagePerRound,
       scenario.unsupportedNotesCount,
+      scenario.hydrationDiagnostics.fallbackActionCount,
     ].join(" | "));
   }
   if (payload.warnings.length > 0) {
@@ -1788,6 +1908,7 @@ async function main() {
           monsters: actorNames(built.scenario.monsters),
         })),
         activeTuningNames,
+        characterBuilderTuning: tuning.characterBuilderTuning,
         temporaryOverrides: [],
         dataMutation: false,
         sourceMutation: false,

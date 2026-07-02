@@ -151,6 +151,11 @@ Known formula / evidence blockers:
 - Balance Environment characters have been repriced after the scalar
   provenance pass; treat older over-budget lists as historical unless a fresh
   audit reproduces them
+- scripts/combatLab.scenarioMatrix.ts includes the campaign-scoped
+  balance-environment-core preset for tiny smoke verification of live-authored
+  Balance Environment assets. This preset is for hydration, provenance,
+  fallback-action, and diagnostic sanity checks. It is not final balance
+  evidence by itself.
 - potency is not yet sufficiently tied to multiplied payload delivery
 - Monster Outcome Calculator Phase 1 now uses expected tiered successes,
   Weapon Skill-style dice count, table-facing Strength x 2 output, monotonic
@@ -170,6 +175,13 @@ The scenario-matrix runner exists at scripts/combatLab.scenarioMatrix.ts.
 
 Future defensive-pool scenario work should extend the existing runner rather
 than creating a separate simulator.
+
+The balance-environment-core preset is the current campaign-scoped live-authored
+smoke preset. It should be run with --balance-environment so the runner proves
+Balance Environment campaign scope instead of using unscoped live adapters. Use
+tiny deterministic runs first to confirm hydration, fallback count 0, action
+source participation, unsupported notes, and provenance. Medium baselines are
+appropriate only after the smoke output is reviewed.
 
 Layer A canaries should prefer deterministic seeded rolls or direct forced-roll
 fixtures. If deterministic forced rolls do not fit the runner cleanly, put hard

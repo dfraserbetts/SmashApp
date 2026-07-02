@@ -302,9 +302,13 @@ G. Review Forge output/value formula and decide whether bands become validation
    gates.
 H. Reseed/reprice Balance Environment characters and monsters after formula
    correction.
-I. Add a campaign-scoped Balance Environment scenarioMatrix preset.
-J. Run small smoke batches.
-K. Run medium baselines.
+I. The campaign-scoped balance-environment-core scenarioMatrix preset has been
+   added for live-authored Balance Environment smoke checks.
+J. Run small smoke batches with --balance-environment and review hydration,
+   fallback count, unsupported notes, action-source participation, and
+   provenance.
+K. Run medium baselines only after the smoke output is clean enough to trust as
+   a data path.
 L. Tune constants.
 
 Character Builder scalar provenance:
@@ -369,6 +373,13 @@ live-authored Characters, Monsters, Forge Items, or encounters should include
 campaignId, campaignName, and assetSource. If a runner cannot yet scope to that
 campaignId, report that as unsupported/unscoped in provenance instead of
 silently using default/global data.
+
+scripts/combatLab.scenarioMatrix.ts has a balance-environment-core preset for
+campaign-scoped smoke testing. It currently supports one selected campaign
+character against one monster definition, plus repeated instances of that
+monster through monsterQuantity. It does not yet provide a clean party/team
+scenario definition model. Do not force party-vs-group evidence through aliases;
+add explicit team scenario support first.
 
 Do not commit unless the user explicitly asks for commit/push or approves it
 after a no-commit task.
