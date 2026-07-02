@@ -198,7 +198,7 @@ const ITEM_SPECS: ItemSpec[] = [
     rangeCategories: ["RANGED"],
     rangedTargets: 1,
     rangedDistanceFeet: 60,
-    rangedPhysicalStrength: 3,
+    rangedPhysicalStrength: 1.5,
     rangedDamageTypes: ["Piercing"],
   },
   {
