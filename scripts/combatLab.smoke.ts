@@ -428,7 +428,7 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
   state.actors[0].physicalHpCurrent = 0;
   markDefeatedActors(state, { triggerId: "c14-roll-no-injury-test", rng: rngFrom([0.99, 0.99, 0.99]) });
   const event = latestMajorInjuryEventFor(state, state.actors[0].id);
-  if (!event || event.outcome !== "NO_INJURY" || event.rawSuccesses !== 6 || event.finalSuccesses !== 6 || state.actors[0].physicalMajorInjuries !== 0 || state.actors[0].defeated) {
+  if (!event || event.outcome !== "NO_INJURY" || event.rawSuccesses !== 6 || event.totalSuccesses !== 6 || event.finalSuccesses !== 6 || state.actors[0].physicalMajorInjuries !== 0 || state.actors[0].defeated) {
     throw new Error(`C14 rolled No Injury did not preserve actor state: ${JSON.stringify({ actor: state.actors[0], event })}.`);
   }
   expectTranscriptLine(state.transcriptLines, /Major Injury roll: c14-roll-no-injury rolls 3 x D12 using Attack/i, "C14 No Injury roll transcript");
@@ -459,7 +459,7 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
   if (!event || event.overflow !== 3 || event.overflowModifier !== -1 || state.actors[0].physicalHpCurrent !== 0) {
     throw new Error(`C14 crossing-to-zero overflow was not event-local or HP was not clamped: ${JSON.stringify({ actor: state.actors[0], event })}.`);
   }
-  expectTranscriptLine(state.transcriptLines, /overflow from this damage event 3 at level 3 gives modifier -1/i, "C14 crossing overflow transcript");
+  expectTranscriptLine(state.transcriptLines, /overflow from this damage event 3 at level 3 gives per-die modifier -1/i, "C14 crossing overflow transcript");
 }
 
 {
@@ -495,22 +495,35 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
         level: 3,
         physicalHpMax: 5,
         mentalHpMax: 5,
-        attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
       }),
     ],
     [],
     { captureTranscript: true },
   );
-  state.actors[0].physicalHpCurrent = -7;
-  markDefeatedActors(state, { triggerId: "c14-roll-overflow-minor-test", rng: rngFrom([0.99, 0.99, 0]) });
+  state.actors[0].physicalHpCurrent = -3;
+  markDefeatedActors(state, { triggerId: "c14-roll-overflow-minor-test", rng: rngFrom([0.2, 0.8, 0.99]) });
   const event = latestMajorInjuryEventFor(state, state.actors[0].id);
-  if (!event || event.outcome !== "MINOR_INJURY" || event.overflow !== 7 || event.overflowModifier !== -2 || event.rawSuccesses !== 4 || event.finalSuccesses !== 2) {
-    throw new Error(`C14 overflow Minor Injury math was wrong: ${JSON.stringify({ actor: state.actors[0], event })}.`);
+  if (
+    !event ||
+    event.outcome !== "MINOR_INJURY" ||
+    event.overflow !== 3 ||
+    event.overflowModifier !== -1 ||
+    event.rawResults.join(",") !== "2,7,8" ||
+    event.modifiedResults.join(",") !== "1,6,7" ||
+    event.perDieSuccesses.join(",") !== "0,1,1" ||
+    event.totalSuccesses !== 2 ||
+    event.finalSuccesses !== 2
+  ) {
+    throw new Error(`C14 per-die overflow Minor Injury math was wrong: ${JSON.stringify({ actor: state.actors[0], event })}.`);
   }
   if (state.actors[0].physicalMinorInjuries !== 1 || state.actors[0].physicalMajorInjuries !== 0 || state.actors[0].defeated) {
     throw new Error(`C14 Minor Injury changed the wrong state: ${JSON.stringify(state.actors[0])}.`);
   }
-  expectTranscriptLine(state.transcriptLines, /overflow from this damage event 7 at level 3 gives modifier -2, final total 2, outcome MINOR_INJURY/i, "C14 overflow Minor Injury transcript");
+  expectTranscriptLine(state.transcriptLines, /raw results 2, 7, 8, overflow from this damage event 3 at level 3 gives per-die modifier -1, modified results 1, 6, 7, per-die successes 0, 1, 1, total successes 2, outcome MINOR_INJURY/i, "C14 overflow Minor Injury transcript");
+  if (state.transcriptLines.some((line) => /raw total|final total/i.test(line))) {
+    throw new Error(`C14 Major Injury transcript still implies total-success subtraction: ${state.transcriptLines.join(" | ")}`);
+  }
 }
 
 {
@@ -520,17 +533,27 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
         level: 3,
         physicalHpMax: 5,
         mentalHpMax: 5,
-        attributeDice: { Attack: "D4", Guard: "D4", Fortitude: "D4", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        attributeDice: { Attack: "D10", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
       }),
     ],
     [],
     { captureTranscript: true },
   );
   state.actors[0].physicalHpCurrent = -7;
-  markDefeatedActors(state, { triggerId: "c14-roll-overflow-major-test", rng: rngFrom([0.99, 0.99, 0.99]) });
+  markDefeatedActors(state, { triggerId: "c14-roll-overflow-major-test", rng: rngFrom([0.99, 0.35, 0.25]) });
   const event = latestMajorInjuryEventFor(state, state.actors[0].id);
-  if (!event || event.outcome !== "MAJOR_INJURY" || event.rawSuccesses !== 3 || event.finalSuccesses !== 1 || state.actors[0].physicalMajorInjuries !== 1) {
-    throw new Error(`C14 overflow Major Injury math was wrong: ${JSON.stringify({ actor: state.actors[0], event })}.`);
+  if (
+    !event ||
+    event.outcome !== "MAJOR_INJURY" ||
+    event.rawResults.join(",") !== "10,4,3" ||
+    event.modifiedResults.join(",") !== "8,2,1" ||
+    event.perDieSuccesses.join(",") !== "1,0,0" ||
+    event.rawSuccesses !== 3 ||
+    event.totalSuccesses !== 1 ||
+    event.finalSuccesses !== 1 ||
+    state.actors[0].physicalMajorInjuries !== 1
+  ) {
+    throw new Error(`C14 per-die overflow Major Injury math was wrong: ${JSON.stringify({ actor: state.actors[0], event })}.`);
   }
 }
 
@@ -541,16 +564,26 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
         level: 3,
         physicalHpMax: 5,
         mentalHpMax: 5,
-        attributeDice: { Attack: "D4", Guard: "D4", Fortitude: "D4", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+        attributeDice: { Attack: "D10", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
       }),
     ],
     [],
     { captureTranscript: true },
   );
   state.actors[0].physicalHpCurrent = 0;
-  markDefeatedActors(state, { triggerId: "c14-exact-zero-overflow-test", rng: rngFrom([0, 0, 0]) });
+  markDefeatedActors(state, { triggerId: "c14-exact-zero-overflow-test", rng: rngFrom([0.35, 0.85, 0.99]) });
   const event = latestMajorInjuryEventFor(state, state.actors[0].id);
-  if (!event || event.overflow !== 0 || event.overflowModifier !== 0 || event.finalSuccesses !== 0 || event.outcome !== "MAJOR_INJURY") {
+  if (
+    !event ||
+    event.overflow !== 0 ||
+    event.overflowModifier !== 0 ||
+    event.rawResults.join(",") !== "4,9,10" ||
+    event.modifiedResults.join(",") !== "4,9,10" ||
+    event.perDieSuccesses.join(",") !== "1,1,2" ||
+    event.totalSuccesses !== 4 ||
+    event.finalSuccesses !== 4 ||
+    event.outcome !== "NO_INJURY"
+  ) {
     throw new Error(`C14 exact-zero overflow did not apply zero penalty: ${JSON.stringify({ actor: state.actors[0], event })}.`);
   }
 }
@@ -564,7 +597,7 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
     mentalHpMax: 5,
     mentalDefenceDice: 1,
     mentalBlockPerSuccess: 0,
-    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D12", Synergy: "D8", Bravery: "D8" },
+    attributeDice: { Attack: "D8", Guard: "D8", Fortitude: "D8", Intellect: "D10", Synergy: "D8", Bravery: "D8" },
   });
   const state = createCombatState([defender], [attacker], { captureTranscript: true });
   state.actors[0].mentalHpCurrent = 0;
@@ -574,11 +607,22 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
     actor: state.actors[1],
     target: state.actors[0],
     action: action({ id: "c14-already-zero-mental-hit", name: "C14 Already Zero Mental Hit", pool: "mental", diceCount: 1, potency: 7 }),
-    rng: rngFrom([0.99, 0, 0.99, 0.99, 0]),
+    rng: rngFrom([0.99, 0, 0.99, 0.35, 0.25]),
     lane: "main",
   });
   const event = latestMajorInjuryEventFor(state, state.actors[0].id);
-  if (!event || event.channel !== "MENTAL" || event.overflow !== 7 || event.overflowModifier !== -2 || event.rawSuccesses !== 4 || event.finalSuccesses !== 2 || event.outcome !== "MINOR_INJURY") {
+  if (
+    !event ||
+    event.channel !== "MENTAL" ||
+    event.overflow !== 7 ||
+    event.overflowModifier !== -2 ||
+    event.rawResults.join(",") !== "10,4,3" ||
+    event.modifiedResults.join(",") !== "8,2,1" ||
+    event.perDieSuccesses.join(",") !== "1,0,0" ||
+    event.totalSuccesses !== 1 ||
+    event.finalSuccesses !== 1 ||
+    event.outcome !== "MAJOR_INJURY"
+  ) {
     throw new Error(`C14 already-at-zero damage did not calculate new overflow from normal wounds: ${JSON.stringify({ actor: state.actors[0], event })}.`);
   }
   if (state.actors[0].mentalHpCurrent !== 0) {
@@ -611,7 +655,7 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
     actor: state.actors[1],
     target: state.actors[0],
     action: action({ id: "c14-repeat-overflow-second", name: "C14 Repeat Overflow Second", diceCount: 1, potency: 7 }),
-    rng: rngFrom([0.99, 0, 0.99, 0.99, 0]),
+    rng: rngFrom([0.99, 0, 0.99, 0.99, 0.2]),
     lane: "main",
   });
   const events = majorInjuryEventsFor(state, state.actors[0].id);
@@ -621,6 +665,9 @@ function latestMajorInjuryEventFor(state: CombatState, actorId: string) {
     events[0].overflowModifier !== -3 ||
     events[1].overflow !== 7 ||
     events[1].overflowModifier !== -2 ||
+    events[1].modifiedResults.join(",") !== "10,10,1" ||
+    events[1].perDieSuccesses.join(",") !== "2,2,0" ||
+    events[1].totalSuccesses !== 4 ||
     state.actors[0].physicalHpCurrent !== 0
   ) {
     throw new Error(`C14 repeated attacks accumulated overflow or left negative HP: ${JSON.stringify({ actor: state.actors[0], events })}.`);

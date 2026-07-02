@@ -296,8 +296,10 @@ export type CombatPendingMajorInjuryEvent = {
   dieSize: CombatDieSize;
   diceCount: number;
   rawResults: number[];
+  modifiedResults: number[];
   perDieSuccesses: number[];
   rawSuccesses: number;
+  totalSuccesses: number;
   finalSuccesses: number;
   outcome: CombatMajorInjuryOutcome;
   sourceActorId?: string | null;

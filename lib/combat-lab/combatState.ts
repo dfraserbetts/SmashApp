@@ -19,7 +19,7 @@ import type {
   CombatTranscriptEvent,
   UnsupportedPowerSummary,
 } from "./types";
-import { createSeededRng, rollDice, type Rng } from "./dice";
+import { createSeededRng, rollDice, successCountForRoll, type Rng } from "./dice";
 
 const MAX_TRANSCRIPT_LINES = 1200;
 const MAJOR_INJURIES_TO_DEFEAT = 3;
@@ -346,10 +346,12 @@ function processMajorInjuryEvent(
     3,
     dieSize,
     context.rng ?? createSeededRng(state.round * 1000 + state.pendingMajorInjuryEvents.length + 1),
+    overflowModifier,
   );
-  const rawSuccesses = roll.successes;
-  const finalSuccesses = Math.max(0, rawSuccesses + overflowModifier);
-  const rolledOutcome = injuryOutcomeFromSuccesses(finalSuccesses);
+  const rawSuccesses = roll.rawResults.reduce((total, rawResult) => total + successCountForRoll(rawResult), 0);
+  const totalSuccesses = roll.successes;
+  const finalSuccesses = totalSuccesses;
+  const rolledOutcome = injuryOutcomeFromSuccesses(totalSuccesses);
   const forcedOutcome = nextForcedInjuryOutcome(actor, channel);
   const outcome = forcedOutcome ?? rolledOutcome;
   const event = {
@@ -364,8 +366,10 @@ function processMajorInjuryEvent(
     dieSize,
     diceCount: 3,
     rawResults: roll.rawResults,
+    modifiedResults: roll.modifiedResults,
     perDieSuccesses: roll.perDieSuccesses,
     rawSuccesses,
+    totalSuccesses,
     finalSuccesses,
     outcome,
     sourceActorId: context.sourceActorId ?? null,
@@ -385,8 +389,8 @@ function processMajorInjuryEvent(
 
   const rollText =
     `Major Injury roll: ${actor.name} rolls 3 x ${dieSize} using ${selectedAttribute} for ${channel === "PHYSICAL" ? "Physical" : "Mental"} injury; ` +
-    `raw results ${roll.rawResults.join(", ")}, per-die successes ${roll.perDieSuccesses.join(", ")}, raw total ${rawSuccesses}, ` +
-    `overflow from this damage event ${overflow} at level ${safeLevel} gives modifier ${overflowModifier}, final total ${finalSuccesses}, outcome ${outcome}` +
+    `raw results ${roll.rawResults.join(", ")}, overflow from this damage event ${overflow} at level ${safeLevel} gives per-die modifier ${overflowModifier}, ` +
+    `modified results ${roll.modifiedResults.join(", ")}, per-die successes ${roll.perDieSuccesses.join(", ")}, total successes ${totalSuccesses}, outcome ${outcome}` +
     `${forcedOutcome ? ` (forced test outcome ${forcedOutcome})` : ""}.`;
 
   if (outcome === "MAJOR_INJURY") {

@@ -194,7 +194,7 @@ at 0 in either health channel; PC / Legendary Major Injury Trials by affected
 channel; overflow severity modifier of -1 per full actor level of overflow,
 rounded down; exactly 3 dice of a chosen relevant-side Attribute; normal success
 counting of 1-3 = 0, 4-9 = 1, and 10+ = 2 successes; overflow modifier applied
-to total successes after rolling, floored at 0; 0-1 final successes = Major
+to each die result before success counting; 0-1 total successes = Major
 Injury, 2 = Minor Injury, and 3+ = No Injury; separate Physical and Mental
 injury tracks; dual-channel 0 in one bundle creates both Major Injury events for
 PC / Legendary actors unless Blaze of Glory is declared; Mental injury events
@@ -218,7 +218,8 @@ now represents:
 - separate Physical and Mental Major/Minor Injury counters;
 - pending injury events processed after the full action, effect tick, or
   simultaneous result bundle resolves;
-- 3-dice Major Injury rolls with overflow severity applied to total successes;
+- 3-dice Major Injury rolls with overflow severity applied to each die result
+  before success counting;
 - event-local overflow capture with affected Health pools normalized to 0 after
   injury resolution;
 - same-bundle healing prevention when the relevant pool is restored above 0
