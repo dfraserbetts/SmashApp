@@ -16,7 +16,7 @@
     "auth:backfill-profile-emails": "npx --yes tsx scripts/backfillUserProfileEmails.ts",
     "diagnostic:level-relative-radar": "npx --yes tsx scripts/levelRelativeRadarDiagnostic.ts",
     "diagnostic:level-relative-decay": "npx --yes tsx scripts/levelRelativeRadarDecayReport.ts",
-    "diagnostic:combat-smoke": "npx --yes tsx scripts/combatSmokeTest.ts",
+    "diagnostic:combat-smoke": "npx --yes tsx scripts/combatLab.smoke.ts",
     "diagnostic:output-origin-parity": "npx --yes tsx scripts/monsterOutcomeCalculator.smoke.ts",
     "smoke:e2e": "playwright test",
     "smoke:e2e:headed": "playwright test --headed",

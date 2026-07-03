@@ -473,7 +473,7 @@ function main(): void {
 
   console.log("\n## Feasibility");
   console.log(
-    "Existing scripts/combatSmokeTest.ts is synthetic-fixture based and does not ingest raw monster exports directly; this report avoids fake simulation and compares accepted fixture table-facing outputs instead.",
+    "The retired scripts/combatSmokeTest.ts legacy simulator no longer runs. Current fixture diagnostics live in scripts/combatLab.smoke.ts; this report avoids fake simulation and compares accepted fixture table-facing outputs instead.",
   );
   console.log("\n## Recommendation");
   console.log(
