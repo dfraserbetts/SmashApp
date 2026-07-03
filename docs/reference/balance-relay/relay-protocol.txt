@@ -1,0 +1,205 @@
+docs/reference/balance-relay/relay-protocol.txt
+
+Purpose
+
+This protocol defines the safe local relay workflow between the Lead Designer,
+Chief Balance Agent, Codex, and the Relay.
+
+It is operational reference material. It does not override active source docs.
+
+
+Source-Of-Truth Hierarchy
+
+1. Active source docs under docs/00 through docs/07 control current doctrine.
+2. Current local repo state controls what Codex can truthfully inspect.
+3. Raw Codex reports are authoritative evidence for a specific job.
+4. Relay summaries are navigation aids only.
+5. Archived docs and historical reports are non-authoritative unless an active
+   source doc explicitly cites them.
+
+
+Role Boundaries
+
+Lead Designer:
+- Owns design intent.
+- Owns final rules intent.
+- Owns archetype purpose and tuning philosophy.
+- Approves dangerous actions.
+
+Chief Balance Agent:
+- Owns balance judgement.
+- Interprets evidence.
+- Decides when to stop for Lead Designer input.
+- Writes next Codex prompts.
+
+Codex:
+- Inspects local files and data within the approved scope.
+- Implements only explicitly approved changes.
+- Runs validation only within approved limits.
+- Reports exactly what happened.
+
+Relay:
+- Preserves prompts and Codex responses verbatim.
+- Adds metadata and chain-of-custody records.
+- May create navigation summaries, clearly marked non-authoritative.
+- Must not summarize Codex reports as replacement evidence.
+
+
+Manual Workflow
+
+1. Chief Balance Agent writes a prompt.
+2. Relay stores the prompt as 00-chief-prompt.md.
+3. Relay sends the exact prompt to Codex.
+4. Codex executes within the stated mode and scope.
+5. Relay stores the Codex response verbatim as 01-codex-report.md.
+6. Relay records checks in 04-validation-log.txt.
+7. Relay may write 02-relay-summary.md as a navigation aid only.
+8. Chief Balance Agent writes judgement and next action in
+   03-chief-decision.md.
+9. Any dangerous next action requires explicit approval before Codex performs it.
+
+
+Raw Report Preservation Rule
+
+01-codex-report.md must preserve the Codex response verbatim. Do not rewrite,
+abridge, normalize, reorder, or correct it.
+
+If a typo or ambiguity exists in the Codex report, note it in the relay summary
+or Chief Balance Agent decision file. Do not alter the raw report.
+
+
+Metadata Wrapper Rule
+
+Each job must include metadata.json. It records repo state, approval scope,
+dangerous actions, validation, campaign provenance, and artifact paths.
+
+Metadata may be updated by the Relay as chain-of-custody facts become available.
+It must not be used to rewrite the raw Codex report.
+
+
+Summary Limitation Rule
+
+02-relay-summary.md is optional. If present, it must begin with:
+
+Navigation aid only. The verbatim Codex report is authoritative evidence.
+
+The summary must not omit failed validation, dirty worktree status, uncertainty,
+dangerous actions, accidental writes, or Codex-stated blockers.
+
+
+Required Codex Report Sections
+
+For relay-compatible Codex reports, request these sections unless a narrower
+task requires a specific format:
+
+- Job Summary
+- Repo State
+- Authorised Actions Taken
+- Files Inspected
+- Files Changed or Created
+- Evidence
+- Validation Results
+- Findings
+- Risks / Ambiguities
+- Approval Required
+- Suggested Next Codex Task
+
+
+Chief Balance Agent Stop Rules
+
+Chief Balance Agent must stop and talk to the Lead Designer when the next step
+requires:
+
+- design intent
+- rules language
+- archetype purpose
+- tuning philosophy
+- accepting known mechanical mismatch
+- promoting balance evidence to doctrine
+- mutating Balance Environment assets beyond approved scope
+- changing formulas, scalars, or tuning
+
+
+Dangerous-Action Gates
+
+These actions require explicit approval for the specific job:
+
+- commits
+- pushes
+- seeders
+- database writes
+- migrations
+- formula changes
+- scalar changes
+- tuning changes
+- Balance Environment asset mutations
+- 100-run simulation batches
+- 500-run simulation batches
+- destructive filesystem commands
+- committing raw local job artifacts
+
+
+Secret Handling And Quarantine
+
+Codex and the Relay must not read, print, copy, summarize, commit, or forward:
+
+- .env file content
+- secrets
+- tokens
+- connection strings
+- API keys
+- credentials
+
+If secret-like content appears accidentally, mark secretRiskStatus as
+"quarantine_required", set quarantineRequired to true, stop redistribution, and
+ask the Lead Designer for handling instructions.
+
+
+Commit And Push Gates
+
+Commit gate:
+
+- explicit approval exists
+- git status is reviewed
+- changed files match approved scope
+- diff is reviewed
+- validation is run or explicitly waived
+- only approved files are staged
+- cached diff is reviewed
+
+Push gate:
+
+- explicit push approval exists
+- commit hash is known
+- final status is reviewed
+- no unrelated local changes are present unless explicitly allowed
+
+
+Simulation Batch Gates
+
+Small smoke and one-run commands may run only when task scope allows them.
+
+100-run simulation batches require explicit approval.
+
+500-run simulation batches require explicit approval.
+
+Longer or repeated batches require a separate explicit approval. Live-authored
+balance evidence must include Balance Environment campaign provenance.
+
+
+Balance Environment Provenance Requirement
+
+When live-authored balance assets are used, reports must include:
+
+- campaignName: Balance Environment
+- campaignId: 250aee5e-632f-405c-ba36-a49ed12a5afc
+- assetSource: synthetic-in-memory, balance-campaign-authored,
+  temporary-override, unscoped-live-adapter, or another explicit unsupported
+  label
+- exact command
+- commit SHA
+- worktree status
+- seed and run count when simulations are run
+- active tuning names when relevant
+
+If a runner cannot prove campaign scoping, the report must say so clearly.

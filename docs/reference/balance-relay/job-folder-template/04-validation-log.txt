@@ -1,0 +1,17 @@
+04-validation-log.txt
+
+Template only. Do not include real current job validation output in the
+committed template.
+
+Record relay checks here, such as:
+
+- metadata.json exists and is complete
+- 00-chief-prompt.md preserved verbatim
+- 01-codex-report.md preserved verbatim
+- 02-relay-summary.md, if present, is navigation-only
+- 03-chief-decision.md records judgement and next action
+- dangerous actions approved/performed are recorded
+- git status before/after captured
+- campaign provenance captured when live-authored balance assets are used
+- secretRiskStatus checked
+- quarantineRequired checked
