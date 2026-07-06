@@ -52,7 +52,8 @@ Current state:
   implemented.
 - Monster tier defeat doctrine has been locked.
 - First campaign-scoped 50-run Soldier solo diagnostic has been run.
-- A new chat should be opened before the first actual Balance tuning pass.
+- Real role monster tuning is paused until Level 3 attack strings and defence
+  strings are calibrated through runtime-resolved evidence.
 
 The next work should move carefully from diagnostics into tuning. Do not begin
 by globally raising or lowering all monster damage.
@@ -112,6 +113,67 @@ Critical seeder lesson:
 
 scripts/balanceEnvironment.seedCharacterPowers.ts must preserve
 builderData.equippedSlots and must not wipe equipment state.
+
+
+SECTION 3A - Runtime Balance North Star
+
+Official balance conclusions require runtime-resolved evidence using
+Balance Environment-authored assets through Combat Lab/runtime resolution.
+
+Balance Environment is the authored test-data scope, not the simulator. Combat
+Lab/runtime is the rules-resolution engine.
+
+Synthetic fixtures, spreadsheet estimates, formula harnesses, simplified probes,
+and non-runtime calculations are diagnostic only unless explicitly routed
+through the live adapter/runtime path and labelled with full provenance.
+
+The official balance workflow is:
+
+1. Attack string calibration.
+   Establish what a typical attack string for the level should look like. Change
+   authored attack values in the app/editor/Balance Environment, such as weapon
+   skill / number of dice, die size, potency / wounds per success, physical
+   strength, mental strength, and relevant attack profile fields. Then run those
+   authored attacks through Combat Lab/runtime and extract Attacks-to-Kill
+   results.
+2. Defence string calibration.
+   Establish what typical defence should look like. Change authored defence
+   values in the app/editor/Balance Environment, such as armour skill, dodge /
+   guard values, physical protection, mental protection, natural protections,
+   physical defence, mental defence, and relevant defence profile fields. Then
+   run those defences through Combat Lab/runtime and extract ATK / mitigation
+   results.
+3. Attack/defence offset.
+   Balance attack and defence together so defence gives meaningful mitigation
+   while preserving intended Attacks-to-Kill bands.
+4. Apply to real assets.
+   Only after attack and defence strings are calibrated should real role assets
+   be tuned: characters, monsters, powers, Forge items, Summoning Circle
+   monsters/summons, and other app-authored combat assets.
+5. Cost calibration.
+   Only after runtime values feel correct should cost values be adjusted:
+   Outcome Calculator values, Power Builder costs, Forge item values, Summoning
+   Circle costs/ratings, and other point/value systems. Cost values follow
+   runtime truth.
+
+Candidate Level 3 attack strings may include 4 dice at 3 wounds per success,
+3 dice at 4 wounds per success, or other candidate strings that runtime
+evidence supports. These examples are candidates, not final doctrine unless
+later accepted.
+
+Do not tune real role assets before the level's attack and defence strings are
+calibrated unless the Lead Designer explicitly approves an experimental value
+pass. If an experimental value pass occurs, mark it experimental, record
+before/after values, and do not treat it as accepted balance doctrine until
+reviewed.
+
+Long-term goal: a coherent runtime-resolved ecosystem across Character Builder,
+powers, Forge items, Summoning Circle monsters/summons, Combat Lab reports, and
+table-facing app output. A 50-point power should feel like a 50-point power
+next to another 50-point power, a 200-point power should feel meaningfully
+different, a legendary level 5 item should feel legendary next to a common level
+5 item, and monsters/summons should fit the same economy rather than isolated
+calculator outputs.
 
 
 SECTION 4 - Current Active Scalar And Budget Truth
@@ -364,6 +426,11 @@ SECTION 13 - What Must Not Happen
 
 Anti-patterns:
 
+- Do not tune real role assets before attack string calibration and defence
+  string calibration are complete, unless the Lead Designer approves an
+  experimental value pass.
+- Do not treat an experimental value pass as accepted doctrine before review.
+- Do not change cost values before runtime truth is validated.
 - Do not tune Soldiers to 1v1 Elite standards.
 - Do not treat Soldier solo losses as automatic monster weakness.
 - Do not treat Soldier solo wins against PCs as acceptable unless hard-counter
@@ -382,8 +449,10 @@ SECTION 14 - Current Blockers / Deferred Work
 
 Immediate before actual tuning:
 
-- Decide the first tuning target using tier doctrine.
-- Open a new chat before first actual Balance tuning pass.
+- Establish Level 3 attack string calibration through authored Balance
+  Environment attacks and runtime-resolved ATK evidence.
+- Establish Level 3 defence string calibration.
+- Then tune attack/defence offset before returning to real role monster tuning.
 
 High-priority likely next improvements:
 
@@ -416,19 +485,12 @@ The new chat should start by:
 - confirming current git status/latest commit;
 - confirming active docs;
 - confirming Balance Environment campaign assets;
-- reviewing current Soldier solo diagnostic results;
-- selecting one narrow first tuning target;
-- not randomly changing multiple values.
+- selecting Level 3 attack string calibration as the first tuning target;
+- using runtime-resolved Balance Environment evidence;
+- not tuning real role assets until attack and defence strings are calibrated.
 
-First tuning pass should not begin by globally raising or lowering all monster
-damage.
-
-The first likely decision should be whether to:
-
-- add reporting for attacks-to-defeat first;
-- create Soldier group-pressure/Elite duel presets first;
-- or adjust a clearly isolated outlier such as Mental Wailer only after evidence
-  supports it.
+First tuning pass should not begin by globally raising/lowering monster damage
+or by editing real role monsters.
 
 
 SECTION 16 - Handoff Prompt Marker
@@ -436,6 +498,8 @@ SECTION 16 - Handoff Prompt Marker
 New Chat Handoff Anchor
 
 We are beginning Incarnate's first Balance tuning phase. Read docs/07 first. Do
-not tune randomly. Use Balance Environment campaign only. Soldier solo tests are
+not tune randomly. Use Balance Environment campaign only. Start with Level 3
+attack string calibration, then defence string calibration, then attack/defence
+offset, then real role assets, then cost calibration. Soldier solo tests are
 diagnostics. Elite duel tests use the 55-65% PC win target. Primary durability
 metric is attacks-to-defeat, not rounds alone.

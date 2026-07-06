@@ -88,6 +88,49 @@ path. Ignored, approximated, unsupported, or stripped mechanics downgrade the
 result to diagnostic evidence for that scope.
 
 
+Runtime Balance North Star Workflow
+
+Runtime truth comes before point truth.
+
+Official balance work must proceed in this order unless the Lead Designer
+explicitly approves an experimental value pass:
+
+1. Attack string calibration.
+   Establish what a typical attack string for the level looks like using
+   authored Balance Environment attack values and actual runtime ATK results.
+2. Defence string calibration.
+   Establish what a typical defence string for the level looks like using
+   authored Balance Environment defence values and actual runtime mitigation /
+   ATK results.
+3. Attack/defence offset.
+   Offset attack and defence until defence matters without breaking the current
+   Attacks-to-Kill bands.
+4. Real role asset tuning.
+   Tune characters, monsters, powers, Forge items, Summoning Circle monsters /
+   summons, and other authored combat assets only after the level's attack and
+   defence strings are calibrated.
+5. Cost calibration.
+   Align Outcome Calculator values, Power Builder costs, Forge item values,
+   Summoning Circle costs/ratings, and other app-facing point systems after
+   runtime values are validated. Cost values follow runtime truth.
+
+Experimental value pass rule:
+
+- Do not tune real role assets before attack/defence calibration unless the
+  Lead Designer explicitly approves the experiment.
+- Label the pass experimental.
+- Record before/after values and runtime evidence.
+- Do not treat the result as accepted balance doctrine until reviewed.
+
+Long-term balance goal: a coherent runtime-resolved ecosystem where Character
+Builder powers, Forge items, Summoning Circle monsters/summons, Combat Lab
+reports, and table-facing app output agree. A 50-point power should feel like a
+50-point power, a 200-point power should feel meaningfully different, a
+legendary level 5 item should feel legendary next to a common level 5 item, and
+monsters/summons should fit the same economy instead of isolated calculator
+outputs.
+
+
 Codex Usage Preservation Policy
 
 Codex may build tools, run local scripts, inspect reports, compare variants, and

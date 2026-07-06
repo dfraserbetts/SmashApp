@@ -336,6 +336,21 @@ Anti-drift rule:
 - Escalate to code only when the issue is routing law, realization law, or a
   missing implementation seam.
 
+Balance North Star:
+
+- Official balance conclusions require runtime-resolved evidence using
+  Balance Environment-authored assets through Combat Lab/runtime resolution.
+- Balance Environment is the authored test-data scope, not the simulator.
+- Combat Lab/runtime is the rules-resolution engine.
+- Synthetic fixtures, spreadsheet estimates, simplified probes, and
+  non-runtime calculations are diagnostic only unless explicitly routed through
+  the live adapter/runtime path and labelled with full provenance.
+- Current sequence: attack string calibration first, defence string calibration
+  second, attack/defence offset third, real role asset tuning fourth, and cost
+  calibration last. Cost values follow runtime truth.
+- Do not tune real role assets before attack and defence strings are calibrated
+  unless the Lead Designer explicitly approves an experimental value pass.
+
 Current defensive-pool pricing work should not begin from raw win rate alone.
 Layer A deterministic canaries must protect mechanics first, Layer B synthetic
 batches are targeted diagnostics, and runtime-resolved real authored scenarios
@@ -366,10 +381,9 @@ count before running medium baselines.
 
 Immediate Ordered Work
 
-1. Open a fresh chat before the first actual Balance tuning pass, read
-   docs/07_Incarnate_Balance_Tuning_Bible.txt first, and start from the locked
-   monster tier attacks-to-defeat doctrine and the latest campaign-scoped
-   baseline.
+1. Open a fresh chat before the next Balance tuning pass, read
+   docs/07_Incarnate_Balance_Tuning_Bible.txt first, and start from Level 3
+   attack string calibration before touching real role assets.
 2. Keep the new active docs aligned with current code reality.
 3. Preserve the locked Response Window / Incarnate Stack in runtime-facing tools.
 4. Preserve the multiple-responder support order: acting-side support declares

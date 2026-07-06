@@ -78,6 +78,38 @@ impact, not the other way around. Once a level's outputs feel correct, builder
 costs should be assigned so that the correct level-equivalent outputs
 correspond to fair spend. Then scaling can be extended across levels.
 
+Runtime Balance North Star
+
+Official balance conclusions require runtime-resolved evidence: authored
+Balance Environment assets must be loaded through the relevant live adapter and
+resolved by Combat Lab/runtime. Balance Environment is the authored test-data
+scope, not the simulator. Synthetic fixtures, formula harnesses, calculators,
+spreadsheets, and simplified probes are diagnostic only unless explicitly routed
+through the runtime path and labelled with provenance.
+
+The required balance order is:
+
+1. Attack string calibration: establish typical level-specific attacks by
+   changing authored attack values such as weapon skill / dice count, die size,
+   potency or wounds per success, physical strength, mental strength, and attack
+   profile fields in the app / Balance Environment.
+2. Defence string calibration: establish typical level-specific defences by
+   changing authored defence values such as armour skill, dodge / guard,
+   physical protection, mental protection, natural protections, physical
+   defence, mental defence, and defence profile fields.
+3. Attack/defence offset: tune attack and defence together until mitigation is
+   meaningful while preserving the Attacks-to-Kill bands.
+4. Apply to real assets: tune characters, monsters, powers, Forge items,
+   Summoning Circle monsters/summons, and other authored combat assets only
+   after the level's attack and defence strings are calibrated.
+5. Cost calibration: align Outcome Calculator values, Power Builder costs,
+   Forge item values, Summoning Circle costs/ratings, and other point systems
+   only after runtime values feel correct. Cost values follow runtime truth.
+
+Candidate Level 3 attack strings such as 4 dice at 3 wounds per success or 3
+dice at 4 wounds per success are candidates only. They are not final doctrine
+until accepted through runtime evidence.
+
 
 Core Power Grammar
 

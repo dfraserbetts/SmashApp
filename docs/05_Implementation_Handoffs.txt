@@ -278,6 +278,22 @@ Balance Handoff Notes
 Do not tune from one scenario unless it exposes a clear code/routing bug or
 matches an established canary failure.
 
+North Star sequencing for balance work:
+
+- Official conclusions require runtime-resolved evidence using Balance
+  Environment-authored assets through Combat Lab/runtime resolution.
+- Balance Environment is the authored test-data scope, not the simulator.
+- Start with attack string calibration for the level.
+- Then perform defence string calibration for the level.
+- Then tune the attack/defence offset so mitigation matters while preserving
+  the Attacks-to-Kill bands.
+- Only then tune real role assets: characters, monsters, powers, Forge items,
+  Summoning Circle monsters/summons, and other app-authored combat assets.
+- Align costs last. Cost values follow runtime truth.
+- If a real role asset value pass happens before this sequence is complete,
+  label it an experimental value pass, record before/after values, and wait for
+  review before treating it as accepted doctrine.
+
 Do not tune against the current post-c89338d formula shape as final truth. The
 formula-shape audit found that current data paths are useful, but serious
 balance tuning is blocked until formula architecture is corrected or explicitly
