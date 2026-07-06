@@ -180,10 +180,11 @@ law until the owning active doc is updated with an explicit decision.
   Owner: docs/02_Power_System_And_Costing.txt and
   docs/04_Combat_Lab_Balance_And_Validation.txt.
   Note: Use attacks-to-defeat / meaningful offensive actions-to-defeat as the
-  core durability metric. Minions usually die in 1 meaningful attack/power,
-  Soldiers in 2-3 attacks/powers, Elites in 5-8 attacks/powers, and
-  Boss/Legendary monsters in 16+ attacks/powers. 1 Elite ~= 80% of 1 PC, and 1
-  PC should roughly equal 2-3 Soldiers.
+  core durability metric, calibrated against an Average Medium Strength Attack.
+  Minions usually die in 1-2 Medium Strength Attacks, Soldiers in 2-3, Elites
+  in 4-6, and Boss/Legendary monsters in 16+. Low and High attack profiles are
+  diagnostic range checks only. 1 Elite ~= 80% of 1 PC, and 1 PC should roughly
+  equal 2-3 Soldiers.
 - Action-economy distinction for monster durability.
   Status: LOCKED / RESOLVED.
   Owner: docs/02_Power_System_And_Costing.txt and
@@ -191,7 +192,8 @@ law until the owning active doc is updated with an explicit decision.
   Note: One actor turn may include a weapon/natural attack plus a Power attack,
   if available. Count both toward attacks-to-defeat. Turns-to-defeat and
   rounds-to-defeat are secondary metrics affected by action economy, cooldowns,
-  number of actors, and party focus fire.
+  number of actors, and party focus fire. Reports should distinguish attacks
+  from turns wherever possible and state any one-attack-per-turn assumption.
 - C14 automatic Major Injury Attribute choice policy.
   Status: DEFERRED / NEEDS RUNTIME EVIDENCE.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
@@ -250,15 +252,18 @@ law until the owning active doc is updated with an explicit decision.
   Note: Needed before canonical tuning promotion and public/demo playtest
   readiness.
 - Balance Environment live-authored testing scope.
-  Status: LOCKED / ACTIVE POLICY; CAMPAIGN-SCOPED SMOKE PRESET ADDED.
+  Status: LOCKED / ACTIVE POLICY; RUNTIME-RESOLVED EVIDENCE REQUIRED.
   Owner: docs/04_Combat_Lab_Balance_And_Validation.txt.
   Note: Live-authored balance assets must use campaignId
   250aee5e-632f-405c-ba36-a49ed12a5afc / campaignName Balance Environment
   unless explicitly instructed otherwise. Synthetic smoke/canary fixtures remain
   campaignless and should report assetSource synthetic-in-memory. The
-  balance-environment-core scenarioMatrix preset is a campaign-scoped smoke
-  path for hydration/provenance/fallback diagnostics, not final balance
-  evidence.
+  Balance Environment campaign is the authored test-data scope, not the
+  simulator. Official balance evidence requires runtime evidence using Balance
+  Environment-authored assets through Combat Lab/runtime resolution. The
+  balance-environment-core scenarioMatrix preset is a campaign-scoped smoke path
+  for hydration/provenance/fallback diagnostics, not final balance evidence by
+  itself.
 - Runtime gaps between locked docs and Combat Lab.
   Status: NEEDS RUNTIME CHECK.
   Owner: docs/05_Implementation_Handoffs.txt.
@@ -333,8 +338,16 @@ Anti-drift rule:
 
 Current defensive-pool pricing work should not begin from raw win rate alone.
 Layer A deterministic canaries must protect mechanics first, Layer B synthetic
-batches are targeted diagnostics, and real authored scenarios remain primary
-table-truth balance evidence.
+batches are targeted diagnostics, and runtime-resolved real authored scenarios
+remain primary table-truth balance evidence.
+
+Official balance conclusions must be based on runtime evidence using Balance
+Environment-authored assets. Balance Environment data alone is not enough:
+reports must identify assetSource, campaignId/campaignName, adapter or
+live-loader path, exact command, commit, dirty/clean state, and any unsupported,
+ignored, stripped, or approximated mechanics. Reports that bypass Combat
+Lab/runtime resolution, or rely on unsupported adapter coverage for material
+mechanics, remain diagnostic only for that scope.
 
 Serious numeric balance tuning is additionally gated by formula architecture.
 The current formula work has corrected Monster Outcome Calculator Phase 1
@@ -342,8 +355,8 @@ expected output for supported natural/equipped attacks, but packet-level power
 expected output still depends on callers supplying packet data, and structured
 trait reliability, Forge enforcement, and final scenario evidence remain open.
 Balance Environment assets are currently useful for data-path testing but are
-not final balance evidence until campaign-scoped runs validate the current
-formula/runtime state.
+not final balance evidence until campaign-scoped runtime runs validate the
+current formula/runtime state and report adapter coverage.
 
 The balance-environment-core scenarioMatrix preset exists for tiny
 campaign-scoped smoke runs against live-authored Balance Environment assets.

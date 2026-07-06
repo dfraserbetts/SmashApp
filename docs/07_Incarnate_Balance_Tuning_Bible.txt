@@ -70,6 +70,12 @@ Policy:
 
 - Live-authored balance assets must come from this campaign unless explicitly
   stated otherwise.
+- Balance Environment is the authored test-data scope, not the simulator.
+- Official balance evidence means runtime evidence using Balance
+  Environment-authored assets.
+- Combat Lab / combat runtime is the rules-resolution system.
+- Reports must identify the adapter/live-loader path and any unsupported,
+  ignored, approximated, or stripped mechanics.
 - Synthetic smoke and canary fixtures remain synthetic-in-memory.
 - Unscoped live adapters are not balance evidence.
 - Temporary overrides must be declared in provenance.
@@ -134,13 +140,26 @@ Do not treat scalar 3 reports as current truth.
 
 SECTION 5 - Locked Monster Tier Doctrine
 
-At equal level, in a non-hard-counter matchup, assuming meaningful offensive
-actions and excluding extreme low attack rolls or extreme defence rolls:
+At equal level, in a non-hard-counter matchup, monster durability bands are
+calibrated against an Average Medium Strength Attack. Medium means a
+typical/average attack profile, not an attack specialist and not a
+low-investment attacker.
 
-- Minion: usually dies in 1 meaningful attack/power.
-- Soldier: usually dies in 2-3 meaningful attacks/powers.
-- Elite: usually dies in 5-8 meaningful attacks/powers.
-- Boss/Legendary: usually requires 16+ meaningful attacks/powers.
+- Minion: usually dies in 1-2 Medium Strength Attacks.
+- Soldier: usually dies in 2-3 Medium Strength Attacks.
+- Elite: usually dies in 4-6 Medium Strength Attacks.
+- Boss/Legendary: usually requires 16+ Medium Strength Attacks.
+
+Low and High attack profiles are diagnostic range checks only. A high attack
+specialist may beat these bands faster without automatically implying poor
+balance. A low attack character may miss these bands slower without
+automatically implying poor balance. PASS / LOW / HIGH judgement should use the
+Medium Strength Attack profile unless the report explicitly says otherwise.
+
+Official ATK evidence must use real authored Balance Environment characters and
+monsters with assetSource balance-campaign-authored and actual Combat
+Lab/runtime resolution. Synthetic ATK fixtures and non-runtime probes are
+diagnostic-only and must not be promoted to official tier-band evidence.
 
 Encounter equivalence:
 
@@ -171,9 +190,11 @@ Therefore:
 - attacks-to-defeat is the primary durability metric;
 - turns-to-defeat and rounds-to-defeat are secondary metrics;
 - one actor turn may contain multiple meaningful offensive actions;
-- a Soldier expected to die in 2-3 attacks/powers may die in 1-2 turns if the
-  attacker lands both a weapon/natural attack and a Power attack;
-- party focus fire can compress boss round count dramatically.
+- a Soldier expected to die in 2-3 Medium Strength Attacks may die in 1-2 turns
+  if the attacker lands both a weapon/natural attack and a Power attack;
+- party focus fire can compress boss round count dramatically;
+- reports should distinguish attacks from turns wherever possible and state any
+  one-attack-per-turn assumption.
 
 Balance reports must eventually distinguish weapon/natural attack contribution
 from Power attack contribution.

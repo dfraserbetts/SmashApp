@@ -28,9 +28,10 @@ one turn:
 
 If an actor uses both a weapon/natural attack and a Power attack in the same
 turn, both count toward attacks-to-defeat. A Soldier expected to die in 2-3
-attacks/powers may die in 1-2 turns if the attacker lands both a weapon/natural
-attack and a Power attack. A Boss/Legendary requiring 16+ attacks/powers may
-still fall faster in party rounds when multiple heroes focus it.
+Medium Strength Attacks may die in 1-2 turns if the attacker lands both a
+weapon/natural attack and a Power attack. A Boss/Legendary requiring 16+ Medium
+Strength Attacks may still fall faster in party rounds when multiple heroes
+focus it.
 
 Turns-to-defeat is a secondary metric: it is affected by whether one actor can
 deliver same-turn burst through a weapon/natural attack plus a Power attack,
@@ -40,13 +41,24 @@ Rounds-to-defeat is also secondary: it is affected by number of actors, party
 focus fire, encounter shape, initiative/turn order, and whether multiple
 attackers can concentrate meaningful offensive actions on one target.
 
-Monster tier defeat expectations at equal level, assuming meaningful offensive
-actions and excluding extreme low attack rolls or extreme monster defence rolls:
+Monster tier defeat expectations at equal level are calibrated against an
+Average Medium Strength Attack, not every possible attacker profile. A Medium
+Strength Attack means a typical/average attack profile, not an attack specialist
+and not a low-investment attacker. PASS / LOW / HIGH judgement should primarily
+use this Medium Strength Attack profile unless a report explicitly says it is
+using a different ruler.
 
-- Minion: should usually die in 1 meaningful attack/power.
-- Soldier: should usually die in 2-3 meaningful attacks/powers.
-- Elite: should usually die in 5-8 meaningful attacks/powers.
-- Boss/Legendary: should usually require 16+ meaningful attacks/powers.
+- Minion: should usually die in 1-2 Medium Strength Attacks.
+- Soldier: should usually die in 2-3 Medium Strength Attacks.
+- Elite: should usually die in 4-6 Medium Strength Attacks.
+- Boss/Legendary: should usually require 16+ Medium Strength Attacks.
+
+Low and High attack profiles are diagnostic range checks only. A high attack
+specialist killing an Elite in fewer attacks than the Medium band is not
+automatically poor balance. A low attack character taking longer to kill a
+Minion is also not automatically poor balance. Reports should distinguish
+attacks from turns wherever possible; if a tool assumes one attack per turn, it
+must state that assumption.
 
 Encounter equivalence:
 
@@ -444,6 +456,14 @@ against the active/default scalar 2 path. They still require scenario evidence
 before any win-rate conclusion is promoted to balance truth. Treat older
 overspend tables as historical audit snapshots, not current source law.
 
+Official balance evidence for powers, Signature Moves, Forge items, and monster
+actions must be runtime-resolved. The Balance Environment campaign supplies
+authored test assets; Combat Lab/runtime supplies rules resolution. Formula
+harnesses, calculators, spreadsheets, simplified probes, and synthetic fixtures
+are diagnostics unless they explicitly route Balance Environment-authored assets
+through the relevant live adapter/runtime path and report unsupported,
+approximated, ignored, or stripped mechanics.
+
 Scalar 2 is provisional calibration state, not locked economics. It may still
 be rebased after expected-output constants and Balance Environment assets are
 calibrated.
@@ -544,7 +564,7 @@ Secondary Packets must be priced according to dependency:
 - triggered / conditional packets
 
 Unsupported runtime mechanics should not receive full calibration credit until
-they are supported and measured.
+they are supported and measured through runtime-resolved evidence.
 
 
 Potency Treatment

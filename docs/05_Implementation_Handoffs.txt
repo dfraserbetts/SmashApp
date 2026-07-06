@@ -369,6 +369,11 @@ Monster Tier Reporting And Tuning Handoff
 
 Before tuning Balance Environment assets heavily, add or improve reporting for
 attacks-to-defeat / meaningful offensive actions-to-defeat if feasible.
+Official PASS / LOW / HIGH durability judgement should use the Average Medium
+Strength Attack profile: Minion 1-2 Medium Strength Attacks, Soldier 2-3, Elite
+4-6, Boss/Legendary 16+. Low and High attack profiles are diagnostic range
+checks only. Reports should distinguish attacks from turns wherever possible and
+state any one-attack-per-turn assumption.
 Reports should distinguish:
 
 - weapon/natural attack damage
@@ -384,8 +389,8 @@ Reports should distinguish:
 
 Do not tune Soldiers to 1v1 Elite standards. Soldier solo scenarios are
 diagnostics for role expression and whether a Soldier survives around the
-expected 2-3 attacks/powers. Add future presets for Soldier group pressure and
-Elite duel core before using results as stronger balance evidence.
+expected 2-3 Medium Strength Attacks. Add future presets for Soldier group
+pressure and Elite duel core before using results as stronger balance evidence.
 
 Mental Wailer remains a specific Soldier red flag if it beats a PC heavily in
 1v1. That does not mean all Soldiers should be tuned to win 1v1; it means the
@@ -407,9 +412,24 @@ Live-authored balance testing must report campaign provenance. The official
 balance campaign is Balance Environment
 (250aee5e-632f-405c-ba36-a49ed12a5afc). Future scripts and reports that use
 live-authored Characters, Monsters, Forge Items, or encounters should include
-campaignId, campaignName, and assetSource. If a runner cannot yet scope to that
-campaignId, report that as unsupported/unscoped in provenance instead of
-silently using default/global data.
+campaignId, campaignName, assetSource, exact runtime/adapter path, repo commit,
+dirty/clean status, exact command, and run count/seed where applicable.
+
+Balance Environment is the authored data scope, not the simulator. Official
+balance conclusions require runtime evidence using Balance Environment-authored
+assets. Combat Lab/runtime is the rules-resolution path. If a report bypasses
+runtime resolution, uses synthetic fixtures, or strips/approximates material
+mechanics, label the result diagnostic only.
+
+Adapter coverage must be explicit for powers, Forge items, Summoning Circle
+outputs, passives, control effects, conditions, reactions, resources, riders,
+transformations, special targeting, and action-economy changes. If any relevant
+mechanic is unsupported, ignored, approximated, or stripped by the loader or
+runtime, say so in provenance and do not promote that scope to official balance
+evidence.
+
+If a runner cannot yet scope to that campaignId, report that as
+unsupported/unscoped in provenance instead of silently using default/global data.
 
 scripts/combatLab.scenarioMatrix.ts has a balance-environment-core preset for
 campaign-scoped smoke testing. It currently supports one selected campaign

@@ -30,8 +30,10 @@ Evidence Ladder
    as defensive pool creation, commit, spend, waste, expiry, wrong-lane
    rejection, and lifecycle.
 
-3. Real authored actor scenarios.
-   Real authored scenarios are primary table-truth balance evidence.
+3. Runtime-resolved authored actor scenarios.
+   Real authored Balance Environment assets are primary table-truth balance
+   evidence only when they are loaded through the appropriate live adapter and
+   resolved by actual Combat Lab/runtime mechanics.
 
 4. Manual Combat Lab/browser inspection.
    Required for major milestone confidence, UI/report readability, table-feel,
@@ -47,6 +49,43 @@ Evidence Ladder
    checks have already caught obvious defects.
 
 Synthetic canaries are guardrails/diagnostics, not table-truth balance evidence.
+Spreadsheet estimates, simplified probes, and non-runtime calculations are also
+diagnostic only unless a report explicitly routes the relevant authored assets
+through runtime resolution.
+
+
+Runtime-Resolved Evidence Rule
+
+All official balancing must be runtime-resolved.
+
+Balance Environment is not the simulator. It is the authored test-data scope.
+Combat Lab / combat runtime is the rules-resolution system.
+
+Correct phrasing is "runtime evidence using Balance Environment-authored
+assets." Avoid phrasing that implies Balance Environment data alone is official
+evidence.
+
+Official balance evidence requires:
+
+- assetSource: balance-campaign-authored
+- campaignName and campaignId
+- actual runtime resolution
+- adapter/live-loader path identified
+- repo commit SHA
+- dirty/clean status
+- exact command
+- run count and seed where applicable
+- supported mechanics listed or clearly implied
+- unsupported/ignored mechanics explicitly listed
+- simplifications clearly labelled
+
+If a report bypasses Combat Lab/runtime resolution, it is diagnostic only. If a
+Balance Environment asset includes powers, Forge items, Summoning Circle
+outputs, passives, control effects, conditions, reactions, resource rules,
+riders, transformations, special targeting, or action-economy changes, the
+report must state whether those mechanics are supported by the adapter/runtime
+path. Ignored, approximated, unsupported, or stripped mechanics downgrade the
+result to diagnostic evidence for that scope.
 
 
 Codex Usage Preservation Policy
@@ -95,14 +134,15 @@ scenario assets must come from this campaign unless the Architect explicitly
 instructs otherwise.
 
 Reports using live-authored balance assets must include campaignId,
-campaignName, and assetSource in provenance.
+campaignName, assetSource, runtime path, and adapter coverage in provenance.
 
 Asset source labels:
 
 - synthetic-in-memory: campaignless smoke/canary fixtures created directly in
   code for deterministic or diagnostic checks.
 - balance-campaign-authored: live-authored assets proven to be scoped to the
-  Balance Environment campaign.
+  Balance Environment campaign. This label is necessary but not sufficient for
+  official evidence; the report must also prove runtime resolution.
 - temporary-override: explicitly permitted temporary in-memory override or
   variant.
 - unscoped-live-adapter: live adapter / database-backed asset loading that is
@@ -110,8 +150,9 @@ Asset source labels:
 
 Do not use assets from other campaigns as authoritative balance evidence unless
 explicitly instructed. If a script or runner cannot currently scope to the
-Balance Environment campaignId, its provenance must say so clearly instead of
-silently treating unscoped/default data as authoritative.
+Balance Environment campaignId or cannot resolve relevant mechanics through the
+runtime adapter, its provenance must say so clearly instead of silently treating
+unscoped/default data as authoritative.
 
 
 Formula Architecture Balance Testing Gate
@@ -146,10 +187,46 @@ durability lens for monster tiers. A single actor turn may include both a
 weapon/natural attack and a Power attack, so attacks-to-defeat is not the same
 as turns-to-defeat or rounds-to-defeat.
 
+Monster tier durability bands are calibrated against an Average Medium Strength
+Attack. Low and High attack profiles are diagnostic range checks, not the
+primary PASS / LOW / HIGH ruler. A high attack specialist beating a tier band
+faster than Medium is expected in some matchups; a low attack character missing
+the band slower is also expected in some matchups. Combat Lab reports should
+distinguish attacks from turns wherever possible and state any one-attack-per-turn
+assumption.
+
+Official attacks-to-defeat / attacks-to-kill evidence must use real authored
+Balance Environment characters and monsters with assetSource
+balance-campaign-authored and actual Combat Lab/runtime resolution. Synthetic
+fixtures may still be used as diagnostics, but they are not official tier-band
+evidence unless a report explicitly marks them as diagnostic-only.
+
+The V0 Balance Environment ATK ruler assets are:
+
+- BALANCE_ATK_Medium_Attacker: official Medium Strength Attack probe.
+- BALANCE_ATK_Minion_Target: clean Minion durability target.
+- BALANCE_ATK_Soldier_Target: clean Soldier durability target.
+- BALANCE_ATK_Elite_Target: clean Elite durability target.
+- BALANCE_ATK_Boss_Target: clean Boss durability target.
+
+These assets are calibration rulers, not final encounter/archetype monsters.
+They are acceptable official calibration rulers only when loaded from the
+Balance Environment campaign through the live adapter/runtime path.
+Existing role assets such as Arcane Sage, Mental Wailer, or Durable Soldier may
+be useful comparators, but they must not replace the official Medium probe or
+clean ATK targets for PASS / LOW / HIGH tier-band judgement.
+
+Medium Strength Attack durability bands:
+
+- Minion: 1-2 Medium Strength Attacks.
+- Soldier: 2-3 Medium Strength Attacks.
+- Elite: 4-6 Medium Strength Attacks.
+- Boss/Legendary: 16+ Medium Strength Attacks.
+
 Soldier 1v1 scenarios are solo-lane diagnostics. They should ask whether the
-Soldier expresses its role and survives around the expected 2-3 attacks/powers,
-not whether it beats a PC in a fair duel. Do not tune Soldiers to 1v1 Elite
-standards.
+Soldier expresses its role and survives around the expected 2-3 Medium Strength
+Attacks, not whether it beats a PC in a fair duel. Do not tune Soldiers to 1v1
+Elite standards.
 
 Soldier group-pressure scenarios are required for real Soldier encounter
 calibration. 1 PC should roughly equal 2-3 Soldiers, so Soldier balance evidence
@@ -161,13 +238,13 @@ vs Elite duel should usually land around 55-65% PC win rate, because 1 Elite ~=
 
 Boss/Legendary scenarios are party-scale tests. Boss/Legendary durability
 should be judged by total meaningful offensive actions absorbed, not simply by
-combat rounds. Bosses/Legendaries should usually require 16+ attacks/powers or
-equivalent pressure and survive multiple brutal injury phases or equivalent
-pressure before defeat.
+combat rounds. Bosses/Legendaries should usually require 16+ Medium Strength
+Attacks or equivalent pressure and survive multiple brutal injury phases or
+equivalent pressure before defeat.
 
 Current win-rate results must not be overinterpreted without tier context and
 action-economy context. A Soldier dying in 1-2 turns can still be plausible if
-the PC delivered 2-3 meaningful attacks/powers through same-turn burst. A
+the PC delivered 2-3 Medium Strength Attacks through same-turn burst. A
 Boss/Legendary falling quickly in rounds may still be plausible if a party
 concentrated many meaningful offensive actions.
 
