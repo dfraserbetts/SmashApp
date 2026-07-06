@@ -194,6 +194,7 @@ type AtkPayload = {
   bandSources: string[];
   actionDefinitionSources: string[];
   officialVerdictUses: string;
+  officialRoleComparisonRuler?: string;
   dualChannelSummaries?: DualChannelSummary[];
   discovery?: RealAssetDiscovery;
   probeProfiles?: ProbeProfile[];
@@ -216,6 +217,7 @@ const ACTION_DEFINITION_REFS = [
 const BALANCE_ENVIRONMENT_CAMPAIGN_ID = "250aee5e-632f-405c-ba36-a49ed12a5afc";
 const BALANCE_ENVIRONMENT_CAMPAIGN_NAME = "Balance Environment";
 const ATK_MEDIUM_ATTACKER_NAME = "BALANCE_ATK_Medium_Attacker";
+const ATK_ROLE_COMPARISON_RULER_NAME = "BALANCE_ATK_L3_AttackString_4D8_W2";
 const ATK_TARGET_NAMES: Record<TierName, string> = {
   MINION: "BALANCE_ATK_Minion_Target",
   SOLDIER: "BALANCE_ATK_Soldier_Target",
@@ -867,6 +869,16 @@ function officialMediumAttackers(discovery: RealAssetDiscovery): { physical: Rea
   };
 }
 
+function officialRoleComparisonRulers(discovery: RealAssetDiscovery): { physical: RealAssetProfile | null; mental: RealAssetProfile | null } {
+  const candidates = discovery.attackers.filter(
+    (attacker) => attacker.calibrationAsset && attacker.actor.name === ATK_ROLE_COMPARISON_RULER_NAME,
+  );
+  return {
+    physical: candidates.find((attacker) => attacker.selectedAction.pool === "physical") ?? null,
+    mental: candidates.find((attacker) => attacker.selectedAction.pool === "mental") ?? null,
+  };
+}
+
 function markSelectedAttackers(attackers: RealAssetProfile[]): RealAssetDiscovery["selectedAttackers"] {
   if (attackers.length === 0) return { low: null, medium: null, high: null };
   const calibrationMedium = attackers.find((attacker) => attacker.calibrationAsset && attacker.classification === "medium");
@@ -1002,7 +1014,24 @@ async function discoverRealAssets(): Promise<RealAssetDiscovery> {
         forceScope: "official",
       }),
     );
-  const attackers = [...characterAttackers, ...calibrationMediumAttackers];
+  const roleComparisonRulerAttackers = adaptedMonsters
+    .filter((entry) => entry.adapted.actor.name === ATK_ROLE_COMPARISON_RULER_NAME)
+    .flatMap((entry) =>
+      collectAttackerProfiles({
+        actor: {
+          ...entry.adapted.actor,
+          side: "players",
+          role: "ATK Role Comparison Ruler",
+          actionsPerTurn: 1,
+        },
+        warnings: entry.warnings,
+        assetType: "monster",
+        calibrationAsset: true,
+        forceClassification: "medium",
+        forceScope: "official",
+      }),
+    );
+  const attackers = [...characterAttackers, ...calibrationMediumAttackers, ...roleComparisonRulerAttackers];
   const selectedAttackers = markSelectedAttackers(attackers);
 
   const allTargets = adaptedMonsters.flatMap((entry) => {
@@ -1036,6 +1065,12 @@ async function discoverRealAssets(): Promise<RealAssetDiscovery> {
   };
   if (!officialMedium.physical) warnings.push(`No physical Medium action was found on ${ATK_MEDIUM_ATTACKER_NAME}.`);
   if (!officialMedium.mental) warnings.push(`No mental Medium action was found on ${ATK_MEDIUM_ATTACKER_NAME}.`);
+  const roleRulers = {
+    physical: roleComparisonRulerAttackers.find((attacker) => attacker.selectedAction.pool === "physical") ?? null,
+    mental: roleComparisonRulerAttackers.find((attacker) => attacker.selectedAction.pool === "mental") ?? null,
+  };
+  if (!roleRulers.physical) warnings.push(`No physical role comparison ruler action was found on ${ATK_ROLE_COMPARISON_RULER_NAME}.`);
+  if (!roleRulers.mental) warnings.push(`No mental role comparison ruler action was found on ${ATK_ROLE_COMPARISON_RULER_NAME}.`);
   if (!selectedAttackers.medium) warnings.push("No official Medium attacker candidate could be selected.");
   for (const tier of missingTargetTiers) warnings.push(`No ${ATK_TARGET_NAMES[tier]} calibration target was found.`);
 
@@ -1093,7 +1128,7 @@ async function buildBalanceEnvironmentPayload(options: CliOptions): Promise<AtkP
 
 async function buildRoleAssetComparisonPayload(options: CliOptions): Promise<AtkPayload> {
   const discovery = await discoverRealAssets();
-  const mediumAttackers = officialMediumAttackers(discovery);
+  const mediumAttackers = officialRoleComparisonRulers(discovery);
   const rows: ReportRow[] = [];
   for (const medium of [mediumAttackers.physical, mediumAttackers.mental]) {
     if (!medium) continue;
@@ -1125,7 +1160,8 @@ async function buildRoleAssetComparisonPayload(options: CliOptions): Promise<Atk
     exactCommand: exactCommand(),
     bandSources: BAND_SOURCE_REFS,
     actionDefinitionSources: ACTION_DEFINITION_REFS,
-    officialVerdictUses: `${ATK_MEDIUM_ATTACKER_NAME} physical and mental Medium rulers only; authored role assets are targets, Low/High attackers remain diagnostics in discovery`,
+    officialVerdictUses: `Official role comparison ruler: ${ATK_ROLE_COMPARISON_RULER_NAME}; physical and mental channels only; authored role assets are targets, Low/High attackers remain diagnostics in discovery`,
+    officialRoleComparisonRuler: ATK_ROLE_COMPARISON_RULER_NAME,
     discovery,
     dualChannelSummaries: summarizeDualChannelRows(rows),
     rows,
@@ -1348,6 +1384,9 @@ function printHumanPayload(payload: AtkPayload) {
   console.log(`Seed: ${payload.seed}`);
   console.log(`Band sources: ${payload.bandSources.join("; ")}`);
   console.log(`Action definition sources: ${payload.actionDefinitionSources.join("; ")}`);
+  if (payload.officialRoleComparisonRuler) {
+    console.log(`Official role comparison ruler: ${payload.officialRoleComparisonRuler}`);
+  }
   console.log(`Official verdict uses: ${payload.officialVerdictUses}`);
   console.log("");
   if (payload.discovery) {
