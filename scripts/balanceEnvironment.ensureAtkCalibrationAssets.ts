@@ -68,14 +68,17 @@ function loadLocalEnv() {
   }
 }
 
-function mediumMentalAttackConfig(): Prisma.InputJsonObject {
+function mediumDualChannelAttackConfig(): Prisma.InputJsonObject {
   return {
     melee: {
       enabled: true,
       targets: 1,
-      physicalStrength: 0,
+      physicalStrength: 1,
       mentalStrength: 1,
-      damageTypes: [{ name: "Psychic", mode: "MENTAL" }],
+      damageTypes: [
+        { name: "Strike", mode: "PHYSICAL" },
+        { name: "Psychic", mode: "MENTAL" },
+      ],
       attackEffects: [],
     },
   };
@@ -85,7 +88,7 @@ function customNotes(role: string) {
   return [
     "BALANCE_STATUS: ATK calibration asset",
     "BALANCE_SOURCE: Balance Environment ATK calibration",
-    "BALANCE_PHASE: BAL-ATK-005",
+    "BALANCE_PHASE: BAL-ATK-009",
     `BALANCE_ROLE: ${role}`,
     "BALANCE_NOTES: Clean ruler asset for attacks-to-kill calibration, not a final authored encounter asset.",
   ].join("\n");
@@ -96,7 +99,7 @@ const SPECS: CalibrationMonsterSpec[] = [
     name: "BALANCE_ATK_Medium_Attacker",
     tier: "MINION",
     legendary: false,
-    role: "Official Medium Strength Attack V0 probe: 3 x D8, 2 wounds per success, one attack per turn.",
+    role: "Official Medium Strength Attack V0 dual-channel probe: physical and mental 3 x D8, 2 wounds per success, one attack per turn.",
     physicalHp: 999,
     mentalHp: 999,
     attackDie: "D8",
@@ -109,7 +112,7 @@ const SPECS: CalibrationMonsterSpec[] = [
     armorSkillValue: 1,
     naturalAttack: {
       attackName: "Medium Strength Attack V0",
-      attackConfig: mediumMentalAttackConfig(),
+      attackConfig: mediumDualChannelAttackConfig(),
     },
   },
   {
@@ -117,7 +120,7 @@ const SPECS: CalibrationMonsterSpec[] = [
     tier: "MINION",
     legendary: false,
     role: "Clean Minion target for 1-2 Medium Strength Attacks.",
-    physicalHp: 999,
+    physicalHp: 6,
     mentalHp: 6,
     attackDie: "D4",
     guardDie: "D4",
@@ -134,7 +137,7 @@ const SPECS: CalibrationMonsterSpec[] = [
     tier: "SOLDIER",
     legendary: false,
     role: "Clean Soldier target for 2-3 Medium Strength Attacks.",
-    physicalHp: 999,
+    physicalHp: 10,
     mentalHp: 10,
     attackDie: "D4",
     guardDie: "D4",
@@ -151,7 +154,7 @@ const SPECS: CalibrationMonsterSpec[] = [
     tier: "ELITE",
     legendary: false,
     role: "Clean Elite target for 4-6 Medium Strength Attacks.",
-    physicalHp: 999,
+    physicalHp: 20,
     mentalHp: 20,
     attackDie: "D4",
     guardDie: "D4",
@@ -168,7 +171,7 @@ const SPECS: CalibrationMonsterSpec[] = [
     tier: "BOSS",
     legendary: false,
     role: "Clean Boss target for 16+ Medium Strength Attacks.",
-    physicalHp: 999,
+    physicalHp: 64,
     mentalHp: 64,
     attackDie: "D4",
     guardDie: "D4",

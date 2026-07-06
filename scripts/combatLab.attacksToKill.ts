@@ -43,12 +43,14 @@ type CliOptions = {
   seed: number;
   json: boolean;
   balanceEnvironment: boolean;
+  compareRoleAssets: boolean;
   includeSyntheticDiagnostics: boolean;
 };
 
 type ReportRow = {
   tier: TierName;
   band: string;
+  attackChannel: "physical" | "mental";
   attackerProfile: string;
   profileScope: ProbeProfile["scope"];
   probeDefinition: string;
@@ -62,6 +64,8 @@ type ReportRow = {
   targetAssetId: string | null;
   targetAssetName: string | null;
   targetOffenseDisabled: boolean;
+  targetTierSource: string;
+  adapterRuntimeWarnings: string[];
   verdict: Verdict;
   defeatedSampleCount: number;
   censoredSampleCount: number;
@@ -77,6 +81,25 @@ type ReportRow = {
   playerWinRate: number;
   stalemateRate: number;
   sourceDamageShare: CombatSuiteReport["defeatMetrics"]["monsterDefeated"]["sourceDamageShare"];
+};
+
+type DualChannelSummary = {
+  targetAssetName: string;
+  tier: TierName;
+  band: string;
+  physicalAvg: number | null;
+  physicalMedian: number | null;
+  physicalVerdict: Verdict | null;
+  physicalCensored: number | null;
+  mentalAvg: number | null;
+  mentalMedian: number | null;
+  mentalVerdict: Verdict | null;
+  mentalCensored: number | null;
+  betterChannel: "physical" | "mental" | null;
+  betterAvg: number | null;
+  worseChannel: "physical" | "mental" | null;
+  worseAvg: number | null;
+  summaryClassification: "PASS" | "HIGH_BOTH" | "LOW_BOTH" | "SPLIT_PROFILE" | "UNCLEAR";
 };
 
 type ProfileMath = {
@@ -144,6 +167,8 @@ type RealAssetDiscovery = {
     high: RealAssetProfile | null;
   };
   targets: RealTargetAsset[];
+  calibrationTargets: RealTargetAsset[];
+  roleTargets: RealTargetAsset[];
   missingTargetTiers: TierName[];
   warnings: string[];
   activeTuning: {
@@ -154,7 +179,7 @@ type RealAssetDiscovery = {
 
 type AtkPayload = {
   report: string;
-  mode: "balance-environment" | "synthetic-diagnostics";
+  mode: "balance-environment" | "role-asset-comparison" | "synthetic-diagnostics";
   campaignId: string | null;
   campaignName: string | null;
   assetSource: AssetSource;
@@ -169,6 +194,7 @@ type AtkPayload = {
   bandSources: string[];
   actionDefinitionSources: string[];
   officialVerdictUses: string;
+  dualChannelSummaries?: DualChannelSummary[];
   discovery?: RealAssetDiscovery;
   probeProfiles?: ProbeProfile[];
   probeProfileMath?: ProfileMath[];
@@ -264,6 +290,7 @@ function parseArgs(argv: string[]): CliOptions {
     seed: 4242,
     json: false,
     balanceEnvironment: true,
+    compareRoleAssets: false,
     includeSyntheticDiagnostics: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -273,6 +300,11 @@ function parseArgs(argv: string[]): CliOptions {
       continue;
     }
     if (arg === "--balance-environment") {
+      options.balanceEnvironment = true;
+      continue;
+    }
+    if (arg === "--compare-role-assets") {
+      options.compareRoleAssets = true;
       options.balanceEnvironment = true;
       continue;
     }
@@ -601,6 +633,9 @@ function rowFor(params: {
   targetAssetId?: string | null;
   targetAssetName?: string | null;
   targetOffenseDisabled: boolean;
+  attackChannel?: "physical" | "mental";
+  targetTierSource?: string;
+  adapterRuntimeWarnings?: string[];
 }): ReportRow {
   const metrics = params.report.defeatMetrics.monsterDefeated;
   const avgMeaningful = metrics.avgMeaningfulActionsToDefeat;
@@ -614,6 +649,7 @@ function rowFor(params: {
   return {
     tier: params.band.tier,
     band: params.band.label,
+    attackChannel: params.attackChannel ?? (params.damagePool === "mental" ? "mental" : "physical"),
     attackerProfile: params.attackerProfile,
     profileScope: params.profileScope,
     probeDefinition: params.probeDefinition,
@@ -627,6 +663,8 @@ function rowFor(params: {
     targetAssetId: params.targetAssetId ?? null,
     targetAssetName: params.targetAssetName ?? null,
     targetOffenseDisabled: params.targetOffenseDisabled,
+    targetTierSource: params.targetTierSource ?? "explicit runtime actor tier",
+    adapterRuntimeWarnings: params.adapterRuntimeWarnings ?? [],
     verdict: verdictFor(avgMeaningful, params.band, metrics.sampleCount, censoredSampleCount),
     defeatedSampleCount: metrics.sampleCount,
     censoredSampleCount,
@@ -651,6 +689,94 @@ function rowFor(params: {
     stalemateRate: round(params.report.stalemateRate, 4) ?? 0,
     sourceDamageShare: metrics.sourceDamageShare,
   };
+}
+
+function rowForOfficialMedium(params: {
+  discovery: RealAssetDiscovery;
+  medium: RealAssetProfile;
+  target: RealTargetAsset;
+  options: CliOptions;
+}): ReportRow {
+  const band = tierBand(params.target.tier);
+  const report = runScenarioSuite(officialScenario(params.medium, params.target, params.options));
+  const channel = params.medium.selectedAction.pool === "mental" ? "mental" : "physical";
+  return rowFor({
+    band,
+    report,
+    assetSource: "balance-campaign-authored",
+    campaignId: params.discovery.campaignId,
+    campaignName: params.discovery.campaignName,
+    attackerProfile: params.medium.name,
+    profileScope: "official",
+    probeDefinition: `Official ${channel} Medium ruler: ${params.medium.actor.name}, ${params.medium.selectedAction.sourceType}, ${params.medium.selectedAction.diceCount} dice, potency ${params.medium.selectedAction.potency}.`,
+    expectedWoundsPerAttack: params.medium.expectedWoundsPerAttack,
+    targetActor: params.target.actor,
+    damagePool: params.medium.selectedAction.pool,
+    attackerAssetId: params.medium.actor.id,
+    attackerAssetName: params.medium.actor.name,
+    attackerActionId: params.medium.selectedAction.id,
+    attackerActionName: params.medium.selectedAction.name,
+    targetAssetId: params.target.id,
+    targetAssetName: params.target.name,
+    targetOffenseDisabled: true,
+    attackChannel: channel,
+    targetTierSource: "explicit Summoning Circle monster tier field",
+    adapterRuntimeWarnings: [...params.medium.warnings, ...params.target.warnings],
+  });
+}
+
+function summaryClassification(physical: ReportRow | undefined, mental: ReportRow | undefined): DualChannelSummary["summaryClassification"] {
+  if (!physical || !mental) return "UNCLEAR";
+  if (physical.censoredSampleCount > 0 || mental.censoredSampleCount > 0) return "UNCLEAR";
+  const values = [physical.avgMeaningfulAttacksToDefeat, mental.avgMeaningfulAttacksToDefeat];
+  if (values.some((value) => value === null)) return "UNCLEAR";
+  const band = tierBand(physical.tier);
+  const numeric = values as [number, number];
+  const inBand = numeric.some((value) => value >= band.min && (band.max === null || value <= band.max));
+  if (inBand) return "PASS";
+  const max = band.max;
+  const bothHigh = max !== null && numeric.every((value) => value > max);
+  if (bothHigh) return "HIGH_BOTH";
+  if (numeric.every((value) => value < band.min)) return "LOW_BOTH";
+  return "SPLIT_PROFILE";
+}
+
+function summarizeDualChannelRows(rows: ReportRow[]): DualChannelSummary[] {
+  const byTarget = new Map<string, ReportRow[]>();
+  for (const row of rows) {
+    const key = row.targetAssetId ?? row.targetAssetName ?? `${row.tier}:${row.band}`;
+    byTarget.set(key, [...(byTarget.get(key) ?? []), row]);
+  }
+  return Array.from(byTarget.values()).map((targetRows) => {
+    const physical = targetRows.find((row) => row.attackChannel === "physical");
+    const mental = targetRows.find((row) => row.attackChannel === "mental");
+    const comparable = [physical, mental].filter((row): row is ReportRow => row !== undefined && row.avgMeaningfulAttacksToDefeat !== null);
+    const sorted = comparable.sort((left, right) =>
+      (left.avgMeaningfulAttacksToDefeat ?? Number.POSITIVE_INFINITY) -
+      (right.avgMeaningfulAttacksToDefeat ?? Number.POSITIVE_INFINITY),
+    );
+    const better = sorted[0];
+    const worse = sorted[sorted.length - 1];
+    const first = targetRows[0];
+    return {
+      targetAssetName: first?.targetAssetName ?? "unknown target",
+      tier: first?.tier ?? "SOLDIER",
+      band: first?.band ?? "unknown band",
+      physicalAvg: physical?.avgMeaningfulAttacksToDefeat ?? null,
+      physicalMedian: physical?.medianMeaningfulAttacksToDefeat ?? null,
+      physicalVerdict: physical?.verdict ?? null,
+      physicalCensored: physical?.censoredSampleCount ?? null,
+      mentalAvg: mental?.avgMeaningfulAttacksToDefeat ?? null,
+      mentalMedian: mental?.medianMeaningfulAttacksToDefeat ?? null,
+      mentalVerdict: mental?.verdict ?? null,
+      mentalCensored: mental?.censoredSampleCount ?? null,
+      betterChannel: better?.attackChannel ?? null,
+      betterAvg: better?.avgMeaningfulAttacksToDefeat ?? null,
+      worseChannel: worse?.attackChannel ?? null,
+      worseAvg: worse?.avgMeaningfulAttacksToDefeat ?? null,
+      summaryClassification: summaryClassification(physical, mental),
+    };
+  });
 }
 
 async function loadActiveTuning() {
@@ -729,6 +855,16 @@ function collectAttackerProfiles(params: {
         calibrationAsset: Boolean(params.calibrationAsset),
       };
     });
+}
+
+function officialMediumAttackers(discovery: RealAssetDiscovery): { physical: RealAssetProfile | null; mental: RealAssetProfile | null } {
+  const candidates = discovery.attackers.filter(
+    (attacker) => attacker.calibrationAsset && attacker.actor.name === ATK_MEDIUM_ATTACKER_NAME,
+  );
+  return {
+    physical: candidates.find((attacker) => attacker.selectedAction.pool === "physical") ?? null,
+    mental: candidates.find((attacker) => attacker.selectedAction.pool === "mental") ?? null,
+  };
 }
 
 function markSelectedAttackers(attackers: RealAssetProfile[]): RealAssetDiscovery["selectedAttackers"] {
@@ -887,12 +1023,19 @@ async function discoverRealAssets(): Promise<RealAssetDiscovery> {
     }];
   });
   const calibrationTargets = allTargets.filter((target) => target.calibrationAsset);
+  const roleTargets = allTargets.filter((target) => !target.name.startsWith("BALANCE_ATK_"));
   const targets = calibrationTargets.length > 0 ? calibrationTargets : allTargets;
   const missingTargetTiers = TIER_BANDS
     .map((band) => band.tier)
     .filter((tier) => !targets.some((target) => target.tier === tier && target.name === ATK_TARGET_NAMES[tier]));
   if (characterAttackers.length === 0) warnings.push("No non-fallback supported Balance Environment character attack actions were found.");
   if (calibrationMediumAttackers.length === 0) warnings.push(`No ${ATK_MEDIUM_ATTACKER_NAME} calibration attacker action was found.`);
+  const officialMedium = {
+    physical: calibrationMediumAttackers.find((attacker) => attacker.selectedAction.pool === "physical") ?? null,
+    mental: calibrationMediumAttackers.find((attacker) => attacker.selectedAction.pool === "mental") ?? null,
+  };
+  if (!officialMedium.physical) warnings.push(`No physical Medium action was found on ${ATK_MEDIUM_ATTACKER_NAME}.`);
+  if (!officialMedium.mental) warnings.push(`No mental Medium action was found on ${ATK_MEDIUM_ATTACKER_NAME}.`);
   if (!selectedAttackers.medium) warnings.push("No official Medium attacker candidate could be selected.");
   for (const tier of missingTargetTiers) warnings.push(`No ${ATK_TARGET_NAMES[tier]} calibration target was found.`);
 
@@ -902,6 +1045,8 @@ async function discoverRealAssets(): Promise<RealAssetDiscovery> {
     attackers,
     selectedAttackers,
     targets,
+    calibrationTargets,
+    roleTargets,
     missingTargetTiers,
     warnings,
     activeTuning: tuning.activeTuning,
@@ -910,31 +1055,16 @@ async function discoverRealAssets(): Promise<RealAssetDiscovery> {
 
 async function buildBalanceEnvironmentPayload(options: CliOptions): Promise<AtkPayload> {
   const discovery = await discoverRealAssets();
-  const medium = discovery.selectedAttackers.medium;
+  const mediumAttackers = officialMediumAttackers(discovery);
   const rows: ReportRow[] = [];
-  if (medium) {
+  for (const medium of [mediumAttackers.physical, mediumAttackers.mental]) {
+    if (!medium) continue;
     for (const target of discovery.targets) {
-      const band = tierBand(target.tier);
-      const report = runScenarioSuite(officialScenario(medium, target, options));
-      rows.push(rowFor({
-        band,
-        report,
-        assetSource: "balance-campaign-authored",
-        campaignId: discovery.campaignId,
-        campaignName: discovery.campaignName,
-        attackerProfile: medium.name,
-        profileScope: "official",
-        probeDefinition: `Real Balance Environment action: ${medium.selectedAction.sourceType}, ${medium.selectedAction.diceCount} dice, potency ${medium.selectedAction.potency}.`,
-        expectedWoundsPerAttack: medium.expectedWoundsPerAttack,
-        targetActor: target.actor,
-        damagePool: medium.selectedAction.pool,
-        attackerAssetId: medium.actor.id,
-        attackerAssetName: medium.actor.name,
-        attackerActionId: medium.selectedAction.id,
-        attackerActionName: medium.selectedAction.name,
-        targetAssetId: target.id,
-        targetAssetName: target.name,
-        targetOffenseDisabled: true,
+      rows.push(rowForOfficialMedium({
+        discovery,
+        medium,
+        target,
+        options,
       }));
     }
   }
@@ -954,8 +1084,50 @@ async function buildBalanceEnvironmentPayload(options: CliOptions): Promise<AtkP
     exactCommand: exactCommand(),
     bandSources: BAND_SOURCE_REFS,
     actionDefinitionSources: ACTION_DEFINITION_REFS,
-    officialVerdictUses: "selected real Balance Environment Medium attacker candidate only; Low/High are candidate diagnostics",
+    officialVerdictUses: `${ATK_MEDIUM_ATTACKER_NAME} physical and mental Medium rulers; Low/High are candidate diagnostics`,
     discovery,
+    dualChannelSummaries: summarizeDualChannelRows(rows),
+    rows,
+  };
+}
+
+async function buildRoleAssetComparisonPayload(options: CliOptions): Promise<AtkPayload> {
+  const discovery = await discoverRealAssets();
+  const mediumAttackers = officialMediumAttackers(discovery);
+  const rows: ReportRow[] = [];
+  for (const medium of [mediumAttackers.physical, mediumAttackers.mental]) {
+    if (!medium) continue;
+    for (const target of discovery.roleTargets) {
+      rows.push(rowForOfficialMedium({
+        discovery,
+        medium,
+        target,
+        options,
+      }));
+    }
+  }
+  if (discovery.roleTargets.length === 0) {
+    discovery.warnings.push("No non-BALANCE_ATK_* Balance Environment monster role targets were found for comparison.");
+  }
+  return {
+    report: "Combat Lab Role-Asset Attacks-to-Defeat Comparison",
+    mode: "role-asset-comparison",
+    campaignId: discovery.campaignId,
+    campaignName: discovery.campaignName,
+    assetSource: "balance-campaign-authored",
+    mutation: "none",
+    databaseAccess: "read-only",
+    seeders: "none",
+    runsPerScenario: options.runs,
+    seed: options.seed,
+    repoHead: runGit(["rev-parse", "HEAD"]),
+    gitStatus: runGit(["status", "--short"]),
+    exactCommand: exactCommand(),
+    bandSources: BAND_SOURCE_REFS,
+    actionDefinitionSources: ACTION_DEFINITION_REFS,
+    officialVerdictUses: `${ATK_MEDIUM_ATTACKER_NAME} physical and mental Medium rulers only; authored role assets are targets, Low/High attackers remain diagnostics in discovery`,
+    discovery,
+    dualChannelSummaries: summarizeDualChannelRows(rows),
     rows,
   };
 }
@@ -1033,6 +1205,19 @@ function printRealDiscovery(discovery: RealAssetDiscovery) {
       `${anatomy.mentalDefenceDice} x ${anatomy.mentalBlockPerSuccess}, defeat model ${anatomy.defeatModel}.`,
     );
   }
+  if (discovery.roleTargets.length > 0) {
+    console.log("Role target candidates:");
+    for (const target of discovery.roleTargets) {
+      const anatomy = targetAnatomyFromActor(target.actor);
+      console.log(
+        `- ${target.name}: ${target.tier}, L${target.level}, physical HP ${anatomy.physicalHp}, ` +
+        `mental HP ${anatomy.mentalHp}, physical protection ${anatomy.physicalProtection}, ` +
+        `mental protection ${anatomy.mentalProtection}, dodge dice ${anatomy.dodgeDice}, physical defence ` +
+        `${anatomy.physicalDefenceDice} x ${anatomy.physicalBlockPerSuccess}, mental defence ` +
+        `${anatomy.mentalDefenceDice} x ${anatomy.mentalBlockPerSuccess}, defeat model ${anatomy.defeatModel}.`,
+      );
+    }
+  }
   if (discovery.warnings.length > 0) {
     console.log("Discovery warnings:");
     for (const warning of discovery.warnings) console.log(`- ${warning}`);
@@ -1043,6 +1228,7 @@ function printRows(rows: ReportRow[]) {
   console.log([
     "Tier".padEnd(8),
     "Band".padEnd(31),
+    "Channel".padEnd(8),
     "Attacker".padEnd(44),
     "Target".padEnd(34),
     "Scope".padEnd(10),
@@ -1060,6 +1246,7 @@ function printRows(rows: ReportRow[]) {
     console.log([
       row.tier.padEnd(8),
       row.band.padEnd(31),
+      row.attackChannel.padEnd(8),
       row.attackerProfile.slice(0, 44).padEnd(44),
       (row.targetAssetName ?? "synthetic target").slice(0, 34).padEnd(34),
       row.profileScope.padEnd(10),
@@ -1085,6 +1272,66 @@ function printMismatchDiagnostics(rows: ReportRow[]) {
       `${formatNullable(row.avgMeaningfulAttacksToDefeat)}, delta ${formatNullable(row.expectedVsObservedDifference)}, ` +
       `censored ${row.censoredSampleCount}; ${row.likelyExplanation}.`,
     );
+  }
+}
+
+function printAdapterRuntimeWarnings(rows: ReportRow[]) {
+  const warningsByTarget = new Map<string, { label: string; tierSource: string; warnings: Set<string> }>();
+  for (const row of rows) {
+    if (row.adapterRuntimeWarnings.length === 0) continue;
+    const key = row.targetAssetId ?? row.targetAssetName ?? `${row.tier}:${row.band}`;
+    const entry = warningsByTarget.get(key) ?? {
+      label: row.targetAssetName ?? "synthetic target",
+      tierSource: row.targetTierSource,
+      warnings: new Set<string>(),
+    };
+    for (const warning of row.adapterRuntimeWarnings) entry.warnings.add(warning);
+    warningsByTarget.set(key, entry);
+  }
+  if (warningsByTarget.size === 0) {
+    console.log("Adapter/runtime warnings: none reported for compared rows.");
+    return;
+  }
+  console.log("Adapter/runtime warnings:");
+  for (const entry of warningsByTarget.values()) {
+    console.log(`- ${entry.label} (${entry.tierSource}):`);
+    for (const warning of entry.warnings) console.log(`  - ${warning}`);
+  }
+}
+
+function printDualChannelSummaries(summaries: DualChannelSummary[] | undefined) {
+  if (!summaries || summaries.length === 0) return;
+  console.log("Dual-Channel Summary:");
+  console.log([
+    "Target".padEnd(34),
+    "Tier".padEnd(8),
+    "Band".padEnd(31),
+    "Phys Avg".padStart(8),
+    "Phys Med".padStart(8),
+    "Phys V".padStart(8),
+    "Ment Avg".padStart(8),
+    "Ment Med".padStart(8),
+    "Ment V".padStart(8),
+    "Better".padStart(12),
+    "Worse".padStart(12),
+    "Summary".padStart(14),
+  ].join(" | "));
+  console.log("-".repeat(190));
+  for (const summary of summaries) {
+    console.log([
+      summary.targetAssetName.slice(0, 34).padEnd(34),
+      summary.tier.padEnd(8),
+      summary.band.padEnd(31),
+      formatNullable(summary.physicalAvg).padStart(8),
+      formatNullable(summary.physicalMedian).padStart(8),
+      (summary.physicalVerdict ?? "n/a").padStart(8),
+      formatNullable(summary.mentalAvg).padStart(8),
+      formatNullable(summary.mentalMedian).padStart(8),
+      (summary.mentalVerdict ?? "n/a").padStart(8),
+      `${summary.betterChannel ?? "n/a"} ${formatNullable(summary.betterAvg)}`.padStart(12),
+      `${summary.worseChannel ?? "n/a"} ${formatNullable(summary.worseAvg)}`.padStart(12),
+      summary.summaryClassification.padStart(14),
+    ].join(" | "));
   }
 }
 
@@ -1118,12 +1365,17 @@ function printHumanPayload(payload: AtkPayload) {
     }
     console.log("");
   }
+  printDualChannelSummaries(payload.dualChannelSummaries);
+  if (payload.dualChannelSummaries && payload.dualChannelSummaries.length > 0) console.log("");
   printRows(payload.rows);
+  console.log("");
+  printAdapterRuntimeWarnings(payload.rows);
   console.log("");
   printMismatchDiagnostics(payload.rows);
   console.log("");
   console.log("Notes:");
   console.log("- Official PASS / LOW / HIGH judgement uses only Balance Environment-authored Medium attacker rows.");
+  console.log("- Channel-specific ATK is official runtime evidence. Global durability interpretation requires reading both physical and mental channels.");
   console.log("- Target offense is disabled so ATK measures attacks-to-defeat rather than duel win rate.");
   console.log("- Low and High candidates/probes are diagnostic range checks only.");
   console.log("- Simple estimates are relevant-channel HP divided by expected wounds/attack before dodge, defence, protection, and censoring.");
@@ -1157,7 +1409,9 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const payloads: AtkPayload[] = [];
   if (options.balanceEnvironment) {
-    payloads.push(await buildBalanceEnvironmentPayload(options));
+    payloads.push(options.compareRoleAssets
+      ? await buildRoleAssetComparisonPayload(options)
+      : await buildBalanceEnvironmentPayload(options));
   }
   if (options.includeSyntheticDiagnostics) {
     payloads.push(buildSyntheticPayload(options));
