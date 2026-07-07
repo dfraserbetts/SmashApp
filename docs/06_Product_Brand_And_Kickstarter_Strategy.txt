@@ -161,6 +161,14 @@ Limit Breaks / over-limit / cinematic push mechanics still need final
 player-facing naming. Preserve the current product thesis: player intent becomes
 playable form. Do not lock final names in this roadmap capture.
 
+Signature Moves need player-facing iconic treatment. The naming and
+presentation pass should make Signature Moves feel like character-defining
+moments in builder labels, previews, print output, handbook language, and
+marketing language where appropriate. If Limit Break / over-limit mechanics
+become Signature-only, that may affect final naming and positioning.
+
+This remains open product/naming backlog, not locked rule law.
+
 
 Studio-Level Language
 
@@ -190,6 +198,8 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Final over-limit mechanic name.
 - Full release naming pass across rules text, toolkit UI, previews, print
   output, handbook terminology, and marketing copy.
+- Signature Move iconic presentation and naming treatment, including any
+  future effect if Limit Break / over-limit becomes Signature-only.
 - Whether "Core Rulebook" appears on the front cover.
 - Final Incarnate logo form.
 - Final cover art structure.

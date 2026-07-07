@@ -99,6 +99,48 @@ Potential shape:
   Director guidance.
 
 
+Signature Move Uniqueness
+
+OPEN / NEEDS ARCHITECT DECISION.
+
+Purpose:
+
+- Ensure the Signature Move feels like the character's iconic move, not merely
+  a normal power with a larger point budget.
+
+Risk:
+
+- If Signature Moves are differentiated only by raw points, players may treat
+  them as optimization slots rather than defining character expressions.
+
+Current early design directions:
+
+1. Signature-only permission.
+   Signature Moves may be allowed to combine effects or reach dramatic shapes
+   normal powers cannot.
+2. Signature-only scaling.
+   Signature Moves may get special upgrade hooks at certain character levels.
+3. Signature-only narrative weight.
+   Signature Moves should be named, previewed, printed, and treated as the
+   character's iconic move.
+4. Signature-only cooldown/friction rules.
+   Signature Moves may hit harder because the system knows they are major
+   moments with special usage friction.
+5. Main-power concentration limits.
+   Normal powers may need limits so they cannot easily become more
+   signature-like than the Signature Move.
+6. Limit Break / over-limit restriction.
+   The Limit Break / over-limit / cinematic push mechanic could potentially be
+   restricted to Signature Moves only, which may be a simple way to make
+   Signature Moves feel unique.
+
+Do not stack all uniqueness protections by default. Future design should find
+the smallest uniqueness package that makes Signature Moves feel iconic.
+
+This item connects to Character Creator, Power Builder, Limit Break /
+over-limit design, naming, handbook presentation, and product feel.
+
+
 Open Decisions
 
 OPEN / NEEDS ARCHITECT DECISION:
@@ -110,3 +152,6 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Personal Goal reward categories and limits.
 - Party resource name, ownership model, spend permission, and Game Director
   override rules.
+- Signature Move uniqueness package, including whether any Signature-only
+  permissions, scaling, cooldown/friction, main-power concentration limits, or
+  Limit Break / over-limit restrictions are needed.

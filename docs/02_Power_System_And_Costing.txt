@@ -775,6 +775,17 @@ Signature Move must remain separate from normal powers.
 Signature Move should still be included in Combat Lab action hydration and
 campaign balance evidence.
 
+Signature Move uniqueness is open design backlog, not final costing law.
+
+Future Signature-specific costing or permission rules may be needed if the final
+design requires Signature Moves to feel more iconic than concentrated normal
+powers. Possible future levers include Signature-only permissions,
+Signature-only scaling, special cooldown/friction rules, main-power
+concentration limits, or tying Limit Break / over-limit mechanics to Signature
+Moves.
+
+Do not lock numeric formula values from this backlog note.
+
 
 Monster Outcome Calculator Formula Shape
 
@@ -1008,3 +1019,6 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Full TRANSFORMATION gameplay, tooling, and costing scope.
 - Future Setting Package asset policy beyond the protected/global principles
   already captured in the builder and balance docs.
+- Signature Move uniqueness costing and permission package, if any, including
+  Signature-only permissions, scaling, cooldown/friction, main-power
+  concentration limits, or Limit Break / over-limit linkage.

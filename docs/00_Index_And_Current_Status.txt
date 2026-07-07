@@ -276,8 +276,15 @@ law until the owning active doc is updated with an explicit decision.
   gameplay, tooling, builder flow, and costing scope remains open.
 - Signature Move future Spark alignment.
   Status: NEEDS ARCHITECT DECISION.
-  Owner: docs/03_Builders_And_Implementation_Roadmap.txt.
+  Owner: docs/03_Builders_And_Implementation_Roadmap.txt,
+  docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt,
+  docs/02_Power_System_And_Costing.txt, and
+  docs/06_Product_Brand_And_Kickstarter_Strategy.txt.
   Note: Current implementation uses a separate Character Level x 20 pool.
+  Signature Move uniqueness remains OPEN / NEEDS ARCHITECT DECISION: future
+  design may add Signature-only permissions, scaling, cooldown/friction,
+  presentation, main-power concentration limits, or Limit Break / over-limit
+  linkage, but no final mechanics are locked.
 - Roleplay system scope.
   Status: OPEN / NEEDS ARCHITECT DECISION.
   Owner: docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt.

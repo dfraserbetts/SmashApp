@@ -89,6 +89,11 @@ Character Creator:
 - Character Creator is still missing Spark support.
 - Character Creator is still missing Power Restrictions support.
 - Spark and Restriction scope remains OPEN / NEEDS ARCHITECT DECISION.
+- Develop Signature Move uniqueness remains OPEN / NEEDS ARCHITECT DECISION.
+  Character Builder should eventually support any Signature-specific
+  presentation, restrictions, scaling hooks, cooldown/friction display, and
+  preview/print treatment required by the final design. Current implementation
+  truth remains one Signature Move with a separate Character Level x 20 pool.
 - Character Builder must eventually support optional Archetypes, Backstory
   Points, Personal Goals, and any character-sheet tracking needed for roleplay
   resources.
@@ -175,7 +180,7 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Final Spark and Restriction implementation scope.
 - Final Transformation, Summoning, object, structure, machine, and mount builder
   scopes.
-- Whether Signature Move eventually becomes Spark-aligned beyond the current
-  separate-pool implementation.
+- Whether Signature Move eventually becomes Spark-aligned or gains another
+  uniqueness package beyond the current separate-pool implementation.
 - Character sheet support for optional Archetypes, Backstory Points, Personal
   Goals, roleplay resources, and party-level shared resource tracking.
