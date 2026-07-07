@@ -784,6 +784,13 @@ Signature-only scaling, special cooldown/friction rules, main-power
 concentration limits, or tying Limit Break / over-limit mechanics to Signature
 Moves.
 
+Signature Move Priming is open design backlog, not final costing law. It may be
+needed to control opening burst and preserve dramatic pacing. Cooldown and
+Priming should be treated as separate design axes unless a later explicit
+decision deliberately merges them. Possible future levers include Signature
+start state, Priming X, conditional priming, Limit Break / over-limit gating, or
+budget/share/threat-based priming.
+
 Do not lock numeric formula values from this backlog note.
 
 

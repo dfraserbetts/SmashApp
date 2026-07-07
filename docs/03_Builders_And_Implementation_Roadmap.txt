@@ -94,6 +94,11 @@ Character Creator:
   presentation, restrictions, scaling hooks, cooldown/friction display, and
   preview/print treatment required by the final design. Current implementation
   truth remains one Signature Move with a separate Character Level x 20 pool.
+- Develop Signature Move Priming remains OPEN / NEEDS ARCHITECT DECISION.
+  Character Builder / Power Builder may eventually need to display and validate
+  Signature start state, Priming X, conditional priming, or over-limit-gated
+  availability if the final design requires it. Preview and print output may
+  need to show priming clearly. Do not implement or lock this now.
 - Character Builder must eventually support optional Archetypes, Backstory
   Points, Personal Goals, and any character-sheet tracking needed for roleplay
   resources.

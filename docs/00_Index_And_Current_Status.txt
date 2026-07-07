@@ -284,7 +284,10 @@ law until the owning active doc is updated with an explicit decision.
   Signature Move uniqueness remains OPEN / NEEDS ARCHITECT DECISION: future
   design may add Signature-only permissions, scaling, cooldown/friction,
   presentation, main-power concentration limits, or Limit Break / over-limit
-  linkage, but no final mechanics are locked.
+  linkage. Signature Move Priming also remains OPEN / NEEDS ARCHITECT
+  DECISION: future design may add Signature start state, Priming X, conditional
+  priming, over-limit gating, or budget/share/threat-based priming to prevent
+  automatic opening burst. No final mechanics are locked.
 - Roleplay system scope.
   Status: OPEN / NEEDS ARCHITECT DECISION.
   Owner: docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt.

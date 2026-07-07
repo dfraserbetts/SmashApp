@@ -141,6 +141,70 @@ This item connects to Character Creator, Power Builder, Limit Break /
 over-limit design, naming, handbook presentation, and product feel.
 
 
+Signature Move Priming
+
+OPEN / NEEDS ARCHITECT DECISION.
+
+Purpose:
+
+- Prevent powerful Signature Moves from becoming automatic Turn 1 nukes.
+
+Risk:
+
+- If every character can open combat with a high-output Signature Move,
+  optimal play may become "everyone blows Signature immediately," especially at
+  higher levels.
+
+Design principle:
+
+- Cooldown and Priming should be separate concepts.
+- Cooldown limits repeat use after the move has been used.
+- Priming limits whether the move is available at the start of combat.
+- Do not solve this by automatically saying "starts on cooldown" unless the
+  Architect later chooses that for simplicity.
+- A cleaner model may be a Signature Start State or Priming Requirement.
+
+Possible start states:
+
+- Ready: available from Turn 1.
+- Priming X: starts unavailable and becomes available after X rounds or turns.
+- Conditional: becomes available when a defined trigger is met.
+- Limit Break / Overdrive gated: requires a dramatic trigger, resource, or
+  special condition.
+
+Possible prime conditions:
+
+- Damage Signature: primes after dealing or taking damage.
+- Control Signature: primes after applying a status or winning a Clash.
+- Defence Signature: primes when an ally is injured or protected.
+- Support Signature: primes after assisting or healing.
+- Finisher Signature: primes when a target is below a health threshold or has
+  an injury.
+- Transformation Signature: primes after Round 2, after taking damage, or
+  after spending a resource.
+- Summon Signature: primes after channeling, preparing a field, or spending a
+  turn.
+
+Player-facing wording examples only:
+
+- "Priming 2: This Signature cannot be used until the start of your second
+  turn."
+- "Prime Condition - Marked Target: This Signature becomes available after you
+  mark, wound, or study a target."
+
+This belongs near Signature Move Uniqueness, but should remain tracked
+separately. Signature Move Priming connects to Signature Move Uniqueness, Limit
+Break / over-limit design, cooldown/friction rules, combat pacing, Character
+Builder display, Power Builder validation, and handbook explanation.
+
+Future design should decide whether priming is manually authored,
+automatically inferred from Signature budget/share/threat rating, or assigned by
+Game Director / Architect approval.
+
+No final thresholds, formulas, or implementation behaviour are locked by this
+roadmap note.
+
+
 Open Decisions
 
 OPEN / NEEDS ARCHITECT DECISION:
@@ -155,3 +219,6 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Signature Move uniqueness package, including whether any Signature-only
   permissions, scaling, cooldown/friction, main-power concentration limits, or
   Limit Break / over-limit restrictions are needed.
+- Signature Move Priming, including whether start state, Priming X, conditional
+  priming, Limit Break / over-limit gating, or budget/share/threat-based
+  priming is needed.

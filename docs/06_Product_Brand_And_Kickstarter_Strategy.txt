@@ -167,6 +167,12 @@ moments in builder labels, previews, print output, handbook language, and
 marketing language where appropriate. If Limit Break / over-limit mechanics
 become Signature-only, that may affect final naming and positioning.
 
+Signature Move Priming may help Signature Moves feel like dramatic character
+moments rather than automatic opening attacks. If adopted, naming and
+presentation should distinguish priming from ordinary cooldown. If over-limit
+or Limit Break mechanics become tied to primed Signature Moves, that may affect
+final naming and marketing language. Keep this open, not locked.
+
 This remains open product/naming backlog, not locked rule law.
 
 
@@ -199,7 +205,8 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Full release naming pass across rules text, toolkit UI, previews, print
   output, handbook terminology, and marketing copy.
 - Signature Move iconic presentation and naming treatment, including any
-  future effect if Limit Break / over-limit becomes Signature-only.
+  future effect if Limit Break / over-limit becomes Signature-only or tied to
+  Signature Move Priming.
 - Whether "Core Rulebook" appears on the front cover.
 - Final Incarnate logo form.
 - Final cover art structure.
