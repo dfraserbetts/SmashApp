@@ -228,6 +228,7 @@ const ELITE_ATTACKER_NAMES = [
   "BALANCE_Legendary Elite Breaker Debuffer",
   "BALANCE_Legendary Elite Breaker Controller",
   "BALANCE_Legendary Elite Breaker Controller Lite",
+  "BALANCE_Legendary Elite Breaker Controller Rotation",
 ];
 
 const BOSS_ATTACKER_NAMES = [
@@ -309,6 +310,10 @@ const MINIMUM_SCENARIOS = [
   ["BALANCE_Legendary Elite Breaker Controller Lite", "BALANCE_Ranger Commander"],
   ["BALANCE_Legendary Elite Breaker Controller Lite", "BALANCE_Stoneguard"],
   ["BALANCE_Legendary Elite Breaker Controller Lite", "BALANCE_Arcane Sage"],
+  ["BALANCE_Legendary Elite Breaker Controller Rotation", "BALANCE_Hawkshot Archer"],
+  ["BALANCE_Legendary Elite Breaker Controller Rotation", "BALANCE_Ranger Commander"],
+  ["BALANCE_Legendary Elite Breaker Controller Rotation", "BALANCE_Stoneguard"],
+  ["BALANCE_Legendary Elite Breaker Controller Rotation", "BALANCE_Arcane Sage"],
   ["BALANCE_Boss Warlord", "BALANCE_Hawkshot Archer"],
   ["BALANCE_Boss Warlord", "BALANCE_Ranger Commander"],
   ["BALANCE_Boss Warlord", "BALANCE_Stoneguard"],
