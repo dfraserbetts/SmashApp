@@ -32,6 +32,7 @@ type CliOptions = {
   seed: number;
   json: boolean;
   includeBoss: boolean;
+  policy: "auto" | "offence-probe-best" | "offence-probe-signature-first";
 };
 
 type BuiltActor = {
@@ -80,6 +81,7 @@ type ScenarioResult = {
   seed: number;
   assetSource: "balance-campaign-authored";
   runtimeMode: "Combat Lab runCombatScenario";
+  policy: CliOptions["policy"];
   attackerWinRate: number;
   targetWinRate: number;
   drawOrCensoredRate: number;
@@ -125,6 +127,7 @@ type Payload = {
     mutation: "none";
     databaseAccess: "read-only";
     seeders: "none";
+    policy: CliOptions["policy"];
     unsupportedOrIgnoredMechanics: string[];
   };
   assets: {
@@ -214,13 +217,23 @@ const ITEM_TEMPLATE_INCLUDE = {
 loadEnvConfig(process.cwd());
 
 function parseArgs(argv: string[]): CliOptions {
-  const options: CliOptions = { runs: 50, seed: 4242, json: false, includeBoss: false };
+  const options: CliOptions = { runs: 50, seed: 4242, json: false, includeBoss: false, policy: "auto" };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--json") {
       options.json = true;
     } else if (arg === "--include-boss") {
       options.includeBoss = true;
+    } else if (arg === "--policy") {
+      const value = argv[index + 1];
+      if (
+        value === "auto" ||
+        value === "offence-probe-best" ||
+        value === "offence-probe-signature-first"
+      ) {
+        options.policy = value;
+      }
+      index += 1;
     } else if (arg === "--runs") {
       const value = Number(argv[index + 1]);
       if (Number.isFinite(value) && value > 0) options.runs = Math.trunc(value);
@@ -358,10 +371,48 @@ function scenarioName(attacker: string, target: string): string {
   return `${attacker} vs ${target}`;
 }
 
+function attackScore(actor: CombatActor, action: CombatAction): number {
+  const die = actor.attributeDice[action.accuracyAttribute] ?? "D8";
+  const dieSides = Number(die.replace("D", ""));
+  const woundsPerSuccess = Math.max(1, action.effectPerPrimarySuccess ?? action.potency);
+  const focusName = action.name.replace(/^Signature Move: /, "");
+  return action.diceCount * woundsPerSuccess * dieSides +
+    (FOCUS_ACTION_NAMES.has(focusName) ? 500 : 0) +
+    (action.sourceType === "signatureMove" ? 100 : 0);
+}
+
+function applyProbePolicy(actor: CombatActor, policy: CliOptions["policy"]): CombatActor {
+  if (policy === "auto") return actor;
+  const copiedActions = actor.actions.map((action) => ({ ...action }));
+  const offensivePowerActions = copiedActions.filter((action) =>
+    action.supported &&
+    action.kind === "attack" &&
+    (action.sourceType === "power" || action.sourceType === "signatureMove")
+  );
+  if (offensivePowerActions.length === 0) return actor;
+
+  const nonOffensiveActions = copiedActions.filter((action) =>
+    action.kind !== "attack" || action.sourceType === "fallback"
+  );
+  const sortedOffensivePowers = [...offensivePowerActions].sort((left, right) => {
+    if (policy === "offence-probe-signature-first") {
+      const signatureDelta = Number(right.sourceType === "signatureMove") - Number(left.sourceType === "signatureMove");
+      if (signatureDelta !== 0) return signatureDelta;
+    }
+    return attackScore(actor, right) - attackScore(actor, left);
+  });
+
+  return {
+    ...actor,
+    actions: [...sortedOffensivePowers, ...nonOffensiveActions],
+  };
+}
+
 function buildScenario(attacker: BuiltActor, target: BuiltActor, options: CliOptions, scenarioSeed: number): CombatScenario {
+  const playerActor = applyProbePolicy({ ...attacker.actor, side: "players" }, options.policy);
   return {
     name: scenarioName(attacker.name, target.name),
-    players: [{ ...attacker.actor, side: "players" }],
+    players: [playerActor],
     monsters: createActorInstances({ ...target.actor, side: "monsters" }, 1),
     runs: options.runs,
     seed: scenarioSeed,
@@ -382,6 +433,7 @@ function summarizeScenario(
   scenario: CombatScenario,
   attacker: BuiltActor,
   target: BuiltActor,
+  policy: CliOptions["policy"],
 ): ScenarioResult {
   const suite = runScenarioSuite(scenario);
   const runs = Array.from({ length: scenario.runs }, (_, index) => runCombatScenario(scenario, index));
@@ -463,6 +515,7 @@ function summarizeScenario(
     seed: scenario.seed,
     assetSource: "balance-campaign-authored",
     runtimeMode: "Combat Lab runCombatScenario",
+    policy,
     attackerWinRate: pct(suite.playerWinRate),
     targetWinRate: pct(suite.monsterWinRate),
     drawOrCensoredRate: pct(suite.stalemateRate),
@@ -578,7 +631,7 @@ function printHuman(payload: Payload) {
   console.log(`Repo HEAD: ${payload.provenance.repoHead}`);
   console.log(`Git status: ${payload.provenance.cleanWorktree ? "clean" : "dirty"}`);
   console.log(`Exact command: ${payload.provenance.exactCommand}`);
-  console.log(`Runs: ${payload.provenance.runs}; seed: ${payload.provenance.seed}`);
+  console.log(`Runs: ${payload.provenance.runs}; seed: ${payload.provenance.seed}; policy: ${payload.provenance.policy}`);
   console.log(`Mutation: ${payload.provenance.mutation}; DB: ${payload.provenance.databaseAccess}; seeders: ${payload.provenance.seeders}`);
   console.log("");
   console.log("Attackers:");
@@ -641,7 +694,7 @@ async function main() {
       const target = targetByName.get(targetName);
       if (!attacker || !target) return [];
       const scenario = buildScenario(attacker, target, options, options.seed + index * 101);
-      return [summarizeScenario(scenario, attacker, target)];
+      return [summarizeScenario(scenario, attacker, target, options.policy)];
     });
     const gitStatus = runGit(["status", "--short", "--untracked-files=all"]);
     const unsupportedOrIgnoredMechanics = Array.from(new Set([
@@ -666,6 +719,7 @@ async function main() {
         mutation: "none",
         databaseAccess: "read-only",
         seeders: "none",
+        policy: options.policy,
         unsupportedOrIgnoredMechanics,
       },
       assets: {
