@@ -177,6 +177,7 @@ const ELITE_ATTACKER_NAMES = [
   "BALANCE_Elite Hexer",
   "BALANCE_Legendary Elite Duelist",
   "BALANCE_Legendary Elite Hexer",
+  "BALANCE_Legendary Elite Breaker",
 ];
 
 const BOSS_ATTACKER_NAMES = [
@@ -242,6 +243,10 @@ const MINIMUM_SCENARIOS = [
   ["BALANCE_Legendary Elite Hexer", "BALANCE_Ranger Commander"],
   ["BALANCE_Legendary Elite Hexer", "BALANCE_Stoneguard"],
   ["BALANCE_Legendary Elite Hexer", "BALANCE_Arcane Sage"],
+  ["BALANCE_Legendary Elite Breaker", "BALANCE_Hawkshot Archer"],
+  ["BALANCE_Legendary Elite Breaker", "BALANCE_Ranger Commander"],
+  ["BALANCE_Legendary Elite Breaker", "BALANCE_Stoneguard"],
+  ["BALANCE_Legendary Elite Breaker", "BALANCE_Arcane Sage"],
   ["BALANCE_Boss Warlord", "BALANCE_Hawkshot Archer"],
   ["BALANCE_Boss Warlord", "BALANCE_Ranger Commander"],
   ["BALANCE_Boss Warlord", "BALANCE_Stoneguard"],
@@ -766,7 +771,7 @@ function printTraceSamples(
   const monstersByName = new Map(assets.monsters.map((actor) => [actor.name, actor]));
   const playersByName = new Map(assets.players.map((actor) => [actor.name, actor]));
   const filters = new Set(options.traceScenarioFilters.map(normalizeTraceScenarioName));
-  const duelPairs = MINIMUM_SCENARIOS.filter(([attackerName]) => attackerName === "BALANCE_Legendary Elite Duelist");
+  const duelPairs = MINIMUM_SCENARIOS.filter(([attackerName]) => attackerName.startsWith("BALANCE_Legendary Elite "));
   console.log("");
   console.log(`Trace samples: seed ${options.seed}, samples/scenario ${options.traceSamples}`);
   for (const [attackerName, defenderName] of duelPairs) {
