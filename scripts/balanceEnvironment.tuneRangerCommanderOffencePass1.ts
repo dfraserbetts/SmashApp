@@ -11,7 +11,8 @@ const TARGET_WEAPON_NAME = "BALANCE_Commander Bow";
 const COMMANDER_BOW_TARGET_STRENGTH = 1.5;
 const COMMANDER_BOW_ALLOWED_BEFORE = new Set([2, COMMANDER_BOW_TARGET_STRENGTH]);
 const KILLBOX_TARGET_POTENCY = 3;
-const KILLBOX_ALLOWED_BEFORE = new Set([4, KILLBOX_TARGET_POTENCY]);
+const KILLBOX_REJECTED_PASS2_POTENCY = 2;
+const KILLBOX_ALLOWED_BEFORE = new Set([4, KILLBOX_TARGET_POTENCY, KILLBOX_REJECTED_PASS2_POTENCY]);
 const MARKED_VOLLEY_EXPECTED_POTENCY = 3;
 
 type JsonRecord = Record<string, unknown>;
@@ -269,6 +270,9 @@ async function main() {
     console.log(`campaignName: ${BALANCE_CAMPAIGN_NAME}`);
     console.log("DB mutation: scoped offence-only update for BALANCE_Ranger Commander and BALANCE_Commander Bow.");
     console.log("Changed fields: ItemTemplate.rangedPhysicalStrength for BALANCE_Commander Bow; CampaignCharacter.builderData.signatureMove Killbox Command potency/effectPackets[0].potency/intentions[0].potency.");
+    if (numeric(beforeKillbox?.potency, "Killbox Command.before.potency") === KILLBOX_REJECTED_PASS2_POTENCY) {
+      console.log("Restore note: Killbox Command was in known rejected pass-2 potency 2 state and was restored to accepted pass-1 potency 3.");
+    }
     console.log("Untouched: Marked Volley, Command Shot, Ranger durability, Hawkshot, Stoneguard, Arcane Sage, target monsters, calibration assets, runtime code, formula/scalar/tuning rows.");
     console.log(JSON.stringify({ before, after }, null, 2));
   } finally {
