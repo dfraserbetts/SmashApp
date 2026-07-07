@@ -155,6 +155,7 @@ const BALANCE_ENVIRONMENT_CAMPAIGN_NAME = "Balance Environment";
 const ATTACKER_NAMES = [
   "BALANCE_Legendary Elite Duelist",
   "BALANCE_Legendary Elite Hexer",
+  "BALANCE_Legendary Elite True Hexer",
   "BALANCE_Legendary Elite Breaker Controller Rotation",
 ] as const;
 
