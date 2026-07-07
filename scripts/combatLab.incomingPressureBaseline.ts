@@ -206,6 +206,7 @@ const PLAYER_DEFENDER_NAMES = [
   "BALANCE_Ranger Commander",
   "BALANCE_Stoneguard",
   "BALANCE_Arcane Sage",
+  "BALANCE_Mindward Duelist",
 ];
 
 const SOLDIER_ATTACKER_NAMES = [
@@ -291,14 +292,17 @@ const MINIMUM_SCENARIOS = [
   ["BALANCE_Legendary Elite Duelist", "BALANCE_Ranger Commander"],
   ["BALANCE_Legendary Elite Duelist", "BALANCE_Stoneguard"],
   ["BALANCE_Legendary Elite Duelist", "BALANCE_Arcane Sage"],
+  ["BALANCE_Legendary Elite Duelist", "BALANCE_Mindward Duelist"],
   ["BALANCE_Legendary Elite Hexer", "BALANCE_Hawkshot Archer"],
   ["BALANCE_Legendary Elite Hexer", "BALANCE_Ranger Commander"],
   ["BALANCE_Legendary Elite Hexer", "BALANCE_Stoneguard"],
   ["BALANCE_Legendary Elite Hexer", "BALANCE_Arcane Sage"],
+  ["BALANCE_Legendary Elite Hexer", "BALANCE_Mindward Duelist"],
   ["BALANCE_Legendary Elite True Hexer", "BALANCE_Hawkshot Archer"],
   ["BALANCE_Legendary Elite True Hexer", "BALANCE_Ranger Commander"],
   ["BALANCE_Legendary Elite True Hexer", "BALANCE_Stoneguard"],
   ["BALANCE_Legendary Elite True Hexer", "BALANCE_Arcane Sage"],
+  ["BALANCE_Legendary Elite True Hexer", "BALANCE_Mindward Duelist"],
   ["BALANCE_Legendary Elite Breaker", "BALANCE_Hawkshot Archer"],
   ["BALANCE_Legendary Elite Breaker", "BALANCE_Ranger Commander"],
   ["BALANCE_Legendary Elite Breaker", "BALANCE_Stoneguard"],
@@ -319,6 +323,7 @@ const MINIMUM_SCENARIOS = [
   ["BALANCE_Legendary Elite Breaker Controller Rotation", "BALANCE_Ranger Commander"],
   ["BALANCE_Legendary Elite Breaker Controller Rotation", "BALANCE_Stoneguard"],
   ["BALANCE_Legendary Elite Breaker Controller Rotation", "BALANCE_Arcane Sage"],
+  ["BALANCE_Legendary Elite Breaker Controller Rotation", "BALANCE_Mindward Duelist"],
   ["BALANCE_Boss Warlord", "BALANCE_Hawkshot Archer"],
   ["BALANCE_Boss Warlord", "BALANCE_Ranger Commander"],
   ["BALANCE_Boss Warlord", "BALANCE_Stoneguard"],

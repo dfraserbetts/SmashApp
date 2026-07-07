@@ -164,6 +164,7 @@ const DEFENDER_NAMES = [
   "BALANCE_Ranger Commander",
   "BALANCE_Stoneguard",
   "BALANCE_Arcane Sage",
+  "BALANCE_Mindward Duelist",
 ] as const;
 
 const POWER_INCLUDE = {
