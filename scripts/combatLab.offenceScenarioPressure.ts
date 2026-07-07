@@ -33,6 +33,9 @@ type CliOptions = {
   json: boolean;
   includeBoss: boolean;
   policy: "auto" | "offence-probe-best" | "offence-probe-signature-first";
+  traceScenarios: boolean;
+  traceScenarioFilters: string[];
+  traceSamples: number;
 };
 
 type BuiltActor = {
@@ -194,6 +197,15 @@ const BOSS_SCENARIOS = [
   ["BALANCE_Stoneguard", "BALANCE_Boss Warlord"],
 ] as const;
 
+const TRACE_SCENARIOS = [
+  ["BALANCE_Ranger Commander", "BALANCE_Physical Striker"],
+  ["BALANCE_Ranger Commander", "BALANCE_Elite Striker"],
+  ["BALANCE_Ranger Commander", "BALANCE_Boss Warlord"],
+  ["BALANCE_Hawkshot Archer", "BALANCE_Physical Striker"],
+  ["BALANCE_Hawkshot Archer", "BALANCE_Elite Striker"],
+  ["BALANCE_Stoneguard", "BALANCE_Elite Vanguard"],
+] as const;
+
 const POWER_INCLUDE = {
   rangeCategories: { orderBy: { rangeCategory: "asc" as const } },
   primaryDefenceGate: true,
@@ -217,13 +229,33 @@ const ITEM_TEMPLATE_INCLUDE = {
 loadEnvConfig(process.cwd());
 
 function parseArgs(argv: string[]): CliOptions {
-  const options: CliOptions = { runs: 50, seed: 4242, json: false, includeBoss: false, policy: "auto" };
+  const options: CliOptions = {
+    runs: 50,
+    seed: 4242,
+    json: false,
+    includeBoss: false,
+    policy: "auto",
+    traceScenarios: false,
+    traceScenarioFilters: [],
+    traceSamples: 3,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--json") {
       options.json = true;
     } else if (arg === "--include-boss") {
       options.includeBoss = true;
+    } else if (arg === "--trace-scenarios") {
+      options.traceScenarios = true;
+      const value = argv[index + 1];
+      if (value && !value.startsWith("--")) {
+        options.traceScenarioFilters = value.split(",").map((entry) => entry.trim()).filter(Boolean);
+        index += 1;
+      }
+    } else if (arg === "--trace-samples") {
+      const value = Number(argv[index + 1]);
+      if (Number.isFinite(value) && value > 0) options.traceSamples = Math.trunc(value);
+      index += 1;
     } else if (arg === "--policy") {
       const value = argv[index + 1];
       if (
@@ -680,6 +712,56 @@ function printHuman(payload: Payload) {
   }
 }
 
+function shouldPrintTranscriptLine(line: string): boolean {
+  return /declares|uses|rolled|Attack result|Incoming result|Cooldown:|Defeat:|Combat ends|Turn \d+:|Round \d+ begins/i.test(line);
+}
+
+function normalizeTraceScenarioName(name: string): string {
+  return name.replace(/\bBALANCE_/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function printTraceSamples(
+  assets: Awaited<ReturnType<typeof buildAssets>>,
+  options: CliOptions,
+) {
+  const attackerByName = new Map(assets.attackers.map((actor) => [actor.name, actor]));
+  const targetByName = new Map(assets.targets.map((actor) => [actor.name, actor]));
+  const filters = new Set(options.traceScenarioFilters.map(normalizeTraceScenarioName));
+  console.log("");
+  console.log(`Trace samples: policy ${options.policy}, seed ${options.seed}, samples/scenario ${options.traceSamples}`);
+  for (const [attackerName, targetName] of TRACE_SCENARIOS) {
+    const traceName = `${attackerName} vs ${targetName}`;
+    if (filters.size > 0 && !filters.has(normalizeTraceScenarioName(traceName))) continue;
+    const attacker = attackerByName.get(attackerName);
+    const target = targetByName.get(targetName);
+    if (!attacker || !target) {
+      console.log(`Trace skipped: ${attackerName} vs ${targetName} missing asset.`);
+      continue;
+    }
+    console.log("");
+    console.log(`TRACE ${traceName}`);
+    for (let sample = 0; sample < options.traceSamples; sample += 1) {
+      const scenario = buildScenario(attacker, target, { ...options, runs: 1 }, options.seed + sample * 9973);
+      const run = runCombatScenario(scenario, 0);
+      const playerEvents = run.offensiveContributionEvents.filter((event) => event.actorSide === "players");
+      const cooldowns = Object.values(run.metrics.cooldownTrace)
+        .filter((trace) => trace.side === "players")
+        .map((trace) => `${trace.actionName}: uses ${trace.uses}, applied ${trace.cooldownApplied}, prevented ${trace.preventedByCooldown}, ticks ${trace.cooldownTicks}`)
+        .join("; ");
+      console.log(`sample ${sample + 1}: winner ${run.winner}, stopped ${run.stoppedBy}, rounds ${run.rounds}, player HP win ${round(run.winnerHealthRemainingPercent * 100)}`);
+      console.log(`  contribution events: ${
+        playerEvents.length === 0
+          ? "none"
+          : playerEvents.map((event) => `R${event.round} ${event.actionName} ${event.sourceType ?? "unknown"} damage ${event.damage} overkill ${event.overkill} hit ${event.successfulHit}`).join("; ")
+      }`);
+      console.log(`  cooldown trace: ${cooldowns || "none"}`);
+      for (const line of (run.firstRunTranscript?.lines ?? []).filter(shouldPrintTranscriptLine).slice(0, 28)) {
+        console.log(`  ${line}`);
+      }
+    }
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const prisma = (await import("../prisma/client")).prisma;
@@ -734,6 +816,9 @@ async function main() {
       console.log(JSON.stringify(payload, null, 2));
     } else {
       printHuman(payload);
+      if (options.traceScenarios) {
+        printTraceSamples(assets, options);
+      }
     }
   } finally {
     await prisma.$disconnect();
