@@ -115,8 +115,55 @@ type ScenarioResult = {
     cooldownRounds: number;
     preventedByCooldownPerRun: number;
   }>;
+  specialMetrics: SpecialMetrics;
   hydrationWarnings: string[];
   unsupportedPowerNames: string[];
+};
+
+type SpecialActionMetric = {
+  actionName: string;
+  sourceType: string;
+  usesPerRun: number;
+  landedPerRun: number;
+  resistedPerRun: number;
+  structuredApplicationsPerRun: number;
+  statusUptimePerRun: number | null;
+};
+
+type LinkedAttackRiderMetric = {
+  actionName: string;
+  parentActionName: string;
+  sourceType: string;
+  usesPerRun: number;
+  damagePerRun: number;
+  highestDamage: number;
+  preventedByPrimaryResistPerRun: number | null;
+};
+
+type SpecialMetrics = {
+  control: {
+    actions: SpecialActionMetric[];
+    usesPerRun: number;
+    landedPerRun: number;
+    resistedPerRun: number;
+    mainActionDeniedApplicationsPerRun: number;
+    actionsDeniedPerRun: number;
+  };
+  debuff: {
+    actions: SpecialActionMetric[];
+    usesPerRun: number;
+    landedPerRun: number;
+    resistedPerRun: number;
+  };
+  linkedAttackRiders: {
+    actions: LinkedAttackRiderMetric[];
+    usesPerRun: number;
+    damagePerRun: number;
+    highestDamage: number;
+    preventedByPrimaryResistPerRun: number | null;
+  };
+  transcriptPatterns: string[];
+  unavailable: string[];
 };
 
 type Payload = {
@@ -398,6 +445,21 @@ function defensiveActions(actor: CombatActor): CombatAction[] {
   return actor.actions.filter((action) => action.supported && action.kind === "defence");
 }
 
+function flattenSupportedActions(actions: CombatAction[]): CombatAction[] {
+  return actions.flatMap((action) => [
+    ...(action.supported ? [action] : []),
+    ...flattenSupportedActions(action.secondaryActions ?? []),
+  ]);
+}
+
+function linkedAttackRiderActions(actor: CombatActor): Array<{ parent: CombatAction; rider: CombatAction }> {
+  return actor.actions.flatMap((parent) =>
+    (parent.secondaryActions ?? [])
+      .filter((rider) => rider.supported && rider.kind === "attack" && parent.secondaryDependencyMode !== "INDEPENDENT")
+      .map((rider) => ({ parent, rider })),
+  );
+}
+
 function actionSummary(actor: CombatActor, action: CombatAction): ActionSummary {
   return {
     name: action.name,
@@ -599,6 +661,128 @@ function buildScenario(attacker: BuiltActor, defender: BuiltActor, options: CliO
   };
 }
 
+function summarizeSpecialMetrics(params: {
+  attacker: BuiltActor;
+  runs: Array<ReturnType<typeof runCombatScenario>>;
+  contributionByActionName: Map<string, NonNullable<ScenarioResult["keyEnemyActionUsage"][number]> | {
+    uses: number;
+    damage: number;
+    sourceType: string;
+    debuffApplications: number;
+    debuffUptime: number;
+    controlTurnsApplied: number;
+  }>;
+  monsterEvents: ReturnType<typeof runCombatScenario>["offensiveContributionEvents"];
+}): SpecialMetrics {
+  const runCount = Math.max(1, params.runs.length);
+  const allActions = flattenSupportedActions(params.attacker.actor.actions);
+  const controlActions = allActions.filter((action) => action.kind === "control");
+  const debuffActions = allActions.filter((action) => action.kind === "debuff");
+  const linkedRiders = linkedAttackRiderActions(params.attacker.actor);
+  const transcriptPatterns = [
+    "Trace confirmation uses /Control: <action> applies/ and /Control result: .* resists <action>; no control effect/.",
+    "Trace confirmation uses /Debuff\\/status created: <action>/ and /Debuff result: .* resists <action>; no debuff/.",
+    "Aggregate landed/resisted counts use structured contribution applications; resisted is inferred as uses minus applications.",
+    "Linked rider prevention inferred as parent uses minus linked rider uses.",
+  ];
+
+  const actionContribution = (actionName: string) => params.contributionByActionName.get(actionName) as {
+    uses?: number;
+    damage?: number;
+    sourceType?: string;
+    debuffApplications?: number;
+    debuffUptime?: number;
+    controlTurnsApplied?: number;
+  } | undefined;
+
+  const controlMetrics = controlActions.map((action): SpecialActionMetric => {
+    const contribution = actionContribution(action.name);
+    const uses = contribution?.uses ?? 0;
+    const landed = contribution?.controlTurnsApplied ?? 0;
+    return {
+      actionName: action.name,
+      sourceType: action.sourceType,
+      usesPerRun: round(uses) ?? 0,
+      landedPerRun: round(landed) ?? 0,
+      resistedPerRun: round(Math.max(0, uses - landed)) ?? 0,
+      structuredApplicationsPerRun: round(landed) ?? 0,
+      statusUptimePerRun: null,
+    };
+  });
+
+  const debuffMetrics = debuffActions.map((action): SpecialActionMetric => {
+    const contribution = actionContribution(action.name);
+    const uses = contribution?.uses ?? 0;
+    const landed = contribution?.debuffApplications ?? 0;
+    return {
+      actionName: action.name,
+      sourceType: action.sourceType,
+      usesPerRun: round(uses) ?? 0,
+      landedPerRun: round(landed) ?? 0,
+      resistedPerRun: round(Math.max(0, uses - landed)) ?? 0,
+      structuredApplicationsPerRun: round(landed) ?? 0,
+      statusUptimePerRun: round(contribution?.debuffUptime ?? 0),
+    };
+  });
+
+  const riderMetrics = linkedRiders.map(({ parent, rider }): LinkedAttackRiderMetric => {
+    const parentContribution = actionContribution(parent.name);
+    const parentUses = parentContribution?.uses ?? 0;
+    const parentApplications = parent.kind === "control"
+      ? (parentContribution?.controlTurnsApplied ?? 0)
+      : parent.kind === "debuff"
+        ? (parentContribution?.debuffApplications ?? 0)
+        : parentUses;
+    const riderEvents = params.monsterEvents.filter((event) => event.actionName === rider.name || event.actionName === parent.name);
+    const highestDamage = riderEvents.reduce((max, event) => Math.max(max, event.damage), 0);
+    return {
+      actionName: rider.name,
+      parentActionName: parent.name,
+      sourceType: rider.sourceType,
+      usesPerRun: round(riderEvents.length / runCount) ?? 0,
+      damagePerRun: round(riderEvents.reduce((sum, event) => sum + event.damage, 0) / runCount) ?? 0,
+      highestDamage,
+      preventedByPrimaryResistPerRun: round(Math.max(0, parentUses - parentApplications)),
+    };
+  });
+
+  const actionsDenied = params.runs.reduce((sum, run) => sum + run.metrics.actionsDenied.players, 0);
+  const unavailable = [
+    "Control status uptime is not reported as reliable per-source uptime; controlTurnsApplied and actionsDenied are exposed instead.",
+  ];
+  if (riderMetrics.length === 0) unavailable.push("No linked attack rider actions are authored for this attacker.");
+  if (controlMetrics.length === 0) unavailable.push("No Control actions are authored for this attacker.");
+  if (debuffMetrics.length === 0) unavailable.push("No Debuff actions are authored for this attacker.");
+
+  return {
+    control: {
+      actions: controlMetrics,
+      usesPerRun: round(controlMetrics.reduce((sum, metric) => sum + metric.usesPerRun, 0)) ?? 0,
+      landedPerRun: round(controlMetrics.reduce((sum, metric) => sum + metric.landedPerRun, 0)) ?? 0,
+      resistedPerRun: round(controlMetrics.reduce((sum, metric) => sum + metric.resistedPerRun, 0)) ?? 0,
+      mainActionDeniedApplicationsPerRun: round(controlMetrics.reduce((sum, metric) => sum + metric.structuredApplicationsPerRun, 0)) ?? 0,
+      actionsDeniedPerRun: round(actionsDenied / runCount) ?? 0,
+    },
+    debuff: {
+      actions: debuffMetrics,
+      usesPerRun: round(debuffMetrics.reduce((sum, metric) => sum + metric.usesPerRun, 0)) ?? 0,
+      landedPerRun: round(debuffMetrics.reduce((sum, metric) => sum + metric.landedPerRun, 0)) ?? 0,
+      resistedPerRun: round(debuffMetrics.reduce((sum, metric) => sum + metric.resistedPerRun, 0)) ?? 0,
+    },
+    linkedAttackRiders: {
+      actions: riderMetrics,
+      usesPerRun: round(riderMetrics.reduce((sum, metric) => sum + metric.usesPerRun, 0)) ?? 0,
+      damagePerRun: round(riderMetrics.reduce((sum, metric) => sum + metric.damagePerRun, 0)) ?? 0,
+      highestDamage: riderMetrics.reduce((max, metric) => Math.max(max, metric.highestDamage), 0),
+      preventedByPrimaryResistPerRun: riderMetrics.length > 0
+        ? round(riderMetrics.reduce((sum, metric) => sum + (metric.preventedByPrimaryResistPerRun ?? 0), 0))
+        : null,
+    },
+    transcriptPatterns,
+    unavailable,
+  };
+}
+
 function summarizeScenario(scenario: CombatScenario, attacker: BuiltActor, defender: BuiltActor): ScenarioResult {
   const suite = runScenarioSuite(scenario);
   const runs = Array.from({ length: scenario.runs }, (_, index) => runCombatScenario(scenario, index));
@@ -647,6 +831,12 @@ function summarizeScenario(scenario: CombatScenario, attacker: BuiltActor, defen
       preventedByCooldownPerRun: round(cooldown?.preventedByCooldown ?? 0) ?? 0,
     };
   }).filter((entry) => entry.usesPerRun > 0 || entry.preventedByCooldownPerRun > 0);
+  const specialMetrics = summarizeSpecialMetrics({
+    attacker,
+    runs,
+    contributionByActionName,
+    monsterEvents,
+  });
 
   return {
     scenarioName: scenario.name,
@@ -673,6 +863,7 @@ function summarizeScenario(scenario: CombatScenario, attacker: BuiltActor, defen
     normalMonsterDefeats: suite.majorInjuryDiagnostics.normalMonsterDefeats,
     keyEnemyActionUsage,
     keyPlayerDefensiveUsage,
+    specialMetrics,
     hydrationWarnings: [...attacker.warnings, ...defender.warnings],
     unsupportedPowerNames: [
       ...attacker.actor.unsupportedPowers.map((power) => `${attacker.name}: ${power.powerName}: ${power.reason}`),
@@ -742,6 +933,20 @@ function printHuman(payload: Payload) {
     ].join(" | "));
     for (const usage of row.keyEnemyActionUsage.filter((entry) => entry.usesPerRun > 0 || entry.damagePerRun > 0)) {
       console.log(`  enemy ${usage.actionName}: uses/run ${usage.usesPerRun}, damage/run ${usage.damagePerRun}, cooldown ${usage.cooldownRounds}, cooldown blocks/run ${usage.preventedByCooldownPerRun}`);
+    }
+    if (
+      row.specialMetrics.control.usesPerRun > 0 ||
+      row.specialMetrics.debuff.usesPerRun > 0 ||
+      row.specialMetrics.linkedAttackRiders.usesPerRun > 0 ||
+      (row.specialMetrics.linkedAttackRiders.preventedByPrimaryResistPerRun ?? 0) > 0
+    ) {
+      console.log(
+        `  special control ${row.specialMetrics.control.usesPerRun}u/${row.specialMetrics.control.landedPerRun} landed/${row.specialMetrics.control.resistedPerRun} resisted, ` +
+        `debuff ${row.specialMetrics.debuff.usesPerRun}u/${row.specialMetrics.debuff.landedPerRun} landed/${row.specialMetrics.debuff.resistedPerRun} resisted, ` +
+        `rider ${row.specialMetrics.linkedAttackRiders.usesPerRun}u/${row.specialMetrics.linkedAttackRiders.damagePerRun} dmg/high ${row.specialMetrics.linkedAttackRiders.highestDamage}` +
+        `${row.specialMetrics.linkedAttackRiders.preventedByPrimaryResistPerRun === null ? "" : `/primary-resist blocks ${row.specialMetrics.linkedAttackRiders.preventedByPrimaryResistPerRun}`}, ` +
+        `main denied ${row.specialMetrics.control.actionsDeniedPerRun}/run`,
+      );
     }
     for (const usage of row.keyPlayerDefensiveUsage) {
       console.log(`  player defence ${usage.actionName}: uses/run ${usage.usesPerRun}, cooldown ${usage.cooldownRounds}, cooldown blocks/run ${usage.preventedByCooldownPerRun}`);
