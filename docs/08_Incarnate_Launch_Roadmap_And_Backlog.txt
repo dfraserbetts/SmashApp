@@ -1,0 +1,112 @@
+08_Incarnate_Launch_Roadmap_And_Backlog.txt
+
+Purpose
+
+This is the active launch roadmap and backlog intake document for durable
+future-facing work that does not yet belong in locked rules, final costing law,
+or concrete implementation handoffs.
+
+This document is lower authority than:
+
+- docs/01_Locked_Rules_And_Combat_Bible.txt
+- docs/02_Power_System_And_Costing.txt
+- docs/03_Builders_And_Implementation_Roadmap.txt
+- docs/04_Combat_Lab_Balance_And_Validation.txt
+- docs/05_Implementation_Handoffs.txt
+
+Items here preserve planning context. They are not final design decisions unless
+a higher-authority active source document explicitly promotes them.
+
+
+Roleplay System Roadmap
+
+The roleplay side of Incarnate still needs building. It is smaller than the
+combat side, but still substantial.
+
+Future roleplay-system work includes:
+
+- out-of-combat Trials
+- out-of-combat Clashes
+- Characteristics
+- Traits
+- roleplay-facing reward loops
+- character-sheet tracking for roleplay resources
+- Game Director guidance for rewards, consequences, and limits
+
+
+Optional Character Archetypes
+
+OPEN / NEEDS ARCHITECT DECISION.
+
+Potential shape:
+
+- Players may opt into an Archetype.
+- Archetypes impose mechanical and / or narrative restrictions.
+- Archetypes grant major bonuses in certain fields.
+- Archetypes include a failure clause or consequence model.
+
+Captured example only, not final locked design:
+
+Hero!
+
+- Restriction: must always tell the truth, no matter the outcome.
+- Bonuses: good people are inclined to believe them, even in implausible
+  situations; good people are likely to offer aid, shelter, or resources if
+  able; +1 success level to roleplay checks when telling the truth.
+- Failure clause: if they lie, they may be scorned, treated as an outcast, lose
+  hospitality / trust, and redemption may be difficult or impossible depending
+  on the lie.
+- Failure penalty: -1 success level to roleplay checks.
+
+
+Character Backstory Points
+
+OPEN / NEEDS ARCHITECT DECISION.
+
+Potential shape:
+
+- Earned through defining moments tied to character backstory.
+- Granted by the Game Director.
+- Spent to influence major story moments such as sudden return of allies,
+  sudden power-up, sudden rescue, or another meaningful narrative intervention.
+- Needs limits, anti-abuse guidance, and Game Director permission rules.
+
+
+Personal Goals
+
+OPEN / NEEDS ARCHITECT DECISION.
+
+Potential shape:
+
+- Players set personal goals.
+- Completing goals may grant Power Points, Resist Points, resources, attribute
+  increases after prerequisite quests, or alternative / forced stat growth based
+  on learning consequences.
+- Needs Game Director approval rules, completion guidance, and reward limits.
+
+
+Party Resource
+
+OPEN / NEEDS ARCHITECT DECISION.
+
+Name TBD.
+
+Potential shape:
+
+- Shared pool available to the party.
+- Can be spent in dire moments to change the scenario meaningfully.
+- Needs name, earn rules, spend rules, permission / vote model, limits, and Game
+  Director guidance.
+
+
+Open Decisions
+
+OPEN / NEEDS ARCHITECT DECISION:
+
+- Final roleplay system scope.
+- Whether optional Archetypes are part of launch or later expansion.
+- Archetype restriction / bonus / failure-clause format.
+- Backstory Point earn and spend rules.
+- Personal Goal reward categories and limits.
+- Party resource name, ownership model, spend permission, and Game Director
+  override rules.

@@ -11,9 +11,10 @@ snapshots. Archive documents are not authoritative unless an active source doc
 explicitly references them.
 
 The active set now includes docs/07_Incarnate_Balance_Tuning_Bible.txt as the
-operational tuning guide. It summarizes and operationalizes combat law, costing
-law, and validation doctrine for balance work; it does not override docs/01,
-docs/02, or docs/04.
+operational tuning guide and
+docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt as the launch roadmap/backlog
+intake document. These documents do not override docs/01, docs/02, docs/03,
+docs/04, or docs/05.
 
 
 Active Source-Of-Truth Hierarchy
@@ -47,6 +48,11 @@ Active Source-Of-Truth Hierarchy
    Operational balance tuning bible. Use this as the first practical routing
    document for Incarnate tuning passes, scenario interpretation, Balance
    Environment provenance, tuning anti-patterns, and next-step sequencing.
+
+8. docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt
+   Launch roadmap and backlog intake. Use this for captured future-facing
+   product/system work that is not yet locked rule law, not yet final costing
+   law, and not yet a concrete implementation handoff.
 
 This index is navigational and status-oriented. If this file conflicts with a
 locked rule in docs/01_Locked_Rules_And_Combat_Bible.txt, the locked rules doc
@@ -83,8 +89,31 @@ Use this routing when adding or updating source documentation:
   docs/07_Incarnate_Balance_Tuning_Bible.txt. This document summarizes and
   operationalizes docs/01, docs/02, and docs/04 for tuning; it does not override
   them.
+- Launch roadmap and backlog items that are not yet locked rules, final costing
+  law, or concrete implementation instructions go in
+  docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt.
 - Archived and historical documents live in docs/archive/. Reference material
   that supports implementation but is not authoritative lives in docs/reference/.
+
+
+Roadmap Capture Batch 1
+
+Status: CAPTURED AS ROADMAP / NOT LOCKED RULE LAW.
+
+The current launch-roadmap intake batch has been captured in owner docs:
+
+- docs/03_Builders_And_Implementation_Roadmap.txt captures builder/toolkit
+  backlog for Spark, Restrictions, Summon, Transform, and character-sheet
+  support surfaces.
+- docs/02_Power_System_And_Costing.txt captures Summon/Transform power and
+  costing design backlog without locking numeric formulas.
+- docs/06_Product_Brand_And_Kickstarter_Strategy.txt captures the required
+  naming pass and player-facing language backlog.
+- docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt captures roleplay-system,
+  Archetype, Backstory Point, Personal Goal, and party-resource backlog.
+
+These items preserve planning context only. They do not resolve open Architect
+decisions or require immediate implementation.
 
 
 Open Decisions Index
@@ -237,15 +266,29 @@ law until the owning active doc is updated with an explicit decision.
 - Spark/Restriction scope.
   Status: OPEN.
   Owner: docs/03_Builders_And_Implementation_Roadmap.txt.
-  Note: Final builder scope is not locked.
+  Note: Character Creator is still missing Spark and Power Restriction support.
+  Final Spark/Restriction scope is not locked.
 - Transformation/Summoning/object/structure/machine/mount builder scopes.
   Status: OPEN.
-  Owner: docs/03_Builders_And_Implementation_Roadmap.txt.
-  Note: These future builder families remain unscheduled / unfinalized.
+  Owner: docs/02_Power_System_And_Costing.txt and
+  docs/03_Builders_And_Implementation_Roadmap.txt.
+  Note: SUMMONING and TRANSFORMATION exist as PowerIntention values, but full
+  gameplay, tooling, builder flow, and costing scope remains open.
 - Signature Move future Spark alignment.
   Status: NEEDS ARCHITECT DECISION.
   Owner: docs/03_Builders_And_Implementation_Roadmap.txt.
   Note: Current implementation uses a separate Character Level x 20 pool.
+- Roleplay system scope.
+  Status: OPEN / NEEDS ARCHITECT DECISION.
+  Owner: docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt.
+  Note: Out-of-combat Trials, Clashes, Characteristics, Traits, roleplay reward
+  loops, optional Archetypes, Backstory Points, Personal Goals, and party-level
+  shared resources require future design.
+- Limit Break / over-limit final naming.
+  Status: OPEN / NEEDS ARCHITECT DECISION.
+  Owner: docs/06_Product_Brand_And_Kickstarter_Strategy.txt.
+  Note: The naming pass must cover rules text, builder labels, tooltips,
+  previews, print output, handbook terms, and marketing copy.
 - Holdout scenario list and playtest readiness checklist.
   Status: NEEDS BALANCE EVIDENCE.
   Owner: docs/04_Combat_Lab_Balance_And_Validation.txt.
@@ -419,8 +462,10 @@ Immediate Ordered Work
 
 Consolidation Pass 2 Note
 
-Pass 2 is complete. The original active source docs are the seven 00-06 files
-listed above, with docs/07_Incarnate_Balance_Tuning_Bible.txt now added as the
-operational tuning bible. Legacy docs are archived under docs/archive/ and are
-not current source of truth unless explicitly referenced by an active doc. No
-files were deleted in this consolidation pass.
+Pass 2 is complete. The original consolidated source docs were the seven 00-06
+files, with docs/07_Incarnate_Balance_Tuning_Bible.txt later added as the
+operational tuning bible and
+docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt added as the launch
+roadmap/backlog intake document. Legacy docs are archived under docs/archive/
+and are not current source of truth unless explicitly referenced by an active
+doc. No files were deleted in this consolidation pass.

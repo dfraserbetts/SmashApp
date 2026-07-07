@@ -80,6 +80,37 @@ Remaining Work
   are stable.
 
 
+Launch Roadmap Backlog: Builder And Toolkit
+
+These items are captured roadmap/backlog, not locked rule law.
+
+Character Creator:
+
+- Character Creator is still missing Spark support.
+- Character Creator is still missing Power Restrictions support.
+- Spark and Restriction scope remains OPEN / NEEDS ARCHITECT DECISION.
+- Character Builder must eventually support optional Archetypes, Backstory
+  Points, Personal Goals, and any character-sheet tracking needed for roleplay
+  resources.
+- Party resource tracking may belong at campaign / party level rather than
+  character level; keep this open.
+
+Power Builder:
+
+- Full Summon intention implementation remains future work.
+- Full Transform intention implementation remains future work.
+- Summon / Transform should likely reuse or open a constrained Summoning
+  Circle-style creation flow, but this is not locked.
+- Summon creation should be constrained by originating power value, potency,
+  dice, or equivalent power budget rather than ordinary level / tier creation,
+  pending design.
+- Transform creation should likely create a transformed profile or form with
+  changed Attributes and Powers, pending design.
+- Summon / Transform must preserve shared power-builder legality and avoid
+  character-only or monster-only forks unless a future explicit rule requires
+  one.
+
+
 Campaign-Local Asset Model
 
 At the current development stage, Characters, Monsters, and Forge Items are
@@ -146,3 +177,5 @@ OPEN / NEEDS ARCHITECT DECISION:
   scopes.
 - Whether Signature Move eventually becomes Spark-aligned beyond the current
   separate-pool implementation.
+- Character sheet support for optional Archetypes, Backstory Points, Personal
+  Goals, roleplay resources, and party-level shared resource tracking.

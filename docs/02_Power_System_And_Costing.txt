@@ -129,6 +129,40 @@ fields, broad resolution pattern, and timing constraints. It is not flavour.
 Effect Packets define mechanical outcomes. Packets own intention, potency,
 timing, duration, recipient class, and packet-specific effect details.
 
+Power Intention Roadmap: Summoning And Transformation
+
+SUMMONING and TRANSFORMATION exist as PowerIntention values, but full gameplay,
+tooling, and costing implementation remains future work. Do not treat their
+presence in enums or builder lists as final table law.
+
+Summoning backlog:
+
+- Summon must support a range from many small / weak summons to fewer larger /
+  powerful summons.
+- Costing must scale by table impact. Summoning something huge and
+  battle-defining should be powerful and expensive; summoning a tiny fragile
+  distraction should be weak and cheap.
+- Future design must define interaction, control, action economy,
+  vulnerability / destruction, object / item / monster boundaries, duration,
+  field presence, and cleanup.
+- Summon costing is OPEN / NEEDS ARCHITECT DECISION. Do not lock numeric
+  formula values yet.
+
+Transformation backlog:
+
+- Transform must support self / ally beneficial transformation and hostile
+  transformation of targets.
+- Hostile transformation should be resistible.
+- Future design must define attribute replacement or modification, power
+  replacement / suppression / addition, duration, reversion, injury and status
+  carryover, gear interaction, and target consent.
+- Transform costing is OPEN / NEEDS ARCHITECT DECISION. Do not lock numeric
+  formula values yet.
+
+Summon and Transform must preserve shared power-builder legality. Avoid creating
+character-only or monster-only forks unless a future explicit rule requires a
+scoped exception.
+
 
 Primary And Secondary Packets
 
@@ -970,5 +1004,7 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Whether any generic or omni Resist Pool should exist, and if so what surcharge
   and limits it requires.
 - Any future additive/recharging defensive pool authoring shape.
+- Full SUMMONING gameplay, tooling, and costing scope.
+- Full TRANSFORMATION gameplay, tooling, and costing scope.
 - Future Setting Package asset policy beyond the protected/global principles
   already captured in the builder and balance docs.

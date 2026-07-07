@@ -137,6 +137,31 @@ The over-limit / cinematic push mechanic has candidate naming:
 This remains open. Do not lock final mechanic naming from this document alone.
 
 
+Launch Naming Backlog
+
+A full naming pass is required across the system and digital toolkit before
+player-facing release.
+
+Development-facing names such as "Power Chassis" are useful internally, but
+they are not automatically suitable for public rules text, builder labels, or
+marketing copy.
+
+The naming pass should cover:
+
+- rules text
+- builder labels
+- dropdowns
+- tooltips
+- previews
+- print output
+- handbook terminology
+- marketing copy
+
+Limit Breaks / over-limit / cinematic push mechanics still need final
+player-facing naming. Preserve the current product thesis: player intent becomes
+playable form. Do not lock final names in this roadmap capture.
+
+
 Studio-Level Language
 
 Sanctuary Gaming Studios can use "Manifestation" as a philosophical studio line
@@ -163,6 +188,8 @@ Open Brand Decisions
 OPEN / NEEDS ARCHITECT DECISION:
 
 - Final over-limit mechanic name.
+- Full release naming pass across rules text, toolkit UI, previews, print
+  output, handbook terminology, and marketing copy.
 - Whether "Core Rulebook" appears on the front cover.
 - Final Incarnate logo form.
 - Final cover art structure.
