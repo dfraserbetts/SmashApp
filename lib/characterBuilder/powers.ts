@@ -74,6 +74,20 @@ export type CharacterPower = Power & {
   restrictionDiscountPercent?: 0;
 };
 
+export type CharacterPowerPoolKind = "normal" | "signature";
+
+export type CharacterPowerBudgetCooldownPressure = {
+  poolKind: CharacterPowerPoolKind;
+  poolSize: number;
+  spend: number;
+  budgetShare: number;
+  budgetSharePercent: number;
+  baseCooldownTurns: number;
+  budgetCooldownFloor: number;
+  finalCooldownTurns: number;
+  raisedByBudgetShare: boolean;
+};
+
 export type CharacterPowerSummary = {
   power: CharacterPower;
   descriptorLines: string[];
@@ -81,6 +95,8 @@ export type CharacterPowerSummary = {
   spend: number | null;
   playerPowerSpendScalar: number;
   derivedCooldownTurns: number | null;
+  baseDerivedCooldownTurns: number | null;
+  budgetCooldownPressure: CharacterPowerBudgetCooldownPressure | null;
   costValid: boolean;
   invalidCostReason: string | null;
   errors: string[];
@@ -982,6 +998,55 @@ export function signatureMovePointPool(level: number) {
   return Math.max(1, Math.trunc(level || 1)) * 20;
 }
 
+function budgetShareCooldownFloor(budgetShare: number): number {
+  if (budgetShare <= 0.25) return 1;
+  if (budgetShare <= 0.5) return 2;
+  if (budgetShare <= 0.75) return 3;
+  if (budgetShare <= 1) return 4;
+  return 5;
+}
+
+export function deriveCharacterPowerBudgetCooldownPressure(params: {
+  spend: number | null;
+  powerPool: number;
+  poolKind: CharacterPowerPoolKind;
+  baseCooldownTurns: number | null;
+  maxCooldownTurns?: number | null;
+}): CharacterPowerBudgetCooldownPressure | null {
+  if (
+    typeof params.spend !== "number" ||
+    !Number.isFinite(params.spend) ||
+    params.spend < 0 ||
+    !Number.isFinite(params.powerPool) ||
+    params.powerPool <= 0 ||
+    typeof params.baseCooldownTurns !== "number" ||
+    !Number.isFinite(params.baseCooldownTurns) ||
+    params.baseCooldownTurns < 1
+  ) {
+    return null;
+  }
+  const poolSize = Math.max(1, Math.trunc(params.powerPool));
+  const baseCooldownTurns = Math.max(1, Math.trunc(params.baseCooldownTurns));
+  const maxCooldownTurns =
+    typeof params.maxCooldownTurns === "number" && Number.isFinite(params.maxCooldownTurns)
+      ? Math.max(1, Math.trunc(params.maxCooldownTurns))
+      : 5;
+  const budgetShare = Math.max(0, params.spend) / poolSize;
+  const budgetCooldownFloor = Math.min(maxCooldownTurns, budgetShareCooldownFloor(budgetShare));
+  const finalCooldownTurns = Math.max(baseCooldownTurns, budgetCooldownFloor);
+  return {
+    poolKind: params.poolKind,
+    poolSize,
+    spend: Math.round(params.spend * 100) / 100,
+    budgetShare: Math.round(budgetShare * 10000) / 10000,
+    budgetSharePercent: Math.round(budgetShare * 10000) / 100,
+    baseCooldownTurns,
+    budgetCooldownFloor,
+    finalCooldownTurns,
+    raisedByBudgetShare: finalCooldownTurns > baseCooldownTurns,
+  };
+}
+
 function readPacketOffencePressure(packet: PowerCostPacketBreakdown): ResolvedOffencePressure | null {
   const magnitude = packet.debug.magnitude;
   if (!magnitude || typeof magnitude !== "object") return null;
@@ -1251,6 +1316,7 @@ export function summarizeCharacterPowers(params: {
   tuningSnapshot?: PowerTuningSnapshot | null;
   playerPowerSpendScalar?: number | null;
   powerPool?: number | null;
+  powerPoolKind?: CharacterPowerPoolKind;
   offencePressureMode?: PowerCostContext["offencePressureMode"];
   offencePressureDie?: CombatDieSize | null;
 }): CharacterPowerBudget {
@@ -1258,6 +1324,7 @@ export function summarizeCharacterPowers(params: {
     params.playerPowerSpendScalar ?? DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
   );
   const powerPool = params.powerPool ?? powerPointPool(params.level);
+  const powerPoolKind = params.powerPoolKind ?? "normal";
   const offencePressureMode = params.offencePressureMode === "reviewOnly" ? "reviewOnly" : "costing";
   const normalizedPowers = params.powers.map((power, index) =>
     normalizeCharacterPower(power, index),
@@ -1279,6 +1346,14 @@ export function summarizeCharacterPowers(params: {
       basePowerValue === null
         ? null
         : calculateCharacterPlayerPowerSpend(basePowerValue, playerPowerSpendScalar);
+    const baseDerivedCooldownTurns = costValid ? (resolvedPower?.derivedCooldownTurns ?? 1) : null;
+    const budgetCooldownPressure = deriveCharacterPowerBudgetCooldownPressure({
+      spend,
+      powerPool,
+      poolKind: powerPoolKind,
+      baseCooldownTurns: baseDerivedCooldownTurns,
+      maxCooldownTurns: resolvedPower?.derivedCooldown?.maxTurns ?? null,
+    });
     warnings.push(...collectOffencePressureWarnings({
       resolvedPower,
       playerPowerSpendScalar,
@@ -1286,13 +1361,20 @@ export function summarizeCharacterPowers(params: {
       offencePressureMode,
       offencePressureDie: params.offencePressureDie,
     }));
+    if (budgetCooldownPressure?.raisedByBudgetShare) {
+      warnings.push(
+        `${powerPoolKind === "signature" ? "Signature Move" : "Power"} budget pressure raised derived cooldown from ${budgetCooldownPressure.baseCooldownTurns} to ${budgetCooldownPressure.finalCooldownTurns} (${budgetCooldownPressure.budgetSharePercent}% of pool ${budgetCooldownPressure.poolSize}).`,
+      );
+    }
     return {
       power,
       descriptorLines,
       basePowerValue,
       spend,
       playerPowerSpendScalar,
-      derivedCooldownTurns: costValid ? (resolvedPower?.derivedCooldownTurns ?? 1) : null,
+      derivedCooldownTurns: budgetCooldownPressure?.finalCooldownTurns ?? baseDerivedCooldownTurns,
+      baseDerivedCooldownTurns,
+      budgetCooldownPressure,
       costValid,
       invalidCostReason: costValid ? null : errors[0] ?? "Power is invalid.",
       errors,
@@ -1316,6 +1398,7 @@ export function validateCharacterPowers(params: {
   tuningSnapshot?: PowerTuningSnapshot | null;
   playerPowerSpendScalar?: number | null;
   powerPool?: number | null;
+  powerPoolKind?: CharacterPowerPoolKind;
   powerLabel?: string;
   poolDescription?: string;
   offencePressureMode?: PowerCostContext["offencePressureMode"];

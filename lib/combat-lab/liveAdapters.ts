@@ -591,11 +591,13 @@ function characterPowersWithDerivedCooldowns(params: {
   level: number;
   builderData: CharacterBuilderData;
   powerTuning?: PowerTuningSnapshot | null;
+  playerPowerSpendScalar?: number | null;
 }): { powers: Power[]; warnings: CombatLabHydrationWarning[] } {
   const budget = summarizeCharacterPowers({
     level: params.level,
     powers: params.builderData.powers,
     tuningSnapshot: params.powerTuning ?? null,
+    playerPowerSpendScalar: params.playerPowerSpendScalar,
   });
   const warnings: CombatLabHydrationWarning[] = [];
   const powers = params.builderData.powers.map((power, index) => {
@@ -629,6 +631,7 @@ function characterSignatureMoveWithDerivedCooldown(params: {
   level: number;
   builderData: CharacterBuilderData;
   powerTuning?: PowerTuningSnapshot | null;
+  playerPowerSpendScalar?: number | null;
 }): { powers: Power[]; warnings: CombatLabHydrationWarning[]; present: boolean } {
   const signatureMove = params.builderData.signatureMove;
   if (!signatureMove) return { powers: [], warnings: [], present: false };
@@ -645,7 +648,9 @@ function characterSignatureMoveWithDerivedCooldown(params: {
     level: params.level,
     powers: [labelledPower],
     tuningSnapshot: params.powerTuning ?? null,
+    playerPowerSpendScalar: params.playerPowerSpendScalar,
     powerPool: signatureMovePointPool(params.level),
+    powerPoolKind: "signature",
     offencePressureMode: "reviewOnly",
   });
   const derivedCooldownTurns = budget.powers[0]?.derivedCooldownTurns;
@@ -742,6 +747,7 @@ export function adaptCampaignCharacterToCombatActor(
   row: CharacterRow,
   protectionTuning?: ProtectionTuningValues,
   powerTuning?: PowerTuningSnapshot | null,
+  playerPowerSpendScalar?: number | null,
 ): { actor: CombatActor; warnings: CombatLabHydrationWarning[] } {
   const warnings: CombatLabHydrationWarning[] = [];
   const unsupportedEquipment: string[] = [];
@@ -767,12 +773,14 @@ export function adaptCampaignCharacterToCombatActor(
     level,
     builderData,
     powerTuning,
+    playerPowerSpendScalar,
   });
   const signatureMoveHydration = characterSignatureMoveWithDerivedCooldown({
     row,
     level,
     builderData,
     powerTuning,
+    playerPowerSpendScalar,
   });
   warnings.push(...characterPowerHydration.warnings);
   warnings.push(...signatureMoveHydration.warnings);

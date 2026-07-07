@@ -1561,7 +1561,12 @@ async function buildScenarios(
       );
     }
 
-    const adaptedCharacter = adaptCampaignCharacterToCombatActor(character, tuning.combatValues, tuning.powerSnapshot);
+    const adaptedCharacter = adaptCampaignCharacterToCombatActor(
+      character,
+      tuning.combatValues,
+      tuning.powerSnapshot,
+      tuning.characterBuilderTuning.playerPowerSpendScalar,
+    );
     const adaptedMonster = adaptMonsterToCombatLabActor(
       monster,
       monsterEquipmentById,

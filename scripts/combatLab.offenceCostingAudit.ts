@@ -2,7 +2,11 @@ import { spawnSync } from "node:child_process";
 import { loadEnvConfig } from "@next/env";
 
 import { normalizeBuilderData } from "../lib/characterBuilder/core";
-import { signatureMovePointPool } from "../lib/characterBuilder/powers";
+import {
+  deriveCharacterPowerBudgetCooldownPressure,
+  powerPointPool,
+  signatureMovePointPool,
+} from "../lib/characterBuilder/powers";
 import { calculateCharacterPlayerPowerSpend, normalizeCharacterPowerSpendScalar } from "../lib/config/characterBuilderTuningShared";
 import { normalizeCombatTuning, normalizeCombatTuningFlatValues } from "../lib/config/combatTuningShared";
 import { normalizePowerTuningValues, type PowerTuningSnapshot } from "../lib/config/powerTuningShared";
@@ -43,7 +47,12 @@ type CostEvidence = {
   costPerMaxRaw: number | null;
   costPerP20Point: number | null;
   basePowerValue: number | null;
+  baseCooldownTurns: number | null;
   derivedCooldownTurns: number | null;
+  budgetCooldownFloor: number | null;
+  budgetShare: number | null;
+  budgetSharePercent: number | null;
+  poolKind: "normal" | "signature" | null;
   powerPool: number | null;
   signatureMove: boolean;
   itemOutputBand: string | null;
@@ -371,6 +380,15 @@ function addPowerCostEvidence(params: {
     offencePressureMode: params.kind === "signatureMove" ? "reviewOnly" : "costing",
   });
   const playerSpend = calculateCharacterPlayerPowerSpend(cost.basePowerValue, params.scalar);
+  const powerPool = params.kind === "signatureMove" ? signatureMovePointPool(params.level) : powerPointPool(params.level);
+  const poolKind = params.kind === "signatureMove" ? "signature" as const : "normal" as const;
+  const cooldownPressure = deriveCharacterPowerBudgetCooldownPressure({
+    spend: playerSpend,
+    powerPool,
+    poolKind,
+    baseCooldownTurns: cost.derivedCooldownTurns,
+    maxCooldownTurns: cost.derivedCooldown.maxTurns,
+  });
   const evidence: CostEvidence = {
     kind: params.kind,
     costSource: "resolvePowerCost",
@@ -380,8 +398,13 @@ function addPowerCostEvidence(params: {
     costPerMaxRaw: null,
     costPerP20Point: null,
     basePowerValue: cost.basePowerValue,
-    derivedCooldownTurns: cost.derivedCooldownTurns,
-    powerPool: params.kind === "signatureMove" ? signatureMovePointPool(params.level) : null,
+    baseCooldownTurns: cost.derivedCooldownTurns,
+    derivedCooldownTurns: cooldownPressure?.finalCooldownTurns ?? cost.derivedCooldownTurns,
+    budgetCooldownFloor: cooldownPressure?.budgetCooldownFloor ?? null,
+    budgetShare: cooldownPressure?.budgetShare ?? null,
+    budgetSharePercent: cooldownPressure?.budgetSharePercent ?? null,
+    poolKind,
+    powerPool,
     signatureMove: params.kind === "signatureMove",
     itemOutputBand: null,
     itemOutputWoundsPerSuccess: null,
@@ -402,6 +425,7 @@ function addPowerCostEvidence(params: {
         magnitude: packet.debug.magnitude,
       })),
       derivedCooldown: cost.derivedCooldown,
+      budgetCooldownPressure: cooldownPressure,
     },
   };
   const id = params.power.id ? String(params.power.id) : null;
@@ -435,7 +459,12 @@ function addItemCostEvidence(params: {
     costPerMaxRaw: null,
     costPerP20Point: null,
     basePowerValue: null,
+    baseCooldownTurns: null,
     derivedCooldownTurns: null,
+    budgetCooldownFloor: null,
+    budgetShare: null,
+    budgetSharePercent: null,
+    poolKind: null,
     powerPool: null,
     signatureMove: false,
     itemOutputBand: attackProfile?.classification ?? null,
@@ -505,7 +534,12 @@ function noCost(kind: CostEvidence["kind"]): CostEvidence {
     costPerMaxRaw: null,
     costPerP20Point: null,
     basePowerValue: null,
+    baseCooldownTurns: null,
     derivedCooldownTurns: null,
+    budgetCooldownFloor: null,
+    budgetShare: null,
+    budgetSharePercent: null,
+    poolKind: null,
     powerPool: null,
     signatureMove: kind === "signatureMove",
     itemOutputBand: null,
@@ -596,7 +630,7 @@ function collectFocusedProfiles(params: {
         ? `${action.secondaryActions.length} secondary action(s): ${action.secondaryActions.map((entry) => entry.name).join(", ")}`
         : "primary only",
       useResourceSummary: action.sourceType === "signatureMove"
-        ? "Signature Move slot; separate level x 20 pool; Combat Lab cooldown derived from same resolver"
+        ? "Signature Move slot; separate level x 20 pool; Combat Lab cooldown uses resolver floor plus budget-share pressure"
         : action.source?.power?.commitmentModifier
           ? `${action.source.power.descriptorChassis ?? "UNKNOWN"} / ${action.source.power.commitmentModifier}${action.source.power.chargeType ? ` / ${action.source.power.chargeType}` : ""}`
           : "at-will / no resource metadata found",
@@ -715,7 +749,12 @@ async function buildPayload(): Promise<Payload> {
       const item = backpackItem.partyInventoryItem?.itemTemplate;
       if (item) addItemCostEvidence({ map: itemCosts, backpackItemId: backpackItem.id, item });
     }
-    const adapted = adaptCampaignCharacterToCombatActor(row as CharacterRow, tuning.combatValues, tuning.powerSnapshot);
+    const adapted = adaptCampaignCharacterToCombatActor(
+      row as CharacterRow,
+      tuning.combatValues,
+      tuning.powerSnapshot,
+      tuning.characterBuilder.playerPowerSpendScalar,
+    );
     return {
       row,
       actor: adapted.actor,
@@ -863,7 +902,11 @@ function printHuman(payload: Payload) {
   console.log("Detailed cost evidence:");
   for (const profile of payload.focusedProfiles) {
     console.log(`- ${profile.assetName} / ${profile.attackName}`);
+    const budgetSummary = profile.costEvidence.powerPool
+      ? `${profile.costEvidence.poolKind ?? "unknown"} pool ${profile.costEvidence.powerPool}, share ${fmt(profile.costEvidence.budgetSharePercent)}%, base cooldown ${fmt(profile.costEvidence.baseCooldownTurns)}, budget floor ${fmt(profile.costEvidence.budgetCooldownFloor)}, final cooldown ${fmt(profile.costEvidence.derivedCooldownTurns)}`
+      : `base cooldown ${fmt(profile.costEvidence.baseCooldownTurns)}, final cooldown ${fmt(profile.costEvidence.derivedCooldownTurns)}`;
     console.log(`  delivery: cooldown ${profile.cooldownRounds}, ${profile.rangeCategory ?? "unknown"} targets=${profile.targetCount ?? "-"}, ${profile.primarySecondarySummary}`);
+    console.log(`  cooldown budget: ${budgetSummary}`);
     console.log(`  resource: ${profile.useResourceSummary}`);
     console.log(`  output: expected ${fmt(profile.expectedRawWounds)}, max ${fmt(profile.maxRawWounds)}, P10 ${fmt(profile.p10Raw * 100, 1)}%, P16 ${fmt(profile.p16Raw * 100, 1)}%, P20 ${fmt(profile.p20Raw * 100, 1)}%`);
     console.log(`  offence pressure: ${profile.offencePressure.warningLevel}, score ${fmt(profile.offencePressure.burstScore)}, W/S surcharge ${fmt(profile.offencePressure.basePowerValueSurcharge)}${profile.offencePressure.reasons.length > 0 ? `; ${profile.offencePressure.reasons.join(" ")}` : ""}`);

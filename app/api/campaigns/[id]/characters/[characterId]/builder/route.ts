@@ -466,6 +466,7 @@ export async function PATCH(
         tuningSnapshot: powerTuning,
         playerPowerSpendScalar: characterBuilderTuning.playerPowerSpendScalar,
         powerPool: signatureMovePointPool(validationLevel),
+        powerPoolKind: "signature",
         powerLabel: "Signature Move",
         poolDescription: "Character Level x 20",
         offencePressureMode: "reviewOnly",

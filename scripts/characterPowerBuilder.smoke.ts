@@ -12,6 +12,7 @@ import {
   getCharacterPowerAllowedApplyToOptions,
   getCharacterPowerAllowedTimingOptions,
   getCharacterPowerPrimaryDefenceLabel,
+  deriveCharacterPowerBudgetCooldownPressure,
   normalizeCharacterPower,
   powerPointPool,
   signatureMovePointPool,
@@ -884,6 +885,7 @@ function makeSummoningCircleShapedPowerForCaseB(): Power {
     level: 3,
     powers: [costlySignatureMove],
     powerPool: signatureMovePointPool(3),
+    powerPoolKind: "signature",
     offencePressureMode: "reviewOnly",
   });
   const normalPowerErrors = validateCharacterPowers({
@@ -894,6 +896,7 @@ function makeSummoningCircleShapedPowerForCaseB(): Power {
     level: 3,
     powers: [costlySignatureMove],
     powerPool: signatureMovePointPool(3),
+    powerPoolKind: "signature",
     powerLabel: "Signature Move",
     poolDescription: "Character Level x 20",
     offencePressureMode: "reviewOnly",
@@ -906,6 +909,16 @@ function makeSummoningCircleShapedPowerForCaseB(): Power {
     signatureMoveErrors.some((error) => error.includes("Signature Move Point spend") && error.includes("Character Level x 20")),
     "Signature Move overspend should be checked against its separate Character Level x 20 pool.",
   );
+
+  const signatureBudgetCooldown = deriveCharacterPowerBudgetCooldownPressure({
+    spend: 46,
+    powerPool: signatureMovePointPool(3),
+    poolKind: "signature",
+    baseCooldownTurns: 3,
+    maxCooldownTurns: 5,
+  });
+  assert(signatureBudgetCooldown?.budgetCooldownFloor === 4, "46/60 Signature Move spend should require cooldown floor 4.");
+  assert(signatureBudgetCooldown?.finalCooldownTurns === 4, "Signature budget pressure should raise cooldown 3 to 4.");
 }
 
 function printPowerCostDiagnostic(label: string, power: Power) {

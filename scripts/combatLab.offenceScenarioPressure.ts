@@ -10,6 +10,7 @@ import { createActorInstances } from "../lib/combat-lab/combatState";
 import { runCombatScenario } from "../lib/combat-lab/autoSimulator";
 import { runScenarioSuite } from "../lib/combat-lab/reporting";
 import { normalizeCombatTuning, normalizeCombatTuningFlatValues } from "../lib/config/combatTuningShared";
+import { DEFAULT_CHARACTER_POWER_SPEND_SCALAR, normalizeCharacterPowerSpendScalar } from "../lib/config/characterBuilderTuningShared";
 import { normalizePowerTuningValues, type PowerTuningSnapshot } from "../lib/config/powerTuningShared";
 import { analyzeOffencePressure } from "../lib/summoning/offencePressure";
 import type {
@@ -335,7 +336,7 @@ function warningsToStrings(warnings: unknown[]): string[] {
 }
 
 async function loadActiveTuning(prisma: PrismaClientInstance) {
-  const [powerSet, combatSet] = await Promise.all([
+  const [powerSet, combatSet, characterBuilderTuning] = await Promise.all([
     prisma.powerTuningConfigSet.findFirst({
       where: { status: "ACTIVE" },
       orderBy: [{ activatedAt: "desc" }, { updatedAt: "desc" }],
@@ -345,6 +346,10 @@ async function loadActiveTuning(prisma: PrismaClientInstance) {
       where: { status: "ACTIVE" },
       orderBy: [{ activatedAt: "desc" }, { updatedAt: "desc" }],
       include: { entries: { orderBy: [{ sortOrder: "asc" }, { configKey: "asc" }] } },
+    }),
+    prisma.characterBuilderTuning.findUnique({
+      where: { id: "default" },
+      select: { playerPowerSpendScalar: true },
     }),
   ]);
   if (!powerSet || !combatSet) throw new Error("Missing ACTIVE Power or Combat tuning set.");
@@ -359,6 +364,9 @@ async function loadActiveTuning(prisma: PrismaClientInstance) {
   return {
     powerSnapshot,
     combatValues: normalizeCombatTuning(normalizeCombatTuningFlatValues(entriesToRecord(combatSet.entries))),
+    characterPowerSpendScalar: normalizeCharacterPowerSpendScalar(
+      characterBuilderTuning?.playerPowerSpendScalar ?? DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
+    ),
   };
 }
 
@@ -630,7 +638,12 @@ async function buildAssets(prisma: PrismaClientInstance, tuning: Awaited<ReturnT
   const monsterEquipmentById = new Map(itemRows.map((item) => [item.id, itemTemplateToSummoningEquipmentItem(item as ItemTemplateRow)]));
 
   const attackers = characters.map((row) => {
-    const adapted = adaptCampaignCharacterToCombatActor(row as CharacterRow, tuning.combatValues, tuning.powerSnapshot);
+    const adapted = adaptCampaignCharacterToCombatActor(
+      row as CharacterRow,
+      tuning.combatValues,
+      tuning.powerSnapshot,
+      tuning.characterPowerSpendScalar,
+    );
     return {
       id: row.id,
       name: row.name,

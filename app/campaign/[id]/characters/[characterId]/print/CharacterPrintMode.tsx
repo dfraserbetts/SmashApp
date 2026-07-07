@@ -163,6 +163,7 @@ export function CharacterPrintMode({
       tuningSnapshot: payload.powerTuning,
       playerPowerSpendScalar: payload.characterBuilderTuning.playerPowerSpendScalar,
       powerPool: signatureMovePointPool(payload.character.level),
+      powerPoolKind: "signature",
       offencePressureMode: "reviewOnly",
       offencePressureDie,
     });

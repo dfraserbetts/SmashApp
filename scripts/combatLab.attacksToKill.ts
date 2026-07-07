@@ -10,6 +10,7 @@ import {
 } from "../lib/combat-lab/liveAdapters";
 import { createFixtureActor } from "../lib/combat-lab/powerAdapter";
 import { runScenarioSuite } from "../lib/combat-lab/reporting";
+import { DEFAULT_CHARACTER_POWER_SPEND_SCALAR, normalizeCharacterPowerSpendScalar } from "../lib/config/characterBuilderTuningShared";
 import type { CombatAction, CombatActor, CombatDieSize, CombatScenario, CombatSuiteReport } from "../lib/combat-lab/types";
 import { normalizeCombatTuning, normalizeCombatTuningFlatValues } from "../lib/config/combatTuningShared";
 import { normalizePowerTuningValues, type PowerTuningSnapshot } from "../lib/config/powerTuningShared";
@@ -782,7 +783,7 @@ function summarizeDualChannelRows(rows: ReportRow[]): DualChannelSummary[] {
 }
 
 async function loadActiveTuning() {
-  const [powerSet, combatSet] = await Promise.all([
+  const [powerSet, combatSet, characterBuilderTuning] = await Promise.all([
     prisma.powerTuningConfigSet.findFirst({
       where: { status: "ACTIVE" },
       orderBy: [{ activatedAt: "desc" }, { updatedAt: "desc" }],
@@ -792,6 +793,10 @@ async function loadActiveTuning() {
       where: { status: "ACTIVE" },
       orderBy: [{ activatedAt: "desc" }, { updatedAt: "desc" }],
       include: { entries: { orderBy: [{ sortOrder: "asc" }, { configKey: "asc" }] } },
+    }),
+    prisma.characterBuilderTuning.findUnique({
+      where: { id: "default" },
+      select: { playerPowerSpendScalar: true },
     }),
   ]);
   if (!powerSet || !combatSet) {
@@ -816,6 +821,9 @@ async function loadActiveTuning() {
   return {
     powerSnapshot,
     combatValues: normalizeCombatTuning(combatSnapshot.values),
+    characterPowerSpendScalar: normalizeCharacterPowerSpendScalar(
+      characterBuilderTuning?.playerPowerSpendScalar ?? DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
+    ),
     activeTuning: {
       power: { setId: powerSnapshot.setId, name: powerSnapshot.name, slug: powerSnapshot.slug },
       combat: { setId: combatSnapshot.setId, name: combatSnapshot.name, slug: combatSnapshot.slug },
@@ -976,6 +984,7 @@ async function discoverRealAssets(): Promise<RealAssetDiscovery> {
       row as Parameters<typeof adaptCampaignCharacterToCombatActor>[0],
       tuning.combatValues,
       tuning.powerSnapshot,
+      tuning.characterPowerSpendScalar,
     );
     const actorWarnings = warningsToStrings(adapted.warnings);
     if (adapted.actor.hydration.fallbackActions.length > 0) {

@@ -8,6 +8,7 @@ import {
   itemTemplateToSummoningEquipmentItem,
 } from "@/lib/combat-lab/liveAdapters";
 import { createActorInstances } from "@/lib/combat-lab/combatState";
+import { ensureCharacterBuilderTuning } from "@/lib/config/characterBuilderTuning";
 import { getProtectionTuning } from "@/lib/config/combatTuning";
 import { ensureSeedPowerTuningSet } from "@/lib/config/powerTuning";
 import { runScenarioSuite } from "@/lib/combat-lab/reporting";
@@ -127,7 +128,7 @@ export async function POST(req: Request) {
     const userId = await requireUserId();
     await requireCampaignGameDirector(campaignId, userId);
 
-    const [campaign, characters, monsters, protectionTuning, powerTuning] = await Promise.all([
+    const [campaign, characters, monsters, protectionTuning, powerTuning, characterBuilderTuning] = await Promise.all([
       prisma.campaign.findUnique({
         where: { id: campaignId },
         select: { id: true, name: true, descriptorVersionTag: true },
@@ -165,6 +166,7 @@ export async function POST(req: Request) {
       }),
       getProtectionTuning(),
       ensureSeedPowerTuningSet(),
+      ensureCharacterBuilderTuning(),
     ]);
 
     const monsterItemIds = Array.from(
@@ -207,7 +209,12 @@ export async function POST(req: Request) {
     }
 
     const adaptedCharacters = characters.map((character) =>
-      adaptCampaignCharacterToCombatActor(character, protectionTuning, powerTuning),
+      adaptCampaignCharacterToCombatActor(
+        character,
+        protectionTuning,
+        powerTuning,
+        characterBuilderTuning.playerPowerSpendScalar,
+      ),
     );
     const monsterById = new Map(monsters.map((monster) => [monster.id, monster]));
     const adaptedMonsters = monsterSelections.map((selection) => {
