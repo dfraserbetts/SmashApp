@@ -178,8 +178,10 @@ const FOCUS_ACTION_NAMES = new Set([
 const BASE_SCENARIOS = [
   ["BALANCE_Hawkshot Archer", "BALANCE_Physical Striker"],
   ["BALANCE_Hawkshot Archer", "BALANCE_Durable Soldier"],
+  ["BALANCE_Hawkshot Archer", "BALANCE_Dodge Pressure Skirmisher"],
   ["BALANCE_Hawkshot Archer", "BALANCE_Elite Striker"],
   ["BALANCE_Hawkshot Archer", "BALANCE_Elite Vanguard"],
+  ["BALANCE_Hawkshot Archer", "BALANCE_Elite Skirmisher"],
   ["BALANCE_Ranger Commander", "BALANCE_Physical Striker"],
   ["BALANCE_Ranger Commander", "BALANCE_Durable Soldier"],
   ["BALANCE_Ranger Commander", "BALANCE_Elite Striker"],
@@ -204,6 +206,8 @@ const TRACE_SCENARIOS = [
   ["BALANCE_Ranger Commander", "BALANCE_Boss Warlord"],
   ["BALANCE_Hawkshot Archer", "BALANCE_Physical Striker"],
   ["BALANCE_Hawkshot Archer", "BALANCE_Elite Striker"],
+  ["BALANCE_Hawkshot Archer", "BALANCE_Elite Vanguard"],
+  ["BALANCE_Hawkshot Archer", "BALANCE_Boss Warlord"],
   ["BALANCE_Stoneguard", "BALANCE_Elite Vanguard"],
 ] as const;
 
