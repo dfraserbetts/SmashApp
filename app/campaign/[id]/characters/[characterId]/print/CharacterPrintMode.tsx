@@ -27,6 +27,7 @@ import {
 } from "@/lib/characterBuilder/derivedStats";
 import { signatureMovePointPool, summarizeCharacterPowers } from "@/lib/characterBuilder/powers";
 import type { CharacterBuilderTuningSnapshot } from "@/lib/config/characterBuilderTuningShared";
+import type { CombatDieSize } from "@/lib/combat-lab/types";
 import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
 
 type BuilderCharacter = {
@@ -62,6 +63,14 @@ function privacySafePlayerLabel(value: string | null | undefined) {
     return null;
   }
   return withoutParentheticalEmail;
+}
+
+function combatDieForAttributeValue(value: number): CombatDieSize {
+  if (value >= 12) return "D12";
+  if (value >= 10) return "D10";
+  if (value >= 8) return "D8";
+  if (value >= 6) return "D6";
+  return "D4";
 }
 
 export function CharacterPrintMode({
@@ -128,6 +137,13 @@ export function CharacterPrintMode({
     });
   }, [payload, protectionTuning]);
 
+  const offencePressureDie = useMemo(() => {
+    if (!payload || !derivedStats) return null;
+    const attack = Number(payload.character.builderData.attributes.Attack);
+    const itemAttackModifier = Math.max(0, derivedStats.itemModifiers.attackModifier ?? 0);
+    return combatDieForAttributeValue((Number.isFinite(attack) ? attack : 0) + itemAttackModifier);
+  }, [derivedStats, payload]);
+
   const powerBudget = useMemo(() => {
     if (!payload) return null;
     return summarizeCharacterPowers({
@@ -135,8 +151,9 @@ export function CharacterPrintMode({
       powers: payload.character.builderData.powers,
       tuningSnapshot: payload.powerTuning,
       playerPowerSpendScalar: payload.characterBuilderTuning.playerPowerSpendScalar,
+      offencePressureDie,
     });
-  }, [payload]);
+  }, [offencePressureDie, payload]);
 
   const signatureMoveBudget = useMemo(() => {
     if (!payload) return null;
@@ -147,8 +164,9 @@ export function CharacterPrintMode({
       playerPowerSpendScalar: payload.characterBuilderTuning.playerPowerSpendScalar,
       powerPool: signatureMovePointPool(payload.character.level),
       offencePressureMode: "reviewOnly",
+      offencePressureDie,
     });
-  }, [payload]);
+  }, [offencePressureDie, payload]);
 
   const traitSummary = useMemo(() => {
     if (!payload) return null;

@@ -156,6 +156,13 @@ function titleCase(value: string | null | undefined) {
     .join(" ");
 }
 
+function compactPowerWarningLabel(warning: string) {
+  if (/^Extreme burst review:/i.test(warning)) return "Extreme burst review";
+  if (/^Burst warning:/i.test(warning)) return "Burst warning";
+  if (/^High offence pressure:/i.test(warning)) return "Offence watch";
+  return "Warning";
+}
+
 function stripForgeLineLabel(line: string) {
   const parts = String(line).split("||");
   return (parts.length > 1 ? parts.slice(1).join("||") : parts[0]).trim();
@@ -1734,6 +1741,15 @@ function PowerReferenceSheet({
                   <span className="block text-[9px] uppercase tracking-[0.08em] text-zinc-500">Cooldown</span>
                   {summary.derivedCooldownTurns ?? 1}
                 </span>
+                {summary.warnings.map((warning) => (
+                  <span
+                    key={`${summary.power.name}-${index}-warning-${warning}`}
+                    className="block min-w-16 border border-amber-700 px-1.5 py-1 text-amber-200"
+                  >
+                    <span className="block text-[9px] uppercase tracking-[0.08em] text-amber-500">Review</span>
+                    {compactPowerWarningLabel(warning)}
+                  </span>
+                ))}
               </>
             ) : (
               `Invalid: ${summary.invalidCostReason ?? "Power is invalid."}`

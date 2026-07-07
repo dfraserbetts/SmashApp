@@ -12,6 +12,7 @@ import type {
   ResistTheme,
   SecondaryDependencyMode,
 } from "@/lib/summoning/types";
+import type { CombatDieSize } from "@/lib/combat-lab/types";
 import {
   RESIST_THEME_VALUES,
   TRIGGER_CONDITION_KEYS,
@@ -63,7 +64,10 @@ import {
   type PowerCostContext,
   type PowerCostPacketBreakdown,
 } from "@/lib/summoning/powerCostResolver";
-import type { OffencePressureAnalysis } from "@/lib/summoning/offencePressure";
+import {
+  analyzeOffencePressure,
+  type OffencePressureAnalysis,
+} from "@/lib/summoning/offencePressure";
 
 export type CharacterPower = Power & {
   sparkDiscountPercent?: 0;
@@ -991,6 +995,7 @@ function collectOffencePressureWarnings(params: {
   playerPowerSpendScalar: number;
   powerPool: number;
   offencePressureMode: PowerCostContext["offencePressureMode"];
+  offencePressureDie?: CombatDieSize | null;
 }): string[] {
   const packetPressures =
     params.resolvedPower?.breakdown?.packetCosts?.flatMap((packet) => {
@@ -1005,11 +1010,32 @@ function collectOffencePressureWarnings(params: {
     0,
   );
   for (const pressure of packetPressures) {
-    if (pressure.warningLevel === "none" && pressure.basePowerValueSurcharge <= 0) continue;
-    const reasons = pressure.reasons.length > 0 ? ` ${pressure.reasons.join(" ")}` : "";
-    warnings.push(
-      `Offence pressure ${pressure.warningLevel}: ${pressure.diceCount} dice at ${pressure.woundsPerSuccess} wounds/success has burst score ${pressure.burstScore}.${reasons}`,
-    );
+    const displayPressure = params.offencePressureDie
+      ? analyzeOffencePressure({
+          diceCount: pressure.diceCount,
+          woundsPerSuccess: pressure.woundsPerSuccess,
+          die: params.offencePressureDie,
+        })
+      : pressure;
+    if (displayPressure.warningLevel === "none" && pressure.basePowerValueSurcharge <= 0) continue;
+    const costText = pressure.appliedBasePowerValueSurcharge && pressure.appliedBasePowerValueSurcharge > 0
+      ? ` Offence pressure added +${pressure.appliedBasePowerValueSurcharge} BasePowerValue.`
+      : "";
+    const reviewOnlyText = params.offencePressureMode === "reviewOnly"
+      ? " Signature review-only: this warning does not hard-block saving by itself."
+      : "";
+    if (displayPressure.warningLevel === "extremeP20Review") {
+      const subject = params.offencePressureMode === "reviewOnly" ? "this Signature Move" : "this power";
+      warnings.push(
+        `Extreme burst review: ${subject} can exceed major durability thresholds. GD/Architect review recommended.${reviewOnlyText}`,
+      );
+    } else if (displayPressure.warningLevel === "burstWarning") {
+      warnings.push(
+        `Burst warning: this power can heavily pressure Soldier/Elite durability.${costText}${reviewOnlyText}`,
+      );
+    } else {
+      warnings.push(`High offence pressure: review damage output.${costText}${reviewOnlyText}`);
+    }
   }
   if (params.offencePressureMode === "reviewOnly" && reviewOnlySurcharge > 0) {
     const basePowerValue = params.resolvedPower?.breakdown?.basePowerValue ?? 0;
@@ -1226,6 +1252,7 @@ export function summarizeCharacterPowers(params: {
   playerPowerSpendScalar?: number | null;
   powerPool?: number | null;
   offencePressureMode?: PowerCostContext["offencePressureMode"];
+  offencePressureDie?: CombatDieSize | null;
 }): CharacterPowerBudget {
   const playerPowerSpendScalar = normalizeCharacterPowerSpendScalar(
     params.playerPowerSpendScalar ?? DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
@@ -1257,6 +1284,7 @@ export function summarizeCharacterPowers(params: {
       playerPowerSpendScalar,
       powerPool,
       offencePressureMode,
+      offencePressureDie: params.offencePressureDie,
     }));
     return {
       power,

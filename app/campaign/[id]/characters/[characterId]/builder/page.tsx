@@ -100,6 +100,7 @@ import {
 } from "@/lib/characterBuilder/powers";
 import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
 import type { CharacterBuilderTuningSnapshot } from "@/lib/config/characterBuilderTuningShared";
+import type { CombatDieSize } from "@/lib/combat-lab/types";
 import { getForgeRarityPalette } from "@/lib/forge/itemRarityPalette";
 import type { MonsterModifierField } from "@/lib/summoning/equipment";
 import type {
@@ -915,6 +916,45 @@ function formatPowerNumber(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
+function combatDieForAttributeValue(value: number): CombatDieSize {
+  if (value >= 12) return "D12";
+  if (value >= 10) return "D10";
+  if (value >= 8) return "D8";
+  if (value >= 6) return "D6";
+  return "D4";
+}
+
+function warningTone(warning: string): "extreme" | "burst" | "watch" | "neutral" {
+  if (/^Extreme burst review:/i.test(warning)) return "extreme";
+  if (/^Burst warning:/i.test(warning)) return "burst";
+  if (/^High offence pressure:/i.test(warning)) return "watch";
+  return "neutral";
+}
+
+function warningBadgeLabel(warning: string) {
+  const tone = warningTone(warning);
+  if (tone === "extreme") return "Extreme burst review";
+  if (tone === "burst") return "Burst warning";
+  if (tone === "watch") return "Offence watch";
+  return "Warning";
+}
+
+function warningBadgeClass(warning: string) {
+  const tone = warningTone(warning);
+  if (tone === "extreme") return "border-red-700 bg-red-950/50 text-red-100";
+  if (tone === "burst") return "border-amber-600 bg-amber-950/40 text-amber-100";
+  if (tone === "watch") return "border-cyan-700 bg-cyan-950/30 text-cyan-100";
+  return "border-zinc-700 bg-zinc-900 text-zinc-200";
+}
+
+function warningCalloutClass(warning: string) {
+  const tone = warningTone(warning);
+  if (tone === "extreme") return "border-red-800 bg-red-950/30 text-red-100";
+  if (tone === "burst") return "border-amber-700 bg-amber-950/30 text-amber-100";
+  if (tone === "watch") return "border-cyan-800 bg-cyan-950/25 text-cyan-100";
+  return "border-zinc-800 bg-zinc-950 text-zinc-200";
+}
+
 function getCharacterPowerCollapseKey(power: CharacterPower, index: number) {
   return power.id ? `power-${power.id}` : `power-${power.sortOrder ?? index}-${index}`;
 }
@@ -1235,6 +1275,11 @@ export default function CharacterBuilderPage() {
     equippedSlotsSignature(persistedEquippedSlots);
   const getAttributeModifierValue = (attribute: CharacterAttribute) =>
     derivedCombatStats.itemModifiers[ATTRIBUTE_MODIFIER_FIELDS[attribute]] ?? 0;
+  const attackAttributeValue = Number(builderData.attributes.Attack);
+  const offencePressureDie = combatDieForAttributeValue(
+    (Number.isFinite(attackAttributeValue) ? attackAttributeValue : 0) +
+      Math.max(0, getAttributeModifierValue("Attack")),
+  );
   const signatureMoveDraft = useMemo(
     () => builderData.signatureMove ?? createDefaultCharacterPower(0),
     [builderData.signatureMove],
@@ -1252,8 +1297,9 @@ export default function CharacterBuilderPage() {
         playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
         powerPool: signatureMovePointPool(currentLevel),
         offencePressureMode: "reviewOnly",
+        offencePressureDie,
       }),
-    [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
+    [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie],
   );
   const signatureMoveEditorBudget = useMemo(
     () =>
@@ -1264,8 +1310,9 @@ export default function CharacterBuilderPage() {
         playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
         powerPool: signatureMovePointPool(currentLevel),
         offencePressureMode: "reviewOnly",
+        offencePressureDie,
       }),
-    [signatureMoveDraft, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
+    [signatureMoveDraft, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie],
   );
   const powerBudget = useMemo(
     () =>
@@ -1274,8 +1321,9 @@ export default function CharacterBuilderPage() {
         powers: builderData.powers,
         tuningSnapshot: payload?.powerTuning ?? null,
         playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
+        offencePressureDie,
       }),
-    [builderData.powers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
+    [builderData.powers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie],
   );
   const powerValidationErrors = useMemo(
     () =>
@@ -1690,6 +1738,14 @@ export default function CharacterBuilderPage() {
                             <span className="rounded border border-zinc-800 px-2 py-1">
                               Cooldown {summary.derivedCooldownTurns ?? 1}
                             </span>
+                            {summary.warnings.map((warning) => (
+                              <span
+                                key={`${powerCollapseKey}-warning-${warning}`}
+                                className={`rounded border px-2 py-1 font-medium ${warningBadgeClass(warning)}`}
+                              >
+                                {warningBadgeLabel(warning)}
+                              </span>
+                            ))}
                           </div>
                         ) : (
                           <div
@@ -2861,9 +2917,14 @@ export default function CharacterBuilderPage() {
                         </ul>
                       ) : null}
                       {summary?.warnings.length ? (
-                        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-200">
+                        <ul className="mt-3 space-y-2 text-sm">
                           {summary.warnings.map((powerWarning) => (
-                            <li key={powerWarning}>{powerWarning}</li>
+                            <li
+                              key={powerWarning}
+                              className={`rounded border px-3 py-2 ${warningCalloutClass(powerWarning)}`}
+                            >
+                              {powerWarning}
+                            </li>
                           ))}
                         </ul>
                       ) : null}
