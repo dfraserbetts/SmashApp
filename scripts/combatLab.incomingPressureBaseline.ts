@@ -89,9 +89,12 @@ type ScenarioResult = {
   medianRounds: number;
   playerDefeatedRound1Rate: number;
   playerDefeatedRound2Rate: number;
+  attackerDefeatedRound1Rate: number;
+  attackerDefeatedRound2Rate: number;
   averagePlayerRemainingHpOnWin: number | null;
   averageAttackerRemainingHpOnWin: number | null;
   highestSingleHitNetDamageAgainstPlayer: number;
+  highestSingleHitNetDamageAgainstAttacker: number;
   majorInjuryEvents: number;
   normalMonsterDefeats: number;
   keyEnemyActionUsage: Array<{
@@ -169,6 +172,8 @@ const ELITE_ATTACKER_NAMES = [
   "BALANCE_Elite Skirmisher",
   "BALANCE_Elite Vanguard",
   "BALANCE_Elite Hexer",
+  "BALANCE_Legendary Elite Duelist",
+  "BALANCE_Legendary Elite Hexer",
 ];
 
 const BOSS_ATTACKER_NAMES = [
@@ -226,6 +231,14 @@ const MINIMUM_SCENARIOS = [
   ["BALANCE_Elite Striker", "BALANCE_Ranger Commander"],
   ["BALANCE_Elite Striker", "BALANCE_Stoneguard"],
   ["BALANCE_Elite Striker", "BALANCE_Arcane Sage"],
+  ["BALANCE_Legendary Elite Duelist", "BALANCE_Hawkshot Archer"],
+  ["BALANCE_Legendary Elite Duelist", "BALANCE_Ranger Commander"],
+  ["BALANCE_Legendary Elite Duelist", "BALANCE_Stoneguard"],
+  ["BALANCE_Legendary Elite Duelist", "BALANCE_Arcane Sage"],
+  ["BALANCE_Legendary Elite Hexer", "BALANCE_Hawkshot Archer"],
+  ["BALANCE_Legendary Elite Hexer", "BALANCE_Ranger Commander"],
+  ["BALANCE_Legendary Elite Hexer", "BALANCE_Stoneguard"],
+  ["BALANCE_Legendary Elite Hexer", "BALANCE_Arcane Sage"],
   ["BALANCE_Boss Warlord", "BALANCE_Hawkshot Archer"],
   ["BALANCE_Boss Warlord", "BALANCE_Ranger Commander"],
   ["BALANCE_Boss Warlord", "BALANCE_Stoneguard"],
@@ -549,10 +562,15 @@ function summarizeScenario(scenario: CombatScenario, attacker: BuiltActor, defen
   const attackerWinRuns = runs.filter((run) => run.winner === "monsters");
   const defenderWinRuns = runs.filter((run) => run.winner === "players");
   const playerDefeatRounds = runs.flatMap((run) => run.stoppedBy === "playersDefeated" ? [run.rounds] : []);
+  const attackerDefeatRounds = runs.flatMap((run) => run.stoppedBy === "monstersDefeated" ? [run.rounds] : []);
   const monsterEvents = runs.flatMap((run) =>
     run.offensiveContributionEvents.filter((event) => event.actorSide === "monsters" && event.targetSide === "players")
   );
+  const playerEvents = runs.flatMap((run) =>
+    run.offensiveContributionEvents.filter((event) => event.actorSide === "players" && event.targetSide === "monsters")
+  );
   const highestHit = monsterEvents.reduce((max, event) => Math.max(max, event.damage), 0);
+  const highestHitAgainstAttacker = playerEvents.reduce((max, event) => Math.max(max, event.damage), 0);
   const monsterContribution = suite.actorContributions.find((entry) => entry.side === "monsters" && entry.actorName === attacker.actor.name);
   const contributionByActionName = new Map((monsterContribution?.actionContributions ?? []).map((action) => [action.actionName, action]));
   const cooldownByActionName = new Map(suite.cooldownTrace
@@ -602,9 +620,12 @@ function summarizeScenario(scenario: CombatScenario, attacker: BuiltActor, defen
     medianRounds: median(runs.map((run) => run.rounds)),
     playerDefeatedRound1Rate: pct(playerDefeatRounds.filter((round) => round <= 1).length / Math.max(1, runs.length)),
     playerDefeatedRound2Rate: pct(playerDefeatRounds.filter((round) => round <= 2).length / Math.max(1, runs.length)),
+    attackerDefeatedRound1Rate: pct(attackerDefeatRounds.filter((round) => round <= 1).length / Math.max(1, runs.length)),
+    attackerDefeatedRound2Rate: pct(attackerDefeatRounds.filter((round) => round <= 2).length / Math.max(1, runs.length)),
     averagePlayerRemainingHpOnWin: round(average(defenderWinRuns.map((run) => run.winnerHealthRemainingPercent * 100))),
     averageAttackerRemainingHpOnWin: round(average(attackerWinRuns.map((run) => run.winnerHealthRemainingPercent * 100))),
     highestSingleHitNetDamageAgainstPlayer: highestHit,
+    highestSingleHitNetDamageAgainstAttacker: highestHitAgainstAttacker,
     majorInjuryEvents: suite.majorInjuryDiagnostics.majorInjuryEvents,
     normalMonsterDefeats: suite.majorInjuryDiagnostics.normalMonsterDefeats,
     keyEnemyActionUsage,
@@ -657,8 +678,8 @@ function printHuman(payload: Payload) {
     }
   }
   console.log("");
-  console.log("Scenario | A Win | D Win | Draw | Avg R | Med R | Player dead R1 | Player dead R2 | Player HP win | Attacker HP win | High hit");
-  console.log("--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:");
+  console.log("Scenario | A Win | D Win | Draw | Avg R | Med R | Player dead R1 | Player dead R2 | Attacker dead R1 | Attacker dead R2 | Player HP win | Attacker HP win | High hit vs player | High hit vs attacker");
+  console.log("--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---:");
   for (const row of payload.scenarios) {
     console.log([
       row.scenarioName,
@@ -669,9 +690,12 @@ function printHuman(payload: Payload) {
       row.medianRounds,
       `${row.playerDefeatedRound1Rate}%`,
       `${row.playerDefeatedRound2Rate}%`,
+      `${row.attackerDefeatedRound1Rate}%`,
+      `${row.attackerDefeatedRound2Rate}%`,
       row.averagePlayerRemainingHpOnWin ?? "n/a",
       row.averageAttackerRemainingHpOnWin ?? "n/a",
       row.highestSingleHitNetDamageAgainstPlayer,
+      row.highestSingleHitNetDamageAgainstAttacker,
     ].join(" | "));
     for (const usage of row.keyEnemyActionUsage.filter((entry) => entry.usesPerRun > 0 || entry.damagePerRun > 0)) {
       console.log(`  enemy ${usage.actionName}: uses/run ${usage.usesPerRun}, damage/run ${usage.damagePerRun}, cooldown ${usage.cooldownRounds}, cooldown blocks/run ${usage.preventedByCooldownPerRun}`);
