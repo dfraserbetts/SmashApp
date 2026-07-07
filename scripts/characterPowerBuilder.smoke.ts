@@ -884,6 +884,7 @@ function makeSummoningCircleShapedPowerForCaseB(): Power {
     level: 3,
     powers: [costlySignatureMove],
     powerPool: signatureMovePointPool(3),
+    offencePressureMode: "reviewOnly",
   });
   const normalPowerErrors = validateCharacterPowers({
     level: 3,
@@ -895,6 +896,7 @@ function makeSummoningCircleShapedPowerForCaseB(): Power {
     powerPool: signatureMovePointPool(3),
     powerLabel: "Signature Move",
     poolDescription: "Character Level x 20",
+    offencePressureMode: "reviewOnly",
   });
 
   assert(normalPowerSummary.powerPool === powerPointPool(3), "Level 3 normal powers should use Character Level x 50.");
@@ -1056,8 +1058,8 @@ assert(
   "Character Builder and equivalent Summoning Circle-shaped Case B should resolve to the same BasePowerValue.",
 );
 assert(
-  diagnosticOutputs.caseB.resolverTotalBasePowerValue === 117.2,
-  "Case B BasePowerValue should be 117.2 with Phase 1 expected-output attack payload pricing.",
+  diagnosticOutputs.caseB.resolverTotalBasePowerValue === 123.2,
+  "Case B BasePowerValue should be 123.2 with Phase 1 expected-output attack payload pricing plus capped offence pressure surcharge.",
 );
 assert(
   chosenTuningKeysForDiagnostic(diagnosticOutputs.caseB).includes("packet.magnitude.potency.20"),
@@ -1072,8 +1074,14 @@ assert(
   "Case B should use default player spend scalar 3.",
 );
 assert(
-  diagnosticOutputs.caseB.characterBuilderPlayerSpend === 352,
-  "Case B PlayerPowerSpend should be ceil(117.2 * 3) = 352.",
+  diagnosticOutputs.caseB.characterBuilderPlayerSpend === 370,
+  "Case B PlayerPowerSpend should be ceil(123.2 * 3) = 370.",
+);
+assert(
+  diagnosticOutputs.caseB.resolverBreakdown.packetCosts.some((packet) =>
+    JSON.stringify(packet.debug?.magnitude ?? {}).includes("burstWarning"),
+  ),
+  "Case B should carry an offence pressure burst warning in resolver debug.",
 );
 assert(
   diagnosticOutputs.caseB.derivedCooldown?.derivedCooldownTurns === 5,
@@ -1085,8 +1093,8 @@ const caseBScalarTwoSummary = summarizeCharacterPowers({
   playerPowerSpendScalar: 2,
 });
 assert(
-  caseBScalarTwoSummary.powers[0]?.spend === 235,
-  "Changing scalar to 2 should change Case B PlayerPowerSpend to 235.",
+  caseBScalarTwoSummary.powers[0]?.spend === 247,
+  "Changing scalar to 2 should change Case B PlayerPowerSpend to 247.",
 );
 const caseBOverspendErrors = validateCharacterPowers({
   level: 1,

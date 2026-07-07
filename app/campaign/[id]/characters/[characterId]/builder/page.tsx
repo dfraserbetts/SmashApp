@@ -1251,6 +1251,7 @@ export default function CharacterBuilderPage() {
         tuningSnapshot: payload?.powerTuning ?? null,
         playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
         powerPool: signatureMovePointPool(currentLevel),
+        offencePressureMode: "reviewOnly",
       }),
     [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
   );
@@ -1262,6 +1263,7 @@ export default function CharacterBuilderPage() {
         tuningSnapshot: payload?.powerTuning ?? null,
         playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
         powerPool: signatureMovePointPool(currentLevel),
+        offencePressureMode: "reviewOnly",
       }),
     [signatureMoveDraft, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
   );
@@ -1295,6 +1297,7 @@ export default function CharacterBuilderPage() {
         powerPool: signatureMovePointPool(currentLevel),
         powerLabel: "Signature Move",
         poolDescription: "Character Level x 20",
+        offencePressureMode: "reviewOnly",
       }),
     [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
   );

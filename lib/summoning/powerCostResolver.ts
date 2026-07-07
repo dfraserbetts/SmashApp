@@ -13,6 +13,10 @@ import {
   getPowerTuningValue,
   normalizePowerTuningValues,
 } from "@/lib/config/powerTuningShared";
+import {
+  analyzeOffencePressure,
+  type OffencePressureApplicationMode,
+} from "@/lib/summoning/offencePressure";
 import { effectiveAttackWoundsPerSuccess } from "@/lib/summoning/render";
 
 export type PowerCostAxisVector = RadarAxes;
@@ -64,6 +68,7 @@ type PowerTuningSnapshotLike = {
 export type PowerCostContext = {
   level?: number | null;
   tier?: MonsterTier | null;
+  offencePressureMode?: OffencePressureApplicationMode | null;
 };
 
 export type DerivedPowerCooldownBracket =
@@ -1245,6 +1250,7 @@ function getPacketMagnitudeCost(
   power: Power,
   packet: EffectPacket,
   canonicalRangeCategory: CanonicalRangeCategory,
+  offencePressureMode: OffencePressureApplicationMode,
 ): {
   cost: number;
   chosenKeys: string[];
@@ -1350,6 +1356,25 @@ function getPacketMagnitudeCost(
     movementMagnitude = baseMagnitude * Math.max(0, movementTypeMultiplier);
   }
 
+  const offencePressure =
+    intention === "ATTACK" &&
+    packetDealsWounds(packet) &&
+    tableFacingWoundsPerSuccessForPayload !== null
+      ? analyzeOffencePressure({
+          diceCount: Math.max(1, asInt(packet.diceCount, Math.max(1, asInt(power.diceCount, 1)))),
+          woundsPerSuccess: tableFacingWoundsPerSuccessForPayload,
+        })
+      : null;
+  const offencePressureSurcharge =
+    offencePressureMode === "costing" ? (offencePressure?.basePowerValueSurcharge ?? 0) : 0;
+  if (offencePressure?.basePowerValueSurcharge) {
+    notes.push(
+      offencePressureMode === "costing"
+        ? `Offence pressure surcharge +${offencePressure.basePowerValueSurcharge} BasePowerValue.`
+        : `Offence pressure surcharge +${offencePressure.basePowerValueSurcharge} BasePowerValue flagged review-only.`,
+    );
+  }
+
   let buildPowerBonusCost = 0;
   let buildPowerMultiplier = 1;
   let buildPowerMultiplierKey: string | null = null;
@@ -1373,7 +1398,7 @@ function getPacketMagnitudeCost(
     intention === "MOVEMENT" ? movementMagnitude : woundAdjustedMagnitude;
 
   return {
-    cost: roundCost(resolvedMagnitude + buildPowerBonusCost),
+    cost: roundCost(resolvedMagnitude + buildPowerBonusCost + offencePressureSurcharge),
     chosenKeys,
     notes,
     debug: {
@@ -1404,6 +1429,15 @@ function getPacketMagnitudeCost(
               active: true,
             }
           : null,
+      offencePressure: offencePressure
+        ? {
+            ...offencePressure,
+            applicationMode: offencePressureMode,
+            appliedBasePowerValueSurcharge: roundCost(offencePressureSurcharge),
+            actorDieSizeAvailable: false,
+            note: "Resolver applies W/S surcharge from authored packet data only; actor die-size P16/P20 pressure is diagnostic where combat actor die metadata is available.",
+          }
+        : null,
       buildPowerMultiplier: roundCost(buildPowerMultiplier),
       buildPowerMultiplierKey,
       buildPowerBonusCost: roundCost(buildPowerBonusCost),
@@ -2563,7 +2597,7 @@ function getCounterIntentPremiumCost(
     if (intention !== "ATTACK") continue;
 
     const identity = getPacketIdentityCost(tuningValues, packet);
-    const magnitude = getPacketMagnitudeCost(tuningValues, power, packet, canonicalRangeCategory);
+    const magnitude = getPacketMagnitudeCost(tuningValues, power, packet, canonicalRangeCategory, "costing");
     const timing = getPacketTimingCost(tuningValues, packet);
     const duration = getPacketDurationCost(tuningValues, packet);
     const recipient = getPacketRecipientCost(
@@ -2931,6 +2965,7 @@ function getCrossPacketSynergyCost(
 function normalizePowerCostContext(context?: PowerCostContext): {
   level: number;
   tier: MonsterTier | null;
+  offencePressureMode: OffencePressureApplicationMode;
   notes: string[];
 } {
   const notes: string[] = [];
@@ -2954,7 +2989,10 @@ function normalizePowerCostContext(context?: PowerCostContext): {
     notes.push("Unrecognized monster tier; derived cooldown used neutral tier multiplier.");
   }
 
-  return { level, tier, notes };
+  const offencePressureMode =
+    context?.offencePressureMode === "reviewOnly" ? "reviewOnly" : "costing";
+
+  return { level, tier, offencePressureMode, notes };
 }
 
 function clampCooldownTurns(value: number, minTurns: number, maxTurns: number): number {
@@ -3070,6 +3108,7 @@ export function resolvePowerCost(
   );
   const packets = getEffectPackets(power);
   const canonicalRangeCategory = resolveCanonicalRangeCategory(power);
+  const { offencePressureMode } = normalizePowerCostContext(context);
   const relevantThreatAxes = getRelevantThreatAxes(packets);
   const axisVector = cloneEmptyAxisVector();
   const topLevelNotes: string[] = [];
@@ -3098,7 +3137,13 @@ export function resolvePowerCost(
     if (identity.tuningKey) chosenKeys.push(identity.tuningKey);
     packetNotes.push(...identity.notes);
 
-    const magnitude = getPacketMagnitudeCost(tuningValues, power, packet, canonicalRangeCategory);
+    const magnitude = getPacketMagnitudeCost(
+      tuningValues,
+      power,
+      packet,
+      canonicalRangeCategory,
+      offencePressureMode,
+    );
     chosenKeys.push(...magnitude.chosenKeys);
     packetNotes.push(...magnitude.notes);
 

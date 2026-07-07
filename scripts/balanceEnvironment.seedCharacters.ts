@@ -190,6 +190,7 @@ function validateShellBuilderData(
       powerPool: signatureMovePointPool(LEVEL),
       powerLabel: "Signature Move",
       poolDescription: "Character Level x 20",
+      offencePressureMode: "reviewOnly",
     }),
   ].map((error) => `${shell.name}: ${error}`);
 }

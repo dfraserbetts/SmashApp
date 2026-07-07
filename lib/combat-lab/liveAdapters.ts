@@ -646,6 +646,7 @@ function characterSignatureMoveWithDerivedCooldown(params: {
     powers: [labelledPower],
     tuningSnapshot: params.powerTuning ?? null,
     powerPool: signatureMovePointPool(params.level),
+    offencePressureMode: "reviewOnly",
   });
   const derivedCooldownTurns = budget.powers[0]?.derivedCooldownTurns;
   if (!Number.isFinite(derivedCooldownTurns) || !derivedCooldownTurns || derivedCooldownTurns < 1) {

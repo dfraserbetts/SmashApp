@@ -468,6 +468,7 @@ export async function PATCH(
         powerPool: signatureMovePointPool(validationLevel),
         powerLabel: "Signature Move",
         poolDescription: "Character Level x 20",
+        offencePressureMode: "reviewOnly",
       }),
     ];
     if (validationErrors.length > 0) {

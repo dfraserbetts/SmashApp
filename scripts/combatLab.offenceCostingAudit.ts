@@ -15,12 +15,19 @@ import {
 import type { CombatAction, CombatActor, CombatAttributeName, CombatDieSize } from "../lib/combat-lab/types";
 import { compareForgeOutputToBands } from "../lib/forge/outputBands";
 import { buildForgeOutputProfile, type ForgeOutputProfileInput } from "../lib/forge/outputProfile";
+import { analyzeOffencePressure, type OffencePressureAnalysis } from "../lib/summoning/offencePressure";
 import { resolvePowerCost } from "../lib/summoning/powerCostResolver";
-import type { Power } from "../lib/summoning/types";
+import type { MonsterTier, Power } from "../lib/summoning/types";
 
 type PrismaClientInstance = typeof import("../prisma/client")["prisma"];
 type CharacterRow = Parameters<typeof adaptCampaignCharacterToCombatActor>[0];
 type MonsterRow = Parameters<typeof adaptMonsterToCombatLabActor>[0];
+type SummoningItemTemplateRow = Parameters<typeof itemTemplateToSummoningEquipmentItem>[0];
+type ForgeAuditItem = Omit<ForgeOutputProfileInput, "globalAttributeModifiers"> & {
+  id?: string;
+  name?: string | null;
+  globalAttributeModifiers?: unknown;
+};
 
 type SuccessDistribution = {
   successes: number;
@@ -75,6 +82,7 @@ type FocusedProfile = {
   p20Raw: number;
   multipleOfMediumExpectedRaw: number | null;
   costEvidence: CostEvidence;
+  offencePressure: OffencePressureAnalysis;
   adequacyJudgement: "clearly priced" | "maybe priced" | "underpriced risk" | "not enough data" | "disconnected/no cost evidence";
   hydrationWarnings: string[];
 };
@@ -254,7 +262,12 @@ function backpackItemIdFromAction(action: CombatAction): string | null {
   return null;
 }
 
-function buildForgeInput(item: any): ForgeOutputProfileInput {
+function rangeCategoryLabel(entry: NonNullable<ForgeOutputProfileInput["rangeCategories"]>[number]): string | null {
+  if (typeof entry === "string") return entry;
+  return entry.rangeCategory ?? null;
+}
+
+function buildForgeInput(item: ForgeAuditItem): ForgeOutputProfileInput {
   return {
     level: item.level,
     rarity: item.rarity,
@@ -262,7 +275,7 @@ function buildForgeInput(item: any): ForgeOutputProfileInput {
     size: item.size,
     armorLocation: item.armorLocation,
     shieldHasAttack: item.shieldHasAttack,
-    rangeCategories: (item.rangeCategories ?? []).map((entry: any) => entry.rangeCategory),
+    rangeCategories: item.rangeCategories ?? [],
     physicalStrength: item.physicalStrength,
     mentalStrength: item.mentalStrength,
     meleePhysicalStrength: item.meleePhysicalStrength,
@@ -281,33 +294,21 @@ function buildForgeInput(item: any): ForgeOutputProfileInput {
     aoeConeLengthFeet: item.aoeConeLengthFeet,
     aoeLineWidthFeet: item.aoeLineWidthFeet,
     aoeLineLengthFeet: item.aoeLineLengthFeet,
-    meleeDamageTypes: (item.meleeDamageTypes ?? []).map((entry: any) => entry.damageType),
-    rangedDamageTypes: (item.rangedDamageTypes ?? []).map((entry: any) => entry.damageType),
-    aoeDamageTypes: (item.aoeDamageTypes ?? []).map((entry: any) => entry.damageType),
-    attackEffectsMelee: (item.attackEffectsMelee ?? []).map((entry: any) => entry.attackEffect),
-    attackEffectsRanged: (item.attackEffectsRanged ?? []).map((entry: any) => entry.attackEffect),
-    attackEffectsAoE: (item.attackEffectsAoE ?? []).map((entry: any) => entry.attackEffect),
+    meleeDamageTypes: item.meleeDamageTypes ?? [],
+    rangedDamageTypes: item.rangedDamageTypes ?? [],
+    aoeDamageTypes: item.aoeDamageTypes ?? [],
+    attackEffectsMelee: item.attackEffectsMelee ?? [],
+    attackEffectsRanged: item.attackEffectsRanged ?? [],
+    attackEffectsAoE: item.attackEffectsAoE ?? [],
     ppv: item.ppv,
     mpv: item.mpv,
     auraPhysical: item.auraPhysical,
     auraMental: item.auraMental,
-    weaponAttributes: (item.weaponAttributes ?? []).map((entry: any) => ({
-      weaponAttribute: entry.weaponAttribute,
-      strengthSource: entry.strengthSource,
-      rangeSource: entry.rangeSource,
-    })),
-    armorAttributes: (item.armorAttributes ?? []).map((entry: any) => ({
-      armorAttribute: entry.armorAttribute,
-    })),
-    shieldAttributes: (item.shieldAttributes ?? []).map((entry: any) => ({
-      shieldAttribute: entry.shieldAttribute,
-    })),
-    defEffects: (item.defEffects ?? []).map((entry: any) => entry.defEffect),
-    vrpEntries: (item.vrpEntries ?? []).map((entry: any) => ({
-      effectKind: entry.effectKind,
-      magnitude: entry.magnitude,
-      damageType: entry.damageType,
-    })),
+    weaponAttributes: item.weaponAttributes ?? [],
+    armorAttributes: item.armorAttributes ?? [],
+    shieldAttributes: item.shieldAttributes ?? [],
+    defEffects: item.defEffects ?? [],
+    vrpEntries: item.vrpEntries ?? [],
   };
 }
 
@@ -362,11 +363,12 @@ function addPowerCostEvidence(params: {
   powerTuning: PowerTuningSnapshot;
   level: number;
   scalar: number;
-  tier?: any;
+  tier?: MonsterTier | null;
 }) {
   const cost = resolvePowerCost(params.power, params.powerTuning, {
     level: params.level,
     tier: params.tier ?? "SOLDIER",
+    offencePressureMode: params.kind === "signatureMove" ? "reviewOnly" : "costing",
   });
   const playerSpend = calculateCharacterPlayerPowerSpend(cost.basePowerValue, params.scalar);
   const evidence: CostEvidence = {
@@ -385,7 +387,7 @@ function addPowerCostEvidence(params: {
     itemOutputWoundsPerSuccess: null,
     notes: [
       params.kind === "signatureMove"
-        ? "Signature move uses same resolver and scalar, but a separate level x 20 pool."
+        ? "Signature move uses same resolver and scalar, but a separate level x 20 pool. Offence pressure surcharge is review-only in this first production pass."
         : "Normal power uses Character Builder spend scalar over basePowerValue.",
     ],
     debug: {
@@ -417,7 +419,7 @@ function addPowerCostEvidence(params: {
 function addItemCostEvidence(params: {
   map: Map<string, CostEvidence>;
   backpackItemId: string;
-  item: any;
+  item: ForgeAuditItem;
 }) {
   const profile = buildForgeOutputProfile(buildForgeInput(params.item));
   const comparison = compareForgeOutputToBands(profile);
@@ -449,7 +451,7 @@ function addItemCostEvidence(params: {
       rarity: params.item.rarity,
       type: params.item.type,
       size: params.item.size,
-      rangeCategories: (params.item.rangeCategories ?? []).map((entry: any) => entry.rangeCategory),
+      rangeCategories: (params.item.rangeCategories ?? []).map(rangeCategoryLabel),
       strengths: {
         physicalStrength: params.item.physicalStrength,
         mentalStrength: params.item.mentalStrength,
@@ -547,6 +549,7 @@ function collectFocusedProfiles(params: {
       (max, entry) => entry.probability > 0 ? Math.max(max, entry.successes * woundsPerSuccess) : max,
       0,
     );
+    const offencePressure = analyzeOffencePressure({ diceCount, die, woundsPerSuccess });
     const costEvidence = findCostEvidence({
       action,
       powerCosts: params.powerCosts,
@@ -613,6 +616,7 @@ function collectFocusedProfiles(params: {
           ? expectedRawWounds / params.mediumExpectedRaw
           : null,
       costEvidence,
+      offencePressure,
       adequacyJudgement,
       hydrationWarnings: params.warnings,
     }];
@@ -678,7 +682,10 @@ async function buildPayload(): Promise<Payload> {
         include: ITEM_TEMPLATE_INCLUDE,
       })
     : [];
-  const monsterEquipmentById = new Map(monsterItems.map((item) => [item.id, itemTemplateToSummoningEquipmentItem(item as any)]));
+  const monsterEquipmentById = new Map(monsterItems.map((item) => [
+    item.id,
+    itemTemplateToSummoningEquipmentItem(item as SummoningItemTemplateRow),
+  ]));
 
   const characterData = characters.map((row) => {
     const builderData = normalizeBuilderData(row.builderData);
@@ -825,6 +832,8 @@ function printHuman(payload: Payload) {
     "Exp".padStart(7),
     "Max".padStart(6),
     "P20".padStart(7),
+    "Burst".padStart(7),
+    "Review".padEnd(16),
     "xMed".padStart(6),
     "Cost".padStart(7),
     "CostSrc".padEnd(24),
@@ -842,6 +851,8 @@ function printHuman(payload: Payload) {
       fmt(profile.expectedRawWounds).padStart(7),
       fmt(profile.maxRawWounds).padStart(6),
       `${fmt(profile.p20Raw * 100, 1)}%`.padStart(7),
+      fmt(profile.offencePressure.burstScore).padStart(7),
+      profile.offencePressure.warningLevel.padEnd(16),
       fmt(profile.multipleOfMediumExpectedRaw).padStart(6),
       fmt(profile.costEvidence.availableCost).padStart(7),
       profile.costEvidence.costSource.slice(0, 24).padEnd(24),
@@ -855,6 +866,7 @@ function printHuman(payload: Payload) {
     console.log(`  delivery: cooldown ${profile.cooldownRounds}, ${profile.rangeCategory ?? "unknown"} targets=${profile.targetCount ?? "-"}, ${profile.primarySecondarySummary}`);
     console.log(`  resource: ${profile.useResourceSummary}`);
     console.log(`  output: expected ${fmt(profile.expectedRawWounds)}, max ${fmt(profile.maxRawWounds)}, P10 ${fmt(profile.p10Raw * 100, 1)}%, P16 ${fmt(profile.p16Raw * 100, 1)}%, P20 ${fmt(profile.p20Raw * 100, 1)}%`);
+    console.log(`  offence pressure: ${profile.offencePressure.warningLevel}, score ${fmt(profile.offencePressure.burstScore)}, W/S surcharge ${fmt(profile.offencePressure.basePowerValueSurcharge)}${profile.offencePressure.reasons.length > 0 ? `; ${profile.offencePressure.reasons.join(" ")}` : ""}`);
     console.log(`  cost: ${profile.costEvidence.costSource}; available=${fmt(profile.costEvidence.availableCost)}, basePower=${fmt(profile.costEvidence.basePowerValue)}, spend/raw=${fmt(profile.costEvidence.costPerExpectedRaw)}, itemBand=${profile.costEvidence.itemOutputBand ?? "-"}`);
     if (profile.costEvidence.notes.length > 0) {
       console.log(`  notes: ${profile.costEvidence.notes.join(" ")}`);

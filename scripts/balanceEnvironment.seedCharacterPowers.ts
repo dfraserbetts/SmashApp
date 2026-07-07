@@ -864,6 +864,7 @@ function validateCharacterKit(params: {
       powerPool: signatureMovePointPool(params.level),
       powerLabel: "Signature Move",
       poolDescription: "Character Level x 20",
+      offencePressureMode: "reviewOnly",
     }),
   ].map((error) => `${params.characterName}: ${error}`);
 }
@@ -1067,6 +1068,7 @@ async function main() {
         tuningSnapshot: powerTuning,
         playerPowerSpendScalar,
         powerPool: signatureMovePointPool(row.level),
+        offencePressureMode: "reviewOnly",
       });
       if (signatureSummary.overspent) {
         throw new Error(`${kit.name}: Signature Move spend ${signatureSummary.totalSpent} exceeds pool ${signatureSummary.powerPool}.`);
@@ -1193,6 +1195,7 @@ async function main() {
         tuningSnapshot: powerTuning,
         playerPowerSpendScalar,
         powerPool: signatureMovePointPool(row.level),
+        offencePressureMode: "reviewOnly",
       });
       assertSpendBand({
         characterName: row.name,

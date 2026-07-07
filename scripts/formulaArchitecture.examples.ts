@@ -1113,6 +1113,7 @@ async function createBalanceEnvironmentSummary(
       tuningSnapshot: powerTuning,
       playerPowerSpendScalar,
       powerPool: signatureMovePointPool(row.level),
+      offencePressureMode: "reviewOnly",
     });
     const hydration = adaptCampaignCharacterToCombatActor(row, combatValues, powerTuning);
     return {

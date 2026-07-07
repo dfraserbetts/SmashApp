@@ -58,7 +58,12 @@ import {
   normalizeCharacterPowerSpendScalar,
 } from "@/lib/config/characterBuilderTuningShared";
 import { renderPowerDescriptorLines } from "@/lib/summoning/render";
-import { resolvePowerCosts } from "@/lib/summoning/powerCostResolver";
+import {
+  resolvePowerCosts,
+  type PowerCostContext,
+  type PowerCostPacketBreakdown,
+} from "@/lib/summoning/powerCostResolver";
+import type { OffencePressureAnalysis } from "@/lib/summoning/offencePressure";
 
 export type CharacterPower = Power & {
   sparkDiscountPercent?: 0;
@@ -85,6 +90,11 @@ export type CharacterPowerBudget = {
   remaining: number;
   overspent: boolean;
   powers: CharacterPowerSummary[];
+};
+
+type ResolvedOffencePressure = OffencePressureAnalysis & {
+  applicationMode?: string;
+  appliedBasePowerValueSurcharge?: number;
 };
 
 const DESCRIPTOR_CHASSIS: DescriptorChassisType[] = [
@@ -968,6 +978,54 @@ export function signatureMovePointPool(level: number) {
   return Math.max(1, Math.trunc(level || 1)) * 20;
 }
 
+function readPacketOffencePressure(packet: PowerCostPacketBreakdown): ResolvedOffencePressure | null {
+  const magnitude = packet.debug.magnitude;
+  if (!magnitude || typeof magnitude !== "object") return null;
+  const pressure = (magnitude as { offencePressure?: unknown }).offencePressure;
+  if (!pressure || typeof pressure !== "object") return null;
+  return pressure as ResolvedOffencePressure;
+}
+
+function collectOffencePressureWarnings(params: {
+  resolvedPower: { breakdown?: { packetCosts?: PowerCostPacketBreakdown[]; basePowerValue?: number } } | undefined;
+  playerPowerSpendScalar: number;
+  powerPool: number;
+  offencePressureMode: PowerCostContext["offencePressureMode"];
+}): string[] {
+  const packetPressures =
+    params.resolvedPower?.breakdown?.packetCosts?.flatMap((packet) => {
+      const pressure = readPacketOffencePressure(packet);
+      return pressure ? [pressure] : [];
+    }) ?? [];
+  if (packetPressures.length === 0) return [];
+
+  const warnings: string[] = [];
+  const reviewOnlySurcharge = packetPressures.reduce(
+    (sum, pressure) => sum + Math.max(0, pressure.basePowerValueSurcharge ?? 0),
+    0,
+  );
+  for (const pressure of packetPressures) {
+    if (pressure.warningLevel === "none" && pressure.basePowerValueSurcharge <= 0) continue;
+    const reasons = pressure.reasons.length > 0 ? ` ${pressure.reasons.join(" ")}` : "";
+    warnings.push(
+      `Offence pressure ${pressure.warningLevel}: ${pressure.diceCount} dice at ${pressure.woundsPerSuccess} wounds/success has burst score ${pressure.burstScore}.${reasons}`,
+    );
+  }
+  if (params.offencePressureMode === "reviewOnly" && reviewOnlySurcharge > 0) {
+    const basePowerValue = params.resolvedPower?.breakdown?.basePowerValue ?? 0;
+    const projectedSpend = calculateCharacterPlayerPowerSpend(
+      basePowerValue + reviewOnlySurcharge,
+      params.playerPowerSpendScalar,
+    );
+    warnings.push(
+      projectedSpend > params.powerPool
+        ? `Signature Move offence review: projected hybrid spend ${projectedSpend} would exceed pool ${params.powerPool}; first production pass records this as review-only.`
+        : `Signature Move offence review: projected hybrid spend ${projectedSpend} against pool ${params.powerPool}; first production pass records this as review-only.`,
+    );
+  }
+  return Array.from(new Set(warnings));
+}
+
 function collectCharacterPowerValidationErrors(power: CharacterPower) {
   const errors: string[] = [];
   const primaryPacket = power.effectPackets[0];
@@ -1167,16 +1225,20 @@ export function summarizeCharacterPowers(params: {
   tuningSnapshot?: PowerTuningSnapshot | null;
   playerPowerSpendScalar?: number | null;
   powerPool?: number | null;
+  offencePressureMode?: PowerCostContext["offencePressureMode"];
 }): CharacterPowerBudget {
   const playerPowerSpendScalar = normalizeCharacterPowerSpendScalar(
     params.playerPowerSpendScalar ?? DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
   );
+  const powerPool = params.powerPool ?? powerPointPool(params.level);
+  const offencePressureMode = params.offencePressureMode === "reviewOnly" ? "reviewOnly" : "costing";
   const normalizedPowers = params.powers.map((power, index) =>
     normalizeCharacterPower(power, index),
   );
   const resolved = resolvePowerCosts(normalizedPowers, params.tuningSnapshot ?? undefined, {
     level: params.level,
     tier: "SOLDIER",
+    offencePressureMode,
   });
   const summaries = normalizedPowers.map((power, index) => {
     const resolvedPower = resolved.powers[index];
@@ -1190,6 +1252,12 @@ export function summarizeCharacterPowers(params: {
       basePowerValue === null
         ? null
         : calculateCharacterPlayerPowerSpend(basePowerValue, playerPowerSpendScalar);
+    warnings.push(...collectOffencePressureWarnings({
+      resolvedPower,
+      playerPowerSpendScalar,
+      powerPool,
+      offencePressureMode,
+    }));
     return {
       power,
       descriptorLines,
@@ -1204,13 +1272,12 @@ export function summarizeCharacterPowers(params: {
     };
   });
   const totalSpent = Math.round(summaries.reduce((sum, row) => sum + (row.spend ?? 0), 0) * 100) / 100;
-  const pool = params.powerPool ?? powerPointPool(params.level);
   return {
-    powerPool: pool,
+    powerPool,
     playerPowerSpendScalar,
     totalSpent,
-    remaining: Math.round((pool - totalSpent) * 100) / 100,
-    overspent: totalSpent > pool,
+    remaining: Math.round((powerPool - totalSpent) * 100) / 100,
+    overspent: totalSpent > powerPool,
     powers: summaries,
   };
 }
@@ -1223,6 +1290,7 @@ export function validateCharacterPowers(params: {
   powerPool?: number | null;
   powerLabel?: string;
   poolDescription?: string;
+  offencePressureMode?: PowerCostContext["offencePressureMode"];
 }) {
   const summary = summarizeCharacterPowers(params);
   const powerLabel = params.powerLabel ?? "Power";
