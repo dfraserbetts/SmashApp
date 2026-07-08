@@ -148,6 +148,237 @@ Roleplay Ability versus Cleanse distinction:
 - This is a design direction for the upcoming Roleplay Ability Framework, not
   final locked implementation.
 
+Roleplay Ability v0 Framework
+
+A. Architecture
+
+- Roleplay Abilities should use a parallel `RoleplayAbility` model rather than being
+  authored as ordinary combat powers.
+- Roleplay Abilities should look familiar to the existing Power Builder but should
+  not inherit unnecessary combat-power fields.
+- The builder entry points should stay explicit:
+  - Add Power -> opens the Power Builder.
+  - Add Ability -> opens the Roleplay Ability Builder.
+- Powers and Roleplay Abilities share one build budget.
+- Shared budget working name (v0): **Potential**.
+- Potential rationale:
+  - broader than "Power Points";
+  - works for both combat abilities and roleplay investments;
+  - supports player-facing wording: "You have reached your current Potential."
+
+B. Investment profile / scale
+
+- Roleplay-heavy builds should not be framed as "suboptimal".
+- Show investment profile as a visible Combat-vs-Roleplay balance scale.
+- Scale and potential spend should make build intent clear and reduce judgmental
+  interpretation.
+- It should help players and Game Directors understand emphasis.
+
+C. Core fields (v0)
+
+Required:
+
+- Name
+- Description
+- Roleplay Intention
+- Specific
+- Dice Count
+- Scene Impact
+- Scope
+- Ability Shape
+- Descriptor
+- Potential Cost
+
+Optional / conditional:
+
+- Restriction
+- Duration
+- Repeat Limit / Friction
+
+Resolution-rule fields are not fixed builder fields:
+
+- Difficulty / Opposition
+- Attribute
+
+Attribute is never a fixed builder field.
+The builder should not suggest typical Attributes.
+The Game Director chooses Attribute from declared method and fiction; substitution by
+Characteristic or other rule is possible.
+
+D. Cut / Deferred fields
+
+Roleplay Abilities v0 should exclude:
+
+- Use Mode
+- Recipient Type
+- Scene Track as player-facing scope
+- Full combat Range / AoE geometry
+- Damage Type
+- Wound Channel
+- Primary Defence Gate
+- Multiple packets
+- Secondary dependency logic
+- Local targeting override
+- Full combat Descriptor Chassis machinery
+
+Rationale:
+
+- visual familiarity does not require field parity.
+- roleplay abilities are power-shaped but not power-identical.
+- Scene Tracks remain Game Director / future Scenario Manager business, not player
+  optimization targets.
+
+E. Ability Shape
+
+v0 Ability Shape values:
+
+- Immediate
+- Sustained
+- Triggered
+- Prepared
+
+This is a curated subset replacing the full combat chassis list in v0.
+
+F. Roleplay intentions and Specific
+
+Approved v0 top-level intentions:
+
+- Persuasion
+- Intimidation
+- Deception
+- Perception
+- Intervention
+
+- Specific is the method/subtheme under intention and is thematic.
+- "Specific" naming mirrors existing terminology for now and may be renamed later.
+
+Examples:
+
+- Persuasion: Encourage, Command, Appeal, Rally, Negotiate, Plead, Inspire,
+  Reassure, Invoke Authority, Build Trust
+- Intimidation: Threaten, Defy, Overawe, Challenge, Suppress, Terrify, Shame,
+  Break Resolve
+- Deception: Distract, Lie, Misdirect, Feint, Disguise Intent, False Identity,
+  Bait, Confuse
+- Perception: Search, Read Intent, Spot Weakness, Track, Investigate, Sense Danger,
+  Discern Truth, Revelation
+- Intervention: Rescue, Pull Free, Shield With Body, Interrupt, Extract, Catch,
+  Stabilise, Enable Movement
+
+Important naming reminders:
+
+- Encourage and Command are Persuasion Specifics, not top-level intentions.
+- Distract is a Deception Specific.
+- Revelation is a Perception Specific.
+- Rescue is an Intervention Specific.
+- Burden-transfer ("take the burden") mechanics are deferred advanced work.
+
+G. Thematic viability
+
+A Roleplay Ability is legal when declared action fits:
+
+- Intention
+- Specific
+- Scope
+- Scene Impact
+- Attribute approach
+- Fictional positioning
+- Restriction, where included
+
+Intention states lane; Specific defines method.
+Difficulty and legality should respect this pairing.
+
+Example:
+
+- Deception / Distract can distract a trader so an item can be stolen.
+- Deception / Distract is not automatically suitable for false-value appraisal;
+  a false-appraisal method-specific Specific would fit better.
+- Same broad Intention, different Specific, different difficulty and outcome quality.
+
+H. Scope
+
+v0 Scope ladder:
+
+- Self
+- One Person
+- Small Group
+- Large Group
+- Faction / Army
+
+Mythic / Realm remains excluded from v0.
+
+- Self is a hard restriction and the cheapest Scope tier.
+- One Person is broader than Self and costed above it.
+- Small Group / Large Group remain flexible, not hard-numbered in v0.
+- Game Directors adjudicate contextual group breadth.
+- Faction / Army is available and should be expensive unless narrowed by restriction.
+- Scene Tracks are not player-facing Scope choices.
+
+I. Scene Impact
+
+v0 Scene Impact tiers:
+
+- Minor
+- Standard
+- Major
+- Legendary
+
+Minor: small scene moment (brief opening, small clue, limited reaction change).
+Standard: meaningful scene beat (local problem resolved, one meaningful rescue, tactical
+opportunity, useful reveal).
+Major: scene swing (shift encounter direction, rally group, major opening, morale
+turnaround).
+Legendary: battle-defining or faction-scale moment (rare through cost, scenario-gated in
+first slice).
+
+- Scene Impact is authored consequence ceiling.
+- Dice Count sets reliability.
+- Scope sets spread.
+- Difficulty sets challenge.
+- Extra successes improve outcomes at Game Director discretion, but do not auto-break
+Scenario/Impact ceilings.
+
+J. Resolution model
+
+v0 order:
+
+1. Player declares Roleplay Ability.
+2. Player describes method.
+3. Game Director confirms thematic viability.
+4. Game Director sets Difficulty or opposing Clash / Resist.
+5. Game Director calls Attribute from context.
+6. Player may apply valid Characteristic substitution.
+7. Player rolls authored Dice Count with final Attribute die.
+8. Game Director resolves outcome within Scope and Scene Impact.
+
+- Roleplay Abilities roll authored Dice Count, not default 3-die Trial.
+- Extra successes may improve results as context allows; partial success remains
+  GM final.
+
+Example: Persuasion of a mercenary group at Difficulty 3 with 2 successes may still
+resolve only partially at Game Director discretion.
+
+K. Roleplay Abilities vs Normal Trials / Clashes
+
+- Normal trials/clashes stay available to every player for ordinary roleplay actions.
+- Roleplay Abilities are privileged access pathways, not permission gates.
+- They should help character specialization produce larger/specialized consequences
+  when potential is invested.
+
+L. Roleplay Abilities vs Cleanse
+
+- Roleplay Abilities should not invalidate existing Cleanse.
+- Cleanse stays the direct effect lane for removing/reducing eligible effects.
+- Encourage / Rescue / Intervention style abilities should generally use alternate
+  mechanics unless explicitly including Cleanse.
+- v0 alternate lanes may include:
+  - immediate out-of-turn Resist
+  - reroll support on a future Resist
+  - temporary effect ignore
+  - moving / rescuing from danger
+  - panic-to-action conversions
+- Burden-transfer is deferred advanced design.
+
 Two use modes:
 
 1. Out of combat or on NPCs in combat:
@@ -174,14 +405,10 @@ Generic scene actions:
 
 Open Decisions For This Slice:
 
-- Final Roleplay Ability Framework.
-- Exact Scene Impact tiers.
-- Exact roleplay ability costing.
-- Exact roleplay intentions.
+- Final v0 Roleplay Ability cost formulas and implementation details.
 - Exact scenario track values.
-- Whether roleplay abilities are built from the same power pool in the first
-  beta implementation or represented temporarily through pregenerated test
-  cards.
+- Whether roleplay abilities are represented by pregenerated test cards or full v0 builder
+  in the first slice.
 
 
 Optional Character Archetypes

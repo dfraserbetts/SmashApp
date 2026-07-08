@@ -122,15 +122,37 @@ Power Builder:
 
 Closed Beta Vertical Slice / Roleplay Ability Testbed:
 
-- Future toolkit work may need to support display or test-card handling for
-  roleplay abilities in the Closed Beta slice.
-- Character Builder / Power Builder may eventually need roleplay ability
-  authoring, Scene Impact display, restrictions, use mode, target type,
-  difficulty guidance, preview text, and print output.
-- For the first controlled slice, roleplay abilities may be represented through
-  pregenerated character content or test cards if that is faster and safer than
-  full builder implementation.
-- Do not implement or lock final builder scope now.
+- Intended v0 direction: separate Roleplay Ability Builder section using shared
+  visual/component language with the Power Builder.
+- Builder entry points:
+  - Add Power opens Power Builder.
+  - Add Ability opens Roleplay Ability Builder.
+- Roleplay Abilities should avoid unnecessary combat-specific v1 fields in v0.
+- v0 Roleplay Ability builder fields:
+  - Name
+  - Description
+  - Roleplay Intention
+  - Specific
+  - Dice Count
+  - Scene Impact
+  - Scope
+  - Ability Shape
+  - Restriction (optional)
+  - Duration (conditional)
+  - Repeat Limit / Friction (conditional)
+  - Descriptor
+  - Potential Cost
+- Attribute should not be a builder field.
+- Builder should not suggest typical Attributes.
+- Show non-judgemental Combat/Roleplay investment profile and a shared remaining
+  Potential summary:
+  - Powers spend
+  - Roleplay Abilities spend
+  - Remaining Potential
+- Avoid warning language implying roleplay-heavy builds are suboptimal.
+- For the first slice, test-card representation may be used temporarily where
+  implementation timing requires it, but roleplay field model and intent should stay
+  aligned with the v0 framework.
 
 
 Campaign-Local Asset Model

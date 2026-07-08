@@ -992,24 +992,52 @@ for the cost resolver and tuning seams.
 
 Roleplay Ability And Scene Impact Backlog
 
-Roleplay Abilities are future power-like abilities that may use intentions such
-as Encourage, Command / Persuade, Intimidate, Distract, Perceive / Reveal, and
-Rescue / Intervention.
+Roleplay Abilities in v0 use a parallel `RoleplayAbility` model and share the
+single character build budget through Potential (working pool name).
 
-They must not gate ordinary roleplay actions. Normal Trials and Clashes remain
-available to all characters.
+Captured v0 lock points:
 
-Roleplay Abilities should act as privileged access pathways with authored Scene
-Impact. Scene Impact should function as the effect-size limiter for
-non-combat or scene-facing abilities. Difficulty remains situational and may be
-set by the Game Director.
+- Roleplay Abilities are power-shaped but not identical to combat Powers.
+- Shared Potential spend supports both build lanes.
+- Scene Impact is the main effect-size / consequence ceiling.
+- Scope is a major cost driver.
+- Self is cheaper than One Person because it is a hard restriction.
+- Faction / Army is available but heavily gated unless narrowed by restriction.
+- Legendary is available in framework but should remain naturally rare.
+- Attribute is not a fixed builder field and is not priced as an authored fixed
+  value.
+- Basic trials/clashes remain available outside abilities; abilities are
+  privileged access pathways.
+- No final formulas, numeric costs, thresholds, or implementation behaviour are
+  locked in this pass.
 
-Roleplay Abilities must not automatically duplicate or invalidate existing
-mechanics such as Cleanse. If a roleplay ability removes stacks directly, it
-should explicitly include or pay for a Cleanse component or future equivalent.
+v0 required fields:
 
-No final formula values, costs, thresholds, or implementation behaviour are
-locked by this note.
+- Name
+- Description
+- Roleplay Intention
+- Specific
+- Dice Count
+- Scene Impact
+- Scope
+- Ability Shape
+- Descriptor
+- Potential Cost
+
+v0 optional / conditional:
+
+- Restriction
+- Duration
+- Repeat Limit / Friction
+
+v0 ladders:
+
+- Intention: Persuasion, Intimidation, Deception, Perception, Intervention
+- Ability Shape: Immediate, Sustained, Triggered, Prepared
+- Scene Impact: Minor, Standard, Major, Legendary
+- Scope: Self, One Person, Small Group, Large Group, Faction / Army
+
+Potential cost principles are OPEN / NEEDS ARCHITECT DECISION.
 
 
 Natural And Forge Parity Principles

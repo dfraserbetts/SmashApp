@@ -241,15 +241,16 @@ law until the owning active doc is updated with an explicit decision.
   but current Combat Lab implementation planning may ignore them until Limit
   Break runtime exists.
 - Closed Beta Vertical Slice and Roleplay Ability Framework.
-  Status: FIRST SLICE CAPTURED / ROLEPLAY ABILITY FRAMEWORK OPEN.
+  Status: FIRST SLICE CAPTURED / ROLEPLAY ABILITY V0 FRAMEWORK CAPTURED.
   Owner: docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt, with costing
   implications in docs/02_Power_System_And_Costing.txt and builder implications
   in docs/03_Builders_And_Implementation_Roadmap.txt.
   Note: The first slice is dynamic crisis combat with pregenerated characters,
   pregenerated enemies, objective tracks, and a small roleplay ability testbed.
-  Final Roleplay Ability Framework, Scene Impact tiers, costing, intentions,
-  scenario track values, and first-beta representation model remain OPEN /
-  NEEDS ARCHITECT DECISION.
+  v0 Roleplay Ability framework is locked in the roadmap/docs lane (shared
+  Potential pool, parallel RoleplayAbility model, Scene Impact/Scope/Intention
+  shape, and Attribute handling), while numeric costing, final implementation,
+  and first-beta authoring path remain OPEN / NEEDS ARCHITECT DECISION.
 - Full Blaze of Glory runtime flow and Blaze AI.
   Status: DEFERRED / NEEDS ARCHITECT DECISION.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and

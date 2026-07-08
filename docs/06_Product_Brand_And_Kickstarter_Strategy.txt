@@ -121,6 +121,20 @@ same crisis.
 
 This is product/playtest framing, not a marketing-copy lock.
 
+Shared build pacing note:
+
+- The shared build pool is now working-titled **Potential** so combat and roleplay
+  investment can both be represented under one spend language.
+- "You have reached your current Potential" is the preferred player-facing phrase for
+  full spend.
+- Roleplay-heavy builds should be recognised in the UI as intentional character
+  emphasis, not called suboptimal.
+- The visual investment scale should communicate:
+  - combat build emphasis,
+  - roleplay build emphasis,
+  - remaining Potential.
+- Final naming is still open and should be revisited in the naming pass.
+
 
 Cover And Category Strategy
 
