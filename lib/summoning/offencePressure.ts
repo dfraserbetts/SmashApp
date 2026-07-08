@@ -19,8 +19,8 @@ export type OffencePressureAnalysis = {
 
 export const OFFENCE_PRESSURE_CONSTANTS = {
   woundsPerSuccessSoftCap: 4,
-  basePowerValueSurchargeScalar: 0.25,
-  basePowerValueSurchargeCap: 6,
+  basePowerValueSurchargeScalar: 0.5,
+  basePowerValueSurchargeCap: 12,
   burstWarningScore: 35,
   extremeP20Probability: 0.5,
 } as const;

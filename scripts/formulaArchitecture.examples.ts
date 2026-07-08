@@ -519,7 +519,8 @@ function assertPhase1AttackFormulaRatios(rows: RatioRow[]) {
   requireRatioBand(rows, "melee 2 / melee 1", 1.35, 1.8);
   requireRatioBand(rows, "ranged 2 targets / ranged 1 target", 1.35, 1.85);
   requireRatioBand(rows, "AoE count 3 / AoE count 1", 1.8, 2.35);
-  requireRatioBand(rows, "potency 4 / potency 1", 2.4, 3.4);
+  // High W/S pressure now intentionally raises extreme packet economics above the old linear-ish band.
+  requireRatioBand(rows, "potency 4 / potency 1", 5, 5.4);
   requireRatioBand(rows, "dice 4 / dice 1", 2.4, 3.4);
   requireRatioBand(rows, "two damage types / one damage type", 1.1, 1.45);
 }

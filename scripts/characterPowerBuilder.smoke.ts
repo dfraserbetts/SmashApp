@@ -1051,6 +1051,10 @@ function resolveBasePowerValue(power: Power): number {
     ?.breakdown.basePowerValue ?? 0;
 }
 
+function assertClose(actual: number, expected: number, message: string) {
+  assert(Math.abs(actual - expected) < 0.001, `${message} Expected ${expected}, got ${actual}.`);
+}
+
 assert(
   !diagnosticOutputs.caseB.validationResult.errors.some((error: string) =>
     error.includes("requires at least one damage type"),
@@ -1071,8 +1075,8 @@ assert(
   "Character Builder and equivalent Summoning Circle-shaped Case B should resolve to the same BasePowerValue.",
 );
 assert(
-  diagnosticOutputs.caseB.resolverTotalBasePowerValue === 123.2,
-  "Case B BasePowerValue should be 123.2 with Phase 1 expected-output attack payload pricing plus capped offence pressure surcharge.",
+  diagnosticOutputs.caseB.resolverTotalBasePowerValue === 129.2,
+  "Case B BasePowerValue should be 129.2 with Phase 1 expected-output attack payload pricing plus raised capped offence pressure surcharge.",
 );
 assert(
   chosenTuningKeysForDiagnostic(diagnosticOutputs.caseB).includes("packet.magnitude.potency.20"),
@@ -1087,8 +1091,8 @@ assert(
   "Case B should use default player spend scalar 3.",
 );
 assert(
-  diagnosticOutputs.caseB.characterBuilderPlayerSpend === 370,
-  "Case B PlayerPowerSpend should be ceil(123.2 * 3) = 370.",
+  diagnosticOutputs.caseB.characterBuilderPlayerSpend === 388,
+  "Case B PlayerPowerSpend should be ceil(129.2 * 3) = 388.",
 );
 assert(
   diagnosticOutputs.caseB.resolverBreakdown.packetCosts.some((packet) =>
@@ -1106,8 +1110,8 @@ const caseBScalarTwoSummary = summarizeCharacterPowers({
   playerPowerSpendScalar: 2,
 });
 assert(
-  caseBScalarTwoSummary.powers[0]?.spend === 247,
-  "Changing scalar to 2 should change Case B PlayerPowerSpend to 247.",
+  caseBScalarTwoSummary.powers[0]?.spend === 259,
+  "Changing scalar to 2 should change Case B PlayerPowerSpend to 259.",
 );
 const caseBOverspendErrors = validateCharacterPowers({
   level: 1,
@@ -1131,6 +1135,30 @@ assert(
 const potency5BaseValue = basePowerValueForMagnitude(6, 5);
 const potency6BaseValue = basePowerValueForMagnitude(6, 6);
 const potency12BaseValue = basePowerValueForMagnitude(6, 12);
+const woundsPerSuccess2BaseValue = basePowerValueForMagnitude(4, 1);
+const woundsPerSuccess4BaseValue = basePowerValueForMagnitude(4, 2);
+const woundsPerSuccess6BaseValue = basePowerValueForMagnitude(3, 3);
+const woundsPerSuccess8BaseValue = basePowerValueForMagnitude(3, 4);
+assertClose(
+  woundsPerSuccess2BaseValue,
+  8.4,
+  "W/S2 baseline should remain unchanged by offence pressure surcharge tuning.",
+);
+assertClose(
+  woundsPerSuccess4BaseValue,
+  14.8,
+  "W/S4 soft-cap baseline should remain unchanged by offence pressure surcharge tuning.",
+);
+assertClose(
+  woundsPerSuccess6BaseValue,
+  22.4,
+  "W/S6 burst sample should reflect raised offence pressure surcharge scalar.",
+);
+assertClose(
+  woundsPerSuccess8BaseValue,
+  33.2,
+  "W/S8 extreme sample should reflect raised offence pressure surcharge cap.",
+);
 assert(
   potency5BaseValue < potency6BaseValue && potency6BaseValue < potency12BaseValue,
   "Potency should be monotonic across 5, 6, and 12.",
