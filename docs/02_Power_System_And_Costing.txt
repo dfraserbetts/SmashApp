@@ -1020,24 +1020,142 @@ v0 required fields:
 - Dice Count
 - Scene Impact
 - Scope
-- Ability Shape
+- Output Category / table-impact category
 - Descriptor
 - Potential Cost
 
 v0 optional / conditional:
 
 - Restriction
-- Duration
 - Repeat Limit / Friction
+- Counter permission
+- Crisis Assist permission
+- Action Enable details, where the ability grants a bounded Main
+  Action-equivalent
+
+v0 auto-derived / display-only:
+
+- Result Window
 
 v0 ladders:
 
 - Intention: Persuasion, Intimidation, Deception, Perception, Intervention
-- Ability Shape: Immediate, Sustained, Triggered, Prepared
 - Scene Impact: Minor, Standard, Major, Legendary
 - Scope: Self, One Person, Small Group, Large Group, Faction / Army
 
-Potential cost principles are OPEN / NEEDS ARCHITECT DECISION.
+Roleplay Abilities v0 do not author Ability Shape or Duration. Result Window
+is derived from ability result and fiction, not selected as a builder field.
+
+Approved v0 output categories:
+
+- Scene Influence
+- Reveal
+- Action Enable
+- Reroll / Dice Support
+- Temporary Ignore / Push Through
+- Position / Rescue
+- Momentum / Hesitation
+
+v0 exclusions:
+
+- Direct healing is excluded from Roleplay Abilities v0.
+- Injury Treatment may be explored later as a separate ability concept because
+  it is different from restoring ordinary health pools.
+- Direct stack / unit removal is excluded from Roleplay Abilities v0.
+- Cleanse must remain mechanically distinct and should not be invalidated by
+  Roleplay Abilities.
+- Power-specific mechanics should stay in Powers, not Roleplay Abilities.
+- Roleplay Abilities v0 do not grant Power Actions.
+
+Roleplay Ability Potential Cost Principles v0
+
+No numeric constants are locked in this pass.
+
+Formula skeleton:
+
+Base Permission Cost = Scene Impact x Scope
++ Output Category adjustment
++ Dice Count reliability
++ Timing surcharge
++ Repeat / Friction adjustment
+Then apply Restriction discount last.
+
+Equivalent implementation order:
+
+1. Start with Scene Impact x Scope.
+2. Apply Output Category adjustment.
+3. Add Dice Count reliability.
+4. Add Timing permissions / surcharges.
+5. Add Repeat / Friction adjustment.
+6. Apply Restriction discount last.
+
+Costing principles:
+
+- Scene Impact scales heavily.
+- Scope scales harshly.
+- Scene Impact x Scope is the core base-cost driver.
+- Dice Count prices reliability, not permission ceiling.
+- Action Enable is a premium output category because it manipulates action
+  economy.
+- Counter and Crisis Assist are timing surcharges.
+- Assist is universal and has no extra build surcharge.
+- Test Crisis Assist with a premium. Do not marry the premium. If playtest
+  feedback shows it feels over-shackled rather than cinematic, reduce or remove
+  the premium.
+- Restriction discounts apply after total cost is calculated.
+- Faction / Army + Legendary should require either very high Potential spend or
+  harsh restrictions to be practical at low / mid levels.
+
+Action Enable v0 costing / legality posture:
+
+- No Roleplay Ability may grant an additional Power Action.
+- A Roleplay Ability may grant a bounded Main Action-equivalent.
+- If an ability grants an additional Main Action-equivalent, it cannot be used
+  as an Assist.
+- Such an ability can be used only as Standard Use, consuming the user's Power
+  Action, or as Crisis Assist if otherwise legal.
+- A weapon attack granted by a Roleplay Ability is a basic weapon attack unless
+  explicitly future-designed otherwise.
+- No Signature Move, Power Action, multi-target weapon-profile abuse, or "make
+  4 attacks" behaviour in v0.
+
+Restriction discount bands v0:
+
+- None / Cosmetic
+- Light
+- Moderate
+- Harsh
+- Severe / Oath-Level
+
+A restriction earns a discount only if it is clear, enforceable, meaningfully
+limiting, relevant in actual play, not decorative, not a loophole, and likely
+to sometimes make the player wish they did not have it.
+
+Bad / irrelevant restriction:
+
+- "Only works on people I have met."
+- Reason: too easy to satisfy or rules-lawyer.
+
+Strong restriction:
+
+- "Only works on Agents of Morgoth."
+- Reason: narrow, campaign-relevant, often unavailable, table-visible.
+
+Severe / Oath-Level restrictions are allowed on normal Powers and Roleplay
+Abilities in v0 testing. Watch playtests carefully. If every player adds
+Oath-Level restrictions to everything, either discounts are too generous,
+restrictions are too easy to write around, enforcement is too soft, or the
+table is genuinely enjoying oath-driven thematic greatness. Do not assume
+failure; test it.
+
+For v0, restrictions can be manually authored, reviewed, and priced by the
+Architect / Game Director. No structured tag engine or automatic restriction
+calculator is required immediately.
+
+Restrictions do not add upside. If text says "only works on allies, but doubles
+effect," the "doubles effect" part is not a restriction. Upside belongs to
+Archetypes, racial traits, Characteristics, special features, or explicit
+ability mechanics. Do not mix discount and bonus in one field.
 
 
 Natural And Forge Parity Principles

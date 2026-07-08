@@ -136,12 +136,34 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
   - Dice Count
   - Scene Impact
   - Scope
-  - Ability Shape
-  - Restriction (optional)
-  - Duration (conditional)
-  - Repeat Limit / Friction (conditional)
+  - Output Category / table-impact category
   - Descriptor
   - Potential Cost
+- Optional / conditional fields:
+  - Restriction
+  - Repeat Limit / Friction
+  - Counter permission
+  - Crisis Assist permission
+  - Action Enable details, where the ability grants a bounded Main
+    Action-equivalent
+- Auto-derived / display-only:
+  - Result Window
+- Roleplay Abilities v0 do not author Ability Shape or Duration. Result Window
+  is derived from ability result and fiction, not selected as a duration field.
+- Ability Shape is removed from v0 because Sustained, Prepared, and Triggered
+  are deferred / removed, and a lone Immediate shape would be clutter.
+- Standard Use in combat consumes the user's Power Action. Out-of-combat use is
+  an ordinary scene declaration with no combat action cost.
+- Assist is universal for Powers and Roleplay Abilities, uses 1 Response, and
+  has no extra build-cost permission.
+- Counter uses 1 Response and requires the actor to be personally targeted by a
+  hostile action / effect plus authored Counter permission.
+- Crisis Assist uses 1 Response when the Game Director opens a scene-pressure
+  window before formal targeting. Test its premium surcharge provisionally; do
+  not treat the premium as final doctrine.
+- Roleplay Abilities v0 do not grant Power Actions. Action Enable may grant
+  only bounded Main Action-equivalents, with no Signature Move, Power Action,
+  multi-target weapon-profile abuse, or "make 4 attacks" behaviour.
 - Attribute should not be a builder field.
 - Builder should not suggest typical Attributes.
 - Show non-judgemental Combat/Roleplay investment profile and a shared remaining

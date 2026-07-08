@@ -247,10 +247,14 @@ law until the owning active doc is updated with an explicit decision.
   in docs/03_Builders_And_Implementation_Roadmap.txt.
   Note: The first slice is dynamic crisis combat with pregenerated characters,
   pregenerated enemies, objective tracks, and a small roleplay ability testbed.
-  v0 Roleplay Ability framework is locked in the roadmap/docs lane (shared
-  Potential pool, parallel RoleplayAbility model, Scene Impact/Scope/Intention
-  shape, and Attribute handling), while numeric costing, final implementation,
-  and first-beta authoring path remain OPEN / NEEDS ARCHITECT DECISION.
+  v0 Roleplay Ability framework is captured in the roadmap/docs lane: shared
+  Potential pool, parallel RoleplayAbility model, no Ability Shape field, no
+  authored Duration field, auto-derived Result Window, Scene Impact / Scope /
+  Intention shape, output categories, timing / action-economy posture, Action
+  Enable limits, Attribute handling, Potential cost skeleton, and restriction
+  discount bands. Numeric constants, final implementation, and first-beta
+  authoring path remain OPEN / NEEDS ARCHITECT DECISION unless explicitly
+  locked elsewhere.
 - Full Blaze of Glory runtime flow and Blaze AI.
   Status: DEFERRED / NEEDS ARCHITECT DECISION.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and

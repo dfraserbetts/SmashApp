@@ -137,7 +137,8 @@ Roleplay Ability versus Cleanse distinction:
 - Cleanse removes or reduces eligible effects/stacks/units through its own
   lane.
 - Encourage / Rescue / Intervention-style abilities should generally use
-  different mechanics unless they explicitly include a Cleanse component.
+  different mechanics in v0 rather than direct Cleanse-style stack / unit
+  removal.
 - Possible different lanes include:
   - granting an immediate out-of-turn Resist,
   - granting rerolls on a future Resist,
@@ -185,15 +186,22 @@ Required:
 - Dice Count
 - Scene Impact
 - Scope
-- Ability Shape
+- Output Category / table-impact category
 - Descriptor
 - Potential Cost
 
 Optional / conditional:
 
 - Restriction
-- Duration
 - Repeat Limit / Friction
+- Counter permission
+- Crisis Assist permission
+- Action Enable details, where the ability grants a bounded Main
+  Action-equivalent
+
+Auto-derived / display-only:
+
+- Result Window
 
 Resolution-rule fields are not fixed builder fields:
 
@@ -210,6 +218,8 @@ D. Cut / Deferred fields
 Roleplay Abilities v0 should exclude:
 
 - Use Mode
+- Ability Shape
+- Duration
 - Recipient Type
 - Scene Track as player-facing scope
 - Full combat Range / AoE geometry
@@ -230,14 +240,37 @@ Rationale:
 
 E. Ability Shape
 
-v0 Ability Shape values:
+Ability Shape is removed from v0.
 
-- Immediate
-- Sustained
-- Triggered
-- Prepared
+Rationale:
 
-This is a curated subset replacing the full combat chassis list in v0.
+- After removing Sustained, Prepared, and Triggered, leaving only Immediate
+  would be clutter.
+- Prepared is removed because a delayed object such as a letter is resolved by
+  the quality of the action when written, not by a separate Prepared ability
+  shape.
+- Triggered is removed because authored triggers tend to become either too
+  narrow to use or too generic to be meaningful.
+- Sustained is deferred until persistence, upkeep, and maintenance are
+  deliberately designed.
+
+Roleplay Abilities v0 also do not author Duration.
+
+Result Window replaces Duration as display / adjudication guidance. It is
+auto-derived from the ability result and fiction, not selected as a builder
+field.
+
+Suggested Result Window examples:
+
+- Immediate: resolves now.
+- Until target's next turn ends: brief actor-facing support such as reroll,
+  extra dice, immediate Resist opportunity, or temporary push-through.
+- Scene consequence: NPC / scene / objective consequence persists fictionally
+  until changed by later scene events.
+- Knowledge / revelation: once discovered, remains known unless fiction
+  changes.
+- Objective / track change: Game Director / future Scenario Manager updates
+  the relevant state.
 
 F. Roleplay intentions and Specific
 
@@ -365,12 +398,35 @@ K. Roleplay Abilities vs Normal Trials / Clashes
 - They should help character specialization produce larger/specialized consequences
   when potential is invested.
 
-L. Roleplay Abilities vs Cleanse
+L. Output Categories
+
+Approved v0 Roleplay Ability output categories:
+
+- Scene Influence
+- Reveal
+- Action Enable
+- Reroll / Dice Support
+- Temporary Ignore / Push Through
+- Position / Rescue
+- Momentum / Hesitation
+
+v0 exclusions:
+
+- Direct healing is excluded from Roleplay Abilities v0.
+- Injury Treatment may be explored later as a separate ability concept because
+  it is different from restoring ordinary health pools.
+- Direct stack / unit removal is excluded from Roleplay Abilities v0.
+- Power-specific mechanics should stay in Powers, not Roleplay Abilities.
+- Roleplay Abilities v0 do not grant Power Actions.
+
+M. Roleplay Abilities vs Cleanse
 
 - Roleplay Abilities should not invalidate existing Cleanse.
-- Cleanse stays the direct effect lane for removing/reducing eligible effects.
+- Cleanse stays the direct effect lane for removing / reducing eligible effects.
+- Cleanse must remain mechanically distinct and should not be invalidated by
+  Roleplay Abilities.
 - Encourage / Rescue / Intervention style abilities should generally use alternate
-  mechanics unless explicitly including Cleanse.
+  mechanics in v0 rather than direct Cleanse-style stack / unit removal.
 - v0 alternate lanes may include:
   - immediate out-of-turn Resist
   - reroll support on a future Resist
@@ -378,6 +434,133 @@ L. Roleplay Abilities vs Cleanse
   - moving / rescuing from danger
   - panic-to-action conversions
 - Burden-transfer is deferred advanced design.
+
+N. Timing / Action Economy
+
+v0 timing model:
+
+- Standard Use in combat consumes the user's Power Action.
+- Standard Use out of combat is handled as ordinary scene declaration with no
+  combat action cost.
+- Assist is universal for Powers and Roleplay Abilities.
+- Assist uses 1 Response.
+- Assist does not require an extra build-cost permission.
+- Counter uses 1 Response.
+- Counter is legal only when the actor is personally targeted by a hostile
+  action / effect and the ability has Counter permission.
+- Crisis Assist uses 1 Response.
+- Crisis Assist happens only when the Game Director opens a scene-pressure
+  window before a formal targeting event.
+- Crisis Assist is tested with a premium surcharge, but that is provisional
+  testing posture, not final doctrine.
+
+Testing principle:
+
+Test Crisis Assist with a premium. Do not marry the premium. If playtest
+feedback shows it feels over-shackled rather than cinematic, reduce or remove
+the premium.
+
+Example Crisis Assist windows:
+
+- major enemy enters
+- fire spreads
+- gate cracks
+- civilians panic
+- hidden threat is revealed
+- objective track shifts
+- ally / NPC is placed in immediate peril
+
+O. Action Enable Limits
+
+Action Enable is a premium output category because it manipulates action
+economy.
+
+Hard v0 rules:
+
+- No Roleplay Ability may grant an additional Power Action.
+- A Roleplay Ability may grant a bounded Main Action-equivalent.
+- If an ability grants an additional Main Action-equivalent, it cannot be used
+  as an Assist.
+- Such an ability can be used only as Standard Use, consuming the user's Power
+  Action, or as Crisis Assist if otherwise legal.
+- A weapon attack granted by a Roleplay Ability is a basic weapon attack unless
+  explicitly future-designed otherwise.
+- No Signature Move, Power Action, multi-target weapon-profile abuse, or "make
+  4 attacks" behaviour in v0.
+
+Action Enable ceiling by Scene Impact:
+
+Minor:
+
+- immediate movement / reposition
+- take cover
+- simple interact
+- use item on self
+- stand / recover footing
+- grab / pass object
+
+Standard:
+
+- immediate Resist
+- Dash / Rush movement
+- use item on another
+- interact under pressure
+- one basic weapon attack against one target, if clearly built for that
+
+Major:
+
+- strong Main Action-equivalent
+- one basic weapon attack with scene advantage
+- enable small-group non-Power action
+
+Legendary:
+
+- coordinated large-scale action
+- or multiple affected actors each take one bounded Main Action-equivalent
+
+Prefer "multiple affected actors each take one bounded action" over "one actor
+attacks many targets," because the latter turns the strongest striker into a
+blender and stops feeling like a roleplay / leadership ability.
+
+P. Restriction Discount Bands
+
+Restriction discount bands for v0 testing:
+
+- None / Cosmetic
+- Light
+- Moderate
+- Harsh
+- Severe / Oath-Level
+
+A restriction earns a discount only if it is clear, enforceable, meaningfully
+limiting, relevant in actual play, not decorative, not a loophole, and likely
+to sometimes make the player wish they did not have it.
+
+Bad / irrelevant restriction:
+
+- "Only works on people I have met."
+- Reason: too easy to satisfy or rules-lawyer.
+
+Strong restriction:
+
+- "Only works on Agents of Morgoth."
+- Reason: narrow, campaign-relevant, often unavailable, table-visible.
+
+Severe / Oath-Level restrictions are allowed on normal Powers and Roleplay
+Abilities in v0 testing. Watch playtests carefully. If every player adds
+Oath-Level restrictions to everything, either discounts are too generous,
+restrictions are too easy to write around, enforcement is too soft, or the
+table is genuinely enjoying oath-driven thematic greatness. Do not assume
+failure; test it.
+
+For v0, restrictions can be manually authored, reviewed, and priced by the
+Architect / Game Director. No structured tag engine or automatic restriction
+calculator is required immediately.
+
+Restrictions do not add upside. If text says "only works on allies, but doubles
+effect," the "doubles effect" part is not a restriction. Upside belongs to
+Archetypes, racial traits, Characteristics, special features, or explicit
+ability mechanics. Do not mix discount and bonus in one field.
 
 Two use modes:
 
