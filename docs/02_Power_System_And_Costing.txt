@@ -990,6 +990,28 @@ Primitive benchmarks are not final balance proof. They are calibration anchors
 for the cost resolver and tuning seams.
 
 
+Roleplay Ability And Scene Impact Backlog
+
+Roleplay Abilities are future power-like abilities that may use intentions such
+as Encourage, Command / Persuade, Intimidate, Distract, Perceive / Reveal, and
+Rescue / Intervention.
+
+They must not gate ordinary roleplay actions. Normal Trials and Clashes remain
+available to all characters.
+
+Roleplay Abilities should act as privileged access pathways with authored Scene
+Impact. Scene Impact should function as the effect-size limiter for
+non-combat or scene-facing abilities. Difficulty remains situational and may be
+set by the Game Director.
+
+Roleplay Abilities must not automatically duplicate or invalidate existing
+mechanics such as Cleanse. If a roleplay ability removes stacks directly, it
+should explicitly include or pay for a Cleanse component or future equivalent.
+
+No final formula values, costs, thresholds, or implementation behaviour are
+locked by this note.
+
+
 Natural And Forge Parity Principles
 
 Final table-facing output should compare equivalently regardless of whether it
@@ -1029,3 +1051,6 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Signature Move uniqueness costing and permission package, if any, including
   Signature-only permissions, scaling, cooldown/friction, main-power
   concentration limits, or Limit Break / over-limit linkage.
+- Final Roleplay Ability and Scene Impact costing model, including whether
+  first-slice roleplay abilities use the normal power pool or pregenerated test
+  cards.

@@ -108,6 +108,20 @@ Recommended sequence:
 The strongest proof is a live transformation from concept to table-ready output.
 
 
+Closed Beta Playtest Framing
+
+Incarnate's playtest direction should avoid a hard canyon between roleplay and
+combat.
+
+Combat scenes should be framed as dynamic story crises with objectives,
+pressure tracks, and multiple ways to contribute. The first Closed Beta
+vertical slice should demonstrate that characters can matter through attacks,
+defence, movement, scene objectives, and roleplay-facing abilities inside the
+same crisis.
+
+This is product/playtest framing, not a marketing-copy lock.
+
+
 Cover And Category Strategy
 
 The cover should signal:

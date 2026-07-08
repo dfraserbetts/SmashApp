@@ -120,6 +120,18 @@ Power Builder:
   character-only or monster-only forks unless a future explicit rule requires
   one.
 
+Closed Beta Vertical Slice / Roleplay Ability Testbed:
+
+- Future toolkit work may need to support display or test-card handling for
+  roleplay abilities in the Closed Beta slice.
+- Character Builder / Power Builder may eventually need roleplay ability
+  authoring, Scene Impact display, restrictions, use mode, target type,
+  difficulty guidance, preview text, and print output.
+- For the first controlled slice, roleplay abilities may be represented through
+  pregenerated character content or test cards if that is faster and safer than
+  full builder implementation.
+- Do not implement or lock final builder scope now.
+
 
 Campaign-Local Asset Model
 
@@ -189,3 +201,6 @@ OPEN / NEEDS ARCHITECT DECISION:
   uniqueness package beyond the current separate-pool implementation.
 - Character sheet support for optional Archetypes, Backstory Points, Personal
   Goals, roleplay resources, and party-level shared resource tracking.
+- Closed Beta roleplay ability display/test-card handling, Scene Impact
+  presentation, restrictions, use mode, target type, difficulty guidance,
+  preview text, and print output.

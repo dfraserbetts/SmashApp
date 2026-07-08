@@ -34,6 +34,156 @@ Future roleplay-system work includes:
 - Game Director guidance for rewards, consequences, and limits
 
 
+Closed Beta Vertical Slice
+
+Status: CLOSED BETA FIRST SLICE / PLANNING SOURCE LOCK.
+
+North Star:
+
+"A dynamic crisis combat scenario using pregenerated characters, pregenerated
+enemies, objective tracks, and a small controlled set of roleplay abilities
+usable inside combat."
+
+This is the first controlled Closed Beta slice. It is not the full beta
+programme and does not lock the final Roleplay Ability Framework.
+
+Locked first-slice structure:
+
+- Use a familiar fantasy scenario to reduce cognitive load.
+- Working scenario shape: a fantasy town under orc-style assault.
+- Use pregenerated characters.
+- Use pregenerated enemies.
+- Use objective tracks.
+- Use a small roleplay ability testbed usable inside combat.
+- Victory should be multi-path, not only "kill all monsters."
+- Combat should exist because a crisis is unfolding, not merely because enemies
+  appeared.
+
+Locked test areas:
+
+Combat Systems:
+
+- Attacks
+- Defences
+- Powers
+- Movement
+- Damage
+- Injury / defeat basics
+- Enemy pressure
+
+Roleplay Ability Systems:
+
+- Encourage
+- Command / Persuade
+- Intimidate
+- Distract
+- Perceive / Reveal
+- Rescue / Intervention
+
+Dynamic Scene Systems:
+
+- Objective tracks
+- Enemy Momentum / Horde abstraction
+- Fire / environmental pressure
+- Morale
+- Discovery / weakness
+- Multi-path victory
+
+Locked first-pass party makeup:
+
+- Striker / Legolas-type:
+  - Damage, mobility, perception, horde pressure.
+- Defender / Boromir-type:
+  - Protection, holding ground, heroic morale.
+- Authority / Gandalf-type:
+  - Command, Encourage, restricted major power.
+  - Scenario should test restriction not met early, then met after escalation.
+- Trickster / Hobbit-type:
+  - Distract, Rescue, bravery, objective play.
+
+Gandalf-style restriction test:
+
+- Round 1: restriction not met.
+- Round 2: restriction not met.
+- Round 3 or comparable escalation: restriction met.
+- Purpose: test whether the character is fun while restricted and whether
+  release feels earned and powerful.
+
+Normal roleplay versus Roleplay Abilities:
+
+- Basic roleplay must remain available to every player through normal Trials
+  and Clashes.
+- A player does not need a special ability to attempt ordinary persuasion,
+  deception, intimidation, rescue, investigation, or similar actions.
+- Roleplay Abilities are privileged access pathways, not permission gates.
+- Roleplay Abilities may provide expanded Scene Impact, special target scope,
+  mechanical effects, restriction-backed power, or combat-relevant
+  scene/objective impact.
+- Scene Impact should define the authored ceiling of a roleplay ability, not
+  rely only on Game Director generosity.
+- Difficulty remains situational and can still be set by the Game Director.
+
+Example principle:
+
+- A normal character might attempt to persuade a guard or even make an
+  impossible appeal at very high difficulty.
+- A character with an authored high-impact ability such as "Gondor Calls for
+  Aid" may have a privileged pathway to attempt larger-scale persuasion because
+  they spent resources on that kind of scene impact.
+
+Roleplay Ability versus Cleanse distinction:
+
+- Roleplay Abilities should not invalidate existing Cleanse mechanics.
+- Cleanse removes or reduces eligible effects/stacks/units through its own
+  lane.
+- Encourage / Rescue / Intervention-style abilities should generally use
+  different mechanics unless they explicitly include a Cleanse component.
+- Possible different lanes include:
+  - granting an immediate out-of-turn Resist,
+  - granting rerolls on a future Resist,
+  - transferring some burden to the caster,
+  - letting a target ignore an effect temporarily,
+  - moving/rescuing a target from danger,
+  - converting panic into action.
+- This is a design direction for the upcoming Roleplay Ability Framework, not
+  final locked implementation.
+
+Two use modes:
+
+1. Out of combat or on NPCs in combat:
+   - affects scene tracks, NPC stance, morale, access, aid, information, or
+     objective progress.
+2. In combat on actors:
+   - affects allies/enemies mechanically through a non-Cleanse, non-damage lane
+     where appropriate.
+
+Generic scene actions:
+
+- Generic scene actions are not powers.
+- Anyone can attempt them if fictionally positioned.
+- Examples:
+  - bar the gate,
+  - drag a civilian from the fire,
+  - throw water onto the stables,
+  - climb the watchtower,
+  - search for the commander,
+  - repair a barricade,
+  - shout orders to guards.
+- The first slice should use both generic scene actions and authored roleplay
+  abilities.
+
+Open Decisions For This Slice:
+
+- Final Roleplay Ability Framework.
+- Exact Scene Impact tiers.
+- Exact roleplay ability costing.
+- Exact roleplay intentions.
+- Exact scenario track values.
+- Whether roleplay abilities are built from the same power pool in the first
+  beta implementation or represented temporarily through pregenerated test
+  cards.
+
+
 Optional Character Archetypes
 
 OPEN / NEEDS ARCHITECT DECISION.
@@ -210,6 +360,9 @@ Open Decisions
 OPEN / NEEDS ARCHITECT DECISION:
 
 - Final roleplay system scope.
+- Final Closed Beta Roleplay Ability Framework, Scene Impact tiers, roleplay
+  ability costing, roleplay intentions, scenario track values, and first-slice
+  representation model for roleplay abilities.
 - Whether optional Archetypes are part of launch or later expansion.
 - Archetype restriction / bonus / failure-clause format.
 - Backstory Point earn and spend rules.

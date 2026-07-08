@@ -111,6 +111,9 @@ The current launch-roadmap intake batch has been captured in owner docs:
   naming pass and player-facing language backlog.
 - docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt captures roleplay-system,
   Archetype, Backstory Point, Personal Goal, and party-resource backlog.
+- docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt now captures the Closed
+  Beta Vertical Slice as dynamic crisis combat with pregenerated assets,
+  objective tracks, and a small roleplay ability testbed.
 
 These items preserve planning context only. They do not resolve open Architect
 decisions or require immediate implementation.
@@ -237,6 +240,16 @@ law until the owning active doc is updated with an explicit decision.
   Note: Table law allows legal Limit Break dice before the Major Injury roll,
   but current Combat Lab implementation planning may ignore them until Limit
   Break runtime exists.
+- Closed Beta Vertical Slice and Roleplay Ability Framework.
+  Status: FIRST SLICE CAPTURED / ROLEPLAY ABILITY FRAMEWORK OPEN.
+  Owner: docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt, with costing
+  implications in docs/02_Power_System_And_Costing.txt and builder implications
+  in docs/03_Builders_And_Implementation_Roadmap.txt.
+  Note: The first slice is dynamic crisis combat with pregenerated characters,
+  pregenerated enemies, objective tracks, and a small roleplay ability testbed.
+  Final Roleplay Ability Framework, Scene Impact tiers, costing, intentions,
+  scenario track values, and first-beta representation model remain OPEN /
+  NEEDS ARCHITECT DECISION.
 - Full Blaze of Glory runtime flow and Blaze AI.
   Status: DEFERRED / NEEDS ARCHITECT DECISION.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
