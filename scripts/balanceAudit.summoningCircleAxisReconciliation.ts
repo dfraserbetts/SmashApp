@@ -210,6 +210,9 @@ function summarizeMonster(monster: MonsterRow) {
   const curvePoints = asRecord(normalization.curvePoints);
   const physicalThreatCurve = asRecord(curvePoints.physicalThreat);
   const mentalThreatCurve = asRecord(curvePoints.mentalThreat);
+  const threatAxisBaselineModel = asRecord(normalization.threatAxisBaselineModel);
+  const physicalThreatBaseline = asRecord(threatAxisBaselineModel.physicalThreat);
+  const mentalThreatBaseline = asRecord(threatAxisBaselineModel.mentalThreat);
 
   return {
     name: monster.name,
@@ -262,6 +265,20 @@ function summarizeMonster(monster: MonsterRow) {
         max: asNumber(mentalThreatCurve.max),
       },
     },
+    threatBaseline: {
+      physicalThreat: {
+        baselineRaw: round(asNumber(physicalThreatBaseline.baselineRaw)),
+        ratioToBaseline: round(asNumber(physicalThreatBaseline.ratioToBaseline), 3),
+        finalScore: round(asNumber(physicalThreatBaseline.finalScore)),
+        capped: Boolean(physicalThreatBaseline.capped),
+      },
+      mentalThreat: {
+        baselineRaw: round(asNumber(mentalThreatBaseline.baselineRaw)),
+        ratioToBaseline: round(asNumber(mentalThreatBaseline.ratioToBaseline), 3),
+        finalScore: round(asNumber(mentalThreatBaseline.finalScore)),
+        capped: Boolean(mentalThreatBaseline.capped),
+      },
+    },
     powerContributionSource: String(powerDebug.source ?? "unknown"),
     expectedAttackOutputSource: String(expectedAttackOutput.source ?? "unknown"),
   };
@@ -307,6 +324,7 @@ function printHuman(payload: ReturnType<typeof buildPayload>) {
         `axis PT/MT/PS/MS=${sample.axis.physicalThreat}/${sample.axis.mentalThreat}/${sample.axis.physicalSurvivability}/${sample.axis.mentalSurvivability}`,
         `rawThreat nonPower=${sample.raw.nonPowerPhysicalThreat}/${sample.raw.nonPowerMentalThreat}`,
         `power=${sample.raw.effectivePowerPhysicalThreat}/${sample.raw.effectivePowerMentalThreat}`,
+        `baselineRatio PT/MT=${sample.threatBaseline.physicalThreat.ratioToBaseline}/${sample.threatBaseline.mentalThreat.ratioToBaseline}`,
         `curveMax PT/MT=${sample.curve.physicalThreat.max}/${sample.curve.mentalThreat.max}`,
       ].join(" | "),
     );

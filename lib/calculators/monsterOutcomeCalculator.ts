@@ -1041,6 +1041,118 @@ function normalizeByLevelCurve(
   return clampRadarScore(normalized);
 }
 
+type ThreatAxisNormalizationBreakdown = {
+  value: number;
+  baselineRaw: number;
+  ratioToBaseline: number;
+  finalScore: number;
+  capped: boolean;
+  reference: {
+    level: number;
+    diceCount: number;
+    dieSides: number;
+    woundsPerSuccess: number;
+    targetCount: number;
+    damageTypeCount: number;
+    expectedSuccesses: number;
+    netSuccessMultiplier: number;
+    atWillThreatAxisMultiplier: number;
+    levelScale: number;
+    tierKey: TierBudgetKey;
+    tierBaselineMultiplier: number;
+    curveExponent: number;
+  };
+};
+
+function getThreatAxisLevelScale(
+  level: number,
+  tuning: CalculatorConfig["threatAxisTuning"],
+): number {
+  const normalizedLevel = Math.max(1, Math.trunc(level || tuning.referenceLevel));
+  const rawScale =
+    1 + (normalizedLevel - tuning.referenceLevel) * Math.max(0, tuning.levelScalePerLevel);
+  return Math.max(Math.max(0, tuning.minLevelScale), rawScale);
+}
+
+function getThreatAxisBaselineRaw(params: {
+  level: number;
+  tierKey: TierBudgetKey;
+  tuning: CalculatorConfig["threatAxisTuning"];
+  netSuccessMultiplier: number;
+  atWillThreatAxisMultiplier: number;
+}): ThreatAxisNormalizationBreakdown["reference"] & { baselineRaw: number } {
+  const expectedSuccesses = expectedTieredSuccesses({
+    dieSides: params.tuning.referenceDieSides,
+    diceCount: params.tuning.referenceDiceCount,
+  });
+  const levelScale = getThreatAxisLevelScale(params.level, params.tuning);
+  const tierBaselineMultiplier =
+    params.tuning.tierBaselineMultipliers[params.tierKey] ??
+    params.tuning.tierBaselineMultipliers.ELITE;
+  const baselineRaw =
+    expectedSuccesses *
+    Math.max(0, params.tuning.referenceWoundsPerSuccess) *
+    Math.max(1, params.tuning.referenceTargetCount) *
+    Math.max(1, params.tuning.referenceDamageTypeCount) *
+    Math.max(0, params.netSuccessMultiplier) *
+    Math.max(0, params.atWillThreatAxisMultiplier) *
+    levelScale *
+    Math.max(0.01, tierBaselineMultiplier);
+
+  return {
+    baselineRaw,
+    level: params.tuning.referenceLevel,
+    diceCount: params.tuning.referenceDiceCount,
+    dieSides: params.tuning.referenceDieSides,
+    woundsPerSuccess: params.tuning.referenceWoundsPerSuccess,
+    targetCount: params.tuning.referenceTargetCount,
+    damageTypeCount: params.tuning.referenceDamageTypeCount,
+    expectedSuccesses,
+    netSuccessMultiplier: params.netSuccessMultiplier,
+    atWillThreatAxisMultiplier: params.atWillThreatAxisMultiplier,
+    levelScale,
+    tierKey: params.tierKey,
+    tierBaselineMultiplier,
+    curveExponent: params.tuning.curveExponent,
+  };
+}
+
+function normalizeThreatByAcceptedBaseline(params: {
+  value: number;
+  level: number;
+  tierKey: TierBudgetKey;
+  tuning: CalculatorConfig["threatAxisTuning"];
+  netSuccessMultiplier: number;
+  atWillThreatAxisMultiplier: number;
+}): ThreatAxisNormalizationBreakdown {
+  const reference = getThreatAxisBaselineRaw({
+    level: params.level,
+    tierKey: params.tierKey,
+    tuning: params.tuning,
+    netSuccessMultiplier: params.netSuccessMultiplier,
+    atWillThreatAxisMultiplier: params.atWillThreatAxisMultiplier,
+  });
+  const safeValue = clampNonNegative(params.value);
+  const ratioToBaseline = reference.baselineRaw > 0 ? safeValue / reference.baselineRaw : 0;
+  const shapedRatio = Math.pow(
+    Math.max(0, ratioToBaseline),
+    Math.max(0.1, params.tuning.curveExponent),
+  );
+  const finalScore =
+    shapedRatio > 0 && Number.isFinite(shapedRatio)
+      ? clampRadarScore((10 * shapedRatio) / (1 + shapedRatio))
+      : 0;
+
+  return {
+    value: safeValue,
+    baselineRaw: reference.baselineRaw,
+    ratioToBaseline,
+    finalScore,
+    capped: finalScore >= 10,
+    reference,
+  };
+}
+
 function getTierAdjustedAxisBudgetTarget(
   curvePoint: LevelCurvePoint,
   tierMultiplier: number,
@@ -1234,6 +1346,17 @@ function toTierBudgetKey(monster: Pick<MonsterOutcomeInput, "tier" | "legendary"
     return tier;
   }
   return "ELITE";
+}
+
+function toThreatAxisBaselineTierKey(
+  monster: Pick<MonsterOutcomeInput, "tier" | "legendary">,
+): TierBudgetKey {
+  const tier = String(monster.tier ?? "MINION").toUpperCase() as MonsterTier | "LEGENDARY";
+  if (monster.legendary && tier === "BOSS") return "LEGENDARY";
+  if (tier === "MINION" || tier === "SOLDIER" || tier === "ELITE" || tier === "BOSS") {
+    return tier;
+  }
+  return toTierBudgetKey(monster);
 }
 
 function getCurvePointForLevel(curve: LevelCurvePoint[], level: number): LevelCurvePoint {
@@ -2268,6 +2391,7 @@ export function computeMonsterOutcomes(
 
   const level = Math.max(1, Math.trunc(monster.level || 1));
   const tierKey = toTierBudgetKey(monster);
+  const threatAxisTierKey = toThreatAxisBaselineTierKey(monster);
   const tierMultiplier = cfg.tierMultipliers[tierKey] ?? 1;
   const resistPressureMultiplier = getResistPressureMultiplier(level, tierKey);
   const physicalThreatCurvePoint = getCurvePointForLevel(cfg.scoringCurves.physicalThreat, level);
@@ -2637,17 +2761,25 @@ export function computeMonsterOutcomes(
     mobility: nonPowerContribution.mobility + effectivePowerAxisVector.mobility,
     presence: nonPowerContribution.presence + effectivePowerAxisVector.presence,
   };
+  const physicalThreatNormalization = normalizeThreatByAcceptedBaseline({
+    value: finalPreNormalizationAxes.physicalThreat,
+    level,
+    tierKey: threatAxisTierKey,
+    tuning: cfg.threatAxisTuning,
+    netSuccessMultiplier,
+    atWillThreatAxisMultiplier,
+  });
+  const mentalThreatNormalization = normalizeThreatByAcceptedBaseline({
+    value: finalPreNormalizationAxes.mentalThreat,
+    level,
+    tierKey: threatAxisTierKey,
+    tuning: cfg.threatAxisTuning,
+    netSuccessMultiplier,
+    atWillThreatAxisMultiplier,
+  });
   const radarAxes: RadarAxes = {
-    physicalThreat: normalizeByLevelCurve(
-      finalPreNormalizationAxes.physicalThreat,
-      physicalThreatCurvePoint,
-      tierMultiplier,
-    ),
-    mentalThreat: normalizeByLevelCurve(
-      finalPreNormalizationAxes.mentalThreat,
-      mentalThreatCurvePoint,
-      tierMultiplier,
-    ),
+    physicalThreat: physicalThreatNormalization.finalScore,
+    mentalThreat: mentalThreatNormalization.finalScore,
     physicalSurvivability: normalizeByLevelCurve(
       finalPreNormalizationAxes.physicalSurvivability,
       physicalSurvivabilityCurvePoint,
@@ -2798,6 +2930,14 @@ export function computeMonsterOutcomes(
         },
         rawAxisBudgetTargets: axisBudgetTargets,
         axisBudgetTargets,
+        threatAxisBaselineModel: {
+          source: "accepted_level_3_medium_attack_ruler",
+          policy:
+            "Threat axes normalize raw expected output against the accepted medium package instead of broad generic curve caps.",
+          tierKey: threatAxisTierKey,
+          physicalThreat: physicalThreatNormalization,
+          mentalThreat: mentalThreatNormalization,
+        },
         radarAxes,
       },
       legacyPowerHeuristics: {

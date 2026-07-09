@@ -50,6 +50,24 @@ export type CalculatorConfig = {
     greaterSuccessEffectWeight: number;
     rangeEffectWeight: number;
   };
+  threatAxisTuning: {
+    referenceLevel: number;
+    referenceDiceCount: number;
+    referenceDieSides: number;
+    referenceWoundsPerSuccess: number;
+    referenceTargetCount: number;
+    referenceDamageTypeCount: number;
+    levelScalePerLevel: number;
+    minLevelScale: number;
+    curveExponent: number;
+    tierBaselineMultipliers: {
+      MINION: number;
+      SOLDIER: number;
+      ELITE: number;
+      BOSS: number;
+      LEGENDARY: number;
+    };
+  };
   healthPoolTuning: {
     expectedPhysicalResilienceAt1: number;
     expectedPhysicalResiliencePerLevel: number;
@@ -162,6 +180,24 @@ export const calculatorConfig: CalculatorConfig = {
     damageOutputWeight: 1,
     greaterSuccessEffectWeight: 1,
     rangeEffectWeight: 1,
+  },
+  threatAxisTuning: {
+    referenceLevel: 3,
+    referenceDiceCount: 4,
+    referenceDieSides: 8,
+    referenceWoundsPerSuccess: 2,
+    referenceTargetCount: 1,
+    referenceDamageTypeCount: 1,
+    levelScalePerLevel: 0.25,
+    minLevelScale: 0.5,
+    curveExponent: 1.35,
+    tierBaselineMultipliers: {
+      MINION: 0.6,
+      SOLDIER: 1,
+      ELITE: 1,
+      BOSS: 3,
+      LEGENDARY: 4,
+    },
   },
   healthPoolTuning: {
     expectedPhysicalResilienceAt1: 19,
@@ -354,6 +390,52 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
       rangeEffectWeight:
         overrides.naturalAttackTuning?.rangeEffectWeight ??
         calculatorConfig.naturalAttackTuning.rangeEffectWeight,
+    },
+    threatAxisTuning: {
+      referenceLevel:
+        overrides.threatAxisTuning?.referenceLevel ??
+        calculatorConfig.threatAxisTuning.referenceLevel,
+      referenceDiceCount:
+        overrides.threatAxisTuning?.referenceDiceCount ??
+        calculatorConfig.threatAxisTuning.referenceDiceCount,
+      referenceDieSides:
+        overrides.threatAxisTuning?.referenceDieSides ??
+        calculatorConfig.threatAxisTuning.referenceDieSides,
+      referenceWoundsPerSuccess:
+        overrides.threatAxisTuning?.referenceWoundsPerSuccess ??
+        calculatorConfig.threatAxisTuning.referenceWoundsPerSuccess,
+      referenceTargetCount:
+        overrides.threatAxisTuning?.referenceTargetCount ??
+        calculatorConfig.threatAxisTuning.referenceTargetCount,
+      referenceDamageTypeCount:
+        overrides.threatAxisTuning?.referenceDamageTypeCount ??
+        calculatorConfig.threatAxisTuning.referenceDamageTypeCount,
+      levelScalePerLevel:
+        overrides.threatAxisTuning?.levelScalePerLevel ??
+        calculatorConfig.threatAxisTuning.levelScalePerLevel,
+      minLevelScale:
+        overrides.threatAxisTuning?.minLevelScale ??
+        calculatorConfig.threatAxisTuning.minLevelScale,
+      curveExponent:
+        overrides.threatAxisTuning?.curveExponent ??
+        calculatorConfig.threatAxisTuning.curveExponent,
+      tierBaselineMultipliers: {
+        MINION:
+          overrides.threatAxisTuning?.tierBaselineMultipliers?.MINION ??
+          calculatorConfig.threatAxisTuning.tierBaselineMultipliers.MINION,
+        SOLDIER:
+          overrides.threatAxisTuning?.tierBaselineMultipliers?.SOLDIER ??
+          calculatorConfig.threatAxisTuning.tierBaselineMultipliers.SOLDIER,
+        ELITE:
+          overrides.threatAxisTuning?.tierBaselineMultipliers?.ELITE ??
+          calculatorConfig.threatAxisTuning.tierBaselineMultipliers.ELITE,
+        BOSS:
+          overrides.threatAxisTuning?.tierBaselineMultipliers?.BOSS ??
+          calculatorConfig.threatAxisTuning.tierBaselineMultipliers.BOSS,
+        LEGENDARY:
+          overrides.threatAxisTuning?.tierBaselineMultipliers?.LEGENDARY ??
+          calculatorConfig.threatAxisTuning.tierBaselineMultipliers.LEGENDARY,
+      },
     },
     healthPoolTuning: {
       expectedPhysicalResilienceAt1:
