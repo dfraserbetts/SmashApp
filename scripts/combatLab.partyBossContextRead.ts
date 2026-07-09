@@ -158,10 +158,9 @@ const ENEMY_NAMES = [
   "BALANCE_Legendary Elite Duelist",
   "BALANCE_Legendary Elite Hexer",
   "BALANCE_Legendary Elite Breaker Controller Rotation",
-  "BALANCE_Physical Striker",
-  "BALANCE_Durable Soldier",
-  "BALANCE_Control Hexer",
-  "BALANCE_Dodge Pressure Skirmisher",
+  "BALANCE_Support Candidate Pressure Striker",
+  "BALANCE_Support Candidate Guard Anchor",
+  "BALANCE_Support Candidate Suppression Hexer",
 ] as const;
 
 const SCENARIO_SPECS: ScenarioSpec[] = [
@@ -208,29 +207,40 @@ const SCENARIO_SPECS: ScenarioSpec[] = [
     notes: ["Legendary/solo-capable mental Boss candidate; current authored offence may still be placeholder-like."],
   },
   {
-    name: "Standard Party vs Duelist with Soldier Support",
+    name: "Standard Party vs Duelist with Candidate Support",
     category: "supported-legendary-elite",
     partyNames: [...STANDARD_PARTY],
-    enemyNames: ["BALANCE_Legendary Elite Duelist", "BALANCE_Physical Striker", "BALANCE_Durable Soldier"],
-    notes: ["Multi-enemy support context check, not a Boss asset."],
+    enemyNames: [
+      "BALANCE_Legendary Elite Duelist",
+      "BALANCE_Support Candidate Pressure Striker",
+      "BALANCE_Support Candidate Guard Anchor",
+      "BALANCE_Support Candidate Suppression Hexer",
+    ],
+    notes: ["Full mixed support-candidate package benchmark, not a Boss asset."],
   },
   {
-    name: "Standard Party vs Hexer with Soldier Support",
+    name: "Standard Party vs Hexer with Candidate Support",
     category: "supported-legendary-elite",
     partyNames: [...STANDARD_PARTY],
-    enemyNames: ["BALANCE_Legendary Elite Hexer", "BALANCE_Control Hexer", "BALANCE_Durable Soldier"],
-    notes: ["Multi-enemy support context check, not a Boss asset."],
+    enemyNames: [
+      "BALANCE_Legendary Elite Hexer",
+      "BALANCE_Support Candidate Pressure Striker",
+      "BALANCE_Support Candidate Guard Anchor",
+      "BALANCE_Support Candidate Suppression Hexer",
+    ],
+    notes: ["Full mixed support-candidate package benchmark, not a Boss asset."],
   },
   {
-    name: "Standard Party vs Rotation with Soldier Support",
+    name: "Standard Party vs Rotation with Candidate Support",
     category: "supported-legendary-elite",
     partyNames: [...STANDARD_PARTY],
     enemyNames: [
       "BALANCE_Legendary Elite Breaker Controller Rotation",
-      "BALANCE_Control Hexer",
-      "BALANCE_Dodge Pressure Skirmisher",
+      "BALANCE_Support Candidate Pressure Striker",
+      "BALANCE_Support Candidate Guard Anchor",
+      "BALANCE_Support Candidate Suppression Hexer",
     ],
-    notes: ["Existing-mechanics anti-tank suite in a supported context, not a Boss asset."],
+    notes: ["Existing-mechanics anti-tank suite with full mixed support-candidate package, not a Boss asset."],
   },
 ];
 
