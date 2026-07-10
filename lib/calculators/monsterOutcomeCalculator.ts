@@ -15,6 +15,8 @@ import {
 import { strengthToTableWoundsPerSuccess } from "@/lib/forge/outputProfile";
 import type {
   CalculatorConfig,
+  ControlPressureBaselinePackage,
+  ControlPressureResistibility,
   DurabilityBaselinePackage,
   DurabilityLaneBaseline,
   LevelCurvePoint,
@@ -2128,6 +2130,511 @@ function buildPressureAxisBaselineModel(params: {
   };
 }
 
+type ControlPressureEffectFamily =
+  | "FORCED_MOVEMENT"
+  | "MAIN_ACTION_DENIAL"
+  | "ATTRIBUTE_DEBUFF"
+  | "DEFENCE_DEBUFF";
+
+type ControlPressureAvailabilityBand = "AT_WILL" | "SHORT" | "MEDIUM" | "LONG" | "UNKNOWN";
+
+type SemanticControlPackage = {
+  sourcePowerId: string | null;
+  sourcePowerName: string;
+  packetIndex: number;
+  effectFamily: ControlPressureEffectFamily;
+  runtimeSemanticMode: "forcedMovementApplied" | "mainActionDenied" | "attributeModifier";
+  affectedAttribute: string | null;
+  targetBreadth: number;
+  targetCount: number;
+  durationKind: "INSTANT" | "TURNS" | "PASSIVE" | "UNTIL_TARGET_NEXT_TURN";
+  durationTurns: number;
+  durationContribution: number;
+  recurrence: boolean;
+  recurrenceContribution: number;
+  effectSeverity: number;
+  supportedStackImpact: number;
+  cooldownTurns: number | null;
+  availabilityBand: ControlPressureAvailabilityBand;
+  availabilityContribution: number;
+  resistibility: ControlPressureResistibility;
+  resistGateCategory: CoreAttribute | null;
+  reliabilityContribution: number;
+  dependencyMode: string;
+  linked: boolean;
+  linkedContribution: number;
+  unsupportedAuthoringDistinctions: string[];
+  functionalSignature: string;
+};
+
+type ControlPressureComponentValues = {
+  effectSeverity: number;
+  targetBreadth: number;
+  duration: number;
+  recurrence: number;
+  availability: number;
+  supportedStackImpact: number;
+  distinctPackages: number;
+  actionEconomy: number;
+  reliability: number;
+  linkedRelationships: number;
+};
+
+const CONTROL_PRESSURE_ATTRIBUTES = [
+  "Attack",
+  "Guard",
+  "Fortitude",
+  "Intellect",
+  "Synergy",
+  "Bravery",
+] as const;
+
+function controlPressureRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function controlPressureAttribute(value: unknown): string | null {
+  const normalized = typeof value === "string" ? value.trim().toUpperCase() : "";
+  if (normalized === "DEFENCE" || normalized === "DEFENSE" || normalized === "GUARD") return "Guard";
+  if (normalized === "SUPPORT" || normalized === "SYNERGY") return "Synergy";
+  return CONTROL_PRESSURE_ATTRIBUTES.find((attribute) => attribute.toUpperCase() === normalized) ?? null;
+}
+
+function controlPressureTargeting(
+  power: MonsterUpsertInput["powers"][number],
+  packet: MonsterUpsertInput["powers"][number]["intentions"][number],
+): { targetCount: number; targetBreadth: number } {
+  const local = packet.localTargetingOverride;
+  let range = getPowerRangeCategory(power) ?? "MELEE";
+  let targetCount = getPowerTargetCount(power, range);
+  if (local) {
+    if (Number(local.aoeCount ?? 0) > 0) {
+      range = "AOE";
+      targetCount = Math.max(1, Number(local.aoeCount));
+    } else if (Number(local.rangedTargets ?? 0) > 0 || Number(local.rangedDistanceFeet ?? 0) > 0) {
+      range = "RANGED";
+      targetCount = Math.max(1, Number(local.rangedTargets ?? 1));
+    } else if (Number(local.meleeTargets ?? 0) > 0) {
+      targetCount = Math.max(1, Number(local.meleeTargets));
+    }
+  }
+  const boundedTargets = Math.max(1, Math.min(12, Math.trunc(targetCount)));
+  return {
+    targetCount: boundedTargets,
+    targetBreadth: 1 + Math.log2(boundedTargets),
+  };
+}
+
+function controlPressureDuration(
+  power: MonsterUpsertInput["powers"][number],
+  packet: MonsterUpsertInput["powers"][number]["intentions"][number],
+): {
+  durationKind: SemanticControlPackage["durationKind"];
+  durationTurns: number;
+  durationContribution: number;
+  recurrence: boolean;
+  recurrenceContribution: number;
+} {
+  const rawKind = String(packet.effectDurationType ?? "INSTANT").toUpperCase();
+  const durationKind: SemanticControlPackage["durationKind"] =
+    rawKind === "TURNS" || rawKind === "PASSIVE" || rawKind === "UNTIL_TARGET_NEXT_TURN"
+      ? rawKind
+      : "INSTANT";
+  const packetTurns = Math.max(1, Math.trunc(Number(packet.effectDurationTurns ?? 1)));
+  const durationTurns =
+    power.descriptorChassis === "FIELD"
+      ? Math.max(1, Math.trunc(Number(power.lifespanTurns ?? packetTurns)))
+      : durationKind === "PASSIVE"
+        ? 99
+        : durationKind === "UNTIL_TARGET_NEXT_TURN"
+          ? 1
+          : durationKind === "TURNS"
+            ? packetTurns
+            : 1;
+  const durationContribution =
+    durationKind === "PASSIVE"
+      ? 2
+      : durationKind === "TURNS"
+        ? Math.min(2, 1 + 0.4 * Math.max(0, durationTurns - 1))
+        : 1;
+  const timing = String(packet.effectTimingType ?? "ON_CAST").toUpperCase();
+  const recurrence =
+    durationKind === "TURNS" &&
+    (timing === "START_OF_TURN" || timing === "START_OF_TURN_WHILST_CHANNELLED");
+  return {
+    durationKind,
+    durationTurns,
+    durationContribution,
+    recurrence,
+    recurrenceContribution: recurrence ? Math.min(1, durationTurns / 2) : 0,
+  };
+}
+
+function controlPressureAvailability(cooldownTurns: number | null): {
+  band: ControlPressureAvailabilityBand;
+  contribution: number;
+} {
+  if (cooldownTurns === null) return { band: "UNKNOWN", contribution: 0.65 };
+  if (cooldownTurns <= 0) return { band: "AT_WILL", contribution: 1 };
+  if (cooldownTurns <= 2) {
+    return { band: "SHORT", contribution: cooldownTurns === 1 ? 0.9 : 0.75 };
+  }
+  if (cooldownTurns === 3) return { band: "MEDIUM", contribution: 0.6 };
+  return { band: "LONG", contribution: Math.max(0.25, 0.55 - cooldownTurns * 0.05) };
+}
+
+function controlPressureFunctionalSignature(
+  value: Omit<SemanticControlPackage, "functionalSignature" | "sourcePowerId" | "sourcePowerName" | "packetIndex">,
+): string {
+  return [
+    value.effectFamily,
+    value.runtimeSemanticMode,
+    value.affectedAttribute ?? "none",
+    value.targetCount,
+    value.durationKind,
+    value.durationTurns,
+    value.recurrence ? "recurring" : "once",
+    value.availabilityBand,
+    value.resistibility,
+    value.dependencyMode,
+  ].join("|");
+}
+
+function createSemanticControlPackages(params: {
+  monster: MonsterOutcomeInput;
+  powerContribution?: CanonicalPowerContribution | null;
+  reliabilityValues: CalculatorConfig["controlPressureAxisTuning"]["reliabilityValues"];
+}): {
+  candidates: SemanticControlPackage[];
+  packages: SemanticControlPackage[];
+  duplicateSignatures: string[];
+  unsupportedWarnings: string[];
+} {
+  const candidates: SemanticControlPackage[] = [];
+  const unsupportedWarnings: string[] = [];
+  const entries = params.powerContribution?.powers?.length
+    ? params.powerContribution.powers
+    : (params.monster.powers ?? []).map((power) => ({
+        id: power.id ?? null,
+        name: power.name,
+        authoredPower: power,
+        cooldownTurns: power.cooldownTurns,
+        cooldownReduction: power.cooldownReduction,
+      }));
+
+  for (const entry of entries) {
+    const power = entry.authoredPower;
+    if (!power) {
+      unsupportedWarnings.push(`Power ${entry.name ?? entry.id ?? "unknown"} has no authored packet shape; omitted from Control Pressure.`);
+      continue;
+    }
+    if (power.descriptorChassis && power.descriptorChassis !== "IMMEDIATE" && power.descriptorChassis !== "FIELD") {
+      unsupportedWarnings.push(`Power ${power.name} uses unsupported Combat Lab chassis ${power.descriptorChassis}; omitted from Control Pressure.`);
+      continue;
+    }
+    const packets = power.effectPackets?.length ? power.effectPackets : power.intentions;
+    const cooldownTurns = getPressurePowerCooldown(entry, power);
+    const availability = controlPressureAvailability(cooldownTurns);
+    for (const [packetOffset, packet] of packets.entries()) {
+      if (packet.hostility === "NON_HOSTILE") continue;
+      const intention = String(packet.intention ?? packet.type).toUpperCase();
+      if (!(["CONTROL", "DEBUFF", "MOVEMENT"] as string[]).includes(intention)) continue;
+      const details = controlPressureRecord(packet.detailsJson);
+      const timing = String(packet.effectTimingType ?? "ON_CAST").toUpperCase();
+      const durationKind = String(packet.effectDurationType ?? "INSTANT").toUpperCase();
+      const supportedRecurringTiming =
+        durationKind === "TURNS" &&
+        (timing === "START_OF_TURN" || timing === "START_OF_TURN_WHILST_CHANNELLED");
+      const supportedFieldTiming = power.descriptorChassis === "FIELD" && timing === "START_OF_TURN";
+      if (timing !== "ON_CAST" && !supportedRecurringTiming && !supportedFieldTiming) {
+        unsupportedWarnings.push(`Power ${power.name} packet ${packet.packetIndex ?? packetOffset} timing ${timing} is not resolved by Combat Lab V1; omitted from Control Pressure.`);
+        continue;
+      }
+
+      let effectFamily: ControlPressureEffectFamily;
+      let runtimeSemanticMode: SemanticControlPackage["runtimeSemanticMode"];
+      let affectedAttribute: string | null = null;
+      let effectSeverity: number;
+      let supportedStackImpact: number;
+      const unsupportedAuthoringDistinctions: string[] = [];
+      if (intention === "CONTROL") {
+        effectFamily = "MAIN_ACTION_DENIAL";
+        runtimeSemanticMode = "mainActionDenied";
+        effectSeverity = 3;
+        supportedStackImpact = 1;
+        const authoredMode = String(details.controlMode ?? "unspecified");
+        if (authoredMode !== "Force no main action") {
+          const warning = `${authoredMode} collapses to the same runtime mainActionDenied behaviour; no distinct severity was awarded.`;
+          unsupportedAuthoringDistinctions.push(warning);
+          unsupportedWarnings.push(`Power ${power.name} packet ${packet.packetIndex ?? packetOffset}: ${warning}`);
+        }
+      } else if (intention === "DEBUFF") {
+        affectedAttribute = controlPressureAttribute(
+          packet.targetedAttribute ?? details.statTarget ?? details.statChoice ?? packet.specific,
+        );
+        if (!affectedAttribute) {
+          unsupportedWarnings.push(`Power ${power.name} packet ${packet.packetIndex ?? packetOffset} Debuff has no runtime-supported target attribute; omitted from Control Pressure.`);
+          continue;
+        }
+        effectFamily = affectedAttribute === "Guard" ? "DEFENCE_DEBUFF" : "ATTRIBUTE_DEBUFF";
+        runtimeSemanticMode = "attributeModifier";
+        effectSeverity = 2;
+        supportedStackImpact = Math.min(2, Math.max(1, Math.trunc(Number(packet.potency ?? power.potency ?? 1))));
+      } else {
+        const movementMode = String(details.movementMode ?? "");
+        if (!movementMode.toUpperCase().startsWith("FORCE ")) {
+          unsupportedWarnings.push(`Power ${power.name} packet ${packet.packetIndex ?? packetOffset} Movement is not a hostile forced-movement mode; omitted from Control Pressure.`);
+          continue;
+        }
+        effectFamily = "FORCED_MOVEMENT";
+        runtimeSemanticMode = "forcedMovementApplied";
+        effectSeverity = 1;
+        supportedStackImpact = 1;
+      }
+      const targeting = controlPressureTargeting(power, packet);
+      const duration = controlPressureDuration(power, packet);
+      const gateResult = String(power.primaryDefenceGate?.gateResult ?? "NONE").toUpperCase();
+      const resistibility: ControlPressureResistibility =
+        gateResult === "RESIST" ? "RESISTED" : gateResult === "NONE" ? "UNRESISTED" : "UNKNOWN";
+      const resistGateCategory =
+        resistibility === "RESISTED" ? (power.primaryDefenceGate?.resistAttribute ?? null) : null;
+      const dependencyMode =
+        (packet.packetIndex ?? packet.sortOrder ?? packetOffset) <= 0
+          ? "PRIMARY"
+          : String(packet.secondaryDependencyMode ?? "LINKED_TO_PRIMARY").toUpperCase();
+      const linked = dependencyMode !== "PRIMARY" && dependencyMode !== "INDEPENDENT";
+      const base = {
+        effectFamily,
+        runtimeSemanticMode,
+        affectedAttribute,
+        targetBreadth: targeting.targetBreadth,
+        targetCount: targeting.targetCount,
+        durationKind: duration.durationKind,
+        durationTurns: duration.durationTurns,
+        durationContribution: duration.durationContribution,
+        recurrence: duration.recurrence,
+        recurrenceContribution: duration.recurrenceContribution,
+        effectSeverity,
+        supportedStackImpact,
+        cooldownTurns,
+        availabilityBand: availability.band,
+        availabilityContribution: availability.contribution,
+        resistibility,
+        resistGateCategory,
+        reliabilityContribution: params.reliabilityValues[resistibility],
+        dependencyMode,
+        linked,
+        linkedContribution: linked ? 1 : 0,
+        unsupportedAuthoringDistinctions,
+      };
+      candidates.push({
+        sourcePowerId: entry.id ?? power.id ?? null,
+        sourcePowerName: entry.name ?? power.name,
+        packetIndex: packet.packetIndex ?? packetOffset,
+        ...base,
+        functionalSignature: controlPressureFunctionalSignature(base),
+      });
+    }
+  }
+
+  const signatures = new Map<string, SemanticControlPackage>();
+  const duplicateSignatures: string[] = [];
+  for (const candidate of candidates) {
+    if (signatures.has(candidate.functionalSignature)) {
+      duplicateSignatures.push(candidate.functionalSignature);
+    } else {
+      signatures.set(candidate.functionalSignature, candidate);
+    }
+  }
+  return {
+    candidates,
+    packages: [...signatures.values()],
+    duplicateSignatures,
+    unsupportedWarnings,
+  };
+}
+
+function controlPressureOverlapKey(value: SemanticControlPackage): string {
+  return [value.effectFamily, value.runtimeSemanticMode, value.affectedAttribute ?? "none"].join("|");
+}
+
+function getControlPressureComponents(
+  packages: SemanticControlPackage[],
+  actionsPerTurn: number,
+): { values: ControlPressureComponentValues; overlapHandling: Array<{ signature: string; factor: number }> } {
+  const overlaps = new Map<string, number>();
+  const values: ControlPressureComponentValues = {
+    effectSeverity: 0,
+    targetBreadth: 0,
+    duration: 0,
+    recurrence: 0,
+    availability: 0,
+    supportedStackImpact: 0,
+    distinctPackages: 0,
+    actionEconomy: packages.length > 0 ? actionsPerTurn : 0,
+    reliability: 0,
+    linkedRelationships: 0,
+  };
+  const overlapHandling = packages.map((controlPackage) => {
+    const key = controlPressureOverlapKey(controlPackage);
+    const previous = overlaps.get(key) ?? 0;
+    const factor = previous === 0 ? 1 : Math.max(0.35, 0.6 ** previous);
+    overlaps.set(key, previous + 1);
+    values.effectSeverity += controlPackage.effectSeverity * factor;
+    values.targetBreadth += controlPackage.targetBreadth * factor;
+    values.duration += controlPackage.durationContribution * factor;
+    values.recurrence += controlPackage.recurrenceContribution * factor;
+    values.availability += controlPackage.availabilityContribution * factor;
+    values.supportedStackImpact += controlPackage.supportedStackImpact * factor;
+    values.distinctPackages += factor;
+    values.reliability += controlPackage.reliabilityContribution * factor;
+    values.linkedRelationships += controlPackage.linkedContribution * factor;
+    return { signature: controlPackage.functionalSignature, factor };
+  });
+  return { values, overlapHandling };
+}
+
+function getControlPressureBaselineComponents(
+  baseline: ControlPressureBaselinePackage,
+): ControlPressureComponentValues {
+  return {
+    effectSeverity: baseline.expectedEffectSeverity,
+    targetBreadth: baseline.expectedTargetBreadth,
+    duration: baseline.expectedDuration,
+    recurrence: baseline.expectedRecurrence,
+    availability: baseline.expectedAvailability,
+    supportedStackImpact: baseline.expectedSupportedStackImpact,
+    distinctPackages: baseline.expectedPackageCount,
+    actionEconomy: baseline.expectedActionsPerTurn,
+    reliability: baseline.expectedReliability,
+    linkedRelationships: baseline.expectedLinkedRelationships,
+  };
+}
+
+function getControlPressureProxy(
+  values: ControlPressureComponentValues,
+  tuning: CalculatorConfig["controlPressureAxisTuning"],
+) {
+  const keys = Object.keys(tuning.componentWeights) as Array<keyof ControlPressureComponentValues>;
+  const weightedComponents = {} as ControlPressureComponentValues;
+  let proxy = 0;
+  for (const key of keys) {
+    const cap = Math.max(0.000001, tuning.componentCaps[key]);
+    const contribution =
+      Math.max(0, tuning.componentWeights[key]) * Math.min(1, Math.max(0, values[key]) / cap);
+    weightedComponents[key] = contribution;
+    proxy += contribution;
+  }
+  return { proxy, weightedComponents };
+}
+
+function buildControlPressureAxisBaselineModel(params: {
+  monster: MonsterOutcomeInput;
+  config: CalculatorConfig;
+  powerContribution?: CanonicalPowerContribution | null;
+  legacyManipulationRaw: number;
+  excludedLegacyContributions: Record<string, number>;
+}) {
+  const tuning = params.config.controlPressureAxisTuning;
+  const level = Math.max(1, Math.trunc(params.monster.level || 1));
+  const baseline = tuning.baselines.find(
+    (entry) =>
+      entry.level === level &&
+      entry.tier === params.monster.tier &&
+      entry.legendary === Boolean(params.monster.legendary),
+  );
+  const extraction = createSemanticControlPackages({
+    monster: params.monster,
+    powerContribution: params.powerContribution,
+    reliabilityValues: tuning.reliabilityValues,
+  });
+  const actionsPerTurn = getPressureActionsPerTurn(params.monster);
+  const actual = getControlPressureComponents(extraction.packages, actionsPerTurn);
+  const common = {
+    policy: "control_pressure_runtime_semantics_v1",
+    definition:
+      "Control Pressure measures how reliably, broadly and persistently a creature restricts enemy choices or weakens enemy effectiveness.",
+    semanticPackagesConsidered: extraction.packages,
+    candidateSemanticPackages: extraction.candidates,
+    functionalSignatures: extraction.packages.map((entry) => entry.functionalSignature),
+    duplicateOverlapHandling: {
+      exactDuplicatesRemoved: extraction.duplicateSignatures,
+      overlapDiminishingReturns: actual.overlapHandling,
+    },
+    components: actual.values,
+    effectSeverity: actual.values.effectSeverity,
+    targetBreadth: actual.values.targetBreadth,
+    duration: actual.values.duration,
+    recurrence: actual.values.recurrence,
+    cooldownAvailability: actual.values.availability,
+    actionEconomyContribution: actual.values.actionEconomy,
+    resistibilityContribution: {
+      value: actual.values.reliability,
+      policy: "Neutral gate policy: Fortitude, Intellect, Bravery, and other gate names receive identical value; only resisted, unresisted, or unknown status changes bounded reliability.",
+      reliabilityValues: tuning.reliabilityValues,
+    },
+    linkedPackageContribution: actual.values.linkedRelationships,
+    traitEquipmentContribution: {
+      applied: 0,
+      excludedLegacyContributions: params.excludedLegacyContributions,
+      reason: "Generic Manipulation weights do not prove authored hostile table-facing control.",
+    },
+    unsupportedAuthoringWarnings: extraction.unsupportedWarnings,
+  };
+  if (!baseline) {
+    return {
+      ...common,
+      mode: tuning.nonCalibratedFallbackMode,
+      calibrated: false,
+      fallback: true,
+      baselinePackageId: null,
+      baselinePackage: null,
+      baselineComponents: null,
+      weightedActualComponents: null,
+      weightedBaselineComponents: null,
+      rawActualControlPressureProxy: params.legacyManipulationRaw,
+      rawBaselineControlPressureProxy: null,
+      ratioToBaseline: null,
+      uncappedScore: null,
+      finalScore: null,
+      capped: false,
+      capReason: null,
+      fallbackPolicy:
+        "Non-Level-3 creatures retain the explicitly labelled legacy cost-coupled Manipulation curve until level-specific doctrine is accepted.",
+    };
+  }
+  const baselineComponents = getControlPressureBaselineComponents(baseline);
+  const actualProxy = getControlPressureProxy(actual.values, tuning);
+  const baselineProxy = getControlPressureProxy(baselineComponents, tuning);
+  const ratio = baselineProxy.proxy > 0 ? actualProxy.proxy / baselineProxy.proxy : 0;
+  const uncappedScore =
+    extraction.packages.length > 0 && actualProxy.proxy > 0 && ratio > 0
+      ? tuning.midpointScore + Math.log2(ratio) * tuning.logRatioScale
+      : 0;
+  const finalScore = clampRadarScore(uncappedScore);
+  return {
+    ...common,
+    mode: "LEVEL_3_BASELINE_RELATIVE",
+    calibrated: true,
+    fallback: false,
+    baselinePackageId: baseline.id,
+    baselinePackage: baseline,
+    baselineComponents,
+    weightedActualComponents: actualProxy.weightedComponents,
+    weightedBaselineComponents: baselineProxy.weightedComponents,
+    rawActualControlPressureProxy: actualProxy.proxy,
+    rawBaselineControlPressureProxy: baselineProxy.proxy,
+    ratioToBaseline: ratio,
+    uncappedScore,
+    finalScore,
+    capped: finalScore !== uncappedScore,
+    capReason: finalScore !== uncappedScore ? (uncappedScore > 10 ? "MAX_10" : "MIN_0") : null,
+    fallbackPolicy: null,
+  };
+}
+
 function getExpectedIncomingAttackDiceForDodge(level: number, tier: MonsterTier): number {
   const normalizedLevel = Math.max(1, Math.trunc(level || 1));
   const levelOffset = Math.floor((normalizedLevel - 1) / 5);
@@ -3603,6 +4110,24 @@ export function computeMonsterOutcomes(
       traitAxisBonuses.mobility,
     presence: calibratedPressureRaw,
   };
+  const legacyManipulationRaw =
+    nonPowerContribution.manipulation + effectivePowerAxisVector.manipulation;
+  const controlPressureAxisBaselineModel = buildControlPressureAxisBaselineModel({
+    monster,
+    config: cfg,
+    powerContribution: opts?.powerContribution,
+    legacyManipulationRaw,
+    excludedLegacyContributions: {
+      genericPowerResolver: effectivePowerAxisVector.manipulation,
+      equipment: equipmentModifierAxisBonuses.manipulation,
+      naturalAttackGreaterSuccess: naturalAttackGsAxisBonuses.manipulation,
+      customLimitBreak: customLimitBreakAxisBonuses.manipulation,
+      traits: traitAxisBonuses.manipulation,
+    },
+  });
+  const calibratedControlPressureRaw = controlPressureAxisBaselineModel.calibrated
+    ? controlPressureAxisBaselineModel.rawActualControlPressureProxy
+    : legacyManipulationRaw;
   const finalPreNormalizationAxes: RadarAxes = {
     physicalThreat: nonPowerContribution.physicalThreat + effectivePowerAxisVector.physicalThreat,
     mentalThreat: nonPowerContribution.mentalThreat + effectivePowerAxisVector.mentalThreat,
@@ -3612,7 +4137,7 @@ export function computeMonsterOutcomes(
     mentalSurvivability:
       nonPowerContribution.mentalSurvivability +
       effectivePowerAxisVector.mentalSurvivability,
-    manipulation: nonPowerContribution.manipulation + effectivePowerAxisVector.manipulation,
+    manipulation: calibratedControlPressureRaw,
     synergy: nonPowerContribution.synergy + effectivePowerAxisVector.synergy,
     mobility: nonPowerContribution.mobility + effectivePowerAxisVector.mobility,
     presence: calibratedPressureRaw,
@@ -3688,11 +4213,13 @@ export function computeMonsterOutcomes(
         mentalSurvivabilityCurvePoint,
         tierMultiplier,
       ),
-    manipulation: normalizeByLevelCurve(
-      finalPreNormalizationAxes.manipulation,
-      manipulationCurvePoint,
-      tierMultiplier,
-    ),
+    manipulation: controlPressureAxisBaselineModel.calibrated
+      ? Number(controlPressureAxisBaselineModel.finalScore ?? 0)
+      : normalizeByLevelCurve(
+          finalPreNormalizationAxes.manipulation,
+          manipulationCurvePoint,
+          tierMultiplier,
+        ),
     synergy: normalizeByLevelCurve(
       finalPreNormalizationAxes.synergy,
       synergyCurvePoint,
@@ -3860,6 +4387,7 @@ export function computeMonsterOutcomes(
               physicalSurvivability: null,
               mentalSurvivability: null,
             },
+        controlPressureAxisBaselineModel,
         pressureAxisBaselineModel,
         radarAxes,
       },

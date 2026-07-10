@@ -42,6 +42,27 @@ export type PressureBaselinePackage = {
   expectedResponseBurden: number;
 };
 
+export type ControlPressureResistibility = "RESISTED" | "UNRESISTED" | "UNKNOWN";
+
+export type ControlPressureBaselinePackage = {
+  id: string;
+  level: number;
+  tier: "MINION" | "SOLDIER" | "ELITE" | "BOSS";
+  legendary: boolean;
+  expectedPackageCount: number;
+  expectedEffectSeverity: number;
+  expectedTargetBreadth: number;
+  expectedDuration: number;
+  expectedRecurrence: number;
+  expectedAvailability: number;
+  expectedCooldownTurns: number;
+  expectedSupportedStackImpact: number;
+  expectedResistibility: ControlPressureResistibility;
+  expectedReliability: number;
+  expectedLinkedRelationships: number;
+  expectedActionsPerTurn: number;
+};
+
 export type CalculatorConfig = {
   tierMultipliers: {
     MINION: number;
@@ -139,6 +160,38 @@ export type CalculatorConfig = {
       responseBurden: number;
     };
     baselines: PressureBaselinePackage[];
+  };
+  controlPressureAxisTuning: {
+    calibratedLevel: number;
+    midpointScore: number;
+    logRatioScale: number;
+    nonCalibratedFallbackMode: "LEGACY_COST_COUPLED_MANIPULATION_CURVE";
+    reliabilityValues: Record<ControlPressureResistibility, number>;
+    componentWeights: {
+      effectSeverity: number;
+      targetBreadth: number;
+      duration: number;
+      recurrence: number;
+      availability: number;
+      supportedStackImpact: number;
+      distinctPackages: number;
+      actionEconomy: number;
+      reliability: number;
+      linkedRelationships: number;
+    };
+    componentCaps: {
+      effectSeverity: number;
+      targetBreadth: number;
+      duration: number;
+      recurrence: number;
+      availability: number;
+      supportedStackImpact: number;
+      distinctPackages: number;
+      actionEconomy: number;
+      reliability: number;
+      linkedRelationships: number;
+    };
+    baselines: ControlPressureBaselinePackage[];
   };
   durabilityAxisTuning: {
     calibratedLevel: number;
@@ -420,6 +473,151 @@ export const calculatorConfig: CalculatorConfig = {
         expectedLinkedThreats: 0,
         expectedActionsPerTurn: 2,
         expectedResponseBurden: 0,
+      },
+    ],
+  },
+  controlPressureAxisTuning: {
+    calibratedLevel: 3,
+    midpointScore: 5,
+    logRatioScale: 2.35,
+    nonCalibratedFallbackMode: "LEGACY_COST_COUPLED_MANIPULATION_CURVE",
+    reliabilityValues: {
+      RESISTED: 0.85,
+      UNRESISTED: 1,
+      UNKNOWN: 0.9,
+    },
+    componentWeights: {
+      effectSeverity: 0.29,
+      targetBreadth: 0.14,
+      duration: 0.09,
+      recurrence: 0.07,
+      availability: 0.14,
+      supportedStackImpact: 0.06,
+      distinctPackages: 0.1,
+      actionEconomy: 0.04,
+      reliability: 0.05,
+      linkedRelationships: 0.02,
+    },
+    componentCaps: {
+      effectSeverity: 10,
+      targetBreadth: 10,
+      duration: 6,
+      recurrence: 3,
+      availability: 4,
+      supportedStackImpact: 5,
+      distinctPackages: 4,
+      actionEconomy: 2,
+      reliability: 4,
+      linkedRelationships: 2,
+    },
+    baselines: [
+      {
+        id: "l3-minion-control-pressure-standard-v1",
+        level: 3,
+        tier: "MINION",
+        legendary: false,
+        expectedPackageCount: 1,
+        expectedEffectSeverity: 1,
+        expectedTargetBreadth: 1,
+        expectedDuration: 1,
+        expectedRecurrence: 0,
+        expectedAvailability: 0.9,
+        expectedCooldownTurns: 1,
+        expectedSupportedStackImpact: 1,
+        expectedResistibility: "RESISTED",
+        expectedReliability: 0.85,
+        expectedLinkedRelationships: 0,
+        expectedActionsPerTurn: 1,
+      },
+      {
+        id: "l3-soldier-control-pressure-standard-v1",
+        level: 3,
+        tier: "SOLDIER",
+        legendary: false,
+        expectedPackageCount: 1,
+        expectedEffectSeverity: 3,
+        expectedTargetBreadth: 1,
+        expectedDuration: 1,
+        expectedRecurrence: 0,
+        expectedAvailability: 0.75,
+        expectedCooldownTurns: 2,
+        expectedSupportedStackImpact: 1,
+        expectedResistibility: "UNRESISTED",
+        expectedReliability: 1,
+        expectedLinkedRelationships: 0,
+        expectedActionsPerTurn: 1,
+      },
+      {
+        id: "l3-elite-control-pressure-standard-v1",
+        level: 3,
+        tier: "ELITE",
+        legendary: false,
+        expectedPackageCount: 2,
+        expectedEffectSeverity: 4,
+        expectedTargetBreadth: 2,
+        expectedDuration: 2,
+        expectedRecurrence: 0,
+        expectedAvailability: 1.5,
+        expectedCooldownTurns: 2,
+        expectedSupportedStackImpact: 2,
+        expectedResistibility: "UNRESISTED",
+        expectedReliability: 2,
+        expectedLinkedRelationships: 0,
+        expectedActionsPerTurn: 1,
+      },
+      {
+        id: "l3-legendary-elite-control-pressure-standard-v1",
+        level: 3,
+        tier: "ELITE",
+        legendary: true,
+        expectedPackageCount: 2,
+        expectedEffectSeverity: 5,
+        expectedTargetBreadth: 2,
+        expectedDuration: 2,
+        expectedRecurrence: 0,
+        expectedAvailability: 1.35,
+        expectedCooldownTurns: 2.5,
+        expectedSupportedStackImpact: 2,
+        expectedResistibility: "UNRESISTED",
+        expectedReliability: 2,
+        expectedLinkedRelationships: 0,
+        expectedActionsPerTurn: 1,
+      },
+      {
+        id: "l3-boss-control-pressure-standard-v1",
+        level: 3,
+        tier: "BOSS",
+        legendary: false,
+        expectedPackageCount: 2,
+        expectedEffectSeverity: 5,
+        expectedTargetBreadth: 3,
+        expectedDuration: 2,
+        expectedRecurrence: 0,
+        expectedAvailability: 1.65,
+        expectedCooldownTurns: 1.5,
+        expectedSupportedStackImpact: 2,
+        expectedResistibility: "UNRESISTED",
+        expectedReliability: 2,
+        expectedLinkedRelationships: 0,
+        expectedActionsPerTurn: 2,
+      },
+      {
+        id: "l3-legendary-boss-control-pressure-standard-v1",
+        level: 3,
+        tier: "BOSS",
+        legendary: true,
+        expectedPackageCount: 3,
+        expectedEffectSeverity: 7,
+        expectedTargetBreadth: 6,
+        expectedDuration: 3.4,
+        expectedRecurrence: 1,
+        expectedAvailability: 2.55,
+        expectedCooldownTurns: 1.5,
+        expectedSupportedStackImpact: 3,
+        expectedResistibility: "UNRESISTED",
+        expectedReliability: 3,
+        expectedLinkedRelationships: 0,
+        expectedActionsPerTurn: 2,
       },
     ],
   },
@@ -748,6 +946,25 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
       baselines:
         overrides.pressureAxisTuning?.baselines ??
         calculatorConfig.pressureAxisTuning.baselines,
+    },
+    controlPressureAxisTuning: {
+      ...calculatorConfig.controlPressureAxisTuning,
+      ...overrides.controlPressureAxisTuning,
+      reliabilityValues: {
+        ...calculatorConfig.controlPressureAxisTuning.reliabilityValues,
+        ...overrides.controlPressureAxisTuning?.reliabilityValues,
+      },
+      componentWeights: {
+        ...calculatorConfig.controlPressureAxisTuning.componentWeights,
+        ...overrides.controlPressureAxisTuning?.componentWeights,
+      },
+      componentCaps: {
+        ...calculatorConfig.controlPressureAxisTuning.componentCaps,
+        ...overrides.controlPressureAxisTuning?.componentCaps,
+      },
+      baselines:
+        overrides.controlPressureAxisTuning?.baselines ??
+        calculatorConfig.controlPressureAxisTuning.baselines,
     },
     durabilityAxisTuning: {
       ...calculatorConfig.durabilityAxisTuning,

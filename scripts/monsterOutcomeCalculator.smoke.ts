@@ -411,6 +411,48 @@ function getPressureAxisDebug(result: ReturnType<typeof computeMonsterOutcomes>)
   return debug.normalizationBreakdown?.pressureAxisBaselineModel;
 }
 
+function getControlPressureAxisDebug(result: ReturnType<typeof computeMonsterOutcomes>) {
+  const debug = result.debug as {
+    normalizationBreakdown?: {
+      controlPressureAxisBaselineModel?: {
+        mode?: string;
+        baselinePackageId?: string | null;
+        semanticPackagesConsidered?: Array<{
+          effectFamily?: string;
+          runtimeSemanticMode?: string;
+          affectedAttribute?: string | null;
+          targetBreadth?: number;
+          durationKind?: string;
+          durationTurns?: number;
+          recurrence?: boolean;
+          cooldownTurns?: number | null;
+          availabilityBand?: string;
+          effectSeverity?: number;
+          supportedStackImpact?: number;
+          resistibility?: string;
+          reliabilityContribution?: number;
+          linked?: boolean;
+          linkedContribution?: number;
+          unsupportedAuthoringDistinctions?: string[];
+          functionalSignature?: string;
+        }>;
+        functionalSignatures?: string[];
+        duplicateOverlapHandling?: {
+          exactDuplicatesRemoved?: string[];
+          overlapDiminishingReturns?: Array<{ signature?: string; factor?: number }>;
+        };
+        unsupportedAuthoringWarnings?: string[];
+        rawActualControlPressureProxy?: number;
+        rawBaselineControlPressureProxy?: number | null;
+        ratioToBaseline?: number | null;
+        uncappedScore?: number | null;
+        finalScore?: number | null;
+      };
+    };
+  };
+  return debug.normalizationBreakdown?.controlPressureAxisBaselineModel;
+}
+
 const slashAttackConfig = {
   melee: {
     enabled: true,
@@ -1461,12 +1503,15 @@ type PressurePowerOptions = {
   linked?: boolean;
 };
 
-function createPressurePower(options: PressurePowerOptions) {
+type FixturePower = MonsterUpsertInput["powers"][number];
+type FixtureEffectPacket = FixturePower["intentions"][number];
+
+function createPressurePower(options: PressurePowerOptions): MonsterUpsertInput["powers"][number] {
   const intention = options.intention ?? "ATTACK";
   const range = options.range ?? "MELEE";
   const targets = options.targets ?? 1;
   const duration = options.duration ?? "INSTANT";
-  const packet = {
+  const packet: FixtureEffectPacket = {
     packetIndex: 0,
     sortOrder: 0,
     hostility: "HOSTILE",
@@ -1480,7 +1525,7 @@ function createPressurePower(options: PressurePowerOptions) {
     effectDurationTurns: options.durationTurns ?? null,
     detailsJson: {},
   };
-  const packets = options.linked
+  const packets: FixtureEffectPacket[] = options.linked
     ? [
         packet,
         {
@@ -1514,6 +1559,106 @@ function createPressurePower(options: PressurePowerOptions) {
     intentions: packets,
     diceCount: 1,
     potency: 1,
+  };
+}
+
+type ControlPressurePowerOptions = {
+  name: string;
+  intention: "CONTROL" | "DEBUFF" | "MOVEMENT";
+  targets?: number;
+  cooldown?: number;
+  potency?: number;
+  duration?: "INSTANT" | "TURNS" | "PASSIVE" | "UNTIL_TARGET_NEXT_TURN";
+  durationTurns?: number;
+  timing?: "ON_CAST" | "START_OF_TURN" | "START_OF_TURN_WHILST_CHANNELLED";
+  controlMode?: string;
+  statTarget?: string;
+  movementMode?: string;
+  resistAttribute?: "FORTITUDE" | "INTELLECT" | "BRAVERY" | null;
+  linkedDamageWs?: number;
+};
+
+function createControlPressurePower(
+  options: ControlPressurePowerOptions,
+): MonsterUpsertInput["powers"][number] {
+  const potency = options.potency ?? 1;
+  const duration = options.duration ?? "INSTANT";
+  const detailsJson =
+    options.intention === "CONTROL"
+      ? { controlMode: options.controlMode ?? "Force no main action" }
+      : options.intention === "DEBUFF"
+        ? { statTarget: options.statTarget ?? "Attack" }
+        : { movementMode: options.movementMode ?? "Force Push" };
+  const packet: FixtureEffectPacket = {
+    packetIndex: 0,
+    sortOrder: 0,
+    hostility: "HOSTILE" as const,
+    intention: options.intention,
+    type: options.intention,
+    diceCount: 1,
+    potency,
+    effectTimingType: options.timing ?? "ON_CAST",
+    effectTimingTurns: null,
+    effectDurationType: duration,
+    effectDurationTurns: options.durationTurns ?? null,
+    dealsWounds: false,
+    woundChannel: null,
+    detailsJson,
+  };
+  const packets: FixtureEffectPacket[] = [packet];
+  if (options.linkedDamageWs !== undefined) {
+    packets.push({
+      packetIndex: 1,
+      sortOrder: 1,
+      hostility: "HOSTILE",
+      intention: "ATTACK",
+      type: "ATTACK",
+      diceCount: 0,
+      potency: options.linkedDamageWs,
+      effectTimingType: "ON_CAST",
+      effectTimingTurns: null,
+      effectDurationType: "INSTANT",
+      effectDurationTurns: null,
+      dealsWounds: true,
+      woundChannel: "MENTAL",
+      secondaryDependencyMode: "LINKED_TO_PRIMARY",
+      detailsJson: { attackMode: "MENTAL" },
+    });
+  }
+  return {
+    id: options.name.toLowerCase().replace(/\s+/g, "-"),
+    sortOrder: 0,
+    name: options.name,
+    description: null,
+    descriptorChassis: "IMMEDIATE",
+    cooldownTurns: options.cooldown ?? 2,
+    cooldownReduction: 0,
+    counterMode: "NO",
+    rangeCategories: ["RANGED"],
+    meleeTargets: 1,
+    rangedTargets: options.targets ?? 1,
+    rangedDistanceFeet: 30,
+    aoeCount: 1,
+    aoeCenterRangeFeet: null,
+    primaryDefenceGate:
+      options.resistAttribute === undefined || options.resistAttribute === null
+        ? null
+        : {
+            sourcePacketIndex: 0,
+            gateResult: "RESIST",
+            protectionChannel: null,
+            resistAttribute: options.resistAttribute,
+            hostileEntryPattern: "DIRECT",
+            resolutionSource: "EXPLICIT",
+          },
+    effectDurationType: duration,
+    effectDurationTurns: options.durationTurns ?? null,
+    durationType: duration,
+    durationTurns: options.durationTurns ?? null,
+    effectPackets: packets,
+    intentions: packets,
+    diceCount: 1,
+    potency,
   };
 }
 
@@ -1568,8 +1713,9 @@ function computePressureFixture(options: {
   naturalRange?: "MELEE" | "RANGED" | "AOE";
   naturalTargets?: number;
   naturalStrength?: number;
-  powers?: ReturnType<typeof createPressurePower>[];
+  powers?: MonsterUpsertInput["powers"];
   genericPresence?: number;
+  genericManipulation?: number;
 }) {
   const powers = options.powers ?? [];
   return computeMonsterOutcomes(
@@ -1587,15 +1733,21 @@ function computePressureFixture(options: {
       ],
     },
     calculatorConfig,
-    powers.length > 0 || options.genericPresence !== undefined
+    powers.length > 0 || options.genericPresence !== undefined || options.genericManipulation !== undefined
       ? {
           powerContribution: {
-            axisVector: { presence: options.genericPresence ?? 0 },
+            axisVector: {
+              presence: options.genericPresence ?? 0,
+              manipulation: options.genericManipulation ?? 0,
+            },
             powerCount: powers.length,
             powers: powers.map((power) => ({
               id: power.id,
               name: power.name,
-              axisVector: { presence: options.genericPresence ?? 0 },
+              axisVector: {
+                presence: options.genericPresence ?? 0,
+                manipulation: options.genericManipulation ?? 0,
+              },
               authoredPower: power as never,
               derivedCooldownTurns: power.cooldownTurns,
               cooldownTurns: power.cooldownTurns,
@@ -1735,6 +1887,453 @@ assert.equal(
   getPressureAxisDebug(nonLevelThreePressureFallback)?.mode,
   "LEGACY_DAMAGE_DUPLICATING_CURVE",
 );
+
+const controlPressureNoPackage = computePressureFixture({});
+assert.equal(controlPressureNoPackage.radarAxes.manipulation, 0);
+
+const controlPressureLightDebuff = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Light Attack Debuff",
+      intention: "DEBUFF",
+      potency: 1,
+      duration: "TURNS",
+      durationTurns: 1,
+      cooldown: 2,
+    }),
+  ],
+});
+assert.ok(controlPressureLightDebuff.radarAxes.manipulation > 0);
+
+const controlPressureLightMovement = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Light Forced Movement",
+      intention: "MOVEMENT",
+      cooldown: 2,
+      resistAttribute: "FORTITUDE",
+    }),
+  ],
+});
+const controlPressureMainActionDenial = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Main Action Denial",
+      intention: "CONTROL",
+      duration: "TURNS",
+      durationTurns: 1,
+      cooldown: 2,
+      resistAttribute: "FORTITUDE",
+    }),
+  ],
+});
+assert.ok(
+  controlPressureMainActionDenial.radarAxes.manipulation >
+    controlPressureLightMovement.radarAxes.manipulation,
+);
+
+const controlPressureOneTarget = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "One Target Denial",
+      intention: "CONTROL",
+      targets: 1,
+      cooldown: 2,
+    }),
+  ],
+});
+const controlPressureTwoTargets = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Two Target Denial",
+      intention: "CONTROL",
+      targets: 2,
+      cooldown: 2,
+    }),
+  ],
+});
+assert.ok(
+  controlPressureTwoTargets.radarAxes.manipulation >
+    controlPressureOneTarget.radarAxes.manipulation,
+);
+
+const controlPressureShortDuration = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "One Turn Debuff",
+      intention: "DEBUFF",
+      duration: "TURNS",
+      durationTurns: 1,
+      cooldown: 2,
+    }),
+  ],
+});
+const controlPressureLongDuration = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Three Turn Debuff",
+      intention: "DEBUFF",
+      duration: "TURNS",
+      durationTurns: 3,
+      cooldown: 2,
+    }),
+  ],
+});
+assert.ok(
+  controlPressureLongDuration.radarAxes.manipulation >
+    controlPressureShortDuration.radarAxes.manipulation,
+);
+
+const controlPressureOneShot = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "One Shot Debuff",
+      intention: "DEBUFF",
+      duration: "TURNS",
+      durationTurns: 2,
+      timing: "ON_CAST",
+      cooldown: 2,
+    }),
+  ],
+});
+const controlPressureRecurring = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Recurring Debuff",
+      intention: "DEBUFF",
+      duration: "TURNS",
+      durationTurns: 2,
+      timing: "START_OF_TURN",
+      cooldown: 2,
+    }),
+  ],
+});
+assert.ok(
+  controlPressureRecurring.radarAxes.manipulation >
+    controlPressureOneShot.radarAxes.manipulation,
+);
+
+const controlPressureShortCooldown = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Short Cooldown Denial",
+      intention: "CONTROL",
+      cooldown: 1,
+    }),
+  ],
+});
+const controlPressureLongCooldown = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Long Cooldown Denial",
+      intention: "CONTROL",
+      cooldown: 5,
+    }),
+  ],
+});
+assert.ok(
+  controlPressureShortCooldown.radarAxes.manipulation >
+    controlPressureLongCooldown.radarAxes.manipulation,
+);
+
+const duplicateControlDenialA = createControlPressurePower({
+  name: "Duplicate Control Denial A",
+  intention: "CONTROL",
+  cooldown: 2,
+});
+const duplicateControlDenialB = createControlPressurePower({
+  name: "Duplicate Control Denial B",
+  intention: "CONTROL",
+  cooldown: 2,
+});
+const controlPressureOneDenial = computePressureFixture({ powers: [duplicateControlDenialA] });
+const controlPressureDuplicateDenial = computePressureFixture({
+  powers: [duplicateControlDenialA, duplicateControlDenialB],
+});
+assertApprox(
+  controlPressureDuplicateDenial.radarAxes.manipulation,
+  controlPressureOneDenial.radarAxes.manipulation,
+  0.000001,
+  "Control Pressure exact duplicate denial",
+);
+assert.equal(
+  getControlPressureAxisDebug(controlPressureDuplicateDenial)?.duplicateOverlapHandling
+    ?.exactDuplicatesRemoved?.length,
+  1,
+);
+
+const controlPressureDistinctPackages = computePressureFixture({
+  powers: [
+    duplicateControlDenialA,
+    createControlPressurePower({
+      name: "Distinct Attack Debuff",
+      intention: "DEBUFF",
+      cooldown: 2,
+      statTarget: "Attack",
+    }),
+  ],
+});
+assert.ok(
+  controlPressureDistinctPackages.radarAxes.manipulation >
+    controlPressureOneDenial.radarAxes.manipulation,
+);
+
+const controlPressureNoLinkedDamage = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Denial Without Rider",
+      intention: "CONTROL",
+      cooldown: 2,
+    }),
+  ],
+});
+const controlPressureLinkedWs2 = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Denial With W S 2 Rider",
+      intention: "CONTROL",
+      cooldown: 2,
+      linkedDamageWs: 2,
+    }),
+  ],
+});
+const controlPressureLinkedWs8 = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Denial With W S 8 Rider",
+      intention: "CONTROL",
+      cooldown: 2,
+      linkedDamageWs: 8,
+    }),
+  ],
+});
+assertApprox(
+  controlPressureNoLinkedDamage.radarAxes.manipulation,
+  controlPressureLinkedWs2.radarAxes.manipulation,
+  0.000001,
+  "Control Pressure linked damage independence",
+);
+assertApprox(
+  controlPressureLinkedWs2.radarAxes.manipulation,
+  controlPressureLinkedWs8.radarAxes.manipulation,
+  0.000001,
+  "Control Pressure linked W/S independence",
+);
+
+const controlPressureGateScores = (["FORTITUDE", "INTELLECT", "BRAVERY"] as const).map(
+  (resistAttribute) =>
+    computePressureFixture({
+      powers: [
+        createControlPressurePower({
+          name: `${resistAttribute} Gate Denial`,
+          intention: "CONTROL",
+          cooldown: 2,
+          resistAttribute,
+        }),
+      ],
+    }),
+);
+assertApprox(
+  controlPressureGateScores[0].radarAxes.manipulation,
+  controlPressureGateScores[1].radarAxes.manipulation,
+  0.000001,
+  "Control Pressure Fortitude/Intellect gate neutrality",
+);
+assertApprox(
+  controlPressureGateScores[1].radarAxes.manipulation,
+  controlPressureGateScores[2].radarAxes.manipulation,
+  0.000001,
+  "Control Pressure Intellect/Bravery gate neutrality",
+);
+
+const controlPressureSpecificAction = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Specific Action Denial",
+      intention: "CONTROL",
+      controlMode: "Force specific main action",
+      cooldown: 2,
+      resistAttribute: "FORTITUDE",
+    }),
+  ],
+});
+const controlPressureResponseDenial = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Response Denial",
+      intention: "CONTROL",
+      controlMode: "Force no response",
+      cooldown: 2,
+      resistAttribute: "FORTITUDE",
+    }),
+  ],
+});
+assertApprox(
+  controlPressureMainActionDenial.radarAxes.manipulation,
+  controlPressureSpecificAction.radarAxes.manipulation,
+  0.000001,
+  "Control Pressure specific-action runtime collapse",
+);
+assertApprox(
+  controlPressureSpecificAction.radarAxes.manipulation,
+  controlPressureResponseDenial.radarAxes.manipulation,
+  0.000001,
+  "Control Pressure response-denial runtime collapse",
+);
+for (const result of [controlPressureSpecificAction, controlPressureResponseDenial]) {
+  assert.ok(
+    getControlPressureAxisDebug(result)?.unsupportedAuthoringWarnings?.some((warning) =>
+      warning.includes("collapses to the same runtime mainActionDenied behaviour"),
+    ),
+  );
+}
+
+const controlPressureAnchors = [
+  computePressureFixture({
+    tier: "MINION",
+    powers: [
+      createControlPressurePower({
+        name: "Minion Standard Forced Movement",
+        intention: "MOVEMENT",
+        cooldown: 1,
+        resistAttribute: "FORTITUDE",
+      }),
+    ],
+  }),
+  computePressureFixture({
+    tier: "SOLDIER",
+    powers: [
+      createControlPressurePower({
+        name: "Soldier Standard Denial",
+        intention: "CONTROL",
+        cooldown: 2,
+      }),
+    ],
+  }),
+  computePressureFixture({
+    tier: "ELITE",
+    powers: [
+      createControlPressurePower({
+        name: "Elite Standard Denial",
+        intention: "CONTROL",
+        cooldown: 2,
+      }),
+      createControlPressurePower({
+        name: "Elite Standard Forced Movement",
+        intention: "MOVEMENT",
+        cooldown: 2,
+      }),
+    ],
+  }),
+  computePressureFixture({
+    tier: "ELITE",
+    legendary: true,
+    powers: [
+      createControlPressurePower({
+        name: "Legendary Elite Standard Denial",
+        intention: "CONTROL",
+        cooldown: 2,
+      }),
+      createControlPressurePower({
+        name: "Legendary Elite Standard Debuff",
+        intention: "DEBUFF",
+        cooldown: 3,
+      }),
+    ],
+  }),
+  computePressureFixture({
+    tier: "BOSS",
+    powers: [
+      createControlPressurePower({
+        name: "Boss Standard Two Target Denial",
+        intention: "CONTROL",
+        targets: 2,
+        cooldown: 1,
+      }),
+      createControlPressurePower({
+        name: "Boss Standard Debuff",
+        intention: "DEBUFF",
+        cooldown: 2,
+      }),
+    ],
+  }),
+  computePressureFixture({
+    tier: "BOSS",
+    legendary: true,
+    powers: [
+      createControlPressurePower({
+        name: "Legendary Boss Recurring Denial",
+        intention: "CONTROL",
+        targets: 2,
+        cooldown: 1,
+        duration: "TURNS",
+        durationTurns: 2,
+        timing: "START_OF_TURN",
+      }),
+      createControlPressurePower({
+        name: "Legendary Boss Attack Debuff",
+        intention: "DEBUFF",
+        targets: 2,
+        cooldown: 1,
+        statTarget: "Attack",
+      }),
+      createControlPressurePower({
+        name: "Legendary Boss Defence Debuff",
+        intention: "DEBUFF",
+        targets: 2,
+        cooldown: 2,
+        statTarget: "Guard",
+      }),
+    ],
+  }),
+];
+for (const [index, anchor] of controlPressureAnchors.entries()) {
+  assertApprox(anchor.radarAxes.manipulation, 5, 0.05, `Control Pressure baseline anchor ${index + 1}`);
+  assert.equal(getControlPressureAxisDebug(anchor)?.mode, "LEVEL_3_BASELINE_RELATIVE");
+}
+
+const controlPressureRegressionA = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Regression Denial A",
+      intention: "CONTROL",
+      cooldown: 2,
+    }),
+  ],
+  genericManipulation: 0,
+});
+const controlPressureRegressionB = computePressureFixture({
+  powers: [
+    createControlPressurePower({
+      name: "Renamed Regression Denial B",
+      intention: "CONTROL",
+      cooldown: 2,
+    }),
+  ],
+  genericManipulation: 999,
+});
+assertApprox(
+  controlPressureRegressionA.radarAxes.manipulation,
+  controlPressureRegressionB.radarAxes.manipulation,
+  0.000001,
+  "Control Pressure resolver Manipulation and naming independence",
+);
+for (const axis of [
+  "physicalThreat",
+  "mentalThreat",
+  "physicalSurvivability",
+  "mentalSurvivability",
+  "presence",
+  "synergy",
+  "mobility",
+] as const) {
+  assertApprox(
+    controlPressureRegressionA.radarAxes[axis],
+    controlPressureRegressionB.radarAxes[axis],
+    0.000001,
+    `Control Pressure ${axis} isolation`,
+  );
+}
 
 console.log(
   JSON.stringify(
@@ -1882,6 +2481,56 @@ console.log(
           getPressureAxisDebug(unsupportedPressure)?.unsupportedPackageWarnings ?? [],
         anchors: pressureAnchors.map((anchor) => anchor.radarAxes.presence),
         nonLevelThreeFallback: getPressureAxisDebug(nonLevelThreePressureFallback)?.mode,
+      },
+      controlPressureAxis: {
+        noControl: controlPressureNoPackage.radarAxes.manipulation,
+        lightDebuff: controlPressureLightDebuff.radarAxes.manipulation,
+        severity: {
+          forcedMovement: controlPressureLightMovement.radarAxes.manipulation,
+          mainActionDenial: controlPressureMainActionDenial.radarAxes.manipulation,
+        },
+        breadth: {
+          oneTarget: controlPressureOneTarget.radarAxes.manipulation,
+          twoTargets: controlPressureTwoTargets.radarAxes.manipulation,
+        },
+        duration: {
+          oneTurn: controlPressureShortDuration.radarAxes.manipulation,
+          threeTurns: controlPressureLongDuration.radarAxes.manipulation,
+        },
+        recurrence: {
+          oneShot: controlPressureOneShot.radarAxes.manipulation,
+          recurring: controlPressureRecurring.radarAxes.manipulation,
+        },
+        availability: {
+          shortCooldown: controlPressureShortCooldown.radarAxes.manipulation,
+          longCooldown: controlPressureLongCooldown.radarAxes.manipulation,
+        },
+        duplicate: {
+          one: controlPressureOneDenial.radarAxes.manipulation,
+          duplicated: controlPressureDuplicateDenial.radarAxes.manipulation,
+        },
+        distinctPackages: controlPressureDistinctPackages.radarAxes.manipulation,
+        linkedDamage: {
+          none: controlPressureNoLinkedDamage.radarAxes.manipulation,
+          ws2: controlPressureLinkedWs2.radarAxes.manipulation,
+          ws8: controlPressureLinkedWs8.radarAxes.manipulation,
+        },
+        gateNeutrality: controlPressureGateScores.map(
+          (result) => result.radarAxes.manipulation,
+        ),
+        unsupportedRuntimeCollapse: {
+          mainAction: controlPressureMainActionDenial.radarAxes.manipulation,
+          specificAction: controlPressureSpecificAction.radarAxes.manipulation,
+          response: controlPressureResponseDenial.radarAxes.manipulation,
+          warnings:
+            getControlPressureAxisDebug(controlPressureSpecificAction)
+              ?.unsupportedAuthoringWarnings ?? [],
+        },
+        anchors: controlPressureAnchors.map((anchor) => anchor.radarAxes.manipulation),
+        resolverManipulationIndependence: [
+          controlPressureRegressionA.radarAxes.manipulation,
+          controlPressureRegressionB.radarAxes.manipulation,
+        ],
       },
     },
     null,
