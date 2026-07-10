@@ -130,16 +130,17 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
 - Roleplay Abilities should avoid unnecessary combat-specific v1 fields in v0.
 - v0 Roleplay Ability builder fields:
   - Name
-  - Theme / Description
+  - Narrative Theme
   - Roleplay Intention
-  - Specific
+  - Method
   - Scene Impact
   - Scope
   - Outcome Contract
   - Dice Count
 - Optional / conditional fields:
-  - Restriction
+  - Additional Restriction
   - Counter permission where the selected standard contract permits it
+  - Proposed Method Name and Custom Method Request for Custom Method review
   - proposed Outcome Lane and Custom Outcome Request for Custom Outcome review
 - Standard-contract-derived fields:
   - Outcome Lane
@@ -147,21 +148,27 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
   - Descriptor
   - contract compatibility and Counter eligibility
   - eventual privilege-cost adjustment and cooldown pressure
-- Theme / Description is unrestricted narrative method and manifestation text.
-  It is not costed or parsed and cannot enlarge or rewrite the selected Outcome
-  Contract.
+- Narrative Theme is required free text explaining how the character performs
+  the selected Method. It is not costed or parsed and cannot define the result,
+  convert the Ability to another Method, or enlarge/rewrite the selected
+  Outcome Contract, Impact, Scope, duration, targeting, cost, or secondary
+  outcomes. Plain language is enough.
+- Method is a structured registry field defining the legal approach. Filter
+  standard Methods by Intention and standard contracts by Intention, Method,
+  Scene Impact, and Scope.
 - The structured Outcome Contract is mechanically authoritative and defines the
   reusable purchased privilege, derived lane/outcome, compatible authoring,
   Counter eligibility, and eventual costing/cooldown pressure.
 - Scene Manifestation is narrated by the Game Director from current context.
-  "Theme explains how. The Outcome Contract defines what."
+  "Method defines the approach. Theme personalises the approach. The Outcome
+  Contract defines the result."
 - Remove free-text Success Outcome from standard contract authoring.
 - Initial standard registry only:
   - HIDE_FROM_IMMEDIATE_DANGER: Help; Intervention / Rescue / Minor / One
     Target; Counter ineligible.
   - DENY_IMMINENT_HOSTILE_ACT: Hinder; Intervention / Interrupt / Major / One
     Target; Counter eligible.
-- Filter standard contracts by Intention, Specific, Scene Impact, and Scope.
+- Filter standard contracts by Intention, Method, Scene Impact, and Scope.
   Keep Custom Outcome - GD Review Required available for all combinations.
 - Custom Outcome stores a proposed lane and request, remains Pending GD
   Approval, cannot be automatically costed, and has pending final Cooldown.
@@ -184,7 +191,8 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
 - Attribute should not be a builder field.
 - Builder should not suggest typical Attributes.
 - The Game Director validates the selected contract, derived lane/outcome,
-  Theme / Description, Scope, Scene Impact, fictional position, and Restriction,
+  Narrative Theme, Method, Scope, Scene Impact, fictional position, and
+  Additional Restriction,
   then declares Difficulty and Attribute. On success, no additional roll or
   target action is required to establish the contract outcome.
 - Potential costing remains non-numeric in this slice: Scene Impact x Scope;
@@ -248,7 +256,7 @@ If an asset is used as a comparison baseline, clone it before mutation.
 Roleplay Outcome Contract Variant Builder Rules
 
 Standard Outcome Contract definitions may contain multiple explicit variants,
-matched against Intention, Specific, Scene Impact, and Scope. The builder must
+matched against Intention, Method, Scene Impact, and Scope. The builder must
 resolve Success Outcome, Counter eligibility, and future privilege-cost
 adjustment from the exact matching variant; it must not store derived lane or
 outcome prose on the Ability and must not scale prose generically.
@@ -257,7 +265,7 @@ DRAW_HOSTILE_ATTENTION remains one dropdown contract ID and player-facing entry,
 Draw Hostile Attention, across its Intimidation / Challenge / One Target Minor,
 Standard, Major, and Legendary variants. Changing between those four Impacts
 keeps the ID and immediately changes the derived exact Success Outcome. Changing
-Scope, Intention, or Specific outside the family clears the selection and
+Scope, Intention, or Method outside the family clears the selection and
 Counter. Counter stays disabled at every tier. The derived panel should identify
 the current Impact variant; no separate duration field is authored.
 
@@ -265,6 +273,25 @@ The visible restriction control is "Additional Restriction Type". Its guidance
 must explain that an Additional Restriction narrows the Ability beyond the
 Outcome Contract's built-in limits and that repeating normal applicability earns
 no discount. Persisted restriction field names remain unchanged.
+
+The standard Method registry contains only Rescue and Interrupt under
+Intervention, Challenge under Intimidation, and Discern Truth under Perception.
+Persuasion and Deception currently have no approved standard Methods. A standard
+Method details panel shows name, Intention, definition, legal approaches, and
+exclusions, with legal approaches explicitly presented as examples rather than
+an exhaustive phrase list.
+
+Custom Method - GD Review Required remains Pending GD Approval and exposes
+Proposed Method Name plus a Custom Method Request for reusable approach,
+applications, and boundaries. It offers no standard contract matching,
+automatic costing, or trusted final Cooldown. Discern Truth has no standard
+Outcome Contract in this pass and retains access to Custom Outcome review.
+
+Use one pure top-level authoring reconciliation helper for Intention, Method,
+Impact, Scope, contract, and Counter. Changing Intention clears a standard
+Method owned by another Intention; changing Method clears incompatible standard
+contracts; either operation clears Counter with the contract. Custom Method may
+survive Intention changes but never exposes standard contracts.
 
 
 Builder Rules To Preserve

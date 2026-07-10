@@ -1014,45 +1014,60 @@ Locked identity:
 Core distinction: "Powers calculate effects. Roleplay Abilities establish
 outcomes."
 
-Roleplay Ability authoring has three distinct layers:
+Roleplay Ability authoring has distinct authority layers:
 
-A. Theme / Description
+A. Intention and Method
 
-- free-text character fantasy, invocation, fictional method, and manifestation;
-- helps the Game Director judge legality, Attribute, and Difficulty;
+- Intention defines the broad roleplay lane;
+- Method is structured and defines the legal approach;
+- standard Methods have stable IDs, owning Intentions, definitions, legal
+  approach examples, and exclusions;
+- contract compatibility uses Method IDs.
+
+B. Narrative Theme
+
+- required player-authored free text describing how the character performs the
+  Method through style, invocation, tools, attitude, or source;
+- helps the Game Director judge fictional suitability, Attribute, Difficulty,
+  and Scene Manifestation;
 - is not mechanically costed or parsed by the descriptor engine;
-- may make a contract inappropriate in a scene but cannot enlarge or rewrite
-  the selected contract.
+- cannot define the result, change Method, enlarge Impact or Scope, add
+  duration, targeting, secondary outcomes, or quantified modifiers, change
+  cost, or bypass exclusions.
 
-B. Outcome Contract
+C. Outcome Contract
 
 - structured and mechanically authoritative;
 - defines the exact reusable scene privilege purchased;
 - defines derived Outcome Lane and Success Outcome;
-- defines compatible Intention, Specific, Scene Impact, and Scope;
+- defines compatible Intention, Method, Scene Impact, and Scope;
 - defines Counter eligibility and the eventual privilege-cost / cooldown key.
 
-C. Scene Manifestation
+D. Scene Impact and Scope
+
+- Scene Impact selects an explicitly authored magnitude or persistence variant;
+- Scope defines affected breadth.
+
+E. Scene Manifestation
 
 - chosen and narrated by the Game Director from current context;
 - explains how the contract becomes true;
 - requires no additional roll, action, measurement, or conversion into a Power
   mechanic.
 
-"Theme explains how. The Outcome Contract defines what."
+"Method defines the approach. Theme personalises the approach. The Outcome
+Contract defines the result."
 
-Theme may justify or narrow a contract, suggest an Attribute, influence
-Difficulty, and shape narration. It may not increase Impact or Scope, extend
-duration or breadth, add secondary results, convert the contract into another
-privilege, bypass exclusions, replace quantified Power mechanics, or turn a
-temporary/local result into a permanent/global one.
+"The Narrative Theme explains the action, not the result." Plain writing is
+enough; writing quality, vocabulary, spelling, grammar, drama, or eloquence do
+not alter cost, Dice Count, contract strength, thresholds, or entitlement.
 
 Required authored fields:
 
 - Name
-- Theme / Description
+- Narrative Theme
 - Roleplay Intention
-- Specific
+- Method
 - Scene Impact
 - Scope
 - Outcome Contract
@@ -1060,8 +1075,9 @@ Required authored fields:
 
 Optional / conditional authored fields:
 
-- Restriction
+- Additional Restriction
 - Counter permission, only when the selected standard contract permits it
+- Proposed Method Name and Custom Method Request, only for Custom Method review
 - Custom Outcome Request and proposed Outcome Lane, only for Custom Outcome
   review
 
@@ -1074,6 +1090,28 @@ Derived from a standard Outcome Contract:
 - eventual privilege-cost adjustment and cooldown pressure
 
 Free-text Success Outcome is not part of ordinary standard-contract authoring.
+
+Method Registry
+
+The initial standard Method registry contains exactly RESCUE and INTERRUPT
+(Intervention), CHALLENGE (Intimidation), and DISCERN_TRUTH (Perception). Each
+definition owns a concise definition, illustrative legal approaches, and
+exclusions. Legal approaches are examples rather than a phrase whitelist. A
+declaration may vary in expression while remaining the same approach and may
+not claim another Method or enlarge its contract.
+
+Custom Method - GD Review Required stores a Proposed Method Name and Custom
+Method Request describing a reusable approach, legal applications, and
+boundaries. It cannot automatically match standard contracts or establish
+trustworthy automatic costing/final Cooldown and remains unapproved until the
+GD or Architect maps or approves it. Custom Method text describes the approach,
+not the successful result.
+
+Current standard compatibility is Rescue with HIDE_FROM_IMMEDIATE_DANGER,
+Interrupt with DENY_IMMINENT_HOSTILE_ACT, and Challenge with
+DRAW_HOSTILE_ATTENTION. Discern Truth has no standard Outcome Contract in this
+pass and therefore uses Custom Outcome review. No Reveal Concealed Truth
+contract is added here.
 
 Outcome Contract Registry
 
@@ -1129,7 +1167,7 @@ map it to an existing contract, approve a new standard contract, or manually
 approve and price a campaign-local custom contract. Recurring requests should
 inform registry expansion; unrestricted prose cannot be automatically balanced.
 
-Standard contract availability is filtered by Intention, Specific, Scene
+Standard contract availability is filtered by Intention, Method, Scene
 Impact, and Scope. Custom Outcome remains available for every combination.
 Changing any authoring field can invalidate a selected standard contract and
 requires a new compatible selection; it cannot mutate the contract definition.
@@ -1147,7 +1185,7 @@ access pathways, not permission gates.
 Example: You Shall Not Pass
 
 - Intention: Intervention
-- Specific: Interrupt
+- Method: Interrupt
 - Scene Impact: Major
 - Scope: One Target
 - Dice Count: 4
@@ -1162,7 +1200,7 @@ Example: You Shall Not Pass
 Example: Frodo Hide!
 
 - Intention: Intervention
-- Specific: Rescue
+- Method: Rescue
 - Scene Impact: Minor
 - Scope: One Target
 - Dice Count: 3
@@ -1271,7 +1309,7 @@ if Combat Tuning supports that asymmetry.
 Outcome Contract Variant Costing
 
 A standard Outcome Contract may use one stable family ID with multiple
-deliberately authored variants selected by Intention, Specific, Scene Impact,
+deliberately authored variants selected by Intention, Method, Scene Impact,
 and Scope. The selected variant supplies the exact Success Outcome, Counter
 eligibility, examples, exclusions, and relevant future privilege-cost key.
 Higher Impact never scales contract prose generically.

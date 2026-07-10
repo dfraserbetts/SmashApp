@@ -164,26 +164,32 @@ A. Architecture
   - works for both combat abilities and roleplay investments;
   - supports player-facing wording: "You have reached your current Potential."
 
-Roleplay Ability authoring has three distinct layers:
+Roleplay Ability authoring separates these authorities:
 
-1. Theme / Description is free text for character fantasy, invocation,
-   fictional method, and manifestation. It helps the Game Director judge
-   legality, Attribute, and Difficulty but is not costed or parsed and cannot
-   enlarge or rewrite a contract.
-2. Outcome Contract is structured and authoritative. It defines the purchased
+1. Intention defines the broad roleplay lane.
+2. Method is structured and defines mechanically legal approaches.
+3. Narrative Theme is required free text explaining how this character performs
+   the Method. It helps the GD judge fictional reach, Attribute, Difficulty,
+   and manifestation but is not costed or parsed.
+4. Outcome Contract is structured and authoritative. It defines the purchased
    scene privilege, derived Outcome Lane and Success Outcome, compatible
    authoring, Counter eligibility, and eventual privilege-cost / cooldown key.
-3. Scene Manifestation is chosen and narrated by the Game Director from the
+5. Scene Impact selects approved magnitude/persistence and Scope defines
+   affected breadth.
+6. Scene Manifestation is chosen and narrated by the Game Director from the
    current context and requires no additional roll, action, measurement, or
    conversion into a Power mechanic.
 
-"Theme explains how. The Outcome Contract defines what."
+"Method defines the approach. Theme personalises the approach. The Outcome
+Contract defines the result."
 
-Theme may justify or narrow a contract, suggest an Attribute, influence
-Difficulty, and shape narration. Theme may not increase Impact or Scope,
-extend duration or breadth, add secondary results, convert the contract into a
-different privilege, bypass exclusions, replace quantified Power mechanics, or
-turn a temporary/local result into a permanent/global one.
+"The Narrative Theme explains the action, not the result." Narrative Theme may
+describe style, invocation, tools, attitude, or source and guide fictional
+suitability, Attribute, Difficulty, and manifestation. It may not define the
+result, change Method, contract, Impact, Scope, duration, targeting, cost, or
+secondary outcomes, add quantified modifiers, or bypass exclusions. One or two
+concrete sentences in plain language are normally enough. Writing quality and
+eloquence never change mechanical entitlement.
 
 B. Investment profile / scale
 
@@ -198,9 +204,9 @@ C. Core fields (v0)
 Required:
 
 - Name
-- Theme / Description
+- Narrative Theme
 - Roleplay Intention
-- Specific
+- Method
 - Scene Impact
 - Scope
 - Outcome Contract
@@ -208,8 +214,9 @@ Required:
 
 Optional / conditional:
 
-- Restriction
+- Additional Restriction
 - Counter permission where the selected standard contract permits it
+- Proposed Method Name and Custom Method Request for Custom Method review
 - proposed Outcome Lane and Custom Outcome Request for Custom Outcome review
 
 Derived / display-only:
@@ -300,7 +307,7 @@ The selected Outcome Contract's Success Outcome becomes true on success and
 remains a binding scene truth until later fiction changes it. Duration is not
 replaced by a separate builder or display field.
 
-F. Roleplay intentions and Specific
+F. Roleplay Intentions and Methods
 
 Approved v0 top-level intentions:
 
@@ -310,53 +317,56 @@ Approved v0 top-level intentions:
 - Perception
 - Intervention
 
-- Specific is the method/subtheme under intention and is thematic.
-- "Specific" naming mirrors existing terminology for now and may be renamed later.
+The standard Method registry initially contains exactly:
 
-Examples:
+- Rescue (RESCUE), owned by Intervention
+- Interrupt (INTERRUPT), owned by Intervention
+- Challenge (CHALLENGE), owned by Intimidation
+- Discern Truth (DISCERN_TRUTH), owned by Perception
 
-- Persuasion: Encourage, Command, Appeal, Rally, Negotiate, Plead, Inspire,
-  Reassure, Invoke Authority, Build Trust
-- Intimidation: Threaten, Defy, Overawe, Challenge, Suppress, Terrify, Shame,
-  Break Resolve
-- Deception: Distract, Lie, Misdirect, Feint, Disguise Intent, False Identity,
-  Bait, Confuse
-- Perception: Search, Read Intent, Spot Weakness, Track, Investigate, Sense Danger,
-  Discern Truth, Revelation
-- Intervention: Rescue, Pull Free, Shield With Body, Interrupt, Extract, Catch,
-  Stabilise
+A Method definition has a stable ID, player-facing name, owning Intention,
+concise definition, illustrative legal approaches, and exclusions. Approaches
+are examples, not an exhaustive phrase whitelist. New expressions are legal
+when they use the same approach, respect exclusions, do not claim another
+Method, and do not enlarge the selected Outcome Contract.
 
-Important naming reminders:
+Rescue protects or secures a target from immediate danger through warning,
+guidance, shelter, distraction, interposition, or plausible routes to safety.
+Interrupt intervenes at the moment of a meaningful impending act to stop,
+spoil, or break it before resolution. Challenge openly contests courage,
+authority, attention, reputation, or willingness to oppose. Discern Truth
+learns concealed information through observation, deduction, evidence,
+intuition, behavioural tells, contradictions, or perceptive insight. Their exact
+approaches and exclusions are locked in the combat bible.
 
-- Encourage and Command are Persuasion Specifics, not top-level intentions.
-- Distract is a Deception Specific.
-- Revelation is a Perception Specific.
-- Rescue is an Intervention Specific.
-- Burden-transfer ("take the burden") mechanics are deferred advanced work.
+Custom Method - GD Review Required takes a Proposed Method Name and a request
+describing the reusable approach, legal applications, and boundaries, not the
+successful result. It remains Pending GD Approval with no standard contract
+matching, automatic costing, or trusted final Cooldown.
 
 G. Thematic viability
 
 A Roleplay Ability is legal when declared action fits:
 
 - Intention
-- Specific
+- Method
 - selected Outcome Contract and its derived Outcome Lane / Success Outcome
-- Theme / Description
+- Narrative Theme
 - Scope
 - Scene Impact
 - Attribute approach
 - Fictional positioning
-- Restriction, where included
+- Additional Restriction, where included
 
-Intention states lane; Specific defines method.
-Difficulty and legality should respect this pairing.
+Intention states the broad lane; Method defines the structured approach.
+Difficulty and legality respect this pairing without judging prose quality.
+Outcome Contract compatibility uses Method IDs.
 
-Example:
-
-- Deception / Distract can distract a trader so an item can be stolen.
-- Deception / Distract is not automatically suitable for false-value appraisal;
-  a false-appraisal method-specific Specific would fit better.
-- Same broad Intention, different Specific, different difficulty and outcome quality.
+Current mappings are Intervention / Rescue / Minor / One Target for
+HIDE_FROM_IMMEDIATE_DANGER; Intervention / Interrupt / Major / One Target for
+DENY_IMMINENT_HOSTILE_ACT; and Intimidation / Challenge / One Target across the
+approved DRAW_HOSTILE_ATTENTION Impact variants. Discern Truth has no standard
+contract in this pass and remains available for Custom Outcome review.
 
 H. Scope
 
@@ -405,11 +415,10 @@ J. Resolution model
 
 v0 order:
 
-1. Player declares the Roleplay Ability and describes its Theme / fictional
-   method.
+1. Player declares the Roleplay Ability and describes its Narrative Theme.
 2. The Game Director confirms that the use fits the selected Outcome Contract,
-   derived Outcome Lane and Success Outcome, Theme / Description, Intention,
-   Specific, Scope, Scene Impact, fictional position, and Restriction.
+   derived Outcome Lane and Success Outcome, Narrative Theme, Intention,
+   Method, Scope, Scene Impact, fictional position, and Additional Restriction.
 3. The Game Director declares Difficulty and the relevant Attribute.
 4. The player may apply a valid Characteristic substitution.
 5. The player rolls the authored Dice Count with the final Attribute die.
@@ -438,7 +447,7 @@ L. Outcome Contract Registry
 The registry catalogues materially distinct rule privileges, not every
 narrative expression. Many themes may use one contract. Each standard contract
 defines a stable ID, name, Help / Hinder lane, exact Success Outcome, compatible
-Intention / Specific / Scene Impact / Scope combinations, Counter eligibility,
+Intention / Method / Scene Impact / Scope combinations, Counter eligibility,
 an eventual privilege-cost key, examples, and explicit exclusions. Registry
 growth follows actual play and approved concepts. Numeric costs are not locked
 in this pass.
@@ -479,7 +488,7 @@ DENY_IMMINENT_HOSTILE_ACT
 Broader concealment or group-scale denial requires a distinct future contract;
 Theme or higher Impact cannot silently enlarge either standard contract.
 
-Standard contract availability is filtered by Intention, Specific, Scene
+Standard contract availability is filtered by Intention, Method, Scene
 Impact, and Scope. Custom Outcome - GD Review Required remains available for
 all combinations. If an authoring-field change invalidates a standard contract,
 the builder requires a new compatible selection rather than mutating the
@@ -546,8 +555,8 @@ Roleplay Window order:
 2. The Game Director explicitly opens a Roleplay Window.
 3. One eligible actor may spend 1 Response and declare one Roleplay Ability.
 4. The Game Director confirms that the use fits the selected Outcome Contract,
-   its derived Outcome Lane and Success Outcome, Theme / Description,
-   Intention, Specific, Scope, Scene Impact, fictional position, and
+   its derived Outcome Lane and Success Outcome, Narrative Theme,
+   Intention, Method, Scope, Scene Impact, fictional position, and Additional
    Restriction.
 5. The Game Director declares Difficulty and the relevant Attribute.
 6. The Ability roll resolves.
@@ -844,7 +853,7 @@ roadmap note.
 Approved Roleplay Outcome Contract Family: Draw Hostile Attention
 
 The launch Roleplay Ability registry supports a stable standard contract family
-with multiple explicitly authored variants selected by Intention, Specific,
+with multiple explicitly authored variants selected by Intention, Method,
 Scene Impact, and Scope. Each variant owns its exact Success Outcome, Counter
 eligibility, examples, exclusions, and future privilege-cost adjustment. A
 higher Impact does not generically enlarge prose; every supported tier is

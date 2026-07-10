@@ -179,27 +179,40 @@ Roleplay Window / Roleplay Ability Timing
 Powers calculate quantified effects. Roleplay Abilities establish explicit
 authored scene outcomes.
 
-Roleplay Ability authoring has three separate layers:
+Roleplay Ability authoring separates these authorities:
 
-1. Theme / Description is free text describing character fantasy, invocation,
-   fictional method, and manifestation. It helps the Game Director judge
-   legality, Attribute, and Difficulty, but is not costed or parsed and cannot
-   enlarge or rewrite the selected Outcome Contract.
-2. Outcome Contract is the structured, authoritative mechanical source. It
+1. Intention defines the broad roleplay lane.
+2. Method defines which structured approaches are mechanically legal.
+3. Narrative Theme is required free text explaining how this character performs
+   the Method. It helps the Game Director judge fictional reach, Attribute, and
+   Difficulty, but is not costed or parsed.
+4. Outcome Contract is the structured, authoritative mechanical source. It
    defines the reusable purchased scene privilege, derived Outcome Lane and
    Success Outcome, compatible authoring, Counter eligibility, and eventual
    privilege-cost and cooldown pressure.
-3. Scene Manifestation is chosen and narrated by the Game Director from the
+5. Scene Impact selects an approved magnitude or persistence variant, while
+   Scope defines affected breadth.
+6. Scene Manifestation is chosen and narrated by the Game Director from the
    current context. It explains how the contract becomes true without another
    roll, action, measurement, or Power-mechanic conversion.
 
-"Theme explains how. The Outcome Contract defines what."
+"Method defines the approach. Theme personalises the approach. The Outcome
+Contract defines the result."
 
-Creative Theme may justify or narrow a contract, suggest an Attribute,
-influence Difficulty, and shape narration. It cannot increase Scene Impact or
-Scope, extend duration or breadth, add secondary results, bypass exclusions,
-replace quantified Power mechanics, or turn a temporary/local outcome into a
-permanent/global one.
+"Powers calculate effects. Roleplay Abilities establish outcomes."
+
+Narrative Theme describes style, invocation, tools, attitude, or source and
+guides Scene Manifestation. It may help the GD judge whether the Method can
+plausibly reach the target, choose Attribute, and set situational Difficulty.
+It cannot define the guaranteed result; rewrite the Outcome Contract; increase
+Impact or Scope; add duration, targeting, secondary outcomes, quantified
+bonuses, or penalties; change cost; convert the Ability into another Method; or
+bypass Method or contract exclusions. "The Narrative Theme explains the
+action, not the result." One or two concrete sentences in plain language are
+normally enough. Writing quality, vocabulary, spelling, grammar, dramatic
+flair, and eloquence never alter cost, Dice Count, Outcome Contract strength,
+success thresholds, or mechanical entitlement. This is not a creative-writing
+quality test.
 
 Roleplay Abilities cannot be used as normal Assists and cannot enter the normal
 Assist declaration stack. Their timing lanes are:
@@ -236,8 +249,8 @@ Resolve a Roleplay Window in this order:
 2. The Game Director explicitly opens a Roleplay Window.
 3. One eligible actor may spend 1 Response and declare one Roleplay Ability.
 4. The Game Director confirms that the declared use fits the selected Outcome
-   Contract, its derived Outcome Lane and Success Outcome, Theme / Description,
-   Intention, Specific, Scope, Scene Impact, fictional position, and
+   Contract, its derived Outcome Lane and Success Outcome, Narrative Theme,
+   Intention, Method, Scope, Scene Impact, fictional position, and Additional
    Restriction.
 5. The Game Director declares Difficulty and the relevant Attribute.
 6. The Ability roll resolves.
@@ -259,7 +272,7 @@ Roleplay Window guardrails:
 - Only one Roleplay Ability may be declared in each window.
 - A failed Roleplay Ability does not weaken or consume the impending action.
 - The selected Outcome Contract and its derived Success Outcome remain binding
-  on success; Theme cannot enlarge them.
+  on success; Narrative Theme cannot enlarge them.
 - Scope and Scene Impact remain hard ceilings.
 - The Game Director decides Difficulty and Attribute after confirming thematic
   legality.
@@ -1330,10 +1343,122 @@ Effects whose source or carrier has ended must not silently persist unless an
 explicit rule says they linger.
 
 
+Structured Roleplay Method Registry
+
+A standard Method definition contains a stable ID, player-facing name, owning
+Intention, concise definition, illustrative legal approaches, and explicit
+exclusions. Legal approaches are examples, not an exhaustive phrase whitelist.
+A declaration may use another fictional expression when it uses the same kind
+of approach, respects exclusions, does not claim another Method, and does not
+enlarge or rewrite the Outcome Contract. Builders filter Methods by Intention
+and contracts by the complete Intention / Method / Scene Impact / Scope
+combination.
+
+RESCUE
+
+- Intention: Intervention
+- Definition: "Protect or secure a target from immediate danger by warning,
+  guiding, sheltering, distracting, interposing, or exploiting a plausible
+  route to safety."
+- Legal approaches: warn or signal imminent danger; reveal nearby cover,
+  concealment, or escape opportunity; create a protective distraction or
+  opening; interpose where fictionally possible; guide or coordinate an
+  immediate rescue; exploit the environment or social situation to secure
+  safety.
+- Exclusions: does not directly restore Health or treat Injury; remove
+  quantified stacks, units, fields, attachments, or active powers; grant
+  another action; move a measured distance; teleport or force impossible
+  relocation; or deny an impending hostile act unless the selected contract
+  explicitly grants that result.
+- Current standard contract: HIDE_FROM_IMMEDIATE_DANGER.
+
+INTERRUPT
+
+- Intention: Intervention
+- Definition: "Intervene at the moment of a meaningful impending act to stop,
+  spoil, or break that act before it resolves."
+- Legal approaches: issue a decisive command or defiance; create a timely
+  distraction; physically interpose where fictionally possible; disrupt
+  concentration or preparation; invoke authority, an oath, a symbol, or a
+  known weakness; reveal something at the decisive moment.
+- Exclusions: does not suppress every future action; remove passive effects;
+  remove existing stacks, units, fields, attachments, or active powers;
+  permanently incapacitate; become Block, Dodge, Resist, or Cleanse; or
+  automatically reveal or interrupt a hidden or unperceived act.
+- Current standard contract: DENY_IMMINENT_HOSTILE_ACT.
+
+CHALLENGE
+
+- Intention: Intimidation
+- Definition: "Confront a target openly to contest its courage, authority,
+  attention, reputation, or willingness to oppose you."
+- Legal approaches: issue a direct challenge; openly defy the target; appeal
+  to honour, pride, duty, or reputation; provoke the target; make a public
+  stand; declare a personal rivalry; take responsibility for an accusation or
+  confrontation.
+- Exclusions: does not create hostility where none exists; compel a hostile
+  act; make the Ability user a valid target; force movement, range, or
+  impossible actions; alter rolls or quantified output; create Control stacks;
+  or automatically override unrelated duties, loyalties, or objectives.
+- Current standard contract: DRAW_HOSTILE_ATTENTION.
+
+DISCERN_TRUTH
+
+- Intention: Perception
+- Definition: "Learn concealed information through observation, deduction,
+  evidence, intuition, behavioural tells, contradictions, or another
+  perceptive insight."
+- Legal approaches: study body language, hesitation, or emotional reactions;
+  compare statements for contradiction; inspect evidence or physical details;
+  notice omissions, avoidance, or unusual emphasis; connect previously
+  discovered clues; use intuitive, spiritual, magical, or supernatural
+  perception where supported by Narrative Theme and current fiction.
+- Exclusions: does not compel speech, confession, or cooperation; force the
+  target deliberately to reveal information; read thoughts or memories without
+  a separate contract or Power; publicly expose truth; create evidence; force
+  belief; reveal unrelated facts merely because they are secret; or
+  mechanically alter the target.
+- No standard Outcome Contract is added in this pass. Discern Truth remains
+  available through Custom Outcome review until Reveal Concealed Truth is
+  deliberately designed.
+
+Narrative Theme Coaching And GD Adjudication
+
+A good Narrative Theme states what the character does, invokes, notices, says,
+or uses; is easy to picture and compare with the Method; and does not write the
+successful result into the Theme. Good Discern Truth example: "You study the
+target's hesitation, contradictions, and the subjects they avoid." Bad example:
+"You force the target to confess everything and expose every lie to the room."
+The bad example attempts coercion rather than perception, writes the result,
+adds public exposure, and exceeds Discern Truth.
+
+A. Fits: the declaration is inside the Method and selected contract. The GD
+chooses Attribute and Difficulty normally.
+
+B. Questionable fit: the approach is within the Method, but current
+circumstances make it difficult, indirect, or poorly positioned. The GD may
+choose another appropriate Attribute or higher Difficulty, but never penalises
+writing style or lack of eloquence.
+
+C. Does not fit: the declaration uses another Method, violates an exclusion,
+seeks another Outcome Contract, or enlarges Scope, Impact, duration, or
+secondary results. The GD rejects it or asks for revision before Difficulty is
+set.
+
+Custom Method - GD Review Required is not an automatically approved Method. The
+player supplies a Proposed Method Name and Custom Method Request describing the
+reusable approach, legal applications, and boundaries, not its successful
+result. Status remains Pending GD Approval; standard contract matching,
+automatic costing, and final Cooldown are unavailable or untrusted; saving does
+not approve the Ability. The GD or Architect must map it to an existing Method,
+approve a new standard Method, or manually approve a campaign-local Method and
+its contract compatibility.
+
+
 Draw Hostile Attention Outcome Contract Family
 
 Outcome Contract families may contain multiple explicit variants. The current
-Intention, Specific, Scene Impact, and Scope select the variant. Each variant
+Intention, Method, Scene Impact, and Scope select the variant. Each variant
 may own an exact Success Outcome, Counter eligibility, examples, exclusions,
 and future privilege-cost adjustment. Selecting a higher Impact does not grant
 permission to scale prose generically: every legal tier requires deliberately
@@ -1345,7 +1470,7 @@ LOCKED FAMILY:
 - ID: DRAW_HOSTILE_ATTENTION
 - Name: Draw Hostile Attention
 - Outcome Lane: Hinder
-- Intention / Specific: Intimidation / Challenge
+- Intention / Method: Intimidation / Challenge
 - Scope: One Target only
 - Counter eligible: No at every current tier
 - Core privilege: redirect existing hostility toward the Ability user. It does

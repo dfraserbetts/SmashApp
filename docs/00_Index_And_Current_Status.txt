@@ -250,12 +250,13 @@ law until the owning active doc is updated with an explicit decision.
   in docs/03_Builders_And_Implementation_Roadmap.txt.
   Note: The first slice is dynamic crisis combat with pregenerated characters,
   pregenerated enemies, objective tracks, and a small roleplay ability testbed.
-  The active Roleplay Ability framework now separates free-text Theme /
-  Description, structured Outcome Contracts, and Game Director-narrated Scene
-  Manifestation. Standard contracts derive Outcome Lane and Success Outcome;
-  Custom Outcome requests require GD review and cannot be automatically costed.
-  The initial registry contains only HIDE_FROM_IMMEDIATE_DANGER and
-  DENY_IMMINENT_HOSTILE_ACT. Universal Roleplay Window access, contract-gated
+  The active Roleplay Ability framework now separates structured Intention and
+  Method, required free-text Narrative Theme, structured Outcome Contracts, and
+  Game Director-narrated Scene Manifestation. Standard contracts derive Outcome
+  Lane and Success Outcome; Custom Method and Custom Outcome requests require GD
+  review and cannot be automatically costed. The standard Method registry
+  contains RESCUE, INTERRUPT, CHALLENGE, and DISCERN_TRUTH. Universal Roleplay
+  Window access, contract-gated
   paid Counter permission, timing law, Scope, Scene Impact, Attribute handling,
   the non-numeric Potential cost skeleton, and restriction discount order are
   captured in the active source documents. Numeric constants, future registry
@@ -508,7 +509,7 @@ doc. No files were deleted in this consolidation pass.
 Roleplay Outcome Contract Family Status
 
 LOCKED: a standard Outcome Contract may contain multiple explicitly authored
-variants selected by Intention, Specific, Scene Impact, and Scope. Each legal
+variants selected by Intention, Method, Scene Impact, and Scope. Each legal
 variant owns its exact Success Outcome, Counter eligibility, examples,
 exclusions, and future privilege-cost adjustment. A higher Scene Impact never
 generically scales outcome prose; every supported tier must be deliberately
@@ -522,3 +523,21 @@ Counter is unavailable at every current tier. The family redirects existing
 hostility toward the Ability user; it neither creates hostility nor compels a
 hostile act. See the locked rules, costing, builder, and launch-roadmap sources
 for the exact variant wording and intrinsic boundaries.
+
+
+Structured Roleplay Method Status
+
+LOCKED: Specific is removed from the active Roleplay Ability model. Intention
+defines the broad lane; Method defines the structured legal approach; Narrative
+Theme is required player-authored text explaining how this character performs
+the Method; Outcome Contract defines the guaranteed result; Scene Impact and
+Scope define approved magnitude/persistence and breadth.
+
+"Method defines the approach. Theme personalises the approach. The Outcome
+Contract defines the result."
+
+The initial standard Method registry contains only RESCUE, INTERRUPT,
+CHALLENGE, and DISCERN_TRUTH. Discern Truth has no standard Outcome Contract in
+this pass and therefore uses Custom Outcome review. Legacy Specific values may
+migrate into Methods, but Specific is no longer player-facing or normalized
+runtime state.
