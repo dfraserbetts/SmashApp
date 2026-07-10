@@ -1268,6 +1268,40 @@ expectations, with physical and mental protection allowed to remain asymmetric
 if Combat Tuning supports that asymmetry.
 
 
+Outcome Contract Variant Costing
+
+A standard Outcome Contract may use one stable family ID with multiple
+deliberately authored variants selected by Intention, Specific, Scene Impact,
+and Scope. The selected variant supplies the exact Success Outcome, Counter
+eligibility, examples, exclusions, and relevant future privilege-cost key.
+Higher Impact never scales contract prose generically.
+
+DRAW_HOSTILE_ATTENTION is one Hinder family for Intimidation / Challenge / One
+Target. Its Minor, Standard, Major, and Legendary variants use the exact locked
+Success Outcomes in the combat bible and these future privilege-cost keys:
+
+- DRAW_HOSTILE_ATTENTION_MINOR
+- DRAW_HOSTILE_ATTENTION_STANDARD
+- DRAW_HOSTILE_ATTENTION_MAJOR
+- DRAW_HOSTILE_ATTENTION_LEGENDARY
+
+Counter is unavailable for every current variant. Preserve the current cost
+skeleton: Scene Impact x Scope base changes normally by tier, then the Outcome
+Contract privilege adjustment uses the selected variant where relevant. The
+Legendary rivalry may eventually require a different adjustment from the
+shorter hostility-redirection variants. No numeric values are locked in this
+pass.
+
+Restriction discounts apply only to limits beyond a contract's intrinsic
+applicability and exclusions. Restating "only works when the target is hostile"
+for Draw Hostile Attention, "only works on hostile actions" for Deny Imminent
+Hostile Act, or "only works when the target is in danger" for Hide from
+Immediate Danger earns no discount. Meaningful additions may include only
+Agents of Morgoth, only a sworn rival, only after the target harms an ally, or
+only while defending a named place or person. No numeric discount follows from
+these examples in this pass.
+
+
 Open Items
 
 OPEN / NEEDS ARCHITECT DECISION:

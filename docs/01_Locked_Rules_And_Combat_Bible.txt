@@ -1330,6 +1330,84 @@ Effects whose source or carrier has ended must not silently persist unless an
 explicit rule says they linger.
 
 
+Draw Hostile Attention Outcome Contract Family
+
+Outcome Contract families may contain multiple explicit variants. The current
+Intention, Specific, Scene Impact, and Scope select the variant. Each variant
+may own an exact Success Outcome, Counter eligibility, examples, exclusions,
+and future privilege-cost adjustment. Selecting a higher Impact does not grant
+permission to scale prose generically: every legal tier requires deliberately
+authored wording. Keep one stable family ID when the purchased privilege stays
+recognisably the same while its persistence or scale changes.
+
+LOCKED FAMILY:
+
+- ID: DRAW_HOSTILE_ATTENTION
+- Name: Draw Hostile Attention
+- Outcome Lane: Hinder
+- Intention / Specific: Intimidation / Challenge
+- Scope: One Target only
+- Counter eligible: No at every current tier
+- Core privilege: redirect existing hostility toward the Ability user. It does
+  not create hostility or force the target to perform a hostile act.
+
+Explicit Impact variants and exact Success Outcomes:
+
+- MINOR: "the next time the target acts with hostility, it must direct that
+  hostility at you, if you are a valid target"
+- STANDARD: "until the end of the target's next turn in combat, or the end of
+  the current meaningful exchange outside combat, whenever the target acts
+  with hostility, it must direct that hostility at you, if you are a valid
+  target"
+- MAJOR: "for the rest of the current scene, whenever the target acts with
+  hostility, it must direct that hostility at you, if you are a valid target"
+- LEGENDARY: "the target recognises you as its personal rival until the rivalry
+  is narratively resolved"
+
+Legendary creates a persistent narrative relationship, not indefinite forced
+targeting. Narrative resolution may include death, decisive defeat,
+reconciliation, fulfilled vengeance, a broken oath, earned mutual respect,
+either rival abandoning the conflict, or another clear fictional resolution
+accepted by the GD.
+
+For this contract, hostility may be physical, social, political, legal, or
+another form of directed opposition. Examples include an attack, threat,
+accusation, hostile questioning, pursuit, an attempt to expose or humiliate,
+political opposition, an attempt to undermine or obstruct, or a courtroom
+argument directed against another person. The GD decides whether the target is
+acting with hostility in context. Redirection applies only when hostility
+already exists, the Ability user is a valid target for that hostility, and the
+redirection remains fictionally and legally possible.
+
+Intrinsic contract exclusions, which do not earn Restriction discounts:
+
+- Does not create hostility where none exists.
+- Does not compel the target to take a hostile action.
+- Does not make the Ability user a valid target.
+- Does not force movement or create range/reach.
+- Does not force impossible or illegal actions.
+- Does not alter attack rolls, damage, defence, or quantified output.
+- Does not create Control stacks or another Power effect.
+- Does not prevent an area or multi-target action from affecting others where
+  normally legal.
+- Does not prevent immediate self-preservation.
+- Does not automatically override duties, loyalties, or objectives unrelated
+  to the redirected hostility.
+- Does not affect a group.
+- Minor through Major do not persist beyond their exact authored windows.
+- Legendary creates rivalry, not permanent mechanical domination.
+
+Additional Restrictions earn discounts only when they narrow an Ability beyond
+the Outcome Contract's intrinsic applicability and exclusions. Repeating a
+contract boundary earns no discount. "Only works when the target is hostile"
+for Draw Hostile Attention, "Only works on hostile actions" for Deny Imminent
+Hostile Act, and "Only works when the target is in danger" for Hide from
+Immediate Danger are no-discount restatements. Potentially meaningful added
+restrictions include only Agents of Morgoth, only a sworn rival, only after the
+target harms an ally, or only while defending a named place or person. Numeric
+discounts are not locked here.
+
+
 Open Items
 
 OPEN / NEEDS ARCHITECT DECISION:

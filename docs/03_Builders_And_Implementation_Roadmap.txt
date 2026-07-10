@@ -245,6 +245,28 @@ Codex may not freely alter:
 If an asset is used as a comparison baseline, clone it before mutation.
 
 
+Roleplay Outcome Contract Variant Builder Rules
+
+Standard Outcome Contract definitions may contain multiple explicit variants,
+matched against Intention, Specific, Scene Impact, and Scope. The builder must
+resolve Success Outcome, Counter eligibility, and future privilege-cost
+adjustment from the exact matching variant; it must not store derived lane or
+outcome prose on the Ability and must not scale prose generically.
+
+DRAW_HOSTILE_ATTENTION remains one dropdown contract ID and player-facing entry,
+Draw Hostile Attention, across its Intimidation / Challenge / One Target Minor,
+Standard, Major, and Legendary variants. Changing between those four Impacts
+keeps the ID and immediately changes the derived exact Success Outcome. Changing
+Scope, Intention, or Specific outside the family clears the selection and
+Counter. Counter stays disabled at every tier. The derived panel should identify
+the current Impact variant; no separate duration field is authored.
+
+The visible restriction control is "Additional Restriction Type". Its guidance
+must explain that an Additional Restriction narrows the Ability beyond the
+Outcome Contract's built-in limits and that repeating normal applicability earns
+no discount. Persisted restriction field names remain unchanged.
+
+
 Builder Rules To Preserve
 
 - Summoning Circle remains the reference implementation for shared power

@@ -503,3 +503,22 @@ docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt added as the launch
 roadmap/backlog intake document. Legacy docs are archived under docs/archive/
 and are not current source of truth unless explicitly referenced by an active
 doc. No files were deleted in this consolidation pass.
+
+
+Roleplay Outcome Contract Family Status
+
+LOCKED: a standard Outcome Contract may contain multiple explicitly authored
+variants selected by Intention, Specific, Scene Impact, and Scope. Each legal
+variant owns its exact Success Outcome, Counter eligibility, examples,
+exclusions, and future privilege-cost adjustment. A higher Scene Impact never
+generically scales outcome prose; every supported tier must be deliberately
+authored. Use one stable family ID when the same recognisable privilege changes
+in persistence or scale.
+
+LOCKED: DRAW_HOSTILE_ATTENTION is the first multi-variant family. It is the
+Hinder contract named Draw Hostile Attention for Intimidation / Challenge and
+One Target, with explicit Minor, Standard, Major, and Legendary variants.
+Counter is unavailable at every current tier. The family redirects existing
+hostility toward the Ability user; it neither creates hostility nor compels a
+hostile act. See the locked rules, costing, builder, and launch-roadmap sources
+for the exact variant wording and intrinsic boundaries.

@@ -841,6 +841,43 @@ No final thresholds, formulas, or implementation behaviour are locked by this
 roadmap note.
 
 
+Approved Roleplay Outcome Contract Family: Draw Hostile Attention
+
+The launch Roleplay Ability registry supports a stable standard contract family
+with multiple explicitly authored variants selected by Intention, Specific,
+Scene Impact, and Scope. Each variant owns its exact Success Outcome, Counter
+eligibility, examples, exclusions, and future privilege-cost adjustment. A
+higher Impact does not generically enlarge prose; every supported tier is
+deliberately authored.
+
+DRAW_HOSTILE_ATTENTION / Draw Hostile Attention is locked as Hinder,
+Intimidation / Challenge, One Target, and never Counter eligible. It redirects
+existing hostility toward the Ability user without creating hostility or
+compelling hostile action. Its exact outcomes are:
+
+- Minor: "the next time the target acts with hostility, it must direct that
+  hostility at you, if you are a valid target"
+- Standard: "until the end of the target's next turn in combat, or the end of
+  the current meaningful exchange outside combat, whenever the target acts
+  with hostility, it must direct that hostility at you, if you are a valid
+  target"
+- Major: "for the rest of the current scene, whenever the target acts with
+  hostility, it must direct that hostility at you, if you are a valid target"
+- Legendary: "the target recognises you as its personal rival until the rivalry
+  is narratively resolved"
+
+Legendary rivalry is a persistent narrative relationship, not permanent forced
+targeting or mechanical domination. The locked combat bible contains hostility
+guidance, narrative-resolution examples, and intrinsic exclusions. These
+boundaries do not earn Restriction discounts; only an Additional Restriction
+that genuinely narrows the contract may do so.
+
+Implementation retains the cost skeleton. Scene Impact x Scope changes normally
+by tier, and the privilege adjustment resolves from the selected variant. The
+Legendary rivalry may later have a distinct adjustment. No numeric costing or
+discount value is locked in this pass.
+
+
 Open Decisions
 
 OPEN / NEEDS ARCHITECT DECISION:
