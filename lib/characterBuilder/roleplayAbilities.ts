@@ -124,6 +124,97 @@ export const ROLEPLAY_RESTRICTION_BAND_OPTIONS = [
 export type RoleplayRestrictionBand =
   (typeof ROLEPLAY_RESTRICTION_BAND_OPTIONS)[number]["value"];
 
+export const ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED = "UNSELECTED" as const;
+export const ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW = "CUSTOM_REVIEW" as const;
+
+export type RoleplayStandardOutcomeContractId =
+  | "HIDE_FROM_IMMEDIATE_DANGER"
+  | "DENY_IMMINENT_HOSTILE_ACT";
+
+export type RoleplayOutcomeContractId =
+  | RoleplayStandardOutcomeContractId
+  | typeof ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED
+  | typeof ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW;
+
+export type RoleplayOutcomeContractAuthoring = {
+  intention: RoleplayIntention;
+  specific: RoleplaySpecific;
+  sceneImpact: RoleplaySceneImpact;
+  scope: RoleplayScope;
+};
+
+export type RoleplayOutcomeContractDefinition = {
+  id: RoleplayStandardOutcomeContractId;
+  name: string;
+  outcomeLane: RoleplayOutcomeLane;
+  successOutcome: string;
+  compatibleAuthoring: readonly RoleplayOutcomeContractAuthoring[];
+  counterEligible: boolean;
+  privilegeCostKey: string;
+  examples: readonly string[];
+  exclusions: readonly string[];
+};
+
+export const ROLEPLAY_OUTCOME_CONTRACTS = [
+  {
+    id: "HIDE_FROM_IMMEDIATE_DANGER",
+    name: "Hide from Immediate Danger",
+    outcomeLane: "HELP",
+    successOutcome: "the target becomes hidden from the immediate danger",
+    compatibleAuthoring: [
+      {
+        intention: "INTERVENTION",
+        specific: "RESCUE",
+        sceneImpact: "MINOR",
+        scope: "ONE_TARGET",
+      },
+    ],
+    counterEligible: false,
+    privilegeCostKey: "HIDE_FROM_IMMEDIATE_DANGER",
+    examples: [
+      "Diving between ruined stones",
+      "Disappearing into a crowd",
+      "Being covered by concealing mist",
+      "Slipping beneath a wagon",
+      "A companion creating a distraction",
+    ],
+    exclusions: [
+      "Does not grant permanent invisibility.",
+      "Does not hide the target from every creature in the scene.",
+      "Does not end an entire encounter.",
+      "Does not remove existing quantified effects.",
+      "Does not move the target a measured distance.",
+      "Does not grant another action.",
+      "Does not require an additional Hide, movement, or defence roll.",
+    ],
+  },
+  {
+    id: "DENY_IMMINENT_HOSTILE_ACT",
+    name: "Deny Imminent Hostile Act",
+    outcomeLane: "HINDER",
+    successOutcome: "the target's current or next hostile action fails",
+    compatibleAuthoring: [
+      {
+        intention: "INTERVENTION",
+        specific: "INTERRUPT",
+        sceneImpact: "MAJOR",
+        scope: "ONE_TARGET",
+      },
+    ],
+    counterEligible: true,
+    privilegeCostKey: "DENY_IMMINENT_HOSTILE_ACT",
+    examples: ["Stopping an imminent hostile act before it resolves"],
+    exclusions: [
+      "Does not permanently incapacitate the target.",
+      "Does not cancel passive effects.",
+      "Does not remove existing stacks, units, fields, attachments, or active powers.",
+      "Does not prevent every action for the scene.",
+      "Does not become ordinary Block, Dodge, Resist, or Cleanse.",
+      "Does not automatically affect a group.",
+    ],
+  },
+] as const satisfies readonly RoleplayOutcomeContractDefinition[];
+
 export type RoleplayAbility = {
   id: string;
   sortOrder: number;
@@ -131,17 +222,23 @@ export type RoleplayAbility = {
   description: string;
   intention: RoleplayIntention;
   specific: RoleplaySpecific;
-  outcomeLane: RoleplayOutcomeLane;
-  successOutcome: string;
   sceneImpact: RoleplaySceneImpact;
   scope: RoleplayScope;
   diceCount: RoleplayDiceCount;
+  outcomeContractId: RoleplayOutcomeContractId;
+  customOutcomeLane: RoleplayOutcomeLane;
+  customOutcomeRequest: string;
   counter: boolean;
   restrictionType: RoleplayRestrictionType;
   restrictionBand: RoleplayRestrictionBand;
   restrictionTag: string;
   restrictionText: string;
 };
+
+type RoleplayAbilityAuthoring = Pick<
+  RoleplayAbility,
+  "intention" | "specific" | "sceneImpact" | "scope"
+>;
 
 function readRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -163,8 +260,95 @@ function readOption<const T extends readonly RoleplayOption[]>(
     : fallback;
 }
 
+function readOutcomeContractId(value: unknown): RoleplayOutcomeContractId | null {
+  if (
+    value === ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED ||
+    value === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW ||
+    ROLEPLAY_OUTCOME_CONTRACTS.some((contract) => contract.id === value)
+  ) {
+    return value as RoleplayOutcomeContractId;
+  }
+  return null;
+}
+
+function normalizeOutcomeForMigration(value: string) {
+  return value
+    .trim()
+    .replace(/[‘’]/gu, "'")
+    .replace(/[.!?]+$/u, "")
+    .replace(/\s+/gu, " ")
+    .toLocaleLowerCase("en");
+}
+
 export function getRoleplaySpecificOptions(intention: RoleplayIntention) {
   return ROLEPLAY_SPECIFIC_OPTIONS[intention];
+}
+
+export function getRoleplayOutcomeContract(id: unknown) {
+  return ROLEPLAY_OUTCOME_CONTRACTS.find((contract) => contract.id === id) ?? null;
+}
+
+export function isRoleplayOutcomeContractCompatible(
+  contract: RoleplayOutcomeContractDefinition,
+  authoring: RoleplayAbilityAuthoring,
+) {
+  return contract.compatibleAuthoring.some(
+    (compatible) =>
+      compatible.intention === authoring.intention &&
+      compatible.specific === authoring.specific &&
+      compatible.sceneImpact === authoring.sceneImpact &&
+      compatible.scope === authoring.scope,
+  );
+}
+
+export function getCompatibleRoleplayOutcomeContracts(authoring: RoleplayAbilityAuthoring) {
+  return ROLEPLAY_OUTCOME_CONTRACTS.filter((contract) =>
+    isRoleplayOutcomeContractCompatible(contract, authoring),
+  );
+}
+
+export function getRoleplayAbilityOutcomeLane(ability: RoleplayAbility) {
+  return getRoleplayOutcomeContract(ability.outcomeContractId)?.outcomeLane ??
+    ability.customOutcomeLane;
+}
+
+export function getRoleplayAbilitySuccessOutcome(ability: RoleplayAbility) {
+  return getRoleplayOutcomeContract(ability.outcomeContractId)?.successOutcome ??
+    (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW
+      ? ability.customOutcomeRequest
+      : "");
+}
+
+export function getRoleplayAbilityContractName(ability: RoleplayAbility) {
+  if (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW) {
+    return "Custom Outcome — Review Required";
+  }
+  return getRoleplayOutcomeContract(ability.outcomeContractId)?.name ?? "No Outcome Contract";
+}
+
+export function getRoleplayAbilityCounterEligibility(ability: RoleplayAbility) {
+  if (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW) return true;
+  return getRoleplayOutcomeContract(ability.outcomeContractId)?.counterEligible ?? false;
+}
+
+export function reconcileRoleplayAbilityContract(ability: RoleplayAbility): RoleplayAbility {
+  if (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW) return ability;
+  if (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED) {
+    return ability.counter ? { ...ability, counter: false } : ability;
+  }
+
+  const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
+  if (!contract || !isRoleplayOutcomeContractCompatible(contract, ability)) {
+    return {
+      ...ability,
+      outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+      counter: false,
+    };
+  }
+  if (!contract.counterEligible && ability.counter) {
+    return { ...ability, counter: false };
+  }
+  return ability;
 }
 
 export function createDefaultRoleplayAbility(sortOrder: number): RoleplayAbility {
@@ -175,11 +359,12 @@ export function createDefaultRoleplayAbility(sortOrder: number): RoleplayAbility
     description: "",
     intention: "PERSUASION",
     specific: "ENCOURAGE",
-    outcomeLane: "HELP",
-    successOutcome: "",
     sceneImpact: "MINOR",
     scope: "ONE_TARGET",
     diceCount: 1,
+    outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    customOutcomeLane: "HELP",
+    customOutcomeRequest: "",
     counter: false,
     restrictionType: "NONE",
     restrictionBand: "NONE_COSMETIC",
@@ -196,14 +381,66 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
     ROLEPLAY_INTENTION_OPTIONS[0].value,
   );
   const specificOptions = getRoleplaySpecificOptions(intention);
-  const legacyDenyHostileAction = record.outputSubtype === "DENY_HOSTILE_ACTION";
   const rawSpecific = record.specific === "ENABLE_MOVEMENT" ? "RESCUE" : record.specific;
+  const specific = readOption(rawSpecific, specificOptions, specificOptions[0].value);
+  const sceneImpact = readOption(
+    record.sceneImpact,
+    ROLEPLAY_SCENE_IMPACT_OPTIONS,
+    ROLEPLAY_SCENE_IMPACT_OPTIONS[0].value,
+  );
+  const scope = readOption(record.scope, ROLEPLAY_SCOPE_OPTIONS, "ONE_TARGET");
   const numericDiceCount = Number(record.diceCount);
   const diceCount = ROLEPLAY_DICE_COUNT_OPTIONS.includes(
     numericDiceCount as RoleplayDiceCount,
   )
     ? (numericDiceCount as RoleplayDiceCount)
     : ROLEPLAY_DICE_COUNT_OPTIONS[0];
+  const legacyDenyHostileAction = record.outputSubtype === "DENY_HOSTILE_ACTION";
+  const legacySuccessOutcome =
+    readString(record.successOutcome, 1000) ||
+    (legacyDenyHostileAction
+      ? "the target's current or next hostile action fails"
+      : "");
+  const legacyOutcomeLane = readOption(
+    record.outcomeLane,
+    ROLEPLAY_OUTCOME_LANE_OPTIONS,
+    legacyDenyHostileAction ? "HINDER" : "HELP",
+  );
+  const storedContractId = readOutcomeContractId(record.outcomeContractId);
+  const authoring = { intention, specific, sceneImpact, scope };
+
+  let outcomeContractId = storedContractId;
+  let customOutcomeLane = readOption(
+    record.customOutcomeLane,
+    ROLEPLAY_OUTCOME_LANE_OPTIONS,
+    legacyOutcomeLane,
+  );
+  let customOutcomeRequest = readString(record.customOutcomeRequest, 1000);
+
+  if (!outcomeContractId) {
+    if (!legacySuccessOutcome) {
+      outcomeContractId = ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED;
+    } else {
+      const normalizedLegacyOutcome = normalizeOutcomeForMigration(legacySuccessOutcome);
+      const matchingContract = ROLEPLAY_OUTCOME_CONTRACTS.find(
+        (contract) =>
+          normalizeOutcomeForMigration(contract.successOutcome) === normalizedLegacyOutcome,
+      );
+      if (
+        matchingContract &&
+        isRoleplayOutcomeContractCompatible(matchingContract, authoring)
+      ) {
+        outcomeContractId = matchingContract.id;
+      } else {
+        outcomeContractId = ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW;
+        customOutcomeLane = legacyOutcomeLane;
+        customOutcomeRequest = legacySuccessOutcome;
+      }
+    }
+  } else if (outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW) {
+    customOutcomeRequest ||= legacySuccessOutcome;
+  }
+
   const storedRestrictionTag = readString(record.restrictionTag, 120);
   const restrictionTag =
     legacyDenyHostileAction &&
@@ -212,26 +449,19 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
       ? `one ${storedRestrictionTag}`
       : storedRestrictionTag;
 
-  return {
+  return reconcileRoleplayAbilityContract({
     id: readString(record.id, 120) || `roleplay-ability-${sortOrder + 1}`,
     sortOrder,
     name: readString(record.name, 120),
     description: readString(record.description, 2000),
     intention,
-    specific: readOption(rawSpecific, specificOptions, specificOptions[0].value),
-    outcomeLane: legacyDenyHostileAction
-      ? "HINDER"
-      : readOption(record.outcomeLane, ROLEPLAY_OUTCOME_LANE_OPTIONS, "HELP"),
-    successOutcome: legacyDenyHostileAction
-      ? "the target's current or next hostile action fails"
-      : readString(record.successOutcome, 1000),
-    sceneImpact: readOption(
-      record.sceneImpact,
-      ROLEPLAY_SCENE_IMPACT_OPTIONS,
-      ROLEPLAY_SCENE_IMPACT_OPTIONS[0].value,
-    ),
-    scope: readOption(record.scope, ROLEPLAY_SCOPE_OPTIONS, "ONE_TARGET"),
+    specific,
+    sceneImpact,
+    scope,
     diceCount,
+    outcomeContractId,
+    customOutcomeLane,
+    customOutcomeRequest,
     counter: record.counter === true,
     restrictionType: readOption(
       record.restrictionType,
@@ -245,7 +475,7 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
     ),
     restrictionTag,
     restrictionText: readString(record.restrictionText, 1000),
-  };
+  });
 }
 
 export function normalizeRoleplayAbilities(value: unknown): RoleplayAbility[] {
@@ -260,14 +490,19 @@ function defaultTargetPhrase(scope: RoleplayScope) {
   return "a faction or army";
 }
 
-function renderSuccessOutcome(successOutcome: string) {
-  const trimmed = successOutcome.trim() || "[define the success outcome]";
+function renderOutcomeText(value: string, placeholder: string) {
+  const trimmed = value.trim() || placeholder;
   return `${trimmed.replace(/[.!?]+$/u, "").trimEnd()}.`;
 }
 
 export function renderRoleplayAbilityDescriptor(ability: RoleplayAbility): string {
+  const successOutcome = getRoleplayAbilitySuccessOutcome(ability);
+  const placeholder =
+    ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW
+      ? "[define the custom outcome request]"
+      : "[select an outcome contract]";
+  const outcomeClause = renderOutcomeText(successOutcome, placeholder);
   const rollClause = `roll ${ability.diceCount} dice`;
-  const outcomeClause = renderSuccessOutcome(ability.successOutcome);
   if (ability.scope === "SELF") {
     return `Roll ${ability.diceCount} dice. On success, ${outcomeClause}`;
   }
@@ -283,8 +518,28 @@ export function renderRoleplayAbilityDescriptor(ability: RoleplayAbility): strin
 export function getRoleplayAbilityWarnings(ability: RoleplayAbility): string[] {
   const warnings: string[] = [];
   if (!ability.name.trim()) warnings.push("Name is required.");
-  if (!ability.description.trim()) warnings.push("Description is required.");
-  if (!ability.successOutcome.trim()) warnings.push("Success Outcome is required.");
+  if (!ability.description.trim()) warnings.push("Theme / Description is required.");
+  if (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED) {
+    warnings.push("Outcome Contract is required.");
+  }
+  if (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW) {
+    warnings.push(
+      "Custom Outcome requires Game Director approval and cannot be automatically costed.",
+    );
+    if (!ability.customOutcomeRequest.trim()) {
+      warnings.push("Custom Outcome Request is required for Game Director review.");
+    }
+  }
+
+  const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
+  if (contract && !isRoleplayOutcomeContractCompatible(contract, ability)) {
+    warnings.push(
+      "The selected Outcome Contract is incompatible with the current Intention, Specific, Scene Impact, or Scope.",
+    );
+  }
+  if (contract && ability.counter && !contract.counterEligible) {
+    warnings.push("The selected Outcome Contract does not permit Counter authoring.");
+  }
   if (
     ability.restrictionType === "TARGET_ELIGIBILITY" &&
     !ability.restrictionTag.trim()

@@ -101,14 +101,23 @@ import {
 import {
   ROLEPLAY_DICE_COUNT_OPTIONS,
   ROLEPLAY_INTENTION_OPTIONS,
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
   ROLEPLAY_OUTCOME_LANE_OPTIONS,
   ROLEPLAY_RESTRICTION_BAND_OPTIONS,
   ROLEPLAY_RESTRICTION_TYPE_OPTIONS,
   ROLEPLAY_SCENE_IMPACT_OPTIONS,
   ROLEPLAY_SCOPE_OPTIONS,
   createDefaultRoleplayAbility,
+  getCompatibleRoleplayOutcomeContracts,
+  getRoleplayAbilityContractName,
+  getRoleplayAbilityCounterEligibility,
+  getRoleplayAbilityOutcomeLane,
+  getRoleplayAbilitySuccessOutcome,
   getRoleplayAbilityWarnings,
+  getRoleplayOutcomeContract,
   getRoleplaySpecificOptions,
+  reconcileRoleplayAbilityContract,
   renderRoleplayAbilityDescriptor,
   type RoleplayAbility,
 } from "@/lib/characterBuilder/roleplayAbilities";
@@ -1569,7 +1578,7 @@ export default function CharacterBuilderPage() {
         if (patch.intention && patch.intention !== ability.intention) {
           next.specific = getRoleplaySpecificOptions(patch.intention)[0].value;
         }
-        return next;
+        return reconcileRoleplayAbilityContract(next);
       }),
     );
   }
@@ -4433,9 +4442,9 @@ export default function CharacterBuilderPage() {
         <div className="mt-4 space-y-4">
           <div className="rounded-lg border border-zinc-800 bg-black p-3">
             <p className="text-sm text-zinc-300">
-              Roleplay Abilities establish explicit themed scene outcomes. Description explains
-              how the Ability manifests; Success Outcome defines what becomes true when the roll
-              succeeds.
+              Roleplay Abilities establish explicit themed scene outcomes. Theme / Description
+              explains how the Ability manifests; the Outcome Contract defines what becomes true
+              when the roll succeeds.
             </p>
             <p className="mt-2 text-xs text-zinc-500">
               Unless an Ability says otherwise, it can only affect a valid target in the same
@@ -4474,10 +4483,22 @@ export default function CharacterBuilderPage() {
             <div className="space-y-4">
               {builderData.roleplayAbilities.map((ability, index) => {
                 const specificOptions = getRoleplaySpecificOptions(ability.intention);
+                const compatibleContracts = getCompatibleRoleplayOutcomeContracts(ability);
+                const selectedContract = getRoleplayOutcomeContract(
+                  ability.outcomeContractId,
+                );
+                const customOutcomeSelected =
+                  ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW;
+                const outcomeContractUnselected =
+                  ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED;
+                const outcomeLane = getRoleplayAbilityOutcomeLane(ability);
                 const outcomeLaneLabel =
                   ROLEPLAY_OUTCOME_LANE_OPTIONS.find(
-                    (option) => option.value === ability.outcomeLane,
-                  )?.label ?? ability.outcomeLane;
+                    (option) => option.value === outcomeLane,
+                  )?.label ?? outcomeLane;
+                const successOutcome = getRoleplayAbilitySuccessOutcome(ability);
+                const outcomeContractName = getRoleplayAbilityContractName(ability);
+                const counterEligible = getRoleplayAbilityCounterEligibility(ability);
                 const warnings = getRoleplayAbilityWarnings(ability);
                 const abilityCollapseKey = getRoleplayAbilityCollapseKey(ability, index);
                 const abilityCollapsed =
@@ -4508,7 +4529,7 @@ export default function CharacterBuilderPage() {
                               {specificOptions.find((option) => option.value === ability.specific)
                                 ?.label ?? "Roleplay Ability"}
                               {" / "}
-                              {outcomeLaneLabel}
+                              {outcomeContractName}
                             </span>
                           ) : null}
                         </div>
@@ -4540,7 +4561,7 @@ export default function CharacterBuilderPage() {
                         />
                       </label>
                       <label>
-                        <span className="text-xs text-zinc-400">Description</span>
+                        <span className="text-xs text-zinc-400">Theme / Description</span>
                         <textarea
                           value={ability.description}
                           onChange={(event) =>
@@ -4551,33 +4572,12 @@ export default function CharacterBuilderPage() {
                           className="mt-1 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                         />
                         <span className="mt-1 block text-xs text-zinc-600">
-                          Describe the theme and fictional method. The GD uses this to judge
-                          legality and Difficulty; the descriptor engine does not parse it.
+                          Describe how the Ability manifests in the fiction. The GD uses this to
+                          judge legality, Attribute, and Difficulty. Theme cannot enlarge or
+                          rewrite the selected Outcome Contract.
                         </span>
                       </label>
                     </div>
-
-                    <label className="block">
-                      <span className="text-xs text-zinc-400">Success Outcome</span>
-                      <textarea
-                        value={ability.successOutcome}
-                        onChange={(event) =>
-                          updateRoleplayAbility(index, { successOutcome: event.target.value })
-                        }
-                        disabled={!canEdit || saving}
-                        rows={2}
-                        placeholder={
-                          ability.outcomeLane === "HINDER"
-                            ? "the target's current or next hostile action fails"
-                            : "the target becomes hidden from the immediate danger"
-                        }
-                        className="mt-1 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500 disabled:opacity-60"
-                      />
-                      <span className="mt-1 block text-xs text-zinc-600">
-                        Write the explicit scene truth created on success. This text appears after
-                        &ldquo;On success,&rdquo; in the descriptor.
-                      </span>
-                    </label>
 
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       <label>
@@ -4676,29 +4676,150 @@ export default function CharacterBuilderPage() {
                         </select>
                       </label>
                       <label>
-                        <span className="text-xs text-zinc-400">Outcome Lane</span>
+                        <span className="text-xs text-zinc-400">Outcome Contract</span>
                         <select
-                          value={ability.outcomeLane}
+                          value={ability.outcomeContractId}
                           onChange={(event) =>
                             updateRoleplayAbility(index, {
-                              outcomeLane: event.target.value as RoleplayAbility["outcomeLane"],
+                              outcomeContractId:
+                                event.target.value as RoleplayAbility["outcomeContractId"],
                             })
                           }
                           disabled={!canEdit || saving}
                           className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                         >
-                          {ROLEPLAY_OUTCOME_LANE_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
+                          <option value={ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED}>
+                            Select an Outcome Contract
+                          </option>
+                          {compatibleContracts.map((contract) => (
+                            <option key={contract.id} value={contract.id}>
+                              {contract.name}
                             </option>
                           ))}
+                          <option value={ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW}>
+                            Custom Outcome — GD Review Required
+                          </option>
                         </select>
-                        <span className="mt-1 block text-xs text-zinc-600">
-                          {ability.outcomeLane === "HINDER"
-                            ? "Establishes a detrimental scene truth."
-                            : "Establishes a beneficial scene truth."}
-                        </span>
                       </label>
+                    </div>
+
+                    {selectedContract ? (
+                      <section className="rounded-lg border border-cyan-900/70 bg-cyan-950/20 p-3">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                          Derived Contract Details
+                        </h4>
+                        <dl className="mt-2 grid gap-2 text-sm text-cyan-50 sm:grid-cols-2">
+                          <div>
+                            <dt className="text-xs text-cyan-500">Outcome Contract</dt>
+                            <dd>{selectedContract.name}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-cyan-500">Outcome Lane</dt>
+                            <dd>{outcomeLaneLabel}</dd>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <dt className="text-xs text-cyan-500">Success Outcome</dt>
+                            <dd>{successOutcome}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-cyan-500">Counter Eligible</dt>
+                            <dd>{selectedContract.counterEligible ? "Yes" : "No"}</dd>
+                          </div>
+                        </dl>
+                        <p className="mt-2 text-xs text-cyan-400">
+                          This contract defines the purchased scene privilege. Theme determines
+                          how it manifests but cannot increase its effect.
+                        </p>
+                      </section>
+                    ) : customOutcomeSelected ? (
+                      <section className="rounded-lg border border-amber-800 bg-amber-950/20 p-3">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-300">
+                          Custom Outcome Review
+                        </h4>
+                        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-amber-200">
+                          <span>Status: Pending GD Approval</span>
+                          <span>Automatic Costing: Unavailable</span>
+                          <span>Final Cooldown: Pending approval</span>
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <label>
+                            <span className="text-xs text-amber-300">Proposed Outcome Lane</span>
+                            <select
+                              value={ability.customOutcomeLane}
+                              onChange={(event) =>
+                                updateRoleplayAbility(index, {
+                                  customOutcomeLane:
+                                    event.target.value as RoleplayAbility["customOutcomeLane"],
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              className="mt-1 w-full rounded-lg border border-amber-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none disabled:opacity-60"
+                            >
+                              {ROLEPLAY_OUTCOME_LANE_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            <span className="text-xs text-amber-300">Custom Outcome Request</span>
+                            <textarea
+                              value={ability.customOutcomeRequest}
+                              onChange={(event) =>
+                                updateRoleplayAbility(index, {
+                                  customOutcomeRequest: event.target.value,
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              rows={2}
+                              placeholder="Describe the proposed scene truth"
+                              className="mt-1 w-full resize-y rounded-lg border border-amber-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 disabled:opacity-60"
+                            />
+                            <span className="mt-1 block text-xs text-amber-500">
+                              Describe the proposed scene truth. This is a review request, not an
+                              approved or automatically costed contract.
+                            </span>
+                          </label>
+                        </div>
+                      </section>
+                    ) : (
+                      <p className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-sm text-zinc-400">
+                        Select an Outcome Contract to define the Ability&apos;s mechanical
+                        privilege.
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                      <label className="flex items-center gap-2 text-sm text-zinc-300">
+                        <input
+                          type="checkbox"
+                          checked={ability.counter}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, { counter: event.target.checked })
+                          }
+                          disabled={
+                            !canEdit ||
+                            saving ||
+                            outcomeContractUnselected ||
+                            (!customOutcomeSelected && !counterEligible)
+                          }
+                          className="h-4 w-4 accent-emerald-500"
+                        />
+                        Counter
+                      </label>
+                      <p className="basis-full text-xs text-zinc-500">
+                        {outcomeContractUnselected
+                          ? "Select an Outcome Contract before authoring Counter permission."
+                          : customOutcomeSelected
+                            ? "Counter eligibility and its surcharge remain subject to GD approval."
+                            : counterEligible
+                              ? "This contract permits paid Counter authoring when the actor is personally targeted; it does not make this Ability Counter-only."
+                              : "This contract does not permit Counter authoring."}
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       <label>
                         <span className="text-xs text-zinc-400">Restriction Type</span>
                         <select
@@ -4724,88 +4845,71 @@ export default function CharacterBuilderPage() {
                         </select>
                       </label>
                       {ability.restrictionType !== "NONE" ? (
-                      <label>
-                        <span className="text-xs text-zinc-400">Restriction Band</span>
-                        <select
-                          value={ability.restrictionBand}
-                          onChange={(event) =>
-                            updateRoleplayAbility(index, {
-                              restrictionBand: event.target.value as RoleplayAbility["restrictionBand"],
-                            })
-                          }
-                          disabled={!canEdit || saving}
-                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                        >
-                          {ROLEPLAY_RESTRICTION_BAND_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                        <label>
+                          <span className="text-xs text-zinc-400">Restriction Band</span>
+                          <select
+                            value={ability.restrictionBand}
+                            onChange={(event) =>
+                              updateRoleplayAbility(index, {
+                                restrictionBand:
+                                  event.target.value as RoleplayAbility["restrictionBand"],
+                              })
+                            }
+                            disabled={!canEdit || saving}
+                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                          >
+                            {ROLEPLAY_RESTRICTION_BAND_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       ) : null}
                     </div>
 
                     {ability.restrictionType !== "NONE" ? (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {ability.restrictionType === "TARGET_ELIGIBILITY" ? (
-                      <label>
-                        <span className="text-xs text-zinc-400">Restricted target phrase</span>
-                        <input
-                          type="text"
-                          value={ability.restrictionTag}
-                          onChange={(event) =>
-                            updateRoleplayAbility(index, { restrictionTag: event.target.value })
-                          }
-                          disabled={!canEdit || saving}
-                          placeholder="one Agent of Morgoth"
-                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500 disabled:opacity-60"
-                        />
-                        <span className="mt-1 block text-xs text-zinc-600">
-                          Write the exact phrase used after &ldquo;Choose&rdquo;, such as
-                          &ldquo;one Agent of Morgoth&rdquo; or &ldquo;Frodo&rdquo;.
-                        </span>
-                      </label>
-                      ) : null}
-                      <label>
-                        <span className="text-xs text-zinc-400">Restriction Text</span>
-                        <textarea
-                          value={ability.restrictionText}
-                          onChange={(event) =>
-                            updateRoleplayAbility(index, { restrictionText: event.target.value })
-                          }
-                          disabled={!canEdit || saving}
-                          rows={2}
-                          placeholder="This ability can only affect Agents of Morgoth."
-                          className="mt-1 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500 disabled:opacity-60"
-                        />
-                      </label>
-                    </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {ability.restrictionType === "TARGET_ELIGIBILITY" ? (
+                          <label>
+                            <span className="text-xs text-zinc-400">
+                              Restricted target phrase
+                            </span>
+                            <input
+                              type="text"
+                              value={ability.restrictionTag}
+                              onChange={(event) =>
+                                updateRoleplayAbility(index, {
+                                  restrictionTag: event.target.value,
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              placeholder="one Agent of Morgoth"
+                              className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500 disabled:opacity-60"
+                            />
+                            <span className="mt-1 block text-xs text-zinc-600">
+                              Write the exact phrase used after &ldquo;Choose&rdquo;, such as
+                              &ldquo;one Agent of Morgoth&rdquo; or &ldquo;Frodo&rdquo;.
+                            </span>
+                          </label>
+                        ) : null}
+                        <label>
+                          <span className="text-xs text-zinc-400">Restriction Text</span>
+                          <textarea
+                            value={ability.restrictionText}
+                            onChange={(event) =>
+                              updateRoleplayAbility(index, {
+                                restrictionText: event.target.value,
+                              })
+                            }
+                            disabled={!canEdit || saving}
+                            rows={2}
+                            placeholder="This ability can only affect Agents of Morgoth."
+                            className="mt-1 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500 disabled:opacity-60"
+                          />
+                        </label>
+                      </div>
                     ) : null}
-
-                    <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-lg border border-zinc-800 bg-zinc-950 p-3">
-                      <label className="flex items-center gap-2 text-sm text-zinc-300">
-                        <input
-                          type="checkbox"
-                          checked={ability.counter}
-                          onChange={(event) =>
-                            updateRoleplayAbility(index, { counter: event.target.checked })
-                          }
-                          disabled={!canEdit || saving}
-                          className="h-4 w-4 accent-emerald-500"
-                        />
-                        Counter
-                      </label>
-                      <p className="basis-full text-xs text-zinc-500">
-                        Counter adds a legal use window when the actor is personally targeted; it
-                        does not make this Ability Counter-only.
-                      </p>
-                    </div>
-
-                    <p className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-400">
-                      The Success Outcome must remain within the selected Intention, Specific,
-                      Outcome Lane, Scope, Scene Impact, fictional position, and Restriction.
-                    </p>
 
                     <section className="rounded-lg border border-cyan-900/70 bg-cyan-950/20 p-3">
                       <h4 className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
@@ -4825,16 +4929,34 @@ export default function CharacterBuilderPage() {
                     ) : null}
 
                     <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-zinc-800 pt-3 text-xs text-zinc-400">
-                      <span>Outcome: {outcomeLaneLabel}</span>
-                      <span>Standard Use: Power Action</span>
-                      <span>Roleplay Window: 1 Response</span>
-                      <span>Normal Assist: No</span>
-                      <span>Counter: {ability.counter ? "Yes" : "No"}</span>
-                      <span
-                        title="Cooldown will derive from pre-restriction gross cost, not discounted net spend."
-                      >
-                        Cooldown: Derived from gross cost
-                      </span>
+                      {customOutcomeSelected ? (
+                        <>
+                          <span>Contract: Custom — Pending GD Approval</span>
+                          <span>Proposed Outcome: {outcomeLaneLabel}</span>
+                          <span>Automatic Costing: Unavailable</span>
+                          <span>Counter Requested: {ability.counter ? "Yes" : "No"}</span>
+                          <span>Cooldown: Pending approval</span>
+                        </>
+                      ) : outcomeContractUnselected ? (
+                        <>
+                          <span>Contract: Not selected</span>
+                          <span>Automatic Costing: Unavailable</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Contract: {outcomeContractName}</span>
+                          <span>Outcome: {outcomeLaneLabel}</span>
+                          <span>Standard Use: Power Action</span>
+                          <span>Roleplay Window: 1 Response</span>
+                          <span>Normal Assist: No</span>
+                          <span>Counter: {ability.counter ? "Yes" : "No"}</span>
+                          <span
+                            title="Cooldown will derive from pre-restriction gross cost, not discounted net spend."
+                          >
+                            Cooldown: Derived from gross cost
+                          </span>
+                        </>
+                      )}
                     </div>
                     </div>
                     ) : null}

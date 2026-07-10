@@ -1,7 +1,14 @@
 import {
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
   createDefaultRoleplayAbility,
+  getCompatibleRoleplayOutcomeContracts,
+  getRoleplayAbilityCounterEligibility,
+  getRoleplayAbilityOutcomeLane,
+  getRoleplayAbilitySuccessOutcome,
   getRoleplayAbilityWarnings,
   normalizeRoleplayAbility,
+  reconcileRoleplayAbilityContract,
   renderRoleplayAbilityDescriptor,
 } from "../lib/characterBuilder/roleplayAbilities";
 
@@ -15,7 +22,7 @@ function assertEqual<T>(actual: T, expected: T, message: string) {
   }
 }
 
-const legacyYouShallNotPass = normalizeRoleplayAbility(
+const youShallNotPass = normalizeRoleplayAbility(
   {
     name: "You Shall Not Pass",
     description: "Gandalf bars the enemy's advance.",
@@ -24,60 +31,68 @@ const legacyYouShallNotPass = normalizeRoleplayAbility(
     sceneImpact: "MAJOR",
     scope: "ONE_TARGET",
     diceCount: 4,
-    outputCategory: "MOMENTUM_HESITATION",
-    outputSubtype: "DENY_HOSTILE_ACTION",
-    crisisAssist: true,
+    outcomeLane: "HINDER",
+    successOutcome: "the target's current or next hostile action fails",
+    counter: true,
     restrictionType: "TARGET_ELIGIBILITY",
     restrictionBand: "HARSH",
-    restrictionTag: "Agent of Morgoth",
+    restrictionTag: "one Agent of Morgoth",
   },
   0,
 );
 
 assertEqual(
-  legacyYouShallNotPass.outcomeLane,
+  youShallNotPass.outcomeContractId,
+  "DENY_IMMINENT_HOSTILE_ACT",
+  "You Shall Not Pass should migrate to Deny Imminent Hostile Act.",
+);
+assertEqual(
+  getRoleplayAbilityOutcomeLane(youShallNotPass),
   "HINDER",
-  "Legacy Deny Hostile Action should migrate to Hinder.",
+  "Deny Imminent Hostile Act should derive Hinder.",
 );
 assertEqual(
-  legacyYouShallNotPass.successOutcome,
+  getRoleplayAbilitySuccessOutcome(youShallNotPass),
   "the target's current or next hostile action fails",
-  "Legacy Deny Hostile Action should receive the locked Success Outcome.",
+  "Deny Imminent Hostile Act derived outcome mismatch.",
 );
 assertEqual(
-  legacyYouShallNotPass.restrictionTag,
-  "one Agent of Morgoth",
-  "Legacy Deny Hostile Action should migrate its restricted target phrase.",
-);
-assert(
-  !Object.hasOwn(legacyYouShallNotPass, "outputCategory"),
-  "Normalized legacy data must not retain outputCategory.",
-);
-assert(
-  !Object.hasOwn(legacyYouShallNotPass, "outputSubtype"),
-  "Normalized legacy data must not retain outputSubtype.",
-);
-assert(
-  !Object.hasOwn(legacyYouShallNotPass, "crisisAssist"),
-  "Normalized legacy data must not retain crisisAssist.",
+  getRoleplayAbilityCounterEligibility(youShallNotPass),
+  true,
+  "Deny Imminent Hostile Act should permit Counter authoring.",
 );
 assertEqual(
-  renderRoleplayAbilityDescriptor(legacyYouShallNotPass),
+  renderRoleplayAbilityDescriptor(youShallNotPass),
   "Choose one Agent of Morgoth and roll 4 dice. On success, the target's current or next hostile action fails.",
-  "Legacy You Shall Not Pass descriptor mismatch.",
+  "You Shall Not Pass descriptor mismatch.",
 );
+assert(
+  !Object.hasOwn(youShallNotPass, "successOutcome"),
+  "Normalized data must not retain successOutcome.",
+);
+assert(
+  !Object.hasOwn(youShallNotPass, "outcomeLane"),
+  "Normalized data must not retain outcomeLane.",
+);
+for (const obsoleteField of ["outputCategory", "outputSubtype", "crisisAssist"]) {
+  assert(
+    !Object.hasOwn(youShallNotPass, obsoleteField),
+    `Normalized data must not retain ${obsoleteField}.`,
+  );
+}
 
 const frodoHide = normalizeRoleplayAbility(
   {
     name: "Frodo Hide!",
-    description: "The warning sends Frodo diving out of sight.",
+    description: "A warning sends Frodo diving out of sight.",
     intention: "INTERVENTION",
     specific: "RESCUE",
-    outcomeLane: "HELP",
-    successOutcome: "the target becomes hidden from the immediate danger",
     sceneImpact: "MINOR",
     scope: "ONE_TARGET",
     diceCount: 3,
+    outcomeLane: "HELP",
+    successOutcome: "the target becomes hidden from the immediate danger",
+    counter: true,
     restrictionType: "TARGET_ELIGIBILITY",
     restrictionBand: "HARSH",
     restrictionTag: "Frodo",
@@ -86,29 +101,166 @@ const frodoHide = normalizeRoleplayAbility(
 );
 
 assertEqual(
+  frodoHide.outcomeContractId,
+  "HIDE_FROM_IMMEDIATE_DANGER",
+  "Frodo Hide should migrate to Hide from Immediate Danger.",
+);
+assertEqual(
+  getRoleplayAbilityOutcomeLane(frodoHide),
+  "HELP",
+  "Hide from Immediate Danger should derive Help.",
+);
+assertEqual(
+  getRoleplayAbilityCounterEligibility(frodoHide),
+  false,
+  "Hide from Immediate Danger should not permit Counter authoring.",
+);
+assertEqual(frodoHide.counter, false, "Hide contract should force Counter off.");
+assertEqual(
   renderRoleplayAbilityDescriptor(frodoHide),
   "Choose Frodo and roll 3 dice. On success, the target becomes hidden from the immediate danger.",
   "Frodo Hide descriptor mismatch.",
 );
 
-const blankOutcome = createDefaultRoleplayAbility(2);
-assert(
-  renderRoleplayAbilityDescriptor(blankOutcome).includes("[define the success outcome]"),
-  "Blank Success Outcome descriptor should display its authoring placeholder.",
+const unknownLegacyOutcomeText = "the crowd accepts the bearer as their lost queen";
+const unknownLegacyOutcome = normalizeRoleplayAbility(
+  {
+    intention: "PERSUASION",
+    specific: "APPEAL",
+    sceneImpact: "STANDARD",
+    scope: "SMALL_GROUP",
+    outcomeLane: "HINDER",
+    successOutcome: unknownLegacyOutcomeText,
+  },
+  2,
+);
+assertEqual(
+  unknownLegacyOutcome.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  "Unknown legacy prose should migrate to Custom Review.",
+);
+assertEqual(
+  unknownLegacyOutcome.customOutcomeRequest,
+  unknownLegacyOutcomeText,
+  "Unknown legacy prose should be preserved exactly.",
+);
+assertEqual(
+  unknownLegacyOutcome.customOutcomeLane,
+  "HINDER",
+  "Valid legacy lane should be preserved for Custom Review.",
 );
 assert(
-  getRoleplayAbilityWarnings(blankOutcome).some((warning) =>
-    warning.includes("Success Outcome"),
+  getRoleplayAbilityWarnings(unknownLegacyOutcome).some((warning) =>
+    warning.includes("Game Director approval") && warning.includes("automatically costed"),
   ),
-  "Blank Success Outcome should produce a warning.",
+  "Custom Review should warn about approval and automatic costing.",
 );
+
+const incompatibleKnownOutcome = normalizeRoleplayAbility(
+  {
+    intention: "INTERVENTION",
+    specific: "RESCUE",
+    sceneImpact: "MINOR",
+    scope: "ONE_TARGET",
+    outcomeLane: "HINDER",
+    successOutcome: "the target's current or next hostile action fails",
+  },
+  3,
+);
+assertEqual(
+  incompatibleKnownOutcome.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  "A known outcome with incompatible authoring should migrate to Custom Review.",
+);
+assertEqual(
+  incompatibleKnownOutcome.customOutcomeRequest,
+  "the target's current or next hostile action fails",
+  "Incompatible known outcome text should be preserved for review.",
+);
+
+const blankLegacyOutcome = normalizeRoleplayAbility(
+  {
+    intention: "PERSUASION",
+    specific: "ENCOURAGE",
+    successOutcome: "",
+  },
+  4,
+);
+assertEqual(
+  blankLegacyOutcome.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+  "Blank legacy outcome should migrate to Unselected.",
+);
+assert(
+  renderRoleplayAbilityDescriptor(blankLegacyOutcome).includes(
+    "[select an outcome contract]",
+  ),
+  "Unselected descriptor should request an Outcome Contract.",
+);
+assert(
+  getRoleplayAbilityWarnings(blankLegacyOutcome).includes("Outcome Contract is required."),
+  "Unselected ability should warn that Outcome Contract is required.",
+);
+
+const hideAuthoring = {
+  intention: "INTERVENTION" as const,
+  specific: "RESCUE" as const,
+  sceneImpact: "MINOR" as const,
+  scope: "ONE_TARGET" as const,
+};
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(hideAuthoring).map((contract) => contract.id).join(","),
+  "HIDE_FROM_IMMEDIATE_DANGER",
+  "Only Hide should match its approved authoring combination.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts({ ...hideAuthoring, sceneImpact: "MAJOR" }).length,
+  0,
+  "Hide should not match an incompatible Impact.",
+);
+
+const denyAuthoring = {
+  intention: "INTERVENTION" as const,
+  specific: "INTERRUPT" as const,
+  sceneImpact: "MAJOR" as const,
+  scope: "ONE_TARGET" as const,
+};
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(denyAuthoring).map((contract) => contract.id).join(","),
+  "DENY_IMMINENT_HOSTILE_ACT",
+  "Only Deny should match its approved authoring combination.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts({ ...denyAuthoring, scope: "SMALL_GROUP" }).length,
+  0,
+  "Deny should not match an incompatible Scope.",
+);
+
+const denyWithCounter = reconcileRoleplayAbilityContract({
+  ...createDefaultRoleplayAbility(4),
+  ...denyAuthoring,
+  outcomeContractId: "DENY_IMMINENT_HOSTILE_ACT",
+  counter: true,
+});
+assertEqual(denyWithCounter.counter, true, "Deny should preserve requested Counter.");
+
+const invalidatedDeny = reconcileRoleplayAbilityContract({
+  ...denyWithCounter,
+  sceneImpact: "MINOR",
+});
+assertEqual(
+  invalidatedDeny.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+  "Incompatible Deny authoring should clear the contract.",
+);
+assertEqual(invalidatedDeny.counter, false, "Clearing Deny should also clear Counter.");
 
 const legacyEnableMovement = normalizeRoleplayAbility(
   {
     intention: "INTERVENTION",
     specific: "ENABLE_MOVEMENT",
   },
-  3,
+  6,
 );
 assertEqual(
   legacyEnableMovement.specific,
@@ -116,4 +268,4 @@ assertEqual(
   "Legacy ENABLE_MOVEMENT should normalize to RESCUE.",
 );
 
-console.log("PASS roleplay ability builder smoke");
+console.log("PASS roleplay outcome contract registry smoke");
