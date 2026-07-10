@@ -15,7 +15,12 @@ const AXES: {
   labelLines: string[];
   description?: string;
 }[] = [
-  { key: "physicalSurvivability", labelLines: ["Physical", "Survivability"] },
+  {
+    key: "physicalSurvivability",
+    labelLines: ["Physical", "Survivability"],
+    description:
+      "Physical durability compared with the expected defensive package for this creature's level, tier, and Legendary state.",
+  },
   {
     key: "physicalThreat",
     labelLines: ["Physical", "Threat"],
@@ -28,7 +33,12 @@ const AXES: {
     description:
       "Mental offence compared with the expected output for this creature's level and tier.",
   },
-  { key: "mentalSurvivability", labelLines: ["Mental", "Survivability"] },
+  {
+    key: "mentalSurvivability",
+    labelLines: ["Mental", "Survivability"],
+    description:
+      "Mental durability compared with the expected defensive package for this creature's level, tier, and Legendary state.",
+  },
   { key: "manipulation", labelLines: ["Control", "Pressure"] },
   { key: "synergy", labelLines: ["Synergy"] },
   { key: "mobility", labelLines: ["Mobility"] },

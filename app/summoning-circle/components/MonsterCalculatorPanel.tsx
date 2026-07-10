@@ -208,9 +208,14 @@ export function MonsterCalculatorPanel({
                   power availability, and outcome normalization.
                 </p>
                 <p className="text-[11px] text-zinc-500">
-                  Threat scores are baseline-relative 0-10 ratings. They include
-                  attack dice, W/S, target count, attack powers, traits, and
-                  repeatability where available.
+                  Threat and survivability scores are baseline-relative 0-10
+                  ratings. Survivability includes health, Protection, defence,
+                  Dodge or resist coverage, powers, traits, equipment, and
+                  Legendary injury persistence where supported.
+                </p>
+                <p className="text-[11px] text-zinc-500">
+                  Survivability is relative, not a literal HP or attacks-to-defeat
+                  value.
                 </p>
               </div>
               <OutcomeRadar
@@ -223,8 +228,9 @@ export function MonsterCalculatorPanel({
                   Debug
                 </summary>
                 <p className="mt-2 text-zinc-500">
-                  Raw output is compared against the accepted benchmark package
-                  before being converted to a 0-10 axis score.
+                  Raw defensive output is compared with the accepted package for
+                  the creature&apos;s level, tier, lane, and Legendary state before
+                  being converted to a 0-10 score.
                 </p>
                 <pre className="mt-2 overflow-auto">
                   {JSON.stringify(
