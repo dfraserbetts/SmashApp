@@ -129,7 +129,8 @@ export const ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW = "CUSTOM_REVIEW" as const;
 
 export type RoleplayStandardOutcomeContractId =
   | "HIDE_FROM_IMMEDIATE_DANGER"
-  | "DENY_IMMINENT_HOSTILE_ACT";
+  | "DENY_IMMINENT_HOSTILE_ACT"
+  | "DRAW_HOSTILE_ATTENTION";
 
 export type RoleplayOutcomeContractId =
   | RoleplayStandardOutcomeContractId
@@ -143,14 +144,20 @@ export type RoleplayOutcomeContractAuthoring = {
   scope: RoleplayScope;
 };
 
+export type RoleplayOutcomeContractVariant = {
+  authoring: RoleplayOutcomeContractAuthoring;
+  successOutcome: string;
+  counterEligible: boolean;
+  privilegeCostKey: string;
+  examples?: readonly string[];
+  exclusions?: readonly string[];
+};
+
 export type RoleplayOutcomeContractDefinition = {
   id: RoleplayStandardOutcomeContractId;
   name: string;
   outcomeLane: RoleplayOutcomeLane;
-  successOutcome: string;
-  compatibleAuthoring: readonly RoleplayOutcomeContractAuthoring[];
-  counterEligible: boolean;
-  privilegeCostKey: string;
+  variants: readonly RoleplayOutcomeContractVariant[];
   examples: readonly string[];
   exclusions: readonly string[];
 };
@@ -160,17 +167,19 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "HIDE_FROM_IMMEDIATE_DANGER",
     name: "Hide from Immediate Danger",
     outcomeLane: "HELP",
-    successOutcome: "the target becomes hidden from the immediate danger",
-    compatibleAuthoring: [
+    variants: [
       {
-        intention: "INTERVENTION",
-        specific: "RESCUE",
-        sceneImpact: "MINOR",
-        scope: "ONE_TARGET",
+        authoring: {
+          intention: "INTERVENTION",
+          specific: "RESCUE",
+          sceneImpact: "MINOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome: "the target becomes hidden from the immediate danger",
+        counterEligible: false,
+        privilegeCostKey: "HIDE_FROM_IMMEDIATE_DANGER",
       },
     ],
-    counterEligible: false,
-    privilegeCostKey: "HIDE_FROM_IMMEDIATE_DANGER",
     examples: [
       "Diving between ruined stones",
       "Disappearing into a crowd",
@@ -192,17 +201,19 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "DENY_IMMINENT_HOSTILE_ACT",
     name: "Deny Imminent Hostile Act",
     outcomeLane: "HINDER",
-    successOutcome: "the target's current or next hostile action fails",
-    compatibleAuthoring: [
+    variants: [
       {
-        intention: "INTERVENTION",
-        specific: "INTERRUPT",
-        sceneImpact: "MAJOR",
-        scope: "ONE_TARGET",
+        authoring: {
+          intention: "INTERVENTION",
+          specific: "INTERRUPT",
+          sceneImpact: "MAJOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome: "the target's current or next hostile action fails",
+        counterEligible: true,
+        privilegeCostKey: "DENY_IMMINENT_HOSTILE_ACT",
       },
     ],
-    counterEligible: true,
-    privilegeCostKey: "DENY_IMMINENT_HOSTILE_ACT",
     examples: ["Stopping an imminent hostile act before it resolves"],
     exclusions: [
       "Does not permanently incapacitate the target.",
@@ -211,6 +222,81 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not prevent every action for the scene.",
       "Does not become ordinary Block, Dodge, Resist, or Cleanse.",
       "Does not automatically affect a group.",
+    ],
+  },
+  {
+    id: "DRAW_HOSTILE_ATTENTION",
+    name: "Draw Hostile Attention",
+    outcomeLane: "HINDER",
+    variants: [
+      {
+        authoring: {
+          intention: "INTIMIDATION",
+          specific: "CHALLENGE",
+          sceneImpact: "MINOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the next time the target acts with hostility, it must direct that hostility at you, if you are a valid target",
+        counterEligible: false,
+        privilegeCostKey: "DRAW_HOSTILE_ATTENTION_MINOR",
+      },
+      {
+        authoring: {
+          intention: "INTIMIDATION",
+          specific: "CHALLENGE",
+          sceneImpact: "STANDARD",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "until the end of the target's next turn in combat, or the end of the current meaningful exchange outside combat, whenever the target acts with hostility, it must direct that hostility at you, if you are a valid target",
+        counterEligible: false,
+        privilegeCostKey: "DRAW_HOSTILE_ATTENTION_STANDARD",
+      },
+      {
+        authoring: {
+          intention: "INTIMIDATION",
+          specific: "CHALLENGE",
+          sceneImpact: "MAJOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "for the rest of the current scene, whenever the target acts with hostility, it must direct that hostility at you, if you are a valid target",
+        counterEligible: false,
+        privilegeCostKey: "DRAW_HOSTILE_ATTENTION_MAJOR",
+      },
+      {
+        authoring: {
+          intention: "INTIMIDATION",
+          specific: "CHALLENGE",
+          sceneImpact: "LEGENDARY",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the target recognises you as its personal rival until the rivalry is narratively resolved",
+        counterEligible: false,
+        privilegeCostKey: "DRAW_HOSTILE_ATTENTION_LEGENDARY",
+      },
+    ],
+    examples: [
+      "Challenging an enemy warrior to focus on you",
+      "Drawing an accusation away from an ally in court",
+      "Making yourself the focus of hostile questioning",
+      "Confronting a political rival",
+      "Establishing an enduring personal rivalry at Legendary Impact",
+    ],
+    exclusions: [
+      "Does not create hostility where none exists.",
+      "Does not compel the target to perform a hostile act.",
+      "Does not make you a valid target.",
+      "Does not force movement or create range.",
+      "Does not force impossible or illegal actions.",
+      "Does not alter rolls or quantified output.",
+      "Does not create Control stacks.",
+      "Does not prevent area or multi-target actions from affecting others where normally legal.",
+      "Does not prevent immediate self-preservation.",
+      "Does not automatically affect a group.",
+      "Legendary creates rivalry rather than permanent mechanical domination.",
     ],
   },
 ] as const satisfies readonly RoleplayOutcomeContractDefinition[];
@@ -284,21 +370,30 @@ export function getRoleplaySpecificOptions(intention: RoleplayIntention) {
   return ROLEPLAY_SPECIFIC_OPTIONS[intention];
 }
 
-export function getRoleplayOutcomeContract(id: unknown) {
+export function getRoleplayOutcomeContract(
+  id: unknown,
+): RoleplayOutcomeContractDefinition | null {
   return ROLEPLAY_OUTCOME_CONTRACTS.find((contract) => contract.id === id) ?? null;
+}
+
+export function getRoleplayOutcomeContractVariant(
+  contract: RoleplayOutcomeContractDefinition,
+  authoring: RoleplayAbilityAuthoring,
+): RoleplayOutcomeContractVariant | null {
+  return contract.variants.find(
+    (variant) =>
+      variant.authoring.intention === authoring.intention &&
+      variant.authoring.specific === authoring.specific &&
+      variant.authoring.sceneImpact === authoring.sceneImpact &&
+      variant.authoring.scope === authoring.scope,
+  ) ?? null;
 }
 
 export function isRoleplayOutcomeContractCompatible(
   contract: RoleplayOutcomeContractDefinition,
   authoring: RoleplayAbilityAuthoring,
 ) {
-  return contract.compatibleAuthoring.some(
-    (compatible) =>
-      compatible.intention === authoring.intention &&
-      compatible.specific === authoring.specific &&
-      compatible.sceneImpact === authoring.sceneImpact &&
-      compatible.scope === authoring.scope,
-  );
+  return getRoleplayOutcomeContractVariant(contract, authoring) !== null;
 }
 
 export function getCompatibleRoleplayOutcomeContracts(authoring: RoleplayAbilityAuthoring) {
@@ -313,10 +408,13 @@ export function getRoleplayAbilityOutcomeLane(ability: RoleplayAbility) {
 }
 
 export function getRoleplayAbilitySuccessOutcome(ability: RoleplayAbility) {
-  return getRoleplayOutcomeContract(ability.outcomeContractId)?.successOutcome ??
-    (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW
-      ? ability.customOutcomeRequest
-      : "");
+  const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
+  if (contract) {
+    return getRoleplayOutcomeContractVariant(contract, ability)?.successOutcome ?? "";
+  }
+  return ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW
+    ? ability.customOutcomeRequest
+    : "";
 }
 
 export function getRoleplayAbilityContractName(ability: RoleplayAbility) {
@@ -328,7 +426,10 @@ export function getRoleplayAbilityContractName(ability: RoleplayAbility) {
 
 export function getRoleplayAbilityCounterEligibility(ability: RoleplayAbility) {
   if (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW) return true;
-  return getRoleplayOutcomeContract(ability.outcomeContractId)?.counterEligible ?? false;
+  const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
+  return contract
+    ? (getRoleplayOutcomeContractVariant(contract, ability)?.counterEligible ?? false)
+    : false;
 }
 
 export function reconcileRoleplayAbilityContract(ability: RoleplayAbility): RoleplayAbility {
@@ -338,14 +439,17 @@ export function reconcileRoleplayAbilityContract(ability: RoleplayAbility): Role
   }
 
   const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
-  if (!contract || !isRoleplayOutcomeContractCompatible(contract, ability)) {
+  const variant = contract
+    ? getRoleplayOutcomeContractVariant(contract, ability)
+    : null;
+  if (!contract || !variant) {
     return {
       ...ability,
       outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
       counter: false,
     };
   }
-  if (!contract.counterEligible && ability.counter) {
+  if (!variant.counterEligible && ability.counter) {
     return { ...ability, counter: false };
   }
   return ability;
@@ -422,14 +526,13 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
       outcomeContractId = ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED;
     } else {
       const normalizedLegacyOutcome = normalizeOutcomeForMigration(legacySuccessOutcome);
-      const matchingContract = ROLEPLAY_OUTCOME_CONTRACTS.find(
-        (contract) =>
-          normalizeOutcomeForMigration(contract.successOutcome) === normalizedLegacyOutcome,
+      const matchingContract = ROLEPLAY_OUTCOME_CONTRACTS.find((contract) =>
+        contract.variants.some(
+          (variant) =>
+            normalizeOutcomeForMigration(variant.successOutcome) === normalizedLegacyOutcome,
+        ),
       );
-      if (
-        matchingContract &&
-        isRoleplayOutcomeContractCompatible(matchingContract, authoring)
-      ) {
+      if (matchingContract && isRoleplayOutcomeContractCompatible(matchingContract, authoring)) {
         outcomeContractId = matchingContract.id;
       } else {
         outcomeContractId = ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW;
@@ -532,12 +635,15 @@ export function getRoleplayAbilityWarnings(ability: RoleplayAbility): string[] {
   }
 
   const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
+  const variant = contract
+    ? getRoleplayOutcomeContractVariant(contract, ability)
+    : null;
   if (contract && !isRoleplayOutcomeContractCompatible(contract, ability)) {
     warnings.push(
       "The selected Outcome Contract is incompatible with the current Intention, Specific, Scene Impact, or Scope.",
     );
   }
-  if (contract && ability.counter && !contract.counterEligible) {
+  if (contract && ability.counter && !variant?.counterEligible) {
     warnings.push("The selected Outcome Contract does not permit Counter authoring.");
   }
   if (

@@ -4496,6 +4496,10 @@ export default function CharacterBuilderPage() {
                   ROLEPLAY_OUTCOME_LANE_OPTIONS.find(
                     (option) => option.value === outcomeLane,
                   )?.label ?? outcomeLane;
+                const sceneImpactLabel =
+                  ROLEPLAY_SCENE_IMPACT_OPTIONS.find(
+                    (option) => option.value === ability.sceneImpact,
+                  )?.label ?? ability.sceneImpact;
                 const successOutcome = getRoleplayAbilitySuccessOutcome(ability);
                 const outcomeContractName = getRoleplayAbilityContractName(ability);
                 const counterEligible = getRoleplayAbilityCounterEligibility(ability);
@@ -4717,13 +4721,17 @@ export default function CharacterBuilderPage() {
                             <dt className="text-xs text-cyan-500">Outcome Lane</dt>
                             <dd>{outcomeLaneLabel}</dd>
                           </div>
+                          <div>
+                            <dt className="text-xs text-cyan-500">Variant</dt>
+                            <dd>{sceneImpactLabel}</dd>
+                          </div>
                           <div className="sm:col-span-2">
                             <dt className="text-xs text-cyan-500">Success Outcome</dt>
                             <dd>{successOutcome}</dd>
                           </div>
                           <div>
                             <dt className="text-xs text-cyan-500">Counter Eligible</dt>
-                            <dd>{selectedContract.counterEligible ? "Yes" : "No"}</dd>
+                            <dd>{counterEligible ? "Yes" : "No"}</dd>
                           </div>
                         </dl>
                         <p className="mt-2 text-xs text-cyan-400">
@@ -4821,7 +4829,9 @@ export default function CharacterBuilderPage() {
 
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       <label>
-                        <span className="text-xs text-zinc-400">Restriction Type</span>
+                        <span className="text-xs text-zinc-400">
+                          Additional Restriction Type
+                        </span>
                         <select
                           value={ability.restrictionType}
                           onChange={(event) => {
@@ -4867,6 +4877,11 @@ export default function CharacterBuilderPage() {
                         </label>
                       ) : null}
                     </div>
+                    <p className="text-xs text-zinc-600">
+                      An Additional Restriction must narrow the Ability beyond the Outcome
+                      Contract&apos;s built-in limits. Repeating the contract&apos;s normal
+                      applicability earns no discount.
+                    </p>
 
                     {ability.restrictionType !== "NONE" ? (
                       <div className="grid gap-3 sm:grid-cols-2">

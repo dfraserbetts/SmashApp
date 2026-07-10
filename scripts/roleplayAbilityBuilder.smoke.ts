@@ -255,6 +255,123 @@ assertEqual(
 );
 assertEqual(invalidatedDeny.counter, false, "Clearing Deny should also clear Counter.");
 
+const drawHostileAttentionOutcomes = {
+  MINOR:
+    "the next time the target acts with hostility, it must direct that hostility at you, if you are a valid target",
+  STANDARD:
+    "until the end of the target's next turn in combat, or the end of the current meaningful exchange outside combat, whenever the target acts with hostility, it must direct that hostility at you, if you are a valid target",
+  MAJOR:
+    "for the rest of the current scene, whenever the target acts with hostility, it must direct that hostility at you, if you are a valid target",
+  LEGENDARY:
+    "the target recognises you as its personal rival until the rivalry is narratively resolved",
+} as const;
+
+const drawHostileAttentionDescriptors = {
+  MINOR:
+    "Choose one target and roll 3 dice. On success, the next time the target acts with hostility, it must direct that hostility at you, if you are a valid target.",
+  STANDARD:
+    "Choose one target and roll 3 dice. On success, until the end of the target's next turn in combat, or the end of the current meaningful exchange outside combat, whenever the target acts with hostility, it must direct that hostility at you, if you are a valid target.",
+  MAJOR:
+    "Choose one target and roll 3 dice. On success, for the rest of the current scene, whenever the target acts with hostility, it must direct that hostility at you, if you are a valid target.",
+  LEGENDARY:
+    "Choose one target and roll 3 dice. On success, the target recognises you as its personal rival until the rivalry is narratively resolved.",
+} as const;
+
+const drawBase = {
+  ...createDefaultRoleplayAbility(5),
+  name: "Face Me",
+  description: "The hero calls out the foe.",
+  intention: "INTIMIDATION" as const,
+  specific: "CHALLENGE" as const,
+  sceneImpact: "MINOR" as const,
+  scope: "ONE_TARGET" as const,
+  diceCount: 3 as const,
+  outcomeContractId: "DRAW_HOSTILE_ATTENTION" as const,
+};
+
+for (const sceneImpact of ["MINOR", "STANDARD", "MAJOR", "LEGENDARY"] as const) {
+  const authoring = { ...drawBase, sceneImpact };
+  assert(
+    getCompatibleRoleplayOutcomeContracts(authoring).some(
+      (contract) => contract.id === "DRAW_HOSTILE_ATTENTION",
+    ),
+    `Draw Hostile Attention should be available at ${sceneImpact} Impact.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(authoring),
+    drawHostileAttentionOutcomes[sceneImpact],
+    `Draw Hostile Attention ${sceneImpact} outcome mismatch.`,
+  );
+  assertEqual(
+    renderRoleplayAbilityDescriptor(authoring),
+    drawHostileAttentionDescriptors[sceneImpact],
+    `Draw Hostile Attention ${sceneImpact} descriptor mismatch.`,
+  );
+  assertEqual(
+    getRoleplayAbilityCounterEligibility(authoring),
+    false,
+    `Draw Hostile Attention ${sceneImpact} should not permit Counter.`,
+  );
+  assertEqual(
+    reconcileRoleplayAbilityContract({ ...authoring, counter: true }).counter,
+    false,
+    `Draw Hostile Attention ${sceneImpact} should force Counter off.`,
+  );
+}
+
+assert(
+  !getCompatibleRoleplayOutcomeContracts({
+    ...drawBase,
+    intention: "PERSUASION",
+    specific: "CHALLENGE",
+  }).some((contract) => contract.id === "DRAW_HOSTILE_ATTENTION"),
+  "Draw Hostile Attention should not appear for Persuasion / Challenge.",
+);
+assert(
+  !getCompatibleRoleplayOutcomeContracts({ ...drawBase, specific: "THREATEN" }).some(
+    (contract) => contract.id === "DRAW_HOSTILE_ATTENTION",
+  ),
+  "Draw Hostile Attention should not appear for Intimidation / Threaten.",
+);
+assert(
+  !getCompatibleRoleplayOutcomeContracts({ ...drawBase, scope: "SMALL_GROUP" }).some(
+    (contract) => contract.id === "DRAW_HOSTILE_ATTENTION",
+  ),
+  "Draw Hostile Attention should not appear for Small Group scope.",
+);
+
+let persistentDraw = reconcileRoleplayAbilityContract(drawBase);
+for (const sceneImpact of ["STANDARD", "MAJOR", "LEGENDARY"] as const) {
+  persistentDraw = reconcileRoleplayAbilityContract({ ...persistentDraw, sceneImpact });
+  assertEqual(
+    persistentDraw.outcomeContractId,
+    "DRAW_HOSTILE_ATTENTION",
+    `Changing Draw Hostile Attention to ${sceneImpact} should retain its family ID.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(persistentDraw),
+    drawHostileAttentionOutcomes[sceneImpact],
+    `Changing Draw Hostile Attention to ${sceneImpact} should update its outcome.`,
+  );
+}
+
+for (const [label, invalidDraw] of [
+  ["Scope", { ...drawBase, scope: "SMALL_GROUP" as const }],
+  ["Specific", { ...drawBase, specific: "THREATEN" as const }],
+  [
+    "Intention",
+    { ...drawBase, intention: "PERSUASION" as const, specific: "ENCOURAGE" as const },
+  ],
+] as const) {
+  const reconciled = reconcileRoleplayAbilityContract({ ...invalidDraw, counter: true });
+  assertEqual(
+    reconciled.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    `Changing Draw Hostile Attention ${label} should clear the contract.`,
+  );
+  assertEqual(reconciled.counter, false, `Changing ${label} should also clear Counter.`);
+}
+
 const legacyEnableMovement = normalizeRoleplayAbility(
   {
     intention: "INTERVENTION",
@@ -269,3 +386,4 @@ assertEqual(
 );
 
 console.log("PASS roleplay outcome contract registry smoke");
+console.log("PASS roleplay draw hostile attention contract smoke");
