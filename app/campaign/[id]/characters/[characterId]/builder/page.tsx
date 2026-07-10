@@ -98,6 +98,22 @@ import {
   validateCharacterPowers,
   type CharacterPower,
 } from "@/lib/characterBuilder/powers";
+import {
+  ROLEPLAY_DICE_COUNT_OPTIONS,
+  ROLEPLAY_INTENTION_OPTIONS,
+  ROLEPLAY_OUTPUT_CATEGORY_OPTIONS,
+  ROLEPLAY_RESTRICTION_BAND_OPTIONS,
+  ROLEPLAY_RESTRICTION_TYPE_OPTIONS,
+  ROLEPLAY_SCENE_IMPACT_OPTIONS,
+  ROLEPLAY_SCOPE_OPTIONS,
+  createDefaultRoleplayAbility,
+  getRoleplayAbilityResultWindow,
+  getRoleplayAbilityWarnings,
+  getRoleplayOutputSubtypeOptions,
+  getRoleplaySpecificOptions,
+  renderRoleplayAbilityDescriptor,
+  type RoleplayAbility,
+} from "@/lib/characterBuilder/roleplayAbilities";
 import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
 import type { CharacterBuilderTuningSnapshot } from "@/lib/config/characterBuilderTuningShared";
 import type { CombatDieSize } from "@/lib/combat-lab/types";
@@ -1492,6 +1508,46 @@ export default function CharacterBuilderPage() {
     updateBuilderData({
       powers: powers.map((power, index) => ({ ...power, sortOrder: index })),
     });
+  }
+
+  function updateRoleplayAbilities(roleplayAbilities: RoleplayAbility[]) {
+    updateBuilderData({
+      roleplayAbilities: roleplayAbilities.map((ability, index) => ({
+        ...ability,
+        sortOrder: index,
+      })),
+    });
+  }
+
+  function addRoleplayAbility() {
+    updateRoleplayAbilities([
+      ...builderData.roleplayAbilities,
+      createDefaultRoleplayAbility(builderData.roleplayAbilities.length),
+    ]);
+  }
+
+  function removeRoleplayAbility(index: number) {
+    updateRoleplayAbilities(
+      builderData.roleplayAbilities.filter(
+        (_, candidateIndex) => candidateIndex !== index,
+      ),
+    );
+  }
+
+  function updateRoleplayAbility(index: number, patch: Partial<RoleplayAbility>) {
+    updateRoleplayAbilities(
+      builderData.roleplayAbilities.map((ability, candidateIndex) => {
+        if (candidateIndex !== index) return ability;
+        const next = { ...ability, ...patch };
+        if (patch.intention && patch.intention !== ability.intention) {
+          next.specific = getRoleplaySpecificOptions(patch.intention)[0].value;
+        }
+        if (patch.outputCategory && patch.outputCategory !== ability.outputCategory) {
+          next.outputSubtype = getRoleplayOutputSubtypeOptions(patch.outputCategory)[0].value;
+        }
+        return next;
+      }),
+    );
   }
 
   function updateSignatureMove(power: CharacterPower | null) {
@@ -3375,7 +3431,7 @@ export default function CharacterBuilderPage() {
             <div className="text-sm font-medium text-zinc-200">Character Builder</div>
             <div className="text-xs text-zinc-500">
               Save applies Character Details, Narrative Details, Characteristics,
-              Attributes, Resist Points, Traits, Signature Move, and Powers.
+              Attributes, Resist Points, Traits, Roleplay Abilities, Signature Move, and Powers.
             </div>
           </div>
           <button
@@ -4330,6 +4386,370 @@ export default function CharacterBuilderPage() {
               ))}
             </ul>
           ) : null}
+        </div>
+      </details>
+
+      <details
+        className="rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+        data-testid="character-builder-section-roleplay-abilities"
+      >
+        <summary className="cursor-pointer">
+          <h2 className="text-lg font-semibold">Roleplay Abilities</h2>
+        </summary>
+        <div className="mt-4 space-y-4">
+          <div className="rounded-lg border border-zinc-800 bg-black p-3">
+            <p className="text-sm text-zinc-300">
+              Prototype builder. Name and Description are flavour only; the descriptor is
+              generated from structured fields.
+            </p>
+            <p className="mt-2 text-xs text-zinc-500">
+              Unless an Ability says otherwise, it can only affect a valid target in the same
+              scene that the actor can meaningfully perceive, address, or interact with. The GD
+              decides whether the declared method can reach that target.
+            </p>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={addRoleplayAbility}
+              disabled={!canEdit || saving}
+              className="rounded-lg border border-emerald-700 px-3 py-2 text-sm text-emerald-100 hover:bg-emerald-950/30 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Add Ability
+            </button>
+          </div>
+
+          {builderData.roleplayAbilities.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-zinc-800 bg-black p-4 text-sm text-zinc-500">
+              No roleplay abilities authored yet.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {builderData.roleplayAbilities.map((ability, index) => {
+                const specificOptions = getRoleplaySpecificOptions(ability.intention);
+                const outputSubtypeOptions = getRoleplayOutputSubtypeOptions(
+                  ability.outputCategory,
+                );
+                const warnings = getRoleplayAbilityWarnings(ability);
+                return (
+                  <article
+                    key={ability.id}
+                    className="space-y-4 rounded-xl border border-zinc-800 bg-black p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+                      <div>
+                        <h3 className="font-semibold text-zinc-100">
+                          {ability.name.trim() || `Roleplay Ability ${index + 1}`}
+                        </h3>
+                        <p className="text-xs text-zinc-500">Ability {index + 1}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeRoleplayAbility(index)}
+                        disabled={!canEdit || saving}
+                        className="rounded-lg border border-red-900 px-3 py-1 text-xs text-red-300 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Remove Ability
+                      </button>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label>
+                        <span className="text-xs text-zinc-400">Name</span>
+                        <input
+                          type="text"
+                          value={ability.name}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, { name: event.target.value })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        />
+                      </label>
+                      <label>
+                        <span className="text-xs text-zinc-400">Description</span>
+                        <textarea
+                          value={ability.description}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, { description: event.target.value })
+                          }
+                          disabled={!canEdit || saving}
+                          rows={2}
+                          className="mt-1 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      <label>
+                        <span className="text-xs text-zinc-400">Intention</span>
+                        <select
+                          value={ability.intention}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, {
+                              intention: event.target.value as RoleplayAbility["intention"],
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          {ROLEPLAY_INTENTION_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span className="text-xs text-zinc-400">Specific</span>
+                        <select
+                          value={ability.specific}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, {
+                              specific: event.target.value as RoleplayAbility["specific"],
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          {specificOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span className="text-xs text-zinc-400">Scene Impact</span>
+                        <select
+                          value={ability.sceneImpact}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, {
+                              sceneImpact: event.target.value as RoleplayAbility["sceneImpact"],
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          {ROLEPLAY_SCENE_IMPACT_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span className="text-xs text-zinc-400">Scope</span>
+                        <select
+                          value={ability.scope}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, {
+                              scope: event.target.value as RoleplayAbility["scope"],
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          {ROLEPLAY_SCOPE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span className="text-xs text-zinc-400">Dice Count</span>
+                        <select
+                          value={ability.diceCount}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, {
+                              diceCount: Number(event.target.value) as RoleplayAbility["diceCount"],
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          {ROLEPLAY_DICE_COUNT_OPTIONS.map((diceCount) => (
+                            <option key={diceCount} value={diceCount}>
+                              {diceCount}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span className="text-xs text-zinc-400">Output Category</span>
+                        <select
+                          value={ability.outputCategory}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, {
+                              outputCategory: event.target.value as RoleplayAbility["outputCategory"],
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          {ROLEPLAY_OUTPUT_CATEGORY_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span className="text-xs text-zinc-400">Output Subtype</span>
+                        <select
+                          value={ability.outputSubtype}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, {
+                              outputSubtype: event.target.value as RoleplayAbility["outputSubtype"],
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          {outputSubtypeOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span className="text-xs text-zinc-400">Restriction Type</span>
+                        <select
+                          value={ability.restrictionType}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, {
+                              restrictionType: event.target.value as RoleplayAbility["restrictionType"],
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          {ROLEPLAY_RESTRICTION_TYPE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span className="text-xs text-zinc-400">Restriction Band</span>
+                        <select
+                          value={ability.restrictionBand}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, {
+                              restrictionBand: event.target.value as RoleplayAbility["restrictionBand"],
+                            })
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          {ROLEPLAY_RESTRICTION_BAND_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label>
+                        <span className="text-xs text-zinc-400">Target label, singular</span>
+                        <input
+                          type="text"
+                          value={ability.restrictionTag}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, { restrictionTag: event.target.value })
+                          }
+                          disabled={!canEdit || saving}
+                          placeholder="Agent of Morgoth"
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500 disabled:opacity-60"
+                        />
+                        <span className="mt-1 block text-xs text-zinc-600">
+                          Example: Agent of Morgoth
+                        </span>
+                      </label>
+                      <label>
+                        <span className="text-xs text-zinc-400">Restriction Text</span>
+                        <textarea
+                          value={ability.restrictionText}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, { restrictionText: event.target.value })
+                          }
+                          disabled={!canEdit || saving}
+                          rows={2}
+                          placeholder="This ability can only affect Agents of Morgoth."
+                          className="mt-1 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-zinc-500 disabled:opacity-60"
+                        />
+                      </label>
+                    </div>
+
+                    <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                      <label className="flex items-center gap-2 text-sm text-zinc-300">
+                        <input
+                          type="checkbox"
+                          checked={ability.counter}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, { counter: event.target.checked })
+                          }
+                          disabled={!canEdit || saving}
+                          className="h-4 w-4 accent-emerald-500"
+                        />
+                        Counter
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-zinc-300">
+                        <input
+                          type="checkbox"
+                          checked={ability.crisisAssist}
+                          onChange={(event) =>
+                            updateRoleplayAbility(index, { crisisAssist: event.target.checked })
+                          }
+                          disabled={!canEdit || saving}
+                          className="h-4 w-4 accent-emerald-500"
+                        />
+                        Crisis Assist
+                      </label>
+                      <p className="basis-full text-xs text-zinc-500">
+                        Counter adds a legal use window; it does not make this ability counter-only.
+                        Deny Hostile Action is pass/fail and cannot be used as a normal Assist.
+                      </p>
+                    </div>
+
+                    <section className="rounded-lg border border-cyan-900/70 bg-cyan-950/20 p-3">
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                        Generated Descriptor
+                      </h4>
+                      <p className="mt-2 text-sm leading-relaxed text-cyan-50">
+                        {renderRoleplayAbilityDescriptor(ability)}
+                      </p>
+                    </section>
+
+                    {warnings.length > 0 ? (
+                      <ul className="list-disc space-y-1 rounded-lg border border-amber-900/70 bg-amber-950/20 p-3 pl-8 text-sm text-amber-200">
+                        {warnings.map((warning) => (
+                          <li key={warning}>{warning}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+
+                    <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-zinc-800 pt-3 text-xs text-zinc-400">
+                      <span>Counter: {ability.counter ? "Yes" : "No"}</span>
+                      <span>Crisis Assist: {ability.crisisAssist ? "Yes" : "No"}</span>
+                      <span
+                        title="Cooldown will derive from pre-restriction gross cost, not discounted net spend."
+                      >
+                        Cooldown: Derived from gross cost
+                      </span>
+                      <span>Result Window: {getRoleplayAbilityResultWindow(ability)}</span>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </div>
       </details>
 

@@ -1,4 +1,8 @@
 import { normalizeCharacterPower, normalizeCharacterPowers, type CharacterPower } from "@/lib/characterBuilder/powers";
+import {
+  normalizeRoleplayAbilities,
+  type RoleplayAbility,
+} from "@/lib/characterBuilder/roleplayAbilities";
 
 export const CHARACTER_ATTRIBUTES = [
   "Attack",
@@ -44,6 +48,7 @@ export type CharacterBuilderData = {
   resistPoints: Record<CharacterAttribute, number>;
   selectedTraitKeys: string[];
   equippedSlots: EquippedSlotsState;
+  roleplayAbilities: RoleplayAbility[];
   signatureMove: CharacterPower | null;
   powers: CharacterPower[];
 };
@@ -190,6 +195,7 @@ export function defaultBuilderData(): CharacterBuilderData {
     resistPoints: { ...DEFAULT_RESIST_POINTS },
     selectedTraitKeys: [],
     equippedSlots: {},
+    roleplayAbilities: [],
     signatureMove: null,
     powers: [],
   };
@@ -643,6 +649,7 @@ export function normalizeBuilderData(value: unknown): CharacterBuilderData {
     resistPoints: normalizeResistPoints(record.resistPoints),
     selectedTraitKeys: normalizeSelectedTraitKeys(record.selectedTraitKeys ?? defaults.selectedTraitKeys),
     equippedSlots: normalizeEquippedSlots(record.equippedSlots, record.equippedBackpackItems),
+    roleplayAbilities: normalizeRoleplayAbilities(record.roleplayAbilities),
     signatureMove: record.signatureMove ? normalizeCharacterPower(record.signatureMove, 0) : null,
     powers: normalizeCharacterPowers(record.powers),
   };
