@@ -78,6 +78,19 @@ function asNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function asNullableNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
+}
+
+function roundNullable(value: unknown, digits = 3): number | null {
+  const numeric = asNullableNumber(value);
+  return numeric === null ? null : round(numeric, digits);
+}
+
 function entriesToRecord(entries: Array<{ configKey: string; value: number }>) {
   return Object.fromEntries(entries.map((entry) => [entry.configKey, entry.value]));
 }
@@ -256,8 +269,65 @@ function summarizeMonster(
   const normalization = asRecord(debug.normalizationBreakdown);
   const curve = asRecord(asRecord(normalization.curvePoints).manipulation);
   const tierMultiplier = asNumber(normalization.tierMultiplier);
+  const controlPressureModel = asRecord(normalization.controlPressureAxisBaselineModel);
+  const duplicateHandling = asRecord(controlPressureModel.duplicateOverlapHandling);
+  const resistibilityContribution = asRecord(controlPressureModel.resistibilityContribution);
+  const semanticPackages = Array.isArray(controlPressureModel.semanticPackagesConsidered)
+    ? controlPressureModel.semanticPackagesConsidered.map((value) => {
+        const controlPackage = asRecord(value);
+        return {
+          sourcePowerId: controlPackage.sourcePowerId ?? null,
+          sourcePowerName: String(controlPackage.sourcePowerName ?? "unknown"),
+          packetIndex: asNumber(controlPackage.packetIndex),
+          effectFamily: String(controlPackage.effectFamily ?? "UNKNOWN"),
+          runtimeSemanticMode: String(controlPackage.runtimeSemanticMode ?? "unknown"),
+          affectedAttribute: controlPackage.affectedAttribute ?? null,
+          targetCount: asNumber(controlPackage.targetCount),
+          targetBreadth: round(asNumber(controlPackage.targetBreadth)),
+          duration: {
+            kind: String(controlPackage.durationKind ?? "UNKNOWN"),
+            turns: asNumber(controlPackage.durationTurns),
+            contribution: round(asNumber(controlPackage.durationContribution)),
+          },
+          recurrence: {
+            active: Boolean(controlPackage.recurrence),
+            contribution: round(asNumber(controlPackage.recurrenceContribution)),
+          },
+          cooldownAvailability: {
+            cooldownTurns: asNullableNumber(controlPackage.cooldownTurns),
+            band: String(controlPackage.availabilityBand ?? "UNKNOWN"),
+            contribution: round(asNumber(controlPackage.availabilityContribution)),
+          },
+          effectSeverity: round(asNumber(controlPackage.effectSeverity)),
+          supportedStackImpact: round(asNumber(controlPackage.supportedStackImpact)),
+          resistibility: {
+            status: String(controlPackage.resistibility ?? "UNKNOWN"),
+            gateCategory: controlPackage.resistGateCategory ?? null,
+            contribution: round(asNumber(controlPackage.reliabilityContribution)),
+          },
+          linkedPackage: {
+            linked: Boolean(controlPackage.linked),
+            dependencyMode: String(controlPackage.dependencyMode ?? "UNKNOWN"),
+            contribution: round(asNumber(controlPackage.linkedContribution)),
+          },
+          functionalSignature: String(controlPackage.functionalSignature ?? ""),
+          unsupportedAuthoringDistinctions: asStringArray(
+            controlPackage.unsupportedAuthoringDistinctions,
+          ),
+        };
+      })
+    : [];
+  const overlapDiminishingReturns = Array.isArray(duplicateHandling.overlapDiminishingReturns)
+    ? duplicateHandling.overlapDiminishingReturns.map((value) => {
+        const overlap = asRecord(value);
+        return {
+          signature: String(overlap.signature ?? ""),
+          factor: round(asNumber(overlap.factor)),
+        };
+      })
+    : [];
 
-  const packages = calculatorInput.powers
+  const legacyResolverPackages = calculatorInput.powers
     .map((power) => {
       const resolved = powerCosts.powers.find(
         (entry) => entry.powerId === power.id || entry.name === power.name,
@@ -331,15 +401,63 @@ function summarizeMonster(
     legendary: monster.legendary,
     controlPressure: {
       final: round(outcome.radarAxes.manipulation),
-      raw: round(asNumber(finalPre.manipulation)),
-      nonPower: round(asNumber(nonPower.manipulation)),
-      canonicalPower: round(asNumber(canonicalPower.manipulation)),
-      effectivePower: round(asNumber(effectivePower.manipulation)),
-      curve: {
-        min: round(asNumber(curve.min)),
-        max: round(asNumber(curve.max)),
-        tierMultiplier,
-        tierAdjustedMax: round(asNumber(curve.max) * tierMultiplier),
+      semanticModel: {
+        policy: String(controlPressureModel.policy ?? "unknown"),
+        mode: String(controlPressureModel.mode ?? "unknown"),
+        calibrated: Boolean(controlPressureModel.calibrated),
+        fallback: Boolean(controlPressureModel.fallback),
+        fallbackPolicy: controlPressureModel.fallbackPolicy ?? null,
+        baselinePackageId: controlPressureModel.baselinePackageId ?? null,
+        semanticRawProxy: round(asNumber(controlPressureModel.rawActualControlPressureProxy)),
+        baselineRawProxy: roundNullable(controlPressureModel.rawBaselineControlPressureProxy),
+        ratioToBaseline: roundNullable(controlPressureModel.ratioToBaseline),
+        uncappedScore: roundNullable(controlPressureModel.uncappedScore),
+        finalScore: roundNullable(controlPressureModel.finalScore),
+        capped: Boolean(controlPressureModel.capped),
+        capReason: controlPressureModel.capReason ?? null,
+        components: asRecord(controlPressureModel.components),
+        effectSeverity: round(asNumber(controlPressureModel.effectSeverity)),
+        targetBreadth: round(asNumber(controlPressureModel.targetBreadth)),
+        duration: round(asNumber(controlPressureModel.duration)),
+        recurrence: round(asNumber(controlPressureModel.recurrence)),
+        cooldownAvailability: round(asNumber(controlPressureModel.cooldownAvailability)),
+        actionEconomyContribution: round(
+          asNumber(controlPressureModel.actionEconomyContribution),
+        ),
+        resistibility: {
+          contribution: round(asNumber(resistibilityContribution.value)),
+          policy: String(resistibilityContribution.policy ?? "unknown"),
+          reliabilityValues: asRecord(resistibilityContribution.reliabilityValues),
+        },
+        linkedPackageContribution: round(
+          asNumber(controlPressureModel.linkedPackageContribution),
+        ),
+        traitEquipmentContribution: asRecord(
+          controlPressureModel.traitEquipmentContribution,
+        ),
+        functionalSignatures: asStringArray(controlPressureModel.functionalSignatures),
+        duplicateHandling: {
+          exactDuplicatesRemoved: asStringArray(duplicateHandling.exactDuplicatesRemoved),
+          overlapDiminishingReturns,
+        },
+        unsupportedAuthoringWarnings: asStringArray(
+          controlPressureModel.unsupportedAuthoringWarnings,
+        ),
+        semanticPackages,
+      },
+      legacyResolverComparison: {
+        label: "Comparison only; excluded from calibrated Level 3 Control Pressure",
+        finalPreNormalizationManipulation: round(asNumber(finalPre.manipulation)),
+        nonPowerManipulation: round(asNumber(nonPower.manipulation)),
+        canonicalResolverManipulation: round(asNumber(canonicalPower.manipulation)),
+        effectiveResolverManipulation: round(asNumber(effectivePower.manipulation)),
+        legacyCurve: {
+          min: round(asNumber(curve.min)),
+          max: round(asNumber(curve.max)),
+          tierMultiplier,
+          tierAdjustedMax: round(asNumber(curve.max) * tierMultiplier),
+        },
+        authoredPackages: legacyResolverPackages,
       },
     },
     nonPowerContributors: {
@@ -350,7 +468,6 @@ function summarizeMonster(
       traits: round(asNumber(asRecord(nonPowerSources.traitAxisBonuses).manipulation)),
       limitBreaks: round(asNumber(asRecord(nonPowerSources.customLimitBreakAxisBonuses).manipulation)),
     },
-    packages,
   };
 }
 
@@ -425,21 +542,46 @@ function printHuman(payload: Awaited<ReturnType<typeof buildPayload>>) {
   console.log(`samples=${payload.samples.length}; missing=${payload.missingSamples.join(",") || "none"}`);
   console.log(`caveat=${payload.caveat}`);
   console.log("");
-  console.log("Name | tier/L | Control Pressure final/raw | nonPower | canonical/effective power | curve target");
+  console.log(
+    "Name | tier/L | final | semantic raw/baseline | ratio | baseline package | mode | uncapped | cap",
+  );
   for (const sample of payload.samples) {
     const score = sample.controlPressure;
+    const model = score.semanticModel;
     console.log(
-      `${sample.name} | ${sample.tier}${sample.legendary ? "+LEG" : ""}/L${sample.level} | ${score.final}/${score.raw} | ${score.nonPower} | ${score.canonicalPower}/${score.effectivePower} | ${score.curve.tierAdjustedMax}`,
+      `${sample.name} | ${sample.tier}${sample.legendary ? "+LEG" : ""}/L${sample.level} | ${score.final} | ${model.semanticRawProxy}/${model.baselineRawProxy ?? "n/a"} | ${model.ratioToBaseline ?? "n/a"} | ${model.baselinePackageId ?? "n/a"} | ${model.mode} | ${model.uncappedScore ?? "n/a"} | ${model.capped ? model.capReason ?? "capped" : "none"}`,
     );
-    for (const power of sample.packages) {
+    console.log(
+      `  components severity=${model.effectSeverity} targets=${model.targetBreadth} duration=${model.duration} recurrence=${model.recurrence} availability=${model.cooldownAvailability} actions=${model.actionEconomyContribution} linked=${model.linkedPackageContribution}`,
+    );
+    console.log(
+      `  resistibility contribution=${model.resistibility.contribution} policy=${model.resistibility.policy}`,
+    );
+    console.log(
+      `  traits/equipment=${JSON.stringify(model.traitEquipmentContribution)} exactDuplicates=${JSON.stringify(model.duplicateHandling.exactDuplicatesRemoved)} overlaps=${JSON.stringify(model.duplicateHandling.overlapDiminishingReturns)}`,
+    );
+    for (const controlPackage of model.semanticPackages) {
       console.log(
-        `  power=${power.name} range=${power.range} targets=${power.targets} cd=${power.derivedCooldown} BPV=${power.basePowerValue} manip=${power.canonicalManipulation}/${power.effectiveManipulation} gate=${JSON.stringify(power.primaryGate)} linked=${power.linkedPacketCount}`,
+        `  semanticPackage power=${controlPackage.sourcePowerName} packet=${controlPackage.packetIndex} family=${controlPackage.effectFamily} runtime=${controlPackage.runtimeSemanticMode} attribute=${controlPackage.affectedAttribute ?? "none"} targets=${controlPackage.targetCount}/${controlPackage.targetBreadth} duration=${controlPackage.duration.kind}:${controlPackage.duration.turns}/${controlPackage.duration.contribution} recurrence=${controlPackage.recurrence.active}/${controlPackage.recurrence.contribution} cooldown=${controlPackage.cooldownAvailability.cooldownTurns ?? "unknown"}/${controlPackage.cooldownAvailability.band}/${controlPackage.cooldownAvailability.contribution} severity=${controlPackage.effectSeverity} stack=${controlPackage.supportedStackImpact} resist=${controlPackage.resistibility.status}:${controlPackage.resistibility.gateCategory ?? "none"}/${controlPackage.resistibility.contribution} linked=${controlPackage.linkedPackage.linked}/${controlPackage.linkedPackage.contribution}`,
       );
-      for (const packet of power.packets) {
+      console.log(`    signature=${controlPackage.functionalSignature}`);
+      if (controlPackage.unsupportedAuthoringDistinctions.length > 0) {
         console.log(
-          `    packet=${packet.index} ${packet.intention} effect=${packet.authoredEffect} runtime=${packet.runtimeEffect} support=${packet.runtimeSupport} dice=${packet.diceCount} potency=${packet.potency} duration=${packet.durationType}:${packet.durationTurns ?? 0} timing=${packet.timing} dependency=${packet.secondaryDependencyMode ?? "PRIMARY"}`,
+          `    unsupportedDistinctions=${controlPackage.unsupportedAuthoringDistinctions.join(" | ")}`,
         );
       }
+    }
+    for (const warning of model.unsupportedAuthoringWarnings) {
+      console.log(`  warning=${warning}`);
+    }
+    const legacy = score.legacyResolverComparison;
+    console.log(
+      `  legacyComparison label=${legacy.label} finalPre=${legacy.finalPreNormalizationManipulation} nonPower=${legacy.nonPowerManipulation} canonical/effective=${legacy.canonicalResolverManipulation}/${legacy.effectiveResolverManipulation} curveTarget=${legacy.legacyCurve.tierAdjustedMax}`,
+    );
+    for (const power of legacy.authoredPackages) {
+      console.log(
+        `    legacyPower=${power.name} BPV=${power.basePowerValue} canonical/effectiveManipulation=${power.canonicalManipulation}/${power.effectiveManipulation}`,
+      );
     }
   }
 }
