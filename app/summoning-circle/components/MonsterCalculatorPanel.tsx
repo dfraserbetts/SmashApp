@@ -217,6 +217,11 @@ export function MonsterCalculatorPanel({
                   Survivability is relative, not a literal HP or attacks-to-defeat
                   value.
                 </p>
+                <p className="text-[11px] text-zinc-500">
+                  Pressure is encounter coverage and cadence, not raw damage. It
+                  reflects target breadth, reach, area coverage, recurring effects,
+                  repeatability, linked actions, and supported action economy.
+                </p>
               </div>
               <OutcomeRadar
                 axes={profile.radarAxes}
@@ -231,6 +236,11 @@ export function MonsterCalculatorPanel({
                   Raw defensive output is compared with the accepted package for
                   the creature&apos;s level, tier, lane, and Legendary state before
                   being converted to a 0-10 score.
+                </p>
+                <p className="mt-2 text-zinc-500">
+                  Pressure compares the creature&apos;s encounter coverage and cadence
+                  with the expected package for its level, tier, and Legendary state
+                  before conversion to a 0-10 score.
                 </p>
                 <pre className="mt-2 overflow-auto">
                   {JSON.stringify(
@@ -268,7 +278,9 @@ export function MonsterCalculatorPanel({
               <p className="text-[11px] text-zinc-500">
                 Canonical Phase 6 per-use power vector. Final outcome debug
                 shows the effective availability-adjusted contribution used by
-                the monster radar.
+                the monster radar. Final Pressure is calculated separately from
+                authored encounter coverage and cadence, not the generic power
+                vector.
               </p>
 
               {!powerCostPreview && (

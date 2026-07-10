@@ -42,7 +42,12 @@ const AXES: {
   { key: "manipulation", labelLines: ["Control", "Pressure"] },
   { key: "synergy", labelLines: ["Synergy"] },
   { key: "mobility", labelLines: ["Mobility"] },
-  { key: "presence", labelLines: ["Pressure"] },
+  {
+    key: "presence",
+    labelLines: ["Pressure"],
+    description:
+      "Pressure measures how broadly and persistently this creature can impose meaningful threat across an encounter, rather than how much damage one attack deals.",
+  },
 ];
 
 const AXIS_CAP_WARNING_THRESHOLD = 9.9;
