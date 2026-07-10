@@ -207,6 +207,11 @@ export function MonsterCalculatorPanel({
                   Combined monster radar after non-power contributors, effective
                   power availability, and outcome normalization.
                 </p>
+                <p className="text-[11px] text-zinc-500">
+                  Threat scores are baseline-relative 0-10 ratings. They include
+                  attack dice, W/S, target count, attack powers, traits, and
+                  repeatability where available.
+                </p>
               </div>
               <OutcomeRadar
                 axes={profile.radarAxes}
@@ -217,6 +222,10 @@ export function MonsterCalculatorPanel({
                 <summary className="cursor-pointer select-none text-zinc-500">
                   Debug
                 </summary>
+                <p className="mt-2 text-zinc-500">
+                  Raw output is compared against the accepted benchmark package
+                  before being converted to a 0-10 axis score.
+                </p>
                 <pre className="mt-2 overflow-auto">
                   {JSON.stringify(
                     {

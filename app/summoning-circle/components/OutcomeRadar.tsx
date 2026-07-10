@@ -10,10 +10,24 @@ type Props = {
   size?: number;
 };
 
-const AXES: { key: keyof RadarAxes; labelLines: string[] }[] = [
+const AXES: {
+  key: keyof RadarAxes;
+  labelLines: string[];
+  description?: string;
+}[] = [
   { key: "physicalSurvivability", labelLines: ["Physical", "Survivability"] },
-  { key: "physicalThreat", labelLines: ["Physical", "Threat"] },
-  { key: "mentalThreat", labelLines: ["Mental", "Threat"] },
+  {
+    key: "physicalThreat",
+    labelLines: ["Physical", "Threat"],
+    description:
+      "Physical offence compared with the expected output for this creature's level and tier.",
+  },
+  {
+    key: "mentalThreat",
+    labelLines: ["Mental", "Threat"],
+    description:
+      "Mental offence compared with the expected output for this creature's level and tier.",
+  },
   { key: "mentalSurvivability", labelLines: ["Mental", "Survivability"] },
   { key: "manipulation", labelLines: ["Control", "Pressure"] },
   { key: "synergy", labelLines: ["Synergy"] },
@@ -186,9 +200,10 @@ export function OutcomeRadar({ axes, backgroundAxes, size = 312 }: Props) {
 
         {angles.map((angle, i) => {
           const labelPos = toPoint(cx, cy, labelRadius, angle);
-          const labelLines = AXES[i].labelLines;
+          const axis = AXES[i];
+          const labelLines = axis.labelLines;
           const firstLineY = labelPos.y - ((labelLines.length - 1) * 5) / 2;
-          const isCapped = isAxisAtCap(axes[AXES[i].key]);
+          const isCapped = isAxisAtCap(axes[axis.key]);
           return (
             <text
               key={`label-${i}`}
@@ -197,10 +212,16 @@ export function OutcomeRadar({ axes, backgroundAxes, size = 312 }: Props) {
               textAnchor="middle"
               fontSize="9"
               className={isCapped ? "fill-red-400 font-semibold" : "fill-zinc-400"}
+              aria-label={
+                axis.description
+                  ? `${labelLines.join(" ")}: ${axis.description}`
+                  : labelLines.join(" ")
+              }
             >
+              {axis.description && <title>{axis.description}</title>}
               {labelLines.map((line, lineIndex) => (
                 <tspan
-                  key={`${AXES[i].key}-${lineIndex}`}
+                  key={`${axis.key}-${lineIndex}`}
                   x={labelPos.x}
                   dy={lineIndex === 0 ? 0 : 10}
                 >
