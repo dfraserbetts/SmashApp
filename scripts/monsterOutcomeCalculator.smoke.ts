@@ -391,6 +391,26 @@ function getOutcomePowerDebug(result: ReturnType<typeof computeMonsterOutcomes>)
   return debug.powerContribution ?? {};
 }
 
+function getPressureAxisDebug(result: ReturnType<typeof computeMonsterOutcomes>) {
+  const debug = result.debug as {
+    normalizationBreakdown?: {
+      pressureAxisBaselineModel?: {
+        mode?: string;
+        baselinePackageId?: string | null;
+        meaningfulActionCount?: number;
+        components?: Record<string, number>;
+        deduplicatedFunctionalSignatures?: string[];
+        unsupportedPackageWarnings?: string[];
+        rawActualPressureProxy?: number;
+        rawBaselinePressureProxy?: number | null;
+        ratioToBaseline?: number | null;
+        finalScore?: number | null;
+      };
+    };
+  };
+  return debug.normalizationBreakdown?.pressureAxisBaselineModel;
+}
+
 const slashAttackConfig = {
   melee: {
     enabled: true,
@@ -1428,6 +1448,294 @@ assert.ok(
     Number(lowAttackPowerDebug.expectedAttackOutput?.axisVector?.physicalThreat ?? 0),
 );
 
+type PressurePowerOptions = {
+  name: string;
+  intention?: "ATTACK" | "CONTROL" | "DEBUFF" | "SUMMONING" | "TRANSFORMATION";
+  range?: "MELEE" | "RANGED" | "AOE";
+  targets?: number;
+  cooldown?: number;
+  chassis?: "IMMEDIATE" | "FIELD";
+  duration?: "INSTANT" | "TURNS" | "PASSIVE";
+  durationTurns?: number;
+  recurring?: boolean;
+  linked?: boolean;
+};
+
+function createPressurePower(options: PressurePowerOptions) {
+  const intention = options.intention ?? "ATTACK";
+  const range = options.range ?? "MELEE";
+  const targets = options.targets ?? 1;
+  const duration = options.duration ?? "INSTANT";
+  const packet = {
+    packetIndex: 0,
+    sortOrder: 0,
+    hostility: "HOSTILE",
+    intention,
+    type: intention,
+    diceCount: 1,
+    potency: 1,
+    effectTimingType: options.recurring ? "START_OF_TURN" : "ON_CAST",
+    effectTimingTurns: null,
+    effectDurationType: duration,
+    effectDurationTurns: options.durationTurns ?? null,
+    detailsJson: {},
+  };
+  const packets = options.linked
+    ? [
+        packet,
+        {
+          ...packet,
+          packetIndex: 1,
+          sortOrder: 1,
+          intention: "DEBUFF",
+          type: "DEBUFF",
+          secondaryDependencyMode: "LINKED_TO_PRIMARY",
+        },
+      ]
+    : [packet];
+  return {
+    id: options.name.toLowerCase().replace(/\s+/g, "-"),
+    sortOrder: 0,
+    name: options.name,
+    description: null,
+    descriptorChassis: options.chassis ?? "IMMEDIATE",
+    cooldownTurns: options.cooldown ?? 0,
+    cooldownReduction: 0,
+    counterMode: "NO",
+    rangeCategories: [range],
+    meleeTargets: range === "MELEE" ? targets : 1,
+    rangedTargets: range === "RANGED" ? targets : 1,
+    rangedDistanceFeet: range === "RANGED" ? 30 : null,
+    aoeCount: range === "AOE" ? targets : 1,
+    aoeCenterRangeFeet: range === "AOE" ? 30 : null,
+    effectDurationType: duration,
+    effectDurationTurns: options.durationTurns ?? null,
+    effectPackets: packets,
+    intentions: packets,
+    diceCount: 1,
+    potency: 1,
+  };
+}
+
+function createPressureNaturalAttack(
+  range: "MELEE" | "RANGED" | "AOE",
+  targets: number,
+  strength = 1,
+): MonsterAttack {
+  const attackConfig =
+    range === "AOE"
+      ? {
+          aoe: {
+            enabled: true,
+            count: targets,
+            centerRange: 30,
+            shape: "SPHERE" as const,
+            sphereRadiusFeet: 10,
+            physicalStrength: strength,
+            mentalStrength: 0,
+            damageTypes: [{ name: "Blunt", mode: "PHYSICAL" as const }],
+            attackEffects: [],
+          },
+        }
+      : range === "RANGED"
+        ? {
+            ranged: {
+              enabled: true,
+              targets,
+              distance: 30,
+              physicalStrength: strength,
+              mentalStrength: 0,
+              damageTypes: [{ name: "Blunt", mode: "PHYSICAL" as const }],
+              attackEffects: [],
+            },
+          }
+        : {
+            melee: {
+              enabled: true,
+              targets,
+              physicalStrength: strength,
+              mentalStrength: 0,
+              damageTypes: [{ name: "Blunt", mode: "PHYSICAL" as const }],
+              attackEffects: [],
+            },
+          };
+  return createNaturalAttack(attackConfig);
+}
+
+function computePressureFixture(options: {
+  tier?: "MINION" | "SOLDIER" | "ELITE" | "BOSS";
+  legendary?: boolean;
+  naturalRange?: "MELEE" | "RANGED" | "AOE";
+  naturalTargets?: number;
+  naturalStrength?: number;
+  powers?: ReturnType<typeof createPressurePower>[];
+  genericPresence?: number;
+}) {
+  const powers = options.powers ?? [];
+  return computeMonsterOutcomes(
+    {
+      ...createBaseMonster(),
+      level: 3,
+      tier: options.tier ?? "SOLDIER",
+      legendary: options.legendary ?? false,
+      attacks: [
+        createPressureNaturalAttack(
+          options.naturalRange ?? "MELEE",
+          options.naturalTargets ?? 1,
+          options.naturalStrength ?? 1,
+        ),
+      ],
+    },
+    calculatorConfig,
+    powers.length > 0 || options.genericPresence !== undefined
+      ? {
+          powerContribution: {
+            axisVector: { presence: options.genericPresence ?? 0 },
+            powerCount: powers.length,
+            powers: powers.map((power) => ({
+              id: power.id,
+              name: power.name,
+              axisVector: { presence: options.genericPresence ?? 0 },
+              authoredPower: power as never,
+              derivedCooldownTurns: power.cooldownTurns,
+              cooldownTurns: power.cooldownTurns,
+              cooldownReduction: 0,
+            })),
+          },
+        }
+      : undefined,
+  );
+}
+
+const pressureWs2 = computePressureFixture({ naturalStrength: 1 });
+const pressureWs8 = computePressureFixture({ naturalStrength: 4 });
+assertApprox(pressureWs2.radarAxes.presence, pressureWs8.radarAxes.presence, 0.000001, "Pressure W/S independence");
+assert.notEqual(pressureWs2.radarAxes.physicalThreat, pressureWs8.radarAxes.physicalThreat);
+
+const pressureOneTarget = computePressureFixture({ naturalTargets: 1 });
+const pressureTwoTargets = computePressureFixture({ naturalTargets: 2 });
+const pressureRanged = computePressureFixture({ naturalRange: "RANGED" });
+const pressureAoe = computePressureFixture({ naturalRange: "AOE", naturalTargets: 3 });
+assert.ok(pressureTwoTargets.radarAxes.presence > pressureOneTarget.radarAxes.presence);
+assert.ok(pressureRanged.radarAxes.presence > pressureOneTarget.radarAxes.presence);
+assert.ok(pressureRanged.radarAxes.presence - pressureOneTarget.radarAxes.presence < 1);
+assert.ok(pressureAoe.radarAxes.presence > pressureTwoTargets.radarAxes.presence);
+
+const immediatePressurePower = createPressurePower({ name: "Immediate Control", intention: "CONTROL", cooldown: 1 });
+const fieldPressurePower = createPressurePower({
+  name: "Recurring Field",
+  intention: "CONTROL",
+  range: "AOE",
+  targets: 2,
+  cooldown: 1,
+  chassis: "FIELD",
+  duration: "TURNS",
+  durationTurns: 2,
+  recurring: true,
+});
+const immediatePressure = computePressureFixture({ powers: [immediatePressurePower] });
+const fieldPressure = computePressureFixture({ powers: [fieldPressurePower] });
+assert.ok(fieldPressure.radarAxes.presence > immediatePressure.radarAxes.presence);
+
+const shortCooldownPressure = computePressureFixture({
+  powers: [createPressurePower({ name: "Short Cooldown", intention: "CONTROL", cooldown: 1 })],
+});
+const longCooldownPressure = computePressureFixture({
+  powers: [createPressurePower({ name: "Long Cooldown", intention: "CONTROL", cooldown: 4 })],
+});
+assert.ok(shortCooldownPressure.radarAxes.presence > longCooldownPressure.radarAxes.presence);
+
+const duplicatePowerA = createPressurePower({ name: "Duplicate A", intention: "CONTROL", cooldown: 2 });
+const duplicatePowerB = createPressurePower({ name: "Duplicate B", intention: "CONTROL", cooldown: 2 });
+const onePressurePower = computePressureFixture({ powers: [duplicatePowerA] });
+const duplicatePressurePowers = computePressureFixture({ powers: [duplicatePowerA, duplicatePowerB] });
+assertApprox(onePressurePower.radarAxes.presence, duplicatePressurePowers.radarAxes.presence, 0.000001, "Duplicate Pressure actions");
+assert.equal(getPressureAxisDebug(duplicatePressurePowers)?.meaningfulActionCount, 2);
+
+const linkedPressure = computePressureFixture({
+  powers: [createPressurePower({ name: "Linked Threat", intention: "CONTROL", cooldown: 2, linked: true })],
+});
+assert.ok(linkedPressure.radarAxes.presence > onePressurePower.radarAxes.presence);
+
+const unsupportedPressure = computePressureFixture({
+  powers: [
+    createPressurePower({ name: "Unsupported Summon", intention: "SUMMONING", cooldown: 1 }),
+    createPressurePower({ name: "Unsupported Transform", intention: "TRANSFORMATION", cooldown: 1 }),
+  ],
+});
+assertApprox(unsupportedPressure.radarAxes.presence, pressureOneTarget.radarAxes.presence, 0.000001, "Unsupported Pressure omission");
+assert.ok(
+  getPressureAxisDebug(unsupportedPressure)?.unsupportedPackageWarnings?.some((warning) =>
+    warning.includes("SUMMONING"),
+  ),
+);
+assert.ok(
+  getPressureAxisDebug(unsupportedPressure)?.unsupportedPackageWarnings?.some((warning) =>
+    warning.includes("TRANSFORMATION"),
+  ),
+);
+
+const genericPresenceZero = computePressureFixture({ powers: [immediatePressurePower], genericPresence: 0 });
+const genericPresenceHuge = computePressureFixture({ powers: [immediatePressurePower], genericPresence: 999 });
+assertApprox(genericPresenceZero.radarAxes.presence, genericPresenceHuge.radarAxes.presence, 0.000001, "Generic resolver Presence omission");
+for (const axis of [
+  "physicalThreat",
+  "mentalThreat",
+  "physicalSurvivability",
+  "mentalSurvivability",
+  "manipulation",
+  "synergy",
+  "mobility",
+] as const) {
+  assertApprox(genericPresenceZero.radarAxes[axis], genericPresenceHuge.radarAxes[axis], 0.000001, `${axis} regression`);
+}
+
+const pressureAnchors = [
+  computePressureFixture({ tier: "MINION" }),
+  computePressureFixture({
+    tier: "SOLDIER",
+    powers: [createPressurePower({ name: "Soldier Option", cooldown: 1 })],
+  }),
+  computePressureFixture({
+    tier: "ELITE",
+    naturalRange: "RANGED",
+    powers: [createPressurePower({ name: "Elite Option", intention: "CONTROL", range: "RANGED", cooldown: 1 })],
+  }),
+  computePressureFixture({
+    tier: "ELITE",
+    legendary: true,
+    powers: [
+      createPressurePower({ name: "Legendary Option A", intention: "CONTROL", cooldown: 3, duration: "TURNS", durationTurns: 1, linked: true }),
+      createPressurePower({ name: "Legendary Option B", intention: "DEBUFF", cooldown: 4, duration: "TURNS", durationTurns: 1, linked: true }),
+    ],
+  }),
+  computePressureFixture({ tier: "BOSS", naturalTargets: 2 }),
+  computePressureFixture({
+    tier: "BOSS",
+    legendary: true,
+    naturalRange: "RANGED",
+    naturalTargets: 2,
+    powers: [createPressurePower({ name: "Legendary Boss Option", range: "RANGED", targets: 2, cooldown: 1 })],
+  }),
+];
+for (const [index, anchor] of pressureAnchors.entries()) {
+  assertApprox(anchor.radarAxes.presence, 5, 0.35, `Pressure baseline anchor ${index + 1}`);
+  assert.equal(getPressureAxisDebug(anchor)?.mode, "LEVEL_3_BASELINE_RELATIVE");
+}
+const nonLevelThreePressureFallback = computeMonsterOutcomes(
+  {
+    ...createBaseMonster(),
+    level: 4,
+    tier: "SOLDIER",
+    attacks: [createPressureNaturalAttack("MELEE", 1)],
+  },
+  calculatorConfig,
+);
+assert.equal(
+  getPressureAxisDebug(nonLevelThreePressureFallback)?.mode,
+  "LEGACY_DAMAGE_DUPLICATING_CURVE",
+);
+
 console.log(
   JSON.stringify(
     {
@@ -1548,6 +1856,32 @@ console.log(
             cooldownThreeFinalDebug.finalPreNormalizationAxes?.mobility,
           availabilityFactor: cooldownThreeDebug.availabilityFactor,
         },
+      },
+      pressureAxis: {
+        wsIndependence: {
+          ws2: pressureWs2.radarAxes.presence,
+          ws8: pressureWs8.radarAxes.presence,
+        },
+        coverage: {
+          oneTarget: pressureOneTarget.radarAxes.presence,
+          twoTargets: pressureTwoTargets.radarAxes.presence,
+          ranged: pressureRanged.radarAxes.presence,
+          aoe: pressureAoe.radarAxes.presence,
+          field: fieldPressure.radarAxes.presence,
+        },
+        cadence: {
+          shortCooldown: shortCooldownPressure.radarAxes.presence,
+          longCooldown: longCooldownPressure.radarAxes.presence,
+        },
+        duplicate: {
+          one: onePressurePower.radarAxes.presence,
+          duplicated: duplicatePressurePowers.radarAxes.presence,
+        },
+        linked: linkedPressure.radarAxes.presence,
+        unsupportedWarnings:
+          getPressureAxisDebug(unsupportedPressure)?.unsupportedPackageWarnings ?? [],
+        anchors: pressureAnchors.map((anchor) => anchor.radarAxes.presence),
+        nonLevelThreeFallback: getPressureAxisDebug(nonLevelThreePressureFallback)?.mode,
       },
     },
     null,

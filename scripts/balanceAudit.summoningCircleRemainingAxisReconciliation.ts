@@ -328,6 +328,7 @@ function summarizeMonster(
   const effectivePower = asRecord(powerDebug.effectivePowerAxisVector);
   const finalPre = asRecord(debug.finalPreNormalizationAxes);
   const normalization = asRecord(debug.normalizationBreakdown);
+  const pressureAxisBaselineModel = asRecord(normalization.pressureAxisBaselineModel);
   const curvePoints = asRecord(normalization.curvePoints);
   const tierMultiplier = asNumber(normalization.tierMultiplier);
 
@@ -378,6 +379,7 @@ function summarizeMonster(
       Object.entries(finalPre).map(([axis, value]) => [axis, round(asNumber(value))]),
     ),
     axes,
+    pressureAxisBaselineModel,
     contributors: {
       traits: monster.traits.map(({ trait }) => ({
         name: trait.name,
@@ -499,6 +501,21 @@ function printHuman(payload: Awaited<ReturnType<typeof buildPayload>>) {
     for (const trait of sample.contributors.traits) {
       console.log(`  trait=${trait.name} band=${trait.band} axes=${JSON.stringify(trait.axisVector)}`);
     }
+    const pressure = sample.pressureAxisBaselineModel;
+    console.log(
+      `  pressureModel=${pressure.policy ?? "missing"} mode=${pressure.mode ?? "missing"} baseline=${pressure.baselinePackageId ?? "none"} meaningfulActions=${pressure.meaningfulActionCount ?? 0} actualProxy=${round(asNumber(pressure.rawActualPressureProxy))} baselineProxy=${round(asNumber(pressure.rawBaselinePressureProxy))} ratio=${round(asNumber(pressure.ratioToBaseline))} uncapped=${round(asNumber(pressure.uncappedScore))} final=${round(asNumber(pressure.finalScore))} capped=${Boolean(pressure.capped)}`,
+    );
+    console.log(`  pressureComponents=${JSON.stringify(pressure.components ?? {})}`);
+    console.log(
+      `  pressureSignatures=${JSON.stringify(pressure.deduplicatedFunctionalSignatures ?? [])}`,
+    );
+    const warnings = Array.isArray(pressure.unsupportedPackageWarnings)
+      ? pressure.unsupportedPackageWarnings
+      : [];
+    if (warnings.length > 0) console.log(`  pressureWarnings=${JSON.stringify(warnings)}`);
+    console.log(
+      `  responseBurden=${pressure.responseBurdenOmissionReason ?? "included"} traitEquipment=${JSON.stringify(pressure.traitEquipmentContribution ?? {})}`,
+    );
   }
 }
 

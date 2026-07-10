@@ -24,6 +24,24 @@ export type DurabilityBaselinePackage = {
   mental: DurabilityLaneBaseline;
 };
 
+export type PressureReachCategory = "MELEE" | "RANGED" | "AOE";
+
+export type PressureBaselinePackage = {
+  id: string;
+  level: number;
+  tier: "MINION" | "SOLDIER" | "ELITE" | "BOSS";
+  legendary: boolean;
+  expectedTargetCount: number;
+  expectedReachCategory: PressureReachCategory;
+  expectedAreaCoverage: number;
+  expectedPersistence: number;
+  expectedAvailability: number;
+  expectedDistinctMeaningfulPackages: number;
+  expectedLinkedThreats: number;
+  expectedActionsPerTurn: number;
+  expectedResponseBurden: number;
+};
+
 export type CalculatorConfig = {
   tierMultipliers: {
     MINION: number;
@@ -91,6 +109,36 @@ export type CalculatorConfig = {
       BOSS: number;
       LEGENDARY: number;
     };
+  };
+  pressureAxisTuning: {
+    calibratedLevel: number;
+    midpointScore: number;
+    logRatioScale: number;
+    nonCalibratedFallbackMode: "LEGACY_DAMAGE_DUPLICATING_CURVE";
+    reachValues: Record<PressureReachCategory, number>;
+    componentWeights: {
+      targetBreadth: number;
+      reach: number;
+      areaCoverage: number;
+      persistence: number;
+      availability: number;
+      distinctPackages: number;
+      linkedThreats: number;
+      actionEconomy: number;
+      responseBurden: number;
+    };
+    componentCaps: {
+      targetBreadth: number;
+      reach: number;
+      areaCoverage: number;
+      persistence: number;
+      availability: number;
+      distinctPackages: number;
+      linkedThreats: number;
+      actionEconomy: number;
+      responseBurden: number;
+    };
+    baselines: PressureBaselinePackage[];
   };
   durabilityAxisTuning: {
     calibratedLevel: number;
@@ -249,6 +297,131 @@ export const calculatorConfig: CalculatorConfig = {
       BOSS: 3,
       LEGENDARY: 4,
     },
+  },
+  pressureAxisTuning: {
+    calibratedLevel: 3,
+    midpointScore: 5,
+    logRatioScale: 2.5,
+    nonCalibratedFallbackMode: "LEGACY_DAMAGE_DUPLICATING_CURVE",
+    reachValues: {
+      MELEE: 1,
+      RANGED: 1.12,
+      AOE: 1.2,
+    },
+    componentWeights: {
+      targetBreadth: 0.25,
+      reach: 0.08,
+      areaCoverage: 0.12,
+      persistence: 0.14,
+      availability: 0.12,
+      distinctPackages: 0.17,
+      linkedThreats: 0.05,
+      actionEconomy: 0.07,
+      responseBurden: 0,
+    },
+    componentCaps: {
+      targetBreadth: 3.5,
+      reach: 1.2,
+      areaCoverage: 1.25,
+      persistence: 1.25,
+      availability: 1,
+      distinctPackages: 4,
+      linkedThreats: 2,
+      actionEconomy: 2,
+      responseBurden: 1,
+    },
+    baselines: [
+      {
+        id: "l3-minion-pressure-standard-v1",
+        level: 3,
+        tier: "MINION",
+        legendary: false,
+        expectedTargetCount: 1,
+        expectedReachCategory: "MELEE",
+        expectedAreaCoverage: 0,
+        expectedPersistence: 0,
+        expectedAvailability: 1,
+        expectedDistinctMeaningfulPackages: 1,
+        expectedLinkedThreats: 0,
+        expectedActionsPerTurn: 1,
+        expectedResponseBurden: 0,
+      },
+      {
+        id: "l3-soldier-pressure-standard-v1",
+        level: 3,
+        tier: "SOLDIER",
+        legendary: false,
+        expectedTargetCount: 1,
+        expectedReachCategory: "MELEE",
+        expectedAreaCoverage: 0,
+        expectedPersistence: 0,
+        expectedAvailability: 0.875,
+        expectedDistinctMeaningfulPackages: 2,
+        expectedLinkedThreats: 0,
+        expectedActionsPerTurn: 1,
+        expectedResponseBurden: 0,
+      },
+      {
+        id: "l3-elite-pressure-standard-v1",
+        level: 3,
+        tier: "ELITE",
+        legendary: false,
+        expectedTargetCount: 1,
+        expectedReachCategory: "RANGED",
+        expectedAreaCoverage: 0,
+        expectedPersistence: 0,
+        expectedAvailability: 0.875,
+        expectedDistinctMeaningfulPackages: 2,
+        expectedLinkedThreats: 0,
+        expectedActionsPerTurn: 1,
+        expectedResponseBurden: 0,
+      },
+      {
+        id: "l3-legendary-elite-pressure-standard-v1",
+        level: 3,
+        tier: "ELITE",
+        legendary: true,
+        expectedTargetCount: 1,
+        expectedReachCategory: "MELEE",
+        expectedAreaCoverage: 0,
+        expectedPersistence: 0.3333333333333333,
+        expectedAvailability: 0.6,
+        expectedDistinctMeaningfulPackages: 3,
+        expectedLinkedThreats: 2,
+        expectedActionsPerTurn: 1,
+        expectedResponseBurden: 0,
+      },
+      {
+        id: "l3-boss-pressure-standard-v1",
+        level: 3,
+        tier: "BOSS",
+        legendary: false,
+        expectedTargetCount: 2,
+        expectedReachCategory: "MELEE",
+        expectedAreaCoverage: 0.35,
+        expectedPersistence: 0,
+        expectedAvailability: 1,
+        expectedDistinctMeaningfulPackages: 1,
+        expectedLinkedThreats: 0,
+        expectedActionsPerTurn: 2,
+        expectedResponseBurden: 0,
+      },
+      {
+        id: "l3-legendary-boss-pressure-standard-v1",
+        level: 3,
+        tier: "BOSS",
+        legendary: true,
+        expectedTargetCount: 2,
+        expectedReachCategory: "RANGED",
+        expectedAreaCoverage: 0.35,
+        expectedPersistence: 0,
+        expectedAvailability: 0.875,
+        expectedDistinctMeaningfulPackages: 2,
+        expectedLinkedThreats: 0,
+        expectedActionsPerTurn: 2,
+        expectedResponseBurden: 0,
+      },
+    ],
   },
   durabilityAxisTuning: {
     calibratedLevel: 3,
@@ -556,6 +729,25 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
           overrides.threatAxisTuning?.tierBaselineMultipliers?.LEGENDARY ??
           calculatorConfig.threatAxisTuning.tierBaselineMultipliers.LEGENDARY,
       },
+    },
+    pressureAxisTuning: {
+      ...calculatorConfig.pressureAxisTuning,
+      ...overrides.pressureAxisTuning,
+      reachValues: {
+        ...calculatorConfig.pressureAxisTuning.reachValues,
+        ...overrides.pressureAxisTuning?.reachValues,
+      },
+      componentWeights: {
+        ...calculatorConfig.pressureAxisTuning.componentWeights,
+        ...overrides.pressureAxisTuning?.componentWeights,
+      },
+      componentCaps: {
+        ...calculatorConfig.pressureAxisTuning.componentCaps,
+        ...overrides.pressureAxisTuning?.componentCaps,
+      },
+      baselines:
+        overrides.pressureAxisTuning?.baselines ??
+        calculatorConfig.pressureAxisTuning.baselines,
     },
     durabilityAxisTuning: {
       ...calculatorConfig.durabilityAxisTuning,

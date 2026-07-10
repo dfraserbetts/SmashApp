@@ -18,6 +18,8 @@ import type {
   DurabilityBaselinePackage,
   DurabilityLaneBaseline,
   LevelCurvePoint,
+  PressureBaselinePackage,
+  PressureReachCategory,
 } from "@/lib/calculators/calculatorConfig";
 import { successCountForRoll } from "@/lib/combat-lab/dice";
 import {
@@ -1709,6 +1711,423 @@ function getExpectedPowerAttackContribution(params: {
   return out;
 }
 
+type PressureAreaKind = "SINGLE_TARGET" | "MULTI_TARGET" | "AOE" | "FIELD";
+
+type PressureActionPackage = {
+  sourceKind: "natural" | "equipped" | "power";
+  sourceId: string | null;
+  sourceLabel: string;
+  effectFamilies: string[];
+  targetCount: number;
+  reachCategory: PressureReachCategory;
+  areaKind: PressureAreaKind;
+  durationKind: string;
+  durationTurns: number;
+  recurring: boolean;
+  cooldownTurns: number;
+  availability: number;
+  linkedThreatCount: number;
+  actionLane: "main" | "power" | "response";
+  functionalSignature: string;
+};
+
+type PressureComponentValues = {
+  targetBreadth: number;
+  reach: number;
+  areaCoverage: number;
+  persistence: number;
+  availability: number;
+  distinctPackages: number;
+  linkedThreats: number;
+  actionEconomy: number;
+  responseBurden: number;
+};
+
+function pressureRangeRank(range: PressureReachCategory): number {
+  if (range === "AOE") return 3;
+  if (range === "RANGED") return 2;
+  return 1;
+}
+
+function pressureTargetBreadth(targetCount: number): number {
+  const targets = Math.max(0, targetCount);
+  return targets > 0 ? 1 + Math.log2(targets) : 0;
+}
+
+function pressureAreaCoverage(areaKind: PressureAreaKind): number {
+  if (areaKind === "FIELD") return 1.2;
+  if (areaKind === "AOE") return 1;
+  if (areaKind === "MULTI_TARGET") return 0.35;
+  return 0;
+}
+
+function getPressureActionsPerTurn(monster: MonsterOutcomeInput): number {
+  // This mirrors the current Combat Lab live adapter. Legendary status does not add actions.
+  return monster.tier === "BOSS" ? 2 : 1;
+}
+
+function getPressurePowerCooldown(
+  entry: NonNullable<CanonicalPowerContribution["powers"]>[number],
+  power: MonsterUpsertInput["powers"][number],
+): number {
+  const derived = readFiniteNumber(entry.derivedCooldownTurns);
+  if (derived !== null) return Math.max(0, Math.trunc(derived));
+  const authored = readFiniteNumber(entry.cooldownTurns ?? power.cooldownTurns);
+  const reduction = readFiniteNumber(entry.cooldownReduction ?? power.cooldownReduction) ?? 0;
+  return authored === null
+    ? 0
+    : Math.max(0, Math.trunc(authored) - Math.max(0, Math.trunc(reduction)));
+}
+
+function getPressurePacketTargeting(
+  power: MonsterUpsertInput["powers"][number],
+  packets: MonsterUpsertInput["powers"][number]["intentions"],
+): { reachCategory: PressureReachCategory; targetCount: number } {
+  let reachCategory = getPowerRangeCategory(power) ?? "MELEE";
+  let targetCount = getPowerTargetCount(power, reachCategory);
+  for (const packet of packets) {
+    const local = packet.localTargetingOverride;
+    if (!local) continue;
+    let localRange: PressureReachCategory = "MELEE";
+    let localTargets = Math.max(1, Number(local.meleeTargets ?? 1));
+    if (Number(local.aoeCount ?? 0) > 0) {
+      localRange = "AOE";
+      localTargets = Math.max(1, Number(local.aoeCount));
+    } else if (Number(local.rangedTargets ?? 0) > 0 || Number(local.rangedDistanceFeet ?? 0) > 0) {
+      localRange = "RANGED";
+      localTargets = Math.max(1, Number(local.rangedTargets ?? 1));
+    }
+    if (pressureRangeRank(localRange) > pressureRangeRank(reachCategory)) {
+      reachCategory = localRange;
+    }
+    targetCount = Math.max(targetCount, localTargets);
+  }
+  return { reachCategory, targetCount };
+}
+
+function getPressureDuration(
+  power: MonsterUpsertInput["powers"][number],
+  packets: MonsterUpsertInput["powers"][number]["intentions"],
+): { durationKind: string; durationTurns: number; recurring: boolean } {
+  const durationRank: Record<string, number> = {
+    INSTANT: 0,
+    UNTIL_TARGET_NEXT_TURN: 1,
+    TURNS: 2,
+    PASSIVE: 3,
+  };
+  let durationKind = String(
+    power.effectDurationType ?? power.durationType ?? power.lifespanType ?? "INSTANT",
+  ).toUpperCase();
+  if (durationKind === "NONE") durationKind = "INSTANT";
+  let durationTurns = Math.max(
+    0,
+    Number(power.effectDurationTurns ?? power.durationTurns ?? power.lifespanTurns ?? 0),
+  );
+  let recurring = false;
+  for (const packet of packets) {
+    const packetDuration = String(packet.effectDurationType ?? "INSTANT").toUpperCase();
+    if ((durationRank[packetDuration] ?? 0) > (durationRank[durationKind] ?? 0)) {
+      durationKind = packetDuration;
+    }
+    durationTurns = Math.max(durationTurns, Number(packet.effectDurationTurns ?? 0));
+    const timing = String(packet.effectTimingType ?? "ON_CAST").toUpperCase();
+    recurring = recurring || timing.includes("START_OF_TURN") || timing.includes("END_OF_TURN");
+  }
+  return { durationKind, durationTurns, recurring };
+}
+
+function getPressurePersistenceValue(action: PressureActionPackage): number {
+  let value = 0;
+  if (action.durationKind === "UNTIL_TARGET_NEXT_TURN") value = 0.35;
+  if (action.durationKind === "TURNS") value = Math.min(1, Math.max(1, action.durationTurns) / 3);
+  if (action.durationKind === "PASSIVE") value = 1;
+  if (action.recurring) value += 0.25;
+  if (action.areaKind === "FIELD") value += 0.25;
+  return Math.min(1.25, value);
+}
+
+function pressureFunctionalSignature(action: Omit<PressureActionPackage, "functionalSignature">): string {
+  return [
+    action.effectFamilies.join("+"),
+    action.targetCount,
+    action.reachCategory,
+    action.areaKind,
+    action.durationKind,
+    action.durationTurns,
+    action.recurring ? "recurring" : "once",
+    action.cooldownTurns,
+    action.linkedThreatCount,
+    action.actionLane,
+  ].join("|");
+}
+
+function createPressureActionPackages(params: {
+  atWillProfiles: NormalizedAtWillAttackProfile[];
+  authoredPowers: MonsterUpsertInput["powers"];
+  powerContribution?: CanonicalPowerContribution | null;
+}): { packages: PressureActionPackage[]; unsupportedWarnings: string[] } {
+  const candidates: PressureActionPackage[] = [];
+  const unsupportedWarnings: string[] = [];
+  for (const profile of params.atWillProfiles) {
+    for (const segment of profile.segments) {
+      if (!(segment.authoredStrength > 0) || !(segment.targetCount > 0)) continue;
+      const areaKind: PressureAreaKind =
+        segment.rangeCategory === "AOE"
+          ? "AOE"
+          : segment.targetCount > 1
+            ? "MULTI_TARGET"
+            : "SINGLE_TARGET";
+      const base = {
+        sourceKind: profile.sourceKind,
+        sourceId: profile.sourceId,
+        sourceLabel: profile.sourceLabel,
+        effectFamilies: ["ATTACK"],
+        targetCount: segment.targetCount,
+        reachCategory: segment.rangeCategory,
+        areaKind,
+        durationKind: "INSTANT",
+        durationTurns: 0,
+        recurring: false,
+        cooldownTurns: 0,
+        availability: 1,
+        linkedThreatCount: 0,
+        actionLane: "main" as const,
+      };
+      candidates.push({ ...base, functionalSignature: pressureFunctionalSignature(base) });
+    }
+  }
+
+  const powerEntries =
+    params.powerContribution?.powers?.length
+      ? params.powerContribution.powers
+      : params.authoredPowers.map((power) => ({
+          id: power.id ?? null,
+          name: power.name,
+          authoredPower: power,
+          cooldownTurns: power.cooldownTurns,
+          cooldownReduction: power.cooldownReduction,
+        }));
+  for (const entry of powerEntries) {
+    const power = entry.authoredPower;
+    if (!power) {
+      unsupportedWarnings.push(`Power ${entry.name ?? entry.id ?? "unknown"} has no authored shape; omitted from Pressure.`);
+      continue;
+    }
+    const allPackets = power.effectPackets?.length ? power.effectPackets : power.intentions;
+    const unsupportedIntentions = allPackets
+      .map((packet) => String(packet.intention ?? packet.type).toUpperCase())
+      .filter((intention) => intention === "SUMMONING" || intention === "TRANSFORMATION");
+    if (unsupportedIntentions.length > 0) {
+      unsupportedWarnings.push(
+        `Power ${power.name} contains unsupported ${[...new Set(unsupportedIntentions)].join("+")}; those packets do not add Pressure.`,
+      );
+    }
+    const meaningfulPackets = allPackets.filter((packet) => {
+      const intention = String(packet.intention ?? packet.type).toUpperCase();
+      if (!(["ATTACK", "CONTROL", "DEBUFF"] as string[]).includes(intention)) return false;
+      if (packet.hostility === "NON_HOSTILE") return false;
+      return Number(packet.potency ?? power.potency ?? 0) > 0 || Number(packet.diceCount ?? power.diceCount ?? 0) > 0;
+    });
+    if (meaningfulPackets.length === 0) continue;
+    const effectFamilies = [...new Set(meaningfulPackets.map((packet) => String(packet.intention).toUpperCase()))].sort();
+    if (power.descriptorChassis === "FIELD") effectFamilies.push("FIELD");
+    const targeting = getPressurePacketTargeting(power, meaningfulPackets);
+    const duration = getPressureDuration(power, meaningfulPackets);
+    const linkedThreatCount = meaningfulPackets.slice(1).filter((packet) => {
+      const mode = String(packet.secondaryDependencyMode ?? "").toUpperCase();
+      return mode.length > 0 && mode !== "INDEPENDENT";
+    }).length;
+    const cooldownTurns = getPressurePowerCooldown(entry, power);
+    const areaKind: PressureAreaKind =
+      power.descriptorChassis === "FIELD"
+        ? "FIELD"
+        : targeting.reachCategory === "AOE"
+          ? "AOE"
+          : targeting.targetCount > 1
+            ? "MULTI_TARGET"
+            : "SINGLE_TARGET";
+    const base = {
+      sourceKind: "power" as const,
+      sourceId: entry.id ?? power.id ?? null,
+      sourceLabel: entry.name ?? power.name,
+      effectFamilies,
+      targetCount: targeting.targetCount,
+      reachCategory: targeting.reachCategory,
+      areaKind,
+      durationKind: duration.durationKind,
+      durationTurns: duration.durationTurns,
+      recurring: duration.recurring,
+      cooldownTurns,
+      availability: getPowerAvailabilityFactor(cooldownTurns),
+      linkedThreatCount,
+      actionLane: power.counterMode === "YES" ? ("response" as const) : ("power" as const),
+    };
+    candidates.push({ ...base, functionalSignature: pressureFunctionalSignature(base) });
+  }
+
+  const deduplicated = new Map<string, PressureActionPackage>();
+  for (const candidate of candidates) {
+    if (!deduplicated.has(candidate.functionalSignature)) {
+      deduplicated.set(candidate.functionalSignature, candidate);
+    }
+  }
+  return { packages: [...deduplicated.values()], unsupportedWarnings };
+}
+
+function getPressureComponentValues(params: {
+  packages: PressureActionPackage[];
+  actionsPerTurn: number;
+  reachValues: CalculatorConfig["pressureAxisTuning"]["reachValues"];
+}): PressureComponentValues {
+  const { packages } = params;
+  return {
+    targetBreadth: Math.max(0, ...packages.map((action) => pressureTargetBreadth(action.targetCount))),
+    reach: Math.max(0, ...packages.map((action) => params.reachValues[action.reachCategory])),
+    areaCoverage: Math.max(0, ...packages.map((action) => pressureAreaCoverage(action.areaKind))),
+    persistence: Math.max(0, ...packages.map(getPressurePersistenceValue)),
+    availability:
+      packages.length === 0
+        ? 0
+        : packages.reduce((sum, action) => sum + action.availability, 0) / packages.length,
+    distinctPackages: packages.length,
+    linkedThreats: packages.reduce((sum, action) => sum + action.linkedThreatCount, 0),
+    actionEconomy: params.actionsPerTurn,
+    responseBurden: 0,
+  };
+}
+
+function getPressureBaselineComponentValues(
+  baseline: PressureBaselinePackage,
+  reachValues: CalculatorConfig["pressureAxisTuning"]["reachValues"],
+): PressureComponentValues {
+  return {
+    targetBreadth: pressureTargetBreadth(baseline.expectedTargetCount),
+    reach: reachValues[baseline.expectedReachCategory],
+    areaCoverage: baseline.expectedAreaCoverage,
+    persistence: baseline.expectedPersistence,
+    availability: baseline.expectedAvailability,
+    distinctPackages: baseline.expectedDistinctMeaningfulPackages,
+    linkedThreats: baseline.expectedLinkedThreats,
+    actionEconomy: baseline.expectedActionsPerTurn,
+    responseBurden: baseline.expectedResponseBurden,
+  };
+}
+
+function getPressureProxy(
+  values: PressureComponentValues,
+  tuning: CalculatorConfig["pressureAxisTuning"],
+): { proxy: number; weightedComponents: PressureComponentValues } {
+  const keys = Object.keys(tuning.componentWeights) as Array<keyof PressureComponentValues>;
+  const weightedComponents = {} as PressureComponentValues;
+  let proxy = 0;
+  for (const key of keys) {
+    const cap = Math.max(0.000001, tuning.componentCaps[key]);
+    const weighted = Math.max(0, tuning.componentWeights[key]) * Math.min(1, Math.max(0, values[key]) / cap);
+    weightedComponents[key] = weighted;
+    proxy += weighted;
+  }
+  return { proxy, weightedComponents };
+}
+
+function buildPressureAxisBaselineModel(params: {
+  monster: MonsterOutcomeInput;
+  config: CalculatorConfig;
+  atWillProfiles: NormalizedAtWillAttackProfile[];
+  powerContribution?: CanonicalPowerContribution | null;
+  legacyPresenceRaw: number;
+  excludedLegacyBonuses: Record<string, number>;
+}) {
+  const tuning = params.config.pressureAxisTuning;
+  const level = Math.max(1, Math.trunc(params.monster.level || 1));
+  const baseline = tuning.baselines.find(
+    (entry) =>
+      entry.level === level &&
+      entry.tier === params.monster.tier &&
+      entry.legendary === Boolean(params.monster.legendary),
+  );
+  const actionResult = createPressureActionPackages({
+    atWillProfiles: params.atWillProfiles,
+    authoredPowers: params.monster.powers ?? [],
+    powerContribution: params.powerContribution,
+  });
+  const actionsPerTurn = getPressureActionsPerTurn(params.monster);
+  const actualComponents = getPressureComponentValues({
+    packages: actionResult.packages,
+    actionsPerTurn,
+    reachValues: tuning.reachValues,
+  });
+  if (!baseline) {
+    return {
+      policy: "pressure_axis_breadth_persistence_v1",
+      mode: tuning.nonCalibratedFallbackMode,
+      calibrated: false,
+      baselinePackageId: null,
+      actionPackagesConsidered: actionResult.packages,
+      deduplicatedFunctionalSignatures: actionResult.packages.map((action) => action.functionalSignature),
+      meaningfulActionCount: actionResult.packages.length,
+      components: actualComponents,
+      weightedActualComponents: null,
+      weightedBaselineComponents: null,
+      unsupportedPackageWarnings: actionResult.unsupportedWarnings,
+      responseBurdenOmissionReason:
+        "No static authored field proves enemy response expenditure; runtime response use is not inferred from damage or cost.",
+      traitEquipmentContribution: {
+        applied: 0,
+        excludedLegacyBonuses: params.excludedLegacyBonuses,
+        reason: "Generic Presence weights do not prove encounter breadth or persistence.",
+      },
+      rawActualPressureProxy: params.legacyPresenceRaw,
+      rawBaselinePressureProxy: null,
+      ratioToBaseline: null,
+      uncappedScore: null,
+      finalScore: null,
+      capped: false,
+      capReason: null,
+      fallbackPolicy:
+        "Non-Level-3 packages retain the legacy Presence curve because no accepted baseline package exists.",
+    };
+  }
+  const baselineComponents = getPressureBaselineComponentValues(baseline, tuning.reachValues);
+  const actualProxy = getPressureProxy(actualComponents, tuning);
+  const baselineProxy = getPressureProxy(baselineComponents, tuning);
+  const ratio = baselineProxy.proxy > 0 ? actualProxy.proxy / baselineProxy.proxy : 0;
+  const uncappedScore =
+    actualProxy.proxy > 0 && ratio > 0
+      ? tuning.midpointScore + Math.log2(ratio) * tuning.logRatioScale
+      : 0;
+  const finalScore = clampRadarScore(uncappedScore);
+  return {
+    policy: "pressure_axis_breadth_persistence_v1",
+    mode: "LEVEL_3_BASELINE_RELATIVE",
+    calibrated: true,
+    baselinePackageId: baseline.id,
+    baselinePackage: baseline,
+    actionPackagesConsidered: actionResult.packages,
+    deduplicatedFunctionalSignatures: actionResult.packages.map((action) => action.functionalSignature),
+    meaningfulActionCount: actionResult.packages.length,
+    components: actualComponents,
+    baselineComponents,
+    weightedActualComponents: actualProxy.weightedComponents,
+    weightedBaselineComponents: baselineProxy.weightedComponents,
+    unsupportedPackageWarnings: actionResult.unsupportedWarnings,
+    responseBurdenOmissionReason:
+      "No static authored field proves enemy response expenditure; runtime response use is not inferred from damage or cost.",
+    traitEquipmentContribution: {
+      applied: 0,
+      excludedLegacyBonuses: params.excludedLegacyBonuses,
+      reason: "Generic Presence weights do not prove encounter breadth or persistence.",
+    },
+    rawActualPressureProxy: actualProxy.proxy,
+    rawBaselinePressureProxy: baselineProxy.proxy,
+    ratioToBaseline: ratio,
+    uncappedScore,
+    finalScore,
+    capped: finalScore !== uncappedScore,
+    capReason: finalScore !== uncappedScore ? (uncappedScore > 10 ? "MAX_10" : "MIN_0") : null,
+    fallbackPolicy: null,
+  };
+}
+
 function getExpectedIncomingAttackDiceForDodge(level: number, tier: MonsterTier): number {
   const normalizedLevel = Math.max(1, Math.trunc(level || 1));
   const levelOffset = Math.floor((normalizedLevel - 1) / 5);
@@ -2795,7 +3214,7 @@ export function computeMonsterOutcomes(
 
   const physicalRoundsToZero = clampNonNegative(monster.physicalResilienceMax) / netIncoming;
   const mentalRoundsToZero = clampNonNegative(monster.mentalPerseveranceMax) / netIncoming;
-  const nonPowerPresenceBudget =
+  const legacyNonPowerPresenceBudget =
     spike * 0.6 + sustainedTotal * 0.4 + (atWillSummary.hasAoe ? 1.5 : 0);
   const atWillThreatAxisMultiplier =
     opts?.protectionTuning?.atWillThreatAxisMultiplier ??
@@ -3105,6 +3524,32 @@ export function computeMonsterOutcomes(
         mentalSurvivability: axisBudgetTargets.mentalSurvivability * 0.25,
       }
     : { physicalSurvivability: 0, mentalSurvivability: 0 };
+  const legacyPresenceBonuses = {
+    naturalAttackGreaterSuccess: naturalAttackGsAxisBonuses.presence,
+    naturalAttackRange: naturalAttackRangeAxisBonuses.presence,
+    customLimitBreak: customLimitBreakAxisBonuses.presence,
+    trait: traitAxisBonuses.presence,
+    equipment: equipmentModifierAxisBonuses.presence,
+    genericPowerResolver: effectivePowerAxisVector.presence,
+  };
+  const legacyPresenceRaw =
+    legacyNonPowerPresenceBudget +
+    legacyPresenceBonuses.naturalAttackGreaterSuccess +
+    legacyPresenceBonuses.naturalAttackRange +
+    legacyPresenceBonuses.customLimitBreak +
+    legacyPresenceBonuses.trait +
+    legacyPresenceBonuses.genericPowerResolver;
+  const pressureAxisBaselineModel = buildPressureAxisBaselineModel({
+    monster,
+    config: cfg,
+    atWillProfiles,
+    powerContribution: opts?.powerContribution,
+    legacyPresenceRaw,
+    excludedLegacyBonuses: legacyPresenceBonuses,
+  });
+  const calibratedPressureRaw = pressureAxisBaselineModel.calibrated
+    ? pressureAxisBaselineModel.rawActualPressureProxy
+    : legacyPresenceRaw;
   const nonPowerContribution: RadarAxes = {
     physicalThreat:
       sustainedPhysicalThreatAxis +
@@ -3156,12 +3601,7 @@ export function computeMonsterOutcomes(
       naturalAttackRangeAxisBonuses.mobility +
       customLimitBreakAxisBonuses.mobility +
       traitAxisBonuses.mobility,
-    presence:
-      nonPowerPresenceBudget +
-      naturalAttackGsAxisBonuses.presence +
-      naturalAttackRangeAxisBonuses.presence +
-      customLimitBreakAxisBonuses.presence +
-      traitAxisBonuses.presence,
+    presence: calibratedPressureRaw,
   };
   const finalPreNormalizationAxes: RadarAxes = {
     physicalThreat: nonPowerContribution.physicalThreat + effectivePowerAxisVector.physicalThreat,
@@ -3175,7 +3615,7 @@ export function computeMonsterOutcomes(
     manipulation: nonPowerContribution.manipulation + effectivePowerAxisVector.manipulation,
     synergy: nonPowerContribution.synergy + effectivePowerAxisVector.synergy,
     mobility: nonPowerContribution.mobility + effectivePowerAxisVector.mobility,
-    presence: nonPowerContribution.presence + effectivePowerAxisVector.presence,
+    presence: calibratedPressureRaw,
   };
   const physicalThreatNormalization = normalizeThreatByAcceptedBaseline({
     value: finalPreNormalizationAxes.physicalThreat,
@@ -3263,11 +3703,13 @@ export function computeMonsterOutcomes(
       mobilityCurvePoint,
       tierMultiplier,
     ),
-    presence: normalizeByLevelCurve(
-      finalPreNormalizationAxes.presence,
-      presenceCurvePoint,
-      tierMultiplier,
-    ),
+    presence: pressureAxisBaselineModel.calibrated
+      ? Number(pressureAxisBaselineModel.finalScore ?? 0)
+      : normalizeByLevelCurve(
+          finalPreNormalizationAxes.presence,
+          presenceCurvePoint,
+          tierMultiplier,
+        ),
   };
 
   return {
@@ -3360,7 +3802,8 @@ export function computeMonsterOutcomes(
           },
           physicalPoolRawBonus: physicalPoolLane.rawBonus,
           mentalPoolRawBonus: mentalPoolLane.rawBonus,
-          nonPowerPresenceBudget,
+          nonPowerPresenceBudget: legacyNonPowerPresenceBudget,
+          legacyPresenceRaw,
         },
       },
       finalPreNormalizationAxes,
@@ -3417,6 +3860,7 @@ export function computeMonsterOutcomes(
               physicalSurvivability: null,
               mentalSurvivability: null,
             },
+        pressureAxisBaselineModel,
         radarAxes,
       },
       legacyPowerHeuristics: {
