@@ -222,6 +222,17 @@ export function MonsterCalculatorPanel({
                   reflects target breadth, reach, area coverage, recurring effects,
                   repeatability, linked actions, and supported action economy.
                 </p>
+                <p className="text-[11px] text-zinc-500">
+                  Control Pressure reflects supported control and debuff effects,
+                  including severity, targets, duration, recurrence, availability,
+                  and distinct control packages. It measures table-facing
+                  restriction, not power cost or damage.
+                </p>
+                <p className="text-[11px] text-zinc-500">
+                  A Control Pressure score of 0 means the creature has no supported
+                  control package. Other scores are relative to the expected
+                  control-capable package for its level and tier.
+                </p>
               </div>
               <OutcomeRadar
                 axes={profile.radarAxes}
@@ -241,6 +252,11 @@ export function MonsterCalculatorPanel({
                   Pressure compares the creature&apos;s encounter coverage and cadence
                   with the expected package for its level, tier, and Legendary state
                   before conversion to a 0-10 score.
+                </p>
+                <p className="mt-2 text-zinc-500">
+                  Supported control packages are compared with the expected package
+                  for the creature&apos;s level, tier, and Legendary state before
+                  conversion to a 0-10 Control Pressure score.
                 </p>
                 <pre className="mt-2 overflow-auto">
                   {JSON.stringify(
@@ -280,7 +296,8 @@ export function MonsterCalculatorPanel({
                 shows the effective availability-adjusted contribution used by
                 the monster radar. Final Pressure is calculated separately from
                 authored encounter coverage and cadence, not the generic power
-                vector.
+                vector. Final Control Pressure is also calculated separately from
+                supported table-facing control packages, not power cost or damage.
               </p>
 
               {!powerCostPreview && (

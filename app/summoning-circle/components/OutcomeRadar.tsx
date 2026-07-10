@@ -39,7 +39,12 @@ const AXES: {
     description:
       "Mental durability compared with the expected defensive package for this creature's level, tier, and Legendary state.",
   },
-  { key: "manipulation", labelLines: ["Control", "Pressure"] },
+  {
+    key: "manipulation",
+    labelLines: ["Control", "Pressure"],
+    description:
+      "Control Pressure measures how reliably, broadly and persistently this creature restricts enemy choices or weakens enemy effectiveness.",
+  },
   { key: "synergy", labelLines: ["Synergy"] },
   { key: "mobility", labelLines: ["Mobility"] },
   {
