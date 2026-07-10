@@ -1,13 +1,20 @@
 import {
+  ROLEPLAY_METHODS,
+  ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  ROLEPLAY_METHOD_UNSELECTED,
   ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
   ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
   createDefaultRoleplayAbility,
   getCompatibleRoleplayOutcomeContracts,
+  getRoleplayAbilityMethodName,
   getRoleplayAbilityCounterEligibility,
   getRoleplayAbilityOutcomeLane,
   getRoleplayAbilitySuccessOutcome,
   getRoleplayAbilityWarnings,
+  getRoleplayMethodDefinition,
+  getRoleplayMethodsForIntention,
   normalizeRoleplayAbility,
+  reconcileRoleplayAbilityAuthoring,
   reconcileRoleplayAbilityContract,
   renderRoleplayAbilityDescriptor,
 } from "../lib/characterBuilder/roleplayAbilities";
@@ -46,6 +53,12 @@ assertEqual(
   "DENY_IMMINENT_HOSTILE_ACT",
   "You Shall Not Pass should migrate to Deny Imminent Hostile Act.",
 );
+assertEqual(youShallNotPass.methodId, "INTERRUPT", "Legacy Interrupt migration failed.");
+assertEqual(
+  youShallNotPass.narrativeTheme,
+  "Gandalf bars the enemy's advance.",
+  "Legacy description should migrate to Narrative Theme.",
+);
 assertEqual(
   getRoleplayAbilityOutcomeLane(youShallNotPass),
   "HINDER",
@@ -80,6 +93,12 @@ for (const obsoleteField of ["outputCategory", "outputSubtype", "crisisAssist"])
     `Normalized data must not retain ${obsoleteField}.`,
   );
 }
+for (const legacyField of ["specific", "description"]) {
+  assert(
+    !Object.hasOwn(youShallNotPass, legacyField),
+    `Normalized data must not retain ${legacyField}.`,
+  );
+}
 
 const frodoHide = normalizeRoleplayAbility(
   {
@@ -105,6 +124,7 @@ assertEqual(
   "HIDE_FROM_IMMEDIATE_DANGER",
   "Frodo Hide should migrate to Hide from Immediate Danger.",
 );
+assertEqual(frodoHide.methodId, "RESCUE", "Legacy Rescue migration failed.");
 assertEqual(
   getRoleplayAbilityOutcomeLane(frodoHide),
   "HELP",
@@ -204,7 +224,7 @@ assert(
 
 const hideAuthoring = {
   intention: "INTERVENTION" as const,
-  specific: "RESCUE" as const,
+  methodId: "RESCUE" as const,
   sceneImpact: "MINOR" as const,
   scope: "ONE_TARGET" as const,
 };
@@ -221,7 +241,7 @@ assertEqual(
 
 const denyAuthoring = {
   intention: "INTERVENTION" as const,
-  specific: "INTERRUPT" as const,
+  methodId: "INTERRUPT" as const,
   sceneImpact: "MAJOR" as const,
   scope: "ONE_TARGET" as const,
 };
@@ -280,9 +300,9 @@ const drawHostileAttentionDescriptors = {
 const drawBase = {
   ...createDefaultRoleplayAbility(5),
   name: "Face Me",
-  description: "The hero calls out the foe.",
+  narrativeTheme: "The hero calls out the foe.",
   intention: "INTIMIDATION" as const,
-  specific: "CHALLENGE" as const,
+  methodId: "CHALLENGE" as const,
   sceneImpact: "MINOR" as const,
   scope: "ONE_TARGET" as const,
   diceCount: 3 as const,
@@ -323,15 +343,14 @@ assert(
   !getCompatibleRoleplayOutcomeContracts({
     ...drawBase,
     intention: "PERSUASION",
-    specific: "CHALLENGE",
   }).some((contract) => contract.id === "DRAW_HOSTILE_ATTENTION"),
   "Draw Hostile Attention should not appear for Persuasion / Challenge.",
 );
 assert(
-  !getCompatibleRoleplayOutcomeContracts({ ...drawBase, specific: "THREATEN" }).some(
+  !getCompatibleRoleplayOutcomeContracts({ ...drawBase, methodId: "INTERRUPT" }).some(
     (contract) => contract.id === "DRAW_HOSTILE_ATTENTION",
   ),
-  "Draw Hostile Attention should not appear for Intimidation / Threaten.",
+  "Draw Hostile Attention should not appear for an incompatible Method.",
 );
 assert(
   !getCompatibleRoleplayOutcomeContracts({ ...drawBase, scope: "SMALL_GROUP" }).some(
@@ -357,10 +376,10 @@ for (const sceneImpact of ["STANDARD", "MAJOR", "LEGENDARY"] as const) {
 
 for (const [label, invalidDraw] of [
   ["Scope", { ...drawBase, scope: "SMALL_GROUP" as const }],
-  ["Specific", { ...drawBase, specific: "THREATEN" as const }],
+  ["Method", { ...drawBase, methodId: "INTERRUPT" as const }],
   [
     "Intention",
-    { ...drawBase, intention: "PERSUASION" as const, specific: "ENCOURAGE" as const },
+    { ...drawBase, intention: "PERSUASION" as const },
   ],
 ] as const) {
   const reconciled = reconcileRoleplayAbilityContract({ ...invalidDraw, counter: true });
@@ -380,10 +399,200 @@ const legacyEnableMovement = normalizeRoleplayAbility(
   6,
 );
 assertEqual(
-  legacyEnableMovement.specific,
+  legacyEnableMovement.methodId,
   "RESCUE",
   "Legacy ENABLE_MOVEMENT should normalize to RESCUE.",
 );
 
+assertEqual(
+  ROLEPLAY_METHODS.map((method) => method.id).join(","),
+  "RESCUE,INTERRUPT,CHALLENGE,DISCERN_TRUTH",
+  "The standard Method registry should contain exactly the four approved IDs.",
+);
+for (const [methodId, intention] of [
+  ["RESCUE", "INTERVENTION"],
+  ["INTERRUPT", "INTERVENTION"],
+  ["CHALLENGE", "INTIMIDATION"],
+  ["DISCERN_TRUTH", "PERCEPTION"],
+] as const) {
+  assertEqual(
+    getRoleplayMethodDefinition(methodId)?.intention,
+    intention,
+    `${methodId} owning Intention mismatch.`,
+  );
+}
+
+for (const [intention, expectedIds] of [
+  ["INTERVENTION", "RESCUE,INTERRUPT"],
+  ["INTIMIDATION", "CHALLENGE"],
+  ["PERCEPTION", "DISCERN_TRUTH"],
+  ["PERSUASION", ""],
+  ["DECEPTION", ""],
+] as const) {
+  assertEqual(
+    getRoleplayMethodsForIntention(intention).map((method) => method.id).join(","),
+    expectedIds,
+    `${intention} Method filtering mismatch.`,
+  );
+}
+
+for (const [specific, expectedMethodId, intention] of [
+  ["RESCUE", "RESCUE", "INTERVENTION"],
+  ["INTERRUPT", "INTERRUPT", "INTERVENTION"],
+  ["CHALLENGE", "CHALLENGE", "INTIMIDATION"],
+  ["DISCERN_TRUTH", "DISCERN_TRUTH", "PERCEPTION"],
+  ["ENABLE_MOVEMENT", "RESCUE", "INTERVENTION"],
+] as const) {
+  const migrated = normalizeRoleplayAbility(
+    {
+      description: `Legacy ${specific} theme`,
+      intention,
+      specific,
+    },
+    7,
+  );
+  assertEqual(migrated.methodId, expectedMethodId, `${specific} Method migration mismatch.`);
+  assertEqual(
+    migrated.narrativeTheme,
+    `Legacy ${specific} theme`,
+    `${specific} Narrative Theme migration mismatch.`,
+  );
+  assert(!Object.hasOwn(migrated, "specific"), `${specific} should not remain normalized.`);
+  assert(!Object.hasOwn(migrated, "description"), "description should not remain normalized.");
+}
+
+const unknownLegacyMethod = normalizeRoleplayAbility(
+  {
+    intention: "PERSUASION",
+    specific: "INSPIRE",
+    description: "A stirring appeal to shared purpose.",
+  },
+  8,
+);
+assertEqual(
+  unknownLegacyMethod.methodId,
+  ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  "Unknown legacy Specific should migrate to Custom Method review.",
+);
+assertEqual(
+  unknownLegacyMethod.customMethodName,
+  "Inspire",
+  "Known legacy Specific label should be preserved as a readable Method name.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(unknownLegacyMethod).length,
+  0,
+  "Custom Methods should not match standard Outcome Contracts.",
+);
+assert(
+  getRoleplayAbilityWarnings(unknownLegacyMethod).includes(
+    "Custom Method requires Game Director approval.",
+  ),
+  "Custom Method should warn that GD approval is required.",
+);
+
+const intentionReconciled = reconcileRoleplayAbilityAuthoring({
+  ...drawBase,
+  intention: "PERCEPTION",
+  counter: true,
+});
+assertEqual(
+  intentionReconciled.methodId,
+  ROLEPLAY_METHOD_UNSELECTED,
+  "Changing Intention should clear a Method owned by another Intention.",
+);
+assertEqual(
+  intentionReconciled.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+  "Changing Intention should clear the standard Outcome Contract.",
+);
+assertEqual(intentionReconciled.counter, false, "Changing Intention should clear Counter.");
+
+const methodReconciled = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(9),
+  ...denyAuthoring,
+  methodId: "RESCUE",
+  outcomeContractId: "DENY_IMMINENT_HOSTILE_ACT",
+  counter: true,
+});
+assertEqual(
+  methodReconciled.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+  "Changing Interrupt to Rescue should clear Deny Imminent Hostile Act.",
+);
+assertEqual(methodReconciled.counter, false, "Changing Method should clear Counter.");
+
+const customMethod = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(10),
+  intention: "PERSUASION",
+  methodId: ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  customMethodName: "Invoke Ancestral Memory",
+  customMethodRequest: "Consult inherited memories for guidance and boundaries.",
+  outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+});
+const customMethodAfterIntentionChange = reconcileRoleplayAbilityAuthoring({
+  ...customMethod,
+  intention: "PERCEPTION",
+});
+assertEqual(
+  customMethodAfterIntentionChange.methodId,
+  ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  "Custom Method should remain selected across Intention changes.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(customMethodAfterIntentionChange).length,
+  0,
+  "Custom Method should expose no standard contracts.",
+);
+const customMethodWarnings = getRoleplayAbilityWarnings(customMethodAfterIntentionChange);
+assert(
+  customMethodWarnings.includes("Custom Method requires Game Director approval."),
+  "Custom Method approval warning missing.",
+);
+assert(
+  customMethodWarnings.includes(
+    "Automatic standard Outcome Contract matching is unavailable for a Custom Method.",
+  ),
+  "Custom Method matching warning missing.",
+);
+
+const discernTruth = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(11),
+  name: "I See What You're Hiding",
+  narrativeTheme:
+    "You study the target's hesitation, contradictions, and the subjects they avoid.",
+  intention: "PERCEPTION",
+  methodId: "DISCERN_TRUTH",
+  sceneImpact: "STANDARD",
+  scope: "ONE_TARGET",
+  diceCount: 3,
+  outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  customOutcomeLane: "HELP",
+  customOutcomeRequest:
+    "You learn one useful concealed truth about the target relevant to the immediate situation.",
+});
+assertEqual(
+  getRoleplayAbilityMethodName(discernTruth),
+  "Discern Truth",
+  "Discern Truth Method name mismatch.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(discernTruth).length,
+  0,
+  "Discern Truth should have no standard Outcome Contract in this pass.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(discernTruth),
+  "Choose one target and roll 3 dice. On success, You learn one useful concealed truth about the target relevant to the immediate situation.",
+  "Discern Truth custom descriptor mismatch.",
+);
+assert(
+  getRoleplayAbilityWarnings(discernTruth).some((warning) =>
+    warning.includes("Custom Outcome requires Game Director approval"),
+  ),
+  "Discern Truth Custom Outcome warning missing.",
+);
+
 console.log("PASS roleplay outcome contract registry smoke");
 console.log("PASS roleplay draw hostile attention contract smoke");
+console.log("PASS structured roleplay method registry smoke");

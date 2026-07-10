@@ -101,6 +101,8 @@ import {
 import {
   ROLEPLAY_DICE_COUNT_OPTIONS,
   ROLEPLAY_INTENTION_OPTIONS,
+  ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  ROLEPLAY_METHOD_UNSELECTED,
   ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
   ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
   ROLEPLAY_OUTCOME_LANE_OPTIONS,
@@ -112,12 +114,14 @@ import {
   getCompatibleRoleplayOutcomeContracts,
   getRoleplayAbilityContractName,
   getRoleplayAbilityCounterEligibility,
+  getRoleplayAbilityMethodName,
   getRoleplayAbilityOutcomeLane,
   getRoleplayAbilitySuccessOutcome,
   getRoleplayAbilityWarnings,
   getRoleplayOutcomeContract,
-  getRoleplaySpecificOptions,
-  reconcileRoleplayAbilityContract,
+  getRoleplayMethodDefinition,
+  getRoleplayMethodsForIntention,
+  reconcileRoleplayAbilityAuthoring,
   renderRoleplayAbilityDescriptor,
   type RoleplayAbility,
 } from "@/lib/characterBuilder/roleplayAbilities";
@@ -1575,10 +1579,7 @@ export default function CharacterBuilderPage() {
       builderData.roleplayAbilities.map((ability, candidateIndex) => {
         if (candidateIndex !== index) return ability;
         const next = { ...ability, ...patch };
-        if (patch.intention && patch.intention !== ability.intention) {
-          next.specific = getRoleplaySpecificOptions(patch.intention)[0].value;
-        }
-        return reconcileRoleplayAbilityContract(next);
+        return reconcileRoleplayAbilityAuthoring(next);
       }),
     );
   }
@@ -4482,7 +4483,11 @@ export default function CharacterBuilderPage() {
           ) : (
             <div className="space-y-4">
               {builderData.roleplayAbilities.map((ability, index) => {
-                const specificOptions = getRoleplaySpecificOptions(ability.intention);
+                const methodOptions = getRoleplayMethodsForIntention(ability.intention);
+                const selectedMethod = getRoleplayMethodDefinition(ability.methodId);
+                const methodName = getRoleplayAbilityMethodName(ability);
+                const customMethodSelected =
+                  ability.methodId === ROLEPLAY_METHOD_CUSTOM_REVIEW;
                 const compatibleContracts = getCompatibleRoleplayOutcomeContracts(ability);
                 const selectedContract = getRoleplayOutcomeContract(
                   ability.outcomeContractId,
@@ -4530,8 +4535,7 @@ export default function CharacterBuilderPage() {
                           </h3>
                           {abilityCollapsed ? (
                             <span className="shrink-0 text-[11px] text-zinc-500">
-                              {specificOptions.find((option) => option.value === ability.specific)
-                                ?.label ?? "Roleplay Ability"}
+                              {methodName}
                               {" / "}
                               {outcomeContractName}
                             </span>
@@ -4565,20 +4569,25 @@ export default function CharacterBuilderPage() {
                         />
                       </label>
                       <label>
-                        <span className="text-xs text-zinc-400">Theme / Description</span>
+                        <span className="text-xs text-zinc-400">Narrative Theme</span>
                         <textarea
-                          value={ability.description}
+                          value={ability.narrativeTheme}
                           onChange={(event) =>
-                            updateRoleplayAbility(index, { description: event.target.value })
+                            updateRoleplayAbility(index, { narrativeTheme: event.target.value })
                           }
                           disabled={!canEdit || saving}
                           rows={2}
                           className="mt-1 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                         />
                         <span className="mt-1 block text-xs text-zinc-600">
-                          Describe how the Ability manifests in the fiction. The GD uses this to
-                          judge legality, Attribute, and Difficulty. Theme cannot enlarge or
-                          rewrite the selected Outcome Contract.
+                          Describe how your character performs the selected Method. Keep it
+                          concrete and easy for the GD to judge. It may affect fictional
+                          suitability, Attribute, and Difficulty, but cannot change the Outcome
+                          Contract, Scene Impact, Scope, duration, targeting, cost, or secondary
+                          outcomes. Plain language is enough.
+                        </span>
+                        <span className="mt-1 block text-xs font-medium text-zinc-500">
+                          The Narrative Theme explains the action, not the result.
                         </span>
                       </label>
                     </div>
@@ -4604,24 +4613,140 @@ export default function CharacterBuilderPage() {
                         </select>
                       </label>
                       <label>
-                        <span className="text-xs text-zinc-400">Specific</span>
+                        <span className="text-xs text-zinc-400">Method</span>
                         <select
-                          value={ability.specific}
+                          value={ability.methodId}
                           onChange={(event) =>
                             updateRoleplayAbility(index, {
-                              specific: event.target.value as RoleplayAbility["specific"],
+                              methodId: event.target.value as RoleplayAbility["methodId"],
                             })
                           }
                           disabled={!canEdit || saving}
                           className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                         >
-                          {specificOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
+                          <option value={ROLEPLAY_METHOD_UNSELECTED}>Select a Method</option>
+                          {methodOptions.map((method) => (
+                            <option key={method.id} value={method.id}>
+                              {method.name}
                             </option>
                           ))}
+                          <option value={ROLEPLAY_METHOD_CUSTOM_REVIEW}>
+                            Custom Method — GD Review Required
+                          </option>
                         </select>
+                        {methodOptions.length === 0 ? (
+                          <span className="mt-1 block text-xs text-zinc-600">
+                            No approved standard Methods exist for this Intention yet. Use Custom
+                            Method review or choose another Intention.
+                          </span>
+                        ) : null}
                       </label>
+                    </div>
+
+                    {selectedMethod ? (
+                      <section className="rounded-lg border border-violet-900/70 bg-violet-950/20 p-3">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-violet-300">
+                          Method Details
+                        </h4>
+                        <dl className="mt-2 grid gap-2 text-sm text-violet-50 sm:grid-cols-2">
+                          <div>
+                            <dt className="text-xs text-violet-500">Method</dt>
+                            <dd>{selectedMethod.name}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-violet-500">Intention</dt>
+                            <dd>
+                              {ROLEPLAY_INTENTION_OPTIONS.find(
+                                (option) => option.value === selectedMethod.intention,
+                              )?.label ?? selectedMethod.intention}
+                            </dd>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <dt className="text-xs text-violet-500">Definition</dt>
+                            <dd>{selectedMethod.definition}</dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-violet-500">Legal Approaches</dt>
+                            <dd>
+                              <ul className="mt-1 list-disc space-y-1 pl-5">
+                                {selectedMethod.legalApproaches.map((approach) => (
+                                  <li key={approach}>{approach}</li>
+                                ))}
+                              </ul>
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs text-violet-500">Exclusions</dt>
+                            <dd>
+                              <ul className="mt-1 list-disc space-y-1 pl-5">
+                                {selectedMethod.exclusions.map((exclusion) => (
+                                  <li key={exclusion}>{exclusion}</li>
+                                ))}
+                              </ul>
+                            </dd>
+                          </div>
+                        </dl>
+                        <p className="mt-2 text-xs text-violet-400">
+                          Legal Approaches are examples, not an exhaustive phrase list.
+                          Narrative Theme may vary, but it must remain inside this Method.
+                        </p>
+                      </section>
+                    ) : customMethodSelected ? (
+                      <section className="rounded-lg border border-amber-800 bg-amber-950/20 p-3">
+                        <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-300">
+                          Custom Method Review
+                        </h4>
+                        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-amber-200">
+                          <span>Status: Pending GD Approval</span>
+                          <span>Automatic Contract Matching: Unavailable</span>
+                          <span>Automatic Costing: Unavailable</span>
+                          <span>Final Cooldown: Pending Approval</span>
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          <label>
+                            <span className="text-xs text-amber-300">
+                              Proposed Method Name
+                            </span>
+                            <input
+                              type="text"
+                              value={ability.customMethodName}
+                              onChange={(event) =>
+                                updateRoleplayAbility(index, {
+                                  customMethodName: event.target.value,
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              className="mt-1 w-full rounded-lg border border-amber-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none disabled:opacity-60"
+                            />
+                          </label>
+                          <label>
+                            <span className="text-xs text-amber-300">
+                              Custom Method Request
+                            </span>
+                            <textarea
+                              value={ability.customMethodRequest}
+                              onChange={(event) =>
+                                updateRoleplayAbility(index, {
+                                  customMethodRequest: event.target.value,
+                                })
+                              }
+                              disabled={!canEdit || saving}
+                              rows={3}
+                              className="mt-1 w-full resize-y rounded-lg border border-amber-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none disabled:opacity-60"
+                            />
+                            <span className="mt-1 block text-xs text-amber-500">
+                              Describe the reusable approach, when it is legal, and its
+                              boundaries. Do not write the successful result here.
+                            </span>
+                          </label>
+                        </div>
+                        <p className="mt-2 text-xs text-amber-500">
+                          Custom Method is not approved merely because it saves.
+                        </p>
+                      </section>
+                    ) : null}
+
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       <label>
                         <span className="text-xs text-zinc-400">Scene Impact</span>
                         <select
@@ -4718,6 +4843,10 @@ export default function CharacterBuilderPage() {
                             <dd>{selectedContract.name}</dd>
                           </div>
                           <div>
+                            <dt className="text-xs text-cyan-500">Method</dt>
+                            <dd>{methodName}</dd>
+                          </div>
+                          <div>
                             <dt className="text-xs text-cyan-500">Outcome Lane</dt>
                             <dd>{outcomeLaneLabel}</dd>
                           </div>
@@ -4735,8 +4864,8 @@ export default function CharacterBuilderPage() {
                           </div>
                         </dl>
                         <p className="mt-2 text-xs text-cyan-400">
-                          This contract defines the purchased scene privilege. Theme determines
-                          how it manifests but cannot increase its effect.
+                          This contract defines the purchased scene privilege. Narrative Theme
+                          determines how it manifests but cannot increase its effect.
                         </p>
                       </section>
                     ) : customOutcomeSelected ? (
@@ -4810,6 +4939,9 @@ export default function CharacterBuilderPage() {
                             !canEdit ||
                             saving ||
                             outcomeContractUnselected ||
+                            (customMethodSelected &&
+                              (!customOutcomeSelected ||
+                                !ability.customOutcomeRequest.trim())) ||
                             (!customOutcomeSelected && !counterEligible)
                           }
                           className="h-4 w-4 accent-emerald-500"
@@ -4944,6 +5076,7 @@ export default function CharacterBuilderPage() {
                     ) : null}
 
                     <div className="flex flex-wrap gap-x-5 gap-y-1 border-t border-zinc-800 pt-3 text-xs text-zinc-400">
+                      <span>Method: {methodName}</span>
                       {customOutcomeSelected ? (
                         <>
                           <span>Contract: Custom — Pending GD Approval</span>

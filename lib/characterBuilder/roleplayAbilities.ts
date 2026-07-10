@@ -13,62 +13,127 @@ export const ROLEPLAY_INTENTION_OPTIONS = [
 
 export type RoleplayIntention = (typeof ROLEPLAY_INTENTION_OPTIONS)[number]["value"];
 
-export const ROLEPLAY_SPECIFIC_OPTIONS = {
-  PERSUASION: [
-    { value: "ENCOURAGE", label: "Encourage" },
-    { value: "COMMAND", label: "Command" },
-    { value: "APPEAL", label: "Appeal" },
-    { value: "RALLY", label: "Rally" },
-    { value: "NEGOTIATE", label: "Negotiate" },
-    { value: "PLEAD", label: "Plead" },
-    { value: "INSPIRE", label: "Inspire" },
-    { value: "REASSURE", label: "Reassure" },
-    { value: "INVOKE_AUTHORITY", label: "Invoke Authority" },
-    { value: "BUILD_TRUST", label: "Build Trust" },
-  ],
-  INTIMIDATION: [
-    { value: "THREATEN", label: "Threaten" },
-    { value: "DEFY", label: "Defy" },
-    { value: "OVERAWE", label: "Overawe" },
-    { value: "CHALLENGE", label: "Challenge" },
-    { value: "SUPPRESS", label: "Suppress" },
-    { value: "TERRIFY", label: "Terrify" },
-    { value: "SHAME", label: "Shame" },
-    { value: "BREAK_RESOLVE", label: "Break Resolve" },
-  ],
-  DECEPTION: [
-    { value: "DISTRACT", label: "Distract" },
-    { value: "LIE", label: "Lie" },
-    { value: "MISDIRECT", label: "Misdirect" },
-    { value: "FEINT", label: "Feint" },
-    { value: "DISGUISE_INTENT", label: "Disguise Intent" },
-    { value: "FALSE_IDENTITY", label: "False Identity" },
-    { value: "BAIT", label: "Bait" },
-    { value: "CONFUSE", label: "Confuse" },
-  ],
-  PERCEPTION: [
-    { value: "SEARCH", label: "Search" },
-    { value: "READ_INTENT", label: "Read Intent" },
-    { value: "SPOT_WEAKNESS", label: "Spot Weakness" },
-    { value: "TRACK", label: "Track" },
-    { value: "INVESTIGATE", label: "Investigate" },
-    { value: "SENSE_DANGER", label: "Sense Danger" },
-    { value: "DISCERN_TRUTH", label: "Discern Truth" },
-    { value: "REVELATION", label: "Revelation" },
-  ],
-  INTERVENTION: [
-    { value: "RESCUE", label: "Rescue" },
-    { value: "PULL_FREE", label: "Pull Free" },
-    { value: "SHIELD_WITH_BODY", label: "Shield With Body" },
-    { value: "INTERRUPT", label: "Interrupt" },
-    { value: "EXTRACT", label: "Extract" },
-    { value: "CATCH", label: "Catch" },
-    { value: "STABILISE", label: "Stabilise" },
-  ],
-} as const satisfies Record<RoleplayIntention, readonly RoleplayOption[]>;
+export const ROLEPLAY_METHOD_UNSELECTED = "UNSELECTED" as const;
+export const ROLEPLAY_METHOD_CUSTOM_REVIEW = "CUSTOM_REVIEW" as const;
 
-export type RoleplaySpecific =
-  (typeof ROLEPLAY_SPECIFIC_OPTIONS)[RoleplayIntention][number]["value"];
+export type RoleplayStandardMethodId =
+  | "RESCUE"
+  | "INTERRUPT"
+  | "CHALLENGE"
+  | "DISCERN_TRUTH";
+
+export type RoleplayMethodId =
+  | RoleplayStandardMethodId
+  | typeof ROLEPLAY_METHOD_UNSELECTED
+  | typeof ROLEPLAY_METHOD_CUSTOM_REVIEW;
+
+export type RoleplayMethodDefinition = {
+  id: RoleplayStandardMethodId;
+  name: string;
+  intention: RoleplayIntention;
+  definition: string;
+  legalApproaches: readonly string[];
+  exclusions: readonly string[];
+};
+
+export const ROLEPLAY_METHODS = [
+  {
+    id: "RESCUE",
+    name: "Rescue",
+    intention: "INTERVENTION",
+    definition:
+      "Protect or secure a target from immediate danger by warning, guiding, sheltering, distracting, interposing, or exploiting a plausible route to safety.",
+    legalApproaches: [
+      "Warn or signal imminent danger",
+      "Reveal nearby cover, concealment, or an escape opportunity",
+      "Create a protective distraction or opening",
+      "Interpose where fictionally possible",
+      "Guide or coordinate an immediate rescue",
+      "Exploit the environment or social situation to secure safety",
+    ],
+    exclusions: [
+      "Does not directly restore Health or treat Injury.",
+      "Does not remove quantified stacks, units, fields, attachments, or active powers.",
+      "Does not grant another action.",
+      "Does not move a measured distance.",
+      "Does not teleport or force impossible relocation.",
+      "Does not deny an impending hostile act unless the selected Outcome Contract explicitly grants that result.",
+    ],
+  },
+  {
+    id: "INTERRUPT",
+    name: "Interrupt",
+    intention: "INTERVENTION",
+    definition:
+      "Intervene at the moment of a meaningful impending act to stop, spoil, or break that act before it resolves.",
+    legalApproaches: [
+      "Issue a decisive command or defiance",
+      "Create a timely distraction",
+      "Physically interpose where fictionally possible",
+      "Disrupt concentration or preparation",
+      "Invoke authority, an oath, a symbol, or a known weakness",
+      "Reveal something at the decisive moment",
+    ],
+    exclusions: [
+      "Does not suppress every future action.",
+      "Does not remove passive effects.",
+      "Does not remove existing stacks, units, fields, attachments, or active powers.",
+      "Does not permanently incapacitate.",
+      "Does not become Block, Dodge, Resist, or Cleanse.",
+      "Does not automatically reveal or interrupt a hidden or unperceived act.",
+    ],
+  },
+  {
+    id: "CHALLENGE",
+    name: "Challenge",
+    intention: "INTIMIDATION",
+    definition:
+      "Confront a target openly to contest its courage, authority, attention, reputation, or willingness to oppose you.",
+    legalApproaches: [
+      "Issue a direct challenge",
+      "Openly defy the target",
+      "Appeal to honour, pride, duty, or reputation",
+      "Provoke the target",
+      "Make a public stand",
+      "Declare a personal rivalry",
+      "Take responsibility for an accusation or confrontation",
+    ],
+    exclusions: [
+      "Does not create hostility where none exists.",
+      "Does not compel the target to perform a hostile act.",
+      "Does not make the Ability user a valid target.",
+      "Does not force movement, range, or impossible actions.",
+      "Does not alter rolls or quantified output.",
+      "Does not create Control stacks.",
+      "Does not automatically override unrelated duties, loyalties, or objectives.",
+    ],
+  },
+  {
+    id: "DISCERN_TRUTH",
+    name: "Discern Truth",
+    intention: "PERCEPTION",
+    definition:
+      "Learn concealed information through observation, deduction, evidence, intuition, behavioural tells, contradictions, or another perceptive insight.",
+    legalApproaches: [
+      "Study body language, hesitation, or emotional reactions",
+      "Compare statements for contradiction",
+      "Inspect evidence or physical details",
+      "Notice omissions, avoidance, or unusual emphasis",
+      "Connect previously discovered clues",
+      "Use intuitive, spiritual, magical, or supernatural perception where supported by the Narrative Theme and current fiction",
+    ],
+    exclusions: [
+      "Does not compel speech, confession, or cooperation.",
+      "Does not force the target to deliberately reveal information.",
+      "Does not read thoughts or memories unless a separate contract or Power permits it.",
+      "Does not publicly expose the truth.",
+      "Does not create evidence.",
+      "Does not force other characters to believe the truth.",
+      "Does not reveal unrelated facts merely because they are secret.",
+      "Does not mechanically alter the target.",
+    ],
+  },
+] as const satisfies readonly RoleplayMethodDefinition[];
 
 export const ROLEPLAY_OUTCOME_LANE_OPTIONS = [
   { value: "HELP", label: "Help" },
@@ -139,7 +204,7 @@ export type RoleplayOutcomeContractId =
 
 export type RoleplayOutcomeContractAuthoring = {
   intention: RoleplayIntention;
-  specific: RoleplaySpecific;
+  methodId: RoleplayMethodId;
   sceneImpact: RoleplaySceneImpact;
   scope: RoleplayScope;
 };
@@ -171,7 +236,7 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       {
         authoring: {
           intention: "INTERVENTION",
-          specific: "RESCUE",
+          methodId: "RESCUE",
           sceneImpact: "MINOR",
           scope: "ONE_TARGET",
         },
@@ -205,7 +270,7 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       {
         authoring: {
           intention: "INTERVENTION",
-          specific: "INTERRUPT",
+          methodId: "INTERRUPT",
           sceneImpact: "MAJOR",
           scope: "ONE_TARGET",
         },
@@ -232,7 +297,7 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       {
         authoring: {
           intention: "INTIMIDATION",
-          specific: "CHALLENGE",
+          methodId: "CHALLENGE",
           sceneImpact: "MINOR",
           scope: "ONE_TARGET",
         },
@@ -244,7 +309,7 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       {
         authoring: {
           intention: "INTIMIDATION",
-          specific: "CHALLENGE",
+          methodId: "CHALLENGE",
           sceneImpact: "STANDARD",
           scope: "ONE_TARGET",
         },
@@ -256,7 +321,7 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       {
         authoring: {
           intention: "INTIMIDATION",
-          specific: "CHALLENGE",
+          methodId: "CHALLENGE",
           sceneImpact: "MAJOR",
           scope: "ONE_TARGET",
         },
@@ -268,7 +333,7 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       {
         authoring: {
           intention: "INTIMIDATION",
-          specific: "CHALLENGE",
+          methodId: "CHALLENGE",
           sceneImpact: "LEGENDARY",
           scope: "ONE_TARGET",
         },
@@ -305,9 +370,11 @@ export type RoleplayAbility = {
   id: string;
   sortOrder: number;
   name: string;
-  description: string;
+  narrativeTheme: string;
   intention: RoleplayIntention;
-  specific: RoleplaySpecific;
+  methodId: RoleplayMethodId;
+  customMethodName: string;
+  customMethodRequest: string;
   sceneImpact: RoleplaySceneImpact;
   scope: RoleplayScope;
   diceCount: RoleplayDiceCount;
@@ -323,7 +390,7 @@ export type RoleplayAbility = {
 
 type RoleplayAbilityAuthoring = Pick<
   RoleplayAbility,
-  "intention" | "specific" | "sceneImpact" | "scope"
+  "intention" | "methodId" | "sceneImpact" | "scope"
 >;
 
 function readRecord(value: unknown): Record<string, unknown> {
@@ -357,6 +424,72 @@ function readOutcomeContractId(value: unknown): RoleplayOutcomeContractId | null
   return null;
 }
 
+function readMethodId(value: unknown): RoleplayMethodId | null {
+  if (
+    value === ROLEPLAY_METHOD_UNSELECTED ||
+    value === ROLEPLAY_METHOD_CUSTOM_REVIEW ||
+    ROLEPLAY_METHODS.some((method) => method.id === value)
+  ) {
+    return value as RoleplayMethodId;
+  }
+  return null;
+}
+
+const LEGACY_SPECIFIC_LABELS: Readonly<Record<string, string>> = {
+  ENCOURAGE: "Encourage",
+  COMMAND: "Command",
+  APPEAL: "Appeal",
+  RALLY: "Rally",
+  NEGOTIATE: "Negotiate",
+  PLEAD: "Plead",
+  INSPIRE: "Inspire",
+  REASSURE: "Reassure",
+  INVOKE_AUTHORITY: "Invoke Authority",
+  BUILD_TRUST: "Build Trust",
+  THREATEN: "Threaten",
+  DEFY: "Defy",
+  OVERAWE: "Overawe",
+  CHALLENGE: "Challenge",
+  SUPPRESS: "Suppress",
+  TERRIFY: "Terrify",
+  SHAME: "Shame",
+  BREAK_RESOLVE: "Break Resolve",
+  DISTRACT: "Distract",
+  LIE: "Lie",
+  MISDIRECT: "Misdirect",
+  FEINT: "Feint",
+  DISGUISE_INTENT: "Disguise Intent",
+  FALSE_IDENTITY: "False Identity",
+  BAIT: "Bait",
+  CONFUSE: "Confuse",
+  SEARCH: "Search",
+  READ_INTENT: "Read Intent",
+  SPOT_WEAKNESS: "Spot Weakness",
+  TRACK: "Track",
+  INVESTIGATE: "Investigate",
+  SENSE_DANGER: "Sense Danger",
+  DISCERN_TRUTH: "Discern Truth",
+  REVELATION: "Revelation",
+  RESCUE: "Rescue",
+  ENABLE_MOVEMENT: "Rescue",
+  PULL_FREE: "Pull Free",
+  SHIELD_WITH_BODY: "Shield With Body",
+  INTERRUPT: "Interrupt",
+  EXTRACT: "Extract",
+  CATCH: "Catch",
+  STABILISE: "Stabilise",
+};
+
+function readableLegacySpecific(value: string) {
+  return LEGACY_SPECIFIC_LABELS[value] ??
+    value
+      .toLocaleLowerCase("en")
+      .split("_")
+      .filter(Boolean)
+      .map((part) => `${part.charAt(0).toLocaleUpperCase("en")}${part.slice(1)}`)
+      .join(" ");
+}
+
 function normalizeOutcomeForMigration(value: string) {
   return value
     .trim()
@@ -366,8 +499,28 @@ function normalizeOutcomeForMigration(value: string) {
     .toLocaleLowerCase("en");
 }
 
-export function getRoleplaySpecificOptions(intention: RoleplayIntention) {
-  return ROLEPLAY_SPECIFIC_OPTIONS[intention];
+export function getRoleplayMethodDefinition(
+  id: unknown,
+): RoleplayMethodDefinition | null {
+  return ROLEPLAY_METHODS.find((method) => method.id === id) ?? null;
+}
+
+export function getRoleplayMethodsForIntention(intention: RoleplayIntention) {
+  return ROLEPLAY_METHODS.filter((method) => method.intention === intention);
+}
+
+export function isRoleplayMethodCompatibleWithIntention(
+  method: RoleplayMethodDefinition,
+  intention: RoleplayIntention,
+) {
+  return method.intention === intention;
+}
+
+export function getRoleplayAbilityMethodName(ability: RoleplayAbility) {
+  if (ability.methodId === ROLEPLAY_METHOD_CUSTOM_REVIEW) {
+    return ability.customMethodName.trim() || "Custom Method — Review Required";
+  }
+  return getRoleplayMethodDefinition(ability.methodId)?.name ?? "No Method";
 }
 
 export function getRoleplayOutcomeContract(
@@ -383,7 +536,7 @@ export function getRoleplayOutcomeContractVariant(
   return contract.variants.find(
     (variant) =>
       variant.authoring.intention === authoring.intention &&
-      variant.authoring.specific === authoring.specific &&
+      variant.authoring.methodId === authoring.methodId &&
       variant.authoring.sceneImpact === authoring.sceneImpact &&
       variant.authoring.scope === authoring.scope,
   ) ?? null;
@@ -425,7 +578,13 @@ export function getRoleplayAbilityContractName(ability: RoleplayAbility) {
 }
 
 export function getRoleplayAbilityCounterEligibility(ability: RoleplayAbility) {
-  if (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW) return true;
+  if (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW) {
+    if (ability.methodId === ROLEPLAY_METHOD_UNSELECTED) return false;
+    if (ability.methodId === ROLEPLAY_METHOD_CUSTOM_REVIEW) {
+      return ability.customOutcomeRequest.trim().length > 0;
+    }
+    return true;
+  }
   const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
   return contract
     ? (getRoleplayOutcomeContractVariant(contract, ability)?.counterEligible ?? false)
@@ -455,14 +614,64 @@ export function reconcileRoleplayAbilityContract(ability: RoleplayAbility): Role
   return ability;
 }
 
+export function reconcileRoleplayAbilityMethod(ability: RoleplayAbility): RoleplayAbility {
+  if (ability.methodId === ROLEPLAY_METHOD_UNSELECTED) {
+    return {
+      ...ability,
+      outcomeContractId: getRoleplayOutcomeContract(ability.outcomeContractId)
+        ? ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED
+        : ability.outcomeContractId,
+      counter: false,
+    };
+  }
+
+  if (ability.methodId === ROLEPLAY_METHOD_CUSTOM_REVIEW) {
+    const standardContractSelected = getRoleplayOutcomeContract(
+      ability.outcomeContractId,
+    );
+    const outcomeContractId = standardContractSelected
+      ? ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED
+      : ability.outcomeContractId;
+    const customOutcomeRequested =
+      outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW &&
+      ability.customOutcomeRequest.trim().length > 0;
+    return {
+      ...ability,
+      outcomeContractId,
+      counter: customOutcomeRequested ? ability.counter : false,
+    };
+  }
+
+  const method = getRoleplayMethodDefinition(ability.methodId);
+  if (!method || !isRoleplayMethodCompatibleWithIntention(method, ability.intention)) {
+    return {
+      ...ability,
+      methodId: ROLEPLAY_METHOD_UNSELECTED,
+      outcomeContractId: getRoleplayOutcomeContract(ability.outcomeContractId)
+        ? ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED
+        : ability.outcomeContractId,
+      counter: false,
+    };
+  }
+  return ability;
+}
+
+export function reconcileRoleplayAbilityAuthoring(
+  ability: RoleplayAbility,
+): RoleplayAbility {
+  return reconcileRoleplayAbilityContract(reconcileRoleplayAbilityMethod(ability));
+}
+
 export function createDefaultRoleplayAbility(sortOrder: number): RoleplayAbility {
   return {
     id: `roleplay-ability-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     sortOrder,
     name: "",
-    description: "",
+    narrativeTheme: "",
     intention: "PERSUASION",
-    specific: "ENCOURAGE",
+    methodId: ROLEPLAY_METHOD_UNSELECTED,
+    customMethodName: "",
+    customMethodRequest: "",
     sceneImpact: "MINOR",
     scope: "ONE_TARGET",
     diceCount: 1,
@@ -484,9 +693,38 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
     ROLEPLAY_INTENTION_OPTIONS,
     ROLEPLAY_INTENTION_OPTIONS[0].value,
   );
-  const specificOptions = getRoleplaySpecificOptions(intention);
-  const rawSpecific = record.specific === "ENABLE_MOVEMENT" ? "RESCUE" : record.specific;
-  const specific = readOption(rawSpecific, specificOptions, specificOptions[0].value);
+  const hasStoredMethod = Object.hasOwn(record, "methodId");
+  const storedMethodId = hasStoredMethod ? readMethodId(record.methodId) : null;
+  const legacySpecific = readString(record.specific, 120);
+  let methodId: RoleplayMethodId;
+  let customMethodName = readString(record.customMethodName, 120);
+  const customMethodRequest = readString(record.customMethodRequest, 1000);
+  if (hasStoredMethod) {
+    const rawStoredMethodId = readString(record.methodId, 120);
+    if (storedMethodId) {
+      methodId = storedMethodId;
+    } else if (rawStoredMethodId) {
+      methodId = ROLEPLAY_METHOD_CUSTOM_REVIEW;
+      customMethodName ||= readableLegacySpecific(rawStoredMethodId);
+    } else {
+      methodId = ROLEPLAY_METHOD_UNSELECTED;
+    }
+  } else {
+    const legacyStandardMethod =
+      legacySpecific === "ENABLE_MOVEMENT" ? "RESCUE" : readMethodId(legacySpecific);
+    if (
+      legacyStandardMethod &&
+      legacyStandardMethod !== ROLEPLAY_METHOD_UNSELECTED &&
+      legacyStandardMethod !== ROLEPLAY_METHOD_CUSTOM_REVIEW
+    ) {
+      methodId = legacyStandardMethod;
+    } else if (legacySpecific) {
+      methodId = ROLEPLAY_METHOD_CUSTOM_REVIEW;
+      customMethodName ||= readableLegacySpecific(legacySpecific);
+    } else {
+      methodId = ROLEPLAY_METHOD_UNSELECTED;
+    }
+  }
   const sceneImpact = readOption(
     record.sceneImpact,
     ROLEPLAY_SCENE_IMPACT_OPTIONS,
@@ -511,7 +749,7 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
     legacyDenyHostileAction ? "HINDER" : "HELP",
   );
   const storedContractId = readOutcomeContractId(record.outcomeContractId);
-  const authoring = { intention, specific, sceneImpact, scope };
+  const authoring = { intention, methodId, sceneImpact, scope };
 
   let outcomeContractId = storedContractId;
   let customOutcomeLane = readOption(
@@ -552,13 +790,17 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
       ? `one ${storedRestrictionTag}`
       : storedRestrictionTag;
 
-  return reconcileRoleplayAbilityContract({
+  return reconcileRoleplayAbilityAuthoring({
     id: readString(record.id, 120) || `roleplay-ability-${sortOrder + 1}`,
     sortOrder,
     name: readString(record.name, 120),
-    description: readString(record.description, 2000),
+    narrativeTheme: Object.hasOwn(record, "narrativeTheme")
+      ? readString(record.narrativeTheme, 2000)
+      : readString(record.description, 2000),
     intention,
-    specific,
+    methodId,
+    customMethodName,
+    customMethodRequest,
     sceneImpact,
     scope,
     diceCount,
@@ -621,7 +863,27 @@ export function renderRoleplayAbilityDescriptor(ability: RoleplayAbility): strin
 export function getRoleplayAbilityWarnings(ability: RoleplayAbility): string[] {
   const warnings: string[] = [];
   if (!ability.name.trim()) warnings.push("Name is required.");
-  if (!ability.description.trim()) warnings.push("Theme / Description is required.");
+  if (!ability.narrativeTheme.trim()) warnings.push("Narrative Theme is required.");
+  if (ability.methodId === ROLEPLAY_METHOD_UNSELECTED) {
+    warnings.push("Method is required.");
+  }
+  if (ability.methodId === ROLEPLAY_METHOD_CUSTOM_REVIEW) {
+    warnings.push("Custom Method requires Game Director approval.");
+    warnings.push(
+      "Automatic standard Outcome Contract matching is unavailable for a Custom Method.",
+    );
+    if (!ability.customMethodName.trim()) {
+      warnings.push("Proposed Method Name is required for Game Director review.");
+    }
+    if (!ability.customMethodRequest.trim()) {
+      warnings.push("Custom Method Request is required for Game Director review.");
+    }
+  } else {
+    const method = getRoleplayMethodDefinition(ability.methodId);
+    if (method && !isRoleplayMethodCompatibleWithIntention(method, ability.intention)) {
+      warnings.push("The selected Method is incompatible with the current Intention.");
+    }
+  }
   if (ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED) {
     warnings.push("Outcome Contract is required.");
   }
@@ -640,7 +902,7 @@ export function getRoleplayAbilityWarnings(ability: RoleplayAbility): string[] {
     : null;
   if (contract && !isRoleplayOutcomeContractCompatible(contract, ability)) {
     warnings.push(
-      "The selected Outcome Contract is incompatible with the current Intention, Specific, Scene Impact, or Scope.",
+      "The selected Outcome Contract is incompatible with the current Intention, Method, Scene Impact, or Scope.",
     );
   }
   if (contract && ability.counter && !variant?.counterEligible) {
