@@ -45,9 +45,9 @@ enemies, objective tracks, and a small controlled set of roleplay abilities
 usable inside combat."
 
 This is the first controlled Closed Beta slice. It is not the full beta
-programme. The Roleplay Ability timing, authored-outcome identity, Outcome
-Lanes, and non-numeric cost order are locked; final numeric costing and the
-privilege-adjustment matrix remain open.
+programme. The Roleplay Ability timing, Outcome Contract architecture, and
+non-numeric cost order are locked; final numeric costing and future registry
+expansion remain open.
 
 Locked first-slice structure:
 
@@ -138,7 +138,8 @@ Roleplay Ability versus Cleanse distinction:
 - Roleplay Abilities should not invalidate existing Cleanse mechanics.
 - Cleanse removes or reduces eligible effects/stacks/units through its own
   lane.
-- A Roleplay Ability establishes its authored Success Outcome as scene truth.
+- A Roleplay Ability establishes its selected contract's derived Success
+  Outcome as scene truth.
   It does not remove or reduce stacks/units, grant measured movement, create
   wounds/healing, or produce Block, Dodge, Resist, or another quantified Power
   output.
@@ -163,6 +164,27 @@ A. Architecture
   - works for both combat abilities and roleplay investments;
   - supports player-facing wording: "You have reached your current Potential."
 
+Roleplay Ability authoring has three distinct layers:
+
+1. Theme / Description is free text for character fantasy, invocation,
+   fictional method, and manifestation. It helps the Game Director judge
+   legality, Attribute, and Difficulty but is not costed or parsed and cannot
+   enlarge or rewrite a contract.
+2. Outcome Contract is structured and authoritative. It defines the purchased
+   scene privilege, derived Outcome Lane and Success Outcome, compatible
+   authoring, Counter eligibility, and eventual privilege-cost / cooldown key.
+3. Scene Manifestation is chosen and narrated by the Game Director from the
+   current context and requires no additional roll, action, measurement, or
+   conversion into a Power mechanic.
+
+"Theme explains how. The Outcome Contract defines what."
+
+Theme may justify or narrow a contract, suggest an Attribute, influence
+Difficulty, and shape narration. Theme may not increase Impact or Scope,
+extend duration or breadth, add secondary results, convert the contract into a
+different privilege, bypass exclusions, replace quantified Power mechanics, or
+turn a temporary/local result into a permanent/global one.
+
 B. Investment profile / scale
 
 - Roleplay-heavy builds should not be framed as "suboptimal".
@@ -176,25 +198,27 @@ C. Core fields (v0)
 Required:
 
 - Name
-- Description
+- Theme / Description
 - Roleplay Intention
 - Specific
-- Outcome Lane
-- Success Outcome
-- Dice Count
 - Scene Impact
 - Scope
+- Outcome Contract
+- Dice Count
 
 Optional / conditional:
 
 - Restriction
-- Counter permission
+- Counter permission where the selected standard contract permits it
+- proposed Outcome Lane and Custom Outcome Request for Custom Outcome review
 
 Derived / display-only:
 
+- Outcome Lane
+- Success Outcome
 - Descriptor
-- Potential Cost
-- Cooldown
+- contract compatibility and Counter eligibility
+- eventual privilege-cost adjustment and cooldown pressure
 
 Remove from the active field model:
 
@@ -208,15 +232,16 @@ Remove from the active field model:
 Use "Cooldown". Cooldown should eventually derive from pre-Restriction / gross
 cost, not discounted net Potential spend.
 
-Success Outcome is the explicit scene truth created on success. It must be
-clear enough for the Game Director to judge legality before declaring
-Difficulty and must remain within Intention, Specific, Outcome Lane, Scope,
-Scene Impact, fictional position, and Restriction. It is not inferred from Name
-or Description and is rendered directly into the descriptor.
+Free-text Success Outcome is removed from ordinary standard-contract authoring.
+The standard Outcome Contract derives the exact Success Outcome and lane.
 
-Description explains the theme, invocation, and fictional method. It helps the
-Game Director judge legality and Difficulty, but the descriptor engine does not
-parse it and it does not replace Success Outcome.
+Custom Outcome - GD Review Required stores a proposed Outcome Lane and Custom
+Outcome Request. It remains Pending GD Approval, is not approved/final, cannot
+be automatically costed, and has pending final Cooldown. The Game Director or
+Architect must map it to an existing contract, approve a new standard contract,
+or manually approve and price a campaign-local custom contract. Recurring
+requests should inform registry growth; unrestricted prose cannot be
+automatically balanced.
 
 Resolution-rule fields are not fixed builder fields:
 
@@ -271,9 +296,9 @@ Rationale:
 
 Roleplay Abilities v0 also do not author Duration.
 
-The authored Success Outcome becomes true on success and remains a binding
-scene truth until later fiction changes it. Duration is not replaced by a
-separate builder or display field.
+The selected Outcome Contract's Success Outcome becomes true on success and
+remains a binding scene truth until later fiction changes it. Duration is not
+replaced by a separate builder or display field.
 
 F. Roleplay intentions and Specific
 
@@ -315,8 +340,8 @@ A Roleplay Ability is legal when declared action fits:
 
 - Intention
 - Specific
-- Outcome Lane
-- Success Outcome
+- selected Outcome Contract and its derived Outcome Lane / Success Outcome
+- Theme / Description
 - Scope
 - Scene Impact
 - Attribute approach
@@ -373,22 +398,23 @@ first slice).
 - Dice Count sets reliability.
 - Scope sets spread.
 - Difficulty sets challenge.
-- Scope and Scene Impact remain hard ceilings. On success, the complete authored
-  Success Outcome becomes true within those ceilings.
+- Scope and Scene Impact remain hard ceilings. On success, the selected
+  contract's complete Success Outcome becomes true within those ceilings.
 
 J. Resolution model
 
 v0 order:
 
-1. Player declares the Roleplay Ability and describes the fictional method.
-2. The Game Director confirms that the use fits Intention, Specific, Outcome
-   Lane, Success Outcome, Scope, Scene Impact, fictional position, and
-   Restriction.
+1. Player declares the Roleplay Ability and describes its Theme / fictional
+   method.
+2. The Game Director confirms that the use fits the selected Outcome Contract,
+   derived Outcome Lane and Success Outcome, Theme / Description, Intention,
+   Specific, Scope, Scene Impact, fictional position, and Restriction.
 3. The Game Director declares Difficulty and the relevant Attribute.
 4. The player may apply a valid Characteristic substitution.
 5. The player rolls the authored Dice Count with the final Attribute die.
-6. On success, the authored Success Outcome becomes true and the Game Director
-   narrates how it manifests in the current context.
+6. On success, the selected contract's Success Outcome becomes true and the
+   Game Director narrates its Scene Manifestation in the current context.
 
 Roleplay Abilities roll authored Dice Count, not the default 3-die Trial. No
 additional roll or action from the affected target is required to establish a
@@ -407,46 +433,67 @@ K. Roleplay Abilities vs Normal Trials / Clashes
 - They should help character specialization produce larger/specialized consequences
   when potential is invested.
 
-L. Outcome Lanes
+L. Outcome Contract Registry
 
-Approved Roleplay Ability Outcome Lanes:
+The registry catalogues materially distinct rule privileges, not every
+narrative expression. Many themes may use one contract. Each standard contract
+defines a stable ID, name, Help / Hinder lane, exact Success Outcome, compatible
+Intention / Specific / Scene Impact / Scope combinations, Counter eligibility,
+an eventual privilege-cost key, examples, and explicit exclusions. Registry
+growth follows actual play and approved concepts. Numeric costs are not locked
+in this pass.
 
-- Help establishes a beneficial scene truth for the target, group, side,
-  objective, or situation.
-- Hinder establishes a detrimental scene truth for the target, group, side,
-  objective, or situation.
+Initial standard registry only:
 
-Outcome Lane classifies direction. It does not fully define the effect. The
-authored Success Outcome defines the actual privilege purchased and matters
-more to costing than Help versus Hinder alone.
+HIDE_FROM_IMMEDIATE_DANGER
 
-Example: You Shall Not Pass
+- Player name: Hide from Immediate Danger
+- Derived lane: Help
+- Exact Success Outcome: "the target becomes hidden from the immediate danger"
+- Compatible: Intervention / Rescue / Minor / One Target
+- Counter eligible: No
+- Eventual privilege-cost key: HIDE_FROM_IMMEDIATE_DANGER; numeric adjustment
+  remains open.
+- Excludes permanent invisibility; hiding from every creature; ending the
+  encounter; quantified-effect removal; measured movement; another action; and
+  any additional Hide, movement, or defence roll.
+- Theme examples: diving between ruins, disappearing into a crowd, concealing
+  mist, slipping under a wagon, or a companion's distraction.
+- Theme cannot turn this into universal perception immunity, encounter removal,
+  battle-long concealment, permanent invisibility, or erasure from memory.
 
-- Intention: Intervention
-- Specific: Interrupt
-- Outcome Lane: Hinder
-- Scene Impact: Major
-- Scope: One Target
-- Dice Count: 4
-- Restriction: only Agents of Morgoth
-- Counter: Yes
-- Success Outcome: "the target's current or next hostile action fails"
-- Descriptor: "Choose one Agent of Morgoth and roll 4 dice. On success, the
-  target's current or next hostile action fails."
+DENY_IMMINENT_HOSTILE_ACT
 
-Example: Frodo Hide!
+- Player name: Deny Imminent Hostile Act
+- Derived lane: Hinder
+- Exact Success Outcome: "the target's current or next hostile action fails"
+- Compatible: Intervention / Interrupt / Major / One Target
+- Counter eligible: Yes
+- Eventual privilege-cost key: DENY_IMMINENT_HOSTILE_ACT; numeric adjustment
+  remains open.
+- Excludes permanent incapacitation; passive-effect cancellation; removal of
+  existing stacks, units, fields, attachments, or active powers; prevention of
+  every scene action; conversion into Block, Dodge, Resist, or Cleanse; and
+  automatic group effect.
 
-- Intention: Intervention
-- Specific: Rescue
-- Outcome Lane: Help
-- Scene Impact: Minor
-- Scope: One Target
-- Dice Count: 3
-- Restriction: Frodo only
-- Counter: No
-- Success Outcome: "the target becomes hidden from the immediate danger"
-- Descriptor: "Choose Frodo and roll 3 dice. On success, the target becomes
-  hidden from the immediate danger."
+Broader concealment or group-scale denial requires a distinct future contract;
+Theme or higher Impact cannot silently enlarge either standard contract.
+
+Standard contract availability is filtered by Intention, Specific, Scene
+Impact, and Scope. Custom Outcome - GD Review Required remains available for
+all combinations. If an authoring-field change invalidates a standard contract,
+the builder requires a new compatible selection rather than mutating the
+contract.
+
+Example: You Shall Not Pass uses DENY_IMMINENT_HOSTILE_ACT, derives Hinder and
+"the target's current or next hostile action fails", and renders: "Choose one
+Agent of Morgoth and roll 4 dice. On success, the target's current or next
+hostile action fails."
+
+Example: Frodo Hide! uses HIDE_FROM_IMMEDIATE_DANGER, derives Help and "the
+target becomes hidden from the immediate danger", and renders: "Choose Frodo
+and roll 3 dice. On success, the target becomes hidden from the immediate
+danger."
 
 M. Roleplay Abilities vs Cleanse
 
@@ -498,13 +545,14 @@ Roleplay Window order:
    declaration.
 2. The Game Director explicitly opens a Roleplay Window.
 3. One eligible actor may spend 1 Response and declare one Roleplay Ability.
-4. The Game Director confirms that the use fits Intention, Specific, Outcome
-   Lane, Success Outcome, Scope, Scene Impact, fictional position, and
+4. The Game Director confirms that the use fits the selected Outcome Contract,
+   its derived Outcome Lane and Success Outcome, Theme / Description,
+   Intention, Specific, Scope, Scene Impact, fictional position, and
    Restriction.
 5. The Game Director declares Difficulty and the relevant Attribute.
 6. The Ability roll resolves.
-7. On success, the explicit Success Outcome becomes true and the Game Director
-   narrates how it manifests.
+7. On success, the selected contract's Success Outcome becomes true and the
+   Game Director narrates its Scene Manifestation.
 8. The Game Director continues the activation from the changed scene state.
 9. When a formal hostile action is declared, the normal Response Window /
    Incarnate Stack begins.
@@ -520,7 +568,8 @@ Guardrails:
 - Only perceivable intent can normally create a window.
 - Only one Roleplay Ability may be declared in each window.
 - A failed Roleplay Ability does not weaken or consume the impending action.
-- The explicit Success Outcome remains binding on success.
+- The selected Outcome Contract and derived Success Outcome remain binding on
+  success; Theme cannot enlarge them.
 - Scope and Scene Impact remain hard ceilings.
 - The Game Director decides Difficulty and Attribute after confirming thematic
   legality.
@@ -533,15 +582,16 @@ O. Potential Cost Skeleton
 No numeric costs are locked. Use this order:
 
 1. Scene Impact x Scope base.
-2. Success Outcome / privilege adjustment.
+2. Outcome Contract privilege adjustment.
 3. Dice Count reliability.
-4. Counter permission surcharge, if authored.
+4. Counter permission surcharge where the contract permits Counter.
 5. Cooldown adjustment.
 6. Apply Restriction discount last to calculate net Potential spend.
 
 Roleplay Window access is universal and has no purchased permission surcharge.
-The specific privilege created by Success Outcome matters more to costing than
-Help versus Hinder alone.
+Help / Hinder alone is not the primary privilege price. The selected Outcome
+Contract is the main privilege-cost key. Custom Outcome cannot be automatically
+costed.
 
 Cooldown must eventually derive from PRE-RESTRICTION / GROSS cost. Restriction
 discounts reduce NET Potential spend but do not make a highly privileged
@@ -590,11 +640,12 @@ ability mechanics. Do not mix discount and bonus in one field.
 Two use modes:
 
 1. Out of combat or on NPCs in combat:
-   - establishes the authored Success Outcome in the scene with no combat
+   - establishes the selected contract's Success Outcome in the scene with no combat
      action cost.
 2. In combat on actors:
-   - establishes the authored Success Outcome as scene truth from which combat
-     continues, without converting it into quantified Power mechanics.
+   - establishes the selected contract's Success Outcome as scene truth from
+     which combat continues, without converting it into quantified Power
+     mechanics.
 
 Generic scene actions:
 

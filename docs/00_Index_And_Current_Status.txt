@@ -116,10 +116,10 @@ The current launch-roadmap intake batch has been captured in owner docs:
   objective tracks, and a small roleplay ability testbed.
 
 Most items in this intake remain planning context and do not resolve open
-Architect decisions. The Roleplay Ability authored-outcome identity, Help /
-Hinder lanes, Roleplay Window timing, normal-Assist exclusion, and optional
+Architect decisions. The Roleplay Ability Outcome Contract architecture,
+Roleplay Window timing, normal-Assist exclusion, and optional contract-gated
 Counter permission are now locked rule law in their owner documents. Numeric
-Roleplay Ability costs and the final privilege-adjustment matrix remain open.
+Roleplay Ability costs and final contract privilege adjustments remain open.
 
 
 Open Decisions Index
@@ -250,15 +250,17 @@ law until the owning active doc is updated with an explicit decision.
   in docs/03_Builders_And_Implementation_Roadmap.txt.
   Note: The first slice is dynamic crisis combat with pregenerated characters,
   pregenerated enemies, objective tracks, and a small roleplay ability testbed.
-  The active Roleplay Ability framework now locks explicit authored Success
-  Outcomes, Help / Hinder Outcome Lanes, universal Roleplay Window access, and
-  optional paid Counter permission. Powers calculate quantified effects;
-  Roleplay Abilities establish outcomes. Required fields, timing law, Scope,
-  Scene Impact, Attribute handling, the non-numeric Potential cost skeleton,
-  and restriction discount order are captured in the active source documents.
-  Numeric constants, final privilege-cost adjustments, and the wider action
-  terminology pass remain OPEN / NEEDS ARCHITECT DECISION unless explicitly
-  locked elsewhere.
+  The active Roleplay Ability framework now separates free-text Theme /
+  Description, structured Outcome Contracts, and Game Director-narrated Scene
+  Manifestation. Standard contracts derive Outcome Lane and Success Outcome;
+  Custom Outcome requests require GD review and cannot be automatically costed.
+  The initial registry contains only HIDE_FROM_IMMEDIATE_DANGER and
+  DENY_IMMINENT_HOSTILE_ACT. Universal Roleplay Window access, contract-gated
+  paid Counter permission, timing law, Scope, Scene Impact, Attribute handling,
+  the non-numeric Potential cost skeleton, and restriction discount order are
+  captured in the active source documents. Numeric constants, future registry
+  expansion, and the wider action terminology pass remain OPEN / NEEDS
+  ARCHITECT DECISION unless explicitly locked elsewhere.
 - Full Blaze of Glory runtime flow and Blaze AI.
   Status: DEFERRED / NEEDS ARCHITECT DECISION.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and

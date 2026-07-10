@@ -130,27 +130,41 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
 - Roleplay Abilities should avoid unnecessary combat-specific v1 fields in v0.
 - v0 Roleplay Ability builder fields:
   - Name
-  - Description
+  - Theme / Description
   - Roleplay Intention
   - Specific
-  - Outcome Lane: Help or Hinder
-  - Success Outcome
-  - Dice Count
   - Scene Impact
   - Scope
+  - Outcome Contract
+  - Dice Count
 - Optional / conditional fields:
   - Restriction
-  - Counter permission
-- Derived / display-only fields:
+  - Counter permission where the selected standard contract permits it
+  - proposed Outcome Lane and Custom Outcome Request for Custom Outcome review
+- Standard-contract-derived fields:
+  - Outcome Lane
+  - Success Outcome
   - Descriptor
-  - Potential Cost
-  - Cooldown
-- Name and Description remain flavour/method fields. The descriptor engine does
-  not infer mechanics from either field.
-- Success Outcome is authored explicitly, rendered into the descriptor, and
-  defines the scene truth that becomes binding on success.
-- Success Outcome must remain within Intention, Specific, Outcome Lane, Scope,
-  Scene Impact, fictional position, and Restriction.
+  - contract compatibility and Counter eligibility
+  - eventual privilege-cost adjustment and cooldown pressure
+- Theme / Description is unrestricted narrative method and manifestation text.
+  It is not costed or parsed and cannot enlarge or rewrite the selected Outcome
+  Contract.
+- The structured Outcome Contract is mechanically authoritative and defines the
+  reusable purchased privilege, derived lane/outcome, compatible authoring,
+  Counter eligibility, and eventual costing/cooldown pressure.
+- Scene Manifestation is narrated by the Game Director from current context.
+  "Theme explains how. The Outcome Contract defines what."
+- Remove free-text Success Outcome from standard contract authoring.
+- Initial standard registry only:
+  - HIDE_FROM_IMMEDIATE_DANGER: Help; Intervention / Rescue / Minor / One
+    Target; Counter ineligible.
+  - DENY_IMMINENT_HOSTILE_ACT: Hinder; Intervention / Interrupt / Major / One
+    Target; Counter eligible.
+- Filter standard contracts by Intention, Specific, Scene Impact, and Scope.
+  Keep Custom Outcome - GD Review Required available for all combinations.
+- Custom Outcome stores a proposed lane and request, remains Pending GD
+  Approval, cannot be automatically costed, and has pending final Cooldown.
 - Powers calculate quantified effects. Roleplay Abilities establish outcomes;
   they do not convert into wounds, Block, Dodge, Resist, stacks, units,
   measured movement, or other quantified Power mechanics.
@@ -169,12 +183,14 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
   flexibility; it does not make the Ability Counter-only.
 - Attribute should not be a builder field.
 - Builder should not suggest typical Attributes.
-- The Game Director confirms thematic legality, then declares Difficulty and
-  Attribute. On success, no additional roll or target action is required to
-  establish the authored Success Outcome.
+- The Game Director validates the selected contract, derived lane/outcome,
+  Theme / Description, Scope, Scene Impact, fictional position, and Restriction,
+  then declares Difficulty and Attribute. On success, no additional roll or
+  target action is required to establish the contract outcome.
 - Potential costing remains non-numeric in this slice: Scene Impact x Scope;
-  Success Outcome / privilege adjustment; Dice Count reliability; optional
-  Counter surcharge; Cooldown adjustment; Restriction discount applied last.
+  Outcome Contract privilege adjustment; Dice Count reliability; optional
+  contract-permitted Counter surcharge; Cooldown adjustment; Restriction
+  discount applied last. Custom Outcome has no automatic costing.
 - Cooldown should derive from pre-Restriction / gross cost, not discounted net
   Potential spend.
 - Show non-judgemental Combat/Roleplay investment profile and a shared remaining

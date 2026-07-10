@@ -179,6 +179,28 @@ Roleplay Window / Roleplay Ability Timing
 Powers calculate quantified effects. Roleplay Abilities establish explicit
 authored scene outcomes.
 
+Roleplay Ability authoring has three separate layers:
+
+1. Theme / Description is free text describing character fantasy, invocation,
+   fictional method, and manifestation. It helps the Game Director judge
+   legality, Attribute, and Difficulty, but is not costed or parsed and cannot
+   enlarge or rewrite the selected Outcome Contract.
+2. Outcome Contract is the structured, authoritative mechanical source. It
+   defines the reusable purchased scene privilege, derived Outcome Lane and
+   Success Outcome, compatible authoring, Counter eligibility, and eventual
+   privilege-cost and cooldown pressure.
+3. Scene Manifestation is chosen and narrated by the Game Director from the
+   current context. It explains how the contract becomes true without another
+   roll, action, measurement, or Power-mechanic conversion.
+
+"Theme explains how. The Outcome Contract defines what."
+
+Creative Theme may justify or narrow a contract, suggest an Attribute,
+influence Difficulty, and shape narration. It cannot increase Scene Impact or
+Scope, extend duration or breadth, add secondary results, bypass exclusions,
+replace quantified Power mechanics, or turn a temporary/local outcome into a
+permanent/global one.
+
 Roleplay Abilities cannot be used as normal Assists and cannot enter the normal
 Assist declaration stack. Their timing lanes are:
 
@@ -213,13 +235,14 @@ Resolve a Roleplay Window in this order:
    declaration.
 2. The Game Director explicitly opens a Roleplay Window.
 3. One eligible actor may spend 1 Response and declare one Roleplay Ability.
-4. The Game Director confirms that the declared use fits the Ability's
-   Intention, Specific, Outcome Lane, Success Outcome, Scope, Scene Impact,
-   fictional position, and Restriction.
+4. The Game Director confirms that the declared use fits the selected Outcome
+   Contract, its derived Outcome Lane and Success Outcome, Theme / Description,
+   Intention, Specific, Scope, Scene Impact, fictional position, and
+   Restriction.
 5. The Game Director declares Difficulty and the relevant Attribute.
 6. The Ability roll resolves.
-7. On success, the explicit Success Outcome becomes true and the Game Director
-   narrates how it manifests.
+7. On success, the selected contract's Success Outcome becomes true and the
+   Game Director narrates its Scene Manifestation.
 8. The Game Director continues the activation from the changed scene state.
 9. When a formal hostile action is declared, the normal Response Window /
    Incarnate Stack begins.
@@ -235,17 +258,18 @@ Roleplay Window guardrails:
 - Only perceivable intent can normally create a window.
 - Only one Roleplay Ability may be declared in each window.
 - A failed Roleplay Ability does not weaken or consume the impending action.
-- The explicit Success Outcome remains binding on success.
+- The selected Outcome Contract and its derived Success Outcome remain binding
+  on success; Theme cannot enlarge them.
 - Scope and Scene Impact remain hard ceilings.
 - The Game Director decides Difficulty and Attribute after confirming thematic
   legality.
 
-On a successful Roleplay Ability roll, the authored Success Outcome becomes
-true in the scene. No additional roll or target action establishes that
-outcome, no distance measurement is required, and the outcome is not converted
-into wounds, Block, Dodge, Resist, stacks, units, movement points, or other
-quantified Power mechanics. The Ability may materially affect combat by
-changing the scene truth from which play continues.
+On a successful Roleplay Ability roll, the selected Outcome Contract's derived
+Success Outcome becomes true in the scene. No additional roll or target action
+establishes that outcome, no distance measurement is required, and the outcome
+is not converted into wounds, Block, Dodge, Resist, stacks, units, movement
+points, or other quantified Power mechanics. The Ability may materially affect
+combat by changing the scene truth from which play continues.
 
 
 Full Damage-Prevention Order
