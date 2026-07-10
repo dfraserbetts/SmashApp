@@ -990,134 +990,139 @@ Primitive benchmarks are not final balance proof. They are calibration anchors
 for the cost resolver and tuning seams.
 
 
-Roleplay Ability And Scene Impact Backlog
+Roleplay Ability And Scene Impact Framework
 
-Roleplay Abilities in v0 use a parallel `RoleplayAbility` model and share the
-single character build budget through Potential (working pool name).
+Roleplay Abilities use a parallel `RoleplayAbility` model and share the single
+character build budget through Potential (working pool name).
 
-Captured v0 lock points:
+Locked identity:
 
-- Roleplay Abilities are power-shaped but not identical to combat Powers.
-- Shared Potential spend supports both build lanes.
-- Scene Impact is the main effect-size / consequence ceiling.
-- Scope is a major cost driver.
-- Self is cheaper than One Person because it is a hard restriction.
-- Faction / Army is available but heavily gated unless narrowed by restriction.
-- Legendary is available in framework but should remain naturally rare.
-- Attribute is not a fixed builder field and is not priced as an authored fixed
-  value.
-- Basic trials/clashes remain available outside abilities; abilities are
-  privileged access pathways.
-- No final formulas, numeric costs, thresholds, or implementation behaviour are
-  locked in this pass.
+- Powers manipulate quantified combat state: wounds, healing, Block, Dodge,
+  Resist, stacks, units, numeric modifiers, measured movement, areas,
+  durations, and repeating effects.
+- Roleplay Abilities establish explicit themed scene outcomes.
+- On success, the authored Success Outcome becomes true in the scene and the
+  Game Director narrates how it manifests in the current context.
+- No additional roll or affected-target action is required to establish that
+  outcome.
+- No distance measurement or conversion into wounds, Block, Dodge, Resist,
+  stacks, units, movement points, or other quantified Power mechanics occurs.
+- A Roleplay Ability may materially affect combat by establishing a binding
+  scene truth rather than by using a Power mechanic.
 
-v0 required fields:
+Core distinction: "Powers calculate effects. Roleplay Abilities establish
+outcomes."
+
+Required authored fields:
 
 - Name
 - Description
 - Roleplay Intention
 - Specific
+- Outcome Lane
+- Success Outcome
 - Dice Count
 - Scene Impact
 - Scope
-- Output Category / table-impact category
-- Descriptor
-- Potential Cost
 
-v0 optional / conditional:
+Optional / conditional authored fields:
 
 - Restriction
-- Repeat Limit / Friction
 - Counter permission
-- Crisis Assist permission
-- Action Enable details, where the ability grants a bounded Main
-  Action-equivalent
 
-v0 auto-derived / display-only:
+Derived / display-only fields:
 
-- Result Window
+- Descriptor
+- Potential Cost
+- Cooldown
 
-v0 ladders:
+Outcome Lane options:
+
+- Help: establishes a beneficial scene truth for a target, group, side,
+  objective, or situation.
+- Hinder: establishes a detrimental scene truth for a target, group, side,
+  objective, or situation.
+
+Outcome Lane classifies direction but does not fully define the effect. The
+authored Success Outcome defines the actual privilege purchased and matters
+more to costing than Help versus Hinder alone.
+
+Success Outcome is the explicit scene truth created on success. It must be
+clear enough for the Game Director to judge legality before declaring
+Difficulty and must remain within the selected Intention, Specific, Outcome
+Lane, Scope, Scene Impact, fictional position, and Restriction. It is not
+inferred from Name or Description and is rendered directly into the generated
+descriptor.
+
+Description explains the theme, invocation, and fictional method. It helps the
+Game Director judge legality and Difficulty, is not parsed by the descriptor
+engine, and does not replace the explicit Success Outcome.
+
+Locked ladders:
 
 - Intention: Persuasion, Intimidation, Deception, Perception, Intervention
 - Scene Impact: Minor, Standard, Major, Legendary
-- Scope: Self, One Person, Small Group, Large Group, Faction / Army
+- Scope: Self, One Target, Small Group, Large Group, Faction / Army
 
-Roleplay Abilities v0 do not author Ability Shape or Duration. Result Window
-is derived from ability result and fiction, not selected as a builder field.
+Attribute is not a fixed builder field or authored cost. Basic Trials and
+Clashes remain available outside abilities; Roleplay Abilities are privileged
+access pathways, not permission gates.
 
-Approved v0 output categories:
+Example: You Shall Not Pass
 
-- Scene Influence
-- Reveal
-- Action Enable
-- Reroll / Dice Support
-- Temporary Ignore / Push Through
-- Position / Rescue
-- Momentum / Hesitation
+- Intention: Intervention
+- Specific: Interrupt
+- Outcome Lane: Hinder
+- Scene Impact: Major
+- Scope: One Target
+- Dice Count: 4
+- Restriction: only Agents of Morgoth
+- Counter: Yes
+- Success Outcome: "the target's current or next hostile action fails"
+- Descriptor: "Choose one Agent of Morgoth and roll 4 dice. On success, the
+  target's current or next hostile action fails."
 
-v0 exclusions:
+Example: Frodo Hide!
 
-- Direct healing is excluded from Roleplay Abilities v0.
-- Injury Treatment may be explored later as a separate ability concept because
-  it is different from restoring ordinary health pools.
-- Direct stack / unit removal is excluded from Roleplay Abilities v0.
-- Cleanse must remain mechanically distinct and should not be invalidated by
-  Roleplay Abilities.
-- Power-specific mechanics should stay in Powers, not Roleplay Abilities.
-- Roleplay Abilities v0 do not grant Power Actions.
+- Intention: Intervention
+- Specific: Rescue
+- Outcome Lane: Help
+- Scene Impact: Minor
+- Scope: One Target
+- Dice Count: 3
+- Restriction: Frodo only
+- Counter: No
+- Success Outcome: "the target becomes hidden from the immediate danger"
+- Descriptor: "Choose Frodo and roll 3 dice. On success, the target becomes
+  hidden from the immediate danger."
 
-Roleplay Ability Potential Cost Principles v0
+Roleplay Ability Potential Cost Principles
 
-No numeric constants are locked in this pass.
+No numeric constants are locked in this pass. Use this non-numeric order:
 
-Formula skeleton:
-
-Base Permission Cost = Scene Impact x Scope
-+ Output Category adjustment
-+ Dice Count reliability
-+ Timing surcharge
-+ Repeat / Friction adjustment
-Then apply Restriction discount last.
-
-Equivalent implementation order:
-
-1. Start with Scene Impact x Scope.
-2. Apply Output Category adjustment.
+1. Start with the Scene Impact x Scope base.
+2. Apply the Success Outcome / privilege adjustment.
 3. Add Dice Count reliability.
-4. Add Timing permissions / surcharges.
-5. Add Repeat / Friction adjustment.
-6. Apply Restriction discount last.
+4. Add the Counter permission surcharge, if authored.
+5. Apply the Cooldown adjustment.
+6. Apply the Restriction discount last to calculate net Potential spend.
 
-Costing principles:
+Roleplay Window access is universal and has no purchased-permission surcharge.
+Roleplay Abilities cannot use normal Assist, so no Roleplay Ability Assist
+surcharge exists. Counter permission is paid flexibility, not Counter-only use.
 
-- Scene Impact scales heavily.
-- Scope scales harshly.
-- Scene Impact x Scope is the core base-cost driver.
-- Dice Count prices reliability, not permission ceiling.
-- Action Enable is a premium output category because it manipulates action
-  economy.
-- Counter and Crisis Assist are timing surcharges.
-- Assist is universal and has no extra build surcharge.
-- Test Crisis Assist with a premium. Do not marry the premium. If playtest
-  feedback shows it feels over-shackled rather than cinematic, reduce or remove
-  the premium.
-- Restriction discounts apply after total cost is calculated.
-- Faction / Army + Legendary should require either very high Potential spend or
-  harsh restrictions to be practical at low / mid levels.
+Cooldown must eventually derive from PRE-RESTRICTION / GROSS cost. Restriction
+discounts reduce NET Potential spend but do not make a highly privileged
+outcome more spammable.
 
-Action Enable v0 costing / legality posture:
+Scene Impact and Scope remain the core base-cost drivers. Dice Count prices
+reliability, not permission ceiling. Faction / Army plus Legendary should
+require very high Potential spend, harsh restrictions, or both. Final numeric
+costs and privilege adjustments remain open.
 
-- No Roleplay Ability may grant an additional Power Action.
-- A Roleplay Ability may grant a bounded Main Action-equivalent.
-- If an ability grants an additional Main Action-equivalent, it cannot be used
-  as an Assist.
-- Such an ability can be used only as Standard Use, consuming the user's Power
-  Action, or as Crisis Assist if otherwise legal.
-- A weapon attack granted by a Roleplay Ability is a basic weapon attack unless
-  explicitly future-designed otherwise.
-- No Signature Move, Power Action, multi-target weapon-profile abuse, or "make
-  4 attacks" behaviour in v0.
+Power Action remains the current working action name. Do not rename it as part
+of this framework alignment; capture any wider action terminology change as
+future work.
 
 Restriction discount bands v0:
 

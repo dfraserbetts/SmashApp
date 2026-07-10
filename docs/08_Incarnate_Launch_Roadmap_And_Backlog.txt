@@ -45,7 +45,9 @@ enemies, objective tracks, and a small controlled set of roleplay abilities
 usable inside combat."
 
 This is the first controlled Closed Beta slice. It is not the full beta
-programme and does not lock the final Roleplay Ability Framework.
+programme. The Roleplay Ability timing, authored-outcome identity, Outcome
+Lanes, and non-numeric cost order are locked; final numeric costing and the
+privilege-adjustment matrix remain open.
 
 Locked first-slice structure:
 
@@ -116,9 +118,9 @@ Normal roleplay versus Roleplay Abilities:
 - A player does not need a special ability to attempt ordinary persuasion,
   deception, intimidation, rescue, investigation, or similar actions.
 - Roleplay Abilities are privileged access pathways, not permission gates.
-- Roleplay Abilities may provide expanded Scene Impact, special target scope,
-  mechanical effects, restriction-backed power, or combat-relevant
-  scene/objective impact.
+- Roleplay Abilities provide explicit authored scene outcomes within purchased
+  Scene Impact, Scope, and restrictions. They may materially affect combat by
+  establishing scene truth, not by converting into quantified Power mechanics.
 - Scene Impact should define the authored ceiling of a roleplay ability, not
   rely only on Game Director generosity.
 - Difficulty remains situational and can still be set by the Game Director.
@@ -136,18 +138,12 @@ Roleplay Ability versus Cleanse distinction:
 - Roleplay Abilities should not invalidate existing Cleanse mechanics.
 - Cleanse removes or reduces eligible effects/stacks/units through its own
   lane.
-- Encourage / Rescue / Intervention-style abilities should generally use
-  different mechanics in v0 rather than direct Cleanse-style stack / unit
-  removal.
-- Possible different lanes include:
-  - granting an immediate out-of-turn Resist,
-  - granting rerolls on a future Resist,
-  - transferring some burden to the caster,
-  - letting a target ignore an effect temporarily,
-  - moving/rescuing a target from danger,
-  - converting panic into action.
-- This is a design direction for the upcoming Roleplay Ability Framework, not
-  final locked implementation.
+- A Roleplay Ability establishes its authored Success Outcome as scene truth.
+  It does not remove or reduce stacks/units, grant measured movement, create
+  wounds/healing, or produce Block, Dodge, Resist, or another quantified Power
+  output.
+- A combat-relevant Success Outcome changes the fictional state from which play
+  continues; it does not become a disguised Cleanse packet.
 
 Roleplay Ability v0 Framework
 
@@ -183,25 +179,44 @@ Required:
 - Description
 - Roleplay Intention
 - Specific
+- Outcome Lane
+- Success Outcome
 - Dice Count
 - Scene Impact
 - Scope
-- Output Category / table-impact category
-- Descriptor
-- Potential Cost
 
 Optional / conditional:
 
 - Restriction
-- Repeat Limit / Friction
 - Counter permission
-- Crisis Assist permission
-- Action Enable details, where the ability grants a bounded Main
-  Action-equivalent
 
-Auto-derived / display-only:
+Derived / display-only:
 
-- Result Window
+- Descriptor
+- Potential Cost
+- Cooldown
+
+Remove from the active field model:
+
+- Output Category
+- Output Subtype
+- Crisis Assist
+- Repeat Limit / Friction terminology
+- Result Window as a separate display field
+- Action Enable details
+
+Use "Cooldown". Cooldown should eventually derive from pre-Restriction / gross
+cost, not discounted net Potential spend.
+
+Success Outcome is the explicit scene truth created on success. It must be
+clear enough for the Game Director to judge legality before declaring
+Difficulty and must remain within Intention, Specific, Outcome Lane, Scope,
+Scene Impact, fictional position, and Restriction. It is not inferred from Name
+or Description and is rendered directly into the descriptor.
+
+Description explains the theme, invocation, and fictional method. It helps the
+Game Director judge legality and Difficulty, but the descriptor engine does not
+parse it and it does not replace Success Outcome.
 
 Resolution-rule fields are not fixed builder fields:
 
@@ -256,21 +271,9 @@ Rationale:
 
 Roleplay Abilities v0 also do not author Duration.
 
-Result Window replaces Duration as display / adjudication guidance. It is
-auto-derived from the ability result and fiction, not selected as a builder
-field.
-
-Suggested Result Window examples:
-
-- Immediate: resolves now.
-- Until target's next turn ends: brief actor-facing support such as reroll,
-  extra dice, immediate Resist opportunity, or temporary push-through.
-- Scene consequence: NPC / scene / objective consequence persists fictionally
-  until changed by later scene events.
-- Knowledge / revelation: once discovered, remains known unless fiction
-  changes.
-- Objective / track change: Game Director / future Scenario Manager updates
-  the relevant state.
+The authored Success Outcome becomes true on success and remains a binding
+scene truth until later fiction changes it. Duration is not replaced by a
+separate builder or display field.
 
 F. Roleplay intentions and Specific
 
@@ -296,7 +299,7 @@ Examples:
 - Perception: Search, Read Intent, Spot Weakness, Track, Investigate, Sense Danger,
   Discern Truth, Revelation
 - Intervention: Rescue, Pull Free, Shield With Body, Interrupt, Extract, Catch,
-  Stabilise, Enable Movement
+  Stabilise
 
 Important naming reminders:
 
@@ -312,6 +315,8 @@ A Roleplay Ability is legal when declared action fits:
 
 - Intention
 - Specific
+- Outcome Lane
+- Success Outcome
 - Scope
 - Scene Impact
 - Attribute approach
@@ -333,7 +338,7 @@ H. Scope
 v0 Scope ladder:
 
 - Self
-- One Person
+- One Target
 - Small Group
 - Large Group
 - Faction / Army
@@ -341,7 +346,7 @@ v0 Scope ladder:
 Mythic / Realm remains excluded from v0.
 
 - Self is a hard restriction and the cheapest Scope tier.
-- One Person is broader than Self and costed above it.
+- One Target is broader than Self and costed above it.
 - Small Group / Large Group remain flexible, not hard-numbered in v0.
 - Game Directors adjudicate contextual group breadth.
 - Faction / Army is available and should be expensive unless narrowed by restriction.
@@ -368,28 +373,32 @@ first slice).
 - Dice Count sets reliability.
 - Scope sets spread.
 - Difficulty sets challenge.
-- Extra successes improve outcomes at Game Director discretion, but do not auto-break
-Scenario/Impact ceilings.
+- Scope and Scene Impact remain hard ceilings. On success, the complete authored
+  Success Outcome becomes true within those ceilings.
 
 J. Resolution model
 
 v0 order:
 
-1. Player declares Roleplay Ability.
-2. Player describes method.
-3. Game Director confirms thematic viability.
-4. Game Director sets Difficulty or opposing Clash / Resist.
-5. Game Director calls Attribute from context.
-6. Player may apply valid Characteristic substitution.
-7. Player rolls authored Dice Count with final Attribute die.
-8. Game Director resolves outcome within Scope and Scene Impact.
+1. Player declares the Roleplay Ability and describes the fictional method.
+2. The Game Director confirms that the use fits Intention, Specific, Outcome
+   Lane, Success Outcome, Scope, Scene Impact, fictional position, and
+   Restriction.
+3. The Game Director declares Difficulty and the relevant Attribute.
+4. The player may apply a valid Characteristic substitution.
+5. The player rolls the authored Dice Count with the final Attribute die.
+6. On success, the authored Success Outcome becomes true and the Game Director
+   narrates how it manifests in the current context.
 
-- Roleplay Abilities roll authored Dice Count, not default 3-die Trial.
-- Extra successes may improve results as context allows; partial success remains
-  GM final.
+Roleplay Abilities roll authored Dice Count, not the default 3-die Trial. No
+additional roll or action from the affected target is required to establish a
+successful outcome. No distance measurement is required. The result does not
+convert into wounds, healing, Block, Dodge, Resist, stacks, units, movement
+points, areas, durations, repeating effects, or other quantified Power
+mechanics.
 
-Example: Persuasion of a mercenary group at Difficulty 3 with 2 successes may still
-resolve only partially at Game Director discretion.
+Core distinction: "Powers calculate effects. Roleplay Abilities establish
+outcomes."
 
 K. Roleplay Abilities vs Normal Trials / Clashes
 
@@ -398,26 +407,46 @@ K. Roleplay Abilities vs Normal Trials / Clashes
 - They should help character specialization produce larger/specialized consequences
   when potential is invested.
 
-L. Output Categories
+L. Outcome Lanes
 
-Approved v0 Roleplay Ability output categories:
+Approved Roleplay Ability Outcome Lanes:
 
-- Scene Influence
-- Reveal
-- Action Enable
-- Reroll / Dice Support
-- Temporary Ignore / Push Through
-- Position / Rescue
-- Momentum / Hesitation
+- Help establishes a beneficial scene truth for the target, group, side,
+  objective, or situation.
+- Hinder establishes a detrimental scene truth for the target, group, side,
+  objective, or situation.
 
-v0 exclusions:
+Outcome Lane classifies direction. It does not fully define the effect. The
+authored Success Outcome defines the actual privilege purchased and matters
+more to costing than Help versus Hinder alone.
 
-- Direct healing is excluded from Roleplay Abilities v0.
-- Injury Treatment may be explored later as a separate ability concept because
-  it is different from restoring ordinary health pools.
-- Direct stack / unit removal is excluded from Roleplay Abilities v0.
-- Power-specific mechanics should stay in Powers, not Roleplay Abilities.
-- Roleplay Abilities v0 do not grant Power Actions.
+Example: You Shall Not Pass
+
+- Intention: Intervention
+- Specific: Interrupt
+- Outcome Lane: Hinder
+- Scene Impact: Major
+- Scope: One Target
+- Dice Count: 4
+- Restriction: only Agents of Morgoth
+- Counter: Yes
+- Success Outcome: "the target's current or next hostile action fails"
+- Descriptor: "Choose one Agent of Morgoth and roll 4 dice. On success, the
+  target's current or next hostile action fails."
+
+Example: Frodo Hide!
+
+- Intention: Intervention
+- Specific: Rescue
+- Outcome Lane: Help
+- Scene Impact: Minor
+- Scope: One Target
+- Dice Count: 3
+- Restriction: Frodo only
+- Counter: No
+- Success Outcome: "the target becomes hidden from the immediate danger"
+- Descriptor: "Choose Frodo and roll 3 dice. On success, the target becomes
+  hidden from the immediate danger."
 
 M. Roleplay Abilities vs Cleanse
 
@@ -425,102 +454,98 @@ M. Roleplay Abilities vs Cleanse
 - Cleanse stays the direct effect lane for removing / reducing eligible effects.
 - Cleanse must remain mechanically distinct and should not be invalidated by
   Roleplay Abilities.
-- Encourage / Rescue / Intervention style abilities should generally use alternate
-  mechanics in v0 rather than direct Cleanse-style stack / unit removal.
-- v0 alternate lanes may include:
-  - immediate out-of-turn Resist
-  - reroll support on a future Resist
-  - temporary effect ignore
-  - moving / rescuing from danger
-  - panic-to-action conversions
-- Burden-transfer is deferred advanced design.
+- A Roleplay Ability establishes its explicit Success Outcome as scene truth.
+  It does not remove or reduce stacks/units or create another quantified
+  Cleanse, Resist, movement, damage, healing, or defence output.
+- A successful scene outcome may change what is fictionally possible next, but
+  it is not converted into a Power packet.
 
 N. Timing / Action Economy
 
-v0 timing model:
+Locked timing lanes:
 
-- Standard Use in combat consumes the user's Power Action.
-- Standard Use out of combat is handled as ordinary scene declaration with no
-  combat action cost.
-- Assist is universal for Powers and Roleplay Abilities.
-- Assist uses 1 Response.
-- Assist does not require an extra build-cost permission.
-- Counter uses 1 Response.
-- Counter is legal only when the actor is personally targeted by a hostile
-  action / effect and the ability has Counter permission.
-- Crisis Assist uses 1 Response.
-- Crisis Assist happens only when the Game Director opens a scene-pressure
-  window before a formal targeting event.
-- Crisis Assist is tested with a premium surcharge, but that is provisional
-  testing posture, not final doctrine.
+A. Standard Use in combat
 
-Testing principle:
+- consumes the actor's Power Action.
 
-Test Crisis Assist with a premium. Do not marry the premium. If playtest
-feedback shows it feels over-shackled rather than cinematic, reduce or remove
-the premium.
+B. Standard Use out of combat
 
-Example Crisis Assist windows:
+- is an ordinary scene declaration;
+- has no combat action cost.
 
-- major enemy enters
-- fire spreads
-- gate cracks
-- civilians panic
-- hidden threat is revealed
-- objective track shifts
-- ally / NPC is placed in immediate peril
+C. Roleplay Window
 
-O. Action Enable Limits
+- costs 1 Response;
+- is universally available to Roleplay Abilities and is not an authored or
+  purchased permission;
+- permits one Roleplay Ability maximum per Roleplay Window.
 
-Action Enable is a premium output category because it manipulates action
-economy.
+D. Counter
 
-Hard v0 rules:
+- costs 1 Response;
+- requires authored paid Counter permission;
+- is legal only when the Ability user is personally targeted by the hostile
+  action or effect;
+- adds flexibility and does not make the Ability Counter-only.
 
-- No Roleplay Ability may grant an additional Power Action.
-- A Roleplay Ability may grant a bounded Main Action-equivalent.
-- If an ability grants an additional Main Action-equivalent, it cannot be used
-  as an Assist.
-- Such an ability can be used only as Standard Use, consuming the user's Power
-  Action, or as Crisis Assist if otherwise legal.
-- A weapon attack granted by a Roleplay Ability is a basic weapon attack unless
-  explicitly future-designed otherwise.
-- No Signature Move, Power Action, multi-target weapon-profile abuse, or "make
-  4 attacks" behaviour in v0.
+Roleplay Abilities cannot be used as normal Assists and cannot enter the normal
+Assist declaration stack. Ordinary Power Assist law remains unchanged.
 
-Action Enable ceiling by Scene Impact:
+Roleplay Window order:
 
-Minor:
+1. The Game Director describes a meaningful, perceivable impending intent,
+   movement, preparation, or scene escalation before formal hostile-action
+   declaration.
+2. The Game Director explicitly opens a Roleplay Window.
+3. One eligible actor may spend 1 Response and declare one Roleplay Ability.
+4. The Game Director confirms that the use fits Intention, Specific, Outcome
+   Lane, Success Outcome, Scope, Scene Impact, fictional position, and
+   Restriction.
+5. The Game Director declares Difficulty and the relevant Attribute.
+6. The Ability roll resolves.
+7. On success, the explicit Success Outcome becomes true and the Game Director
+   narrates how it manifests.
+8. The Game Director continues the activation from the changed scene state.
+9. When a formal hostile action is declared, the normal Response Window /
+   Incarnate Stack begins.
 
-- immediate movement / reposition
-- take cover
-- simple interact
-- use item on self
-- stand / recover footing
-- grab / pass object
+Guardrails:
 
-Standard:
+- The Game Director opens the window; players cannot interrupt every
+  descriptive sentence.
+- A window is for a meaningful scene beat, not every movement or incidental
+  act.
+- Hidden actions do not need to be revealed merely because Roleplay Abilities
+  exist.
+- Only perceivable intent can normally create a window.
+- Only one Roleplay Ability may be declared in each window.
+- A failed Roleplay Ability does not weaken or consume the impending action.
+- The explicit Success Outcome remains binding on success.
+- Scope and Scene Impact remain hard ceilings.
+- The Game Director decides Difficulty and Attribute after confirming thematic
+  legality.
 
-- immediate Resist
-- Dash / Rush movement
-- use item on another
-- interact under pressure
-- one basic weapon attack against one target, if clearly built for that
+Power Action remains the current working action name. Wider action terminology
+changes remain future work.
 
-Major:
+O. Potential Cost Skeleton
 
-- strong Main Action-equivalent
-- one basic weapon attack with scene advantage
-- enable small-group non-Power action
+No numeric costs are locked. Use this order:
 
-Legendary:
+1. Scene Impact x Scope base.
+2. Success Outcome / privilege adjustment.
+3. Dice Count reliability.
+4. Counter permission surcharge, if authored.
+5. Cooldown adjustment.
+6. Apply Restriction discount last to calculate net Potential spend.
 
-- coordinated large-scale action
-- or multiple affected actors each take one bounded Main Action-equivalent
+Roleplay Window access is universal and has no purchased permission surcharge.
+The specific privilege created by Success Outcome matters more to costing than
+Help versus Hinder alone.
 
-Prefer "multiple affected actors each take one bounded action" over "one actor
-attacks many targets," because the latter turns the strongest striker into a
-blender and stops feeling like a roleplay / leadership ability.
+Cooldown must eventually derive from PRE-RESTRICTION / GROSS cost. Restriction
+discounts reduce NET Potential spend but do not make a highly privileged
+outcome more spammable.
 
 P. Restriction Discount Bands
 
@@ -565,11 +590,11 @@ ability mechanics. Do not mix discount and bonus in one field.
 Two use modes:
 
 1. Out of combat or on NPCs in combat:
-   - affects scene tracks, NPC stance, morale, access, aid, information, or
-     objective progress.
+   - establishes the authored Success Outcome in the scene with no combat
+     action cost.
 2. In combat on actors:
-   - affects allies/enemies mechanically through a non-Cleanse, non-damage lane
-     where appropriate.
+   - establishes the authored Success Outcome as scene truth from which combat
+     continues, without converting it into quantified Power mechanics.
 
 Generic scene actions:
 

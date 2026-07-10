@@ -98,7 +98,7 @@ Use this routing when adding or updating source documentation:
 
 Roadmap Capture Batch 1
 
-Status: CAPTURED AS ROADMAP / NOT LOCKED RULE LAW.
+Status: CAPTURED AS ROADMAP; ROLEPLAY TIMING AND OUTCOME CORE NOW LOCKED.
 
 The current launch-roadmap intake batch has been captured in owner docs:
 
@@ -115,8 +115,11 @@ The current launch-roadmap intake batch has been captured in owner docs:
   Beta Vertical Slice as dynamic crisis combat with pregenerated assets,
   objective tracks, and a small roleplay ability testbed.
 
-These items preserve planning context only. They do not resolve open Architect
-decisions or require immediate implementation.
+Most items in this intake remain planning context and do not resolve open
+Architect decisions. The Roleplay Ability authored-outcome identity, Help /
+Hinder lanes, Roleplay Window timing, normal-Assist exclusion, and optional
+Counter permission are now locked rule law in their owner documents. Numeric
+Roleplay Ability costs and the final privilege-adjustment matrix remain open.
 
 
 Open Decisions Index
@@ -241,19 +244,20 @@ law until the owning active doc is updated with an explicit decision.
   but current Combat Lab implementation planning may ignore them until Limit
   Break runtime exists.
 - Closed Beta Vertical Slice and Roleplay Ability Framework.
-  Status: FIRST SLICE CAPTURED / ROLEPLAY ABILITY V0 FRAMEWORK CAPTURED.
+  Status: FIRST SLICE CAPTURED / CORE ROLEPLAY TIMING AND OUTCOME MODEL LOCKED.
   Owner: docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt, with costing
   implications in docs/02_Power_System_And_Costing.txt and builder implications
   in docs/03_Builders_And_Implementation_Roadmap.txt.
   Note: The first slice is dynamic crisis combat with pregenerated characters,
   pregenerated enemies, objective tracks, and a small roleplay ability testbed.
-  v0 Roleplay Ability framework is captured in the roadmap/docs lane: shared
-  Potential pool, parallel RoleplayAbility model, no Ability Shape field, no
-  authored Duration field, auto-derived Result Window, Scene Impact / Scope /
-  Intention shape, output categories, timing / action-economy posture, Action
-  Enable limits, Attribute handling, Potential cost skeleton, and restriction
-  discount bands. Numeric constants, final implementation, and first-beta
-  authoring path remain OPEN / NEEDS ARCHITECT DECISION unless explicitly
+  The active Roleplay Ability framework now locks explicit authored Success
+  Outcomes, Help / Hinder Outcome Lanes, universal Roleplay Window access, and
+  optional paid Counter permission. Powers calculate quantified effects;
+  Roleplay Abilities establish outcomes. Required fields, timing law, Scope,
+  Scene Impact, Attribute handling, the non-numeric Potential cost skeleton,
+  and restriction discount order are captured in the active source documents.
+  Numeric constants, final privilege-cost adjustments, and the wider action
+  terminology pass remain OPEN / NEEDS ARCHITECT DECISION unless explicitly
   locked elsewhere.
 - Full Blaze of Glory runtime flow and Blaze AI.
   Status: DEFERRED / NEEDS ARCHITECT DECISION.

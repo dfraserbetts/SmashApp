@@ -133,39 +133,50 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
   - Description
   - Roleplay Intention
   - Specific
+  - Outcome Lane: Help or Hinder
+  - Success Outcome
   - Dice Count
   - Scene Impact
   - Scope
-  - Output Category / table-impact category
-  - Descriptor
-  - Potential Cost
 - Optional / conditional fields:
   - Restriction
-  - Repeat Limit / Friction
   - Counter permission
-  - Crisis Assist permission
-  - Action Enable details, where the ability grants a bounded Main
-    Action-equivalent
-- Auto-derived / display-only:
-  - Result Window
-- Roleplay Abilities v0 do not author Ability Shape or Duration. Result Window
-  is derived from ability result and fiction, not selected as a duration field.
+- Derived / display-only fields:
+  - Descriptor
+  - Potential Cost
+  - Cooldown
+- Name and Description remain flavour/method fields. The descriptor engine does
+  not infer mechanics from either field.
+- Success Outcome is authored explicitly, rendered into the descriptor, and
+  defines the scene truth that becomes binding on success.
+- Success Outcome must remain within Intention, Specific, Outcome Lane, Scope,
+  Scene Impact, fictional position, and Restriction.
+- Powers calculate quantified effects. Roleplay Abilities establish outcomes;
+  they do not convert into wounds, Block, Dodge, Resist, stacks, units,
+  measured movement, or other quantified Power mechanics.
+- Roleplay Abilities v0 do not author Ability Shape or Duration.
 - Ability Shape is removed from v0 because Sustained, Prepared, and Triggered
   are deferred / removed, and a lone Immediate shape would be clutter.
 - Standard Use in combat consumes the user's Power Action. Out-of-combat use is
   an ordinary scene declaration with no combat action cost.
-- Assist is universal for Powers and Roleplay Abilities, uses 1 Response, and
-  has no extra build-cost permission.
+- Roleplay Window use costs 1 Response, is universal to Roleplay Abilities, and
+  is not an authored or purchased permission. Only one Roleplay Ability may be
+  declared in each Game Director-opened Roleplay Window.
+- Roleplay Abilities cannot be used as normal Assists. Preserve ordinary Power
+  Assist behaviour unchanged.
 - Counter uses 1 Response and requires the actor to be personally targeted by a
-  hostile action / effect plus authored Counter permission.
-- Crisis Assist uses 1 Response when the Game Director opens a scene-pressure
-  window before formal targeting. Test its premium surcharge provisionally; do
-  not treat the premium as final doctrine.
-- Roleplay Abilities v0 do not grant Power Actions. Action Enable may grant
-  only bounded Main Action-equivalents, with no Signature Move, Power Action,
-  multi-target weapon-profile abuse, or "make 4 attacks" behaviour.
+  hostile action / effect plus authored paid Counter permission. Counter adds
+  flexibility; it does not make the Ability Counter-only.
 - Attribute should not be a builder field.
 - Builder should not suggest typical Attributes.
+- The Game Director confirms thematic legality, then declares Difficulty and
+  Attribute. On success, no additional roll or target action is required to
+  establish the authored Success Outcome.
+- Potential costing remains non-numeric in this slice: Scene Impact x Scope;
+  Success Outcome / privilege adjustment; Dice Count reliability; optional
+  Counter surcharge; Cooldown adjustment; Restriction discount applied last.
+- Cooldown should derive from pre-Restriction / gross cost, not discounted net
+  Potential spend.
 - Show non-judgemental Combat/Roleplay investment profile and a shared remaining
   Potential summary:
   - Powers spend
@@ -245,6 +256,6 @@ OPEN / NEEDS ARCHITECT DECISION:
   uniqueness package beyond the current separate-pool implementation.
 - Character sheet support for optional Archetypes, Backstory Points, Personal
   Goals, roleplay resources, and party-level shared resource tracking.
-- Closed Beta roleplay ability display/test-card handling, Scene Impact
-  presentation, restrictions, use mode, target type, difficulty guidance,
-  preview text, and print output.
+- Closed Beta roleplay ability display/test-card handling, Outcome Lane,
+  Success Outcome, Scene Impact presentation, restrictions, difficulty
+  guidance, descriptor preview text, and print output.

@@ -174,6 +174,80 @@ All declared actions, Assists, Counters, and Responses resolve before defeat and
 cleanup unless a power explicitly interrupts or cancels the triggering action.
 
 
+Roleplay Window / Roleplay Ability Timing
+
+Powers calculate quantified effects. Roleplay Abilities establish explicit
+authored scene outcomes.
+
+Roleplay Abilities cannot be used as normal Assists and cannot enter the normal
+Assist declaration stack. Their timing lanes are:
+
+A. Standard Use in combat
+
+- consumes the actor's Power Action.
+
+B. Standard Use out of combat
+
+- is an ordinary scene declaration;
+- has no combat action cost.
+
+C. Roleplay Window
+
+- costs 1 Response;
+- is universally available to Roleplay Abilities and is not an authored or
+  purchased permission;
+- permits only one Roleplay Ability declaration in each Roleplay Window.
+
+D. Counter
+
+- costs 1 Response;
+- requires authored Counter permission;
+- is legal only when the Ability user is personally targeted by the hostile
+  action or effect;
+- adds flexibility and does not make the Ability Counter-only.
+
+Resolve a Roleplay Window in this order:
+
+1. The Game Director describes a meaningful, perceivable impending intent,
+   movement, preparation, or scene escalation before formal hostile-action
+   declaration.
+2. The Game Director explicitly opens a Roleplay Window.
+3. One eligible actor may spend 1 Response and declare one Roleplay Ability.
+4. The Game Director confirms that the declared use fits the Ability's
+   Intention, Specific, Outcome Lane, Success Outcome, Scope, Scene Impact,
+   fictional position, and Restriction.
+5. The Game Director declares Difficulty and the relevant Attribute.
+6. The Ability roll resolves.
+7. On success, the explicit Success Outcome becomes true and the Game Director
+   narrates how it manifests.
+8. The Game Director continues the activation from the changed scene state.
+9. When a formal hostile action is declared, the normal Response Window /
+   Incarnate Stack begins.
+
+Roleplay Window guardrails:
+
+- The Game Director opens the window; players cannot interrupt every
+  descriptive sentence.
+- A window is for a meaningful scene beat, not every movement or incidental
+  act.
+- Hidden actions do not need to be revealed merely because Roleplay Abilities
+  exist.
+- Only perceivable intent can normally create a window.
+- Only one Roleplay Ability may be declared in each window.
+- A failed Roleplay Ability does not weaken or consume the impending action.
+- The explicit Success Outcome remains binding on success.
+- Scope and Scene Impact remain hard ceilings.
+- The Game Director decides Difficulty and Attribute after confirming thematic
+  legality.
+
+On a successful Roleplay Ability roll, the authored Success Outcome becomes
+true in the scene. No additional roll or target action establishes that
+outcome, no distance measurement is required, and the outcome is not converted
+into wounds, Block, Dodge, Resist, stacks, units, movement points, or other
+quantified Power mechanics. The Ability may materially affect combat by
+changing the scene truth from which play continues.
+
+
 Full Damage-Prevention Order
 
 Every roll at the table should be fast to mentally compile before the roll and
@@ -219,9 +293,10 @@ other legal opposition, but it never becomes damage, never creates wound bands,
 and never increases the triggering ally's payload beyond that ally's generated
 payload.
 
-Assist is universal by system rule and is not authored per power. Assists are
-declared inside the response window. The assisted actor still chooses one
-active response path: normal defence or Counter.
+For Powers, Assist is universal by system rule and is not authored per power.
+Power Assists are declared inside the response window. The assisted actor still
+chooses one active response path: normal defence or Counter. This ordinary
+Power Assist law does not make Roleplay Abilities eligible for normal Assist.
 
 Assist Output, Assist Pressure, And Intention Stacking
 
