@@ -1,5 +1,29 @@
 export type LevelCurvePoint = { level: number; min: number; max: number };
 
+export type DurabilityLaneBaseline = {
+  expectedHp: number;
+  expectedProtection: number;
+  expectedDefenceDice: number;
+  expectedDefenceDieSides: 4 | 6 | 8 | 10 | 12;
+  expectedBlockPerSuccess: number;
+  expectedDodgeDice: number;
+  expectedDodgeDieSides: 4 | 6 | 8 | 10 | 12;
+  expectedResistCoverage: number;
+  resistGateWeights: Partial<
+    Record<"ATTACK" | "GUARD" | "FORTITUDE" | "INTELLECT" | "SYNERGY" | "BRAVERY", number>
+  >;
+  representativeInjuryDieSides: 4 | 6 | 8 | 10 | 12;
+};
+
+export type DurabilityBaselinePackage = {
+  id: string;
+  level: number;
+  tier: "MINION" | "SOLDIER" | "ELITE" | "BOSS";
+  legendary: boolean;
+  physical: DurabilityLaneBaseline;
+  mental: DurabilityLaneBaseline;
+};
+
 export type CalculatorConfig = {
   tierMultipliers: {
     MINION: number;
@@ -68,6 +92,26 @@ export type CalculatorConfig = {
       LEGENDARY: number;
     };
   };
+  durabilityAxisTuning: {
+    calibratedLevel: number;
+    midpointScore: number;
+    scoreHalfRange: number;
+    logRatioScale: number;
+    referenceIncomingDiceCount: number;
+    referenceIncomingDieSides: 4 | 6 | 8 | 10 | 12;
+    referenceWoundsPerSuccess: number;
+    referenceDefenceUsesPerRound: number;
+    protectionPreventionPerPoint: number;
+    resistPreventionPerCoveragePoint: number;
+    defencePreventionMaxShare: number;
+    dodgePreventionMaxShare: number;
+    protectionPreventionMaxShare: number;
+    resistPreventionMaxShare: number;
+    totalPreventionMaxShare: number;
+    supplementalContributionMaxRatio: number;
+    representativeLegendaryOverflowDamage: number;
+    baselines: DurabilityBaselinePackage[];
+  };
   healthPoolTuning: {
     expectedPhysicalResilienceAt1: number;
     expectedPhysicalResiliencePerLevel: number;
@@ -130,6 +174,13 @@ function withCurvePointOverrides(
     ...(overrides[point.level] ?? {}),
   }));
 }
+
+const PHYSICAL_RESIST_COVERAGE_WEIGHTS = { GUARD: 0.5, FORTITUDE: 0.5 } as const;
+const MENTAL_RESIST_COVERAGE_WEIGHTS = {
+  INTELLECT: 1 / 3,
+  SYNERGY: 1 / 3,
+  BRAVERY: 1 / 3,
+} as const;
 
 export const calculatorConfig: CalculatorConfig = {
   tierMultipliers: {
@@ -198,6 +249,75 @@ export const calculatorConfig: CalculatorConfig = {
       BOSS: 3,
       LEGENDARY: 4,
     },
+  },
+  durabilityAxisTuning: {
+    calibratedLevel: 3,
+    midpointScore: 5,
+    scoreHalfRange: 5,
+    logRatioScale: 1.1,
+    referenceIncomingDiceCount: 4,
+    referenceIncomingDieSides: 8,
+    referenceWoundsPerSuccess: 2,
+    referenceDefenceUsesPerRound: 2,
+    protectionPreventionPerPoint: 0.35,
+    resistPreventionPerCoveragePoint: 0.35,
+    defencePreventionMaxShare: 0.45,
+    dodgePreventionMaxShare: 0.35,
+    protectionPreventionMaxShare: 0.2,
+    resistPreventionMaxShare: 0.2,
+    totalPreventionMaxShare: 0.75,
+    supplementalContributionMaxRatio: 0.5,
+    representativeLegendaryOverflowDamage: 5,
+    baselines: [
+      {
+        id: "l3-minion-standard-v1",
+        level: 3,
+        tier: "MINION",
+        legendary: false,
+        physical: { expectedHp: 5, expectedProtection: 0, expectedDefenceDice: 1, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 0, expectedDodgeDice: 2, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 4 },
+        mental: { expectedHp: 5, expectedProtection: 0, expectedDefenceDice: 1, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 0, expectedDodgeDice: 0, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 4 },
+      },
+      {
+        id: "l3-soldier-standard-v1",
+        level: 3,
+        tier: "SOLDIER",
+        legendary: false,
+        physical: { expectedHp: 10, expectedProtection: 1, expectedDefenceDice: 2, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 6 },
+        mental: { expectedHp: 10, expectedProtection: 1, expectedDefenceDice: 2, expectedDefenceDieSides: 4, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 4, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 6 },
+      },
+      {
+        id: "l3-elite-standard-v1",
+        level: 3,
+        tier: "ELITE",
+        legendary: false,
+        physical: { expectedHp: 20, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
+        mental: { expectedHp: 20, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
+      },
+      {
+        id: "l3-legendary-elite-standard-v1",
+        level: 3,
+        tier: "ELITE",
+        legendary: true,
+        physical: { expectedHp: 30, expectedProtection: 1, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 3, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
+        mental: { expectedHp: 30, expectedProtection: 1, expectedDefenceDice: 2, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 8 },
+      },
+      {
+        id: "l3-boss-standard-v1",
+        level: 3,
+        tier: "BOSS",
+        legendary: false,
+        physical: { expectedHp: 64, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
+        mental: { expectedHp: 64, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
+      },
+      {
+        id: "l3-legendary-boss-standard-v1",
+        level: 3,
+        tier: "BOSS",
+        legendary: true,
+        physical: { expectedHp: 64, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 2, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: PHYSICAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
+        mental: { expectedHp: 64, expectedProtection: 2, expectedDefenceDice: 3, expectedDefenceDieSides: 6, expectedBlockPerSuccess: 1, expectedDodgeDice: 0, expectedDodgeDieSides: 6, expectedResistCoverage: 0, resistGateWeights: MENTAL_RESIST_COVERAGE_WEIGHTS, representativeInjuryDieSides: 10 },
+      },
+    ],
   },
   healthPoolTuning: {
     expectedPhysicalResilienceAt1: 19,
@@ -436,6 +556,13 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
           overrides.threatAxisTuning?.tierBaselineMultipliers?.LEGENDARY ??
           calculatorConfig.threatAxisTuning.tierBaselineMultipliers.LEGENDARY,
       },
+    },
+    durabilityAxisTuning: {
+      ...calculatorConfig.durabilityAxisTuning,
+      ...overrides.durabilityAxisTuning,
+      baselines:
+        overrides.durabilityAxisTuning?.baselines ??
+        calculatorConfig.durabilityAxisTuning.baselines,
     },
     healthPoolTuning: {
       expectedPhysicalResilienceAt1:

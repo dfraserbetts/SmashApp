@@ -13,6 +13,7 @@ import {
   normalizeCombatTuning,
   normalizeCombatTuningFlatValues,
 } from "../lib/config/combatTuningShared";
+import type { DurabilityBaselinePackage } from "../lib/calculators/calculatorConfig";
 import {
   normalizeOutcomeNormalizationValues,
   outcomeNormalizationValuesToCalculatorConfig,
@@ -237,6 +238,9 @@ function summarizeMonster(
   const nonPowerSources = asRecord(nonPowerDebug.sources);
   const finalPreNormalizationAxes = asRecord(debug.finalPreNormalizationAxes);
   const normalization = asRecord(debug.normalizationBreakdown);
+  const durabilityBaselineModel = asRecord(normalization.durabilityAxisBaselineModel);
+  const physicalDurabilityModel = asRecord(durabilityBaselineModel.physicalSurvivability);
+  const mentalDurabilityModel = asRecord(durabilityBaselineModel.mentalSurvivability);
   const curvePoints = asRecord(normalization.curvePoints);
   const physicalCurve = asRecord(curvePoints.physicalSurvivability);
   const mentalCurve = asRecord(curvePoints.mentalSurvivability);
@@ -358,7 +362,16 @@ function summarizeMonster(
         ),
       },
     },
+    durabilityBaseline: {
+      model: String(physicalDurabilityModel.model ?? "legacy-level-curve"),
+      packageId: String(physicalDurabilityModel.baselinePackageId ?? "legacy-fallback"),
+      fallback: Boolean(durabilityBaselineModel.fallback),
+      physical: physicalDurabilityModel,
+      mental: mentalDurabilityModel,
+    },
     axis: {
+      physicalThreat: axis(outcome.radarAxes, "physicalThreat"),
+      mentalThreat: axis(outcome.radarAxes, "mentalThreat"),
       physical: axis(outcome.radarAxes, "physicalSurvivability"),
       mental: axis(outcome.radarAxes, "mentalSurvivability"),
       physicalCapped: outcome.radarAxes.physicalSurvivability >= 10,
@@ -371,6 +384,91 @@ function summarizeMonster(
       mentalSurvivabilityWeight: trait.mentalSurvivabilityWeight,
       survivabilityWeight: trait.survivabilityWeight,
     })),
+  };
+}
+
+function dieFromSides(sides: number): "D4" | "D6" | "D8" | "D10" | "D12" {
+  if (sides >= 12) return "D12";
+  if (sides >= 10) return "D10";
+  if (sides >= 8) return "D8";
+  if (sides >= 6) return "D6";
+  return "D4";
+}
+
+function summarizeBaselineAnchor(
+  baseline: DurabilityBaselinePackage,
+  tuning: Awaited<ReturnType<typeof loadActiveTuning>>,
+) {
+  const physical = baseline.physical;
+  const mental = baseline.mental;
+  const input = {
+    level: baseline.level,
+    tier: baseline.tier,
+    legendary: baseline.legendary,
+    attackDie: dieFromSides(physical.representativeInjuryDieSides),
+    weaponSkillValue: 1,
+    weaponSkillModifier: 0,
+    attackResistDie: 0,
+    attacks: [],
+    guardDie: dieFromSides(physical.expectedDefenceDieSides),
+    guardResistDie: 0,
+    fortitudeDie: "D4",
+    fortitudeResistDie: 0,
+    intellectDie: dieFromSides(mental.representativeInjuryDieSides),
+    intellectResistDie: 0,
+    synergyDie: "D4",
+    synergyResistDie: 0,
+    braveryDie: dieFromSides(mental.expectedDefenceDieSides),
+    braveryResistDie: 0,
+    naturalAttack: null,
+    naturalPhysicalProtection: physical.expectedProtection,
+    naturalMentalProtection: mental.expectedProtection,
+    powers: [],
+    physicalResilienceMax: physical.expectedHp,
+    mentalPerseveranceMax: mental.expectedHp,
+    physicalProtection: physical.expectedProtection,
+    mentalProtection: mental.expectedProtection,
+    armorSkillValue: physical.expectedDefenceDice,
+    limitBreakAttribute: null,
+    limitBreakTier: null,
+    limitBreak2Attribute: null,
+    limitBreak2Tier: null,
+  };
+  const outcome = computeMonsterOutcomes(
+    input as unknown as Parameters<typeof computeMonsterOutcomes>[0],
+    tuning.calculatorConfig,
+    {
+      protectionTuning: tuning.combatValues,
+      defensiveProfileSources: [
+        {
+          sourceKind: "natural",
+          sourceLabel: baseline.id,
+          physicalProtection: physical.expectedProtection,
+          mentalProtection: mental.expectedProtection,
+        },
+      ],
+      defensiveProfileContext: {
+        totalPhysicalProtection: physical.expectedProtection,
+        totalMentalProtection: mental.expectedProtection,
+        armorSkillDice: physical.expectedDefenceDice,
+        willpowerDice: mental.expectedDefenceDice,
+        dodgeDice: physical.expectedDodgeDice,
+        unarmoredDodgeDice: physical.expectedDodgeDice,
+      },
+    },
+  );
+  const debug = asRecord(outcome.debug);
+  const normalization = asRecord(debug.normalizationBreakdown);
+  const durability = asRecord(normalization.durabilityAxisBaselineModel);
+  return {
+    id: baseline.id,
+    level: baseline.level,
+    tier: baseline.tier,
+    legendary: baseline.legendary,
+    physicalScore: axis(outcome.radarAxes, "physicalSurvivability"),
+    mentalScore: axis(outcome.radarAxes, "mentalSurvivability"),
+    physical: asRecord(durability.physicalSurvivability),
+    mental: asRecord(durability.mentalSurvivability),
   };
 }
 
@@ -455,6 +553,9 @@ function buildPayload(params: {
   const level3MentalCurve = params.tuning.calculatorConfig.scoringCurves.mentalSurvivability.find(
     (point) => point.level === 3,
   );
+  const baselineAnchors = params.tuning.calculatorConfig.durabilityAxisTuning.baselines
+    .filter((baseline) => baseline.level === 3)
+    .map((baseline) => summarizeBaselineAnchor(baseline, params.tuning));
   return {
     title: "Summoning Circle durability-axis reconciliation",
     provenance: {
@@ -469,13 +570,14 @@ function buildPayload(params: {
     },
     modelNotes: {
       axisFields: ["physicalSurvivability", "mentalSurvivability"],
-      normalization: "generic level curve with tier-adjusted maximum",
+      normalization:
+        "Level 3 accepted-package-relative model centered at 5; other levels retain the legacy generic level curve.",
       equipmentCoverage:
         "Top-level aggregate protection is included. Editor-only item modifier axis bonuses are omitted and flagged when equipment IDs exist.",
       regenerationCoverage:
         "No dedicated monster regeneration field exists in the inspected schema. Authored healing/passive powers are listed and their resolver axis contribution is included.",
       legendaryCoverage:
-        "Legendary uses LEGENDARY tier normalization, a flat C14 durability bonus, and eligible custom Limit Break axis bonuses. Full three-Major-Injury defeat flow is not modeled directly.",
+        "Level 3 Legendary packages use deterministic three-die Major Injury probability with event-local overflow and no automatic Blaze credit. The flat C14 bonus remains only in the legacy fallback.",
     },
     activeDurabilityTuning: {
       displayTierMultipliers: params.tuning.calculatorConfig.tierMultipliers,
@@ -484,6 +586,7 @@ function buildPayload(params: {
         mentalSurvivability: level3MentalCurve,
       },
       healthPoolTuning: params.tuning.calculatorConfig.healthPoolTuning,
+      durabilityAxisTuning: params.tuning.calculatorConfig.durabilityAxisTuning,
       rawSurvivabilityBudget: {
         physicalAt1: params.tuning.combatValues.rawPhysicalSurvivabilityBudgetAt1,
         physicalPerLevel: params.tuning.combatValues.rawPhysicalSurvivabilityBudgetPerLevel,
@@ -522,6 +625,7 @@ function buildPayload(params: {
     },
     missingRequired: params.missingRequired,
     missingOptional: params.missingOptional,
+    baselineAnchors,
     samples: params.samples,
   };
 }
@@ -544,20 +648,27 @@ function printHuman(payload: ReturnType<typeof buildPayload>) {
     `tierMultipliers=${JSON.stringify(payload.activeDurabilityTuning.displayTierMultipliers)}`,
   );
   console.log("");
+  console.log("Level 3 accepted-package anchors:");
+  for (const anchor of payload.baselineAnchors) {
+    console.log(
+      `- ${anchor.id}: ${anchor.tier}${anchor.legendary ? "+LEG" : ""} physical=${anchor.physicalScore} mental=${anchor.mentalScore}`,
+    );
+  }
+  console.log("");
   console.log(
-    "Name | tier/L | HP P/M (ratio) | Prot P/M | G/F/I/S/B | Resist G/F/I/S/B | Raw P/M | Axis P/M | Cap P/M",
+    "Name | tier/L | HP P/M | Prot P/M | Baseline | Ratio P/M | Axis P/M | Threat P/M | Cap P/M",
   );
   for (const sample of payload.samples) {
     console.log(
       [
         sample.name,
         `${sample.tier}${sample.legendary ? "+LEG" : ""}/L${sample.level}`,
-        `${sample.pools.physicalHp}/${sample.pools.mentalHp} (${sample.pools.physicalRatio}/${sample.pools.mentalRatio})`,
+        `${sample.pools.physicalHp}/${sample.pools.mentalHp}`,
         `${sample.protection.physical}/${sample.protection.mental}`,
-        `${sample.attributes.guard}/${sample.attributes.fortitude}/${sample.attributes.intellect}/${sample.attributes.synergy}/${sample.attributes.bravery}`,
-        `${sample.resists.guard}/${sample.resists.fortitude}/${sample.resists.intellect}/${sample.resists.synergy}/${sample.resists.bravery}`,
-        `${sample.raw.physical}/${sample.raw.mental}`,
+        sample.durabilityBaseline.packageId,
+        `${round(asNumber(sample.durabilityBaseline.physical.ratioToBaseline), 3)}/${round(asNumber(sample.durabilityBaseline.mental.ratioToBaseline), 3)}`,
         `${sample.axis.physical}/${sample.axis.mental}`,
+        `${sample.axis.physicalThreat}/${sample.axis.mentalThreat}`,
         `${sample.axis.physicalCapped}/${sample.axis.mentalCapped}`,
       ].join(" | "),
     );

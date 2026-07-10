@@ -101,6 +101,64 @@ function assertApprox(actual: number, expected: number, epsilon: number, label: 
   );
 }
 
+function dieFromSides(sides: number): "D4" | "D6" | "D8" | "D10" | "D12" {
+  if (sides >= 12) return "D12";
+  if (sides >= 10) return "D10";
+  if (sides >= 8) return "D8";
+  if (sides >= 6) return "D6";
+  return "D4";
+}
+
+function computeDurabilityBaselineAnchor(baselineId: string) {
+  const baseline = calculatorConfig.durabilityAxisTuning.baselines.find(
+    (candidate) => candidate.id === baselineId,
+  );
+  assert.ok(baseline, `Missing durability baseline ${baselineId}`);
+  const physical = baseline.physical;
+  const mental = baseline.mental;
+  return computeMonsterOutcomes(
+    {
+      ...createBaseMonster(),
+      level: baseline.level,
+      tier: baseline.tier,
+      legendary: baseline.legendary,
+      attackDie: dieFromSides(physical.representativeInjuryDieSides),
+      guardDie: dieFromSides(physical.expectedDefenceDieSides),
+      fortitudeDie: "D4",
+      intellectDie: dieFromSides(mental.representativeInjuryDieSides),
+      synergyDie: "D4",
+      braveryDie: dieFromSides(mental.expectedDefenceDieSides),
+      physicalResilienceMax: physical.expectedHp,
+      mentalPerseveranceMax: mental.expectedHp,
+      physicalProtection: physical.expectedProtection,
+      mentalProtection: mental.expectedProtection,
+      naturalPhysicalProtection: physical.expectedProtection,
+      naturalMentalProtection: mental.expectedProtection,
+      armorSkillValue: physical.expectedDefenceDice,
+    },
+    calculatorConfig,
+    {
+      protectionTuning: DEFAULT_COMBAT_TUNING_VALUES,
+      defensiveProfileSources: [
+        {
+          sourceKind: "natural",
+          sourceLabel: baseline.id,
+          physicalProtection: physical.expectedProtection,
+          mentalProtection: mental.expectedProtection,
+        },
+      ],
+      defensiveProfileContext: {
+        totalPhysicalProtection: physical.expectedProtection,
+        totalMentalProtection: mental.expectedProtection,
+        armorSkillDice: physical.expectedDefenceDice,
+        willpowerDice: mental.expectedDefenceDice,
+        dodgeDice: physical.expectedDodgeDice,
+        unarmoredDodgeDice: physical.expectedDodgeDice,
+      },
+    },
+  );
+}
+
 assertApprox(expectedTieredSuccessesPerDie(4), 0.25, 0.000001, "D4 expected successes");
 assertApprox(expectedTieredSuccessesPerDie(6), 0.5, 0.000001, "D6 expected successes");
 assertApprox(expectedTieredSuccessesPerDie(8), 0.625, 0.000001, "D8 expected successes");
@@ -1022,31 +1080,69 @@ const physicalProtectionMonotonicity = [0, 2, 4].map((protection) =>
     ),
   ),
 );
-const normalDurableMonster = computeMonsterOutcomes(
-  {
-    ...createBaseMonster(),
-    physicalResilienceMax: 30,
-    mentalPerseveranceMax: 30,
-    physicalProtection: 2,
-    mentalProtection: 2,
-    naturalPhysicalProtection: 2,
-    naturalMentalProtection: 2,
-  },
-  calculatorConfig,
+const standardEliteDurabilityAnchor = computeDurabilityBaselineAnchor("l3-elite-standard-v1");
+const standardLegendaryEliteDurabilityAnchor = computeDurabilityBaselineAnchor(
+  "l3-legendary-elite-standard-v1",
 );
-const legendaryDurableMonster = computeMonsterOutcomes(
-  {
-    ...createBaseMonster(),
-    legendary: true,
-    physicalResilienceMax: 30,
-    mentalPerseveranceMax: 30,
-    physicalProtection: 2,
-    mentalProtection: 2,
-    naturalPhysicalProtection: 2,
-    naturalMentalProtection: 2,
-  },
-  calculatorConfig,
-);
+const legendaryDurabilityDebug = (
+  standardLegendaryEliteDurabilityAnchor.debug as {
+    normalizationBreakdown?: {
+      durabilityAxisBaselineModel?: {
+        policy?: string;
+        fallback?: boolean;
+        baselinePackage?: { id?: string; legendary?: boolean };
+        physicalSurvivability?: {
+          lane?: string;
+          baselinePackageId?: string;
+          calibration?: string;
+          rawActualDurabilityProxy?: number;
+          rawBaselineDurabilityProxy?: number;
+          majorInjuryProbabilityAssumptions?: {
+            active?: boolean;
+            diceCount?: number;
+            additionalPostZeroEvents?: number;
+            blazeCredit?: number;
+          };
+        };
+        mentalSurvivability?: {
+          lane?: string;
+          baselinePackageId?: string;
+          calibration?: string;
+          rawActualDurabilityProxy?: number;
+          rawBaselineDurabilityProxy?: number;
+          majorInjuryProbabilityAssumptions?: {
+            active?: boolean;
+            diceCount?: number;
+            additionalPostZeroEvents?: number;
+            blazeCredit?: number;
+          };
+        };
+      };
+    };
+    nonPowerContribution?: {
+      sources?: {
+        c14LegendaryDurabilityBonus?: {
+          physicalSurvivability?: number;
+          mentalSurvivability?: number;
+          policy?: string;
+        };
+      };
+    };
+  }
+).normalizationBreakdown?.durabilityAxisBaselineModel;
+const legendaryC14Debug = (
+  standardLegendaryEliteDurabilityAnchor.debug as {
+    nonPowerContribution?: {
+      sources?: {
+        c14LegendaryDurabilityBonus?: {
+          physicalSurvivability?: number;
+          mentalSurvivability?: number;
+          policy?: string;
+        };
+      };
+    };
+  }
+).nonPowerContribution?.sources?.c14LegendaryDurabilityBonus;
 assert.equal(ppvOnlyContribution.mental, 0);
 assert.ok(ppvOnlyContribution.physical > 0);
 assert.equal(mpvOnlyContribution.physical, 0);
@@ -1068,10 +1164,51 @@ assert.ok(
 );
 assert.ok(physicalProtectionMonotonicity[1] >= physicalProtectionMonotonicity[0]);
 assert.ok(physicalProtectionMonotonicity[2] >= physicalProtectionMonotonicity[1]);
-assert.ok(
-  legendaryDurableMonster.radarAxes.physicalSurvivability >
-    normalDurableMonster.radarAxes.physicalSurvivability,
+for (const [label, score] of Object.entries({
+  standardElitePhysical: standardEliteDurabilityAnchor.radarAxes.physicalSurvivability,
+  standardEliteMental: standardEliteDurabilityAnchor.radarAxes.mentalSurvivability,
+  standardLegendaryElitePhysical:
+    standardLegendaryEliteDurabilityAnchor.radarAxes.physicalSurvivability,
+  standardLegendaryEliteMental:
+    standardLegendaryEliteDurabilityAnchor.radarAxes.mentalSurvivability,
+})) {
+  assert.ok(Number.isFinite(score), `${label} must be finite`);
+  assert.ok(score >= 0 && score <= 10, `${label} must remain within 0-10`);
+}
+assertApprox(
+  standardLegendaryEliteDurabilityAnchor.radarAxes.physicalSurvivability,
+  5,
+  0.000001,
+  "standard Legendary Elite physical accepted-package midpoint",
 );
+assertApprox(
+  standardLegendaryEliteDurabilityAnchor.radarAxes.mentalSurvivability,
+  5,
+  0.000001,
+  "standard Legendary Elite mental accepted-package midpoint",
+);
+assert.equal(legendaryDurabilityDebug?.fallback, false);
+assert.equal(legendaryDurabilityDebug?.baselinePackage?.id, "l3-legendary-elite-standard-v1");
+assert.equal(legendaryDurabilityDebug?.baselinePackage?.legendary, true);
+assert.match(legendaryDurabilityDebug?.policy ?? "", /cross-tier ordering is not required/i);
+const legendaryPhysicalDurability = legendaryDurabilityDebug?.physicalSurvivability;
+const legendaryMentalDurability = legendaryDurabilityDebug?.mentalSurvivability;
+assert.equal(legendaryPhysicalDurability?.lane, "physical");
+assert.equal(legendaryMentalDurability?.lane, "mental");
+assert.notEqual(legendaryPhysicalDurability, legendaryMentalDurability);
+for (const lane of [legendaryPhysicalDurability, legendaryMentalDurability]) {
+  assert.equal(lane?.baselinePackageId, "l3-legendary-elite-standard-v1");
+  assert.equal(lane?.calibration, "LEVEL_3_CALIBRATED");
+  assert.ok(Number(lane?.rawActualDurabilityProxy) > 0);
+  assert.ok(Number(lane?.rawBaselineDurabilityProxy) > 0);
+  assert.equal(lane?.majorInjuryProbabilityAssumptions?.active, true);
+  assert.equal(lane?.majorInjuryProbabilityAssumptions?.diceCount, 3);
+  assert.ok(Number(lane?.majorInjuryProbabilityAssumptions?.additionalPostZeroEvents) > 0);
+  assert.equal(lane?.majorInjuryProbabilityAssumptions?.blazeCredit, 0);
+}
+assert.equal(legendaryC14Debug?.physicalSurvivability, 0);
+assert.equal(legendaryC14Debug?.mentalSurvivability, 0);
+assert.match(legendaryC14Debug?.policy ?? "", /disabled for Level 3 calibrated packages/i);
 
 const canonicalMobilityPower = {
   mobility: 4,
@@ -1382,9 +1519,12 @@ console.log(
         physicalSurvivabilityRadarZeroTwoFour: physicalProtectionMonotonicity,
       },
       c14LegendaryDurability: {
-        normalPhysicalSurvivability: normalDurableMonster.radarAxes.physicalSurvivability,
+        normalPhysicalSurvivability:
+          standardEliteDurabilityAnchor.radarAxes.physicalSurvivability,
         legendaryPhysicalSurvivability:
-          legendaryDurableMonster.radarAxes.physicalSurvivability,
+          standardLegendaryEliteDurabilityAnchor.radarAxes.physicalSurvivability,
+        legendaryPhysicalRawProxy: legendaryPhysicalDurability?.rawActualDurabilityProxy,
+        legendaryMentalRawProxy: legendaryMentalDurability?.rawActualDurabilityProxy,
       },
       authoredAttackPowerExpectedOutput: {
         source: lowAttackPowerDebug.expectedAttackOutput?.source,

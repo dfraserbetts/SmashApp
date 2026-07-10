@@ -13,7 +13,13 @@ import {
   getWillpowerDiceCountFromAttributes,
 } from "@/lib/summoning/attributes";
 import { strengthToTableWoundsPerSuccess } from "@/lib/forge/outputProfile";
-import type { CalculatorConfig, LevelCurvePoint } from "@/lib/calculators/calculatorConfig";
+import type {
+  CalculatorConfig,
+  DurabilityBaselinePackage,
+  DurabilityLaneBaseline,
+  LevelCurvePoint,
+} from "@/lib/calculators/calculatorConfig";
+import { successCountForRoll } from "@/lib/combat-lab/dice";
 import {
   DEFAULT_COMBAT_TUNING_VALUES,
   getRawSurvivabilityBudgetTarget,
@@ -1963,7 +1969,6 @@ function resolveDefensiveProfileContext(
     1,
     Math.trunc(
       provided?.armorSkillDice ??
-        monster.armorSkillValue ??
         getArmorSkillDiceCountFromAttributes(monster.guardDie, monster.fortitudeDie, tuning),
     ) || 1,
   );
@@ -2226,6 +2231,415 @@ export function expectedTieredSuccesses(params: {
   if (!Number.isFinite(dieSides) || dieSides <= 0) return baseExpected;
   const failProbability = Math.min(3, dieSides) / dieSides;
   return baseExpected + failProbability * perDie * diceCount;
+}
+
+type DurabilityLane = "physical" | "mental";
+type ResistGate = keyof DurabilityLaneBaseline["resistGateWeights"];
+
+type DurabilitySupplementalContributions = {
+  power: number;
+  trait: number;
+  equipment: number;
+  naturalAttack: number;
+  limitBreak: number;
+};
+
+type DurabilityPackageActual = {
+  hp: number;
+  protection: number;
+  defenceDice: number;
+  defenceDieSides: number;
+  blockPerSuccess: number;
+  dodgeDice: number;
+  dodgeDieSides: number;
+  resistCoverage: number;
+  injuryDieSides: number;
+};
+
+function resolveDurabilityBaselinePackage(
+  config: CalculatorConfig,
+  monster: Pick<MonsterOutcomeInput, "level" | "tier" | "legendary">,
+): DurabilityBaselinePackage | null {
+  const level = Math.max(1, Math.trunc(monster.level || 1));
+  const tier = String(monster.tier ?? "MINION").toUpperCase();
+  return (
+    config.durabilityAxisTuning.baselines.find(
+      (entry) =>
+        entry.level === level &&
+        entry.tier === tier &&
+        entry.legendary === Boolean(monster.legendary),
+    ) ?? null
+  );
+}
+
+function successDistribution(
+  diceCount: number,
+  dieSides: number,
+  modifier = 0,
+): Map<number, number> {
+  const count = Math.max(0, Math.trunc(diceCount));
+  const sides = Math.max(1, Math.trunc(dieSides));
+  let distribution = new Map<number, number>([[0, 1]]);
+  for (let index = 0; index < count; index += 1) {
+    const next = new Map<number, number>();
+    for (const [currentSuccesses, currentProbability] of distribution) {
+      for (let face = 1; face <= sides; face += 1) {
+        const successes = currentSuccesses + successCountForRoll(face, modifier);
+        next.set(successes, (next.get(successes) ?? 0) + currentProbability / sides);
+      }
+    }
+    distribution = next;
+  }
+  return distribution;
+}
+
+function expectedBlockAcrossDegradation(params: {
+  diceCount: number;
+  dieSides: number;
+  blockPerSuccess: number;
+  uses: number;
+}): number {
+  const uses = Math.max(1, Math.trunc(params.uses));
+  let total = 0;
+  for (let use = 0; use < uses; use += 1) {
+    const diceCount = Math.max(1, Math.trunc(params.diceCount) - use);
+    total +=
+      expectedTieredSuccesses({ dieSides: params.dieSides, diceCount }) *
+      clampNonNegative(params.blockPerSuccess);
+  }
+  return total / uses;
+}
+
+function expectedDodgePreventionAcrossDegradation(params: {
+  incomingDiceCount: number;
+  incomingDieSides: number;
+  woundsPerSuccess: number;
+  dodgeDice: number;
+  dodgeDieSides: number;
+  uses: number;
+}): number {
+  if (!(params.dodgeDice > 0)) return 0;
+  const incoming = successDistribution(params.incomingDiceCount, params.incomingDieSides);
+  const uses = Math.max(1, Math.trunc(params.uses));
+  let totalPrevention = 0;
+  for (let use = 0; use < uses; use += 1) {
+    const dodgeDice = Math.max(1, Math.trunc(params.dodgeDice) - use);
+    const dodge = successDistribution(dodgeDice, params.dodgeDieSides);
+    let prevention = 0;
+    for (const [incomingSuccesses, incomingProbability] of incoming) {
+      if (incomingSuccesses <= 0) continue;
+      for (const [dodgeSuccesses, dodgeProbability] of dodge) {
+        if (dodgeSuccesses >= incomingSuccesses) {
+          prevention +=
+            incomingSuccesses *
+            params.woundsPerSuccess *
+            incomingProbability *
+            dodgeProbability;
+        }
+      }
+    }
+    totalPrevention += prevention;
+  }
+  return totalPrevention / uses;
+}
+
+function weightedResistCoverage(
+  monster: MonsterOutcomeInput,
+  baseline: DurabilityLaneBaseline,
+): { value: number; gates: Record<string, { weight: number; resistValue: number }> } {
+  const fields: Record<ResistGate, number> = {
+    ATTACK: clampNonNegative(Number(monster.attackResistDie ?? 0)),
+    GUARD: clampNonNegative(Number(monster.guardResistDie ?? 0)),
+    FORTITUDE: clampNonNegative(Number(monster.fortitudeResistDie ?? 0)),
+    INTELLECT: clampNonNegative(Number(monster.intellectResistDie ?? 0)),
+    SYNERGY: clampNonNegative(Number(monster.synergyResistDie ?? 0)),
+    BRAVERY: clampNonNegative(Number(monster.braveryResistDie ?? 0)),
+  };
+  const gates: Record<string, { weight: number; resistValue: number }> = {};
+  let value = 0;
+  for (const [gate, rawWeight] of Object.entries(baseline.resistGateWeights)) {
+    const weight = clampNonNegative(Number(rawWeight));
+    const resistValue = fields[gate as ResistGate] ?? 0;
+    gates[gate] = { weight, resistValue };
+    value += weight * resistValue;
+  }
+  return { value, gates };
+}
+
+function highestInjuryDieSides(monster: MonsterOutcomeInput, lane: DurabilityLane): number {
+  const dice =
+    lane === "physical"
+      ? [monster.attackDie, monster.guardDie, monster.fortitudeDie]
+      : [monster.intellectDie, monster.synergyDie, monster.braveryDie];
+  return Math.max(...dice.map((die) => dieSidesFromDieString(String(die ?? "D4"))));
+}
+
+function majorInjuryProbability(dieSides: number, overflowModifier: number): number {
+  const distribution = successDistribution(3, dieSides, overflowModifier);
+  let probability = 0;
+  for (const [successes, outcomeProbability] of distribution) {
+    if (successes <= 1) probability += outcomeProbability;
+  }
+  return Math.min(1, Math.max(0, probability));
+}
+
+function boundedPrevention(params: {
+  actual: DurabilityPackageActual;
+  tuning: CalculatorConfig["durabilityAxisTuning"];
+  expectedIncomingWounds: number;
+}): {
+  defence: number;
+  dodge: number;
+  protection: number;
+  resist: number;
+  total: number;
+  effectiveIncomingWounds: number;
+} {
+  const { actual, tuning, expectedIncomingWounds } = params;
+  const defence = Math.min(
+    expectedIncomingWounds * tuning.defencePreventionMaxShare,
+    expectedBlockAcrossDegradation({
+      diceCount: actual.defenceDice,
+      dieSides: actual.defenceDieSides,
+      blockPerSuccess: actual.blockPerSuccess,
+      uses: tuning.referenceDefenceUsesPerRound,
+    }),
+  );
+  const dodge = Math.min(
+    expectedIncomingWounds * tuning.dodgePreventionMaxShare,
+    expectedDodgePreventionAcrossDegradation({
+      incomingDiceCount: tuning.referenceIncomingDiceCount,
+      incomingDieSides: tuning.referenceIncomingDieSides,
+      woundsPerSuccess: tuning.referenceWoundsPerSuccess,
+      dodgeDice: actual.dodgeDice,
+      dodgeDieSides: actual.dodgeDieSides,
+      uses: tuning.referenceDefenceUsesPerRound,
+    }),
+  );
+  const protection = Math.min(
+    expectedIncomingWounds * tuning.protectionPreventionMaxShare,
+    actual.protection * tuning.protectionPreventionPerPoint,
+  );
+  const resist = Math.min(
+    expectedIncomingWounds * tuning.resistPreventionMaxShare,
+    actual.resistCoverage * tuning.resistPreventionPerCoveragePoint,
+  );
+  const total = Math.min(
+    expectedIncomingWounds * tuning.totalPreventionMaxShare,
+    defence + dodge + protection + resist,
+  );
+  return {
+    defence,
+    dodge,
+    protection,
+    resist,
+    total,
+    effectiveIncomingWounds: Math.max(0.001, expectedIncomingWounds - total),
+  };
+}
+
+function durabilityProxy(params: {
+  actual: DurabilityPackageActual;
+  legendary: boolean;
+  level: number;
+  tuning: CalculatorConfig["durabilityAxisTuning"];
+  supplementalRatio: number;
+}) {
+  const expectedIncomingWounds =
+    expectedTieredSuccesses({
+      dieSides: params.tuning.referenceIncomingDieSides,
+      diceCount: params.tuning.referenceIncomingDiceCount,
+    }) * params.tuning.referenceWoundsPerSuccess;
+  const prevention = boundedPrevention({
+    actual: params.actual,
+    tuning: params.tuning,
+    expectedIncomingWounds,
+  });
+  const attacksToZero = params.actual.hp / prevention.effectiveIncomingWounds;
+  const overflow = params.legendary
+    ? params.tuning.representativeLegendaryOverflowDamage
+    : 0;
+  const overflowModifier = params.legendary
+    ? -Math.floor(overflow / Math.max(1, Math.trunc(params.level || 1)))
+    : 0;
+  const injuryProbability = params.legendary
+    ? majorInjuryProbability(params.actual.injuryDieSides, overflowModifier)
+    : 0;
+  const safeInjuryProbability = Math.max(0.000001, injuryProbability);
+  const expectedTrialsByMajorInjuryState = params.legendary
+    ? {
+        zeroMajorInjuries: 3 / safeInjuryProbability,
+        oneMajorInjury: 2 / safeInjuryProbability,
+        twoMajorInjuries: 1 / safeInjuryProbability,
+        threeMajorInjuries: 0,
+      }
+    : {
+        zeroMajorInjuries: 0,
+        oneMajorInjury: 0,
+        twoMajorInjuries: 0,
+        threeMajorInjuries: 0,
+      };
+  const expectedInjuryTrialsToDefeat = expectedTrialsByMajorInjuryState.zeroMajorInjuries;
+  const legendaryAdditionalEvents = params.legendary
+    ? Math.max(0, expectedInjuryTrialsToDefeat - 1)
+    : 0;
+  const rawProxy = (attacksToZero + legendaryAdditionalEvents) * params.supplementalRatio;
+  return {
+    expectedIncomingWounds,
+    prevention,
+    attacksToZero,
+    legendary: {
+      active: params.legendary,
+      representativeOverflowDamage: overflow,
+      overflowModifier,
+      injuryDieSides: params.actual.injuryDieSides,
+      diceCount: 3,
+      majorInjuriesToDefeat: 3,
+      majorInjuryProbabilityPerTrial: injuryProbability,
+      expectedTrialsByMajorInjuryState,
+      expectedTrialsToThreeMajorInjuries: expectedInjuryTrialsToDefeat,
+      additionalPostZeroEvents: legendaryAdditionalEvents,
+      blazeCredit: 0,
+      policy:
+        "Exact three-die face enumeration uses Combat Lab successCountForRoll with event-local overflow applied per die; Minor/No Injury do not advance defeat and Blaze gives no automatic credit.",
+    },
+    supplementalRatio: params.supplementalRatio,
+    rawProxy,
+  };
+}
+
+function baselineRelativeDurability(params: {
+  lane: DurabilityLane;
+  monster: MonsterOutcomeInput;
+  config: CalculatorConfig;
+  baselinePackage: DurabilityBaselinePackage;
+  actualContext: DefensiveProfileContext;
+  defensiveContribution: DefensiveContribution;
+  supplemental: DurabilitySupplementalContributions;
+}) {
+  const tuning = params.config.durabilityAxisTuning;
+  const baseline = params.baselinePackage[params.lane];
+  const resist = weightedResistCoverage(params.monster, baseline);
+  const supplementalRaw = Object.values(params.supplemental).reduce((sum, value) => sum + value, 0);
+  const supplementalReference = Math.max(1, baseline.expectedHp);
+  const supplementalShare = Math.max(
+    -tuning.supplementalContributionMaxRatio,
+    Math.min(tuning.supplementalContributionMaxRatio, supplementalRaw / supplementalReference),
+  );
+  const actual: DurabilityPackageActual = {
+    hp:
+      params.lane === "physical"
+        ? clampNonNegative(params.monster.physicalResilienceMax)
+        : clampNonNegative(params.monster.mentalPerseveranceMax),
+    protection:
+      params.lane === "physical"
+        ? params.actualContext.totalPhysicalProtection
+        : params.actualContext.totalMentalProtection,
+    defenceDice:
+      params.lane === "physical"
+        ? params.actualContext.armorSkillDice
+        : params.actualContext.willpowerDice,
+    defenceDieSides: dieSidesFromDieString(
+      String(params.lane === "physical" ? params.monster.guardDie : params.monster.braveryDie),
+    ),
+    blockPerSuccess:
+      params.lane === "physical"
+        ? params.defensiveContribution.totals.physicalBlockPerSuccess
+        : params.defensiveContribution.totals.mentalBlockPerSuccess,
+    dodgeDice: params.lane === "physical" ? params.defensiveContribution.totals.scoringDodgeDice : 0,
+    dodgeDieSides: dieSidesFromDieString(String(params.monster.guardDie)),
+    resistCoverage: resist.value,
+    injuryDieSides: highestInjuryDieSides(params.monster, params.lane),
+  };
+  const baselineActual: DurabilityPackageActual = {
+    hp: baseline.expectedHp,
+    protection: baseline.expectedProtection,
+    defenceDice: baseline.expectedDefenceDice,
+    defenceDieSides: baseline.expectedDefenceDieSides,
+    blockPerSuccess: baseline.expectedBlockPerSuccess,
+    dodgeDice: params.lane === "physical" ? baseline.expectedDodgeDice : 0,
+    dodgeDieSides: baseline.expectedDodgeDieSides,
+    resistCoverage: baseline.expectedResistCoverage,
+    injuryDieSides: baseline.representativeInjuryDieSides,
+  };
+  const actualProxy = durabilityProxy({
+    actual,
+    legendary: Boolean(params.monster.legendary),
+    level: params.monster.level,
+    tuning,
+    supplementalRatio: 1 + supplementalShare,
+  });
+  const baselineProxy = durabilityProxy({
+    actual: baselineActual,
+    legendary: params.baselinePackage.legendary,
+    level: params.baselinePackage.level,
+    tuning,
+    supplementalRatio: 1,
+  });
+  const ratioToBaseline = actualProxy.rawProxy / Math.max(0.000001, baselineProxy.rawProxy);
+  const uncappedFinalScore =
+    tuning.midpointScore +
+    tuning.scoreHalfRange * Math.tanh(Math.log(Math.max(0.000001, ratioToBaseline)) / tuning.logRatioScale);
+  const finalScore = clampRadarScore(uncappedFinalScore);
+  const hpRatio = actual.hp / Math.max(1, baseline.expectedHp);
+  const hpContribution =
+    tuning.scoreHalfRange * Math.tanh(Math.log(Math.max(0.000001, hpRatio)) / tuning.logRatioScale);
+  return {
+    model: "level3-accepted-package-relative-v1",
+    policy:
+      "Physical and mental durability compare authored HP and runtime-supported defence against the accepted package for the same level, tier, and legendary state.",
+    baselinePackageId: params.baselinePackage.id,
+    calibration: "LEVEL_3_CALIBRATED" as const,
+    lane: params.lane,
+    actualHp: actual.hp,
+    baselineHp: baseline.expectedHp,
+    hpRatio,
+    hpContribution,
+    actualProtection: actual.protection,
+    baselineProtection: baseline.expectedProtection,
+    actualDefence: {
+      dice: actual.defenceDice,
+      dieSides: actual.defenceDieSides,
+      blockPerSuccess: actual.blockPerSuccess,
+    },
+    baselineDefence: {
+      dice: baseline.expectedDefenceDice,
+      dieSides: baseline.expectedDefenceDieSides,
+      blockPerSuccess: baseline.expectedBlockPerSuccess,
+    },
+    defenceContribution: actualProxy.prevention.defence,
+    baselineDefenceContribution: baselineProxy.prevention.defence,
+    actualDodge: { dice: actual.dodgeDice, dieSides: actual.dodgeDieSides },
+    baselineDodge: { dice: baselineActual.dodgeDice, dieSides: baselineActual.dodgeDieSides },
+    dodgeContribution: actualProxy.prevention.dodge,
+    baselineDodgeContribution: baselineProxy.prevention.dodge,
+    resistCoverage: { value: actual.resistCoverage, gates: resist.gates },
+    baselineResistCoverage: baseline.expectedResistCoverage,
+    resistContribution: actualProxy.prevention.resist,
+    baselineResistContribution: baselineProxy.prevention.resist,
+    supplementalContributions: params.supplemental,
+    powerContribution: params.supplemental.power,
+    traitEquipmentContribution:
+      params.supplemental.trait +
+      params.supplemental.equipment +
+      params.supplemental.naturalAttack +
+      params.supplemental.limitBreak,
+    supplementalRatio: actualProxy.supplementalRatio,
+    legendaryInjuryFlowContribution:
+      actualProxy.legendary.additionalPostZeroEvents - baselineProxy.legendary.additionalPostZeroEvents,
+    majorInjuryProbabilityAssumptions: actualProxy.legendary,
+    baselineMajorInjuryProbabilityAssumptions: baselineProxy.legendary,
+    actualPrevention: actualProxy.prevention,
+    baselinePrevention: baselineProxy.prevention,
+    rawActualDurabilityProxy: actualProxy.rawProxy,
+    rawBaselineDurabilityProxy: baselineProxy.rawProxy,
+    ratioToBaseline,
+    uncappedFinalScore,
+    finalScore,
+    capped: finalScore !== uncappedFinalScore,
+    capReason:
+      uncappedFinalScore < 0 ? "minimum-0" : uncappedFinalScore > 10 ? "maximum-10" : "none",
+  };
 }
 
 function resolveAtWillAttackDiceCount(
@@ -2577,13 +2991,14 @@ export function computeMonsterOutcomes(
       opts?.protectionTuning?.dodgeTotalMaxShare ??
       DEFAULT_COMBAT_TUNING_VALUES.dodgeTotalMaxShare,
   };
+  const defensiveProfileContext = resolveDefensiveProfileContext(
+    monster,
+    defensiveProtectionTuning,
+    opts?.defensiveProfileContext,
+  );
   const defensiveContribution = computeDefensiveContributionFromProfiles(
     defensiveProfiles,
-    resolveDefensiveProfileContext(
-      monster,
-      defensiveProtectionTuning,
-      opts?.defensiveProfileContext,
-    ),
+    defensiveProfileContext,
     defensiveProtectionTuning,
     level,
     monster.tier,
@@ -2683,7 +3098,8 @@ export function computeMonsterOutcomes(
   const routedEquipmentMentalThreatBonus = hasMentalThreat
     ? equipmentAttackThreatBonus
     : 0;
-  const c14LegendaryDurabilityBonus = Boolean(monster.legendary)
+  const durabilityBaselinePackage = resolveDurabilityBaselinePackage(cfg, monster);
+  const c14LegendaryDurabilityBonus = Boolean(monster.legendary) && !durabilityBaselinePackage
     ? {
         physicalSurvivability: axisBudgetTargets.physicalSurvivability * 0.25,
         mentalSurvivability: axisBudgetTargets.mentalSurvivability * 0.25,
@@ -2777,19 +3193,61 @@ export function computeMonsterOutcomes(
     netSuccessMultiplier,
     atWillThreatAxisMultiplier,
   });
+  const physicalDurabilityNormalization = durabilityBaselinePackage
+    ? baselineRelativeDurability({
+        lane: "physical",
+        monster,
+        config: cfg,
+        baselinePackage: durabilityBaselinePackage,
+        actualContext: defensiveProfileContext,
+        defensiveContribution,
+        supplemental: {
+          power: effectivePowerAxisVector.physicalSurvivability,
+          trait: traitAxisBonuses.physicalSurvivability,
+          equipment: equipmentModifierAxisBonuses.physicalSurvivability,
+          naturalAttack:
+            naturalAttackGsAxisBonuses.physicalSurvivability +
+            naturalAttackRangeAxisBonuses.physicalSurvivability,
+          limitBreak: customLimitBreakAxisBonuses.physicalSurvivability,
+        },
+      })
+    : null;
+  const mentalDurabilityNormalization = durabilityBaselinePackage
+    ? baselineRelativeDurability({
+        lane: "mental",
+        monster,
+        config: cfg,
+        baselinePackage: durabilityBaselinePackage,
+        actualContext: defensiveProfileContext,
+        defensiveContribution,
+        supplemental: {
+          power: effectivePowerAxisVector.mentalSurvivability,
+          trait: traitAxisBonuses.mentalSurvivability,
+          equipment: equipmentModifierAxisBonuses.mentalSurvivability,
+          naturalAttack:
+            naturalAttackGsAxisBonuses.mentalSurvivability +
+            naturalAttackRangeAxisBonuses.mentalSurvivability,
+          limitBreak: customLimitBreakAxisBonuses.mentalSurvivability,
+        },
+      })
+    : null;
   const radarAxes: RadarAxes = {
     physicalThreat: physicalThreatNormalization.finalScore,
     mentalThreat: mentalThreatNormalization.finalScore,
-    physicalSurvivability: normalizeByLevelCurve(
-      finalPreNormalizationAxes.physicalSurvivability,
-      physicalSurvivabilityCurvePoint,
-      tierMultiplier,
-    ),
-    mentalSurvivability: normalizeByLevelCurve(
-      finalPreNormalizationAxes.mentalSurvivability,
-      mentalSurvivabilityCurvePoint,
-      tierMultiplier,
-    ),
+    physicalSurvivability:
+      physicalDurabilityNormalization?.finalScore ??
+      normalizeByLevelCurve(
+        finalPreNormalizationAxes.physicalSurvivability,
+        physicalSurvivabilityCurvePoint,
+        tierMultiplier,
+      ),
+    mentalSurvivability:
+      mentalDurabilityNormalization?.finalScore ??
+      normalizeByLevelCurve(
+        finalPreNormalizationAxes.mentalSurvivability,
+        mentalSurvivabilityCurvePoint,
+        tierMultiplier,
+      ),
     manipulation: normalizeByLevelCurve(
       finalPreNormalizationAxes.manipulation,
       manipulationCurvePoint,
@@ -2885,7 +3343,9 @@ export function computeMonsterOutcomes(
           c14LegendaryDurabilityBonus: {
             ...c14LegendaryDurabilityBonus,
             policy:
-              "preliminary Phase 1 effective durability bonus for legendary/C14 monsters; full Blaze and Major Injury decision policy remains Combat Lab/runtime work",
+              durabilityBaselinePackage
+                ? "disabled for Level 3 calibrated packages because deterministic three-Major-Injury modelling is active"
+                : "legacy fallback bonus outside calibrated Level 3 packages; full Blaze and Major Injury modelling is unavailable in fallback mode",
           },
           rawSurvivabilityBudgetTargets: {
             source: "combat_tuning.raw_survivability_budget_level_neutral_numerator",
@@ -2938,6 +3398,25 @@ export function computeMonsterOutcomes(
           physicalThreat: physicalThreatNormalization,
           mentalThreat: mentalThreatNormalization,
         },
+        durabilityAxisBaselineModel: durabilityBaselinePackage
+          ? {
+              source: "accepted_level_3_durability_packages",
+              policy:
+                "Survivability axes are relative to the accepted package for the same level, tier, and legendary state; cross-tier ordering is not required.",
+              fallback: false,
+              baselinePackage: durabilityBaselinePackage,
+              physicalSurvivability: physicalDurabilityNormalization,
+              mentalSurvivability: mentalDurabilityNormalization,
+            }
+          : {
+              source: "legacy_level_curve",
+              policy:
+                "No accepted durability package exists for this level/tier/legendary state; legacy generic level-curve normalization remains active.",
+              fallback: true,
+              baselinePackage: null,
+              physicalSurvivability: null,
+              mentalSurvivability: null,
+            },
         radarAxes,
       },
       legacyPowerHeuristics: {
