@@ -975,6 +975,12 @@ function getCharacterPowerCollapseKey(power: CharacterPower, index: number) {
   return power.id ? `power-${power.id}` : `power-${power.sortOrder ?? index}-${index}`;
 }
 
+function getRoleplayAbilityCollapseKey(ability: RoleplayAbility, index: number) {
+  return ability.id
+    ? `roleplay-ability-${ability.id}`
+    : `roleplay-ability-${ability.sortOrder ?? index}-${index}`;
+}
+
 function toggleStringValue(values: unknown, value: string) {
   const current = Array.isArray(values)
     ? values.map((entry) => String(entry)).filter(Boolean)
@@ -1199,6 +1205,9 @@ export default function CharacterBuilderPage() {
   const [selectedBackpackItemId, setSelectedBackpackItemId] = useState("");
   const [pendingHandEquipItemId, setPendingHandEquipItemId] = useState("");
   const [collapsedPowerKeys, setCollapsedPowerKeys] = useState<Record<string, boolean>>({});
+  const [collapsedRoleplayAbilityKeys, setCollapsedRoleplayAbilityKeys] = useState<
+    Record<string, boolean>
+  >({});
   const [transferDraft, setTransferDraft] = useState<{
     backpackItemId: string;
     targetCharacterId: string;
@@ -1520,13 +1529,33 @@ export default function CharacterBuilderPage() {
   }
 
   function addRoleplayAbility() {
+    const nextAbilityIndex = builderData.roleplayAbilities.length;
+    const nextAbility = createDefaultRoleplayAbility(nextAbilityIndex);
+    const nextAbilityCollapseKey = getRoleplayAbilityCollapseKey(
+      nextAbility,
+      nextAbilityIndex,
+    );
     updateRoleplayAbilities([
       ...builderData.roleplayAbilities,
-      createDefaultRoleplayAbility(builderData.roleplayAbilities.length),
+      nextAbility,
     ]);
+    setCollapsedRoleplayAbilityKeys((prev) => ({
+      ...prev,
+      [nextAbilityCollapseKey]: false,
+    }));
   }
 
   function removeRoleplayAbility(index: number) {
+    const ability = builderData.roleplayAbilities[index];
+    if (ability) {
+      const collapseKey = getRoleplayAbilityCollapseKey(ability, index);
+      setCollapsedRoleplayAbilityKeys((prev) => {
+        if (!(collapseKey in prev)) return prev;
+        const next = { ...prev };
+        delete next[collapseKey];
+        return next;
+      });
+    }
     updateRoleplayAbilities(
       builderData.roleplayAbilities.filter(
         (_, candidateIndex) => candidateIndex !== index,
@@ -1548,6 +1577,16 @@ export default function CharacterBuilderPage() {
         return next;
       }),
     );
+  }
+
+  function toggleRoleplayAbilityCollapsed(collapseKey: string) {
+    setCollapsedRoleplayAbilityKeys((prev) => {
+      const collapsed = prev[collapseKey] ?? true;
+      return {
+        ...prev,
+        [collapseKey]: !collapsed,
+      };
+    });
   }
 
   function updateSignatureMove(power: CharacterPower | null) {
@@ -4432,18 +4471,39 @@ export default function CharacterBuilderPage() {
                   ability.outputCategory,
                 );
                 const warnings = getRoleplayAbilityWarnings(ability);
+                const abilityCollapseKey = getRoleplayAbilityCollapseKey(ability, index);
+                const abilityCollapsed =
+                  collapsedRoleplayAbilityKeys[abilityCollapseKey] ?? true;
+                const abilityBodyId = `roleplay-ability-body-${index}`;
                 return (
                   <article
                     key={ability.id}
-                    className="space-y-4 rounded-xl border border-zinc-800 bg-black p-4"
+                    className="rounded-lg border border-zinc-800 bg-black p-3"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3">
-                      <div>
-                        <h3 className="font-semibold text-zinc-100">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <button
+                        type="button"
+                        onClick={() => toggleRoleplayAbilityCollapsed(abilityCollapseKey)}
+                        className="min-w-0 flex-1 rounded border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-left hover:bg-zinc-900/40"
+                        aria-expanded={!abilityCollapsed}
+                        aria-controls={abilityBodyId}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <h3 className="min-w-0 truncate font-semibold text-zinc-100">
+                            <span className="mr-2 text-zinc-400" aria-hidden="true">
+                              {abilityCollapsed ? ">" : "v"}
+                            </span>
                           {ability.name.trim() || `Roleplay Ability ${index + 1}`}
-                        </h3>
-                        <p className="text-xs text-zinc-500">Ability {index + 1}</p>
-                      </div>
+                          </h3>
+                          {abilityCollapsed ? (
+                            <span className="shrink-0 text-[11px] text-zinc-500">
+                              {specificOptions.find((option) => option.value === ability.specific)
+                                ?.label ?? "Roleplay Ability"}
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1 text-xs text-zinc-500">Ability {index + 1}</p>
+                      </button>
                       <button
                         type="button"
                         onClick={() => removeRoleplayAbility(index)}
@@ -4454,6 +4514,8 @@ export default function CharacterBuilderPage() {
                       </button>
                     </div>
 
+                    {!abilityCollapsed ? (
+                    <div id={abilityBodyId} className="mt-4 space-y-4">
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label>
                         <span className="text-xs text-zinc-400">Name</span>
@@ -4745,6 +4807,8 @@ export default function CharacterBuilderPage() {
                       </span>
                       <span>Result Window: {getRoleplayAbilityResultWindow(ability)}</span>
                     </div>
+                    </div>
+                    ) : null}
                   </article>
                 );
               })}
