@@ -138,7 +138,10 @@ function computeDurabilityBaselineAnchor(baselineId: string) {
     },
     calculatorConfig,
     {
-      protectionTuning: DEFAULT_COMBAT_TUNING_VALUES,
+      protectionTuning: {
+        ...DEFAULT_COMBAT_TUNING_VALUES,
+        protectionK: 100,
+      },
       defensiveProfileSources: [
         {
           sourceKind: "natural",
@@ -1271,6 +1274,154 @@ for (const lane of [legendaryPhysicalDurability, legendaryMentalDurability]) {
 assert.equal(legendaryC14Debug?.physicalSurvivability, 0);
 assert.equal(legendaryC14Debug?.mentalSurvivability, 0);
 assert.match(legendaryC14Debug?.policy ?? "", /disabled for Level 3 calibrated packages/i);
+
+function computeRuntimeProtectionFixture(params: {
+  authoredProtection: number;
+  tableProtection: number;
+  armourDice: number;
+  dodgeDice?: number;
+  staticRuntimeShare?: number;
+}) {
+  const config =
+    params.staticRuntimeShare === undefined
+      ? calculatorConfig
+      : {
+          ...calculatorConfig,
+          durabilityAxisTuning: {
+            ...calculatorConfig.durabilityAxisTuning,
+            authoredProtectionStaticRuntimeShare: params.staticRuntimeShare,
+          },
+        };
+  return computeMonsterOutcomes(
+    {
+      ...createBaseMonster(),
+      level: 3,
+      tier: "ELITE",
+      guardDie: "D6",
+      fortitudeDie: "D4",
+      intellectDie: "D4",
+      physicalResilienceMax: 34,
+      mentalPerseveranceMax: 20,
+      physicalProtection: params.authoredProtection,
+      naturalPhysicalProtection: params.authoredProtection,
+      mentalProtection: 0,
+      naturalMentalProtection: 0,
+      armorSkillValue: params.armourDice,
+    },
+    config,
+    {
+      protectionTuning: DEFAULT_COMBAT_TUNING_VALUES,
+      defensiveProfileSources: [
+        {
+          sourceKind: "natural",
+          sourceLabel: "Exact table-facing package",
+          physicalProtection: params.tableProtection,
+          mentalProtection: 0,
+        },
+      ],
+      defensiveProfileContext: {
+        totalPhysicalProtection: params.tableProtection,
+        totalMentalProtection: 0,
+        armorSkillDice: params.armourDice,
+        willpowerDice: 1,
+        dodgeDice: params.dodgeDice ?? 1,
+        unarmoredDodgeDice: params.dodgeDice ?? 1,
+      },
+    },
+  );
+}
+
+function physicalDurabilityDebug(result: ReturnType<typeof computeMonsterOutcomes>) {
+  return (
+    result.debug as {
+      normalizationBreakdown: {
+        durabilityAxisBaselineModel: {
+          physicalSurvivability: {
+            hydratedStaticProtectionExpectedAtRuntime: number;
+            standaloneProtectionCreditApplied: boolean;
+            standaloneProtectionPolicyReason: string;
+          };
+        };
+      };
+    }
+  ).normalizationBreakdown.durabilityAxisBaselineModel.physicalSurvivability;
+}
+
+const runtimeProtectionPackage = computeRuntimeProtectionFixture({
+  authoredProtection: 10,
+  tableProtection: 10,
+  armourDice: 2,
+});
+const redundantAuthoredProtectionPackage = computeRuntimeProtectionFixture({
+  authoredProtection: 30,
+  tableProtection: 10,
+  armourDice: 2,
+});
+const higherBlockPackage = computeRuntimeProtectionFixture({
+  authoredProtection: 15,
+  tableProtection: 15,
+  armourDice: 2,
+});
+const higherDefenceDicePackage = computeRuntimeProtectionFixture({
+  authoredProtection: 10,
+  tableProtection: 10,
+  armourDice: 3,
+});
+const explicitStaticRuntimePackage = computeRuntimeProtectionFixture({
+  authoredProtection: 10,
+  tableProtection: 10,
+  armourDice: 2,
+  staticRuntimeShare: 1,
+});
+const runtimeProtectionDebug = physicalDurabilityDebug(runtimeProtectionPackage);
+const explicitStaticDebug = physicalDurabilityDebug(explicitStaticRuntimePackage);
+assert.equal(runtimeProtectionDebug.hydratedStaticProtectionExpectedAtRuntime, 0);
+assert.equal(runtimeProtectionDebug.standaloneProtectionCreditApplied, false);
+assert.equal(
+  runtimeProtectionDebug.standaloneProtectionPolicyReason,
+  "DERIVED_DEFENCE_STRING_NO_STATIC_LAYER",
+);
+assertApprox(
+  runtimeProtectionPackage.radarAxes.physicalSurvivability,
+  redundantAuthoredProtectionPackage.radarAxes.physicalSurvivability,
+  0.000001,
+  "redundant authored Protection must not alter an identical table-facing package",
+);
+assert.ok(
+  higherBlockPackage.radarAxes.physicalSurvivability >
+    runtimeProtectionPackage.radarAxes.physicalSurvivability,
+);
+assert.ok(
+  higherDefenceDicePackage.radarAxes.physicalSurvivability >
+    runtimeProtectionPackage.radarAxes.physicalSurvivability,
+);
+assert.equal(explicitStaticDebug.standaloneProtectionCreditApplied, true);
+assert.equal(explicitStaticDebug.standaloneProtectionPolicyReason, "EXPLICIT_RUNTIME_STATIC_PROTECTION");
+assert.ok(
+  explicitStaticRuntimePackage.radarAxes.physicalSurvivability >
+    runtimeProtectionPackage.radarAxes.physicalSurvivability,
+);
+for (const axis of [
+  "physicalThreat",
+  "mentalThreat",
+  "mentalSurvivability",
+  "manipulation",
+  "synergy",
+  "mobility",
+  "presence",
+] as const) {
+  assertApprox(
+    runtimeProtectionPackage.radarAxes[axis],
+    redundantAuthoredProtectionPackage.radarAxes[axis],
+    0.000001,
+    `${axis} raw Protection independence`,
+  );
+}
+for (const baseline of calculatorConfig.durabilityAxisTuning.baselines) {
+  const anchor = computeDurabilityBaselineAnchor(baseline.id);
+  assertApprox(anchor.radarAxes.physicalSurvivability, 5, 0.000001, `${baseline.id} physical`);
+  assertApprox(anchor.radarAxes.mentalSurvivability, 5, 0.000001, `${baseline.id} mental`);
+}
 
 const canonicalMobilityPower = {
   mobility: 4,

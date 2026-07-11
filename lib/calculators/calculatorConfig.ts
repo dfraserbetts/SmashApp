@@ -203,6 +203,7 @@ export type CalculatorConfig = {
     referenceWoundsPerSuccess: number;
     referenceDefenceUsesPerRound: number;
     protectionPreventionPerPoint: number;
+    authoredProtectionStaticRuntimeShare: number;
     resistPreventionPerCoveragePoint: number;
     defencePreventionMaxShare: number;
     dodgePreventionMaxShare: number;
@@ -631,6 +632,9 @@ export const calculatorConfig: CalculatorConfig = {
     referenceWoundsPerSuccess: 2,
     referenceDefenceUsesPerRound: 2,
     protectionPreventionPerPoint: 0.35,
+    // Live monster hydration converts authored Protection into the defence string
+    // and exposes no additional static mitigation from that same value.
+    authoredProtectionStaticRuntimeShare: 0,
     resistPreventionPerCoveragePoint: 0.35,
     defencePreventionMaxShare: 0.45,
     dodgePreventionMaxShare: 0.35,

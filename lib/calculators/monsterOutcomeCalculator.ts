@@ -3219,56 +3219,6 @@ function successDistribution(
   return distribution;
 }
 
-function expectedBlockAcrossDegradation(params: {
-  diceCount: number;
-  dieSides: number;
-  blockPerSuccess: number;
-  uses: number;
-}): number {
-  const uses = Math.max(1, Math.trunc(params.uses));
-  let total = 0;
-  for (let use = 0; use < uses; use += 1) {
-    const diceCount = Math.max(1, Math.trunc(params.diceCount) - use);
-    total +=
-      expectedTieredSuccesses({ dieSides: params.dieSides, diceCount }) *
-      clampNonNegative(params.blockPerSuccess);
-  }
-  return total / uses;
-}
-
-function expectedDodgePreventionAcrossDegradation(params: {
-  incomingDiceCount: number;
-  incomingDieSides: number;
-  woundsPerSuccess: number;
-  dodgeDice: number;
-  dodgeDieSides: number;
-  uses: number;
-}): number {
-  if (!(params.dodgeDice > 0)) return 0;
-  const incoming = successDistribution(params.incomingDiceCount, params.incomingDieSides);
-  const uses = Math.max(1, Math.trunc(params.uses));
-  let totalPrevention = 0;
-  for (let use = 0; use < uses; use += 1) {
-    const dodgeDice = Math.max(1, Math.trunc(params.dodgeDice) - use);
-    const dodge = successDistribution(dodgeDice, params.dodgeDieSides);
-    let prevention = 0;
-    for (const [incomingSuccesses, incomingProbability] of incoming) {
-      if (incomingSuccesses <= 0) continue;
-      for (const [dodgeSuccesses, dodgeProbability] of dodge) {
-        if (dodgeSuccesses >= incomingSuccesses) {
-          prevention +=
-            incomingSuccesses *
-            params.woundsPerSuccess *
-            incomingProbability *
-            dodgeProbability;
-        }
-      }
-    }
-    totalPrevention += prevention;
-  }
-  return totalPrevention / uses;
-}
-
 function weightedResistCoverage(
   monster: MonsterOutcomeInput,
   baseline: DurabilityLaneBaseline,
@@ -3309,10 +3259,21 @@ function majorInjuryProbability(dieSides: number, overflowModifier: number): num
   return Math.min(1, Math.max(0, probability));
 }
 
-function boundedPrevention(params: {
+type RuntimeLikeDefenceUseSummary = {
+  use: number;
+  defenceDice: number;
+  dodgeDice: number;
+  expectedIncomingWounds: number;
+  expectedDefencePrevention: number;
+  expectedDodgePrevention: number;
+  chosenDefencePrevention: number;
+  chosenDodgePrevention: number;
+  expectedWoundsAfterActiveDefence: number;
+};
+
+function runtimeLikePermanentDefenceExpectation(params: {
   actual: DurabilityPackageActual;
   tuning: CalculatorConfig["durabilityAxisTuning"];
-  expectedIncomingWounds: number;
 }): {
   defence: number;
   dodge: number;
@@ -3320,47 +3281,118 @@ function boundedPrevention(params: {
   resist: number;
   total: number;
   effectiveIncomingWounds: number;
+  expectedIncomingWounds: number;
+  incomingSuccessDistribution: Array<{ successes: number; probability: number; wounds: number }>;
+  uses: RuntimeLikeDefenceUseSummary[];
+  chosenDefensiveOptionPolicy: string;
+  authoredProtection: number;
+  hydratedStaticProtection: number;
+  standaloneProtectionCreditApplied: boolean;
+  standaloneProtectionPolicyReason: string;
 } {
-  const { actual, tuning, expectedIncomingWounds } = params;
-  const defence = Math.min(
-    expectedIncomingWounds * tuning.defencePreventionMaxShare,
-    expectedBlockAcrossDegradation({
-      diceCount: actual.defenceDice,
-      dieSides: actual.defenceDieSides,
-      blockPerSuccess: actual.blockPerSuccess,
-      uses: tuning.referenceDefenceUsesPerRound,
-    }),
+  const { actual, tuning } = params;
+  const incoming = successDistribution(
+    tuning.referenceIncomingDiceCount,
+    tuning.referenceIncomingDieSides,
   );
-  const dodge = Math.min(
-    expectedIncomingWounds * tuning.dodgePreventionMaxShare,
-    expectedDodgePreventionAcrossDegradation({
-      incomingDiceCount: tuning.referenceIncomingDiceCount,
-      incomingDieSides: tuning.referenceIncomingDieSides,
-      woundsPerSuccess: tuning.referenceWoundsPerSuccess,
-      dodgeDice: actual.dodgeDice,
-      dodgeDieSides: actual.dodgeDieSides,
-      uses: tuning.referenceDefenceUsesPerRound,
-    }),
+  const incomingSuccessDistribution = [...incoming.entries()].map(([successes, probability]) => ({
+    successes,
+    probability,
+    wounds: successes * tuning.referenceWoundsPerSuccess,
+  }));
+  const expectedIncomingWounds = incomingSuccessDistribution.reduce(
+    (sum, row) => sum + row.wounds * row.probability,
+    0,
   );
+  const useCount = Math.max(1, Math.trunc(tuning.referenceDefenceUsesPerRound));
+  const uses: RuntimeLikeDefenceUseSummary[] = [];
+  for (let use = 0; use < useCount; use += 1) {
+    const defenceDice = Math.max(1, Math.trunc(actual.defenceDice) - use);
+    const dodgeDice = actual.dodgeDice > 0 ? Math.max(1, Math.trunc(actual.dodgeDice) - use) : 0;
+    const defenceDistribution = successDistribution(defenceDice, actual.defenceDieSides);
+    const dodgeDistribution =
+      dodgeDice > 0 ? successDistribution(dodgeDice, actual.dodgeDieSides) : new Map<number, number>();
+    let expectedDefencePrevention = 0;
+    let expectedDodgePrevention = 0;
+    let chosenDefencePrevention = 0;
+    let chosenDodgePrevention = 0;
+    let expectedWoundsAfterActiveDefence = 0;
+    for (const incomingRow of incomingSuccessDistribution) {
+      if (incomingRow.wounds <= 0) continue;
+      let defencePreventionForOutcome = 0;
+      for (const [defenceSuccesses, probability] of defenceDistribution) {
+        defencePreventionForOutcome +=
+          Math.min(incomingRow.wounds, defenceSuccesses * actual.blockPerSuccess) * probability;
+      }
+      let dodgePreventionForOutcome = 0;
+      for (const [dodgeSuccesses, probability] of dodgeDistribution) {
+        if (dodgeSuccesses >= incomingRow.successes) {
+          dodgePreventionForOutcome += incomingRow.wounds * probability;
+        }
+      }
+      const chooseDefence = defencePreventionForOutcome > dodgePreventionForOutcome;
+      const chosenPrevention = chooseDefence
+        ? defencePreventionForOutcome
+        : dodgePreventionForOutcome;
+      expectedDefencePrevention += defencePreventionForOutcome * incomingRow.probability;
+      expectedDodgePrevention += dodgePreventionForOutcome * incomingRow.probability;
+      if (chooseDefence) {
+        chosenDefencePrevention += chosenPrevention * incomingRow.probability;
+      } else {
+        chosenDodgePrevention += chosenPrevention * incomingRow.probability;
+      }
+      expectedWoundsAfterActiveDefence +=
+        (incomingRow.wounds - chosenPrevention) * incomingRow.probability;
+    }
+    uses.push({
+      use: use + 1,
+      defenceDice,
+      dodgeDice,
+      expectedIncomingWounds,
+      expectedDefencePrevention,
+      expectedDodgePrevention,
+      chosenDefencePrevention,
+      chosenDodgePrevention,
+      expectedWoundsAfterActiveDefence,
+    });
+  }
+  const average = (key: keyof RuntimeLikeDefenceUseSummary) =>
+    uses.reduce((sum, row) => sum + Number(row[key]), 0) / uses.length;
+  const defence = average("chosenDefencePrevention");
+  const dodge = average("chosenDodgePrevention");
+  const activeExpectedWounds = average("expectedWoundsAfterActiveDefence");
+  const hydratedStaticProtection =
+    actual.protection * Math.max(0, tuning.authoredProtectionStaticRuntimeShare);
   const protection = Math.min(
-    expectedIncomingWounds * tuning.protectionPreventionMaxShare,
-    actual.protection * tuning.protectionPreventionPerPoint,
+    activeExpectedWounds,
+    hydratedStaticProtection * tuning.protectionPreventionPerPoint,
   );
   const resist = Math.min(
+    Math.max(0, activeExpectedWounds - protection),
     expectedIncomingWounds * tuning.resistPreventionMaxShare,
     actual.resistCoverage * tuning.resistPreventionPerCoveragePoint,
   );
-  const total = Math.min(
-    expectedIncomingWounds * tuning.totalPreventionMaxShare,
-    defence + dodge + protection + resist,
-  );
+  const effectiveIncomingWounds = Math.max(0.001, activeExpectedWounds - protection - resist);
+  const total = Math.max(0, expectedIncomingWounds - effectiveIncomingWounds);
   return {
     defence,
     dodge,
     protection,
     resist,
     total,
-    effectiveIncomingWounds: Math.max(0.001, expectedIncomingWounds - total),
+    effectiveIncomingWounds,
+    expectedIncomingWounds,
+    incomingSuccessDistribution,
+    uses,
+    chosenDefensiveOptionPolicy:
+      "For each incoming-success outcome and degradation use, choose Defence only when its capped expected prevention is strictly greater than Dodge; ties choose Dodge, matching Combat Lab.",
+    authoredProtection: actual.protection,
+    hydratedStaticProtection,
+    standaloneProtectionCreditApplied: protection > 0,
+    standaloneProtectionPolicyReason:
+      hydratedStaticProtection > 0
+        ? "EXPLICIT_RUNTIME_STATIC_PROTECTION"
+        : "DERIVED_DEFENCE_STRING_NO_STATIC_LAYER",
   };
 }
 
@@ -3371,16 +3403,11 @@ function durabilityProxy(params: {
   tuning: CalculatorConfig["durabilityAxisTuning"];
   supplementalRatio: number;
 }) {
-  const expectedIncomingWounds =
-    expectedTieredSuccesses({
-      dieSides: params.tuning.referenceIncomingDieSides,
-      diceCount: params.tuning.referenceIncomingDiceCount,
-    }) * params.tuning.referenceWoundsPerSuccess;
-  const prevention = boundedPrevention({
+  const prevention = runtimeLikePermanentDefenceExpectation({
     actual: params.actual,
     tuning: params.tuning,
-    expectedIncomingWounds,
   });
+  const expectedIncomingWounds = prevention.expectedIncomingWounds;
   const attacksToZero = params.actual.hp / prevention.effectiveIncomingWounds;
   const overflow = params.legendary
     ? params.tuning.representativeLegendaryOverflowDamage
@@ -3472,7 +3499,10 @@ function baselineRelativeDurability(params: {
       params.lane === "physical"
         ? params.defensiveContribution.totals.physicalBlockPerSuccess
         : params.defensiveContribution.totals.mentalBlockPerSuccess,
-    dodgeDice: params.lane === "physical" ? params.defensiveContribution.totals.scoringDodgeDice : 0,
+    // Calibrated durability mirrors the hydrated runtime actor. Authored
+    // Protection has already reduced this Dodge value; the legacy unarmored
+    // scoring view would incorrectly erase that live tradeoff.
+    dodgeDice: params.lane === "physical" ? params.defensiveContribution.totals.authoredDodgeDice : 0,
     dodgeDieSides: dieSidesFromDieString(String(params.monster.guardDie)),
     resistCoverage: resist.value,
     injuryDieSides: highestInjuryDieSides(params.monster, params.lane),
@@ -3522,6 +3552,28 @@ function baselineRelativeDurability(params: {
     hpRatio,
     hpContribution,
     actualProtection: actual.protection,
+    authoredProtection: actual.protection,
+    derivedBlockPackage: {
+      defenceDice: actual.defenceDice,
+      defenceDieSides: actual.defenceDieSides,
+      blockPerSuccess: actual.blockPerSuccess,
+    },
+    hydratedStaticProtectionExpectedAtRuntime:
+      actualProxy.prevention.hydratedStaticProtection,
+    standaloneProtectionCreditApplied:
+      actualProxy.prevention.standaloneProtectionCreditApplied,
+    standaloneProtectionPolicyReason:
+      actualProxy.prevention.standaloneProtectionPolicyReason,
+    permanentDefenceExpectation: {
+      incomingSuccessDistribution: actualProxy.prevention.incomingSuccessDistribution,
+      uses: actualProxy.prevention.uses,
+      chosenDefensiveOptionPolicy: actualProxy.prevention.chosenDefensiveOptionPolicy,
+      expectedIncomingWounds: actualProxy.prevention.expectedIncomingWounds,
+      expectedWoundsPerAttack: actualProxy.prevention.effectiveIncomingWounds,
+      effectiveAttacksToZero: actualProxy.attacksToZero,
+      defenceExpectedPrevention: actualProxy.prevention.defence,
+      dodgeExpectedPrevention: actualProxy.prevention.dodge,
+    },
     baselineProtection: baseline.expectedProtection,
     actualDefence: {
       dice: actual.defenceDice,
@@ -3545,6 +3597,7 @@ function baselineRelativeDurability(params: {
     baselineResistContribution: baselineProxy.prevention.resist,
     supplementalContributions: params.supplemental,
     powerContribution: params.supplemental.power,
+    defensivePowerContribution: params.supplemental.power,
     traitEquipmentContribution:
       params.supplemental.trait +
       params.supplemental.equipment +

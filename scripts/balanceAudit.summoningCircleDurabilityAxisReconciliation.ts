@@ -29,6 +29,7 @@ type PrismaClientInstance = typeof import("../prisma/client")["prisma"];
 
 const CAMPAIGN_ID = "250aee5e-632f-405c-ba36-a49ed12a5afc";
 const CAMPAIGN_NAME = "Balance Environment";
+const DIRE_WOLF_ID = "cmp4eqtg10000ccwckt66hvbi";
 
 const REQUIRED_SAMPLE_NAMES = [
   "BALANCE_Minion Striker",
@@ -539,11 +540,24 @@ async function loadMonsters(prisma: PrismaClientInstance) {
   });
 }
 
+async function loadDireWolf(prisma: PrismaClientInstance) {
+  return prisma.monster.findUnique({
+    where: { id: DIRE_WOLF_ID },
+    include: {
+      naturalAttack: true,
+      attacks: { orderBy: { sortOrder: "asc" } },
+      traits: { include: { trait: true }, orderBy: { sortOrder: "asc" } },
+      powers: { orderBy: { sortOrder: "asc" }, include: POWER_INCLUDE },
+    },
+  });
+}
+
 function buildPayload(params: {
   repoHead: string;
   gitStatus: string;
   tuning: Awaited<ReturnType<typeof loadActiveTuning>>;
   samples: ReturnType<typeof summarizeMonster>[];
+  direWolf: ReturnType<typeof summarizeMonster> | null;
   missingRequired: string[];
   missingOptional: string[];
 }) {
@@ -578,6 +592,10 @@ function buildPayload(params: {
         "No dedicated monster regeneration field exists in the inspected schema. Authored healing/passive powers are listed and their resolver axis contribution is included.",
       legendaryCoverage:
         "Level 3 Legendary packages use deterministic three-die Major Injury probability with event-local overflow and no automatic Blaze credit. The flat C14 bonus remains only in the legacy fallback.",
+      protectionRuntimePolicy:
+        "Authored monster Protection derives Defence dice/block and Dodge; live hydration then sets static physical and mental Protection to zero, so calibrated durability awards no duplicate standalone static layer.",
+      direWolfRuntimeComparison:
+        "Independent 2x500-run Combat Lab evidence: standard Elite 6.256 attacks to defeat, Dire Wolf without Sudden Leap 18.539, full Dire Wolf 21.871. Sudden Leap remains resolver-valued in the calculator.",
     },
     activeDurabilityTuning: {
       displayTierMultipliers: params.tuning.calculatorConfig.tierMultipliers,
@@ -626,6 +644,7 @@ function buildPayload(params: {
     missingRequired: params.missingRequired,
     missingOptional: params.missingOptional,
     baselineAnchors,
+    direWolf: params.direWolf,
     samples: params.samples,
   };
 }
@@ -652,6 +671,14 @@ function printHuman(payload: ReturnType<typeof buildPayload>) {
   for (const anchor of payload.baselineAnchors) {
     console.log(
       `- ${anchor.id}: ${anchor.tier}${anchor.legendary ? "+LEG" : ""} physical=${anchor.physicalScore} mental=${anchor.mentalScore}`,
+    );
+  }
+  if (payload.direWolf) {
+    const physical = payload.direWolf.durabilityBaseline.physical;
+    console.log("");
+    console.log("Saved Dire Wolf runtime-semantics trace:");
+    console.log(
+      `- ${payload.direWolf.id}: HP=${payload.direWolf.pools.physicalHp}, authoredProtection=${physical.authoredProtection}, defence=${JSON.stringify(physical.derivedBlockPackage)}, hydratedStatic=${physical.hydratedStaticProtectionExpectedAtRuntime}, standaloneCredit=${physical.standaloneProtectionCreditApplied}, reason=${physical.standaloneProtectionPolicyReason}, expectedWounds=${round(asNumber(asRecord(physical.permanentDefenceExpectation).expectedWoundsPerAttack), 3)}, attacksToZero=${round(asNumber(asRecord(physical.permanentDefenceExpectation).effectiveAttacksToZero), 3)}, power=${physical.defensivePowerContribution}, ratio=${round(asNumber(physical.ratioToBaseline), 3)}, score=${physical.finalScore}`,
     );
   }
   console.log("");
@@ -699,7 +726,11 @@ async function main() {
     if (!campaign || campaign.name !== CAMPAIGN_NAME) {
       throw new Error(`Balance Environment campaign identity mismatch for ${CAMPAIGN_ID}.`);
     }
-    const [tuning, rows] = await Promise.all([loadActiveTuning(prisma), loadMonsters(prisma)]);
+    const [tuning, rows, direWolfRow] = await Promise.all([
+      loadActiveTuning(prisma),
+      loadMonsters(prisma),
+      loadDireWolf(prisma),
+    ]);
     const foundNames = new Set(rows.map((row) => row.name));
     const missingRequired = REQUIRED_SAMPLE_NAMES.filter((name) => !foundNames.has(name));
     const missingOptional = OPTIONAL_SAMPLE_NAMES.filter((name) => !foundNames.has(name));
@@ -708,6 +739,7 @@ async function main() {
       gitStatus,
       tuning,
       samples: rows.map((row) => summarizeMonster(row, tuning)),
+      direWolf: direWolfRow ? summarizeMonster(direWolfRow, tuning) : null,
       missingRequired,
       missingOptional,
     });
