@@ -8,6 +8,7 @@ import type {
   Power,
   PowerCooldownAuthorityMode,
   PowerCooldownAuthorityResolution,
+  PowerCooldownAuthorityResult,
   PowerIntention,
   PrimaryDefenceGate,
   RangeCategory,
@@ -15,6 +16,10 @@ import type {
   SecondaryDependencyMode,
 } from "@/lib/summoning/types";
 import { resolvePowerCooldownAuthority } from "@/lib/summoning/resolvePowerCooldownAuthority";
+import {
+  applyResolvedPowerCooldownCache,
+  type PowerCooldownCacheSynchronizationFailure,
+} from "@/lib/summoning/powerCooldownCacheSynchronization";
 import type { CombatDieSize } from "@/lib/combat-lab/types";
 import {
   RESIST_THEME_VALUES,
@@ -896,6 +901,13 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
     packets,
   );
   const gateResult = primaryDefenceGate?.gateResult ?? "NONE";
+  const cooldownTurns = asInteger(raw.cooldownTurns, 1, 1, Number.MAX_SAFE_INTEGER);
+  const cooldownReduction = asInteger(
+    raw.cooldownReduction,
+    0,
+    0,
+    Math.max(0, cooldownTurns - 1),
+  );
 
   return {
     ...createDefaultCharacterPower(sortOrder),
@@ -904,8 +916,8 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
     description: asString(raw.description, "").slice(0, 1000) || null,
     descriptorChassis,
     descriptorChassisConfig,
-    cooldownTurns: 1,
-    cooldownReduction: 0,
+    cooldownTurns,
+    cooldownReduction,
     counterMode: oneOf(raw.counterMode, ["NO", "YES"] as const, "NO"),
     commitmentModifier,
     triggerMethod:
@@ -1428,6 +1440,115 @@ export function summarizeCharacterPowers(params: {
     overspent: totalSpent > powerPool,
     powers: summaries,
     cooldownAuthorityMode,
+  };
+}
+
+export type CharacterPowerCooldownCacheSynchronizationResult =
+  | {
+      ok: true;
+      powers: CharacterPower[];
+      signatureMove: CharacterPower | null;
+      normalAuthorities: PowerCooldownAuthorityResult[];
+      signatureAuthority: PowerCooldownAuthorityResult | null;
+    }
+  | (PowerCooldownCacheSynchronizationFailure & {
+      scope: "power" | "signature";
+      powerIndex: number;
+      powerName: string;
+    });
+
+export function synchronizeCharacterPowerCooldownCaches(params: {
+  level: number;
+  powers: readonly CharacterPower[];
+  signatureMove: CharacterPower | null;
+  tuningSnapshot?: PowerTuningSnapshot | null;
+  playerPowerSpendScalar?: number;
+}): CharacterPowerCooldownCacheSynchronizationResult {
+  const normalSummary = summarizeCharacterPowers({
+    level: params.level,
+    powers: [...params.powers],
+    tuningSnapshot: params.tuningSnapshot,
+    playerPowerSpendScalar: params.playerPowerSpendScalar,
+    cooldownAuthorityMode: "ACTIVE_CURRENT_BALANCE",
+  });
+  const powers: CharacterPower[] = [];
+  const normalAuthorities: PowerCooldownAuthorityResult[] = [];
+  for (const [powerIndex, power] of params.powers.entries()) {
+    const resolution = normalSummary.powers[powerIndex]?.cooldownAuthority;
+    if (!resolution) {
+      return {
+        ok: false,
+        errorCode: "COOLDOWN_DERIVATION_FAILED",
+        message: `Power "${power.name}" cooldown derivation returned no summary result.`,
+        storedCooldownTurns: null,
+        scope: "power",
+        powerIndex,
+        powerName: power.name,
+      };
+    }
+    const synchronized = applyResolvedPowerCooldownCache(power, resolution);
+    if (!synchronized.ok) {
+      return {
+        ...synchronized,
+        scope: "power",
+        powerIndex,
+        powerName: power.name,
+      };
+    }
+    powers.push(synchronized.power as CharacterPower);
+    normalAuthorities.push(synchronized.authority);
+  }
+
+  if (!params.signatureMove) {
+    return {
+      ok: true,
+      powers,
+      signatureMove: null,
+      normalAuthorities,
+      signatureAuthority: null,
+    };
+  }
+
+  const signatureSummary = summarizeCharacterPowers({
+    level: params.level,
+    powers: [params.signatureMove],
+    tuningSnapshot: params.tuningSnapshot,
+    playerPowerSpendScalar: params.playerPowerSpendScalar,
+    powerPool: signatureMovePointPool(params.level),
+    powerPoolKind: "signature",
+    offencePressureMode: "reviewOnly",
+    cooldownAuthorityMode: "ACTIVE_CURRENT_BALANCE",
+  });
+  const signatureResolution = signatureSummary.powers[0]?.cooldownAuthority;
+  if (!signatureResolution) {
+    return {
+      ok: false,
+      errorCode: "COOLDOWN_DERIVATION_FAILED",
+      message: `Signature Move "${params.signatureMove.name}" cooldown derivation returned no summary result.`,
+      storedCooldownTurns: null,
+      scope: "signature",
+      powerIndex: 0,
+      powerName: params.signatureMove.name,
+    };
+  }
+  const synchronizedSignature = applyResolvedPowerCooldownCache(
+    params.signatureMove,
+    signatureResolution,
+  );
+  if (!synchronizedSignature.ok) {
+    return {
+      ...synchronizedSignature,
+      scope: "signature",
+      powerIndex: 0,
+      powerName: params.signatureMove.name,
+    };
+  }
+  return {
+    ok: true,
+    powers,
+    signatureMove: synchronizedSignature.power as CharacterPower,
+    normalAuthorities,
+    signatureAuthority: synchronizedSignature.authority,
   };
 }
 

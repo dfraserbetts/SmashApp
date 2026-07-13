@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
 import type { EffectDurationType, Prisma } from "@prisma/client";
 import { renderAttackActionLines } from "@/lib/summoning/render";
+import { getActivePowerTuningSet } from "@/lib/config/powerTuning";
+import { synchronizePowerCooldownCacheBatch } from "@/lib/summoning/powerCooldownCacheSynchronization";
 import {
   LEGACY_TRIGGER_CONDITION_TEXT_KEY,
   RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
@@ -990,6 +992,21 @@ export async function POST(
           attackConfig: (sourceAttacks[0].attackConfig ?? {}) as Prisma.InputJsonValue,
         }
       : null;
+    const powerTuning = await getActivePowerTuningSet();
+    if (!powerTuning) {
+      return NextResponse.json(
+        { error: "Active power tuning is required before monster powers can be copied." },
+        { status: 503 },
+      );
+    }
+    const synchronizedPowers = synchronizePowerCooldownCacheBatch({
+      powers: source.powers.map(serializePower),
+      tuningSnapshot: powerTuning,
+      context: { level: source.level, tier: source.tier },
+    });
+    if (!synchronizedPowers.ok) {
+      return NextResponse.json({ error: synchronizedPowers.message }, { status: 400 });
+    }
 
     const created = await prisma.monster.create({
       data: {
@@ -1083,7 +1100,7 @@ export async function POST(
             }
           : undefined,
         powers: {
-          create: source.powers.map((power) => buildPowerCreateData(serializePower(power))),
+          create: synchronizedPowers.powers.map(buildPowerCreateData),
         },
       },
       include: MONSTER_INCLUDE,

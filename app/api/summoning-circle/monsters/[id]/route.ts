@@ -28,6 +28,8 @@ import {
   requireUserId,
 } from "../../_shared";
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
+import { getActivePowerTuningSet } from "@/lib/config/powerTuning";
+import { synchronizePowerCooldownCacheBatch } from "@/lib/summoning/powerCooldownCacheSynchronization";
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
@@ -1270,6 +1272,21 @@ export async function PUT(
       return NextResponse.json({ error: weaponSourceError }, { status: 400 });
     }
     const naturalAttack = toNaturalAttackField(data.attacks);
+    const powerTuning = await getActivePowerTuningSet();
+    if (!powerTuning) {
+      return NextResponse.json(
+        { error: "Active power tuning is required before monster powers can be saved." },
+        { status: 503 },
+      );
+    }
+    const synchronizedPowers = synchronizePowerCooldownCacheBatch({
+      powers: data.powers,
+      tuningSnapshot: powerTuning,
+      context: { level: data.level, tier: data.tier },
+    });
+    if (!synchronizedPowers.ok) {
+      return NextResponse.json({ error: synchronizedPowers.message }, { status: 400 });
+    }
 
     const updated = await prisma.$transaction(async (tx) => {
       await tx.monster.update({
@@ -1391,7 +1408,7 @@ export async function PUT(
         });
       }
 
-      for (const power of data.powers) {
+      for (const power of synchronizedPowers.powers) {
         await tx.power.create({
           data: {
             monsterId: id,

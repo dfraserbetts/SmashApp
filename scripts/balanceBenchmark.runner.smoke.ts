@@ -148,6 +148,7 @@ for (const requiredId of [
   "project-typecheck",
   "power-cost-resolver-smoke",
   "power-cooldown-authority-smoke",
+  "power-cooldown-cache-synchronization-smoke",
   "outcome-calculator-smoke",
   "character-power-builder-smoke",
 ]) {
@@ -161,9 +162,55 @@ function changed(path: string) {
 assert.ok(changed("lib/summoning/powerCostResolver.ts").selected.some((suite) => suite.id === "power-cost-resolver-smoke"));
 assert.ok(changed("lib/summoning/resolvePowerCooldownAuthority.ts").selected.some((suite) => suite.id === "power-cooldown-authority-smoke"));
 assert.ok(changed("lib/summoning/resolvePowerCooldownAuthority.ts").selected.some((suite) => suite.id === "outcome-calculator-smoke"));
+for (const path of [
+  "lib/summoning/powerCooldownCacheSynchronization.ts",
+  "app/api/summoning-circle/monsters/route.ts",
+  "app/api/summoning-circle/monsters/[id]/route.ts",
+  "app/api/summoning-circle/monsters/[id]/copy/route.ts",
+  "app/api/campaigns/[id]/characters/[characterId]/builder/route.ts",
+  "lib/characterBuilder/powers.ts",
+]) {
+  const selection = changed(path);
+  assert.ok(
+    selection.selected.some((suite) => suite.id === "power-cooldown-cache-synchronization-smoke"),
+    `${path} must select the cooldown-cache synchronization smoke.`,
+  );
+  assert.ok(
+    selection.selected.some((suite) => suite.id === "project-typecheck"),
+    `${path} must select project typecheck.`,
+  );
+  assert.ok(
+    selection.selected.some((suite) => suite.id === "power-cooldown-authority-smoke"),
+    `${path} must select cooldown authority coverage.`,
+  );
+  assert.ok(
+    selection.selected.some((suite) => suite.id === "power-cost-resolver-smoke"),
+    `${path} must select power-cost resolver coverage.`,
+  );
+}
+for (const path of [
+  "lib/summoning/powerCooldownCacheSynchronization.ts",
+  "app/api/campaigns/[id]/characters/[characterId]/builder/route.ts",
+  "lib/characterBuilder/powers.ts",
+]) {
+  assert.ok(
+    changed(path).selected.some((suite) => suite.id === "character-power-builder-smoke"),
+    `${path} must select Character Builder power coverage.`,
+  );
+}
 assert.ok(changed("lib/calculators/monsterOutcomeCalculator.ts").selected.some((suite) => suite.id === "outcome-calculator-smoke"));
 assert.ok(changed("lib/combat-lab/actionResolver.ts").selected.some((suite) => suite.id === "combat-lab-smoke"));
 assert.equal(changed("docs/balance/note.md").selected.length, 0, "Documentation-only changes may select no suites.");
+const roleplaySelection = changed("lib/characterBuilder/roleplayAbilities.ts");
+assert.equal(
+  roleplaySelection.selected.some((suite) => suite.id === "power-cooldown-cache-synchronization-smoke"),
+  false,
+  "Unrelated Roleplay code must not select the cooldown-cache synchronization smoke.",
+);
+assert.ok(
+  roleplaySelection.selected.some((suite) => suite.id === "character-power-builder-smoke"),
+  "Existing broad Character Builder mapping may still select its own suite for Roleplay code.",
+);
 const unknown = changed("app/unmapped-production-path.ts");
 assert.equal(unknown.selected.length, 0);
 assert.deepEqual(unknown.warnings, ["Unmapped production path: app/unmapped-production-path.ts"]);
@@ -174,6 +221,27 @@ const duplicate = selectSuites({
   includePartial: false,
 });
 assert.deepEqual(duplicate.selected.map((suite) => suite.id), ["power-cost-resolver-smoke"]);
+
+const synchronizationDuplicate = selectSuites({
+  mode: "changed",
+  includePartial: false,
+  changedPaths: [
+    "lib/summoning/powerCooldownCacheSynchronization.ts",
+    "app/api/summoning-circle/monsters/route.ts",
+  ],
+});
+assert.equal(
+  synchronizationDuplicate.selected.filter((suite) => suite.id === "power-cooldown-cache-synchronization-smoke").length,
+  1,
+  "Changed-path overlap must not duplicate the synchronization suite.",
+);
+const synchronizationSuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "power-cooldown-cache-synchronization-smoke",
+);
+assert.ok(synchronizationSuite, "Synchronization suite must be registered.");
+assert.equal(synchronizationSuite?.mutationSafety.classification, "READ_ONLY");
+assert.equal(synchronizationSuite?.mutationSafety.declaredReadOnly, true);
+assert.equal(synchronizationSuite?.mutationSafety.databaseWrites, false);
 
 const commandFailure = await executeSuite({
   suite: fixtureSuite({

@@ -7,7 +7,7 @@ import {
   requireCampaignAccess,
 } from "@/lib/campaign/access";
 import { getMemberIdentities, getMemberIdentityLabel } from "@/lib/campaign/memberIdentity";
-import { ensureSeedPowerTuningSet } from "@/lib/config/powerTuning";
+import { getActivePowerTuningSet } from "@/lib/config/powerTuning";
 import { ensureCharacterBuilderTuning } from "@/lib/config/characterBuilderTuning";
 import {
   cleanBuilderTraits,
@@ -17,7 +17,11 @@ import {
   type PlayerTraitDefinition,
 } from "@/lib/characterBuilder/core";
 import { summarizeEquipmentItem } from "@/lib/characterBuilder/equipment";
-import { signatureMovePointPool, validateCharacterPowers } from "@/lib/characterBuilder/powers";
+import {
+  signatureMovePointPool,
+  synchronizeCharacterPowerCooldownCaches,
+  validateCharacterPowers,
+} from "@/lib/characterBuilder/powers";
 import { prisma } from "@/prisma/client";
 
 const DEFAULT_CHARACTER_NAME = "UNNAMED";
@@ -165,7 +169,7 @@ async function loadBuilderContext(campaignId: string, characterId: string, userI
     loadBuilderTraitCatalog(),
     loadBuilderBackpackItems(campaignId, characterId),
     loadBackpackTransferTargets(campaignId, characterId),
-    ensureSeedPowerTuningSet(),
+    getActivePowerTuningSet(),
     ensureCharacterBuilderTuning(),
   ]);
   const builderData = sanitizeBuilderEquipment(
@@ -441,12 +445,13 @@ export async function PATCH(
     const race = normalizeOptionalString(body.race, 120);
     const description = normalizeOptionalString(body.description, 4000);
     const level = normalizeLevel(body.level);
-    const [traitCatalog, backpackItems, powerTuning, characterBuilderTuning] = await Promise.all([
-      loadBuilderTraitCatalog(),
-      loadBuilderBackpackItems(campaignId, targetCharacterId),
-      ensureSeedPowerTuningSet(),
-      ensureCharacterBuilderTuning(),
-    ]);
+    const { traitCatalog, backpackItems, powerTuning, characterBuilderTuning } = builderContext;
+    if (!powerTuning) {
+      return NextResponse.json(
+        { error: "Active power tuning is required before character powers can be saved." },
+        { status: 503 },
+      );
+    }
     const builderData = sanitizeBuilderEquipment(
       cleanBuilderTraits(normalizeBuilderData(body.builderData), traitCatalog),
       backpackItems,
@@ -475,6 +480,24 @@ export async function PATCH(
     if (validationErrors.length > 0) {
       return NextResponse.json({ error: validationErrors.join(" ") }, { status: 400 });
     }
+    const synchronizedPowers = synchronizeCharacterPowerCooldownCaches({
+      level: validationLevel,
+      powers: builderData.powers,
+      signatureMove: builderData.signatureMove,
+      tuningSnapshot: powerTuning,
+      playerPowerSpendScalar: characterBuilderTuning.playerPowerSpendScalar,
+    });
+    if (!synchronizedPowers.ok) {
+      return NextResponse.json(
+        { error: synchronizedPowers.message },
+        { status: synchronizedPowers.errorCode === "ACTIVE_TUNING_REQUIRED" ? 503 : 400 },
+      );
+    }
+    const synchronizedBuilderData = {
+      ...builderData,
+      powers: synchronizedPowers.powers,
+      signatureMove: synchronizedPowers.signatureMove,
+    };
 
     const data: {
       name?: string;
@@ -491,7 +514,7 @@ export async function PATCH(
     if (race !== undefined) data.race = race;
     if (description !== undefined) data.description = description;
     if (level !== undefined) data.level = level;
-    data.builderData = JSON.parse(JSON.stringify(builderData)) as Prisma.InputJsonValue;
+    data.builderData = JSON.parse(JSON.stringify(synchronizedBuilderData)) as Prisma.InputJsonValue;
 
     const character = await prisma.campaignCharacter.update({
       where: { id: targetCharacterId },

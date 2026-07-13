@@ -16,13 +16,19 @@ import {
   normalizeCharacterPower,
   powerPointPool,
   signatureMovePointPool,
+  synchronizeCharacterPowerCooldownCaches,
   summarizeCharacterPowers as summarizeCharacterPowersRaw,
   validateCharacterPowers as validateCharacterPowersRaw,
   type CharacterPower,
 } from "../lib/characterBuilder/powers";
 import { resolvePowerCosts } from "../lib/summoning/powerCostResolver";
 import { DEFAULT_CHARACTER_POWER_SPEND_SCALAR } from "../lib/config/characterBuilderTuningShared";
-import { normalizePowerTuningValues } from "../lib/config/powerTuningShared";
+import {
+  DEFAULT_POWER_TUNING_VALUES,
+  normalizePowerTuningValues,
+  type PowerTuningSnapshot,
+} from "../lib/config/powerTuningShared";
+import { normalizeBuilderData } from "../lib/characterBuilder/core";
 import {
   CHARACTER_BUILDER_V1_POWER_INTENTIONS,
   POWER_AUTHORING_MAX_PACKET_DURATION_TURNS,
@@ -65,6 +71,28 @@ function assert(condition: unknown, message: string) {
   }
 }
 
+const cacheSynchronizationTuning: PowerTuningSnapshot = {
+  setId: "character-power-cache-sync-smoke-active",
+  name: "Character Power Cache Synchronization Smoke Active",
+  slug: "character-power-cache-sync-smoke-active",
+  status: "ACTIVE",
+  updatedAt: "2026-07-13T00:00:00.000Z",
+  values: {
+    ...DEFAULT_POWER_TUNING_VALUES,
+    "cooldown.load.lightMax": 0,
+    "cooldown.load.moderateMax": 999,
+    "cooldown.load.heavyMax": 1000,
+  },
+};
+
+function characterPowerWithoutCache(power: CharacterPower) {
+  return Object.fromEntries(
+    Object.entries(power).filter(
+      ([key]) => !["cooldownTurns", "cooldownReduction", "cooldownAuthority"].includes(key),
+    ),
+  );
+}
+
 const levelOnePower = {
   ...createDefaultCharacterPower(0),
   name: "Practice Strike",
@@ -102,6 +130,59 @@ assert(
     missingGameplayTuning.powers[0].cooldownAuthority.errorCode === "ACTIVE_TUNING_REQUIRED",
   "Current-balance Character Builder calculation must fail explicitly without active tuning.",
 );
+
+const normalizedCachedPower = normalizeCharacterPower(
+  { ...levelOnePower, cooldownTurns: 4, cooldownReduction: 1 },
+  0,
+);
+assert(
+  normalizedCachedPower.cooldownTurns === 4 && normalizedCachedPower.cooldownReduction === 1,
+  "Character power normalization must preserve valid cooldown cache values.",
+);
+const normalCacheSync = synchronizeCharacterPowerCooldownCaches({
+  level: 1,
+  powers: [normalizedCachedPower],
+  signatureMove: null,
+  tuningSnapshot: cacheSynchronizationTuning,
+});
+assert(normalCacheSync.ok, "Normal character power cache synchronization should resolve.");
+assert(normalCacheSync.ok && normalCacheSync.powers[0]?.cooldownTurns === 2, "Normal powers should persist their authoritative cooldown cache.");
+assert(normalCacheSync.ok && normalCacheSync.powers[0]?.cooldownReduction === 0, "Normal synchronized cache reduction should be zero.");
+assert(
+  normalCacheSync.ok &&
+    JSON.stringify(characterPowerWithoutCache(normalCacheSync.powers[0])) ===
+      JSON.stringify(characterPowerWithoutCache(normalizedCachedPower)),
+  "Normal cache synchronization must preserve semantic power fields.",
+);
+const missingSyncTuning = synchronizeCharacterPowerCooldownCaches({
+  level: 1,
+  powers: [normalizedCachedPower],
+  signatureMove: null,
+  tuningSnapshot: null,
+});
+assert(
+  !missingSyncTuning.ok && missingSyncTuning.errorCode === "ACTIVE_TUNING_REQUIRED",
+  "Production character cache synchronization must fail explicitly without active tuning.",
+);
+const builderDataBeforeSync = normalizeBuilderData({
+  narrativeNotes: "Preserve this builder note.",
+  powers: [normalizedCachedPower],
+  signatureMove: null,
+});
+assert(normalCacheSync.ok, "BuilderData preservation fixture requires synchronized powers.");
+if (normalCacheSync.ok) {
+  const builderDataAfterSync = {
+    ...builderDataBeforeSync,
+    powers: normalCacheSync.powers,
+    signatureMove: normalCacheSync.signatureMove,
+  };
+  const beforeUnrelated = { ...builderDataBeforeSync, powers: [], signatureMove: null };
+  const afterUnrelated = { ...builderDataAfterSync, powers: [], signatureMove: null };
+  assert(
+    JSON.stringify(afterUnrelated) === JSON.stringify(beforeUnrelated),
+    "Reconstructing synchronized builderData must preserve every unrelated field.",
+  );
+}
 
 assert(powerPointPool(1) === 50, "Level 1 PowerPool should equal 50.");
 assert(
@@ -959,6 +1040,35 @@ function makeSummoningCircleShapedPowerForCaseB(): Power {
   });
   assert(signatureBudgetCooldown?.budgetCooldownFloor === 4, "46/60 Signature Move spend should require cooldown floor 4.");
   assert(signatureBudgetCooldown?.finalCooldownTurns === 4, "Signature budget pressure should raise cooldown 3 to 4.");
+
+  const staleNormal = { ...costlySignatureMove, cooldownTurns: 1, cooldownReduction: 0 };
+  const staleSignature = { ...costlySignatureMove, cooldownTurns: 1, cooldownReduction: 0 };
+  const synchronizedCaches = synchronizeCharacterPowerCooldownCaches({
+    level: 3,
+    powers: [staleNormal],
+    signatureMove: staleSignature,
+    tuningSnapshot: cacheSynchronizationTuning,
+  });
+  assert(synchronizedCaches.ok, "Normal and signature cache synchronization should resolve together.");
+  assert(
+    synchronizedCaches.ok && synchronizedCaches.signatureMove?.cooldownTurns === 5,
+    "Signature stored 1 with an effective budget-pressure cooldown of 5 should persist 5.",
+  );
+  assert(
+    synchronizedCaches.ok &&
+      synchronizedCaches.powers[0]?.cooldownTurns !== synchronizedCaches.signatureMove?.cooldownTurns,
+    "Ordinary and signature powers must retain their distinct budget-pool cooldown pressure.",
+  );
+  assert(
+    synchronizedCaches.ok && synchronizedCaches.signatureMove?.cooldownReduction === 0,
+    "Signature synchronization should fold legacy reduction into the effective cache.",
+  );
+  assert(
+    synchronizedCaches.ok &&
+      JSON.stringify(characterPowerWithoutCache(synchronizedCaches.signatureMove!)) ===
+        JSON.stringify(characterPowerWithoutCache(staleSignature)),
+    "Signature cache synchronization must preserve semantic power fields.",
+  );
 }
 
 function printPowerCostDiagnostic(label: string, power: Power) {
