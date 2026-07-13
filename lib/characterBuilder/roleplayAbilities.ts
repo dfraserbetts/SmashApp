@@ -195,7 +195,8 @@ export const ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW = "CUSTOM_REVIEW" as const;
 export type RoleplayStandardOutcomeContractId =
   | "HIDE_FROM_IMMEDIATE_DANGER"
   | "DENY_IMMINENT_HOSTILE_ACT"
-  | "DRAW_HOSTILE_ATTENTION";
+  | "DRAW_HOSTILE_ATTENTION"
+  | "UNCOVER_CONCEALED_TRUTH";
 
 export type RoleplayOutcomeContractId =
   | RoleplayStandardOutcomeContractId
@@ -362,6 +363,85 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not prevent immediate self-preservation.",
       "Does not automatically affect a group.",
       "Legendary creates rivalry rather than permanent mechanical domination.",
+    ],
+  },
+  {
+    id: "UNCOVER_CONCEALED_TRUTH",
+    name: "Uncover Concealed Truth",
+    outcomeLane: "HELP",
+    variants: [
+      {
+        authoring: {
+          intention: "PERCEPTION",
+          methodId: "DISCERN_TRUTH",
+          sceneImpact: "MINOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "you learn whether the target is concealing something relevant to the immediate situation and, if so, its general nature; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+        counterEligible: false,
+        privilegeCostKey: "UNCOVER_CONCEALED_TRUTH_MINOR",
+      },
+      {
+        authoring: {
+          intention: "PERCEPTION",
+          methodId: "DISCERN_TRUTH",
+          sceneImpact: "STANDARD",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "you learn one useful concealed truth about the target relevant to the immediate situation; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+        counterEligible: false,
+        privilegeCostKey: "UNCOVER_CONCEALED_TRUTH_STANDARD",
+      },
+      {
+        authoring: {
+          intention: "PERCEPTION",
+          methodId: "DISCERN_TRUTH",
+          sceneImpact: "MAJOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "you learn a central concealed truth about the target that is shaping the current situation; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+        counterEligible: false,
+        privilegeCostKey: "UNCOVER_CONCEALED_TRUTH_MAJOR",
+      },
+      {
+        authoring: {
+          intention: "PERCEPTION",
+          methodId: "DISCERN_TRUTH",
+          sceneImpact: "LEGENDARY",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "you learn a defining concealed truth about the target whose significance extends beyond the current scene; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+        counterEligible: false,
+        privilegeCostKey: "UNCOVER_CONCEALED_TRUTH_LEGENDARY",
+      },
+    ],
+    examples: [
+      "Noticing that a witness is hiding fear of a particular person",
+      "Realising that a negotiator is deliberately stalling for time",
+      "Discovering that an official is secretly protecting someone",
+      "Uncovering the concealed allegiance shaping a target's current actions",
+      "Learning a defining truth about a target's identity, origin, oath, or loyalty whose significance extends beyond the current scene",
+    ],
+    exclusions: [
+      "Does not compel speech, confession, cooperation, or testimony.",
+      "Does not force the target deliberately to reveal information.",
+      "Does not read thoughts or memories.",
+      "Does not publicly expose the truth.",
+      "Does not create physical evidence or proof.",
+      "Does not force anyone else to believe the information.",
+      "Does not reveal every secret held by or connected to the target.",
+      "Does not reveal every implication or surrounding detail of the learned truth.",
+      "Does not reveal unrelated facts merely because they are secret.",
+      "Does not mechanically alter the target.",
+      "Does not grant quantified bonuses or penalties.",
+      "Does not bypass normal target access, the Discern Truth Method, Narrative Theme, or fictional plausibility.",
+      "Does not permit a false, speculative, vague, or deliberately misleading answer.",
+      "Does not allow the player to choose among several qualifying truths; the Game Director selects one that satisfies the chosen variant.",
+      "Does not permit the Game Director to return the no-truth result when a qualifying concealed truth exists.",
     ],
   },
 ] as const satisfies readonly RoleplayOutcomeContractDefinition[];

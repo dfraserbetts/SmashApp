@@ -6,6 +6,7 @@ import {
   ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
   createDefaultRoleplayAbility,
   getCompatibleRoleplayOutcomeContracts,
+  getRoleplayAbilityContractName,
   getRoleplayAbilityMethodName,
   getRoleplayAbilityCounterEligibility,
   getRoleplayAbilityOutcomeLane,
@@ -13,6 +14,7 @@ import {
   getRoleplayAbilityWarnings,
   getRoleplayMethodDefinition,
   getRoleplayMethodsForIntention,
+  getRoleplayOutcomeContract,
   normalizeRoleplayAbility,
   reconcileRoleplayAbilityAuthoring,
   reconcileRoleplayAbilityContract,
@@ -556,7 +558,46 @@ assert(
   "Custom Method matching warning missing.",
 );
 
-const discernTruth = reconcileRoleplayAbilityAuthoring({
+const uncoverConcealedTruthOutcomes = {
+  MINOR:
+    "you learn whether the target is concealing something relevant to the immediate situation and, if so, its general nature; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+  STANDARD:
+    "you learn one useful concealed truth about the target relevant to the immediate situation; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+  MAJOR:
+    "you learn a central concealed truth about the target that is shaping the current situation; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+  LEGENDARY:
+    "you learn a defining concealed truth about the target whose significance extends beyond the current scene; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+} as const;
+
+const uncoverConcealedTruthDescriptors = {
+  MINOR:
+    "Choose one target and roll 3 dice. On success, you learn whether the target is concealing something relevant to the immediate situation and, if so, its general nature; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed.",
+  STANDARD:
+    "Choose one target and roll 3 dice. On success, you learn one useful concealed truth about the target relevant to the immediate situation; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed.",
+  MAJOR:
+    "Choose one target and roll 3 dice. On success, you learn a central concealed truth about the target that is shaping the current situation; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed.",
+  LEGENDARY:
+    "Choose one target and roll 3 dice. On success, you learn a defining concealed truth about the target whose significance extends beyond the current scene; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed.",
+} as const;
+
+const uncoverContract = getRoleplayOutcomeContract("UNCOVER_CONCEALED_TRUTH");
+assert(uncoverContract, "UNCOVER_CONCEALED_TRUTH should exist.");
+assertEqual(uncoverContract.name, "Uncover Concealed Truth", "Contract name mismatch.");
+assertEqual(uncoverContract.outcomeLane, "HELP", "Uncover Concealed Truth should be Help.");
+assertEqual(uncoverContract.variants.length, 4, "Uncover Concealed Truth needs four variants.");
+for (const variant of uncoverContract.variants) {
+  assertEqual(variant.authoring.intention, "PERCEPTION", "Variant Intention mismatch.");
+  assertEqual(variant.authoring.methodId, "DISCERN_TRUTH", "Variant Method mismatch.");
+  assertEqual(variant.authoring.scope, "ONE_TARGET", "Variant Scope mismatch.");
+  assertEqual(variant.counterEligible, false, "Every variant must disallow Counter.");
+  assertEqual(
+    variant.privilegeCostKey,
+    `UNCOVER_CONCEALED_TRUTH_${variant.authoring.sceneImpact}`,
+    `${variant.authoring.sceneImpact} privilege key mismatch.`,
+  );
+}
+
+const discernTruthStandard = reconcileRoleplayAbilityAuthoring({
   ...createDefaultRoleplayAbility(11),
   name: "I See What You're Hiding",
   narrativeTheme:
@@ -566,33 +607,184 @@ const discernTruth = reconcileRoleplayAbilityAuthoring({
   sceneImpact: "STANDARD",
   scope: "ONE_TARGET",
   diceCount: 3,
-  outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
-  customOutcomeLane: "HELP",
-  customOutcomeRequest:
-    "You learn one useful concealed truth about the target relevant to the immediate situation.",
+  outcomeContractId: "UNCOVER_CONCEALED_TRUTH",
+  counter: true,
 });
 assertEqual(
-  getRoleplayAbilityMethodName(discernTruth),
+  getRoleplayAbilityMethodName(discernTruthStandard),
   "Discern Truth",
   "Discern Truth Method name mismatch.",
 );
 assertEqual(
-  getCompatibleRoleplayOutcomeContracts(discernTruth).length,
-  0,
-  "Discern Truth should have no standard Outcome Contract in this pass.",
+  getCompatibleRoleplayOutcomeContracts(discernTruthStandard)
+    .map((contract) => contract.id)
+    .join(","),
+  "UNCOVER_CONCEALED_TRUTH",
+  "Discern Truth should match its standard contract.",
 );
 assertEqual(
-  renderRoleplayAbilityDescriptor(discernTruth),
-  "Choose one target and roll 3 dice. On success, You learn one useful concealed truth about the target relevant to the immediate situation.",
-  "Discern Truth custom descriptor mismatch.",
+  getRoleplayAbilityContractName(discernTruthStandard),
+  "Uncover Concealed Truth",
+  "Standard Discern Truth contract name mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityOutcomeLane(discernTruthStandard),
+  "HELP",
+  "Standard Discern Truth lane mismatch.",
+);
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(discernTruthStandard),
+  uncoverConcealedTruthOutcomes.STANDARD,
+  "Standard Discern Truth outcome mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(discernTruthStandard),
+  uncoverConcealedTruthDescriptors.STANDARD,
+  "Standard Discern Truth descriptor mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityCounterEligibility(discernTruthStandard),
+  false,
+  "Uncover Concealed Truth should not permit Counter.",
+);
+assertEqual(
+  discernTruthStandard.counter,
+  false,
+  "Standard Discern Truth reconciliation should force Counter off.",
 );
 assert(
-  getRoleplayAbilityWarnings(discernTruth).some((warning) =>
+  !getRoleplayAbilityWarnings(discernTruthStandard).some((warning) =>
+    warning.includes("Custom Outcome")),
+  "Standard Discern Truth should not warn about Custom Outcome approval.",
+);
+
+for (const sceneImpact of ["MINOR", "STANDARD", "MAJOR", "LEGENDARY"] as const) {
+  const ability = reconcileRoleplayAbilityAuthoring({
+    ...discernTruthStandard,
+    sceneImpact,
+    outcomeContractId: "UNCOVER_CONCEALED_TRUTH",
+  });
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(ability),
+    uncoverConcealedTruthOutcomes[sceneImpact],
+    `${sceneImpact} Uncover Concealed Truth outcome mismatch.`,
+  );
+  assertEqual(
+    renderRoleplayAbilityDescriptor(ability),
+    uncoverConcealedTruthDescriptors[sceneImpact],
+    `${sceneImpact} Uncover Concealed Truth descriptor mismatch.`,
+  );
+}
+
+for (const invalidAuthoring of [
+  { intention: "INTIMIDATION" as const },
+  { methodId: "CHALLENGE" as const },
+  { scope: "SELF" as const },
+  { scope: "SMALL_GROUP" as const },
+  { scope: "LARGE_GROUP" as const },
+  { scope: "FACTION_ARMY" as const },
+]) {
+  assert(
+    !getCompatibleRoleplayOutcomeContracts({
+      ...discernTruthStandard,
+      ...invalidAuthoring,
+    }).some((contract) => contract.id === "UNCOVER_CONCEALED_TRUTH"),
+    `Uncover Concealed Truth should reject ${JSON.stringify(invalidAuthoring)}.`,
+  );
+}
+
+let persistentDiscernTruth = reconcileRoleplayAbilityAuthoring({
+  ...discernTruthStandard,
+  sceneImpact: "MINOR",
+  outcomeContractId: "UNCOVER_CONCEALED_TRUTH",
+});
+for (const sceneImpact of ["STANDARD", "MAJOR", "LEGENDARY", "MINOR"] as const) {
+  persistentDiscernTruth = reconcileRoleplayAbilityAuthoring({
+    ...persistentDiscernTruth,
+    sceneImpact,
+    counter: true,
+  });
+  assertEqual(
+    persistentDiscernTruth.outcomeContractId,
+    "UNCOVER_CONCEALED_TRUTH",
+    `${sceneImpact} should retain the Uncover Concealed Truth family ID.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(persistentDiscernTruth),
+    uncoverConcealedTruthOutcomes[sceneImpact],
+    `${sceneImpact} persistence outcome mismatch.`,
+  );
+  assertEqual(persistentDiscernTruth.counter, false, `${sceneImpact} should force Counter off.`);
+}
+
+for (const [label, invalidAbility] of [
+  ["Scope", { ...discernTruthStandard, scope: "SMALL_GROUP" as const }],
+  ["Method", { ...discernTruthStandard, methodId: "CHALLENGE" as const }],
+  ["Intention", { ...discernTruthStandard, intention: "INTIMIDATION" as const }],
+] as const) {
+  const reconciled = reconcileRoleplayAbilityAuthoring({ ...invalidAbility, counter: true });
+  assertEqual(
+    reconciled.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    `${label} invalidation should clear Uncover Concealed Truth.`,
+  );
+  assertEqual(reconciled.counter, false, `${label} invalidation should clear Counter.`);
+}
+
+const nonInvalidatingDiscernTruth = reconcileRoleplayAbilityAuthoring({
+  ...discernTruthStandard,
+  name: "The Truth Beneath",
+  narrativeTheme: "You compare their pauses with the evidence already in hand.",
+  diceCount: 5,
+  restrictionType: "CIRCUMSTANCE",
+  restrictionBand: "LIGHT",
+  restrictionText: "Only while reviewing a direct statement from the target.",
+});
+assertEqual(
+  nonInvalidatingDiscernTruth.outcomeContractId,
+  "UNCOVER_CONCEALED_TRUTH",
+  "Non-authoring presentation and restriction changes should retain the contract.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(nonInvalidatingDiscernTruth),
+  uncoverConcealedTruthDescriptors.STANDARD.replace("roll 3 dice", "roll 5 dice"),
+  "Dice Count should only change the descriptor roll count.",
+);
+
+const discernTruthCustomOutcome = normalizeRoleplayAbility(
+  {
+    name: "Read the Hidden Pattern",
+    narrativeTheme: "You trace recurring symbols in the target's correspondence.",
+    intention: "PERCEPTION",
+    methodId: "DISCERN_TRUTH",
+    sceneImpact: "STANDARD",
+    scope: "ONE_TARGET",
+    diceCount: 3,
+    outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+    customOutcomeLane: "HELP",
+    customOutcomeRequest:
+      "You learn which hidden network currently exchanges messages with the target.",
+  },
+  12,
+);
+assertEqual(
+  discernTruthCustomOutcome.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  "An explicitly stored Custom Outcome must not auto-migrate to the standard contract.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(discernTruthCustomOutcome),
+  "Choose one target and roll 3 dice. On success, You learn which hidden network currently exchanges messages with the target.",
+  "Discern Truth Custom Outcome descriptor regression.",
+);
+assert(
+  getRoleplayAbilityWarnings(discernTruthCustomOutcome).some((warning) =>
     warning.includes("Custom Outcome requires Game Director approval"),
   ),
-  "Discern Truth Custom Outcome warning missing.",
+  "Discern Truth Custom Outcome approval warning should remain.",
 );
 
 console.log("PASS roleplay outcome contract registry smoke");
 console.log("PASS roleplay draw hostile attention contract smoke");
 console.log("PASS structured roleplay method registry smoke");
+console.log("PASS roleplay uncover concealed truth contract smoke");
