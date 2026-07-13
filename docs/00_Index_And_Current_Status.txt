@@ -537,8 +537,8 @@ Scope define approved magnitude/persistence and breadth.
 "Method defines the approach. Theme personalises the approach. The Outcome
 Contract defines the result."
 
-The standard Method registry contains APPEAL, RALLY, MISDIRECT, RESCUE,
-INTERRUPT, CHALLENGE, and DISCERN_TRUTH. All five Intentions have at least one
+The standard Method registry contains exactly seven Methods: APPEAL, RALLY,
+MISDIRECT, RESCUE, INTERRUPT, CHALLENGE, and DISCERN_TRUTH. All five Intentions have at least one
 approved standard Method. Persuasion owns Appeal and Rally. Appeal maps to the
 locked Help / One Target family SECURE_WILLING_COOPERATION, while Rally maps to
 the locked Help / Small Group family ESTABLISH_SHARED_RESOLVE, both at all four
@@ -550,15 +550,75 @@ Target family ESTABLISH_FALSE_BELIEF at all four Impact tiers. Misdirect covers
 direct falsehood, omission, implication, distraction, selective truth, staged
 cues, and deceptive framing; classification follows the materially false
 conclusion deliberately created, not whether each literal sentence is false.
-Discern Truth has the locked standard Help
-contract family UNCOVER_CONCEALED_TRUTH for One Target at Minor, Standard,
-Major, and Legendary Impact. Counter is unavailable at every tier. The family
-guarantees reliable concealed information, including a reliable no-qualifying-
-truth result; it never compels speech or deliberate revelation. Legacy Specific
+Discern Truth has two compatible locked standard Help contract families for One
+Target at Minor, Standard, Major, and Legendary Impact, in registry order:
+UNCOVER_CONCEALED_TRUTH and REVEAL_EXPLOITABLE_WEAKNESS. Counter is unavailable
+for both families at every tier. Uncover Concealed Truth answers what hidden
+fact is true. Reveal Exploitable Weakness answers what actionable weakness,
+opening, route, pattern, dependency, or leverage point concerning the target
+can be used. The selected contract defines the purchased entitlement; the
+families are not merged or silently exchanged. The registry therefore contains
+eight standard Outcome Contract families and twenty-six exact standard
+variants.
+
+No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
+Discern Truth already owns observation, deduction, evidence, physical detail,
+intuition, contradictions, connected clues, and perceptive insight. Legacy Specific
 values may migrate into Methods, but Specific is no longer player-facing or
 normalized runtime state. General Custom Outcome review remains available for
 requests outside the standard registry and is never silently migrated merely
 because a later standard contract exists.
+
+REVEAL_EXPLOITABLE_WEAKNESS / Reveal Exploitable Weakness is the accepted v0
+working name, remains eligible for the naming pass, is Help, Perception /
+Discern Truth / One Target, has Minor through Legendary variants, and is never
+Counter eligible. Its exact Success Outcomes and reserved privilege-cost keys
+are:
+
+- MINOR / REVEAL_EXPLOITABLE_WEAKNESS_MINOR: "you identify one small
+  immediately useful weakness, opening, or opportunity concerning the target
+  for the current meaningful exchange; if no qualifying exploitable
+  opportunity exists, you learn that none is presently accessible"
+- STANDARD / REVEAL_EXPLOITABLE_WEAKNESS_STANDARD: "you identify one useful
+  exploitable weakness, route, pattern, dependency, or leverage point
+  concerning the target for the current situation; if no qualifying
+  exploitable opportunity exists, you learn that none is presently accessible"
+- MAJOR / REVEAL_EXPLOITABLE_WEAKNESS_MAJOR: "you reveal one central
+  exploitable vulnerability or opportunity concerning the target that is
+  shaping the current scene and can materially change how it is approached; if
+  no qualifying exploitable opportunity exists, you learn that none is
+  presently accessible"
+- LEGENDARY / REVEAL_EXPLOITABLE_WEAKNESS_LEGENDARY: "you reveal one defining
+  vulnerability, hidden route, dependency, or leverage point concerning the
+  target whose significance extends beyond the current scene; if no qualifying
+  exploitable opportunity exists, you learn that none is presently accessible"
+
+For Roleplay Abilities, target means the bounded subject to which the selected
+contract applies. A One Target subject may be a character, creature, object,
+mechanism, bounded location or structure, plan, ritual, environmental feature,
+or another coherent specifically identified scene subject when the contract and
+fiction support it. A nominal target cannot disguise a diffuse crowd, unrelated
+subjects, battlefield, city, faction, army, whole war, every organisation
+member, or abstract collection and bypass Scope. The GD judges boundary and
+access before Attribute or Difficulty.
+
+A qualifying exploitable opportunity concerns the accepted target, directly
+answers the accepted runtime Declared Aim, is true or fictionally coherent,
+Impact-appropriate, accessible through Discern Truth, Theme, access, and
+fiction, actionable rather than trivia, and not already known in the same
+actionable form. It may be established, inferred, an existing mechanical
+property, or a coherent previously unspecified Scene Manifestation that does
+not contradict locked fiction or grant another unpurchased outcome. Lack of a
+prepared weakness and plot inconvenience never justify "none"; that fallback
+is legal only when no qualifying opportunity is genuinely accessible. The
+result informs a meaningful next choice but does not automatically exploit the
+opportunity, alter a mechanical vulnerability, grant quantified output, or make
+a later action succeed.
+
+Target, Declared Aim, and revealed information are runtime interpretation only.
+No target/subject type, investigation subject, declared objective, weakness, or
+opportunity field is saved. No numeric cost, cooldown, privilege value, or
+restriction discount is introduced by this family.
 
 ESTABLISH_FALSE_BELIEF / Establish False Belief is a working v0 name eligible
 for the later naming pass. Its exact Counter-ineligible variants are:

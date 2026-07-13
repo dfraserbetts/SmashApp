@@ -1147,8 +1147,11 @@ Current standard compatibility is Rescue with HIDE_FROM_IMMEDIATE_DANGER,
 Interrupt with DENY_IMMINENT_HOSTILE_ACT, and Challenge with
 DRAW_HOSTILE_ATTENTION. Appeal uses SECURE_WILLING_COOPERATION, Rally uses
 ESTABLISH_SHARED_RESOLVE, Misdirect uses ESTABLISH_FALSE_BELIEF, and Discern
-Truth uses UNCOVER_CONCEALED_TRUTH. Rally is Small Group only; the others are One
-Target. Each family has all four approved Impact tiers where specified. Custom
+Truth offers two compatible families in registry order: UNCOVER_CONCEALED_TRUTH
+and REVEAL_EXPLOITABLE_WEAKNESS. Rally is Small Group only; the others are One
+Target. The registry has seven standard Methods, eight standard Outcome Contract
+families, and twenty-six exact standard variants. Each family has all four
+approved Impact tiers where specified. Custom
 Outcome review remains
 available for results outside the registry and existing Custom Outcome records
 are not automatically converted to a newly available standard contract.
@@ -1180,6 +1183,62 @@ variant-aware privilege adjustment without locking any numeric value.
 When the GD accepts a specific investigative subject before Difficulty, the
 successful truth/no-truth answer must address that subject directly; an
 unrelated secret cannot satisfy the purchased outcome.
+
+REVEAL_EXPLOITABLE_WEAKNESS is the Help / Perception / Discern Truth / One
+Target family named Reveal Exploitable Weakness, an accepted v0 working name
+eligible for the naming pass. It is Counter-ineligible at every tier. No new
+Spot Weakness, Investigate, Search, Analyse, or synonymous Method is created;
+Discern Truth already supplies the reusable perceptive approach. Exact outcomes
+and reserved privilege-cost keys are:
+
+- Minor / REVEAL_EXPLOITABLE_WEAKNESS_MINOR: "you identify one small
+  immediately useful weakness, opening, or opportunity concerning the target
+  for the current meaningful exchange; if no qualifying exploitable
+  opportunity exists, you learn that none is presently accessible"
+- Standard / REVEAL_EXPLOITABLE_WEAKNESS_STANDARD: "you identify one useful
+  exploitable weakness, route, pattern, dependency, or leverage point
+  concerning the target for the current situation; if no qualifying
+  exploitable opportunity exists, you learn that none is presently accessible"
+- Major / REVEAL_EXPLOITABLE_WEAKNESS_MAJOR: "you reveal one central exploitable
+  vulnerability or opportunity concerning the target that is shaping the
+  current scene and can materially change how it is approached; if no
+  qualifying exploitable opportunity exists, you learn that none is presently
+  accessible"
+- Legendary / REVEAL_EXPLOITABLE_WEAKNESS_LEGENDARY: "you reveal one defining
+  vulnerability, hidden route, dependency, or leverage point concerning the
+  target whose significance extends beyond the current scene; if no qualifying
+  exploitable opportunity exists, you learn that none is presently accessible"
+
+For Roleplay Abilities, target means the bounded subject to which the contract
+applies. One Target may be a character, creature, object, mechanism, bounded
+location or structure, plan, ritual, environmental feature, or another coherent
+specifically identified scene subject where contract and fiction support it. A
+nominal target cannot turn a diffuse crowd, unrelated subjects, battlefield,
+city, faction, army, whole war, every organisation member, or abstract
+collection into One Target. The GD judges boundary and access before Attribute
+or Difficulty; no Recipient Type or saved subject field is added.
+
+A qualifying opportunity concerns the accepted target and runtime Declared
+Aim, is true or coherent, Impact-appropriate, reachable through Method, Theme,
+access, and fiction, actionable rather than trivia, and not already known in
+the same actionable form. It may be established, inferred, an existing
+mechanical property, or a coherent previously unspecified Scene Manifestation
+that neither contradicts locked fiction nor grants an unpurchased result. A GD
+cannot answer an accepted practical Aim with unrelated information or return
+"none" merely because no opportunity was prepared or revelation inconveniences
+the plot. The fallback is legal only when no qualifying opportunity is genuinely
+accessible. The GD chooses among qualifying answers and explains the opportunity,
+subject, relevance, and possible use.
+
+Uncover Concealed Truth grants qualifying concealed information; Reveal
+Exploitable Weakness grants qualifying actionable leverage. Selection defines
+the entitlement and saved Uncover or Custom selections are never switched.
+Actionability informs a meaningful future choice but does not automatically
+exploit, damage, disable, traverse, persuade, grant a modifier, provide required
+resources, or make a later attempt succeed. Existing mechanical properties may
+be identified but not created or changed. Target, Aim, and result remain runtime
+context; no subject, investigation, objective, weakness, or opportunity fields
+are saved. The family adds no numeric value or cooldown authority.
 
 SECURE_WILLING_COOPERATION is the Help / Persuasion / Appeal / One Target family
 and is Counter-ineligible at every tier. Its working v0 name remains eligible
@@ -1483,7 +1542,7 @@ authoring receives no authoritative numeric result. Large Group, Faction / Army,
 all numeric values, cooldown rules, privilege adjustments, Scope calibration,
 and restriction discounts remain open.
 
-The complete resolver contract, live twenty-two-variant inventory, authority
+The complete resolver contract, live twenty-six-variant inventory, authority
 rules, invariants, evidence matrix, and numeric unlock gates are in
 [Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 

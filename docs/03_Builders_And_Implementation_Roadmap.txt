@@ -301,12 +301,61 @@ list.
 Custom Method - GD Review Required remains Pending GD Approval and exposes
 Proposed Method Name plus a Custom Method Request for reusable approach,
 applications, and boundaries. It offers no standard contract matching,
-automatic costing, or trusted final Cooldown. Discern Truth now filters to the
-standard Help contract UNCOVER_CONCEALED_TRUTH for One Target at Minor,
-Standard, Major, and Legendary Impact. All variants are Counter-ineligible and
-derive exact registry-authored outcomes. Custom Outcome review remains available
+automatic costing, or trusted final Cooldown. Discern Truth filters to two
+compatible standard Help contracts in registry order for Perception / One
+Target at Minor, Standard, Major, and Legendary Impact:
+UNCOVER_CONCEALED_TRUTH and REVEAL_EXPLOITABLE_WEAKNESS. All variants are
+Counter-ineligible and derive exact registry-authored outcomes. No Spot
+Weakness, Investigate, Search, Analyse, or synonymous Method is added: Discern
+Truth already owns the reusable perceptive approach. Custom Outcome review remains available
 for non-standard requests and an explicitly stored Custom Outcome is never
 silently converted to the new standard family.
+
+Reveal Exploitable Weakness is the accepted v0 working name and remains eligible
+for the naming pass. Its exact variants and reserved keys are:
+
+- Minor / REVEAL_EXPLOITABLE_WEAKNESS_MINOR: "you identify one small
+  immediately useful weakness, opening, or opportunity concerning the target
+  for the current meaningful exchange; if no qualifying exploitable
+  opportunity exists, you learn that none is presently accessible"
+- Standard / REVEAL_EXPLOITABLE_WEAKNESS_STANDARD: "you identify one useful
+  exploitable weakness, route, pattern, dependency, or leverage point
+  concerning the target for the current situation; if no qualifying
+  exploitable opportunity exists, you learn that none is presently accessible"
+- Major / REVEAL_EXPLOITABLE_WEAKNESS_MAJOR: "you reveal one central exploitable
+  vulnerability or opportunity concerning the target that is shaping the
+  current scene and can materially change how it is approached; if no
+  qualifying exploitable opportunity exists, you learn that none is presently
+  accessible"
+- Legendary / REVEAL_EXPLOITABLE_WEAKNESS_LEGENDARY: "you reveal one defining
+  vulnerability, hidden route, dependency, or leverage point concerning the
+  target whose significance extends beyond the current scene; if no qualifying
+  exploitable opportunity exists, you learn that none is presently accessible"
+
+Target means the bounded subject to which a Roleplay contract applies. One
+Target may be a character, creature, object, mechanism, bounded location or
+structure, plan, ritual, environmental feature, or another coherent identified
+scene subject when supported. A diffuse crowd, unrelated subjects, battlefield,
+city, faction, army, war, organisation membership, or abstract collection does
+not become One Target by naming it as one. The GD establishes boundary and
+access before Attribute or Difficulty.
+
+The accepted runtime Declared Aim binds the answer. A qualifying opportunity
+concerns that target and Aim, is true or coherent, Impact-appropriate, reachable,
+actionable, and not already understood in the same actionable form. It may be
+established, inferred, an existing property, or a coherent new Scene
+Manifestation. Lack of prepared material or plot inconvenience cannot justify
+"none"; only genuine absence of an accessible qualifying opportunity can.
+Uncover grants concealed information; Reveal grants actionable leverage. The
+result informs later choices but neither automatically exploits it nor creates
+or changes quantified mechanics.
+
+The registry-driven Builder exposes both options without a page fork, retains
+an existing selection while compatible, and never auto-selects or converts a
+Custom Outcome. It adds no Recipient Type, target/subject, investigation,
+Declared Aim/objective, weakness, or opportunity fields. The live inventory is
+seven Methods, eight standard families, and twenty-six variants. Numeric
+costing and cooldown implementation remain parked.
 
 Appeal filters to SECURE_WILLING_COOPERATION for Persuasion / One Target at all
 four Impacts. The family is Help and Counter-ineligible. Its working v0 name

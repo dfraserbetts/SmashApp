@@ -21,8 +21,8 @@ The semantic/discovery phase is mature enough for costing architecture. The
 live registry currently contains:
 
 - seven standard Methods;
-- seven standard Outcome Contract families;
-- twenty-two exact standard variants;
+- eight standard Outcome Contract families;
+- twenty-six exact standard variants;
 - One Target and Small Group standard coverage;
 - no approved Large Group or Faction / Army standard contract; and
 - one `privilegeCostKey` owned by every exact standard variant.
@@ -250,6 +250,10 @@ unlock gates.
 | Perception | Discern Truth | `UNCOVER_CONCEALED_TRUTH` | Standard | One Target | Unavailable | `UNCOVER_CONCEALED_TRUTH_STANDARD` | Ready for calibration |
 | Perception | Discern Truth | `UNCOVER_CONCEALED_TRUTH` | Major | One Target | Unavailable | `UNCOVER_CONCEALED_TRUTH_MAJOR` | Ready for calibration |
 | Perception | Discern Truth | `UNCOVER_CONCEALED_TRUTH` | Legendary | One Target | Unavailable | `UNCOVER_CONCEALED_TRUTH_LEGENDARY` | Ready for calibration |
+| Perception | Discern Truth | `REVEAL_EXPLOITABLE_WEAKNESS` | Minor | One Target | Unavailable | `REVEAL_EXPLOITABLE_WEAKNESS_MINOR` | Ready for calibration |
+| Perception | Discern Truth | `REVEAL_EXPLOITABLE_WEAKNESS` | Standard | One Target | Unavailable | `REVEAL_EXPLOITABLE_WEAKNESS_STANDARD` | Ready for calibration |
+| Perception | Discern Truth | `REVEAL_EXPLOITABLE_WEAKNESS` | Major | One Target | Unavailable | `REVEAL_EXPLOITABLE_WEAKNESS_MAJOR` | Ready for calibration |
+| Perception | Discern Truth | `REVEAL_EXPLOITABLE_WEAKNESS` | Legendary | One Target | Unavailable | `REVEAL_EXPLOITABLE_WEAKNESS_LEGENDARY` | Ready for calibration |
 | Persuasion | Appeal | `SECURE_WILLING_COOPERATION` | Minor | One Target | Unavailable | `SECURE_WILLING_COOPERATION_MINOR` | Ready for calibration |
 | Persuasion | Appeal | `SECURE_WILLING_COOPERATION` | Standard | One Target | Unavailable | `SECURE_WILLING_COOPERATION_STANDARD` | Ready for calibration |
 | Persuasion | Appeal | `SECURE_WILLING_COOPERATION` | Major | One Target | Unavailable | `SECURE_WILLING_COOPERATION_MAJOR` | Ready for calibration |
@@ -435,7 +439,7 @@ calibration must isolate breadth from contract semantics.
 
 Future evidence must cover:
 
-- all twenty-two current standard variants;
+- all twenty-six current standard variants;
 - every supported Dice Count;
 - Counter off and every legal Counter-on case;
 - no Additional Restriction as baseline;

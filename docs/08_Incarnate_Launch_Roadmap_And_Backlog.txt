@@ -381,7 +381,8 @@ Current mappings are Intervention / Rescue / Minor / One Target for
 HIDE_FROM_IMMEDIATE_DANGER; Intervention / Interrupt / Major / One Target for
 DENY_IMMINENT_HOSTILE_ACT; and Intimidation / Challenge / One Target across the
 approved DRAW_HOSTILE_ATTENTION Impact variants. Perception / Discern Truth /
-One Target uses UNCOVER_CONCEALED_TRUTH across all four approved Impact tiers.
+One Target offers UNCOVER_CONCEALED_TRUTH and REVEAL_EXPLOITABLE_WEAKNESS, in
+that registry order, across all four approved Impact tiers.
 Persuasion / Appeal / One Target uses SECURE_WILLING_COOPERATION across all four
 approved Impact tiers. Persuasion / Rally / Small Group uses
 ESTABLISH_SHARED_RESOLVE across all four approved Impact tiers. Deception /
@@ -389,6 +390,11 @@ Misdirect / One Target uses
 ESTABLISH_FALSE_BELIEF across all four approved Impact tiers. All five
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
+The registry remains exactly seven Methods and now contains eight standard
+Outcome Contract families and twenty-six exact variants. Spot Weakness,
+Investigate, Search, Analyse, and synonymous desired results remain Custom
+Method review rather than new Methods because Discern Truth already defines the
+perceptive approach.
 
 Global declaration doctrine: Incarnate retains bounded GD judgement but places
 it before the roll and protects purchased outcomes after success. The player
@@ -1138,6 +1144,76 @@ Theme, access, and plausibility. The player cannot choose among several
 qualifying truths. No numeric cost or cooldown value is locked. Existing Custom
 Outcome records remain Custom and are never automatically approved or rewritten
 into this family.
+
+
+Approved Roleplay Outcome Contract Family: Reveal Exploitable Weakness
+
+REVEAL_EXPLOITABLE_WEAKNESS / Reveal Exploitable Weakness is locked as Help,
+Perception / Discern Truth, One Target, and never Counter eligible. Its accepted
+v0 working name remains eligible for the naming pass. It grants one true and
+actionable weakness, opening, route, pattern, dependency, or leverage point
+concerning the accepted target and Declared Aim, appropriate to Impact.
+
+Exact variants and reserved privilege-cost keys:
+
+- Minor / REVEAL_EXPLOITABLE_WEAKNESS_MINOR: "you identify one small
+  immediately useful weakness, opening, or opportunity concerning the target
+  for the current meaningful exchange; if no qualifying exploitable
+  opportunity exists, you learn that none is presently accessible"
+- Standard / REVEAL_EXPLOITABLE_WEAKNESS_STANDARD: "you identify one useful
+  exploitable weakness, route, pattern, dependency, or leverage point
+  concerning the target for the current situation; if no qualifying
+  exploitable opportunity exists, you learn that none is presently accessible"
+- Major / REVEAL_EXPLOITABLE_WEAKNESS_MAJOR: "you reveal one central exploitable
+  vulnerability or opportunity concerning the target that is shaping the
+  current scene and can materially change how it is approached; if no
+  qualifying exploitable opportunity exists, you learn that none is presently
+  accessible"
+- Legendary / REVEAL_EXPLOITABLE_WEAKNESS_LEGENDARY: "you reveal one defining
+  vulnerability, hidden route, dependency, or leverage point concerning the
+  target whose significance extends beyond the current scene; if no qualifying
+  exploitable opportunity exists, you learn that none is presently accessible"
+
+Target means the bounded subject to which the contract applies. One Target may
+be one character, creature, object, mechanism, bounded location or structure,
+plan, ritual, environmental feature, or other coherent specifically identified
+scene subject where contract and fiction support it. A nominal target cannot
+bypass Scope by covering a diffuse crowd, unrelated subjects, battlefield,
+city, faction, army, whole war, organisation membership, or abstract
+collection. The GD judges boundary and access before Attribute or Difficulty.
+
+A qualifying opportunity directly answers the accepted runtime Declared Aim,
+concerns the target, is true or coherent, Impact-appropriate, reachable through
+Discern Truth, Theme, access, and fiction, actionable rather than trivia, and
+not already understood in that actionable form. It may be established, inferred,
+an existing mechanical property, or a coherent previously unspecified Scene
+Manifestation within locked fiction, Impact, Scope, and purchased result. The GD
+chooses among qualifying answers and explains the opportunity, subject, why it
+matters, and how it can inform a meaningful next choice.
+
+No prepared opportunity is required. The GD cannot return "none" because none
+was written, the encounter may change, the players may succeed, or the plot is
+inconvenienced. That fallback is legal only when fiction genuinely provides no
+qualifying accessible opportunity. Accepted practical subjects must be answered
+directly; unrelated secrets or trivia do not satisfy the contract.
+
+Uncover Concealed Truth answers what hidden fact is true. Reveal Exploitable
+Weakness answers what actionable leverage can be used. The selected family is
+binding and existing Uncover or Custom selections are not silently changed.
+Actionable information does not automatically exploit, defeat, damage, disable,
+traverse, persuade, grant quantified output, supply missing resources, or make a
+later action succeed. It may identify but never create or alter an existing
+mechanical property. Target, subject, Aim, and result remain runtime context;
+there is no new Recipient Type or saved subject, investigation, objective,
+weakness, or opportunity field. No numeric costing or cooldown value is added.
+
+Illustrative Impact examples: Minor may expose a loose fastening or momentary
+attention shift; Standard an exposed ritual focus, service route, attack
+pattern, jam point, or messenger dependency; Major a central support, signalling
+system, magical anchor, logistical dependency, or scene-changing route; and
+Legendary an oath-bound flaw, fortress-defining route, foundational legendary
+dependency, or leverage point significant beyond the scene. These examples do
+not establish automatic legality.
 
 
 Approved Roleplay Outcome Contract Family: Draw Hostile Attention

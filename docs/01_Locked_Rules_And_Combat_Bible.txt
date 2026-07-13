@@ -1646,8 +1646,10 @@ DISCERN_TRUTH
   a separate contract or Power; publicly expose truth; create evidence; force
   belief; reveal unrelated facts merely because they are secret; or
   mechanically alter the target.
-- Current standard contract: UNCOVER_CONCEALED_TRUTH. Custom Outcome review
-  remains available for other requested results.
+- Current standard contracts, in registry order: UNCOVER_CONCEALED_TRUTH and
+  REVEAL_EXPLOITABLE_WEAKNESS. Custom Outcome review remains available for
+  other requested results. Spot Weakness, Investigate, Search, Analyse, and
+  synonymous desired results do not become new Methods.
 
 Narrative Theme Coaching And GD Adjudication
 
@@ -2156,6 +2158,149 @@ Intrinsic exclusions:
   investigation with an unrelated truth.
 
 No numeric costs, cooldowns, or final privilege values are locked here.
+
+
+Reveal Exploitable Weakness Outcome Contract Family
+
+LOCKED FAMILY:
+
+- ID: REVEAL_EXPLOITABLE_WEAKNESS
+- Name: Reveal Exploitable Weakness (accepted v0 working name; eligible for the
+  later naming pass)
+- Outcome Lane: Help
+- Intention / Method: Perception / Discern Truth
+- Scope: One Target only
+- Counter eligible: No at every tier
+- Core privilege: on success, the Ability user learns one true and actionable
+  weakness, opening, route, pattern, dependency, or leverage point concerning
+  the accepted target and Declared Aim, appropriate to the selected Impact.
+
+No new Method is created. Discern Truth already covers observation, deduction,
+evidence, physical detail, intuition, contradictions, connected clues, and
+other perceptive insight. Spot weakness is a purchased result, not a distinct
+reusable approach. Perception / Discern Truth / One Target therefore offers two
+compatible standard families in registry order: UNCOVER_CONCEALED_TRUTH then
+REVEAL_EXPLOITABLE_WEAKNESS. Uncover answers "What hidden fact is true?" Reveal
+answers "What actionable leverage concerning this target can be used?" The
+same fiction may qualify for both, but the selected contract defines the
+entitlement. They are never merged, substituted, or silently switched.
+
+Explicit Impact variants, exact Success Outcomes, and privilege-cost keys:
+
+- MINOR / REVEAL_EXPLOITABLE_WEAKNESS_MINOR: "you identify one small
+  immediately useful weakness, opening, or opportunity concerning the target
+  for the current meaningful exchange; if no qualifying exploitable
+  opportunity exists, you learn that none is presently accessible"
+- STANDARD / REVEAL_EXPLOITABLE_WEAKNESS_STANDARD: "you identify one useful
+  exploitable weakness, route, pattern, dependency, or leverage point
+  concerning the target for the current situation; if no qualifying
+  exploitable opportunity exists, you learn that none is presently accessible"
+- MAJOR / REVEAL_EXPLOITABLE_WEAKNESS_MAJOR: "you reveal one central
+  exploitable vulnerability or opportunity concerning the target that is
+  shaping the current scene and can materially change how it is approached; if
+  no qualifying exploitable opportunity exists, you learn that none is
+  presently accessible"
+- LEGENDARY / REVEAL_EXPLOITABLE_WEAKNESS_LEGENDARY: "you reveal one defining
+  vulnerability, hidden route, dependency, or leverage point concerning the
+  target whose significance extends beyond the current scene; if no qualifying
+  exploitable opportunity exists, you learn that none is presently accessible"
+
+For a Roleplay Ability, target means the bounded subject to which the selected
+contract applies. Where contract and fiction support it, One Target may be one
+character, creature, object, mechanism, bounded location or structure, plan,
+ritual, environmental feature, or another coherent and specifically identified
+scene subject. A fortress gate, identified ritual mechanism, or specific
+chamber can be one target. A diffuse crowd, multiple unrelated subjects, entire
+battlefield, city, faction, army, whole war, every member of an organisation,
+or abstract collection cannot become One Target by being given one label. Scope
+still governs breadth. The GD judges boundary and accessibility before choosing
+Attribute or Difficulty. Selected subject is runtime interpretation only and
+adds no Recipient Type or saved subject field.
+
+A qualifying opportunity must concern the accepted target; answer the accepted
+Declared Aim; be true or fictionally coherent; fit the selected Impact; be
+reachable through Discern Truth, Narrative Theme, target access, and current
+fiction; provide meaningful actionable information rather than trivia; identify
+something the players can use, plan around, investigate further, or respond to;
+and not already be known and understood in the same actionable form. It may be
+previously established, inferred from evidence, an existing mechanical property,
+or a previously unspecified coherent detail introduced by the GD as the
+successful Scene Manifestation. Such a latent detail cannot contradict
+established fiction, invalidate a locked premise, be impossible or incoherent,
+exceed Impact or Scope, or create a separate unpurchased outcome.
+
+The opportunity need not have appeared in the GD's notes before the roll. The
+GD cannot return no qualifying opportunity merely because none was prepared,
+the opportunity changes the expected encounter, the players might use it
+successfully, or revelation inconveniences the planned plot. The no-opportunity
+result is legal only when established fiction genuinely provides no qualifying
+opportunity accessible through the accepted declaration.
+
+Before Attribute or Difficulty, the player identifies the target, what they are
+examining, the practical question or objective, and how Discern Truth and Theme
+reach it. Legal examples include "How can we stop this ritual?", "Where is the
+weakest part of the gate?", "What keeps this portal stable?", "How can we get
+civilians through this district safely?", "What behaviour can we exploit?",
+and "What does this plan depend upon?" Once accepted, success must answer that
+practical subject directly. An unrelated secret or trivia cannot satisfy it.
+The GD chooses among qualifying opportunities; the player does not dictate the
+answer. The GD may reject or narrow an invalid, impossible, overbroad, or
+inaccessible Aim before Difficulty. Difficulty cannot legalise it.
+
+Impact examples are illustrative, not automatic legality:
+
+- Minor: a loose fastening, momentary attention shift, concealed vent, unstable
+  foothold, or guard repeatedly checking one doorway.
+- Standard: an exposed ritual focus, service route, repeated attack opening,
+  gate-mechanism jam point, or plan dependent on one messenger.
+- Major: a central battlefield support, visible coordination signal, principal
+  magical anchor, decisive logistical dependency, or scene-transforming route.
+- Legendary: an oath-bound flaw, fortress-defining hidden route, foundational
+  dependency behind apparent invulnerability, long-running plan's leverage
+  point, or vulnerability significant beyond the scene.
+
+The GD explains what the opportunity is, what bounded subject it concerns, why
+it matters, and how it can inform a meaningful next choice. Actionable does not
+mean automatically exploited. Future actions use normal rules and fictional
+requirements. The contract may identify an existing quantified property, such
+as a creature's existing vulnerability to sacred fire, but neither creates nor
+changes that property or its numeric value.
+
+Intrinsic exclusions:
+
+- Does not automatically exploit the revealed opportunity.
+- Does not guarantee that a future attempt to use the opportunity succeeds.
+- Does not automatically defeat, destroy, control, disable, or bypass the target.
+- Does not create wounds, healing, Block, Dodge, Resist, Control stacks,
+  conditions, penalties, bonuses, actions, movement, or another quantified
+  Power output.
+- Does not create or modify an existing mechanical vulnerability.
+- Does not create an impossible or internally incoherent weakness, route,
+  dependency, pattern, or leverage point.
+- Does not contradict established fiction.
+- Does not reveal every weakness, route, dependency, or possible solution.
+- Does not provide a complete plan for exploiting the result.
+- Does not automatically provide required equipment, access, authority,
+  capability, evidence, or resources.
+- Does not automatically expose the information publicly or force anyone else
+  to believe it.
+- Does not allow one nominal target to substitute for a diffuse crowd, multiple
+  unrelated subjects, a faction, an army, or another broader Scope.
+- Does not bypass target access, Discern Truth, Narrative Theme, Scene Impact,
+  Scope, or fictional plausibility.
+- Does not permit the GD to answer an accepted practical subject with an
+  unrelated secret or piece of trivia.
+- Does not permit the GD to return no qualifying opportunity merely because no
+  opportunity was prepared or because the result inconveniences planned plot.
+- Does not allow Difficulty or Legendary Impact to legalise an invalid target
+  or impossible investigation.
+
+Target, selected subject, Declared Aim, and discovered opportunity are runtime
+context only. No subjectType, investigationSubject, targetSubject,
+weaknessTarget, selectedSubject, declaredInvestigation, declaredObjective,
+weaknessText, revealedWeakness, exploitableWeakness, opportunityText, or
+equivalent saved field is added. No numeric cost, cooldown, privilege value, or
+restriction discount is locked here.
 
 
 Draw Hostile Attention Outcome Contract Family
