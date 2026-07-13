@@ -536,10 +536,14 @@ Scope define approved magnitude/persistence and breadth.
 "Method defines the approach. Theme personalises the approach. The Outcome
 Contract defines the result."
 
-The standard Method registry contains APPEAL, MISDIRECT, RESCUE, INTERRUPT,
-CHALLENGE, and DISCERN_TRUTH. All five Intentions now have at least one approved
-standard Method. Appeal is the approved Persuasion Method and maps to the locked
-Help / One Target family SECURE_WILLING_COOPERATION at all four Impact tiers.
+The standard Method registry contains APPEAL, RALLY, MISDIRECT, RESCUE,
+INTERRUPT, CHALLENGE, and DISCERN_TRUTH. All five Intentions have at least one
+approved standard Method. Persuasion owns Appeal and Rally. Appeal maps to the
+locked Help / One Target family SECURE_WILLING_COOPERATION, while Rally maps to
+the locked Help / Small Group family ESTABLISH_SHARED_RESOLVE, both at all four
+Impact tiers. ESTABLISH_SHARED_RESOLVE is the first approved Small Group
+contract. Large Group and Faction / Army remain unproven and receive no approved
+standard contract in this pass.
 Misdirect is the approved Deception Method and maps to the locked Hinder / One
 Target family ESTABLISH_FALSE_BELIEF at all four Impact tiers. Misdirect covers
 direct falsehood, omission, implication, distraction, selective truth, staged
@@ -582,6 +586,39 @@ independent judgement, priorities, values, and agency. Contradiction must meet
 the selected Impact's threshold; unsupported suspicion or plot inconvenience is
 insufficient. Declared Premise is runtime terminology only and no premise field,
 numeric cost, cooldown, privilege value, or restriction discount is locked.
+
+ESTABLISH_SHARED_RESOLVE / Establish Shared Resolve is a working v0 name
+eligible for the later naming pass. It is Help, Persuasion / Rally, Small Group
+only, and Counter-ineligible. Its exact variants are:
+
+- MINOR / ESTABLISH_SHARED_RESOLVE_MINOR: "the selected group steadies around
+  one simple immediate course and sincerely pursues it through the current
+  meaningful exchange despite ordinary hesitation, confusion, or pressure"
+- STANDARD / ESTABLISH_SHARED_RESOLVE_STANDARD: "the selected group adopts one
+  clear shared course as its immediate priority for the rest of the current
+  scene and sincerely pursues it despite meaningful fear, confusion,
+  disagreement, or pressure"
+- MAJOR / ESTABLISH_SHARED_RESOLVE_MAJOR: "the selected group commits to one
+  difficult shared course for the rest of the current scene and sincerely
+  pursues it despite serious fear, division, personal cost, or danger unless
+  decisive circumstances or narrative resolution make that course no longer
+  coherent"
+- LEGENDARY / ESTABLISH_SHARED_RESOLVE_LEGENDARY: "the selected group forms one
+  defining shared resolve, pledge, or cause whose consequences extend beyond
+  the current scene and sincerely upholds it until it is fulfilled or
+  narratively resolved"
+
+Small Group is one clearly bounded, scene-local collection whose members share
+the immediate situation and can all directly perceive and understand the same
+Method expression. Membership and one Declared Shared Course are accepted before
+Difficulty; success applies to every accepted member with no per-member roll,
+majority interpretation, or hidden partial failure. Membership is fixed and
+does not propagate to outsiders, arrivals, replacements, followers, or
+intermediaries. Members retain individual turns, tactics, resources, values,
+priorities, and judgement. Individual or whole-group Narrative Resolution must
+follow genuine fulfilment, impossibility, or identifiable meaningful fictional
+change. No numeric headcount, saved course/member fields, numeric costs,
+cooldowns, or Scope multipliers are locked.
 
 
 Roleplay Declaration And Narrative Resolution Status

@@ -1093,13 +1093,25 @@ Free-text Success Outcome is not part of ordinary standard-contract authoring.
 
 Method Registry
 
-The standard Method registry contains APPEAL (Persuasion), MISDIRECT
+The standard Method registry contains APPEAL and RALLY (Persuasion), MISDIRECT
 (Deception), RESCUE and INTERRUPT (Intervention), CHALLENGE (Intimidation), and
 DISCERN_TRUTH (Perception). All five Intentions have an approved standard
 Method. Each definition owns a concise definition, illustrative legal
 approaches, and exclusions. Legal approaches are examples rather than a phrase
 whitelist. A declaration may vary in expression while remaining the same
 approach and may not claim another Method or enlarge its contract.
+
+RALLY means: "Unite a bounded group around one clear shared course by invoking
+common purpose, courage, duty, identity, hope, urgency, or mutual reliance."
+It may invoke shared purpose/duty/identity, one immediate plan, courageous
+example, dependent people, focus amid panic/confusion/disagreement, solidarity,
+mutual reliance, or one honest collective priority. Appeal persuades one target;
+Rally unites a bounded group. Threat/fear-led Intimidation and false or
+misleading Deception remain distinct. Rally does not require identical tactics.
+It cannot dominate, lie, invent a common basis, create command/general obedience,
+erase agency, dictate tactics/actions, grant actions/movement/modifiers/
+immunities, remove quantified effects, affect outsiders, resolve unrelated
+disputes, guarantee success, or let Difficulty/Impact legalise incoherence.
 
 MISDIRECT means: "Lead a target toward a false or materially misleading
 conclusion through direct falsehood, omission, implication, distraction,
@@ -1133,9 +1145,11 @@ plot or encounter. This adds no numeric duration or cost field.
 
 Current standard compatibility is Rescue with HIDE_FROM_IMMEDIATE_DANGER,
 Interrupt with DENY_IMMINENT_HOSTILE_ACT, and Challenge with
-DRAW_HOSTILE_ATTENTION. Appeal uses SECURE_WILLING_COOPERATION, Misdirect uses
-ESTABLISH_FALSE_BELIEF, and Discern Truth uses UNCOVER_CONCEALED_TRUTH for One
-Target at all four approved Impact tiers. Custom Outcome review remains
+DRAW_HOSTILE_ATTENTION. Appeal uses SECURE_WILLING_COOPERATION, Rally uses
+ESTABLISH_SHARED_RESOLVE, Misdirect uses ESTABLISH_FALSE_BELIEF, and Discern
+Truth uses UNCOVER_CONCEALED_TRUTH. Rally is Small Group only; the others are One
+Target. Each family has all four approved Impact tiers where specified. Custom
+Outcome review remains
 available for results outside the registry and existing Custom Outcome records
 are not automatically converted to a newly available standard contract.
 
@@ -1192,6 +1206,69 @@ universal permission. Willing cooperation is an accepted fictional choice;
 sincere cooperation prevents sabotage, pretence, and technical evasion without
 adding competence or guaranteeing success. Third parties remain independent.
 Ongoing commitments use global Narrative Resolution. No numeric cost, cooldown,
+privilege value, or restriction discount is locked.
+
+Small Group is one clearly bounded collection of scene-local individuals who
+share the same immediate situation and can all directly perceive and understand
+one Method expression. Parties, squads, small councils, households, rescue
+teams, and identified civilian clusters may qualify; diffuse crowds, separated
+clusters, vague bystanders, organisations, settlements, factions, armies, and
+intermediary-only audiences do not. No numeric headcount is locked.
+
+Before Difficulty the player identifies exact members or an unambiguous set,
+states one bounded Declared Shared Course, and explains how Rally/Theme reach
+everyone. The GD confirms boundary, access, comprehension, shared situation,
+each member's eligibility, Impact, and Scope before Attribute/Difficulty. The GD
+may narrow or reject the group; Difficulty may account for disagreement, fear,
+confusion, priorities, pressure, or the least receptive relevant member. Success
+affects every accepted member without per-member rolls, majority success,
+quiet exemptions, or hidden partial failure. Membership fixes when Difficulty
+is set and never propagates to arrivals, outsiders, replacements, followers, or
+people hearing testimony. Members retain separate turns, minds, actions,
+resources, tactics, values, priorities, and judgement.
+
+ESTABLISH_SHARED_RESOLVE is the Help / Persuasion / Rally / Small Group family
+and is Counter-ineligible at every tier. Establish Shared Resolve is the working
+v0 name and remains eligible for the naming pass. It is the first approved Small
+Group contract; Large Group and Faction / Army remain unproven. Exact outcomes
+and reserved privilege-cost keys:
+
+- Minor / ESTABLISH_SHARED_RESOLVE_MINOR: "the selected group steadies around
+  one simple immediate course and sincerely pursues it through the current
+  meaningful exchange despite ordinary hesitation, confusion, or pressure"
+- Standard / ESTABLISH_SHARED_RESOLVE_STANDARD: "the selected group adopts one
+  clear shared course as its immediate priority for the rest of the current
+  scene and sincerely pursues it despite meaningful fear, confusion,
+  disagreement, or pressure"
+- Major / ESTABLISH_SHARED_RESOLVE_MAJOR: "the selected group commits to one
+  difficult shared course for the rest of the current scene and sincerely
+  pursues it despite serious fear, division, personal cost, or danger unless
+  decisive circumstances or narrative resolution make that course no longer
+  coherent"
+- Legendary / ESTABLISH_SHARED_RESOLVE_LEGENDARY: "the selected group forms one
+  defining shared resolve, pledge, or cause whose consequences extend beyond
+  the current scene and sincerely upholds it until it is fulfilled or
+  narratively resolved"
+
+The course must be coherent, understood by all, within each member's agency and
+group capability, possible, Impact-appropriate, and reachable through Rally. It
+cannot bundle independent commands. Sincere pursuit means genuine priority and
+good-faith effort without pretence, deliberate sabotage, or technical evasion;
+members retain tactics, positioning, timing, resources, reactions, and unrelated
+beliefs/relationships. The contract grants no competence, success, resources,
+actions, synchronised turns, identical behaviour, immunity from setbacks, or
+settlement of unrelated disagreement.
+
+Narrative Resolution can apply to the whole group or one member through genuine
+fulfilment, impossibility, or identifiable meaningful fictional change. One
+member's resolution or inability does not cancel everyone else's outcome. The
+contract grants no command/general obedience/future commands; multiple courses;
+identical tactics/actions/movement/resources; removed identity/judgement;
+actions/movement/modifiers/immunities; removal of quantified effects; binding of
+outsiders, arrivals, replacements, larger Scopes, or institutional followers;
+guaranteed success; false participation; evasion; or arbitrary plot-driven
+cancellation. Declared Shared Course and membership remain runtime context; no
+saved fields are added. No numeric cost, cooldown, Scope multiplier, headcount,
 privilege value, or restriction discount is locked.
 
 ESTABLISH_FALSE_BELIEF is the Hinder / Deception / Misdirect / One Target family

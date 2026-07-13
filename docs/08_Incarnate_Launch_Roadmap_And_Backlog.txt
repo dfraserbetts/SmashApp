@@ -320,6 +320,7 @@ Approved v0 top-level intentions:
 The standard Method registry initially contains exactly:
 
 - Appeal (APPEAL), owned by Persuasion
+- Rally (RALLY), owned by Persuasion
 - Misdirect (MISDIRECT), owned by Deception
 - Rescue (RESCUE), owned by Intervention
 - Interrupt (INTERRUPT), owned by Intervention
@@ -334,6 +335,11 @@ Method, and do not enlarge the selected Outcome Contract.
 
 Appeal connects one clear request to the target's values, interests, loyalties,
 emotions, relationships, duties, or understanding to seek willing agreement.
+Rally unites a bounded group around one clear shared course through common
+purpose, courage, duty, identity, hope, urgency, or mutual reliance. It may
+honestly describe danger without becoming Intimidation and does not require
+identical tactics; Appeal remains one-target persuasion, Intimidation primarily
+uses threat/fear, and Deception creates false or misleading conclusions.
 Misdirect leads a target toward a false or materially misleading conclusion
 through direct falsehood, omission, implication, distraction, selective truth,
 staged cues, or deceptive framing. It may use words, behaviour, presentation,
@@ -377,7 +383,9 @@ DENY_IMMINENT_HOSTILE_ACT; and Intimidation / Challenge / One Target across the
 approved DRAW_HOSTILE_ATTENTION Impact variants. Perception / Discern Truth /
 One Target uses UNCOVER_CONCEALED_TRUTH across all four approved Impact tiers.
 Persuasion / Appeal / One Target uses SECURE_WILLING_COOPERATION across all four
-approved Impact tiers. Deception / Misdirect / One Target uses
+approved Impact tiers. Persuasion / Rally / Small Group uses
+ESTABLISH_SHARED_RESOLVE across all four approved Impact tiers. Deception /
+Misdirect / One Target uses
 ESTABLISH_FALSE_BELIEF across all four approved Impact tiers. All five
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
@@ -408,9 +416,11 @@ Mythic / Realm remains excluded from v0.
 
 - Self is a hard restriction and the cheapest Scope tier.
 - One Target is broader than Self and costed above it.
-- Small Group / Large Group remain flexible, not hard-numbered in v0.
-- Game Directors adjudicate contextual group breadth.
-- Faction / Army is available and should be expensive unless narrowed by restriction.
+- Small Group is a coherent, directly addressable scene-local group and is not
+  hard-numbered in v0. Game Directors adjudicate its contextual boundary.
+- Large Group remains unproven in this pass.
+- Faction / Army remains unproven in this pass and has no approved standard
+  Outcome Contract.
 - Scene Tracks are not player-facing Scope choices.
 
 I. Scene Impact
@@ -874,6 +884,81 @@ Game Director / Architect approval.
 
 No final thresholds, formulas, or implementation behaviour are locked by this
 roadmap note.
+
+
+Approved Roleplay Outcome Contract Family: Establish Shared Resolve
+
+ESTABLISH_SHARED_RESOLVE / Establish Shared Resolve is the accepted working v0
+name, still eligible for the later naming pass. It is Help, Persuasion / Rally,
+Small Group, and never Counter eligible. It is the first approved Small Group
+contract; this pass creates no Large Group or Faction / Army variant.
+
+- Minor / ESTABLISH_SHARED_RESOLVE_MINOR: "the selected group steadies around
+  one simple immediate course and sincerely pursues it through the current
+  meaningful exchange despite ordinary hesitation, confusion, or pressure"
+- Standard / ESTABLISH_SHARED_RESOLVE_STANDARD: "the selected group adopts one
+  clear shared course as its immediate priority for the rest of the current
+  scene and sincerely pursues it despite meaningful fear, confusion,
+  disagreement, or pressure"
+- Major / ESTABLISH_SHARED_RESOLVE_MAJOR: "the selected group commits to one
+  difficult shared course for the rest of the current scene and sincerely
+  pursues it despite serious fear, division, personal cost, or danger unless
+  decisive circumstances or narrative resolution make that course no longer
+  coherent"
+- Legendary / ESTABLISH_SHARED_RESOLVE_LEGENDARY: "the selected group forms one
+  defining shared resolve, pledge, or cause whose consequences extend beyond
+  the current scene and sincerely upholds it until it is fulfilled or
+  narratively resolved"
+
+Small Group means one clearly bounded collection of scene-local individuals who
+share the same immediate situation and can all directly perceive and understand
+one Method expression. Parties, squads, small councils, households, rescue
+teams, and identified civilian clusters may qualify. Diffuse crowds, separated
+clusters, vague bystanders, organisations, settlements, factions, armies, and
+people reached only through intermediaries do not. No numeric headcount is
+locked.
+
+Before Difficulty the player identifies exact members or an unambiguous set,
+states one bounded shared course, and explains how Rally and Narrative Theme
+reach everyone. The GD confirms boundary, access, comprehension, shared
+situation, each member's eligibility, Impact, and Scope before selecting
+Attribute/Difficulty. Difficulty may reflect disagreement, fear, confusion,
+priorities, pressure, or the least receptive relevant member. An illegal group
+is narrowed or rejected before Difficulty.
+
+Every accepted member receives a successful outcome. There is no per-member
+roll, majority interpretation, quietly exempted dissenter, or hidden partial
+failure. Membership fixes when Difficulty is set and does not propagate to
+arrivals, outsiders, replacements, followers, testimony recipients, or
+institutions. Small Group creates no shared turn, mind, action, or resource pool.
+
+The Declared Shared Course must be one coherent priority, understood by all,
+within each member's agency and group capability, possible, Impact-appropriate,
+and reachable through Rally. Minimum context is legal; multiple independent
+commands are not. Examples include staying together during an evacuation,
+holding until civilians clear, protecting wounded while crossing, maintaining a
+united refusal, or completing a rescue before pursuing thieves.
+
+Sincere pursuit requires genuine priority and good-faith effort without
+pretence, deliberate sabotage, or technical evasion. Members retain tactics,
+positioning, normal timing, resources, unexpected-response judgement, values,
+priorities, and unrelated relationships. The contract grants no competence,
+success, resources, actions, synchronised turns, identical behaviour, immunity
+from setbacks, or resolution of unrelated disagreement.
+
+Global Narrative Resolution may apply to the whole group or an individual when
+the course is genuinely fulfilled, impossible, or made incoherent by an
+identifiable meaningful fictional change. One member's inability or resolution
+does not cancel everyone else. Plot inconvenience is insufficient.
+
+The family grants no open-ended command/general obedience, future unspecified
+courses, multiple courses, dictated tactics/actions/movement/resources, removed
+identity/judgement, actions/movement/modifiers/immunities, quantified-effect
+removal, guaranteed success, binding of outsiders/arrivals/replacements/larger
+Scopes, institutional propagation, false participation, sabotage, technical
+evasion, or arbitrary cancellation. Declared Shared Course and membership are
+runtime context only; no saved course/member fields or Builder controls are
+added. No numeric costs, cooldowns, Scope multipliers, or headcounts are locked.
 
 
 Approved Roleplay Outcome Contract Family: Establish False Belief

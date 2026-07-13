@@ -1429,6 +1429,45 @@ APPEAL
   high Impact; or guarantee that the requested task succeeds.
 - Current standard contract: SECURE_WILLING_COOPERATION.
 
+RALLY
+
+- Intention: Persuasion
+- Definition: "Unite a bounded group around one clear shared course by invoking
+  common purpose, courage, duty, identity, hope, urgency, or mutual reliance."
+- Illustrative legal approaches:
+  - Call attention to a common purpose
+  - Remind the group of shared duty or identity
+  - Present one clear immediate plan
+  - Reinforce courage through example
+  - Frame the stakes around people who depend on the group
+  - Restore focus amid panic, confusion, or disagreement
+  - Invoke solidarity or mutual reliance
+  - Turn competing reactions toward one honest collective priority
+- Distinctions: Appeal persuades one target to accept one bounded request. Rally
+  unites a bounded group around one shared course or priority. Intimidation uses
+  threat or fear as the primary lever. Deception deliberately creates a false
+  or materially misleading conclusion. Rally may honestly describe danger or
+  consequences without becoming Intimidation and does not require identical
+  tactics from every member.
+- Exact exclusions:
+  - Does not rely primarily on threats or fear.
+  - Does not rely on deliberate lies or concealed falsehoods.
+  - Does not use supernatural control or domination.
+  - Does not create a shared purpose where no coherent common basis exists.
+  - Does not grant open-ended command authority or general obedience.
+  - Does not erase individual identity, values, priorities, or judgement.
+  - Does not dictate identical tactics, movement, or actions.
+  - Does not grant extra actions, measured movement, quantified bonuses, or
+    immunities.
+  - Does not remove quantified fear, Control stacks, conditions, attachments,
+    fields, or active powers.
+  - Does not automatically affect anyone outside the selected group.
+  - Does not resolve unrelated disputes or disagreements.
+  - Does not guarantee that the shared course succeeds.
+  - Does not make high Difficulty or Legendary Impact legalise an incoherent
+    course.
+- Current standard contract: ESTABLISH_SHARED_RESOLVE.
+
 MISDIRECT
 
 - Intention: Deception
@@ -1568,6 +1607,167 @@ automatic costing, and final Cooldown are unavailable or untrusted; saving does
 not approve the Ability. The GD or Architect must map it to an existing Method,
 approve a new standard Method, or manually approve a campaign-local Method and
 its contract compatibility.
+
+
+Small Group Targeting Doctrine
+
+LOCKED: "A single clearly bounded collection of scene-local individuals who
+share the same immediate situation and can all directly perceive and understand
+one Method expression."
+
+An adventuring party, squad or patrol, small council, household, rescue team, or
+clearly identified cluster of civilians may qualify. A diffuse crowd, multiple
+separated clusters, everyone vaguely nearby, an abstract organisation,
+settlement, faction, army, or people reached only through intermediaries do not.
+No exact numeric headcount is locked: the boundary is a coherent, directly
+addressable scene-local group rather than Large Group or Faction / Army scale.
+
+Before Difficulty:
+
+1. The player identifies exact members or an unambiguous bounded set.
+2. The player states the one shared course being pursued.
+3. The player explains how Rally and Narrative Theme reach the entire group.
+4. The GD confirms group boundary, access, comprehension, shared situation,
+   every accepted member's eligibility, Impact suitability, and Scope
+   suitability.
+5. The GD then selects Attribute and Difficulty.
+
+The GD may require a narrower or revised group before Difficulty. Difficulty
+may reflect internal disagreement, fear, confusion, competing priorities,
+pressure, or the least receptive relevant member. If every declared member
+cannot legally be affected, the group is narrowed or rejected before Difficulty
+instead of producing hidden partial failure after success.
+
+Once accepted and successful, every accepted member receives the outcome. There
+is no per-member roll, majority-success interpretation, quietly exempted
+dissenter, or invented partial success unless another rule explicitly creates
+one. Accepted membership fixes when Difficulty is set: later arrivals, nearby
+outsiders, replacements, followers of a leader, and people who merely hear
+testimony do not inherit the outcome. Each accepted member remains an individual
+actor; Small Group creates no shared turn, mind, action, or resource pool.
+
+Declared Shared Course
+
+Before Difficulty, the player states one clear shared course or collective
+priority. It must be one coherent priority, understandable to every accepted
+member, within each member's agency and the group's actual capability, possible
+in the fiction, appropriate to Impact, and plausibly reachable through Rally.
+It may include minimum context but cannot bundle independent commands.
+
+Valid examples include "Stay together and evacuate through the east gate",
+"Hold this position until the civilians are clear", "Keep the wounded protected
+while we cross the courtyard", "Present a united refusal to the magistrate",
+and "Finish the rescue before anyone pursues the thieves". "Hold the gate,
+arrest the mayor, search every house, rescue the prisoner, and then follow every
+order I give" is an invalid bundle. "Declared Shared Course" is runtime
+terminology only; no declaredCourse, sharedCourse, groupMembers, selectedMembers,
+rallyTargetIds, or equivalent field is stored on RoleplayAbility or added to
+the Builder.
+
+
+Establish Shared Resolve Outcome Contract Family
+
+LOCKED FAMILY:
+
+- ID: ESTABLISH_SHARED_RESOLVE
+- Working v0 name: Establish Shared Resolve; eligible for the later naming pass.
+- Outcome Lane: Help
+- Intention / Method: Persuasion / Rally
+- Scope: Small Group only
+- Counter eligible: No at every tier
+- First approved Small Group Outcome Contract. Large Group and Faction / Army
+  remain unproven and receive no standard variant here.
+- Core privilege: every accepted member genuinely adopts the same bounded
+  shared course and makes a sincere good-faith effort to pursue it for the
+  contract's duration.
+
+Exact Impact variants and privilege-cost keys:
+
+- MINOR / ESTABLISH_SHARED_RESOLVE_MINOR: "the selected group steadies around
+  one simple immediate course and sincerely pursues it through the current
+  meaningful exchange despite ordinary hesitation, confusion, or pressure"
+- STANDARD / ESTABLISH_SHARED_RESOLVE_STANDARD: "the selected group adopts one
+  clear shared course as its immediate priority for the rest of the current
+  scene and sincerely pursues it despite meaningful fear, confusion,
+  disagreement, or pressure"
+- MAJOR / ESTABLISH_SHARED_RESOLVE_MAJOR: "the selected group commits to one
+  difficult shared course for the rest of the current scene and sincerely
+  pursues it despite serious fear, division, personal cost, or danger unless
+  decisive circumstances or narrative resolution make that course no longer
+  coherent"
+- LEGENDARY / ESTABLISH_SHARED_RESOLVE_LEGENDARY: "the selected group forms one
+  defining shared resolve, pledge, or cause whose consequences extend beyond
+  the current scene and sincerely upholds it until it is fulfilled or
+  narratively resolved"
+
+"Sincerely pursues" means every accepted member genuinely treats the course as
+a priority, makes a good-faith effort, does not merely pretend or deliberately
+sabotage it, and does not exploit technical wording to defeat the accepted
+intent. Members retain agency over tactics, positioning, timing within normal
+opportunities, resources, responses to unexpected developments, and unrelated
+beliefs and relationships. They may disagree about execution while sincerely
+pursuing the same course. The contract adds no competence, guaranteed success,
+resources, actions, synchronised turns, immunity from setbacks, identical
+behaviour, or settlement of unrelated disagreements. A coherent emergency or
+meaningful change may alter what sincere pursuit requires.
+
+The GD cannot nullify success through instant unexplained loss of resolve,
+secret refusal, deliberate sabotage, or casual abandonment because the outcome
+inconveniences the planned plot.
+
+Group Narrative Resolution uses the global rule and may occur for the whole
+group or one member when genuinely fulfilled, impossible, or made incoherent by
+an identifiable meaningful fictional change. One member's resolution does not
+cancel every other member's outcome. Examples include completed evacuation, a
+defended position ceasing to exist, an impossible rescue, decisive new
+information changing the course's basis, one member becoming unable to
+continue, mutual abandonment because the purpose no longer exists, or another
+change making continuation incoherent. One unable member does not mean group
+failure or loss of everyone else's resolve. Plot obstruction is not resolution.
+
+Illustrative examples by tier:
+
+- Minor: frightened civilians stay together through one escape; a confused
+  patrol regroups; companions stop arguing for one immediate task; a rescue team
+  steadies through one dangerous exchange.
+- Standard: defenders hold for the scene; a group completes an evacuation; a
+  divided council follows one immediate plan; witnesses maintain a united stance.
+- Major: defenders continue a dangerous rescue; divided companions save captives
+  before revenge; witnesses resist a powerful threat; a patrol maintains one
+  course despite severe division.
+- Legendary: a fellowship pledges a defining mission; a small council commits to
+  lasting resistance; former rivals form a defining cause; a sworn band adopts
+  a commitment extending beyond the scene.
+
+Examples are illustrative, not automatically eligible. Intrinsic exclusions:
+
+- Does not grant open-ended command authority over the group.
+- Does not create permanent general obedience.
+- Does not apply to unspecified future commands or courses.
+- Does not establish more than one bounded shared course.
+- Does not dictate identical tactics, actions, movement, or resource use.
+- Does not remove individual identity, values, priorities, or judgement.
+- Does not grant extra actions or measured movement.
+- Does not grant quantified bonuses, penalties, or immunities.
+- Does not remove quantified fear, Control stacks, conditions, attachments,
+  fields, or active powers.
+- Does not guarantee that the shared course succeeds.
+- Does not automatically bind people outside the accepted group.
+- Does not automatically bind later arrivals or replacement members.
+- Does not automatically propagate through leadership, testimony, reputation,
+  or institutional authority.
+- Does not convert a Small Group into a Large Group, faction, or army.
+- Does not settle unrelated conflicts or disagreements.
+- Does not permit false participation, deliberate sabotage, or technical
+  evasion of the accepted course.
+- Does not make an ineligible course legal through high Difficulty or Legendary
+  Impact.
+- Does not prevent legitimate narrative resolution.
+- Does not permit arbitrary cancellation because the outcome inconveniences the
+  Game Director or planned plot.
+
+No numeric costs, cooldowns, Scope multipliers, privilege values, restriction
+discounts, or Small Group headcount are locked here.
 
 
 Establish False Belief Outcome Contract Family

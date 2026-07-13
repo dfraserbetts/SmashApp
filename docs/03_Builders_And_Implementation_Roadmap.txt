@@ -274,10 +274,13 @@ must explain that an Additional Restriction narrows the Ability beyond the
 Outcome Contract's built-in limits and that repeating normal applicability earns
 no discount. Persisted restriction field names remain unchanged.
 
-The standard Method registry contains Appeal under Persuasion, Misdirect under
-Deception, Rescue and Interrupt under Intervention, Challenge under
-Intimidation, and Discern Truth under Perception. All five Intentions now have
-an approved standard Method. Misdirect covers direct falsehood, omission,
+The standard Method registry contains Appeal and Rally under Persuasion,
+Misdirect under Deception, Rescue and Interrupt under Intervention, Challenge
+under Intimidation, and Discern Truth under Perception. All five Intentions have
+an approved standard Method. Rally unites a bounded group around one shared
+course through common purpose, courage, duty, identity, hope, urgency, or mutual
+reliance; it remains distinct from one-target Appeal, threat/fear-led
+Intimidation, and false/misleading Deception. Misdirect covers direct falsehood, omission,
 implication, distraction that establishes a false interpretation, selective
 truth, staged cues, and deceptive framing. Its classification follows the
 materially false conclusion deliberately created, not whether every literal
@@ -302,6 +305,47 @@ four Impacts. The family is Help and Counter-ineligible. Its working v0 name
 remains eligible for the naming pass. The Builder derives all Method details,
 variant outcomes, and eligibility from registries; no page-specific fork is
 required.
+
+Rally filters to ESTABLISH_SHARED_RESOLVE for Persuasion / Small Group at all
+four Impacts. Establish Shared Resolve is the working v0 name, Help, and
+Counter-ineligible. It is the first approved Small Group contract. Large Group
+and Faction / Army remain unproven and have no approved variants. Exact variants:
+
+- Minor / ESTABLISH_SHARED_RESOLVE_MINOR: "the selected group steadies around
+  one simple immediate course and sincerely pursues it through the current
+  meaningful exchange despite ordinary hesitation, confusion, or pressure"
+- Standard / ESTABLISH_SHARED_RESOLVE_STANDARD: "the selected group adopts one
+  clear shared course as its immediate priority for the rest of the current
+  scene and sincerely pursues it despite meaningful fear, confusion,
+  disagreement, or pressure"
+- Major / ESTABLISH_SHARED_RESOLVE_MAJOR: "the selected group commits to one
+  difficult shared course for the rest of the current scene and sincerely
+  pursues it despite serious fear, division, personal cost, or danger unless
+  decisive circumstances or narrative resolution make that course no longer
+  coherent"
+- Legendary / ESTABLISH_SHARED_RESOLVE_LEGENDARY: "the selected group forms one
+  defining shared resolve, pledge, or cause whose consequences extend beyond
+  the current scene and sincerely upholds it until it is fulfilled or
+  narratively resolved"
+
+Small Group authoring means one bounded, directly addressable scene-local group,
+not a crowd, separated clusters, organisation, settlement, faction, or army.
+Membership and one bounded shared course are declared and accepted before
+Difficulty. Success applies to every accepted member without per-member rolls,
+majority interpretation, exemptions, or hidden partial failure. Membership is
+fixed and does not propagate to arrivals, outsiders, replacements, followers,
+or intermediaries. Each member retains individual turns, tactics, resources,
+identity, values, priorities, and judgement. Individual and whole-group
+Narrative Resolution follows identifiable fulfilment, impossibility, or
+meaningful fictional change.
+
+The Builder exposes Rally and the contract through existing registries only. It
+adds no Declared Shared Course, group-member selector, or numeric group size.
+Reconciliation retains the family across its four Impact variants and
+non-authoring edits, updates exact outcome/descriptor, and keeps Counter false.
+Incompatible Intention, Method, or Scope clears family and Counter. Explicit
+Custom Outcomes remain Custom. No numeric costs, cooldowns, Scope multipliers,
+or headcounts are added.
 
 Misdirect filters to ESTABLISH_FALSE_BELIEF for Deception / One Target at all
 four Impacts. Establish False Belief is the accepted working v0 name, remains
