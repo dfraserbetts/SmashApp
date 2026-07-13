@@ -536,9 +536,15 @@ Scope define approved magnitude/persistence and breadth.
 "Method defines the approach. Theme personalises the approach. The Outcome
 Contract defines the result."
 
-The standard Method registry contains APPEAL, RESCUE, INTERRUPT, CHALLENGE, and
-DISCERN_TRUTH. Appeal is the approved Persuasion Method and maps to the locked
+The standard Method registry contains APPEAL, MISDIRECT, RESCUE, INTERRUPT,
+CHALLENGE, and DISCERN_TRUTH. All five Intentions now have at least one approved
+standard Method. Appeal is the approved Persuasion Method and maps to the locked
 Help / One Target family SECURE_WILLING_COOPERATION at all four Impact tiers.
+Misdirect is the approved Deception Method and maps to the locked Hinder / One
+Target family ESTABLISH_FALSE_BELIEF at all four Impact tiers. Misdirect covers
+direct falsehood, omission, implication, distraction, selective truth, staged
+cues, and deceptive framing; classification follows the materially false
+conclusion deliberately created, not whether each literal sentence is false.
 Discern Truth has the locked standard Help
 contract family UNCOVER_CONCEALED_TRUTH for One Target at Minor, Standard,
 Major, and Legendary Impact. Counter is unavailable at every tier. The family
@@ -548,6 +554,34 @@ values may migrate into Methods, but Specific is no longer player-facing or
 normalized runtime state. General Custom Outcome review remains available for
 requests outside the standard registry and is never silently migrated merely
 because a later standard contract exists.
+
+ESTABLISH_FALSE_BELIEF / Establish False Belief is a working v0 name eligible
+for the later naming pass. Its exact Counter-ineligible variants are:
+
+- MINOR / ESTABLISH_FALSE_BELIEF_MINOR: "the target accepts one small and
+  immediately plausible false premise as true for the current meaningful
+  exchange and treats it as true when making relevant decisions"
+- STANDARD / ESTABLISH_FALSE_BELIEF_STANDARD: "the target genuinely accepts one
+  plausible false premise relevant to the current situation as true for the
+  rest of the current scene and treats it as true when making relevant
+  decisions unless meaningful contradictory evidence resolves the belief"
+- MAJOR / ESTABLISH_FALSE_BELIEF_MAJOR: "the target genuinely accepts one
+  central false premise shaping the current situation as true for the rest of
+  the current scene and continues to treat it as true when making relevant
+  decisions unless decisive contradictory evidence, direct experience, or
+  narrative resolution ends the belief"
+- LEGENDARY / ESTABLISH_FALSE_BELIEF_LEGENDARY: "the target genuinely accepts
+  one defining false premise whose consequences extend beyond the current scene
+  as true and treats it as true when making relevant decisions until it is
+  decisively disproved or narratively resolved"
+
+The Declared Aim for this family is one exact bounded false or materially
+misleading premise, stated and judged before Difficulty. On success the target
+genuinely accepts it and treats it as true in relevant decisions while retaining
+independent judgement, priorities, values, and agency. Contradiction must meet
+the selected Impact's threshold; unsupported suspicion or plot inconvenience is
+insufficient. Declared Premise is runtime terminology only and no premise field,
+numeric cost, cooldown, privilege value, or restriction discount is locked.
 
 
 Roleplay Declaration And Narrative Resolution Status

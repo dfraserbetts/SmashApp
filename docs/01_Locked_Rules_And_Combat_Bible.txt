@@ -1429,6 +1429,47 @@ APPEAL
   high Impact; or guarantee that the requested task succeeds.
 - Current standard contract: SECURE_WILLING_COOPERATION.
 
+MISDIRECT
+
+- Intention: Deception
+- Definition: "Lead a target toward a false or materially misleading conclusion
+  through direct falsehood, omission, implication, distraction, selective
+  truth, staged cues, or deceptive framing."
+- Coverage: a misleading conclusion may be created through words, behaviour,
+  presentation, existing evidence, or omission. Classification follows the
+  conclusion intentionally created, not merely whether every literal sentence
+  spoken was false. A technically true statement uses Misdirect when it is
+  deliberately framed to cause a materially false conclusion.
+- Legal approaches: tell a plausible direct lie; omit a decisive fact to produce
+  a false conclusion; redirect attention toward a false explanation; frame true
+  evidence misleadingly; imply authority, innocence, danger, or normality that
+  does not exist; use an existing disguise, prop, document, reputation, or
+  environmental cue deceptively; present selective information to lead the
+  target toward the wrong conclusion; stage behaviour or circumstances to
+  support a false interpretation. These are illustrative, not exhaustive.
+- Distinctions: Appeal uses honest persuasion to gain willing cooperation;
+  Intimidation uses threat or fear as its primary lever; Misdirect deliberately
+  creates a false or materially misleading conclusion. A distraction uses
+  Misdirect only when it establishes a false interpretation rather than merely
+  dividing attention.
+- Exact exclusions:
+  - Does not use supernatural domination or control.
+  - Does not rewrite memories.
+  - Does not create comprehension, perception, agency, or capability where none
+    exists.
+  - Does not make an impossible or internally incoherent premise believable.
+  - Does not overcome conclusive knowledge already possessed by the target.
+  - Does not create physical evidence, documents, disguises, credentials, or
+    authority that do not exist.
+  - Does not compel a particular action or emotional response.
+  - Does not automatically deceive anyone other than the selected target.
+  - Does not establish an unlimited collection of separate false claims.
+  - Does not guarantee that every inference drawn from the premise benefits the
+    Ability user.
+  - Does not make high Difficulty or Legendary Impact legalise an ineligible
+    premise.
+- Current standard contract: ESTABLISH_FALSE_BELIEF.
+
 RESCUE
 
 - Intention: Intervention
@@ -1527,6 +1568,131 @@ automatic costing, and final Cooldown are unavailable or untrusted; saving does
 not approve the Ability. The GD or Architect must map it to an existing Method,
 approve a new standard Method, or manually approve a campaign-local Method and
 its contract compatibility.
+
+
+Establish False Belief Outcome Contract Family
+
+LOCKED FAMILY:
+
+- ID: ESTABLISH_FALSE_BELIEF
+- Working v0 name: Establish False Belief; eligible for the later naming pass.
+- Outcome Lane: Hinder
+- Intention / Method: Deception / Misdirect
+- Scope: One Target only
+- Counter eligible: No at every tier
+- Core privilege: the selected target genuinely accepts one bounded false or
+  materially misleading premise as true and treats it as true when making
+  decisions to which that premise is relevant. The target retains independent
+  judgement, values, priorities, and agency over how they respond.
+
+Exact Impact variants and privilege-cost keys:
+
+- MINOR / ESTABLISH_FALSE_BELIEF_MINOR: "the target accepts one small and
+  immediately plausible false premise as true for the current meaningful
+  exchange and treats it as true when making relevant decisions"
+- STANDARD / ESTABLISH_FALSE_BELIEF_STANDARD: "the target genuinely accepts one
+  plausible false premise relevant to the current situation as true for the
+  rest of the current scene and treats it as true when making relevant
+  decisions unless meaningful contradictory evidence resolves the belief"
+- MAJOR / ESTABLISH_FALSE_BELIEF_MAJOR: "the target genuinely accepts one
+  central false premise shaping the current situation as true for the rest of
+  the current scene and continues to treat it as true when making relevant
+  decisions unless decisive contradictory evidence, direct experience, or
+  narrative resolution ends the belief"
+- LEGENDARY / ESTABLISH_FALSE_BELIEF_LEGENDARY: "the target genuinely accepts
+  one defining false premise whose consequences extend beyond the current scene
+  as true and treats it as true when making relevant decisions until it is
+  decisively disproved or narratively resolved"
+
+Declared Premise:
+
+Before the GD selects Attribute or Difficulty, the player states the exact
+premise they want the target to accept and explains how Misdirect and Narrative
+Theme establish it. The GD judges clarity, boundedness, plausibility to this
+target, conclusive contrary knowledge, Method fit, Impact significance and
+persistence, target access, and Scope before selecting Attribute and Difficulty.
+The GD may reject or request revision before Difficulty. Once accepted and
+successful, the target genuinely accepts that premise; the GD cannot secretly
+withhold belief, substitute a weaker or unrelated belief, or cancel it because
+it obstructs the planned scene. Difficulty measures an eligible deception and
+never legalises an impossible or ineligible premise. "Declared Premise" is
+runtime terminology only: no declaredPremise, premise, falseBelief, beliefText,
+or equivalent field is saved on RoleplayAbility or added to the Builder.
+
+One bounded premise means one coherent conclusion, including only the minimum
+context needed to understand it. "The disturbance upstairs is routine
+maintenance already being handled" is bounded. "I am authorised, the captain
+ordered you to leave, the prisoner is innocent, and the disturbance is
+harmless" bundles independent beliefs and must be narrowed or resolved through
+separate effects.
+
+Belief and agency: "The target treats the accepted premise as true when making
+decisions to which it is relevant, but retains independent judgement,
+priorities, values, and agency." A guard who believes the character is
+authorised may still deny entry during emergency lockdown; a commander who
+believes an ally betrayed them may prioritise civilians; a ruler who accepts a
+rightful-heir premise may remain politically opposed; a target who believes a
+bridge unsafe may cross when staying is more dangerous. The GD cannot nullify
+success through secret disbelief, casual disregard where directly relevant,
+instant suspicion without an identifiable fictional reason, or behaviour that
+treats the premise as false while claiming belief. The contract controls belief,
+not every decision or reaction caused by it.
+
+Contradiction and resolution: suspicion, inconvenience, ordinary doubt, or plot
+pressure do not cancel the belief. Credible contradictory evidence appropriate
+to Impact, direct disproof through experience, credible confession, exposure,
+decisive inconsistency, the authored duration ending, or global Narrative
+Resolution may resolve it. Minor is fragile and limited to the current
+meaningful exchange. Standard persists for the scene unless meaningful
+contradictory evidence resolves it. Major persists for the scene and requires
+decisive contradictory evidence, direct experience, or narrative resolution.
+Legendary may extend beyond the scene and requires decisive disproof or
+narrative resolution. Meaningful evidence materially challenges the premise;
+decisive evidence makes it no longer coherently sustainable. Resolution must
+follow an identifiable meaningful fictional change explainable to the table.
+
+Illustrative examples by tier:
+
+- Minor: the noise came from outside; the package belongs to someone else; the
+  character may wait here briefly; a minor procedural mistake was corrected.
+- Standard: the character is an authorised visitor; the suspect used another
+  exit; the meeting moved; the current danger has a harmless explanation; an
+  ally is uninvolved in the immediate crime.
+- Major: a trusted lieutenant betrayed the target; another faction caused the
+  current crisis; the target's orders were superseded; a protected person caused
+  the current threat; the user has legitimate authority central to the conflict.
+- Legendary: the user is the rightful heir; a long-trusted ally belongs to the
+  enemy; a foundational historical event happened differently; the target's
+  oath rests on a false betrayal; a defining identity, allegiance, origin, or
+  relationship is not what the target believed.
+
+Examples remain subject to target knowledge, plausibility, Method, access,
+Impact, and current fiction. Intrinsic exclusions:
+
+- Does not compel a specific action.
+- Does not control how the target responds to the premise.
+- Does not remove the target's independent priorities, values, or judgement.
+- Does not rewrite memories.
+- Does not establish more than one bounded premise.
+- Does not establish unspecified future lies.
+- Does not make an impossible or internally incoherent premise believable.
+- Does not override conclusive knowledge already possessed by the target.
+- Does not automatically survive contradictory evidence sufficient for its
+  Impact.
+- Does not create supporting proof, evidence, credentials, disguises, authority,
+  or documents.
+- Does not force third parties to share the belief.
+- Does not automatically propagate through testimony, reputation, command, or
+  institutional authority.
+- Does not guarantee that the target's reaction benefits the Ability user.
+- Does not manufacture love, loyalty, devotion, consent, or obedience.
+- Does not permit arbitrary cancellation after a successful accepted
+  declaration.
+- Does not allow Difficulty or Legendary Impact to legalise an ineligible
+  premise.
+
+No numeric costs, cooldowns, privilege values, or restriction discounts are
+locked here.
 
 
 Secure Willing Cooperation Outcome Contract Family

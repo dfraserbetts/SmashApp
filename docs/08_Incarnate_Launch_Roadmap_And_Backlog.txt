@@ -320,6 +320,7 @@ Approved v0 top-level intentions:
 The standard Method registry initially contains exactly:
 
 - Appeal (APPEAL), owned by Persuasion
+- Misdirect (MISDIRECT), owned by Deception
 - Rescue (RESCUE), owned by Intervention
 - Interrupt (INTERRUPT), owned by Intervention
 - Challenge (CHALLENGE), owned by Intimidation
@@ -333,6 +334,11 @@ Method, and do not enlarge the selected Outcome Contract.
 
 Appeal connects one clear request to the target's values, interests, loyalties,
 emotions, relationships, duties, or understanding to seek willing agreement.
+Misdirect leads a target toward a false or materially misleading conclusion
+through direct falsehood, omission, implication, distraction, selective truth,
+staged cues, or deceptive framing. It may use words, behaviour, presentation,
+existing evidence, or omission; classification follows the conclusion
+deliberately created rather than whether every literal sentence is false.
 Rescue protects or secures a target from immediate danger through warning,
 guidance, shelter, distraction, interposition, or plausible routes to safety.
 Interrupt intervenes at the moment of a meaningful impending act to stop,
@@ -371,7 +377,9 @@ DENY_IMMINENT_HOSTILE_ACT; and Intimidation / Challenge / One Target across the
 approved DRAW_HOSTILE_ATTENTION Impact variants. Perception / Discern Truth /
 One Target uses UNCOVER_CONCEALED_TRUTH across all four approved Impact tiers.
 Persuasion / Appeal / One Target uses SECURE_WILLING_COOPERATION across all four
-approved Impact tiers.
+approved Impact tiers. Deception / Misdirect / One Target uses
+ESTABLISH_FALSE_BELIEF across all four approved Impact tiers. All five
+Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
 
 Global declaration doctrine: Incarnate retains bounded GD judgement but places
@@ -866,6 +874,92 @@ Game Director / Architect approval.
 
 No final thresholds, formulas, or implementation behaviour are locked by this
 roadmap note.
+
+
+Approved Roleplay Outcome Contract Family: Establish False Belief
+
+ESTABLISH_FALSE_BELIEF / Establish False Belief is the accepted working v0
+name, still eligible for the later naming pass. It is Hinder, Deception /
+Misdirect, One Target, and never Counter eligible. It guarantees that the target
+genuinely accepts one bounded false or materially misleading premise and treats
+it as true for relevant decisions while retaining independent judgement,
+priorities, values, and agency.
+
+- Minor / ESTABLISH_FALSE_BELIEF_MINOR: "the target accepts one small and
+  immediately plausible false premise as true for the current meaningful
+  exchange and treats it as true when making relevant decisions"
+- Standard / ESTABLISH_FALSE_BELIEF_STANDARD: "the target genuinely accepts one
+  plausible false premise relevant to the current situation as true for the
+  rest of the current scene and treats it as true when making relevant
+  decisions unless meaningful contradictory evidence resolves the belief"
+- Major / ESTABLISH_FALSE_BELIEF_MAJOR: "the target genuinely accepts one
+  central false premise shaping the current situation as true for the rest of
+  the current scene and continues to treat it as true when making relevant
+  decisions unless decisive contradictory evidence, direct experience, or
+  narrative resolution ends the belief"
+- Legendary / ESTABLISH_FALSE_BELIEF_LEGENDARY: "the target genuinely accepts
+  one defining false premise whose consequences extend beyond the current scene
+  as true and treats it as true when making relevant decisions until it is
+  decisively disproved or narratively resolved"
+
+Before Attribute or Difficulty, the player states the exact false or materially
+misleading premise and explains how Misdirect and Narrative Theme establish it.
+The GD judges whether it is clear, one bounded coherent conclusion, plausible to
+the target, not barred by conclusive knowledge, reachable through the Method,
+appropriate to Impact and persistence, and legal for access and Scope. The GD
+may reject or request revision before Difficulty. Once accepted and successful,
+the GD cannot secretly withhold belief, replace it with something weaker or
+unrelated, or cancel it because it obstructs the planned scene. Difficulty
+measures an eligible deception and cannot legalise an impossible premise.
+
+Misdirect may use a plausible lie, decisive omission, false explanation,
+misleading framing of true evidence, false implication of authority/innocence/
+danger/normality, an existing prop/disguise/document/reputation/cue, selective
+information, or staged behaviour. Appeal instead uses honest persuasion;
+Intimidation primarily uses threat or fear; a distraction is Misdirect only
+when it establishes a false interpretation rather than merely dividing
+attention. Misdirect cannot dominate, rewrite memory, invent perception,
+capability, evidence, documents, disguises, credentials, or authority, overcome
+conclusive knowledge, compel action/emotion, deceive unselected targets, bundle
+unlimited claims, guarantee beneficial inferences, or make an ineligible premise
+legal through Difficulty or Impact.
+
+One bounded premise may contain only the minimum context needed for one coherent
+conclusion, not multiple independently consequential beliefs. The target must
+treat the accepted premise as true where relevant, but the contract does not
+pre-author their decisions: competing duties, values, priorities, emergency
+conditions, and self-preservation remain real. Secret disbelief, casual
+relevant disregard, instant unsupported suspicion, or acting as if the premise
+were false cannot nullify success.
+
+Minor is fragile and ends with the meaningful exchange or an identifiable
+resolution. Standard lasts for the scene unless meaningful contradictory
+evidence materially challenges it. Major lasts for the scene and requires
+decisive contrary evidence, direct experience, or narrative resolution.
+Legendary may extend beyond the scene until decisive disproof or narrative
+resolution. Ordinary doubt, unsupported suspicion, inconvenience, and plot
+pressure are insufficient; global Narrative Resolution requires an identifiable
+meaningful fictional change explainable to the table.
+
+Illustrative premises include a harmless source for a noise or corrected minor
+procedure (Minor); authorised visitor, moved meeting, harmless current danger,
+or immediate innocence (Standard); superseded orders, a betraying lieutenant,
+another faction causing the crisis, or central legitimate authority (Major);
+and rightful heir, enemy allegiance, revised foundational history, false basis
+for an oath, or defining identity/origin/relationship (Legendary). Every example
+still needs target knowledge, plausibility, Method, access, Impact, and fiction.
+
+The contract does not compel an action or response; remove judgement, values,
+priorities, or agency; rewrite memories; establish multiple premises or future
+unspecified lies; make incoherent premises believable; override conclusive
+knowledge; survive sufficient contradictory evidence automatically; create
+proof/evidence/credentials/disguises/authority/documents; spread automatically
+to third parties or institutions; guarantee a beneficial reaction; manufacture
+love, loyalty, devotion, consent, or obedience; permit arbitrary cancellation;
+or let Difficulty/Legendary Impact legalise an ineligible premise. Declared
+Premise is runtime terminology only; no premise field is stored or exposed in
+the Builder. No numeric costs, cooldowns, privilege values, or restriction
+discounts are locked.
 
 
 Approved Roleplay Outcome Contract Family: Secure Willing Cooperation

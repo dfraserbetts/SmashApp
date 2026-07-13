@@ -274,12 +274,18 @@ must explain that an Additional Restriction narrows the Ability beyond the
 Outcome Contract's built-in limits and that repeating normal applicability earns
 no discount. Persisted restriction field names remain unchanged.
 
-The standard Method registry contains Appeal under Persuasion, Rescue and
-Interrupt under Intervention, Challenge under Intimidation, and Discern Truth
-under Perception. Deception currently has no approved standard Method. A standard
-Method details panel shows name, Intention, definition, legal approaches, and
-exclusions, with legal approaches explicitly presented as examples rather than
-an exhaustive phrase list.
+The standard Method registry contains Appeal under Persuasion, Misdirect under
+Deception, Rescue and Interrupt under Intervention, Challenge under
+Intimidation, and Discern Truth under Perception. All five Intentions now have
+an approved standard Method. Misdirect covers direct falsehood, omission,
+implication, distraction that establishes a false interpretation, selective
+truth, staged cues, and deceptive framing. Its classification follows the
+materially false conclusion deliberately created, not whether every literal
+sentence is false; it remains distinct from honest Appeal, threat/fear-led
+Intimidation, and attention-only distraction. A standard Method details panel
+shows name, Intention, definition, legal approaches, and exclusions, with legal
+approaches explicitly presented as examples rather than an exhaustive phrase
+list.
 
 Custom Method - GD Review Required remains Pending GD Approval and exposes
 Proposed Method Name plus a Custom Method Request for reusable approach,
@@ -296,6 +302,40 @@ four Impacts. The family is Help and Counter-ineligible. Its working v0 name
 remains eligible for the naming pass. The Builder derives all Method details,
 variant outcomes, and eligibility from registries; no page-specific fork is
 required.
+
+Misdirect filters to ESTABLISH_FALSE_BELIEF for Deception / One Target at all
+four Impacts. Establish False Belief is the accepted working v0 name, remains
+eligible for the naming pass, is Hinder, and is Counter-ineligible. Exact
+variants and reserved keys are:
+
+- Minor / ESTABLISH_FALSE_BELIEF_MINOR: "the target accepts one small and
+  immediately plausible false premise as true for the current meaningful
+  exchange and treats it as true when making relevant decisions"
+- Standard / ESTABLISH_FALSE_BELIEF_STANDARD: "the target genuinely accepts one
+  plausible false premise relevant to the current situation as true for the
+  rest of the current scene and treats it as true when making relevant
+  decisions unless meaningful contradictory evidence resolves the belief"
+- Major / ESTABLISH_FALSE_BELIEF_MAJOR: "the target genuinely accepts one
+  central false premise shaping the current situation as true for the rest of
+  the current scene and continues to treat it as true when making relevant
+  decisions unless decisive contradictory evidence, direct experience, or
+  narrative resolution ends the belief"
+- Legendary / ESTABLISH_FALSE_BELIEF_LEGENDARY: "the target genuinely accepts
+  one defining false premise whose consequences extend beyond the current scene
+  as true and treats it as true when making relevant decisions until it is
+  decisively disproved or narratively resolved"
+
+The exact one-bounded-premise Declared Aim is runtime scene context, judged for
+clarity, plausibility, target knowledge, Method, Impact, access, Scope, and
+fiction before Difficulty. It is not stored. The accepted belief binds on
+success while the target retains independent judgement and agency. Evidence
+must meet the variant's meaningful/decisive threshold; unsupported suspicion or
+plot inconvenience cannot cancel it. Builder reconciliation retains the family
+across all four supported Impact variants and non-authoring edits, updates the
+exact outcome/descriptor, and keeps Counter false. Incompatible Intention,
+Method, or Scope clears the family and Counter. Existing explicit Custom Outcome
+records remain Custom. No numeric costs, cooldowns, privilege values, or
+restriction discounts are introduced.
 
 Declared Aim/request is runtime scene context and must not be added to
 RoleplayAbility storage or the Builder form. At use time, Ability, target, Aim,
