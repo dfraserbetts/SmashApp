@@ -1093,7 +1093,7 @@ Free-text Success Outcome is not part of ordinary standard-contract authoring.
 
 Method Registry
 
-The initial standard Method registry contains exactly RESCUE and INTERRUPT
+The standard Method registry contains APPEAL (Persuasion), RESCUE and INTERRUPT
 (Intervention), CHALLENGE (Intimidation), and DISCERN_TRUTH (Perception). Each
 definition owns a concise definition, illustrative legal approaches, and
 exclusions. Legal approaches are examples rather than a phrase whitelist. A
@@ -1107,9 +1107,20 @@ trustworthy automatic costing/final Cooldown and remains unapproved until the
 GD or Architect maps or approves it. Custom Method text describes the approach,
 not the successful result.
 
+Declared Aim is runtime scene context, never stored or costed Builder
+authoring. The player states Ability, target, specific Aim, current Method
+expression, and Narrative Theme application before the GD judges eligibility,
+selects Attribute, or sets Difficulty. Difficulty measures challenge only after
+eligibility and cannot legalise an invalid request. Once accepted and
+successful, the purchased Outcome Contract is binding. Ongoing narrative
+outcomes resolve through fulfilment, genuine impossibility, or an identifiable
+meaningful change that makes continuation incoherent—not mere inconvenience to
+plot or encounter. This adds no numeric duration or cost field.
+
 Current standard compatibility is Rescue with HIDE_FROM_IMMEDIATE_DANGER,
 Interrupt with DENY_IMMINENT_HOSTILE_ACT, and Challenge with
-DRAW_HOSTILE_ATTENTION. Discern Truth uses UNCOVER_CONCEALED_TRUTH for One
+DRAW_HOSTILE_ATTENTION. Appeal uses SECURE_WILLING_COOPERATION and Discern Truth
+uses UNCOVER_CONCEALED_TRUTH for One
 Target at all four approved Impact tiers. Custom Outcome review remains
 available for results outside the registry and existing Custom Outcome records
 are not automatically converted to a newly available standard contract.
@@ -1138,6 +1149,36 @@ substitute vague, speculative, false, useless, or misleading information. The
 contract does not compel revelation, read thoughts, create proof, expose truth
 publicly, or bypass Method, Theme, access, or plausibility. The four keys reserve
 variant-aware privilege adjustment without locking any numeric value.
+When the GD accepts a specific investigative subject before Difficulty, the
+successful truth/no-truth answer must address that subject directly; an
+unrelated secret cannot satisfy the purchased outcome.
+
+SECURE_WILLING_COOPERATION is the Help / Persuasion / Appeal / One Target family
+and is Counter-ineligible at every tier. Its working v0 name remains eligible
+for the later naming pass. Exact outcomes and reserved privilege-cost keys:
+
+- Minor / SECURE_WILLING_COOPERATION_MINOR: "the target willingly complies with
+  one small immediate request requiring negligible sacrifice, risk, or
+  commitment"
+- Standard / SECURE_WILLING_COOPERATION_STANDARD: "the target willingly agrees
+  to and sincerely carries out one meaningful request involving inconvenience,
+  social cost, or modest personal risk"
+- Major / SECURE_WILLING_COOPERATION_MAJOR: "the target willingly commits to
+  and sincerely pursues one difficult request involving substantial effort,
+  personal cost, reputational danger, or physical risk"
+- Legendary / SECURE_WILLING_COOPERATION_LEGENDARY: "the target willingly makes
+  one defining commitment, alliance, or promise whose consequences extend
+  beyond the current scene and sincerely upholds it until it is fulfilled or
+  narratively resolved"
+
+The exact request is accepted before Difficulty. It must be bounded, possible,
+within actual agency, authority, and capability, appropriate to Impact, and
+reachable through Appeal and Theme. Impact caps burden but never grants
+universal permission. Willing cooperation is an accepted fictional choice;
+sincere cooperation prevents sabotage, pretence, and technical evasion without
+adding competence or guaranteeing success. Third parties remain independent.
+Ongoing commitments use global Narrative Resolution. No numeric cost, cooldown,
+privilege value, or restriction discount is locked.
 
 Outcome Contract Registry
 

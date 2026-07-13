@@ -214,6 +214,39 @@ flair, and eloquence never alter cost, Dice Count, Outcome Contract strength,
 success thresholds, or mechanical entitlement. This is not a creative-writing
 quality test.
 
+Global Roleplay Declaration Rule
+
+"Incarnate does not eliminate Game Director judgement. It defines where
+judgement belongs and protects the mechanical outcomes players have purchased."
+
+The system deliberately leaves bounded fictional judgement to players and the
+GD rather than encoding every scene ruling, Method expression, request,
+investigative subject, or narrative development. Before the GD chooses
+Attribute or Difficulty:
+
+1. The player identifies the Ability.
+2. The player identifies the target.
+3. The player states the specific Declared Aim: the request they want accepted,
+   subject they want investigated, danger they want prevented, or other
+   contract-relevant result pursued.
+4. The player explains how the selected Method and Narrative Theme operate in
+   the current fiction.
+5. The GD decides whether the Method fits, the target is accessible, the Aim is
+   legal, the Outcome Contract applies, the request/subject fits Impact and
+   Scope, and every Additional Restriction is satisfied.
+6. Only after hearing the complete declaration does the GD select Attribute and
+   set Difficulty.
+7. The player confirms the use and rolls under the existing timing and resource
+   rules.
+8. On success, the accepted Outcome Contract is binding.
+
+The GD may reject or request revision before Difficulty is set. The GD may not
+accept a declaration, set Difficulty, allow success, and then weaken, replace,
+evade, or withhold the accepted contract. Difficulty measures the challenge of
+an eligible declaration; high Difficulty never makes an ineligible declaration
+legal. "Declared Aim" is runtime terminology only and is not saved on a
+Roleplay Ability or added to the Character Builder.
+
 Roleplay Abilities cannot be used as normal Assists and cannot enter the normal
 Assist declaration stack. Their timing lanes are:
 
@@ -283,6 +316,25 @@ establishes that outcome, no distance measurement is required, and the outcome
 is not converted into wounds, Block, Dodge, Resist, stacks, units, movement
 points, or other quantified Power mechanics. The Ability may materially affect
 combat by changing the scene truth from which play continues.
+
+Global Narrative Resolution Rule
+
+"An ongoing narrative outcome is resolved when it is fulfilled, becomes
+genuinely impossible, or an identifiable and meaningful change in
+circumstances, knowledge, relationships, loyalties, or the target's situation
+makes its continuation no longer coherent."
+
+Resolution follows an identifiable fictional change and must be explainable to
+the table. Narrative states need not last forever and never permit permanent
+puppetry or unconditional control, but they cannot be cancelled merely because
+they inconvenience the GD, planned plot, or encounter. Examples include an
+agreed task being completed; an alliance losing its purpose; a protected person
+fundamentally betraying an oath-holder; new information changing the basis of a
+commitment; the target genuinely losing capability or authority; mutual
+release; or continuation becoming impossible. A target cannot simply abandon a
+successful ongoing contract to restore the original plot direction. This rule
+governs every ongoing Outcome Contract, including Legendary Draw Hostile
+Attention rivalry.
 
 
 Full Damage-Prevention Order
@@ -1354,6 +1406,29 @@ enlarge or rewrite the Outcome Contract. Builders filter Methods by Intention
 and contracts by the complete Intention / Method / Scene Impact / Scope
 combination.
 
+APPEAL
+
+- Intention: Persuasion
+- Definition: "Persuade a target by connecting a clear request to their values,
+  interests, loyalties, emotions, relationships, duties, or understanding of
+  the situation."
+- Legal approaches: present a reasoned argument; make an emotional appeal;
+  establish shared interest or mutual benefit; appeal to compassion or mercy;
+  invoke duty or responsibility; offer an honest compromise or negotiated
+  concession; invoke a relationship, promise, value, or common cause; honestly
+  explain the likely consequences of a choice.
+- Boundaries: honestly described consequences do not automatically make the
+  Method Intimidation. Intimidation applies when threat or fear is the primary
+  lever; Deception when deliberate falsehood or concealed misinformation is
+  primary. Appeal seeks willing agreement to a clear request.
+- Exclusions: does not rely primarily on threats or fear; deliberate lies or
+  concealed falsehoods; supernatural control or domination. Does not create
+  comprehension, agency, or capability; manufacture love, devotion, intimacy,
+  or consent; grant open-ended authority; create permanent general obedience;
+  bind anyone other than the selected target; make every request eligible at
+  high Impact; or guarantee that the requested task succeeds.
+- Current standard contract: SECURE_WILLING_COOPERATION.
+
 RESCUE
 
 - Intention: Intervention
@@ -1454,6 +1529,105 @@ approve a new standard Method, or manually approve a campaign-local Method and
 its contract compatibility.
 
 
+Secure Willing Cooperation Outcome Contract Family
+
+LOCKED FAMILY:
+
+- ID: SECURE_WILLING_COOPERATION
+- Working v0 name: Secure Willing Cooperation; eligible for the later naming
+  pass.
+- Outcome Lane: Help
+- Intention / Method: Persuasion / Appeal
+- Scope: One Target only
+- Counter eligible: No at every tier
+- Core privilege: the target makes a willing choice to cooperate with one clear
+  request accepted by the GD before Difficulty is set.
+
+Exact Impact variants and privilege-cost keys:
+
+- MINOR / SECURE_WILLING_COOPERATION_MINOR: "the target willingly complies with
+  one small immediate request requiring negligible sacrifice, risk, or
+  commitment"
+- STANDARD / SECURE_WILLING_COOPERATION_STANDARD: "the target willingly agrees
+  to and sincerely carries out one meaningful request involving inconvenience,
+  social cost, or modest personal risk"
+- MAJOR / SECURE_WILLING_COOPERATION_MAJOR: "the target willingly commits to
+  and sincerely pursues one difficult request involving substantial effort,
+  personal cost, reputational danger, or physical risk"
+- LEGENDARY / SECURE_WILLING_COOPERATION_LEGENDARY: "the target willingly makes
+  one defining commitment, alliance, or promise whose consequences extend
+  beyond the current scene and sincerely upholds it until it is fulfilled or
+  narratively resolved"
+
+Request eligibility:
+
+- The exact request is stated before Attribute or Difficulty.
+- It is clear to target and table, one bounded request/commitment, within the
+  target's agency, actual authority, and capability, possible in current
+  fiction, appropriate to Impact, and plausibly reachable through Appeal and
+  Narrative Theme.
+- Impact defines maximum burden, not universal permission. The GD may reject
+  even a Legendary request when no coherent willing choice could arise from the
+  target's values, interests, relationships, loyalties, duties, emotions, or
+  understanding.
+- Certain or near-certain death, extreme self-sacrifice, betrayal of a defining
+  bond, irreversible abandonment of identity, or destruction of everything the
+  target values needs an independently coherent basis in existing values and
+  circumstances.
+- Authority secures the target's sincere use of existing authority; it does not
+  compel independently acting subordinates, citizens, soldiers, allies, or
+  institution members.
+
+Invalid requests include obeying every command forever, becoming a puppet,
+agreeing to all future requests, surrendering independent judgement,
+unconditional love, unlimited consent, or becoming capable of the impossible.
+Potentially valid Legendary requests include a defined wartime alliance,
+protecting a named community, opposing a corrupt institution, committing
+existing political/military authority, or a defined peace with an enemy.
+
+"Willingly" makes cooperation the target's accepted fictional choice, not
+supernatural domination. "Sincerely" requires good-faith effort without
+deliberate sabotage, technical loopholes against the accepted intent, or
+pretence. It does not add competence, guarantee task success, prevent setbacks,
+remove reasonable judgement about execution, extend beyond the accepted
+request, or bind third parties. Ongoing commitments use the global Narrative
+Resolution rule.
+
+Illustrative examples by tier:
+
+- Minor: wait briefly, pass a harmless message, allow a quick low-risk
+  inspection, or hand over a negligible item.
+- Standard: grant a meeting/temporary access, accept meaningful inconvenience,
+  support a modest proposal publicly, or assist with limited risk.
+- Major: shelter someone at substantial risk, testify against a dangerous
+  patron, commit significant time/resources, or accept serious danger.
+- Legendary: join an alliance for war, protect a community, commit a ruler's
+  available support, or reconcile and uphold a defined peace.
+
+Intrinsic exclusions:
+
+- Does not grant open-ended authority over the target.
+- Does not create permanent general obedience.
+- Does not apply to unspecified future requests.
+- Does not manufacture love, devotion, intimacy, or consent.
+- Does not remove the target's identity or independent judgement.
+- Does not make an impossible request possible.
+- Does not create comprehension, agency, authority, or capability.
+- Does not automatically compel anyone other than the selected target.
+- Does not guarantee successful completion of the requested task.
+- Does not permit deliberate sabotage, false cooperation, or technical evasion
+  of the accepted request.
+- Does not extend beyond the one request accepted before Difficulty was set.
+- Does not make an ineligible request legal through high Difficulty or
+  Legendary Impact.
+- Does not prevent legitimate narrative resolution.
+- Does not permit arbitrary cancellation merely because cooperation becomes
+  inconvenient for the Game Director or planned plot.
+
+No numeric costs, cooldowns, privilege values, or restriction discounts are
+locked here.
+
+
 Uncover Concealed Truth Outcome Contract Family
 
 LOCKED FAMILY:
@@ -1502,6 +1676,15 @@ declaration before the roll when Method or Narrative Theme cannot plausibly
 reach the target or subject. Once accepted and successful, the contract must be
 honoured.
 
+When the player declares a specific subject of investigation and the GD accepts
+it before setting Difficulty, the successful truth or no-truth result must
+directly address that subject. For example, after accepting "Is the Mayor
+helping the criminal syndicate with the kidnappings?", success reveals one
+qualifying concealed truth concerning that subject or reliably states that
+nothing relevant to that subject is being concealed. An unrelated qualifying
+secret is not an answer. With an accepted broad subject, the GD retains the
+existing authority to select one qualifying truth within that breadth.
+
 Illustrative examples include noticing that a witness hides fear of a
 particular person; realising a negotiator is deliberately stalling; discovering
 an official secretly protects someone; uncovering the concealed allegiance
@@ -1530,6 +1713,8 @@ Intrinsic exclusions:
   selects one that satisfies the chosen variant.
 - Does not permit the GD to return the no-truth result when a qualifying
   concealed truth exists.
+- Does not permit the Game Director to answer an accepted specific subject of
+  investigation with an unrelated truth.
 
 No numeric costs, cooldowns, or final privilege values are locked here.
 

@@ -274,9 +274,9 @@ must explain that an Additional Restriction narrows the Ability beyond the
 Outcome Contract's built-in limits and that repeating normal applicability earns
 no discount. Persisted restriction field names remain unchanged.
 
-The standard Method registry contains only Rescue and Interrupt under
-Intervention, Challenge under Intimidation, and Discern Truth under Perception.
-Persuasion and Deception currently have no approved standard Methods. A standard
+The standard Method registry contains Appeal under Persuasion, Rescue and
+Interrupt under Intervention, Challenge under Intimidation, and Discern Truth
+under Perception. Deception currently has no approved standard Method. A standard
 Method details panel shows name, Intention, definition, legal approaches, and
 exclusions, with legal approaches explicitly presented as examples rather than
 an exhaustive phrase list.
@@ -290,6 +290,19 @@ Standard, Major, and Legendary Impact. All variants are Counter-ineligible and
 derive exact registry-authored outcomes. Custom Outcome review remains available
 for non-standard requests and an explicitly stored Custom Outcome is never
 silently converted to the new standard family.
+
+Appeal filters to SECURE_WILLING_COOPERATION for Persuasion / One Target at all
+four Impacts. The family is Help and Counter-ineligible. Its working v0 name
+remains eligible for the naming pass. The Builder derives all Method details,
+variant outcomes, and eligibility from registries; no page-specific fork is
+required.
+
+Declared Aim/request is runtime scene context and must not be added to
+RoleplayAbility storage or the Builder form. At use time, Ability, target, Aim,
+current Method expression, and Narrative Theme application are heard before
+Attribute/Difficulty. The GD rejects or revises ineligible uses before the roll;
+accepted successful contracts are binding. Narrative Resolution is adjudicated
+from identifiable fictional change, not stored duration or cancellation fields.
 
 Use one pure top-level authoring reconciliation helper for Intention, Method,
 Impact, Scope, contract, and Counter. Changing Intention clears a standard

@@ -319,6 +319,7 @@ Approved v0 top-level intentions:
 
 The standard Method registry initially contains exactly:
 
+- Appeal (APPEAL), owned by Persuasion
 - Rescue (RESCUE), owned by Intervention
 - Interrupt (INTERRUPT), owned by Intervention
 - Challenge (CHALLENGE), owned by Intimidation
@@ -330,6 +331,8 @@ are examples, not an exhaustive phrase whitelist. New expressions are legal
 when they use the same approach, respect exclusions, do not claim another
 Method, and do not enlarge the selected Outcome Contract.
 
+Appeal connects one clear request to the target's values, interests, loyalties,
+emotions, relationships, duties, or understanding to seek willing agreement.
 Rescue protects or secures a target from immediate danger through warning,
 guidance, shelter, distraction, interposition, or plausible routes to safety.
 Interrupt intervenes at the moment of a meaningful impending act to stop,
@@ -367,7 +370,21 @@ HIDE_FROM_IMMEDIATE_DANGER; Intervention / Interrupt / Major / One Target for
 DENY_IMMINENT_HOSTILE_ACT; and Intimidation / Challenge / One Target across the
 approved DRAW_HOSTILE_ATTENTION Impact variants. Perception / Discern Truth /
 One Target uses UNCOVER_CONCEALED_TRUTH across all four approved Impact tiers.
+Persuasion / Appeal / One Target uses SECURE_WILLING_COOPERATION across all four
+approved Impact tiers.
 Custom Outcome review remains available for other requested results.
+
+Global declaration doctrine: Incarnate retains bounded GD judgement but places
+it before the roll and protects purchased outcomes after success. The player
+states Ability, target, runtime Declared Aim, Method expression, and Narrative
+Theme application before the GD judges eligibility, selects Attribute, or sets
+Difficulty. Difficulty cannot legalise an invalid Aim. An accepted successful
+Outcome Contract is binding. Declared Aim is not saved Builder state.
+
+Ongoing narrative states resolve when fulfilled, genuinely impossible, or made
+incoherent by an identifiable meaningful change in circumstances, knowledge,
+relationships, loyalties, or target situation. They do not end merely because
+they inconvenience the GD, planned plot, or encounter.
 
 H. Scope
 
@@ -851,6 +868,44 @@ No final thresholds, formulas, or implementation behaviour are locked by this
 roadmap note.
 
 
+Approved Roleplay Outcome Contract Family: Secure Willing Cooperation
+
+SECURE_WILLING_COOPERATION / Secure Willing Cooperation is the accepted working
+v0 name, still eligible for the later naming pass. It is Help, Persuasion /
+Appeal, One Target, and never Counter eligible. It guarantees the target's
+willing choice to cooperate with one clear request accepted before Difficulty.
+
+- Minor / SECURE_WILLING_COOPERATION_MINOR: "the target willingly complies with
+  one small immediate request requiring negligible sacrifice, risk, or
+  commitment"
+- Standard / SECURE_WILLING_COOPERATION_STANDARD: "the target willingly agrees
+  to and sincerely carries out one meaningful request involving inconvenience,
+  social cost, or modest personal risk"
+- Major / SECURE_WILLING_COOPERATION_MAJOR: "the target willingly commits to
+  and sincerely pursues one difficult request involving substantial effort,
+  personal cost, reputational danger, or physical risk"
+- Legendary / SECURE_WILLING_COOPERATION_LEGENDARY: "the target willingly makes
+  one defining commitment, alliance, or promise whose consequences extend
+  beyond the current scene and sincerely upholds it until it is fulfilled or
+  narratively resolved"
+
+The request must be clear, singular, bounded, possible, inside actual agency,
+authority, and capability, appropriate to Impact, and reachable through Appeal
+and Narrative Theme. High Difficulty or Legendary Impact cannot legalise an
+ineligible request. Extreme sacrifice, defining betrayal, identity abandonment,
+or near-certain death needs a coherent basis in existing values/circumstances.
+Authority secures sincere use of existing authority, not automatic control of
+independent third parties.
+
+Willingly means accepted fictional choice, not domination. Sincerely means
+good-faith effort without sabotage, pretence, or technical evasion. It neither
+adds competence nor guarantees success. The family grants no open-ended
+authority, permanent obedience, future unspecified requests, manufactured
+love/intimacy/consent, impossible capabilities, or arbitrary plot-driven
+cancellation. Ongoing commitments follow global Narrative Resolution. No
+numeric values are locked.
+
+
 Approved Roleplay Outcome Contract Family: Uncover Concealed Truth
 
 UNCOVER_CONCEALED_TRUTH / Uncover Concealed Truth is locked as Help,
@@ -883,6 +938,10 @@ satisfies the tier rather than vague, useless, speculative, false, or misleading
 substitution. A successful accepted declaration cannot receive the no-truth
 result when a qualifying truth exists. When none exists, learning that nothing
 relevant is concealed is reliable information and not a wasted success.
+When the GD accepts a specific investigative subject before Difficulty, the
+successful truth or no-truth answer must directly address it; an unrelated
+qualifying secret cannot be substituted. Broad accepted subjects retain the GD's
+choice within their accepted breadth.
 
 The family does not read thoughts or memories, create proof, publicly expose
 truth, force belief, reveal every secret or implication, grant quantified

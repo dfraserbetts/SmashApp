@@ -536,8 +536,10 @@ Scope define approved magnitude/persistence and breadth.
 "Method defines the approach. Theme personalises the approach. The Outcome
 Contract defines the result."
 
-The initial standard Method registry contains only RESCUE, INTERRUPT,
-CHALLENGE, and DISCERN_TRUTH. Discern Truth now has the locked standard Help
+The standard Method registry contains APPEAL, RESCUE, INTERRUPT, CHALLENGE, and
+DISCERN_TRUTH. Appeal is the approved Persuasion Method and maps to the locked
+Help / One Target family SECURE_WILLING_COOPERATION at all four Impact tiers.
+Discern Truth has the locked standard Help
 contract family UNCOVER_CONCEALED_TRUTH for One Target at Minor, Standard,
 Major, and Legendary Impact. Counter is unavailable at every tier. The family
 guarantees reliable concealed information, including a reliable no-qualifying-
@@ -546,3 +548,19 @@ values may migrate into Methods, but Specific is no longer player-facing or
 normalized runtime state. General Custom Outcome review remains available for
 requests outside the standard registry and is never silently migrated merely
 because a later standard contract exists.
+
+
+Roleplay Declaration And Narrative Resolution Status
+
+LOCKED: "Incarnate does not eliminate Game Director judgement. It defines where
+judgement belongs and protects the mechanical outcomes players have purchased."
+Before Attribute or Difficulty is chosen, the player identifies the Ability and
+target, states the runtime Declared Aim, and explains the current Method and
+Narrative Theme expression. The GD judges eligibility before the roll; an
+accepted successful Outcome Contract is binding and cannot later be weakened,
+replaced, evaded, or withheld.
+
+Declared Aim is scene context, not saved Character Builder state. Ongoing
+narrative outcomes end only through fulfilment, genuine impossibility, or an
+identifiable meaningful fictional change that makes continuation incoherent;
+mere inconvenience to the GD, plot, or encounter is insufficient.
