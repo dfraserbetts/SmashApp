@@ -537,7 +537,12 @@ Scope define approved magnitude/persistence and breadth.
 Contract defines the result."
 
 The initial standard Method registry contains only RESCUE, INTERRUPT,
-CHALLENGE, and DISCERN_TRUTH. Discern Truth has no standard Outcome Contract in
-this pass and therefore uses Custom Outcome review. Legacy Specific values may
-migrate into Methods, but Specific is no longer player-facing or normalized
-runtime state.
+CHALLENGE, and DISCERN_TRUTH. Discern Truth now has the locked standard Help
+contract family UNCOVER_CONCEALED_TRUTH for One Target at Minor, Standard,
+Major, and Legendary Impact. Counter is unavailable at every tier. The family
+guarantees reliable concealed information, including a reliable no-qualifying-
+truth result; it never compels speech or deliberate revelation. Legacy Specific
+values may migrate into Methods, but Specific is no longer player-facing or
+normalized runtime state. General Custom Outcome review remains available for
+requests outside the standard registry and is never silently migrated merely
+because a later standard contract exists.

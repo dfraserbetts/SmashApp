@@ -1109,9 +1109,35 @@ not the successful result.
 
 Current standard compatibility is Rescue with HIDE_FROM_IMMEDIATE_DANGER,
 Interrupt with DENY_IMMINENT_HOSTILE_ACT, and Challenge with
-DRAW_HOSTILE_ATTENTION. Discern Truth has no standard Outcome Contract in this
-pass and therefore uses Custom Outcome review. No Reveal Concealed Truth
-contract is added here.
+DRAW_HOSTILE_ATTENTION. Discern Truth uses UNCOVER_CONCEALED_TRUTH for One
+Target at all four approved Impact tiers. Custom Outcome review remains
+available for results outside the registry and existing Custom Outcome records
+are not automatically converted to a newly available standard contract.
+
+UNCOVER_CONCEALED_TRUTH is Help and Counter-ineligible at every tier. Its exact
+variant outcomes and future privilege-cost keys are:
+
+- Minor / UNCOVER_CONCEALED_TRUTH_MINOR: "you learn whether the target is
+  concealing something relevant to the immediate situation and, if so, its
+  general nature; if no qualifying concealed truth exists, you learn that
+  nothing relevant is being concealed"
+- Standard / UNCOVER_CONCEALED_TRUTH_STANDARD: "you learn one useful concealed
+  truth about the target relevant to the immediate situation; if no qualifying
+  concealed truth exists, you learn that nothing relevant is being concealed"
+- Major / UNCOVER_CONCEALED_TRUTH_MAJOR: "you learn a central concealed truth
+  about the target that is shaping the current situation; if no qualifying
+  concealed truth exists, you learn that nothing relevant is being concealed"
+- Legendary / UNCOVER_CONCEALED_TRUTH_LEGENDARY: "you learn a defining
+  concealed truth about the target whose significance extends beyond the
+  current scene; if no qualifying concealed truth exists, you learn that
+  nothing relevant is being concealed"
+
+The selected variant must return a genuinely qualifying truth or the reliable
+no-qualifying-truth result. The GD selects among qualifying truths but cannot
+substitute vague, speculative, false, useless, or misleading information. The
+contract does not compel revelation, read thoughts, create proof, expose truth
+publicly, or bypass Method, Theme, access, or plausibility. The four keys reserve
+variant-aware privilege adjustment without locking any numeric value.
 
 Outcome Contract Registry
 

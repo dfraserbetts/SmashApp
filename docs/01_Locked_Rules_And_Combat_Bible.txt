@@ -1418,9 +1418,8 @@ DISCERN_TRUTH
   a separate contract or Power; publicly expose truth; create evidence; force
   belief; reveal unrelated facts merely because they are secret; or
   mechanically alter the target.
-- No standard Outcome Contract is added in this pass. Discern Truth remains
-  available through Custom Outcome review until Reveal Concealed Truth is
-  deliberately designed.
+- Current standard contract: UNCOVER_CONCEALED_TRUTH. Custom Outcome review
+  remains available for other requested results.
 
 Narrative Theme Coaching And GD Adjudication
 
@@ -1453,6 +1452,86 @@ automatic costing, and final Cooldown are unavailable or untrusted; saving does
 not approve the Ability. The GD or Architect must map it to an existing Method,
 approve a new standard Method, or manually approve a campaign-local Method and
 its contract compatibility.
+
+
+Uncover Concealed Truth Outcome Contract Family
+
+LOCKED FAMILY:
+
+- ID: UNCOVER_CONCEALED_TRUTH
+- Name: Uncover Concealed Truth
+- Outcome Lane: Help
+- Intention / Method: Perception / Discern Truth
+- Scope: One Target only
+- Counter eligible: No at every tier
+- Core privilege: the Ability user gains reliable concealed information about
+  the selected target. The target is not compelled to speak, confess,
+  cooperate, or reveal anything deliberately.
+
+Explicit Impact variants, exact Success Outcomes, and privilege-cost keys:
+
+- MINOR / UNCOVER_CONCEALED_TRUTH_MINOR: "you learn whether the target is
+  concealing something relevant to the immediate situation and, if so, its
+  general nature; if no qualifying concealed truth exists, you learn that
+  nothing relevant is being concealed"
+- STANDARD / UNCOVER_CONCEALED_TRUTH_STANDARD: "you learn one useful concealed
+  truth about the target relevant to the immediate situation; if no qualifying
+  concealed truth exists, you learn that nothing relevant is being concealed"
+- MAJOR / UNCOVER_CONCEALED_TRUTH_MAJOR: "you learn a central concealed truth
+  about the target that is shaping the current situation; if no qualifying
+  concealed truth exists, you learn that nothing relevant is being concealed"
+- LEGENDARY / UNCOVER_CONCEALED_TRUTH_LEGENDARY: "you learn a defining concealed
+  truth about the target whose significance extends beyond the current scene;
+  if no qualifying concealed truth exists, you learn that nothing relevant is
+  being concealed"
+
+A concealed truth qualifies only when it is true in the current fiction;
+concerns the selected target; is not already known or plainly apparent to the
+Ability user; meets the relevance and significance of the chosen Impact; and
+can plausibly be reached through the selected Method, Narrative Theme, target
+access, and current fiction.
+
+On success, if one or more qualifying truths exist, the GD reveals one. When
+several qualify, the GD chooses, but the chosen truth must genuinely satisfy
+the variant. It may not be vague, useless, speculative, false, or deliberately
+misleading. After accepting the declaration and resolving success, the GD may
+not use the no-truth result to conceal a qualifying truth. If none qualifies,
+the character reliably learns that nothing relevant is being concealed; this
+is useful information, not a failed or wasted success. The GD may reject a
+declaration before the roll when Method or Narrative Theme cannot plausibly
+reach the target or subject. Once accepted and successful, the contract must be
+honoured.
+
+Illustrative examples include noticing that a witness hides fear of a
+particular person; realising a negotiator is deliberately stalling; discovering
+an official secretly protects someone; uncovering the concealed allegiance
+shaping current actions; or learning a defining identity, origin, oath, or
+loyalty whose significance extends beyond the scene. Examples are illustrative,
+not exhaustive.
+
+Intrinsic exclusions:
+
+- Does not compel speech, confession, cooperation, or testimony.
+- Does not force the target deliberately to reveal information.
+- Does not read thoughts or memories.
+- Does not publicly expose the truth.
+- Does not create physical evidence or proof.
+- Does not force anyone else to believe the information.
+- Does not reveal every secret held by or connected to the target.
+- Does not reveal every implication or surrounding detail of the learned truth.
+- Does not reveal unrelated facts merely because they are secret.
+- Does not mechanically alter the target.
+- Does not grant quantified bonuses or penalties.
+- Does not bypass normal target access, the Discern Truth Method, Narrative
+  Theme, or fictional plausibility.
+- Does not permit a false, speculative, vague, or deliberately misleading
+  answer.
+- Does not allow the player to choose among several qualifying truths; the GD
+  selects one that satisfies the chosen variant.
+- Does not permit the GD to return the no-truth result when a qualifying
+  concealed truth exists.
+
+No numeric costs, cooldowns, or final privilege values are locked here.
 
 
 Draw Hostile Attention Outcome Contract Family

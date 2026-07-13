@@ -365,8 +365,9 @@ Outcome Contract compatibility uses Method IDs.
 Current mappings are Intervention / Rescue / Minor / One Target for
 HIDE_FROM_IMMEDIATE_DANGER; Intervention / Interrupt / Major / One Target for
 DENY_IMMINENT_HOSTILE_ACT; and Intimidation / Challenge / One Target across the
-approved DRAW_HOSTILE_ATTENTION Impact variants. Discern Truth has no standard
-contract in this pass and remains available for Custom Outcome review.
+approved DRAW_HOSTILE_ATTENTION Impact variants. Perception / Discern Truth /
+One Target uses UNCOVER_CONCEALED_TRUTH across all four approved Impact tiers.
+Custom Outcome review remains available for other requested results.
 
 H. Scope
 
@@ -848,6 +849,48 @@ Game Director / Architect approval.
 
 No final thresholds, formulas, or implementation behaviour are locked by this
 roadmap note.
+
+
+Approved Roleplay Outcome Contract Family: Uncover Concealed Truth
+
+UNCOVER_CONCEALED_TRUTH / Uncover Concealed Truth is locked as Help,
+Perception / Discern Truth, One Target, and never Counter eligible. It grants
+the Ability user reliable concealed information about the target without
+compelling speech, confession, cooperation, or deliberate revelation.
+
+Exact variants and reserved privilege-cost keys:
+
+- Minor / UNCOVER_CONCEALED_TRUTH_MINOR: "you learn whether the target is
+  concealing something relevant to the immediate situation and, if so, its
+  general nature; if no qualifying concealed truth exists, you learn that
+  nothing relevant is being concealed"
+- Standard / UNCOVER_CONCEALED_TRUTH_STANDARD: "you learn one useful concealed
+  truth about the target relevant to the immediate situation; if no qualifying
+  concealed truth exists, you learn that nothing relevant is being concealed"
+- Major / UNCOVER_CONCEALED_TRUTH_MAJOR: "you learn a central concealed truth
+  about the target that is shaping the current situation; if no qualifying
+  concealed truth exists, you learn that nothing relevant is being concealed"
+- Legendary / UNCOVER_CONCEALED_TRUTH_LEGENDARY: "you learn a defining
+  concealed truth about the target whose significance extends beyond the
+  current scene; if no qualifying concealed truth exists, you learn that
+  nothing relevant is being concealed"
+
+A qualifying truth is true, concerns the selected target, is not already known
+or plainly apparent, meets the chosen variant's relevance/significance, and is
+plausibly reachable through Method, Narrative Theme, access, and fiction. The
+GD selects one when several qualify, and must give information that genuinely
+satisfies the tier rather than vague, useless, speculative, false, or misleading
+substitution. A successful accepted declaration cannot receive the no-truth
+result when a qualifying truth exists. When none exists, learning that nothing
+relevant is concealed is reliable information and not a wasted success.
+
+The family does not read thoughts or memories, create proof, publicly expose
+truth, force belief, reveal every secret or implication, grant quantified
+modifiers, mechanically alter the target, or bypass Discern Truth, Narrative
+Theme, access, and plausibility. The player cannot choose among several
+qualifying truths. No numeric cost or cooldown value is locked. Existing Custom
+Outcome records remain Custom and are never automatically approved or rewritten
+into this family.
 
 
 Approved Roleplay Outcome Contract Family: Draw Hostile Attention

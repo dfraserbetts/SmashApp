@@ -284,8 +284,12 @@ an exhaustive phrase list.
 Custom Method - GD Review Required remains Pending GD Approval and exposes
 Proposed Method Name plus a Custom Method Request for reusable approach,
 applications, and boundaries. It offers no standard contract matching,
-automatic costing, or trusted final Cooldown. Discern Truth has no standard
-Outcome Contract in this pass and retains access to Custom Outcome review.
+automatic costing, or trusted final Cooldown. Discern Truth now filters to the
+standard Help contract UNCOVER_CONCEALED_TRUTH for One Target at Minor,
+Standard, Major, and Legendary Impact. All variants are Counter-ineligible and
+derive exact registry-authored outcomes. Custom Outcome review remains available
+for non-standard requests and an explicitly stored Custom Outcome is never
+silently converted to the new standard family.
 
 Use one pure top-level authoring reconciliation helper for Intention, Method,
 Impact, Scope, contract, and Counter. Changing Intention clears a standard
