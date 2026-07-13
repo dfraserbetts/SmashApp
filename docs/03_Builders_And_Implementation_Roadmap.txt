@@ -284,7 +284,7 @@ no discount. Persisted restriction field names remain unchanged.
 
 The standard Method registry contains Appeal and Rally under Persuasion,
 Misdirect under Deception, Rescue and Interrupt under Intervention, Challenge
-under Intimidation, and Discern Truth under Perception. All five Intentions have
+and Overawe under Intimidation, and Discern Truth under Perception. All five Intentions have
 an approved standard Method. Rally unites a bounded group around one shared
 course through common purpose, courage, duty, identity, hope, urgency, or mutual
 reliance; it remains distinct from one-target Appeal, threat/fear-led
@@ -297,6 +297,14 @@ Intimidation, and attention-only distraction. A standard Method details panel
 shows name, Intention, definition, legal approaches, and exclusions, with legal
 approaches explicitly presented as examples rather than an exhaustive phrase
 list.
+
+Overawe uses credible threat, power, authority, reputation, certainty, omen, or
+consequence to make continued opposition feel untenable. Challenge retains
+Draw Hostile Attention and contests attention/hostility/rivalry; Overawe owns
+Break Shared Resolve and breaks one group course. Appeal uses values/reason and
+Misdirect uses false or misleading conclusions; false threats remain Misdirect.
+The Overawe details panel derives its exact eight illustrative approaches and
+fourteen exclusions from the Method registry.
 
 Custom Method - GD Review Required remains Pending GD Approval and exposes
 Proposed Method Name plus a Custom Method Request for reusable approach,
@@ -354,7 +362,7 @@ The registry-driven Builder exposes both options without a page fork, retains
 an existing selection while compatible, and never auto-selects or converts a
 Custom Outcome. It adds no Recipient Type, target/subject, investigation,
 Declared Aim/objective, weakness, or opportunity fields. The live inventory is
-seven Methods, eight standard families, and twenty-six variants. Numeric
+eight Methods, nine standard families, and thirty variants. Numeric
 costing and cooldown implementation remain parked.
 
 Appeal filters to SECURE_WILLING_COOPERATION for Persuasion / One Target at all
@@ -387,8 +395,12 @@ and Faction / Army remain unproven and have no approved variants. Exact variants
 
 Small Group authoring means one bounded, directly addressable scene-local group,
 not a crowd, separated clusters, organisation, settlement, faction, or army.
-Membership and one bounded shared course are declared and accepted before
-Difficulty. Success applies to every accepted member without per-member rolls,
+Before Difficulty, membership, the exact contract-relevant result, and the way
+Method/Theme reach everyone are declared. The GD confirms boundary, access,
+perception/comprehension, shared situation, member eligibility, Method,
+contract, Impact, Scope, and restriction. Rally retains one bounded Declared
+Shared Course; Overawe uses one bounded Declared Opposed Course. Success applies
+to every accepted member without per-member rolls,
 majority interpretation, exemptions, or hidden partial failure. Membership is
 fixed and does not propagate to arrivals, outsiders, replacements, followers,
 or intermediaries. Each member retains individual turns, tactics, resources,
@@ -403,6 +415,42 @@ non-authoring edits, updates exact outcome/descriptor, and keeps Counter false.
 Incompatible Intention, Method, or Scope clears family and Counter. Explicit
 Custom Outcomes remain Custom. No numeric costs, cooldowns, Scope multipliers,
 or headcounts are added.
+
+Overawe filters to BREAK_SHARED_RESOLVE for Intimidation / Small Group at all
+four Impacts. Break Shared Resolve is Hinder, Counter-ineligible, and the
+accepted v0 working name. Exact variants and reserved keys:
+
+- Minor / BREAK_SHARED_RESOLVE_MINOR: "the selected group breaks off one small
+  immediate shared course of opposition for the current meaningful exchange;
+  each member may choose another coherent response but does not pursue that
+  course"
+- Standard / BREAK_SHARED_RESOLVE_STANDARD: "the selected group abandons one
+  clear shared course of opposition for the rest of the current scene; each
+  member may choose another coherent response but does not pursue that course"
+- Major / BREAK_SHARED_RESOLVE_MAJOR: "the selected group abandons one central
+  shared course of opposition for the rest of the current scene and does not
+  resume it despite serious pressure, loyalty, personal cost, or command"
+- Legendary / BREAK_SHARED_RESOLVE_LEGENDARY: "the selected group adopts an
+  enduring refusal to pursue one defining course of opposition whose
+  consequences extend beyond the current scene and maintains that refusal until
+  it is narratively resolved"
+
+The Declared Opposed Course is runtime-only: one coherent course shared or
+imminently intended by every accepted member, understandable, within agency,
+accessible through Overawe, and suitable for Impact/Scope. It cannot bundle
+demands or be evaded by cosmetic wording, tactic, route, formation, leader, or
+motive changes. Every member stops that course without individual resistance or
+majority interpretation, while retaining hostility, individual agency, and
+choice of any genuinely distinct response. Narrative Resolution can apply to
+the whole group or one member only when genuinely supported.
+
+The registry-driven Builder exposes Challenge and Overawe for Intimidation,
+Overawe details, Small Group compatibility, all four variants, Hinder, and
+Counter unavailable without a page fork. It adds no member selector, Declared
+Opposed Course, Recipient Type, stored course field, numeric cost/cooldown,
+quantified Fear, Control, per-member save, or combat-runtime mechanic. Method,
+Intention, or incompatible Scope edits clear the family; Impact and non-authoring
+edits retain it. Custom Outcomes remain Custom.
 
 Misdirect filters to ESTABLISH_FALSE_BELIEF for Deception / One Target at all
 four Impacts. Establish False Belief is the accepted working v0 name, remains

@@ -20,9 +20,9 @@ workflow.
 The semantic/discovery phase is mature enough for costing architecture. The
 live registry currently contains:
 
-- seven standard Methods;
-- eight standard Outcome Contract families;
-- twenty-six exact standard variants;
+- eight standard Methods;
+- nine standard Outcome Contract families;
+- thirty exact standard variants;
 - One Target and Small Group standard coverage;
 - no approved Large Group or Faction / Army standard contract; and
 - one `privilegeCostKey` owned by every exact standard variant.
@@ -82,7 +82,7 @@ These never directly alter automatic Roleplay Ability cost:
 - Ability Name;
 - Narrative Theme prose;
 - writing quality, vocabulary, spelling, grammar, or dramatic flair;
-- Declared Aim, Declared Premise, or Declared Shared Course;
+- Declared Aim, Declared Premise, Declared Shared Course, or Declared Opposed Course;
 - the exact target or group members selected during play;
 - the Attribute selected by the Game Director;
 - runtime Difficulty;
@@ -246,6 +246,10 @@ unlock gates.
 | Intimidation | Challenge | `DRAW_HOSTILE_ATTENTION` | Standard | One Target | Unavailable | `DRAW_HOSTILE_ATTENTION_STANDARD` | Ready for calibration |
 | Intimidation | Challenge | `DRAW_HOSTILE_ATTENTION` | Major | One Target | Unavailable | `DRAW_HOSTILE_ATTENTION_MAJOR` | Ready for calibration |
 | Intimidation | Challenge | `DRAW_HOSTILE_ATTENTION` | Legendary | One Target | Unavailable | `DRAW_HOSTILE_ATTENTION_LEGENDARY` | Ready for calibration |
+| Intimidation | Overawe | `BREAK_SHARED_RESOLVE` | Minor | Small Group | Unavailable | `BREAK_SHARED_RESOLVE_MINOR` | Ready for calibration |
+| Intimidation | Overawe | `BREAK_SHARED_RESOLVE` | Standard | Small Group | Unavailable | `BREAK_SHARED_RESOLVE_STANDARD` | Ready for calibration |
+| Intimidation | Overawe | `BREAK_SHARED_RESOLVE` | Major | Small Group | Unavailable | `BREAK_SHARED_RESOLVE_MAJOR` | Ready for calibration |
+| Intimidation | Overawe | `BREAK_SHARED_RESOLVE` | Legendary | Small Group | Unavailable | `BREAK_SHARED_RESOLVE_LEGENDARY` | Ready for calibration |
 | Perception | Discern Truth | `UNCOVER_CONCEALED_TRUTH` | Minor | One Target | Unavailable | `UNCOVER_CONCEALED_TRUTH_MINOR` | Ready for calibration |
 | Perception | Discern Truth | `UNCOVER_CONCEALED_TRUTH` | Standard | One Target | Unavailable | `UNCOVER_CONCEALED_TRUTH_STANDARD` | Ready for calibration |
 | Perception | Discern Truth | `UNCOVER_CONCEALED_TRUTH` | Major | One Target | Unavailable | `UNCOVER_CONCEALED_TRUTH_MAJOR` | Ready for calibration |
@@ -439,7 +443,7 @@ calibration must isolate breadth from contract semantics.
 
 Future evidence must cover:
 
-- all twenty-six current standard variants;
+- all thirty current standard variants;
 - every supported Dice Count;
 - Counter off and every legal Counter-on case;
 - no Additional Restriction as baseline;

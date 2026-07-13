@@ -325,6 +325,7 @@ The standard Method registry initially contains exactly:
 - Rescue (RESCUE), owned by Intervention
 - Interrupt (INTERRUPT), owned by Intervention
 - Challenge (CHALLENGE), owned by Intimidation
+- Overawe (OVERAWE), owned by Intimidation
 - Discern Truth (DISCERN_TRUTH), owned by Perception
 
 A Method definition has a stable ID, player-facing name, owning Intention,
@@ -349,7 +350,9 @@ Rescue protects or secures a target from immediate danger through warning,
 guidance, shelter, distraction, interposition, or plausible routes to safety.
 Interrupt intervenes at the moment of a meaningful impending act to stop,
 spoil, or break it before resolution. Challenge openly contests courage,
-authority, attention, reputation, or willingness to oppose. Discern Truth
+authority, attention, reputation, or willingness to oppose. Overawe uses a
+credible threat, power, authority, reputation, certainty, omen, or consequence
+to make continued opposition feel too dangerous or costly. Discern Truth
 learns concealed information through observation, deduction, evidence,
 intuition, behavioural tells, contradictions, or perceptive insight. Their exact
 approaches and exclusions are locked in the combat bible.
@@ -380,7 +383,8 @@ Outcome Contract compatibility uses Method IDs.
 Current mappings are Intervention / Rescue / Minor / One Target for
 HIDE_FROM_IMMEDIATE_DANGER; Intervention / Interrupt / Major / One Target for
 DENY_IMMINENT_HOSTILE_ACT; and Intimidation / Challenge / One Target across the
-approved DRAW_HOSTILE_ATTENTION Impact variants. Perception / Discern Truth /
+approved DRAW_HOSTILE_ATTENTION Impact variants. Intimidation / Overawe / Small
+Group uses BREAK_SHARED_RESOLVE across all four Impact tiers. Perception / Discern Truth /
 One Target offers UNCOVER_CONCEALED_TRUTH and REVEAL_EXPLOITABLE_WEAKNESS, in
 that registry order, across all four approved Impact tiers.
 Persuasion / Appeal / One Target uses SECURE_WILLING_COOPERATION across all four
@@ -390,8 +394,8 @@ Misdirect / One Target uses
 ESTABLISH_FALSE_BELIEF across all four approved Impact tiers. All five
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
-The registry remains exactly seven Methods and now contains eight standard
-Outcome Contract families and twenty-six exact variants. Spot Weakness,
+The registry contains exactly eight Methods, nine standard Outcome Contract
+families, and thirty exact variants. Spot Weakness,
 Investigate, Search, Analyse, and synonymous desired results remain Custom
 Method review rather than new Methods because Discern Truth already defines the
 perceptive approach.
@@ -428,6 +432,16 @@ Mythic / Realm remains excluded from v0.
 - Faction / Army remains unproven in this pass and has no approved standard
   Outcome Contract.
 - Scene Tracks are not player-facing Scope choices.
+
+For Small Group, the player declares exact membership or a bounded set, the
+exact contract-relevant group result, and how Method/Theme reach every member.
+The GD confirms boundary, access, perception/comprehension, shared situation,
+member eligibility, Method, contract, Impact, Scope, and restriction before
+Attribute/Difficulty. Every accepted member receives success without per-member
+rolls, majority interpretation, hidden exemptions, or partial success;
+membership fixes at Difficulty and creates no shared turn, mind, action, or
+resource pool. Rally retains one Declared Shared Course; Overawe uses one
+Declared Opposed Course.
 
 I. Scene Impact
 
@@ -974,6 +988,68 @@ Scopes, institutional propagation, false participation, sabotage, technical
 evasion, or arbitrary cancellation. Declared Shared Course and membership are
 runtime context only; no saved course/member fields or Builder controls are
 added. No numeric costs, cooldowns, Scope multipliers, or headcounts are locked.
+
+
+Approved Roleplay Outcome Contract Family: Break Shared Resolve
+
+BREAK_SHARED_RESOLVE / Break Shared Resolve is the accepted working v0 name,
+eligible for the naming pass. It is Hinder, Intimidation / Overawe, Small Group,
+and never Counter eligible. No Large Group or Faction / Army variant is added.
+
+- Minor / BREAK_SHARED_RESOLVE_MINOR: "the selected group breaks off one small
+  immediate shared course of opposition for the current meaningful exchange;
+  each member may choose another coherent response but does not pursue that
+  course"
+- Standard / BREAK_SHARED_RESOLVE_STANDARD: "the selected group abandons one
+  clear shared course of opposition for the rest of the current scene; each
+  member may choose another coherent response but does not pursue that course"
+- Major / BREAK_SHARED_RESOLVE_MAJOR: "the selected group abandons one central
+  shared course of opposition for the rest of the current scene and does not
+  resume it despite serious pressure, loyalty, personal cost, or command"
+- Legendary / BREAK_SHARED_RESOLVE_LEGENDARY: "the selected group adopts an
+  enduring refusal to pursue one defining course of opposition whose
+  consequences extend beyond the current scene and maintains that refusal until
+  it is narratively resolved"
+
+Overawe's exact definition is: "Intimidate through a credible threat, display of
+power, authority, reputation, certainty, omen, or consequence that makes
+continued opposition feel too dangerous or costly." Credible threats, power,
+readiness, reputation, authority, consequences, visible doubt, supported omens,
+and resolve are illustrative approaches. Challenge contests hostility,
+attention, or rivalry and remains Draw Hostile Attention only. Appeal uses
+values/reason; Misdirect uses false conclusions, including fabricated authority
+or false threats. Overawe cannot dominate, create comprehension/agency, inflict
+quantified output, create/remove Fear or Control, dictate alternatives, grant
+general obedience, or bypass access and plausibility.
+
+The Declared Opposed Course is one coherent shared course, currently pursued or
+imminently intended by every accepted member, understood by all, within agency,
+accessible through Overawe, Impact/Scope-appropriate, and recognisable. The GD
+rejects or narrows overbroad, bundled, unshared, impossible, inaccessible, or
+wrong-contract declarations before Difficulty. Semantic renaming or cosmetic
+changes of tactic, route, formation, leader, or motive cannot evade success; a
+genuinely distinct course remains possible.
+
+Every accepted member stops the course without an individual resistance roll,
+majority interpretation, hidden loyalist, or partial success. Each retains
+hostility and individual choice over retreat, surrender, negotiation, safety,
+unrelated duties, distinct objectives, movement, tactics, and resources; no
+alternative is selected and no alliance or cooperation is created. Narrative
+Resolution may affect the whole group or one member only through fulfilment,
+impossibility, or identifiable meaningful change. Repeated commands, pressure,
+renaming, or plot need do not cancel the result.
+
+Draw Hostile Attention redirects existing hostility toward the user. Deny
+Imminent Hostile Act affects one formal impending act and permits Counter. Break
+Shared Resolve changes group intent in a Roleplay Window before hostile-action
+declaration; it cannot be used after the Response Window begins, cancel a
+resolved action, or replace Block, Dodge, Resist, Cleanse, or normal responses.
+It creates no quantified Fear, Control, damage, condition, modifier, movement,
+action, positive shared course, cooperation, loyalty, or wider Scope.
+
+Declared Opposed Course and membership are runtime only. No saved course/member
+fields, Recipient Type, per-member save, numeric cost/cooldown, quantified Fear,
+or combat-runtime mechanic is introduced.
 
 
 Approved Roleplay Outcome Contract Family: Establish False Belief

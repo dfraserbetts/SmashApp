@@ -255,7 +255,7 @@ law until the owning active doc is updated with an explicit decision.
   Game Director-narrated Scene Manifestation. Standard contracts derive Outcome
   Lane and Success Outcome; Custom Method and Custom Outcome requests require GD
   review and cannot be automatically costed. The standard Method registry
-  contains APPEAL, RALLY, MISDIRECT, RESCUE, INTERRUPT, CHALLENGE, and
+  contains APPEAL, RALLY, MISDIRECT, RESCUE, INTERRUPT, CHALLENGE, OVERAWE, and
   DISCERN_TRUTH. Universal Roleplay
   Window access, contract-gated
   paid Counter permission, timing law, Scope, Scene Impact, Attribute handling,
@@ -537,8 +537,8 @@ Scope define approved magnitude/persistence and breadth.
 "Method defines the approach. Theme personalises the approach. The Outcome
 Contract defines the result."
 
-The standard Method registry contains exactly seven Methods: APPEAL, RALLY,
-MISDIRECT, RESCUE, INTERRUPT, CHALLENGE, and DISCERN_TRUTH. All five Intentions have at least one
+The standard Method registry contains exactly eight Methods: APPEAL, RALLY,
+MISDIRECT, RESCUE, INTERRUPT, CHALLENGE, OVERAWE, and DISCERN_TRUTH. All five Intentions have at least one
 approved standard Method. Persuasion owns Appeal and Rally. Appeal maps to the
 locked Help / One Target family SECURE_WILLING_COOPERATION, while Rally maps to
 the locked Help / Small Group family ESTABLISH_SHARED_RESOLVE, both at all four
@@ -558,7 +558,7 @@ fact is true. Reveal Exploitable Weakness answers what actionable weakness,
 opening, route, pattern, dependency, or leverage point concerning the target
 can be used. The selected contract defines the purchased entitlement; the
 families are not merged or silently exchanged. The registry therefore contains
-eight standard Outcome Contract families and twenty-six exact standard
+nine standard Outcome Contract families and thirty exact standard
 variants.
 
 No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
@@ -671,8 +671,13 @@ only, and Counter-ineligible. Its exact variants are:
 
 Small Group is one clearly bounded, scene-local collection whose members share
 the immediate situation and can all directly perceive and understand the same
-Method expression. Membership and one Declared Shared Course are accepted before
-Difficulty; success applies to every accepted member with no per-member roll,
+Method expression. Before Difficulty the player identifies membership, states
+the exact contract-relevant group result, and explains how Method and Theme
+reach everyone; the GD confirms boundary, access, comprehension, shared
+situation, every member's eligibility, Method, contract, Impact, Scope, and
+restriction before choosing Attribute and Difficulty. Rally retains its one
+Declared Shared Course, while Overawe uses one Declared Opposed Course.
+Success applies to every accepted member with no per-member roll,
 majority interpretation, or hidden partial failure. Membership is fixed and
 does not propagate to outsiders, arrivals, replacements, followers, or
 intermediaries. Members retain individual turns, tactics, resources, values,
@@ -680,6 +685,52 @@ priorities, and judgement. Individual or whole-group Narrative Resolution must
 follow genuine fulfilment, impossibility, or identifiable meaningful fictional
 change. No numeric headcount, saved course/member fields, numeric costs,
 cooldowns, or Scope multipliers are locked.
+
+OVERAWE / Overawe is the second Intimidation Method, inserted after Challenge.
+It uses a credible threat, display of power, authority, reputation, certainty,
+omen, or consequence to make continued opposition feel too dangerous or costly.
+Challenge contests attention, hostility, or rivalry and retains
+DRAW_HOSTILE_ATTENTION; Overawe breaks one bounded course of opposition and owns
+BREAK_SHARED_RESOLVE. Appeal uses honest shared interest or reason; Misdirect
+uses false or misleading conclusions. False threats and fabricated authority
+are Misdirect, not Overawe. Overawe creates no quantified Fear, damage, Control,
+condition, bonus, movement, obedience, or permanent emotional rewriting.
+
+BREAK_SHARED_RESOLVE / Break Shared Resolve is the accepted v0 working name,
+Hinder, Intimidation / Overawe / Small Group, Minor through Legendary, and never
+Counter eligible. Exact outcomes and keys:
+
+- MINOR / BREAK_SHARED_RESOLVE_MINOR: "the selected group breaks off one small
+  immediate shared course of opposition for the current meaningful exchange;
+  each member may choose another coherent response but does not pursue that
+  course"
+- STANDARD / BREAK_SHARED_RESOLVE_STANDARD: "the selected group abandons one
+  clear shared course of opposition for the rest of the current scene; each
+  member may choose another coherent response but does not pursue that course"
+- MAJOR / BREAK_SHARED_RESOLVE_MAJOR: "the selected group abandons one central
+  shared course of opposition for the rest of the current scene and does not
+  resume it despite serious pressure, loyalty, personal cost, or command"
+- LEGENDARY / BREAK_SHARED_RESOLVE_LEGENDARY: "the selected group adopts an
+  enduring refusal to pursue one defining course of opposition whose
+  consequences extend beyond the current scene and maintains that refusal until
+  it is narratively resolved"
+
+The Declared Opposed Course is one coherent, shared, current or imminent,
+understandable, agency-compatible, accessible, Impact-appropriate course stated
+before Difficulty. It cannot bundle demands or seek general obedience. Every
+accepted member stops that course without per-member resistance, majority
+interpretation, hidden exemptions, or semantic/tactical relabelling. Members
+retain hostility, individual agency, and choice of retreat, negotiation,
+self-protection, unrelated duties, genuinely distinct objectives, movement,
+tactics, and resources. Narrative Resolution may apply to the group or one
+member only when genuinely supported.
+
+Break Shared Resolve changes intent in a Roleplay Window before formal hostile
+action declaration. It is not a Counter, cannot cancel a resolved action or be
+introduced after the Response Window starts, and does not replace combat
+responses. No Large Group or Faction / Army variant, saved membership/course
+field, numeric cost, cooldown, quantified Fear, Control stack, per-member save,
+or combat-runtime mechanic is added.
 
 
 Roleplay Declaration And Narrative Resolution Status

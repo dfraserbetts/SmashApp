@@ -1630,6 +1630,48 @@ CHALLENGE
   or automatically override unrelated duties, loyalties, or objectives.
 - Current standard contract: DRAW_HOSTILE_ATTENTION.
 
+OVERAWE
+
+- Intention: Intimidation
+- Definition: "Intimidate through a credible threat, display of power,
+  authority, reputation, certainty, omen, or consequence that makes continued
+  opposition feel too dangerous or costly."
+- Legal approaches: issue a credible threat; demonstrate power, capability, or
+  readiness; invoke a feared reputation; invoke recognised authority or
+  judgement; make the likely consequences of resistance unmistakable; exploit
+  visible fear, doubt, or failing confidence; present an ominous symbol,
+  warning, prophecy, or sign supported by the fiction; show absolute resolve or
+  willingness to follow through. These are illustrative, not exhaustive.
+- Distinctions: Challenge openly contests courage, authority, attention,
+  reputation, or willingness and may establish hostility, attention, or
+  rivalry. Overawe makes continued opposition feel untenable through credible
+  fear, awe, danger, authority, or consequence. Appeal seeks willing agreement
+  through values, interests, compassion, duty, or reason. Misdirect deliberately
+  creates a false or materially misleading conclusion. Honest consequences are
+  Appeal when shared interest or reason is the primary lever and Overawe when
+  fear is primary. False threats or fabricated authority use Misdirect.
+- Exact exclusions:
+  - Does not rely on deliberate lies or concealed falsehoods.
+  - Does not make an impossible, incoherent, or wholly baseless threat credible.
+  - Does not use supernatural domination or control.
+  - Does not create comprehension, fear, self-preservation, evaluative
+    judgement, or agency where none exists.
+  - Does not inflict wounds, damage, Injury, or another quantified output.
+  - Does not create or remove Fear, Control stacks, conditions, penalties,
+    bonuses, fields, attachments, or active powers.
+  - Does not force surrender, confession, cooperation, loyalty, or obedience
+    unless an exact Outcome Contract explicitly grants a narrower result.
+  - Does not dictate the target's exact alternative action, movement, tactics,
+    or use of resources.
+  - Does not grant open-ended authority over future decisions.
+  - Does not create permanent general obedience or permanent emotional rewriting.
+  - Does not automatically affect anyone outside the selected Scope.
+  - Does not bypass target access, comprehension, fictional plausibility, or
+    contract exclusions.
+  - Does not guarantee that a threatened consequence is later carried out.
+  - Does not make high Difficulty or Legendary Impact legalise an ineligible use.
+- Current standard contract: BREAK_SHARED_RESOLVE.
+
 DISCERN_TRUTH
 
 - Intention: Perception
@@ -1700,12 +1742,17 @@ addressable scene-local group rather than Large Group or Faction / Army scale.
 Before Difficulty:
 
 1. The player identifies exact members or an unambiguous bounded set.
-2. The player states the one shared course being pursued.
-3. The player explains how Rally and Narrative Theme reach the entire group.
-4. The GD confirms group boundary, access, comprehension, shared situation,
-   every accepted member's eligibility, Impact suitability, and Scope
-   suitability.
+2. The player states the exact contract-relevant group result being pursued.
+3. The player explains how the selected Method and Narrative Theme reach every
+   accepted member.
+4. The GD confirms group boundary, target access, perception and comprehension,
+   shared immediate situation, every accepted member's eligibility, Method fit,
+   Outcome Contract fit, Scene Impact, Scope, and Additional Restriction.
 5. The GD then selects Attribute and Difficulty.
+
+Contract-specific declarations include one Declared Shared Course to establish
+for Rally and one Declared Opposed Course to break for Overawe. The general
+sequence does not remove or weaken the Rally-specific rules below.
 
 The GD may require a narrower or revised group before Difficulty. Difficulty
 may reflect internal disagreement, fear, confusion, competing priorities,
@@ -1843,6 +1890,165 @@ Examples are illustrative, not automatically eligible. Intrinsic exclusions:
 
 No numeric costs, cooldowns, Scope multipliers, privilege values, restriction
 discounts, or Small Group headcount are locked here.
+
+
+Break Shared Resolve Outcome Contract Family
+
+LOCKED FAMILY:
+
+- ID: BREAK_SHARED_RESOLVE
+- Working v0 name: Break Shared Resolve; eligible for the later naming pass.
+- Outcome Lane: Hinder
+- Intention / Method: Intimidation / Overawe
+- Scope: Small Group only
+- Counter eligible: No at every tier
+- Core privilege: every accepted member ceases pursuing the same bounded
+  Declared Opposed Course for the contract's duration.
+- No Large Group or Faction / Army variant is created.
+
+Challenge remains unchanged and owns DRAW_HOSTILE_ATTENTION only. Challenge
+answers who existing hostility, confrontation, or rivalry focuses upon; Overawe
+answers what bounded shared course of opposition the group ceases pursuing.
+Neither contract is compatible with both Methods.
+
+Exact Impact variants and privilege-cost keys:
+
+- MINOR / BREAK_SHARED_RESOLVE_MINOR: "the selected group breaks off one small
+  immediate shared course of opposition for the current meaningful exchange;
+  each member may choose another coherent response but does not pursue that
+  course"
+- STANDARD / BREAK_SHARED_RESOLVE_STANDARD: "the selected group abandons one
+  clear shared course of opposition for the rest of the current scene; each
+  member may choose another coherent response but does not pursue that course"
+- MAJOR / BREAK_SHARED_RESOLVE_MAJOR: "the selected group abandons one central
+  shared course of opposition for the rest of the current scene and does not
+  resume it despite serious pressure, loyalty, personal cost, or command"
+- LEGENDARY / BREAK_SHARED_RESOLVE_LEGENDARY: "the selected group adopts an
+  enduring refusal to pursue one defining course of opposition whose
+  consequences extend beyond the current scene and maintains that refusal until
+  it is narratively resolved"
+
+Declared Opposed Course
+
+Before Attribute or Difficulty, the player states the one bounded shared course
+of opposition the selected group must cease pursuing. It must be one coherent
+course; be currently shared, actively pursued, or imminently intended by every
+accepted member; be understandable to all; concern the current scene or an
+Impact-appropriate ongoing conflict; lie within each member's agency; be
+plausibly reachable through Overawe; fit Impact and Scope; and be specific enough
+for the table to recognise whether it is being pursued. Members may have
+different motives but must share the same course.
+
+Opposition may be hostile, coercive, obstructive, persecutory,
+confrontational, or another coherent course directly opposing the Ability user,
+their allies, a protected target, or the declared objective. Valid examples
+include stopping the storming of a barricade, abandoning pursuit of refugees,
+stopping an attempt to burn an archive, refusing to carry out one arrest,
+ending an attempt to silence a witness, breaking off a search for a hidden
+family, or not completing one sacrifice. It cannot mean permanent enmity ending,
+never opposing the user again, general obedience, multiple bundled demands,
+all hostility everywhere, or an entire army abandoning a war.
+
+Minimum identifying context is permitted; independent demands are not. Before
+Difficulty, the GD may reject or narrow an overbroad, bundled, unshared,
+impossible, or inaccessible declaration, or one that actually seeks
+cooperation, obedience, movement, or another contract. Once accepted and
+successful, the GD cannot evade the result by renaming the same course or using
+cosmetic changes of tactic, formation, route, leader, or motive. A genuinely
+distinct course remains possible; a semantic rewording does not.
+
+Every accepted member receives the outcome without a separate defence or
+resistance roll, majority success, hidden partial result, or secretly exempted
+loyalist. Accepted membership remains fixed when Difficulty is set. Members may
+retreat, surrender, negotiate, hide, seek safety, protect themselves or others,
+pursue an unrelated duty or genuinely distinct objective, remain angry or
+hostile, and choose their own movement, tactics, resources, and expression. The
+contract controls only the accepted course and never selects the alternative.
+They do not automatically become allies, surrender, or flee.
+
+For example, a group that abandons storming a gate may retreat, scatter, seek
+cover, negotiate, guard its wounded, wait for circumstances to change, or pursue
+a genuinely different objective. It cannot storm another part of the same gate,
+continue under another commander, or carry out the same attack individually as
+a wording loophole. A group abandoning an attempt to silence a witness may
+remain hostile or protect its secrets through a distinct eligible course, but
+cannot continue the same silencing attempt through renamed agents or cosmetic
+changes.
+
+The global Narrative Resolution rule applies. Minor, Standard, and Major use
+their authored exchange or scene duration unless fulfilled, genuinely
+impossible, or made incoherent by an identifiable meaningful change. Legendary
+may extend beyond the scene. Resolution may apply to the whole group or one
+member when genuinely supported; one member's resolution never automatically
+releases all others. Incapacity, permanent departure from the relevant conflict,
+or another decisive personal change may resolve one individual's outcome.
+Planned-encounter need, repeated orders, renamed tactics, inconvenience,
+ordinary pressure, anger, shame, loyalty, or renewed encouragement do not cancel
+the result, especially at Major or Legendary.
+
+Timing and related contracts: Draw Hostile Attention redirects existing
+hostility to the user and remains Challenge / One Target; it does not end
+opposition. Deny Imminent Hostile Act makes one target's current or next hostile
+action fail, is Major / One Target, and is Counter eligible. Break Shared
+Resolve changes a Small Group's intent in a Roleplay Window before formal
+hostile-action declaration. It cannot retroactively cancel a resolved action or
+be introduced after the ordinary Response Window begins, because it is not a
+Counter and does not replace Block, Dodge, Resist, Cleanse, or normal Response
+Window rules. Secure Willing Cooperation and Establish Shared Resolve create
+willing cooperation or a positive course; Break creates neither. Establish
+False Belief uses Misdirect; Overawe cannot use false threats or authority.
+
+Illustrative tier examples:
+
+- Minor: a gang breaks off one rush; guards stop one brief search; a mob stops
+  pounding one door; pursuers abandon one immediate seizure attempt.
+- Standard: raiders abandon one barricade assault; a patrol abandons refugee
+  pursuit; mercenaries cease one eviction attempt; conspirators stop trying to
+  silence one witness for the scene.
+- Major: cultists abandon the central sacrifice despite commands; soldiers stop
+  a central village-burning attempt despite loyalty and punishment; a patrol
+  abandons the crisis's principal pursuit; a council bloc ceases one central
+  persecution.
+- Legendary: a sworn band permanently refuses one defining hunt; a small cabal
+  abandons a defining conspiracy; former zealots refuse one foundational
+  persecution; an elite guard breaks a long-running course of oppression.
+
+Examples remain subject to Method, access, Impact, Scope, and current fiction.
+Intrinsic exclusions:
+
+- Does not dictate the group's exact alternative response.
+- Does not automatically force retreat, surrender, confession, cooperation,
+  loyalty, alliance, or obedience.
+- Does not end every hostile intention or objective held by the group.
+- Does not prevent every future act of opposition.
+- Does not affect more than one bounded Declared Opposed Course.
+- Does not apply to unspecified future commands or conflicts.
+- Does not remove individual identity, values, loyalties, emotions, priorities,
+  or judgement.
+- Does not create one shared mind, action, turn, or resource pool.
+- Does not create wounds, damage, Injury, Fear, Control stacks, conditions,
+  penalties, bonuses, movement, extra actions, or another quantified Power output.
+- Does not remove existing quantified effects.
+- Does not automatically make the Ability user or allies safe from unrelated actions.
+- Does not automatically bind anyone outside the accepted group.
+- Does not automatically bind later arrivals, replacements, followers, or intermediaries.
+- Does not automatically propagate through leadership, command, reputation,
+  testimony, or institutional authority.
+- Does not convert Small Group into Large Group, Faction / Army, or a diffuse crowd.
+- Does not make an impossible or incoherent threat effective.
+- Does not permit deliberate lies or false authority through Overawe.
+- Does not permit cosmetic rewording or tactical relabelling to evade the accepted course.
+- Does not guarantee that a threatened consequence is later carried out.
+- Does not allow high Difficulty or Legendary Impact to legalise an invalid
+  group or overbroad course.
+- Does not permit arbitrary cancellation because the result obstructs the
+  planned plot or encounter.
+
+Declared Opposed Course and membership are runtime terminology only. No
+declaredOpposedCourse, opposedCourse, brokenCourse, groupOpposition,
+selectedOpposition, opposedCourseText, intimidatedGroup, group-member storage,
+or equivalent Builder field is added. No numeric cost, cooldown, privilege
+value, Scope multiplier, saved resistance, or quantified Fear is locked here.
 
 
 Establish False Belief Outcome Contract Family
