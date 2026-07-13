@@ -413,11 +413,12 @@ assertEqual(
 
 assertEqual(
   ROLEPLAY_METHODS.map((method) => method.id).join(","),
-  "APPEAL,MISDIRECT,RESCUE,INTERRUPT,CHALLENGE,DISCERN_TRUTH",
-  "The standard Method registry should contain exactly the six approved IDs.",
+  "APPEAL,RALLY,MISDIRECT,RESCUE,INTERRUPT,CHALLENGE,DISCERN_TRUTH",
+  "The standard Method registry should contain exactly the seven approved IDs.",
 );
 for (const [methodId, intention] of [
   ["APPEAL", "PERSUASION"],
+  ["RALLY", "PERSUASION"],
   ["MISDIRECT", "DECEPTION"],
   ["RESCUE", "INTERVENTION"],
   ["INTERRUPT", "INTERVENTION"],
@@ -448,6 +449,24 @@ for (const exclusion of [
   assert(appealMethod.exclusions.includes(exclusion), `Appeal exclusion missing: ${exclusion}`);
 }
 
+const rallyMethod = getRoleplayMethodDefinition("RALLY");
+assert(rallyMethod, "RALLY should exist in the Method registry.");
+assertEqual(rallyMethod.name, "Rally", "Rally Method name mismatch.");
+assertEqual(rallyMethod.intention, "PERSUASION", "Rally owning Intention mismatch.");
+assertEqual(
+  rallyMethod.definition,
+  "Unite a bounded group around one clear shared course by invoking common purpose, courage, duty, identity, hope, urgency, or mutual reliance.",
+  "Rally Method definition mismatch.",
+);
+for (const exclusion of [
+  "Does not grant open-ended command authority or general obedience.",
+  "Does not dictate identical tactics, movement, or actions.",
+  "Does not grant extra actions, measured movement, quantified bonuses, or immunities.",
+  "Does not guarantee that the shared course succeeds.",
+]) {
+  assert(rallyMethod.exclusions.includes(exclusion), `Rally exclusion missing: ${exclusion}`);
+}
+
 const misdirectMethod = getRoleplayMethodDefinition("MISDIRECT");
 assert(misdirectMethod, "MISDIRECT should exist in the Method registry.");
 assertEqual(misdirectMethod.name, "Misdirect", "Misdirect Method name mismatch.");
@@ -474,7 +493,7 @@ for (const exclusion of [
 }
 
 for (const [intention, expectedIds] of [
-  ["PERSUASION", "APPEAL"],
+  ["PERSUASION", "APPEAL,RALLY"],
   ["DECEPTION", "MISDIRECT"],
   ["INTERVENTION", "RESCUE,INTERRUPT"],
   ["INTIMIDATION", "CHALLENGE"],
@@ -489,6 +508,7 @@ for (const [intention, expectedIds] of [
 
 for (const [specific, expectedMethodId, intention] of [
   ["APPEAL", "APPEAL", "PERSUASION"],
+  ["RALLY", "RALLY", "PERSUASION"],
   ["MISDIRECT", "MISDIRECT", "DECEPTION"],
   ["RESCUE", "RESCUE", "INTERVENTION"],
   ["INTERRUPT", "INTERRUPT", "INTERVENTION"],
@@ -1284,9 +1304,237 @@ assert(
   "Misdirect Custom Outcome approval warning should remain.",
 );
 
+const establishSharedResolveOutcomes = {
+  MINOR:
+    "the selected group steadies around one simple immediate course and sincerely pursues it through the current meaningful exchange despite ordinary hesitation, confusion, or pressure",
+  STANDARD:
+    "the selected group adopts one clear shared course as its immediate priority for the rest of the current scene and sincerely pursues it despite meaningful fear, confusion, disagreement, or pressure",
+  MAJOR:
+    "the selected group commits to one difficult shared course for the rest of the current scene and sincerely pursues it despite serious fear, division, personal cost, or danger unless decisive circumstances or narrative resolution make that course no longer coherent",
+  LEGENDARY:
+    "the selected group forms one defining shared resolve, pledge, or cause whose consequences extend beyond the current scene and sincerely upholds it until it is fulfilled or narratively resolved",
+} as const;
+
+const establishSharedResolveDescriptors = {
+  MINOR:
+    "Choose a small group of targets and roll 3 dice. On success, the selected group steadies around one simple immediate course and sincerely pursues it through the current meaningful exchange despite ordinary hesitation, confusion, or pressure.",
+  STANDARD:
+    "Choose a small group of targets and roll 3 dice. On success, the selected group adopts one clear shared course as its immediate priority for the rest of the current scene and sincerely pursues it despite meaningful fear, confusion, disagreement, or pressure.",
+  MAJOR:
+    "Choose a small group of targets and roll 3 dice. On success, the selected group commits to one difficult shared course for the rest of the current scene and sincerely pursues it despite serious fear, division, personal cost, or danger unless decisive circumstances or narrative resolution make that course no longer coherent.",
+  LEGENDARY:
+    "Choose a small group of targets and roll 3 dice. On success, the selected group forms one defining shared resolve, pledge, or cause whose consequences extend beyond the current scene and sincerely upholds it until it is fulfilled or narratively resolved.",
+} as const;
+
+const sharedResolveContract = getRoleplayOutcomeContract("ESTABLISH_SHARED_RESOLVE");
+assert(sharedResolveContract, "ESTABLISH_SHARED_RESOLVE should exist.");
+assertEqual(
+  sharedResolveContract.name,
+  "Establish Shared Resolve",
+  "Shared Resolve contract name mismatch.",
+);
+assertEqual(sharedResolveContract.outcomeLane, "HELP", "Shared Resolve should be Help.");
+assertEqual(sharedResolveContract.variants.length, 4, "Shared Resolve needs four variants.");
+for (const variant of sharedResolveContract.variants) {
+  assertEqual(variant.authoring.intention, "PERSUASION", "Shared Resolve Intention mismatch.");
+  assertEqual(variant.authoring.methodId, "RALLY", "Shared Resolve Method mismatch.");
+  assertEqual(variant.authoring.scope, "SMALL_GROUP", "Shared Resolve Scope mismatch.");
+  assertEqual(variant.counterEligible, false, "Shared Resolve must disallow Counter.");
+  assertEqual(
+    variant.privilegeCostKey,
+    `ESTABLISH_SHARED_RESOLVE_${variant.authoring.sceneImpact}`,
+    `${variant.authoring.sceneImpact} shared-resolve privilege key mismatch.`,
+  );
+}
+
+const holdFast = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(16),
+  name: "Hold Fast",
+  narrativeTheme:
+    "You plant your feet, call the frightened group together, and remind them who depends on them and what must be done next.",
+  intention: "PERSUASION",
+  methodId: "RALLY",
+  sceneImpact: "STANDARD",
+  scope: "SMALL_GROUP",
+  diceCount: 3,
+  outcomeContractId: "ESTABLISH_SHARED_RESOLVE",
+  counter: true,
+});
+assertEqual(holdFast.narrativeTheme,
+  "You plant your feet, call the frightened group together, and remind them who depends on them and what must be done next.",
+  "Hold Fast Narrative Theme mismatch.",
+);
+assertEqual(getRoleplayAbilityMethodName(holdFast), "Rally", "Rally name mismatch.");
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(holdFast)
+    .map((contract) => contract.id)
+    .join(","),
+  "ESTABLISH_SHARED_RESOLVE",
+  "Rally should match only Establish Shared Resolve for this authoring.",
+);
+assertEqual(
+  getRoleplayAbilityContractName(holdFast),
+  "Establish Shared Resolve",
+  "Shared Resolve ability contract name mismatch.",
+);
+assertEqual(getRoleplayAbilityOutcomeLane(holdFast), "HELP", "Shared Resolve lane mismatch.");
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(holdFast),
+  establishSharedResolveOutcomes.STANDARD,
+  "Standard shared-resolve outcome mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(holdFast),
+  establishSharedResolveDescriptors.STANDARD,
+  "Standard shared-resolve descriptor mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityCounterEligibility(holdFast),
+  false,
+  "Shared Resolve should be Counter-ineligible.",
+);
+assertEqual(holdFast.counter, false, "Shared Resolve reconciliation should force Counter off.");
+assert(
+  !getRoleplayAbilityWarnings(holdFast).some((warning) =>
+    warning.includes("Custom Method") || warning.includes("Custom Outcome")),
+  "Standard Rally should not have Custom review warnings.",
+);
+
+for (const invalidAuthoring of [
+  { intention: "DECEPTION" as const },
+  { methodId: "APPEAL" as const },
+  { scope: "SELF" as const },
+  { scope: "ONE_TARGET" as const },
+  { scope: "LARGE_GROUP" as const },
+  { scope: "FACTION_ARMY" as const },
+]) {
+  assert(
+    !getCompatibleRoleplayOutcomeContracts({
+      ...holdFast,
+      ...invalidAuthoring,
+    }).some((contract) => contract.id === "ESTABLISH_SHARED_RESOLVE"),
+    `Establish Shared Resolve should reject ${JSON.stringify(invalidAuthoring)}.`,
+  );
+}
+
+let persistentSharedResolve = reconcileRoleplayAbilityAuthoring({
+  ...holdFast,
+  sceneImpact: "MINOR",
+  outcomeContractId: "ESTABLISH_SHARED_RESOLVE",
+});
+for (const sceneImpact of ["STANDARD", "MAJOR", "LEGENDARY", "MINOR"] as const) {
+  persistentSharedResolve = reconcileRoleplayAbilityAuthoring({
+    ...persistentSharedResolve,
+    sceneImpact,
+    counter: true,
+  });
+  assertEqual(
+    persistentSharedResolve.outcomeContractId,
+    "ESTABLISH_SHARED_RESOLVE",
+    `${sceneImpact} should retain the shared-resolve family ID.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(persistentSharedResolve),
+    establishSharedResolveOutcomes[sceneImpact],
+    `${sceneImpact} shared-resolve outcome mismatch.`,
+  );
+  assertEqual(
+    renderRoleplayAbilityDescriptor(persistentSharedResolve),
+    establishSharedResolveDescriptors[sceneImpact],
+    `${sceneImpact} shared-resolve descriptor mismatch.`,
+  );
+  assertEqual(
+    persistentSharedResolve.counter,
+    false,
+    `${sceneImpact} shared resolve should force Counter off.`,
+  );
+}
+
+for (const [label, invalidAbility] of [
+  ["One Target Scope", { ...holdFast, scope: "ONE_TARGET" as const }],
+  ["Large Group Scope", { ...holdFast, scope: "LARGE_GROUP" as const }],
+  ["Faction / Army Scope", { ...holdFast, scope: "FACTION_ARMY" as const }],
+  ["Method", { ...holdFast, methodId: "APPEAL" as const }],
+  ["Intention", { ...holdFast, intention: "DECEPTION" as const }],
+] as const) {
+  const reconciled = reconcileRoleplayAbilityAuthoring({ ...invalidAbility, counter: true });
+  assertEqual(
+    reconciled.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    `${label} invalidation should clear Establish Shared Resolve.`,
+  );
+  assertEqual(reconciled.counter, false, `${label} invalidation should clear Counter.`);
+}
+
+const editedHoldFast = reconcileRoleplayAbilityAuthoring({
+  ...holdFast,
+  name: "Stand Together",
+  narrativeTheme: "You call the group together around the people depending on them.",
+  diceCount: 5,
+  restrictionType: "CIRCUMSTANCE",
+  restrictionBand: "MODERATE",
+  restrictionText: "Only while the group shares an immediate danger.",
+});
+assertEqual(
+  editedHoldFast.outcomeContractId,
+  "ESTABLISH_SHARED_RESOLVE",
+  "Non-invalidating Rally edits should retain the contract.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(editedHoldFast),
+  establishSharedResolveDescriptors.STANDARD.replace("roll 3 dice", "roll 5 dice"),
+  "Rally Dice Count should only change the descriptor roll count.",
+);
+for (const runtimeGroupField of [
+  "declaredCourse",
+  "sharedCourse",
+  "groupMembers",
+  "selectedMembers",
+  "rallyTargetIds",
+]) {
+  assert(
+    !Object.hasOwn(holdFast, runtimeGroupField),
+    `${runtimeGroupField} must remain runtime context rather than stored Ability state.`,
+  );
+}
+
+const customRallyOutcomeText =
+  "The group coordinates all future decisions through the Ability user";
+const customRallyOutcome = normalizeRoleplayAbility(
+  {
+    name: "Follow My Lead",
+    narrativeTheme: "You call the group together and ask them to trust your judgement.",
+    intention: "PERSUASION",
+    methodId: "RALLY",
+    sceneImpact: "STANDARD",
+    scope: "SMALL_GROUP",
+    diceCount: 3,
+    outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+    customOutcomeLane: "HELP",
+    customOutcomeRequest: customRallyOutcomeText,
+  },
+  17,
+);
+assertEqual(
+  customRallyOutcome.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  "Explicit Rally Custom Outcome must remain Custom Review.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(customRallyOutcome),
+  `Choose a small group of targets and roll 3 dice. On success, ${customRallyOutcomeText}.`,
+  "Rally Custom Outcome descriptor regression.",
+);
+assert(
+  getRoleplayAbilityWarnings(customRallyOutcome).some((warning) =>
+    warning.includes("Custom Outcome requires Game Director approval")),
+  "Rally Custom Outcome approval warning should remain.",
+);
+
 console.log("PASS roleplay outcome contract registry smoke");
 console.log("PASS roleplay draw hostile attention contract smoke");
 console.log("PASS structured roleplay method registry smoke");
 console.log("PASS roleplay uncover concealed truth contract smoke");
 console.log("PASS roleplay secure willing cooperation contract smoke");
 console.log("PASS roleplay establish false belief contract smoke");
+console.log("PASS roleplay establish shared resolve contract smoke");

@@ -18,6 +18,7 @@ export const ROLEPLAY_METHOD_CUSTOM_REVIEW = "CUSTOM_REVIEW" as const;
 
 export type RoleplayStandardMethodId =
   | "APPEAL"
+  | "RALLY"
   | "MISDIRECT"
   | "RESCUE"
   | "INTERRUPT"
@@ -66,6 +67,38 @@ export const ROLEPLAY_METHODS = [
       "Does not automatically bind anyone other than the selected target.",
       "Does not make every request eligible merely because Scene Impact is high.",
       "Does not guarantee that the requested task ultimately succeeds.",
+    ],
+  },
+  {
+    id: "RALLY",
+    name: "Rally",
+    intention: "PERSUASION",
+    definition:
+      "Unite a bounded group around one clear shared course by invoking common purpose, courage, duty, identity, hope, urgency, or mutual reliance.",
+    legalApproaches: [
+      "Call attention to a common purpose",
+      "Remind the group of shared duty or identity",
+      "Present one clear immediate plan",
+      "Reinforce courage through example",
+      "Frame the stakes around people who depend on the group",
+      "Restore focus amid panic, confusion, or disagreement",
+      "Invoke solidarity or mutual reliance",
+      "Turn competing reactions toward one honest collective priority",
+    ],
+    exclusions: [
+      "Does not rely primarily on threats or fear.",
+      "Does not rely on deliberate lies or concealed falsehoods.",
+      "Does not use supernatural control or domination.",
+      "Does not create a shared purpose where no coherent common basis exists.",
+      "Does not grant open-ended command authority or general obedience.",
+      "Does not erase individual identity, values, priorities, or judgement.",
+      "Does not dictate identical tactics, movement, or actions.",
+      "Does not grant extra actions, measured movement, quantified bonuses, or immunities.",
+      "Does not remove quantified fear, Control stacks, conditions, attachments, fields, or active powers.",
+      "Does not automatically affect anyone outside the selected group.",
+      "Does not resolve unrelated disputes or disagreements.",
+      "Does not guarantee that the shared course succeeds.",
+      "Does not make high Difficulty or Legendary Impact legalise an incoherent course.",
     ],
   },
   {
@@ -259,6 +292,7 @@ export type RoleplayStandardOutcomeContractId =
   | "DRAW_HOSTILE_ATTENTION"
   | "UNCOVER_CONCEALED_TRUTH"
   | "SECURE_WILLING_COOPERATION"
+  | "ESTABLISH_SHARED_RESOLVE"
   | "ESTABLISH_FALSE_BELIEF";
 
 export type RoleplayOutcomeContractId =
@@ -587,6 +621,100 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not make an ineligible request legal through high Difficulty or Legendary Impact.",
       "Does not prevent legitimate narrative resolution.",
       "Does not permit arbitrary cancellation merely because cooperation becomes inconvenient for the Game Director or planned plot.",
+    ],
+  },
+  {
+    id: "ESTABLISH_SHARED_RESOLVE",
+    name: "Establish Shared Resolve",
+    outcomeLane: "HELP",
+    variants: [
+      {
+        authoring: {
+          intention: "PERSUASION",
+          methodId: "RALLY",
+          sceneImpact: "MINOR",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "the selected group steadies around one simple immediate course and sincerely pursues it through the current meaningful exchange despite ordinary hesitation, confusion, or pressure",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_SHARED_RESOLVE_MINOR",
+      },
+      {
+        authoring: {
+          intention: "PERSUASION",
+          methodId: "RALLY",
+          sceneImpact: "STANDARD",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "the selected group adopts one clear shared course as its immediate priority for the rest of the current scene and sincerely pursues it despite meaningful fear, confusion, disagreement, or pressure",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_SHARED_RESOLVE_STANDARD",
+      },
+      {
+        authoring: {
+          intention: "PERSUASION",
+          methodId: "RALLY",
+          sceneImpact: "MAJOR",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "the selected group commits to one difficult shared course for the rest of the current scene and sincerely pursues it despite serious fear, division, personal cost, or danger unless decisive circumstances or narrative resolution make that course no longer coherent",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_SHARED_RESOLVE_MAJOR",
+      },
+      {
+        authoring: {
+          intention: "PERSUASION",
+          methodId: "RALLY",
+          sceneImpact: "LEGENDARY",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "the selected group forms one defining shared resolve, pledge, or cause whose consequences extend beyond the current scene and sincerely upholds it until it is fulfilled or narratively resolved",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_SHARED_RESOLVE_LEGENDARY",
+      },
+    ],
+    examples: [
+      "Frightened civilians stay together through one immediate escape",
+      "A confused patrol regroups around one simple instruction",
+      "Companions stop arguing long enough to complete one immediate task",
+      "A rescue team steadies through one dangerous exchange",
+      "Defenders hold a position for the current scene",
+      "A group completes an evacuation despite meaningful fear",
+      "A divided council acts together on one immediate plan",
+      "Witnesses maintain a united stance through sustained pressure",
+      "Defenders continue a dangerous rescue despite serious personal risk",
+      "Divided companions commit to saving captives before pursuing revenge",
+      "Witnesses stand together against a powerful retaliatory threat",
+      "A patrol maintains one difficult course despite severe internal division",
+      "A fellowship pledges itself to a defining mission",
+      "A small council commits to a lasting resistance",
+      "Former rivals form and uphold a defining shared cause",
+      "A sworn band adopts a commitment extending beyond the current scene",
+    ],
+    exclusions: [
+      "Does not grant open-ended command authority over the group.",
+      "Does not create permanent general obedience.",
+      "Does not apply to unspecified future commands or courses.",
+      "Does not establish more than one bounded shared course.",
+      "Does not dictate identical tactics, actions, movement, or resource use.",
+      "Does not remove individual identity, values, priorities, or judgement.",
+      "Does not grant extra actions or measured movement.",
+      "Does not grant quantified bonuses, penalties, or immunities.",
+      "Does not remove quantified fear, Control stacks, conditions, attachments, fields, or active powers.",
+      "Does not guarantee that the shared course succeeds.",
+      "Does not automatically bind people outside the accepted group.",
+      "Does not automatically bind later arrivals or replacement members.",
+      "Does not automatically propagate through leadership, testimony, reputation, or institutional authority.",
+      "Does not convert a Small Group into a Large Group, faction, or army.",
+      "Does not settle unrelated conflicts or disagreements.",
+      "Does not permit false participation, deliberate sabotage, or technical evasion of the accepted course.",
+      "Does not make an ineligible course legal through high Difficulty or Legendary Impact.",
+      "Does not prevent legitimate narrative resolution.",
+      "Does not permit arbitrary cancellation because the outcome inconveniences the Game Director or planned plot.",
     ],
   },
   {
