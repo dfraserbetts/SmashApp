@@ -624,23 +624,27 @@ changes remain future work.
 
 O. Potential Cost Skeleton
 
-No numeric costs are locked. Use this order:
+COMPLETED ARCHITECTURE / NUMERIC IMPLEMENTATION PARKED. Roleplay semantics are
+mature enough for structural costing readiness, while authoritative prices stay
+behind the whole-system balance gates.
 
-1. Scene Impact x Scope base.
-2. Outcome Contract privilege adjustment.
-3. Dice Count reliability.
-4. Counter permission surcharge where the contract permits Counter.
-5. Cooldown adjustment.
-6. Apply Restriction discount last to calculate net Potential spend.
+The locked order resolves exact legal authoring, Impact/Scope base, exact
+contract privilege key, Dice reliability, and selected eligible Counter into
+Gross Potential. Baseline cooldown uses Gross Potential. Any separately approved
+cooldown tradeoff follows without recursion; an approved Additional Restriction
+discount applies last to produce Net Potential. Budget validation is separate.
 
 Roleplay Window access is universal and has no purchased permission surcharge.
 Help / Hinder alone is not the primary privilege price. The selected Outcome
 Contract is the main privilege-cost key. Custom Outcome cannot be automatically
 costed.
 
-Cooldown must eventually derive from PRE-RESTRICTION / GROSS cost. Restriction
-discounts reduce NET Potential spend but do not make a highly privileged
-outcome more spammable.
+Runtime Difficulty, Theme, writing, and runtime declarations do not alter build
+cost. Restriction prose and a requested band are not approval. Numeric values,
+Builder totals, cooldown controls/displays, validation, budget enforcement, and
+saved cost/cooldown fields remain unavailable. The focused authority, live
+variant inventory, circularity gate, evidence matrix, and unlock gates are in
+[Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 
 P. Restriction Discount Bands
 
@@ -651,6 +655,10 @@ Restriction discount bands for v0 testing:
 - Moderate
 - Harsh
 - Severe / Oath-Level
+
+These labels are requested authoring classifications only. They do not grant an
+automatic authoritative discount; approval provenance and discount values remain
+OPEN.
 
 A restriction earns a discount only if it is clear, enforceable, meaningfully
 limiting, relevant in actual play, not decorative, not a loophole, and likely
@@ -709,7 +717,8 @@ Generic scene actions:
 
 Open Decisions For This Slice:
 
-- Final v0 Roleplay Ability cost formulas and implementation details.
+- Numeric Roleplay Ability calibration and implementation, parked behind every
+  gate in the completed non-numeric readiness specification.
 - Exact scenario track values.
 - Whether roleplay abilities are represented by pregenerated test cards or full v0 builder
   in the first slice.
@@ -1162,10 +1171,10 @@ guidance, narrative-resolution examples, and intrinsic exclusions. These
 boundaries do not earn Restriction discounts; only an Additional Restriction
 that genuinely narrows the contract may do so.
 
-Implementation retains the cost skeleton. Scene Impact x Scope changes normally
-by tier, and the privilege adjustment resolves from the selected variant. The
-Legendary rivalry may later have a distinct adjustment. No numeric costing or
-discount value is locked in this pass.
+This family remains subject to the parked non-numeric readiness architecture.
+Scene Impact / Scope base and the exact variant privilege key are distinct
+future components; Legendary rivalry may later require a distinct adjustment.
+No numeric costing or discount value is locked.
 
 
 Open Decisions

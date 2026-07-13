@@ -247,6 +247,31 @@ an eligible declaration; high Difficulty never makes an ineligible declaration
 legal. "Declared Aim" is runtime terminology only and is not saved on a
 Roleplay Ability or added to the Character Builder.
 
+Roleplay Ability Costing Doctrine
+
+Roleplay Methods and Narrative Theme define and personalise legal approaches;
+Outcome Contracts define purchased results; Scene Impact selects consequence;
+Scope selects breadth; Dice Count selects reliability; selected eligible Counter
+adds timing flexibility. These semantic authorities remain separate from future
+numeric economic tuning.
+
+Ability Name, Narrative Theme, writing quality, Declared Aim/Premise/Shared
+Course, runtime target, GD-selected Attribute, runtime Difficulty, Outcome Lane
+alone, Intention alone, and Method alone are not direct cost components. Help
+and Hinder are classifications, not price bands.
+
+Gross Potential is resolved before any cooldown tradeoff or Additional
+Restriction discount. Baseline cooldown derives from Gross Potential, never
+discounted Net Potential. An approved Additional Restriction discount applies
+last; it cannot lower Gross Potential or the cooldown basis, and intrinsic
+contract exclusions or cosmetic wording earn no discount. Net Potential cannot
+be negative or erase the economic identity of a non-empty standard Ability.
+
+Numeric Roleplay costing remains unavailable until whole-system balance,
+cooldown, tuning, privilege-key, Scope, restriction-approval, and evidence gates
+are approved. The focused non-numeric authority is
+[Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
+
 Roleplay Abilities cannot be used as normal Assists and cannot enter the normal
 Assist declaration stack. Their timing lanes are:
 

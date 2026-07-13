@@ -195,17 +195,25 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
   Additional Restriction,
   then declares Difficulty and Attribute. On success, no additional roll or
   target action is required to establish the contract outcome.
-- Potential costing remains non-numeric in this slice: Scene Impact x Scope;
-  Outcome Contract privilege adjustment; Dice Count reliability; optional
-  contract-permitted Counter surcharge; Cooldown adjustment; Restriction
-  discount applied last. Custom Outcome has no automatic costing.
-- Cooldown should derive from pre-Restriction / gross cost, not discounted net
-  Potential spend.
-- Show non-judgemental Combat/Roleplay investment profile and a shared remaining
-  Potential summary:
-  - Powers spend
-  - Roleplay Abilities spend
-  - Remaining Potential
+- Roleplay numeric costing implementation is BLOCKED / PARKED pending every
+  whole-system economic, cooldown-circularity, tuning, privilege-key, Scope,
+  restriction-approval, evidence, and Chief Balance unlock gate.
+- Do not add a Roleplay resolver, tuning rows, provisional values, Builder
+  totals, budget enforcement, cooldown controls/displays, validation changes, or
+  stored cost/cooldown fields while parked.
+- Future implementation requires one pure resolver receiving normalized
+  authoring, explicit registry state, an authoritative versioned tuning
+  snapshot, explicit authority mode, economic context, and approved restriction
+  provenance. It must return structural and numeric-authority statuses, exact
+  variant/key, full Gross/cooldown/Pre-Restriction/Net decomposition, blockers,
+  warnings, and tuning provenance without database, React, mutation, implicit
+  fetches, or built-in numeric fallback.
+- Deterministic smoke and benchmark boundaries must cover all live variants,
+  Dice Counts, legal Counter states, missing tuning, invalid/Custom/unsupported
+  states, decomposition, monotonicity, restriction approval, and isolated Scope
+  evidence before any numeric Builder surface is considered.
+- The complete non-numeric implementation contract and unlock gates are in
+  [Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 - Avoid warning language implying roleplay-heavy builds are suboptimal.
 - For the first slice, test-card representation may be used temporarily where
   implementation timing requires it, but roleplay field model and intent should stay

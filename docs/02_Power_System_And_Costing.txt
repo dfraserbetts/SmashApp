@@ -1426,14 +1426,34 @@ Example: Frodo Hide!
 
 Roleplay Ability Potential Cost Principles
 
-No numeric constants are locked in this pass. Use this non-numeric order:
+LOCKED NON-NUMERIC ARCHITECTURE; NUMERIC IMPLEMENTATION PARKED. Use this exact
+future order:
 
-1. Start with the Scene Impact x Scope base.
-2. Apply the Outcome Contract privilege adjustment.
-3. Add Dice Count reliability.
-4. Add the Counter permission surcharge where the contract permits Counter.
-5. Apply the Cooldown adjustment.
-6. Apply the Restriction discount last to calculate net Potential spend.
+1. Resolve exact legal standard authoring.
+2. Resolve the Scene Impact / Scope base.
+3. Resolve the exact Outcome Contract privilege adjustment.
+4. Resolve Dice reliability.
+5. Resolve selected Counter surcharge where eligible.
+6. Establish Gross Potential and the cooldown basis.
+7. Resolve any separately approved cooldown tradeoff.
+8. Apply an approved Additional Restriction discount last.
+9. Produce Net Potential.
+10. Validate against the separate character budget authority.
+
+Symbolically:
+
+ImpactScopeBase + ContractPrivilegeAdjustment + DiceReliabilityAdjustment +
+SelectedCounterAdjustment = GrossPotential
+
+CooldownBasisPotential = GrossPotential
+
+GrossPotential + ApprovedCooldownTradeoffAdjustment =
+PreRestrictionPotential
+
+PreRestrictionPotential - ApprovedAdditionalRestrictionDiscount = NetPotential
+
+No term has a numeric value. Cost resolution and character-budget validation
+are separate authorities.
 
 Roleplay Window access is universal and has no purchased-permission surcharge.
 Roleplay Abilities cannot use normal Assist, so no Roleplay Ability Assist
@@ -1442,14 +1462,30 @@ Help / Hinder alone is not the primary privilege price; the selected Outcome
 Contract is the main privilege-cost key. Custom Outcome cannot be automatically
 costed.
 
-Cooldown must eventually derive from PRE-RESTRICTION / GROSS cost. Restriction
-discounts reduce NET Potential spend but do not make a highly privileged
-outcome more spammable.
+Baseline cooldown derives from Gross Potential before restrictions. The older
+"Cooldown adjustment" stage is not a complete mechanic: any future authored
+cooldown tradeoff must operate one-directionally from an already resolved
+baseline. Net Potential cannot feed back into baseline cooldown; restrictions
+cannot lengthen cooldown automatically, shorten derived cooldown, or cause cost
+and cooldown to recalculate each other recursively. Player-selectable Roleplay
+cooldown remains unavailable until this circularity gate is separately approved.
 
-Scene Impact and Scope remain the core base-cost drivers. Dice Count prices
-reliability, not permission ceiling. Faction / Army plus Legendary should
-require very high Potential spend, harsh restrictions, or both. Final numeric
-costs and privilege adjustments remain open.
+Restriction discounts reduce Net Potential only after approval. Requested band
+and free-text prose are not automatic discount authority. Intrinsic contract
+limits and cosmetic wording earn no discount. Without approved classification,
+a future resolver may expose Gross Potential but cannot claim authoritative Net
+Potential.
+
+Scene Impact and Scope remain the base dimensions, but global Scope options do
+not create support: exact standard variants do. Dice Count prices reliability,
+not permission ceiling. Custom, unsupported, incomplete, or missing-tuning
+authoring receives no authoritative numeric result. Large Group, Faction / Army,
+all numeric values, cooldown rules, privilege adjustments, Scope calibration,
+and restriction discounts remain open.
+
+The complete resolver contract, live twenty-two-variant inventory, authority
+rules, invariants, evidence matrix, and numeric unlock gates are in
+[Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 
 Power Action remains the current working action name. Do not rename it as part
 of this framework alignment; capture any wider action terminology change as
@@ -1567,6 +1603,6 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Signature Move uniqueness costing and permission package, if any, including
   Signature-only permissions, scaling, cooldown/friction, main-power
   concentration limits, or Limit Break / over-limit linkage.
-- Final Roleplay Ability and Scene Impact costing model, including whether
-  first-slice roleplay abilities use the normal power pool or pregenerated test
-  cards.
+- Numeric Roleplay Ability calibration, shared-point budget integration, and
+  first-slice representation, all parked behind the gates in
+  docs/roleplay-ability-costing-readiness.md.

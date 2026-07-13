@@ -255,7 +255,8 @@ law until the owning active doc is updated with an explicit decision.
   Game Director-narrated Scene Manifestation. Standard contracts derive Outcome
   Lane and Success Outcome; Custom Method and Custom Outcome requests require GD
   review and cannot be automatically costed. The standard Method registry
-  contains RESCUE, INTERRUPT, CHALLENGE, and DISCERN_TRUTH. Universal Roleplay
+  contains APPEAL, RALLY, MISDIRECT, RESCUE, INTERRUPT, CHALLENGE, and
+  DISCERN_TRUTH. Universal Roleplay
   Window access, contract-gated
   paid Counter permission, timing law, Scope, Scene Impact, Attribute handling,
   the non-numeric Potential cost skeleton, and restriction discount order are
@@ -635,3 +636,25 @@ Declared Aim is scene context, not saved Character Builder state. Ongoing
 narrative outcomes end only through fulfilment, genuine impossibility, or an
 identifiable meaningful fictional change that makes continuation incoherent;
 mere inconvenience to the GD, plot, or encounter is insufficient.
+
+
+Roleplay Ability Costing Readiness Status
+
+LOCKED NON-NUMERIC ARCHITECTURE / NUMERIC IMPLEMENTATION PARKED. Roleplay
+semantics and contract discovery are mature enough to specify structural
+costing readiness, but the whole-system balance baseline is not stable enough
+for authoritative Roleplay prices. Standard authoring is structurally costable
+and numerically unavailable pending calibration.
+
+The live semantic registry owns exact variants, Counter eligibility, and
+privilegeCostKey identity. Future versioned tuning owns all numeric values.
+Gross Potential resolves before cooldown tradeoff or restrictions; baseline
+cooldown uses Gross Potential; approved restriction discounts apply last to Net
+Potential. Runtime Difficulty, Narrative Theme, writing quality, and runtime
+declarations never directly change build cost.
+
+No Roleplay resolver, numeric values, Builder totals, budget enforcement,
+cooldown display, tuning rows, or saved cost/cooldown fields are approved.
+Numeric work remains gated behind the accepted whole-system baseline and the
+other explicit unlock conditions in the focused authority:
+[Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
