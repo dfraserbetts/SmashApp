@@ -22,6 +22,9 @@ import {
 } from "./balanceBenchmark.runner";
 
 const cwd = process.cwd();
+const monsterReconciliationId = "power-cooldown-cache-reconciliation-monsters";
+const characterReconciliationId = "power-cooldown-cache-reconciliation-characters";
+const reconciliationIds = [monsterReconciliationId, characterReconciliationId] as const;
 
 const repository: RepositoryProvenance = {
   root: cwd,
@@ -154,6 +157,23 @@ for (const requiredId of [
 ]) {
   assert.ok(quick.selected.some((suite) => suite.id === requiredId), `quick mode omitted ${requiredId}`);
 }
+for (const reconciliationId of reconciliationIds) {
+  assert.equal(
+    quick.selected.some((suite) => suite.id === reconciliationId),
+    false,
+    `${reconciliationId} must remain excluded from quick mode.`,
+  );
+}
+const full = selectSuites({ mode: "full", includePartial: false });
+for (const reconciliationId of reconciliationIds) {
+  const suite = BALANCE_BENCHMARK_REGISTRY.find((candidate) => candidate.id === reconciliationId);
+  assert.ok(suite, `${reconciliationId} must be uniquely registered.`);
+  assert.equal(suite?.compatibility, "AVAILABLE");
+  assert.equal(suite?.mutationSafety.classification, "READ_ONLY");
+  assert.equal(suite?.mutationSafety.declaredReadOnly, true);
+  assert.equal(suite?.mutationSafety.databaseAccess, "read-only");
+  assert.ok(full.selected.some((candidate) => candidate.id === reconciliationId));
+}
 
 function changed(path: string) {
   return selectSuites({ mode: "changed", includePartial: false, changedPaths: [path] });
@@ -190,6 +210,33 @@ for (const path of [
 }
 for (const path of [
   "lib/summoning/powerCooldownCacheSynchronization.ts",
+  "lib/summoning/resolvePowerCooldownAuthority.ts",
+  "scripts/powerCooldownCacheReconciliation.shared.ts",
+  "scripts/powerCooldownCacheReconciliation.smoke.ts",
+]) {
+  const selection = changed(path);
+  assert.ok(selection.selected.some((suite) => suite.id === monsterReconciliationId));
+  assert.ok(selection.selected.some((suite) => suite.id === characterReconciliationId));
+}
+for (const path of [
+  "app/api/summoning-circle/monsters/route.ts",
+  "scripts/reconcileMonsterPowerCooldownCaches.ts",
+]) {
+  const selection = changed(path);
+  assert.ok(selection.selected.some((suite) => suite.id === monsterReconciliationId));
+  assert.equal(selection.selected.some((suite) => suite.id === characterReconciliationId), false);
+}
+for (const path of [
+  "app/api/campaigns/[id]/characters/[characterId]/builder/route.ts",
+  "lib/characterBuilder/powers.ts",
+  "scripts/reconcileCharacterPowerCooldownCaches.ts",
+]) {
+  const selection = changed(path);
+  assert.ok(selection.selected.some((suite) => suite.id === characterReconciliationId));
+  assert.equal(selection.selected.some((suite) => suite.id === monsterReconciliationId), false);
+}
+for (const path of [
+  "lib/summoning/powerCooldownCacheSynchronization.ts",
   "app/api/campaigns/[id]/characters/[characterId]/builder/route.ts",
   "lib/characterBuilder/powers.ts",
 ]) {
@@ -210,6 +257,10 @@ assert.equal(
 assert.ok(
   roleplaySelection.selected.some((suite) => suite.id === "character-power-builder-smoke"),
   "Existing broad Character Builder mapping may still select its own suite for Roleplay code.",
+);
+assert.ok(
+  roleplaySelection.selected.every((suite) => !reconciliationIds.includes(suite.id as typeof reconciliationIds[number])),
+  "Unrelated Roleplay code must select neither reconciliation suite.",
 );
 const unknown = changed("app/unmapped-production-path.ts");
 assert.equal(unknown.selected.length, 0);
@@ -235,6 +286,25 @@ assert.equal(
   1,
   "Changed-path overlap must not duplicate the synchronization suite.",
 );
+const reconciliationDuplicate = selectSuites({
+  mode: "changed",
+  includePartial: false,
+  changedPaths: [
+    "lib/summoning/powerCooldownCacheSynchronization.ts",
+    "lib/summoning/resolvePowerCooldownAuthority.ts",
+  ],
+});
+for (const reconciliationId of reconciliationIds) {
+  assert.equal(
+    reconciliationDuplicate.selected.filter((suite) => suite.id === reconciliationId).length,
+    1,
+    `${reconciliationId} must remain deduplicated across overlapping path mappings.`,
+  );
+}
+assert.ok(
+  BALANCE_BENCHMARK_REGISTRY.every((suite) => !suite.arguments.includes("--apply")),
+  "No benchmark command may register an apply mode.",
+);
 const synchronizationSuite = BALANCE_BENCHMARK_REGISTRY.find(
   (suite) => suite.id === "power-cooldown-cache-synchronization-smoke",
 );
@@ -242,6 +312,26 @@ assert.ok(synchronizationSuite, "Synchronization suite must be registered.");
 assert.equal(synchronizationSuite?.mutationSafety.classification, "READ_ONLY");
 assert.equal(synchronizationSuite?.mutationSafety.declaredReadOnly, true);
 assert.equal(synchronizationSuite?.mutationSafety.databaseWrites, false);
+
+const unsafeReconciliation = await executeSuite({
+  suite: fixtureSuite({
+    id: "power-cooldown-cache-reconciliation-future-unsafe-fixture",
+    arguments: ["-e", "process.exit(0)"],
+    mutationSafety: {
+      classification: "UNKNOWN",
+      declaredReadOnly: false,
+      databaseAccess: "unknown",
+      rationale: "Deliberately missing an explicit READ_ONLY declaration.",
+    },
+  }),
+  repository,
+  tuning,
+  cwd,
+  progress: () => undefined,
+});
+assert.equal(unsafeReconciliation.status, "ERROR");
+assert.equal(unsafeReconciliation.severity, "BLOCKER");
+assert.match(unsafeReconciliation.error ?? "", /explicit READ_ONLY mutation-safety declaration/);
 
 const commandFailure = await executeSuite({
   suite: fixtureSuite({
@@ -336,6 +426,8 @@ console.log(
         "required quick-mode selection",
         "representative changed-path mappings and unmapped warning",
         "duplicate selection de-duplication",
+        "reconciliation full/changed selection and quick exclusion",
+        "reconciliation READ_ONLY enforcement and apply-command exclusion",
         "regression and timeout classification",
         "PARTIAL success remains WARNING",
         "report JSON schema validation",
