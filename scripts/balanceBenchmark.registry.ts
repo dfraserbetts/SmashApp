@@ -35,6 +35,18 @@ const databaseReadOnly: MutationSafetyDeclaration = {
   rationale: "Static inspection found only read queries; the runner also compares repository status before and after execution.",
 };
 
+const guardedReconciliationDryRunReadOnly: MutationSafetyDeclaration = {
+  classification: "READ_ONLY",
+  declaredReadOnly: true,
+  databaseAccess: "read-only",
+  databaseWrites: false,
+  assetWrites: false,
+  tuningWrites: false,
+  baselineWrites: false,
+  repositoryWrites: false,
+  rationale: "The CLI contains separately guarded apply capability, but this fixed registry command omits --apply and therefore executes only the read-only plan path.",
+};
+
 const selfAsserting = (notes: string): BaselinePolicy => ({
   kind: "SELF_ASSERTING",
   acceptedReference: "Assertions embedded in the committed smoke script.",
@@ -102,6 +114,7 @@ const characterCooldownCacheDependencyPatterns = [
 ];
 const monsterCooldownCacheReconciliationDependencyPatterns = [
   "scripts/powerCooldownCacheReconciliation.shared.ts",
+  "scripts/powerCooldownCacheReconciliation.apply.ts",
   "scripts/powerCooldownCacheReconciliation.smoke.ts",
   "scripts/reconcileMonsterPowerCooldownCaches.ts",
   "lib/summoning/powerCooldownCacheSynchronization.ts",
@@ -114,6 +127,7 @@ const monsterCooldownCacheReconciliationDependencyPatterns = [
 ];
 const characterCooldownCacheReconciliationDependencyPatterns = [
   "scripts/powerCooldownCacheReconciliation.shared.ts",
+  "scripts/powerCooldownCacheReconciliation.apply.ts",
   "scripts/powerCooldownCacheReconciliation.smoke.ts",
   "scripts/reconcileCharacterPowerCooldownCaches.ts",
   "lib/summoning/powerCooldownCacheSynchronization.ts",
@@ -235,13 +249,13 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
     script: "scripts/reconcileMonsterPowerCooldownCaches.ts",
     arguments: ["--json"],
     deterministicSeeds: [],
-    mutationSafety: databaseReadOnly,
+    mutationSafety: guardedReconciliationDryRunReadOnly,
     timeoutMs: 180_000,
     changedPathPatterns: monsterCooldownCacheReconciliationDependencyPatterns,
     failureSeverity: "BLOCKER",
     supportsJson: true,
     baselinePolicy: structuredCommand("Ordinary persisted-cache mismatches are expected dry-run evidence; unresolved or infrastructure failures block."),
-    notes: ["Permanently read-only: mismatch evidence exits successfully and no apply command exists."],
+    notes: ["The CLI has separately guarded apply capability, but the benchmark command is permanently dry-run and never supplies --apply."],
   }),
   tsxSuite({
     id: "power-cooldown-cache-reconciliation-characters",
@@ -253,13 +267,13 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
     script: "scripts/reconcileCharacterPowerCooldownCaches.ts",
     arguments: ["--json"],
     deterministicSeeds: [],
-    mutationSafety: databaseReadOnly,
+    mutationSafety: guardedReconciliationDryRunReadOnly,
     timeoutMs: 180_000,
     changedPathPatterns: characterCooldownCacheReconciliationDependencyPatterns,
     failureSeverity: "BLOCKER",
     supportsJson: true,
     baselinePolicy: structuredCommand("Ordinary persisted-cache mismatches are expected dry-run evidence; unresolved or infrastructure failures block."),
-    notes: ["Permanently read-only: mismatch evidence exits successfully and no apply command exists."],
+    notes: ["The CLI has separately guarded apply capability, but the benchmark command is permanently dry-run and never supplies --apply."],
   }),
   tsxSuite({
     id: "combat-lab-smoke",

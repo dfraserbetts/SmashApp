@@ -1,8 +1,10 @@
 import type { PowerCooldownAuthorityResult } from "../lib/summoning/types";
+import { createHash } from "node:crypto";
 
 export const RECONCILIATION_SCHEMA_VERSION = "1.0.0" as const;
 export const RECONCILIATION_MUTATION_SAFETY = "READ_ONLY" as const;
 export const NO_WRITE_DECLARATION = "DRY RUN ONLY — no database, tuning, asset, or repository writes occurred.";
+export const APPLY_CONFIRMATION_TOKEN = "APPLY_COOLDOWN_CACHE_RECONCILIATION" as const;
 
 export type ReconciliationStatus = "MATCH" | "MISMATCH" | "UNRESOLVED";
 export type ReconciliationCategory = "MONSTER_POWER" | "CHARACTER_POWER" | "SIGNATURE_MOVE";
@@ -66,6 +68,7 @@ export type ReconciliationReport = {
     tuningUpdatedAt: string | null;
   };
   mutationSafety: typeof RECONCILIATION_MUTATION_SAFETY;
+  planHash: string;
   total: number;
   matches: number;
   mismatches: number;
@@ -81,21 +84,43 @@ export type ReconciliationReport = {
   noWriteDeclaration: typeof NO_WRITE_DECLARATION;
 };
 
-export type DryRunCliOptions = { json: boolean; help: boolean };
+export type DryRunCliOptions = {
+  json: boolean;
+  help: boolean;
+  apply: boolean;
+  confirm: string | null;
+  planHash: string | null;
+};
 
 export function parseDryRunCliArgs(args: readonly string[], toolName: string): DryRunCliOptions {
   let json = false;
   let help = false;
-  for (const arg of args) {
+  let apply = false;
+  let confirm: string | null = null;
+  let planHash: string | null = null;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
     if (arg === "--json") json = true;
     else if (arg === "--help" || arg === "-h") help = true;
-    else if (arg === "--apply") {
-      throw new Error(`${toolName} is dry-run only; --apply is forbidden and is not implemented.`);
+    else if (arg === "--apply") apply = true;
+    else if (arg === "--confirm" || arg === "--plan-hash") {
+      const value = args[index + 1];
+      if (!value || value.startsWith("--")) throw new Error(`${arg} requires a value.`);
+      if (arg === "--confirm") confirm = value;
+      else planHash = value;
+      index += 1;
     } else {
       throw new Error(`Unknown option for ${toolName}: ${arg}`);
     }
   }
-  return { json, help };
+  if (!apply && (confirm !== null || planHash !== null)) {
+    throw new Error("--confirm and --plan-hash are valid only with --apply.");
+  }
+  if (apply && confirm !== APPLY_CONFIRMATION_TOKEN) {
+    throw new Error(`--apply requires --confirm ${APPLY_CONFIRMATION_TOKEN}.`);
+  }
+  if (apply && !planHash) throw new Error("--apply requires --plan-hash <hash>.");
+  return { json, help, apply, confirm, planHash };
 }
 
 function stableValue(value: unknown): unknown {
@@ -114,6 +139,31 @@ function stableValue(value: unknown): unknown {
 
 export function stableJson(value: unknown): string {
   return JSON.stringify(stableValue(value), null, 2);
+}
+
+export function calculateReconciliationPlanHash(params: {
+  scope: ReconciliationScope;
+  tuningSetId: string | null;
+  tuningUpdatedAt: string | null;
+  results: readonly ReconciliationResult[];
+}): string {
+  const entries = params.results
+    .map((result) => ({
+      ownerId: result.ownerId,
+      powerId: result.powerId,
+      storedCooldownTurns: result.storedCooldownTurns,
+      storedCooldownReduction: result.storedCooldownReduction,
+      targetCooldownTurns: result.targetCooldownTurns,
+      targetCooldownReduction: result.targetCooldownReduction,
+      proposedChangedPaths: [...result.proposedChangedPaths].sort(),
+    }))
+    .sort((left, right) => stableJson(left).localeCompare(stableJson(right)));
+  return createHash("sha256").update(stableJson({
+    scope: params.scope,
+    tuningSetId: params.tuningSetId,
+    tuningUpdatedAt: params.tuningUpdatedAt,
+    entries,
+  })).digest("hex");
 }
 
 function deepChangedPaths(before: unknown, after: unknown, prefix = ""): string[] {
@@ -298,6 +348,12 @@ export function createReconciliationReport(params: {
       .join("\u0000")
       .localeCompare([right.category, right.campaignName ?? "", right.ownerName, right.powerName, right.powerId].join("\u0000")),
   );
+  const planHash = calculateReconciliationPlanHash({
+    scope: params.scope,
+    tuningSetId: params.tuning.setId,
+    tuningUpdatedAt: params.tuning.updatedAt,
+    results,
+  });
   return {
     schemaVersion: RECONCILIATION_SCHEMA_VERSION,
     scope: params.scope,
@@ -313,6 +369,7 @@ export function createReconciliationReport(params: {
       tuningUpdatedAt: params.tuning.updatedAt,
     },
     mutationSafety: RECONCILIATION_MUTATION_SAFETY,
+    planHash,
     total: results.length,
     matches: results.filter((result) => result.status === "MATCH").length,
     mismatches: results.filter((result) => result.status === "MISMATCH").length,
@@ -351,6 +408,7 @@ export function formatReconciliationHuman(report: ReconciliationReport): string 
     `Power Cooldown Cache Reconciliation — ${report.scope}`,
     `repository=${report.branch}@${report.commitSha}`,
     `tuning=${report.tuning.name ?? "missing"} (${report.tuning.setId ?? "none"}, ${report.tuning.updatedAt ?? "unknown"})`,
+    `planHash=${report.planHash}`,
     `owners=${report.database.ownerCount} active=${report.activeOwnerCount} archived=${report.archivedOwnerCount}`,
     `total=${report.total} match=${report.matches} mismatch=${report.mismatches} unresolved=${report.unresolved}`,
     `storedLower=${report.storedLowerThanDerived} storedHigher=${report.storedHigherThanDerived} reductionOnly=${report.reductionOnlyChanges}`,
@@ -370,5 +428,5 @@ export function formatReconciliationHuman(report: ReconciliationReport): string 
 }
 
 export function formatDryRunHelp(toolName: string, description: string): string {
-  return `${description}\n\nUsage: npx --yes tsx scripts/${toolName}.ts [--json|--help]\n\nThis command is permanently dry-run only. --apply and unknown options are rejected.`;
+  return `${description}\n\nUsage:\n  npx --yes tsx scripts/${toolName}.ts [--json|--help]\n  npx --yes tsx scripts/${toolName}.ts --apply --confirm ${APPLY_CONFIRMATION_TOKEN} --plan-hash <hash> [--json]\n\nDry-run is the default. Apply requires the exact confirmation token and a freshly calculated plan hash. Unknown options are rejected.`;
 }

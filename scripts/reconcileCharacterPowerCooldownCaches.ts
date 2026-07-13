@@ -2,6 +2,7 @@ import { loadEnvConfig } from "@next/env";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { Prisma } from "@prisma/client";
 
 import {
   RECONCILIATION_MUTATION_SAFETY,
@@ -14,12 +15,20 @@ import {
   stableJson,
   unresolvedReconciliationResult,
   verifyBuilderDataCacheOnlyChanges,
+  type DryRunCliOptions,
   type ReconciliationCategory,
   type ReconciliationResult,
 } from "./powerCooldownCacheReconciliation.shared";
+import {
+  executeGuardedApply,
+  formatApplyHuman,
+  type ApplyTransactionEvidence,
+  type ReconciliationApplyResult,
+} from "./powerCooldownCacheReconciliation.apply";
 import type { CharacterPower } from "../lib/characterBuilder/powers";
 
 export const mutationSafety = RECONCILIATION_MUTATION_SAFETY;
+export const applyMutationSafety = "GUARDED_TRANSACTIONAL_WRITE" as const;
 const TOOL_NAME = "reconcileCharacterPowerCooldownCaches";
 
 export function parseCharacterReconciliationArgs(args: readonly string[]) {
@@ -111,7 +120,9 @@ function unresolvedForCharacterPower(params: {
   });
 }
 
-async function run() {
+type PowerLocation = { category: "CHARACTER_POWER"; index: number } | { category: "SIGNATURE_MOVE" };
+
+async function run(options: DryRunCliOptions) {
   loadEnvConfig(process.cwd());
   const [
     { prisma },
@@ -140,6 +151,7 @@ async function run() {
           name: true,
           level: true,
           builderData: true,
+          updatedAt: true,
           archivedAt: true,
           campaignId: true,
           campaign: { select: { id: true, name: true } },
@@ -159,7 +171,16 @@ async function run() {
     }
 
     const results: ReconciliationResult[] = [];
+    const preimages = new Map<string, { builderData: unknown; updatedAt: string; level: number }>();
+    const locations = new Map<string, Map<string, PowerLocation>>();
     for (const character of characters) {
+      preimages.set(character.id, {
+        builderData: structuredClone(character.builderData),
+        updatedAt: character.updatedAt.toISOString(),
+        level: character.level,
+      });
+      const characterLocations = new Map<string, PowerLocation>();
+      locations.set(character.id, characterLocations);
       const identity: CharacterIdentity = {
         ownerId: character.id,
         ownerName: character.name,
@@ -276,7 +297,7 @@ async function run() {
           }));
           continue;
         }
-        characterResults.push(resolvedReconciliationResult({
+        const result = resolvedReconciliationResult({
           ...identity,
           category: "CHARACTER_POWER",
           powerId: text(rawPower.id, `${character.id}:power:${index}`),
@@ -284,7 +305,10 @@ async function run() {
           originalPower: originalWithStoredCache(normalizedPower, rawPower),
           targetCooldownTurns: synchronizedPower.cooldownTurns,
           authority,
-        }));
+        });
+        result.proposedChangedPaths = result.proposedChangedPaths.map((path) => `powers[${index}].${path}`);
+        characterLocations.set(result.powerId, { category: "CHARACTER_POWER", index });
+        characterResults.push(result);
       }
 
       if (rawSignature !== null) {
@@ -299,7 +323,7 @@ async function run() {
             error: "Signature Move could not be aligned after current normalization.",
           }));
         } else {
-          characterResults.push(resolvedReconciliationResult({
+          const result = resolvedReconciliationResult({
             ...identity,
             category: "SIGNATURE_MOVE",
             powerId: text(rawPower.id, `${character.id}:signatureMove`),
@@ -307,7 +331,10 @@ async function run() {
             originalPower: originalWithStoredCache(normalized.signatureMove, rawPower),
             targetCooldownTurns: synchronized.signatureMove.cooldownTurns,
             authority: synchronized.signatureAuthority,
-          }));
+          });
+          result.proposedChangedPaths = result.proposedChangedPaths.map((path) => `signatureMove.${path}`);
+          characterLocations.set(result.powerId, { category: "SIGNATURE_MOVE" });
+          characterResults.push(result);
         }
       }
 
@@ -362,7 +389,7 @@ async function run() {
     }
 
     const repository = repositoryProvenance(process.cwd());
-    return createReconciliationReport({
+    const report = createReconciliationReport({
       scope: "CHARACTER",
       generatedAt: new Date().toISOString(),
       branch: repository.branch,
@@ -376,6 +403,189 @@ async function run() {
       results,
       warnings,
     });
+    if (!options.apply) return report;
+
+    const mismatches = report.results.filter((row) => row.status === "MISMATCH");
+    const affectedOwnerIds = Array.from(new Set(mismatches.map((row) => row.ownerId))).sort();
+    return executeGuardedApply({
+      options,
+      report,
+      preTransactionVerify: async () => {
+        const [activeTuning, currentBuilderTuning, currentCharacters] = await Promise.all([
+          prisma.powerTuningConfigSet.findFirst({
+            where: { status: "ACTIVE" },
+            select: { id: true, updatedAt: true },
+            orderBy: { updatedAt: "desc" },
+          }),
+          prisma.characterBuilderTuning.findUnique({
+            where: { id: "default" },
+            select: { playerPowerSpendScalar: true, updatedAt: true },
+          }),
+          prisma.campaignCharacter.findMany({
+            where: { id: { in: affectedOwnerIds } },
+            orderBy: { id: "asc" },
+            select: { id: true, level: true, builderData: true, updatedAt: true },
+          }),
+        ]);
+        if (
+          !activeTuning ||
+          activeTuning.id !== report.tuning.setId ||
+          activeTuning.updatedAt.toISOString() !== report.tuning.updatedAt
+        ) {
+          throw new Error("Active tuning drifted before character transaction entry.");
+        }
+        if (
+          currentBuilderTuning?.playerPowerSpendScalar !== characterBuilderTuning?.playerPowerSpendScalar ||
+          (currentBuilderTuning?.updatedAt.toISOString() ?? null) !==
+            (characterBuilderTuning?.updatedAt.toISOString() ?? null)
+        ) {
+          throw new Error("Character Builder tuning drifted before transaction entry.");
+        }
+        if (currentCharacters.length !== affectedOwnerIds.length) {
+          throw new Error("A planned character owner disappeared before transaction entry.");
+        }
+        for (const current of currentCharacters) {
+          const preimage = preimages.get(current.id);
+          if (
+            !preimage ||
+            preimage.level !== current.level ||
+            preimage.updatedAt !== current.updatedAt.toISOString() ||
+            stableJson(preimage.builderData) !== stableJson(current.builderData)
+          ) {
+            throw new Error(`Complete builderData preimage drifted before transaction entry for ${current.id}.`);
+          }
+        }
+      },
+      transaction: () => prisma.$transaction(async (tx): Promise<ApplyTransactionEvidence> => {
+        const [activeTuning, currentBuilderTuning, currentCharacters] = await Promise.all([
+          tx.powerTuningConfigSet.findFirst({
+            where: { status: "ACTIVE" },
+            select: { id: true, updatedAt: true },
+            orderBy: { updatedAt: "desc" },
+          }),
+          tx.characterBuilderTuning.findUnique({
+            where: { id: "default" },
+            select: { playerPowerSpendScalar: true, updatedAt: true },
+          }),
+          tx.campaignCharacter.findMany({
+            where: { id: { in: affectedOwnerIds } },
+            orderBy: { id: "asc" },
+            select: { id: true, level: true, builderData: true, updatedAt: true },
+          }),
+        ]);
+        if (
+          !activeTuning ||
+          activeTuning.id !== report.tuning.setId ||
+          activeTuning.updatedAt.toISOString() !== report.tuning.updatedAt
+        ) {
+          throw new Error("Active tuning drifted before the character transaction began.");
+        }
+        if (
+          currentBuilderTuning?.playerPowerSpendScalar !== characterBuilderTuning?.playerPowerSpendScalar ||
+          (currentBuilderTuning?.updatedAt.toISOString() ?? null) !==
+            (characterBuilderTuning?.updatedAt.toISOString() ?? null)
+        ) {
+          throw new Error("Character Builder tuning drifted before the transaction began.");
+        }
+        if (currentCharacters.length !== affectedOwnerIds.length) {
+          throw new Error("A planned character owner disappeared before transaction mutation.");
+        }
+
+        const expectedBuilderData = new Map<string, unknown>();
+        for (const current of currentCharacters) {
+          const preimage = preimages.get(current.id);
+          if (
+            !preimage ||
+            preimage.level !== current.level ||
+            preimage.updatedAt !== current.updatedAt.toISOString() ||
+            stableJson(preimage.builderData) !== stableJson(current.builderData)
+          ) {
+            throw new Error(`Complete builderData preimage drifted for character ${current.id}.`);
+          }
+          const normalized = normalizeBuilderData(current.builderData);
+          const synchronized = synchronizeCharacterPowerCooldownCaches({
+            level: current.level,
+            powers: normalized.powers,
+            signatureMove: normalized.signatureMove,
+            tuningSnapshot: tuning,
+            playerPowerSpendScalar,
+          });
+          if (!synchronized.ok) throw new Error(synchronized.message);
+
+          const nextBuilderData = structuredClone(current.builderData) as Record<string, unknown>;
+          const nextPowers = Array.isArray(nextBuilderData.powers) ? nextBuilderData.powers : [];
+          const ownerMismatches = mismatches.filter((row) => row.ownerId === current.id);
+          for (const row of ownerMismatches) {
+            const location = locations.get(current.id)?.get(row.powerId);
+            if (!location) throw new Error(`Planned character power disappeared: ${current.id}/${row.powerId}.`);
+            if (location.category === "CHARACTER_POWER") {
+              const synchronizedPower = synchronized.powers[location.index];
+              const rawPower = record(nextPowers[location.index]);
+              if (!synchronizedPower || !rawPower) throw new Error(`Ordinary power alignment drifted for ${row.powerId}.`);
+              if (
+                synchronizedPower.cooldownTurns !== row.targetCooldownTurns ||
+                synchronizedPower.cooldownReduction !== row.targetCooldownReduction
+              ) {
+                throw new Error(`Fresh ordinary-power target drifted for ${row.powerId}.`);
+              }
+              rawPower.cooldownTurns = row.targetCooldownTurns;
+              rawPower.cooldownReduction = row.targetCooldownReduction;
+            } else {
+              const rawSignature = record(nextBuilderData.signatureMove);
+              if (!synchronized.signatureMove || !rawSignature) {
+                throw new Error(`Signature Move alignment drifted for ${row.powerId}.`);
+              }
+              if (
+                synchronized.signatureMove.cooldownTurns !== row.targetCooldownTurns ||
+                synchronized.signatureMove.cooldownReduction !== row.targetCooldownReduction
+              ) {
+                throw new Error(`Fresh Signature Move target drifted for ${row.powerId}.`);
+              }
+              rawSignature.cooldownTurns = row.targetCooldownTurns;
+              rawSignature.cooldownReduction = row.targetCooldownReduction;
+            }
+          }
+          const integrity = verifyBuilderDataCacheOnlyChanges(current.builderData, nextBuilderData);
+          if (!integrity.ok) throw new Error(`Forbidden builderData change for character ${current.id}.`);
+          const plannedPaths = ownerMismatches.flatMap((row) => row.proposedChangedPaths).sort();
+          if (stableJson([...integrity.changedPaths].sort()) !== stableJson(plannedPaths)) {
+            throw new Error(`BuilderData changed paths drifted for character ${current.id}.`);
+          }
+          expectedBuilderData.set(current.id, nextBuilderData);
+          await tx.campaignCharacter.update({
+            where: { id: current.id },
+            data: { builderData: nextBuilderData as Prisma.InputJsonValue },
+          });
+        }
+
+        const updatedCharacters = await tx.campaignCharacter.findMany({
+          where: { id: { in: affectedOwnerIds } },
+          orderBy: { id: "asc" },
+          select: { id: true, builderData: true },
+        });
+        if (updatedCharacters.length !== affectedOwnerIds.length) {
+          throw new Error("A character disappeared after builderData update.");
+        }
+        for (const updated of updatedCharacters) {
+          const expected = expectedBuilderData.get(updated.id);
+          const preimage = preimages.get(updated.id);
+          if (!expected || stableJson(expected) !== stableJson(updated.builderData)) {
+            throw new Error(`Post-update builderData verification failed for character ${updated.id}.`);
+          }
+          if (!preimage || !verifyBuilderDataCacheOnlyChanges(preimage.builderData, updated.builderData).ok) {
+            throw new Error(`Semantic integrity changed for character ${updated.id}.`);
+          }
+        }
+        return {
+          attemptedChangeCount: mismatches.length,
+          appliedChangeCount: mismatches.length,
+          affectedOwnerCount: affectedOwnerIds.length,
+          preVerificationResult: true,
+          postVerificationResult: true,
+          unchangedSemanticIntegrityResult: true,
+        };
+      }),
+    });
   } finally {
     await prisma.$disconnect();
   }
@@ -387,9 +597,16 @@ async function main() {
     process.stdout.write(`${formatDryRunHelp(TOOL_NAME, "Read-only reconciliation of persisted Character Builder power cooldown caches.")}\n`);
     return;
   }
-  const report = await run();
-  process.stdout.write(`${options.json ? stableJson(report) : formatReconciliationHuman(report)}\n`);
-  process.exitCode = reconciliationExitCode(report);
+  const result = await run(options);
+  if (options.apply) {
+    const applyResult = result as ReconciliationApplyResult;
+    process.stdout.write(`${options.json ? stableJson(applyResult) : formatApplyHuman(applyResult)}\n`);
+    process.exitCode = applyResult.transactionStatus === "COMMITTED" ? 0 : 1;
+  } else {
+    const report = result as Awaited<ReturnType<typeof createReconciliationReport>>;
+    process.stdout.write(`${options.json ? stableJson(report) : formatReconciliationHuman(report)}\n`);
+    process.exitCode = reconciliationExitCode(report);
+  }
 }
 
 const isMain = process.argv[1]

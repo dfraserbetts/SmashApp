@@ -172,6 +172,8 @@ for (const reconciliationId of reconciliationIds) {
   assert.equal(suite?.mutationSafety.classification, "READ_ONLY");
   assert.equal(suite?.mutationSafety.declaredReadOnly, true);
   assert.equal(suite?.mutationSafety.databaseAccess, "read-only");
+  assert.deepEqual(suite?.modes, ["full", "changed"]);
+  assert.ok(suite?.notes.some((note) => /apply capability.*never supplies --apply/i.test(note)));
   assert.ok(full.selected.some((candidate) => candidate.id === reconciliationId));
 }
 
@@ -212,6 +214,7 @@ for (const path of [
   "lib/summoning/powerCooldownCacheSynchronization.ts",
   "lib/summoning/resolvePowerCooldownAuthority.ts",
   "scripts/powerCooldownCacheReconciliation.shared.ts",
+  "scripts/powerCooldownCacheReconciliation.apply.ts",
   "scripts/powerCooldownCacheReconciliation.smoke.ts",
 ]) {
   const selection = changed(path);
