@@ -2,6 +2,7 @@ import {
   ROLEPLAY_METHODS,
   ROLEPLAY_METHOD_CUSTOM_REVIEW,
   ROLEPLAY_METHOD_UNSELECTED,
+  ROLEPLAY_OUTCOME_CONTRACTS,
   ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
   ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
   createDefaultRoleplayAbility,
@@ -416,6 +417,17 @@ assertEqual(
   "APPEAL,RALLY,MISDIRECT,RESCUE,INTERRUPT,CHALLENGE,DISCERN_TRUTH",
   "The standard Method registry should contain exactly the seven approved IDs.",
 );
+assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 8, "The registry should contain eight contracts.");
+assertEqual(
+  ROLEPLAY_OUTCOME_CONTRACTS.reduce((total, contract) => total + contract.variants.length, 0),
+  26,
+  "The registry should contain twenty-six exact variants.",
+);
+assertEqual(
+  getRoleplayMethodDefinition("SPOT_WEAKNESS"),
+  null,
+  "SPOT_WEAKNESS must not become a standard Method.",
+);
 for (const [methodId, intention] of [
   ["APPEAL", "PERSUASION"],
   ["RALLY", "PERSUASION"],
@@ -594,6 +606,36 @@ assert(
   "Legacy LIE should retain the Custom Method approval warning.",
 );
 
+const legacySpotWeaknessMethod = normalizeRoleplayAbility(
+  {
+    intention: "PERCEPTION",
+    specific: "SPOT_WEAKNESS",
+    description: "You study the target for an opening.",
+  },
+  10,
+);
+assertEqual(
+  legacySpotWeaknessMethod.methodId,
+  ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  "Legacy SPOT_WEAKNESS must remain Custom Method review.",
+);
+assertEqual(
+  legacySpotWeaknessMethod.customMethodName,
+  "Spot Weakness",
+  "Legacy SPOT_WEAKNESS should preserve its readable Method name.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(legacySpotWeaknessMethod).length,
+  0,
+  "Legacy SPOT_WEAKNESS must not match a standard Outcome Contract.",
+);
+assert(
+  getRoleplayAbilityWarnings(legacySpotWeaknessMethod).includes(
+    "Custom Method requires Game Director approval.",
+  ),
+  "Legacy SPOT_WEAKNESS should retain the Custom Method approval warning.",
+);
+
 const intentionReconciled = reconcileRoleplayAbilityAuthoring({
   ...drawBase,
   intention: "PERCEPTION",
@@ -726,8 +768,8 @@ assertEqual(
   getCompatibleRoleplayOutcomeContracts(discernTruthStandard)
     .map((contract) => contract.id)
     .join(","),
-  "UNCOVER_CONCEALED_TRUTH",
-  "Discern Truth should match its standard contract.",
+  "UNCOVER_CONCEALED_TRUTH,REVEAL_EXPLOITABLE_WEAKNESS",
+  "Discern Truth should expose both standard contracts in registry order.",
 );
 assertEqual(
   getRoleplayAbilityContractName(discernTruthStandard),
@@ -771,6 +813,18 @@ for (const sceneImpact of ["MINOR", "STANDARD", "MAJOR", "LEGENDARY"] as const) 
     sceneImpact,
     outcomeContractId: "UNCOVER_CONCEALED_TRUTH",
   });
+  assertEqual(
+    getCompatibleRoleplayOutcomeContracts(ability)
+      .map((contract) => contract.id)
+      .join(","),
+    "UNCOVER_CONCEALED_TRUTH,REVEAL_EXPLOITABLE_WEAKNESS",
+    `${sceneImpact} Discern Truth compatibility mismatch.`,
+  );
+  assertEqual(
+    ability.outcomeContractId,
+    "UNCOVER_CONCEALED_TRUTH",
+    `${sceneImpact} should preserve the selected Uncover Concealed Truth family.`,
+  );
   assertEqual(
     getRoleplayAbilitySuccessOutcome(ability),
     uncoverConcealedTruthOutcomes[sceneImpact],
@@ -890,6 +944,208 @@ assert(
   ),
   "Discern Truth Custom Outcome approval warning should remain.",
 );
+
+const revealExploitableWeaknessOutcomes = {
+  MINOR:
+    "you identify one small immediately useful weakness, opening, or opportunity concerning the target for the current meaningful exchange; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+  STANDARD:
+    "you identify one useful exploitable weakness, route, pattern, dependency, or leverage point concerning the target for the current situation; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+  MAJOR:
+    "you reveal one central exploitable vulnerability or opportunity concerning the target that is shaping the current scene and can materially change how it is approached; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+  LEGENDARY:
+    "you reveal one defining vulnerability, hidden route, dependency, or leverage point concerning the target whose significance extends beyond the current scene; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+} as const;
+
+const revealExploitableWeaknessDescriptors = {
+  MINOR:
+    "Choose one target and roll 3 dice. On success, you identify one small immediately useful weakness, opening, or opportunity concerning the target for the current meaningful exchange; if no qualifying exploitable opportunity exists, you learn that none is presently accessible.",
+  STANDARD:
+    "Choose one target and roll 3 dice. On success, you identify one useful exploitable weakness, route, pattern, dependency, or leverage point concerning the target for the current situation; if no qualifying exploitable opportunity exists, you learn that none is presently accessible.",
+  MAJOR:
+    "Choose one target and roll 3 dice. On success, you reveal one central exploitable vulnerability or opportunity concerning the target that is shaping the current scene and can materially change how it is approached; if no qualifying exploitable opportunity exists, you learn that none is presently accessible.",
+  LEGENDARY:
+    "Choose one target and roll 3 dice. On success, you reveal one defining vulnerability, hidden route, dependency, or leverage point concerning the target whose significance extends beyond the current scene; if no qualifying exploitable opportunity exists, you learn that none is presently accessible.",
+} as const;
+
+const revealWeaknessContract = getRoleplayOutcomeContract("REVEAL_EXPLOITABLE_WEAKNESS");
+assert(revealWeaknessContract, "REVEAL_EXPLOITABLE_WEAKNESS should exist.");
+assertEqual(
+  revealWeaknessContract.name,
+  "Reveal Exploitable Weakness",
+  "Reveal Exploitable Weakness name mismatch.",
+);
+assertEqual(
+  revealWeaknessContract.outcomeLane,
+  "HELP",
+  "Reveal Exploitable Weakness should be Help.",
+);
+assertEqual(
+  revealWeaknessContract.variants.length,
+  4,
+  "Reveal Exploitable Weakness needs four variants.",
+);
+for (const variant of revealWeaknessContract.variants) {
+  const impact = variant.authoring.sceneImpact;
+  assertEqual(variant.authoring.intention, "PERCEPTION", `${impact} Intention mismatch.`);
+  assertEqual(variant.authoring.methodId, "DISCERN_TRUTH", `${impact} Method mismatch.`);
+  assertEqual(variant.authoring.scope, "ONE_TARGET", `${impact} Scope mismatch.`);
+  assertEqual(variant.counterEligible, false, `${impact} must disallow Counter.`);
+  assertEqual(
+    variant.privilegeCostKey,
+    `REVEAL_EXPLOITABLE_WEAKNESS_${impact}`,
+    `${impact} privilege key mismatch.`,
+  );
+  assertEqual(
+    variant.successOutcome,
+    revealExploitableWeaknessOutcomes[impact],
+    `${impact} exact outcome mismatch.`,
+  );
+}
+
+const thereThatsTheWeakPoint = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(13),
+  name: "There—That's the Weak Point",
+  narrativeTheme:
+    "You study the target's movement, structure, and surroundings until an overlooked dependency or opening becomes clear.",
+  intention: "PERCEPTION",
+  methodId: "DISCERN_TRUTH",
+  sceneImpact: "STANDARD",
+  scope: "ONE_TARGET",
+  diceCount: 3,
+  outcomeContractId: "REVEAL_EXPLOITABLE_WEAKNESS",
+  counter: true,
+});
+assertEqual(
+  getRoleplayAbilityMethodName(thereThatsTheWeakPoint),
+  "Discern Truth",
+  "Reveal Exploitable Weakness should retain Discern Truth.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(thereThatsTheWeakPoint)
+    .map((contract) => contract.id)
+    .join(","),
+  "UNCOVER_CONCEALED_TRUTH,REVEAL_EXPLOITABLE_WEAKNESS",
+  "Reveal Exploitable Weakness should retain both compatible Perception families.",
+);
+assertEqual(
+  getRoleplayAbilityContractName(thereThatsTheWeakPoint),
+  "Reveal Exploitable Weakness",
+  "Selected Reveal Exploitable Weakness name mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityOutcomeLane(thereThatsTheWeakPoint),
+  "HELP",
+  "Reveal Exploitable Weakness lane mismatch.",
+);
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(thereThatsTheWeakPoint),
+  revealExploitableWeaknessOutcomes.STANDARD,
+  "Reveal Exploitable Weakness Standard outcome mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(thereThatsTheWeakPoint),
+  revealExploitableWeaknessDescriptors.STANDARD,
+  "Reveal Exploitable Weakness Standard descriptor mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityCounterEligibility(thereThatsTheWeakPoint),
+  false,
+  "Reveal Exploitable Weakness should not permit Counter.",
+);
+assertEqual(
+  thereThatsTheWeakPoint.counter,
+  false,
+  "Reveal Exploitable Weakness reconciliation should force Counter off.",
+);
+assert(
+  !getRoleplayAbilityWarnings(thereThatsTheWeakPoint).some(
+    (warning) => warning.includes("Custom Method") || warning.includes("Custom Outcome"),
+  ),
+  "Reveal Exploitable Weakness should not produce Custom approval warnings.",
+);
+
+let persistentRevealWeakness = reconcileRoleplayAbilityAuthoring({
+  ...thereThatsTheWeakPoint,
+  sceneImpact: "MINOR",
+  outcomeContractId: "REVEAL_EXPLOITABLE_WEAKNESS",
+});
+for (const sceneImpact of ["STANDARD", "MAJOR", "LEGENDARY", "MINOR"] as const) {
+  persistentRevealWeakness = reconcileRoleplayAbilityAuthoring({
+    ...persistentRevealWeakness,
+    sceneImpact,
+    counter: true,
+  });
+  assertEqual(
+    persistentRevealWeakness.outcomeContractId,
+    "REVEAL_EXPLOITABLE_WEAKNESS",
+    `${sceneImpact} should retain Reveal Exploitable Weakness.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(persistentRevealWeakness),
+    revealExploitableWeaknessOutcomes[sceneImpact],
+    `${sceneImpact} Reveal Exploitable Weakness outcome mismatch.`,
+  );
+  assertEqual(
+    renderRoleplayAbilityDescriptor(persistentRevealWeakness),
+    revealExploitableWeaknessDescriptors[sceneImpact],
+    `${sceneImpact} Reveal Exploitable Weakness descriptor mismatch.`,
+  );
+  assertEqual(persistentRevealWeakness.counter, false, `${sceneImpact} should force Counter off.`);
+}
+
+for (const [label, invalidAbility] of [
+  ["Self Scope", { ...thereThatsTheWeakPoint, scope: "SELF" as const }],
+  ["Small Group Scope", { ...thereThatsTheWeakPoint, scope: "SMALL_GROUP" as const }],
+  ["Large Group Scope", { ...thereThatsTheWeakPoint, scope: "LARGE_GROUP" as const }],
+  ["Faction / Army Scope", { ...thereThatsTheWeakPoint, scope: "FACTION_ARMY" as const }],
+  ["Method", { ...thereThatsTheWeakPoint, methodId: "APPEAL" as const }],
+  ["Intention", { ...thereThatsTheWeakPoint, intention: "PERSUASION" as const }],
+] as const) {
+  const reconciled = reconcileRoleplayAbilityAuthoring({ ...invalidAbility, counter: true });
+  assertEqual(
+    reconciled.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    `${label} should clear Reveal Exploitable Weakness.`,
+  );
+  assertEqual(reconciled.counter, false, `${label} should clear Counter.`);
+}
+
+const editedRevealWeakness = reconcileRoleplayAbilityAuthoring({
+  ...thereThatsTheWeakPoint,
+  name: "The Hidden Hinge",
+  narrativeTheme: "You follow stress, rhythm, and dependency until the useful opening appears.",
+  diceCount: 5,
+  restrictionType: "CIRCUMSTANCE",
+  restrictionBand: "MODERATE",
+  restrictionTag: "while the target is active",
+  restrictionText: "Only after observing the target in operation.",
+});
+assertEqual(
+  editedRevealWeakness.outcomeContractId,
+  "REVEAL_EXPLOITABLE_WEAKNESS",
+  "Non-invalidating edits should retain Reveal Exploitable Weakness.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(editedRevealWeakness),
+  revealExploitableWeaknessDescriptors.STANDARD.replace("roll 3 dice", "roll 5 dice"),
+  "Reveal Exploitable Weakness Dice Count should only change the roll count.",
+);
+
+for (const runtimeWeaknessField of [
+  "subjectType",
+  "investigationSubject",
+  "targetSubject",
+  "declaredObjective",
+  "weaknessText",
+  "revealedWeakness",
+  "exploitableWeakness",
+  "opportunityText",
+]) {
+  assert(
+    !Object.hasOwn(thereThatsTheWeakPoint, runtimeWeaknessField),
+    `${runtimeWeaknessField} must remain runtime context rather than stored Ability state.`,
+  );
+}
 
 const secureWillingCooperationOutcomes = {
   MINOR:
@@ -1535,6 +1791,7 @@ console.log("PASS roleplay outcome contract registry smoke");
 console.log("PASS roleplay draw hostile attention contract smoke");
 console.log("PASS structured roleplay method registry smoke");
 console.log("PASS roleplay uncover concealed truth contract smoke");
+console.log("PASS roleplay reveal exploitable weakness contract smoke");
 console.log("PASS roleplay secure willing cooperation contract smoke");
 console.log("PASS roleplay establish false belief contract smoke");
 console.log("PASS roleplay establish shared resolve contract smoke");

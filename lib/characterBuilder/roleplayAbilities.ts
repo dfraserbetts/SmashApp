@@ -291,6 +291,7 @@ export type RoleplayStandardOutcomeContractId =
   | "DENY_IMMINENT_HOSTILE_ACT"
   | "DRAW_HOSTILE_ATTENTION"
   | "UNCOVER_CONCEALED_TRUTH"
+  | "REVEAL_EXPLOITABLE_WEAKNESS"
   | "SECURE_WILLING_COOPERATION"
   | "ESTABLISH_SHARED_RESOLVE"
   | "ESTABLISH_FALSE_BELIEF";
@@ -540,6 +541,101 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not allow the player to choose among several qualifying truths; the Game Director selects one that satisfies the chosen variant.",
       "Does not permit the Game Director to return the no-truth result when a qualifying concealed truth exists.",
       "Does not permit the Game Director to answer an accepted specific subject of investigation with an unrelated truth.",
+    ],
+  },
+  {
+    id: "REVEAL_EXPLOITABLE_WEAKNESS",
+    name: "Reveal Exploitable Weakness",
+    outcomeLane: "HELP",
+    variants: [
+      {
+        authoring: {
+          intention: "PERCEPTION",
+          methodId: "DISCERN_TRUTH",
+          sceneImpact: "MINOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "you identify one small immediately useful weakness, opening, or opportunity concerning the target for the current meaningful exchange; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+        counterEligible: false,
+        privilegeCostKey: "REVEAL_EXPLOITABLE_WEAKNESS_MINOR",
+      },
+      {
+        authoring: {
+          intention: "PERCEPTION",
+          methodId: "DISCERN_TRUTH",
+          sceneImpact: "STANDARD",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "you identify one useful exploitable weakness, route, pattern, dependency, or leverage point concerning the target for the current situation; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+        counterEligible: false,
+        privilegeCostKey: "REVEAL_EXPLOITABLE_WEAKNESS_STANDARD",
+      },
+      {
+        authoring: {
+          intention: "PERCEPTION",
+          methodId: "DISCERN_TRUTH",
+          sceneImpact: "MAJOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "you reveal one central exploitable vulnerability or opportunity concerning the target that is shaping the current scene and can materially change how it is approached; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+        counterEligible: false,
+        privilegeCostKey: "REVEAL_EXPLOITABLE_WEAKNESS_MAJOR",
+      },
+      {
+        authoring: {
+          intention: "PERCEPTION",
+          methodId: "DISCERN_TRUTH",
+          sceneImpact: "LEGENDARY",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "you reveal one defining vulnerability, hidden route, dependency, or leverage point concerning the target whose significance extends beyond the current scene; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+        counterEligible: false,
+        privilegeCostKey: "REVEAL_EXPLOITABLE_WEAKNESS_LEGENDARY",
+      },
+    ],
+    examples: [
+      "Noticing one loose fastening during the current exchange",
+      "Identifying the brief moment when a creature's attention shifts",
+      "Seeing smoke being drawn through a concealed vent",
+      "Spotting one unstable foothold",
+      "Noticing that a guard repeatedly checks one doorway",
+      "Identifying that a ritual depends on an exposed focus",
+      "Finding the service route that bypasses the watched entrance",
+      "Recognising the repeated opening in a creature's attack pattern",
+      "Discovering that a gate mechanism can be jammed at one specific point",
+      "Learning that an enemy plan depends on one messenger arriving",
+      "Revealing the central support whose failure would fundamentally alter the current battlefield",
+      "Discovering that an attacking force's coordination depends on one visible signalling system",
+      "Identifying the principal anchor sustaining a magical catastrophe",
+      "Revealing the decisive logistical dependency shaping the current crisis",
+      "Finding the route that could transform the party's approach to the whole current scene",
+      "Revealing the defining oath-bound flaw in an ancient defence",
+      "Discovering the hidden route on which a fortress's long-term survival depends",
+      "Identifying the foundational dependency sustaining a legendary creature's apparent invulnerability",
+      "Uncovering the leverage point on which a long-running hostile plan rests",
+      "Revealing a defining structural or strategic vulnerability whose importance continues beyond the current scene",
+    ],
+    exclusions: [
+      "Does not automatically exploit the revealed opportunity.",
+      "Does not guarantee that a future attempt to use the opportunity succeeds.",
+      "Does not automatically defeat, destroy, control, disable, or bypass the target.",
+      "Does not create wounds, healing, Block, Dodge, Resist, Control stacks, conditions, penalties, bonuses, actions, movement, or another quantified Power output.",
+      "Does not create or modify an existing mechanical vulnerability.",
+      "Does not create an impossible or internally incoherent weakness, route, dependency, pattern, or leverage point.",
+      "Does not contradict established fiction.",
+      "Does not reveal every weakness, route, dependency, or possible solution.",
+      "Does not provide a complete plan for exploiting the result.",
+      "Does not automatically provide required equipment, access, authority, capability, evidence, or resources.",
+      "Does not automatically expose the information publicly or force anyone else to believe it.",
+      "Does not allow one nominal target to substitute for a diffuse crowd, multiple unrelated subjects, a faction, an army, or another broader Scope.",
+      "Does not bypass target access, Discern Truth, Narrative Theme, Scene Impact, Scope, or fictional plausibility.",
+      "Does not permit the Game Director to answer an accepted practical subject with an unrelated secret or piece of trivia.",
+      "Does not permit the Game Director to return no qualifying opportunity merely because no opportunity was prepared in advance or because the result inconveniences the planned plot.",
+      "Does not allow Difficulty or Legendary Impact to legalise an invalid target or impossible investigation.",
     ],
   },
   {
