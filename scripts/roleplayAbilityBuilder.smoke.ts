@@ -413,11 +413,12 @@ assertEqual(
 
 assertEqual(
   ROLEPLAY_METHODS.map((method) => method.id).join(","),
-  "APPEAL,RESCUE,INTERRUPT,CHALLENGE,DISCERN_TRUTH",
-  "The standard Method registry should contain exactly the five approved IDs.",
+  "APPEAL,MISDIRECT,RESCUE,INTERRUPT,CHALLENGE,DISCERN_TRUTH",
+  "The standard Method registry should contain exactly the six approved IDs.",
 );
 for (const [methodId, intention] of [
   ["APPEAL", "PERSUASION"],
+  ["MISDIRECT", "DECEPTION"],
   ["RESCUE", "INTERVENTION"],
   ["INTERRUPT", "INTERVENTION"],
   ["CHALLENGE", "INTIMIDATION"],
@@ -447,12 +448,37 @@ for (const exclusion of [
   assert(appealMethod.exclusions.includes(exclusion), `Appeal exclusion missing: ${exclusion}`);
 }
 
+const misdirectMethod = getRoleplayMethodDefinition("MISDIRECT");
+assert(misdirectMethod, "MISDIRECT should exist in the Method registry.");
+assertEqual(misdirectMethod.name, "Misdirect", "Misdirect Method name mismatch.");
+assertEqual(
+  misdirectMethod.intention,
+  "DECEPTION",
+  "Misdirect owning Intention mismatch.",
+);
+assertEqual(
+  misdirectMethod.definition,
+  "Lead a target toward a false or materially misleading conclusion through direct falsehood, omission, implication, distraction, selective truth, staged cues, or deceptive framing.",
+  "Misdirect Method definition mismatch.",
+);
+for (const exclusion of [
+  "Does not use supernatural domination or control.",
+  "Does not rewrite memories.",
+  "Does not compel a particular action or emotional response.",
+  "Does not establish an unlimited collection of separate false claims.",
+]) {
+  assert(
+    misdirectMethod.exclusions.includes(exclusion),
+    `Misdirect exclusion missing: ${exclusion}`,
+  );
+}
+
 for (const [intention, expectedIds] of [
   ["PERSUASION", "APPEAL"],
+  ["DECEPTION", "MISDIRECT"],
   ["INTERVENTION", "RESCUE,INTERRUPT"],
   ["INTIMIDATION", "CHALLENGE"],
   ["PERCEPTION", "DISCERN_TRUTH"],
-  ["DECEPTION", ""],
 ] as const) {
   assertEqual(
     getRoleplayMethodsForIntention(intention).map((method) => method.id).join(","),
@@ -463,6 +489,7 @@ for (const [intention, expectedIds] of [
 
 for (const [specific, expectedMethodId, intention] of [
   ["APPEAL", "APPEAL", "PERSUASION"],
+  ["MISDIRECT", "MISDIRECT", "DECEPTION"],
   ["RESCUE", "RESCUE", "INTERVENTION"],
   ["INTERRUPT", "INTERRUPT", "INTERVENTION"],
   ["CHALLENGE", "CHALLENGE", "INTIMIDATION"],
@@ -515,6 +542,36 @@ assert(
     "Custom Method requires Game Director approval.",
   ),
   "Custom Method should warn that GD approval is required.",
+);
+
+const legacyLieMethod = normalizeRoleplayAbility(
+  {
+    intention: "DECEPTION",
+    specific: "LIE",
+    description: "You tell a direct and plausible lie.",
+  },
+  9,
+);
+assertEqual(
+  legacyLieMethod.methodId,
+  ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  "Legacy LIE must remain Custom Method review.",
+);
+assertEqual(
+  legacyLieMethod.customMethodName,
+  "Lie",
+  "Legacy LIE should preserve its readable Method name.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(legacyLieMethod).length,
+  0,
+  "Legacy LIE must not match a standard Outcome Contract.",
+);
+assert(
+  getRoleplayAbilityWarnings(legacyLieMethod).includes(
+    "Custom Method requires Game Director approval.",
+  ),
+  "Legacy LIE should retain the Custom Method approval warning.",
 );
 
 const intentionReconciled = reconcileRoleplayAbilityAuthoring({
@@ -990,8 +1047,246 @@ assert(
   "Declared Aim/request must remain runtime context rather than stored Ability state.",
 );
 
+const establishFalseBeliefOutcomes = {
+  MINOR:
+    "the target accepts one small and immediately plausible false premise as true for the current meaningful exchange and treats it as true when making relevant decisions",
+  STANDARD:
+    "the target genuinely accepts one plausible false premise relevant to the current situation as true for the rest of the current scene and treats it as true when making relevant decisions unless meaningful contradictory evidence resolves the belief",
+  MAJOR:
+    "the target genuinely accepts one central false premise shaping the current situation as true for the rest of the current scene and continues to treat it as true when making relevant decisions unless decisive contradictory evidence, direct experience, or narrative resolution ends the belief",
+  LEGENDARY:
+    "the target genuinely accepts one defining false premise whose consequences extend beyond the current scene as true and treats it as true when making relevant decisions until it is decisively disproved or narratively resolved",
+} as const;
+
+const establishFalseBeliefDescriptors = {
+  MINOR:
+    "Choose one target and roll 3 dice. On success, the target accepts one small and immediately plausible false premise as true for the current meaningful exchange and treats it as true when making relevant decisions.",
+  STANDARD:
+    "Choose one target and roll 3 dice. On success, the target genuinely accepts one plausible false premise relevant to the current situation as true for the rest of the current scene and treats it as true when making relevant decisions unless meaningful contradictory evidence resolves the belief.",
+  MAJOR:
+    "Choose one target and roll 3 dice. On success, the target genuinely accepts one central false premise shaping the current situation as true for the rest of the current scene and continues to treat it as true when making relevant decisions unless decisive contradictory evidence, direct experience, or narrative resolution ends the belief.",
+  LEGENDARY:
+    "Choose one target and roll 3 dice. On success, the target genuinely accepts one defining false premise whose consequences extend beyond the current scene as true and treats it as true when making relevant decisions until it is decisively disproved or narratively resolved.",
+} as const;
+
+const falseBeliefContract = getRoleplayOutcomeContract("ESTABLISH_FALSE_BELIEF");
+assert(falseBeliefContract, "ESTABLISH_FALSE_BELIEF should exist.");
+assertEqual(
+  falseBeliefContract.name,
+  "Establish False Belief",
+  "False Belief contract name mismatch.",
+);
+assertEqual(falseBeliefContract.outcomeLane, "HINDER", "False Belief should be Hinder.");
+assertEqual(falseBeliefContract.variants.length, 4, "False Belief needs four variants.");
+for (const variant of falseBeliefContract.variants) {
+  assertEqual(variant.authoring.intention, "DECEPTION", "False Belief Intention mismatch.");
+  assertEqual(variant.authoring.methodId, "MISDIRECT", "False Belief Method mismatch.");
+  assertEqual(variant.authoring.scope, "ONE_TARGET", "False Belief Scope mismatch.");
+  assertEqual(variant.counterEligible, false, "False Belief must disallow Counter.");
+  assertEqual(
+    variant.privilegeCostKey,
+    `ESTABLISH_FALSE_BELIEF_${variant.authoring.sceneImpact}`,
+    `${variant.authoring.sceneImpact} false-belief privilege key mismatch.`,
+  );
+}
+
+const nothingToSeeHere = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(14),
+  name: "Nothing to See Here",
+  narrativeTheme:
+    "You behave with casual confidence, redirect attention toward a mundane explanation, and speak as though the situation is already understood and under control.",
+  intention: "DECEPTION",
+  methodId: "MISDIRECT",
+  sceneImpact: "STANDARD",
+  scope: "ONE_TARGET",
+  diceCount: 3,
+  outcomeContractId: "ESTABLISH_FALSE_BELIEF",
+  counter: true,
+});
+assertEqual(
+  nothingToSeeHere.narrativeTheme,
+  "You behave with casual confidence, redirect attention toward a mundane explanation, and speak as though the situation is already understood and under control.",
+  "Nothing to See Here Narrative Theme mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityMethodName(nothingToSeeHere),
+  "Misdirect",
+  "Misdirect name mismatch.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(nothingToSeeHere)
+    .map((contract) => contract.id)
+    .join(","),
+  "ESTABLISH_FALSE_BELIEF",
+  "Misdirect should match only Establish False Belief for this authoring.",
+);
+assertEqual(
+  getRoleplayAbilityContractName(nothingToSeeHere),
+  "Establish False Belief",
+  "False Belief ability contract name mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityOutcomeLane(nothingToSeeHere),
+  "HINDER",
+  "False Belief lane mismatch.",
+);
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(nothingToSeeHere),
+  establishFalseBeliefOutcomes.STANDARD,
+  "Standard false-belief outcome mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(nothingToSeeHere),
+  establishFalseBeliefDescriptors.STANDARD,
+  "Standard false-belief descriptor mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityCounterEligibility(nothingToSeeHere),
+  false,
+  "False Belief should be Counter-ineligible.",
+);
+assertEqual(
+  nothingToSeeHere.counter,
+  false,
+  "False Belief reconciliation should force Counter off.",
+);
+assert(
+  !getRoleplayAbilityWarnings(nothingToSeeHere).some((warning) =>
+    warning.includes("Custom Method") || warning.includes("Custom Outcome")),
+  "Standard Misdirect should not have Custom review warnings.",
+);
+
+for (const invalidAuthoring of [
+  { intention: "PERSUASION" as const },
+  { methodId: "APPEAL" as const },
+  { scope: "SELF" as const },
+  { scope: "SMALL_GROUP" as const },
+  { scope: "LARGE_GROUP" as const },
+  { scope: "FACTION_ARMY" as const },
+]) {
+  assert(
+    !getCompatibleRoleplayOutcomeContracts({
+      ...nothingToSeeHere,
+      ...invalidAuthoring,
+    }).some((contract) => contract.id === "ESTABLISH_FALSE_BELIEF"),
+    `Establish False Belief should reject ${JSON.stringify(invalidAuthoring)}.`,
+  );
+}
+
+let persistentFalseBelief = reconcileRoleplayAbilityAuthoring({
+  ...nothingToSeeHere,
+  sceneImpact: "MINOR",
+  outcomeContractId: "ESTABLISH_FALSE_BELIEF",
+});
+for (const sceneImpact of ["STANDARD", "MAJOR", "LEGENDARY", "MINOR"] as const) {
+  persistentFalseBelief = reconcileRoleplayAbilityAuthoring({
+    ...persistentFalseBelief,
+    sceneImpact,
+    counter: true,
+  });
+  assertEqual(
+    persistentFalseBelief.outcomeContractId,
+    "ESTABLISH_FALSE_BELIEF",
+    `${sceneImpact} should retain the false-belief family ID.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(persistentFalseBelief),
+    establishFalseBeliefOutcomes[sceneImpact],
+    `${sceneImpact} false-belief outcome mismatch.`,
+  );
+  assertEqual(
+    renderRoleplayAbilityDescriptor(persistentFalseBelief),
+    establishFalseBeliefDescriptors[sceneImpact],
+    `${sceneImpact} false-belief descriptor mismatch.`,
+  );
+  assertEqual(
+    persistentFalseBelief.counter,
+    false,
+    `${sceneImpact} false belief should force Counter off.`,
+  );
+}
+
+for (const [label, invalidAbility] of [
+  ["Scope", { ...nothingToSeeHere, scope: "SMALL_GROUP" as const }],
+  ["Method", { ...nothingToSeeHere, methodId: "APPEAL" as const }],
+  ["Intention", { ...nothingToSeeHere, intention: "PERSUASION" as const }],
+] as const) {
+  const reconciled = reconcileRoleplayAbilityAuthoring({ ...invalidAbility, counter: true });
+  assertEqual(
+    reconciled.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    `${label} invalidation should clear Establish False Belief.`,
+  );
+  assertEqual(reconciled.counter, false, `${label} invalidation should clear Counter.`);
+}
+
+const editedNothingToSeeHere = reconcileRoleplayAbilityAuthoring({
+  ...nothingToSeeHere,
+  name: "Routine Maintenance",
+  narrativeTheme: "You carry a toolbox and complain about the old plumbing.",
+  diceCount: 5,
+  restrictionType: "CIRCUMSTANCE",
+  restrictionBand: "MODERATE",
+  restrictionText: "Only when an ordinary explanation fits the surroundings.",
+});
+assertEqual(
+  editedNothingToSeeHere.outcomeContractId,
+  "ESTABLISH_FALSE_BELIEF",
+  "Non-invalidating Misdirect edits should retain the contract.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(editedNothingToSeeHere),
+  establishFalseBeliefDescriptors.STANDARD.replace("roll 3 dice", "roll 5 dice"),
+  "Misdirect Dice Count should only change the descriptor roll count.",
+);
+for (const runtimePremiseField of [
+  "declaredPremise",
+  "premise",
+  "falseBelief",
+  "beliefText",
+]) {
+  assert(
+    !Object.hasOwn(nothingToSeeHere, runtimePremiseField),
+    `${runtimePremiseField} must remain runtime context rather than stored Ability state.`,
+  );
+}
+
+const customMisdirectOutcomeText =
+  "The target repeats the proposed cover story to every guard who arrives later";
+const customMisdirectOutcome = normalizeRoleplayAbility(
+  {
+    name: "Keep the Story Going",
+    narrativeTheme: "You provide a rehearsed cover story and supporting cues.",
+    intention: "DECEPTION",
+    methodId: "MISDIRECT",
+    sceneImpact: "STANDARD",
+    scope: "ONE_TARGET",
+    diceCount: 3,
+    outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+    customOutcomeLane: "HINDER",
+    customOutcomeRequest: customMisdirectOutcomeText,
+  },
+  15,
+);
+assertEqual(
+  customMisdirectOutcome.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  "Explicit Misdirect Custom Outcome must remain Custom Review.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(customMisdirectOutcome),
+  `Choose one target and roll 3 dice. On success, ${customMisdirectOutcomeText}.`,
+  "Misdirect Custom Outcome descriptor regression.",
+);
+assert(
+  getRoleplayAbilityWarnings(customMisdirectOutcome).some((warning) =>
+    warning.includes("Custom Outcome requires Game Director approval")),
+  "Misdirect Custom Outcome approval warning should remain.",
+);
+
 console.log("PASS roleplay outcome contract registry smoke");
 console.log("PASS roleplay draw hostile attention contract smoke");
 console.log("PASS structured roleplay method registry smoke");
 console.log("PASS roleplay uncover concealed truth contract smoke");
 console.log("PASS roleplay secure willing cooperation contract smoke");
+console.log("PASS roleplay establish false belief contract smoke");

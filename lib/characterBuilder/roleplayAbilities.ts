@@ -18,6 +18,7 @@ export const ROLEPLAY_METHOD_CUSTOM_REVIEW = "CUSTOM_REVIEW" as const;
 
 export type RoleplayStandardMethodId =
   | "APPEAL"
+  | "MISDIRECT"
   | "RESCUE"
   | "INTERRUPT"
   | "CHALLENGE"
@@ -65,6 +66,36 @@ export const ROLEPLAY_METHODS = [
       "Does not automatically bind anyone other than the selected target.",
       "Does not make every request eligible merely because Scene Impact is high.",
       "Does not guarantee that the requested task ultimately succeeds.",
+    ],
+  },
+  {
+    id: "MISDIRECT",
+    name: "Misdirect",
+    intention: "DECEPTION",
+    definition:
+      "Lead a target toward a false or materially misleading conclusion through direct falsehood, omission, implication, distraction, selective truth, staged cues, or deceptive framing.",
+    legalApproaches: [
+      "Tell a plausible direct lie",
+      "Omit a decisive fact to produce a false conclusion",
+      "Redirect attention toward a false explanation",
+      "Frame true evidence misleadingly",
+      "Imply authority, innocence, danger, or normality that does not exist",
+      "Use an existing disguise, prop, document, reputation, or environmental cue deceptively",
+      "Present selective information to lead the target toward the wrong conclusion",
+      "Stage behaviour or circumstances to support a false interpretation",
+    ],
+    exclusions: [
+      "Does not use supernatural domination or control.",
+      "Does not rewrite memories.",
+      "Does not create comprehension, perception, agency, or capability where none exists.",
+      "Does not make an impossible or internally incoherent premise believable.",
+      "Does not overcome conclusive knowledge already possessed by the target.",
+      "Does not create physical evidence, documents, disguises, credentials, or authority that do not exist.",
+      "Does not compel a particular action or emotional response.",
+      "Does not automatically deceive anyone other than the selected target.",
+      "Does not establish an unlimited collection of separate false claims.",
+      "Does not guarantee that every inference drawn from the premise benefits the Ability user.",
+      "Does not make high Difficulty or Legendary Impact legalise an ineligible premise.",
     ],
   },
   {
@@ -227,7 +258,8 @@ export type RoleplayStandardOutcomeContractId =
   | "DENY_IMMINENT_HOSTILE_ACT"
   | "DRAW_HOSTILE_ATTENTION"
   | "UNCOVER_CONCEALED_TRUTH"
-  | "SECURE_WILLING_COOPERATION";
+  | "SECURE_WILLING_COOPERATION"
+  | "ESTABLISH_FALSE_BELIEF";
 
 export type RoleplayOutcomeContractId =
   | RoleplayStandardOutcomeContractId
@@ -555,6 +587,100 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not make an ineligible request legal through high Difficulty or Legendary Impact.",
       "Does not prevent legitimate narrative resolution.",
       "Does not permit arbitrary cancellation merely because cooperation becomes inconvenient for the Game Director or planned plot.",
+    ],
+  },
+  {
+    id: "ESTABLISH_FALSE_BELIEF",
+    name: "Establish False Belief",
+    outcomeLane: "HINDER",
+    variants: [
+      {
+        authoring: {
+          intention: "DECEPTION",
+          methodId: "MISDIRECT",
+          sceneImpact: "MINOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the target accepts one small and immediately plausible false premise as true for the current meaningful exchange and treats it as true when making relevant decisions",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_MINOR",
+      },
+      {
+        authoring: {
+          intention: "DECEPTION",
+          methodId: "MISDIRECT",
+          sceneImpact: "STANDARD",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the target genuinely accepts one plausible false premise relevant to the current situation as true for the rest of the current scene and treats it as true when making relevant decisions unless meaningful contradictory evidence resolves the belief",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_STANDARD",
+      },
+      {
+        authoring: {
+          intention: "DECEPTION",
+          methodId: "MISDIRECT",
+          sceneImpact: "MAJOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the target genuinely accepts one central false premise shaping the current situation as true for the rest of the current scene and continues to treat it as true when making relevant decisions unless decisive contradictory evidence, direct experience, or narrative resolution ends the belief",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_MAJOR",
+      },
+      {
+        authoring: {
+          intention: "DECEPTION",
+          methodId: "MISDIRECT",
+          sceneImpact: "LEGENDARY",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the target genuinely accepts one defining false premise whose consequences extend beyond the current scene as true and treats it as true when making relevant decisions until it is decisively disproved or narratively resolved",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_LEGENDARY",
+      },
+    ],
+    examples: [
+      "The noise came from outside",
+      "The package belongs to someone else",
+      "The character is permitted to wait here briefly",
+      "A minor procedural mistake has already been corrected",
+      "The character is an authorised visitor",
+      "The suspect left through another exit",
+      "The meeting has been moved",
+      "The current danger has a harmless explanation",
+      "An ally is uninvolved in the immediate crime",
+      "A trusted lieutenant has betrayed the target",
+      "Another faction is responsible for the current crisis",
+      "The target's orders have been superseded",
+      "A protected person is responsible for the current threat",
+      "The Ability user possesses legitimate authority central to the current conflict",
+      "The Ability user is the rightful heir",
+      "A long-trusted ally belongs to the enemy",
+      "A foundational historical event occurred differently",
+      "The target's oath was founded on a false betrayal",
+      "A defining identity, allegiance, origin, or relationship is not what the target believed",
+    ],
+    exclusions: [
+      "Does not compel a specific action.",
+      "Does not control how the target responds to the premise.",
+      "Does not remove the target's independent priorities, values, or judgement.",
+      "Does not rewrite memories.",
+      "Does not establish more than one bounded premise.",
+      "Does not establish unspecified future lies.",
+      "Does not make an impossible or internally incoherent premise believable.",
+      "Does not override conclusive knowledge already possessed by the target.",
+      "Does not automatically survive contradictory evidence sufficient for its Impact.",
+      "Does not create supporting proof, evidence, credentials, disguises, authority, or documents.",
+      "Does not force third parties to share the belief.",
+      "Does not automatically propagate through testimony, reputation, command, or institutional authority.",
+      "Does not guarantee that the target's reaction benefits the Ability user.",
+      "Does not manufacture love, loyalty, devotion, consent, or obedience.",
+      "Does not permit arbitrary cancellation after a successful accepted declaration.",
+      "Does not allow Difficulty or Legendary Impact to legalise an ineligible premise.",
     ],
   },
 ] as const satisfies readonly RoleplayOutcomeContractDefinition[];
