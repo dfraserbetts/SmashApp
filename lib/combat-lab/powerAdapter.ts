@@ -6,7 +6,8 @@ import type {
   PowerIntention,
   RangeCategory,
 } from "@/lib/summoning/types";
-import { effectiveAttackWoundsPerSuccess, effectiveCooldownTurns } from "@/lib/summoning/render";
+import { effectiveAttackWoundsPerSuccess } from "@/lib/summoning/render";
+import { resolvePowerCooldownAuthority } from "@/lib/summoning/resolvePowerCooldownAuthority";
 import { strengthToTableWoundsPerSuccess } from "@/lib/forge/outputProfile";
 
 import type {
@@ -52,10 +53,6 @@ function asRecord(value: unknown): Record<string, unknown> {
 function asInt(value: unknown, fallback: number): number {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : fallback;
-}
-
-function hasFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
 }
 
 function asString(value: unknown): string {
@@ -407,7 +404,13 @@ function resolveAttackPacketPool(params: {
   };
 }
 
-export function adaptPowerToCombatActions(power: Power, options: { linkedSecondary?: boolean } = {}): {
+export function adaptPowerToCombatActions(
+  power: Power,
+  options: {
+    linkedSecondary?: boolean;
+    cooldownAuthorityMode?: "EXPLICIT_BUILTIN_PREVIEW";
+  } = {},
+): {
   actions: CombatAction[];
   unsupported: UnsupportedPowerReason[];
   warnings: string[];
@@ -416,21 +419,22 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
   const unsupportedReasons: UnsupportedPowerReason[] = [];
   const warnings: string[] = [];
   const packets = getPackets(power);
-  const rawCooldownTurns = (power as { cooldownTurns?: unknown }).cooldownTurns;
-  const rawCooldownReduction = (power as { cooldownReduction?: unknown }).cooldownReduction;
-  const hasHydratedCooldown = hasFiniteNumber(rawCooldownTurns) && rawCooldownTurns >= 1;
-  const cooldownRounds = hasHydratedCooldown
-    ? effectiveCooldownTurns({
-        cooldownTurns: Math.trunc(rawCooldownTurns),
-        cooldownReduction: hasFiniteNumber(rawCooldownReduction)
-          ? Math.max(0, Math.trunc(rawCooldownReduction))
-          : 0,
-      })
-    : 1;
-
-  if (!options.linkedSecondary && !hasHydratedCooldown) {
-    warnings.push(`Power "${power.name}" has no hydrated cooldown value; Combat Lab used fallback cooldown ${cooldownRounds}.`);
+  const previewResolution =
+    !power.cooldownAuthority && options.cooldownAuthorityMode === "EXPLICIT_BUILTIN_PREVIEW"
+      ? resolvePowerCooldownAuthority({ power, mode: "EXPLICIT_BUILTIN_PREVIEW" })
+      : null;
+  const cooldownAuthority = power.cooldownAuthority ?? (previewResolution?.ok ? previewResolution.result : null);
+  if (!cooldownAuthority) {
+    unsupportedReasons.push(
+      unsupported(
+        power,
+        `Power "${power.name}" has unresolved cooldown authority. Hydrate it with active tuning or explicitly request built-in preview mode.`,
+      ),
+    );
+    return { actions, unsupported: unsupportedReasons, warnings };
   }
+  const cooldownRounds = cooldownAuthority.effectiveCooldownTurns;
+  warnings.push(...cooldownAuthority.warnings);
 
   if (packets.length === 0) {
     unsupportedReasons.push(unsupported(power, "Power has no effect packets."));
@@ -562,6 +566,7 @@ export function adaptPowerToCombatActions(power: Power, options: { linkedSeconda
         intentions: [secondaryPacket],
       }, {
         linkedSecondary: true,
+        cooldownAuthorityMode: options.cooldownAuthorityMode,
       });
       warnings.push(...secondaryAdaptation.warnings);
       unsupportedReasons.push(...secondaryAdaptation.unsupported);
@@ -953,7 +958,9 @@ export function createFixtureActor(params: {
   mentalMinorInjuries?: number;
   forcedMajorInjuryOutcomes?: Partial<Record<CombatInjuryChannel, CombatMajorInjuryOutcome[]>>;
 }): CombatActor {
-  const adapted = params.powers.map((power) => adaptPowerToCombatActions(power));
+  const adapted = params.powers.map((power) =>
+    adaptPowerToCombatActions(power, { cooldownAuthorityMode: "EXPLICIT_BUILTIN_PREVIEW" }),
+  );
   const actions = adapted.flatMap((row) => row.actions);
   if (params.basicAttack) actions.unshift(makeBasicAttackAction(params.basicAttack));
   const attributeDice = Object.fromEntries(

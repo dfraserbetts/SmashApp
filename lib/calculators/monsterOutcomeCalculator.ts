@@ -5,6 +5,7 @@ import type {
   MonsterTier,
   MonsterUpsertInput,
   MonsterCalculatorArchetype,
+  PowerCooldownAuthorityResult,
 } from "@/lib/summoning/types";
 import {
   getArmorSkillDiceCountFromAttributes,
@@ -183,6 +184,7 @@ export type CanonicalPowerContribution = {
     axisVector?: Partial<RadarAxes> | null;
     basePowerValue?: number | null;
     authoredPower?: MonsterUpsertInput["powers"][number] | null;
+    cooldownAuthority?: PowerCooldownAuthorityResult | null;
     derivedCooldownTurns?: number | null;
     derivedCooldownLoad?: number | null;
     cooldownTurns?: number | null;
@@ -754,10 +756,7 @@ function getRadarCooldownLoadExponent(): number {
 }
 
 function resolvePowerAvailability(power: {
-  derivedCooldownTurns?: number | null;
-  derivedCooldownLoad?: number | null;
-  cooldownTurns?: number | null;
-  cooldownReduction?: number | null;
+  cooldownAuthority?: PowerCooldownAuthorityResult | null;
 }): {
   availabilityFactor: number;
   effectivePowerFactor: number;
@@ -774,12 +773,14 @@ function resolvePowerAvailability(power: {
   availabilityReason: string;
   cooldownTurns: number | null;
   cooldownSource: string;
+  cooldownAuthority: PowerCooldownAuthorityResult | null;
+  unresolvedError: string | null;
 } {
-  const derivedCooldown = readFiniteNumber(power.derivedCooldownTurns);
-  if (derivedCooldown !== null) {
-    const resolvedCooldown = Math.max(1, Math.trunc(derivedCooldown));
+  const authority = power.cooldownAuthority ?? null;
+  if (authority) {
+    const resolvedCooldown = authority.effectiveCooldownTurns;
     const tableAvailabilityFactor = getPowerAvailabilityFactor(resolvedCooldown);
-    const cooldownLoad = readFiniteNumber(power.derivedCooldownLoad);
+    const cooldownLoad = readFiniteNumber(authority.cooldownLoad);
     const normalizedCooldownLoad =
       cooldownLoad === null ? null : Math.max(0, Math.min(1, cooldownLoad));
     const radarCooldownLoadExponent = getRadarCooldownLoadExponent();
@@ -818,65 +819,32 @@ function resolvePowerAvailability(power: {
         "threat axes: resolverDerivedPowerRadarAvailabilityFactor; utility axes: pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
       availabilityReason:
         cooldownLoad === null
-          ? `Resolver-derived cooldown ${resolvedCooldown} is present; authored cooldown fields are fallback only. Threat axes use uniform resolver-derived radar availability factor ${availabilityFactor} so increasing canonical power value cannot reduce radar threat at cooldown bracket boundaries.`
-          : `Resolver-derived cooldown ${resolvedCooldown} and cooldown load ${normalizedCooldownLoad} are present; authored cooldown fields are fallback only. Threat axes use uniform resolver-derived radar availability factor ${availabilityFactor} so increasing canonical power value cannot reduce radar threat at cooldown bracket boundaries. The legacy table cooldown factor ${tableAvailabilityFactor} and load expression factor ${radarRelativeLoadFactor} are retained as diagnostics only.`,
+          ? `Authoritative resolver-derived cooldown ${resolvedCooldown} is present; persisted cooldown fields are diagnostic only. Threat axes use uniform resolver-derived radar availability factor ${availabilityFactor} so increasing canonical power value cannot reduce radar threat at cooldown bracket boundaries.`
+          : `Authoritative resolver-derived cooldown ${resolvedCooldown} and cooldown load ${normalizedCooldownLoad} are present; persisted cooldown fields are diagnostic only. Threat axes use uniform resolver-derived radar availability factor ${availabilityFactor} so increasing canonical power value cannot reduce radar threat at cooldown bracket boundaries. The legacy table cooldown factor ${tableAvailabilityFactor} and load expression factor ${radarRelativeLoadFactor} are retained as diagnostics only.`,
       cooldownTurns: resolvedCooldown,
-      cooldownSource: "resolver_derived_cooldown",
+      cooldownSource: authority.source,
+      cooldownAuthority: authority,
+      unresolvedError: null,
     };
   }
-
-  const authoredCooldown = readFiniteNumber(power.cooldownTurns);
-  const authoredReduction = readFiniteNumber(power.cooldownReduction) ?? 0;
-
-  if (authoredCooldown === null) {
-    return {
-      availabilityFactor: 1,
-      effectivePowerFactor: 1,
-      threatEffectivePowerFactor: 1,
-      utilityEffectivePowerFactor: 1,
-      utilityEffectivePowerExponent: null,
-      utilityFactorFormulaLabel: "tableCooldownAvailabilityFactor",
-      axisEffectivePowerFactors: createUniformAxisFactors(1),
-      tableCooldownAvailabilityFactor: 1,
-      radarLoadExpressionFactor: 1,
-      radarCooldownLoadExponent: null,
-      derivedCooldownLoadClamped: null,
-      factorFormulaLabel: "tableCooldownAvailabilityFactor * radarLoadExpressionFactor",
-      availabilityReason:
-        "No per-power cooldownTurns was provided at the monster outcome merge point; canonical axis contribution was left unchanged.",
-      cooldownTurns: null,
-      cooldownSource: "missing",
-    };
-  }
-
-  const resolvedCooldown =
-    authoredCooldown <= 0
-      ? 0
-      : Math.max(1, Math.trunc(authoredCooldown) - Math.max(0, Math.trunc(authoredReduction)));
-  const availabilityFactor = getPowerAvailabilityFactor(resolvedCooldown);
-
   return {
-    availabilityFactor,
-    effectivePowerFactor: availabilityFactor,
-    threatEffectivePowerFactor: availabilityFactor,
-    utilityEffectivePowerFactor: availabilityFactor,
+    availabilityFactor: 0,
+    effectivePowerFactor: 0,
+    threatEffectivePowerFactor: 0,
+    utilityEffectivePowerFactor: 0,
     utilityEffectivePowerExponent: null,
     utilityFactorFormulaLabel: "tableCooldownAvailabilityFactor",
-    axisEffectivePowerFactors: createUniformAxisFactors(availabilityFactor),
-    tableCooldownAvailabilityFactor: availabilityFactor,
+    axisEffectivePowerFactors: createUniformAxisFactors(0),
+    tableCooldownAvailabilityFactor: 0,
     radarLoadExpressionFactor: 1,
     radarCooldownLoadExponent: null,
     derivedCooldownLoadClamped: null,
     factorFormulaLabel: "tableCooldownAvailabilityFactor * radarLoadExpressionFactor",
-    availabilityReason:
-      resolvedCooldown <= 0
-        ? "Authored cooldown resolved to at-will/0, so full canonical axis contribution is used."
-        : `No resolver-derived cooldown was available; authored cooldownTurns (${Math.trunc(authoredCooldown)}) minus cooldownReduction (${Math.max(
-            0,
-            Math.trunc(authoredReduction),
-          )}) was used as fallback and resolved to cooldown ${resolvedCooldown}; effective power factor ${availabilityFactor} uses table cooldown availability only because no resolver-derived load was available.`,
-    cooldownTurns: resolvedCooldown,
-    cooldownSource: "authored_power.cooldownTurns_minus_cooldownReduction_fallback",
+    availabilityReason: "Cooldown authority is unresolved; persisted cooldown was not used and the power contributes no availability-scaled axes.",
+    cooldownTurns: null,
+    cooldownSource: "UNRESOLVED",
+    cooldownAuthority: null,
+    unresolvedError: "Power cooldown authority is unresolved.",
   };
 }
 
@@ -911,6 +879,14 @@ function resolveEffectivePowerAxisContribution(
     availabilityReason: string;
     cooldownTurns: number | null;
     cooldownSource: string;
+    cooldownAuthority: PowerCooldownAuthorityResult | null;
+    unresolvedError: string | null;
+    authoritySource: PowerCooldownAuthorityResult["source"] | null;
+    authorityTuningSetId: string | null;
+    authorityTuningUpdatedAt: string | null;
+    authorityStoredCooldownTurns: number | null;
+    authorityMismatch: boolean | null;
+    authorityWarnings: string[];
     basePowerValue: number | null;
     derivedCooldownLoad: number | null;
   }>;
@@ -951,9 +927,9 @@ function resolveEffectivePowerAxisContribution(
       availability.axisEffectivePowerFactors,
     );
     effectivePowerAxisVector = addRawAxisBonuses(effectivePowerAxisVector, effectiveAxis);
-    if (availability.cooldownSource === "missing") {
+    if (availability.unresolvedError) {
       warnings.push(
-        `Power ${power.name || index + 1} had no cooldownTurns; canonical axis contribution was left unchanged.`,
+        `Power ${power.name || index + 1} has unresolved cooldown authority; persisted cooldown was ignored and its availability-scaled contribution was suppressed.`,
       );
     }
     return {
@@ -976,11 +952,20 @@ function resolveEffectivePowerAxisContribution(
       availabilityReason: availability.availabilityReason,
       cooldownTurns: availability.cooldownTurns,
       cooldownSource: availability.cooldownSource,
+      cooldownAuthority: availability.cooldownAuthority,
+      unresolvedError: availability.unresolvedError,
+      authoritySource: availability.cooldownAuthority?.source ?? null,
+      authorityTuningSetId: availability.cooldownAuthority?.tuningSetId ?? null,
+      authorityTuningUpdatedAt: availability.cooldownAuthority?.tuningUpdatedAt ?? null,
+      authorityStoredCooldownTurns:
+        availability.cooldownAuthority?.storedCooldownTurns ?? null,
+      authorityMismatch: availability.cooldownAuthority?.mismatch ?? null,
+      authorityWarnings: availability.cooldownAuthority?.warnings ?? [],
       basePowerValue:
         typeof power.basePowerValue === "number" && Number.isFinite(power.basePowerValue)
           ? power.basePowerValue
           : null,
-      derivedCooldownLoad: readFiniteNumber(power.derivedCooldownLoad),
+      derivedCooldownLoad: readFiniteNumber(power.cooldownAuthority?.cooldownLoad),
     };
   });
 
@@ -1007,9 +992,7 @@ function resolveEffectivePowerAxisContribution(
   const aggregateCooldownSource =
     cooldownSources.size === 1
       ? (perPower[0]?.cooldownSource ?? "none")
-      : cooldownSources.has("resolver_derived_cooldown")
-        ? "mixed_resolver_derived_and_fallback_cooldown"
-        : "mixed_fallback_cooldown";
+      : "MIXED_COOLDOWN_AUTHORITY";
   const aggregateAvailabilityFactor =
     weightedAvailabilityDenominator > 0
       ? weightedAvailabilityNumerator / weightedAvailabilityDenominator
@@ -1027,9 +1010,9 @@ function resolveEffectivePowerAxisContribution(
     factorFormulaLabel:
       "per-power resolver-derived threat axes use resolverDerivedPowerRadarAvailabilityFactor; utility axes use pow(threatEffectivePowerFactor, utilityEffectivePowerExponent)",
     availabilityReason:
-      cooldownSources.has("resolver_derived_cooldown")
-        ? "Per-power resolver-derived effective power factors applied before final monster outcome axes. Threat axes use a uniform resolver-derived radar availability factor so increasing canonical power value cannot reduce threat at cooldown bracket boundaries; utility axes use a monotonic exponent transform of the threat factor. Authored cooldown fields are fallback only."
-        : "Per-power fallback cooldown availability applied before final monster outcome axes; no resolver-derived load expression was available.",
+      cooldownSources.has("UNRESOLVED")
+        ? "Per-power authoritative cooldown availability was applied where available; unresolved powers were suppressed without using persisted cooldown."
+        : "Per-power authoritative resolver-derived effective power factors applied before final monster outcome axes. Threat axes use a uniform resolver-derived radar availability factor so increasing canonical power value cannot reduce threat at cooldown bracket boundaries; utility axes use a monotonic exponent transform of the threat factor. Persisted cooldown fields are diagnostic only.",
     cooldownTurns: null,
     cooldownSource: aggregateCooldownSource,
     perPower,
@@ -1770,15 +1753,8 @@ function getPressureActionsPerTurn(monster: MonsterOutcomeInput): number {
 
 function getPressurePowerCooldown(
   entry: NonNullable<CanonicalPowerContribution["powers"]>[number],
-  power: MonsterUpsertInput["powers"][number],
-): number {
-  const derived = readFiniteNumber(entry.derivedCooldownTurns);
-  if (derived !== null) return Math.max(0, Math.trunc(derived));
-  const authored = readFiniteNumber(entry.cooldownTurns ?? power.cooldownTurns);
-  const reduction = readFiniteNumber(entry.cooldownReduction ?? power.cooldownReduction) ?? 0;
-  return authored === null
-    ? 0
-    : Math.max(0, Math.trunc(authored) - Math.max(0, Math.trunc(reduction)));
+): number | null {
+  return entry.cooldownAuthority?.effectiveCooldownTurns ?? null;
 }
 
 function getPressurePacketTargeting(
@@ -1906,8 +1882,7 @@ function createPressureActionPackages(params: {
           id: power.id ?? null,
           name: power.name,
           authoredPower: power,
-          cooldownTurns: power.cooldownTurns,
-          cooldownReduction: power.cooldownReduction,
+          cooldownAuthority: power.cooldownAuthority ?? null,
         }));
   for (const entry of powerEntries) {
     const power = entry.authoredPower;
@@ -1939,7 +1914,13 @@ function createPressureActionPackages(params: {
       const mode = String(packet.secondaryDependencyMode ?? "").toUpperCase();
       return mode.length > 0 && mode !== "INDEPENDENT";
     }).length;
-    const cooldownTurns = getPressurePowerCooldown(entry, power);
+    const cooldownTurns = getPressurePowerCooldown(entry);
+    if (cooldownTurns === null) {
+      unsupportedWarnings.push(
+        `Power ${power.name} has unresolved cooldown authority; omitted from Pressure.`,
+      );
+      continue;
+    }
     const areaKind: PressureAreaKind =
       power.descriptorChassis === "FIELD"
         ? "FIELD"
@@ -2320,8 +2301,7 @@ function createSemanticControlPackages(params: {
         id: power.id ?? null,
         name: power.name,
         authoredPower: power,
-        cooldownTurns: power.cooldownTurns,
-        cooldownReduction: power.cooldownReduction,
+        cooldownAuthority: power.cooldownAuthority ?? null,
       }));
 
   for (const entry of entries) {
@@ -2335,7 +2315,13 @@ function createSemanticControlPackages(params: {
       continue;
     }
     const packets = power.effectPackets?.length ? power.effectPackets : power.intentions;
-    const cooldownTurns = getPressurePowerCooldown(entry, power);
+    const cooldownTurns = getPressurePowerCooldown(entry);
+    if (cooldownTurns === null) {
+      unsupportedWarnings.push(
+        `Power ${power.name} has unresolved cooldown authority; omitted from Control Pressure.`,
+      );
+      continue;
+    }
     const availability = controlPressureAvailability(cooldownTurns);
     for (const [packetOffset, packet] of packets.entries()) {
       if (packet.hostility === "NON_HOSTILE") continue;

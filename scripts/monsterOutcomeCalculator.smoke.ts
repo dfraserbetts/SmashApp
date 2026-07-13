@@ -10,6 +10,22 @@ import {
   type WeaponAttackSource,
 } from "../lib/calculators/monsterOutcomeCalculator";
 import type { MonsterAttack, MonsterUpsertInput } from "../lib/summoning/types";
+import { makeResolvedPowerCooldownAuthority } from "../lib/summoning/resolvePowerCooldownAuthority";
+
+function activeCooldownAuthority(
+  effectiveCooldownTurns: number,
+  storedCooldownTurns: number | null = effectiveCooldownTurns,
+  cooldownLoad = 0,
+) {
+  return makeResolvedPowerCooldownAuthority({
+    effectiveCooldownTurns,
+    source: "ACTIVE_TUNING",
+    tuningSetId: "monster-outcome-smoke-active-tuning",
+    tuningUpdatedAt: new Date(0).toISOString(),
+    storedCooldownTurns,
+    cooldownLoad,
+  });
+}
 
 function createBaseMonster(): MonsterUpsertInput {
   return {
@@ -1436,6 +1452,7 @@ const cooldownOnePowerOutcome = computeMonsterOutcomes(createBaseMonster(), calc
         name: "Cooldown 1 Movement",
         axisVector: canonicalMobilityPower,
         basePowerValue: 10,
+        cooldownAuthority: activeCooldownAuthority(1),
         cooldownTurns: 1,
         cooldownReduction: 0,
       },
@@ -1452,6 +1469,7 @@ const cooldownThreePowerOutcome = computeMonsterOutcomes(createBaseMonster(), ca
         name: "Cooldown 3 Movement",
         axisVector: canonicalMobilityPower,
         basePowerValue: 10,
+        cooldownAuthority: activeCooldownAuthority(3),
         cooldownTurns: 3,
         cooldownReduction: 0,
       },
@@ -1468,6 +1486,7 @@ const derivedCooldownPowerOutcome = computeMonsterOutcomes(createBaseMonster(), 
         name: "Derived Cooldown Movement",
         axisVector: canonicalMobilityPower,
         basePowerValue: 10,
+        cooldownAuthority: activeCooldownAuthority(1, 3, 0.25),
         derivedCooldownTurns: 1,
         derivedCooldownLoad: 0.25,
         cooldownTurns: 3,
@@ -1516,6 +1535,7 @@ const lowAttackPowerOutcome = computeMonsterOutcomes(
           name: "Authored Attack Power",
           axisVector: { physicalThreat: 1 },
           authoredPower: authoredAttackPower as never,
+          cooldownAuthority: activeCooldownAuthority(1, null),
           derivedCooldownTurns: 0,
           derivedCooldownLoad: 0,
         },
@@ -1539,6 +1559,7 @@ const highAttackPowerOutcome = computeMonsterOutcomes(
           name: "Authored Attack Power",
           axisVector: { physicalThreat: 1 },
           authoredPower: authoredAttackPower as never,
+          cooldownAuthority: activeCooldownAuthority(1, null),
           derivedCooldownTurns: 0,
           derivedCooldownLoad: 0,
         },
@@ -1563,28 +1584,29 @@ const derivedCooldownFinalDebug = derivedCooldownPowerOutcome.debug as {
 
 assert.equal(cooldownOneDebug.axisVector?.mobility, 4);
 assert.equal(cooldownOneDebug.canonicalPowerAxisVector?.mobility, 4);
-assert.equal(cooldownOneDebug.effectivePowerAxisVector?.mobility, 3);
-assert.equal(cooldownOneDebug.availabilityFactor, 0.75);
-assert.equal(cooldownOneDebug.effectivePowerFactor, 0.75);
+const expectedDerivedCooldownFactor = 0.3;
+const expectedDerivedUtilityFactor = Math.pow(expectedDerivedCooldownFactor, 0.75);
+assert.equal(cooldownOneDebug.effectivePowerAxisVector?.mobility, 4 * expectedDerivedUtilityFactor);
+assert.equal(cooldownOneDebug.availabilityFactor, expectedDerivedCooldownFactor);
+assert.equal(cooldownOneDebug.effectivePowerFactor, expectedDerivedUtilityFactor);
 assert.equal(cooldownOneDebug.basePowerValue, 10);
 assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.cooldownTurns, 1);
 assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.canonicalPowerAxisVector?.mobility, 4);
-assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.effectivePowerAxisVector?.mobility, 3);
-assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.availabilityFactor, 0.75);
-assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.effectivePowerFactor, 0.75);
+assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.effectivePowerAxisVector?.mobility, 4 * expectedDerivedUtilityFactor);
+assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.availabilityFactor, expectedDerivedCooldownFactor);
+assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.effectivePowerFactor, expectedDerivedCooldownFactor);
 assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.tableCooldownAvailabilityFactor, 0.75);
-assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.radarLoadExpressionFactor, 1);
-assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.radarCooldownLoadExponent, null);
-assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.derivedCooldownLoadClamped, null);
-assert.equal(cooldownOneFinalDebug.finalPreNormalizationAxes?.mobility, 3);
-assert.equal(cooldownThreeDebug.effectivePowerAxisVector?.mobility, 1.6);
-assert.equal(cooldownThreeDebug.availabilityFactor, 0.4);
-assert.equal(cooldownThreeDebug.effectivePowerFactor, 0.4);
+assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.radarLoadExpressionFactor, 0);
+assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.radarCooldownLoadExponent, 1.2);
+assert.equal(cooldownOneDebug.perPowerAvailability?.[0]?.derivedCooldownLoadClamped, 0);
+assert.equal(cooldownOneFinalDebug.finalPreNormalizationAxes?.mobility, 4 * expectedDerivedUtilityFactor);
+assert.equal(cooldownThreeDebug.effectivePowerAxisVector?.mobility, 4 * expectedDerivedUtilityFactor);
+assert.equal(cooldownThreeDebug.availabilityFactor, expectedDerivedCooldownFactor);
+assert.equal(cooldownThreeDebug.effectivePowerFactor, expectedDerivedUtilityFactor);
 assert.equal(cooldownThreeDebug.basePowerValue, 10);
 assert.equal(cooldownThreeDebug.perPowerAvailability?.[0]?.cooldownTurns, 3);
-assert.equal(cooldownThreeFinalDebug.finalPreNormalizationAxes?.mobility, 1.6);
-const expectedDerivedCooldownFactor = 0.3;
-const expectedDerivedUtilityFactor = Math.pow(expectedDerivedCooldownFactor, 0.75);
+assert.equal(cooldownThreeDebug.perPowerAvailability?.[0]?.tableCooldownAvailabilityFactor, 0.4);
+assert.equal(cooldownThreeFinalDebug.finalPreNormalizationAxes?.mobility, 4 * expectedDerivedUtilityFactor);
 assert.equal(derivedCooldownDebug.perPowerAvailability?.[0]?.cooldownTurns, 1);
 assert.equal(
   derivedCooldownDebug.perPowerAvailability?.[0]?.tableCooldownAvailabilityFactor,
@@ -1630,9 +1652,13 @@ assert.equal(
   derivedCooldownFinalDebug.finalPreNormalizationAxes?.mobility,
   4 * expectedDerivedUtilityFactor,
 );
+assert.equal(
+  cooldownOneDebug.effectivePowerAxisVector?.mobility,
+  cooldownThreeDebug.effectivePowerAxisVector?.mobility,
+);
 assert.ok(
-  Number(cooldownOneDebug.effectivePowerAxisVector?.mobility ?? 0) >
-    Number(cooldownThreeDebug.effectivePowerAxisVector?.mobility ?? 0),
+  Number(cooldownOneDebug.perPowerAvailability?.[0]?.tableCooldownAvailabilityFactor ?? 0) >
+    Number(cooldownThreeDebug.perPowerAvailability?.[0]?.tableCooldownAvailabilityFactor ?? 0),
 );
 assert.equal(lowAttackPowerDebug.expectedAttackOutput?.source, "authored_power_packets");
 assert.equal(lowAttackPowerDebug.expectedAttackOutput?.packetCount, 1);
@@ -1900,6 +1926,10 @@ function computePressureFixture(options: {
                 manipulation: options.genericManipulation ?? 0,
               },
               authoredPower: power as never,
+              cooldownAuthority: activeCooldownAuthority(
+                Math.max(1, power.cooldownTurns ?? 1),
+                power.cooldownTurns ?? null,
+              ),
               derivedCooldownTurns: power.cooldownTurns,
               cooldownTurns: power.cooldownTurns,
               cooldownReduction: 0,

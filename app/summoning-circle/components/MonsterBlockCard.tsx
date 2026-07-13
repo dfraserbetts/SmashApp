@@ -24,7 +24,6 @@ import {
   type SummoningEquipmentItem,
 } from "@/lib/summoning/equipment";
 import {
-  effectiveCooldownTurns,
   formatModifierWithEffective,
   renderAttackActionLines,
   renderPowerDescriptorLines,
@@ -87,7 +86,6 @@ type MonsterBlockCardProps = {
   printLayout?: PrintLayoutMode;
   printPage?: PrintPageMode;
   protectionTuning?: ProtectionTuningValues;
-  derivedPowerCooldownTurns?: Array<number | null | undefined>;
 };
 type PrintLayoutMode =
   | "COMPACT_1P"
@@ -684,7 +682,6 @@ export function MonsterBlockCard({
   printLayout = "COMPACT_1P",
   printPage = "COMPACT",
   protectionTuning,
-  derivedPowerCooldownTurns,
 }: MonsterBlockCardProps) {
   const inPrint = Boolean(isPrint);
   const basePrintLayout =
@@ -1770,15 +1767,17 @@ export function MonsterBlockCard({
           const isLast = idx === powerCount - 1;
           const isOddCount = powerCount % 2 === 1;
           const spanFull = powerCount > 1 && isOddCount && isLast;
-          const derivedCooldownTurns = derivedPowerCooldownTurns?.[idx];
+          const cooldownAuthority = power.cooldownAuthority ?? null;
+          const derivedCooldownTurns = cooldownAuthority?.effectiveCooldownTurns;
           const displayCooldownTurns =
             typeof derivedCooldownTurns === "number" && Number.isFinite(derivedCooldownTurns)
               ? Math.max(1, Math.trunc(derivedCooldownTurns))
-              : effectiveCooldownTurns(power);
-          const cooldownDisplaySource =
-            typeof derivedCooldownTurns === "number" && Number.isFinite(derivedCooldownTurns)
-              ? "Derived cooldown from Phase 6 power-cost resolver."
-              : "Fallback cooldown from authored manual cooldown fields.";
+              : null;
+          const cooldownDisplaySource = cooldownAuthority
+            ? cooldownAuthority.source === "ACTIVE_TUNING"
+              ? `Current active tuning${cooldownAuthority.tuningSetId ? ` (${cooldownAuthority.tuningSetId})` : ""}.`
+              : "Explicit built-in defaults preview; not current-balance gameplay authority."
+            : "Cooldown authority unresolved; active power tuning is required.";
 
           return (
           <div
@@ -1801,7 +1800,7 @@ export function MonsterBlockCard({
             ))}
             <p title={cooldownDisplaySource}>
               {highlightMechanics(
-                `Cooldown: ${displayCooldownTurns} | Counter: ${
+                `Cooldown: ${displayCooldownTurns ?? "Unresolved"} | Counter: ${
                   power.counterMode === "YES"
                     ? "Yes"
                     : "No"

@@ -26,13 +26,13 @@ import {
 } from "../lib/characterBuilder/powers";
 import { buildCharacterDerivedCombatStats } from "../lib/characterBuilder/derivedStats";
 import {
-  adaptCampaignCharacterToCombatActor,
-  adaptMonsterToCombatLabActor,
+  adaptCampaignCharacterToCombatActor as adaptCampaignCharacterToCombatActorRaw,
+  adaptMonsterToCombatLabActor as adaptMonsterToCombatLabActorRaw,
   itemTemplateToSummoningEquipmentItem,
   type CombatLabHydrationWarning,
 } from "../lib/combat-lab/liveAdapters";
 import {
-  adaptPowerToCombatActions,
+  adaptPowerToCombatActions as adaptPowerToCombatActionsRaw,
   createFixtureActor,
   makeAttackActionsFromConfig,
   makeFixturePower,
@@ -41,6 +41,59 @@ import { calculateOutcomeSummary, formatSuiteReport, runScenarioSuite } from "..
 import { chooseActionLaneOrder, chooseTarget, chooseTurnAction } from "../lib/combat-lab/targetingPolicies";
 import type { CombatAction, CombatActor, CombatState } from "../lib/combat-lab/types";
 import type { Power } from "../lib/summoning/types";
+import { makeResolvedPowerCooldownAuthority } from "../lib/summoning/resolvePowerCooldownAuthority";
+
+const ACTIVE_POWER_TUNING_FIXTURE: PowerTuningSnapshot = {
+  setId: "combat-lab-smoke-active-power-tuning",
+  name: "Combat Lab Smoke Active Power Tuning",
+  slug: "combat-lab-smoke-active-power-tuning",
+  status: "ACTIVE",
+  updatedAt: new Date(0).toISOString(),
+  values: DEFAULT_POWER_TUNING_VALUES,
+};
+
+const adaptCampaignCharacterToCombatActor = (
+  row: Parameters<typeof adaptCampaignCharacterToCombatActorRaw>[0],
+  protectionTuning: Parameters<typeof adaptCampaignCharacterToCombatActorRaw>[1],
+  powerTuning: Parameters<typeof adaptCampaignCharacterToCombatActorRaw>[2] = ACTIVE_POWER_TUNING_FIXTURE,
+  playerPowerSpendScalar?: Parameters<typeof adaptCampaignCharacterToCombatActorRaw>[3],
+) => adaptCampaignCharacterToCombatActorRaw(row, protectionTuning, powerTuning, playerPowerSpendScalar);
+
+const adaptMonsterToCombatLabActor = (
+  row: Parameters<typeof adaptMonsterToCombatLabActorRaw>[0],
+  equipmentById: Parameters<typeof adaptMonsterToCombatLabActorRaw>[1],
+  protectionTuning: Parameters<typeof adaptMonsterToCombatLabActorRaw>[2],
+  powerTuning: Parameters<typeof adaptMonsterToCombatLabActorRaw>[3] = ACTIVE_POWER_TUNING_FIXTURE,
+) => adaptMonsterToCombatLabActorRaw(row, equipmentById, protectionTuning, powerTuning);
+
+const adaptPowerToCombatActions = (
+  power: Power,
+  options: Parameters<typeof adaptPowerToCombatActionsRaw>[1] = {},
+) => {
+  const authoredCooldown = Number(power.cooldownTurns);
+  const authoredReduction = Number(power.cooldownReduction);
+  if (!power.cooldownAuthority && Number.isFinite(authoredCooldown) && authoredCooldown >= 1) {
+    const effectiveCooldownTurns = Math.max(
+      1,
+      Math.trunc(authoredCooldown) -
+        (Number.isFinite(authoredReduction) ? Math.max(0, Math.trunc(authoredReduction)) : 0),
+    );
+    return adaptPowerToCombatActionsRaw({
+      ...power,
+      cooldownAuthority: makeResolvedPowerCooldownAuthority({
+        effectiveCooldownTurns,
+        source: "ACTIVE_TUNING",
+        tuningSetId: ACTIVE_POWER_TUNING_FIXTURE.setId,
+        tuningUpdatedAt: ACTIVE_POWER_TUNING_FIXTURE.updatedAt,
+        storedCooldownTurns: effectiveCooldownTurns,
+      }),
+    }, options);
+  }
+  return adaptPowerToCombatActionsRaw(power, {
+    ...options,
+    cooldownAuthorityMode: "EXPLICIT_BUILTIN_PREVIEW",
+  });
+};
 
 type CombatLabCharacterRow = Parameters<typeof adaptCampaignCharacterToCombatActor>[0];
 type CombatLabCharacterBackpackItem = NonNullable<CombatLabCharacterRow["backpackItems"]>[number];
@@ -3855,7 +3908,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
-  const authoredCooldown = adaptPowerToCombatActions(makeFixturePower({
+  const unresolvedAuthoredCooldown = adaptPowerToCombatActionsRaw(makeFixturePower({
     id: "authored-cooldown-power",
     name: "Authored Cooldown Power",
     intention: "ATTACK",
@@ -3863,8 +3916,11 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     potency: 2,
     cooldownTurns: 3,
   }));
-  if (authoredCooldown.actions[0]?.cooldownRounds !== 3 || authoredCooldown.warnings.length > 0) {
-    throw new Error(`Authored cooldown was not preserved: ${JSON.stringify(authoredCooldown)}.`);
+  if (
+    unresolvedAuthoredCooldown.actions.length !== 0 ||
+    !unresolvedAuthoredCooldown.unsupported.some((row) => /unresolved cooldown authority/i.test(row.reason))
+  ) {
+    throw new Error(`Raw authored cooldown was not rejected: ${JSON.stringify(unresolvedAuthoredCooldown)}.`);
   }
 }
 
@@ -3921,7 +3977,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   }
   if (
     !warnings.some((warning) =>
-      /stored cooldown 1 differs from Character Builder derived\/display cooldown 3; Combat Lab used 3/i.test(
+      /stored cooldown 1 differs from authoritative active-tuning cooldown 3; the stored value was ignored/i.test(
         warning.message,
       ),
     )
@@ -3966,14 +4022,14 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     new Map(),
     DEFAULT_COMBAT_TUNING_VALUES,
   );
-  const actionWithStoredCooldown = actor.actions.find(
-    (candidate) => candidate.sourcePowerId === base.id && candidate.cooldownRounds === 2,
+  const actionWithCurrentCooldown = actor.actions.find(
+    (candidate) => candidate.sourcePowerId === base.id && candidate.cooldownRounds === 1,
   );
-  if (!actionWithStoredCooldown) {
-    throw new Error(`Monster authored power cooldown was not preserved: ${JSON.stringify(actor.actions)}.`);
+  if (!actionWithCurrentCooldown) {
+    throw new Error(`Monster power did not use the active-tuning cooldown: ${JSON.stringify(actor.actions)}.`);
   }
-  if (warnings.some((warning) => /stored cooldown/i.test(warning.message))) {
-    throw new Error(`Stored monster cooldown path should not warn without derived tuning: ${JSON.stringify(warnings)}.`);
+  if (!warnings.some((warning) => /stored cooldown 2 differs from authoritative active-tuning cooldown 1/i.test(warning.message))) {
+    throw new Error(`Stored monster cooldown mismatch was not reported: ${JSON.stringify(warnings)}.`);
   }
 }
 
@@ -4015,7 +4071,7 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   }
   if (
     !warnings.some((warning) =>
-      /stored cooldown 1 differs from Summoning Circle derived\/display cooldown 2; Combat Lab used 2/i.test(
+      /stored cooldown 1 differs from authoritative active-tuning cooldown 2; the stored value was ignored/i.test(
         warning.message,
       ),
     )
@@ -4064,14 +4120,11 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     new Map(),
     DEFAULT_COMBAT_TUNING_VALUES,
   );
-  const actionWithFallbackCooldown = actor.actions.find(
+  const actionWithResolvedCooldown = actor.actions.find(
     (candidate) => candidate.sourcePowerId === missingCooldownBase.id && candidate.cooldownRounds === 1,
   );
-  if (
-    !actionWithFallbackCooldown ||
-    !warnings.some((warning) => /Missing Monster Cooldown.*fallback cooldown 1/i.test(warning.message))
-  ) {
-    throw new Error(`Missing monster cooldown fallback was not reported: ${JSON.stringify({ actions: actor.actions, warnings })}.`);
+  if (!actionWithResolvedCooldown || warnings.some((warning) => /fallback cooldown/i.test(warning.message))) {
+    throw new Error(`Missing stored monster cooldown did not use active-tuning authority: ${JSON.stringify({ actions: actor.actions, warnings })}.`);
   }
 }
 
@@ -4103,10 +4156,11 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   };
   const adapted = adaptPowerToCombatActions(missingCooldownPower);
   if (
-    adapted.actions[0]?.cooldownRounds !== 1 ||
-    !adapted.warnings.some((warning) => /Missing Cooldown Power.*fallback cooldown 1/i.test(warning))
+    adapted.actions[0]?.cooldownRounds !== 2 ||
+    !adapted.warnings.some((warning) => /explicit built-in preview mode/i.test(warning)) ||
+    adapted.warnings.some((warning) => /fallback cooldown/i.test(warning))
   ) {
-    throw new Error(`Missing cooldown fallback was not reported: ${JSON.stringify(adapted)}.`);
+    throw new Error(`Explicit preview did not resolve the missing stored cooldown: ${JSON.stringify(adapted)}.`);
   }
 }
 
@@ -8092,6 +8146,16 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
     }),
     new Map(),
     DEFAULT_COMBAT_TUNING_VALUES,
+    {
+      ...ACTIVE_POWER_TUNING_FIXTURE,
+      setId: "combat-lab-smoke-swiping-claws-cooldown-two",
+      values: {
+        ...DEFAULT_POWER_TUNING_VALUES,
+        "cooldown.load.lightMax": 0,
+        "cooldown.load.moderateMax": 999,
+        "cooldown.load.heavyMax": 1000,
+      },
+    },
   );
   const swipingClaws = actor.actions.find((candidate) => candidate.name === "Swiping Claws");
   if (

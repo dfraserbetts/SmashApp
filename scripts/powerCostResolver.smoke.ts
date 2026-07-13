@@ -1288,7 +1288,9 @@ const multiResistedAttributeCharacterErrors = validateCharacterPowers({
 const resistDescriptor = renderPowerDescriptorLines(resistPower).join("\n");
 const dodgeCost = getFirstPacketBreakdown(dodgePower);
 const resistCost = getFirstPacketBreakdown(resistPower);
-const combatLabDodgeAdaptation = adaptPowerToCombatActions(dodgePower);
+const combatLabDodgeAdaptation = adaptPowerToCombatActions(dodgePower, {
+  cooldownAuthorityMode: "EXPLICIT_BUILTIN_PREVIEW",
+});
 
 assert.ok(
   counterstrikeAudit.after.basePowerValue - counterstrikeAudit.before.basePowerValue >= 20,

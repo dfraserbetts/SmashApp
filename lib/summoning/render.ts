@@ -31,8 +31,13 @@ export function formatModifierWithEffective(raw: number): string {
   return `${signedRaw} (effective ${signedEffective})`;
 }
 
-export function effectiveCooldownTurns(power: Pick<Power, "cooldownTurns" | "cooldownReduction">): number {
-  return Math.max(1, power.cooldownTurns - power.cooldownReduction);
+export function effectiveCooldownTurns(
+  power: Pick<Power, "cooldownAuthority">,
+): number | null {
+  const resolved = power.cooldownAuthority?.effectiveCooldownTurns;
+  return typeof resolved === "number" && Number.isFinite(resolved)
+    ? Math.max(1, Math.trunc(resolved))
+    : null;
 }
 
 function signedPotency(potency: number): string {

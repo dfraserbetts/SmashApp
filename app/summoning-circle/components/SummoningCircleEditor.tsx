@@ -118,6 +118,10 @@ import {
 } from "@/lib/config/combatTuningShared";
 import { resolvePowerCosts } from "@/lib/summoning/powerCostResolver";
 import {
+  attachPowerCooldownAuthority,
+  resolvePowerCooldownAuthority,
+} from "@/lib/summoning/resolvePowerCooldownAuthority";
+import {
   APPROVED_CANARY_POWERS,
   buildApprovedCanarySuite,
   cloneApprovedCanaryPower,
@@ -5738,10 +5742,25 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
       tier: previewMonster.tier,
     });
   }, [powerTuning.snapshot, previewMonster]);
-  const previewDerivedPowerCooldownTurns = useMemo(
-    () => previewResolvedPowerCosts?.powers.map((power) => power.derivedCooldownTurns) ?? undefined,
-    [previewResolvedPowerCosts],
-  );
+  const previewMonsterWithCooldownAuthority = useMemo(() => {
+    if (!previewMonster) return null;
+    return {
+      ...previewMonster,
+      powers: (previewMonster.powers ?? []).map((power) => {
+        const authority = resolvePowerCooldownAuthority({
+          power,
+          mode: "ACTIVE_CURRENT_BALANCE",
+          tuningSnapshot: powerTuning.snapshot,
+          context: { level: previewMonster.level, tier: previewMonster.tier },
+        });
+        return attachPowerCooldownAuthority(power, authority);
+      }),
+    };
+  }, [powerTuning.snapshot, previewMonster]);
+  const previewCooldownAuthorityUnresolved =
+    previewMonsterWithCooldownAuthority?.powers.some(
+      (power) => !power.cooldownAuthority,
+    ) ?? false;
   const equippedWeaponSources = useMemo(() => {
     if (!previewMonster) return [] as WeaponAttackSource[];
     const slotIds = [
@@ -6174,21 +6193,10 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
   ]);
 
   const outcomeProfile = useMemo(() => {
-    if (!previewMonster) return null;
+    if (!previewMonster || !previewMonsterWithCooldownAuthority) return null;
 
-    const resolvedPowerCosts =
-      previewResolvedPowerCosts ??
-      resolvePowerCosts(
-        (previewMonster.powers ?? []).filter(
-          (power) => analyzePowerIntegrity(power).errors.length === 0,
-        ),
-        powerTuning.snapshot ?? undefined,
-        {
-        level: previewMonster.level,
-        tier: previewMonster.tier,
-        },
-      );
-    const baseProfile = computeMonsterOutcomes(previewMonster, runtimeCalculatorConfig, {
+    const resolvedPowerCosts = previewResolvedPowerCosts;
+    const baseProfile = computeMonsterOutcomes(previewMonsterWithCooldownAuthority, runtimeCalculatorConfig, {
       equippedWeaponSources,
       defensiveProfileSources: selectedDefensiveProfileSources,
       defensiveProfileContext: {
@@ -6202,7 +6210,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
       equipmentModifierAxisBonuses: selectedEquipmentModifierAxisBonuses,
       naturalAttackGsAxisBonuses: selectedNaturalAttackGsAxisBonuses,
       naturalAttackRangeAxisBonuses: selectedNaturalAttackRangeAxisBonuses,
-      powerContribution: {
+      powerContribution: resolvedPowerCosts ? {
         axisVector: resolvedPowerCosts.totals.axisVector,
         basePowerValue: resolvedPowerCosts.totals.basePowerValue,
         powerCount: resolvedPowerCosts.powers.length,
@@ -6212,17 +6220,20 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
           axisVector: power.breakdown.axisVector,
           basePowerValue: power.breakdown.basePowerValue,
           authoredPower:
-            previewMonster.powers.find(
+            previewMonsterWithCooldownAuthority.powers.find(
               (authoredPower) =>
                 authoredPower.id === power.powerId || authoredPower.name === power.name,
             ) ?? null,
           derivedCooldownTurns: power.derivedCooldownTurns,
           derivedCooldownLoad: power.derivedCooldown.cooldownLoad,
-          cooldownTurns: power.cooldownTurns,
-          cooldownReduction: power.cooldownReduction,
+          cooldownAuthority:
+            previewMonsterWithCooldownAuthority.powers.find(
+              (authoredPower) =>
+                authoredPower.id === power.powerId || authoredPower.name === power.name,
+            )?.cooldownAuthority ?? null,
         })),
         debug: resolvedPowerCosts,
-      },
+      } : null,
       traitAxisBonuses: selectedTraitAxisBonuses,
     });
 
@@ -6236,8 +6247,8 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
   }, [
     equippedWeaponSources,
     previewMonster,
+    previewMonsterWithCooldownAuthority,
     previewResolvedPowerCosts,
-    powerTuning.snapshot,
     runtimeCalculatorConfig,
     selectedDefensiveProfileSources,
     dodgeDice,
@@ -6260,9 +6271,9 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
     [editorPowers],
   );
   const powerCostPreview = useMemo(() => {
-    if (!hasEditor) return null;
+    if (!hasEditor || !powerTuning.snapshot) return null;
 
-    const resolvedPowerCosts = resolvePowerCosts(validEditorPowers, powerTuning.snapshot ?? undefined, {
+    const resolvedPowerCosts = resolvePowerCosts(validEditorPowers, powerTuning.snapshot, {
       level: editor?.level,
       tier: editor?.tier,
     });
@@ -7264,18 +7275,23 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
               </div>
               <div className="rounded border border-zinc-900/80">
                 <MonsterBlockCard
-                  monster={monster}
+                  monster={{
+                    ...monster,
+                    powers: (monster.powers ?? []).map((power) =>
+                      attachPowerCooldownAuthority(
+                        power,
+                        resolvePowerCooldownAuthority({
+                          power,
+                          mode: "ACTIVE_CURRENT_BALANCE",
+                          tuningSnapshot: powerTuning.snapshot,
+                          context: { level: monster.level, tier: monster.tier },
+                        }),
+                      ),
+                    ),
+                  }}
                   weaponById={weaponById}
                   className="border-0"
                   protectionTuning={protectionTuning}
-                  derivedPowerCooldownTurns={
-                    powerTuning.snapshot
-                      ? resolvePowerCosts(monster.powers ?? [], powerTuning.snapshot, {
-                          level: monster.level,
-                          tier: monster.tier,
-                        }).powers.map((power) => power.derivedCooldownTurns)
-                      : undefined
-                  }
                 />
               </div>
             </article>
@@ -12409,6 +12425,11 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
               onArchetypeChangeAction={handleCalculatorArchetypeChange}
               powerCostPreview={powerCostPreview}
             />
+            {previewCooldownAuthorityUnresolved && (
+              <p className="rounded border border-amber-700/70 bg-amber-950/30 p-2 text-xs text-amber-200">
+                Power cooldown authority is unresolved. Load the active power-tuning snapshot to display current-balance cooldowns.
+              </p>
+            )}
             <section className="sc-print rounded border border-zinc-800 bg-zinc-900/30 p-4 space-y-3 min-w-0 w-full">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="font-semibold">Monster Block Preview</h3>
@@ -12449,13 +12470,12 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                 >
                   {previewMonster && basePreviewPrintLayout === "COMPACT_1P" && (
                     <MonsterBlockCard
-                      monster={previewMonster}
+                      monster={previewMonsterWithCooldownAuthority ?? previewMonster}
                       weaponById={weaponById}
                       isPrint
                       printLayout={previewPrintLayout}
                       printPage="COMPACT"
                       protectionTuning={protectionTuning}
-                      derivedPowerCooldownTurns={previewDerivedPowerCooldownTurns}
                     />
                   )}
 
@@ -12464,25 +12484,23 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                       <div className="space-y-1">
                         <p className="text-xs uppercase tracking-wide text-zinc-500">Page 1 - Main Action</p>
                         <MonsterBlockCard
-                          monster={previewMonster}
+                          monster={previewMonsterWithCooldownAuthority ?? previewMonster}
                           weaponById={weaponById}
                           isPrint
                           printLayout={previewPrintLayout}
                           printPage="PAGE1_MAIN"
                           protectionTuning={protectionTuning}
-                          derivedPowerCooldownTurns={previewDerivedPowerCooldownTurns}
                         />
                       </div>
                       <div className="space-y-1">
                         <p className="text-xs uppercase tracking-wide text-zinc-500">Page 2 - Power Action</p>
                         <MonsterBlockCard
-                          monster={previewMonster}
+                          monster={previewMonsterWithCooldownAuthority ?? previewMonster}
                           weaponById={weaponById}
                           isPrint
                           printLayout={previewPrintLayout}
                           printPage="PAGE2_POWER"
                           protectionTuning={protectionTuning}
-                          derivedPowerCooldownTurns={previewDerivedPowerCooldownTurns}
                         />
                       </div>
                     </div>

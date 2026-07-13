@@ -6,12 +6,15 @@ import type {
   EffectPacketApplyTo,
   EffectTimingType,
   Power,
+  PowerCooldownAuthorityMode,
+  PowerCooldownAuthorityResolution,
   PowerIntention,
   PrimaryDefenceGate,
   RangeCategory,
   ResistTheme,
   SecondaryDependencyMode,
 } from "@/lib/summoning/types";
+import { resolvePowerCooldownAuthority } from "@/lib/summoning/resolvePowerCooldownAuthority";
 import type { CombatDieSize } from "@/lib/combat-lab/types";
 import {
   RESIST_THEME_VALUES,
@@ -101,6 +104,7 @@ export type CharacterPowerSummary = {
   invalidCostReason: string | null;
   errors: string[];
   warnings: string[];
+  cooldownAuthority: PowerCooldownAuthorityResolution;
 };
 
 export type CharacterPowerBudget = {
@@ -110,6 +114,7 @@ export type CharacterPowerBudget = {
   remaining: number;
   overspent: boolean;
   powers: CharacterPowerSummary[];
+  cooldownAuthorityMode: PowerCooldownAuthorityMode;
 };
 
 type ResolvedOffencePressure = OffencePressureAnalysis & {
@@ -1319,6 +1324,7 @@ export function summarizeCharacterPowers(params: {
   powerPoolKind?: CharacterPowerPoolKind;
   offencePressureMode?: PowerCostContext["offencePressureMode"];
   offencePressureDie?: CombatDieSize | null;
+  cooldownAuthorityMode?: PowerCooldownAuthorityMode;
 }): CharacterPowerBudget {
   const playerPowerSpendScalar = normalizeCharacterPowerSpendScalar(
     params.playerPowerSpendScalar ?? DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
@@ -1326,27 +1332,42 @@ export function summarizeCharacterPowers(params: {
   const powerPool = params.powerPool ?? powerPointPool(params.level);
   const powerPoolKind = params.powerPoolKind ?? "normal";
   const offencePressureMode = params.offencePressureMode === "reviewOnly" ? "reviewOnly" : "costing";
+  const cooldownAuthorityMode =
+    params.cooldownAuthorityMode ?? "ACTIVE_CURRENT_BALANCE";
   const normalizedPowers = params.powers.map((power, index) =>
     normalizeCharacterPower(power, index),
   );
-  const resolved = resolvePowerCosts(normalizedPowers, params.tuningSnapshot ?? undefined, {
-    level: params.level,
-    tier: "SOLDIER",
-    offencePressureMode,
-  });
+  const hasAuthorityTuning =
+    cooldownAuthorityMode === "EXPLICIT_BUILTIN_PREVIEW" || Boolean(params.tuningSnapshot);
+  const resolved = hasAuthorityTuning
+    ? resolvePowerCosts(
+        normalizedPowers,
+        cooldownAuthorityMode === "ACTIVE_CURRENT_BALANCE"
+          ? params.tuningSnapshot!
+          : { values: undefined },
+        {
+          level: params.level,
+          tier: "SOLDIER",
+          offencePressureMode,
+        },
+      )
+    : null;
   const summaries = normalizedPowers.map((power, index) => {
-    const resolvedPower = resolved.powers[index];
+    const resolvedPower = resolved?.powers[index];
     const descriptorLines = renderPowerDescriptorLines(power);
     const errors = collectCharacterPowerValidationErrors(power);
     const warnings: string[] = [];
     if (descriptorLines.length === 0) warnings.push("Power descriptor is empty.");
-    const costValid = errors.length === 0;
-    const basePowerValue = costValid ? (resolvedPower?.breakdown.basePowerValue ?? 0) : null;
+    if (!hasAuthorityTuning) {
+      errors.push("Active power tuning is required to resolve current-balance power cost and cooldown.");
+    }
+    const costValid = errors.length === 0 && Boolean(resolvedPower);
+    const basePowerValue = costValid ? (resolvedPower?.breakdown.basePowerValue ?? null) : null;
     const spend =
       basePowerValue === null
         ? null
         : calculateCharacterPlayerPowerSpend(basePowerValue, playerPowerSpendScalar);
-    const baseDerivedCooldownTurns = costValid ? (resolvedPower?.derivedCooldownTurns ?? 1) : null;
+    const baseDerivedCooldownTurns = costValid ? (resolvedPower?.derivedCooldownTurns ?? null) : null;
     const budgetCooldownPressure = deriveCharacterPowerBudgetCooldownPressure({
       spend,
       powerPool,
@@ -1366,6 +1387,22 @@ export function summarizeCharacterPowers(params: {
         `${powerPoolKind === "signature" ? "Signature Move" : "Power"} budget pressure raised derived cooldown from ${budgetCooldownPressure.baseCooldownTurns} to ${budgetCooldownPressure.finalCooldownTurns} (${budgetCooldownPressure.budgetSharePercent}% of pool ${budgetCooldownPressure.poolSize}).`,
       );
     }
+    const cooldownAuthority = resolvePowerCooldownAuthority({
+      power,
+      mode: cooldownAuthorityMode,
+      tuningSnapshot: params.tuningSnapshot,
+      context: {
+        level: params.level,
+        tier: "SOLDIER",
+        offencePressureMode,
+      },
+      minimumCooldownTurns: budgetCooldownPressure?.finalCooldownTurns ?? null,
+    });
+    if (!cooldownAuthority.ok) {
+      warnings.push(cooldownAuthority.message);
+    } else {
+      warnings.push(...cooldownAuthority.result.warnings);
+    }
     return {
       power,
       descriptorLines,
@@ -1379,6 +1416,7 @@ export function summarizeCharacterPowers(params: {
       invalidCostReason: costValid ? null : errors[0] ?? "Power is invalid.",
       errors,
       warnings,
+      cooldownAuthority,
     };
   });
   const totalSpent = Math.round(summaries.reduce((sum, row) => sum + (row.spend ?? 0), 0) * 100) / 100;
@@ -1389,6 +1427,7 @@ export function summarizeCharacterPowers(params: {
     remaining: Math.round((powerPool - totalSpent) * 100) / 100,
     overspent: totalSpent > powerPool,
     powers: summaries,
+    cooldownAuthorityMode,
   };
 }
 
@@ -1402,6 +1441,7 @@ export function validateCharacterPowers(params: {
   powerLabel?: string;
   poolDescription?: string;
   offencePressureMode?: PowerCostContext["offencePressureMode"];
+  cooldownAuthorityMode?: PowerCooldownAuthorityMode;
 }) {
   const summary = summarizeCharacterPowers(params);
   const powerLabel = params.powerLabel ?? "Power";

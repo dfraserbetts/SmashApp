@@ -158,6 +158,33 @@ export type PrimaryDefenceGate = {
   resolutionSource: GateResolutionSource;
 };
 
+export type PowerCooldownAuthorityMode =
+  | "ACTIVE_CURRENT_BALANCE"
+  | "EXPLICIT_BUILTIN_PREVIEW";
+
+export type PowerCooldownAuthoritySource = "ACTIVE_TUNING" | "BUILTIN_DEFAULTS";
+
+export type PowerCooldownAuthorityResult = {
+  effectiveCooldownTurns: number;
+  source: PowerCooldownAuthoritySource;
+  tuningSetId: string | null;
+  tuningUpdatedAt: string | null;
+  storedCooldownTurns: number | null;
+  mismatch: boolean;
+  warnings: string[];
+  basePowerValue: number;
+  cooldownLoad: number;
+};
+
+export type PowerCooldownAuthorityResolution =
+  | { ok: true; result: PowerCooldownAuthorityResult }
+  | {
+      ok: false;
+      errorCode: "ACTIVE_TUNING_REQUIRED" | "COOLDOWN_DERIVATION_FAILED";
+      message: string;
+      storedCooldownTurns: number | null;
+    };
+
 export type Power = {
   id?: string;
   sortOrder: number;
@@ -175,6 +202,7 @@ export type Power = {
   chargeBonusDicePerTurn?: number | null;
   cooldownTurns: number;
   cooldownReduction: number;
+  cooldownAuthority?: PowerCooldownAuthorityResult | null;
   counterMode?: "NO" | "YES";
   commitmentModifier?: "STANDARD" | "CHANNEL" | "CHARGE";
   triggerMethod?: TriggerMethod | null;

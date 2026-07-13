@@ -27,8 +27,10 @@ import {
   getProtectionTotalsFromItems,
   type SummoningEquipmentItem,
 } from "@/lib/summoning/equipment";
-import { effectiveCooldownTurns } from "@/lib/summoning/render";
-import { resolvePowerCosts } from "@/lib/summoning/powerCostResolver";
+import {
+  attachPowerCooldownAuthority,
+  resolvePowerCooldownAuthority,
+} from "@/lib/summoning/resolvePowerCooldownAuthority";
 
 import type { CombatAction, CombatActor, CombatAttributeName, CombatDieSize } from "./types";
 import {
@@ -566,19 +568,6 @@ function actionAbstractionWarnings(actor: { id: string; name: string }, actions:
   );
 }
 
-function readEffectiveStoredCooldown(power: Power): number | null {
-  const cooldownTurns = typeof power.cooldownTurns === "number" ? power.cooldownTurns : Number(power.cooldownTurns);
-  if (!Number.isFinite(cooldownTurns) || cooldownTurns < 1) return null;
-  const cooldownReduction =
-    typeof power.cooldownReduction === "number" ? power.cooldownReduction : Number(power.cooldownReduction);
-  return effectiveCooldownTurns({
-    cooldownTurns: Math.trunc(cooldownTurns),
-    cooldownReduction: Number.isFinite(cooldownReduction)
-      ? Math.max(0, Math.trunc(cooldownReduction))
-      : 0,
-  });
-}
-
 function monsterTierForPowerCost(value: string): MonsterTier | null {
   if (value === "MINION" || value === "SOLDIER" || value === "ELITE" || value === "BOSS") {
     return value;
@@ -593,35 +582,26 @@ function characterPowersWithDerivedCooldowns(params: {
   powerTuning?: PowerTuningSnapshot | null;
   playerPowerSpendScalar?: number | null;
 }): { powers: Power[]; warnings: CombatLabHydrationWarning[] } {
+  if (!params.powerTuning) {
+    throw new Error(`Active power tuning is required to hydrate gameplay powers for "${params.row.name}".`);
+  }
   const budget = summarizeCharacterPowers({
     level: params.level,
     powers: params.builderData.powers,
     tuningSnapshot: params.powerTuning ?? null,
     playerPowerSpendScalar: params.playerPowerSpendScalar,
+    cooldownAuthorityMode: "ACTIVE_CURRENT_BALANCE",
   });
   const warnings: CombatLabHydrationWarning[] = [];
   const powers = params.builderData.powers.map((power, index) => {
-    const derivedCooldownTurns = budget.powers[index]?.derivedCooldownTurns;
-    if (!Number.isFinite(derivedCooldownTurns) || !derivedCooldownTurns || derivedCooldownTurns < 1) {
-      return power;
+    const authority = budget.powers[index]?.cooldownAuthority;
+    if (!authority?.ok) {
+      throw new Error(authority?.message ?? `Power "${power.name}" cooldown authority was unresolved.`);
     }
-    const cooldownTurns = Math.max(1, Math.trunc(derivedCooldownTurns));
-    const storedCooldown = readEffectiveStoredCooldown(power);
-    if (storedCooldown !== null && storedCooldown !== cooldownTurns) {
-      warnings.push(
-        makeWarning(
-          params.row.id,
-          params.row.name,
-          `powerCooldown:${power.id ?? power.name ?? index}`,
-          `Power "${power.name || `Power ${index + 1}`}" stored cooldown ${storedCooldown} differs from Character Builder derived/display cooldown ${cooldownTurns}; Combat Lab used ${cooldownTurns}.`,
-        ),
-      );
+    for (const message of authority.result.warnings) {
+      warnings.push(makeWarning(params.row.id, params.row.name, `powerCooldown:${power.id ?? power.name ?? index}`, message));
     }
-    return {
-      ...power,
-      cooldownTurns,
-      cooldownReduction: 0,
-    };
+    return attachPowerCooldownAuthority(power, authority);
   });
   return { powers, warnings };
 }
@@ -635,6 +615,9 @@ function characterSignatureMoveWithDerivedCooldown(params: {
 }): { powers: Power[]; warnings: CombatLabHydrationWarning[]; present: boolean } {
   const signatureMove = params.builderData.signatureMove;
   if (!signatureMove) return { powers: [], warnings: [], present: false };
+  if (!params.powerTuning) {
+    throw new Error(`Active power tuning is required to hydrate the signature move for "${params.row.name}".`);
+  }
 
   const sourceName = signatureMove.name.trim() || "Unnamed Signature Move";
   const sourceId = signatureMove.id ?? `${params.row.id}:signatureMove`;
@@ -652,32 +635,17 @@ function characterSignatureMoveWithDerivedCooldown(params: {
     powerPool: signatureMovePointPool(params.level),
     powerPoolKind: "signature",
     offencePressureMode: "reviewOnly",
+    cooldownAuthorityMode: "ACTIVE_CURRENT_BALANCE",
   });
-  const derivedCooldownTurns = budget.powers[0]?.derivedCooldownTurns;
-  if (!Number.isFinite(derivedCooldownTurns) || !derivedCooldownTurns || derivedCooldownTurns < 1) {
-    return { powers: [labelledPower], warnings: [], present: true };
-  }
-
-  const cooldownTurns = Math.max(1, Math.trunc(derivedCooldownTurns));
   const warnings: CombatLabHydrationWarning[] = [];
-  const storedCooldown = readEffectiveStoredCooldown(labelledPower);
-  if (storedCooldown !== null && storedCooldown !== cooldownTurns) {
-    warnings.push(
-      makeWarning(
-        params.row.id,
-        params.row.name,
-        `signatureMoveCooldown:${signatureMove.id ?? signatureMove.name ?? "signatureMove"}`,
-        `Signature Move "${sourceName}" stored cooldown ${storedCooldown} differs from Character Builder derived/display cooldown ${cooldownTurns}; Combat Lab used ${cooldownTurns}.`,
-      ),
-    );
+  const authority = budget.powers[0]?.cooldownAuthority;
+  if (!authority?.ok) throw new Error(authority?.message ?? `Signature Move "${sourceName}" cooldown authority was unresolved.`);
+  for (const message of authority.result.warnings) {
+    warnings.push(makeWarning(params.row.id, params.row.name, `signatureMoveCooldown:${signatureMove.id ?? signatureMove.name ?? "signatureMove"}`, message));
   }
 
   return {
-    powers: [{
-      ...labelledPower,
-      cooldownTurns,
-      cooldownReduction: 0,
-    }],
+    powers: [attachPowerCooldownAuthority(labelledPower, authority)],
     warnings,
     present: true,
   };
@@ -702,37 +670,21 @@ function monsterPowersWithDerivedCooldowns(params: {
 }): { powers: Power[]; warnings: CombatLabHydrationWarning[] } {
   const powers = params.powers.map(mapPower);
   if (!params.powerTuning) {
-    return { powers, warnings: [] };
+    throw new Error(`Active power tuning is required to hydrate gameplay powers for "${params.row.name}".`);
   }
-
-  const resolved = resolvePowerCosts(powers, params.powerTuning, {
-    level: params.row.level,
-    tier: monsterTierForPowerCost(params.row.tier),
-  });
   const warnings: CombatLabHydrationWarning[] = [];
   const hydratedPowers = powers.map((power, index) => {
-    const derivedCooldownTurns = resolved.powers[index]?.derivedCooldownTurns;
-    if (!Number.isFinite(derivedCooldownTurns) || !derivedCooldownTurns || derivedCooldownTurns < 1) {
-      return power;
+    const authority = resolvePowerCooldownAuthority({
+      power,
+      mode: "ACTIVE_CURRENT_BALANCE",
+      tuningSnapshot: params.powerTuning,
+      context: { level: params.row.level, tier: monsterTierForPowerCost(params.row.tier) },
+    });
+    if (!authority.ok) throw new Error(authority.message);
+    for (const message of authority.result.warnings) {
+      warnings.push(makeWarning(params.row.id, params.row.name, `powerCooldown:${power.id ?? power.name ?? index}`, message));
     }
-
-    const cooldownTurns = Math.max(1, Math.trunc(derivedCooldownTurns));
-    const storedCooldown = readEffectiveStoredCooldown(power);
-    if (storedCooldown !== null && storedCooldown !== cooldownTurns) {
-      warnings.push(
-        makeWarning(
-          params.row.id,
-          params.row.name,
-          `powerCooldown:${power.id ?? power.name ?? index}`,
-          `Power "${power.name || `Power ${index + 1}`}" stored cooldown ${storedCooldown} differs from Summoning Circle derived/display cooldown ${cooldownTurns}; Combat Lab used ${cooldownTurns}.`,
-        ),
-      );
-    }
-    return {
-      ...power,
-      cooldownTurns,
-      cooldownReduction: 0,
-    };
+    return attachPowerCooldownAuthority(power, authority);
   });
 
   return { powers: hydratedPowers, warnings };

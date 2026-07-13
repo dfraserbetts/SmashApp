@@ -16,8 +16,8 @@ import {
   normalizeCharacterPower,
   powerPointPool,
   signatureMovePointPool,
-  summarizeCharacterPowers,
-  validateCharacterPowers,
+  summarizeCharacterPowers as summarizeCharacterPowersRaw,
+  validateCharacterPowers as validateCharacterPowersRaw,
   type CharacterPower,
 } from "../lib/characterBuilder/powers";
 import { resolvePowerCosts } from "../lib/summoning/powerCostResolver";
@@ -34,6 +34,30 @@ import {
   isPowerSecondaryDiceAuthored,
 } from "../lib/powers/authoringRules";
 import type { Power } from "../lib/summoning/types";
+
+const summarizeCharacterPowers = (
+  params: Parameters<typeof summarizeCharacterPowersRaw>[0],
+) =>
+  summarizeCharacterPowersRaw({
+    ...params,
+    cooldownAuthorityMode:
+      params.cooldownAuthorityMode ??
+      (params.tuningSnapshot
+        ? "ACTIVE_CURRENT_BALANCE"
+        : "EXPLICIT_BUILTIN_PREVIEW"),
+  });
+
+const validateCharacterPowers = (
+  params: Parameters<typeof validateCharacterPowersRaw>[0],
+) =>
+  validateCharacterPowersRaw({
+    ...params,
+    cooldownAuthorityMode:
+      params.cooldownAuthorityMode ??
+      (params.tuningSnapshot
+        ? "ACTIVE_CURRENT_BALANCE"
+        : "EXPLICIT_BUILTIN_PREVIEW"),
+  });
 
 function assert(condition: unknown, message: string) {
   if (!condition) {
@@ -62,6 +86,22 @@ const levelOneSummary = summarizeCharacterPowers({
   level: 1,
   powers: [levelOnePower],
 });
+
+assert(
+  levelOneSummary.powers[0]?.cooldownAuthority.ok === true &&
+    levelOneSummary.powers[0].cooldownAuthority.result.source === "BUILTIN_DEFAULTS",
+  "Snapshot-less Character Builder smoke fixtures must explicitly expose built-in preview provenance.",
+);
+const missingGameplayTuning = summarizeCharacterPowersRaw({
+  level: 1,
+  powers: [levelOnePower],
+  cooldownAuthorityMode: "ACTIVE_CURRENT_BALANCE",
+});
+assert(
+  missingGameplayTuning.powers[0]?.cooldownAuthority.ok === false &&
+    missingGameplayTuning.powers[0].cooldownAuthority.errorCode === "ACTIVE_TUNING_REQUIRED",
+  "Current-balance Character Builder calculation must fail explicitly without active tuning.",
+);
 
 assert(powerPointPool(1) === 50, "Level 1 PowerPool should equal 50.");
 assert(
