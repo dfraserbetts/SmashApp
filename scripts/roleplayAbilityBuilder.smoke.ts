@@ -414,14 +414,14 @@ assertEqual(
 
 assertEqual(
   ROLEPLAY_METHODS.map((method) => method.id).join(","),
-  "APPEAL,RALLY,MISDIRECT,RESCUE,INTERRUPT,CHALLENGE,DISCERN_TRUTH",
-  "The standard Method registry should contain exactly the seven approved IDs.",
+  "APPEAL,RALLY,MISDIRECT,RESCUE,INTERRUPT,CHALLENGE,OVERAWE,DISCERN_TRUTH",
+  "The standard Method registry should contain exactly the eight approved IDs.",
 );
-assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 8, "The registry should contain eight contracts.");
+assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 9, "The registry should contain nine contracts.");
 assertEqual(
   ROLEPLAY_OUTCOME_CONTRACTS.reduce((total, contract) => total + contract.variants.length, 0),
-  26,
-  "The registry should contain twenty-six exact variants.",
+  30,
+  "The registry should contain thirty exact variants.",
 );
 assertEqual(
   getRoleplayMethodDefinition("SPOT_WEAKNESS"),
@@ -435,6 +435,7 @@ for (const [methodId, intention] of [
   ["RESCUE", "INTERVENTION"],
   ["INTERRUPT", "INTERVENTION"],
   ["CHALLENGE", "INTIMIDATION"],
+  ["OVERAWE", "INTIMIDATION"],
   ["DISCERN_TRUTH", "PERCEPTION"],
 ] as const) {
   assertEqual(
@@ -504,11 +505,29 @@ for (const exclusion of [
   );
 }
 
+const overaweMethod = getRoleplayMethodDefinition("OVERAWE");
+assert(overaweMethod, "OVERAWE should exist in the Method registry.");
+assertEqual(overaweMethod.name, "Overawe", "Overawe Method name mismatch.");
+assertEqual(overaweMethod.intention, "INTIMIDATION", "Overawe owning Intention mismatch.");
+assertEqual(
+  overaweMethod.definition,
+  "Intimidate through a credible threat, display of power, authority, reputation, certainty, omen, or consequence that makes continued opposition feel too dangerous or costly.",
+  "Overawe Method definition mismatch.",
+);
+for (const exclusion of [
+  "Does not rely on deliberate lies or concealed falsehoods.",
+  "Does not create comprehension, fear, self-preservation, evaluative judgement, or agency where none exists.",
+  "Does not force surrender, confession, cooperation, loyalty, or obedience unless an exact Outcome Contract explicitly grants a narrower result.",
+  "Does not dictate the target's exact alternative action, movement, tactics, or use of resources.",
+]) {
+  assert(overaweMethod.exclusions.includes(exclusion), `Overawe exclusion missing: ${exclusion}`);
+}
+
 for (const [intention, expectedIds] of [
   ["PERSUASION", "APPEAL,RALLY"],
   ["DECEPTION", "MISDIRECT"],
   ["INTERVENTION", "RESCUE,INTERRUPT"],
-  ["INTIMIDATION", "CHALLENGE"],
+  ["INTIMIDATION", "CHALLENGE,OVERAWE"],
   ["PERCEPTION", "DISCERN_TRUTH"],
 ] as const) {
   assertEqual(
@@ -525,6 +544,7 @@ for (const [specific, expectedMethodId, intention] of [
   ["RESCUE", "RESCUE", "INTERVENTION"],
   ["INTERRUPT", "INTERRUPT", "INTERVENTION"],
   ["CHALLENGE", "CHALLENGE", "INTIMIDATION"],
+  ["OVERAWE", "OVERAWE", "INTIMIDATION"],
   ["DISCERN_TRUTH", "DISCERN_TRUTH", "PERCEPTION"],
   ["ENABLE_MOVEMENT", "RESCUE", "INTERVENTION"],
 ] as const) {
@@ -636,6 +656,36 @@ assert(
   "Legacy SPOT_WEAKNESS should retain the Custom Method approval warning.",
 );
 
+const legacyThreatenMethod = normalizeRoleplayAbility(
+  {
+    intention: "INTIMIDATION",
+    specific: "THREATEN",
+    description: "You threaten the target with consequences.",
+  },
+  11,
+);
+assertEqual(
+  legacyThreatenMethod.methodId,
+  ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  "Legacy THREATEN must remain Custom Method review.",
+);
+assertEqual(
+  legacyThreatenMethod.customMethodName,
+  "Threaten",
+  "Legacy THREATEN should preserve its readable Method name.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(legacyThreatenMethod).length,
+  0,
+  "Legacy THREATEN must not match a standard Outcome Contract.",
+);
+assert(
+  getRoleplayAbilityWarnings(legacyThreatenMethod).includes(
+    "Custom Method requires Game Director approval.",
+  ),
+  "Legacy THREATEN should retain the Custom Method approval warning.",
+);
+
 const intentionReconciled = reconcileRoleplayAbilityAuthoring({
   ...drawBase,
   intention: "PERCEPTION",
@@ -699,6 +749,262 @@ assert(
     "Automatic standard Outcome Contract matching is unavailable for a Custom Method.",
   ),
   "Custom Method matching warning missing.",
+);
+
+const breakSharedResolveOutcomes = {
+  MINOR:
+    "the selected group breaks off one small immediate shared course of opposition for the current meaningful exchange; each member may choose another coherent response but does not pursue that course",
+  STANDARD:
+    "the selected group abandons one clear shared course of opposition for the rest of the current scene; each member may choose another coherent response but does not pursue that course",
+  MAJOR:
+    "the selected group abandons one central shared course of opposition for the rest of the current scene and does not resume it despite serious pressure, loyalty, personal cost, or command",
+  LEGENDARY:
+    "the selected group adopts an enduring refusal to pursue one defining course of opposition whose consequences extend beyond the current scene and maintains that refusal until it is narratively resolved",
+} as const;
+
+const breakSharedResolveDescriptors = {
+  MINOR:
+    "Choose a small group of targets and roll 3 dice. On success, the selected group breaks off one small immediate shared course of opposition for the current meaningful exchange; each member may choose another coherent response but does not pursue that course.",
+  STANDARD:
+    "Choose a small group of targets and roll 3 dice. On success, the selected group abandons one clear shared course of opposition for the rest of the current scene; each member may choose another coherent response but does not pursue that course.",
+  MAJOR:
+    "Choose a small group of targets and roll 3 dice. On success, the selected group abandons one central shared course of opposition for the rest of the current scene and does not resume it despite serious pressure, loyalty, personal cost, or command.",
+  LEGENDARY:
+    "Choose a small group of targets and roll 3 dice. On success, the selected group adopts an enduring refusal to pursue one defining course of opposition whose consequences extend beyond the current scene and maintains that refusal until it is narratively resolved.",
+} as const;
+
+const breakSharedResolveContract = getRoleplayOutcomeContract("BREAK_SHARED_RESOLVE");
+assert(breakSharedResolveContract, "BREAK_SHARED_RESOLVE should exist.");
+assertEqual(
+  breakSharedResolveContract.name,
+  "Break Shared Resolve",
+  "Break Shared Resolve name mismatch.",
+);
+assertEqual(
+  breakSharedResolveContract.outcomeLane,
+  "HINDER",
+  "Break Shared Resolve should be Hinder.",
+);
+assertEqual(
+  breakSharedResolveContract.variants.length,
+  4,
+  "Break Shared Resolve needs four variants.",
+);
+for (const variant of breakSharedResolveContract.variants) {
+  const impact = variant.authoring.sceneImpact;
+  assertEqual(variant.authoring.intention, "INTIMIDATION", `${impact} Intention mismatch.`);
+  assertEqual(variant.authoring.methodId, "OVERAWE", `${impact} Method mismatch.`);
+  assertEqual(variant.authoring.scope, "SMALL_GROUP", `${impact} Scope mismatch.`);
+  assertEqual(variant.counterEligible, false, `${impact} must disallow Counter.`);
+  assertEqual(
+    variant.privilegeCostKey,
+    `BREAK_SHARED_RESOLVE_${impact}`,
+    `${impact} privilege key mismatch.`,
+  );
+  assertEqual(
+    variant.successOutcome,
+    breakSharedResolveOutcomes[impact],
+    `${impact} exact outcome mismatch.`,
+  );
+}
+
+const youDoNotWantThisFight = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(18),
+  name: "You Do Not Want This Fight",
+  narrativeTheme:
+    "You step into their path, let the weight of your reputation settle over the group, and describe exactly what continued resistance will cost them.",
+  intention: "INTIMIDATION",
+  methodId: "OVERAWE",
+  sceneImpact: "STANDARD",
+  scope: "SMALL_GROUP",
+  diceCount: 3,
+  outcomeContractId: "BREAK_SHARED_RESOLVE",
+  counter: true,
+});
+assertEqual(
+  getRoleplayAbilityMethodName(youDoNotWantThisFight),
+  "Overawe",
+  "Break Shared Resolve should use Overawe.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(youDoNotWantThisFight)
+    .map((contract) => contract.id)
+    .join(","),
+  "BREAK_SHARED_RESOLVE",
+  "Overawe / Small Group should expose only Break Shared Resolve.",
+);
+assertEqual(
+  getRoleplayAbilityContractName(youDoNotWantThisFight),
+  "Break Shared Resolve",
+  "Selected Break Shared Resolve name mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityOutcomeLane(youDoNotWantThisFight),
+  "HINDER",
+  "Break Shared Resolve lane mismatch.",
+);
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(youDoNotWantThisFight),
+  breakSharedResolveOutcomes.STANDARD,
+  "Break Shared Resolve Standard outcome mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(youDoNotWantThisFight),
+  breakSharedResolveDescriptors.STANDARD,
+  "Break Shared Resolve Standard descriptor mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityCounterEligibility(youDoNotWantThisFight),
+  false,
+  "Break Shared Resolve should not permit Counter.",
+);
+assertEqual(
+  youDoNotWantThisFight.counter,
+  false,
+  "Break Shared Resolve reconciliation should force Counter off.",
+);
+assert(
+  !getRoleplayAbilityWarnings(youDoNotWantThisFight).some(
+    (warning) => warning.includes("Custom Method") || warning.includes("Custom Outcome"),
+  ),
+  "Break Shared Resolve should not produce Custom approval warnings.",
+);
+
+let persistentBreakSharedResolve = reconcileRoleplayAbilityAuthoring({
+  ...youDoNotWantThisFight,
+  sceneImpact: "MINOR",
+  outcomeContractId: "BREAK_SHARED_RESOLVE",
+});
+for (const sceneImpact of ["STANDARD", "MAJOR", "LEGENDARY", "MINOR"] as const) {
+  persistentBreakSharedResolve = reconcileRoleplayAbilityAuthoring({
+    ...persistentBreakSharedResolve,
+    sceneImpact,
+    counter: true,
+  });
+  assertEqual(
+    persistentBreakSharedResolve.outcomeContractId,
+    "BREAK_SHARED_RESOLVE",
+    `${sceneImpact} should retain Break Shared Resolve.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(persistentBreakSharedResolve),
+    breakSharedResolveOutcomes[sceneImpact],
+    `${sceneImpact} Break Shared Resolve outcome mismatch.`,
+  );
+  assertEqual(
+    renderRoleplayAbilityDescriptor(persistentBreakSharedResolve),
+    breakSharedResolveDescriptors[sceneImpact],
+    `${sceneImpact} Break Shared Resolve descriptor mismatch.`,
+  );
+  assertEqual(
+    persistentBreakSharedResolve.counter,
+    false,
+    `${sceneImpact} Break Shared Resolve should force Counter off.`,
+  );
+}
+
+for (const invalidAuthoring of [
+  { scope: "SELF" as const },
+  { scope: "ONE_TARGET" as const },
+  { scope: "LARGE_GROUP" as const },
+  { scope: "FACTION_ARMY" as const },
+  { methodId: "CHALLENGE" as const },
+  { intention: "PERSUASION" as const },
+]) {
+  assert(
+    !getCompatibleRoleplayOutcomeContracts({
+      ...youDoNotWantThisFight,
+      ...invalidAuthoring,
+    }).some((contract) => contract.id === "BREAK_SHARED_RESOLVE"),
+    `Break Shared Resolve should reject ${JSON.stringify(invalidAuthoring)}.`,
+  );
+}
+
+for (const [label, invalidAbility] of [
+  ["Self Scope", { ...youDoNotWantThisFight, scope: "SELF" as const }],
+  ["One Target Scope", { ...youDoNotWantThisFight, scope: "ONE_TARGET" as const }],
+  ["Large Group Scope", { ...youDoNotWantThisFight, scope: "LARGE_GROUP" as const }],
+  ["Faction / Army Scope", { ...youDoNotWantThisFight, scope: "FACTION_ARMY" as const }],
+  ["Method", { ...youDoNotWantThisFight, methodId: "CHALLENGE" as const }],
+  ["Intention", { ...youDoNotWantThisFight, intention: "PERSUASION" as const }],
+] as const) {
+  const reconciled = reconcileRoleplayAbilityAuthoring({ ...invalidAbility, counter: true });
+  assertEqual(
+    reconciled.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    `${label} should clear Break Shared Resolve.`,
+  );
+  assertEqual(reconciled.counter, false, `${label} should clear Counter.`);
+}
+
+const editedBreakSharedResolve = reconcileRoleplayAbilityAuthoring({
+  ...youDoNotWantThisFight,
+  name: "Enough",
+  narrativeTheme: "You name the cost of continuing and let the group see your resolve.",
+  diceCount: 5,
+  restrictionType: "CIRCUMSTANCE",
+  restrictionBand: "MODERATE",
+  restrictionTag: "while the group can see you",
+  restrictionText: "Only while every accepted member can witness the warning.",
+});
+assertEqual(
+  editedBreakSharedResolve.outcomeContractId,
+  "BREAK_SHARED_RESOLVE",
+  "Non-invalidating edits should retain Break Shared Resolve.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(editedBreakSharedResolve),
+  breakSharedResolveDescriptors.STANDARD.replace("roll 3 dice", "roll 5 dice"),
+  "Break Shared Resolve Dice Count should only change the roll count.",
+);
+
+for (const runtimeCourseField of [
+  "declaredOpposedCourse",
+  "opposedCourse",
+  "brokenCourse",
+  "groupOpposition",
+  "selectedOpposition",
+  "opposedCourseText",
+  "intimidatedGroup",
+]) {
+  assert(
+    !Object.hasOwn(youDoNotWantThisFight, runtimeCourseField),
+    `${runtimeCourseField} must remain runtime context rather than stored Ability state.`,
+  );
+}
+
+const customOveraweOutcomeText =
+  "The selected group publicly confesses who ordered the current attack";
+const customOveraweOutcome = normalizeRoleplayAbility(
+  {
+    name: "Tell Them Who Sent You",
+    narrativeTheme: "You make clear that silence will cost the group more than honesty.",
+    intention: "INTIMIDATION",
+    methodId: "OVERAWE",
+    sceneImpact: "STANDARD",
+    scope: "SMALL_GROUP",
+    diceCount: 3,
+    outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+    customOutcomeLane: "HINDER",
+    customOutcomeRequest: customOveraweOutcomeText,
+  },
+  19,
+);
+assertEqual(
+  customOveraweOutcome.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  "Explicit Overawe Custom Outcome must remain Custom Review.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(customOveraweOutcome),
+  `Choose a small group of targets and roll 3 dice. On success, ${customOveraweOutcomeText}.`,
+  "Overawe Custom Outcome descriptor regression.",
+);
+assert(
+  getRoleplayAbilityWarnings(customOveraweOutcome).some((warning) =>
+    warning.includes("Custom Outcome requires Game Director approval"),
+  ),
+  "Overawe Custom Outcome approval warning should remain.",
 );
 
 const uncoverConcealedTruthOutcomes = {
@@ -1789,6 +2095,7 @@ assert(
 
 console.log("PASS roleplay outcome contract registry smoke");
 console.log("PASS roleplay draw hostile attention contract smoke");
+console.log("PASS roleplay break shared resolve contract smoke");
 console.log("PASS structured roleplay method registry smoke");
 console.log("PASS roleplay uncover concealed truth contract smoke");
 console.log("PASS roleplay reveal exploitable weakness contract smoke");

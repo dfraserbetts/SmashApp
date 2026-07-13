@@ -23,6 +23,7 @@ export type RoleplayStandardMethodId =
   | "RESCUE"
   | "INTERRUPT"
   | "CHALLENGE"
+  | "OVERAWE"
   | "DISCERN_TRUTH";
 
 export type RoleplayMethodId =
@@ -203,6 +204,39 @@ export const ROLEPLAY_METHODS = [
     ],
   },
   {
+    id: "OVERAWE",
+    name: "Overawe",
+    intention: "INTIMIDATION",
+    definition:
+      "Intimidate through a credible threat, display of power, authority, reputation, certainty, omen, or consequence that makes continued opposition feel too dangerous or costly.",
+    legalApproaches: [
+      "Issue a credible threat",
+      "Demonstrate power, capability, or readiness",
+      "Invoke a feared reputation",
+      "Invoke recognised authority or judgement",
+      "Make the likely consequences of resistance unmistakable",
+      "Exploit visible fear, doubt, or failing confidence",
+      "Present an ominous symbol, warning, prophecy, or sign supported by the fiction",
+      "Show absolute resolve or willingness to follow through",
+    ],
+    exclusions: [
+      "Does not rely on deliberate lies or concealed falsehoods.",
+      "Does not make an impossible, incoherent, or wholly baseless threat credible.",
+      "Does not use supernatural domination or control.",
+      "Does not create comprehension, fear, self-preservation, evaluative judgement, or agency where none exists.",
+      "Does not inflict wounds, damage, Injury, or another quantified output.",
+      "Does not create or remove Fear, Control stacks, conditions, penalties, bonuses, fields, attachments, or active powers.",
+      "Does not force surrender, confession, cooperation, loyalty, or obedience unless an exact Outcome Contract explicitly grants a narrower result.",
+      "Does not dictate the target's exact alternative action, movement, tactics, or use of resources.",
+      "Does not grant open-ended authority over future decisions.",
+      "Does not create permanent general obedience or permanent emotional rewriting.",
+      "Does not automatically affect anyone outside the selected Scope.",
+      "Does not bypass target access, comprehension, fictional plausibility, or contract exclusions.",
+      "Does not guarantee that a threatened consequence is later carried out.",
+      "Does not make high Difficulty or Legendary Impact legalise an ineligible use.",
+    ],
+  },
+  {
     id: "DISCERN_TRUTH",
     name: "Discern Truth",
     intention: "PERCEPTION",
@@ -290,6 +324,7 @@ export type RoleplayStandardOutcomeContractId =
   | "HIDE_FROM_IMMEDIATE_DANGER"
   | "DENY_IMMINENT_HOSTILE_ACT"
   | "DRAW_HOSTILE_ATTENTION"
+  | "BREAK_SHARED_RESOLVE"
   | "UNCOVER_CONCEALED_TRUTH"
   | "REVEAL_EXPLOITABLE_WEAKNESS"
   | "SECURE_WILLING_COOPERATION"
@@ -461,6 +496,102 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not prevent immediate self-preservation.",
       "Does not automatically affect a group.",
       "Legendary creates rivalry rather than permanent mechanical domination.",
+    ],
+  },
+  {
+    id: "BREAK_SHARED_RESOLVE",
+    name: "Break Shared Resolve",
+    outcomeLane: "HINDER",
+    variants: [
+      {
+        authoring: {
+          intention: "INTIMIDATION",
+          methodId: "OVERAWE",
+          sceneImpact: "MINOR",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "the selected group breaks off one small immediate shared course of opposition for the current meaningful exchange; each member may choose another coherent response but does not pursue that course",
+        counterEligible: false,
+        privilegeCostKey: "BREAK_SHARED_RESOLVE_MINOR",
+      },
+      {
+        authoring: {
+          intention: "INTIMIDATION",
+          methodId: "OVERAWE",
+          sceneImpact: "STANDARD",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "the selected group abandons one clear shared course of opposition for the rest of the current scene; each member may choose another coherent response but does not pursue that course",
+        counterEligible: false,
+        privilegeCostKey: "BREAK_SHARED_RESOLVE_STANDARD",
+      },
+      {
+        authoring: {
+          intention: "INTIMIDATION",
+          methodId: "OVERAWE",
+          sceneImpact: "MAJOR",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "the selected group abandons one central shared course of opposition for the rest of the current scene and does not resume it despite serious pressure, loyalty, personal cost, or command",
+        counterEligible: false,
+        privilegeCostKey: "BREAK_SHARED_RESOLVE_MAJOR",
+      },
+      {
+        authoring: {
+          intention: "INTIMIDATION",
+          methodId: "OVERAWE",
+          sceneImpact: "LEGENDARY",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "the selected group adopts an enduring refusal to pursue one defining course of opposition whose consequences extend beyond the current scene and maintains that refusal until it is narratively resolved",
+        counterEligible: false,
+        privilegeCostKey: "BREAK_SHARED_RESOLVE_LEGENDARY",
+      },
+    ],
+    examples: [
+      "A gang breaks off one immediate rush",
+      "Guards stop one brief collective search",
+      "A mob ceases pounding one door through the current exchange",
+      "Pursuers abandon one immediate attempt to seize someone",
+      "Raiders abandon storming one barricade for the scene",
+      "A patrol abandons pursuit of a refugee group",
+      "Mercenaries cease one coordinated attempt to enforce an eviction",
+      "Conspirators stop trying to silence one witness for the scene",
+      "Cultists abandon carrying out the central sacrifice despite their leader's commands",
+      "Soldiers cease a central attempt to burn a village despite loyalty and fear of punishment",
+      "A sworn patrol abandons the principal pursuit shaping the current crisis",
+      "A hostile council bloc ceases one central act of persecution for the scene",
+      "A sworn band forms an enduring refusal to continue one defining hunt",
+      "A small cabal abandons a defining conspiracy extending beyond the scene",
+      "Former zealots refuse to resume one foundational persecution",
+      "An elite guard's enduring refusal breaks one long-running course of oppression",
+    ],
+    exclusions: [
+      "Does not dictate the group's exact alternative response.",
+      "Does not automatically force retreat, surrender, confession, cooperation, loyalty, alliance, or obedience.",
+      "Does not end every hostile intention or objective held by the group.",
+      "Does not prevent every future act of opposition.",
+      "Does not affect more than one bounded Declared Opposed Course.",
+      "Does not apply to unspecified future commands or conflicts.",
+      "Does not remove individual identity, values, loyalties, emotions, priorities, or judgement.",
+      "Does not create one shared mind, action, turn, or resource pool.",
+      "Does not create wounds, damage, Injury, Fear, Control stacks, conditions, penalties, bonuses, movement, extra actions, or another quantified Power output.",
+      "Does not remove existing quantified effects.",
+      "Does not automatically make the Ability user or allies safe from unrelated actions.",
+      "Does not automatically bind anyone outside the accepted group.",
+      "Does not automatically bind later arrivals, replacements, followers, or intermediaries.",
+      "Does not automatically propagate through leadership, command, reputation, testimony, or institutional authority.",
+      "Does not convert Small Group into Large Group, Faction / Army, or a diffuse crowd.",
+      "Does not make an impossible or incoherent threat effective.",
+      "Does not permit deliberate lies or false authority through Overawe.",
+      "Does not permit cosmetic rewording or tactical relabelling to evade the accepted course.",
+      "Does not guarantee that a threatened consequence is later carried out.",
+      "Does not allow high Difficulty or Legendary Impact to legalise an invalid group or overbroad course.",
+      "Does not permit arbitrary cancellation because the result obstructs the planned plot or encounter.",
     ],
   },
   {
