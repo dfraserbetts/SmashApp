@@ -171,6 +171,11 @@ assertEqual(
   "HINDER",
   "Valid legacy lane should be preserved for Custom Review.",
 );
+assertEqual(
+  unknownLegacyOutcome.methodId,
+  "APPEAL",
+  "Legacy Appeal should now migrate to the approved standard Method.",
+);
 assert(
   getRoleplayAbilityWarnings(unknownLegacyOutcome).some((warning) =>
     warning.includes("Game Director approval") && warning.includes("automatically costed"),
@@ -408,10 +413,11 @@ assertEqual(
 
 assertEqual(
   ROLEPLAY_METHODS.map((method) => method.id).join(","),
-  "RESCUE,INTERRUPT,CHALLENGE,DISCERN_TRUTH",
-  "The standard Method registry should contain exactly the four approved IDs.",
+  "APPEAL,RESCUE,INTERRUPT,CHALLENGE,DISCERN_TRUTH",
+  "The standard Method registry should contain exactly the five approved IDs.",
 );
 for (const [methodId, intention] of [
+  ["APPEAL", "PERSUASION"],
   ["RESCUE", "INTERVENTION"],
   ["INTERRUPT", "INTERVENTION"],
   ["CHALLENGE", "INTIMIDATION"],
@@ -424,11 +430,28 @@ for (const [methodId, intention] of [
   );
 }
 
+const appealMethod = getRoleplayMethodDefinition("APPEAL");
+assert(appealMethod, "APPEAL should exist in the Method registry.");
+assertEqual(appealMethod.name, "Appeal", "Appeal Method name mismatch.");
+assertEqual(
+  appealMethod.definition,
+  "Persuade a target by connecting a clear request to their values, interests, loyalties, emotions, relationships, duties, or understanding of the situation.",
+  "Appeal Method definition mismatch.",
+);
+for (const exclusion of [
+  "Does not rely primarily on threats or fear.",
+  "Does not rely on deliberate lies or concealed falsehoods.",
+  "Does not create permanent general obedience.",
+  "Does not manufacture love, devotion, intimacy, or consent.",
+]) {
+  assert(appealMethod.exclusions.includes(exclusion), `Appeal exclusion missing: ${exclusion}`);
+}
+
 for (const [intention, expectedIds] of [
+  ["PERSUASION", "APPEAL"],
   ["INTERVENTION", "RESCUE,INTERRUPT"],
   ["INTIMIDATION", "CHALLENGE"],
   ["PERCEPTION", "DISCERN_TRUTH"],
-  ["PERSUASION", ""],
   ["DECEPTION", ""],
 ] as const) {
   assertEqual(
@@ -439,6 +462,7 @@ for (const [intention, expectedIds] of [
 }
 
 for (const [specific, expectedMethodId, intention] of [
+  ["APPEAL", "APPEAL", "PERSUASION"],
   ["RESCUE", "RESCUE", "INTERVENTION"],
   ["INTERRUPT", "INTERRUPT", "INTERVENTION"],
   ["CHALLENGE", "CHALLENGE", "INTIMIDATION"],
@@ -585,6 +609,12 @@ assert(uncoverContract, "UNCOVER_CONCEALED_TRUTH should exist.");
 assertEqual(uncoverContract.name, "Uncover Concealed Truth", "Contract name mismatch.");
 assertEqual(uncoverContract.outcomeLane, "HELP", "Uncover Concealed Truth should be Help.");
 assertEqual(uncoverContract.variants.length, 4, "Uncover Concealed Truth needs four variants.");
+assert(
+  uncoverContract.exclusions.includes(
+    "Does not permit the Game Director to answer an accepted specific subject of investigation with an unrelated truth.",
+  ),
+  "Uncover Concealed Truth accepted-subject exclusion is missing.",
+);
 for (const variant of uncoverContract.variants) {
   assertEqual(variant.authoring.intention, "PERCEPTION", "Variant Intention mismatch.");
   assertEqual(variant.authoring.methodId, "DISCERN_TRUTH", "Variant Method mismatch.");
@@ -784,7 +814,184 @@ assert(
   "Discern Truth Custom Outcome approval warning should remain.",
 );
 
+const secureWillingCooperationOutcomes = {
+  MINOR:
+    "the target willingly complies with one small immediate request requiring negligible sacrifice, risk, or commitment",
+  STANDARD:
+    "the target willingly agrees to and sincerely carries out one meaningful request involving inconvenience, social cost, or modest personal risk",
+  MAJOR:
+    "the target willingly commits to and sincerely pursues one difficult request involving substantial effort, personal cost, reputational danger, or physical risk",
+  LEGENDARY:
+    "the target willingly makes one defining commitment, alliance, or promise whose consequences extend beyond the current scene and sincerely upholds it until it is fulfilled or narratively resolved",
+} as const;
+
+const secureWillingCooperationDescriptors = {
+  MINOR:
+    "Choose one target and roll 3 dice. On success, the target willingly complies with one small immediate request requiring negligible sacrifice, risk, or commitment.",
+  STANDARD:
+    "Choose one target and roll 3 dice. On success, the target willingly agrees to and sincerely carries out one meaningful request involving inconvenience, social cost, or modest personal risk.",
+  MAJOR:
+    "Choose one target and roll 3 dice. On success, the target willingly commits to and sincerely pursues one difficult request involving substantial effort, personal cost, reputational danger, or physical risk.",
+  LEGENDARY:
+    "Choose one target and roll 3 dice. On success, the target willingly makes one defining commitment, alliance, or promise whose consequences extend beyond the current scene and sincerely upholds it until it is fulfilled or narratively resolved.",
+} as const;
+
+const cooperationContract = getRoleplayOutcomeContract("SECURE_WILLING_COOPERATION");
+assert(cooperationContract, "SECURE_WILLING_COOPERATION should exist.");
+assertEqual(
+  cooperationContract.name,
+  "Secure Willing Cooperation",
+  "Cooperation contract name mismatch.",
+);
+assertEqual(cooperationContract.outcomeLane, "HELP", "Cooperation contract should be Help.");
+assertEqual(cooperationContract.variants.length, 4, "Cooperation needs four variants.");
+for (const variant of cooperationContract.variants) {
+  assertEqual(variant.authoring.intention, "PERSUASION", "Cooperation Intention mismatch.");
+  assertEqual(variant.authoring.methodId, "APPEAL", "Cooperation Method mismatch.");
+  assertEqual(variant.authoring.scope, "ONE_TARGET", "Cooperation Scope mismatch.");
+  assertEqual(variant.counterEligible, false, "Cooperation must disallow Counter.");
+  assertEqual(
+    variant.privilegeCostKey,
+    `SECURE_WILLING_COOPERATION_${variant.authoring.sceneImpact}`,
+    `${variant.authoring.sceneImpact} cooperation privilege key mismatch.`,
+  );
+}
+
+const standWithMe = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(13),
+  name: "Stand With Me",
+  narrativeTheme:
+    "You remind the target what they once promised and explain why keeping that promise matters now.",
+  intention: "PERSUASION",
+  methodId: "APPEAL",
+  sceneImpact: "STANDARD",
+  scope: "ONE_TARGET",
+  diceCount: 3,
+  outcomeContractId: "SECURE_WILLING_COOPERATION",
+  counter: true,
+});
+assertEqual(getRoleplayAbilityMethodName(standWithMe), "Appeal", "Appeal name mismatch.");
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(standWithMe)
+    .map((contract) => contract.id)
+    .join(","),
+  "SECURE_WILLING_COOPERATION",
+  "Appeal should match only Secure Willing Cooperation for this authoring.",
+);
+assertEqual(
+  getRoleplayAbilityContractName(standWithMe),
+  "Secure Willing Cooperation",
+  "Cooperation ability contract name mismatch.",
+);
+assertEqual(getRoleplayAbilityOutcomeLane(standWithMe), "HELP", "Cooperation lane mismatch.");
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(standWithMe),
+  secureWillingCooperationOutcomes.STANDARD,
+  "Standard cooperation outcome mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(standWithMe),
+  secureWillingCooperationDescriptors.STANDARD,
+  "Standard cooperation descriptor mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityCounterEligibility(standWithMe),
+  false,
+  "Cooperation should be Counter-ineligible.",
+);
+assertEqual(standWithMe.counter, false, "Cooperation reconciliation should force Counter off.");
+assert(
+  !getRoleplayAbilityWarnings(standWithMe).some((warning) =>
+    warning.includes("Custom Method") || warning.includes("Custom Outcome")),
+  "Standard Appeal should not have Custom review warnings.",
+);
+
+for (const invalidAuthoring of [
+  { intention: "INTIMIDATION" as const },
+  { methodId: "CHALLENGE" as const },
+  { scope: "SELF" as const },
+  { scope: "SMALL_GROUP" as const },
+  { scope: "LARGE_GROUP" as const },
+  { scope: "FACTION_ARMY" as const },
+]) {
+  assert(
+    !getCompatibleRoleplayOutcomeContracts({
+      ...standWithMe,
+      ...invalidAuthoring,
+    }).some((contract) => contract.id === "SECURE_WILLING_COOPERATION"),
+    `Secure Willing Cooperation should reject ${JSON.stringify(invalidAuthoring)}.`,
+  );
+}
+
+let persistentCooperation = reconcileRoleplayAbilityAuthoring({
+  ...standWithMe,
+  sceneImpact: "MINOR",
+  outcomeContractId: "SECURE_WILLING_COOPERATION",
+});
+for (const sceneImpact of ["STANDARD", "MAJOR", "LEGENDARY", "MINOR"] as const) {
+  persistentCooperation = reconcileRoleplayAbilityAuthoring({
+    ...persistentCooperation,
+    sceneImpact,
+    counter: true,
+  });
+  assertEqual(
+    persistentCooperation.outcomeContractId,
+    "SECURE_WILLING_COOPERATION",
+    `${sceneImpact} should retain the cooperation family ID.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(persistentCooperation),
+    secureWillingCooperationOutcomes[sceneImpact],
+    `${sceneImpact} cooperation outcome mismatch.`,
+  );
+  assertEqual(
+    renderRoleplayAbilityDescriptor(persistentCooperation),
+    secureWillingCooperationDescriptors[sceneImpact],
+    `${sceneImpact} cooperation descriptor mismatch.`,
+  );
+  assertEqual(persistentCooperation.counter, false, `${sceneImpact} should force Counter off.`);
+}
+
+for (const [label, invalidAbility] of [
+  ["Scope", { ...standWithMe, scope: "SMALL_GROUP" as const }],
+  ["Method", { ...standWithMe, methodId: "CHALLENGE" as const }],
+  ["Intention", { ...standWithMe, intention: "INTIMIDATION" as const }],
+] as const) {
+  const reconciled = reconcileRoleplayAbilityAuthoring({ ...invalidAbility, counter: true });
+  assertEqual(
+    reconciled.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    `${label} invalidation should clear Secure Willing Cooperation.`,
+  );
+  assertEqual(reconciled.counter, false, `${label} invalidation should clear Counter.`);
+}
+
+const editedStandWithMe = reconcileRoleplayAbilityAuthoring({
+  ...standWithMe,
+  name: "Keep Your Promise",
+  narrativeTheme: "You calmly invoke the promise and the people who depend on it.",
+  diceCount: 5,
+  restrictionType: "CIRCUMSTANCE",
+  restrictionBand: "MODERATE",
+  restrictionText: "Only when the target has already made a relevant promise.",
+});
+assertEqual(
+  editedStandWithMe.outcomeContractId,
+  "SECURE_WILLING_COOPERATION",
+  "Non-invalidating Appeal edits should retain the contract.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(editedStandWithMe),
+  secureWillingCooperationDescriptors.STANDARD.replace("roll 3 dice", "roll 5 dice"),
+  "Appeal Dice Count should only change the descriptor roll count.",
+);
+assert(
+  !Object.hasOwn(standWithMe, "declaredAim") && !Object.hasOwn(standWithMe, "request"),
+  "Declared Aim/request must remain runtime context rather than stored Ability state.",
+);
+
 console.log("PASS roleplay outcome contract registry smoke");
 console.log("PASS roleplay draw hostile attention contract smoke");
 console.log("PASS structured roleplay method registry smoke");
 console.log("PASS roleplay uncover concealed truth contract smoke");
+console.log("PASS roleplay secure willing cooperation contract smoke");

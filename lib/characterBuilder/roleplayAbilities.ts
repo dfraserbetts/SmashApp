@@ -17,6 +17,7 @@ export const ROLEPLAY_METHOD_UNSELECTED = "UNSELECTED" as const;
 export const ROLEPLAY_METHOD_CUSTOM_REVIEW = "CUSTOM_REVIEW" as const;
 
 export type RoleplayStandardMethodId =
+  | "APPEAL"
   | "RESCUE"
   | "INTERRUPT"
   | "CHALLENGE"
@@ -37,6 +38,35 @@ export type RoleplayMethodDefinition = {
 };
 
 export const ROLEPLAY_METHODS = [
+  {
+    id: "APPEAL",
+    name: "Appeal",
+    intention: "PERSUASION",
+    definition:
+      "Persuade a target by connecting a clear request to their values, interests, loyalties, emotions, relationships, duties, or understanding of the situation.",
+    legalApproaches: [
+      "Present a reasoned argument",
+      "Make an emotional appeal",
+      "Establish shared interest or mutual benefit",
+      "Appeal to compassion or mercy",
+      "Invoke duty or responsibility",
+      "Offer an honest compromise or negotiated concession",
+      "Invoke a relationship, promise, value, or common cause",
+      "Honestly explain the likely consequences of a choice",
+    ],
+    exclusions: [
+      "Does not rely primarily on threats or fear.",
+      "Does not rely on deliberate lies or concealed falsehoods.",
+      "Does not use supernatural control or domination.",
+      "Does not create comprehension, agency, or capability where none exists.",
+      "Does not manufacture love, devotion, intimacy, or consent.",
+      "Does not grant open-ended authority over future decisions.",
+      "Does not create permanent general obedience.",
+      "Does not automatically bind anyone other than the selected target.",
+      "Does not make every request eligible merely because Scene Impact is high.",
+      "Does not guarantee that the requested task ultimately succeeds.",
+    ],
+  },
   {
     id: "RESCUE",
     name: "Rescue",
@@ -196,7 +226,8 @@ export type RoleplayStandardOutcomeContractId =
   | "HIDE_FROM_IMMEDIATE_DANGER"
   | "DENY_IMMINENT_HOSTILE_ACT"
   | "DRAW_HOSTILE_ATTENTION"
-  | "UNCOVER_CONCEALED_TRUTH";
+  | "UNCOVER_CONCEALED_TRUTH"
+  | "SECURE_WILLING_COOPERATION";
 
 export type RoleplayOutcomeContractId =
   | RoleplayStandardOutcomeContractId
@@ -442,6 +473,88 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not permit a false, speculative, vague, or deliberately misleading answer.",
       "Does not allow the player to choose among several qualifying truths; the Game Director selects one that satisfies the chosen variant.",
       "Does not permit the Game Director to return the no-truth result when a qualifying concealed truth exists.",
+      "Does not permit the Game Director to answer an accepted specific subject of investigation with an unrelated truth.",
+    ],
+  },
+  {
+    id: "SECURE_WILLING_COOPERATION",
+    name: "Secure Willing Cooperation",
+    outcomeLane: "HELP",
+    variants: [
+      {
+        authoring: {
+          intention: "PERSUASION",
+          methodId: "APPEAL",
+          sceneImpact: "MINOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the target willingly complies with one small immediate request requiring negligible sacrifice, risk, or commitment",
+        counterEligible: false,
+        privilegeCostKey: "SECURE_WILLING_COOPERATION_MINOR",
+      },
+      {
+        authoring: {
+          intention: "PERSUASION",
+          methodId: "APPEAL",
+          sceneImpact: "STANDARD",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the target willingly agrees to and sincerely carries out one meaningful request involving inconvenience, social cost, or modest personal risk",
+        counterEligible: false,
+        privilegeCostKey: "SECURE_WILLING_COOPERATION_STANDARD",
+      },
+      {
+        authoring: {
+          intention: "PERSUASION",
+          methodId: "APPEAL",
+          sceneImpact: "MAJOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the target willingly commits to and sincerely pursues one difficult request involving substantial effort, personal cost, reputational danger, or physical risk",
+        counterEligible: false,
+        privilegeCostKey: "SECURE_WILLING_COOPERATION_MAJOR",
+      },
+      {
+        authoring: {
+          intention: "PERSUASION",
+          methodId: "APPEAL",
+          sceneImpact: "LEGENDARY",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the target willingly makes one defining commitment, alliance, or promise whose consequences extend beyond the current scene and sincerely upholds it until it is fulfilled or narratively resolved",
+        counterEligible: false,
+        privilegeCostKey: "SECURE_WILLING_COOPERATION_LEGENDARY",
+      },
+    ],
+    examples: [
+      "Waiting briefly while the Ability user speaks to someone",
+      "Passing along a harmless message",
+      "Granting a meeting or temporary access",
+      "Sheltering someone at substantial personal risk",
+      "Testifying against a dangerous patron",
+      "Joining an alliance for a coming war",
+      "Swearing to protect a community",
+      "Reconciling with a former enemy and upholding a defined peace",
+    ],
+    exclusions: [
+      "Does not grant open-ended authority over the target.",
+      "Does not create permanent general obedience.",
+      "Does not apply to unspecified future requests.",
+      "Does not manufacture love, devotion, intimacy, or consent.",
+      "Does not remove the target's identity or independent judgement.",
+      "Does not make an impossible request possible.",
+      "Does not create comprehension, agency, authority, or capability.",
+      "Does not automatically compel anyone other than the selected target.",
+      "Does not guarantee successful completion of the requested task.",
+      "Does not permit deliberate sabotage, false cooperation, or technical evasion of the accepted request.",
+      "Does not extend beyond the one request accepted before Difficulty was set.",
+      "Does not make an ineligible request legal through high Difficulty or Legendary Impact.",
+      "Does not prevent legitimate narrative resolution.",
+      "Does not permit arbitrary cancellation merely because cooperation becomes inconvenient for the Game Director or planned plot.",
     ],
   },
 ] as const satisfies readonly RoleplayOutcomeContractDefinition[];
