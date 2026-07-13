@@ -247,6 +247,54 @@ an eligible declaration; high Difficulty never makes an ineligible declaration
 legal. "Declared Aim" is runtime terminology only and is not saved on a
 Roleplay Ability or added to the Character Builder.
 
+Roleplay Roll Resolution And Optional Narrative Degrees
+
+Resolve a Roleplay Ability roll in this order:
+
+1. The player declares the Ability and intended use.
+2. The player explains what the character does.
+3. The Game Director judges legality.
+4. The Game Director chooses the relevant Attribute and sets Difficulty.
+5. The player rolls the Ability's authored Dice Count using the selected
+   Attribute die size.
+6. Meeting or exceeding Difficulty establishes the full purchased Outcome
+   Contract.
+7. Falling below Difficulty means the purchased Outcome Contract was not
+   secured.
+
+The GD may use ordinary narrative judgement when a roll falls just short or
+succeeds exceptionally well. After a failed roll, the GD may optionally grant a
+lesser success, partial opportunity, mixed result, smaller related development,
+or useful progress that falls short of the purchased Outcome Contract. This is
+not a player entitlement, and the failed roll still does not establish the
+contract.
+
+After an exceptionally strong successful roll, the GD may optionally grant a
+particularly favourable manifestation, additional narrative benefit, stronger
+cooperation or clarity, reduced complications, or another fitting expression of
+exceptional success. The full purchased Outcome Contract has already been
+secured and remains the guaranteed minimum result.
+
+No fixed margin defines a near success or exceptional success. There is no
+lesser-success table, greater-success table, partial-success threshold,
+critical-success threshold, extra roll, or mandatory added effect. This
+narrative judgement does not alter the existing per-die greater-success rules in
+Roll Grammar And Success Quality.
+
+Once a roll meets or exceeds Difficulty, the GD cannot use lesser-success
+judgement to reduce, replace, or withhold the full purchased Outcome Contract.
+A failed roll does not gain that contract merely because the GD grants a related
+lesser success.
+
+Example: a player uses a Small Group Persuasion Ability to convince a mercenary
+company to defend a town gate. The mercenaries expect payment and have already
+refused, so the GD sets Difficulty 4. The player rolls 3 successes. The company
+still leaves because the Small Group contract was not secured, but the GD
+decides the appeal reaches one old dwarf, who remains to defend the gate. This
+is a valid optional lesser success: it rewards the fiction without retroactively
+making the contract successful or weakening the meaning of Difficulty. The GD
+was not required to grant it.
+
 Roleplay Ability Costing Doctrine
 
 Roleplay Methods and Narrative Theme define and personalise legal approaches;
