@@ -322,6 +322,7 @@ export const ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW = "CUSTOM_REVIEW" as const;
 
 export type RoleplayStandardOutcomeContractId =
   | "HIDE_FROM_IMMEDIATE_DANGER"
+  | "SECURE_IMMEDIATE_SAFETY"
   | "DENY_IMMINENT_HOSTILE_ACT"
   | "DRAW_HOSTILE_ATTENTION"
   | "BREAK_SHARED_RESOLVE"
@@ -394,6 +395,59 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not move the target a measured distance.",
       "Does not grant another action.",
       "Does not require an additional Hide, movement, or defence roll.",
+    ],
+  },
+  {
+    id: "SECURE_IMMEDIATE_SAFETY",
+    name: "Secure Immediate Safety",
+    outcomeLane: "HELP",
+    variants: [
+      {
+        authoring: {
+          intention: "INTERVENTION",
+          methodId: "RESCUE",
+          sceneImpact: "STANDARD",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the target is secured from one declared immediate peril and is no longer directly threatened by it",
+        counterEligible: false,
+        privilegeCostKey: "SECURE_IMMEDIATE_SAFETY",
+      },
+    ],
+    examples: [
+      "Catching an ally as a broken ledge gives way",
+      "Pulling a child clear of a collapsing awning",
+      "Guiding a companion through smoke into a protected alcove",
+      "Getting a witness behind a sanctuary threshold before a mob reaches them",
+      "Drawing a trapped animal through the only safe opening",
+      "Interposing and directing someone behind substantial cover before a hazardous collapse",
+      "Revealing and using a coherent service route to get one target out of an immediate fire",
+      "Securing one person outside the crush of a stampeding crowd",
+    ],
+    exclusions: [
+      "Does not protect the target from every danger in the scene.",
+      "Does not grant invulnerability, immunity, or permanent safety.",
+      "Does not end the source of the peril.",
+      "Does not protect anyone other than the selected target.",
+      "Does not extinguish a fire, stabilise a structure, stop a crowd, defeat an enemy, or otherwise solve the wider danger unless a separate outcome grants that result.",
+      "Does not restore Health or treat Injury.",
+      "Does not remove stacks, conditions, fields, attachments, active powers, or other quantified effects already affecting the target.",
+      "Does not grant Block, Dodge, Resist, Protection, Resistance, or another quantified defence.",
+      "Does not grant another action or Response.",
+      "Does not move a measured distance.",
+      "Does not allow the player to choose an exact tactical destination.",
+      "Does not teleport or cross an impossible or inaccessible barrier.",
+      "Does not automatically carry, move, or rescue additional targets.",
+      "Does not cancel a formally declared hostile action after the normal Response Window has begun.",
+      "Does not retroactively prevent an already resolved consequence.",
+      "Does not prevent the source from creating a genuinely new threat later.",
+      "Does not preserve safety after the target voluntarily re-enters the peril or an identifiable fictional change defeats the safe state.",
+      "Does not permit a nominal One Target to represent a group, crowd, faction, or broader Scope.",
+      "Does not bypass Rescue, Narrative Theme, target access, Standard Impact, One Target Scope, or fictional plausibility.",
+      "Does not allow high Difficulty to legalise an impossible rescue.",
+      "Does not permit the Game Director to leave the target directly exposed to the same accepted peril after a successful roll.",
+      "Does not permit arbitrary cancellation because the successful rescue disrupts the planned scene or encounter.",
     ],
   },
   {

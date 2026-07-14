@@ -247,6 +247,259 @@ assertEqual(
   "Hide should not match an incompatible Impact.",
 );
 
+const hideContract = getRoleplayOutcomeContract("HIDE_FROM_IMMEDIATE_DANGER");
+assert(hideContract, "HIDE_FROM_IMMEDIATE_DANGER should still exist.");
+assertEqual(hideContract.variants.length, 1, "Hide should retain exactly one variant.");
+assertEqual(
+  hideContract.variants[0].successOutcome,
+  "the target becomes hidden from the immediate danger",
+  "Hide outcome must remain unchanged.",
+);
+assertEqual(
+  hideContract.variants[0].privilegeCostKey,
+  "HIDE_FROM_IMMEDIATE_DANGER",
+  "Hide privilege key must remain unchanged.",
+);
+assertEqual(hideContract.variants[0].counterEligible, false, "Hide Counter must remain false.");
+
+const secureImmediateSafetyOutcome =
+  "the target is secured from one declared immediate peril and is no longer directly threatened by it";
+const secureImmediateSafetyDescriptor =
+  "Choose one target and roll 3 dice. On success, the target is secured from one declared immediate peril and is no longer directly threatened by it.";
+const secureImmediateSafetyContract = getRoleplayOutcomeContract("SECURE_IMMEDIATE_SAFETY");
+assert(secureImmediateSafetyContract, "SECURE_IMMEDIATE_SAFETY should exist.");
+assertEqual(
+  secureImmediateSafetyContract.name,
+  "Secure Immediate Safety",
+  "Secure Immediate Safety name mismatch.",
+);
+assertEqual(
+  secureImmediateSafetyContract.outcomeLane,
+  "HELP",
+  "Secure Immediate Safety should be Help.",
+);
+assertEqual(
+  secureImmediateSafetyContract.variants.length,
+  1,
+  "Secure Immediate Safety must have exactly one variant.",
+);
+const secureImmediateSafetyVariant = secureImmediateSafetyContract.variants[0];
+assertEqual(
+  secureImmediateSafetyVariant.authoring.intention,
+  "INTERVENTION",
+  "Secure Immediate Safety Intention mismatch.",
+);
+assertEqual(
+  secureImmediateSafetyVariant.authoring.methodId,
+  "RESCUE",
+  "Secure Immediate Safety Method mismatch.",
+);
+assertEqual(
+  secureImmediateSafetyVariant.authoring.sceneImpact,
+  "STANDARD",
+  "Secure Immediate Safety Impact mismatch.",
+);
+assertEqual(
+  secureImmediateSafetyVariant.authoring.scope,
+  "ONE_TARGET",
+  "Secure Immediate Safety Scope mismatch.",
+);
+assertEqual(
+  secureImmediateSafetyVariant.counterEligible,
+  false,
+  "Secure Immediate Safety must disallow Counter.",
+);
+assertEqual(
+  secureImmediateSafetyVariant.privilegeCostKey,
+  "SECURE_IMMEDIATE_SAFETY",
+  "Secure Immediate Safety privilege key mismatch.",
+);
+assertEqual(
+  secureImmediateSafetyVariant.successOutcome,
+  secureImmediateSafetyOutcome,
+  "Secure Immediate Safety exact outcome mismatch.",
+);
+
+for (const [sceneImpact, expectedIds] of [
+  ["MINOR", "HIDE_FROM_IMMEDIATE_DANGER"],
+  ["STANDARD", "SECURE_IMMEDIATE_SAFETY"],
+  ["MAJOR", ""],
+  ["LEGENDARY", ""],
+] as const) {
+  assertEqual(
+    getCompatibleRoleplayOutcomeContracts({ ...hideAuthoring, sceneImpact })
+      .map((contract) => contract.id)
+      .join(","),
+    expectedIds,
+    `${sceneImpact} Rescue compatibility mismatch.`,
+  );
+}
+
+const iveGotYou = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(20),
+  name: "I've Got You",
+  narrativeTheme:
+    "You identify the only coherent route to safety, reach the target at the decisive moment, and guide or pull them clear before the peril closes.",
+  intention: "INTERVENTION",
+  methodId: "RESCUE",
+  sceneImpact: "STANDARD",
+  scope: "ONE_TARGET",
+  diceCount: 3,
+  outcomeContractId: "SECURE_IMMEDIATE_SAFETY",
+  counter: true,
+});
+assertEqual(getRoleplayAbilityMethodName(iveGotYou), "Rescue", "Rescue Method name mismatch.");
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(iveGotYou)
+    .map((contract) => contract.id)
+    .join(","),
+  "SECURE_IMMEDIATE_SAFETY",
+  "Standard Rescue should expose only Secure Immediate Safety.",
+);
+assertEqual(
+  getRoleplayAbilityContractName(iveGotYou),
+  "Secure Immediate Safety",
+  "Selected Secure Immediate Safety name mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityOutcomeLane(iveGotYou),
+  "HELP",
+  "Secure Immediate Safety lane mismatch.",
+);
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(iveGotYou),
+  secureImmediateSafetyOutcome,
+  "Secure Immediate Safety prototype outcome mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(iveGotYou),
+  secureImmediateSafetyDescriptor,
+  "Secure Immediate Safety descriptor mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityCounterEligibility(iveGotYou),
+  false,
+  "Secure Immediate Safety should be Counter-ineligible.",
+);
+assertEqual(iveGotYou.counter, false, "Secure Immediate Safety should force Counter off.");
+assert(
+  !getRoleplayAbilityWarnings(iveGotYou).some(
+    (warning) => warning.includes("Custom Method") || warning.includes("Custom Outcome"),
+  ),
+  "Secure Immediate Safety should not produce Custom approval warnings.",
+);
+
+for (const invalidAuthoring of [
+  { sceneImpact: "MINOR" as const },
+  { sceneImpact: "MAJOR" as const },
+  { sceneImpact: "LEGENDARY" as const },
+  { scope: "SELF" as const },
+  { scope: "SMALL_GROUP" as const },
+  { scope: "LARGE_GROUP" as const },
+  { scope: "FACTION_ARMY" as const },
+  { methodId: "INTERRUPT" as const },
+  { intention: "PERSUASION" as const },
+]) {
+  assert(
+    !getCompatibleRoleplayOutcomeContracts({
+      ...iveGotYou,
+      ...invalidAuthoring,
+    }).some((contract) => contract.id === "SECURE_IMMEDIATE_SAFETY"),
+    `Secure Immediate Safety should reject ${JSON.stringify(invalidAuthoring)}.`,
+  );
+}
+
+for (const [label, invalidAbility] of [
+  ["Minor Impact", { ...iveGotYou, sceneImpact: "MINOR" as const }],
+  ["Major Impact", { ...iveGotYou, sceneImpact: "MAJOR" as const }],
+  ["Legendary Impact", { ...iveGotYou, sceneImpact: "LEGENDARY" as const }],
+  ["Self Scope", { ...iveGotYou, scope: "SELF" as const }],
+  ["Small Group Scope", { ...iveGotYou, scope: "SMALL_GROUP" as const }],
+  ["Large Group Scope", { ...iveGotYou, scope: "LARGE_GROUP" as const }],
+  ["Faction / Army Scope", { ...iveGotYou, scope: "FACTION_ARMY" as const }],
+  ["Method", { ...iveGotYou, methodId: "INTERRUPT" as const }],
+  ["Intention", { ...iveGotYou, intention: "PERSUASION" as const }],
+] as const) {
+  const reconciled = reconcileRoleplayAbilityAuthoring({ ...invalidAbility, counter: true });
+  assertEqual(
+    reconciled.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    `${label} should clear Secure Immediate Safety.`,
+  );
+  assertEqual(reconciled.counter, false, `${label} should clear Counter.`);
+}
+
+const editedImmediateSafety = reconcileRoleplayAbilityAuthoring({
+  ...iveGotYou,
+  name: "Safe, For Now",
+  narrativeTheme: "You spot the safe opening and pull the target clear before it closes.",
+  diceCount: 5,
+  restrictionType: "CIRCUMSTANCE",
+  restrictionBand: "MODERATE",
+  restrictionTag: "while a coherent route remains",
+  restrictionText: "Only while you can directly reach the endangered target.",
+});
+assertEqual(
+  editedImmediateSafety.outcomeContractId,
+  "SECURE_IMMEDIATE_SAFETY",
+  "Non-invalidating edits should retain Secure Immediate Safety.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(editedImmediateSafety),
+  secureImmediateSafetyDescriptor.replace("roll 3 dice", "roll 5 dice"),
+  "Secure Immediate Safety Dice Count should only change the roll count.",
+);
+
+for (const runtimePerilField of [
+  "declaredPeril",
+  "immediatePeril",
+  "rescuePeril",
+  "selectedPeril",
+  "perilText",
+  "safetyTarget",
+  "safePosition",
+  "extractionPoint",
+]) {
+  assert(
+    !Object.hasOwn(iveGotYou, runtimePerilField),
+    `${runtimePerilField} must remain runtime context rather than stored Ability state.`,
+  );
+}
+
+const customRescueOutcomeText =
+  "The target and every nearby ally are carried to a destination chosen by the player";
+const customRescueOutcome = normalizeRoleplayAbility(
+  {
+    name: "Everyone Out",
+    narrativeTheme: "You direct a broad evacuation through the surrounding danger.",
+    intention: "INTERVENTION",
+    methodId: "RESCUE",
+    sceneImpact: "STANDARD",
+    scope: "ONE_TARGET",
+    diceCount: 3,
+    outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+    customOutcomeLane: "HELP",
+    customOutcomeRequest: customRescueOutcomeText,
+  },
+  21,
+);
+assertEqual(
+  customRescueOutcome.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  "Explicit Rescue Custom Outcome must remain Custom Review.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(customRescueOutcome),
+  `Choose one target and roll 3 dice. On success, ${customRescueOutcomeText}.`,
+  "Rescue Custom Outcome descriptor regression.",
+);
+assert(
+  getRoleplayAbilityWarnings(customRescueOutcome).some((warning) =>
+    warning.includes("Custom Outcome requires Game Director approval"),
+  ),
+  "Rescue Custom Outcome approval warning should remain.",
+);
+
 const denyAuthoring = {
   intention: "INTERVENTION" as const,
   methodId: "INTERRUPT" as const,
@@ -412,16 +665,62 @@ assertEqual(
   "Legacy ENABLE_MOVEMENT should normalize to RESCUE.",
 );
 
+const legacyExtractMethod = normalizeRoleplayAbility(
+  {
+    intention: "INTERVENTION",
+    specific: "EXTRACT",
+    description: "You pull a target out of immediate danger.",
+  },
+  22,
+);
+assertEqual(
+  legacyExtractMethod.methodId,
+  ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  "Legacy EXTRACT must remain Custom Method review.",
+);
+assertEqual(
+  legacyExtractMethod.customMethodName,
+  "Extract",
+  "Legacy EXTRACT should preserve its readable Method name.",
+);
+assertEqual(
+  legacyExtractMethod.narrativeTheme,
+  "You pull a target out of immediate danger.",
+  "Legacy EXTRACT description should migrate to Narrative Theme.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(legacyExtractMethod).length,
+  0,
+  "Legacy EXTRACT must not match a standard Outcome Contract.",
+);
+assert(
+  getRoleplayAbilityWarnings(legacyExtractMethod).includes(
+    "Custom Method requires Game Director approval.",
+  ),
+  "Legacy EXTRACT should retain the Custom Method approval warning.",
+);
+for (const legacyField of ["specific", "description"]) {
+  assert(
+    !Object.hasOwn(legacyExtractMethod, legacyField),
+    `Legacy EXTRACT must not retain ${legacyField}.`,
+  );
+}
+
 assertEqual(
   ROLEPLAY_METHODS.map((method) => method.id).join(","),
   "APPEAL,RALLY,MISDIRECT,RESCUE,INTERRUPT,CHALLENGE,OVERAWE,DISCERN_TRUTH",
   "The standard Method registry should contain exactly the eight approved IDs.",
 );
-assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 9, "The registry should contain nine contracts.");
+assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 10, "The registry should contain ten contracts.");
 assertEqual(
   ROLEPLAY_OUTCOME_CONTRACTS.reduce((total, contract) => total + contract.variants.length, 0),
-  30,
-  "The registry should contain thirty exact variants.",
+  31,
+  "The registry should contain thirty-one exact variants.",
+);
+assertEqual(
+  getRoleplayMethodDefinition("EXTRACT"),
+  null,
+  "EXTRACT must not become a standard Method.",
 );
 assertEqual(
   getRoleplayMethodDefinition("SPOT_WEAKNESS"),
@@ -2094,6 +2393,7 @@ assert(
 );
 
 console.log("PASS roleplay outcome contract registry smoke");
+console.log("PASS roleplay secure immediate safety contract smoke");
 console.log("PASS roleplay draw hostile attention contract smoke");
 console.log("PASS roleplay break shared resolve contract smoke");
 console.log("PASS structured roleplay method registry smoke");
