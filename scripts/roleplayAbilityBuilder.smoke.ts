@@ -714,8 +714,8 @@ assertEqual(
 assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 11, "The registry should contain eleven contracts.");
 assertEqual(
   ROLEPLAY_OUTCOME_CONTRACTS.reduce((total, contract) => total + contract.variants.length, 0),
-  40,
-  "The registry should contain forty exact variants.",
+  41,
+  "The registry should contain forty-one exact variants.",
 );
 assertEqual(
   getRoleplayMethodDefinition("EXTRACT"),
@@ -2729,6 +2729,10 @@ const divertImmediateAttentionOutcome =
   "the target's active attention is diverted for the current meaningful exchange, creating a brief opening for one declared small immediate action or development to proceed without that target's deliberate observation or interference";
 const divertImmediateAttentionDescriptor =
   "Choose one target and roll 3 dice. On success, the target's active attention is diverted for the current meaningful exchange, creating a brief opening for one declared small immediate action or development to proceed without that target's deliberate observation or interference.";
+const divertImmediateAttentionSmallGroupOutcome =
+  "every accepted member of the selected group has their active attention diverted for the current meaningful exchange, creating a brief opening for one declared small immediate action or development to proceed without deliberate observation or interference from any accepted member";
+const divertImmediateAttentionSmallGroupDescriptor =
+  "Choose a small group of targets and roll 3 dice. On success, every accepted member of the selected group has their active attention diverted for the current meaningful exchange, creating a brief opening for one declared small immediate action or development to proceed without deliberate observation or interference from any accepted member.";
 const divertImmediateAttentionContract = getRoleplayOutcomeContract(
   "DIVERT_IMMEDIATE_ATTENTION",
 );
@@ -2745,45 +2749,47 @@ assertEqual(
 );
 assertEqual(
   divertImmediateAttentionContract.variants.length,
+  2,
+  "Divert Immediate Attention must have exactly two variants.",
+);
+assertEqual(
+  divertImmediateAttentionContract.variants.filter(
+    (variant) => variant.authoring.scope === "ONE_TARGET",
+  ).length,
   1,
-  "Divert Immediate Attention must have exactly one variant.",
-);
-const divertImmediateAttentionVariant = divertImmediateAttentionContract.variants[0];
-assertEqual(
-  divertImmediateAttentionVariant.authoring.intention,
-  "DECEPTION",
-  "Divert Immediate Attention Intention mismatch.",
+  "Divert Immediate Attention needs one One Target variant.",
 );
 assertEqual(
-  divertImmediateAttentionVariant.authoring.methodId,
-  "DISTRACT",
-  "Divert Immediate Attention Method mismatch.",
+  divertImmediateAttentionContract.variants.filter(
+    (variant) => variant.authoring.scope === "SMALL_GROUP",
+  ).length,
+  1,
+  "Divert Immediate Attention needs one Small Group variant.",
 );
-assertEqual(
-  divertImmediateAttentionVariant.authoring.sceneImpact,
-  "MINOR",
-  "Divert Immediate Attention Impact mismatch.",
-);
-assertEqual(
-  divertImmediateAttentionVariant.authoring.scope,
-  "ONE_TARGET",
-  "Divert Immediate Attention Scope mismatch.",
-);
-assertEqual(
-  divertImmediateAttentionVariant.counterEligible,
-  false,
-  "Divert Immediate Attention must disallow Counter.",
-);
-assertEqual(
-  divertImmediateAttentionVariant.privilegeCostKey,
-  "DIVERT_IMMEDIATE_ATTENTION",
-  "Divert Immediate Attention privilege key mismatch.",
-);
-assertEqual(
-  divertImmediateAttentionVariant.successOutcome,
-  divertImmediateAttentionOutcome,
-  "Divert Immediate Attention exact outcome mismatch.",
-);
+for (const scope of ["ONE_TARGET", "SMALL_GROUP"] as const) {
+  const variant = divertImmediateAttentionContract.variants.find(
+    (candidate) => candidate.authoring.scope === scope,
+  );
+  assert(variant, `${scope} Divert Immediate Attention variant should exist.`);
+  assertEqual(variant.authoring.intention, "DECEPTION", `${scope} Intention mismatch.`);
+  assertEqual(variant.authoring.methodId, "DISTRACT", `${scope} Method mismatch.`);
+  assertEqual(variant.authoring.sceneImpact, "MINOR", `${scope} Impact mismatch.`);
+  assertEqual(variant.counterEligible, false, `${scope} must disallow Counter.`);
+  assertEqual(
+    variant.privilegeCostKey,
+    scope === "ONE_TARGET"
+      ? "DIVERT_IMMEDIATE_ATTENTION"
+      : "DIVERT_IMMEDIATE_ATTENTION_SMALL_GROUP",
+    `${scope} privilege key mismatch.`,
+  );
+  assertEqual(
+    variant.successOutcome,
+    scope === "ONE_TARGET"
+      ? divertImmediateAttentionOutcome
+      : divertImmediateAttentionSmallGroupOutcome,
+    `${scope} exact outcome mismatch.`,
+  );
+}
 
 const distractAuthoring = {
   intention: "DECEPTION" as const,
@@ -2791,19 +2797,21 @@ const distractAuthoring = {
   sceneImpact: "MINOR" as const,
   scope: "ONE_TARGET" as const,
 };
-for (const [sceneImpact, expectedIds] of [
-  ["MINOR", "DIVERT_IMMEDIATE_ATTENTION"],
-  ["STANDARD", ""],
-  ["MAJOR", ""],
-  ["LEGENDARY", ""],
-] as const) {
-  assertEqual(
-    getCompatibleRoleplayOutcomeContracts({ ...distractAuthoring, sceneImpact })
-      .map((contract) => contract.id)
-      .join(","),
-    expectedIds,
-    `${sceneImpact} Distract compatibility mismatch.`,
-  );
+for (const scope of ["ONE_TARGET", "SMALL_GROUP"] as const) {
+  for (const [sceneImpact, expectedIds] of [
+    ["MINOR", "DIVERT_IMMEDIATE_ATTENTION"],
+    ["STANDARD", ""],
+    ["MAJOR", ""],
+    ["LEGENDARY", ""],
+  ] as const) {
+    assertEqual(
+      getCompatibleRoleplayOutcomeContracts({ ...distractAuthoring, sceneImpact, scope })
+        .map((contract) => contract.id)
+        .join(","),
+      expectedIds,
+      `${sceneImpact} / ${scope} Distract compatibility mismatch.`,
+    );
+  }
 }
 
 const lookOverHere = reconcileRoleplayAbilityAuthoring({
@@ -2861,12 +2869,115 @@ assert(
   "Divert Immediate Attention should not produce Custom approval warnings.",
 );
 
+const allEyesOnMe = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(24),
+  name: "All Eyes on Me",
+  narrativeTheme:
+    "You create one spectacular, urgent commotion that captures the entire patrol's focus just long enough for one overlooked development to unfold.",
+  intention: "DECEPTION",
+  methodId: "DISTRACT",
+  sceneImpact: "MINOR",
+  scope: "SMALL_GROUP",
+  diceCount: 3,
+  outcomeContractId: "DIVERT_IMMEDIATE_ATTENTION",
+  counter: true,
+});
+assertEqual(
+  getRoleplayAbilityMethodName(allEyesOnMe),
+  "Distract",
+  "Small Group Divert Immediate Attention should use Distract.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(allEyesOnMe)
+    .map((contract) => contract.id)
+    .join(","),
+  "DIVERT_IMMEDIATE_ATTENTION",
+  "Minor Small Group Distract should expose only Divert Immediate Attention.",
+);
+assertEqual(
+  getRoleplayAbilityContractName(allEyesOnMe),
+  "Divert Immediate Attention",
+  "Small Group Divert Immediate Attention name mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityOutcomeLane(allEyesOnMe),
+  "HINDER",
+  "Small Group Divert Immediate Attention lane mismatch.",
+);
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(allEyesOnMe),
+  divertImmediateAttentionSmallGroupOutcome,
+  "Small Group Divert Immediate Attention outcome mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(allEyesOnMe),
+  divertImmediateAttentionSmallGroupDescriptor,
+  "Small Group Divert Immediate Attention descriptor mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityCounterEligibility(allEyesOnMe),
+  false,
+  "Small Group Divert Immediate Attention should be Counter-ineligible.",
+);
+assertEqual(
+  allEyesOnMe.counter,
+  false,
+  "Small Group Divert Immediate Attention should force Counter off.",
+);
+assert(
+  !getRoleplayAbilityWarnings(allEyesOnMe).some(
+    (warning) => warning.includes("Custom Method") || warning.includes("Custom Outcome"),
+  ),
+  "Small Group Divert Immediate Attention should not produce Custom warnings.",
+);
+
+const switchedToSmallGroup = reconcileRoleplayAbilityAuthoring({
+  ...lookOverHere,
+  scope: "SMALL_GROUP",
+  counter: true,
+});
+const switchedBackToOneTarget = reconcileRoleplayAbilityAuthoring({
+  ...switchedToSmallGroup,
+  scope: "ONE_TARGET",
+  counter: true,
+});
+for (const [label, ability, outcome, descriptor] of [
+  [
+    "Small Group",
+    switchedToSmallGroup,
+    divertImmediateAttentionSmallGroupOutcome,
+    divertImmediateAttentionSmallGroupDescriptor,
+  ],
+  [
+    "One Target",
+    switchedBackToOneTarget,
+    divertImmediateAttentionOutcome,
+    divertImmediateAttentionDescriptor,
+  ],
+] as const) {
+  assertEqual(
+    ability.outcomeContractId,
+    "DIVERT_IMMEDIATE_ATTENTION",
+    `${label} switch should retain Divert Immediate Attention.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(ability),
+    outcome,
+    `${label} switch outcome mismatch.`,
+  );
+  assertEqual(
+    renderRoleplayAbilityDescriptor(ability),
+    descriptor,
+    `${label} switch descriptor mismatch.`,
+  );
+  assertEqual(ability.counter, false, `${label} switch should force Counter off.`);
+}
+
 for (const invalidAuthoring of [
   { sceneImpact: "STANDARD" as const },
   { sceneImpact: "MAJOR" as const },
   { sceneImpact: "LEGENDARY" as const },
   { scope: "SELF" as const },
-  { scope: "SMALL_GROUP" as const },
   { scope: "LARGE_GROUP" as const },
   { scope: "FACTION_ARMY" as const },
   { methodId: "MISDIRECT" as const },
@@ -2886,7 +2997,6 @@ for (const [label, invalidAbility] of [
   ["Major Impact", { ...lookOverHere, sceneImpact: "MAJOR" as const }],
   ["Legendary Impact", { ...lookOverHere, sceneImpact: "LEGENDARY" as const }],
   ["Self Scope", { ...lookOverHere, scope: "SELF" as const }],
-  ["Small Group Scope", { ...lookOverHere, scope: "SMALL_GROUP" as const }],
   ["Large Group Scope", { ...lookOverHere, scope: "LARGE_GROUP" as const }],
   ["Faction / Army Scope", { ...lookOverHere, scope: "FACTION_ARMY" as const }],
   ["Method", { ...lookOverHere, methodId: "MISDIRECT" as const }],
@@ -2901,24 +3011,24 @@ for (const [label, invalidAbility] of [
   assertEqual(reconciled.counter, false, `${label} should clear Counter.`);
 }
 
-const editedLookOverHere = reconcileRoleplayAbilityAuthoring({
-  ...lookOverHere,
+const editedAllEyesOnMe = reconcileRoleplayAbilityAuthoring({
+  ...allEyesOnMe,
   name: "Just One Moment",
-  narrativeTheme: "You seize the target's focus with an urgent, absorbing interruption.",
+  narrativeTheme: "You seize the patrol's focus with an urgent, absorbing interruption.",
   diceCount: 5,
   restrictionType: "CIRCUMSTANCE",
   restrictionBand: "MODERATE",
   restrictionTag: "while a plausible competing focus exists",
-  restrictionText: "Only while the target is actively monitoring the declared development.",
+  restrictionText: "Only while every accepted member is actively monitoring the development.",
 });
 assertEqual(
-  editedLookOverHere.outcomeContractId,
+  editedAllEyesOnMe.outcomeContractId,
   "DIVERT_IMMEDIATE_ATTENTION",
   "Non-invalidating edits should retain Divert Immediate Attention.",
 );
 assertEqual(
-  renderRoleplayAbilityDescriptor(editedLookOverHere),
-  divertImmediateAttentionDescriptor.replace("roll 3 dice", "roll 5 dice"),
+  renderRoleplayAbilityDescriptor(editedAllEyesOnMe),
+  divertImmediateAttentionSmallGroupDescriptor.replace("roll 3 dice", "roll 5 dice"),
   "Divert Immediate Attention Dice Count should only change the roll count.",
 );
 
@@ -2932,15 +3042,21 @@ for (const runtimeOpeningField of [
   "competingFocus",
   "distractionTarget",
   "openingText",
+  "groupMembers",
+  "selectedMembers",
+  "distractedGroup",
+  "distractionTargetIds",
+  "memberAttention",
 ]) {
   assert(
-    !Object.hasOwn(lookOverHere, runtimeOpeningField),
+    !Object.hasOwn(lookOverHere, runtimeOpeningField) &&
+      !Object.hasOwn(allEyesOnMe, runtimeOpeningField),
     `${runtimeOpeningField} must remain runtime context rather than stored Ability state.`,
   );
 }
 
 const customDistractOutcomeText =
-  "The target ignores every action by the party for the rest of the current scene";
+  "Every patrol member ignores every action by the party for the rest of the current scene";
 const customDistractOutcome = normalizeRoleplayAbility(
   {
     name: "Keep Them Occupied",
@@ -2948,7 +3064,7 @@ const customDistractOutcome = normalizeRoleplayAbility(
     intention: "DECEPTION",
     methodId: "DISTRACT",
     sceneImpact: "MINOR",
-    scope: "ONE_TARGET",
+    scope: "SMALL_GROUP",
     diceCount: 3,
     outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
     customOutcomeLane: "HINDER",
@@ -2963,7 +3079,7 @@ assertEqual(
 );
 assertEqual(
   renderRoleplayAbilityDescriptor(customDistractOutcome),
-  `Choose one target and roll 3 dice. On success, ${customDistractOutcomeText}.`,
+  `Choose a small group of targets and roll 3 dice. On success, ${customDistractOutcomeText}.`,
   "Distract Custom Outcome descriptor regression.",
 );
 assert(
