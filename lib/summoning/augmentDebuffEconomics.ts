@@ -149,10 +149,130 @@ export type AggregatedPowerDelivery = {
   };
 };
 
+export type AugmentDebuffBpvCalibrationMode = "APPROVED" | "UNCALIBRATED";
+
+export type AugmentDebuffBpvConversionResult = {
+  aggregateDeliveryUnits: number | null;
+  linearDeliveryCharge: number | null;
+  retainedShell: number;
+  unaffectedCosts: number;
+  unroundedFullBpv: number | null;
+  roundedFinalBpv: number | null;
+  coefficient: number | null;
+  roundingStep: number | null;
+  halfStepTiePolicy: "UPWARD" | null;
+  calibrationStatus:
+    | "APPROVED_CALIBRATED_NOT_PUBLIC"
+    | "UNCALIBRATED"
+    | "UNRESOLVED";
+  warnings: string[];
+  unresolvedDiagnostics: string[];
+};
+
 const EPSILON = 1e-12;
 const REFERENCE_HORIZON_TURNS =
   AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.referenceHorizonTurns;
 const REFERENCE_SOURCE_DIE = 8 satisfies IncarnateDieSides;
+
+function assertNonNegativeFinite(name: string, value: number): void {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new RangeError(`${name} must be a non-negative finite number.`);
+  }
+}
+
+export function roundBpvToStepTiesUp(value: number, step: number): number {
+  assertNonNegativeFinite("value", value);
+  if (!Number.isFinite(step) || step <= 0) {
+    throw new RangeError("step must be a positive finite number.");
+  }
+  const rounded = Math.floor(value / step + 0.5 + EPSILON) * step;
+  return Number(rounded.toFixed(12));
+}
+
+export function calculateAggregateModifierDeliveryCharge(
+  aggregateDeliveryUnits: number,
+  coefficient = AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.deliveryUnitToBpvCoefficient,
+): {
+  aggregateDeliveryUnits: number;
+  coefficient: number;
+  linearDeliveryCharge: number;
+} {
+  assertNonNegativeFinite("aggregateDeliveryUnits", aggregateDeliveryUnits);
+  assertNonNegativeFinite("coefficient", coefficient);
+  return {
+    aggregateDeliveryUnits,
+    coefficient,
+    linearDeliveryCharge: coefficient * aggregateDeliveryUnits,
+  };
+}
+
+export function convertAugmentDebuffPowerToBpv(params: {
+  aggregateDeliveryUnits: number | null;
+  retainedShell: number;
+  unaffectedCosts: number;
+  mode?: AugmentDebuffBpvCalibrationMode;
+  warnings?: readonly string[];
+  unresolvedDiagnostics?: readonly string[];
+}): AugmentDebuffBpvConversionResult {
+  assertNonNegativeFinite("retainedShell", params.retainedShell);
+  assertNonNegativeFinite("unaffectedCosts", params.unaffectedCosts);
+  const warnings = [...new Set(params.warnings ?? [])];
+  const unresolvedDiagnostics = [...new Set(params.unresolvedDiagnostics ?? [])];
+  const base = {
+    aggregateDeliveryUnits: params.aggregateDeliveryUnits,
+    retainedShell: params.retainedShell,
+    unaffectedCosts: params.unaffectedCosts,
+    warnings,
+    unresolvedDiagnostics,
+  };
+
+  if (unresolvedDiagnostics.length > 0 || params.aggregateDeliveryUnits === null) {
+    return {
+      ...base,
+      linearDeliveryCharge: null,
+      unroundedFullBpv: null,
+      roundedFinalBpv: null,
+      coefficient: null,
+      roundingStep: null,
+      halfStepTiePolicy: null,
+      calibrationStatus: "UNRESOLVED",
+    };
+  }
+
+  assertNonNegativeFinite("aggregateDeliveryUnits", params.aggregateDeliveryUnits);
+  if ((params.mode ?? "APPROVED") === "UNCALIBRATED") {
+    return {
+      ...base,
+      linearDeliveryCharge: null,
+      unroundedFullBpv: null,
+      roundedFinalBpv: null,
+      coefficient: null,
+      roundingStep: null,
+      halfStepTiePolicy: null,
+      calibrationStatus: "UNCALIBRATED",
+    };
+  }
+
+  const coefficient = AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.deliveryUnitToBpvCoefficient;
+  const roundingStep = AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.finalBpvRoundingStep;
+  const charge = calculateAggregateModifierDeliveryCharge(
+    params.aggregateDeliveryUnits,
+    coefficient,
+  );
+  const unroundedFullBpv =
+    params.retainedShell + params.unaffectedCosts + charge.linearDeliveryCharge;
+  return {
+    ...base,
+    linearDeliveryCharge: charge.linearDeliveryCharge,
+    unroundedFullBpv,
+    roundedFinalBpv: roundBpvToStepTiesUp(unroundedFullBpv, roundingStep),
+    coefficient,
+    roundingStep,
+    halfStepTiePolicy: AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.halfStepTiePolicy,
+    calibrationStatus: "APPROVED_CALIBRATED_NOT_PUBLIC",
+    warnings: [...new Set(warnings)],
+  };
+}
 
 export const APPROVED_AUGMENT_MODIFIER_SEVERITY =
   AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.modifierSeverity.augment;
@@ -743,6 +863,8 @@ function aggregateDeliveryGroup(
   targetBucket: string,
   attribute: string,
   packets: PacketDeliveryEvaluation[],
+  allPacketsById: ReadonlyMap<string, PacketDeliveryEvaluation>,
+  knownExternalDependencyIds: ReadonlySet<string>,
 ): AggregatedDeliveryGroup {
   const diagnostics: string[] = [];
   if (packets.some((packet) => !packet.supported)) {
@@ -758,7 +880,6 @@ function aggregateDeliveryGroup(
     diagnostics.push("UNSUPPORTED_CORRELATION: same-bucket packets have different expected target overlap");
   }
 
-  const packetIds = new Map(packets.map((packet) => [packet.input.id, packet]));
   const linkedDependencyIds = new Set(
     packets
       .filter((packet) => packet.input.resolution.mode === "LINKED")
@@ -768,13 +889,14 @@ function aggregateDeliveryGroup(
   );
   for (const packet of packets) {
     if (packet.input.resolution.mode !== "LINKED") continue;
-    const parent = packetIds.get(packet.input.resolution.dependencyId);
-    if (!parent) {
+    const parent = allPacketsById.get(packet.input.resolution.dependencyId);
+    if (!parent && !knownExternalDependencyIds.has(packet.input.resolution.dependencyId)) {
       diagnostics.push(
-        `UNSUPPORTED_CORRELATION: linked dependency ${packet.input.resolution.dependencyId} is missing from the target/attribute group`,
+        `UNSUPPORTED_CORRELATION: linked dependency ${packet.input.resolution.dependencyId} is missing from the power aggregate`,
       );
       continue;
     }
+    if (!parent) continue;
     if (parent.input.resolution.mode === "LINKED") {
       diagnostics.push("UNSUPPORTED_CORRELATION: chained linked dependencies are not supported");
     }
@@ -869,7 +991,9 @@ function aggregateDeliveryGroup(
 
 export function aggregateAugmentDebuffPowerDelivery(
   packets: readonly PacketDeliveryEvaluation[],
+  knownExternalDependencyIds: ReadonlySet<string> = new Set(),
 ): AggregatedPowerDelivery {
+  const allPacketsById = new Map(packets.map((packet) => [packet.input.id, packet]));
   const grouped = new Map<string, PacketDeliveryEvaluation[]>();
   for (const packet of packets) {
     const key = `${packet.input.targetBucket}\u0000${packet.input.attribute}`;
@@ -878,7 +1002,13 @@ export function aggregateAugmentDebuffPowerDelivery(
     grouped.set(key, group);
   }
   const groups = [...grouped.values()].map((group) =>
-    aggregateDeliveryGroup(group[0].input.targetBucket, group[0].input.attribute, group),
+    aggregateDeliveryGroup(
+      group[0].input.targetBucket,
+      group[0].input.attribute,
+      group,
+      allPacketsById,
+      knownExternalDependencyIds,
+    ),
   );
   const diagnostics = groups.flatMap((group) => group.diagnostics);
   const supported = groups.every((group) => group.supported);

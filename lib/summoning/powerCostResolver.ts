@@ -7,7 +7,10 @@ import type {
 } from "@/lib/summoning/types";
 import { POWER_DEFENCE_MODE_OPTIONS } from "@/lib/powers/authoringRules";
 import type { RadarAxes } from "@/lib/calculators/monsterOutcomeCalculator";
-import type { PowerTuningFlatValues } from "@/lib/config/powerTuningShared";
+import type {
+  AugmentDebuffEconomicModifier,
+  PowerTuningFlatValues,
+} from "@/lib/config/powerTuningShared";
 import {
   DEFAULT_POWER_TUNING_VALUES,
   getPowerTuningValue,
@@ -18,6 +21,17 @@ import {
   type OffencePressureApplicationMode,
 } from "@/lib/summoning/offencePressure";
 import { effectiveAttackWoundsPerSuccess } from "@/lib/summoning/render";
+import {
+  aggregateAugmentDebuffPowerDelivery,
+  cancelSuccessDistributions,
+  convertAugmentDebuffPowerToBpv,
+  createMatchedReferenceResistDistribution,
+  createReferenceSourceDistribution,
+  evaluateAugmentDebuffPacket,
+  type EconomicDuration,
+  type PacketDeliveryEvaluation,
+  type PacketGeometryInput,
+} from "@/lib/summoning/augmentDebuffEconomics";
 
 export type PowerCostAxisVector = RadarAxes;
 
@@ -1579,6 +1593,7 @@ function getPacketRecipientCost(
 function getPacketSpecificCost(
   tuningValues: Record<string, number>,
   packet: EffectPacket,
+  useThreeFieldAttributeAuthority = false,
 ): {
   cost: number;
   tuningKey: string | null;
@@ -1649,7 +1664,11 @@ function getPacketSpecificCost(
     resolved = resolveDiscreteTuningValue(
       tuningValues,
       intention === "AUGMENT" ? "packet.augmentStat" : "packet.debuffStat",
-      getStatTargetKey(details.statTarget ?? details.statChoice),
+      getStatTargetKey(
+        useThreeFieldAttributeAuthority
+          ? packet.targetedAttribute ?? details.statTarget ?? details.statChoice
+          : details.statTarget ?? details.statChoice,
+      ),
     );
   }
 
@@ -2187,8 +2206,11 @@ function getSharedContextCost(
   power: Power,
   canonicalRangeCategory: CanonicalRangeCategory,
   phase1AttackDeliveryScaled: boolean,
+  suppressModifierTargetMagnitude = false,
 ): {
   cost: number;
+  retainedAccessCost: number;
+  legacyTargetMagnitudeCost: number;
   chosenKeys: string[];
   notes: string[];
   debug: Record<string, unknown>;
@@ -2196,6 +2218,8 @@ function getSharedContextCost(
   const chosenKeys: string[] = [];
   const notes: string[] = [];
   let cost = 0;
+  let retainedAccessCost = 0;
+  let legacyTargetMagnitudeCost = 0;
   let rangedDistanceDebug: Record<string, unknown> | null = null;
   let aoeCastRangeDebug: Record<string, unknown> | null = null;
   let aoeCountDebug: Record<string, unknown> | null = null;
@@ -2208,6 +2232,7 @@ function getSharedContextCost(
     canonicalRangeCategory,
   );
   cost += rangeResolved.value;
+  retainedAccessCost += rangeResolved.value;
   pushSelectedTuning(chosenKeys, notes, rangeResolved);
 
   if (canonicalRangeCategory === "melee") {
@@ -2218,8 +2243,11 @@ function getSharedContextCost(
     );
     if (phase1AttackDeliveryScaled) {
       notes.push("Phase 1 attack formula moved melee target count from flat shared cost into the attack delivery multiplier.");
+    } else if (suppressModifierTargetMagnitude) {
+      notes.push("New-format modifier delivery replaced the melee target-count row.");
     } else {
       cost += meleeResolved.value;
+      legacyTargetMagnitudeCost += meleeResolved.value;
       pushSelectedTuning(chosenKeys, notes, meleeResolved);
     }
   }
@@ -2239,9 +2267,16 @@ function getSharedContextCost(
     if (phase1AttackDeliveryScaled) {
       notes.push("Phase 1 attack formula moved ranged distance and target count from flat shared cost into the attack delivery multiplier.");
     } else {
-      cost += distanceResolved.value + targetsResolved.value;
+      cost += distanceResolved.value;
+      retainedAccessCost += distanceResolved.value;
       pushSelectedTuning(chosenKeys, notes, distanceResolved);
-      pushSelectedTuning(chosenKeys, notes, targetsResolved);
+      if (suppressModifierTargetMagnitude) {
+        notes.push("New-format modifier delivery replaced the ranged target-count row.");
+      } else {
+        cost += targetsResolved.value;
+        legacyTargetMagnitudeCost += targetsResolved.value;
+        pushSelectedTuning(chosenKeys, notes, targetsResolved);
+      }
     }
     rangedDistanceDebug = {
       rawDistanceFeet: rangedDistance,
@@ -2272,10 +2307,17 @@ function getSharedContextCost(
     if (phase1AttackDeliveryScaled) {
       notes.push("Phase 1 attack formula moved AoE cast range, count, shape, and geometry from flat shared cost into the attack delivery multiplier.");
     } else {
-      cost += castRangeResolved.value + countResolved.value + shapeResolved.value;
+      cost += castRangeResolved.value + shapeResolved.value;
+      retainedAccessCost += castRangeResolved.value + shapeResolved.value;
       pushSelectedTuning(chosenKeys, notes, castRangeResolved);
-      pushSelectedTuning(chosenKeys, notes, countResolved);
       pushSelectedTuning(chosenKeys, notes, shapeResolved);
+      if (suppressModifierTargetMagnitude) {
+        notes.push("New-format modifier delivery replaced the AOE expected-occupancy row.");
+      } else {
+        cost += countResolved.value;
+        legacyTargetMagnitudeCost += countResolved.value;
+        pushSelectedTuning(chosenKeys, notes, countResolved);
+      }
     }
     aoeCastRangeDebug = {
       rawCastRangeFeet: aoeCastRange,
@@ -2287,7 +2329,10 @@ function getSharedContextCost(
     aoeCountDebug = {
       rawCount: Math.max(1, asInt(power.aoeCount, 1)),
       tuningKey: countResolved.tuningKey,
-      contribution: phase1AttackDeliveryScaled ? 0 : roundCost(countResolved.value),
+      contribution:
+        phase1AttackDeliveryScaled || suppressModifierTargetMagnitude
+          ? 0
+          : roundCost(countResolved.value),
       suppressedByPhase1AttackDeliveryScaling: phase1AttackDeliveryScaled,
       note: countResolved.note ?? null,
     };
@@ -2307,6 +2352,7 @@ function getSharedContextCost(
       );
       if (!phase1AttackDeliveryScaled) {
         cost += sphereResolved.value;
+        retainedAccessCost += sphereResolved.value;
         pushSelectedTuning(chosenKeys, notes, sphereResolved);
       }
       aoeGeometryDebug = {
@@ -2326,6 +2372,7 @@ function getSharedContextCost(
       );
       if (!phase1AttackDeliveryScaled) {
         cost += coneResolved.value;
+        retainedAccessCost += coneResolved.value;
         pushSelectedTuning(chosenKeys, notes, coneResolved);
       }
       aoeGeometryDebug = {
@@ -2350,6 +2397,7 @@ function getSharedContextCost(
       );
       if (!phase1AttackDeliveryScaled) {
         cost += lineWidthResolved.value + lineLengthResolved.value;
+        retainedAccessCost += lineWidthResolved.value + lineLengthResolved.value;
         pushSelectedTuning(chosenKeys, notes, lineWidthResolved);
         pushSelectedTuning(chosenKeys, notes, lineLengthResolved);
       }
@@ -2375,6 +2423,8 @@ function getSharedContextCost(
 
   return {
     cost: roundCost(cost),
+    retainedAccessCost: roundCost(retainedAccessCost),
+    legacyTargetMagnitudeCost: roundCost(legacyTargetMagnitudeCost),
     chosenKeys,
     notes,
     debug: {
@@ -2387,6 +2437,9 @@ function getSharedContextCost(
       aoeShape: aoeShapeDebug,
       aoeGeometry: aoeGeometryDebug,
       phase1AttackDeliveryScaled,
+      suppressModifierTargetMagnitude,
+      retainedAccessCost: roundCost(retainedAccessCost),
+      legacyTargetMagnitudeCost: roundCost(legacyTargetMagnitudeCost),
     },
   };
 }
@@ -2395,8 +2448,11 @@ function getStructuralCost(
   tuningValues: Record<string, number>,
   power: Power,
   derivedHostileEntryPattern: DerivedHostileEntryPattern,
+  suppressModifierLifespan = false,
 ): {
   cost: number;
+  retainedStructureCost: number;
+  legacyLifespanCost: number;
   chosenKeys: string[];
   notes: string[];
   debug: Record<string, unknown>;
@@ -2421,6 +2477,8 @@ function getStructuralCost(
     chassisSuffix,
   );
   let cost = chassisResolved.value;
+  let retainedStructureCost = chassisResolved.value;
+  let legacyLifespanCost = 0;
   pushSelectedTuning(chosenKeys, notes, chassisResolved);
 
   const lifespanType = getStructuralLifespanType(power);
@@ -2433,8 +2491,13 @@ function getStructuralCost(
         ? "turns"
         : "none",
   );
-  cost += lifespanResolved.value;
-  pushSelectedTuning(chosenKeys, notes, lifespanResolved);
+  if (suppressModifierLifespan) {
+    notes.push("New-format modifier delivery replaced the structural lifespan row.");
+  } else {
+    cost += lifespanResolved.value;
+    legacyLifespanCost += lifespanResolved.value;
+    pushSelectedTuning(chosenKeys, notes, lifespanResolved);
+  }
 
   const lifespanTurns = lifespanType === "TURNS" ? Math.max(1, asInt(power.lifespanTurns, 1)) : null;
   let lifespanTurnsResolved: SelectedTuningValue | null = null;
@@ -2445,8 +2508,11 @@ function getStructuralCost(
       "structural.lifespanTurns",
       lifespanTurns,
     );
-    cost += lifespanTurnsResolved.value;
-    pushSelectedTuning(chosenKeys, notes, lifespanTurnsResolved);
+    if (!suppressModifierLifespan) {
+      cost += lifespanTurnsResolved.value;
+      legacyLifespanCost += lifespanTurnsResolved.value;
+      pushSelectedTuning(chosenKeys, notes, lifespanTurnsResolved);
+    }
   }
 
   if (descriptorChassis === "TRIGGER") {
@@ -2460,6 +2526,7 @@ function getStructuralCost(
           : null,
     );
     cost += triggerResolved.value;
+    retainedStructureCost += triggerResolved.value;
     pushSelectedTuning(chosenKeys, notes, triggerResolved);
   }
 
@@ -2471,12 +2538,15 @@ function getStructuralCost(
         derivedHostileEntryPattern === "ON_ATTACH" ? "onAttach" : "onPayload",
       );
       cost += entryResolved.value;
+      retainedStructureCost += entryResolved.value;
       pushSelectedTuning(chosenKeys, notes, entryResolved);
     }
   }
 
   return {
     cost: roundCost(cost),
+    retainedStructureCost: roundCost(retainedStructureCost),
+    legacyLifespanCost: roundCost(legacyLifespanCost),
     chosenKeys,
     notes,
     debug: {
@@ -2485,11 +2555,16 @@ function getStructuralCost(
       chassisContribution: roundCost(chassisResolved.value),
       lifespanType,
       lifespanKey: lifespanResolved.tuningKey,
-      lifespanContribution: roundCost(lifespanResolved.value),
+      lifespanContribution: suppressModifierLifespan ? 0 : roundCost(lifespanResolved.value),
       lifespanTurns,
       lifespanTurnsKey: lifespanTurnsResolved?.tuningKey ?? null,
-      lifespanTurnsContribution: roundCost(lifespanTurnsResolved?.value ?? 0),
+      lifespanTurnsContribution: suppressModifierLifespan
+        ? 0
+        : roundCost(lifespanTurnsResolved?.value ?? 0),
       derivedHostileEntryPattern,
+      suppressModifierLifespan,
+      retainedStructureCost: roundCost(retainedStructureCost),
+      legacyLifespanCost: roundCost(legacyLifespanCost),
     },
   };
 }
@@ -2756,6 +2831,7 @@ function getCrossPacketSynergyCost(
   canonicalRangeCategory: CanonicalRangeCategory,
   derivedHostileEntryPattern: DerivedHostileEntryPattern,
   relevantThreatAxes: ThreatAxisKey[],
+  semanticPacketIndexes: ReadonlySet<number> = new Set(),
 ): {
   cost: number;
   axisVector: PowerCostAxisVector;
@@ -2777,9 +2853,17 @@ function getCrossPacketSynergyCost(
   let resultScalingDebug: Record<string, unknown> | null = null;
   let overlapLeverageDebug: Record<string, unknown> | null = null;
 
-  const beneficialLaterPacket = laterPackets.find(isBeneficialComboPacket);
+  const primaryUsesSemanticEconomics = semanticPacketIndexes.has(0);
+  const beneficialLaterPacket = laterPackets.find(
+    (packet, laterIndex) =>
+      !semanticPacketIndexes.has(laterIndex + 1) && isBeneficialComboPacket(packet),
+  );
   const hasBeneficialLaterPacket = Boolean(beneficialLaterPacket);
-  if (isHostilePacket(primaryPacket) && hasBeneficialLaterPacket) {
+  if (
+    !primaryUsesSemanticEconomics &&
+    isHostilePacket(primaryPacket) &&
+    hasBeneficialLaterPacket
+  ) {
     const resolved = resolvePowerTuningValue(tuningValues, "system.synergy.hostileToBeneficial");
     cost += resolved.value;
     if (resolved.tuningKey) chosenKeys.push(resolved.tuningKey);
@@ -2846,14 +2930,16 @@ function getCrossPacketSynergyCost(
     };
   }
 
-  const laterRecurringSecondary = laterPackets.some((packet) =>
-    RECURRING_TIMINGS.has(
-      (asString(packet.effectTimingType).toUpperCase() ||
-        "ON_CAST") as NonNullable<EffectPacket["effectTimingType"]>,
-    ),
+  const laterRecurringSecondary = laterPackets.some(
+    (packet, laterIndex) =>
+      !semanticPacketIndexes.has(laterIndex + 1) &&
+      RECURRING_TIMINGS.has(
+        (asString(packet.effectTimingType).toUpperCase() ||
+          "ON_CAST") as NonNullable<EffectPacket["effectTimingType"]>,
+      ),
   );
   const createsCarrier =
-    doesPacketCreateBeyondTurnCarrier(primaryPacket) ||
+    (!primaryUsesSemanticEconomics && doesPacketCreateBeyondTurnCarrier(primaryPacket)) ||
     (asString(power.descriptorChassis).toUpperCase() !== "IMMEDIATE" && packets.length > 1);
   if (laterRecurringSecondary && createsCarrier) {
     const resolved = resolvePowerTuningValue(tuningValues, "system.synergy.carrierRecurring");
@@ -2885,7 +2971,8 @@ function getCrossPacketSynergyCost(
     };
   }
 
-  const resultScalingPackets = laterPackets.filter((packet) => {
+  const resultScalingPackets = laterPackets.filter((packet, laterIndex) => {
+    if (semanticPacketIndexes.has(laterIndex + 1)) return false;
     const mode = getSecondaryScalingMode(asRecord(packet.detailsJson));
     return mode === "PRIMARY_APPLIED_SUCCESSES" || mode === "PRIMARY_WOUND_BANDS";
   });
@@ -2926,7 +3013,11 @@ function getCrossPacketSynergyCost(
     };
   }
 
-  if (canonicalRangeCategory === "aoe" && Math.max(1, asInt(power.aoeCount, 1)) > 1) {
+  if (
+    canonicalRangeCategory === "aoe" &&
+    Math.max(1, asInt(power.aoeCount, 1)) > 1 &&
+    semanticPacketIndexes.size === 0
+  ) {
     const resolved = resolvePowerTuningValue(tuningValues, "system.synergy.overlapLeverage");
     cost += resolved.value;
     if (resolved.tuningKey) chosenKeys.push(resolved.tuningKey);
@@ -3098,6 +3189,302 @@ export function derivePowerCooldown(
   };
 }
 
+type NewFormatModifierEconomicsResolution = {
+  packetIndexes: Set<number>;
+  evaluations: PacketDeliveryEvaluation[];
+  aggregateDeliveryUnits: number | null;
+  diagnostics: string[];
+  warnings: string[];
+  hasLegacyModifierPackets: boolean;
+  hasNonModifierPackets: boolean;
+};
+
+function isNewFormatModifierPacket(packet: EffectPacket): boolean {
+  const intention = packet.intention ?? packet.type;
+  return (
+    (intention === "AUGMENT" || intention === "DEBUFF") &&
+    typeof packet.modifier === "number" &&
+    Number.isInteger(packet.modifier) &&
+    packet.modifier >= 1 &&
+    packet.modifier <= 5
+  );
+}
+
+function modifierEconomicDuration(packet: EffectPacket): EconomicDuration | null {
+  const duration = asString(packet.effectDurationType).toUpperCase();
+  if (duration === "PASSIVE") return { kind: "PASSIVE" };
+  if (duration === "UNTIL_TARGET_NEXT_TURN") return { kind: "UNTIL_TARGET_NEXT_TURN" };
+  if (duration === "TURNS") {
+    const turns = asInt(packet.effectDurationTurns, 0);
+    if (turns >= 1 && turns <= 4) {
+      return { kind: "TURNS", turns: turns as 1 | 2 | 3 | 4 };
+    }
+  }
+  return null;
+}
+
+function modifierExpectedTargetCount(
+  power: Power,
+  packet: EffectPacket,
+  canonicalRangeCategory: CanonicalRangeCategory,
+): number | null {
+  if (getPacketApplyTo(packet) === "SELF" || canonicalRangeCategory === "self") return 1;
+  const override = packet.localTargetingOverride;
+  if (canonicalRangeCategory === "melee") {
+    return Math.max(1, asInt(override?.meleeTargets ?? power.meleeTargets, 1));
+  }
+  if (canonicalRangeCategory === "ranged") {
+    return Math.max(1, asInt(override?.rangedTargets ?? power.rangedTargets, 1));
+  }
+  const explicit = asRecord(packet.detailsJson).expectedTargetCount;
+  return typeof explicit === "number" && Number.isFinite(explicit) && explicit > 0
+    ? explicit
+    : null;
+}
+
+function modifierGeometry(power: Power): PacketGeometryInput | null {
+  const shape = asString(power.aoeShape).toUpperCase();
+  if (shape !== "SPHERE" && shape !== "CONE" && shape !== "LINE") return null;
+  return {
+    kind: shape,
+    radiusFeet: power.aoeSphereRadiusFeet ?? null,
+    coneLengthFeet: power.aoeConeLengthFeet ?? null,
+    lineWidthFeet: power.aoeLineWidthFeet ?? null,
+    lineLengthFeet: power.aoeLineLengthFeet ?? null,
+  };
+}
+
+function resolveNewFormatModifierEconomics(
+  power: Power,
+  packets: EffectPacket[],
+  canonicalRangeCategory: CanonicalRangeCategory,
+): NewFormatModifierEconomicsResolution {
+  const packetIndexes = new Set<number>();
+  const evaluations: PacketDeliveryEvaluation[] = [];
+  const evaluationByPacketId = new Map<string, PacketDeliveryEvaluation>();
+  const diagnostics: string[] = [];
+  const warnings: string[] = [];
+  const packetIds = new Set(
+    packets
+      .map((packet) => asString(packet.id))
+      .filter((id) => id.length > 0),
+  );
+  const authoredPacketIds = packets
+    .map((packet) => asString(packet.id))
+    .filter((id) => id.length > 0);
+  if (packetIds.size !== authoredPacketIds.length) {
+    diagnostics.push("DUPLICATE_PACKET_ID_UNSUPPORTED");
+  }
+  const newPackets = packets.filter(isNewFormatModifierPacket);
+  const hasLegacyModifierPackets = packets.some((packet) => {
+    const intention = packet.intention ?? packet.type;
+    return (intention === "AUGMENT" || intention === "DEBUFF") && packet.modifier == null;
+  });
+  const hasNonModifierPackets = packets.some((packet) => {
+    const intention = packet.intention ?? packet.type;
+    return intention !== "AUGMENT" && intention !== "DEBUFF";
+  });
+
+  if (newPackets.length === 0) {
+    return {
+      packetIndexes,
+      evaluations,
+      aggregateDeliveryUnits: null,
+      diagnostics,
+      warnings,
+      hasLegacyModifierPackets,
+      hasNonModifierPackets,
+    };
+  }
+
+  if (
+    (hasLegacyModifierPackets || hasNonModifierPackets) &&
+    newPackets.some((packet) => packet.localTargetingOverride != null)
+  ) {
+    diagnostics.push(
+      "MIXED_SHARED_TARGETING_ALLOCATION_UNRESOLVED: packet-local targeting cannot be safely split between legacy and semantic shared costs",
+    );
+  }
+
+  if (
+    (hasLegacyModifierPackets || hasNonModifierPackets) &&
+    canonicalRangeCategory === "aoe" &&
+    Math.max(1, asInt(power.aoeCount, 1)) > 1
+  ) {
+    diagnostics.push(
+      "MIXED_SHARED_TARGETING_ALLOCATION_UNRESOLVED: AOE overlap leverage cannot be safely split between legacy and semantic breadth",
+    );
+  }
+
+  if (
+    hasNonModifierPackets &&
+    packets.some((packet) => (packet.intention ?? packet.type) === "ATTACK") &&
+    (canonicalRangeCategory === "aoe" ||
+      (canonicalRangeCategory === "ranged" && asInt(power.rangedDistanceFeet, 30) > 30))
+  ) {
+    diagnostics.push(
+      "MIXED_SHARED_ACCESS_ALLOCATION_UNRESOLVED: Phase 1 attack delivery scaling suppresses access rows required by semantic modifier packets",
+    );
+  }
+
+  for (const [packetIndex, packet] of packets.entries()) {
+    if (!isNewFormatModifierPacket(packet)) continue;
+    packetIndexes.add(packetIndex);
+    const packetId = asString(packet.id);
+    if (!packetId) {
+      diagnostics.push(`PACKET_${packetIndex + 1}_MISSING_STABLE_ID`);
+      continue;
+    }
+    const intention = packet.intention ?? packet.type;
+    const attribute = asString(
+      packet.targetedAttribute ??
+        asRecord(packet.detailsJson).statTarget ??
+        asRecord(packet.detailsJson).statChoice,
+    ).toUpperCase();
+    if (!new Set(["ATTACK", "GUARD", "FORTITUDE", "INTELLECT", "SYNERGY", "BRAVERY"]).has(attribute)) {
+      diagnostics.push(`PACKET_${packetIndex + 1}_TARGETED_ATTRIBUTE_UNRESOLVED`);
+      continue;
+    }
+    const duration = modifierEconomicDuration(packet);
+    if (!duration) {
+      diagnostics.push(`PACKET_${packetIndex + 1}_DURATION_UNRESOLVED`);
+      continue;
+    }
+    const expectedTargetCount = modifierExpectedTargetCount(
+      power,
+      packet,
+      canonicalRangeCategory,
+    );
+    if (expectedTargetCount === null) {
+      diagnostics.push(`PACKET_${packetIndex + 1}_EXPECTED_TARGET_COUNT_UNRESOLVED`);
+      continue;
+    }
+    const dependencyMode =
+      packetIndex === 0
+        ? "INDEPENDENT"
+        : asString(packet.secondaryDependencyMode).toUpperCase() || "LINKED_TO_PRIMARY";
+    const primaryPacket = packets[0];
+    const primaryId = asString(primaryPacket?.id);
+    let resolution: Parameters<typeof evaluateAugmentDebuffPacket>[0]["resolution"];
+    let sourceSuccessDistribution: readonly number[] | null = null;
+    let resistSuccessDistribution: readonly number[] | null = null;
+
+    if (dependencyMode === "LINKED_TO_PRIMARY") {
+      if (!primaryPacket || !primaryId || !packetIds.has(primaryId) || primaryPacket === packet) {
+        diagnostics.push(`PACKET_${packetIndex + 1}_LINKED_DEPENDENCY_MISSING`);
+        continue;
+      }
+      if (
+        asString(primaryPacket.secondaryDependencyMode).toUpperCase() === "LINKED_TO_PRIMARY"
+      ) {
+        diagnostics.push(`PACKET_${packetIndex + 1}_CHAINED_LINKED_DEPENDENCY_UNSUPPORTED`);
+        continue;
+      }
+      const primaryEvaluation = evaluationByPacketId.get(primaryId);
+      let inheritedAppliedSuccessDistribution = primaryEvaluation?.appliedSuccessDistribution;
+      if (!inheritedAppliedSuccessDistribution) {
+        const primaryIntention = primaryPacket.intention ?? primaryPacket.type;
+        const primarySourceDistribution = createReferenceSourceDistribution(
+          Math.max(1, asInt(primaryPacket.diceCount, Math.max(1, asInt(power.diceCount, 1)))),
+        );
+        if (primaryIntention === "AUGMENT") {
+          inheritedAppliedSuccessDistribution = primarySourceDistribution;
+        } else if (
+          primaryIntention === "DEBUFF" &&
+          power.primaryDefenceGate?.sourcePacketIndex === 0 &&
+          power.primaryDefenceGate.gateResult === "RESIST" &&
+          power.primaryDefenceGate.resistAttribute
+        ) {
+          inheritedAppliedSuccessDistribution = cancelSuccessDistributions(
+            primarySourceDistribution,
+            createMatchedReferenceResistDistribution(),
+          );
+        } else {
+          diagnostics.push(`PACKET_${packetIndex + 1}_LINKED_DEPENDENCY_INCOMPATIBLE`);
+          continue;
+        }
+      }
+      resolution = {
+        mode: "LINKED",
+        dependencyId: primaryId,
+        inheritedAppliedSuccessDistribution,
+      };
+    } else if (dependencyMode === "INDEPENDENT") {
+      resolution = { mode: "INDEPENDENT", correlationId: packetId };
+      sourceSuccessDistribution = createReferenceSourceDistribution(
+        Math.max(1, asInt(packet.diceCount, Math.max(1, asInt(power.diceCount, 1)))),
+      );
+      if (intention === "DEBUFF") {
+        if (
+          power.primaryDefenceGate?.sourcePacketIndex !== packetIndex ||
+          power.primaryDefenceGate?.gateResult !== "RESIST" ||
+          !power.primaryDefenceGate.resistAttribute
+        ) {
+          diagnostics.push(`PACKET_${packetIndex + 1}_DEBUFF_RESIST_GATE_UNRESOLVED`);
+          continue;
+        }
+        resistSuccessDistribution = createMatchedReferenceResistDistribution();
+      }
+    } else {
+      diagnostics.push(
+        `PACKET_${packetIndex + 1}_DEPENDENCY_MODE_UNSUPPORTED:${dependencyMode}`,
+      );
+      continue;
+    }
+
+    const evaluation = evaluateAugmentDebuffPacket({
+      id: packetId,
+      family: intention as "AUGMENT" | "DEBUFF",
+      attribute,
+      targetBucket: getPacketApplyTo(packet),
+      diceCount: Math.max(1, asInt(packet.diceCount, Math.max(1, asInt(power.diceCount, 1)))),
+      potency: Math.max(1, asInt(packet.potency, Math.max(1, asInt(power.potency, 1)))),
+      modifier: packet.modifier as AugmentDebuffEconomicModifier,
+      duration,
+      recurring: RECURRING_TIMINGS.has(
+        (packet.effectTimingType ?? "ON_CAST") as NonNullable<EffectPacket["effectTimingType"]>,
+      ),
+      expectedTargetCount,
+      resolution,
+      sourceSuccessDistribution,
+      resistSuccessDistribution,
+      geometry: canonicalRangeCategory === "aoe" ? modifierGeometry(power) : null,
+      retainedShellInputs: {
+        canonicalRangeCategory,
+        applyTo: getPacketApplyTo(packet),
+      },
+    });
+    evaluations.push(evaluation);
+    evaluationByPacketId.set(packetId, evaluation);
+    warnings.push(...evaluation.warnings, ...evaluation.saturationWarnings);
+  }
+
+  if (diagnostics.length > 0) {
+    return {
+      packetIndexes,
+      evaluations,
+      aggregateDeliveryUnits: null,
+      diagnostics: [...new Set(diagnostics)],
+      warnings: [...new Set(warnings)],
+      hasLegacyModifierPackets,
+      hasNonModifierPackets,
+    };
+  }
+  const semanticIds = new Set(evaluations.map((evaluation) => evaluation.input.id));
+  const externalDependencyIds = new Set([...packetIds].filter((id) => !semanticIds.has(id)));
+  const aggregate = aggregateAugmentDebuffPowerDelivery(evaluations, externalDependencyIds);
+  diagnostics.push(...aggregate.diagnostics);
+  return {
+    packetIndexes,
+    evaluations,
+    aggregateDeliveryUnits: aggregate.totalDeliveryUnits,
+    diagnostics: [...new Set(diagnostics)],
+    warnings: [...new Set(warnings)],
+    hasLegacyModifierPackets,
+    hasNonModifierPackets,
+  };
+}
+
 export function resolvePowerCost(
   power: Power,
   tuningSnapshot?: PowerTuningSnapshotLike,
@@ -3107,11 +3494,37 @@ export function resolvePowerCost(
     tuningSnapshot?.values ?? DEFAULT_POWER_TUNING_VALUES,
   );
   const packets = getEffectPackets(power);
+  const invalidModifierPacketIndex = packets.findIndex((packet) => {
+    const intention = packet.intention ?? packet.type;
+    return (
+      (intention === "AUGMENT" || intention === "DEBUFF") &&
+      packet.modifier != null &&
+      !isNewFormatModifierPacket(packet)
+    );
+  });
+  if (invalidModifierPacketIndex >= 0) {
+    throw new Error(
+      `AUGMENT_DEBUFF_SEMANTIC_PRICING_UNRESOLVED: PACKET_${invalidModifierPacketIndex + 1}_MODIFIER_INVALID`,
+    );
+  }
   const canonicalRangeCategory = resolveCanonicalRangeCategory(power);
   const { offencePressureMode } = normalizePowerCostContext(context);
   const relevantThreatAxes = getRelevantThreatAxes(packets);
   const axisVector = cloneEmptyAxisVector();
   const topLevelNotes: string[] = [];
+  const modifierEconomics = resolveNewFormatModifierEconomics(
+    power,
+    packets,
+    canonicalRangeCategory,
+  );
+  const hasNewFormatModifierPackets = modifierEconomics.packetIndexes.size > 0;
+  if (hasNewFormatModifierPackets && modifierEconomics.diagnostics.length > 0) {
+    throw new Error(
+      `AUGMENT_DEBUFF_SEMANTIC_PRICING_UNRESOLVED: ${modifierEconomics.diagnostics.join("; ")}`,
+    );
+  }
+  const allPacketsUseNewModifierEconomics =
+    hasNewFormatModifierPackets && modifierEconomics.packetIndexes.size === packets.length;
   const hasAttackPackets = packets.some(
     (packet) => (packet.intention ?? packet.type ?? "ATTACK") === "ATTACK",
   );
@@ -3121,13 +3534,38 @@ export function resolvePowerCost(
     power,
     canonicalRangeCategory,
     hasAttackPackets,
+    allPacketsUseNewModifierEconomics,
   );
   const hostileEntry = deriveHostileEntryPattern(power, packets);
   topLevelNotes.push(...hostileEntry.notes);
-  const structural = getStructuralCost(tuningValues, power, hostileEntry.pattern);
+  const structural = getStructuralCost(
+    tuningValues,
+    power,
+    hostileEntry.pattern,
+    allPacketsUseNewModifierEconomics,
+  );
+  if (
+    hasNewFormatModifierPackets &&
+    !allPacketsUseNewModifierEconomics &&
+    (shared.legacyTargetMagnitudeCost > 0 || structural.legacyLifespanCost > 0)
+  ) {
+    const diagnostics = [
+      shared.legacyTargetMagnitudeCost > 0
+        ? "MIXED_SHARED_TARGETING_ALLOCATION_UNRESOLVED"
+        : null,
+      structural.legacyLifespanCost > 0
+        ? "MIXED_SHARED_RECURRENCE_ALLOCATION_UNRESOLVED"
+        : null,
+    ].filter((diagnostic): diagnostic is string => diagnostic !== null);
+    throw new Error(
+      `AUGMENT_DEBUFF_SEMANTIC_PRICING_UNRESOLVED: ${diagnostics.join("; ")}`,
+    );
+  }
   const access = getAccessCost(tuningValues, power, packets, canonicalRangeCategory);
 
   let packetCostsTotal = 0;
+  let semanticPacketShellTotal = 0;
+  let unaffectedPacketCostsTotal = 0;
   const packetCosts: PowerCostPacketBreakdown[] = packets.map((packet, packetListIndex) => {
     const packetNotes: string[] = [];
     const chosenKeys: string[] = [];
@@ -3137,13 +3575,24 @@ export function resolvePowerCost(
     if (identity.tuningKey) chosenKeys.push(identity.tuningKey);
     packetNotes.push(...identity.notes);
 
-    const magnitude = getPacketMagnitudeCost(
-      tuningValues,
-      power,
-      packet,
-      canonicalRangeCategory,
-      offencePressureMode,
-    );
+    const usesNewModifierEconomics = modifierEconomics.packetIndexes.has(packetListIndex);
+    const magnitude = usesNewModifierEconomics
+      ? {
+          cost: 0,
+          chosenKeys: [] as string[],
+          notes: ["Dice and Potency rows replaced by semantic modifier delivery."],
+          debug: {
+            semanticReplacement: true,
+            removedComponents: ["packet.magnitude.dice", "packet.magnitude.potency"],
+          },
+        }
+      : getPacketMagnitudeCost(
+          tuningValues,
+          power,
+          packet,
+          canonicalRangeCategory,
+          offencePressureMode,
+        );
     chosenKeys.push(...magnitude.chosenKeys);
     packetNotes.push(...magnitude.notes);
 
@@ -3151,7 +3600,13 @@ export function resolvePowerCost(
     if (timing.tuningKey) chosenKeys.push(timing.tuningKey);
     packetNotes.push(...timing.notes);
 
-    const duration = getPacketDurationCost(tuningValues, packet);
+    const duration = usesNewModifierEconomics
+      ? {
+          cost: 0,
+          chosenKeys: [] as string[],
+          notes: ["Duration rows replaced by exact semantic uptime."],
+        }
+      : getPacketDurationCost(tuningValues, packet);
     chosenKeys.push(...duration.chosenKeys);
     packetNotes.push(...duration.notes);
 
@@ -3164,28 +3619,41 @@ export function resolvePowerCost(
     if (recipient.tuningKey) chosenKeys.push(recipient.tuningKey);
     packetNotes.push(...recipient.notes);
 
-    const specific = getPacketSpecificCost(tuningValues, packet);
+    const specific = getPacketSpecificCost(tuningValues, packet, usesNewModifierEconomics);
     if (specific.tuningKey) chosenKeys.push(specific.tuningKey);
     packetNotes.push(...specific.notes);
 
-    const packetTotalBeforeContingency = roundCost(
+    const packetTotalBeforeContingencyRaw =
       identity.cost +
-        magnitude.cost +
-        timing.cost +
-        duration.cost +
-        recipient.cost +
-        specific.cost,
-    );
-    const contingency = getPacketContingencyMultiplier(
-      tuningValues,
-      packet.packetIndex ?? packetListIndex,
-    );
+      magnitude.cost +
+      timing.cost +
+      duration.cost +
+      recipient.cost +
+      specific.cost;
+    const packetTotalBeforeContingency = usesNewModifierEconomics
+      ? packetTotalBeforeContingencyRaw
+      : roundCost(packetTotalBeforeContingencyRaw);
+    const contingency = usesNewModifierEconomics
+      ? {
+          tuningKey: null,
+          value: 1,
+          note: "Secondary contingency discount replaced by aggregate semantic delivery.",
+        }
+      : getPacketContingencyMultiplier(
+          tuningValues,
+          packet.packetIndex ?? packetListIndex,
+        );
     if (contingency.tuningKey) chosenKeys.push(contingency.tuningKey);
-    const packetTotalAfterContingency = roundCost(
-      packetTotalBeforeContingency * contingency.value,
-    );
+    const packetTotalAfterContingency = usesNewModifierEconomics
+      ? packetTotalBeforeContingency * contingency.value
+      : roundCost(packetTotalBeforeContingency * contingency.value);
 
     packetCostsTotal += packetTotalAfterContingency;
+    if (usesNewModifierEconomics) {
+      semanticPacketShellTotal += packetTotalAfterContingency;
+    } else {
+      unaffectedPacketCostsTotal += packetTotalAfterContingency;
+    }
     const intention = packet.intention ?? packet.type ?? "ATTACK";
     const axisEmission = resolveAxisEmissionMultiplier(tuningValues, intention);
     pushSelectedTuning(chosenKeys, packetNotes, axisEmission);
@@ -3240,6 +3708,18 @@ export function resolvePowerCost(
         axisEmissionValue,
         axisEmissionTuningKey: axisEmission.tuningKey,
         deferredIntention: identity.deferred,
+        economicPath: usesNewModifierEconomics
+          ? "NEW_FORMAT_AUGMENT_DEBUFF_SEMANTIC"
+          : "LEGACY_OR_NON_MODIFIER",
+        removedSemanticComponents: usesNewModifierEconomics
+          ? [
+              "diceMagnitude",
+              "potencyMagnitude",
+              "durationType",
+              "durationTurns",
+              "secondaryContingency",
+            ]
+          : [],
         localTargetingOverride: packet.localTargetingOverride ?? null,
         axisRouting: packetAxisRouting.debug,
         notes: packetNotes,
@@ -3256,6 +3736,7 @@ export function resolvePowerCost(
     canonicalRangeCategory,
     hostileEntry.pattern,
     relevantThreatAxes,
+    modifierEconomics.packetIndexes,
   );
   const structuralPresence = getStructuralPresenceAxisSpill(tuningValues, power);
   const recurringCadence = getRecurringCadenceAxisSpill(
@@ -3283,15 +3764,43 @@ export function resolvePowerCost(
   Object.assign(axisVector, addAxisVectors(axisVector, runtimeOngoingDamage.axisVector));
   Object.assign(axisVector, addAxisVectors(axisVector, crossPacketSynergy.axisVector));
 
-  const basePowerValue = roundCost(
-    shared.cost +
-      structural.cost +
-      access.cost +
-      packetCostsTotal +
-      packetCountComplexity.cost +
-      runtimeOngoingDamage.scalarCost +
-      crossPacketSynergy.cost,
-  );
+  const retainedShell =
+    shared.retainedAccessCost +
+    structural.retainedStructureCost +
+    access.cost +
+    semanticPacketShellTotal +
+    packetCountComplexity.cost +
+    crossPacketSynergy.cost;
+  const unaffectedCosts =
+    shared.legacyTargetMagnitudeCost +
+    structural.legacyLifespanCost +
+    unaffectedPacketCostsTotal +
+    runtimeOngoingDamage.scalarCost;
+  const calibratedConversion = hasNewFormatModifierPackets
+    ? convertAugmentDebuffPowerToBpv({
+        aggregateDeliveryUnits: modifierEconomics.aggregateDeliveryUnits,
+        retainedShell,
+        unaffectedCosts,
+        warnings: modifierEconomics.warnings,
+        unresolvedDiagnostics: modifierEconomics.diagnostics,
+      })
+    : null;
+  if (hasNewFormatModifierPackets && calibratedConversion?.roundedFinalBpv == null) {
+    throw new Error(
+      `AUGMENT_DEBUFF_SEMANTIC_PRICING_UNRESOLVED: ${calibratedConversion?.unresolvedDiagnostics.join("; ") || "conversion unavailable"}`,
+    );
+  }
+  const basePowerValue = hasNewFormatModifierPackets
+    ? (calibratedConversion?.roundedFinalBpv ?? 0)
+    : roundCost(
+        shared.cost +
+          structural.cost +
+          access.cost +
+          packetCostsTotal +
+          packetCountComplexity.cost +
+          runtimeOngoingDamage.scalarCost +
+          crossPacketSynergy.cost,
+      );
   const derivedCooldown = derivePowerCooldown(basePowerValue, tuningValues, context);
 
   return {
@@ -3318,6 +3827,40 @@ export function resolvePowerCost(
       recurringCadenceBreakdown: recurringCadence.debug,
       runtimeOngoingDamageBreakdown: runtimeOngoingDamage.debug,
       relevantThreatAxes,
+      augmentDebuffCalibration: hasNewFormatModifierPackets
+        ? {
+            status: calibratedConversion?.calibrationStatus,
+            packetClassification: packets.map((packet, index) => ({
+              packetIndex: packet.packetIndex ?? index,
+              packetId: packet.id ?? null,
+              path: modifierEconomics.packetIndexes.has(index)
+                ? "NEW_FORMAT_AUGMENT_DEBUFF_SEMANTIC"
+                : "LEGACY_OR_NON_MODIFIER",
+            })),
+            retainedShell,
+            unaffectedCosts,
+            semanticPacketShellTotal,
+            aggregateDeliveryUnits: modifierEconomics.aggregateDeliveryUnits,
+            coefficient: calibratedConversion?.coefficient,
+            linearDeliveryCharge: calibratedConversion?.linearDeliveryCharge,
+            unroundedFullBpv: calibratedConversion?.unroundedFullBpv,
+            roundedFinalBpv: calibratedConversion?.roundedFinalBpv,
+            warnings: calibratedConversion?.warnings ?? [],
+            unresolvedDiagnostics: calibratedConversion?.unresolvedDiagnostics ?? [],
+            mixedPower: {
+              hasLegacyModifierPackets: modifierEconomics.hasLegacyModifierPackets,
+              hasNonModifierPackets: modifierEconomics.hasNonModifierPackets,
+            },
+            packetEvaluations: modifierEconomics.evaluations,
+          }
+        : {
+            status: "LEGACY_ONLY",
+            packetClassification: packets.map((packet, index) => ({
+              packetIndex: packet.packetIndex ?? index,
+              packetId: packet.id ?? null,
+              path: "LEGACY_OR_NON_MODIFIER",
+            })),
+          },
       selectedSharedContextKeys: shared.chosenKeys,
       selectedStructuralKeys: [
         ...structural.chosenKeys,

@@ -150,6 +150,7 @@ const augmentDebuffThreeFieldSemanticDependencyPatterns = [
   "prisma/schema.prisma",
   "prisma/migrations/*_add_effect_packet_modifier/migration.sql",
   "lib/summoning/types.ts",
+  "lib/summoning/powerCostResolver.ts",
   "lib/summoning/validation.ts",
   "lib/powers/authoringRules.ts",
   "app/api/summoning-circle/monsters/route.ts",
@@ -166,6 +167,7 @@ const augmentDebuffThreeFieldSemanticDependencyPatterns = [
 ];
 const augmentDebuffEconomicsDependencyPatterns = [
   "lib/summoning/augmentDebuffEconomics.ts",
+  "lib/summoning/powerCostResolver.ts",
   "lib/config/powerTuningShared.ts",
   "lib/config/powerTuningAdminMetadata.ts",
   "scripts/augmentDebuffEconomics.smoke.ts",
@@ -321,7 +323,7 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
     title: "Augment/Debuff economic primitives smoke",
     family: "Core resolver and cooldown authority",
     description:
-      "Verify exact, inert delivery-unit primitives without BPV conversion or live resolver integration.",
+      "Verify exact delivery-unit primitives and the approved code-owned BPV conversion.",
     compatibility: "AVAILABLE",
     modes: ["quick", "full", "changed"],
     script: "scripts/augmentDebuffEconomics.smoke.ts",
@@ -332,10 +334,10 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
     failureSeverity: "BLOCKER",
     supportsJson: false,
     baselinePolicy: selfAsserting(
-      "The focused smoke owns the uncalibrated Phase 2A delivery-unit contract.",
+      "The focused smoke owns the calibrated Phase 2B delivery-unit contract.",
     ),
     notes: [
-      "Uses deterministic in-memory enumeration only; no database access, BPV conversion, or authoring activation.",
+      "Uses deterministic in-memory enumeration only; no database access or authoring activation.",
     ],
   }),
   tsxSuite({

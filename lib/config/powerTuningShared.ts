@@ -12,8 +12,8 @@ export type PowerTuningSnapshot = {
 export type AugmentDebuffEconomicModifier = 1 | 2 | 3 | 4 | 5;
 
 export type AugmentDebuffEconomicsDraftTuning = {
-  status: "DRAFT_UNCALIBRATED";
-  liveResolverIntegration: false;
+  status: "APPROVED_CALIBRATED_NOT_PUBLIC";
+  liveResolverIntegration: true;
   referenceSourceDie: "D8";
   referenceResist: {
     diceCount: 3;
@@ -29,17 +29,20 @@ export type AugmentDebuffEconomicsDraftTuning = {
   geometryTreatment: "ACCESS_PREMIUM_ONLY_NO_SEMANTIC_TARGET_MULTIPLIER";
   linkedDependencyMode: "INHERIT_TARGET_LOCAL_PRIMARY_APPLIED_SUCCESSES";
   aggregationMode: "EXACT_SIGNED_CLAMP_AWARE_WITH_EXPLICIT_UNSUPPORTED_CORRELATION";
-  deliveryUnitToBpvCoefficient: null;
+  deliveryUnitToBpvCoefficient: 1.51;
+  finalBpvRoundingStep: 0.5;
+  halfStepTiePolicy: "UPWARD";
 };
 
 /**
- * Inert Phase 2A representation only. This object is deliberately outside
- * POWER_TUNING_DEFAULTS_NESTED, so it cannot enter active flat tuning,
- * resolver cost, cooldown derivation, or the current admin editing surface.
+ * Approved code-owned Phase 2B calibration. This object remains deliberately
+ * outside POWER_TUNING_DEFAULTS_NESTED, so it cannot enter active flat tuning
+ * or the current admin editing surface. The resolver imports it only for
+ * new-format Augment/Debuff packets with a non-null Modifier.
  */
 export const AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT = {
-  status: "DRAFT_UNCALIBRATED",
-  liveResolverIntegration: false,
+  status: "APPROVED_CALIBRATED_NOT_PUBLIC",
+  liveResolverIntegration: true,
   referenceSourceDie: "D8",
   referenceResist: { diceCount: 3, die: "D8" },
   referenceHorizonTurns: 4,
@@ -52,7 +55,9 @@ export const AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT = {
   geometryTreatment: "ACCESS_PREMIUM_ONLY_NO_SEMANTIC_TARGET_MULTIPLIER",
   linkedDependencyMode: "INHERIT_TARGET_LOCAL_PRIMARY_APPLIED_SUCCESSES",
   aggregationMode: "EXACT_SIGNED_CLAMP_AWARE_WITH_EXPLICIT_UNSUPPORTED_CORRELATION",
-  deliveryUnitToBpvCoefficient: null,
+  deliveryUnitToBpvCoefficient: 1.51,
+  finalBpvRoundingStep: 0.5,
+  halfStepTiePolicy: "UPWARD",
 } as const satisfies AugmentDebuffEconomicsDraftTuning;
 
 export const POWER_TUNING_DEFAULTS_NESTED = {

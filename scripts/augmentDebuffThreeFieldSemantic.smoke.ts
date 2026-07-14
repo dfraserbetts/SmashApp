@@ -146,6 +146,17 @@ function adaptedPower(params: {
     name: params.name ?? "Adapted semantic power",
     cooldownTurns: 1,
     cooldownReduction: 0,
+    cooldownAuthority: {
+      effectiveCooldownTurns: 1,
+      source: "BUILTIN_DEFAULTS",
+      tuningSetId: null,
+      tuningUpdatedAt: null,
+      storedCooldownTurns: 1,
+      mismatch: false,
+      warnings: [],
+      basePowerValue: 0,
+      cooldownLoad: 0,
+    },
     effectPackets: [effectPacket],
     intentions: [effectPacket],
   };

@@ -7,14 +7,17 @@ import {
   APPROVED_AUGMENT_MODIFIER_SEVERITY,
   APPROVED_DEBUFF_MODIFIER_SEVERITY,
   aggregateAugmentDebuffPowerDelivery,
+  calculateAggregateModifierDeliveryCharge,
   cancelSuccessDistributions,
   createMatchedReferenceResistDistribution,
   createSuccessDistribution,
+  convertAugmentDebuffPowerToBpv,
   enumerateStackUptime,
   evaluateAugmentDebuffPacket,
   getModifierSeverity,
   getModifierSuccessDeltaDiagnostic,
   getSignedModifierSuccessDiagnostics,
+  roundBpvToStepTiesUp,
   successCountForEconomicFace,
   summarizeResistanceCancellation,
   summarizeSuccessDistribution,
@@ -340,6 +343,21 @@ check(
   linkedAggregate.groups[0]?.rawModifierDistributionByTurn[0].map((entry) => entry.modifier).join("|") === "0|5",
   "Linked packets must preserve dependency correlation.",
 );
+const crossAttributeLinkedAggregate = aggregate(parent, {
+  ...linked,
+  input: {
+    ...linked.input,
+    attribute: "BRAVERY",
+  },
+});
+check(
+  crossAttributeLinkedAggregate.status === "SUPPORTED",
+  "Linked packets may inherit delivery across attribute groups.",
+);
+check(
+  crossAttributeLinkedAggregate.groups.length === 2,
+  "Cross-attribute linked packets must retain separate clamp groups.",
+);
 const duplicateSemantics = aggregate(
   certainPacket({ id: "duplicate-a", modifier: 5 }),
   certainPacket({ id: "duplicate-b", modifier: 5 }),
@@ -393,9 +411,15 @@ for (const boundary of [
   check(boundary.calibration.finalBpv === null, `${boundary.input.id} must not emit BPV.`);
 }
 
-// Inert configuration and calibration isolation.
-check(AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.deliveryUnitToBpvCoefficient === null, "Conversion coefficient must be unset.");
-check(AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.status === "DRAFT_UNCALIBRATED", "Draft must be explicitly uncalibrated.");
+// Code-owned calibration remains isolated from active/admin tuning.
+check(AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.deliveryUnitToBpvCoefficient === 1.51, "Approved coefficient");
+check(
+  !("minimumDeliveryBpv" in AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT),
+  "Calibration must contain no active delivery floor",
+);
+check(AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.finalBpvRoundingStep === 0.5, "Approved rounding step");
+check(AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.halfStepTiePolicy === "UPWARD", "Approved tie policy");
+check(AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.status === "APPROVED_CALIBRATED_NOT_PUBLIC", "Calibration status");
 check(!POWER_TUNING_CONFIG_KEY_ORDER.some((key) => key.includes("augmentDebuffEconomics")), "Draft must not enter active tuning keys.");
 check(!Object.keys(POWER_TUNING_ADMIN_METADATA).some((key) => key.includes("augmentDebuffEconomics")), "Draft must not enter active admin metadata.");
 check(
@@ -404,8 +428,34 @@ check(
   ),
   "Draft metadata must remain inert and non-editable.",
 );
+check(
+  !("minimumDeliveryBpv" in AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT_ADMIN_METADATA),
+  "Admin metadata must expose no delivery floor",
+);
 const economicsSource = readFileSync("lib/summoning/augmentDebuffEconomics.ts", "utf8");
 check(!/\b1\.4\b/u.test(economicsSource), "Rejected 1.4 coefficient must be absent from economics implementation.");
+check(!/floorAppliedDeliveryCharge|floorActivated|minimumDeliveryBpv/u.test(economicsSource), "Floor-specific conversion fields must be absent.");
+near(roundBpvToStepTiesUp(7.24, 0.5), 7, "Round below half-step");
+near(roundBpvToStepTiesUp(7.25, 0.5), 7.5, "Half-step tie rounds upward");
+near(roundBpvToStepTiesUp(7.75, 0.5), 8, "Second half-step tie rounds upward");
+const lowDeliveryCharge = calculateAggregateModifierDeliveryCharge(0.2996000647544861);
+near(
+  lowDeliveryCharge.linearDeliveryCharge,
+  1.51 * lowDeliveryCharge.aggregateDeliveryUnits,
+  "Low diagnostic delivery remains exactly linear",
+);
+check(
+  !("floorActivated" in lowDeliveryCharge),
+  "Linear delivery charge must expose no minimum-floor flag",
+);
+const explicitlyUncalibrated = convertAugmentDebuffPowerToBpv({
+  aggregateDeliveryUnits: 7.578125,
+  retainedShell: 4.7,
+  unaffectedCosts: 0,
+  mode: "UNCALIBRATED",
+});
+check(explicitlyUncalibrated.calibrationStatus === "UNCALIBRATED", "Explicit uncalibrated diagnostics remain available");
+check(explicitlyUncalibrated.roundedFinalBpv === null, "Uncalibrated mode must not emit final BPV");
 
 // Deterministic delivery-unit calibration anchors (not BPV).
 const anchors = {
@@ -427,6 +477,99 @@ for (const [name, evaluation] of Object.entries(anchors)) {
   check(evaluation.finalBpvConversionStatus === "UNAVAILABLE_UNCALIBRATED", `${name} conversion status`);
 }
 
+const approvedAnchorInputs = [
+  ["A", packet({ id: "bpv-a", diceCount: 2, potency: 1, modifier: 1, duration: { kind: "TURNS", turns: 1 } }), 4.7, 6],
+  ["B", packet({ id: "bpv-b", diceCount: 3, potency: 2, modifier: 2 }), 4.7, 13.5],
+  ["C", packet({ id: "bpv-c" }), 4.7, 16],
+  ["D", packet({ id: "bpv-d", modifier: 5 }), 4.7, 22],
+  ["E", packet({ id: "bpv-e", modifier: 4, duration: { kind: "PASSIVE" } }), 4.7, 31.5],
+  ["F", packet({ id: "bpv-f", expectedTargetCount: 3 }), 4.7, 39],
+  ["G", packet({ id: "bpv-g", expectedTargetCount: 6 }), 6.2, 75],
+  ["H", packet({ id: "bpv-h", family: "DEBUFF" }), 3.7, 7],
+  ["I", packet({ id: "bpv-i", family: "DEBUFF", expectedTargetCount: 3 }), 3.7, 13],
+] as const;
+for (const [name, evaluation, retainedShell, expectedBpv] of approvedAnchorInputs) {
+  const conversion = convertAugmentDebuffPowerToBpv({
+    aggregateDeliveryUnits: evaluation.deliveryUnits,
+    retainedShell,
+    unaffectedCosts: 0,
+  });
+  near(conversion.roundedFinalBpv ?? -1, expectedBpv, `Approved BPV anchor ${name}`);
+}
+
+function calibratedBpv(evaluation: PacketDeliveryEvaluation, retainedShell: number): number {
+  return (
+    convertAugmentDebuffPowerToBpv({
+      aggregateDeliveryUnits: evaluation.deliveryUnits,
+      retainedShell,
+      unaffectedCosts: 0,
+    }).roundedFinalBpv ?? -1
+  );
+}
+
+const interpolationGrid = [
+  ["1D8/P1/M1/D1", packet({ id: "grid-1d", diceCount: 1, potency: 1, modifier: 1, duration: { kind: "TURNS", turns: 1 } }), 4.7, 5.5],
+  ["6D8/P1/M5/D2", packet({ id: "grid-6d", diceCount: 6, potency: 1, modifier: 5 }), 4.7, 22.5],
+  ["1D8/P20/M5/D4", packet({ id: "grid-p20", diceCount: 1, potency: 20, modifier: 5, duration: { kind: "TURNS", turns: 4 } }), 4.7, 27.5],
+  ["10D8/P1/M1/D4", packet({ id: "grid-10d", diceCount: 10, potency: 1, modifier: 1, duration: { kind: "TURNS", turns: 4 } }), 4.7, 10.5],
+  ["3D8/P10/M1/D4", packet({ id: "grid-p10", potency: 10, modifier: 1, duration: { kind: "TURNS", turns: 4 } }), 4.7, 10.5],
+  ["Recurring M3", packet({ id: "grid-recurring", recurring: true }), 4.7, 28.5],
+  ["Two targets", packet({ id: "grid-two-targets", expectedTargetCount: 2 }), 4.7, 27.5],
+  ["Five targets", packet({ id: "grid-five-targets", expectedTargetCount: 5 }), 4.7, 62],
+] as const;
+for (const [name, evaluation, retainedShell, expectedBpv] of interpolationGrid) {
+  near(calibratedBpv(evaluation, retainedShell), expectedBpv, `Interpolation ${name}`);
+}
+
+for (const [modifier, expectedBpv] of [
+  [1, 4.5],
+  [2, 5.5],
+  [3, 7],
+  [4, 8],
+  [5, 9],
+] as const) {
+  const evaluation = packet({ id: `grid-matched-debuff-${modifier}`, family: "DEBUFF", modifier });
+  near(calibratedBpv(evaluation, 3.7), expectedBpv, `Matched Debuff M${modifier}`);
+}
+const matchedDebuffProgression = ([1, 2, 3, 4, 5] as const).map((modifier) => {
+  const evaluation = packet({
+    id: `grid-matched-debuff-progression-${modifier}`,
+    family: "DEBUFF",
+    modifier,
+  });
+  const conversion = convertAugmentDebuffPowerToBpv({
+    aggregateDeliveryUnits: evaluation.deliveryUnits,
+    retainedShell: 3.7,
+    unaffectedCosts: 0,
+  });
+  near(
+    conversion.linearDeliveryCharge ?? -1,
+    1.51 * evaluation.deliveryUnits,
+    `Matched Debuff M${modifier} linear charge`,
+  );
+  return {
+    modifier,
+    deliveryUnits: evaluation.deliveryUnits,
+    linearDeliveryCharge: conversion.linearDeliveryCharge ?? -1,
+    unroundedFullBpv: conversion.unroundedFullBpv ?? -1,
+    roundedFinalBpv: conversion.roundedFinalBpv ?? -1,
+  };
+});
+check(
+  matchedDebuffProgression.every(
+    (entry, index) =>
+      index === 0 ||
+      entry.roundedFinalBpv > matchedDebuffProgression[index - 1].roundedFinalBpv,
+  ),
+  "Matched Debuff M1-M5 rounded BPV must be strictly increasing",
+);
+const strongResist = packet({
+  id: "grid-strong-resist",
+  family: "DEBUFF",
+  resistSuccessDistribution: createSuccessDistribution({ dieSides: 8, diceCount: 6 }),
+});
+near(calibratedBpv(strongResist, 3.7), 4, "Strong-resistance diagnostic remains linear and non-authoritative");
+
 console.log(
   JSON.stringify(
     {
@@ -440,8 +583,9 @@ console.log(
         probabilityOfApplication: matchedCancellation.probabilityAtLeastOne,
         expectedNetSuccesses: matchedCancellation.expectedNetSuccesses,
       },
-      calibrationStatus: "UNCALIBRATED",
-      finalBpv: null,
+      calibrationStatus: AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.status,
+      coefficient: AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT.deliveryUnitToBpvCoefficient,
+      matchedDebuffProgression,
     },
     null,
     2,

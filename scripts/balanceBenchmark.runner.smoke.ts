@@ -300,6 +300,7 @@ assert.equal(economicsSuite?.mutationSafety.databaseAccess, "none");
 assert.equal(economicsSuite?.mutationSafety.databaseWrites, false);
 for (const path of [
   "lib/summoning/augmentDebuffEconomics.ts",
+  "lib/summoning/powerCostResolver.ts",
   "lib/config/powerTuningShared.ts",
   "lib/config/powerTuningAdminMetadata.ts",
   "scripts/augmentDebuffEconomics.smoke.ts",
@@ -307,6 +308,18 @@ for (const path of [
   assert.ok(
     changed(path).selected.some((suite) => suite.id === "augment-debuff-economics-smoke"),
     `${path} must select the focused Augment/Debuff economics smoke.`,
+  );
+}
+const phase2BResolverSelection = changed("lib/summoning/powerCostResolver.ts");
+for (const requiredSuite of [
+  "power-cost-resolver-smoke",
+  "power-cooldown-authority-smoke",
+  "augment-debuff-three-field-semantic-smoke",
+  "augment-debuff-economics-smoke",
+]) {
+  assert.ok(
+    phase2BResolverSelection.selected.some((suite) => suite.id === requiredSuite),
+    `Phase 2B resolver changes must select ${requiredSuite}.`,
   );
 }
 assert.equal(

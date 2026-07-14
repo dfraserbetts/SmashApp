@@ -10,6 +10,8 @@ import {
   resolvePowerCooldownAuthority,
 } from "../lib/summoning/resolvePowerCooldownAuthority";
 import type { MonsterUpsertInput, Power } from "../lib/summoning/types";
+import { derivePowerCooldown } from "../lib/summoning/powerCostResolver";
+import activePowerTuningFixture from "./fixtures/tuning/active-power-tuning.json";
 
 const activeTuning: PowerTuningSnapshot = {
   setId: "power-cooldown-authority-smoke-active",
@@ -204,5 +206,23 @@ assert.equal(calculatorPowerDebug?.authorityTuningSetId, activeTuning.setId);
 assert.equal(calculatorPowerDebug?.authorityStoredCooldownTurns, 1);
 assert.equal(calculatorPowerDebug?.authorityMismatch, true);
 assert.equal(calculatorPowerDebug?.unresolvedError, null);
+
+const activeFixtureValues = activePowerTuningFixture.values as Record<string, number>;
+for (const [bpv, expectedCooldown] of [
+  [10.5, 1],
+  [11, 2],
+  [19.5, 2],
+  [20, 3],
+  [28.5, 3],
+  [29, 4],
+  [39, 4],
+  [39.5, 5],
+] as const) {
+  assert.equal(
+    derivePowerCooldown(bpv, activeFixtureValues, { level: 3 }).derivedCooldownTurns,
+    expectedCooldown,
+    `Level 3 BPV ${bpv} cooldown`,
+  );
+}
 
 console.log("powerCooldownAuthority.smoke.ts passed");

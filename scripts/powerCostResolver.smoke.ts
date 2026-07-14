@@ -22,6 +22,7 @@ import {
   POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS,
 } from "../lib/powers/authoringRules";
 import type { EffectPacket, Power } from "../lib/summoning/types";
+import activePowerTuningFixture from "./fixtures/tuning/active-power-tuning.json";
 
 function createPacket(
   intention: EffectPacket["intention"],
@@ -1776,6 +1777,406 @@ assert.equal(minClampedCooldown.derivedCooldownTurns, 2);
 assert.equal(fallbackCooldown.level, 1);
 assert.ok(fallbackCooldown.notes.some((note) => note.includes("level 1 fallback")));
 
+// Phase 2B new-format Augment/Debuff resolver integration.
+const activeFixtureTuning = {
+  setId: activePowerTuningFixture.setId,
+  name: activePowerTuningFixture.name,
+  values: activePowerTuningFixture.values as Record<string, number>,
+};
+
+function semanticModifierPacket(params: {
+  id: string;
+  intention?: "AUGMENT" | "DEBUFF";
+  diceCount?: number;
+  potency?: number;
+  modifier?: 1 | 2 | 3 | 4 | 5;
+  attribute?: "ATTACK" | "GUARD" | "BRAVERY";
+  duration?: "TURNS" | "PASSIVE" | "UNTIL_TARGET_NEXT_TURN";
+  durationTurns?: number | null;
+  applyTo?: "PRIMARY_TARGET" | "ALLIES" | "SELF";
+  expectedTargetCount?: number;
+  packetIndex?: number;
+  dependencyMode?: EffectPacket["secondaryDependencyMode"];
+  timing?: EffectPacket["effectTimingType"];
+}): EffectPacket {
+  const intention = params.intention ?? "AUGMENT";
+  const attribute = params.attribute ?? "ATTACK";
+  return createPacket(intention, {
+    id: params.id,
+    packetIndex: params.packetIndex ?? 0,
+    sortOrder: params.packetIndex ?? 0,
+    diceCount: params.diceCount ?? 3,
+    potency: params.potency ?? 3,
+    modifier: params.modifier ?? 3,
+    targetedAttribute: attribute,
+    effectTimingType: params.timing ?? "ON_CAST",
+    effectDurationType: params.duration ?? "TURNS",
+    effectDurationTurns:
+      params.duration === "PASSIVE" || params.duration === "UNTIL_TARGET_NEXT_TURN"
+        ? null
+        : params.durationTurns ?? 2,
+    applyTo: params.applyTo ?? (intention === "AUGMENT" ? "ALLIES" : "PRIMARY_TARGET"),
+    secondaryDependencyMode: params.dependencyMode ?? "INDEPENDENT",
+    detailsJson: {
+      statTarget: attribute,
+      ...(params.expectedTargetCount === undefined
+        ? {}
+        : { expectedTargetCount: params.expectedTargetCount }),
+    },
+  });
+}
+
+function semanticPower(params: {
+  name: string;
+  packet: EffectPacket;
+  packets?: EffectPacket[];
+  range?: "SELF" | "MELEE" | "RANGED" | "AOE";
+  targets?: number;
+  distance?: number;
+  sphereRadius?: number;
+}): Power {
+  const range = params.range ?? "RANGED";
+  const isDebuff = (params.packet.intention ?? params.packet.type) === "DEBUFF";
+  return createPower({
+    name: params.name,
+    packet: params.packet,
+    packets: params.packets,
+    rangeCategories: range === "SELF" ? [] : [range],
+    meleeTargets: range === "MELEE" ? params.targets ?? 1 : null,
+    rangedTargets: range === "RANGED" ? params.targets ?? 1 : null,
+    rangedDistanceFeet: range === "RANGED" ? params.distance ?? 30 : null,
+    aoeCenterRangeFeet: range === "AOE" ? params.distance ?? 30 : null,
+    aoeCount: range === "AOE" ? 1 : null,
+    aoeShape: range === "AOE" ? "SPHERE" : null,
+    aoeSphereRadiusFeet: range === "AOE" ? params.sphereRadius ?? 0 : null,
+    primaryDefenceGate: isDebuff
+      ? {
+          sourcePacketIndex: 0,
+          gateResult: "RESIST",
+          protectionChannel: null,
+          resistAttribute: "ATTACK",
+          hostileEntryPattern: "DIRECT",
+          resolutionSource: "EXPLICIT",
+        }
+      : undefined,
+  });
+}
+
+const semanticAnchors = [
+  ["A", semanticPower({ name: "Anchor A", packet: semanticModifierPacket({ id: "anchor-a", diceCount: 2, potency: 1, modifier: 1, durationTurns: 1 }) }), 6, 1],
+  ["B", semanticPower({ name: "Anchor B", packet: semanticModifierPacket({ id: "anchor-b", potency: 2, modifier: 2 }) }), 13.5, 2],
+  ["C", semanticPower({ name: "Anchor C", packet: semanticModifierPacket({ id: "anchor-c" }) }), 16, 2],
+  ["D", semanticPower({ name: "Anchor D", packet: semanticModifierPacket({ id: "anchor-d", modifier: 5 }) }), 22, 3],
+  ["E", semanticPower({ name: "Anchor E", packet: semanticModifierPacket({ id: "anchor-e", modifier: 4, duration: "PASSIVE" }) }), 31.5, 4],
+  ["F", semanticPower({ name: "Anchor F", packet: semanticModifierPacket({ id: "anchor-f" }), targets: 3 }), 39, 4],
+  ["G", semanticPower({ name: "Anchor G", packet: semanticModifierPacket({ id: "anchor-g", expectedTargetCount: 6 }), range: "AOE" }), 75, 5],
+  ["H", semanticPower({ name: "Anchor H", packet: semanticModifierPacket({ id: "anchor-h", intention: "DEBUFF" }) }), 7, 1],
+  ["I", semanticPower({ name: "Anchor I", packet: semanticModifierPacket({ id: "anchor-i", intention: "DEBUFF" }), targets: 3 }), 13, 2],
+] as const;
+
+const semanticAnchorResults: Record<string, { bpv: number; cooldown: number }> = {};
+for (const [name, power, expectedBpv, expectedCooldown] of semanticAnchors) {
+  const result = resolvePowerCost(power, activeFixtureTuning, { level: 3 });
+  assert.equal(result.basePowerValue, expectedBpv, `Anchor ${name} BPV`);
+  assert.equal(result.derivedCooldownTurns, expectedCooldown, `Anchor ${name} cooldown`);
+  assert.equal(result.packetCosts[0]?.packetMagnitudeCost, 0, `Anchor ${name} legacy magnitude removed`);
+  assert.equal(result.packetCosts[0]?.packetDurationCost, 0, `Anchor ${name} legacy duration removed`);
+  assert.equal(result.packetCosts[0]?.contingencyMultiplier, 1, `Anchor ${name} contingency removed`);
+  semanticAnchorResults[name] = {
+    bpv: result.basePowerValue,
+    cooldown: result.derivedCooldownTurns,
+  };
+}
+assert.equal(
+  calculateCharacterPlayerPowerSpend(
+    semanticAnchorResults.F?.bpv ?? 0,
+    DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
+  ),
+  117,
+  "Anchor F must use the rounded 39 BPV for character-point conversion",
+);
+
+const shellGrid = [
+  semanticPower({ name: "Semantic Self", packet: semanticModifierPacket({ id: "semantic-self", applyTo: "SELF" }), range: "SELF" }),
+  semanticPower({ name: "Semantic Melee", packet: semanticModifierPacket({ id: "semantic-melee" }), range: "MELEE" }),
+  semanticPower({ name: "Semantic Ranged", packet: semanticModifierPacket({ id: "semantic-ranged" }) }),
+  semanticPower({ name: "Semantic AOE", packet: semanticModifierPacket({ id: "semantic-aoe", expectedTargetCount: 1 }), range: "AOE" }),
+].map((power) => resolvePowerCost(power, activeFixtureTuning, { level: 3 }));
+assert.deepEqual(shellGrid.map((result) => result.basePowerValue), [13.5, 15, 16, 17.5]);
+
+const rangedDistanceGrid = [30, 60, 120, 200].map((distance) =>
+  resolvePowerCost(
+    semanticPower({
+      name: `Semantic Range ${distance}`,
+      packet: semanticModifierPacket({ id: `semantic-range-${distance}` }),
+      distance,
+    }),
+    activeFixtureTuning,
+    { level: 3 },
+  ).basePowerValue,
+);
+assert.deepEqual(rangedDistanceGrid, [16, 16.5, 17, 17.5]);
+
+const geometryGrid = [0, 10, 20, 30].map((sphereRadius) =>
+  resolvePowerCost(
+    semanticPower({
+      name: `Semantic Sphere ${sphereRadius}`,
+      packet: semanticModifierPacket({ id: `semantic-sphere-${sphereRadius}`, expectedTargetCount: 1 }),
+      range: "AOE",
+      sphereRadius,
+    }),
+    activeFixtureTuning,
+    { level: 3 },
+  ).basePowerValue,
+);
+assert.deepEqual(geometryGrid, [17.5, 18, 18.5, 19]);
+
+assert.throws(
+  () =>
+    resolvePowerCost(
+      semanticPower({
+        name: "Missing AOE occupancy",
+        packet: semanticModifierPacket({ id: "missing-aoe-count" }),
+        range: "AOE",
+      }),
+      activeFixtureTuning,
+      { level: 3 },
+    ),
+  /EXPECTED_TARGET_COUNT_UNRESOLVED/,
+);
+
+const lowDeliveryAuthored = resolvePowerCost(
+  semanticPower({
+    name: "Low delivery matched-reference Debuff",
+    packet: semanticModifierPacket({ id: "low-delivery-matched", intention: "DEBUFF", diceCount: 1, modifier: 1, durationTurns: 1 }),
+  }),
+  activeFixtureTuning,
+  { level: 3 },
+);
+const lowDeliveryDebug = lowDeliveryAuthored.debug.augmentDebuffCalibration as Record<string, unknown>;
+assert.ok(!("floorActivated" in lowDeliveryDebug));
+assert.ok(!("floorAppliedDeliveryCharge" in lowDeliveryDebug));
+assert.ok(!("minimumDeliveryBpv" in lowDeliveryDebug));
+assert.ok(
+  Math.abs(
+    Number(lowDeliveryDebug.linearDeliveryCharge) -
+      1.51 * Number(lowDeliveryDebug.aggregateDeliveryUnits),
+  ) < 1e-12,
+);
+
+const floorPacketA = semanticModifierPacket({ id: "floor-a", diceCount: 1, potency: 1, modifier: 1, durationTurns: 1 });
+const floorPacketB = semanticModifierPacket({ id: "floor-b", diceCount: 1, potency: 1, modifier: 1, durationTurns: 1, attribute: "BRAVERY", packetIndex: 1 });
+const lowDeliveryAggregate = resolvePowerCost(
+  semanticPower({ name: "Linear low-delivery aggregate", packet: floorPacketA, packets: [floorPacketA, floorPacketB] }),
+  activeFixtureTuning,
+  { level: 3 },
+);
+const lowDeliveryAggregateDebug = lowDeliveryAggregate.debug.augmentDebuffCalibration as Record<string, unknown>;
+assert.ok(
+  Math.abs(
+    Number(lowDeliveryAggregateDebug.linearDeliveryCharge) -
+      1.51 * Number(lowDeliveryAggregateDebug.aggregateDeliveryUnits),
+  ) < 1e-12,
+);
+assert.equal(lowDeliveryAggregate.packetCountComplexityCost, 2);
+
+const linkedParent = semanticModifierPacket({ id: "linked-parent" });
+const linkedSecondary = semanticModifierPacket({
+  id: "linked-secondary",
+  potency: 2,
+  modifier: 2,
+  attribute: "BRAVERY",
+  packetIndex: 1,
+  dependencyMode: "LINKED_TO_PRIMARY",
+});
+const linkedResult = resolvePowerCost(
+  semanticPower({ name: "Linked semantic", packet: linkedParent, packets: [linkedParent, linkedSecondary] }),
+  activeFixtureTuning,
+  { level: 3 },
+);
+assert.equal(linkedResult.packetCosts[1]?.contingencyMultiplier, 1);
+assert.equal(linkedResult.packetCountComplexityCost, 2);
+assert.equal(linkedResult.basePowerValue, 29.5);
+
+const sameAttributeA = semanticModifierPacket({ id: "same-a" });
+const sameAttributeB = semanticModifierPacket({ id: "same-b", packetIndex: 1 });
+const sameAttributeResult = resolvePowerCost(
+  semanticPower({ name: "Same attribute clamp", packet: sameAttributeA, packets: [sameAttributeA, sameAttributeB] }),
+  activeFixtureTuning,
+  { level: 3 },
+);
+const differentAttributeResult = resolvePowerCost(
+  semanticPower({ name: "Different attributes", packet: floorPacketA, packets: [sameAttributeA, { ...sameAttributeB, id: "different-b", targetedAttribute: "BRAVERY", detailsJson: { statTarget: "BRAVERY" } }] }),
+  activeFixtureTuning,
+  { level: 3 },
+);
+assert.ok(sameAttributeResult.basePowerValue < differentAttributeResult.basePowerValue);
+
+const legacyModifierPacket = createPacket("AUGMENT", {
+  id: "legacy-modifier",
+  modifier: null,
+  diceCount: 1,
+  potency: 1,
+  effectDurationType: "TURNS",
+  effectDurationTurns: 1,
+  applyTo: "ALLIES",
+  detailsJson: { statTarget: "ATTACK" },
+});
+const legacyModifierResult = resolvePowerCost(
+  semanticPower({ name: "Legacy modifier-null parity", packet: legacyModifierPacket }),
+  activeFixtureTuning,
+  { level: 3 },
+);
+assert.equal(legacyModifierResult.basePowerValue, 7.7);
+assert.equal(legacyModifierResult.derivedCooldownTurns, 1);
+assert.equal(legacyModifierResult.packetCosts[0]?.debug.economicPath, "LEGACY_OR_NON_MODIFIER");
+
+const mixedNewPacket = semanticModifierPacket({ id: "mixed-new", packetIndex: 1, dependencyMode: "LINKED_TO_PRIMARY" });
+const mixedResult = resolvePowerCost(
+  semanticPower({ name: "Mixed legacy and semantic", packet: legacyModifierPacket, packets: [legacyModifierPacket, mixedNewPacket] }),
+  activeFixtureTuning,
+  { level: 3 },
+);
+assert.equal(mixedResult.packetCosts[0]?.debug.economicPath, "LEGACY_OR_NON_MODIFIER");
+assert.equal(mixedResult.packetCosts[1]?.debug.economicPath, "NEW_FORMAT_AUGMENT_DEBUFF_SEMANTIC");
+assert.equal(mixedResult.packetCountComplexityCost, 2);
+
+const legacyDebuffParent = createPacket("DEBUFF", {
+  id: "legacy-debuff-parent",
+  modifier: null,
+  diceCount: 3,
+  potency: 3,
+  effectDurationType: "TURNS",
+  effectDurationTurns: 2,
+  applyTo: "PRIMARY_TARGET",
+  detailsJson: { statTarget: "ATTACK" },
+});
+const linkedToLegacyDebuff = semanticModifierPacket({
+  id: "linked-to-legacy-debuff",
+  packetIndex: 1,
+  dependencyMode: "LINKED_TO_PRIMARY",
+});
+const linkedLegacyDebuffResult = resolvePowerCost(
+  semanticPower({
+    name: "Linked to legacy resisted Debuff",
+    packet: legacyDebuffParent,
+    packets: [legacyDebuffParent, linkedToLegacyDebuff],
+  }),
+  activeFixtureTuning,
+  { level: 3 },
+);
+assert.equal(
+  linkedLegacyDebuffResult.packetCosts[1]?.debug.economicPath,
+  "NEW_FORMAT_AUGMENT_DEBUFF_SEMANTIC",
+);
+assert.ok(
+  Number(
+    (linkedLegacyDebuffResult.debug.augmentDebuffCalibration as Record<string, unknown>)
+      .aggregateDeliveryUnits,
+  ) > 0,
+);
+
+assert.throws(
+  () =>
+    resolvePowerCost(
+      semanticPower({
+        name: "Unallocatable mixed target magnitude",
+        packet: legacyModifierPacket,
+        packets: [legacyModifierPacket, mixedNewPacket],
+        targets: 3,
+      }),
+      activeFixtureTuning,
+      { level: 3 },
+    ),
+  /MIXED_SHARED_TARGETING_ALLOCATION_UNRESOLVED/,
+);
+
+const mixedSemanticPrimary = semanticModifierPacket({
+  id: "mixed-semantic-primary",
+  applyTo: "SELF",
+});
+const mixedHealingSecondary = createPacket("HEALING", {
+  id: "mixed-healing-secondary",
+  sortOrder: 1,
+  packetIndex: 1,
+  hostility: "NON_HOSTILE",
+  applyTo: "SELF",
+  diceCount: 1,
+  potency: 1,
+});
+const mixedNonModifierResult = resolvePowerCost(
+  semanticPower({
+    name: "Mixed semantic and non-modifier",
+    packet: mixedSemanticPrimary,
+    packets: [mixedSemanticPrimary, mixedHealingSecondary],
+    range: "SELF",
+  }),
+  activeFixtureTuning,
+  { level: 3 },
+);
+assert.equal(
+  mixedNonModifierResult.packetCosts[0]?.debug.economicPath,
+  "NEW_FORMAT_AUGMENT_DEBUFF_SEMANTIC",
+);
+assert.equal(
+  mixedNonModifierResult.packetCosts[1]?.debug.economicPath,
+  "LEGACY_OR_NON_MODIFIER",
+);
+assert.equal(mixedNonModifierResult.packetCountComplexityCost, 2);
+
+const unsupportedDependencyPrimary = semanticModifierPacket({ id: "unsupported-dependency-primary" });
+const unsupportedDependencySecondary = semanticModifierPacket({
+  id: "unsupported-dependency-secondary",
+  packetIndex: 1,
+  dependencyMode: "DEPENDENT_SEQUENTIAL",
+});
+assert.throws(
+  () =>
+    resolvePowerCost(
+      semanticPower({
+        name: "Unsupported semantic dependency",
+        packet: unsupportedDependencyPrimary,
+        packets: [unsupportedDependencyPrimary, unsupportedDependencySecondary],
+      }),
+      activeFixtureTuning,
+      { level: 3 },
+    ),
+  /DEPENDENCY_MODE_UNSUPPORTED/,
+);
+
+assert.throws(
+  () =>
+    resolvePowerCost(
+      semanticPower({
+        name: "Invalid non-null modifier",
+        packet: {
+          ...semanticModifierPacket({ id: "invalid-modifier" }),
+          modifier: 6,
+        },
+      }),
+      activeFixtureTuning,
+      { level: 3 },
+    ),
+  /MODIFIER_INVALID/,
+);
+
+assert.throws(
+  () =>
+    resolvePowerCost(
+      semanticPower({
+        name: "Unallocatable mixed targeting",
+        packet: legacyModifierPacket,
+        packets: [
+          legacyModifierPacket,
+          { ...mixedNewPacket, id: "mixed-local", localTargetingOverride: { meleeTargets: null, rangedTargets: 2, rangedDistanceFeet: 30, aoeCenterRangeFeet: null, aoeCount: null, aoeShape: null, aoeSphereRadiusFeet: null, aoeConeLengthFeet: null, aoeLineWidthFeet: null, aoeLineLengthFeet: null } },
+        ],
+      }),
+      activeFixtureTuning,
+      { level: 3 },
+    ),
+  /MIXED_SHARED_TARGETING_ALLOCATION_UNRESOLVED/,
+);
+
 console.log(
   JSON.stringify(
     {
@@ -1849,6 +2250,17 @@ console.log(
           crossPacketSynergyCost: openVeinAudit.after.crossPacketSynergyCost,
           derivedCooldown: openVeinAudit.after.derivedCooldownTurns,
         },
+      },
+      augmentDebuffPhase2B: {
+        anchors: semanticAnchorResults,
+        shellGrid: shellGrid.map((result) => result.basePowerValue),
+        rangedDistanceGrid,
+        geometryGrid,
+        lowDeliveryMatchedReference: lowDeliveryAuthored.basePowerValue,
+        linkedBpv: linkedResult.basePowerValue,
+        sameAttributeBpv: sameAttributeResult.basePowerValue,
+        differentAttributeBpv: differentAttributeResult.basePowerValue,
+        mixedBpv: mixedResult.basePowerValue,
       },
     },
     null,
