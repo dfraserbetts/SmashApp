@@ -728,6 +728,27 @@ remain Custom. No numeric cost, cooldown, Prisma/API field, migration, or
 combat-runtime mechanic is added.
 
 
+Closed Beta Roleplay Validation Pack
+
+The library remains complete at 12 Methods, 14 contracts, 14 family keys, 88
+planned cells, 88 completed cells, and zero missing. Semantic breadth is
+temporarily frozen while the next evidence gate moves from registry completion
+to table-facing validation.
+
+The canonical first set is `scripts/roleplayClosedBetaLoadouts.smoke.ts` plus
+`docs/roleplay-closed-beta-test-pack.md`: fourteen deterministic in-memory
+Roleplay Abilities, exactly one per contract, grouped into six conceptual
+archetypes, with live-resolver descriptors and a controlled crisis-scene plan.
+The fixtures use normal public reconciliation helpers and never persist data or
+touch the database. They require no Builder page, UI control, production rule,
+API, Prisma, migration, runtime, or package-script change.
+
+Observe declaration comprehension, Scope/Impact clarity, Method ownership,
+descriptor utility, adjudication time, honoured success, and identifiable
+Narrative Resolution. Record repeated patterns before changing the standard
+library. This evidence gate unlocks no numeric Roleplay costing.
+
+
 Builder Rules To Preserve
 
 - Summoning Circle remains the reference implementation for shared power

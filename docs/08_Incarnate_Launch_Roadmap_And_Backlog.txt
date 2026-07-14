@@ -1682,6 +1682,28 @@ planned, 88 completed, and zero missing. No numeric cost, cooldown, stored
 proof state, API/Prisma field, migration, or combat-runtime mechanic is added.
 
 
+Closed Beta Roleplay Table-Validation Gate
+
+The complete Roleplay library remains 12 Methods / 14 contracts / 14 family
+keys / 88 planned / 88 completed / 0 missing. Semantic breadth is temporarily
+frozen. The next evidence gate is controlled table-facing validation rather
+than further registry expansion or numeric costing.
+
+`scripts/roleplayClosedBetaLoadouts.smoke.ts` and
+`docs/roleplay-closed-beta-test-pack.md` are the canonical first validation set.
+They provide fourteen deterministic non-persisted loadouts, one for every
+contract and all twelve Methods, grouped into six conceptual archetypes. The
+scene pack supplies a spreading structural/fire crisis, civilians, a hostile
+patrol, discoverable truth and weakness, proof, a quarry trail, a Counter
+window, and multiple non-combat victory routes.
+
+This is not final pregen production, saved fixture data, UI work, a runtime
+resolver, or balance calibration. Observe repeated player/GD patterns before
+proposing semantic changes. One confusing example never creates a new Method
+or contract. No numeric cost, cooldown, discount, budget integration, or tuning
+authority is unlocked.
+
+
 Open Decisions
 
 OPEN / NEEDS ARCHITECT DECISION:

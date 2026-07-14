@@ -1104,6 +1104,24 @@ costing, cooldown, stored state, API/Prisma field, migration, or combat mechanic
 is unlocked.
 
 
+Roleplay Closed Beta Validation Gate
+
+ACTIVE EVIDENCE GATE: the complete library remains 12 Methods / 14 contracts /
+14 family privilege keys / 88 planned / 88 completed / 0 missing. Semantic
+breadth is temporarily frozen. The next Roleplay gate is table-facing
+validation, not another Method, contract, Scope, Impact, runtime field, UI
+control, or numeric implementation.
+
+`scripts/roleplayClosedBetaLoadouts.smoke.ts` and
+`docs/roleplay-closed-beta-test-pack.md` are the canonical first validation set.
+They cover one representative Ability per current contract across six
+conceptual archetypes and one controlled dynamic-crisis scene. They are
+read-only fixtures and a test plan, not persisted characters, final pregens,
+new rules, or balance authority. No numeric costing is unlocked. Repeated
+table-facing patterns must be recorded before standard-library changes are
+proposed.
+
+
 Roleplay Declaration And Narrative Resolution Status
 
 LOCKED: "Incarnate does not eliminate Game Director judgement. It defines where
