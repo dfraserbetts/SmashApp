@@ -16,8 +16,8 @@ Method filters contracts; Scope and Impact resolve completed cells after
 contract selection. Each family owns one key equal to its stable ID. Any later
 exact-variant or tuple-key wording in this file is superseded implementation
 history unless explicitly restated under the compositional model. The 68
-descriptors that predate Self completion remain exact; current coverage is 80 planned
-/ 80 completed / 0 missing. Hide, Safety, Denial, Shared Request cooperation,
+descriptors that predate Self completion remain exact; current coverage is 88 planned
+/ 88 completed / 0 missing. Hide, Safety, Denial, Shared Request cooperation,
 and Diversion Impact doctrine is locked by that focused authority. Any later
 statement limiting those families to their former completed Impact cells, or
 assigning Scope/Impact-specific keys, is superseded completion history.
@@ -3358,6 +3358,152 @@ objective, route, direction, signature, pursuit state, and equivalents remain
 runtime-only and are never RoleplayAbility or Builder fields. This locks no
 numeric cost, cooldown, combat-runtime mechanic, API/Prisma field, migration,
 or stored tracking state.
+
+
+Perception Prove Method And Establish Verified Truth Outcome Contract
+
+PROVE / Prove is owned by Perception and ordered immediately after TRACK.
+Exact definition: "Establish one truthful conclusion for others by presenting,
+demonstrating, connecting, or revealing coherent evidence, testimony, signs,
+consequences, or another verifiable basis."
+
+Illustrative legal approaches:
+
+- Present physical evidence that directly supports one conclusion.
+- Demonstrate a repeatable or immediately observable fact.
+- Connect multiple known clues into one coherent proof.
+- Expose a contradiction through a verifiable record or source.
+- Present reliable witness testimony.
+- Reconstruct one event from accepted evidence.
+- Reveal an accessible supporting detail that makes the truth demonstrable.
+- Invoke magical, spiritual, psychic, technological, or supernatural
+  verification supported by Narrative Theme and current fiction.
+
+Prove does not discover whether a speculative claim is true or permit repeated
+claim-testing; fabricate evidence, testimony, records, signs, credentials, or
+authority; establish a false or misleading premise; reveal unrelated secrets or
+weaknesses; compel action, cooperation, confession, emotion, admission, or
+honesty; create comprehension, perception, memory, agency, or evaluative
+capability; override conclusive disproof; grant action, Response, movement,
+bonus, penalty, condition, or quantified output; mechanically alter audience or
+subject; affect outside Scope; broaden Scope; or let Difficulty/Legendary
+legalise false, unsupported, incoherent, or inaccessible conclusions.
+
+Discern Truth discovers concealed facts or exploitable opportunities for the
+user; Track establishes a quarry's trail; Prove starts with a supported truth
+and establishes it for selected audience members, never as a truth detector.
+Uncover Concealed Truth and Reveal Exploitable Weakness do not automatically
+prove their results to others. Establish False Belief uses Misdirect to
+establish falsehood. Secure Willing Cooperation uses Appeal to gain agreement;
+recognising truth never compels cooperation or response.
+
+ESTABLISH_VERIFIED_TRUTH / Establish Verified Truth is Help, Perception /
+Prove, supports One Target and Small Group at all four Impacts, is never Counter
+eligible, and owns key ESTABLISH_VERIFIED_TRUTH. Template: {{impact}}. One
+Target audience is "the target"; Small Group audience is "every accepted member
+of the selected group". Exact fragments:
+
+- MINOR: "{{audience}} recognises one small immediately verifiable truth as
+  established for the current meaningful exchange and treats it as true when
+  making relevant decisions"
+- STANDARD: "{{audience}} recognises one meaningful truth relevant to the
+  current situation as established for the rest of the current scene and
+  treats it as true when making relevant decisions unless meaningful new
+  evidence materially changes the conclusion"
+- MAJOR: "{{audience}} recognises one central truth shaping the current
+  situation as conclusively established for the rest of the current scene and
+  continues to treat it as true despite serious denial, pressure, loyalty, or
+  personal cost unless decisive new evidence or narrative resolution materially
+  changes the conclusion"
+- LEGENDARY: "{{audience}} recognises one defining truth whose consequences
+  extend beyond the current scene as decisively established and treats it as
+  true until its consequences are fulfilled or narratively resolved"
+
+Before Attribute or Difficulty the player states the runtime Declared Truth:
+exact audience, one exact truthful conclusion, coherent evidence already
+available, Method/Theme presentation, audience perception/understanding, and
+Scope/Impact fit. The conclusion must be one bounded established-fiction truth,
+have an accessible basis already known, observed, discovered, or strongly
+supported, reach all accepted members through one expression, be relevant, and
+not bundle claims. Prove is not a truth detector. The GD may reject insufficient
+basis without revealing speculative truth. Unsupported accusations, bundled
+claims, fabricated documents, public-scale audiences, and compelled-action
+demands are invalid; Difficulty cannot legalise them.
+
+Every accepted member must perceive the proof, understand the conclusion,
+possess evaluative agency, be reached through the same expression, coherently
+recognise the same conclusion, and lack conclusive disproof. Ineligible members
+must be narrowed/revised before Difficulty. Difficulty may reflect complexity,
+distrust, bias, reputation, loyalties, fear, pressure, or the least receptive
+eligible member, but cannot create eligibility.
+
+On success, every accepted member genuinely recognises the Declared Truth and
+treats it as true in relevant decisions. There is no second convincing roll,
+majority interpretation, hidden exemption, secretly unconvinced member,
+post-success narrowing, weaker substitution, or secret fraud. Audience members
+retain values, loyalties, priorities, emotions, tactics, resources, judgement,
+and capacity to conceal recognition or lie publicly. Recognition compels no
+cooperation, confession, surrender, testimony, disclosure, alliance, obedience,
+honesty, public admission, or exact action.
+
+The GD may introduce a previously unspecified matching mark, record entry,
+fracture, residue, corroborating statement, repeatable reaction, magical or
+technological verification, or other coherent supporting detail as Scene
+Manifestation. It must support the already eligible truth, fit fiction,
+contradict no premise, be reachable through Method/Theme, fit Scope/Impact, and
+create no unrelated discovery. This does not fabricate evidence. Lack of a
+prewritten detail cannot weaken success; if no coherent proof can exist, reject
+or revise before Difficulty.
+
+Small Group fixes exact membership at Difficulty. Every member receives the
+same evidence and conclusion, is individually eligible, and is reached by the
+same expression. Success binds all; it never proves different conclusions,
+uses contradictory tailoring, creates majority recognition or hidden dissent,
+or propagates to outsiders, later arrivals, followers, organisations, factions,
+armies, or the public.
+
+Minor establishes a small immediately verifiable truth for the exchange;
+Standard a meaningful situational truth for the scene unless meaningful new
+evidence changes it; Major a central scene-shaping truth despite serious
+denial, pressure, loyalty, or cost unless decisive evidence or resolution
+changes it; Legendary a defining truth beyond the scene until consequences are
+fulfilled or narratively resolved. Legendary grants no permanent obedience,
+compulsory honesty, or immutable memory. Resolution does not erase ordinary
+memory.
+
+Narrative Resolution includes fulfilled consequences, decisive new evidence,
+genuine situational change, ended relevance, resolved controversy, or another
+identifiable meaningful development. It excludes inconvenience, dislike,
+loyalty conflict, expected disbelief, unprepared evidence, or public lying.
+
+Intrinsic exclusions include no speculative discovery or claim-testing; no
+fabrication; no multiple, false, misleading, impossible, or incoherent truth;
+no unrelated secrets, motives, memories, weaknesses, routes, or evidence; no
+compelled response or public admission; no removed judgement; no created
+comprehension/perception/memory/agency; no quantified output or mechanical
+alteration; no outside-Scope effects or Scope conversion; no majority, hidden
+exemption, per-member resistance, or propagation; no Difficulty/Legendary
+override; and no arbitrary cancellation after accepted success.
+
+Examples include proving a prisoner's alibi, an unsafe bridge, authentic orders,
+a visible forgery, one betrayal, a ritual dependency, an accused person's
+location, a genuine warning to a council, recognised patrol orders, or a
+defining historical/institutional truth. Evidence, Method, Scope, Impact,
+access, and fiction remain binding.
+
+The contract may use a normal combat Roleplay action where proof is meaningful,
+an ordinary scene declaration, or another existing legal opportunity. It is
+never a Counter and replaces neither Discern Truth, Track, Appeal, Misdirect,
+Block, Dodge, Resist, Cleanse, nor Deny Imminent Hostile Act.
+
+Legacy Perception specific PROVE without stored methodId migrates to Prove and
+matching generated outcomes may migrate to ESTABLISH_VERIFIED_TRUTH. Explicit
+Custom Prove remains Custom. REVELATION, EXPOSE, DEMONSTRATE, PRESENT_EVIDENCE,
+CONVINCE, and TESTIFY remain Custom; explicit Custom Outcomes remain Custom.
+Declared Truth, truth claim, verified truth, proof/evidence text, evidentiary
+basis, audience members, truth subject, supporting detail, conclusion, and
+equivalents remain runtime-only. No numeric cost, cooldown, stored proof state,
+API/Prisma field, migration, or combat-runtime mechanic is added.
 
 
 Open Items

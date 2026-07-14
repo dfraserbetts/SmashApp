@@ -20,8 +20,8 @@ a higher-authority active source document explicitly promotes them.
 ROLEPLAY STANDARD-LIBRARY STATUS: docs/roleplay-standard-library.md is the
 higher-authority compositional specification. Exact tuple variants, tuple keys,
 and Scope/Impact-filtered contract dropdowns described later are superseded
-history. The live completed library is 11 Methods / 13 families / 13 family
-keys / 80 planned cells / 80 completed cells / 0 missing cells. Steel Yourself
+history. The live completed library is 12 Methods / 14 families / 14 family
+keys / 88 planned cells / 88 completed cells / 0 missing cells. Steel Yourself
 and Sustain Personal Resolve form the first complete Self-facing standard path.
 Its Declared Personal Course is runtime-only, binds sincere pursuit without
 removing player agency or mechanical effects, and follows Narrative Resolution.
@@ -416,12 +416,13 @@ Distract / One Target or Small Group uses DIVERT_IMMEDIATE_ATTENTION across all
 four Impacts. All five
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
-The registry contains exactly eleven Methods, thirteen standard Outcome Contract
-families, thirteen family privilege keys, 80 planned cells, 80 completed cells,
+The registry contains exactly twelve Methods, fourteen standard Outcome Contract
+families, fourteen family privilege keys, 88 planned cells, 88 completed cells,
 and no missing cells. Spot Weakness,
 Investigate, Search, Analyse, and synonymous desired results remain Custom
 Method review rather than new Methods. Discern Truth defines concealed-fact and
-weakness discovery; Track separately defines coherent trail establishment.
+weakness discovery; Track defines coherent trail establishment; Prove defines
+verified truthful recognition for an audience.
 
 Global declaration doctrine: Incarnate retains bounded GD judgement but places
 it before the roll and protects purchased outcomes after success. The player
@@ -1636,10 +1637,49 @@ not plot inconvenience or lack of preparation.
 Legacy Perception TRACK migrates only when no explicit methodId is stored;
 explicit Custom Track and ambiguous SEARCH, INVESTIGATE, SENSE_DANGER,
 READ_INTENT, HUNT, and LOCATE remain Custom. Declared Quarry and all pursuit
-state remain runtime-only. The completed standard library is now 11 Methods,
-13 families, 13 family keys, 80 planned cells, 80 completed cells, and zero
+state remain runtime-only. The completed standard library is now 12 Methods,
+14 families, 14 family keys, 88 planned cells, 88 completed cells, and zero
 missing. No numeric costing, cooldown, saved tracking state, API/Prisma field,
 migration, measured movement, or combat-runtime mechanic is added.
+
+
+Approved Roleplay Method And Family: Prove / Establish Verified Truth
+
+PROVE / Prove is the third Perception Method after Discern Truth and Track. It
+establishes one truthful conclusion for selected audience members by presenting
+or demonstrating coherent existing evidence. It is not a truth detector,
+fabricates no proof, establishes no false premise, and compels no response.
+Discern Truth discovers; Track follows; Prove verifies for an audience.
+
+ESTABLISH_VERIFIED_TRUTH / Establish Verified Truth is Help, Perception /
+Prove, One Target or Small Group, all four Impacts, Counter unavailable, and
+family key ESTABLISH_VERIFIED_TRUTH. Minor establishes a small immediately
+verifiable truth for the exchange; Standard a meaningful situational truth for
+the scene unless meaningful new evidence changes it; Major a central truth
+despite serious denial, pressure, loyalty, or cost unless decisive evidence or
+resolution changes it; Legendary a defining truth beyond the scene until its
+consequences are fulfilled or narratively resolved. Exact fragments remain in
+the focused standard-library authority.
+
+Declared Truth fixes exact audience, one true bounded conclusion, accessible
+existing evidentiary basis, Method/Theme expression, audience eligibility, and
+Scope/Impact before Difficulty. Success binds every accepted member to genuine
+recognition in relevant decisions, with no second roll, majority interpretation,
+hidden disbelief, or weaker substitution, while preserving independent values,
+loyalties, judgement, and the capacity to lie publicly. The GD may manifest an
+unprepared coherent supporting detail but cannot fabricate proof or create an
+unrelated discovery. Small Group binds the exact eligible audience and never
+propagates to outsiders or institutions. Narrative Resolution requires an
+identifiable meaningful change, not inconvenience, dislike, plot expectation,
+or lack of prepared evidence.
+
+Legacy Perception PROVE without stored methodId migrates; matching outcomes may
+migrate to ESTABLISH_VERIFIED_TRUTH. Explicit Custom Prove and REVELATION,
+EXPOSE, DEMONSTRATE, PRESENT_EVIDENCE, CONVINCE, and TESTIFY remain Custom.
+Proof, evidence, audience, subject, supporting detail, conclusion, and Declared
+Truth remain runtime-only. The library is 12 Methods, 14 families, 14 keys, 88
+planned, 88 completed, and zero missing. No numeric cost, cooldown, stored
+proof state, API/Prisma field, migration, or combat-runtime mechanic is added.
 
 
 Open Decisions

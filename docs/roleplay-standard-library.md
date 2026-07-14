@@ -127,6 +127,7 @@ Every family owns exactly one unique privilege key, equal to its stable ID:
 - `UNCOVER_CONCEALED_TRUTH`
 - `REVEAL_EXPLOITABLE_WEAKNESS`
 - `TRACE_QUARRY`
+- `ESTABLISH_VERIFIED_TRUTH`
 - `SECURE_WILLING_COOPERATION`
 - `ESTABLISH_SHARED_RESOLVE`
 - `SUSTAIN_PERSONAL_RESOLVE`
@@ -141,7 +142,7 @@ approved adjustments.
 
 ## Current Coverage
 
-The library contains eleven Methods and thirteen Outcome Contract families. Planned
+The library contains twelve Methods and fourteen Outcome Contract families. Planned
 coverage is every declared supported Scope across all four Impact tiers:
 
 | Contract | Planned Scopes | Completed Impacts |
@@ -154,13 +155,14 @@ coverage is every declared supported Scope across all four Impact tiers:
 | `UNCOVER_CONCEALED_TRUTH` | One Target | All four |
 | `REVEAL_EXPLOITABLE_WEAKNESS` | One Target | All four |
 | `TRACE_QUARRY` | One Target, Small Group | All four for both |
+| `ESTABLISH_VERIFIED_TRUTH` | One Target, Small Group | All four for both |
 | `SECURE_WILLING_COOPERATION` | One Target, Small Group | All four for both |
 | `ESTABLISH_SHARED_RESOLVE` | Small Group | All four |
 | `SUSTAIN_PERSONAL_RESOLVE` | Self | All four |
 | `ESTABLISH_FALSE_BELIEF` | One Target, Small Group | All four for both |
 | `DIVERT_IMMEDIATE_ATTENTION` | One Target, Small Group | All four for both |
 
-This is 80 planned cells, 80 completed/renderable cells, and zero missing cells.
+This is 88 planned cells, 88 completed/renderable cells, and zero missing cells.
 Every declared supported Scope exposes Minor, Standard, Major, and Legendary.
 There is no current standard-library completeness backlog. The forty-three cells
 that predate library completion remain byte-for-byte regression authority; the
@@ -585,6 +587,177 @@ starting connection, trail or trace text, last-known location, objective,
 route, direction, signature, pursuit-state, or equivalent field is stored in
 RoleplayAbility or added to the Builder.
 
+## Prove And Establish Verified Truth
+
+`PROVE` / Prove is the third Perception Method, immediately after Track. Its
+exact definition is:
+
+> Establish one truthful conclusion for others by presenting, demonstrating,
+> connecting, or revealing coherent evidence, testimony, signs, consequences,
+> or another verifiable basis.
+
+Illustrative legal approaches are presenting physical evidence that directly
+supports one conclusion; demonstrating a repeatable or immediately observable
+fact; connecting known clues into one coherent proof; exposing a contradiction
+through a verifiable record or source; presenting reliable witness testimony;
+reconstructing one event from accepted evidence; revealing an accessible
+supporting detail that makes the truth demonstrable; and invoking magical,
+spiritual, psychic, technological, or supernatural verification supported by
+Narrative Theme and current fiction.
+
+Prove does not discover whether a speculative claim is true or permit repeated
+claim-testing; fabricate evidence, testimony, records, signs, credentials, or
+authority; establish a false or misleading premise; reveal unrelated secrets or
+weaknesses; compel action, cooperation, confession, emotion, admission, or
+honesty; create comprehension, perception, memory, agency, or evaluative
+capability; override conclusive disproof; grant quantified output; mechanically
+alter audience or subject; affect anyone outside Scope; broaden Scope; or let
+Difficulty or Legendary Impact legalise a false, unsupported, incoherent, or
+inaccessible conclusion.
+
+Discern Truth discovers a concealed fact or exploitable opportunity for the
+user but does not establish it for an audience. Track establishes or follows a
+quarry's trail but proves no unrelated conclusion. Prove starts with a truth for
+which the user already has a coherent basis, presents that basis to selected
+audience members, and never functions as a truth detector. Uncover Concealed
+Truth answers what hidden fact is true; Reveal Exploitable Weakness identifies
+an actionable weakness; neither proves the conclusion to others. Establish
+False Belief uses Misdirect to establish falsehood, while Prove establishes
+truth through verification. Secure Willing Cooperation uses Appeal to gain
+agreement to a request; recognising truth compels no cooperation or response.
+
+### Establish Verified Truth Contract
+
+`ESTABLISH_VERIFIED_TRUTH` / Establish Verified Truth is Help, Perception /
+Prove, supports One Target and Small Group at all four Scene Impacts, is
+Counter-ineligible throughout, and owns family key
+`ESTABLISH_VERIFIED_TRUTH`. Its outcome template is `{{impact}}`. One Target
+supplies `audience: the target`; Small Group supplies `audience: every accepted
+member of the selected group`. Exact fragments are:
+
+- Minor: `{{audience}} recognises one small immediately verifiable truth as established for the current meaningful exchange and treats it as true when making relevant decisions`
+- Standard: `{{audience}} recognises one meaningful truth relevant to the current situation as established for the rest of the current scene and treats it as true when making relevant decisions unless meaningful new evidence materially changes the conclusion`
+- Major: `{{audience}} recognises one central truth shaping the current situation as conclusively established for the rest of the current scene and continues to treat it as true despite serious denial, pressure, loyalty, or personal cost unless decisive new evidence or narrative resolution materially changes the conclusion`
+- Legendary: `{{audience}} recognises one defining truth whose consequences extend beyond the current scene as decisively established and treats it as true until its consequences are fulfilled or narratively resolved`
+
+### Declared Truth And Audience Eligibility
+
+Before Attribute or Difficulty the player states the runtime Declared Truth:
+the exact audience, one exact truthful conclusion, the coherent evidentiary
+basis already available, how Prove and Theme present it, why every audience
+member can perceive and understand it, and its Scope/Impact fit. It must be one
+bounded true conclusion with an accessible basis already known, discovered,
+observed, or strongly supported by the character's information, presented by
+one expression to every accepted member, relevant to the audience, within
+Impact, and not a bundle of claims.
+
+Prove is not a truth detector. Speculative declarations cannot be used to learn
+whether the Game Director accepts them. If the character lacks sufficient
+basis, the GD may reject the evidentiary foundation without confirming whether
+the speculation is true. Unsupported accusations, bundled claims, fabricated
+documents, city-wide audiences, or demands for confession or cooperation are
+invalid. Difficulty cannot legalise a false, unsupported, bundled,
+inaccessible, or incoherent conclusion.
+
+Every accepted audience member must perceive the proof, understand the needed
+conclusion, possess evaluative agency, be reached through the same expression,
+be able coherently to recognise the same conclusion, and lack conclusive
+disproof. Ineligible group members must be narrowed, revised, or rejected before
+Difficulty. Difficulty may reflect complexity, distrust, bias, reputation,
+loyalty, fear, pressure, or the least receptive eligible member, but cannot make
+an ineligible member eligible.
+
+### Binding Recognition And Evidence Manifestation
+
+On success, every accepted audience member genuinely recognises the Declared
+Truth and treats it as true in relevant decisions. There is no second
+convincing roll, majority interpretation, hidden exemption, secretly
+unconvinced member, post-success narrowing, weaker substitution, or secretly
+fraudulent proof. Audience members retain values, loyalties, priorities,
+emotions, tactics, resources, independent judgement, and the ability to conceal
+recognition or lie publicly. Recognition compels no cooperation, confession,
+surrender, testimony, disclosure, alliance, obedience, admission, or exact
+action. A guard may recognise innocence but fear opposing a captain; a
+councillor may recognise genuine evidence and lie publicly, but neither choice
+may be justified by secretly denying the purchased truth.
+
+The Game Director may introduce a previously unspecified coherent supporting
+detail as Scene Manifestation: a matching mark, record entry, visible fracture,
+overlooked residue, corroborating statement, repeatable reaction, magical or
+technological verification, or another accessible detail. It must support the
+already eligible Declared Truth, fit fiction, contradict no locked premise, be
+reachable through Method and Theme, fit Scope/Impact, and create no unrelated
+discovery. This does not fabricate evidence. Lack of a prewritten detail does
+not weaken an accepted success; if no coherent proof can exist, reject or
+revise before Difficulty.
+
+### Small Group, Impact, And Narrative Resolution
+
+Small Group uses the bounded scene-local group doctrine. Membership is exact
+before Difficulty; every member receives the same evidence and conclusion, is
+individually eligible, and is reached by one proof expression. Success binds
+every member, never different conclusions, contradictory tailoring, majority
+recognition, hidden dissenters, or propagation to outsiders, later arrivals,
+followers, organisations, factions, armies, or the public.
+
+Minor establishes one small immediately verifiable truth for relevant decisions
+during the current meaningful exchange. Standard establishes one meaningful
+situational truth for the scene unless meaningful new evidence materially
+changes it. Major conclusively establishes one central scene-shaping truth
+despite serious denial, pressure, loyalty, or cost unless decisive new evidence
+or Narrative Resolution materially changes it. Legendary decisively establishes
+one defining truth beyond the scene until consequences are fulfilled or
+narratively resolved; it grants no permanent obedience, compulsory honesty, or
+immutable memory. Ending the guaranteed contract does not erase ordinary memory
+of what was proven.
+
+The global Narrative Resolution doctrine applies. The contract may resolve
+when immediate consequences are fulfilled, decisive new evidence materially
+reframes the conclusion, the situation genuinely changes, relevance ends, a
+defining controversy resolves, or another identifiable meaningful development
+occurs. It does not resolve because recognition is inconvenient, disliked,
+conflicts with loyalty or plot, evidence was unprepared, or someone lies
+publicly.
+
+Intrinsic exclusions: the contract does not discover speculative truth;
+replace Discern Truth through repeated claim-testing; fabricate evidence,
+records, testimony, credentials, signs, or authority; establish more than one
+Declared Truth or any false, misleading, impossible, or incoherent conclusion;
+reveal unrelated secrets, motives, memories, weaknesses, routes, or evidence;
+compel cooperation, confession, surrender, testimony, disclosure, honesty,
+alliance, obedience, admission, or action; remove independent judgement; create
+comprehension, perception, memory, agency, or capability; grant quantified
+output; mechanically alter audience or subject; affect outside Scope; broaden
+Scope; permit majority interpretation, hidden exemptions, or per-member
+resistance; propagate through testimony, leadership, reputation, institutions,
+reports, or rumours; let Difficulty/Legendary legalise invalid proof; or permit
+arbitrary cancellation after accepted success.
+
+Examples include proving a prisoner's immediate alibi, demonstrating an unsafe
+bridge, authenticating an order, proving a visible forgery, connecting records
+and evidence to establish a betrayal, showing a ritual's dependence on an
+object, proving an accused person was elsewhere, establishing a warning for a
+small council, proving patrol orders came from its commander, or establishing a
+defining historical or institutional truth beyond the scene. Every example
+remains subject to evidence, Method, Scope, Impact, access, and fiction.
+
+Establish Verified Truth may use a normal Roleplay action in combat where proof
+can meaningfully be presented, an ordinary outside-combat declaration, or
+another existing legal opportunity. It cannot be introduced as a Counter after
+a formal hostile action begins and replaces neither Discern Truth, Track,
+Appeal, Misdirect, Block, Dodge, Resist, Cleanse, nor Deny Imminent Hostile Act.
+
+Legacy Perception `specific: "PROVE"` without stored `methodId` migrates to
+standard Prove, and matching generated outcomes may migrate through resolved
+cells to Establish Verified Truth. Explicit Custom Prove remains Custom.
+`REVELATION`, `EXPOSE`, `DEMONSTRATE`, `PRESENT_EVIDENCE`, `CONVINCE`, and
+`TESTIFY` remain Custom; explicit Custom Outcomes remain Custom.
+
+Declared Truth, truth claims, verified truth, proof/evidence text, evidentiary
+basis, audience members, truth subject, supporting detail, conclusion, and
+equivalent proof/declaration state remain runtime-only and are never stored in
+RoleplayAbility or added to the Builder.
+
 ## Normalization And Stored State
 
 Legacy migration enumerates completed resolved cells and compares normalized
@@ -602,7 +775,7 @@ persistence, Prisma, API, and combat runtime require no shape change.
 
 `scripts/roleplayStandardLibrary.audit.ts` is the read-only structural and
 coverage authority. Default mode and `--require-complete` both report and pass
-11 Methods / 13 contracts / 13 keys / 80 planned / 80 completed / 0 missing.
+12 Methods / 14 contracts / 14 keys / 88 planned / 88 completed / 0 missing.
 
 The audit reports Method and contract order, supported Scopes, completed Impacts,
 missing cells by contract, unresolved tokens, missing Scope fragments, duplicate

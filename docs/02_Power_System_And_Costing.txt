@@ -14,7 +14,7 @@ ROLEPLAY COSTING ARCHITECTURE: docs/roleplay-standard-library.md supersedes
 exact-tuple privilege authority. Every Roleplay family owns one unique stable-ID
 privilege key; Scope and Impact remain separate future economic components.
 Scope/Impact-suffixed historical keys are migration evidence only and are not
-runtime aliases. The completed library is 80 planned / 80 completed / 0 missing
+runtime aliases. The completed library is 88 planned / 88 completed / 0 missing
 cells. Steel Yourself / Sustain Personal Resolve adds the first Self-facing
 standard family with one family key and no numeric value. Declared Personal
 Course is runtime-only; sincere resolve does not remove Fear, Control,
@@ -1193,13 +1193,13 @@ DRAW_HOSTILE_ATTENTION, while Overawe uses BREAK_SHARED_RESOLVE. Appeal uses SEC
 ESTABLISH_SHARED_RESOLVE, Misdirect uses ESTABLISH_FALSE_BELIEF, Distract uses
 DIVERT_IMMEDIATE_ATTENTION across all four Impacts, and Discern
 Truth offers two compatible families in registry order: UNCOVER_CONCEALED_TRUTH
-and REVEAL_EXPLOITABLE_WEAKNESS, while Track uses TRACE_QUARRY for One Target
-or Small Group. Rally is Small Group only; Overawe's Break
+and REVEAL_EXPLOITABLE_WEAKNESS, while Track uses TRACE_QUARRY and Prove uses
+ESTABLISH_VERIFIED_TRUTH for One Target or Small Group. Rally is Small Group only; Overawe's Break
 Resolve and Establish False Belief support One Target and Small Group, while
 Steel Yourself / Sustain Personal Resolve supports Self only and other current
-families are scoped as explicitly authored. The registry has eleven standard
-Methods, thirteen standard Outcome Contract families, thirteen family privilege
-keys, 80 planned cells, 80 completed cells, and no missing cells. The
+families are scoped as explicitly authored. The registry has twelve standard
+Methods, fourteen standard Outcome Contract families, fourteen family privilege
+keys, 88 planned cells, 88 completed cells, and no missing cells. The
 43 prior fragments remain exact and the 25 completion fragments add the locked
 Impact doctrine. Custom
 Outcome review remains
@@ -2002,11 +2002,35 @@ contract authority, not numeric modifiers.
 Legacy Perception `specific: "TRACK"` without explicit methodId may migrate to
 standard Track and an exact generated outcome may resolve to TRACE_QUARRY.
 Explicit Custom Track and SEARCH, INVESTIGATE, SENSE_DANGER, READ_INTENT, HUNT,
-and LOCATE remain Custom. Current totals are eleven Methods, thirteen families,
-thirteen family keys, 80 planned cells, 80 completed cells, and zero missing.
+and LOCATE remain Custom. Current totals are twelve Methods, fourteen families,
+fourteen family keys, 88 planned cells, 88 completed cells, and zero missing.
 No numeric cost, cooldown, privilege value, restriction discount, Builder total,
 balance value, API/Prisma field, migration, or combat-runtime tracking mechanic
 is unlocked.
+
+
+Prove / Establish Verified Truth Compositional Costing Status
+
+PROVE is the third Perception Method. ESTABLISH_VERIFIED_TRUTH is one
+non-numeric Help family owned by Perception / Prove, with one family privilege
+key ESTABLISH_VERIFIED_TRUTH, One Target and Small Group Scope components, four
+explicit Impact fragments, and Counter false for all eight cells. One Target
+uses `audience: the target`; Small Group uses `audience: every accepted member
+of the selected group`.
+
+Declared Truth, audience eligibility, binding recognition, coherent supporting
+Scene Manifestation, Small Group all-member recognition, Impact persistence,
+and Narrative Resolution are semantic eligibility and outcome authority, not
+cost inputs. Recognition compels no response. Proof/evidence, audience, subject,
+supporting detail, and conclusion data remain runtime-only and unpriced.
+
+Legacy Perception `specific: "PROVE"` without methodId may migrate to Prove and
+exact generated outcomes may resolve to ESTABLISH_VERIFIED_TRUTH. Explicit
+Custom Prove and REVELATION, EXPOSE, DEMONSTRATE, PRESENT_EVIDENCE, CONVINCE,
+and TESTIFY remain Custom. Current totals are twelve Methods, fourteen families,
+fourteen keys, 88 planned cells, 88 completed cells, and zero missing. No
+numeric cost, cooldown, privilege value, restriction discount, Builder total,
+API/Prisma field, migration, or combat-runtime proof mechanic is unlocked.
 
 
 Open Items

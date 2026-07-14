@@ -16,7 +16,7 @@ Contract, Scope, Impact, Dice, Counter, Restriction. Outcome Contracts filter by
 Intention and Method only. A selected contract then supplies only completed
 Scopes and Impacts, with stable-order fallbacks that retain the family. Exact
 tuple variants and tuple privilege keys are superseded implementation history.
-Current coverage is 80 planned / 80 completed / 0 missing cells. Persuasion
+Current coverage is 88 planned / 88 completed / 0 missing cells. Persuasion
 filters to Appeal, Rally, and Steel Yourself. Steel Yourself exposes Sustain
 Personal Resolve, Self only, all four Impacts, Help, and no Counter. Existing
 registry selection moves the default One Target Scope to Self and renders
@@ -380,8 +380,8 @@ The registry-driven Builder exposes both options without a page fork, retains
 an existing selection while compatible, and never auto-selects or converts a
 Custom Outcome. It adds no Recipient Type, target/subject, investigation,
 Declared Aim/objective, weakness, or opportunity fields. The live inventory is
-eleven Methods, thirteen standard families, thirteen family privilege keys, 80
-planned cells, 80 completed cells, and no missing cells. Numeric
+twelve Methods, fourteen standard families, fourteen family privilege keys, 88
+planned cells, 88 completed cells, and no missing cells. Numeric
 costing and cooldown implementation remain parked.
 
 Rescue exposes HIDE_FROM_IMMEDIATE_DANGER and SECURE_IMMEDIATE_SAFETY at all
@@ -706,6 +706,26 @@ to standard Track, matching resolved outcomes may map to TRACE_QUARRY, and
 explicit Custom Track remains Custom. SEARCH, INVESTIGATE, SENSE_DANGER,
 READ_INTENT, HUNT, and LOCATE remain Custom. There is no new Prisma/API field,
 migration, numeric cost, cooldown, movement, or combat-runtime behavior.
+
+
+Prove / Establish Verified Truth Builder Status
+
+The registry-driven Builder exposes Perception Methods in order Discern Truth,
+Track, Prove. Selecting Prove exposes only Establish Verified Truth, One Target
+and Small Group, all four Impacts, Help, and Counter unavailable. Selecting the
+contract from Self falls back to One Target. One Target to Small Group or back
+and every Impact switch retain the family and recompose the exact outcome and
+descriptor. Raw Self, Large Group, Faction / Army, another Method, or another
+Intention clears family and Counter; Name, Theme, Dice Count, and restriction
+edits retain it. No Builder-page special case is required.
+
+Declared Truth, evidentiary basis, audience eligibility, proof/evidence text,
+truth subject, supporting detail, and conclusion are runtime declaration state,
+never Builder or RoleplayAbility fields. Legacy Perception PROVE without stored
+methodId migrates to the standard Method; exact outcomes may migrate to
+ESTABLISH_VERIFIED_TRUTH; explicit Custom Prove and ambiguous proof-like values
+remain Custom. No numeric cost, cooldown, Prisma/API field, migration, or
+combat-runtime mechanic is added.
 
 
 Builder Rules To Preserve

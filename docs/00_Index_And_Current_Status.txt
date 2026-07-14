@@ -9,8 +9,8 @@ Roleplay compositional architecture authority is
 docs/roleplay-standard-library.md. It supersedes active wording below that
 treats exact Scope / Impact tuples as permanent registry variants, assigns
 tuple-level privilege keys, or filters Outcome Contracts by Scope and Impact.
-The live library has 11 Methods, 13 families, 13 family privilege keys, 80
-planned cells, 80 completed cells, and no missing cells. Steel Yourself is the
+The live library has 12 Methods, 14 families, 14 family privilege keys, 88
+planned cells, 88 completed cells, and no missing cells. Steel Yourself is the
 first Self-facing standard Method and Sustain Personal Resolve is its complete
 Self-only family. The prior 68 descriptors remain exact regression evidence.
 Declared Personal Course, sincere-pursuit, player-agency, mechanical-effect,
@@ -553,9 +553,9 @@ Scope define approved magnitude/persistence and breadth.
 "Method defines the approach. Theme personalises the approach. The Outcome
 Contract defines the result."
 
-The standard Method registry contains exactly eleven Methods: APPEAL, RALLY,
+The standard Method registry contains exactly twelve Methods: APPEAL, RALLY,
 STEEL_YOURSELF, MISDIRECT, DISTRACT, RESCUE, INTERRUPT, CHALLENGE, OVERAWE, and
-DISCERN_TRUTH, followed by TRACK. All five Intentions have at least one approved standard Method.
+DISCERN_TRUTH, followed by TRACK and PROVE. All five Intentions have at least one approved standard Method.
 Persuasion owns Appeal, Rally, and Steel Yourself. Appeal maps to the
 locked Help / One Target family SECURE_WILLING_COOPERATION, while Rally maps to
 the locked Help / Small Group family ESTABLISH_SHARED_RESOLVE, both at all four
@@ -577,8 +577,8 @@ opening, route, pattern, dependency, or leverage point concerning the target
 can be used. The selected contract defines the purchased entitlement; the
 families are not merged or silently exchanged. Track owns TRACE_QUARRY for One
 Target and Small Group at all four Impacts, with Counter unavailable. The registry therefore contains
-thirteen standard Outcome Contract families, thirteen family privilege keys, and 80
-planned standard cells, all 80 of which are completed and renderable.
+fourteen standard Outcome Contract families, fourteen family privilege keys, and 88
+planned standard cells, all 88 of which are completed and renderable.
 
 No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
 Discern Truth already owns observation, deduction, evidence, physical detail,
@@ -1035,6 +1035,73 @@ outcomes may migrate to TRACE_QUARRY. Explicit Custom Track remains Custom;
 SEARCH, INVESTIGATE, SENSE_DANGER, READ_INTENT, HUNT, and LOCATE remain Custom.
 Declared Quarry, connection, trail, route, direction, signature, and pursuit
 state remain runtime-only. No numeric costing is unlocked.
+
+
+Perception Prove / Establish Verified Truth Status
+
+LOCKED: PROVE / Prove is the third Perception Method, immediately after TRACK.
+It establishes one truthful conclusion for others by presenting,
+demonstrating, connecting, or revealing coherent evidence, testimony, signs,
+consequences, or another verifiable basis. It begins with an already supported
+truth and is not a truth detector. Discern Truth discovers facts or
+opportunities; Track follows a quarry's trail; Prove establishes an evidenced
+truth for a selected audience. It neither fabricates evidence nor compels a
+response.
+
+ESTABLISH_VERIFIED_TRUTH / Establish Verified Truth is Help, Perception /
+Prove, One Target or Small Group, Minor through Legendary, Counter unavailable,
+with family key ESTABLISH_VERIFIED_TRUTH. One Target uses `audience: the
+target`; Small Group uses `audience: every accepted member of the selected
+group`. Exact Impact fragments are:
+
+- MINOR: "{{audience}} recognises one small immediately verifiable truth as
+  established for the current meaningful exchange and treats it as true when
+  making relevant decisions"
+- STANDARD: "{{audience}} recognises one meaningful truth relevant to the
+  current situation as established for the rest of the current scene and
+  treats it as true when making relevant decisions unless meaningful new
+  evidence materially changes the conclusion"
+- MAJOR: "{{audience}} recognises one central truth shaping the current
+  situation as conclusively established for the rest of the current scene and
+  continues to treat it as true despite serious denial, pressure, loyalty, or
+  personal cost unless decisive new evidence or narrative resolution materially
+  changes the conclusion"
+- LEGENDARY: "{{audience}} recognises one defining truth whose consequences
+  extend beyond the current scene as decisively established and treats it as
+  true until its consequences are fulfilled or narratively resolved"
+
+Before Attribute or Difficulty the player states the runtime Declared Truth:
+exact audience, one exact truthful conclusion, an already accessible coherent
+evidentiary basis, Method/Theme presentation, audience perception and
+understanding, and Scope/Impact fit. Unsupported speculation, bundled claims,
+fabrication, inaccessible proof, or demands for action are invalid. The GD may
+reject insufficient basis without revealing whether a speculation is true.
+Every audience member must perceive, understand, evaluate, and be reached by
+the same proof; ineligible members are narrowed before Difficulty.
+
+Success binds every accepted member to genuine recognition in relevant
+decisions, with no second roll, majority interpretation, hidden exemption,
+secret disbelief, weaker substitution, or secret fraud. Members retain values,
+loyalties, emotions, tactics, judgement, and the ability to lie publicly;
+recognition compels no cooperation, confession, testimony, disclosure,
+obedience, or exact action. The GD may introduce an unprepared coherent
+supporting detail consistent with fiction, Method, Theme, Scope, and Impact,
+but this never fabricates evidence or creates an unrelated discovery.
+
+Small Group is one exact audience receiving the same conclusion and proof;
+success binds all accepted members and propagates to no outsider, organisation,
+faction, army, or public. Narrative Resolution requires fulfilled consequences,
+decisive new evidence, genuine situational change, ended relevance, resolved
+controversy, or another identifiable meaningful development, not inconvenience,
+dislike, loyalty conflict, plot plans, unprepared evidence, or public lying.
+
+Legacy Perception `specific: "PROVE"` without stored methodId migrates to Prove
+and matching outcomes may migrate to ESTABLISH_VERIFIED_TRUTH. Explicit Custom
+Prove remains Custom; REVELATION, EXPOSE, DEMONSTRATE, PRESENT_EVIDENCE,
+CONVINCE, and TESTIFY remain Custom. Declared Truth and all proof, evidence,
+audience, subject, detail, and conclusion state remain runtime-only. No numeric
+costing, cooldown, stored state, API/Prisma field, migration, or combat mechanic
+is unlocked.
 
 
 Roleplay Declaration And Narrative Resolution Status
