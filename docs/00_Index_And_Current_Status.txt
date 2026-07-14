@@ -558,7 +558,7 @@ fact is true. Reveal Exploitable Weakness answers what actionable weakness,
 opening, route, pattern, dependency, or leverage point concerning the target
 can be used. The selected contract defines the purchased entitlement; the
 families are not merged or silently exchanged. The registry therefore contains
-nine standard Outcome Contract families and thirty exact standard
+ten standard Outcome Contract families and thirty-one exact standard
 variants.
 
 No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
@@ -568,6 +568,43 @@ values may migrate into Methods, but Specific is no longer player-facing or
 normalized runtime state. General Custom Outcome review remains available for
 requests outside the standard registry and is never silently migrated merely
 because a later standard contract exists.
+
+RESCUE remains the Intervention Method for both approved rescue results; no
+Extract, Catch, Pull Free, Shield With Body, Stabilise, Escort, Evacuate, or
+synonymous Method is added. HIDE_FROM_IMMEDIATE_DANGER remains the unchanged
+Minor / One Target concealment privilege. SECURE_IMMEDIATE_SAFETY / Secure
+Immediate Safety is the accepted v0 working name, Help, Intervention / Rescue /
+Standard / One Target, never Counter eligible, and has exactly one variant:
+
+- STANDARD / SECURE_IMMEDIATE_SAFETY: "the target is secured from one declared
+  immediate peril and is no longer directly threatened by it"
+
+Minor, Major, and Legendary variants do not exist. Empty higher-tier cells are
+intentional and cannot be filled by generic Impact scaling. A qualifying
+Declared Immediate Peril is a concrete, bounded, current or imminent threat to
+the selected target, has a recognisable coherent safe state, is reachable
+through Rescue and Theme, and fits Standard / One Target. Impossible, overbroad,
+inaccessible, or incoherent rescues are rejected before Difficulty.
+
+Success fully establishes safety from the accepted peril without another
+movement, defence, rescue, or target-action roll. The GD may introduce a
+coherent previously unspecified route or safe detail as Scene Manifestation;
+lack of a prewritten route cannot reduce a successful result, while fiction
+need not supply an impossible route. Any relocation is narrative, not measured
+combat movement, and the player does not select a precise tactical destination.
+
+The safe state remains scene truth until voluntary re-entry, spreading danger,
+failed shelter, breached sanctuary, material environmental change, a genuinely
+new threat, or another identifiable development defeats it. The source may
+remain dangerous. Hide remains Minor concealment; Deny Imminent Hostile Act
+remains Major / Interrupt / Counter-eligible and fails an action. Secure
+Immediate Safety changes the endangered target's scene state before formal
+hostile declaration, cannot be used as a Counter once the Response Window
+begins, and replaces no combat response or movement rule.
+
+Declared Immediate Peril, route, destination, and safe position are runtime
+only. No peril/safety/target field, numeric cost, cooldown, movement value,
+defence mechanic, or combat-runtime behaviour is added.
 
 REVEAL_EXPLOITABLE_WEAKNESS / Reveal Exploitable Weakness is the accepted v0
 working name, remains eligible for the naming pass, is Help, Perception /

@@ -166,6 +166,8 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
 - Initial standard registry only:
   - HIDE_FROM_IMMEDIATE_DANGER: Help; Intervention / Rescue / Minor / One
     Target; Counter ineligible.
+  - SECURE_IMMEDIATE_SAFETY: Help; Intervention / Rescue / Standard / One
+    Target; Counter ineligible.
   - DENY_IMMINENT_HOSTILE_ACT: Hinder; Intervention / Interrupt / Major / One
     Target; Counter eligible.
 - Filter standard contracts by Intention, Method, Scene Impact, and Scope.
@@ -362,8 +364,37 @@ The registry-driven Builder exposes both options without a page fork, retains
 an existing selection while compatible, and never auto-selects or converts a
 Custom Outcome. It adds no Recipient Type, target/subject, investigation,
 Declared Aim/objective, weakness, or opportunity fields. The live inventory is
-eight Methods, nine standard families, and thirty variants. Numeric
+eight Methods, ten standard families, and thirty-one variants. Numeric
 costing and cooldown implementation remain parked.
+
+Rescue exposes HIDE_FROM_IMMEDIATE_DANGER only at Minor / One Target and
+SECURE_IMMEDIATE_SAFETY only at Standard / One Target. Secure Immediate Safety
+is Help, Counter-ineligible, has one variant/key, and derives: "the target is
+secured from one declared immediate peril and is no longer directly threatened
+by it". Major and Legendary Rescue cells are intentionally empty. Rescue remains
+the Method; Extract, Catch, Pull Free, Shield With Body, Stabilise, Escort, and
+Evacuate do not become standard Methods.
+
+Before Difficulty, the player declares the target, one concrete bounded current
+or imminent peril, and a plausible Rescue/Theme means. Success fully establishes
+the target's safety from that peril without another roll. The GD may narrate a
+coherent previously unspecified route or safe feature, but cannot use lack of a
+prepared route to reduce success; genuinely impossible access is rejected before
+Difficulty. Relocation is narrative Scene Manifestation, not measured movement,
+and the player selects no exact tactical destination.
+
+The safe state persists until voluntary re-entry or an identifiable fictional
+change defeats it; the original source may remain dangerous. Hide remains Minor
+concealment. Deny remains Interrupt / Major / Counter-eligible and fails an
+action. Secure changes scene state only before formal hostile declaration and
+cannot be introduced once the Response Window begins.
+
+The registry-driven Builder exposes the Standard option automatically and keeps
+Hide at Minor. It adds no Declared Immediate Peril, route/destination selector,
+safe-position input, measured movement, target type/IDs, or saved peril state.
+Incompatible Impact, Method, Intention, or Scope clears selection/Counter;
+non-authoring edits retain it. No page fork, numeric cost/cooldown, defence
+mechanic, or combat-runtime behavior is added.
 
 Appeal filters to SECURE_WILLING_COOPERATION for Persuasion / One Target at all
 four Impacts. The family is Help and Counter-ineligible. Its working v0 name

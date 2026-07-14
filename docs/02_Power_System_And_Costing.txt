@@ -1157,14 +1157,15 @@ outcomes resolve through fulfilment, genuine impossibility, or an identifiable
 meaningful change that makes continuation incoherent—not mere inconvenience to
 plot or encounter. This adds no numeric duration or cost field.
 
-Current standard compatibility is Rescue with HIDE_FROM_IMMEDIATE_DANGER,
+Current standard compatibility is Rescue with HIDE_FROM_IMMEDIATE_DANGER at
+Minor and SECURE_IMMEDIATE_SAFETY at Standard,
 Interrupt with DENY_IMMINENT_HOSTILE_ACT, and Challenge with
 DRAW_HOSTILE_ATTENTION, while Overawe uses BREAK_SHARED_RESOLVE. Appeal uses SECURE_WILLING_COOPERATION, Rally uses
 ESTABLISH_SHARED_RESOLVE, Misdirect uses ESTABLISH_FALSE_BELIEF, and Discern
 Truth offers two compatible families in registry order: UNCOVER_CONCEALED_TRUTH
 and REVEAL_EXPLOITABLE_WEAKNESS. Rally and Overawe are Small Group only; the
-others are One Target. The registry has eight standard Methods, nine standard
-Outcome Contract families, and thirty exact standard variants. Each family has all four
+others are One Target. The registry has eight standard Methods, ten standard
+Outcome Contract families, and thirty-one exact standard variants. Each family has all four
 approved Impact tiers where specified. Custom
 Outcome review remains
 available for results outside the registry and existing Custom Outcome records
@@ -1479,6 +1480,65 @@ concealing mist, slipping beneath a wagon, or a companion's distraction. Theme
 cannot turn this contract into permanent invisibility, universal perception
 immunity, encounter removal, battle-long concealment, or erasure from memory.
 
+SECURE_IMMEDIATE_SAFETY
+
+- Name: Secure Immediate Safety (accepted v0 working name; naming pass eligible)
+- Lane: Help
+- Success Outcome: "the target is secured from one declared immediate peril and
+  is no longer directly threatened by it"
+- Compatible: Intervention / Rescue / Standard / One Target
+- Counter eligible: No
+- Eventual privilege-cost key: SECURE_IMMEDIATE_SAFETY; no numeric adjustment is
+  assigned.
+- Exactly one variant. Minor, Major, and Legendary are intentionally absent.
+
+Rescue remains the Method. Extract, Catch, Pull Free, Shield With Body,
+Stabilise, Escort, and Evacuate are Theme, manifestation, or Custom language,
+not new standard Methods. Hide remains the unchanged Minor concealment result;
+Secure Immediate Safety is the Standard completed rescue. Higher Impact does not
+grant more dangers, longer protection, immunity, extra targets, universal safety,
+or consequence removal. Future higher tiers require separate design.
+
+Before Attribute or Difficulty the player identifies the target, one concrete
+bounded current or imminent Declared Immediate Peril, and a plausible Rescue /
+Theme means. The peril must have a recognisable coherent safe state, fit Standard
+/ One Target, and be accessible. All scene danger, all future hostility, an
+entire war, death generally, or permanent faction protection are invalid. The GD
+rejects or narrows impossible, overbroad, inaccessible, or incoherent rescues
+before Difficulty.
+
+Success actually removes the target's direct exposure to that peril without an
+extra movement, defence, rescue, or target roll. The GD supplies a full coherent
+Scene Manifestation, not an almost-success. Catching, pulling free, guidance,
+shelter, distraction, interposition, or a supported boundary may manifest it.
+Relocation is narrative rather than measured combat movement; the player does
+not choose exact distance, path, destination, tactical position, or other
+creatures' movement.
+
+A route need not be prewritten. The GD may establish a coherent supporting beam,
+alcove, rope, service opening, sanctuary threshold, crowd break, or protective
+feature that fits established fiction, locked premises, Standard / One Target,
+and the purchased outcome. No prepared route is not an escape, but impossible
+access is rejected before the roll rather than invented after it.
+
+Safety is scene truth until an identifiable change defeats it, including
+voluntary re-entry, spreading fire, collapsing shelter, breached sanctuary,
+material environmental change, or a genuinely new threat. The source can remain
+dangerous; the contract does not extinguish fires, stabilise structures, pacify
+crowds, defeat enemies, or remove future capacity.
+
+Deny Imminent Hostile Act remains Interrupt / Major / Counter-eligible and makes
+one action fail. Secure Immediate Safety changes the endangered target's scene
+position or protection without failing the source's action. It works in a
+Roleplay Window before formal hostile declaration and cannot be introduced after
+the Response Window begins. It replaces no Block, Dodge, Resist, Cleanse,
+movement rule, or Response and grants no quantified defence, action, movement,
+effect removal, additional target, immunity, or permanent safety.
+
+Declared Immediate Peril, route, safe state, and destination remain runtime
+context. No peril/safety/target storage, numeric cost/cooldown, movement value,
+defence mechanic, or combat-runtime behavior is added.
+
 DENY_IMMINENT_HOSTILE_ACT
 
 - Name: Deny Imminent Hostile Act
@@ -1608,7 +1668,7 @@ authoring receives no authoritative numeric result. Large Group, Faction / Army,
 all numeric values, cooldown rules, privilege adjustments, Scope calibration,
 and restriction discounts remain open.
 
-The complete resolver contract, live thirty-variant inventory, authority
+The complete resolver contract, live thirty-one-variant inventory, authority
 rules, invariants, evidence matrix, and numeric unlock gates are in
 [Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 

@@ -21,8 +21,8 @@ The semantic/discovery phase is mature enough for costing architecture. The
 live registry currently contains:
 
 - eight standard Methods;
-- nine standard Outcome Contract families;
-- thirty exact standard variants;
+- ten standard Outcome Contract families;
+- thirty-one exact standard variants;
 - One Target and Small Group standard coverage;
 - no approved Large Group or Faction / Army standard contract; and
 - one `privilegeCostKey` owned by every exact standard variant.
@@ -241,6 +241,7 @@ unlock gates.
 | Intention | Method | Outcome Contract | Impact | Scope | Counter | `privilegeCostKey` | Structural readiness |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Intervention | Rescue | `HIDE_FROM_IMMEDIATE_DANGER` | Minor | One Target | Unavailable | `HIDE_FROM_IMMEDIATE_DANGER` | Ready for calibration |
+| Intervention | Rescue | `SECURE_IMMEDIATE_SAFETY` | Standard | One Target | Unavailable | `SECURE_IMMEDIATE_SAFETY` | Ready for calibration |
 | Intervention | Interrupt | `DENY_IMMINENT_HOSTILE_ACT` | Major | One Target | Eligible | `DENY_IMMINENT_HOSTILE_ACT` | Ready for calibration |
 | Intimidation | Challenge | `DRAW_HOSTILE_ATTENTION` | Minor | One Target | Unavailable | `DRAW_HOSTILE_ATTENTION_MINOR` | Ready for calibration |
 | Intimidation | Challenge | `DRAW_HOSTILE_ATTENTION` | Standard | One Target | Unavailable | `DRAW_HOSTILE_ATTENTION_STANDARD` | Ready for calibration |
@@ -443,7 +444,7 @@ calibration must isolate breadth from contract semantics.
 
 Future evidence must cover:
 
-- all thirty current standard variants;
+- all thirty-one current standard variants;
 - every supported Dice Count;
 - Counter off and every legal Counter-on case;
 - no Additional Restriction as baseline;
