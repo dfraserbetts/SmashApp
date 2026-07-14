@@ -9,6 +9,52 @@ export type PowerTuningSnapshot = {
   values: PowerTuningFlatValues;
 };
 
+export type AugmentDebuffEconomicModifier = 1 | 2 | 3 | 4 | 5;
+
+export type AugmentDebuffEconomicsDraftTuning = {
+  status: "DRAFT_UNCALIBRATED";
+  liveResolverIntegration: false;
+  referenceSourceDie: "D8";
+  referenceResist: {
+    diceCount: 3;
+    die: "D8";
+  };
+  referenceHorizonTurns: 4;
+  referenceAdditionalCleanupRate: 0;
+  modifierSeverity: {
+    augment: Record<AugmentDebuffEconomicModifier, number>;
+    debuff: Record<AugmentDebuffEconomicModifier, number>;
+  };
+  expectedTargetAuthority: "EXPLICIT";
+  geometryTreatment: "ACCESS_PREMIUM_ONLY_NO_SEMANTIC_TARGET_MULTIPLIER";
+  linkedDependencyMode: "INHERIT_TARGET_LOCAL_PRIMARY_APPLIED_SUCCESSES";
+  aggregationMode: "EXACT_SIGNED_CLAMP_AWARE_WITH_EXPLICIT_UNSUPPORTED_CORRELATION";
+  deliveryUnitToBpvCoefficient: null;
+};
+
+/**
+ * Inert Phase 2A representation only. This object is deliberately outside
+ * POWER_TUNING_DEFAULTS_NESTED, so it cannot enter active flat tuning,
+ * resolver cost, cooldown derivation, or the current admin editing surface.
+ */
+export const AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT = {
+  status: "DRAFT_UNCALIBRATED",
+  liveResolverIntegration: false,
+  referenceSourceDie: "D8",
+  referenceResist: { diceCount: 3, die: "D8" },
+  referenceHorizonTurns: 4,
+  referenceAdditionalCleanupRate: 0,
+  modifierSeverity: {
+    augment: { 1: 1, 2: 3, 3: 4, 4: 5, 5: 6 },
+    debuff: { 1: 1, 2: 2, 3: 3, 4: 4, 5: 5 },
+  },
+  expectedTargetAuthority: "EXPLICIT",
+  geometryTreatment: "ACCESS_PREMIUM_ONLY_NO_SEMANTIC_TARGET_MULTIPLIER",
+  linkedDependencyMode: "INHERIT_TARGET_LOCAL_PRIMARY_APPLIED_SUCCESSES",
+  aggregationMode: "EXACT_SIGNED_CLAMP_AWARE_WITH_EXPLICIT_UNSUPPORTED_CORRELATION",
+  deliveryUnitToBpvCoefficient: null,
+} as const satisfies AugmentDebuffEconomicsDraftTuning;
+
 export const POWER_TUNING_DEFAULTS_NESTED = {
   access: {
     chargeTurns: { "1": 0.5, "2": 1, "3": 1.5, "4": 2, "5": 2.5, "6": 3, "7": 3.5, "8": 4 },

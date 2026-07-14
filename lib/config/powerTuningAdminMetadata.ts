@@ -32,6 +32,77 @@ export type PowerTuningAdminMetadata = {
   aliases?: string[];
 };
 
+export type AugmentDebuffEconomicsDraftAdminMetadata = {
+  label: string;
+  description: string;
+  exposure: "INERT_PHASE2A";
+  editable: false;
+  activeTuningKey: null;
+};
+
+/**
+ * Describes the uncalibrated Phase 2A model without adding fields to the
+ * active numeric tuning key order consumed by the current admin page.
+ */
+export const AUGMENT_DEBUFF_ECONOMICS_PHASE2A_DRAFT_ADMIN_METADATA = {
+  referenceSourceDie: {
+    label: "Reference source die",
+    description: "D8 context-free authoring reference; actor die quality is not charged again.",
+    exposure: "INERT_PHASE2A",
+    editable: false,
+    activeTuningKey: null,
+  },
+  referenceResist: {
+    label: "Reference Resist",
+    description: "Matched 3D8 cancellation reference for context-free Debuff delivery.",
+    exposure: "INERT_PHASE2A",
+    editable: false,
+    activeTuningKey: null,
+  },
+  referenceHorizonTurns: {
+    label: "Reference economic horizon",
+    description: "Four affected-target turns for Passive and recurring economic evaluation only.",
+    exposure: "INERT_PHASE2A",
+    editable: false,
+    activeTuningKey: null,
+  },
+  modifierSeverity: {
+    label: "Modifier severity bands",
+    description: "D8-normalized Augment and Debuff M1-M5 delivery bands.",
+    exposure: "INERT_PHASE2A",
+    editable: false,
+    activeTuningKey: null,
+  },
+  expectedTargetAuthority: {
+    label: "Expected-target authority",
+    description: "Explicit expected target count; geometry cannot multiply semantic breadth again.",
+    exposure: "INERT_PHASE2A",
+    editable: false,
+    activeTuningKey: null,
+  },
+  linkedDependencyMode: {
+    label: "Linked dependency mode",
+    description: "Target-local primary applied successes are inherited without an independent Dice charge.",
+    exposure: "INERT_PHASE2A",
+    editable: false,
+    activeTuningKey: null,
+  },
+  aggregationMode: {
+    label: "Clamp-aware aggregation",
+    description: "Exact signed clamp evaluation for supported correlations; unsupported cases diagnose explicitly.",
+    exposure: "INERT_PHASE2A",
+    editable: false,
+    activeTuningKey: null,
+  },
+  deliveryUnitToBpvCoefficient: {
+    label: "Delivery-unit to BPV conversion",
+    description: "Unset until support-effect anchor packages receive explicit approval.",
+    exposure: "INERT_PHASE2A",
+    editable: false,
+    activeTuningKey: null,
+  },
+} as const satisfies Record<string, AugmentDebuffEconomicsDraftAdminMetadata>;
+
 const SEGMENT_LABELS: Record<string, string> = {
   access: "Access",
   activePower: "Active Power",

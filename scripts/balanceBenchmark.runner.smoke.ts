@@ -159,9 +159,11 @@ for (const requiredId of [
   "outcome-calculator-smoke",
   "character-power-builder-smoke",
   "augment-debuff-three-field-semantic-smoke",
+  "augment-debuff-economics-smoke",
 ]) {
   assert.ok(quick.selected.some((suite) => suite.id === requiredId), `quick mode omitted ${requiredId}`);
 }
+assert.equal(quick.selected.length, 8, "quick mode must contain the eight available baseline suites.");
 for (const reconciliationId of reconciliationIds) {
   assert.equal(
     quick.selected.some((suite) => suite.id === reconciliationId),
@@ -173,6 +175,10 @@ const full = selectSuites({ mode: "full", includePartial: false });
 assert.ok(
   full.selected.some((suite) => suite.id === "augment-debuff-three-field-semantic-smoke"),
   "full mode omitted augment-debuff-three-field-semantic-smoke",
+);
+assert.ok(
+  full.selected.some((suite) => suite.id === "augment-debuff-economics-smoke"),
+  "full mode omitted augment-debuff-economics-smoke",
 );
 for (const reconciliationId of reconciliationIds) {
   const suite = BALANCE_BENCHMARK_REGISTRY.find((candidate) => candidate.id === reconciliationId);
@@ -284,6 +290,45 @@ const semanticSuite = BALANCE_BENCHMARK_REGISTRY.find(
 assert.equal(semanticSuite?.compatibility, "AVAILABLE");
 assert.equal(semanticSuite?.mutationSafety.classification, "READ_ONLY");
 assert.equal(semanticSuite?.mutationSafety.databaseAccess, "none");
+const economicsSuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "augment-debuff-economics-smoke",
+);
+assert.equal(economicsSuite?.compatibility, "AVAILABLE");
+assert.equal(economicsSuite?.mutationSafety.classification, "READ_ONLY");
+assert.equal(economicsSuite?.mutationSafety.declaredReadOnly, true);
+assert.equal(economicsSuite?.mutationSafety.databaseAccess, "none");
+assert.equal(economicsSuite?.mutationSafety.databaseWrites, false);
+for (const path of [
+  "lib/summoning/augmentDebuffEconomics.ts",
+  "lib/config/powerTuningShared.ts",
+  "lib/config/powerTuningAdminMetadata.ts",
+  "scripts/augmentDebuffEconomics.smoke.ts",
+]) {
+  assert.ok(
+    changed(path).selected.some((suite) => suite.id === "augment-debuff-economics-smoke"),
+    `${path} must select the focused Augment/Debuff economics smoke.`,
+  );
+}
+assert.equal(
+  changed("lib/characterBuilder/roleplayAbilities.ts").selected.some(
+    (suite) => suite.id === "augment-debuff-economics-smoke",
+  ),
+  false,
+  "Unrelated Roleplay code must not select the economics smoke.",
+);
+const controlPressureSuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "control-pressure-axis-reconciliation",
+);
+const synergySuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "synergy-reconciliation",
+);
+const mobilitySuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "mobility-reconciliation",
+);
+assert.equal(controlPressureSuite?.compatibility, "AVAILABLE");
+assert.equal(synergySuite?.compatibility, "AVAILABLE_BUT_INCOMPATIBLE");
+assert.equal(mobilitySuite?.compatibility, "MISSING");
+assert.deepEqual(mobilitySuite?.modes, ["full", "changed"]);
 for (const path of [
   "lib/combat-lab/actionResolver.ts",
   "lib/calculators/monsterOutcomeCalculator.ts",

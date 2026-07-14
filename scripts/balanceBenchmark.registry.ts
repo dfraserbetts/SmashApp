@@ -164,6 +164,12 @@ const augmentDebuffThreeFieldSemanticDependencyPatterns = [
   "lib/combat-lab/liveAdapters.ts",
   "scripts/augmentDebuffThreeFieldSemantic.smoke.ts",
 ];
+const augmentDebuffEconomicsDependencyPatterns = [
+  "lib/summoning/augmentDebuffEconomics.ts",
+  "lib/config/powerTuningShared.ts",
+  "lib/config/powerTuningAdminMetadata.ts",
+  "scripts/augmentDebuffEconomics.smoke.ts",
+];
 
 export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
   {
@@ -309,6 +315,28 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
     supportsJson: false,
     baselinePolicy: selfAsserting("The focused smoke owns the locked three-field semantic contract."),
     notes: ["Uses in-memory fixtures only; public Modifier authoring remains disabled."],
+  }),
+  tsxSuite({
+    id: "augment-debuff-economics-smoke",
+    title: "Augment/Debuff economic primitives smoke",
+    family: "Core resolver and cooldown authority",
+    description:
+      "Verify exact, inert delivery-unit primitives without BPV conversion or live resolver integration.",
+    compatibility: "AVAILABLE",
+    modes: ["quick", "full", "changed"],
+    script: "scripts/augmentDebuffEconomics.smoke.ts",
+    deterministicSeeds: [],
+    mutationSafety: syntheticReadOnly,
+    timeoutMs: 120_000,
+    changedPathPatterns: augmentDebuffEconomicsDependencyPatterns,
+    failureSeverity: "BLOCKER",
+    supportsJson: false,
+    baselinePolicy: selfAsserting(
+      "The focused smoke owns the uncalibrated Phase 2A delivery-unit contract.",
+    ),
+    notes: [
+      "Uses deterministic in-memory enumeration only; no database access, BPV conversion, or authoring activation.",
+    ],
   }),
   tsxSuite({
     id: "combat-lab-smoke",
