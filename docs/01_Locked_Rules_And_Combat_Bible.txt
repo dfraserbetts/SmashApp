@@ -16,8 +16,11 @@ Method filters contracts; Scope and Impact resolve completed cells after
 contract selection. Each family owns one key equal to its stable ID. Any later
 exact-variant or tuple-key wording in this file is superseded implementation
 history unless explicitly restated under the compositional model. The 43 current
-descriptors remain exact; current coverage is 68 planned / 43 completed / 25
-missing. Missing cells are not authored here.
+descriptors that predate completion remain exact; current coverage is 68 planned
+/ 68 completed / 0 missing. Hide, Safety, Denial, Shared Request cooperation,
+and Diversion Impact doctrine is locked by that focused authority. Any later
+statement limiting those families to their former completed Impact cells, or
+assigning Scope/Impact-specific keys, is superseded completion history.
 
 
 Roll Grammar And Success Quality
@@ -1650,9 +1653,9 @@ RESCUE
   another action; move a measured distance; teleport or force impossible
   relocation; or deny an impending hostile act unless the selected contract
   explicitly grants that result.
-- Current standard contracts: HIDE_FROM_IMMEDIATE_DANGER at Minor and
-  SECURE_IMMEDIATE_SAFETY at Standard. No Rescue contract is approved at Major
-  or Legendary.
+- Current standard contracts: HIDE_FROM_IMMEDIATE_DANGER and
+  SECURE_IMMEDIATE_SAFETY at Minor, Standard, Major, and Legendary for each
+  supported Scope.
 
 INTERRUPT
 
@@ -2640,7 +2643,7 @@ LOCKED CONTRACT:
 - Working v0 name: Divert Immediate Attention; naming-pass eligible.
 - Outcome Lane: Hinder
 - Intention / Method: Deception / Distract
-- Scene Impact: Minor only
+- Scene Impact: Minor, Standard, Major, or Legendary
 - Scope: One Target or Small Group
 - Counter eligible: No
 - Existing One Target Success Outcome: "the target's active attention is diverted for the
@@ -2654,8 +2657,8 @@ LOCKED CONTRACT:
   proceed without deliberate observation or interference from any accepted
   member"
 - Small Group privilege-cost key: DIVERT_IMMEDIATE_ATTENTION_SMALL_GROUP
-- Exactly two variants; no Standard, Major, Legendary, Large Group, or Faction /
-  Army variants.
+- Every One Target and Small Group Impact cell is complete. Large Group and
+  Faction / Army remain unsupported.
 
 Both Scopes share one stable-ID family because the semantic privilege remains
 one brief opening created through diverted active attention. Scope determines

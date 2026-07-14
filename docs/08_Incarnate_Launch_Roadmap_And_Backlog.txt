@@ -20,9 +20,10 @@ a higher-authority active source document explicitly promotes them.
 ROLEPLAY STANDARD-LIBRARY STATUS: docs/roleplay-standard-library.md is the
 higher-authority compositional specification. Exact tuple variants, tuple keys,
 and Scope/Impact-filtered contract dropdowns described later are superseded
-history. The live migration target is 9 Methods / 11 families / 11 family keys /
-68 planned cells / 43 completed cells / 25 known missing cells. Missing cells
-remain backlog; their effects are not authored in this pass.
+history. The live completed library is 9 Methods / 11 families / 11 family keys
+/ 68 planned cells / 68 completed cells / 0 missing cells. There is no current
+standard-library completeness backlog. The five completion doctrines are locked
+in the focused authority and unlock no numeric costing.
 
 
 Roleplay System Roadmap
@@ -392,26 +393,27 @@ Intention states the broad lane; Method defines the structured approach.
 Difficulty and legality respect this pairing without judging prose quality.
 Outcome Contract compatibility uses Method IDs.
 
-Current mappings are Intervention / Rescue / Minor / One Target or Small Group for
-HIDE_FROM_IMMEDIATE_DANGER; Intervention / Rescue / Standard / One Target or Small Group for
-SECURE_IMMEDIATE_SAFETY; Intervention / Interrupt / Major / One Target for
+Current mappings are Intervention / Rescue / One Target or Small Group across
+all four Impacts for HIDE_FROM_IMMEDIATE_DANGER and SECURE_IMMEDIATE_SAFETY;
+Intervention / Interrupt / One Target across all four Impacts for
 DENY_IMMINENT_HOSTILE_ACT; and Intimidation / Challenge / One Target across the
 approved DRAW_HOSTILE_ATTENTION Impact variants. Intimidation / Overawe / One
 Target or Small Group uses BREAK_SHARED_RESOLVE across all four Impact tiers.
 Perception / Discern Truth /
 One Target offers UNCOVER_CONCEALED_TRUTH and REVEAL_EXPLOITABLE_WEAKNESS, in
 that registry order, across all four approved Impact tiers.
-Persuasion / Appeal / One Target uses SECURE_WILLING_COOPERATION across all four
+Persuasion / Appeal / One Target or Small Group uses SECURE_WILLING_COOPERATION across all four
 approved Impact tiers. Persuasion / Rally / Small Group uses
 ESTABLISH_SHARED_RESOLVE across all four approved Impact tiers. Deception /
 Misdirect / One Target or Small Group uses
 ESTABLISH_FALSE_BELIEF across all four approved Impact tiers. Deception /
-Distract / Minor / One Target or Small Group uses DIVERT_IMMEDIATE_ATTENTION. All five
+Distract / One Target or Small Group uses DIVERT_IMMEDIATE_ATTENTION across all
+four Impacts. All five
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
 The registry contains exactly nine Methods, eleven standard Outcome Contract
-families, eleven family privilege keys, 68 planned cells, 43 completed cells,
-and 25 known missing cells. Spot Weakness,
+families, eleven family privilege keys, 68 planned cells, 68 completed cells,
+and no missing cells. Spot Weakness,
 Investigate, Search, Analyse, and synonymous desired results remain Custom
 Method review rather than new Methods because Discern Truth already defines the
 perceptive approach.

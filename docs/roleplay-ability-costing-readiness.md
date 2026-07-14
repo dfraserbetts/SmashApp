@@ -24,6 +24,9 @@ this document are superseded migration evidence. The active law is one
 family-level key per contract, with Scope and Impact as separate compositional
 and future economic components. Outcome Contracts filter by Intention and
 Method; completed Scope and Impact availability resolves after selection.
+The completed non-numeric library and its Hide, Safety, Denial, shared-request,
+and Diversion doctrines are locked there at 68 planned / 68 completed / 0
+missing. Completion does not approve any numeric value.
 
 ## Current Readiness State
 
@@ -33,8 +36,8 @@ live registry currently contains:
 - nine standard Methods;
 - eleven standard Outcome Contract families;
 - sixty-eight planned standard cells;
-- forty-three completed/renderable cells;
-- twenty-five known missing cells;
+- sixty-eight completed/renderable cells;
+- zero missing cells and no current completeness backlog;
 - One Target and Small Group standard coverage;
 - no approved Large Group or Faction / Army standard contract; and
 - eleven unique family-level `privilegeCostKey` values, one per contract.
@@ -343,7 +346,7 @@ Automatic numeric costing must remain unavailable for:
 - a missing authoritative tuning snapshot.
 
 A Scope appearing in a global dropdown does not make it costable. Support comes
-from an exact standard contract variant.
+from a fully resolved compositional standard cell.
 
 ## Outcome Contract Privilege Authority
 
@@ -494,8 +497,9 @@ calibration must isolate breadth from contract semantics.
 
 Future evidence must cover:
 
-- all sixty-eight planned cells, including the forty-three current completed
-  descriptors and explicit failure for the twenty-five known gaps;
+- all sixty-eight completed cells, including byte-for-byte regression evidence
+  for the forty-three pre-completion descriptors and exact evidence for the
+  twenty-five completion descriptors;
 - every supported Dice Count;
 - Counter off and every legal Counter-on case;
 - no Additional Restriction as baseline;

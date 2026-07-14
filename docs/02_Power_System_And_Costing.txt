@@ -14,9 +14,13 @@ ROLEPLAY COSTING ARCHITECTURE: docs/roleplay-standard-library.md supersedes
 exact-tuple privilege authority. Every Roleplay family owns one unique stable-ID
 privilege key; Scope and Impact remain separate future economic components.
 Scope/Impact-suffixed historical keys are migration evidence only and are not
-runtime aliases. The library is 68 planned / 43 completed / 25 missing cells.
-No numeric Roleplay value, cooldown, tuning row, calculator behaviour, or saved
-cost field is introduced by this migration.
+runtime aliases. The completed library is 68 planned / 68 completed / 0 missing
+cells. The five
+completion doctrines are locked in docs/roleplay-standard-library.md. Later
+statements limiting Hide, Safety, Denial, Cooperation, or Diversion to former
+Impact/Scope coverage are superseded completion history. No numeric Roleplay
+value, cooldown, tuning row, calculator behaviour, or saved cost field is
+introduced by completion.
 
 
 Monster Tier Time-To-Kill And Action Economy Doctrine
@@ -1178,20 +1182,20 @@ outcomes resolve through fulfilment, genuine impossibility, or an identifiable
 meaningful change that makes continuation incoherent—not mere inconvenience to
 plot or encounter. This adds no numeric duration or cost field.
 
-Current standard compatibility is Rescue with HIDE_FROM_IMMEDIATE_DANGER at
-Minor and SECURE_IMMEDIATE_SAFETY at Standard, both at One Target or Small
-Group,
-Interrupt with DENY_IMMINENT_HOSTILE_ACT, and Challenge with
+Current standard compatibility is Rescue with HIDE_FROM_IMMEDIATE_DANGER and
+SECURE_IMMEDIATE_SAFETY, both at One Target or Small Group across all four
+Impacts; Interrupt with DENY_IMMINENT_HOSTILE_ACT across all four Impacts; and Challenge with
 DRAW_HOSTILE_ATTENTION, while Overawe uses BREAK_SHARED_RESOLVE. Appeal uses SECURE_WILLING_COOPERATION, Rally uses
 ESTABLISH_SHARED_RESOLVE, Misdirect uses ESTABLISH_FALSE_BELIEF, Distract uses
-DIVERT_IMMEDIATE_ATTENTION at Minor only, and Discern
+DIVERT_IMMEDIATE_ATTENTION across all four Impacts, and Discern
 Truth offers two compatible families in registry order: UNCOVER_CONCEALED_TRUTH
 and REVEAL_EXPLOITABLE_WEAKNESS. Rally is Small Group only; Overawe's Break
 Resolve and Establish False Belief support One Target and Small Group, while the
 other current families are scoped as explicitly authored. The registry has nine
 standard Methods, eleven standard Outcome Contract families, eleven family
-privilege keys, 68 planned cells, 43 completed cells, and 25 known missing
-cells. Completed fragments remain exact where currently authored. Custom
+privilege keys, 68 planned cells, 68 completed cells, and no missing cells. The
+43 prior fragments remain exact and the 25 completion fragments add the locked
+Impact doctrine. Custom
 Outcome review remains
 available for results outside the registry and existing Custom Outcome records
 are not automatically converted to a newly available standard contract.
@@ -1559,8 +1563,8 @@ changes the exact variant/descriptor. Unsupported Scope, Method, or Intention
 clears it and Counter; non-invalidating edits retain it. No premise/member state,
 numeric cost, cooldown, combat-runtime mechanic, or per-member roll is added.
 
-DIVERT_IMMEDIATE_ATTENTION is the stable Hinder / Deception / Distract / Minor
-family for One Target or Small Group, named Divert Immediate Attention. It is
+DIVERT_IMMEDIATE_ATTENTION is the stable Hinder / Deception / Distract family
+for One Target or Small Group across all four Impacts, named Divert Immediate Attention. It is
 Counter-ineligible. One brief Declared Opening is the semantic privilege; Scope
 determines whose active attention is diverted. Group diversion requires an
 explicit same-family variant, not another family, and never extends duration.
@@ -1577,10 +1581,10 @@ The existing One Target outcome/key remains exact:
   development to proceed without deliberate observation or interference from
   any accepted member"
 
-Standard, Major, Legendary, Large Group, and Faction / Army cells remain empty.
+Standard, Major, and Legendary provide the one bounded opening defined by their
+locked Impact fragments. Large Group and Faction / Army remain unsupported.
 Higher Impact does not create scene-long ignoring, loss of awareness, multiple
-openings, blindness, or hidden/immunity state. A stronger privilege requires
-separate design.
+openings, blindness, or hidden/immunity state.
 
 Before Difficulty the player identifies the target or exact fixed group, one
 Shared Declared Opening, one coherent competing focus, and how Distract/Theme
@@ -1866,7 +1870,7 @@ result. Large Group, Faction / Army, all numeric values, cooldown rules,
 privilege adjustments, Scope calibration, and restriction discounts remain
 open.
 
-The complete resolver contract, live 68 / 43 / 25 cell inventory, authority
+The complete resolver contract, live 68 / 68 / 0 cell inventory, authority
 rules, invariants, evidence matrix, and numeric unlock gates are in
 [Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 

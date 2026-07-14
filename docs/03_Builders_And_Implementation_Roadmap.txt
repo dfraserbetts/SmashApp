@@ -16,7 +16,8 @@ Contract, Scope, Impact, Dice, Counter, Restriction. Outcome Contracts filter by
 Intention and Method only. A selected contract then supplies only completed
 Scopes and Impacts, with stable-order fallbacks that retain the family. Exact
 tuple variants and tuple privilege keys are superseded implementation history.
-Current coverage is 68 planned / 43 completed / 25 missing cells.
+Current coverage is 68 planned / 68 completed / 0 missing cells. Every supported
+Scope now exposes all four Impacts; no Builder page fork is required.
 
 
 Current Builder Surfaces
@@ -376,14 +377,14 @@ an existing selection while compatible, and never auto-selects or converts a
 Custom Outcome. It adds no Recipient Type, target/subject, investigation,
 Declared Aim/objective, weakness, or opportunity fields. The live inventory is
 nine Methods, eleven standard families, eleven family privilege keys, 68
-planned cells, 43 completed cells, and 25 known missing cells. Numeric
+planned cells, 68 completed cells, and no missing cells. Numeric
 costing and cooldown implementation remain parked.
 
-Rescue exposes HIDE_FROM_IMMEDIATE_DANGER only at Minor / One Target or Small
-Group and SECURE_IMMEDIATE_SAFETY only at Standard / One Target or Small Group.
-Both are Help and Counter-ineligible, remain in their stable families, and have
-exactly two variants. Existing One Target outcomes, descriptors, keys,
-compatibility, and saved selections remain exact. New Small Group variants are:
+Rescue exposes HIDE_FROM_IMMEDIATE_DANGER and SECURE_IMMEDIATE_SAFETY at all
+four Impacts for One Target or Small Group. Both are Help and
+Counter-ineligible and remain in their stable families. The 43 outcomes and
+descriptors that predate completion remain exact. Historical Small Group
+regression examples include:
 
 - HIDE_FROM_IMMEDIATE_DANGER_SMALL_GROUP: "every accepted member of the selected
   group becomes hidden from one declared immediate danger"
@@ -391,8 +392,7 @@ compatibility, and saved selections remain exact. New Small Group variants are:
   group is secured from one declared immediate peril and is no longer directly
   threatened by it"
 
-Major and Legendary Rescue cells remain empty; Self, Large Group, and Faction /
-Army remain unsupported. Rescue remains the Method; Extract, Catch, Pull Free,
+Self, Large Group, and Faction / Army remain unsupported. Rescue remains the Method; Extract, Catch, Pull Free,
 Shield With Body, Stabilise, Escort, and Evacuate do not become standard
 Methods.
 
@@ -410,26 +410,28 @@ rejected before Difficulty. Relocation is narrative Scene Manifestation, not
 measured movement, and the player selects no exact square, distance, path,
 formation, elevation, hostile movement, or separate destination.
 
-The safe state persists until voluntary re-entry or an identifiable fictional
-change defeats it; the original source may remain dangerous. Hide remains Minor
-concealment. Deny remains Interrupt / Major / Counter-eligible and fails an
-action. Secure changes scene state only before formal hostile declaration and
-cannot be introduced once the Response Window begins.
+The safe state persists according to selected Impact until voluntary re-entry,
+decisive breach, or Narrative Resolution as applicable; the original source may
+remain dangerous. Hide scales concealment persistence by Impact. Deny remains
+Interrupt / One Target / Counter-eligible at all four Impacts. Secure changes
+scene state only before formal hostile declaration and cannot be introduced
+once the Response Window begins.
 
 Membership fixes at Difficulty, does not propagate to later arrivals or wider
 groups, and one member's later exposure need not end the others' result. The
 registry-driven Builder exposes both Scopes automatically at the supported
 Impact. One Target to Small Group or back retains the family while changing the
-exact outcome, descriptor, and key; Counter stays false. Incompatible Impact,
-Method, Intention, or Scope clears selection/Counter; Name, Theme, Dice Count,
+composed outcome and descriptor; the family key remains stable and Counter
+stays false. Unsupported Method, Intention, or Scope clears selection/Counter;
+Name, Theme, Dice Count,
 and restrictions retain it. The Builder adds no danger/peril, group-member,
 route, cover, shelter, destination, safe-position, measured-movement, or target
 ID controls. Rally, Distract, Break Resolve, and Interrupt retain their distinct
 results. No page fork, saved runtime state, numeric cost/cooldown, defence
 mechanic, or combat-runtime behavior is added.
 
-Appeal filters to SECURE_WILLING_COOPERATION for Persuasion / One Target at all
-four Impacts. The family is Help and Counter-ineligible. Its working v0 name
+Appeal filters to SECURE_WILLING_COOPERATION for Persuasion / One Target or
+Small Group at all four Impacts. The family is Help and Counter-ineligible. Its working v0 name
 remains eligible for the naming pass. The Builder derives all Method details,
 variant outcomes, and eligibility from registries; no page-specific fork is
 required.
@@ -546,8 +548,8 @@ Course, Recipient Type, stored course/target field, numeric cost/cooldown,
 quantified Fear, Control, per-member save, or combat-runtime mechanic. Custom
 Outcomes remain Custom, and legacy BREAK_RESOLVE remains Custom Method review.
 
-Distract filters to stable ID DIVERT_IMMEDIATE_ATTENTION only for Deception /
-Minor / One Target or Small Group. Divert Immediate Attention is Hinder,
+Distract filters to stable ID DIVERT_IMMEDIATE_ATTENTION for Deception / One
+Target or Small Group across all four Impacts. Divert Immediate Attention is Hinder,
 Counter-ineligible, and the accepted v0 working name. The existing One Target
 outcome/key remains exact: "the target's active attention is diverted for the
 current meaningful exchange, creating a brief opening for one declared small
@@ -558,9 +560,9 @@ The Small Group outcome/key is: "every accepted member of the selected group has
 their active attention diverted for the current meaningful exchange, creating a
 brief opening for one declared small immediate action or development to proceed
 without deliberate observation or interference from any accepted member" /
-DIVERT_IMMEDIATE_ATTENTION_SMALL_GROUP. Both variants purchase one brief opening;
-Scope changes breadth, not duration. Standard, Major, Legendary, Large Group,
-and Faction / Army variants remain absent.
+DIVERT_IMMEDIATE_ATTENTION_SMALL_GROUP. Every Impact purchases one bounded
+Declared Opening; Scope changes breadth while Impact changes the accepted
+opening's narrative weight. Large Group and Faction / Army remain unsupported.
 
 Small Group uses exact fixed membership, one Shared Declared Opening, one
 coherent competing focus, universal member eligibility, and one Distract/Theme

@@ -10,9 +10,15 @@ docs/roleplay-standard-library.md. It supersedes active wording below that
 treats exact Scope / Impact tuples as permanent registry variants, assigns
 tuple-level privilege keys, or filters Outcome Contracts by Scope and Impact.
 The live library has 9 Methods, 11 families, 11 family privilege keys, 68
-planned cells, 43 completed cells, and 25 known missing cells. The 43 legacy
-descriptors remain exact regression evidence, not the principal architecture or
-progress metric. No numeric Roleplay costing is unlocked.
+planned cells, 68 completed cells, and no missing cells. The 43 descriptors that
+predate completion remain exact regression evidence; the 25 newly completed
+cells extend that baseline without changing it. All five completion doctrines
+are locked in docs/roleplay-standard-library.md. No numeric Roleplay costing is
+unlocked.
+
+Any later statement limiting Hide, Safety, Denial, Cooperation, or Diversion to
+their former Impact/Scope coverage, or assigning cell-specific privilege keys,
+is superseded completion history under the focused authority.
 
 Pass 2 made the reduced 00-06 document set the active source-document set.
 Legacy source documents have been moved into docs/archive/ as historical
@@ -567,9 +573,8 @@ fact is true. Reveal Exploitable Weakness answers what actionable weakness,
 opening, route, pattern, dependency, or leverage point concerning the target
 can be used. The selected contract defines the purchased entitlement; the
 families are not merged or silently exchanged. The registry therefore contains
-eleven standard Outcome Contract families, eleven family privilege keys, 68
-planned standard cells, 43 completed/renderable cells, and 25 known missing
-cells.
+eleven standard Outcome Contract families, eleven family privilege keys, and 68
+planned standard cells, all 68 of which are completed and renderable.
 
 No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
 Discern Truth already owns observation, deduction, evidence, physical detail,
@@ -641,12 +646,11 @@ combat-runtime effect is added.
 
 RESCUE remains the Intervention Method for both approved rescue results; no
 Extract, Catch, Pull Free, Shield With Body, Stabilise, Escort, Evacuate, or
-synonymous Method is added. HIDE_FROM_IMMEDIATE_DANGER remains the Minor
-concealment privilege and SECURE_IMMEDIATE_SAFETY / Secure Immediate Safety
-remains the Standard completed-rescue privilege. Both are Help, Intervention /
-Rescue, support One Target or Small Group, are never Counter eligible, and keep
-their existing stable family IDs. Each family has exactly two variants. The
-existing One Target outcomes and keys remain exact:
+synonymous Method is added. HIDE_FROM_IMMEDIATE_DANGER and
+SECURE_IMMEDIATE_SAFETY / Secure Immediate Safety are both Help, Intervention /
+Rescue, support One Target or Small Group at all four Impacts, are never Counter
+eligible, and keep their existing stable family IDs and one family key each.
+The original One Target outcomes remain exact regression evidence:
 
 - MINOR / ONE_TARGET / HIDE_FROM_IMMEDIATE_DANGER: "the target becomes hidden
   from the immediate danger"
@@ -654,7 +658,7 @@ existing One Target outcomes and keys remain exact:
 - STANDARD / ONE_TARGET / SECURE_IMMEDIATE_SAFETY: "the target is secured from
   one declared immediate peril and is no longer directly threatened by it"
 
-The Small Group outcomes and keys are:
+The original Small Group outcomes are:
 
 - MINOR / SMALL_GROUP / HIDE_FROM_IMMEDIATE_DANGER_SMALL_GROUP: "every accepted
   member of the selected group becomes hidden from one declared immediate
@@ -663,9 +667,8 @@ The Small Group outcomes and keys are:
   member of the selected group is secured from one declared immediate peril and
   is no longer directly threatened by it"
 
-Hide remains Minor only and Secure remains Standard only. Major and Legendary
-variants do not exist. Self, Large Group, and Faction / Army are unsupported.
-Empty cells cannot be filled by generic Impact or Scope scaling. Before
+All four Impact fragments are complete for both supported Scopes. Self, Large
+Group, and Faction / Army are unsupported. Before
 Difficulty the player declares exact members or one unambiguous bounded set,
 one shared immediate danger or peril, the exact Rescue contract, how Rescue and
 Theme reach every accepted member, and one coherent concealment or safe state.

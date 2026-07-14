@@ -144,39 +144,133 @@ coverage is every declared supported Scope across all four Impact tiers:
 
 | Contract | Planned Scopes | Completed Impacts |
 | --- | --- | --- |
-| `HIDE_FROM_IMMEDIATE_DANGER` | One Target, Small Group | Minor for both |
-| `SECURE_IMMEDIATE_SAFETY` | One Target, Small Group | Standard for both |
-| `DENY_IMMINENT_HOSTILE_ACT` | One Target | Major |
+| `HIDE_FROM_IMMEDIATE_DANGER` | One Target, Small Group | All four for both |
+| `SECURE_IMMEDIATE_SAFETY` | One Target, Small Group | All four for both |
+| `DENY_IMMINENT_HOSTILE_ACT` | One Target | All four |
 | `DRAW_HOSTILE_ATTENTION` | One Target | All four |
 | `BREAK_SHARED_RESOLVE` | One Target, Small Group | All four for both |
 | `UNCOVER_CONCEALED_TRUTH` | One Target | All four |
 | `REVEAL_EXPLOITABLE_WEAKNESS` | One Target | All four |
-| `SECURE_WILLING_COOPERATION` | One Target, Small Group | All four for One Target; Small Group grammar missing |
+| `SECURE_WILLING_COOPERATION` | One Target, Small Group | All four for both |
 | `ESTABLISH_SHARED_RESOLVE` | Small Group | All four |
 | `ESTABLISH_FALSE_BELIEF` | One Target, Small Group | All four for both |
-| `DIVERT_IMMEDIATE_ATTENTION` | One Target, Small Group | Minor for both |
+| `DIVERT_IMMEDIATE_ATTENTION` | One Target, Small Group | All four for both |
 
-This is 68 planned cells, 43 completed/renderable cells, and 25 known missing
-cells. The exact missing breakdown is:
+This is 68 planned cells, 68 completed/renderable cells, and zero missing cells.
+Every declared supported Scope exposes Minor, Standard, Major, and Legendary.
+There is no current standard-library completeness backlog. The forty-three cells
+that predate library completion remain byte-for-byte regression authority; the
+twenty-five newly completed cells extend rather than rewrite that baseline.
 
-- `HIDE_FROM_IMMEDIATE_DANGER`: 6
-- `SECURE_IMMEDIATE_SAFETY`: 6
-- `DENY_IMMINENT_HOSTILE_ACT`: 3
-- `SECURE_WILLING_COOPERATION` / Small Group: 4
-- `DIVERT_IMMEDIATE_ATTENTION`: 6
+## Completion Doctrine
 
-No missing result is authored by this migration. The forty-three existing
-success outcomes and full descriptors remain byte-for-byte regression
-authority while the principal progress metric becomes planned, completed, and
-missing cells.
+The exact completion data is:
+
+- Hide Standard: `becomes hidden from {{dangerReference}} for the rest of the current scene unless an identifiable change defeats that concealment`
+- Hide Major: `becomes securely hidden from {{dangerReference}} for the rest of the current scene and remains concealed despite active searching, ordinary suspicion, or serious pressure unless decisive circumstances defeat the concealment`
+- Hide Legendary: `becomes hidden from {{dangerReference}} through a defining concealment whose protection extends beyond the current scene until it is decisively exposed or narratively resolved`
+- Safety Minor: `is secured from one small immediate peril for the current meaningful exchange and is no longer directly threatened by it during that exchange`
+- Safety Major: `is secured from one central immediate peril for the rest of the current scene and remains outside its direct threat despite serious pressure or worsening conditions unless a decisive change defeats the safe state`
+- Safety Legendary: `is secured from one defining peril through an enduring safe state whose protection extends beyond the current scene until it is decisively breached or narratively resolved`
+- Denial Minor: `one small immediate hostile act the target is about to take is spoiled before it resolves`
+- Denial Standard: `the target's current hostile action fails before it resolves`
+- Denial Legendary: `the target's defining current or next hostile action fails before it resolves, preventing the defining consequence that action would otherwise establish`
+- Cooperation Small Group token: `subject: every accepted member of the selected group`
+- Diversion Standard: `long enough for one declared meaningful action or development relevant to the current scene to proceed without {{observationReference}}`
+- Diversion Major: `despite serious vigilance, pressure, or competing priorities, long enough for one declared central action or development capable of changing the current scene to proceed without {{observationReference}}`
+- Diversion Legendary: `through a defining diversion, long enough for one declared defining action or development whose consequences extend beyond the current scene to proceed without {{observationReference}}`
+
+### Hide From Immediate Danger
+
+Hide retains `becomes hidden from {{dangerReference}}` as its exact Minor
+fragment. Standard concealment lasts for the rest of the current scene unless
+an identifiable change defeats it. Major concealment withstands active
+searching, ordinary suspicion, and serious pressure unless decisive
+circumstances defeat it. Legendary concealment is defining, may extend beyond
+the current scene, and ends through decisive exposure or Narrative Resolution.
+
+This is concealment from the accepted danger, never invisibility, sensory
+immunity, or universal concealment. Every accepted Small Group member receives
+the same tier without majority interpretation, hidden exemptions, or separate
+resistance. One member may later expose themselves without automatically
+exposing the others when the fiction supports individual resolution.
+
+### Secure Immediate Safety
+
+Minor secures the selected Scope from one small immediate peril through the
+current meaningful exchange without solving the wider peril. Standard retains
+the existing meaningful rescue wording unchanged. Major secures the Scope from
+one central peril for the rest of the current scene; serious pressure or
+worsening conditions do not defeat it without a decisive change. Legendary
+creates a defining safe state that may extend beyond the scene until decisive
+breach or Narrative Resolution, never permanent universal immunity.
+
+The same declared peril applies to every accepted target. The purchased safety
+requires no additional movement, defence, rescue, or target-action roll. The GD
+chooses one coherent full Scene Manifestation; exact squares, routes,
+distances, formations, or destinations are not purchased. The peril's source
+may remain active and genuinely new dangers remain possible.
+
+### Deny Imminent Hostile Act
+
+Minor spoils one small immediate hostile act without suppressing the target's
+turn or broader objective. Standard fails the current hostile action without
+Major's current-or-next flexibility. Major retains the existing current-or-next
+action wording unchanged. Legendary denies one defining current or next
+hostile action and the defining consequence that action would directly
+establish.
+
+Every tier remains One Target and Counter-eligible. Denial is not Block, Dodge,
+Resist, Cleanse, or Control; it does not reveal a hidden act, cancel unrelated
+passive effects or prior consequences, suppress future turns, or erase every
+hostile objective. It requires an eligible perceived impending act under the
+existing timing doctrine.
+
+### Secure Willing Cooperation: Shared Request
+
+Before Attribute or Difficulty, the player identifies exact members or one
+unambiguous bounded set, one shared bounded request, how the Appeal and Theme
+reach everyone, and why each member can coherently make that willing choice.
+Every accepted member must perceive and understand the request, possess the
+required agency, authority, and capability, be individually eligible at the
+selected Impact, and be reachable through the same Appeal expression. The GD
+narrows, revises, or rejects the group before Difficulty when any member is
+ineligible; Difficulty cannot make an ineligible member eligible.
+
+Membership fixes when Difficulty is set. On success every accepted member
+willingly accepts and sincerely pursues the same request at the selected Impact.
+There is no majority result, hidden exemption, separate resistance, secretly
+unwilling member, or post-success narrowing. Members retain individual
+judgement, tactics, movement, timing, resource choices, reactions, and unrelated
+values. The contract creates neither a shared mind or turn nor identical
+execution, competence, task success, or authority the members lack. It cannot
+bundle different independent requests, convert Small Group into Large Group or
+Faction / Army, or propagate to later arrivals, replacements, followers,
+subordinates, organisations, factions, armies, or the public.
+
+### Divert Immediate Attention
+
+Every tier grants only one Declared Opening. Minor retains the existing small
+immediate opening unchanged. Standard supports one meaningful action or
+development relevant to the current scene. Major supports one central,
+potentially scene-changing action or development despite serious vigilance,
+pressure, or competing priorities. Legendary supports one defining action or
+development whose consequences extend beyond the current scene; the diversion
+itself ends when its one accepted opening is used.
+
+The opening grants no extra action and does not guarantee success. Normal
+rolls, costs, access, obstacles, tools, observers, defences, and hazards remain.
+Diversion creates no false belief or concealment, fails no action, cannot bypass
+a direct formal hostile action, permits no Counter, affects only the selected
+Scope, and does not persist after the accepted opening is used.
 
 ## Normalization And Stored State
 
 Legacy migration enumerates completed resolved cells and compares normalized
 generated outcomes. Every existing successful migration remains successful.
 An incompatible legacy outcome remains Custom Review. Explicit Custom Methods
-and Custom Outcomes remain explicit. Missing planned cells are never inferred
-as complete.
+and Custom Outcomes remain explicit. Normalization never infers another family
+from merely similar wording.
 
 `RoleplayAbility` stores authoring only. It does not store generated descriptors,
 generated success outcomes, Scope tokens, Impact fragments, resolved cells,
@@ -186,10 +280,8 @@ persistence, Prisma, API, and combat runtime require no shape change.
 ## Deterministic Coverage Audit
 
 `scripts/roleplayStandardLibrary.audit.ts` is the read-only structural and
-coverage authority. Default mode fails structural errors but succeeds when only
-known completeness gaps remain, reporting 9 Methods / 11 contracts / 11 keys /
-68 planned / 43 completed / 25 missing. `--require-complete` fails while any
-planned cell is missing.
+coverage authority. Default mode and `--require-complete` both report and pass
+9 Methods / 11 contracts / 11 keys / 68 planned / 68 completed / 0 missing.
 
 The audit reports Method and contract order, supported Scopes, completed Impacts,
 missing cells by contract, unresolved tokens, missing Scope fragments, duplicate
