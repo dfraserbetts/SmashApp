@@ -10,6 +10,14 @@ Combat rule law lives in docs/01_Locked_Rules_And_Combat_Bible.txt. This
 document explains power grammar, costing interpretation, and build/cost
 implications. If wording conflicts, 01 controls rule resolution.
 
+ROLEPLAY COSTING ARCHITECTURE: docs/roleplay-standard-library.md supersedes
+exact-tuple privilege authority. Every Roleplay family owns one unique stable-ID
+privilege key; Scope and Impact remain separate future economic components.
+Scope/Impact-suffixed historical keys are migration evidence only and are not
+runtime aliases. The library is 68 planned / 43 completed / 25 missing cells.
+No numeric Roleplay value, cooldown, tuning row, calculator behaviour, or saved
+cost field is introduced by this migration.
+
 
 Monster Tier Time-To-Kill And Action Economy Doctrine
 
@@ -1181,9 +1189,9 @@ Truth offers two compatible families in registry order: UNCOVER_CONCEALED_TRUTH
 and REVEAL_EXPLOITABLE_WEAKNESS. Rally is Small Group only; Overawe's Break
 Resolve and Establish False Belief support One Target and Small Group, while the
 other current families are scoped as explicitly authored. The registry has nine
-standard Methods, eleven standard Outcome Contract families, and forty-three exact
-standard variants. Each family has all four
-approved Impact tiers where specified. Custom
+standard Methods, eleven standard Outcome Contract families, eleven family
+privilege keys, 68 planned cells, 43 completed cells, and 25 known missing
+cells. Completed fragments remain exact where currently authored. Custom
 Outcome review remains
 available for results outside the registry and existing Custom Outcome records
 are not automatically converted to a newly available standard contract.
@@ -1851,13 +1859,14 @@ a future resolver may expose Gross Potential but cannot claim authoritative Net
 Potential.
 
 Scene Impact and Scope remain the base dimensions, but global Scope options do
-not create support: exact standard variants do. Dice Count prices reliability,
-not permission ceiling. Custom, unsupported, incomplete, or missing-tuning
-authoring receives no authoritative numeric result. Large Group, Faction / Army,
-all numeric values, cooldown rules, privilege adjustments, Scope calibration,
-and restriction discounts remain open.
+not create support: a fully resolved compositional standard cell does. Dice
+Count prices reliability, not permission ceiling. Custom, unsupported,
+incomplete, or missing-tuning authoring receives no authoritative numeric
+result. Large Group, Faction / Army, all numeric values, cooldown rules,
+privilege adjustments, Scope calibration, and restriction discounts remain
+open.
 
-The complete resolver contract, live forty-three-variant inventory, authority
+The complete resolver contract, live 68 / 43 / 25 cell inventory, authority
 rules, invariants, evidence matrix, and numeric unlock gates are in
 [Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 

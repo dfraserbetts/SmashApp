@@ -9,6 +9,16 @@ power system spec, and implementation handoff notes.
 If implementation disagrees with this document, treat the mismatch as a runtime
 alignment issue unless the Architect explicitly changes the rule.
 
+ROLEPLAY COMPOSITIONAL AUTHORITY: docs/roleplay-standard-library.md locks the
+standard-library model. Scope targeting + Dice + Outcome effect template +
+Scope grammar + Impact fragment compose a descriptor. Intention filters Method;
+Method filters contracts; Scope and Impact resolve completed cells after
+contract selection. Each family owns one key equal to its stable ID. Any later
+exact-variant or tuple-key wording in this file is superseded implementation
+history unless explicitly restated under the compositional model. The 43 current
+descriptors remain exact; current coverage is 68 planned / 43 completed / 25
+missing. Missing cells are not authored here.
+
 
 Roll Grammar And Success Quality
 

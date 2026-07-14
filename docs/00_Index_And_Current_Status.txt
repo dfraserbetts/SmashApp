@@ -5,6 +5,15 @@ Purpose
 This is the active index for the Incarnate source documents after docs
 consolidation Pass 2.
 
+Roleplay compositional architecture authority is
+docs/roleplay-standard-library.md. It supersedes active wording below that
+treats exact Scope / Impact tuples as permanent registry variants, assigns
+tuple-level privilege keys, or filters Outcome Contracts by Scope and Impact.
+The live library has 9 Methods, 11 families, 11 family privilege keys, 68
+planned cells, 43 completed cells, and 25 known missing cells. The 43 legacy
+descriptors remain exact regression evidence, not the principal architecture or
+progress metric. No numeric Roleplay costing is unlocked.
+
 Pass 2 made the reduced 00-06 document set the active source-document set.
 Legacy source documents have been moved into docs/archive/ as historical
 snapshots. Archive documents are not authoritative unless an active source doc
@@ -558,8 +567,9 @@ fact is true. Reveal Exploitable Weakness answers what actionable weakness,
 opening, route, pattern, dependency, or leverage point concerning the target
 can be used. The selected contract defines the purchased entitlement; the
 families are not merged or silently exchanged. The registry therefore contains
-eleven standard Outcome Contract families and forty-three exact standard
-variants.
+eleven standard Outcome Contract families, eleven family privilege keys, 68
+planned standard cells, 43 completed/renderable cells, and 25 known missing
+cells.
 
 No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
 Discern Truth already owns observation, deduction, evidence, physical detail,

@@ -10,6 +10,14 @@ This document is implementation roadmap authority, not combat rule authority or
 final costing law. Combat rules live in 01; power grammar and costing live in
 02.
 
+ROLEPLAY BUILDER AUTHORITY: docs/roleplay-standard-library.md locks the
+compositional flow. Builder order is Name, Theme, Intention, Method, Outcome
+Contract, Scope, Impact, Dice, Counter, Restriction. Outcome Contracts filter by
+Intention and Method only. A selected contract then supplies only completed
+Scopes and Impacts, with stable-order fallbacks that retain the family. Exact
+tuple variants and tuple privilege keys are superseded implementation history.
+Current coverage is 68 planned / 43 completed / 25 missing cells.
+
 
 Current Builder Surfaces
 
@@ -367,7 +375,8 @@ The registry-driven Builder exposes both options without a page fork, retains
 an existing selection while compatible, and never auto-selects or converts a
 Custom Outcome. It adds no Recipient Type, target/subject, investigation,
 Declared Aim/objective, weakness, or opportunity fields. The live inventory is
-nine Methods, eleven standard families, and forty-three variants. Numeric
+nine Methods, eleven standard families, eleven family privilege keys, 68
+planned cells, 43 completed cells, and 25 known missing cells. Numeric
 costing and cooldown implementation remain parked.
 
 Rescue exposes HIDE_FROM_IMMEDIATE_DANGER only at Minor / One Target or Small

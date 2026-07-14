@@ -15,6 +15,16 @@ value, restriction discount, floor, cap, or tuning row. It does not author a
 resolver, Builder total, saved cost/cooldown field, tuning schema, or database
 workflow.
 
+## Compositional Authority
+
+The focused standard-library authority is
+[`roleplay-standard-library.md`](./roleplay-standard-library.md). Exact
+Scope/Impact tuple variants and tuple-level privilege keys described later in
+this document are superseded migration evidence. The active law is one
+family-level key per contract, with Scope and Impact as separate compositional
+and future economic components. Outcome Contracts filter by Intention and
+Method; completed Scope and Impact availability resolves after selection.
+
 ## Current Readiness State
 
 The semantic/discovery phase is mature enough for costing architecture. The
@@ -22,10 +32,12 @@ live registry currently contains:
 
 - nine standard Methods;
 - eleven standard Outcome Contract families;
-- forty-three exact standard variants;
+- sixty-eight planned standard cells;
+- forty-three completed/renderable cells;
+- twenty-five known missing cells;
 - One Target and Small Group standard coverage;
 - no approved Large Group or Faction / Army standard contract; and
-- one `privilegeCostKey` owned by every exact standard variant.
+- eleven unique family-level `privilegeCostKey` values, one per contract.
 
 The wider numeric economy is not yet authoritative. Power and Forge costs,
 level affordability, cooldown authority, persisted cooldown caches,
@@ -232,11 +244,36 @@ An Ability may be structurally eligible while numeric authority is unavailable.
 That is the expected current state. Missing numeric authority returns no
 authoritative number, not a provisional number or zero.
 
-## Live Standard Variant Inventory
+## Active Family Privilege Inventory
 
-The live semantic registry is the source of truth. Every row below is
-structurally `READY_FOR_CALIBRATION` and numerically unavailable pending the
-unlock gates.
+The eleven active family privilege keys are unique and equal to the stable
+contract IDs:
+
+| Outcome Contract | Family `privilegeCostKey` |
+| --- | --- |
+| `HIDE_FROM_IMMEDIATE_DANGER` | `HIDE_FROM_IMMEDIATE_DANGER` |
+| `SECURE_IMMEDIATE_SAFETY` | `SECURE_IMMEDIATE_SAFETY` |
+| `DENY_IMMINENT_HOSTILE_ACT` | `DENY_IMMINENT_HOSTILE_ACT` |
+| `DRAW_HOSTILE_ATTENTION` | `DRAW_HOSTILE_ATTENTION` |
+| `BREAK_SHARED_RESOLVE` | `BREAK_SHARED_RESOLVE` |
+| `UNCOVER_CONCEALED_TRUTH` | `UNCOVER_CONCEALED_TRUTH` |
+| `REVEAL_EXPLOITABLE_WEAKNESS` | `REVEAL_EXPLOITABLE_WEAKNESS` |
+| `SECURE_WILLING_COOPERATION` | `SECURE_WILLING_COOPERATION` |
+| `ESTABLISH_SHARED_RESOLVE` | `ESTABLISH_SHARED_RESOLVE` |
+| `ESTABLISH_FALSE_BELIEF` | `ESTABLISH_FALSE_BELIEF` |
+| `DIVERT_IMMEDIATE_ATTENTION` | `DIVERT_IMMEDIATE_ATTENTION` |
+
+Future costing combines a family privilege component with separate Scope,
+Impact, Dice, Counter, and later approved adjustment components. No numeric
+values are assigned.
+
+## Superseded Exact-Cell Migration Inventory
+
+The rows below preserve the forty-three pre-composition cells as descriptor and
+migration evidence. Their Scope/Impact-suffixed `privilegeCostKey` column is
+retired historical data, not runtime authority or a hidden alias. Structural
+readiness now comes from compositional cell resolution and the family table
+above.
 
 | Intention | Method | Outcome Contract | Impact | Scope | Counter | `privilegeCostKey` | Structural readiness |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -297,10 +334,11 @@ Automatic numeric costing must remain unavailable for:
 - Custom Method;
 - Custom Outcome;
 - incompatible standard authoring;
-- Self without an approved exact variant;
+- Self without a completed standard cell;
 - Large Group;
 - Faction / Army;
-- a future standard variant with a missing or uncalibrated privilege key;
+- a future completed cell whose family privilege or Scope/Impact components are
+  missing or uncalibrated;
 - an unresolved restriction discount; or
 - a missing authoritative tuning snapshot.
 
@@ -456,14 +494,16 @@ calibration must isolate breadth from contract semantics.
 
 Future evidence must cover:
 
-- all forty-three current standard variants;
+- all sixty-eight planned cells, including the forty-three current completed
+  descriptors and explicit failure for the twenty-five known gaps;
 - every supported Dice Count;
 - Counter off and every legal Counter-on case;
 - no Additional Restriction as baseline;
 - approved representative restrictions only after restriction doctrine is
   ready;
 - low-, middle-, and high-level contexts after level-budget doctrine settles;
-- every `privilegeCostKey`;
+- all eleven family `privilegeCostKey` values and every independent Scope/Impact
+  component;
 - exact decomposition;
 - monotonicity and deterministic output;
 - missing-tuning failure;
@@ -487,7 +527,8 @@ Numeric Roleplay costing must not begin until every gate is explicitly met:
 5. Roleplay versus Power shared-point opportunity cost is confirmed.
 6. Cooldown tradeoff circularity is resolved.
 7. Roleplay tuning ownership and provenance are defined.
-8. Every current `privilegeCostKey` is calibrated.
+8. Every family `privilegeCostKey` and required Scope/Impact component is
+   calibrated.
 9. Scope calibration exists independently of contract semantics.
 10. Restriction approval and discount authority are defined.
 11. Required deterministic smoke and benchmark coverage is designed.

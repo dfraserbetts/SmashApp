@@ -17,6 +17,13 @@ This document is lower authority than:
 Items here preserve planning context. They are not final design decisions unless
 a higher-authority active source document explicitly promotes them.
 
+ROLEPLAY STANDARD-LIBRARY STATUS: docs/roleplay-standard-library.md is the
+higher-authority compositional specification. Exact tuple variants, tuple keys,
+and Scope/Impact-filtered contract dropdowns described later are superseded
+history. The live migration target is 9 Methods / 11 families / 11 family keys /
+68 planned cells / 43 completed cells / 25 known missing cells. Missing cells
+remain backlog; their effects are not authored in this pass.
+
 
 Roleplay System Roadmap
 
@@ -403,7 +410,8 @@ Distract / Minor / One Target or Small Group uses DIVERT_IMMEDIATE_ATTENTION. Al
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
 The registry contains exactly nine Methods, eleven standard Outcome Contract
-families, and forty-three exact variants. Spot Weakness,
+families, eleven family privilege keys, 68 planned cells, 43 completed cells,
+and 25 known missing cells. Spot Weakness,
 Investigate, Search, Analyse, and synonymous desired results remain Custom
 Method review rather than new Methods because Discern Truth already defines the
 perceptive approach.
@@ -1578,9 +1586,9 @@ boundaries do not earn Restriction discounts; only an Additional Restriction
 that genuinely narrows the contract may do so.
 
 This family remains subject to the parked non-numeric readiness architecture.
-Scene Impact / Scope base and the exact variant privilege key are distinct
-future components; Legendary rivalry may later require a distinct adjustment.
-No numeric costing or discount value is locked.
+Scene Impact / Scope economics and the single family privilege key are distinct
+future components; Legendary rivalry may later require a separate approved
+adjustment. No numeric costing or discount value is locked.
 
 
 Open Decisions
