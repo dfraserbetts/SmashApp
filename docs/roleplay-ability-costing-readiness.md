@@ -22,7 +22,7 @@ live registry currently contains:
 
 - nine standard Methods;
 - eleven standard Outcome Contract families;
-- forty exact standard variants;
+- forty-one exact standard variants;
 - One Target and Small Group standard coverage;
 - no approved Large Group or Faction / Army standard contract; and
 - one `privilegeCostKey` owned by every exact standard variant.
@@ -280,6 +280,7 @@ unlock gates.
 | Deception | Misdirect | `ESTABLISH_FALSE_BELIEF` | Major | Small Group | Unavailable | `ESTABLISH_FALSE_BELIEF_SMALL_GROUP_MAJOR` | Ready for calibration |
 | Deception | Misdirect | `ESTABLISH_FALSE_BELIEF` | Legendary | Small Group | Unavailable | `ESTABLISH_FALSE_BELIEF_SMALL_GROUP_LEGENDARY` | Ready for calibration |
 | Deception | Distract | `DIVERT_IMMEDIATE_ATTENTION` | Minor | One Target | Unavailable | `DIVERT_IMMEDIATE_ATTENTION` | Ready for calibration |
+| Deception | Distract | `DIVERT_IMMEDIATE_ATTENTION` | Minor | Small Group | Unavailable | `DIVERT_IMMEDIATE_ATTENTION_SMALL_GROUP` | Ready for calibration |
 
 ## Current Automatic-Costing Boundary
 
@@ -453,7 +454,7 @@ calibration must isolate breadth from contract semantics.
 
 Future evidence must cover:
 
-- all forty current standard variants;
+- all forty-one current standard variants;
 - every supported Dice Count;
 - Counter off and every legal Counter-on case;
 - no Additional Restriction as baseline;

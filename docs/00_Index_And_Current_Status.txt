@@ -558,7 +558,7 @@ fact is true. Reveal Exploitable Weakness answers what actionable weakness,
 opening, route, pattern, dependency, or leverage point concerning the target
 can be used. The selected contract defines the purchased entitlement; the
 families are not merged or silently exchanged. The registry therefore contains
-eleven standard Outcome Contract families and forty exact standard
+eleven standard Outcome Contract families and forty-one exact standard
 variants.
 
 No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
@@ -578,30 +578,56 @@ does not fail or cancel actions. Challenge redirects hostility, while Rescue may
 use distraction only as manifestation of safety. Classification follows the
 purchased result and primary approach.
 
-DIVERT_IMMEDIATE_ATTENTION / Divert Immediate Attention is the accepted v0
-working name, Hinder, Deception / Distract / Minor / One Target, never Counter
-eligible, and exactly one variant/key:
+DIVERT_IMMEDIATE_ATTENTION / Divert Immediate Attention remains the stable-ID
+Hinder family for Deception / Distract / Minor at One Target or Small Group,
+never Counter eligible. One brief opening is the semantic privilege; Scope
+determines whose active attention is diverted. Group diversion therefore needs
+an explicit variant in this family, not another contract family. The existing
+One Target outcome and key remain exact:
 
 - MINOR / DIVERT_IMMEDIATE_ATTENTION: "the target's active attention is diverted
   for the current meaningful exchange, creating a brief opening for one declared
   small immediate action or development to proceed without that target's
   deliberate observation or interference"
 
-Standard, Major, Legendary, and group variants are intentionally absent. The
-runtime Declared Opening identifies one coherent small immediate development,
-uses normal agency/action opportunity/rules, is something the target could
-otherwise observe or interfere with, and fits Minor / One Target. Success binds
-the attention diversion without a second roll, but "proceed" does not mean
-"succeed": required rolls, other observers, locks, obstacles, hazards,
-defences, access, and capability remain, and no additional action is granted.
+- MINOR / DIVERT_IMMEDIATE_ATTENTION_SMALL_GROUP: "every accepted member of the
+  selected group has their active attention diverted for the current meaningful
+  exchange, creating a brief opening for one declared small immediate action or
+  development to proceed without deliberate observation or interference from
+  any accepted member"
 
-The opening cannot primarily be a direct formal hostile action against the
-target or bundle multiple actions. Distract creates no belief, hidden state,
-safety, action denial, hostility, rivalry, quantified penalty, or Counter. It
-may operate before formal hostile declaration in a Roleplay Window, but cannot
-be introduced once the Response Window begins. Declared Opening and attention
-context are runtime only; no opening/attention/subject field, numeric
-cost/cooldown, or combat-runtime effect is added.
+Standard, Major, Legendary, Large Group, and Faction / Army variants remain
+absent. Small Group requires exact fixed membership, one Shared Declared
+Opening, one coherent competing focus, and a plausible way for that focus to
+capture every member. All members must share the immediate situation, perceive
+the Method expression, and otherwise be able deliberately to observe or
+interfere with the opening. The GD narrows, revises, or rejects ineligible
+groups before Difficulty. Success binds every accepted member without majority
+interpretation, hidden exemption, secretly watchful member, post-success
+narrowing, or per-member resistance.
+
+The same one small immediate action/development uses the opening against every
+member. "Proceed" does not mean "succeed": normal timing, action costs, rolls,
+tools, access, authority, capability, barriers, locks, hazards, environmental
+limits, and observers outside the accepted group remain. No action is granted.
+Members remain physically present with passive senses, memory, unrelated
+awareness, judgement, agency, and normal activity outside the opening. The
+opening cannot primarily be direct formal hostility against an accepted member.
+
+Membership fixes at Difficulty and does not propagate to arrivals,
+replacements, outsiders, followers, subordinates, organisations, factions,
+armies, or the public. Switching One Target and Small Group at Minor retains the
+family and swaps exact outcome/descriptor; Counter remains false. Unsupported
+Scope, higher Impact, Method, or Intention clears it and Counter; Name, Theme,
+Dice Count, and restriction edits retain it.
+
+Misdirect establishes false belief; Overawe ends an opposed course; Rally
+creates a positive shared course; Interrupt denies an action; Hide and Secure
+grant concealment or safety. Divert does none of those things and cannot be
+introduced after formal hostile action begins. Declared Opening, membership,
+competing focus, and member attention are runtime only. No saved opening/member
+field, numeric cost/cooldown, quantified penalty, per-member roll, or
+combat-runtime effect is added.
 
 RESCUE remains the Intervention Method for both approved rescue results; no
 Extract, Catch, Pull Free, Shield With Body, Stabilise, Escort, Evacuate, or

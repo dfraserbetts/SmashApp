@@ -1180,7 +1180,7 @@ Truth offers two compatible families in registry order: UNCOVER_CONCEALED_TRUTH
 and REVEAL_EXPLOITABLE_WEAKNESS. Rally is Small Group only; Overawe's Break
 Resolve and Establish False Belief support One Target and Small Group, while the
 other current families are scoped as explicitly authored. The registry has nine
-standard Methods, eleven standard Outcome Contract families, and forty exact
+standard Methods, eleven standard Outcome Contract families, and forty-one exact
 standard variants. Each family has all four
 approved Impact tiers where specified. Custom
 Outcome review remains
@@ -1550,47 +1550,65 @@ changes the exact variant/descriptor. Unsupported Scope, Method, or Intention
 clears it and Counter; non-invalidating edits retain it. No premise/member state,
 numeric cost, cooldown, combat-runtime mechanic, or per-member roll is added.
 
-DIVERT_IMMEDIATE_ATTENTION is the Hinder / Deception / Distract / Minor / One
-Target contract named Divert Immediate Attention, an accepted v0 working name.
-It is Counter-ineligible and has one exact variant/key:
+DIVERT_IMMEDIATE_ATTENTION is the stable Hinder / Deception / Distract / Minor
+family for One Target or Small Group, named Divert Immediate Attention. It is
+Counter-ineligible. One brief Declared Opening is the semantic privilege; Scope
+determines whose active attention is diverted. Group diversion requires an
+explicit same-family variant, not another family, and never extends duration.
+The existing One Target outcome/key remains exact:
 
 - Minor / DIVERT_IMMEDIATE_ATTENTION: "the target's active attention is diverted
   for the current meaningful exchange, creating a brief opening for one declared
   small immediate action or development to proceed without that target's
   deliberate observation or interference"
 
-Standard, Major, Legendary, and group cells are intentionally empty. Higher
-Impact does not create scene-long ignoring, loss of awareness, multiple openings,
-blindness, group distraction, or hidden/immunity state. A stronger privilege
-requires separate design.
+- Minor / DIVERT_IMMEDIATE_ATTENTION_SMALL_GROUP: "every accepted member of the
+  selected group has their active attention diverted for the current meaningful
+  exchange, creating a brief opening for one declared small immediate action or
+  development to proceed without deliberate observation or interference from
+  any accepted member"
 
-Before Difficulty the player identifies the target, one small immediate
-Declared Opening, and how Distract/Theme captures attention. The opening uses
-normal agency, opportunity, costs, and rules; concerns something the target could
-observe or interfere with; fits Minor / One Target; and is recognisable when
-used. Whole-party concealment, multiple actions, entire plans, objective/action
-loss, and direct formal attacks without normal response are invalid. The GD
-rejects or narrows invalid declarations before Difficulty.
+Standard, Major, Legendary, Large Group, and Faction / Army cells remain empty.
+Higher Impact does not create scene-long ignoring, loss of awareness, multiple
+openings, blindness, or hidden/immunity state. A stronger privilege requires
+separate design.
 
-Success binds the target's deliberate inattention to the accepted opening
-without a second diversion roll. "Proceed" does not mean "succeed": required
-rolls, other observers, passive senses, barriers, locks, hazards, defences,
-tools, access, capability, and action timing remain. The contract grants no
-additional action, movement, bonus, penalty, hidden state, safety, or belief.
-The accepted opening cannot be exchanged after success and ends when used or the
-meaningful exchange ends.
+Before Difficulty the player identifies the target or exact fixed group, one
+Shared Declared Opening, one coherent competing focus, and how Distract/Theme
+captures every accepted member's attention. Every group member must share the
+scene-local situation, perceive the Method expression, be able otherwise to
+observe/interfere, and be eligible. The GD narrows, revises, or rejects before
+Difficulty; Difficulty cannot legalise an ineligible member. The opening uses
+normal agency, opportunity, costs, and rules; fits Minor/Scope; and is
+recognisable when used. Different openings, unrelated clusters, whole-party
+concealment, multiple actions, entire plans, objective/action loss, and direct
+formal attacks without normal response are invalid.
+
+Success binds every accepted target's deliberate inattention without another or
+per-member roll, majority interpretation, hidden exemption, secretly watchful
+member, or post-success narrowing. "Proceed" does not mean "succeed": required
+rolls, other observers, passive senses, physical presence, barriers, locks,
+hazards, defences, tools, access, capability, and action timing remain. Targets
+retain memory, unrelated awareness, judgement, and agency. The contract grants
+no additional action, movement, bonus, penalty, hidden state, safety, or belief.
+Membership never propagates to arrivals, replacements, outsiders, followers,
+another patrol, organisations, factions, armies, or the public. The opening ends
+when used or the meaningful exchange ends.
 
 Misdirect/Establish False Belief creates a false premise; real competing focus
 uses Distract. Interrupt/Deny fails one action and permits Counter; Divert never
 fails an action and is Counter-ineligible. It may operate in a Roleplay Window
 before formal hostile declaration, but cannot be introduced after the Response
 Window begins or replace combat responses/Interrupt. Hide and Secure affect the
-protected subject; Divert affects one observer. Draw Hostile Attention redirects
+protected subject; Divert affects selected observers. Draw Hostile Attention redirects
 hostility/rivalry; Divert creates neither.
 
-Declared Opening and attention context are runtime only. No opening/attention/
-subject storage, numeric cost/cooldown, quantified output, or combat-runtime
-effect is added.
+One Target to Small Group switching at Minor retains the family and swaps exact
+outcome/descriptor; Counter stays false. Unsupported Scope, higher Impact,
+Method, or Intention clears it and Counter. Non-invalidating edits retain it.
+Declared Opening, membership, and attention context are runtime only. No
+opening/attention/member/subject storage, numeric cost/cooldown, quantified
+output, per-member roll, or combat-runtime effect is added.
 
 Outcome Contract Registry
 
@@ -1809,7 +1827,7 @@ authoring receives no authoritative numeric result. Large Group, Faction / Army,
 all numeric values, cooldown rules, privilege adjustments, Scope calibration,
 and restriction discounts remain open.
 
-The complete resolver contract, live forty-variant inventory, authority
+The complete resolver contract, live forty-one-variant inventory, authority
 rules, invariants, evidence matrix, and numeric unlock gates are in
 [Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 

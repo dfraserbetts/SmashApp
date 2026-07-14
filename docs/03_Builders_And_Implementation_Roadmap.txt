@@ -171,7 +171,7 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
   - DENY_IMMINENT_HOSTILE_ACT: Hinder; Intervention / Interrupt / Major / One
     Target; Counter eligible.
   - DIVERT_IMMEDIATE_ATTENTION: Hinder; Deception / Distract / Minor / One
-    Target; Counter ineligible.
+    Target or Small Group; Counter ineligible.
 - Filter standard contracts by Intention, Method, Scene Impact, and Scope.
   Keep Custom Outcome - GD Review Required available for all combinations.
 - Custom Outcome stores a proposed lane and request, remains Pending GD
@@ -367,7 +367,7 @@ The registry-driven Builder exposes both options without a page fork, retains
 an existing selection while compatible, and never auto-selects or converts a
 Custom Outcome. It adds no Recipient Type, target/subject, investigation,
 Declared Aim/objective, weakness, or opportunity fields. The live inventory is
-nine Methods, eleven standard families, and forty variants. Numeric
+nine Methods, eleven standard families, and forty-one variants. Numeric
 costing and cooldown implementation remain parked.
 
 Rescue exposes HIDE_FROM_IMMEDIATE_DANGER only at Minor / One Target and
@@ -517,19 +517,31 @@ Course, Recipient Type, stored course/target field, numeric cost/cooldown,
 quantified Fear, Control, per-member save, or combat-runtime mechanic. Custom
 Outcomes remain Custom, and legacy BREAK_RESOLVE remains Custom Method review.
 
-Distract filters to DIVERT_IMMEDIATE_ATTENTION only for Deception / Minor / One
-Target. Divert Immediate Attention is Hinder, Counter-ineligible, the accepted
-v0 working name, and has one exact variant/key: "the target's active attention
-is diverted for the current meaningful exchange, creating a brief opening for
-one declared small immediate action or development to proceed without that
-target's deliberate observation or interference" / DIVERT_IMMEDIATE_ATTENTION.
+Distract filters to stable ID DIVERT_IMMEDIATE_ATTENTION only for Deception /
+Minor / One Target or Small Group. Divert Immediate Attention is Hinder,
+Counter-ineligible, and the accepted v0 working name. The existing One Target
+outcome/key remains exact: "the target's active attention is diverted for the
+current meaningful exchange, creating a brief opening for one declared small
+immediate action or development to proceed without that target's deliberate
+observation or interference" / DIVERT_IMMEDIATE_ATTENTION.
 
-Standard, Major, Legendary, and group variants are intentionally absent. The
-runtime Declared Opening is one coherent small immediate action/development,
-uses normal agency/action rules, is something the target could observe or
-interfere with, and fits Minor / One Target. Success binds the attention result,
-but proceeding does not guarantee success: other observers, rolls, barriers,
-hazards, defences, access, and capability remain; no extra action is granted.
+The Small Group outcome/key is: "every accepted member of the selected group has
+their active attention diverted for the current meaningful exchange, creating a
+brief opening for one declared small immediate action or development to proceed
+without deliberate observation or interference from any accepted member" /
+DIVERT_IMMEDIATE_ATTENTION_SMALL_GROUP. Both variants purchase one brief opening;
+Scope changes breadth, not duration. Standard, Major, Legendary, Large Group,
+and Faction / Army variants remain absent.
+
+Small Group uses exact fixed membership, one Shared Declared Opening, one
+coherent competing focus, universal member eligibility, and one Distract/Theme
+expression. The GD narrows, revises, or rejects before Difficulty. Success has
+no per-member roll, majority interpretation, hidden exemption, secretly
+watchful member, or post-success narrowing. Proceed does not mean succeed:
+normal timing, costs, rolls, access, tools, barriers, hazards, other observers,
+and capability remain. Targets retain physical presence, passive senses,
+memory, unrelated awareness, judgement, and agency. Direct-hostile-action and
+bundled-plan loopholes remain invalid; membership never propagates.
 Direct formal attacks, bundled plans, action denial, hidden state, safety, false
 belief, and broader Scope are not supplied.
 
@@ -539,12 +551,14 @@ keeps Deny and action failure. Challenge redirects hostility; Rescue owns safety
 Divert is Counter-ineligible and can only precede formal hostile declaration in
 a Roleplay Window. It cannot replace Interrupt or combat responses.
 
-The registry-driven Builder exposes Misdirect and Distract under Deception,
-Distract details, Minor / One Target, Hinder, and Counter unavailable without a
-page fork. It adds no Declared Opening, focus/subject/action selector, attention
-state, Recipient Type, measured duration, saved fields, numeric cost/cooldown,
-or runtime mechanic. Incompatible authoring clears selection/Counter;
-non-authoring edits retain it. Explicit Custom Outcomes remain Custom.
+The registry-driven Builder exposes Misdirect and Distract under Deception and
+Divert at Minor / One Target or Small Group without a page fork. Switching the
+two Scopes retains the family and swaps exact outcome/descriptor. Self, Large
+Group, Faction / Army, higher Impact, Misdirect, or another Intention clears it
+and Counter; non-invalidating edits retain it. It adds no Declared Opening,
+group-member, focus/subject/action selector, attention state, Recipient Type,
+measured duration, saved fields, numeric cost/cooldown, per-member roll, or
+runtime mechanic. Explicit Distract / Small Group Custom Outcomes remain Custom.
 
 Misdirect filters to stable ID ESTABLISH_FALSE_BELIEF for Deception / One Target
 or Small Group at all

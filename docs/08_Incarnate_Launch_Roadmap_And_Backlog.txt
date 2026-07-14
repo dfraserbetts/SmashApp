@@ -399,11 +399,11 @@ approved Impact tiers. Persuasion / Rally / Small Group uses
 ESTABLISH_SHARED_RESOLVE across all four approved Impact tiers. Deception /
 Misdirect / One Target or Small Group uses
 ESTABLISH_FALSE_BELIEF across all four approved Impact tiers. Deception /
-Distract / Minor / One Target uses DIVERT_IMMEDIATE_ATTENTION. All five
+Distract / Minor / One Target or Small Group uses DIVERT_IMMEDIATE_ATTENTION. All five
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
 The registry contains exactly nine Methods, eleven standard Outcome Contract
-families, and forty exact variants. Spot Weakness,
+families, and forty-one exact variants. Spot Weakness,
 Investigate, Search, Analyse, and synonymous desired results remain Custom
 Method review rather than new Methods because Discern Truth already defines the
 perceptive approach.
@@ -1295,13 +1295,22 @@ locked.
 Approved Roleplay Outcome Contract: Divert Immediate Attention
 
 DIVERT_IMMEDIATE_ATTENTION / Divert Immediate Attention is the accepted v0
-working name, Hinder, Deception / Distract / Minor / One Target, never Counter
-eligible, and exactly one variant/key:
+working name and stable-ID Hinder family for Deception / Distract / Minor / One
+Target or Small Group, never Counter eligible. One brief opening is the semantic
+privilege and Scope determines whose attention is diverted. Group diversion
+requires an explicit same-family variant rather than another family. The
+existing One Target outcome/key remains exact:
 
 - Minor / DIVERT_IMMEDIATE_ATTENTION: "the target's active attention is diverted
   for the current meaningful exchange, creating a brief opening for one declared
   small immediate action or development to proceed without that target's
   deliberate observation or interference"
+
+- Minor / DIVERT_IMMEDIATE_ATTENTION_SMALL_GROUP: "every accepted member of the
+  selected group has their active attention diverted for the current meaningful
+  exchange, creating a brief opening for one declared small immediate action or
+  development to proceed without deliberate observation or interference from
+  any accepted member"
 
 Distract means: "Divert a target's immediate attention away from one bounded
 subject or development by creating a plausible competing focus through
@@ -1318,34 +1327,44 @@ erase senses/memory, fail/cancel actions, dictate alternatives/movement, create
 hostility/cooperation/hidden state, grant actions/movement, guarantee the enabled
 action, create quantified output, affect outsiders, or bypass plausibility.
 
-Standard, Major, Legendary, and group variants are intentionally absent. Higher
-Impact cannot create scene-long ignorance, total awareness loss, multiple
-openings, blindness, group distraction, or concealment/immunity. A different
-privilege requires separate design.
+Standard, Major, Legendary, Large Group, and Faction / Army variants remain
+absent. Higher Impact cannot create scene-long ignorance, total awareness loss,
+multiple openings, blindness, or concealment/immunity. Broader Scope does not
+lengthen the opening. A different privilege requires separate design.
 
-Before Difficulty, the player states the target, one coherent small immediate
-Declared Opening, and how Distract/Theme captures attention. It uses normal
-agency, action opportunity/costs/rules; concerns something the target could
-observe or interfere with; fits Minor / One Target; and is recognisable when
-used. Multiple actions, whole plans, party-wide concealment, action loss, and
-direct formal attacks without normal response are invalid.
+Before Difficulty, the player states the target or exact fixed group, one Shared
+Declared Opening, one coherent competing focus, and how Distract/Theme captures
+every accepted member's attention. Every group member must share the scene-local
+situation, perceive the focus, otherwise be able to observe/interfere, and be
+eligible. The GD narrows, revises, or rejects before Difficulty. The opening
+uses normal agency, timing, costs, and rules and is recognisable when used.
+Different member openings, unrelated clusters, multiple actions, whole plans,
+party-wide concealment, action loss, and direct formal attacks without normal
+response are invalid.
 
-Success establishes deliberate inattention to that opening without a second
-diversion roll. "Proceed" does not mean "succeed": normal rolls, other observers,
-passive senses, locks, barriers, hazards, defences, tools, access, capability,
-and timing remain. No additional action is granted. The target is not blinded,
-unconscious, mindless, moved, or stripped of awareness; the accepted opening
-cannot be replaced and ends when used or the exchange ends.
+Success establishes deliberate inattention for every accepted member without
+per-member rolls, majority interpretation, hidden exemptions, secretly watchful
+members, or post-success narrowing. "Proceed" does not mean "succeed": normal
+rolls, other observers, passive senses, physical presence, locks, barriers,
+hazards, defences, tools, access, capability, and timing remain. No additional
+action is granted. Members retain memory, unrelated awareness, judgement, and
+agency; the opening ends when used or the exchange ends. Membership fixes at
+Difficulty and does not propagate to arrivals, replacements, outsiders,
+followers, another patrol, organisations, factions, armies, or the public.
 
 Establish False Belief remains Misdirect. Deny remains Interrupt / Major /
 Counter-eligible. Divert never fails an action and can act only before formal
 hostile declaration in a Roleplay Window, not after the Response Window begins.
-Hide/Secure affect the protected subject; Divert affects one observer. Draw
+Hide/Secure affect the protected subject; Divert affects selected observers. Draw
 Hostile Attention redirects hostility and may create rivalry; Divert does not.
 
-Declared Opening and attention context are runtime only. No opening/action/
-focus/subject field, Recipient Type, measured duration, numeric cost/cooldown,
-quantified output, or combat-runtime behavior is added.
+Switching One Target and Small Group at Minor retains the family and swaps exact
+outcome/descriptor; Counter stays false. Unsupported Scope, higher Impact,
+Method, or Intention clears it and Counter. Non-invalidating edits retain it.
+Declared Opening, membership, and attention context are runtime only. No
+opening/action/focus/subject/member field, Recipient Type, measured duration,
+numeric cost/cooldown, quantified output, per-member roll, or combat-runtime
+behavior is added.
 
 
 Approved Roleplay Outcome Contract Family: Secure Willing Cooperation
