@@ -27,7 +27,8 @@ export type RoleplayStandardMethodId =
   | "CHALLENGE"
   | "OVERAWE"
   | "DISCERN_TRUTH"
-  | "TRACK";
+  | "TRACK"
+  | "PROVE";
 
 export type RoleplayMethodId =
   | RoleplayStandardMethodId
@@ -364,6 +365,40 @@ export const ROLEPLAY_METHODS = [
       "Does not allow high Difficulty or Legendary Impact to legalise an impossible, incoherent, or inaccessible pursuit.",
     ],
   },
+  {
+    id: "PROVE",
+    name: "Prove",
+    intention: "PERCEPTION",
+    definition:
+      "Establish one truthful conclusion for others by presenting, demonstrating, connecting, or revealing coherent evidence, testimony, signs, consequences, or another verifiable basis.",
+    legalApproaches: [
+      "Present physical evidence that directly supports one conclusion",
+      "Demonstrate a repeatable or immediately observable fact",
+      "Connect multiple known clues into one coherent proof",
+      "Expose a contradiction through a verifiable record or source",
+      "Present reliable witness testimony",
+      "Reconstruct one event from accepted evidence",
+      "Reveal an accessible supporting detail that makes the truth demonstrable",
+      "Invoke magical, spiritual, psychic, technological, or supernatural verification supported by Narrative Theme and current fiction",
+    ],
+    exclusions: [
+      "Does not discover whether a speculative claim is true; use Discern Truth.",
+      "Does not permit testing claims by repeatedly declaring possible truths.",
+      "Does not fabricate evidence, testimony, records, signs, credentials, or authority.",
+      "Does not establish a false or materially misleading premise; use Misdirect.",
+      "Does not reveal unrelated secrets or exploitable weaknesses.",
+      "Does not compel a particular action, cooperation, confession, emotional response, or public admission.",
+      "Does not force an accepted target to speak honestly.",
+      "Does not create comprehension, perception, memory, agency, or evaluative capability where none exists.",
+      "Does not override conclusive evidence that genuinely disproves the declared conclusion.",
+      "Does not grant an action, Response, movement, bonus, penalty, condition, or another quantified output.",
+      "Does not mechanically alter the audience or the subject of the truth.",
+      "Does not automatically affect anyone outside the selected Scope.",
+      "Does not convert One Target into Small Group.",
+      "Does not convert Small Group into Large Group, Faction / Army, or the public.",
+      "Does not make high Difficulty or Legendary Impact legalise a false, unsupported, incoherent, or inaccessible conclusion.",
+    ],
+  },
 ] as const satisfies readonly RoleplayMethodDefinition[];
 
 export const ROLEPLAY_OUTCOME_LANE_OPTIONS = [
@@ -432,6 +467,7 @@ export type RoleplayStandardOutcomeContractId =
   | "UNCOVER_CONCEALED_TRUTH"
   | "REVEAL_EXPLOITABLE_WEAKNESS"
   | "TRACE_QUARRY"
+  | "ESTABLISH_VERIFIED_TRUTH"
   | "SECURE_WILLING_COOPERATION"
   | "ESTABLISH_SHARED_RESOLVE"
   | "SUSTAIN_PERSONAL_RESOLVE"
@@ -963,6 +999,64 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     ],
   },
   {
+    id: "ESTABLISH_VERIFIED_TRUTH",
+    name: "Establish Verified Truth",
+    outcomeLane: "HELP",
+    intention: "PERCEPTION",
+    methodId: "PROVE",
+    supportedScopes: ["ONE_TARGET", "SMALL_GROUP"],
+    outcomeTemplate: "{{impact}}",
+    scopeTokens: {
+      ONE_TARGET: { audience: "the target" },
+      SMALL_GROUP: { audience: "every accepted member of the selected group" },
+    },
+    impactFragments: {
+      MINOR:
+        "{{audience}} recognises one small immediately verifiable truth as established for the current meaningful exchange and treats it as true when making relevant decisions",
+      STANDARD:
+        "{{audience}} recognises one meaningful truth relevant to the current situation as established for the rest of the current scene and treats it as true when making relevant decisions unless meaningful new evidence materially changes the conclusion",
+      MAJOR:
+        "{{audience}} recognises one central truth shaping the current situation as conclusively established for the rest of the current scene and continues to treat it as true despite serious denial, pressure, loyalty, or personal cost unless decisive new evidence or narrative resolution materially changes the conclusion",
+      LEGENDARY:
+        "{{audience}} recognises one defining truth whose consequences extend beyond the current scene as decisively established and treats it as true until its consequences are fulfilled or narratively resolved",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "ESTABLISH_VERIFIED_TRUTH",
+    examples: [
+      "Proving one prisoner could not have committed the immediate crime",
+      "Demonstrating that one bridge or structure is unsafe",
+      "Establishing that one order or document is authentic",
+      "Proving that a visible document is forged",
+      "Connecting records and physical evidence to establish one betrayal",
+      "Demonstrating that one ritual depends on a specific object",
+      "Proving that one accused person was elsewhere",
+      "Establishing for a small council that one warning is genuine",
+      "Proving to a patrol that its orders were issued by the recognised commander",
+      "Establishing a defining historical or institutional truth whose consequences extend beyond the current scene",
+    ],
+    exclusions: [
+      "Does not discover whether a speculative claim is true.",
+      "Does not permit repeated claim-testing as a substitute for Discern Truth.",
+      "Does not fabricate evidence, records, testimony, credentials, signs, or authority.",
+      "Does not establish more than one bounded Declared Truth.",
+      "Does not prove a false, materially misleading, impossible, or incoherent conclusion.",
+      "Does not reveal unrelated secrets, motives, memories, weaknesses, routes, or evidence.",
+      "Does not compel cooperation, confession, surrender, testimony, disclosure, honesty, alliance, obedience, or another exact action.",
+      "Does not force public admission.",
+      "Does not remove independent values, loyalties, priorities, emotions, or judgement.",
+      "Does not create comprehension, perception, memory, agency, or capability.",
+      "Does not grant bonuses, penalties, actions, Responses, movement, conditions, or another quantified output.",
+      "Does not mechanically alter the audience or subject.",
+      "Does not automatically affect anyone outside the selected Scope.",
+      "Does not convert One Target into Small Group.",
+      "Does not convert Small Group into Large Group, Faction / Army, or the public.",
+      "Does not permit majority interpretation, hidden exemptions, or per-member resistance.",
+      "Does not automatically propagate through testimony, leadership, reputation, institutions, reports, or rumours.",
+      "Does not allow Difficulty or Legendary Impact to legalise an invalid conclusion or inaccessible proof.",
+      "Does not permit arbitrary cancellation after a successful accepted declaration.",
+    ],
+  },
+  {
     id: "SECURE_WILLING_COOPERATION",
     name: "Secure Willing Cooperation",
     outcomeLane: "HELP",
@@ -1378,6 +1472,7 @@ const LEGACY_SPECIFIC_LABELS: Readonly<Record<string, string>> = {
   READ_INTENT: "Read Intent",
   SPOT_WEAKNESS: "Spot Weakness",
   TRACK: "Track",
+  PROVE: "Prove",
   INVESTIGATE: "Investigate",
   SENSE_DANGER: "Sense Danger",
   DISCERN_TRUTH: "Discern Truth",

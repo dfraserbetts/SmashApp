@@ -975,17 +975,17 @@ for (const legacyField of ["specific", "description"]) {
 
 assertEqual(
   ROLEPLAY_METHODS.map((method) => method.id).join(","),
-  "APPEAL,RALLY,STEEL_YOURSELF,MISDIRECT,DISTRACT,RESCUE,INTERRUPT,CHALLENGE,OVERAWE,DISCERN_TRUTH,TRACK",
-  "The standard Method registry should contain exactly the eleven approved IDs.",
+  "APPEAL,RALLY,STEEL_YOURSELF,MISDIRECT,DISTRACT,RESCUE,INTERRUPT,CHALLENGE,OVERAWE,DISCERN_TRUTH,TRACK,PROVE",
+  "The standard Method registry should contain exactly the twelve approved IDs.",
 );
-assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 13, "The registry should contain thirteen contracts.");
+assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 14, "The registry should contain fourteen contracts.");
 assertEqual(
   ROLEPLAY_OUTCOME_CONTRACTS.reduce(
     (total, contract) => total + enumerateRoleplayResolvedContractCells(contract).length,
     0,
   ),
-  80,
-  "The registry should contain all eighty planned cells.",
+  88,
+  "The registry should contain all eighty-eight planned cells.",
 );
 assertEqual(
   getRoleplayMethodDefinition("EXTRACT"),
@@ -1009,6 +1009,7 @@ for (const [methodId, intention] of [
   ["OVERAWE", "INTIMIDATION"],
   ["DISCERN_TRUTH", "PERCEPTION"],
   ["TRACK", "PERCEPTION"],
+  ["PROVE", "PERCEPTION"],
 ] as const) {
   assertEqual(
     getRoleplayMethodDefinition(methodId)?.intention,
@@ -1174,7 +1175,7 @@ for (const [intention, expectedIds] of [
   ["DECEPTION", "MISDIRECT,DISTRACT"],
   ["INTERVENTION", "RESCUE,INTERRUPT"],
   ["INTIMIDATION", "CHALLENGE,OVERAWE"],
-  ["PERCEPTION", "DISCERN_TRUTH,TRACK"],
+  ["PERCEPTION", "DISCERN_TRUTH,TRACK,PROVE"],
 ] as const) {
   assertEqual(
     getRoleplayMethodsForIntention(intention).map((method) => method.id).join(","),
@@ -1195,6 +1196,7 @@ for (const [specific, expectedMethodId, intention] of [
   ["OVERAWE", "OVERAWE", "INTIMIDATION"],
   ["DISCERN_TRUTH", "DISCERN_TRUTH", "PERCEPTION"],
   ["TRACK", "TRACK", "PERCEPTION"],
+  ["PROVE", "PROVE", "PERCEPTION"],
   ["ENABLE_MOVEMENT", "RESCUE", "INTERVENTION"],
 ] as const) {
   const migrated = normalizeRoleplayAbility(
@@ -3988,12 +3990,12 @@ assert(
 );
 
 const libraryAudit = auditRoleplayStandardLibrary();
-assertEqual(libraryAudit.plannedCellCount, 80, "Planned standard-library cell count drifted.");
-assertEqual(libraryAudit.completedCellCount, 80, "Completed standard-library cell count drifted.");
+assertEqual(libraryAudit.plannedCellCount, 88, "Planned standard-library cell count drifted.");
+assertEqual(libraryAudit.completedCellCount, 88, "Completed standard-library cell count drifted.");
 assertEqual(libraryAudit.missingCellCount, 0, "Missing standard-library cell count drifted.");
 assertEqual(
   new Set(libraryAudit.privilegeKeys).size,
-  13,
+  14,
   "Each contract family must own one unique privilege cost key.",
 );
 assert(
@@ -4023,6 +4025,7 @@ const expectedMissingCells = {
   UNCOVER_CONCEALED_TRUTH: 0,
   REVEAL_EXPLOITABLE_WEAKNESS: 0,
   TRACE_QUARRY: 0,
+  ESTABLISH_VERIFIED_TRUTH: 0,
   SECURE_WILLING_COOPERATION: 0,
   ESTABLISH_SHARED_RESOLVE: 0,
   SUSTAIN_PERSONAL_RESOLVE: 0,
@@ -4038,6 +4041,7 @@ const expectedOutcomeLanes = {
   UNCOVER_CONCEALED_TRUTH: "HELP",
   REVEAL_EXPLOITABLE_WEAKNESS: "HELP",
   TRACE_QUARRY: "HELP",
+  ESTABLISH_VERIFIED_TRUTH: "HELP",
   SECURE_WILLING_COOPERATION: "HELP",
   ESTABLISH_SHARED_RESOLVE: "HELP",
   SUSTAIN_PERSONAL_RESOLVE: "HELP",
@@ -4141,7 +4145,7 @@ assertEqual(
 const enumeratedCells = ROLEPLAY_OUTCOME_CONTRACTS.flatMap((contract) =>
   enumerateRoleplayResolvedContractCells(contract),
 );
-assertEqual(enumeratedCells.length, 80, "Every planned standard-library cell must resolve.");
+assertEqual(enumeratedCells.length, 88, "Every planned standard-library cell must resolve.");
 for (const [index, regression] of legacyDescriptorRegressions.entries()) {
   const contract = getRoleplayOutcomeContract(regression.contractId);
   assert(contract, `Regression contract ${regression.contractId} missing.`);
@@ -4443,6 +4447,7 @@ assertEqual(
     "UNCOVER_CONCEALED_TRUTH",
     "REVEAL_EXPLOITABLE_WEAKNESS",
     "TRACE_QUARRY",
+    "ESTABLISH_VERIFIED_TRUTH",
     "SECURE_WILLING_COOPERATION",
     "ESTABLISH_SHARED_RESOLVE",
     "SUSTAIN_PERSONAL_RESOLVE",
@@ -4801,8 +4806,8 @@ for (const exclusion of [
 }
 assertEqual(
   getRoleplayMethodsForIntention("PERCEPTION").map((method) => method.id).join(","),
-  "DISCERN_TRUTH,TRACK",
-  "Perception Method filtering should expose Discern Truth then Track.",
+  "DISCERN_TRUTH,TRACK,PROVE",
+  "Perception Method filtering should expose Discern Truth, Track, then Prove.",
 );
 
 const traceQuarryOutcomes = {
@@ -5167,9 +5172,408 @@ assertEqual(
   72,
   "All seventy-two pre-Track outcomes and descriptors must remain under exact regression coverage.",
 );
-assertEqual(libraryAudit.plannedCellCount, 80, "Track audit planned total mismatch.");
-assertEqual(libraryAudit.completedCellCount, 80, "Track audit completed total mismatch.");
-assertEqual(libraryAudit.missingCellCount, 0, "Track audit missing total mismatch.");
+assertEqual(
+  legacyDescriptorRegressions.length +
+    completionDescriptorRegressions.length +
+    personalResolveCells.length +
+    traceQuarryCells.length,
+  80,
+  "All eighty pre-Prove outcomes and descriptors must remain under exact regression coverage.",
+);
+
+const proveDefinition =
+  "Establish one truthful conclusion for others by presenting, demonstrating, connecting, or revealing coherent evidence, testimony, signs, consequences, or another verifiable basis.";
+const proveApproaches = [
+  "Present physical evidence that directly supports one conclusion",
+  "Demonstrate a repeatable or immediately observable fact",
+  "Connect multiple known clues into one coherent proof",
+  "Expose a contradiction through a verifiable record or source",
+  "Present reliable witness testimony",
+  "Reconstruct one event from accepted evidence",
+  "Reveal an accessible supporting detail that makes the truth demonstrable",
+  "Invoke magical, spiritual, psychic, technological, or supernatural verification supported by Narrative Theme and current fiction",
+] as const;
+const proveExclusions = [
+  "Does not discover whether a speculative claim is true; use Discern Truth.",
+  "Does not permit testing claims by repeatedly declaring possible truths.",
+  "Does not fabricate evidence, testimony, records, signs, credentials, or authority.",
+  "Does not establish a false or materially misleading premise; use Misdirect.",
+  "Does not reveal unrelated secrets or exploitable weaknesses.",
+  "Does not compel a particular action, cooperation, confession, emotional response, or public admission.",
+  "Does not force an accepted target to speak honestly.",
+  "Does not create comprehension, perception, memory, agency, or evaluative capability where none exists.",
+  "Does not override conclusive evidence that genuinely disproves the declared conclusion.",
+  "Does not grant an action, Response, movement, bonus, penalty, condition, or another quantified output.",
+  "Does not mechanically alter the audience or the subject of the truth.",
+  "Does not automatically affect anyone outside the selected Scope.",
+  "Does not convert One Target into Small Group.",
+  "Does not convert Small Group into Large Group, Faction / Army, or the public.",
+  "Does not make high Difficulty or Legendary Impact legalise a false, unsupported, incoherent, or inaccessible conclusion.",
+] as const;
+const proveMethod = getRoleplayMethodDefinition("PROVE");
+assert(proveMethod, "PROVE should exist in the Method registry.");
+assertEqual(proveMethod.name, "Prove", "Prove Method name mismatch.");
+assertEqual(proveMethod.intention, "PERCEPTION", "Prove owning Intention mismatch.");
+assertEqual(proveMethod.definition, proveDefinition, "Prove exact definition mismatch.");
+assertEqual(
+  proveMethod.legalApproaches.join("|"),
+  proveApproaches.join("|"),
+  "Prove exact legal approaches mismatch.",
+);
+assertEqual(
+  proveMethod.exclusions.join("|"),
+  proveExclusions.join("|"),
+  "Prove exact exclusions mismatch.",
+);
+assertEqual(
+  getRoleplayMethodsForIntention("PERCEPTION").map((method) => method.id).join(","),
+  "DISCERN_TRUTH,TRACK,PROVE",
+  "Perception Method order must be Discern Truth, Track, Prove.",
+);
+
+const verifiedTruthFragments = {
+  MINOR:
+    "{{audience}} recognises one small immediately verifiable truth as established for the current meaningful exchange and treats it as true when making relevant decisions",
+  STANDARD:
+    "{{audience}} recognises one meaningful truth relevant to the current situation as established for the rest of the current scene and treats it as true when making relevant decisions unless meaningful new evidence materially changes the conclusion",
+  MAJOR:
+    "{{audience}} recognises one central truth shaping the current situation as conclusively established for the rest of the current scene and continues to treat it as true despite serious denial, pressure, loyalty, or personal cost unless decisive new evidence or narrative resolution materially changes the conclusion",
+  LEGENDARY:
+    "{{audience}} recognises one defining truth whose consequences extend beyond the current scene as decisively established and treats it as true until its consequences are fulfilled or narratively resolved",
+} as const;
+const verifiedTruthOutcomes = {
+  ONE_TARGET: {
+    MINOR:
+      "the target recognises one small immediately verifiable truth as established for the current meaningful exchange and treats it as true when making relevant decisions",
+    STANDARD:
+      "the target recognises one meaningful truth relevant to the current situation as established for the rest of the current scene and treats it as true when making relevant decisions unless meaningful new evidence materially changes the conclusion",
+    MAJOR:
+      "the target recognises one central truth shaping the current situation as conclusively established for the rest of the current scene and continues to treat it as true despite serious denial, pressure, loyalty, or personal cost unless decisive new evidence or narrative resolution materially changes the conclusion",
+    LEGENDARY:
+      "the target recognises one defining truth whose consequences extend beyond the current scene as decisively established and treats it as true until its consequences are fulfilled or narratively resolved",
+  },
+  SMALL_GROUP: {
+    MINOR:
+      "every accepted member of the selected group recognises one small immediately verifiable truth as established for the current meaningful exchange and treats it as true when making relevant decisions",
+    STANDARD:
+      "every accepted member of the selected group recognises one meaningful truth relevant to the current situation as established for the rest of the current scene and treats it as true when making relevant decisions unless meaningful new evidence materially changes the conclusion",
+    MAJOR:
+      "every accepted member of the selected group recognises one central truth shaping the current situation as conclusively established for the rest of the current scene and continues to treat it as true despite serious denial, pressure, loyalty, or personal cost unless decisive new evidence or narrative resolution materially changes the conclusion",
+    LEGENDARY:
+      "every accepted member of the selected group recognises one defining truth whose consequences extend beyond the current scene as decisively established and treats it as true until its consequences are fulfilled or narratively resolved",
+  },
+} as const;
+const verifiedTruthDescriptors = {
+  ONE_TARGET: {
+    MINOR: `Choose one target and roll 3 dice. On success, ${verifiedTruthOutcomes.ONE_TARGET.MINOR}.`,
+    STANDARD: `Choose one target and roll 3 dice. On success, ${verifiedTruthOutcomes.ONE_TARGET.STANDARD}.`,
+    MAJOR: `Choose one target and roll 3 dice. On success, ${verifiedTruthOutcomes.ONE_TARGET.MAJOR}.`,
+    LEGENDARY: `Choose one target and roll 3 dice. On success, ${verifiedTruthOutcomes.ONE_TARGET.LEGENDARY}.`,
+  },
+  SMALL_GROUP: {
+    MINOR: `Choose a small group of targets and roll 3 dice. On success, ${verifiedTruthOutcomes.SMALL_GROUP.MINOR}.`,
+    STANDARD: `Choose a small group of targets and roll 3 dice. On success, ${verifiedTruthOutcomes.SMALL_GROUP.STANDARD}.`,
+    MAJOR: `Choose a small group of targets and roll 3 dice. On success, ${verifiedTruthOutcomes.SMALL_GROUP.MAJOR}.`,
+    LEGENDARY: `Choose a small group of targets and roll 3 dice. On success, ${verifiedTruthOutcomes.SMALL_GROUP.LEGENDARY}.`,
+  },
+} as const;
+
+const verifiedTruthContract = getRoleplayOutcomeContract("ESTABLISH_VERIFIED_TRUTH");
+assert(verifiedTruthContract, "ESTABLISH_VERIFIED_TRUTH should exist.");
+assertEqual(
+  verifiedTruthContract.name,
+  "Establish Verified Truth",
+  "Establish Verified Truth name mismatch.",
+);
+assertEqual(verifiedTruthContract.outcomeLane, "HELP", "Verified Truth should be Help.");
+assertEqual(verifiedTruthContract.intention, "PERCEPTION", "Verified Truth Intention mismatch.");
+assertEqual(verifiedTruthContract.methodId, "PROVE", "Verified Truth Method mismatch.");
+assertEqual(
+  verifiedTruthContract.supportedScopes.join("|"),
+  "ONE_TARGET|SMALL_GROUP",
+  "Verified Truth supported Scope order mismatch.",
+);
+assertEqual(
+  verifiedTruthContract.privilegeCostKey,
+  "ESTABLISH_VERIFIED_TRUTH",
+  "Verified Truth family key mismatch.",
+);
+assertEqual(
+  verifiedTruthContract.scopeTokens.ONE_TARGET?.audience,
+  "the target",
+  "Verified Truth One Target audience token mismatch.",
+);
+assertEqual(
+  verifiedTruthContract.scopeTokens.SMALL_GROUP?.audience,
+  "every accepted member of the selected group",
+  "Verified Truth Small Group audience token mismatch.",
+);
+assertEqual(
+  getRoleplayOutcomeContractsForMethod("PERCEPTION", "PROVE")
+    .map((contract) => contract.id)
+    .join("|"),
+  "ESTABLISH_VERIFIED_TRUTH",
+  "Prove should expose only Establish Verified Truth.",
+);
+
+const verifiedTruthCells = enumerateRoleplayResolvedContractCells(verifiedTruthContract);
+assertEqual(verifiedTruthCells.length, 8, "Verified Truth needs eight completed cells.");
+for (const scope of ["ONE_TARGET", "SMALL_GROUP"] as const) {
+  for (const sceneImpact of regressionImpacts) {
+    assertEqual(
+      verifiedTruthContract.impactFragments[sceneImpact],
+      verifiedTruthFragments[sceneImpact],
+      `${sceneImpact} exact Verified Truth fragment mismatch.`,
+    );
+    const cell = verifiedTruthCells.find(
+      (candidate) => candidate.scope === scope && candidate.sceneImpact === sceneImpact,
+    );
+    assert(cell, `${scope}/${sceneImpact} Verified Truth cell missing.`);
+    assertEqual(
+      cell.successOutcome,
+      verifiedTruthOutcomes[scope][sceneImpact],
+      `${scope}/${sceneImpact} Verified Truth outcome mismatch.`,
+    );
+    assertEqual(cell.counterEligible, false, `${scope}/${sceneImpact} must reject Counter.`);
+    const ability = reconcileRoleplayAbilityAuthoring({
+      ...createDefaultRoleplayAbility(700),
+      intention: "PERCEPTION",
+      methodId: "PROVE",
+      scope,
+      sceneImpact,
+      diceCount: 3,
+      outcomeContractId: "ESTABLISH_VERIFIED_TRUTH",
+      counter: true,
+    });
+    assertEqual(
+      ability.outcomeContractId,
+      "ESTABLISH_VERIFIED_TRUTH",
+      "Verified Truth cell was cleared.",
+    );
+    assertEqual(ability.counter, false, "Verified Truth should force stored Counter off.");
+    assertEqual(getRoleplayAbilityOutcomeLane(ability), "HELP", "Verified Truth lane drifted.");
+    assertEqual(
+      getRoleplayAbilitySuccessOutcome(ability),
+      verifiedTruthOutcomes[scope][sceneImpact],
+      `${scope}/${sceneImpact} generated Verified Truth outcome mismatch.`,
+    );
+    assertEqual(
+      renderRoleplayAbilityDescriptor(ability),
+      verifiedTruthDescriptors[scope][sceneImpact],
+      `${scope}/${sceneImpact} Verified Truth 3-dice descriptor mismatch.`,
+    );
+  }
+}
+
+let theRecordIsClear = selectRoleplayAbilityOutcomeContract(
+  {
+    ...createDefaultRoleplayAbility(701),
+    name: "The Record Is Clear",
+    narrativeTheme:
+      "You align the surviving record, the visible seal, and the witness account into one verifiable conclusion the audience can examine.",
+    intention: "PERCEPTION",
+    methodId: "PROVE",
+    sceneImpact: "MAJOR",
+    scope: "SELF",
+    diceCount: 3,
+    counter: true,
+  },
+  "ESTABLISH_VERIFIED_TRUTH",
+);
+assertEqual(theRecordIsClear.scope, "ONE_TARGET", "Verified Truth should fall back from Self.");
+assertEqual(
+  theRecordIsClear.outcomeContractId,
+  "ESTABLISH_VERIFIED_TRUTH",
+  "Verified Truth selection failed.",
+);
+assertEqual(getRoleplayAbilityMethodName(theRecordIsClear), "Prove", "Prove name mismatch.");
+assertEqual(
+  getRoleplayAbilityContractName(theRecordIsClear),
+  "Establish Verified Truth",
+  "Verified Truth contract name mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(theRecordIsClear),
+  verifiedTruthDescriptors.ONE_TARGET.MAJOR,
+  "The Record Is Clear descriptor mismatch.",
+);
+assertEqual(theRecordIsClear.counter, false, "Verified Truth Counter must be forced false.");
+
+theRecordIsClear = selectRoleplayAbilityScope(theRecordIsClear, "SMALL_GROUP");
+assertEqual(theRecordIsClear.scope, "SMALL_GROUP", "Verified Truth should switch to Small Group.");
+assertEqual(
+  theRecordIsClear.outcomeContractId,
+  "ESTABLISH_VERIFIED_TRUTH",
+  "Small Group switching cleared Verified Truth.",
+);
+theRecordIsClear = selectRoleplayAbilityScope(theRecordIsClear, "ONE_TARGET");
+assertEqual(theRecordIsClear.scope, "ONE_TARGET", "Verified Truth should switch to One Target.");
+for (const sceneImpact of regressionImpacts) {
+  theRecordIsClear = selectRoleplayAbilitySceneImpact(theRecordIsClear, sceneImpact);
+  assertEqual(
+    theRecordIsClear.outcomeContractId,
+    "ESTABLISH_VERIFIED_TRUTH",
+    `${sceneImpact} switching cleared Verified Truth.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(theRecordIsClear),
+    verifiedTruthOutcomes.ONE_TARGET[sceneImpact],
+    `${sceneImpact} switched Verified Truth outcome mismatch.`,
+  );
+}
+
+for (const requestedScope of ["SELF", "LARGE_GROUP", "FACTION_ARMY"] as const) {
+  const invalidated = reconcileRoleplayAbilityAuthoring({
+    ...theRecordIsClear,
+    scope: requestedScope,
+    counter: true,
+  });
+  assertEqual(
+    invalidated.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    `${requestedScope} raw Verified Truth authoring should clear the family.`,
+  );
+  assertEqual(invalidated.counter, false, `${requestedScope} invalidation should clear Counter.`);
+}
+for (const incompatible of [
+  { intention: "PERCEPTION" as const, methodId: "TRACK" as const },
+  { intention: "PERSUASION" as const, methodId: "APPEAL" as const },
+]) {
+  const invalidated = reconcileRoleplayAbilityAuthoring({
+    ...theRecordIsClear,
+    ...incompatible,
+    counter: true,
+  });
+  assertEqual(
+    invalidated.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    "Incompatible Method or Intention should clear Verified Truth.",
+  );
+  assertEqual(invalidated.counter, false, "Incompatible authoring should clear Counter.");
+}
+
+for (const restrictionType of [
+  "NONE",
+  "TARGET_ELIGIBILITY",
+  "CIRCUMSTANCE",
+  "OATH_BEHAVIOUR",
+  "SCENE_STATE",
+  "RESOURCE_STATE",
+] as const) {
+  const edited = reconcileRoleplayAbilityAuthoring({
+    ...theRecordIsClear,
+    name: "The Evidence Is Clear",
+    narrativeTheme: "You present one coherent evidentiary basis to the accepted audience.",
+    diceCount: 5,
+    restrictionType,
+    restrictionBand: restrictionType === "NONE" ? "NONE_COSMETIC" : "MODERATE",
+    restrictionTag: restrictionType === "TARGET_ELIGIBILITY" ? "one informed audience" : "",
+    restrictionText: restrictionType === "NONE" ? "" : "Only while the declared limit applies.",
+  });
+  assertEqual(
+    edited.outcomeContractId,
+    "ESTABLISH_VERIFIED_TRUTH",
+    `${restrictionType} and non-authoring edits should retain Verified Truth.`,
+  );
+}
+
+const legacyProve = normalizeRoleplayAbility(
+  {
+    name: "Legacy Proof",
+    description: "You present an accepted evidentiary basis.",
+    intention: "PERCEPTION",
+    specific: "PROVE",
+    sceneImpact: "MAJOR",
+    scope: "ONE_TARGET",
+    diceCount: 3,
+    successOutcome: verifiedTruthOutcomes.ONE_TARGET.MAJOR,
+    counter: true,
+  },
+  702,
+);
+assertEqual(legacyProve.methodId, "PROVE", "Legacy Perception PROVE should migrate.");
+assertEqual(
+  legacyProve.outcomeContractId,
+  "ESTABLISH_VERIFIED_TRUTH",
+  "Matching legacy proof outcome should migrate to Verified Truth.",
+);
+assertEqual(legacyProve.counter, false, "Legacy Verified Truth must force Counter off.");
+
+const explicitCustomProve = normalizeRoleplayAbility(
+  {
+    intention: "PERCEPTION",
+    methodId: ROLEPLAY_METHOD_CUSTOM_REVIEW,
+    customMethodName: "Prove",
+    customMethodRequest: "A deliberately explicit Custom Prove Method.",
+  },
+  703,
+);
+assertEqual(
+  explicitCustomProve.methodId,
+  ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  "Explicit stored Custom Prove must remain Custom.",
+);
+for (const specific of [
+  "REVELATION",
+  "EXPOSE",
+  "DEMONSTRATE",
+  "PRESENT_EVIDENCE",
+  "CONVINCE",
+  "TESTIFY",
+] as const) {
+  const ambiguousProof = normalizeRoleplayAbility(
+    { intention: "PERCEPTION", specific, description: `Legacy ${specific} theme.` },
+    704,
+  );
+  assertEqual(
+    ambiguousProof.methodId,
+    ROLEPLAY_METHOD_CUSTOM_REVIEW,
+    `${specific} must remain Custom instead of migrating to Prove.`,
+  );
+}
+const customProofOutcomeText = "The target confesses and obeys your next command";
+const explicitCustomProofOutcome = normalizeRoleplayAbility(
+  {
+    intention: "PERCEPTION",
+    methodId: "PROVE",
+    sceneImpact: "LEGENDARY",
+    scope: "ONE_TARGET",
+    diceCount: 3,
+    outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+    customOutcomeLane: "HELP",
+    customOutcomeRequest: customProofOutcomeText,
+  },
+  705,
+);
+assertEqual(
+  explicitCustomProofOutcome.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  "Explicit Prove Custom Outcome must remain Custom.",
+);
+
+for (const runtimeProofField of [
+  "declaredTruth",
+  "truthClaim",
+  "verifiedTruth",
+  "proof",
+  "proofText",
+  "evidence",
+  "evidenceText",
+  "evidentiaryBasis",
+  "audienceMembers",
+  "truthSubject",
+  "supportingDetail",
+  "conclusion",
+]) {
+  assert(
+    !Object.hasOwn(theRecordIsClear, runtimeProofField) &&
+      !Object.hasOwn(legacyProve, runtimeProofField),
+    `${runtimeProofField} must remain runtime-only state.`,
+  );
+}
+assertEqual(libraryAudit.plannedCellCount, 88, "Verified Truth audit planned total mismatch.");
+assertEqual(libraryAudit.completedCellCount, 88, "Verified Truth audit completed total mismatch.");
+assertEqual(libraryAudit.missingCellCount, 0, "Verified Truth audit missing total mismatch.");
 
 console.log("PASS roleplay outcome contract registry smoke");
 console.log("PASS roleplay secure immediate safety contract smoke");
@@ -5186,3 +5590,4 @@ console.log("PASS roleplay compositional standard library smoke");
 console.log("PASS roleplay complete standard library smoke");
 console.log("PASS roleplay personal resolve self standard library smoke");
 console.log("PASS roleplay quarry tracking standard library smoke");
+console.log("PASS roleplay verified truth proof standard library smoke");

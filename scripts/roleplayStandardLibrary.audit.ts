@@ -17,6 +17,7 @@ const EXPECTED_METHOD_ORDER = [
   "OVERAWE",
   "DISCERN_TRUTH",
   "TRACK",
+  "PROVE",
 ] as const;
 
 const EXPECTED_CONTRACT_ORDER = [
@@ -28,6 +29,7 @@ const EXPECTED_CONTRACT_ORDER = [
   "UNCOVER_CONCEALED_TRUTH",
   "REVEAL_EXPLOITABLE_WEAKNESS",
   "TRACE_QUARRY",
+  "ESTABLISH_VERIFIED_TRUTH",
   "SECURE_WILLING_COOPERATION",
   "ESTABLISH_SHARED_RESOLVE",
   "SUSTAIN_PERSONAL_RESOLVE",
@@ -44,6 +46,7 @@ const EXPECTED_MISSING_COUNTS: Record<RoleplayStandardOutcomeContractId, number>
   UNCOVER_CONCEALED_TRUTH: 0,
   REVEAL_EXPLOITABLE_WEAKNESS: 0,
   TRACE_QUARRY: 0,
+  ESTABLISH_VERIFIED_TRUTH: 0,
   SECURE_WILLING_COOPERATION: 0,
   ESTABLISH_SHARED_RESOLVE: 0,
   SUSTAIN_PERSONAL_RESOLVE: 0,
@@ -70,13 +73,13 @@ if (!sameOrder(audit.methodIds, EXPECTED_METHOD_ORDER)) {
 if (!sameOrder(audit.contractIds, EXPECTED_CONTRACT_ORDER)) {
   errors.push(`contract-order:${audit.contractIds.join(",")}`);
 }
-if (audit.privilegeKeys.length !== 13) {
+if (audit.privilegeKeys.length !== 14) {
   errors.push(`privilege-key-count:${audit.privilegeKeys.length}`);
 }
-if (audit.plannedCellCount !== 80) {
+if (audit.plannedCellCount !== 88) {
   errors.push(`planned-cell-count:${audit.plannedCellCount}`);
 }
-if (audit.completedCellCount !== 80) {
+if (audit.completedCellCount !== 88) {
   errors.push(`completed-cell-count:${audit.completedCellCount}`);
 }
 if (audit.missingCellCount !== 0) {
