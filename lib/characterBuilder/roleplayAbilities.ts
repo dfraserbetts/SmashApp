@@ -380,22 +380,64 @@ export type RoleplayOutcomeContractAuthoring = {
   scope: RoleplayScope;
 };
 
-export type RoleplayOutcomeContractVariant = {
-  authoring: RoleplayOutcomeContractAuthoring;
-  successOutcome: string;
-  counterEligible: boolean;
-  privilegeCostKey: string;
-  examples?: readonly string[];
-  exclusions?: readonly string[];
+export type RoleplayOutcomeContractCounterEligibility = {
+  default: boolean;
+  byScope?: Partial<Record<RoleplayScope, boolean>>;
+  byImpact?: Partial<Record<RoleplaySceneImpact, boolean>>;
 };
 
 export type RoleplayOutcomeContractDefinition = {
   id: RoleplayStandardOutcomeContractId;
   name: string;
   outcomeLane: RoleplayOutcomeLane;
-  variants: readonly RoleplayOutcomeContractVariant[];
+  intention: RoleplayIntention;
+  methodId: RoleplayStandardMethodId;
+  supportedScopes: readonly RoleplayScope[];
+  outcomeTemplate: string;
+  scopeTokens: Partial<
+    Record<RoleplayScope, Readonly<Record<string, string>>>
+  >;
+  impactFragments: Partial<Record<RoleplaySceneImpact, string>>;
+  counterEligibility: RoleplayOutcomeContractCounterEligibility;
+  privilegeCostKey: string;
   examples: readonly string[];
   exclusions: readonly string[];
+};
+
+export type ResolvedRoleplayOutcomeContract = {
+  contractId: RoleplayStandardOutcomeContractId;
+  scope: RoleplayScope;
+  sceneImpact: RoleplaySceneImpact;
+  successOutcome: string;
+  counterEligible: boolean;
+  privilegeCostKey: string;
+};
+
+export type RoleplayStandardLibraryAudit = {
+  methodIds: RoleplayStandardMethodId[];
+  contractIds: RoleplayStandardOutcomeContractId[];
+  privilegeKeys: string[];
+  plannedCellCount: number;
+  completedCellCount: number;
+  missingCellCount: number;
+  missingCellsByContract: Record<
+    RoleplayStandardOutcomeContractId,
+    Array<{ scope: RoleplayScope; sceneImpact: RoleplaySceneImpact }>
+  >;
+  supportedScopesByContract: Record<RoleplayStandardOutcomeContractId, RoleplayScope[]>;
+  completedImpactsByContractScope: Record<
+    string,
+    RoleplaySceneImpact[]
+  >;
+  missingScopeTokenFragments: string[];
+  unresolvedTemplateTokens: string[];
+  duplicateIds: string[];
+  duplicatePrivilegeKeys: string[];
+  invalidMethodOwnership: string[];
+  blankGeneratedOutcomes: string[];
+  duplicateCompletedCells: string[];
+  counterResolutionErrors: string[];
+  structuralErrors: string[];
 };
 
 export const ROLEPLAY_OUTCOME_CONTRACTS = [
@@ -403,31 +445,25 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "HIDE_FROM_IMMEDIATE_DANGER",
     name: "Hide from Immediate Danger",
     outcomeLane: "HELP",
-    variants: [
-      {
-        authoring: {
-          intention: "INTERVENTION",
-          methodId: "RESCUE",
-          sceneImpact: "MINOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome: "the target becomes hidden from the immediate danger",
-        counterEligible: false,
-        privilegeCostKey: "HIDE_FROM_IMMEDIATE_DANGER",
+    intention: "INTERVENTION",
+    methodId: "RESCUE",
+    supportedScopes: ["ONE_TARGET", "SMALL_GROUP"],
+    outcomeTemplate: "{{subject}} {{impact}}",
+    scopeTokens: {
+      ONE_TARGET: {
+        subject: "the target",
+        dangerReference: "the immediate danger",
       },
-      {
-        authoring: {
-          intention: "INTERVENTION",
-          methodId: "RESCUE",
-          sceneImpact: "MINOR",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "every accepted member of the selected group becomes hidden from one declared immediate danger",
-        counterEligible: false,
-        privilegeCostKey: "HIDE_FROM_IMMEDIATE_DANGER_SMALL_GROUP",
+      SMALL_GROUP: {
+        subject: "every accepted member of the selected group",
+        dangerReference: "one declared immediate danger",
       },
-    ],
+    },
+    impactFragments: {
+      MINOR: "becomes hidden from {{dangerReference}}",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "HIDE_FROM_IMMEDIATE_DANGER",
     examples: [
       "Diving between ruined stones",
       "Disappearing into a crowd",
@@ -455,32 +491,20 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "SECURE_IMMEDIATE_SAFETY",
     name: "Secure Immediate Safety",
     outcomeLane: "HELP",
-    variants: [
-      {
-        authoring: {
-          intention: "INTERVENTION",
-          methodId: "RESCUE",
-          sceneImpact: "STANDARD",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target is secured from one declared immediate peril and is no longer directly threatened by it",
-        counterEligible: false,
-        privilegeCostKey: "SECURE_IMMEDIATE_SAFETY",
-      },
-      {
-        authoring: {
-          intention: "INTERVENTION",
-          methodId: "RESCUE",
-          sceneImpact: "STANDARD",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "every accepted member of the selected group is secured from one declared immediate peril and is no longer directly threatened by it",
-        counterEligible: false,
-        privilegeCostKey: "SECURE_IMMEDIATE_SAFETY_SMALL_GROUP",
-      },
-    ],
+    intention: "INTERVENTION",
+    methodId: "RESCUE",
+    supportedScopes: ["ONE_TARGET", "SMALL_GROUP"],
+    outcomeTemplate: "{{subject}} {{impact}}",
+    scopeTokens: {
+      ONE_TARGET: { subject: "the target" },
+      SMALL_GROUP: { subject: "every accepted member of the selected group" },
+    },
+    impactFragments: {
+      STANDARD:
+        "is secured from one declared immediate peril and is no longer directly threatened by it",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "SECURE_IMMEDIATE_SAFETY",
     examples: [
       "Catching an ally as a broken ledge gives way",
       "Pulling a child clear of a collapsing awning",
@@ -523,19 +547,16 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "DENY_IMMINENT_HOSTILE_ACT",
     name: "Deny Imminent Hostile Act",
     outcomeLane: "HINDER",
-    variants: [
-      {
-        authoring: {
-          intention: "INTERVENTION",
-          methodId: "INTERRUPT",
-          sceneImpact: "MAJOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome: "the target's current or next hostile action fails",
-        counterEligible: true,
-        privilegeCostKey: "DENY_IMMINENT_HOSTILE_ACT",
-      },
-    ],
+    intention: "INTERVENTION",
+    methodId: "INTERRUPT",
+    supportedScopes: ["ONE_TARGET"],
+    outcomeTemplate: "{{impact}}",
+    scopeTokens: { ONE_TARGET: {} },
+    impactFragments: {
+      MAJOR: "the target's current or next hostile action fails",
+    },
+    counterEligibility: { default: true },
+    privilegeCostKey: "DENY_IMMINENT_HOSTILE_ACT",
     examples: ["Stopping an imminent hostile act before it resolves"],
     exclusions: [
       "Does not permanently incapacitate the target.",
@@ -550,56 +571,23 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "DRAW_HOSTILE_ATTENTION",
     name: "Draw Hostile Attention",
     outcomeLane: "HINDER",
-    variants: [
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "CHALLENGE",
-          sceneImpact: "MINOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the next time the target acts with hostility, it must direct that hostility at you, if you are a valid target",
-        counterEligible: false,
-        privilegeCostKey: "DRAW_HOSTILE_ATTENTION_MINOR",
-      },
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "CHALLENGE",
-          sceneImpact: "STANDARD",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "until the end of the target's next turn in combat, or the end of the current meaningful exchange outside combat, whenever the target acts with hostility, it must direct that hostility at you, if you are a valid target",
-        counterEligible: false,
-        privilegeCostKey: "DRAW_HOSTILE_ATTENTION_STANDARD",
-      },
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "CHALLENGE",
-          sceneImpact: "MAJOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "for the rest of the current scene, whenever the target acts with hostility, it must direct that hostility at you, if you are a valid target",
-        counterEligible: false,
-        privilegeCostKey: "DRAW_HOSTILE_ATTENTION_MAJOR",
-      },
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "CHALLENGE",
-          sceneImpact: "LEGENDARY",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target recognises you as its personal rival until the rivalry is narratively resolved",
-        counterEligible: false,
-        privilegeCostKey: "DRAW_HOSTILE_ATTENTION_LEGENDARY",
-      },
-    ],
+    intention: "INTIMIDATION",
+    methodId: "CHALLENGE",
+    supportedScopes: ["ONE_TARGET"],
+    outcomeTemplate: "{{impact}}",
+    scopeTokens: { ONE_TARGET: {} },
+    impactFragments: {
+      MINOR:
+        "the next time the target acts with hostility, it must direct that hostility at you, if you are a valid target",
+      STANDARD:
+        "until the end of the target's next turn in combat, or the end of the current meaningful exchange outside combat, whenever the target acts with hostility, it must direct that hostility at you, if you are a valid target",
+      MAJOR:
+        "for the rest of the current scene, whenever the target acts with hostility, it must direct that hostility at you, if you are a valid target",
+      LEGENDARY:
+        "the target recognises you as its personal rival until the rivalry is narratively resolved",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "DRAW_HOSTILE_ATTENTION",
     examples: [
       "Challenging an enemy warrior to focus on you",
       "Drawing an accusation away from an ally in court",
@@ -625,104 +613,34 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "BREAK_SHARED_RESOLVE",
     name: "Break Resolve",
     outcomeLane: "HINDER",
-    variants: [
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "OVERAWE",
-          sceneImpact: "MINOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target breaks off one small immediate course of opposition for the current meaningful exchange; the target may choose another coherent response but does not pursue that course",
-        counterEligible: false,
-        privilegeCostKey: "BREAK_SHARED_RESOLVE_ONE_TARGET_MINOR",
+    intention: "INTIMIDATION",
+    methodId: "OVERAWE",
+    supportedScopes: ["ONE_TARGET", "SMALL_GROUP"],
+    outcomeTemplate: "{{impact}}",
+    scopeTokens: {
+      ONE_TARGET: {
+        subject: "the target",
+        shared: "",
+        alternativeSubject: "the target",
       },
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "OVERAWE",
-          sceneImpact: "STANDARD",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target abandons one clear course of opposition for the rest of the current scene; the target may choose another coherent response but does not pursue that course",
-        counterEligible: false,
-        privilegeCostKey: "BREAK_SHARED_RESOLVE_ONE_TARGET_STANDARD",
+      SMALL_GROUP: {
+        subject: "the selected group",
+        shared: " shared",
+        alternativeSubject: "each member",
       },
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "OVERAWE",
-          sceneImpact: "MAJOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target abandons one central course of opposition for the rest of the current scene and does not resume it despite serious pressure, loyalty, personal cost, or command",
-        counterEligible: false,
-        privilegeCostKey: "BREAK_SHARED_RESOLVE_ONE_TARGET_MAJOR",
-      },
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "OVERAWE",
-          sceneImpact: "LEGENDARY",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target adopts an enduring refusal to pursue one defining course of opposition whose consequences extend beyond the current scene and maintains that refusal until it is narratively resolved",
-        counterEligible: false,
-        privilegeCostKey: "BREAK_SHARED_RESOLVE_ONE_TARGET_LEGENDARY",
-      },
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "OVERAWE",
-          sceneImpact: "MINOR",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "the selected group breaks off one small immediate shared course of opposition for the current meaningful exchange; each member may choose another coherent response but does not pursue that course",
-        counterEligible: false,
-        privilegeCostKey: "BREAK_SHARED_RESOLVE_MINOR",
-      },
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "OVERAWE",
-          sceneImpact: "STANDARD",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "the selected group abandons one clear shared course of opposition for the rest of the current scene; each member may choose another coherent response but does not pursue that course",
-        counterEligible: false,
-        privilegeCostKey: "BREAK_SHARED_RESOLVE_STANDARD",
-      },
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "OVERAWE",
-          sceneImpact: "MAJOR",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "the selected group abandons one central shared course of opposition for the rest of the current scene and does not resume it despite serious pressure, loyalty, personal cost, or command",
-        counterEligible: false,
-        privilegeCostKey: "BREAK_SHARED_RESOLVE_MAJOR",
-      },
-      {
-        authoring: {
-          intention: "INTIMIDATION",
-          methodId: "OVERAWE",
-          sceneImpact: "LEGENDARY",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "the selected group adopts an enduring refusal to pursue one defining course of opposition whose consequences extend beyond the current scene and maintains that refusal until it is narratively resolved",
-        counterEligible: false,
-        privilegeCostKey: "BREAK_SHARED_RESOLVE_LEGENDARY",
-      },
-    ],
+    },
+    impactFragments: {
+      MINOR:
+        "{{subject}} breaks off one small immediate{{shared}} course of opposition for the current meaningful exchange; {{alternativeSubject}} may choose another coherent response but does not pursue that course",
+      STANDARD:
+        "{{subject}} abandons one clear{{shared}} course of opposition for the rest of the current scene; {{alternativeSubject}} may choose another coherent response but does not pursue that course",
+      MAJOR:
+        "{{subject}} abandons one central{{shared}} course of opposition for the rest of the current scene and does not resume it despite serious pressure, loyalty, personal cost, or command",
+      LEGENDARY:
+        "{{subject}} adopts an enduring refusal to pursue one defining course of opposition whose consequences extend beyond the current scene and maintains that refusal until it is narratively resolved",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "BREAK_SHARED_RESOLVE",
     examples: [
       "A gang breaks off one immediate rush",
       "Guards stop one brief collective search",
@@ -770,56 +688,23 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "UNCOVER_CONCEALED_TRUTH",
     name: "Uncover Concealed Truth",
     outcomeLane: "HELP",
-    variants: [
-      {
-        authoring: {
-          intention: "PERCEPTION",
-          methodId: "DISCERN_TRUTH",
-          sceneImpact: "MINOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "you learn whether the target is concealing something relevant to the immediate situation and, if so, its general nature; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
-        counterEligible: false,
-        privilegeCostKey: "UNCOVER_CONCEALED_TRUTH_MINOR",
-      },
-      {
-        authoring: {
-          intention: "PERCEPTION",
-          methodId: "DISCERN_TRUTH",
-          sceneImpact: "STANDARD",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "you learn one useful concealed truth about the target relevant to the immediate situation; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
-        counterEligible: false,
-        privilegeCostKey: "UNCOVER_CONCEALED_TRUTH_STANDARD",
-      },
-      {
-        authoring: {
-          intention: "PERCEPTION",
-          methodId: "DISCERN_TRUTH",
-          sceneImpact: "MAJOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "you learn a central concealed truth about the target that is shaping the current situation; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
-        counterEligible: false,
-        privilegeCostKey: "UNCOVER_CONCEALED_TRUTH_MAJOR",
-      },
-      {
-        authoring: {
-          intention: "PERCEPTION",
-          methodId: "DISCERN_TRUTH",
-          sceneImpact: "LEGENDARY",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "you learn a defining concealed truth about the target whose significance extends beyond the current scene; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
-        counterEligible: false,
-        privilegeCostKey: "UNCOVER_CONCEALED_TRUTH_LEGENDARY",
-      },
-    ],
+    intention: "PERCEPTION",
+    methodId: "DISCERN_TRUTH",
+    supportedScopes: ["ONE_TARGET"],
+    outcomeTemplate: "{{impact}}",
+    scopeTokens: { ONE_TARGET: {} },
+    impactFragments: {
+      MINOR:
+        "you learn whether the target is concealing something relevant to the immediate situation and, if so, its general nature; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+      STANDARD:
+        "you learn one useful concealed truth about the target relevant to the immediate situation; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+      MAJOR:
+        "you learn a central concealed truth about the target that is shaping the current situation; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+      LEGENDARY:
+        "you learn a defining concealed truth about the target whose significance extends beyond the current scene; if no qualifying concealed truth exists, you learn that nothing relevant is being concealed",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "UNCOVER_CONCEALED_TRUTH",
     examples: [
       "Noticing that a witness is hiding fear of a particular person",
       "Realising that a negotiator is deliberately stalling for time",
@@ -850,56 +735,23 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "REVEAL_EXPLOITABLE_WEAKNESS",
     name: "Reveal Exploitable Weakness",
     outcomeLane: "HELP",
-    variants: [
-      {
-        authoring: {
-          intention: "PERCEPTION",
-          methodId: "DISCERN_TRUTH",
-          sceneImpact: "MINOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "you identify one small immediately useful weakness, opening, or opportunity concerning the target for the current meaningful exchange; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
-        counterEligible: false,
-        privilegeCostKey: "REVEAL_EXPLOITABLE_WEAKNESS_MINOR",
-      },
-      {
-        authoring: {
-          intention: "PERCEPTION",
-          methodId: "DISCERN_TRUTH",
-          sceneImpact: "STANDARD",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "you identify one useful exploitable weakness, route, pattern, dependency, or leverage point concerning the target for the current situation; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
-        counterEligible: false,
-        privilegeCostKey: "REVEAL_EXPLOITABLE_WEAKNESS_STANDARD",
-      },
-      {
-        authoring: {
-          intention: "PERCEPTION",
-          methodId: "DISCERN_TRUTH",
-          sceneImpact: "MAJOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "you reveal one central exploitable vulnerability or opportunity concerning the target that is shaping the current scene and can materially change how it is approached; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
-        counterEligible: false,
-        privilegeCostKey: "REVEAL_EXPLOITABLE_WEAKNESS_MAJOR",
-      },
-      {
-        authoring: {
-          intention: "PERCEPTION",
-          methodId: "DISCERN_TRUTH",
-          sceneImpact: "LEGENDARY",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "you reveal one defining vulnerability, hidden route, dependency, or leverage point concerning the target whose significance extends beyond the current scene; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
-        counterEligible: false,
-        privilegeCostKey: "REVEAL_EXPLOITABLE_WEAKNESS_LEGENDARY",
-      },
-    ],
+    intention: "PERCEPTION",
+    methodId: "DISCERN_TRUTH",
+    supportedScopes: ["ONE_TARGET"],
+    outcomeTemplate: "{{impact}}",
+    scopeTokens: { ONE_TARGET: {} },
+    impactFragments: {
+      MINOR:
+        "you identify one small immediately useful weakness, opening, or opportunity concerning the target for the current meaningful exchange; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+      STANDARD:
+        "you identify one useful exploitable weakness, route, pattern, dependency, or leverage point concerning the target for the current situation; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+      MAJOR:
+        "you reveal one central exploitable vulnerability or opportunity concerning the target that is shaping the current scene and can materially change how it is approached; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+      LEGENDARY:
+        "you reveal one defining vulnerability, hidden route, dependency, or leverage point concerning the target whose significance extends beyond the current scene; if no qualifying exploitable opportunity exists, you learn that none is presently accessible",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "REVEAL_EXPLOITABLE_WEAKNESS",
     examples: [
       "Noticing one loose fastening during the current exchange",
       "Identifying the brief moment when a creature's attention shifts",
@@ -945,56 +797,25 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "SECURE_WILLING_COOPERATION",
     name: "Secure Willing Cooperation",
     outcomeLane: "HELP",
-    variants: [
-      {
-        authoring: {
-          intention: "PERSUASION",
-          methodId: "APPEAL",
-          sceneImpact: "MINOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target willingly complies with one small immediate request requiring negligible sacrifice, risk, or commitment",
-        counterEligible: false,
-        privilegeCostKey: "SECURE_WILLING_COOPERATION_MINOR",
-      },
-      {
-        authoring: {
-          intention: "PERSUASION",
-          methodId: "APPEAL",
-          sceneImpact: "STANDARD",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target willingly agrees to and sincerely carries out one meaningful request involving inconvenience, social cost, or modest personal risk",
-        counterEligible: false,
-        privilegeCostKey: "SECURE_WILLING_COOPERATION_STANDARD",
-      },
-      {
-        authoring: {
-          intention: "PERSUASION",
-          methodId: "APPEAL",
-          sceneImpact: "MAJOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target willingly commits to and sincerely pursues one difficult request involving substantial effort, personal cost, reputational danger, or physical risk",
-        counterEligible: false,
-        privilegeCostKey: "SECURE_WILLING_COOPERATION_MAJOR",
-      },
-      {
-        authoring: {
-          intention: "PERSUASION",
-          methodId: "APPEAL",
-          sceneImpact: "LEGENDARY",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target willingly makes one defining commitment, alliance, or promise whose consequences extend beyond the current scene and sincerely upholds it until it is fulfilled or narratively resolved",
-        counterEligible: false,
-        privilegeCostKey: "SECURE_WILLING_COOPERATION_LEGENDARY",
-      },
-    ],
+    intention: "PERSUASION",
+    methodId: "APPEAL",
+    supportedScopes: ["ONE_TARGET", "SMALL_GROUP"],
+    outcomeTemplate: "{{subject}} {{impact}}",
+    scopeTokens: {
+      ONE_TARGET: { subject: "the target" },
+    },
+    impactFragments: {
+      MINOR:
+        "willingly complies with one small immediate request requiring negligible sacrifice, risk, or commitment",
+      STANDARD:
+        "willingly agrees to and sincerely carries out one meaningful request involving inconvenience, social cost, or modest personal risk",
+      MAJOR:
+        "willingly commits to and sincerely pursues one difficult request involving substantial effort, personal cost, reputational danger, or physical risk",
+      LEGENDARY:
+        "willingly makes one defining commitment, alliance, or promise whose consequences extend beyond the current scene and sincerely upholds it until it is fulfilled or narratively resolved",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "SECURE_WILLING_COOPERATION",
     examples: [
       "Waiting briefly while the Ability user speaks to someone",
       "Passing along a harmless message",
@@ -1026,56 +847,23 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "ESTABLISH_SHARED_RESOLVE",
     name: "Establish Shared Resolve",
     outcomeLane: "HELP",
-    variants: [
-      {
-        authoring: {
-          intention: "PERSUASION",
-          methodId: "RALLY",
-          sceneImpact: "MINOR",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "the selected group steadies around one simple immediate course and sincerely pursues it through the current meaningful exchange despite ordinary hesitation, confusion, or pressure",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_SHARED_RESOLVE_MINOR",
-      },
-      {
-        authoring: {
-          intention: "PERSUASION",
-          methodId: "RALLY",
-          sceneImpact: "STANDARD",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "the selected group adopts one clear shared course as its immediate priority for the rest of the current scene and sincerely pursues it despite meaningful fear, confusion, disagreement, or pressure",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_SHARED_RESOLVE_STANDARD",
-      },
-      {
-        authoring: {
-          intention: "PERSUASION",
-          methodId: "RALLY",
-          sceneImpact: "MAJOR",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "the selected group commits to one difficult shared course for the rest of the current scene and sincerely pursues it despite serious fear, division, personal cost, or danger unless decisive circumstances or narrative resolution make that course no longer coherent",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_SHARED_RESOLVE_MAJOR",
-      },
-      {
-        authoring: {
-          intention: "PERSUASION",
-          methodId: "RALLY",
-          sceneImpact: "LEGENDARY",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "the selected group forms one defining shared resolve, pledge, or cause whose consequences extend beyond the current scene and sincerely upholds it until it is fulfilled or narratively resolved",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_SHARED_RESOLVE_LEGENDARY",
-      },
-    ],
+    intention: "PERSUASION",
+    methodId: "RALLY",
+    supportedScopes: ["SMALL_GROUP"],
+    outcomeTemplate: "{{impact}}",
+    scopeTokens: { SMALL_GROUP: {} },
+    impactFragments: {
+      MINOR:
+        "the selected group steadies around one simple immediate course and sincerely pursues it through the current meaningful exchange despite ordinary hesitation, confusion, or pressure",
+      STANDARD:
+        "the selected group adopts one clear shared course as its immediate priority for the rest of the current scene and sincerely pursues it despite meaningful fear, confusion, disagreement, or pressure",
+      MAJOR:
+        "the selected group commits to one difficult shared course for the rest of the current scene and sincerely pursues it despite serious fear, division, personal cost, or danger unless decisive circumstances or narrative resolution make that course no longer coherent",
+      LEGENDARY:
+        "the selected group forms one defining shared resolve, pledge, or cause whose consequences extend beyond the current scene and sincerely upholds it until it is fulfilled or narratively resolved",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "ESTABLISH_SHARED_RESOLVE",
     examples: [
       "Frightened civilians stay together through one immediate escape",
       "A confused patrol regroups around one simple instruction",
@@ -1120,104 +908,34 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "ESTABLISH_FALSE_BELIEF",
     name: "Establish False Belief",
     outcomeLane: "HINDER",
-    variants: [
-      {
-        authoring: {
-          intention: "DECEPTION",
-          methodId: "MISDIRECT",
-          sceneImpact: "MINOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target accepts one small and immediately plausible false premise as true for the current meaningful exchange and treats it as true when making relevant decisions",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_MINOR",
+    intention: "DECEPTION",
+    methodId: "MISDIRECT",
+    supportedScopes: ["ONE_TARGET", "SMALL_GROUP"],
+    outcomeTemplate: "{{impact}}",
+    scopeTokens: {
+      ONE_TARGET: {
+        subject: "the target",
+        beliefReference: "the belief",
+        resolutionReference: "",
       },
-      {
-        authoring: {
-          intention: "DECEPTION",
-          methodId: "MISDIRECT",
-          sceneImpact: "STANDARD",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target genuinely accepts one plausible false premise relevant to the current situation as true for the rest of the current scene and treats it as true when making relevant decisions unless meaningful contradictory evidence resolves the belief",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_STANDARD",
+      SMALL_GROUP: {
+        subject: "every accepted member of the selected group",
+        beliefReference: "that member's belief",
+        resolutionReference: " for that member",
       },
-      {
-        authoring: {
-          intention: "DECEPTION",
-          methodId: "MISDIRECT",
-          sceneImpact: "MAJOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target genuinely accepts one central false premise shaping the current situation as true for the rest of the current scene and continues to treat it as true when making relevant decisions unless decisive contradictory evidence, direct experience, or narrative resolution ends the belief",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_MAJOR",
-      },
-      {
-        authoring: {
-          intention: "DECEPTION",
-          methodId: "MISDIRECT",
-          sceneImpact: "LEGENDARY",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target genuinely accepts one defining false premise whose consequences extend beyond the current scene as true and treats it as true when making relevant decisions until it is decisively disproved or narratively resolved",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_LEGENDARY",
-      },
-      {
-        authoring: {
-          intention: "DECEPTION",
-          methodId: "MISDIRECT",
-          sceneImpact: "MINOR",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "every accepted member of the selected group accepts one small and immediately plausible false premise as true for the current meaningful exchange and treats it as true when making relevant decisions",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_SMALL_GROUP_MINOR",
-      },
-      {
-        authoring: {
-          intention: "DECEPTION",
-          methodId: "MISDIRECT",
-          sceneImpact: "STANDARD",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "every accepted member of the selected group genuinely accepts one plausible false premise relevant to the current situation as true for the rest of the current scene and treats it as true when making relevant decisions unless meaningful contradictory evidence resolves that member's belief",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_SMALL_GROUP_STANDARD",
-      },
-      {
-        authoring: {
-          intention: "DECEPTION",
-          methodId: "MISDIRECT",
-          sceneImpact: "MAJOR",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "every accepted member of the selected group genuinely accepts one central false premise shaping the current situation as true for the rest of the current scene and continues to treat it as true when making relevant decisions unless decisive contradictory evidence, direct experience, or narrative resolution ends that member's belief",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_SMALL_GROUP_MAJOR",
-      },
-      {
-        authoring: {
-          intention: "DECEPTION",
-          methodId: "MISDIRECT",
-          sceneImpact: "LEGENDARY",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "every accepted member of the selected group genuinely accepts one defining false premise whose consequences extend beyond the current scene as true and treats it as true when making relevant decisions until it is decisively disproved or narratively resolved for that member",
-        counterEligible: false,
-        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_SMALL_GROUP_LEGENDARY",
-      },
-    ],
+    },
+    impactFragments: {
+      MINOR:
+        "{{subject}} accepts one small and immediately plausible false premise as true for the current meaningful exchange and treats it as true when making relevant decisions",
+      STANDARD:
+        "{{subject}} genuinely accepts one plausible false premise relevant to the current situation as true for the rest of the current scene and treats it as true when making relevant decisions unless meaningful contradictory evidence resolves {{beliefReference}}",
+      MAJOR:
+        "{{subject}} genuinely accepts one central false premise shaping the current situation as true for the rest of the current scene and continues to treat it as true when making relevant decisions unless decisive contradictory evidence, direct experience, or narrative resolution ends {{beliefReference}}",
+      LEGENDARY:
+        "{{subject}} genuinely accepts one defining false premise whose consequences extend beyond the current scene as true and treats it as true when making relevant decisions until it is decisively disproved or narratively resolved{{resolutionReference}}",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "ESTABLISH_FALSE_BELIEF",
     examples: [
       "The noise came from outside",
       "The package belongs to someone else",
@@ -1265,32 +983,28 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     id: "DIVERT_IMMEDIATE_ATTENTION",
     name: "Divert Immediate Attention",
     outcomeLane: "HINDER",
-    variants: [
-      {
-        authoring: {
-          intention: "DECEPTION",
-          methodId: "DISTRACT",
-          sceneImpact: "MINOR",
-          scope: "ONE_TARGET",
-        },
-        successOutcome:
-          "the target's active attention is diverted for the current meaningful exchange, creating a brief opening for one declared small immediate action or development to proceed without that target's deliberate observation or interference",
-        counterEligible: false,
-        privilegeCostKey: "DIVERT_IMMEDIATE_ATTENTION",
+    intention: "DECEPTION",
+    methodId: "DISTRACT",
+    supportedScopes: ["ONE_TARGET", "SMALL_GROUP"],
+    outcomeTemplate: "{{attentionClause}} {{impact}}",
+    scopeTokens: {
+      ONE_TARGET: {
+        attentionClause: "the target's active attention is diverted",
+        observationReference: "that target's deliberate observation or interference",
       },
-      {
-        authoring: {
-          intention: "DECEPTION",
-          methodId: "DISTRACT",
-          sceneImpact: "MINOR",
-          scope: "SMALL_GROUP",
-        },
-        successOutcome:
-          "every accepted member of the selected group has their active attention diverted for the current meaningful exchange, creating a brief opening for one declared small immediate action or development to proceed without deliberate observation or interference from any accepted member",
-        counterEligible: false,
-        privilegeCostKey: "DIVERT_IMMEDIATE_ATTENTION_SMALL_GROUP",
+      SMALL_GROUP: {
+        attentionClause:
+          "every accepted member of the selected group has their active attention diverted",
+        observationReference:
+          "deliberate observation or interference from any accepted member",
       },
-    ],
+    },
+    impactFragments: {
+      MINOR:
+        "for the current meaningful exchange, creating a brief opening for one declared small immediate action or development to proceed without {{observationReference}}",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "DIVERT_IMMEDIATE_ATTENTION",
     examples: [
       "Starting a loud argument so one ally can slip through a side doorway",
       "Performing an absorbing demonstration while another character examines one document",
@@ -1491,24 +1205,246 @@ export function getRoleplayOutcomeContract(
   return ROLEPLAY_OUTCOME_CONTRACTS.find((contract) => contract.id === id) ?? null;
 }
 
-export function getRoleplayOutcomeContractVariant(
+const ROLEPLAY_TEMPLATE_TOKEN_PATTERN = /\{\{\s*([A-Za-z][A-Za-z0-9_]*)\s*\}\}/gu;
+
+function resolveRoleplayTemplate(
+  template: string,
+  tokens: Readonly<Record<string, string>>,
+): string | null {
+  let unresolved = false;
+  const resolved = template.replace(
+    ROLEPLAY_TEMPLATE_TOKEN_PATTERN,
+    (_match, tokenName: string) => {
+      if (!Object.hasOwn(tokens, tokenName)) {
+        unresolved = true;
+        return `{{${tokenName}}}`;
+      }
+      return tokens[tokenName];
+    },
+  );
+  if (unresolved || /\{\{\s*[A-Za-z][A-Za-z0-9_]*\s*\}\}/u.test(resolved)) return null;
+  const normalized = resolved.replace(/\s+/gu, " ").trim();
+  return normalized || null;
+}
+
+function resolveRoleplayCounterEligibility(
   contract: RoleplayOutcomeContractDefinition,
-  authoring: RoleplayAbilityAuthoring,
-): RoleplayOutcomeContractVariant | null {
-  return contract.variants.find(
-    (variant) =>
-      variant.authoring.intention === authoring.intention &&
-      variant.authoring.methodId === authoring.methodId &&
-      variant.authoring.sceneImpact === authoring.sceneImpact &&
-      variant.authoring.scope === authoring.scope,
-  ) ?? null;
+  scope: RoleplayScope,
+  sceneImpact: RoleplaySceneImpact,
+) {
+  return contract.counterEligibility.byImpact?.[sceneImpact] ??
+    contract.counterEligibility.byScope?.[scope] ??
+    contract.counterEligibility.default;
+}
+
+export function resolveRoleplayOutcomeContract(
+  contract: RoleplayOutcomeContractDefinition,
+  authoring: RoleplayOutcomeContractAuthoring,
+): ResolvedRoleplayOutcomeContract | null {
+  if (
+    contract.intention !== authoring.intention ||
+    contract.methodId !== authoring.methodId ||
+    !contract.supportedScopes.includes(authoring.scope)
+  ) {
+    return null;
+  }
+
+  const scopeTokens = contract.scopeTokens[authoring.scope];
+  const impactFragment = contract.impactFragments[authoring.sceneImpact];
+  if (scopeTokens === undefined || impactFragment === undefined) return null;
+
+  const resolvedImpact = resolveRoleplayTemplate(impactFragment, scopeTokens);
+  if (!resolvedImpact) return null;
+  const successOutcome = resolveRoleplayTemplate(contract.outcomeTemplate, {
+    ...scopeTokens,
+    impact: resolvedImpact,
+  });
+  if (!successOutcome) return null;
+
+  return {
+    contractId: contract.id,
+    scope: authoring.scope,
+    sceneImpact: authoring.sceneImpact,
+    successOutcome,
+    counterEligible: resolveRoleplayCounterEligibility(
+      contract,
+      authoring.scope,
+      authoring.sceneImpact,
+    ),
+    privilegeCostKey: contract.privilegeCostKey,
+  };
+}
+
+export function getRoleplayOutcomeContractsForMethod(
+  intention: RoleplayIntention,
+  methodId: RoleplayMethodId,
+) {
+  return ROLEPLAY_OUTCOME_CONTRACTS.filter(
+    (contract) =>
+      contract.intention === intention && contract.methodId === methodId,
+  );
+}
+
+export function getRoleplayCompletedScopesForContract(
+  contract: RoleplayOutcomeContractDefinition,
+) {
+  return ROLEPLAY_SCOPE_OPTIONS.map((option) => option.value).filter(
+    (scope) =>
+      contract.supportedScopes.includes(scope) &&
+      getRoleplayCompletedImpactsForContract(contract, scope).length > 0,
+  );
+}
+
+export function getRoleplayCompletedImpactsForContract(
+  contract: RoleplayOutcomeContractDefinition,
+  scope: RoleplayScope,
+) {
+  return ROLEPLAY_SCENE_IMPACT_OPTIONS.map((option) => option.value).filter(
+    (sceneImpact) =>
+      resolveRoleplayOutcomeContract(contract, {
+        intention: contract.intention,
+        methodId: contract.methodId,
+        scope,
+        sceneImpact,
+      }) !== null,
+  );
+}
+
+export function enumerateRoleplayResolvedContractCells(
+  contract: RoleplayOutcomeContractDefinition,
+) {
+  return contract.supportedScopes.flatMap((scope) =>
+    ROLEPLAY_SCENE_IMPACT_OPTIONS.flatMap((option) => {
+      const resolved = resolveRoleplayOutcomeContract(contract, {
+        intention: contract.intention,
+        methodId: contract.methodId,
+        scope,
+        sceneImpact: option.value,
+      });
+      return resolved ? [resolved] : [];
+    }),
+  );
+}
+
+export function auditRoleplayStandardLibrary(): RoleplayStandardLibraryAudit {
+  const contractIds = ROLEPLAY_OUTCOME_CONTRACTS.map((contract) => contract.id);
+  const privilegeKeys = ROLEPLAY_OUTCOME_CONTRACTS.map(
+    (contract) => contract.privilegeCostKey,
+  );
+  const duplicateValues = (values: readonly string[]) =>
+    [...new Set(values.filter((value, index) => values.indexOf(value) !== index))];
+  const duplicateIds = duplicateValues(contractIds);
+  const duplicatePrivilegeKeys = duplicateValues(privilegeKeys);
+  const missingScopeTokenFragments: string[] = [];
+  const unresolvedTemplateTokens: string[] = [];
+  const invalidMethodOwnership: string[] = [];
+  const blankGeneratedOutcomes: string[] = [];
+  const duplicateCompletedCells: string[] = [];
+  const counterResolutionErrors: string[] = [];
+  const completedCellKeys = new Set<string>();
+  const missingCellsByContract = {} as RoleplayStandardLibraryAudit["missingCellsByContract"];
+  const supportedScopesByContract = {} as RoleplayStandardLibraryAudit["supportedScopesByContract"];
+  const completedImpactsByContractScope: Record<string, RoleplaySceneImpact[]> = {};
+  let plannedCellCount = 0;
+  let completedCellCount = 0;
+
+  for (const registryContract of ROLEPLAY_OUTCOME_CONTRACTS) {
+    const contract: RoleplayOutcomeContractDefinition = registryContract;
+    const method = getRoleplayMethodDefinition(contract.methodId);
+    if (!method || method.intention !== contract.intention) {
+      invalidMethodOwnership.push(`${contract.id}:${contract.intention}/${contract.methodId}`);
+    }
+    supportedScopesByContract[contract.id] = [...contract.supportedScopes];
+    missingCellsByContract[contract.id] = [];
+    plannedCellCount += contract.supportedScopes.length * ROLEPLAY_SCENE_IMPACT_OPTIONS.length;
+
+    for (const scope of contract.supportedScopes) {
+      if (contract.scopeTokens[scope] === undefined) {
+        missingScopeTokenFragments.push(`${contract.id}:${scope}`);
+      }
+      completedImpactsByContractScope[`${contract.id}:${scope}`] =
+        getRoleplayCompletedImpactsForContract(contract, scope);
+
+      for (const { value: sceneImpact } of ROLEPLAY_SCENE_IMPACT_OPTIONS) {
+        const authoring = {
+          intention: contract.intention,
+          methodId: contract.methodId,
+          scope,
+          sceneImpact,
+        };
+        const resolved = resolveRoleplayOutcomeContract(contract, authoring);
+        if (!resolved) {
+          missingCellsByContract[contract.id].push({ scope, sceneImpact });
+          const scopeTokens = contract.scopeTokens[scope];
+          const impactFragment = contract.impactFragments[sceneImpact];
+          if (scopeTokens !== undefined && impactFragment !== undefined) {
+            const resolvedImpact = resolveRoleplayTemplate(impactFragment, scopeTokens);
+            if (!resolvedImpact) {
+              unresolvedTemplateTokens.push(`${contract.id}:${scope}:${sceneImpact}:impact`);
+            } else if (
+              !resolveRoleplayTemplate(contract.outcomeTemplate, {
+                ...scopeTokens,
+                impact: resolvedImpact,
+              })
+            ) {
+              unresolvedTemplateTokens.push(`${contract.id}:${scope}:${sceneImpact}:outcome`);
+            }
+          }
+          continue;
+        }
+
+        completedCellCount += 1;
+        const cellKey = `${resolved.contractId}:${resolved.scope}:${resolved.sceneImpact}`;
+        if (completedCellKeys.has(cellKey)) duplicateCompletedCells.push(cellKey);
+        completedCellKeys.add(cellKey);
+        if (!resolved.successOutcome.trim()) blankGeneratedOutcomes.push(cellKey);
+        if (typeof resolved.counterEligible !== "boolean") {
+          counterResolutionErrors.push(cellKey);
+        }
+      }
+    }
+  }
+
+  const structuralErrors = [
+    ...duplicateIds.map((value) => `duplicate-id:${value}`),
+    ...duplicatePrivilegeKeys.map((value) => `duplicate-key:${value}`),
+    ...ROLEPLAY_OUTCOME_CONTRACTS.filter(
+      (contract) => contract.privilegeCostKey !== contract.id,
+    ).map((contract) => `invalid-family-key:${contract.id}:${contract.privilegeCostKey}`),
+    ...invalidMethodOwnership.map((value) => `invalid-method:${value}`),
+    ...blankGeneratedOutcomes.map((value) => `blank-outcome:${value}`),
+    ...duplicateCompletedCells.map((value) => `duplicate-cell:${value}`),
+    ...counterResolutionErrors.map((value) => `counter:${value}`),
+    ...unresolvedTemplateTokens.map((value) => `token:${value}`),
+  ];
+
+  return {
+    methodIds: ROLEPLAY_METHODS.map((method) => method.id),
+    contractIds,
+    privilegeKeys,
+    plannedCellCount,
+    completedCellCount,
+    missingCellCount: plannedCellCount - completedCellCount,
+    missingCellsByContract,
+    supportedScopesByContract,
+    completedImpactsByContractScope,
+    missingScopeTokenFragments,
+    unresolvedTemplateTokens,
+    duplicateIds,
+    duplicatePrivilegeKeys,
+    invalidMethodOwnership,
+    blankGeneratedOutcomes,
+    duplicateCompletedCells,
+    counterResolutionErrors,
+    structuralErrors,
+  };
 }
 
 export function isRoleplayOutcomeContractCompatible(
   contract: RoleplayOutcomeContractDefinition,
   authoring: RoleplayAbilityAuthoring,
 ) {
-  return getRoleplayOutcomeContractVariant(contract, authoring) !== null;
+  return resolveRoleplayOutcomeContract(contract, authoring) !== null;
 }
 
 export function getCompatibleRoleplayOutcomeContracts(authoring: RoleplayAbilityAuthoring) {
@@ -1525,7 +1461,7 @@ export function getRoleplayAbilityOutcomeLane(ability: RoleplayAbility) {
 export function getRoleplayAbilitySuccessOutcome(ability: RoleplayAbility) {
   const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
   if (contract) {
-    return getRoleplayOutcomeContractVariant(contract, ability)?.successOutcome ?? "";
+    return resolveRoleplayOutcomeContract(contract, ability)?.successOutcome ?? "";
   }
   return ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW
     ? ability.customOutcomeRequest
@@ -1549,7 +1485,7 @@ export function getRoleplayAbilityCounterEligibility(ability: RoleplayAbility) {
   }
   const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
   return contract
-    ? (getRoleplayOutcomeContractVariant(contract, ability)?.counterEligible ?? false)
+    ? (resolveRoleplayOutcomeContract(contract, ability)?.counterEligible ?? false)
     : false;
 }
 
@@ -1560,17 +1496,17 @@ export function reconcileRoleplayAbilityContract(ability: RoleplayAbility): Role
   }
 
   const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
-  const variant = contract
-    ? getRoleplayOutcomeContractVariant(contract, ability)
+  const resolved = contract
+    ? resolveRoleplayOutcomeContract(contract, ability)
     : null;
-  if (!contract || !variant) {
+  if (!contract || !resolved) {
     return {
       ...ability,
       outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
       counter: false,
     };
   }
-  if (!variant.counterEligible && ability.counter) {
+  if (!resolved.counterEligible && ability.counter) {
     return { ...ability, counter: false };
   }
   return ability;
@@ -1622,6 +1558,98 @@ export function reconcileRoleplayAbilityAuthoring(
   ability: RoleplayAbility,
 ): RoleplayAbility {
   return reconcileRoleplayAbilityContract(reconcileRoleplayAbilityMethod(ability));
+}
+
+export function selectRoleplayAbilityOutcomeContract(
+  ability: RoleplayAbility,
+  outcomeContractId: RoleplayOutcomeContractId,
+): RoleplayAbility {
+  const contract = getRoleplayOutcomeContract(outcomeContractId);
+  if (!contract) {
+    return reconcileRoleplayAbilityAuthoring({ ...ability, outcomeContractId });
+  }
+  if (
+    contract.intention !== ability.intention ||
+    contract.methodId !== ability.methodId
+  ) {
+    return reconcileRoleplayAbilityAuthoring({
+      ...ability,
+      outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+      counter: false,
+    });
+  }
+
+  const completedScopes = getRoleplayCompletedScopesForContract(contract);
+  const scope = completedScopes.includes(ability.scope)
+    ? ability.scope
+    : completedScopes[0];
+  if (!scope) {
+    return reconcileRoleplayAbilityAuthoring({
+      ...ability,
+      outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+      counter: false,
+    });
+  }
+  const completedImpacts = getRoleplayCompletedImpactsForContract(contract, scope);
+  const sceneImpact = completedImpacts.includes(ability.sceneImpact)
+    ? ability.sceneImpact
+    : completedImpacts[0];
+  if (!sceneImpact) {
+    return reconcileRoleplayAbilityAuthoring({
+      ...ability,
+      outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+      counter: false,
+    });
+  }
+  return reconcileRoleplayAbilityAuthoring({
+    ...ability,
+    outcomeContractId,
+    scope,
+    sceneImpact,
+  });
+}
+
+export function selectRoleplayAbilityScope(
+  ability: RoleplayAbility,
+  requestedScope: RoleplayScope,
+): RoleplayAbility {
+  const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
+  if (!contract) {
+    return reconcileRoleplayAbilityAuthoring({ ...ability, scope: requestedScope });
+  }
+  const completedScopes = getRoleplayCompletedScopesForContract(contract);
+  const scope = completedScopes.includes(requestedScope)
+    ? requestedScope
+    : completedScopes[0];
+  if (!scope) return reconcileRoleplayAbilityAuthoring(ability);
+  const completedImpacts = getRoleplayCompletedImpactsForContract(contract, scope);
+  const sceneImpact = completedImpacts.includes(ability.sceneImpact)
+    ? ability.sceneImpact
+    : completedImpacts[0];
+  if (!sceneImpact) return reconcileRoleplayAbilityAuthoring(ability);
+  return reconcileRoleplayAbilityAuthoring({ ...ability, scope, sceneImpact });
+}
+
+export function selectRoleplayAbilitySceneImpact(
+  ability: RoleplayAbility,
+  requestedImpact: RoleplaySceneImpact,
+): RoleplayAbility {
+  const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
+  if (!contract) {
+    return reconcileRoleplayAbilityAuthoring({
+      ...ability,
+      sceneImpact: requestedImpact,
+    });
+  }
+  const completedImpacts = getRoleplayCompletedImpactsForContract(
+    contract,
+    ability.scope,
+  );
+  const sceneImpact = completedImpacts.includes(requestedImpact)
+    ? requestedImpact
+    : completedImpacts[0];
+  if (!sceneImpact) return reconcileRoleplayAbilityAuthoring(ability);
+  return reconcileRoleplayAbilityAuthoring({ ...ability, sceneImpact });
 }
 
 export function createDefaultRoleplayAbility(sortOrder: number): RoleplayAbility {
@@ -1727,9 +1755,9 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
     } else {
       const normalizedLegacyOutcome = normalizeOutcomeForMigration(legacySuccessOutcome);
       const matchingContract = ROLEPLAY_OUTCOME_CONTRACTS.find((contract) =>
-        contract.variants.some(
-          (variant) =>
-            normalizeOutcomeForMigration(variant.successOutcome) === normalizedLegacyOutcome,
+        enumerateRoleplayResolvedContractCells(contract).some(
+          (cell) =>
+            normalizeOutcomeForMigration(cell.successOutcome) === normalizedLegacyOutcome,
         ),
       );
       if (matchingContract && isRoleplayOutcomeContractCompatible(matchingContract, authoring)) {
@@ -1859,15 +1887,15 @@ export function getRoleplayAbilityWarnings(ability: RoleplayAbility): string[] {
   }
 
   const contract = getRoleplayOutcomeContract(ability.outcomeContractId);
-  const variant = contract
-    ? getRoleplayOutcomeContractVariant(contract, ability)
+  const resolved = contract
+    ? resolveRoleplayOutcomeContract(contract, ability)
     : null;
   if (contract && !isRoleplayOutcomeContractCompatible(contract, ability)) {
     warnings.push(
       "The selected Outcome Contract is incompatible with the current Intention, Method, Scene Impact, or Scope.",
     );
   }
-  if (contract && ability.counter && !variant?.counterEligible) {
+  if (contract && ability.counter && !resolved?.counterEligible) {
     warnings.push("The selected Outcome Contract does not permit Counter authoring.");
   }
   if (

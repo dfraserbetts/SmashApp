@@ -111,18 +111,23 @@ import {
   ROLEPLAY_SCENE_IMPACT_OPTIONS,
   ROLEPLAY_SCOPE_OPTIONS,
   createDefaultRoleplayAbility,
-  getCompatibleRoleplayOutcomeContracts,
   getRoleplayAbilityContractName,
   getRoleplayAbilityCounterEligibility,
   getRoleplayAbilityMethodName,
   getRoleplayAbilityOutcomeLane,
   getRoleplayAbilitySuccessOutcome,
   getRoleplayAbilityWarnings,
+  getRoleplayCompletedImpactsForContract,
+  getRoleplayCompletedScopesForContract,
   getRoleplayOutcomeContract,
+  getRoleplayOutcomeContractsForMethod,
   getRoleplayMethodDefinition,
   getRoleplayMethodsForIntention,
   reconcileRoleplayAbilityAuthoring,
   renderRoleplayAbilityDescriptor,
+  selectRoleplayAbilityOutcomeContract,
+  selectRoleplayAbilitySceneImpact,
+  selectRoleplayAbilityScope,
   type RoleplayAbility,
 } from "@/lib/characterBuilder/roleplayAbilities";
 import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
@@ -4488,10 +4493,22 @@ export default function CharacterBuilderPage() {
                 const methodName = getRoleplayAbilityMethodName(ability);
                 const customMethodSelected =
                   ability.methodId === ROLEPLAY_METHOD_CUSTOM_REVIEW;
-                const compatibleContracts = getCompatibleRoleplayOutcomeContracts(ability);
                 const selectedContract = getRoleplayOutcomeContract(
                   ability.outcomeContractId,
                 );
+                const methodContracts = getRoleplayOutcomeContractsForMethod(
+                  ability.intention,
+                  ability.methodId,
+                );
+                const completedScopes = selectedContract
+                  ? getRoleplayCompletedScopesForContract(selectedContract)
+                  : ROLEPLAY_SCOPE_OPTIONS.map((option) => option.value);
+                const completedImpacts = selectedContract
+                  ? getRoleplayCompletedImpactsForContract(
+                      selectedContract,
+                      ability.scope,
+                    )
+                  : ROLEPLAY_SCENE_IMPACT_OPTIONS.map((option) => option.value);
                 const customOutcomeSelected =
                   ability.outcomeContractId === ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW;
                 const outcomeContractUnselected =
@@ -4748,22 +4765,33 @@ export default function CharacterBuilderPage() {
 
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       <label>
-                        <span className="text-xs text-zinc-400">Scene Impact</span>
+                        <span className="text-xs text-zinc-400">Outcome Contract</span>
                         <select
-                          value={ability.sceneImpact}
+                          value={ability.outcomeContractId}
                           onChange={(event) =>
-                            updateRoleplayAbility(index, {
-                              sceneImpact: event.target.value as RoleplayAbility["sceneImpact"],
-                            })
+                            updateRoleplayAbility(
+                              index,
+                              selectRoleplayAbilityOutcomeContract(
+                                ability,
+                                event.target
+                                  .value as RoleplayAbility["outcomeContractId"],
+                              ),
+                            )
                           }
                           disabled={!canEdit || saving}
                           className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                         >
-                          {ROLEPLAY_SCENE_IMPACT_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
+                          <option value={ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED}>
+                            Select an Outcome Contract
+                          </option>
+                          {methodContracts.map((contract) => (
+                            <option key={contract.id} value={contract.id}>
+                              {contract.name}
                             </option>
                           ))}
+                          <option value={ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW}>
+                            Custom Outcome — GD Review Required
+                          </option>
                         </select>
                       </label>
                       <label>
@@ -4771,14 +4799,46 @@ export default function CharacterBuilderPage() {
                         <select
                           value={ability.scope}
                           onChange={(event) =>
-                            updateRoleplayAbility(index, {
-                              scope: event.target.value as RoleplayAbility["scope"],
-                            })
+                            updateRoleplayAbility(
+                              index,
+                              selectRoleplayAbilityScope(
+                                ability,
+                                event.target.value as RoleplayAbility["scope"],
+                              ),
+                            )
                           }
                           disabled={!canEdit || saving}
                           className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                         >
-                          {ROLEPLAY_SCOPE_OPTIONS.map((option) => (
+                          {ROLEPLAY_SCOPE_OPTIONS.filter((option) =>
+                            completedScopes.includes(option.value),
+                          ).map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span className="text-xs text-zinc-400">Scene Impact</span>
+                        <select
+                          value={ability.sceneImpact}
+                          onChange={(event) =>
+                            updateRoleplayAbility(
+                              index,
+                              selectRoleplayAbilitySceneImpact(
+                                ability,
+                                event.target
+                                  .value as RoleplayAbility["sceneImpact"],
+                              ),
+                            )
+                          }
+                          disabled={!canEdit || saving}
+                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                        >
+                          {ROLEPLAY_SCENE_IMPACT_OPTIONS.filter((option) =>
+                            completedImpacts.includes(option.value),
+                          ).map((option) => (
                             <option key={option.value} value={option.value}>
                               {option.label}
                             </option>
@@ -4804,32 +4864,6 @@ export default function CharacterBuilderPage() {
                           ))}
                         </select>
                       </label>
-                      <label>
-                        <span className="text-xs text-zinc-400">Outcome Contract</span>
-                        <select
-                          value={ability.outcomeContractId}
-                          onChange={(event) =>
-                            updateRoleplayAbility(index, {
-                              outcomeContractId:
-                                event.target.value as RoleplayAbility["outcomeContractId"],
-                            })
-                          }
-                          disabled={!canEdit || saving}
-                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
-                        >
-                          <option value={ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED}>
-                            Select an Outcome Contract
-                          </option>
-                          {compatibleContracts.map((contract) => (
-                            <option key={contract.id} value={contract.id}>
-                              {contract.name}
-                            </option>
-                          ))}
-                          <option value={ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW}>
-                            Custom Outcome — GD Review Required
-                          </option>
-                        </select>
-                      </label>
                     </div>
 
                     {selectedContract ? (
@@ -4851,7 +4885,7 @@ export default function CharacterBuilderPage() {
                             <dd>{outcomeLaneLabel}</dd>
                           </div>
                           <div>
-                            <dt className="text-xs text-cyan-500">Variant</dt>
+                            <dt className="text-xs text-cyan-500">Scene Impact</dt>
                             <dd>{sceneImpactLabel}</dd>
                           </div>
                           <div className="sm:col-span-2">

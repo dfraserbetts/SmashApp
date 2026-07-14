@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import {
   ROLEPLAY_METHODS,
   ROLEPLAY_METHOD_CUSTOM_REVIEW,
@@ -6,6 +8,8 @@ import {
   ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
   ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
   createDefaultRoleplayAbility,
+  auditRoleplayStandardLibrary,
+  enumerateRoleplayResolvedContractCells,
   getCompatibleRoleplayOutcomeContracts,
   getRoleplayAbilityContractName,
   getRoleplayAbilityMethodName,
@@ -13,13 +17,21 @@ import {
   getRoleplayAbilityOutcomeLane,
   getRoleplayAbilitySuccessOutcome,
   getRoleplayAbilityWarnings,
+  getRoleplayCompletedImpactsForContract,
+  getRoleplayCompletedScopesForContract,
   getRoleplayMethodDefinition,
   getRoleplayMethodsForIntention,
   getRoleplayOutcomeContract,
+  getRoleplayOutcomeContractsForMethod,
   normalizeRoleplayAbility,
   reconcileRoleplayAbilityAuthoring,
   reconcileRoleplayAbilityContract,
   renderRoleplayAbilityDescriptor,
+  resolveRoleplayOutcomeContract,
+  selectRoleplayAbilityOutcomeContract,
+  selectRoleplayAbilitySceneImpact,
+  selectRoleplayAbilityScope,
+  type RoleplayAbility,
 } from "../lib/characterBuilder/roleplayAbilities";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -256,23 +268,20 @@ assertEqual(
 
 const hideContract = getRoleplayOutcomeContract("HIDE_FROM_IMMEDIATE_DANGER");
 assert(hideContract, "HIDE_FROM_IMMEDIATE_DANGER should still exist.");
-assertEqual(hideContract.variants.length, 2, "Hide should contain exactly two variants.");
+const hideCells = enumerateRoleplayResolvedContractCells(hideContract);
+assertEqual(hideCells.length, 2, "Hide should contain exactly two completed cells.");
 assertEqual(
-  hideContract.variants.filter((variant) => variant.authoring.scope === "ONE_TARGET").length,
+  hideCells.filter((cell) => cell.scope === "ONE_TARGET").length,
   1,
   "Hide should contain one One Target variant.",
 );
 assertEqual(
-  hideContract.variants.filter((variant) => variant.authoring.scope === "SMALL_GROUP").length,
+  hideCells.filter((cell) => cell.scope === "SMALL_GROUP").length,
   1,
   "Hide should contain one Small Group variant.",
 );
-const hideOneTargetVariant = hideContract.variants.find(
-  (variant) => variant.authoring.scope === "ONE_TARGET",
-);
-const hideSmallGroupVariant = hideContract.variants.find(
-  (variant) => variant.authoring.scope === "SMALL_GROUP",
-);
+const hideOneTargetVariant = hideCells.find((cell) => cell.scope === "ONE_TARGET");
+const hideSmallGroupVariant = hideCells.find((cell) => cell.scope === "SMALL_GROUP");
 assert(hideOneTargetVariant, "Hide One Target variant should exist.");
 assert(hideSmallGroupVariant, "Hide Small Group variant should exist.");
 assertEqual(
@@ -293,14 +302,14 @@ assertEqual(
 );
 assertEqual(
   hideSmallGroupVariant.privilegeCostKey,
-  "HIDE_FROM_IMMEDIATE_DANGER_SMALL_GROUP",
+  "HIDE_FROM_IMMEDIATE_DANGER",
   "Small Group Hide privilege key mismatch.",
 );
 assertEqual(hideSmallGroupVariant.counterEligible, false, "Small Group Hide Counter must be false.");
-for (const variant of hideContract.variants) {
-  assertEqual(variant.authoring.intention, "INTERVENTION", "Hide Intention mismatch.");
-  assertEqual(variant.authoring.methodId, "RESCUE", "Hide Method mismatch.");
-  assertEqual(variant.authoring.sceneImpact, "MINOR", "Hide Impact mismatch.");
+assertEqual(hideContract.intention, "INTERVENTION", "Hide Intention mismatch.");
+assertEqual(hideContract.methodId, "RESCUE", "Hide Method mismatch.");
+for (const cell of hideCells) {
+  assertEqual(cell.sceneImpact, "MINOR", "Hide Impact mismatch.");
 }
 
 const secureImmediateSafetyOutcome =
@@ -324,29 +333,28 @@ assertEqual(
   "Secure Immediate Safety should be Help.",
 );
 assertEqual(
-  secureImmediateSafetyContract.variants.length,
+  enumerateRoleplayResolvedContractCells(secureImmediateSafetyContract).length,
   2,
-  "Secure Immediate Safety must have exactly two variants.",
+  "Secure Immediate Safety must have exactly two completed cells.",
+);
+const secureImmediateSafetyCells = enumerateRoleplayResolvedContractCells(
+  secureImmediateSafetyContract,
 );
 assertEqual(
-  secureImmediateSafetyContract.variants.filter(
-    (variant) => variant.authoring.scope === "ONE_TARGET",
-  ).length,
+  secureImmediateSafetyCells.filter((cell) => cell.scope === "ONE_TARGET").length,
   1,
   "Secure Immediate Safety needs one One Target variant.",
 );
 assertEqual(
-  secureImmediateSafetyContract.variants.filter(
-    (variant) => variant.authoring.scope === "SMALL_GROUP",
-  ).length,
+  secureImmediateSafetyCells.filter((cell) => cell.scope === "SMALL_GROUP").length,
   1,
   "Secure Immediate Safety needs one Small Group variant.",
 );
-const secureImmediateSafetyVariant = secureImmediateSafetyContract.variants.find(
-  (variant) => variant.authoring.scope === "ONE_TARGET",
+const secureImmediateSafetyVariant = secureImmediateSafetyCells.find(
+  (cell) => cell.scope === "ONE_TARGET",
 );
-const secureImmediateSafetySmallGroupVariant = secureImmediateSafetyContract.variants.find(
-  (variant) => variant.authoring.scope === "SMALL_GROUP",
+const secureImmediateSafetySmallGroupVariant = secureImmediateSafetyCells.find(
+  (cell) => cell.scope === "SMALL_GROUP",
 );
 assert(secureImmediateSafetyVariant, "Secure Immediate Safety One Target variant should exist.");
 assert(
@@ -354,22 +362,22 @@ assert(
   "Secure Immediate Safety Small Group variant should exist.",
 );
 assertEqual(
-  secureImmediateSafetyVariant.authoring.intention,
+  secureImmediateSafetyContract.intention,
   "INTERVENTION",
   "Secure Immediate Safety Intention mismatch.",
 );
 assertEqual(
-  secureImmediateSafetyVariant.authoring.methodId,
+  secureImmediateSafetyContract.methodId,
   "RESCUE",
   "Secure Immediate Safety Method mismatch.",
 );
 assertEqual(
-  secureImmediateSafetyVariant.authoring.sceneImpact,
+  secureImmediateSafetyVariant.sceneImpact,
   "STANDARD",
   "Secure Immediate Safety Impact mismatch.",
 );
 assertEqual(
-  secureImmediateSafetyVariant.authoring.scope,
+  secureImmediateSafetyVariant.scope,
   "ONE_TARGET",
   "Secure Immediate Safety Scope mismatch.",
 );
@@ -389,17 +397,17 @@ assertEqual(
   "Secure Immediate Safety exact outcome mismatch.",
 );
 assertEqual(
-  secureImmediateSafetySmallGroupVariant.authoring.intention,
+  secureImmediateSafetyContract.intention,
   "INTERVENTION",
   "Small Group Secure Immediate Safety Intention mismatch.",
 );
 assertEqual(
-  secureImmediateSafetySmallGroupVariant.authoring.methodId,
+  secureImmediateSafetyContract.methodId,
   "RESCUE",
   "Small Group Secure Immediate Safety Method mismatch.",
 );
 assertEqual(
-  secureImmediateSafetySmallGroupVariant.authoring.sceneImpact,
+  secureImmediateSafetySmallGroupVariant.sceneImpact,
   "STANDARD",
   "Small Group Secure Immediate Safety Impact mismatch.",
 );
@@ -410,7 +418,7 @@ assertEqual(
 );
 assertEqual(
   secureImmediateSafetySmallGroupVariant.privilegeCostKey,
-  "SECURE_IMMEDIATE_SAFETY_SMALL_GROUP",
+  "SECURE_IMMEDIATE_SAFETY",
   "Small Group Secure Immediate Safety privilege key mismatch.",
 );
 assertEqual(
@@ -970,9 +978,12 @@ assertEqual(
 );
 assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 11, "The registry should contain eleven contracts.");
 assertEqual(
-  ROLEPLAY_OUTCOME_CONTRACTS.reduce((total, contract) => total + contract.variants.length, 0),
+  ROLEPLAY_OUTCOME_CONTRACTS.reduce(
+    (total, contract) => total + enumerateRoleplayResolvedContractCells(contract).length,
+    0,
+  ),
   43,
-  "The registry should contain forty-three exact variants.",
+  "The registry should contain forty-three completed cells.",
 );
 assertEqual(
   getRoleplayMethodDefinition("EXTRACT"),
@@ -1489,38 +1500,37 @@ assertEqual(
   "Break Resolve should be Hinder.",
 );
 assertEqual(
-  breakSharedResolveContract.variants.length,
+  enumerateRoleplayResolvedContractCells(breakSharedResolveContract).length,
   8,
-  "Break Resolve needs exactly eight variants.",
+  "Break Resolve needs exactly eight completed cells.",
+);
+const breakSharedResolveCells = enumerateRoleplayResolvedContractCells(
+  breakSharedResolveContract,
 );
 assertEqual(
-  breakSharedResolveContract.variants.filter(
-    (variant) => variant.authoring.scope === "ONE_TARGET",
-  ).length,
+  breakSharedResolveCells.filter((cell) => cell.scope === "ONE_TARGET").length,
   4,
   "Break Resolve needs four One Target variants.",
 );
 assertEqual(
-  breakSharedResolveContract.variants.filter(
-    (variant) => variant.authoring.scope === "SMALL_GROUP",
-  ).length,
+  breakSharedResolveCells.filter((cell) => cell.scope === "SMALL_GROUP").length,
   4,
   "Break Resolve needs four Small Group variants.",
 );
 for (const sceneImpact of ["MINOR", "STANDARD", "MAJOR", "LEGENDARY"] as const) {
   for (const scope of ["ONE_TARGET", "SMALL_GROUP"] as const) {
-    const variant = breakSharedResolveContract.variants.find(
+    const variant = breakSharedResolveCells.find(
       (candidate) =>
-        candidate.authoring.sceneImpact === sceneImpact && candidate.authoring.scope === scope,
+        candidate.sceneImpact === sceneImpact && candidate.scope === scope,
     );
     assert(variant, `${sceneImpact} / ${scope} Break Resolve variant should exist.`);
     assertEqual(
-      variant.authoring.intention,
+      breakSharedResolveContract.intention,
       "INTIMIDATION",
       `${sceneImpact} / ${scope} Intention mismatch.`,
     );
     assertEqual(
-      variant.authoring.methodId,
+      breakSharedResolveContract.methodId,
       "OVERAWE",
       `${sceneImpact} / ${scope} Method mismatch.`,
     );
@@ -1531,9 +1541,7 @@ for (const sceneImpact of ["MINOR", "STANDARD", "MAJOR", "LEGENDARY"] as const) 
     );
     assertEqual(
       variant.privilegeCostKey,
-      scope === "ONE_TARGET"
-        ? `BREAK_SHARED_RESOLVE_ONE_TARGET_${sceneImpact}`
-        : `BREAK_SHARED_RESOLVE_${sceneImpact}`,
+      "BREAK_SHARED_RESOLVE",
       `${sceneImpact} / ${scope} privilege key mismatch.`,
     );
     assertEqual(
@@ -1914,22 +1922,23 @@ const uncoverContract = getRoleplayOutcomeContract("UNCOVER_CONCEALED_TRUTH");
 assert(uncoverContract, "UNCOVER_CONCEALED_TRUTH should exist.");
 assertEqual(uncoverContract.name, "Uncover Concealed Truth", "Contract name mismatch.");
 assertEqual(uncoverContract.outcomeLane, "HELP", "Uncover Concealed Truth should be Help.");
-assertEqual(uncoverContract.variants.length, 4, "Uncover Concealed Truth needs four variants.");
+const uncoverCells = enumerateRoleplayResolvedContractCells(uncoverContract);
+assertEqual(uncoverCells.length, 4, "Uncover Concealed Truth needs four completed cells.");
 assert(
   uncoverContract.exclusions.includes(
     "Does not permit the Game Director to answer an accepted specific subject of investigation with an unrelated truth.",
   ),
   "Uncover Concealed Truth accepted-subject exclusion is missing.",
 );
-for (const variant of uncoverContract.variants) {
-  assertEqual(variant.authoring.intention, "PERCEPTION", "Variant Intention mismatch.");
-  assertEqual(variant.authoring.methodId, "DISCERN_TRUTH", "Variant Method mismatch.");
-  assertEqual(variant.authoring.scope, "ONE_TARGET", "Variant Scope mismatch.");
-  assertEqual(variant.counterEligible, false, "Every variant must disallow Counter.");
+for (const cell of uncoverCells) {
+  assertEqual(uncoverContract.intention, "PERCEPTION", "Contract Intention mismatch.");
+  assertEqual(uncoverContract.methodId, "DISCERN_TRUTH", "Contract Method mismatch.");
+  assertEqual(cell.scope, "ONE_TARGET", "Cell Scope mismatch.");
+  assertEqual(cell.counterEligible, false, "Every cell must disallow Counter.");
   assertEqual(
-    variant.privilegeCostKey,
-    `UNCOVER_CONCEALED_TRUTH_${variant.authoring.sceneImpact}`,
-    `${variant.authoring.sceneImpact} privilege key mismatch.`,
+    cell.privilegeCostKey,
+    "UNCOVER_CONCEALED_TRUTH",
+    `${cell.sceneImpact} privilege key mismatch.`,
   );
 }
 
@@ -2167,23 +2176,23 @@ assertEqual(
   "Reveal Exploitable Weakness should be Help.",
 );
 assertEqual(
-  revealWeaknessContract.variants.length,
+  enumerateRoleplayResolvedContractCells(revealWeaknessContract).length,
   4,
-  "Reveal Exploitable Weakness needs four variants.",
+  "Reveal Exploitable Weakness needs four completed cells.",
 );
-for (const variant of revealWeaknessContract.variants) {
-  const impact = variant.authoring.sceneImpact;
-  assertEqual(variant.authoring.intention, "PERCEPTION", `${impact} Intention mismatch.`);
-  assertEqual(variant.authoring.methodId, "DISCERN_TRUTH", `${impact} Method mismatch.`);
-  assertEqual(variant.authoring.scope, "ONE_TARGET", `${impact} Scope mismatch.`);
-  assertEqual(variant.counterEligible, false, `${impact} must disallow Counter.`);
+for (const cell of enumerateRoleplayResolvedContractCells(revealWeaknessContract)) {
+  const impact = cell.sceneImpact;
+  assertEqual(revealWeaknessContract.intention, "PERCEPTION", `${impact} Intention mismatch.`);
+  assertEqual(revealWeaknessContract.methodId, "DISCERN_TRUTH", `${impact} Method mismatch.`);
+  assertEqual(cell.scope, "ONE_TARGET", `${impact} Scope mismatch.`);
+  assertEqual(cell.counterEligible, false, `${impact} must disallow Counter.`);
   assertEqual(
-    variant.privilegeCostKey,
-    `REVEAL_EXPLOITABLE_WEAKNESS_${impact}`,
+    cell.privilegeCostKey,
+    "REVEAL_EXPLOITABLE_WEAKNESS",
     `${impact} privilege key mismatch.`,
   );
   assertEqual(
-    variant.successOutcome,
+    cell.successOutcome,
     revealExploitableWeaknessOutcomes[impact],
     `${impact} exact outcome mismatch.`,
   );
@@ -2364,16 +2373,17 @@ assertEqual(
   "Cooperation contract name mismatch.",
 );
 assertEqual(cooperationContract.outcomeLane, "HELP", "Cooperation contract should be Help.");
-assertEqual(cooperationContract.variants.length, 4, "Cooperation needs four variants.");
-for (const variant of cooperationContract.variants) {
-  assertEqual(variant.authoring.intention, "PERSUASION", "Cooperation Intention mismatch.");
-  assertEqual(variant.authoring.methodId, "APPEAL", "Cooperation Method mismatch.");
-  assertEqual(variant.authoring.scope, "ONE_TARGET", "Cooperation Scope mismatch.");
-  assertEqual(variant.counterEligible, false, "Cooperation must disallow Counter.");
+const cooperationCells = enumerateRoleplayResolvedContractCells(cooperationContract);
+assertEqual(cooperationCells.length, 4, "Cooperation needs four completed cells.");
+for (const cell of cooperationCells) {
+  assertEqual(cooperationContract.intention, "PERSUASION", "Cooperation Intention mismatch.");
+  assertEqual(cooperationContract.methodId, "APPEAL", "Cooperation Method mismatch.");
+  assertEqual(cell.scope, "ONE_TARGET", "Cooperation Scope mismatch.");
+  assertEqual(cell.counterEligible, false, "Cooperation must disallow Counter.");
   assertEqual(
-    variant.privilegeCostKey,
-    `SECURE_WILLING_COOPERATION_${variant.authoring.sceneImpact}`,
-    `${variant.authoring.sceneImpact} cooperation privilege key mismatch.`,
+    cell.privilegeCostKey,
+    "SECURE_WILLING_COOPERATION",
+    `${cell.sceneImpact} cooperation privilege key mismatch.`,
   );
 }
 
@@ -2562,34 +2572,31 @@ assertEqual(
   "False Belief contract name mismatch.",
 );
 assertEqual(falseBeliefContract.outcomeLane, "HINDER", "False Belief should be Hinder.");
-assertEqual(falseBeliefContract.variants.length, 8, "False Belief needs eight variants.");
+const falseBeliefCells = enumerateRoleplayResolvedContractCells(falseBeliefContract);
+assertEqual(falseBeliefCells.length, 8, "False Belief needs eight completed cells.");
 assertEqual(
-  falseBeliefContract.variants.filter((variant) => variant.authoring.scope === "ONE_TARGET")
-    .length,
+  falseBeliefCells.filter((cell) => cell.scope === "ONE_TARGET").length,
   4,
   "False Belief needs four One Target variants.",
 );
 assertEqual(
-  falseBeliefContract.variants.filter((variant) => variant.authoring.scope === "SMALL_GROUP")
-    .length,
+  falseBeliefCells.filter((cell) => cell.scope === "SMALL_GROUP").length,
   4,
   "False Belief needs four Small Group variants.",
 );
 for (const sceneImpact of ["MINOR", "STANDARD", "MAJOR", "LEGENDARY"] as const) {
   for (const scope of ["ONE_TARGET", "SMALL_GROUP"] as const) {
-    const variant = falseBeliefContract.variants.find(
+    const variant = falseBeliefCells.find(
       (candidate) =>
-        candidate.authoring.sceneImpact === sceneImpact && candidate.authoring.scope === scope,
+        candidate.sceneImpact === sceneImpact && candidate.scope === scope,
     );
     assert(variant, `${sceneImpact} / ${scope} false-belief variant should exist.`);
-    assertEqual(variant.authoring.intention, "DECEPTION", "False Belief Intention mismatch.");
-    assertEqual(variant.authoring.methodId, "MISDIRECT", "False Belief Method mismatch.");
+    assertEqual(falseBeliefContract.intention, "DECEPTION", "False Belief Intention mismatch.");
+    assertEqual(falseBeliefContract.methodId, "MISDIRECT", "False Belief Method mismatch.");
     assertEqual(variant.counterEligible, false, "False Belief must disallow Counter.");
     assertEqual(
       variant.privilegeCostKey,
-      scope === "ONE_TARGET"
-        ? `ESTABLISH_FALSE_BELIEF_${sceneImpact}`
-        : `ESTABLISH_FALSE_BELIEF_SMALL_GROUP_${sceneImpact}`,
+      "ESTABLISH_FALSE_BELIEF",
       `${sceneImpact} / ${scope} false-belief privilege key mismatch.`,
     );
     assertEqual(
@@ -3005,38 +3012,35 @@ assertEqual(
   "Divert Immediate Attention should be Hinder.",
 );
 assertEqual(
-  divertImmediateAttentionContract.variants.length,
+  enumerateRoleplayResolvedContractCells(divertImmediateAttentionContract).length,
   2,
-  "Divert Immediate Attention must have exactly two variants.",
+  "Divert Immediate Attention must have exactly two completed cells.",
+);
+const divertImmediateAttentionCells = enumerateRoleplayResolvedContractCells(
+  divertImmediateAttentionContract,
 );
 assertEqual(
-  divertImmediateAttentionContract.variants.filter(
-    (variant) => variant.authoring.scope === "ONE_TARGET",
-  ).length,
+  divertImmediateAttentionCells.filter((cell) => cell.scope === "ONE_TARGET").length,
   1,
   "Divert Immediate Attention needs one One Target variant.",
 );
 assertEqual(
-  divertImmediateAttentionContract.variants.filter(
-    (variant) => variant.authoring.scope === "SMALL_GROUP",
-  ).length,
+  divertImmediateAttentionCells.filter((cell) => cell.scope === "SMALL_GROUP").length,
   1,
   "Divert Immediate Attention needs one Small Group variant.",
 );
 for (const scope of ["ONE_TARGET", "SMALL_GROUP"] as const) {
-  const variant = divertImmediateAttentionContract.variants.find(
-    (candidate) => candidate.authoring.scope === scope,
+  const variant = divertImmediateAttentionCells.find(
+    (candidate) => candidate.scope === scope,
   );
   assert(variant, `${scope} Divert Immediate Attention variant should exist.`);
-  assertEqual(variant.authoring.intention, "DECEPTION", `${scope} Intention mismatch.`);
-  assertEqual(variant.authoring.methodId, "DISTRACT", `${scope} Method mismatch.`);
-  assertEqual(variant.authoring.sceneImpact, "MINOR", `${scope} Impact mismatch.`);
+  assertEqual(divertImmediateAttentionContract.intention, "DECEPTION", `${scope} Intention mismatch.`);
+  assertEqual(divertImmediateAttentionContract.methodId, "DISTRACT", `${scope} Method mismatch.`);
+  assertEqual(variant.sceneImpact, "MINOR", `${scope} Impact mismatch.`);
   assertEqual(variant.counterEligible, false, `${scope} must disallow Counter.`);
   assertEqual(
     variant.privilegeCostKey,
-    scope === "ONE_TARGET"
-      ? "DIVERT_IMMEDIATE_ATTENTION"
-      : "DIVERT_IMMEDIATE_ATTENTION_SMALL_GROUP",
+    "DIVERT_IMMEDIATE_ATTENTION",
     `${scope} privilege key mismatch.`,
   );
   assertEqual(
@@ -3376,16 +3380,17 @@ assertEqual(
   "Shared Resolve contract name mismatch.",
 );
 assertEqual(sharedResolveContract.outcomeLane, "HELP", "Shared Resolve should be Help.");
-assertEqual(sharedResolveContract.variants.length, 4, "Shared Resolve needs four variants.");
-for (const variant of sharedResolveContract.variants) {
-  assertEqual(variant.authoring.intention, "PERSUASION", "Shared Resolve Intention mismatch.");
-  assertEqual(variant.authoring.methodId, "RALLY", "Shared Resolve Method mismatch.");
-  assertEqual(variant.authoring.scope, "SMALL_GROUP", "Shared Resolve Scope mismatch.");
-  assertEqual(variant.counterEligible, false, "Shared Resolve must disallow Counter.");
+const sharedResolveCells = enumerateRoleplayResolvedContractCells(sharedResolveContract);
+assertEqual(sharedResolveCells.length, 4, "Shared Resolve needs four completed cells.");
+for (const cell of sharedResolveCells) {
+  assertEqual(sharedResolveContract.intention, "PERSUASION", "Shared Resolve Intention mismatch.");
+  assertEqual(sharedResolveContract.methodId, "RALLY", "Shared Resolve Method mismatch.");
+  assertEqual(cell.scope, "SMALL_GROUP", "Shared Resolve Scope mismatch.");
+  assertEqual(cell.counterEligible, false, "Shared Resolve must disallow Counter.");
   assertEqual(
-    variant.privilegeCostKey,
-    `ESTABLISH_SHARED_RESOLVE_${variant.authoring.sceneImpact}`,
-    `${variant.authoring.sceneImpact} shared-resolve privilege key mismatch.`,
+    cell.privilegeCostKey,
+    "ESTABLISH_SHARED_RESOLVE",
+    `${cell.sceneImpact} shared-resolve privilege key mismatch.`,
   );
 }
 
@@ -3573,6 +3578,381 @@ assert(
   "Rally Custom Outcome approval warning should remain.",
 );
 
+type LegacyDescriptorRegression = {
+  contractId: RoleplayAbility["outcomeContractId"];
+  scope: RoleplayAbility["scope"];
+  sceneImpact: RoleplayAbility["sceneImpact"];
+  successOutcome: string;
+  descriptor: string;
+  counterEligible: boolean;
+};
+
+const legacyDescriptorRegressions: LegacyDescriptorRegression[] = [
+  {
+    contractId: "HIDE_FROM_IMMEDIATE_DANGER",
+    scope: "ONE_TARGET",
+    sceneImpact: "MINOR",
+    successOutcome: hideImmediateDangerOutcome,
+    descriptor: hideImmediateDangerDescriptor,
+    counterEligible: false,
+  },
+  {
+    contractId: "HIDE_FROM_IMMEDIATE_DANGER",
+    scope: "SMALL_GROUP",
+    sceneImpact: "MINOR",
+    successOutcome: hideImmediateDangerSmallGroupOutcome,
+    descriptor: hideImmediateDangerSmallGroupDescriptor,
+    counterEligible: false,
+  },
+  {
+    contractId: "SECURE_IMMEDIATE_SAFETY",
+    scope: "ONE_TARGET",
+    sceneImpact: "STANDARD",
+    successOutcome: secureImmediateSafetyOutcome,
+    descriptor: secureImmediateSafetyDescriptor,
+    counterEligible: false,
+  },
+  {
+    contractId: "SECURE_IMMEDIATE_SAFETY",
+    scope: "SMALL_GROUP",
+    sceneImpact: "STANDARD",
+    successOutcome: secureImmediateSafetySmallGroupOutcome,
+    descriptor: secureImmediateSafetySmallGroupDescriptor,
+    counterEligible: false,
+  },
+  {
+    contractId: "DENY_IMMINENT_HOSTILE_ACT",
+    scope: "ONE_TARGET",
+    sceneImpact: "MAJOR",
+    successOutcome: "the target's current or next hostile action fails",
+    descriptor:
+      "Choose one target and roll 3 dice. On success, the target's current or next hostile action fails.",
+    counterEligible: true,
+  },
+];
+
+const regressionImpacts = ["MINOR", "STANDARD", "MAJOR", "LEGENDARY"] as const;
+for (const sceneImpact of regressionImpacts) {
+  legacyDescriptorRegressions.push({
+    contractId: "DRAW_HOSTILE_ATTENTION",
+    scope: "ONE_TARGET",
+    sceneImpact,
+    successOutcome: drawHostileAttentionOutcomes[sceneImpact],
+    descriptor: drawHostileAttentionDescriptors[sceneImpact],
+    counterEligible: false,
+  });
+  legacyDescriptorRegressions.push({
+    contractId: "BREAK_SHARED_RESOLVE",
+    scope: "ONE_TARGET",
+    sceneImpact,
+    successOutcome: breakResolveOneTargetOutcomes[sceneImpact],
+    descriptor: breakResolveOneTargetDescriptors[sceneImpact],
+    counterEligible: false,
+  });
+  legacyDescriptorRegressions.push({
+    contractId: "BREAK_SHARED_RESOLVE",
+    scope: "SMALL_GROUP",
+    sceneImpact,
+    successOutcome: breakSharedResolveGroupOutcomes[sceneImpact],
+    descriptor: breakSharedResolveGroupDescriptors[sceneImpact],
+    counterEligible: false,
+  });
+  legacyDescriptorRegressions.push({
+    contractId: "UNCOVER_CONCEALED_TRUTH",
+    scope: "ONE_TARGET",
+    sceneImpact,
+    successOutcome: uncoverConcealedTruthOutcomes[sceneImpact],
+    descriptor: uncoverConcealedTruthDescriptors[sceneImpact],
+    counterEligible: false,
+  });
+  legacyDescriptorRegressions.push({
+    contractId: "REVEAL_EXPLOITABLE_WEAKNESS",
+    scope: "ONE_TARGET",
+    sceneImpact,
+    successOutcome: revealExploitableWeaknessOutcomes[sceneImpact],
+    descriptor: revealExploitableWeaknessDescriptors[sceneImpact],
+    counterEligible: false,
+  });
+  legacyDescriptorRegressions.push({
+    contractId: "SECURE_WILLING_COOPERATION",
+    scope: "ONE_TARGET",
+    sceneImpact,
+    successOutcome: secureWillingCooperationOutcomes[sceneImpact],
+    descriptor: secureWillingCooperationDescriptors[sceneImpact],
+    counterEligible: false,
+  });
+  legacyDescriptorRegressions.push({
+    contractId: "ESTABLISH_SHARED_RESOLVE",
+    scope: "SMALL_GROUP",
+    sceneImpact,
+    successOutcome: establishSharedResolveOutcomes[sceneImpact],
+    descriptor: establishSharedResolveDescriptors[sceneImpact],
+    counterEligible: false,
+  });
+  legacyDescriptorRegressions.push({
+    contractId: "ESTABLISH_FALSE_BELIEF",
+    scope: "ONE_TARGET",
+    sceneImpact,
+    successOutcome: establishFalseBeliefOneTargetOutcomes[sceneImpact],
+    descriptor: establishFalseBeliefOneTargetDescriptors[sceneImpact],
+    counterEligible: false,
+  });
+  legacyDescriptorRegressions.push({
+    contractId: "ESTABLISH_FALSE_BELIEF",
+    scope: "SMALL_GROUP",
+    sceneImpact,
+    successOutcome: establishFalseBeliefSmallGroupOutcomes[sceneImpact],
+    descriptor: establishFalseBeliefSmallGroupDescriptors[sceneImpact],
+    counterEligible: false,
+  });
+}
+legacyDescriptorRegressions.push(
+  {
+    contractId: "DIVERT_IMMEDIATE_ATTENTION",
+    scope: "ONE_TARGET",
+    sceneImpact: "MINOR",
+    successOutcome: divertImmediateAttentionOutcome,
+    descriptor: divertImmediateAttentionDescriptor,
+    counterEligible: false,
+  },
+  {
+    contractId: "DIVERT_IMMEDIATE_ATTENTION",
+    scope: "SMALL_GROUP",
+    sceneImpact: "MINOR",
+    successOutcome: divertImmediateAttentionSmallGroupOutcome,
+    descriptor: divertImmediateAttentionSmallGroupDescriptor,
+    counterEligible: false,
+  },
+);
+
+assertEqual(
+  legacyDescriptorRegressions.length,
+  43,
+  "The legacy descriptor regression table must cover every completed standard cell.",
+);
+
+const standardLibrarySource = readFileSync(
+  "lib/characterBuilder/roleplayAbilities.ts",
+  "utf8",
+);
+assert(
+  ROLEPLAY_OUTCOME_CONTRACTS.every((contract) => !Object.hasOwn(contract, "variants")),
+  "Standard contracts must not own exact variant tuples.",
+);
+assert(
+  !standardLibrarySource.includes("RoleplayOutcomeContractVariant"),
+  "The retired RoleplayOutcomeContractVariant type must remain absent.",
+);
+assert(
+  !standardLibrarySource.includes("getRoleplayOutcomeContractVariant"),
+  "The retired exact-variant lookup helper must remain absent.",
+);
+
+const libraryAudit = auditRoleplayStandardLibrary();
+assertEqual(libraryAudit.plannedCellCount, 68, "Planned standard-library cell count drifted.");
+assertEqual(libraryAudit.completedCellCount, 43, "Completed standard-library cell count drifted.");
+assertEqual(libraryAudit.missingCellCount, 25, "Missing standard-library cell count drifted.");
+assertEqual(
+  new Set(libraryAudit.privilegeKeys).size,
+  11,
+  "Each contract family must own one unique privilege cost key.",
+);
+assert(
+  ROLEPLAY_OUTCOME_CONTRACTS.every(
+    (contract) => contract.privilegeCostKey === contract.id,
+  ),
+  "Privilege cost keys must identify their contract family rather than a resolved cell.",
+);
+assertEqual(libraryAudit.structuralErrors.length, 0, "The standard library has structural errors.");
+assertEqual(
+  libraryAudit.unresolvedTemplateTokens.length,
+  0,
+  "Completed cells must not contain unresolved template tokens.",
+);
+assertEqual(
+  libraryAudit.missingScopeTokenFragments.join("|"),
+  "SECURE_WILLING_COOPERATION:SMALL_GROUP",
+  "The known missing scope-token fragment changed.",
+);
+
+const expectedMissingCells = {
+  HIDE_FROM_IMMEDIATE_DANGER: 6,
+  SECURE_IMMEDIATE_SAFETY: 6,
+  DENY_IMMINENT_HOSTILE_ACT: 3,
+  DRAW_HOSTILE_ATTENTION: 0,
+  BREAK_SHARED_RESOLVE: 0,
+  UNCOVER_CONCEALED_TRUTH: 0,
+  REVEAL_EXPLOITABLE_WEAKNESS: 0,
+  SECURE_WILLING_COOPERATION: 4,
+  ESTABLISH_SHARED_RESOLVE: 0,
+  ESTABLISH_FALSE_BELIEF: 0,
+  DIVERT_IMMEDIATE_ATTENTION: 6,
+} as const;
+const expectedOutcomeLanes = {
+  HIDE_FROM_IMMEDIATE_DANGER: "HELP",
+  SECURE_IMMEDIATE_SAFETY: "HELP",
+  DENY_IMMINENT_HOSTILE_ACT: "HINDER",
+  DRAW_HOSTILE_ATTENTION: "HINDER",
+  BREAK_SHARED_RESOLVE: "HINDER",
+  UNCOVER_CONCEALED_TRUTH: "HELP",
+  REVEAL_EXPLOITABLE_WEAKNESS: "HELP",
+  SECURE_WILLING_COOPERATION: "HELP",
+  ESTABLISH_SHARED_RESOLVE: "HELP",
+  ESTABLISH_FALSE_BELIEF: "HINDER",
+  DIVERT_IMMEDIATE_ATTENTION: "HINDER",
+} as const;
+for (const [contractId, expectedCount] of Object.entries(expectedMissingCells)) {
+  assertEqual(
+    libraryAudit.missingCellsByContract[
+      contractId as keyof typeof libraryAudit.missingCellsByContract
+    ].length,
+    expectedCount,
+    `${contractId} missing-cell count drifted.`,
+  );
+}
+
+assertEqual(
+  getRoleplayOutcomeContractsForMethod("INTERVENTION", "RESCUE")
+    .map((contract) => contract.id)
+    .join("|"),
+  "HIDE_FROM_IMMEDIATE_DANGER|SECURE_IMMEDIATE_SAFETY",
+  "Outcome Contract options should filter by method ownership only.",
+);
+assertEqual(
+  getRoleplayOutcomeContractsForMethod("PERCEPTION", "DISCERN_TRUTH")
+    .map((contract) => contract.id)
+    .join("|"),
+  "UNCOVER_CONCEALED_TRUTH|REVEAL_EXPLOITABLE_WEAKNESS",
+  "Discern Truth should expose both owned contract families before Scope selection.",
+);
+
+const compositionalCooperationContract = getRoleplayOutcomeContract(
+  "SECURE_WILLING_COOPERATION",
+);
+assert(compositionalCooperationContract, "Secure Willing Cooperation contract missing.");
+assertEqual(
+  getRoleplayCompletedScopesForContract(compositionalCooperationContract).join("|"),
+  "ONE_TARGET",
+  "Incomplete Small Group cooperation must not be selectable.",
+);
+assertEqual(
+  getRoleplayCompletedImpactsForContract(compositionalCooperationContract, "SMALL_GROUP")
+    .length,
+  0,
+  "Incomplete cooperation cells must not expose Scene Impact options.",
+);
+assertEqual(
+  resolveRoleplayOutcomeContract(compositionalCooperationContract, {
+    intention: compositionalCooperationContract.intention,
+    methodId: compositionalCooperationContract.methodId,
+    scope: "SMALL_GROUP",
+    sceneImpact: "MINOR",
+  }),
+  null,
+  "Incomplete cooperation composition must remain illegal.",
+);
+
+const selectedCooperation = selectRoleplayAbilityOutcomeContract(
+  {
+    ...createDefaultRoleplayAbility(90),
+    intention: compositionalCooperationContract.intention,
+    methodId: compositionalCooperationContract.methodId,
+    scope: "SMALL_GROUP",
+    sceneImpact: "LEGENDARY",
+  },
+  compositionalCooperationContract.id,
+);
+assertEqual(selectedCooperation.scope, "ONE_TARGET", "Contract selection should choose a completed Scope.");
+assertEqual(
+  selectedCooperation.sceneImpact,
+  "LEGENDARY",
+  "Contract selection should preserve a completed Scene Impact when possible.",
+);
+assertEqual(
+  selectRoleplayAbilityScope(selectedCooperation, "SMALL_GROUP").scope,
+  "ONE_TARGET",
+  "Selecting an incomplete Scope should fall back to a completed Scope.",
+);
+
+const compositionalHideContract = getRoleplayOutcomeContract("HIDE_FROM_IMMEDIATE_DANGER");
+assert(compositionalHideContract, "Hide from Immediate Danger contract missing.");
+const selectedHide = selectRoleplayAbilityOutcomeContract(
+  {
+    ...createDefaultRoleplayAbility(91),
+    intention: compositionalHideContract.intention,
+    methodId: compositionalHideContract.methodId,
+    scope: "FACTION_ARMY",
+    sceneImpact: "MAJOR",
+  },
+  compositionalHideContract.id,
+);
+assertEqual(selectedHide.scope, "ONE_TARGET", "Hide should fall back to a completed Scope.");
+assertEqual(selectedHide.sceneImpact, "MINOR", "Hide should fall back to its completed Impact.");
+assertEqual(
+  selectRoleplayAbilitySceneImpact(selectedHide, "STANDARD").sceneImpact,
+  "MINOR",
+  "Selecting an incomplete Scene Impact should retain a completed Impact.",
+);
+
+const enumeratedCells = ROLEPLAY_OUTCOME_CONTRACTS.flatMap((contract) =>
+  enumerateRoleplayResolvedContractCells(contract),
+);
+assertEqual(enumeratedCells.length, 43, "Resolved cell enumeration must match the regression table.");
+for (const [index, regression] of legacyDescriptorRegressions.entries()) {
+  const contract = getRoleplayOutcomeContract(regression.contractId);
+  assert(contract, `Regression contract ${regression.contractId} missing.`);
+  const resolved = resolveRoleplayOutcomeContract(contract, {
+    intention: contract.intention,
+    methodId: contract.methodId,
+    scope: regression.scope,
+    sceneImpact: regression.sceneImpact,
+  });
+  assert(resolved, `${regression.contractId}/${regression.scope}/${regression.sceneImpact} did not resolve.`);
+  assertEqual(resolved.successOutcome, regression.successOutcome, "Composed success outcome drifted.");
+  assertEqual(resolved.counterEligible, regression.counterEligible, "Counter eligibility drifted.");
+  assertEqual(resolved.privilegeCostKey, contract.id, "Resolved cell should inherit its family key.");
+
+  const ability = reconcileRoleplayAbilityAuthoring({
+    ...createDefaultRoleplayAbility(100 + index),
+    name: "Descriptor Regression",
+    narrativeTheme: "Regression coverage",
+    intention: contract.intention,
+    methodId: contract.methodId,
+    scope: regression.scope,
+    sceneImpact: regression.sceneImpact,
+    diceCount: 3,
+    outcomeContractId: contract.id,
+    counter: true,
+  });
+  assertEqual(ability.outcomeContractId, contract.id, "Completed contract cell was cleared.");
+  assertEqual(
+    getRoleplayAbilityOutcomeLane(ability),
+    expectedOutcomeLanes[contract.id],
+    "Legacy Outcome Lane drifted.",
+  );
+  assertEqual(getRoleplayAbilitySuccessOutcome(ability), regression.successOutcome, "Ability outcome drifted.");
+  assertEqual(renderRoleplayAbilityDescriptor(ability), regression.descriptor, "Legacy descriptor drifted.");
+  assertEqual(ability.counter, regression.counterEligible, "Stored Counter state drifted.");
+
+  const normalized = normalizeRoleplayAbility(ability, index);
+  assertEqual(normalized.outcomeContractId, contract.id, "Normalization cleared a completed cell.");
+  assertEqual(renderRoleplayAbilityDescriptor(normalized), regression.descriptor, "Normalized descriptor drifted.");
+  for (const generatedField of [
+    "successOutcome",
+    "generatedDescriptor",
+    "scopeTokens",
+    "impactFragments",
+    "resolvedCells",
+    "privilegeCostKey",
+    "coverageStatus",
+  ]) {
+    assert(
+      !Object.hasOwn(normalized, generatedField),
+      `${generatedField} must not be persisted in Roleplay Ability state.`,
+    );
+  }
+}
+
 console.log("PASS roleplay outcome contract registry smoke");
 console.log("PASS roleplay secure immediate safety contract smoke");
 console.log("PASS roleplay draw hostile attention contract smoke");
@@ -3584,3 +3964,4 @@ console.log("PASS roleplay secure willing cooperation contract smoke");
 console.log("PASS roleplay establish false belief contract smoke");
 console.log("PASS roleplay divert immediate attention contract smoke");
 console.log("PASS roleplay establish shared resolve contract smoke");
+console.log("PASS roleplay compositional standard library smoke");
