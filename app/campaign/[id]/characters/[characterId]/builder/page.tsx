@@ -4658,10 +4658,8 @@ export default function CharacterBuilderPage() {
                           </span>
                         ) : null}
                       </label>
-                    </div>
-
                     {selectedMethod ? (
-                      <section className="rounded-lg border border-violet-900/70 bg-violet-950/20 p-3">
+                      <section className="order-last rounded-lg border border-violet-900/70 bg-violet-950/20 p-3 sm:col-span-2 xl:col-span-3">
                         <h4 className="text-xs font-semibold uppercase tracking-wide text-violet-300">
                           Method Details
                         </h4>
@@ -4709,7 +4707,7 @@ export default function CharacterBuilderPage() {
                         </p>
                       </section>
                     ) : customMethodSelected ? (
-                      <section className="rounded-lg border border-amber-800 bg-amber-950/20 p-3">
+                      <section className="order-last rounded-lg border border-amber-800 bg-amber-950/20 p-3 sm:col-span-2 xl:col-span-3">
                         <h4 className="text-xs font-semibold uppercase tracking-wide text-amber-300">
                           Custom Method Review
                         </h4>
@@ -4763,7 +4761,6 @@ export default function CharacterBuilderPage() {
                       </section>
                     ) : null}
 
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       <label>
                         <span className="text-xs text-zinc-400">Outcome Contract</span>
                         <select
