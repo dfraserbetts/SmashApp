@@ -1745,6 +1745,7 @@ type ControlPressurePowerOptions = {
   targets?: number;
   cooldown?: number;
   potency?: number;
+  diceCount?: number;
   duration?: "INSTANT" | "TURNS" | "PASSIVE" | "UNTIL_TARGET_NEXT_TURN";
   durationTurns?: number;
   timing?: "ON_CAST" | "START_OF_TURN" | "START_OF_TURN_WHILST_CHANNELLED";
@@ -1772,7 +1773,7 @@ function createControlPressurePower(
     hostility: "HOSTILE" as const,
     intention: options.intention,
     type: options.intention,
-    diceCount: 1,
+    diceCount: options.diceCount ?? 1,
     potency,
     effectTimingType: options.timing ?? "ON_CAST",
     effectTimingTurns: null,
@@ -1834,7 +1835,7 @@ function createControlPressurePower(
     durationTurns: options.durationTurns ?? null,
     effectPackets: packets,
     intentions: packets,
-    diceCount: 1,
+    diceCount: options.diceCount ?? 1,
     potency,
   };
 }
@@ -2108,10 +2109,164 @@ const controlPressureMainActionDenial = computePressureFixture({
     }),
   ],
 });
+const movementDenialPower = createControlPressurePower({
+  name: "Movement Denial",
+  intention: "CONTROL",
+  controlMode: "Force no move",
+  duration: "TURNS",
+  durationTurns: 1,
+  cooldown: 2,
+  resistAttribute: "FORTITUDE",
+});
+const controlPressureMovementDenial = computePressureFixture({ powers: [movementDenialPower] });
+const movementDenialPackage = getControlPressureAxisDebug(controlPressureMovementDenial)
+  ?.semanticPackagesConsidered?.[0];
+assert.ok(controlPressureMovementDenial.radarAxes.manipulation > 0);
+assert.equal(movementDenialPackage?.effectFamily, "MOVEMENT_DENIAL");
+assert.equal(movementDenialPackage?.runtimeSemanticMode, "movementDenied");
+assert.notEqual(movementDenialPackage?.effectFamily, "MAIN_ACTION_DENIAL");
 assert.ok(
-  controlPressureMainActionDenial.radarAxes.manipulation >
-    controlPressureLightMovement.radarAxes.manipulation,
+  getControlPressureAxisDebug(controlPressureMovementDenial)?.unsupportedAuthoringWarnings?.some((warning) =>
+    warning.includes("Dice Count and Potency do not add magnitude scaling"),
+  ),
 );
+assert.ok(
+  controlPressureLightMovement.radarAxes.manipulation <
+    controlPressureMovementDenial.radarAxes.manipulation,
+);
+assert.ok(
+  controlPressureMovementDenial.radarAxes.manipulation <
+    controlPressureMainActionDenial.radarAxes.manipulation,
+);
+
+const savedReloadedMovementDenial = {
+  ...movementDenialPower,
+  effectPackets: movementDenialPower.effectPackets?.map((packet) => ({
+    ...packet,
+    detailsJson: JSON.parse(JSON.stringify(packet.detailsJson)),
+  })),
+  intentions: [],
+};
+const controlPressureSavedMovementDenial = computePressureFixture({
+  powers: [savedReloadedMovementDenial],
+});
+assertApprox(
+  controlPressureMovementDenial.radarAxes.manipulation,
+  controlPressureSavedMovementDenial.radarAxes.manipulation,
+  0.000001,
+  "Control Pressure saved/editor movement-denial parity",
+);
+
+const controlPressureMovementOneTarget = computePressureFixture({
+  powers: [{ ...movementDenialPower, rangedTargets: 1 }],
+});
+const controlPressureMovementTwoTargets = computePressureFixture({
+  powers: [{ ...movementDenialPower, rangedTargets: 2 }],
+});
+assert.ok(
+  controlPressureMovementTwoTargets.radarAxes.manipulation >
+    controlPressureMovementOneTarget.radarAxes.manipulation,
+);
+
+const controlPressureMovementShortDuration = computePressureFixture({
+  powers: [createControlPressurePower({
+    name: "Short Movement Denial",
+    intention: "CONTROL",
+    controlMode: "Force no move",
+    duration: "TURNS",
+    durationTurns: 1,
+    cooldown: 2,
+  })],
+});
+const controlPressureMovementLongDuration = computePressureFixture({
+  powers: [createControlPressurePower({
+    name: "Long Movement Denial",
+    intention: "CONTROL",
+    controlMode: "Force no move",
+    duration: "TURNS",
+    durationTurns: 3,
+    cooldown: 2,
+  })],
+});
+assert.ok(
+  controlPressureMovementLongDuration.radarAxes.manipulation >
+    controlPressureMovementShortDuration.radarAxes.manipulation,
+);
+
+const controlPressureMovementShortCooldown = computePressureFixture({
+  powers: [createControlPressurePower({
+    name: "Available Movement Denial",
+    intention: "CONTROL",
+    controlMode: "Force no move",
+    cooldown: 1,
+  })],
+});
+const controlPressureMovementLongCooldown = computePressureFixture({
+  powers: [createControlPressurePower({
+    name: "Scarce Movement Denial",
+    intention: "CONTROL",
+    controlMode: "Force no move",
+    cooldown: 5,
+  })],
+});
+assert.ok(
+  controlPressureMovementShortCooldown.radarAxes.manipulation >
+    controlPressureMovementLongCooldown.radarAxes.manipulation,
+);
+
+const controlPressureMovementResisted = computePressureFixture({
+  powers: [movementDenialPower],
+});
+const controlPressureMovementUnresisted = computePressureFixture({
+  powers: [{ ...movementDenialPower, primaryDefenceGate: null }],
+});
+assert.ok(
+  controlPressureMovementUnresisted.radarAxes.manipulation >
+    controlPressureMovementResisted.radarAxes.manipulation,
+);
+
+const movementDenialMagnitudeOne = computePressureFixture({
+  powers: [createControlPressurePower({
+    name: "Movement Denial Magnitude One",
+    intention: "CONTROL",
+    controlMode: "Force no move",
+    diceCount: 1,
+    potency: 1,
+    cooldown: 2,
+  })],
+});
+const movementDenialMagnitudeTwenty = computePressureFixture({
+  powers: [createControlPressurePower({
+    name: "Movement Denial Magnitude Twenty",
+    intention: "CONTROL",
+    controlMode: "Force no move",
+    diceCount: 20,
+    potency: 20,
+    cooldown: 2,
+  })],
+});
+assertApprox(
+  movementDenialMagnitudeOne.radarAxes.manipulation,
+  movementDenialMagnitudeTwenty.radarAxes.manipulation,
+  0.000001,
+  "Control Pressure movement-denial Dice/Potency invariance",
+);
+for (const axis of [
+  "physicalThreat",
+  "mentalThreat",
+  "physicalSurvivability",
+  "mentalSurvivability",
+  "presence",
+  "synergy",
+  "mobility",
+] as const) {
+  assertApprox(
+    movementDenialMagnitudeOne.radarAxes[axis],
+    movementDenialMagnitudeTwenty.radarAxes[axis],
+    0.000001,
+    `Movement-denial magnitude ${axis} isolation`,
+  );
+}
 
 const controlPressureOneTarget = computePressureFixture({
   powers: [
@@ -2243,6 +2398,50 @@ assert.equal(
   1,
 );
 
+const duplicateMovementDenialA = createControlPressurePower({
+  name: "Duplicate Movement Denial A",
+  intention: "CONTROL",
+  controlMode: "Force no move",
+  cooldown: 2,
+});
+const duplicateMovementDenialB = createControlPressurePower({
+  name: "Duplicate Movement Denial B",
+  intention: "CONTROL",
+  controlMode: "Force no move",
+  cooldown: 2,
+});
+const controlPressureOneMovementDenial = computePressureFixture({ powers: [duplicateMovementDenialA] });
+const controlPressureDuplicateMovementDenial = computePressureFixture({
+  powers: [duplicateMovementDenialA, duplicateMovementDenialB],
+});
+assertApprox(
+  controlPressureDuplicateMovementDenial.radarAxes.manipulation,
+  controlPressureOneMovementDenial.radarAxes.manipulation,
+  0.000001,
+  "Control Pressure exact duplicate movement denial",
+);
+assert.equal(
+  getControlPressureAxisDebug(controlPressureDuplicateMovementDenial)?.duplicateOverlapHandling
+    ?.exactDuplicatesRemoved?.length,
+  1,
+);
+
+const controlPressureMovementPlusDebuff = computePressureFixture({
+  powers: [
+    duplicateMovementDenialA,
+    createControlPressurePower({
+      name: "Movement-Denial Distinct Debuff",
+      intention: "DEBUFF",
+      statTarget: "Attack",
+      cooldown: 2,
+    }),
+  ],
+});
+assert.ok(
+  controlPressureMovementPlusDebuff.radarAxes.manipulation >
+    controlPressureOneMovementDenial.radarAxes.manipulation,
+);
+
 const controlPressureDistinctPackages = computePressureFixture({
   powers: [
     duplicateControlDenialA,
@@ -2299,6 +2498,45 @@ assertApprox(
   controlPressureLinkedWs8.radarAxes.manipulation,
   0.000001,
   "Control Pressure linked W/S independence",
+);
+
+const movementDenialWithoutRider = computePressureFixture({
+  powers: [createControlPressurePower({
+    name: "Movement Denial Without Rider",
+    intention: "CONTROL",
+    controlMode: "Force no move",
+    cooldown: 2,
+  })],
+});
+const movementDenialWithRider = computePressureFixture({
+  powers: [createControlPressurePower({
+    name: "Movement Denial With Rider",
+    intention: "CONTROL",
+    controlMode: "Force no move",
+    cooldown: 2,
+    linkedDamageWs: 8,
+  })],
+});
+assertApprox(
+  movementDenialWithoutRider.radarAxes.manipulation,
+  movementDenialWithRider.radarAxes.manipulation,
+  0.000001,
+  "Control Pressure movement-denial linked damage independence",
+);
+
+const movementDenialGenericCostZero = computePressureFixture({
+  powers: [duplicateMovementDenialA],
+  genericManipulation: 0,
+});
+const movementDenialGenericCostHigh = computePressureFixture({
+  powers: [{ ...duplicateMovementDenialA, name: "Renamed Generic-Cost Movement Denial" }],
+  genericManipulation: 999,
+});
+assertApprox(
+  movementDenialGenericCostZero.radarAxes.manipulation,
+  movementDenialGenericCostHigh.radarAxes.manipulation,
+  0.000001,
+  "Control Pressure movement-denial generic-cost independence",
 );
 
 const controlPressureGateScores = (["FORTITUDE", "INTELLECT", "BRAVERY"] as const).map(
@@ -2668,8 +2906,17 @@ console.log(
         lightDebuff: controlPressureLightDebuff.radarAxes.manipulation,
         severity: {
           forcedMovement: controlPressureLightMovement.radarAxes.manipulation,
+          movementDenial: controlPressureMovementDenial.radarAxes.manipulation,
           mainActionDenial: controlPressureMainActionDenial.radarAxes.manipulation,
         },
+        savedEditorParity: [
+          controlPressureMovementDenial.radarAxes.manipulation,
+          controlPressureSavedMovementDenial.radarAxes.manipulation,
+        ],
+        movementDenialMagnitudeInvariance: [
+          movementDenialMagnitudeOne.radarAxes.manipulation,
+          movementDenialMagnitudeTwenty.radarAxes.manipulation,
+        ],
         breadth: {
           oneTarget: controlPressureOneTarget.radarAxes.manipulation,
           twoTargets: controlPressureTwoTargets.radarAxes.manipulation,

@@ -2113,6 +2113,7 @@ function buildPressureAxisBaselineModel(params: {
 
 type ControlPressureEffectFamily =
   | "FORCED_MOVEMENT"
+  | "MOVEMENT_DENIAL"
   | "MAIN_ACTION_DENIAL"
   | "ATTRIBUTE_DEBUFF"
   | "DEFENCE_DEBUFF";
@@ -2124,7 +2125,7 @@ type SemanticControlPackage = {
   sourcePowerName: string;
   packetIndex: number;
   effectFamily: ControlPressureEffectFamily;
-  runtimeSemanticMode: "forcedMovementApplied" | "mainActionDenied" | "attributeModifier";
+  runtimeSemanticMode: "forcedMovementApplied" | "movementDenied" | "mainActionDenied" | "attributeModifier";
   affectedAttribute: string | null;
   targetBreadth: number;
   targetCount: number;
@@ -2346,12 +2347,25 @@ function createSemanticControlPackages(params: {
       let supportedStackImpact: number;
       const unsupportedAuthoringDistinctions: string[] = [];
       if (intention === "CONTROL") {
-        effectFamily = "MAIN_ACTION_DENIAL";
-        runtimeSemanticMode = "mainActionDenied";
-        effectSeverity = 3;
-        supportedStackImpact = 1;
         const authoredMode = String(details.controlMode ?? "unspecified");
-        if (authoredMode !== "Force no main action") {
+        if (authoredMode.toLowerCase() === "force no move") {
+          effectFamily = "MOVEMENT_DENIAL";
+          runtimeSemanticMode = "movementDenied";
+          effectSeverity = 2;
+          supportedStackImpact = 1;
+          const warning = "Force no move uses categorical movement-denial severity; Dice Count and Potency do not add magnitude scaling.";
+          unsupportedAuthoringDistinctions.push(warning);
+          unsupportedWarnings.push(`Power ${power.name} packet ${packet.packetIndex ?? packetOffset}: ${warning}`);
+        } else {
+          effectFamily = "MAIN_ACTION_DENIAL";
+          runtimeSemanticMode = "mainActionDenied";
+          effectSeverity = 3;
+          supportedStackImpact = 1;
+        }
+        if (
+          authoredMode.toLowerCase() !== "force no move" &&
+          authoredMode.toLowerCase() !== "force no main action"
+        ) {
           const warning = `${authoredMode} collapses to the same runtime mainActionDenied behaviour; no distinct severity was awarded.`;
           unsupportedAuthoringDistinctions.push(warning);
           unsupportedWarnings.push(`Power ${power.name} packet ${packet.packetIndex ?? packetOffset}: ${warning}`);

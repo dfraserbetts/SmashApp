@@ -447,6 +447,10 @@ export function adaptPowerToCombatActions(
     const castableIssue = packetIsCastableNow(power, packet);
     const details = asRecord(packet.detailsJson);
     const kind = actionKindForIntention(packet.intention);
+    const authoredControlMode = kind === "control" ? asString(details.controlMode).trim() : "";
+    const normalizedControlMode = authoredControlMode.toLowerCase();
+    const controlEffect: NonNullable<CombatAction["control"]>["effect"] =
+      normalizedControlMode === "force no move" ? "movementDenied" : "mainActionDenied";
     const applyTo = packet.applyTo ?? asString(details.applyTo).toUpperCase();
     const selfTargetedMovementCounter =
       power.counterMode === "YES" &&
@@ -465,6 +469,15 @@ export function adaptPowerToCombatActions(
     if (!options.linkedSecondary && selfTargetedMovementCounter) {
       warnings.push(
         `Power "${power.name}" is authored as a self-targeted Movement Counter. Movement is not Dodge; Combat Lab kept it as movement. Author this as DEFENCE with defenceMode Dodge if it should be a Dodge Counter.`,
+      );
+    }
+    if (
+      kind === "control" &&
+      normalizedControlMode !== "force no move" &&
+      normalizedControlMode !== "force no main action"
+    ) {
+      warnings.push(
+        `Power "${power.name}" Control mode ${authoredControlMode || "unspecified"} remains collapsed to Force no main action in Combat Lab V1.`,
       );
     }
 
@@ -647,7 +660,7 @@ export function adaptPowerToCombatActions(
           : undefined,
       control:
         kind === "control"
-          ? { effect: "mainActionDenied", durationRounds: durationRoundsForAction }
+          ? { effect: controlEffect, durationRounds: durationRoundsForAction }
           : undefined,
       resistAttribute: power.primaryDefenceGate?.gateResult === "RESIST"
         ? (power.primaryDefenceGate.resistAttribute ?? coreAttributeFromValue(details.resistAttribute))

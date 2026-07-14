@@ -105,7 +105,7 @@ export type CombatAction = {
     modifiesRollResults?: boolean;
   };
   control?: {
-    effect: "mainActionDenied";
+    effect: "mainActionDenied" | "movementDenied";
     durationRounds: number;
   };
   resistAttribute?: CoreAttribute | null;
@@ -205,7 +205,7 @@ export type CombatStatusEffect = {
   id: string;
   sourceActorId: string;
   targetActorId: string;
-  kind: "buff" | "debuff" | "protection" | "mainActionDenied" | "healingOverTime" | "ongoingDamage" | "field";
+  kind: "buff" | "debuff" | "protection" | "mainActionDenied" | "movementDenied" | "healingOverTime" | "ongoingDamage" | "field";
   attribute?: CombatAttributeName;
   amount: number;
   pool?: CombatPool;

@@ -6,7 +6,9 @@ import {
   getLivingActors,
   getOppositeSide,
   getProtectionModifier,
+  hasActiveMovementDenial,
   isActionOnCooldown,
+  isVoluntaryMovementAction,
   markDefeatedActors,
   createEmptyDefensivePoolMetrics,
   createEmptyDefensivePoolSideTotals,
@@ -1909,7 +1911,7 @@ function cleanableHostileEffects(state: CombatState, actor: CombatActor) {
       effect.sourceActorId !== actor.id &&
       effect.amount > 0 &&
       effect.remainingRounds > 0 &&
-      (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "debuff"),
+      (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "movementDenied" || effect.kind === "debuff"),
     )
     .sort((left, right) => {
       const leftUrgency = left.kind === "ongoingDamage"
@@ -2128,7 +2130,7 @@ function cleanableHostileEffectsForTarget(state: CombatState, actor: CombatActor
       effect.sourceActorId !== actor.id &&
       effect.amount > 0 &&
       effect.remainingRounds > 0 &&
-      (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "debuff"),
+      (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "movementDenied" || effect.kind === "debuff"),
     )
     .sort((left, right) => {
       const leftUrgency = left.kind === "ongoingDamage"
@@ -4032,7 +4034,7 @@ function resolveSingleTargetAction(params: {
       id: `${state.round}:${actor.id}:${action.id}:${target.id}:control`,
       sourceActorId: actor.id,
       targetActorId: target.id,
-      kind: "mainActionDenied",
+      kind: action.control?.effect ?? "mainActionDenied",
       amount: controlStacks,
       cleanupAttribute: action.resistAttribute
         ? CORE_TO_COMBAT_ATTRIBUTE[action.resistAttribute] ?? "Fortitude"
@@ -4043,6 +4045,8 @@ function resolveSingleTargetAction(params: {
     });
     metrics.controlTurnsApplied = durationRounds;
     metrics.stacksApplied = controlStacks;
+    const controlEffect = action.control?.effect ?? "mainActionDenied";
+    const controlLabel = controlEffect === "movementDenied" ? "Force No Move" : "Force No Main Action";
     emitTranscriptEvent(state, {
       type: "statusCreated",
       actorId: actor.id,
@@ -4052,8 +4056,8 @@ function resolveSingleTargetAction(params: {
       actionId: action.id,
       actionName: action.name,
       lane,
-      message: `Control: ${action.name} applies ${controlStacks} stack${controlStacks === 1 ? "" : "s"} of Force No Main Action to ${target.name} for ${durationRounds} turn${durationRounds === 1 ? "" : "s"}.`,
-      details: { effect: "mainActionDenied", amount: controlStacks, durationRounds },
+      message: `Control: ${action.name} applies ${controlStacks} stack${controlStacks === 1 ? "" : "s"} of ${controlLabel} to ${target.name} for ${durationRounds} turn${durationRounds === 1 ? "" : "s"}.`,
+      details: { effect: controlEffect, amount: controlStacks, durationRounds },
     });
   } else if (action.kind === "movement") {
     metrics.forcedMovementApplied = 1;
@@ -4079,6 +4083,7 @@ function resolveSingleTargetAction(params: {
         (effect.kind === "ongoingDamage" ||
           effect.kind === "debuff" ||
           effect.kind === "mainActionDenied" ||
+          effect.kind === "movementDenied" ||
           effect.kind === "protection" ||
           effect.kind === "buff"),
     );
@@ -4277,6 +4282,20 @@ export function resolveCombatAction(params: {
       actionName: action.name,
       lane,
       message: `${actor.name} considers ${action.name}, but it is on cooldown and cannot be used.`,
+    });
+    return metrics;
+  }
+  if (hasActiveMovementDenial(state, actor.id) && isVoluntaryMovementAction(action)) {
+    metrics.wastedActions = 1;
+    emitTranscriptEvent(state, {
+      type: "actionSkipped",
+      actorId: actor.id,
+      actorName: actor.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `${actor.name} cannot use ${action.name} while Force No Move is active.`,
+      details: { reason: "movementDenied", effect: "movementDenied" },
     });
     return metrics;
   }

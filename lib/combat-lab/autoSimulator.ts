@@ -7,11 +7,13 @@ import {
   emitTranscriptEvent,
   getLivingActors,
   getOppositeSide,
+  hasActiveMovementDenial,
   recordIncomingActionPressure,
   refreshActorResponses,
   resetRoundDefenceDegradation,
   resetRoundTargetingPressure,
   isActionOnCooldown,
+  isVoluntaryMovementAction,
   sampleActorCooldownAvailability,
   tickActorCooldowns,
   tickTargetDefensivePools,
@@ -454,6 +456,7 @@ function recordTimedStatusContributionEvents(params: {
 }
 
 function hasLegalActionTarget(actor: CombatActor, action: CombatAction, state: ReturnType<typeof createCombatState>): boolean {
+  if (hasActiveMovementDenial(state, actor.id) && isVoluntaryMovementAction(action)) return false;
   if (action.targetPolicy === "self" || action.targetPolicy === "allAllies") return true;
   if (action.targetPolicy === "allEnemies") return getLivingActors(state, getOppositeSide(actor.side)).length > 0;
   const side = action.targetPolicy === "enemy" ? getOppositeSide(actor.side) : actor.side;

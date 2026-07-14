@@ -766,7 +766,8 @@ export function tickTargetTurnEffects(state: CombatState, actorId: string): numb
       if (effect.passiveDuration) return effect;
       const previous = effect.remainingRounds;
       const remainingRounds = previous - 1;
-      if (effect.kind === "mainActionDenied" && actor) {
+      if ((effect.kind === "mainActionDenied" || effect.kind === "movementDenied") && actor) {
+        const effectLabel = effect.kind === "movementDenied" ? "Force No Move" : "Force No Main Action";
         emitTranscriptEvent(state, {
           type: "stackChanged",
           actorId: actor.id,
@@ -776,10 +777,10 @@ export function tickTargetTurnEffects(state: CombatState, actorId: string): numb
           lane: "endOfTurn",
           message:
             remainingRounds <= 0
-              ? `End of Turn: Force No Main Action from ${effect.sourceActionName ?? "a control effect"} expires; removed ${effect.amount} remaining stack${effect.amount === 1 ? "" : "s"}.`
-              : `End of Turn: Force No Main Action from ${effect.sourceActionName ?? "a control effect"} duration ticks down from ${previous} to ${remainingRounds}; ${effect.amount} stack${effect.amount === 1 ? "" : "s"} remain active.`,
+              ? `End of Turn: ${effectLabel} from ${effect.sourceActionName ?? "a control effect"} expires; removed ${effect.amount} remaining stack${effect.amount === 1 ? "" : "s"}.`
+              : `End of Turn: ${effectLabel} from ${effect.sourceActionName ?? "a control effect"} duration ticks down from ${previous} to ${remainingRounds}; ${effect.amount} stack${effect.amount === 1 ? "" : "s"} remain active.`,
           details: {
-            effect: "mainActionDenied",
+            effect: effect.kind,
             previousDurationRounds: previous,
             remainingDurationRounds: Math.max(0, remainingRounds),
             removedStacks: remainingRounds <= 0 ? effect.amount : 0,
@@ -796,6 +797,20 @@ export function tickTargetTurnEffects(state: CombatState, actorId: string): numb
       return keep;
     });
   return expired;
+}
+
+export function hasActiveMovementDenial(state: CombatState, actorId: string): boolean {
+  return state.statusEffects.some(
+    (effect) =>
+      effect.targetActorId === actorId &&
+      effect.kind === "movementDenied" &&
+      effect.amount > 0 &&
+      effect.remainingRounds > 0,
+  );
+}
+
+export function isVoluntaryMovementAction(action: CombatAction): boolean {
+  return action.kind === "movement" && action.targetPolicy === "self";
 }
 
 export function tickTargetDefensivePools(state: CombatState, actorId: string): CombatState["defensivePools"] {

@@ -1,4 +1,10 @@
-import { getLivingActors, getOppositeSide, isActionOnCooldown } from "./combatState";
+import {
+  getLivingActors,
+  getOppositeSide,
+  hasActiveMovementDenial,
+  isActionOnCooldown,
+  isVoluntaryMovementAction,
+} from "./combatState";
 import { expectedSuccesses } from "./dice";
 import type { CombatAction, CombatActor, CombatPool, CombatState } from "./types";
 
@@ -89,7 +95,7 @@ function hasRemovableHostileEffect(actor: CombatActor, state: CombatState): bool
     (effect) =>
       allyIds.has(effect.targetActorId) &&
       effect.sourceActorId !== actor.id &&
-      (effect.kind === "ongoingDamage" || effect.kind === "debuff" || effect.kind === "mainActionDenied"),
+      (effect.kind === "ongoingDamage" || effect.kind === "debuff" || effect.kind === "mainActionDenied" || effect.kind === "movementDenied"),
   );
 }
 
@@ -100,7 +106,7 @@ function hostileCleanupEffects(actor: CombatActor, state: CombatState) {
       effect.sourceActorId !== actor.id &&
       effect.amount > 0 &&
       effect.remainingRounds > 0 &&
-      (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "debuff"),
+      (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "movementDenied" || effect.kind === "debuff"),
   );
 }
 
@@ -185,6 +191,7 @@ function shouldUseUniversalCleanup(actor: CombatActor, state: CombatState, avail
     }
     if (expectedCleanupReduction(actor, effect) <= 0) continue;
     if (effect.kind === "mainActionDenied") return true;
+    if (effect.kind === "movementDenied") return true;
     if (effect.kind === "debuff" && (effect.amount >= 2 || hpRatio < CLEANUP_LOW_HP_THRESHOLD)) return true;
   }
   return false;
@@ -347,6 +354,7 @@ export function chooseAction(actor: CombatActor, state: CombatState): CombatActi
 function readyActions(actor: CombatActor, state: CombatState): CombatAction[] {
   const available = actor.actions.filter((action) => {
     if (!action.supported) return false;
+    if (hasActiveMovementDenial(state, actor.id) && isVoluntaryMovementAction(action)) return false;
     return !isActionOnCooldown(state, actor.id, action.id);
   });
   return available.filter((action) => !action.counterMode && !action.passive);

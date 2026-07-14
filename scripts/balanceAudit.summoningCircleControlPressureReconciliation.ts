@@ -20,11 +20,17 @@ import {
   type PowerTuningSnapshot,
 } from "../lib/config/powerTuningShared";
 import { resolvePowerCosts } from "../lib/summoning/powerCostResolver";
+import {
+  attachPowerCooldownAuthority,
+  resolvePowerCooldownAuthority,
+} from "../lib/summoning/resolvePowerCooldownAuthority";
 
 type PrismaClientInstance = typeof import("../prisma/client")["prisma"];
 
 const CAMPAIGN_ID = "250aee5e-632f-405c-ba36-a49ed12a5afc";
 const CAMPAIGN_NAME = "Balance Environment";
+const DIRE_WOLF_ID = "cmp4eqtg10000ccwckt66hvbi";
+const TERRIFYING_GAZE_ID = "cmrjjdipd0008x8wc1q7ccoza";
 const SAMPLE_NAMES = [
   "BALANCE_Physical Striker",
   "BALANCE_Durable Soldier",
@@ -175,14 +181,15 @@ function getPowerTargeting(power: ReturnType<typeof buildCalculatorInput>["power
 function classifyTableEffect(intention: string, details: Record<string, unknown>) {
   if (intention === "CONTROL") {
     const mode = String(details.controlMode ?? "unspecified");
+    const movementDenied = mode.toLowerCase() === "force no move";
     return {
       family: "control",
       authoredEffect: mode,
-      runtimeEffect: "mainActionDenied",
+      runtimeEffect: movementDenied ? "movementDenied" : "mainActionDenied",
       runtimeSupport:
-        mode === "Force no main action"
+        movementDenied || mode === "Force no main action"
           ? "direct"
-          : "abstracted: Combat Lab currently maps every Control mode to mainActionDenied",
+          : "abstracted: unsupported Control modes remain collapsed to mainActionDenied",
     };
   }
   if (intention === "DEBUFF") {
@@ -217,11 +224,76 @@ function classifyTableEffect(intention: string, details: Record<string, unknown>
   };
 }
 
+function summarizeSemanticPackage(value: unknown) {
+  const controlPackage = asRecord(value);
+  return {
+    sourcePowerId: controlPackage.sourcePowerId ?? null,
+    sourcePowerName: String(controlPackage.sourcePowerName ?? "unknown"),
+    packetIndex: asNumber(controlPackage.packetIndex),
+    effectFamily: String(controlPackage.effectFamily ?? "UNKNOWN"),
+    runtimeSemanticMode: String(controlPackage.runtimeSemanticMode ?? "unknown"),
+    affectedAttribute: controlPackage.affectedAttribute ?? null,
+    targetCount: asNumber(controlPackage.targetCount),
+    targetBreadth: round(asNumber(controlPackage.targetBreadth)),
+    duration: {
+      kind: String(controlPackage.durationKind ?? "UNKNOWN"),
+      turns: asNumber(controlPackage.durationTurns),
+      contribution: round(asNumber(controlPackage.durationContribution)),
+    },
+    recurrence: {
+      active: Boolean(controlPackage.recurrence),
+      contribution: round(asNumber(controlPackage.recurrenceContribution)),
+    },
+    cooldownAvailability: {
+      cooldownTurns: asNullableNumber(controlPackage.cooldownTurns),
+      band: String(controlPackage.availabilityBand ?? "UNKNOWN"),
+      contribution: round(asNumber(controlPackage.availabilityContribution)),
+    },
+    effectSeverity: round(asNumber(controlPackage.effectSeverity)),
+    supportedStackImpact: round(asNumber(controlPackage.supportedStackImpact)),
+    resistibility: {
+      status: String(controlPackage.resistibility ?? "UNKNOWN"),
+      gateCategory: controlPackage.resistGateCategory ?? null,
+      contribution: round(asNumber(controlPackage.reliabilityContribution)),
+    },
+    linkedPackage: {
+      linked: Boolean(controlPackage.linked),
+      dependencyMode: String(controlPackage.dependencyMode ?? "UNKNOWN"),
+      contribution: round(asNumber(controlPackage.linkedContribution)),
+    },
+    functionalSignature: String(controlPackage.functionalSignature ?? ""),
+    unsupportedAuthoringDistinctions: asStringArray(
+      controlPackage.unsupportedAuthoringDistinctions,
+    ),
+  };
+}
+
 function summarizeMonster(
   monster: MonsterRow,
   tuning: Awaited<ReturnType<typeof loadActiveTuning>>,
 ) {
-  const calculatorInput = buildCalculatorInput(monster);
+  const rawCalculatorInput = buildCalculatorInput(monster);
+  const cooldownAuthority = rawCalculatorInput.powers.map((power) => {
+    const resolution = resolvePowerCooldownAuthority({
+      power: power as unknown as Parameters<typeof resolvePowerCooldownAuthority>[0]["power"],
+      mode: "ACTIVE_CURRENT_BALANCE",
+      tuningSnapshot: tuning.powerSnapshot,
+      context: { level: monster.level, tier: monster.tier },
+    });
+    return {
+      powerId: power.id ?? null,
+      powerName: power.name,
+      resolution,
+      power: attachPowerCooldownAuthority(
+        power as unknown as Parameters<typeof attachPowerCooldownAuthority>[0],
+        resolution,
+      ),
+    };
+  });
+  const calculatorInput = {
+    ...rawCalculatorInput,
+    powers: cooldownAuthority.map((entry) => entry.power),
+  };
   const powerCosts = resolvePowerCosts(
     calculatorInput.powers as unknown as Parameters<typeof resolvePowerCosts>[0],
     tuning.powerSnapshot,
@@ -247,6 +319,10 @@ function summarizeMonster(
             (calculatorInput.powers.find(
               (authored) => authored.id === power.powerId || authored.name === power.name,
             ) ?? null) as unknown as Parameters<typeof resolvePowerCosts>[0][number] | null,
+          cooldownAuthority:
+            calculatorInput.powers.find(
+              (authored) => authored.id === power.powerId || authored.name === power.name,
+            )?.cooldownAuthority ?? null,
           derivedCooldownTurns: power.derivedCooldownTurns,
           derivedCooldownLoad: power.derivedCooldown.cooldownLoad,
           cooldownTurns: power.cooldownTurns,
@@ -273,50 +349,30 @@ function summarizeMonster(
   const duplicateHandling = asRecord(controlPressureModel.duplicateOverlapHandling);
   const resistibilityContribution = asRecord(controlPressureModel.resistibilityContribution);
   const semanticPackages = Array.isArray(controlPressureModel.semanticPackagesConsidered)
-    ? controlPressureModel.semanticPackagesConsidered.map((value) => {
-        const controlPackage = asRecord(value);
-        return {
-          sourcePowerId: controlPackage.sourcePowerId ?? null,
-          sourcePowerName: String(controlPackage.sourcePowerName ?? "unknown"),
-          packetIndex: asNumber(controlPackage.packetIndex),
-          effectFamily: String(controlPackage.effectFamily ?? "UNKNOWN"),
-          runtimeSemanticMode: String(controlPackage.runtimeSemanticMode ?? "unknown"),
-          affectedAttribute: controlPackage.affectedAttribute ?? null,
-          targetCount: asNumber(controlPackage.targetCount),
-          targetBreadth: round(asNumber(controlPackage.targetBreadth)),
-          duration: {
-            kind: String(controlPackage.durationKind ?? "UNKNOWN"),
-            turns: asNumber(controlPackage.durationTurns),
-            contribution: round(asNumber(controlPackage.durationContribution)),
-          },
-          recurrence: {
-            active: Boolean(controlPackage.recurrence),
-            contribution: round(asNumber(controlPackage.recurrenceContribution)),
-          },
-          cooldownAvailability: {
-            cooldownTurns: asNullableNumber(controlPackage.cooldownTurns),
-            band: String(controlPackage.availabilityBand ?? "UNKNOWN"),
-            contribution: round(asNumber(controlPackage.availabilityContribution)),
-          },
-          effectSeverity: round(asNumber(controlPackage.effectSeverity)),
-          supportedStackImpact: round(asNumber(controlPackage.supportedStackImpact)),
-          resistibility: {
-            status: String(controlPackage.resistibility ?? "UNKNOWN"),
-            gateCategory: controlPackage.resistGateCategory ?? null,
-            contribution: round(asNumber(controlPackage.reliabilityContribution)),
-          },
-          linkedPackage: {
-            linked: Boolean(controlPackage.linked),
-            dependencyMode: String(controlPackage.dependencyMode ?? "UNKNOWN"),
-            contribution: round(asNumber(controlPackage.linkedContribution)),
-          },
-          functionalSignature: String(controlPackage.functionalSignature ?? ""),
-          unsupportedAuthoringDistinctions: asStringArray(
-            controlPackage.unsupportedAuthoringDistinctions,
-          ),
-        };
-      })
+    ? controlPressureModel.semanticPackagesConsidered.map(summarizeSemanticPackage)
     : [];
+  const candidatePackages = Array.isArray(controlPressureModel.candidateSemanticPackages)
+    ? controlPressureModel.candidateSemanticPackages.map(summarizeSemanticPackage)
+    : [];
+  const remainingAcceptedSignatures = new Map<string, number>();
+  for (const controlPackage of semanticPackages) {
+    remainingAcceptedSignatures.set(
+      controlPackage.functionalSignature,
+      (remainingAcceptedSignatures.get(controlPackage.functionalSignature) ?? 0) + 1,
+    );
+  }
+  const candidatePackageDecisions = candidatePackages.map((controlPackage) => {
+    const remaining = remainingAcceptedSignatures.get(controlPackage.functionalSignature) ?? 0;
+    if (remaining > 0) {
+      remainingAcceptedSignatures.set(controlPackage.functionalSignature, remaining - 1);
+      return { ...controlPackage, decision: "ACCEPTED" as const, rejectionReason: null };
+    }
+    return {
+      ...controlPackage,
+      decision: "REJECTED" as const,
+      rejectionReason: "EXACT_FUNCTIONAL_DUPLICATE",
+    };
+  });
   const overlapDiminishingReturns = Array.isArray(duplicateHandling.overlapDiminishingReturns)
     ? duplicateHandling.overlapDiminishingReturns.map((value) => {
         const overlap = asRecord(value);
@@ -335,7 +391,9 @@ function summarizeMonster(
       const effective = perPowerAvailability.find(
         (entry) => entry.id === power.id || entry.name === power.name,
       );
-      const targeting = getPowerTargeting(power);
+      const targeting = getPowerTargeting(
+        power as unknown as ReturnType<typeof buildCalculatorInput>["powers"][number],
+      );
       const packets = power.intentions.map((packet) => {
         const details = asRecord(packet.detailsJson);
         const intention = String(packet.intention).toUpperCase();
@@ -399,6 +457,32 @@ function summarizeMonster(
     level: monster.level,
     tier: monster.tier,
     legendary: monster.legendary,
+    radarAxes: Object.fromEntries(
+      Object.entries(outcome.radarAxes).map(([axis, value]) => [axis, round(value, 6)]),
+    ),
+    cooldownAuthority: {
+      mode: "ACTIVE_CURRENT_BALANCE",
+      tuningSetId: tuning.powerSnapshot.setId,
+      resolved: cooldownAuthority
+        .filter((entry) => entry.resolution.ok)
+        .map((entry) => ({
+          powerId: entry.powerId,
+          powerName: entry.powerName,
+          effectiveCooldownTurns: entry.resolution.ok
+            ? entry.resolution.result.effectiveCooldownTurns
+            : null,
+          source: entry.resolution.ok ? entry.resolution.result.source : null,
+          warnings: entry.resolution.ok ? entry.resolution.result.warnings : [],
+        })),
+      unresolved: cooldownAuthority
+        .filter((entry) => !entry.resolution.ok)
+        .map((entry) => ({
+          powerId: entry.powerId,
+          powerName: entry.powerName,
+          errorCode: entry.resolution.ok ? null : entry.resolution.errorCode,
+          message: entry.resolution.ok ? null : entry.resolution.message,
+        })),
+    },
     controlPressure: {
       final: round(outcome.radarAxes.manipulation),
       semanticModel: {
@@ -442,6 +526,13 @@ function summarizeMonster(
         },
         unsupportedAuthoringWarnings: asStringArray(
           controlPressureModel.unsupportedAuthoringWarnings,
+        ),
+        candidatePackages: candidatePackageDecisions,
+        acceptedPackages: candidatePackageDecisions.filter(
+          (controlPackage) => controlPackage.decision === "ACCEPTED",
+        ),
+        rejectedPackages: candidatePackageDecisions.filter(
+          (controlPackage) => controlPackage.decision === "REJECTED",
         ),
         semanticPackages,
       },
@@ -521,7 +612,12 @@ async function loadActiveTuning(prisma: PrismaClientInstance) {
 
 async function loadMonsters(prisma: PrismaClientInstance) {
   return prisma.monster.findMany({
-    where: { campaignId: CAMPAIGN_ID, name: { in: [...SAMPLE_NAMES] } },
+    where: {
+      OR: [
+        { campaignId: CAMPAIGN_ID, name: { in: [...SAMPLE_NAMES] } },
+        { id: DIRE_WOLF_ID },
+      ],
+    },
     orderBy: { name: "asc" },
     include: {
       naturalAttack: true,
@@ -530,6 +626,124 @@ async function loadMonsters(prisma: PrismaClientInstance) {
       powers: { orderBy: { sortOrder: "asc" }, include: POWER_INCLUDE },
     },
   });
+}
+
+function syntheticDireWolfFixture(
+  direWolf: MonsterRow,
+  fixture: "EDITOR_EQUIVALENT" | "MAIN_ACTION_DENIAL" | "FORCED_MOVEMENT",
+): MonsterRow {
+  const fixtureSlug = fixture.toLowerCase().replace(/_/g, "-");
+  const powers = direWolf.powers.map((power) => {
+    if (power.id !== TERRIFYING_GAZE_ID) return power;
+    const effectPackets = power.effectPackets.map((packet) => {
+      if (packet.packetIndex !== 0) return packet;
+      const details = asRecord(packet.detailsJson);
+      if (fixture === "FORCED_MOVEMENT") {
+        return {
+          ...packet,
+          intention: "MOVEMENT" as const,
+          type: "MOVEMENT" as const,
+          detailsJson: {
+            ...details,
+            movementMode: "Force Push",
+          },
+        };
+      }
+      return {
+        ...packet,
+        intention: "CONTROL" as const,
+        type: "CONTROL" as const,
+        detailsJson: {
+          ...details,
+          controlMode:
+            fixture === "MAIN_ACTION_DENIAL" ? "Force no main action" : "Force no move",
+        },
+      };
+    });
+    return {
+      ...power,
+      id: `synthetic-${fixtureSlug}-${power.id}`,
+      effectPackets,
+    };
+  });
+  return {
+    ...direWolf,
+    id: `synthetic-${fixtureSlug}-${direWolf.id}`,
+    name: `Dire Wolf [${fixture.replace(/_/g, " ")}]`,
+    powers,
+  } as MonsterRow;
+}
+
+function acceptancePackage(
+  summary: ReturnType<typeof summarizeMonster>,
+) {
+  return summary.controlPressure.semanticModel.semanticPackages.find(
+    (controlPackage) => controlPackage.sourcePowerName === "Terrifying Gaze",
+  ) ?? null;
+}
+
+function buildAcceptance(
+  direWolf: MonsterRow,
+  tuning: Awaited<ReturnType<typeof loadActiveTuning>>,
+) {
+  const saved = summarizeMonster(direWolf, tuning);
+  const editorEquivalent = summarizeMonster(
+    syntheticDireWolfFixture(direWolf, "EDITOR_EQUIVALENT"),
+    tuning,
+  );
+  const mainActionDenial = summarizeMonster(
+    syntheticDireWolfFixture(direWolf, "MAIN_ACTION_DENIAL"),
+    tuning,
+  );
+  const forcedMovement = summarizeMonster(
+    syntheticDireWolfFixture(direWolf, "FORCED_MOVEMENT"),
+    tuning,
+  );
+  const fixtures = { saved, editorEquivalent, mainActionDenial, forcedMovement };
+  const savedPackage = acceptancePackage(saved);
+  const otherAxisNames = Object.keys(saved.radarAxes).filter((axis) => axis !== "manipulation");
+  const checks = {
+    savedAuthorityResolved: saved.cooldownAuthority.unresolved.length === 0,
+    syntheticAuthorityResolved: [editorEquivalent, mainActionDenial, forcedMovement].every(
+      (summary) => summary.cooldownAuthority.unresolved.length === 0,
+    ),
+    savedAboveZero: saved.controlPressure.final > 0,
+    savedMovementDenial: savedPackage?.effectFamily === "MOVEMENT_DENIAL" &&
+      savedPackage.runtimeSemanticMode === "movementDenied",
+    savedEditorParity:
+      Math.abs(saved.controlPressure.final - editorEquivalent.controlPressure.final) < 0.000001,
+    matchedOrdering:
+      forcedMovement.controlPressure.final < saved.controlPressure.final &&
+      saved.controlPressure.final < mainActionDenial.controlPressure.final,
+    otherAxesUnchanged: otherAxisNames.every(
+      (axis) => saved.radarAxes[axis] === editorEquivalent.radarAxes[axis],
+    ),
+  };
+  return {
+    powerId: TERRIFYING_GAZE_ID,
+    monsterId: DIRE_WOLF_ID,
+    fixtures,
+    packages: {
+      saved: savedPackage,
+      editorEquivalent: acceptancePackage(editorEquivalent),
+      mainActionDenial: acceptancePackage(mainActionDenial),
+      forcedMovement: acceptancePackage(forcedMovement),
+    },
+    scores: {
+      saved: saved.controlPressure.final,
+      editorEquivalent: editorEquivalent.controlPressure.final,
+      mainActionDenial: mainActionDenial.controlPressure.final,
+      forcedMovement: forcedMovement.controlPressure.final,
+    },
+    otherAxes: {
+      saved: Object.fromEntries(otherAxisNames.map((axis) => [axis, saved.radarAxes[axis]])),
+      editorEquivalent: Object.fromEntries(
+        otherAxisNames.map((axis) => [axis, editorEquivalent.radarAxes[axis]]),
+      ),
+    },
+    checks,
+    passed: Object.values(checks).every(Boolean),
+  };
 }
 
 function printHuman(payload: Awaited<ReturnType<typeof buildPayload>>) {
@@ -571,6 +785,16 @@ function printHuman(payload: Awaited<ReturnType<typeof buildPayload>>) {
         );
       }
     }
+    for (const candidate of model.candidatePackages) {
+      console.log(
+        `  candidate decision=${candidate.decision} rejection=${candidate.rejectionReason ?? "none"} power=${candidate.sourcePowerName} packet=${candidate.packetIndex} family=${candidate.effectFamily} signature=${candidate.functionalSignature}`,
+      );
+    }
+    for (const unresolved of sample.cooldownAuthority.unresolved) {
+      console.log(
+        `  unresolvedAuthority power=${unresolved.powerName} code=${unresolved.errorCode} message=${unresolved.message}`,
+      );
+    }
     for (const warning of model.unsupportedAuthoringWarnings) {
       console.log(`  warning=${warning}`);
     }
@@ -584,6 +808,16 @@ function printHuman(payload: Awaited<ReturnType<typeof buildPayload>>) {
       );
     }
   }
+  const acceptance = payload.acceptance;
+  console.log("");
+  console.log(
+    `Terrifying Gaze acceptance=${acceptance.passed ? "PASS" : "FAIL"} saved/editor/forced/main=${acceptance.scores.saved}/${acceptance.scores.editorEquivalent}/${acceptance.scores.forcedMovement}/${acceptance.scores.mainActionDenial}`,
+  );
+  console.log(`checks=${JSON.stringify(acceptance.checks)}`);
+  console.log(`savedSignature=${acceptance.packages.saved?.functionalSignature ?? "missing"}`);
+  for (const warning of acceptance.fixtures.saved.controlPressure.semanticModel.unsupportedAuthoringWarnings) {
+    console.log(`savedWarning=${warning}`);
+  }
 }
 
 async function buildPayload() {
@@ -592,6 +826,12 @@ async function buildPayload() {
   try {
     const [tuning, monsters] = await Promise.all([loadActiveTuning(prisma), loadMonsters(prisma)]);
     const found = new Set(monsters.map((monster) => monster.name));
+    const direWolf = monsters.find((monster) => monster.id === DIRE_WOLF_ID);
+    if (!direWolf) throw new Error(`Saved Dire Wolf ${DIRE_WOLF_ID} was not found.`);
+    const acceptance = buildAcceptance(direWolf, tuning);
+    if (!acceptance.passed) {
+      throw new Error(`Terrifying Gaze acceptance failed: ${JSON.stringify(acceptance.checks)}.`);
+    }
     return {
       title: "Summoning Circle Control Pressure reconciliation",
       provenance: {
@@ -604,9 +844,10 @@ async function buildPayload() {
         activeTuning: tuning.metadata,
       },
       caveat:
-        "Uses production Outcome Calculator and canonical power-cost resolver. Current editor-only equipment and named greater-success adapters are not reusable here, so those optional non-power bonuses are reported as zero for sampled assets.",
+        "Uses production Outcome Calculator, canonical power-cost resolver, and ACTIVE_CURRENT_BALANCE cooldown authority. Current editor-only equipment and named greater-success adapters are not reusable here, so those optional non-power bonuses are reported as zero for sampled assets.",
       missingSamples: SAMPLE_NAMES.filter((name) => !found.has(name)),
       samples: monsters.map((monster) => summarizeMonster(monster, tuning)),
+      acceptance,
     };
   } finally {
     await prisma.$disconnect();

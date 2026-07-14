@@ -9124,6 +9124,198 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
 }
 
 {
+  const authored = makeFixturePower({
+    id: "force-no-move-runtime",
+    name: "Force No Move Runtime",
+    intention: "CONTROL",
+    diceCount: 4,
+    potency: 3,
+    cooldownTurns: 2,
+    durationTurns: 2,
+  });
+  const authoredPacket = {
+    ...authored.effectPackets[0],
+    effectDurationType: "TURNS" as const,
+    effectDurationTurns: 2,
+    detailsJson: {
+      ...authored.effectPackets[0]?.detailsJson,
+      controlMode: "Force no move",
+    },
+  };
+  const adapted = adaptPowerToCombatActions({
+    ...authored,
+    effectDurationType: "TURNS",
+    effectDurationTurns: 2,
+    durationType: "TURNS",
+    durationTurns: 2,
+    effectPackets: [authoredPacket],
+    intentions: [authoredPacket],
+  });
+  const denialAction = adapted.actions[0];
+  if (!denialAction || denialAction.control?.effect !== "movementDenied") {
+    throw new Error(`Force no move did not adapt to movementDenied: ${JSON.stringify(adapted)}.`);
+  }
+
+  const voluntaryMove = action({
+    id: "voluntary-step",
+    name: "Voluntary Step",
+    sourceType: "power",
+    kind: "movement",
+    targetPolicy: "self",
+    cooldownRounds: 2,
+  });
+  const attack = action({
+    id: "movement-denied-attack",
+    name: "Movement Denied Attack",
+    sourceType: "naturalAttack",
+    kind: "attack",
+    targetPolicy: "enemy",
+    cooldownRounds: 0,
+  });
+  const nonMovementPower = action({
+    id: "movement-denied-power",
+    name: "Movement Denied Non-Movement Power",
+    sourceType: "power",
+    kind: "attack",
+    targetPolicy: "enemy",
+    cooldownRounds: 1,
+  });
+  const forcedMovement = action({
+    id: "forced-movement-unchanged",
+    name: "Forced Movement Unchanged",
+    sourceType: "power",
+    kind: "movement",
+    targetPolicy: "enemy",
+    cooldownRounds: 2,
+  });
+  const controller = fixtureActor("force-no-move-controller", "players", {
+    actions: [denialAction],
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const targetActor = fixtureActor("force-no-move-target", "monsters", {
+    actions: [voluntaryMove, attack, nonMovementPower, forcedMovement],
+    physicalHpMax: 999,
+    physicalHpCurrent: 999,
+    attributeDice: { Attack: "D12", Guard: "D8", Fortitude: "D8", Intellect: "D8", Synergy: "D8", Bravery: "D8" },
+  });
+  const state = createCombatState([controller], [targetActor], { captureTranscript: true });
+  const application = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    target: state.actors[1],
+    action: denialAction,
+    rng: rngFrom([0.99, 0.99, 0.99, 0.99]),
+    lane: "power",
+  });
+  const movementDenial = state.statusEffects.find((effect) => effect.kind === "movementDenied");
+  if (
+    !movementDenial ||
+    movementDenial.remainingRounds !== 2 ||
+    state.statusEffects.some((effect) => effect.kind === "mainActionDenied") ||
+    application.actionsDenied !== 0 ||
+    !isActionOnCooldown(state, state.actors[0].id, denialAction.id)
+  ) {
+    throw new Error(`Force no move application contract failed: ${JSON.stringify({ application, movementDenial, cooldowns: state.cooldowns })}.`);
+  }
+  if (resolveStartOfTurnEffects(state, state.actors[1]).actionsDenied !== 0) {
+    throw new Error("Force no move denied the target's Main Action.");
+  }
+  if (state.responsesRemaining[state.actors[1].id] !== 2) {
+    throw new Error("Force no move changed the target's Responses.");
+  }
+  if (chooseTurnAction(state.actors[1], state, "power")?.id === voluntaryMove.id) {
+    throw new Error("Automatic action selection chose voluntary movement while movementDenied was active.");
+  }
+
+  const blockedMovement = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[1],
+    action: voluntaryMove,
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  if (blockedMovement.wastedActions !== 1 || isActionOnCooldown(state, state.actors[1].id, voluntaryMove.id)) {
+    throw new Error(`Denied voluntary movement executed or entered cooldown: ${JSON.stringify({ blockedMovement, cooldowns: state.cooldowns })}.`);
+  }
+  const attackResolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: attack,
+    rng: rngFrom([0.99, 0]),
+    lane: "main",
+  });
+  const powerResolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: nonMovementPower,
+    rng: rngFrom([0.99, 0]),
+    lane: "power",
+  });
+  const forcedResolution = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[0],
+    action: forcedMovement,
+    rng: rngFrom([0.99, 0]),
+    lane: "power",
+  });
+  if (
+    attackResolution.wastedActions !== 0 ||
+    powerResolution.wastedActions !== 0 ||
+    forcedResolution.forcedMovementApplied !== 1 ||
+    !isActionOnCooldown(state, state.actors[1].id, nonMovementPower.id) ||
+    !isActionOnCooldown(state, state.actors[1].id, forcedMovement.id) ||
+    state.responsesRemaining[state.actors[1].id] !== 2
+  ) {
+    throw new Error(`Movement denial blocked a retained action/Response or changed forced movement: ${JSON.stringify({ attackResolution, powerResolution, forcedResolution, responses: state.responsesRemaining, cooldowns: state.cooldowns })}.`);
+  }
+
+  if (tickTargetTurnEffects(state, state.actors[1].id) !== 0) {
+    throw new Error("Two-turn movement denial expired after its first affected turn.");
+  }
+  if (tickTargetTurnEffects(state, state.actors[1].id) !== 1) {
+    throw new Error("Two-turn movement denial did not expire after its second affected turn.");
+  }
+  const restoredMovement = resolveCombatAction({
+    state,
+    actor: state.actors[1],
+    target: state.actors[1],
+    action: voluntaryMove,
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  if (restoredMovement.wastedActions !== 0 || !isActionOnCooldown(state, state.actors[1].id, voluntaryMove.id)) {
+    throw new Error(`Voluntary movement was not restored with its normal cooldown after expiry: ${JSON.stringify({ restoredMovement, cooldowns: state.cooldowns })}.`);
+  }
+  expectTranscriptLine(state.transcriptLines, /Force No Move .* expires/i, "Force no move expiry");
+
+  const autoRun = runCombatScenario({
+    name: "Movement Denial Auto Selection",
+    players: [fixtureActor("movement-denial-auto-actor", "players", { actions: [voluntaryMove, attack] })],
+    monsters: [fixtureActor("movement-denial-auto-enemy", "monsters", { physicalHpMax: 1, physicalHpCurrent: 1 })],
+    initialStatusEffects: [{
+      id: "movement-denial-auto-status",
+      sourceActorId: "movement-denial-auto-enemy",
+      targetActorId: "movement-denial-auto-actor",
+      kind: "movementDenied",
+      amount: 1,
+      sourceActionName: "Auto Force No Move",
+      remainingRounds: 1,
+    }],
+    runs: 1,
+    seed: 4411,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  if (autoRun.firstRunTranscript?.events.some((event) => event.actionId === voluntaryMove.id)) {
+    throw new Error("Auto-simulation selected or executed voluntary movement while movementDenied was active.");
+  }
+}
+
+{
   const cleanser = fixtureActor("stack-cleanser", "players", {
     actions: [
       action({

@@ -126,20 +126,24 @@ assert.deepEqual(explicitSynergy.skipped.map(({ suite }) => suite.id), ["synergy
 const axesDefault = selectSuites({ mode: "axes", includePartial: false });
 assert.ok(axesDefault.selected.some((suite) => suite.id === "power-threat-monotonic-smoke"));
 assert.ok(
+  axesDefault.selected.some((suite) => suite.id === "control-pressure-axis-reconciliation"),
+  "AVAILABLE Control Pressure reconciliation must run in axes mode without --include-partial.",
+);
+assert.ok(
   axesDefault.selected.every((suite) => suite.compatibility !== "PARTIAL"),
   "PARTIAL suites must be excluded by default.",
 );
 assert.equal(
   axesDefault.skipped.filter(({ suite }) => suite.compatibility === "PARTIAL").length,
-  4,
-  "All four authority-stale axis audits must be explicitly skipped.",
+  3,
+  "The three remaining authority-stale axis audits must be explicitly skipped.",
 );
 
 const axesPartial = selectSuites({ mode: "axes", includePartial: true });
 assert.equal(
   axesPartial.selected.filter((suite) => suite.compatibility === "PARTIAL").length,
-  4,
-  "--include-partial must include all four partial axis audits.",
+  3,
+  "--include-partial must include the three remaining partial axis audits.",
 );
 assert.ok(
   axesPartial.selected.every((suite) => suite.compatibility !== "AVAILABLE_BUT_INCOMPATIBLE"),
@@ -250,6 +254,18 @@ for (const path of [
 }
 assert.ok(changed("lib/calculators/monsterOutcomeCalculator.ts").selected.some((suite) => suite.id === "outcome-calculator-smoke"));
 assert.ok(changed("lib/combat-lab/actionResolver.ts").selected.some((suite) => suite.id === "combat-lab-smoke"));
+for (const path of [
+  "lib/combat-lab/actionResolver.ts",
+  "lib/calculators/monsterOutcomeCalculator.ts",
+  "scripts/monsterOutcomeCalculator.smoke.ts",
+  "scripts/balanceAudit.summoningCircleControlPressureReconciliation.ts",
+]) {
+  const selection = changed(path);
+  assert.ok(
+    selection.selected.some((suite) => suite.id === "control-pressure-axis-reconciliation"),
+    `${path} must select the AVAILABLE Control Pressure reconciliation.`,
+  );
+}
 assert.equal(changed("docs/balance/note.md").selected.length, 0, "Documentation-only changes may select no suites.");
 const roleplaySelection = changed("lib/characterBuilder/roleplayAbilities.ts");
 assert.equal(
