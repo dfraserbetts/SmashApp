@@ -14,6 +14,7 @@ import {
   getCharacterPowerPrimaryDefenceLabel,
   deriveCharacterPowerBudgetCooldownPressure,
   normalizeCharacterPower,
+  prepareCharacterPowerIdsForPersistence,
   powerPointPool,
   signatureMovePointPool,
   synchronizeCharacterPowerCooldownCaches,
@@ -21,6 +22,10 @@ import {
   validateCharacterPowers as validateCharacterPowersRaw,
   type CharacterPower,
 } from "../lib/characterBuilder/powers";
+import {
+  getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError,
+  THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR,
+} from "../lib/powers/authoringRules";
 import { resolvePowerCosts } from "../lib/summoning/powerCostResolver";
 import { DEFAULT_CHARACTER_POWER_SPEND_SCALAR } from "../lib/config/characterBuilderTuningShared";
 import {
@@ -1384,5 +1389,31 @@ assert(
       legacyActiveTuningShape["packet.magnitude.potency.5"],
   "Missing high magnitude keys should continue from an existing active tuning shape without flattening.",
 );
+
+{
+  const ordinary = createDefaultCharacterPower(0);
+  const signature = createDefaultCharacterPower(0);
+  assert(ordinary.id && ordinary.effectPackets[0]?.id, "New ordinary powers and packets should receive opaque IDs.");
+  assert(signature.id && signature.effectPackets[0]?.id, "New signature powers and packets should receive opaque IDs.");
+  assert(ordinary.id !== signature.id, "Ordinary and signature power IDs should be independent.");
+  const normalizedOrdinary = normalizeCharacterPower(ordinary, 0);
+  const normalizedSignature = normalizeCharacterPower(signature, 0);
+  const preparedIds = prepareCharacterPowerIdsForPersistence({
+    powers: [{ ...normalizedOrdinary, id: undefined }],
+    signatureMove: { ...normalizedSignature, effectPackets: normalizedSignature.effectPackets.map((packet) => ({ ...packet, id: undefined })) },
+  });
+  assert(preparedIds.powers[0]?.id, "Persistence preparation should backfill a missing ordinary power ID.");
+  assert(preparedIds.signatureMove?.effectPackets[0]?.id, "Persistence preparation should backfill a missing signature packet ID.");
+  const reorderedPackets = [...ordinary.effectPackets].reverse();
+  const reordered = normalizeCharacterPower({ ...ordinary, name: "Renamed without identity loss", effectPackets: reorderedPackets }, 0);
+  assert(reordered.id === ordinary.id, "Rename should preserve ordinary power identity.");
+  assert(reordered.effectPackets[0]?.id === reorderedPackets[0]?.id, "Packet reorder should preserve packet identity.");
+  assert(
+    getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError({
+      powers: [{ ...ordinary, effectPackets: [{ ...ordinary.effectPackets[0], intention: "AUGMENT", type: "AUGMENT", targetedAttribute: "GUARD", modifier: 3 }] }],
+    }) === THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR,
+    "Character save should reject non-null Modifier while Phase 1 authoring is disabled.",
+  );
+}
 
 console.log("Character Power Builder smoke passed.");

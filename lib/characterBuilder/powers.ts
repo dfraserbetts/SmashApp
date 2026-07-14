@@ -59,6 +59,7 @@ import {
   readPowerAttachedHostileEntryPattern,
   readPowerReserveReleaseBehaviour,
   readPowerTriggerCondition,
+  validateThreeFieldAugmentDebuffPacket,
 } from "@/lib/powers/authoringRules";
 import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
 import {
@@ -649,9 +650,24 @@ export function getCharacterPowerPrimaryDefenceLabel(power: CharacterPower) {
   return "None";
 }
 
-export function createDefaultCharacterPower(sortOrder = 0): CharacterPower {
-  const packet = createDefaultCharacterPowerPacket("ATTACK", 0);
+function readCharacterPowerOpaqueId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const id = value.trim();
+  return id.length > 0 && id.length <= 200 ? id : undefined;
+}
+
+function createCharacterPowerOpaqueId(): string {
+  return globalThis.crypto.randomUUID();
+}
+
+export function createDefaultCharacterPower(
+  sortOrder = 0,
+  options: { generateIds?: boolean } = {},
+): CharacterPower {
+  const generateIds = options.generateIds !== false;
+  const packet = createDefaultCharacterPowerPacket("ATTACK", 0, { generateId: generateIds });
   return {
+    ...(generateIds ? { id: createCharacterPowerOpaqueId() } : {}),
     sortOrder,
     name: "",
     description: null,
@@ -703,8 +719,11 @@ export function createDefaultCharacterPower(sortOrder = 0): CharacterPower {
 export function createDefaultCharacterPowerPacket(
   intention: PowerIntention,
   sortOrder = 0,
+  options: { generateId?: boolean } = {},
 ): EffectPacket {
+  const generateId = options.generateId !== false;
   return {
+    ...(generateId ? { id: createCharacterPowerOpaqueId() } : {}),
     sortOrder,
     packetIndex: sortOrder,
     hostility: ["ATTACK", "CONTROL", "DEBUFF", "MOVEMENT"].includes(intention)
@@ -747,6 +766,8 @@ function normalizePacket(
   },
 ): EffectPacket {
   const raw = asRecord(value);
+  const threeFieldValidationError = validateThreeFieldAugmentDebuffPacket(raw);
+  if (threeFieldValidationError) throw new Error(threeFieldValidationError);
   const intention = oneOf(raw.intention ?? raw.type, POWER_INTENTIONS, "ATTACK");
   const baseDetails = {
     ...defaultDetailsForIntention(intention),
@@ -754,7 +775,7 @@ function normalizePacket(
   };
   const rangeDetails = normalizeRangeDetails(baseDetails);
   const allowedTimingProbe: CharacterPower = {
-    ...createDefaultCharacterPower(),
+    ...createDefaultCharacterPower(0, { generateIds: false }),
     descriptorChassis: context.descriptorChassis,
     descriptorChassisConfig: context.descriptorChassisConfig,
     commitmentModifier: context.commitmentModifier,
@@ -796,7 +817,8 @@ function normalizePacket(
       ? "HOSTILE"
       : "NON_HOSTILE";
   return {
-    ...createDefaultCharacterPowerPacket(intention, sortOrder),
+    ...createDefaultCharacterPowerPacket(intention, sortOrder, { generateId: false }),
+    id: readCharacterPowerOpaqueId(raw.id),
     sortOrder,
     packetIndex: sortOrder,
     hostility: oneOf(raw.hostility, ["NON_HOSTILE", "HOSTILE"] as const, hostileDefault),
@@ -810,6 +832,7 @@ function normalizePacket(
       CHARACTER_POWER_MAX_DICE_COUNT,
     ),
     potency: asInteger(raw.potency, 1, 1, CHARACTER_POWER_MAX_POTENCY),
+    modifier: raw.modifier == null ? null : Number(raw.modifier),
     effectTimingType: normalizedEffectTimingType,
     effectTimingTurns:
       normalizedEffectTimingType === "ON_TRIGGER" ? asInteger(raw.effectTimingTurns, 1, 1, 20) : null,
@@ -877,7 +900,9 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
       ? raw.intentions
       : [];
   const packets: EffectPacket[] = [];
-  const packetInputs = packetsRaw.length > 0 ? packetsRaw.slice(0, 4) : [createDefaultCharacterPowerPacket("ATTACK", 0)];
+  const packetInputs = packetsRaw.length > 0
+    ? packetsRaw.slice(0, 4)
+    : [createDefaultCharacterPowerPacket("ATTACK", 0, { generateId: false })];
   for (const [index, packetInput] of packetInputs.entries()) {
     packets.push(
       normalizePacket(packetInput, index, {
@@ -888,7 +913,7 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
       }),
     );
   }
-  const primaryPacket = packets[0] ?? createDefaultCharacterPowerPacket("ATTACK", 0);
+  const primaryPacket = packets[0] ?? createDefaultCharacterPowerPacket("ATTACK", 0, { generateId: false });
   const primaryDetails = asRecord(primaryPacket.detailsJson);
   const range = normalizeRangeDetails(primaryDetails);
   const rangeCategories =
@@ -910,7 +935,8 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
   );
 
   return {
-    ...createDefaultCharacterPower(sortOrder),
+    ...createDefaultCharacterPower(sortOrder, { generateIds: false }),
+    id: readCharacterPowerOpaqueId(raw.id),
     sortOrder,
     name: asString(raw.name, "").slice(0, 120),
     description: asString(raw.description, "").slice(0, 1000) || null,
@@ -1005,6 +1031,31 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
 export function normalizeCharacterPowers(value: unknown): CharacterPower[] {
   if (!Array.isArray(value)) return [];
   return value.slice(0, 20).map((power, index) => normalizeCharacterPower(power, index));
+}
+
+function prepareCharacterPowerIdForPersistence(power: CharacterPower): CharacterPower {
+  const effectPackets = power.effectPackets.map((packet) => ({
+    ...packet,
+    id: readCharacterPowerOpaqueId(packet.id) ?? createCharacterPowerOpaqueId(),
+  }));
+  return {
+    ...power,
+    id: readCharacterPowerOpaqueId(power.id) ?? createCharacterPowerOpaqueId(),
+    effectPackets,
+    intentions: effectPackets,
+  };
+}
+
+export function prepareCharacterPowerIdsForPersistence(params: {
+  powers: readonly CharacterPower[];
+  signatureMove: CharacterPower | null;
+}): { powers: CharacterPower[]; signatureMove: CharacterPower | null } {
+  return {
+    powers: params.powers.map(prepareCharacterPowerIdForPersistence),
+    signatureMove: params.signatureMove
+      ? prepareCharacterPowerIdForPersistence(params.signatureMove)
+      : null,
+  };
 }
 
 export function powerPointPool(level: number) {

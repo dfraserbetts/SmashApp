@@ -158,6 +158,7 @@ for (const requiredId of [
   "power-cooldown-cache-synchronization-smoke",
   "outcome-calculator-smoke",
   "character-power-builder-smoke",
+  "augment-debuff-three-field-semantic-smoke",
 ]) {
   assert.ok(quick.selected.some((suite) => suite.id === requiredId), `quick mode omitted ${requiredId}`);
 }
@@ -169,6 +170,10 @@ for (const reconciliationId of reconciliationIds) {
   );
 }
 const full = selectSuites({ mode: "full", includePartial: false });
+assert.ok(
+  full.selected.some((suite) => suite.id === "augment-debuff-three-field-semantic-smoke"),
+  "full mode omitted augment-debuff-three-field-semantic-smoke",
+);
 for (const reconciliationId of reconciliationIds) {
   const suite = BALANCE_BENCHMARK_REGISTRY.find((candidate) => candidate.id === reconciliationId);
   assert.ok(suite, `${reconciliationId} must be uniquely registered.`);
@@ -254,6 +259,31 @@ for (const path of [
 }
 assert.ok(changed("lib/calculators/monsterOutcomeCalculator.ts").selected.some((suite) => suite.id === "outcome-calculator-smoke"));
 assert.ok(changed("lib/combat-lab/actionResolver.ts").selected.some((suite) => suite.id === "combat-lab-smoke"));
+for (const path of [
+  "prisma/schema.prisma",
+  "prisma/migrations/20260714120000_add_effect_packet_modifier/migration.sql",
+  "lib/summoning/validation.ts",
+  "app/api/summoning-circle/monsters/[id]/copy/route.ts",
+  "lib/characterBuilder/powers.ts",
+  "app/api/campaigns/[id]/characters/[characterId]/builder/route.ts",
+  "lib/combat-lab/powerAdapter.ts",
+  "lib/combat-lab/actionResolver.ts",
+  "lib/combat-lab/combatState.ts",
+  "lib/combat-lab/liveAdapters.ts",
+  "scripts/augmentDebuffThreeFieldSemantic.smoke.ts",
+]) {
+  const selection = changed(path);
+  assert.ok(
+    selection.selected.some((suite) => suite.id === "augment-debuff-three-field-semantic-smoke"),
+    `${path} must select the focused Augment/Debuff semantic smoke.`,
+  );
+}
+const semanticSuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "augment-debuff-three-field-semantic-smoke",
+);
+assert.equal(semanticSuite?.compatibility, "AVAILABLE");
+assert.equal(semanticSuite?.mutationSafety.classification, "READ_ONLY");
+assert.equal(semanticSuite?.mutationSafety.databaseAccess, "none");
 for (const path of [
   "lib/combat-lab/actionResolver.ts",
   "lib/calculators/monsterOutcomeCalculator.ts",

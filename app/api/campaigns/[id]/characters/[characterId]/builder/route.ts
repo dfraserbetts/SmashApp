@@ -18,10 +18,12 @@ import {
 } from "@/lib/characterBuilder/core";
 import { summarizeEquipmentItem } from "@/lib/characterBuilder/equipment";
 import {
+  prepareCharacterPowerIdsForPersistence,
   signatureMovePointPool,
   synchronizeCharacterPowerCooldownCaches,
   validateCharacterPowers,
 } from "@/lib/characterBuilder/powers";
+import { getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError } from "@/lib/powers/authoringRules";
 import { prisma } from "@/prisma/client";
 
 const DEFAULT_CHARACTER_NAME = "UNNAMED";
@@ -428,6 +430,10 @@ export async function PATCH(
     }
 
     const body = (await req.json().catch(() => ({}))) as BuilderPayload;
+    const authoringError = getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError(body.builderData);
+    if (authoringError) {
+      return NextResponse.json({ error: authoringError }, { status: 400 });
+    }
     const name = normalizeDisplayName(body.name);
     const imageUrl = normalizeOptionalString(body.imageUrl, 500);
     let age: string | null | undefined;
@@ -452,10 +458,19 @@ export async function PATCH(
         { status: 503 },
       );
     }
-    const builderData = sanitizeBuilderEquipment(
+    const normalizedBuilderData = sanitizeBuilderEquipment(
       cleanBuilderTraits(normalizeBuilderData(body.builderData), traitCatalog),
       backpackItems,
     );
+    const preparedPowerIds = prepareCharacterPowerIdsForPersistence({
+      powers: normalizedBuilderData.powers,
+      signatureMove: normalizedBuilderData.signatureMove,
+    });
+    const builderData = {
+      ...normalizedBuilderData,
+      powers: preparedPowerIds.powers,
+      signatureMove: preparedPowerIds.signatureMove,
+    };
     const validationLevel = level ?? builderContext.character.level;
     const validationErrors = [
       ...validateBuilderData(builderData, validationLevel, traitCatalog),

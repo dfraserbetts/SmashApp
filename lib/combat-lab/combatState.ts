@@ -652,7 +652,7 @@ function applyPassiveStatusRemovalCooldown(state: CombatState, effect: CombatSta
 export function removeStatusEffectById(state: CombatState, effectId: string): boolean {
   const effect = state.statusEffects.find((entry) => entry.id === effectId);
   if (!effect) return false;
-  const linkedPassiveEffects = effect.passiveDuration
+  const linkedPassiveEffects = effect.passiveDuration && effect.semanticFormat !== "augmentDebuffThreeFieldV1"
     ? state.statusEffects.filter(
         (entry) =>
           entry.passiveDuration &&
@@ -763,6 +763,37 @@ export function tickTargetTurnEffects(state: CombatState, actorId: string): numb
   state.statusEffects = state.statusEffects
     .map((effect) => {
       if (effect.targetActorId !== actorId) return effect;
+      if (effect.semanticFormat === "augmentDebuffThreeFieldV1") {
+        const previousStacks = Math.max(0, Math.trunc(effect.stackCount ?? 0));
+        const stackCount = Math.max(0, previousStacks - 1);
+        const previousDuration = effect.remainingRounds;
+        const remainingRounds = effect.passiveDuration
+          ? previousDuration
+          : previousDuration - 1;
+        if (actor) {
+          emitTranscriptEvent(state, {
+            type: "stackChanged",
+            actorId: actor.id,
+            actorName: actor.name,
+            actionId: effect.sourceActionId,
+            actionName: effect.sourceActionName,
+            lane: "endOfTurn",
+            message: `End of Turn: ${effect.sourceActionName ?? effect.effectFamily ?? effect.kind} loses one stack (${previousStacks} -> ${stackCount})${effect.passiveDuration ? "; passive duration does not tick" : ` and duration ticks ${previousDuration} -> ${Math.max(0, remainingRounds)}`}.`,
+            details: {
+              semanticFormat: effect.semanticFormat,
+              effectFamily: effect.effectFamily,
+              previousStacks,
+              remainingStacks: stackCount,
+              modifierMagnitude: effect.modifierMagnitude,
+              previousDurationRounds: previousDuration,
+              remainingDurationRounds: Math.max(0, remainingRounds),
+              passiveDuration: effect.passiveDuration,
+              expired: stackCount <= 0 || remainingRounds <= 0,
+            },
+          });
+        }
+        return { ...effect, stackCount, remainingRounds };
+      }
       if (effect.passiveDuration) return effect;
       const previous = effect.remainingRounds;
       const remainingRounds = previous - 1;
@@ -792,7 +823,9 @@ export function tickTargetTurnEffects(state: CombatState, actorId: string): numb
       return { ...effect, remainingRounds };
     })
     .filter((effect) => {
-      const keep = effect.remainingRounds > 0;
+      const keep = effect.semanticFormat === "augmentDebuffThreeFieldV1"
+        ? effect.remainingRounds > 0 && Math.max(0, effect.stackCount ?? 0) > 0
+        : effect.remainingRounds > 0;
       if (!keep) expired += 1;
       return keep;
     });
@@ -875,16 +908,52 @@ export function decrementRoundEffects(state: CombatState) {
 }
 
 export function getAttributeModifier(state: CombatState, actorId: string, attribute: string): number {
-  return state.statusEffects
+  return getAttributeModifierLaneBreakdown(state, actorId, attribute).effectiveTotal;
+}
+
+export function getAttributeModifierLaneBreakdown(
+  state: CombatState,
+  actorId: string,
+  attribute: string,
+): {
+  legacyTemporaryTotal: number;
+  newThreeFieldRawTotal: number;
+  newThreeFieldClampedTotal: number;
+  effectiveTotal: number;
+  diagnostics: string[];
+} {
+  const matching = state.statusEffects
     .filter((effect) =>
       effect.targetActorId === actorId &&
       effect.attribute === attribute &&
       effect.modifiesRollResults !== false
-    )
+    );
+  const legacy = matching.filter((effect) => effect.semanticFormat !== "augmentDebuffThreeFieldV1");
+  const threeField = matching.filter(
+    (effect) =>
+      effect.semanticFormat === "augmentDebuffThreeFieldV1" &&
+      Math.max(0, effect.stackCount ?? 0) > 0 &&
+      Math.max(0, effect.modifierMagnitude ?? 0) > 0,
+  );
+  const legacyTemporaryTotal = legacy
     .reduce((sum, effect) => {
       if (effect.kind === "debuff") return sum - effect.amount;
       return sum + effect.amount;
     }, 0);
+  const newThreeFieldRawTotal = threeField.reduce((sum, effect) => {
+    const magnitude = Math.max(0, Math.trunc(effect.modifierMagnitude ?? 0));
+    return sum + (effect.effectFamily === "debuff" || effect.kind === "debuff" ? -magnitude : magnitude);
+  }, 0);
+  const newThreeFieldClampedTotal = Math.max(-5, Math.min(5, newThreeFieldRawTotal));
+  return {
+    legacyTemporaryTotal,
+    newThreeFieldRawTotal,
+    newThreeFieldClampedTotal,
+    effectiveTotal: legacyTemporaryTotal + newThreeFieldClampedTotal,
+    diagnostics: legacy.length > 0 && threeField.length > 0
+      ? ["MIXED_LEGACY_THREE_FIELD_MODIFIER_LANES"]
+      : [],
+  };
 }
 
 export function getProtectionModifier(state: CombatState, actorId: string, pool: "physical" | "mental"): number {

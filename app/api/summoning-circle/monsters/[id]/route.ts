@@ -30,6 +30,10 @@ import {
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
 import { getActivePowerTuningSet } from "@/lib/config/powerTuning";
 import { synchronizePowerCooldownCacheBatch } from "@/lib/summoning/powerCooldownCacheSynchronization";
+import {
+  getThreeFieldAugmentDebuffPublicWriteError,
+  getThreeFieldAugmentDebuffReadDiagnostics,
+} from "@/lib/powers/authoringRules";
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
@@ -888,6 +892,7 @@ function buildPowerCreateData(power: Power) {
           specific: effectPacket.specific ?? null,
           diceCount: effectPacket.diceCount ?? power.diceCount,
           potency: effectPacket.potency ?? power.potency,
+          modifier: effectPacket.modifier ?? null,
           effectTimingType: effectPacket.effectTimingType ?? "ON_CAST",
           effectTimingTurns: effectPacket.effectTimingTurns ?? null,
           effectDurationType: normalizedDurationType,
@@ -1037,6 +1042,7 @@ function serializePower(
         specific: effectPacket.specific,
         diceCount: effectPacket.diceCount,
         potency: effectPacket.potency,
+        modifier: effectPacket.modifier,
         effectTimingType: effectPacket.effectTimingType,
         effectTimingTurns: effectPacket.effectTimingTurns,
         effectDurationType: effectPacket.effectDurationType,
@@ -1151,9 +1157,11 @@ function serializePower(
 }
 
 function serializeMonster(monster: MonsterWithPowers) {
+  const powers = monster.powers.map(serializePower);
   return {
     ...monster,
-    powers: monster.powers.map(serializePower),
+    powers,
+    diagnostics: getThreeFieldAugmentDebuffReadDiagnostics(powers),
   };
 }
 
@@ -1220,6 +1228,13 @@ export async function PUT(
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const authoringError = getThreeFieldAugmentDebuffPublicWriteError(
+    (body as { powers?: unknown } | null)?.powers,
+  );
+  if (authoringError) {
+    return NextResponse.json({ error: authoringError }, { status: 400 });
   }
 
   const parsed = normalizeMonsterUpsertInput(body);

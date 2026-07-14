@@ -1023,6 +1023,7 @@ model EffectPacket {
   specific               String?
   diceCount              Int
   potency                Int
+  modifier               Int?
   effectTimingType       EffectTimingType
   effectTimingTurns      Int?
   effectDurationType     EffectDurationType

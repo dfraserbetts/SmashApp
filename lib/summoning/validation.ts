@@ -29,6 +29,7 @@ import {
 import {
   POWER_DEFENCE_MODE_OPTIONS,
   POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS,
+  validateThreeFieldAugmentDebuffPowers,
 } from "@/lib/powers/authoringRules";
 
 const DICE_SET = new Set<DiceSize>(["D4", "D6", "D8", "D10", "D12"]);
@@ -1052,6 +1053,7 @@ function normalizePacketIntention(
     ),
     diceCount,
     potency,
+    modifier: raw.modifier == null ? null : Number(raw.modifier),
     effectTimingType,
     effectTimingTurns:
       effectTimingType === "ON_TRIGGER"
@@ -1621,6 +1623,10 @@ export function normalizeMonsterUpsertInput(body: unknown): {
   }
 
   const powersRaw = Array.isArray(raw.powers) ? raw.powers : [];
+  const threeFieldValidationError = validateThreeFieldAugmentDebuffPowers(powersRaw);
+  if (threeFieldValidationError) {
+    return { ok: false, error: threeFieldValidationError };
+  }
   const normalizedPowers = powersRaw.map((entry, index) => normalizePower(entry, index));
 
   for (const power of normalizedPowers) {

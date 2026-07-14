@@ -16,6 +16,7 @@ import {
   getWillpowerDiceCountFromAttributes,
 } from "@/lib/summoning/attributes";
 import type {
+  CoreAttribute,
   EffectPacket,
   MonsterTier,
   MonsterNaturalAttackConfig,
@@ -480,6 +481,17 @@ function mapPower(power: MonsterPowerRow): Power {
           intention === "TRANSFORMATION"
             ? intention
             : "ATTACK";
+        const targetedAttributeRaw = String(raw.targetedAttribute ?? "").toUpperCase();
+        const targetedAttribute = [
+          "ATTACK",
+          "GUARD",
+          "FORTITUDE",
+          "INTELLECT",
+          "SYNERGY",
+          "BRAVERY",
+        ].includes(targetedAttributeRaw)
+          ? (targetedAttributeRaw as CoreAttribute)
+          : null;
         return {
           id: typeof raw.id === "string" ? raw.id : undefined,
           sortOrder: Number(raw.sortOrder ?? raw.packetIndex ?? index),
@@ -490,6 +502,7 @@ function mapPower(power: MonsterPowerRow): Power {
           specific: typeof raw.specific === "string" ? raw.specific : null,
           diceCount: Number(raw.diceCount ?? 1),
           potency: Number(raw.potency ?? 1),
+          modifier: typeof raw.modifier === "number" ? raw.modifier : null,
           effectTimingType:
             raw.effectTimingType === "ON_HIT" ||
             raw.effectTimingType === "ON_TRIGGER" ||
@@ -513,7 +526,7 @@ function mapPower(power: MonsterPowerRow): Power {
             raw.woundChannel === "MENTAL" || raw.woundChannel === "PHYSICAL"
               ? raw.woundChannel
               : null,
-          targetedAttribute: null,
+          targetedAttribute,
           applicationModeKey: typeof raw.applicationModeKey === "string" ? raw.applicationModeKey : null,
           resolutionOrigin: "CASTER",
           applyTo: raw.applyTo === "ALLIES" || raw.applyTo === "SELF" ? raw.applyTo : "PRIMARY_TARGET",
@@ -620,10 +633,13 @@ function characterSignatureMoveWithDerivedCooldown(params: {
   }
 
   const sourceName = signatureMove.name.trim() || "Unnamed Signature Move";
-  const sourceId = signatureMove.id ?? `${params.row.id}:signatureMove`;
+  const hasThreeFieldPacket = signatureMove.effectPackets.some(
+    (packet) => packet.modifier !== null && packet.modifier !== undefined,
+  );
+  const sourceId = signatureMove.id ?? (hasThreeFieldPacket ? undefined : `${params.row.id}:signatureMove`);
   const labelledPower: Power = {
     ...signatureMove,
-    id: sourceId,
+    ...(sourceId ? { id: sourceId } : { id: undefined }),
     sortOrder: 0,
     name: `Signature Move: ${sourceName}`,
   };

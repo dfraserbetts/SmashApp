@@ -17,6 +17,10 @@ import {
 } from "@/lib/summoning/types";
 import type { SummoningEquipmentItem } from "@/lib/summoning/equipment";
 import { requireCampaignDirectorOrAdmin, requireUserId } from "../../../_shared";
+import {
+  getThreeFieldAugmentDebuffPublicWriteError,
+  getThreeFieldAugmentDebuffReadDiagnostics,
+} from "@/lib/powers/authoringRules";
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
@@ -660,6 +664,7 @@ function buildPowerCreateData(power: Power) {
           specific: effectPacket.specific ?? null,
           diceCount: effectPacket.diceCount ?? power.diceCount,
           potency: effectPacket.potency ?? power.potency,
+          modifier: effectPacket.modifier ?? null,
           effectTimingType: effectPacket.effectTimingType ?? "ON_CAST",
           effectTimingTurns: effectPacket.effectTimingTurns ?? null,
           effectDurationType: normalizedDurationType,
@@ -822,6 +827,7 @@ function serializePower(
         specific: effectPacket.specific,
         diceCount: effectPacket.diceCount,
         potency: effectPacket.potency,
+        modifier: effectPacket.modifier,
         effectTimingType: effectPacket.effectTimingType,
         effectTimingTurns: effectPacket.effectTimingTurns,
         effectDurationType: effectPacket.effectDurationType,
@@ -967,6 +973,12 @@ export async function POST(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const serializedSourcePowers = source.powers.map(serializePower);
+    const authoringError = getThreeFieldAugmentDebuffPublicWriteError(serializedSourcePowers);
+    if (authoringError) {
+      return NextResponse.json({ error: authoringError }, { status: 400 });
+    }
+
     const sourceAttacks = normalizedSourceAttacks(source);
     const equipmentItemsById = await loadEquipmentItemsById(campaignId, [
       source.mainHandItemId,
@@ -1000,7 +1012,7 @@ export async function POST(
       );
     }
     const synchronizedPowers = synchronizePowerCooldownCacheBatch({
-      powers: source.powers.map(serializePower),
+      powers: serializedSourcePowers,
       tuningSnapshot: powerTuning,
       context: { level: source.level, tier: source.tier },
     });
@@ -1109,6 +1121,7 @@ export async function POST(
     return NextResponse.json({
       ...created,
       powers: created.powers.map(serializePower),
+      diagnostics: getThreeFieldAugmentDebuffReadDiagnostics(created.powers.map(serializePower)),
     }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to copy monster";

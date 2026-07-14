@@ -75,6 +75,8 @@ export type UnsupportedPowerReason = {
 export type CombatAction = {
   id: string;
   sourcePowerId?: string | null;
+  sourcePacketId?: string | null;
+  targetStatusId?: string | null;
   sourceType: CombatActionSourceType;
   name: string;
   kind: CombatActionKind;
@@ -101,6 +103,8 @@ export type CombatAction = {
   modifier?: {
     attribute: CombatAttributeName;
     amount: number;
+    modifierMagnitude?: number;
+    semanticFormat?: "augmentDebuffThreeFieldV1";
     durationRounds: number;
     modifiesRollResults?: boolean;
   };
@@ -208,6 +212,12 @@ export type CombatStatusEffect = {
   kind: "buff" | "debuff" | "protection" | "mainActionDenied" | "movementDenied" | "healingOverTime" | "ongoingDamage" | "field";
   attribute?: CombatAttributeName;
   amount: number;
+  semanticFormat?: "augmentDebuffThreeFieldV1";
+  effectFamily?: "augment" | "debuff";
+  stackCount?: number;
+  modifierMagnitude?: number;
+  sourcePowerId?: string;
+  sourcePacketId?: string;
   pool?: CombatPool;
   damageLabel?: string;
   cleanupAttribute?: CombatAttributeName;

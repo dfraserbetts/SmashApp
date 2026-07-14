@@ -133,6 +133,7 @@ export type EffectPacket = {
   specific?: string | null;
   diceCount?: number;
   potency?: number;
+  modifier?: number | null;
   effectTimingType?: EffectTimingType;
   effectTimingTurns: number | null;
   effectDurationType?: EffectDurationType;

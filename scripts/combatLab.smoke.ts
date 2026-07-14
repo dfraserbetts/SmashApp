@@ -3,6 +3,7 @@ import { declareManualAssistPressure, resolveCombatAction, resolveStartOfTurnEff
 import {
   createCombatState,
   createActorInstances,
+  getAttributeModifier,
   getActionCooldownRemaining,
   isActionOnCooldown,
   markDefeatedActors,
@@ -10021,6 +10022,57 @@ if (unsupportedReport.hydrationIntegrity.unsupportedPowerCount === 0) {
   const turnStartIndex = report.firstRunTranscript.lines.findIndex((line) => /Turn 1:/i.test(line));
   if (roundStartIndex < 0 || combatStartIndex < 0 || turnStartIndex < 0 || roundStartIndex > combatStartIndex || combatStartIndex > turnStartIndex) {
     throw new Error(`Combat-start response transcript ordering is wrong: ${report.firstRunTranscript.lines.slice(0, 8).join(" | ")}`);
+  }
+}
+
+{
+  const source = fixtureActor("three-field-regression-source", "players");
+  const target = fixtureActor("three-field-regression-target", "monsters");
+  const semanticAction = action({
+    id: "three-field-regression-action",
+    sourcePowerId: "three-field-regression-power",
+    sourcePacketId: "three-field-regression-packet",
+    sourceType: "power",
+    kind: "buff",
+    targetPolicy: "self",
+    diceCount: 2,
+    potency: 3,
+    durationRounds: 4,
+    modifier: {
+      attribute: "Guard",
+      amount: 3,
+      modifierMagnitude: 3,
+      semanticFormat: "augmentDebuffThreeFieldV1",
+      durationRounds: 4,
+    },
+    cooldownRounds: 2,
+  });
+  const state = createCombatState([source], [target], { captureTranscript: true });
+  const metrics = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    action: semanticAction,
+    target: state.actors[0],
+    rng: rngFrom([0.99, 0.99]),
+    lane: "power",
+  });
+  const effect = state.statusEffects[0];
+  if (!effect || effect.stackCount !== metrics.rawSuccesses * 3 || effect.modifierMagnitude !== 3) {
+    throw new Error(`Three-field runtime integration produced the wrong stack/magnitude state: ${JSON.stringify({ effect, metrics })}.`);
+  }
+  if (!isActionOnCooldown(state, source.id, semanticAction.id)) {
+    throw new Error("Three-field action did not consume its authored cooldown.");
+  }
+  tickTargetTurnEffects(state, source.id);
+  if (state.statusEffects[0]?.stackCount !== Math.max(0, (effect.stackCount ?? 0) - 1) || getAttributeModifier(state, source.id, "Guard") !== 3) {
+    throw new Error("Three-field target-turn degradation changed Modifier magnitude or failed to remove exactly one stack.");
+  }
+  state.statusEffects.push({ ...effect, id: "three-field-source-cleanup", sourceActorId: target.id, targetActorId: source.id });
+  state.actors[1].physicalHpCurrent = 0;
+  state.actors[1].mentalHpCurrent = 0;
+  markDefeatedActors(state, { lane: "endOfTurn", rng: rngFrom([0]) });
+  if (state.statusEffects.some((entry) => entry.sourceActorId === target.id)) {
+    throw new Error("Three-field source/carrier defeat cleanup left a status attached to a defeated actor.");
   }
 }
 

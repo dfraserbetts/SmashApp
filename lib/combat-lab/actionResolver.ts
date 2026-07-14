@@ -59,6 +59,24 @@ const COMBAT_TO_CORE_ATTRIBUTE: Record<CombatAttributeName, keyof CombatActor["r
   Bravery: "BRAVERY",
 };
 
+export function threeFieldAugmentDebuffStatusId(params: {
+  sourceActorId: string;
+  sourcePowerId: string;
+  sourcePacketId: string;
+  targetActorId: string;
+  attribute: CombatAttributeName;
+  effectFamily: "augment" | "debuff";
+}): string {
+  return `augmentDebuffThreeFieldV1:${JSON.stringify([
+    params.sourceActorId,
+    params.sourcePowerId,
+    params.sourcePacketId,
+    params.targetActorId,
+    params.attribute,
+    params.effectFamily,
+  ])}`;
+}
+
 export type ManualAssistDeclarationParams = {
   state: CombatState;
   assistingActor: CombatActor;
@@ -1904,24 +1922,57 @@ function cleanupUnitWoundsForEffect(effect: CombatState["statusEffects"][number]
   return Math.max(1, Math.trunc(effect.cleanupUnitWounds ?? 1));
 }
 
+function isThreeFieldAugmentDebuffStatus(effect: CombatState["statusEffects"][number]): boolean {
+  return effect.semanticFormat === "augmentDebuffThreeFieldV1";
+}
+
+function cleanableStackAmount(effect: CombatState["statusEffects"][number]): number {
+  return isThreeFieldAugmentDebuffStatus(effect)
+    ? Math.max(0, Math.trunc(effect.stackCount ?? 0))
+    : Math.max(0, effect.amount);
+}
+
+function compareCleanableEffects(
+  left: CombatState["statusEffects"][number],
+  right: CombatState["statusEffects"][number],
+): number {
+  const leftThreeField = isThreeFieldAugmentDebuffStatus(left);
+  const rightThreeField = isThreeFieldAugmentDebuffStatus(right);
+  if (leftThreeField && rightThreeField) {
+    const magnitudeDifference = Math.max(0, right.modifierMagnitude ?? 0) - Math.max(0, left.modifierMagnitude ?? 0);
+    if (magnitudeDifference !== 0) return magnitudeDifference;
+    const stackDifference = cleanableStackAmount(right) - cleanableStackAmount(left);
+    if (stackDifference !== 0) return stackDifference;
+    return left.id.localeCompare(right.id);
+  }
+  if (leftThreeField !== rightThreeField) return leftThreeField ? -1 : 1;
+  const leftUrgency = left.kind === "ongoingDamage"
+    ? left.amount * Math.max(1, left.remainingRounds - 1)
+    : left.amount;
+  const rightUrgency = right.kind === "ongoingDamage"
+    ? right.amount * Math.max(1, right.remainingRounds - 1)
+    : right.amount;
+  return rightUrgency - leftUrgency;
+}
+
+function selectCleanableEffect(
+  effects: CombatState["statusEffects"],
+  targetStatusId?: string | null,
+) {
+  if (targetStatusId) return effects.find((effect) => effect.id === targetStatusId);
+  return [...effects].sort(compareCleanableEffects)[0];
+}
+
 function cleanableHostileEffects(state: CombatState, actor: CombatActor) {
   return state.statusEffects
     .filter((effect) =>
       effect.targetActorId === actor.id &&
       effect.sourceActorId !== actor.id &&
-      effect.amount > 0 &&
+      cleanableStackAmount(effect) > 0 &&
       effect.remainingRounds > 0 &&
       (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "movementDenied" || effect.kind === "debuff"),
     )
-    .sort((left, right) => {
-      const leftUrgency = left.kind === "ongoingDamage"
-        ? left.amount * Math.max(1, left.remainingRounds - 1)
-        : left.amount;
-      const rightUrgency = right.kind === "ongoingDamage"
-        ? right.amount * Math.max(1, right.remainingRounds - 1)
-        : right.amount;
-      return rightUrgency - leftUrgency;
-    });
+    .sort(compareCleanableEffects);
 }
 
 function resolveUniversalCleanupAction(params: {
@@ -1933,7 +1984,10 @@ function resolveUniversalCleanupAction(params: {
 }): CombatResolutionMetrics {
   const { state, actor, action, rng, lane } = params;
   const metrics = emptyResolution();
-  const removable = cleanableHostileEffects(state, actor)[0];
+  const removable = selectCleanableEffect(
+    cleanableHostileEffects(state, actor),
+    action.targetStatusId,
+  );
   if (!removable) {
     metrics.wastedActions = 1;
     emitTranscriptEvent(state, {
@@ -1959,7 +2013,7 @@ function resolveUniversalCleanupAction(params: {
     attribute,
     roll,
   });
-  const before = Math.max(0, removable.amount);
+  const before = cleanableStackAmount(removable);
   const cleanupUnits = removable.kind === "ongoingDamage" ? roll.successes : Math.min(before, roll.successes);
   const unitWounds = removable.kind === "ongoingDamage" ? cleanupUnitWoundsForEffect(removable) : 1;
   const removed = removable.kind === "ongoingDamage"
@@ -1981,7 +2035,12 @@ function resolveUniversalCleanupAction(params: {
       remainingTicksAtCleanup: Math.max(0, removable.remainingRounds),
     });
   }
-  removable.amount = Math.max(0, before - removed);
+  if (isThreeFieldAugmentDebuffStatus(removable)) {
+    removable.stackCount = Math.max(0, before - removed);
+  } else {
+    removable.amount = Math.max(0, before - removed);
+  }
+  const remainingAmount = cleanableStackAmount(removable);
 
   metrics.resistRolls = 1;
   metrics.resistSuccesses = roll.successes;
@@ -1992,7 +2051,7 @@ function resolveUniversalCleanupAction(params: {
   } else {
     metrics.stacksCleansed = removed;
   }
-  if (removable.amount <= 0) {
+  if (remainingAmount <= 0) {
     removeStatusEffectById(state, removable.id);
   }
 
@@ -2113,10 +2172,10 @@ function resolveUniversalCleanupAction(params: {
       targetName: actor.name,
       lane,
       message:
-        removable.amount > 0
-          ? `Cleanup: ${actor.name} removes ${removed} stack${removed === 1 ? "" : "s"} from ${removable.sourceActionName ?? removable.kind}, reducing it from ${before} to ${removable.amount}.`
+        remainingAmount > 0
+          ? `Cleanup: ${actor.name} removes ${removed} stack${removed === 1 ? "" : "s"} from ${removable.sourceActionName ?? removable.kind}, reducing it from ${before} to ${remainingAmount}.`
           : `Cleanup: ${actor.name} removes ${removed} stack${removed === 1 ? "" : "s"} from ${removable.sourceActionName ?? removable.kind}; ${removable.sourceActionName ?? removable.kind} is removed.`,
-      details: { effect: removable.kind, removed, amountBefore: before, amountAfter: removable.amount },
+      details: { effect: removable.kind, removed, amountBefore: before, amountAfter: remainingAmount, modifierMagnitude: removable.modifierMagnitude },
     });
   }
 
@@ -2128,19 +2187,11 @@ function cleanableHostileEffectsForTarget(state: CombatState, actor: CombatActor
     .filter((effect) =>
       effect.targetActorId === target.id &&
       effect.sourceActorId !== actor.id &&
-      effect.amount > 0 &&
+      cleanableStackAmount(effect) > 0 &&
       effect.remainingRounds > 0 &&
       (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "movementDenied" || effect.kind === "debuff"),
     )
-    .sort((left, right) => {
-      const leftUrgency = left.kind === "ongoingDamage"
-        ? left.amount * Math.max(1, left.remainingRounds - 1)
-        : left.amount;
-      const rightUrgency = right.kind === "ongoingDamage"
-        ? right.amount * Math.max(1, right.remainingRounds - 1)
-        : right.amount;
-      return rightUrgency - leftUrgency;
-    });
+    .sort(compareCleanableEffects);
 }
 
 function resolveAuthoredResistCleanupAction(params: {
@@ -2172,8 +2223,11 @@ function resolveAuthoredResistCleanupAction(params: {
     return metrics;
   }
 
-  const matching = cleanableHostileEffectsForTarget(state, actor, target).find(
-    (effect) => COMBAT_TO_CORE_ATTRIBUTE[cleanupAttributeForEffect(effect)] === resistedAttribute,
+  const matching = selectCleanableEffect(
+    cleanableHostileEffectsForTarget(state, actor, target).filter(
+      (effect) => COMBAT_TO_CORE_ATTRIBUTE[cleanupAttributeForEffect(effect)] === resistedAttribute,
+    ),
+    action.targetStatusId,
   );
   if (!matching) {
     metrics.wastedActions = 1;
@@ -2192,7 +2246,7 @@ function resolveAuthoredResistCleanupAction(params: {
     return metrics;
   }
 
-  const before = Math.max(0, matching.amount);
+  const before = cleanableStackAmount(matching);
   const totalResists = Math.max(0, appliedSuccesses * Math.max(1, action.potency));
   const unitWounds = matching.kind === "ongoingDamage" ? cleanupUnitWoundsForEffect(matching) : 1;
   const removed = matching.kind === "ongoingDamage"
@@ -2214,7 +2268,12 @@ function resolveAuthoredResistCleanupAction(params: {
       remainingTicksAtCleanup: Math.max(0, matching.remainingRounds),
     });
   }
-  matching.amount = Math.max(0, before - removed);
+  if (isThreeFieldAugmentDebuffStatus(matching)) {
+    matching.stackCount = Math.max(0, before - removed);
+  } else {
+    matching.amount = Math.max(0, before - removed);
+  }
+  const remainingAmount = cleanableStackAmount(matching);
   metrics.resistRolls = 1;
   metrics.resistSuccesses = totalResists;
   metrics.mitigationApplied = removed;
@@ -2223,7 +2282,7 @@ function resolveAuthoredResistCleanupAction(params: {
   } else {
     metrics.stacksCleansed = removed;
   }
-  if (matching.amount <= 0) {
+  if (remainingAmount <= 0) {
     removeStatusEffectById(state, matching.id);
   }
 
@@ -2299,14 +2358,15 @@ function resolveAuthoredResistCleanupAction(params: {
       ? matching.amount > 0
         ? `Resist cleanup: ${action.name} removes ${removed} ${woundLabel} wounds per tick from ${matching.sourceActionName ?? "ongoing damage"}, reducing it from ${before} to ${matching.amount}.`
         : `Resist cleanup: ${action.name} removes ${matching.sourceActionName ?? "ongoing damage"} from ${target.name}.`
-      : matching.amount > 0
-        ? `Resist cleanup: ${action.name} removes ${removed} stack${removed === 1 ? "" : "s"} from ${matching.sourceActionName ?? matching.kind}, reducing it from ${before} to ${matching.amount}.`
+      : remainingAmount > 0
+        ? `Resist cleanup: ${action.name} removes ${removed} stack${removed === 1 ? "" : "s"} from ${matching.sourceActionName ?? matching.kind}, reducing it from ${before} to ${remainingAmount}.`
         : `Resist cleanup: ${action.name} removes ${matching.sourceActionName ?? matching.kind} from ${target.name}.`,
     details: {
       effect: matching.kind,
       removed,
       amountBefore: before,
-      amountAfter: matching.amount,
+      amountAfter: remainingAmount,
+      modifierMagnitude: matching.modifierMagnitude,
       cleanupUnitWounds: matching.kind === "ongoingDamage" ? unitWounds : undefined,
     },
   });
@@ -3467,10 +3527,27 @@ function resolveSingleTargetAction(params: {
 
   if (
     activeAppliedSuccesses <= 0 &&
-    (Boolean(action.resistAttribute) || Boolean(action.usesPrimaryAppliedSuccesses)) &&
+    (
+      Boolean(action.resistAttribute) ||
+      Boolean(action.usesPrimaryAppliedSuccesses) ||
+      action.modifier?.semanticFormat === "augmentDebuffThreeFieldV1"
+    ) &&
     !counterDeclaration.declared?.hasAttackPacket
   ) {
-    if (action.kind === "debuff") {
+    if (action.kind === "buff" && action.modifier?.semanticFormat === "augmentDebuffThreeFieldV1") {
+      emitTranscriptEvent(state, {
+        type: "buffApplied",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Augment result: ${action.name} rolled no applied successes; no status or stacks are created.`,
+        details: { appliedPrimarySuccesses: activeAppliedSuccesses, semanticFormat: action.modifier.semanticFormat },
+      });
+    } else if (action.kind === "debuff") {
       emitTranscriptEvent(state, {
         type: "debuffApplied",
         actorId: actor.id,
@@ -3873,6 +3950,119 @@ function resolveSingleTargetAction(params: {
     }
   } else if (action.kind === "buff" || action.kind === "debuff") {
     if (action.modifier) {
+      if (action.modifier.semanticFormat === "augmentDebuffThreeFieldV1") {
+        const sourcePowerId = action.sourcePowerId?.trim();
+        const sourcePacketId = action.sourcePacketId?.trim();
+        if (!sourcePowerId || !sourcePacketId) {
+          metrics.wastedActions = 1;
+          emitTranscriptEvent(state, {
+            type: "actionSkipped",
+            actorId: actor.id,
+            actorName: actor.name,
+            targetId: target.id,
+            targetName: target.name,
+            actionId: action.id,
+            actionName: action.name,
+            lane,
+            message: `Three-field ${action.kind === "buff" ? "Augment" : "Debuff"} rejected: stable source power and packet IDs are required.`,
+            details: { reason: "missingStableThreeFieldSourceIdentity" },
+          });
+          return metrics;
+        }
+        const effectFamily = action.kind === "buff" ? "augment" : "debuff";
+        const modifierMagnitude = Math.max(
+          1,
+          Math.trunc(action.modifier.modifierMagnitude ?? action.modifier.amount),
+        );
+        const stackCount = Math.max(0, activeAppliedSuccesses * Math.max(1, action.potency));
+        if (stackCount <= 0) return metrics;
+        const durationRounds = action.durationRounds ?? action.modifier.durationRounds;
+        const passiveDuration = Boolean(action.passiveDuration);
+        const statusId = threeFieldAugmentDebuffStatusId({
+          sourceActorId: actor.id,
+          sourcePowerId,
+          sourcePacketId,
+          targetActorId: target.id,
+          attribute: action.modifier.attribute,
+          effectFamily,
+        });
+        const existing = state.statusEffects.find(
+          (effect) =>
+            effect.id === statusId &&
+            effect.semanticFormat === "augmentDebuffThreeFieldV1",
+        );
+        const previousStacks = Math.max(0, existing?.stackCount ?? 0);
+        const nextStacks = Math.max(previousStacks, stackCount);
+        if (existing) {
+          existing.stackCount = nextStacks;
+          existing.modifierMagnitude = modifierMagnitude;
+          existing.remainingRounds = durationRounds;
+          existing.passiveDuration = passiveDuration;
+          existing.durationKind = action.durationKind;
+          existing.durationSource = action.durationSource;
+        } else {
+          state.statusEffects.push({
+            id: statusId,
+            semanticFormat: "augmentDebuffThreeFieldV1",
+            effectFamily,
+            sourceActorId: actor.id,
+            sourcePowerId,
+            sourcePacketId,
+            targetActorId: target.id,
+            kind: action.kind,
+            attribute: action.modifier.attribute,
+            amount: 0,
+            stackCount: nextStacks,
+            modifierMagnitude,
+            sourceActionId: action.id,
+            sourceActionName: action.name,
+            sourceCooldownActionId: action.cooldownActionId ?? action.id,
+            durationKind: action.durationKind,
+            durationSource: action.durationSource,
+            passiveDuration,
+            modifiesRollResults: action.modifier.modifiesRollResults !== false,
+            remainingRounds: durationRounds,
+            positionalAbstraction: action.targetPolicy === "allAllies"
+              ? "AOE ally buff abstracted to all living allies."
+              : action.targetPolicy === "allEnemies"
+                ? "Field positioning abstracted: affected all enemy actors."
+                : undefined,
+          });
+        }
+        metrics.buffDebuffApplied = modifierMagnitude;
+        metrics.stacksApplied = stackCount;
+        if (action.kind === "buff") metrics.buffApplications = 1;
+        if (action.kind === "debuff") metrics.debuffApplications = 1;
+        if (action.targetPolicy === "allAllies" || action.targetPolicy === "allEnemies") {
+          metrics.positionalAbstractionsUsed = 1;
+        }
+        emitTranscriptEvent(state, {
+          type: action.kind === "buff" ? "buffApplied" : "debuffApplied",
+          actorId: actor.id,
+          actorName: actor.name,
+          targetId: target.id,
+          targetName: target.name,
+          actionId: action.id,
+          actionName: action.name,
+          lane,
+          message: `${action.kind === "buff" ? "Augment" : "Debuff"}: ${activeAppliedSuccesses} applied successes x ${action.potency} Potency = ${stackCount} new stacks; same-source state ${existing ? "refreshes" : "starts"} at ${nextStacks} stacks with ${action.kind === "buff" ? "+" : "-"}${modifierMagnitude} ${action.modifier.attribute}.`,
+          details: {
+            semanticFormat: "augmentDebuffThreeFieldV1",
+            statusId,
+            sourcePowerId,
+            sourcePacketId,
+            appliedSuccesses: activeAppliedSuccesses,
+            potency: action.potency,
+            newlyAppliedStacks: stackCount,
+            previousStacks,
+            stackCount: nextStacks,
+            modifierMagnitude,
+            durationRounds,
+            passiveDuration,
+            reapplication: Boolean(existing),
+          },
+        });
+      } else {
       const linkedStacks = action.usesPrimaryAppliedSuccesses ? Math.max(1, activeAppliedSuccesses) : 1;
       const appliedAmount = Math.max(1, action.modifier.amount) * linkedStacks;
       const durationRounds = action.durationRounds ?? action.modifier.durationRounds;
@@ -3939,6 +4129,7 @@ function resolveSingleTargetAction(params: {
           : `Status created: ${action.name} on ${target.name}, ${durationRounds} ticks remaining.`,
         details: { effect: action.kind, durationRounds, durationSource: action.durationSource, passiveDuration },
       });
+      }
     }
   } else if (action.kind === "defence" && isDefensivePoolSetupAction(action)) {
     const mode = action.defenceMode ?? "Block";
@@ -4076,27 +4267,31 @@ function resolveSingleTargetAction(params: {
     });
   } else if (action.kind === "cleanse") {
     const cleanseUnits = Math.max(1, activeAppliedSuccesses * Math.max(1, action.potency));
-    const removable = state.statusEffects.find(
-      (effect) =>
+    const removable = selectCleanableEffect(
+      state.statusEffects.filter(
+        (effect) =>
         effect.targetActorId === target.id &&
         effect.sourceActorId !== actor.id &&
+        cleanableStackAmount(effect) > 0 &&
         (effect.kind === "ongoingDamage" ||
           effect.kind === "debuff" ||
           effect.kind === "mainActionDenied" ||
           effect.kind === "movementDenied" ||
           effect.kind === "protection" ||
           effect.kind === "buff"),
+      ),
+      action.targetStatusId,
     );
     if (removable) {
       const cleanupUnitWounds = removable.kind === "ongoingDamage" ? cleanupUnitWoundsForEffect(removable) : 1;
+      const before = cleanableStackAmount(removable);
       const cleansed = removable.kind === "ongoingDamage"
-        ? Math.min(removable.amount, cleanseUnits * cleanupUnitWounds)
-        : Math.min(removable.amount, cleanseUnits);
+        ? Math.min(before, cleanseUnits * cleanupUnitWounds)
+        : Math.min(before, cleanseUnits);
       const cleanupUnitsRemoved =
         removable.kind === "ongoingDamage" && cleansed > 0
           ? Math.min(cleanseUnits, Math.max(1, Math.ceil(cleansed / cleanupUnitWounds)))
           : 0;
-      const before = Math.max(0, removable.amount);
       if (removable.kind === "ongoingDamage") {
         removable.cleanupAttempted = true;
         recordOngoingCleanup({
@@ -4109,11 +4304,16 @@ function resolveSingleTargetAction(params: {
           remainingTicksAtCleanup: Math.max(0, removable.remainingRounds),
         });
       }
-      removable.amount = Math.max(0, removable.amount - cleansed);
+      if (isThreeFieldAugmentDebuffStatus(removable)) {
+        removable.stackCount = Math.max(0, before - cleansed);
+      } else {
+        removable.amount = Math.max(0, before - cleansed);
+      }
+      const remainingAmount = cleanableStackAmount(removable);
       metrics.mitigationApplied = cleansed;
       metrics.ongoingDamagePreventedOrCleansed = removable.kind === "ongoingDamage" ? cleansed : 0;
       metrics.stacksCleansed = removable.kind === "ongoingDamage" ? 0 : cleansed;
-      if (removable.amount <= 0) {
+      if (remainingAmount <= 0) {
         removeStatusEffectById(state, removable.id);
       }
       emitTranscriptEvent(state, {
@@ -4126,9 +4326,9 @@ function resolveSingleTargetAction(params: {
         actionName: action.name,
         lane,
         message: removable.kind === "ongoingDamage"
-          ? `Cleanse: ${action.name} removes ${cleanseUnits} ongoing unit${cleanseUnits === 1 ? "" : "s"} from ${removable.sourceActionName ?? removable.kind} on ${target.name} (${cleanseUnits} x ${cleanupUnitWounds} = ${cleanseUnits * cleanupUnitWounds}); ${Math.max(0, removable.amount)} wounds per tick remain.`
+          ? `Cleanse: ${action.name} removes ${cleanseUnits} ongoing unit${cleanseUnits === 1 ? "" : "s"} from ${removable.sourceActionName ?? removable.kind} on ${target.name} (${cleanseUnits} x ${cleanupUnitWounds} = ${cleanseUnits * cleanupUnitWounds}); ${remainingAmount} wounds per tick remain.`
           : `Cleanse: ${action.name} removes ${cleansed} from ${removable.sourceActionName ?? removable.kind} on ${target.name}.`,
-        details: { cleansed, cleanseUnits, cleanupUnitsRemoved, cleanupUnitWounds: removable.kind === "ongoingDamage" ? cleanupUnitWounds : undefined, effect: removable.kind, remainingAmount: removable.amount },
+        details: { cleansed, cleanseUnits, cleanupUnitsRemoved, cleanupUnitWounds: removable.kind === "ongoingDamage" ? cleanupUnitWounds : undefined, effect: removable.kind, remainingAmount, modifierMagnitude: removable.modifierMagnitude },
       });
       if (removable.kind === "ongoingDamage") {
         emitTranscriptEvent(state, {
@@ -4146,7 +4346,7 @@ function resolveSingleTargetAction(params: {
             cleanupUnitsRemoved,
             removedWounds: cleansed,
             amountBefore: before,
-            amountAfter: removable.amount,
+            amountAfter: remainingAmount,
           },
         });
       }
@@ -4329,7 +4529,10 @@ export function resolveCombatAction(params: {
     addMetrics(metrics, resolveSingleTargetAction({ state, actor, action, target: resolvedTarget, rng, lane }));
   }
 
-  if (!action.passiveDuration) {
+  if (
+    !action.passiveDuration ||
+    action.modifier?.semanticFormat === "augmentDebuffThreeFieldV1"
+  ) {
     applyActionCooldown(state, actor, action);
   }
 

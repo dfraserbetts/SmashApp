@@ -49,6 +49,101 @@ export type PowerDefenceMode = (typeof POWER_DEFENCE_MODE_OPTIONS)[number];
 export const POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS = CORE_ATTRIBUTE_ORDER;
 export type PowerDefenceResistedAttribute = (typeof POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS)[number];
 
+export const THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED = false;
+export const THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR =
+  "THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED: Modifier authoring is not available in Phase 1.";
+export const UNEXPECTED_THREE_FIELD_AUGMENT_DEBUFF_READ_DIAGNOSTIC =
+  "UNEXPECTED_THREE_FIELD_AUGMENT_DEBUFF_DATA_READ";
+
+const THREE_FIELD_SUPPORTED_ATTRIBUTES = new Set<string>(
+  CORE_ATTRIBUTE_ORDER.map((attribute) => attribute.toUpperCase()),
+);
+
+function packetsFromUnknownPowers(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const power = asRecord(entry);
+    const packets = Array.isArray(power.effectPackets)
+      ? power.effectPackets
+      : Array.isArray(power.intentions)
+        ? power.intentions
+        : [];
+    return packets.map(asRecord);
+  });
+}
+
+export function hasAuthoredThreeFieldAugmentDebuffModifier(value: unknown): boolean {
+  return packetsFromUnknownPowers(value).some(
+    (packet) => packet.modifier !== null && packet.modifier !== undefined,
+  );
+}
+
+export function getThreeFieldAugmentDebuffPublicWriteError(value: unknown): string | null {
+  if (THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED) return null;
+  return hasAuthoredThreeFieldAugmentDebuffModifier(value)
+    ? THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR
+    : null;
+}
+
+export function getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError(
+  builderData: unknown,
+): string | null {
+  const raw = asRecord(builderData);
+  const powers = Array.isArray(raw.powers) ? [...raw.powers] : [];
+  if (raw.signatureMove && typeof raw.signatureMove === "object") {
+    powers.push(raw.signatureMove);
+  }
+  return getThreeFieldAugmentDebuffPublicWriteError(powers);
+}
+
+export function getThreeFieldAugmentDebuffReadDiagnostics(value: unknown): string[] {
+  return hasAuthoredThreeFieldAugmentDebuffModifier(value)
+    ? [UNEXPECTED_THREE_FIELD_AUGMENT_DEBUFF_READ_DIAGNOSTIC]
+    : [];
+}
+
+function normalizeThreeFieldAttribute(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase();
+  if (normalized === "DEFENCE" || normalized === "DEFENSE") return "GUARD";
+  if (normalized === "SUPPORT") return "SYNERGY";
+  return THREE_FIELD_SUPPORTED_ATTRIBUTES.has(normalized) ? normalized : null;
+}
+
+export function validateThreeFieldAugmentDebuffPacket(value: unknown): string | null {
+  const packet = asRecord(value);
+  const details = asRecord(packet.detailsJson);
+  if (Object.prototype.hasOwnProperty.call(details, "modifier")) {
+    return "detailsJson.modifier is not allowed; EffectPacket.modifier is the only Modifier authority.";
+  }
+  if (packet.modifier === null || packet.modifier === undefined) return null;
+  if (typeof packet.modifier !== "number" || !Number.isInteger(packet.modifier)) {
+    return "EffectPacket.modifier must be an integer from 1 through 5.";
+  }
+  if (packet.modifier < 1 || packet.modifier > 5) {
+    return "EffectPacket.modifier must be an integer from 1 through 5.";
+  }
+  const intention = String(packet.intention ?? packet.type ?? "").toUpperCase();
+  if (intention !== "AUGMENT" && intention !== "DEBUFF") {
+    return "EffectPacket.modifier is valid only for AUGMENT or DEBUFF packets.";
+  }
+  const targetedAttribute = normalizeThreeFieldAttribute(
+    packet.targetedAttribute ?? details.statTarget ?? details.statChoice,
+  );
+  if (!targetedAttribute) {
+    return "Three-field AUGMENT and DEBUFF packets require one supported core targetedAttribute.";
+  }
+  return null;
+}
+
+export function validateThreeFieldAugmentDebuffPowers(value: unknown): string | null {
+  for (const packet of packetsFromUnknownPowers(value)) {
+    const error = validateThreeFieldAugmentDebuffPacket(packet);
+    if (error) return error;
+  }
+  return null;
+}
+
 const COMMITMENT_MODIFIERS = ["STANDARD", "CHANNEL", "CHARGE"] as const;
 const COUNTER_MODES = ["NO", "YES"] as const;
 const POWER_LIFESPAN_OPTIONS = ["NONE", "TURNS", "PASSIVE"] as const;

@@ -9,6 +9,7 @@ import type {
 import { effectiveAttackWoundsPerSuccess } from "@/lib/summoning/render";
 import { resolvePowerCooldownAuthority } from "@/lib/summoning/resolvePowerCooldownAuthority";
 import { strengthToTableWoundsPerSuccess } from "@/lib/forge/outputProfile";
+import { validateThreeFieldAugmentDebuffPacket } from "@/lib/powers/authoringRules";
 
 import type {
   CombatAction,
@@ -447,6 +448,26 @@ export function adaptPowerToCombatActions(
     const castableIssue = packetIsCastableNow(power, packet);
     const details = asRecord(packet.detailsJson);
     const kind = actionKindForIntention(packet.intention);
+    const isThreeFieldAugmentDebuff = packet.modifier !== null && packet.modifier !== undefined;
+    if (isThreeFieldAugmentDebuff) {
+      const validationError = validateThreeFieldAugmentDebuffPacket(packet);
+      if (validationError) {
+        unsupportedReasons.push(unsupported(power, validationError, packet));
+        continue;
+      }
+      if (!asString(power.id)) {
+        unsupportedReasons.push(
+          unsupported(power, "Three-field AUGMENT/DEBUFF runtime requires a stable source power ID.", packet),
+        );
+        continue;
+      }
+      if (!asString(packet.id)) {
+        unsupportedReasons.push(
+          unsupported(power, "Three-field AUGMENT/DEBUFF runtime requires a stable source packet ID.", packet),
+        );
+        continue;
+      }
+    }
     const authoredControlMode = kind === "control" ? asString(details.controlMode).trim() : "";
     const normalizedControlMode = authoredControlMode.toLowerCase();
     const controlEffect: NonNullable<CombatAction["control"]>["effect"] =
@@ -532,7 +553,9 @@ export function adaptPowerToCombatActions(
         : isAoe && kind === "debuff"
           ? "allEnemies"
           : targetPolicyForAction(kind, packet);
-    const actionId = `${power.id ?? power.name}:${packet.packetIndex ?? actions.length}`;
+    const actionId = isThreeFieldAugmentDebuff
+      ? `${power.id}:${packet.id}`
+      : `${power.id ?? power.name}:${packet.packetIndex ?? actions.length}`;
     const durationKind = durationKindForPacket(packet);
     const passiveDuration = durationKind === "passive";
     const rollAttributeResolution = resolvePowerRollAttribute({
@@ -636,7 +659,8 @@ export function adaptPowerToCombatActions(
 
     actions.push({
       id: actionId,
-      sourcePowerId: power.id ?? power.name,
+      sourcePowerId: isThreeFieldAugmentDebuff ? power.id : (power.id ?? power.name),
+      sourcePacketId: isThreeFieldAugmentDebuff ? packet.id : null,
       sourceType: "power",
       name: power.name,
       kind,
@@ -656,7 +680,15 @@ export function adaptPowerToCombatActions(
       durationRounds: durationRoundsForAction,
       modifier:
         kind === "buff" || kind === "debuff"
-          ? { attribute: modifierAttribute, amount: Math.max(1, potency), durationRounds: durationRoundsForAction }
+          ? isThreeFieldAugmentDebuff
+            ? {
+                attribute: modifierAttribute,
+                amount: Math.max(1, Number(packet.modifier)),
+                modifierMagnitude: Math.max(1, Number(packet.modifier)),
+                semanticFormat: "augmentDebuffThreeFieldV1",
+                durationRounds: durationRoundsForAction,
+              }
+            : { attribute: modifierAttribute, amount: Math.max(1, potency), durationRounds: durationRoundsForAction }
           : undefined,
       control:
         kind === "control"
