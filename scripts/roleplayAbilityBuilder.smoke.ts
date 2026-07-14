@@ -975,17 +975,17 @@ for (const legacyField of ["specific", "description"]) {
 
 assertEqual(
   ROLEPLAY_METHODS.map((method) => method.id).join(","),
-  "APPEAL,RALLY,STEEL_YOURSELF,MISDIRECT,DISTRACT,RESCUE,INTERRUPT,CHALLENGE,OVERAWE,DISCERN_TRUTH",
-  "The standard Method registry should contain exactly the ten approved IDs.",
+  "APPEAL,RALLY,STEEL_YOURSELF,MISDIRECT,DISTRACT,RESCUE,INTERRUPT,CHALLENGE,OVERAWE,DISCERN_TRUTH,TRACK",
+  "The standard Method registry should contain exactly the eleven approved IDs.",
 );
-assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 12, "The registry should contain twelve contracts.");
+assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 13, "The registry should contain thirteen contracts.");
 assertEqual(
   ROLEPLAY_OUTCOME_CONTRACTS.reduce(
     (total, contract) => total + enumerateRoleplayResolvedContractCells(contract).length,
     0,
   ),
-  72,
-  "The registry should contain all seventy-two planned cells.",
+  80,
+  "The registry should contain all eighty planned cells.",
 );
 assertEqual(
   getRoleplayMethodDefinition("EXTRACT"),
@@ -1008,6 +1008,7 @@ for (const [methodId, intention] of [
   ["CHALLENGE", "INTIMIDATION"],
   ["OVERAWE", "INTIMIDATION"],
   ["DISCERN_TRUTH", "PERCEPTION"],
+  ["TRACK", "PERCEPTION"],
 ] as const) {
   assertEqual(
     getRoleplayMethodDefinition(methodId)?.intention,
@@ -1173,7 +1174,7 @@ for (const [intention, expectedIds] of [
   ["DECEPTION", "MISDIRECT,DISTRACT"],
   ["INTERVENTION", "RESCUE,INTERRUPT"],
   ["INTIMIDATION", "CHALLENGE,OVERAWE"],
-  ["PERCEPTION", "DISCERN_TRUTH"],
+  ["PERCEPTION", "DISCERN_TRUTH,TRACK"],
 ] as const) {
   assertEqual(
     getRoleplayMethodsForIntention(intention).map((method) => method.id).join(","),
@@ -1193,6 +1194,7 @@ for (const [specific, expectedMethodId, intention] of [
   ["CHALLENGE", "CHALLENGE", "INTIMIDATION"],
   ["OVERAWE", "OVERAWE", "INTIMIDATION"],
   ["DISCERN_TRUTH", "DISCERN_TRUTH", "PERCEPTION"],
+  ["TRACK", "TRACK", "PERCEPTION"],
   ["ENABLE_MOVEMENT", "RESCUE", "INTERVENTION"],
 ] as const) {
   const migrated = normalizeRoleplayAbility(
@@ -3986,12 +3988,12 @@ assert(
 );
 
 const libraryAudit = auditRoleplayStandardLibrary();
-assertEqual(libraryAudit.plannedCellCount, 72, "Planned standard-library cell count drifted.");
-assertEqual(libraryAudit.completedCellCount, 72, "Completed standard-library cell count drifted.");
+assertEqual(libraryAudit.plannedCellCount, 80, "Planned standard-library cell count drifted.");
+assertEqual(libraryAudit.completedCellCount, 80, "Completed standard-library cell count drifted.");
 assertEqual(libraryAudit.missingCellCount, 0, "Missing standard-library cell count drifted.");
 assertEqual(
   new Set(libraryAudit.privilegeKeys).size,
-  12,
+  13,
   "Each contract family must own one unique privilege cost key.",
 );
 assert(
@@ -4020,6 +4022,7 @@ const expectedMissingCells = {
   BREAK_SHARED_RESOLVE: 0,
   UNCOVER_CONCEALED_TRUTH: 0,
   REVEAL_EXPLOITABLE_WEAKNESS: 0,
+  TRACE_QUARRY: 0,
   SECURE_WILLING_COOPERATION: 0,
   ESTABLISH_SHARED_RESOLVE: 0,
   SUSTAIN_PERSONAL_RESOLVE: 0,
@@ -4034,6 +4037,7 @@ const expectedOutcomeLanes = {
   BREAK_SHARED_RESOLVE: "HINDER",
   UNCOVER_CONCEALED_TRUTH: "HELP",
   REVEAL_EXPLOITABLE_WEAKNESS: "HELP",
+  TRACE_QUARRY: "HELP",
   SECURE_WILLING_COOPERATION: "HELP",
   ESTABLISH_SHARED_RESOLVE: "HELP",
   SUSTAIN_PERSONAL_RESOLVE: "HELP",
@@ -4137,7 +4141,7 @@ assertEqual(
 const enumeratedCells = ROLEPLAY_OUTCOME_CONTRACTS.flatMap((contract) =>
   enumerateRoleplayResolvedContractCells(contract),
 );
-assertEqual(enumeratedCells.length, 72, "Every planned standard-library cell must resolve.");
+assertEqual(enumeratedCells.length, 80, "Every planned standard-library cell must resolve.");
 for (const [index, regression] of legacyDescriptorRegressions.entries()) {
   const contract = getRoleplayOutcomeContract(regression.contractId);
   assert(contract, `Regression contract ${regression.contractId} missing.`);
@@ -4438,6 +4442,7 @@ assertEqual(
     "BREAK_SHARED_RESOLVE",
     "UNCOVER_CONCEALED_TRUTH",
     "REVEAL_EXPLOITABLE_WEAKNESS",
+    "TRACE_QUARRY",
     "SECURE_WILLING_COOPERATION",
     "ESTABLISH_SHARED_RESOLVE",
     "SUSTAIN_PERSONAL_RESOLVE",
@@ -4758,6 +4763,414 @@ for (const runtimePersonalResolveField of [
   );
 }
 
+const trackDefinition =
+  "Locate or follow a missing, concealed, or moving subject by interpreting physical traces, disturbed environments, witness reports, behavioural patterns, magical signatures, spiritual impressions, or another coherent sign of passage.";
+const trackApproaches = [
+  "Follow footprints, tracks, blood, debris, scent, or other physical traces",
+  "Read disturbed terrain, architecture, vegetation, dust, water, or weather",
+  "Connect reliable sightings, testimony, reports, or known movements",
+  "Infer direction and timing from wear, displacement, decay, or environmental change",
+  "Recognise a recurring magical, spiritual, psychic, technological, or supernatural signature supported by the Narrative Theme",
+  "Distinguish genuine signs from false trails or unrelated disturbance",
+  "Predict a likely route from the quarry's established habits, needs, destination, or constraints",
+  "Maintain pursuit as the trail moves through different environments",
+] as const;
+const trackMethod = getRoleplayMethodDefinition("TRACK");
+assert(trackMethod, "TRACK should exist in the Method registry.");
+assertEqual(trackMethod.name, "Track", "Track Method name mismatch.");
+assertEqual(trackMethod.intention, "PERCEPTION", "Track owning Intention mismatch.");
+assertEqual(trackMethod.definition, trackDefinition, "Track exact definition mismatch.");
+assertEqual(
+  trackMethod.legalApproaches.join("|"),
+  trackApproaches.join("|"),
+  "Track exact legal approaches mismatch.",
+);
+for (const exclusion of [
+  "Does not reveal unrelated secrets merely because the quarry is being tracked.",
+  "Does not identify an exploitable weakness; that uses Reveal Exploitable Weakness.",
+  "Does not establish a concealed truth unrelated to the quarry's trail, passage, route, or location; that uses Uncover Concealed Truth.",
+  "Does not grant omniscience or automatic knowledge of an exact current location.",
+  "Does not guarantee reaching, catching, intercepting, confronting, or defeating the quarry.",
+  "Does not grant an action, Response, measured movement, speed, travel time, or transportation.",
+  "Does not bypass a mechanical effect that explicitly makes the quarry impossible to track.",
+  "Does not affect or mechanically alter the quarry.",
+  "Does not convert Small Group into Large Group, Faction / Army, or a diffuse population.",
+  "Does not allow high Difficulty or Legendary Impact to legalise an impossible, incoherent, or inaccessible pursuit.",
+]) {
+  assert(trackMethod.exclusions.includes(exclusion), `Track exclusion missing: ${exclusion}`);
+}
+assertEqual(
+  getRoleplayMethodsForIntention("PERCEPTION").map((method) => method.id).join(","),
+  "DISCERN_TRUTH,TRACK",
+  "Perception Method filtering should expose Discern Truth then Track.",
+);
+
+const traceQuarryOutcomes = {
+  ONE_TARGET: {
+    MINOR:
+      "you identify one recent accessible sign of the selected target's passage and the immediate direction or next nearby trace it indicates for the current meaningful exchange",
+    STANDARD:
+      "you establish a reliable trail left by the selected target and can follow it through the current scene unless an identifiable change genuinely breaks or obscures that trail",
+    MAJOR:
+      "you establish and maintain a reliable trail to the selected target through the current scene despite serious concealment, false trails, difficult terrain, or deliberate evasion unless decisive circumstances make continued tracking impossible or incoherent",
+    LEGENDARY:
+      "you uncover a defining trail, route, or signature leading toward the selected target whose significance extends beyond the current scene and can continue following it until the quarry is reached or the pursuit is narratively resolved",
+  },
+  SMALL_GROUP: {
+    MINOR:
+      "you identify one recent accessible sign of the selected group's passage and the immediate direction or next nearby trace it indicates for the current meaningful exchange",
+    STANDARD:
+      "you establish a reliable trail left by the selected group and can follow it through the current scene unless an identifiable change genuinely breaks or obscures that trail",
+    MAJOR:
+      "you establish and maintain a reliable trail to the selected group through the current scene despite serious concealment, false trails, difficult terrain, or deliberate evasion unless decisive circumstances make continued tracking impossible or incoherent",
+    LEGENDARY:
+      "you uncover a defining trail, route, or signature leading toward the selected group whose significance extends beyond the current scene and can continue following it until the quarry is reached or the pursuit is narratively resolved",
+  },
+} as const;
+const traceQuarryDescriptors = {
+  ONE_TARGET: {
+    MINOR: `Choose one target and roll 3 dice. On success, ${traceQuarryOutcomes.ONE_TARGET.MINOR}.`,
+    STANDARD: `Choose one target and roll 3 dice. On success, ${traceQuarryOutcomes.ONE_TARGET.STANDARD}.`,
+    MAJOR: `Choose one target and roll 3 dice. On success, ${traceQuarryOutcomes.ONE_TARGET.MAJOR}.`,
+    LEGENDARY: `Choose one target and roll 3 dice. On success, ${traceQuarryOutcomes.ONE_TARGET.LEGENDARY}.`,
+  },
+  SMALL_GROUP: {
+    MINOR: `Choose a small group of targets and roll 3 dice. On success, ${traceQuarryOutcomes.SMALL_GROUP.MINOR}.`,
+    STANDARD: `Choose a small group of targets and roll 3 dice. On success, ${traceQuarryOutcomes.SMALL_GROUP.STANDARD}.`,
+    MAJOR: `Choose a small group of targets and roll 3 dice. On success, ${traceQuarryOutcomes.SMALL_GROUP.MAJOR}.`,
+    LEGENDARY: `Choose a small group of targets and roll 3 dice. On success, ${traceQuarryOutcomes.SMALL_GROUP.LEGENDARY}.`,
+  },
+} as const;
+
+const traceQuarryContract = getRoleplayOutcomeContract("TRACE_QUARRY");
+assert(traceQuarryContract, "TRACE_QUARRY should exist.");
+assertEqual(traceQuarryContract.name, "Trace Quarry", "Trace Quarry name mismatch.");
+assertEqual(traceQuarryContract.outcomeLane, "HELP", "Trace Quarry should be Help.");
+assertEqual(traceQuarryContract.intention, "PERCEPTION", "Trace Quarry Intention mismatch.");
+assertEqual(traceQuarryContract.methodId, "TRACK", "Trace Quarry Method mismatch.");
+assertEqual(
+  traceQuarryContract.supportedScopes.join("|"),
+  "ONE_TARGET|SMALL_GROUP",
+  "Trace Quarry supported Scope order mismatch.",
+);
+assertEqual(
+  traceQuarryContract.privilegeCostKey,
+  "TRACE_QUARRY",
+  "Trace Quarry family privilege key mismatch.",
+);
+assertEqual(
+  getRoleplayOutcomeContractsForMethod("PERCEPTION", "TRACK")
+    .map((contract) => contract.id)
+    .join("|"),
+  "TRACE_QUARRY",
+  "Track should expose only Trace Quarry.",
+);
+assertEqual(
+  traceQuarryContract.scopeTokens.ONE_TARGET?.quarryReference,
+  "the selected target",
+  "One Target quarryReference mismatch.",
+);
+assertEqual(
+  traceQuarryContract.scopeTokens.ONE_TARGET?.quarryPossessive,
+  "the selected target's",
+  "One Target quarryPossessive mismatch.",
+);
+assertEqual(
+  traceQuarryContract.scopeTokens.SMALL_GROUP?.quarryReference,
+  "the selected group",
+  "Small Group quarryReference mismatch.",
+);
+assertEqual(
+  traceQuarryContract.scopeTokens.SMALL_GROUP?.quarryPossessive,
+  "the selected group's",
+  "Small Group quarryPossessive mismatch.",
+);
+
+const traceQuarryCells = enumerateRoleplayResolvedContractCells(traceQuarryContract);
+assertEqual(traceQuarryCells.length, 8, "Trace Quarry needs eight completed cells.");
+for (const scope of ["ONE_TARGET", "SMALL_GROUP"] as const) {
+  for (const sceneImpact of regressionImpacts) {
+    const expectedFragment = {
+      MINOR:
+        "you identify one recent accessible sign of {{quarryPossessive}} passage and the immediate direction or next nearby trace it indicates for the current meaningful exchange",
+      STANDARD:
+        "you establish a reliable trail left by {{quarryReference}} and can follow it through the current scene unless an identifiable change genuinely breaks or obscures that trail",
+      MAJOR:
+        "you establish and maintain a reliable trail to {{quarryReference}} through the current scene despite serious concealment, false trails, difficult terrain, or deliberate evasion unless decisive circumstances make continued tracking impossible or incoherent",
+      LEGENDARY:
+        "you uncover a defining trail, route, or signature leading toward {{quarryReference}} whose significance extends beyond the current scene and can continue following it until the quarry is reached or the pursuit is narratively resolved",
+    }[sceneImpact];
+    assertEqual(
+      traceQuarryContract.impactFragments[sceneImpact],
+      expectedFragment,
+      `${sceneImpact} exact Trace Quarry fragment mismatch.`,
+    );
+    const cell = traceQuarryCells.find(
+      (candidate) => candidate.scope === scope && candidate.sceneImpact === sceneImpact,
+    );
+    assert(cell, `${scope}/${sceneImpact} Trace Quarry cell missing.`);
+    assertEqual(
+      cell.successOutcome,
+      traceQuarryOutcomes[scope][sceneImpact],
+      `${scope}/${sceneImpact} Trace Quarry outcome mismatch.`,
+    );
+    assertEqual(cell.counterEligible, false, `${scope}/${sceneImpact} must reject Counter.`);
+    const ability = reconcileRoleplayAbilityAuthoring({
+      ...createDefaultRoleplayAbility(600),
+      intention: "PERCEPTION",
+      methodId: "TRACK",
+      scope,
+      sceneImpact,
+      diceCount: 3,
+      outcomeContractId: "TRACE_QUARRY",
+      counter: true,
+    });
+    assertEqual(ability.outcomeContractId, "TRACE_QUARRY", "Trace Quarry cell was cleared.");
+    assertEqual(ability.counter, false, "Trace Quarry should force stored Counter off.");
+    assertEqual(getRoleplayAbilityOutcomeLane(ability), "HELP", "Trace Quarry lane drifted.");
+    assertEqual(
+      getRoleplayAbilitySuccessOutcome(ability),
+      traceQuarryOutcomes[scope][sceneImpact],
+      `${scope}/${sceneImpact} generated outcome mismatch.`,
+    );
+    assertEqual(
+      renderRoleplayAbilityDescriptor(ability),
+      traceQuarryDescriptors[scope][sceneImpact],
+      `${scope}/${sceneImpact} 3-dice descriptor mismatch.`,
+    );
+  }
+}
+
+let trailIsStillWarm = selectRoleplayAbilityOutcomeContract(
+  {
+    ...createDefaultRoleplayAbility(601),
+    name: "The Trail Is Still Warm",
+    narrativeTheme:
+      "You read the broken stems, disturbed soil, fading scent, and hurried choices left behind, separating the quarry's true passage from the noise around it.",
+    intention: "PERCEPTION",
+    methodId: "TRACK",
+    sceneImpact: "MAJOR",
+    scope: "SELF",
+    diceCount: 3,
+    counter: true,
+  },
+  "TRACE_QUARRY",
+);
+assertEqual(trailIsStillWarm.scope, "ONE_TARGET", "Trace Quarry should fall back from Self to One Target.");
+assertEqual(trailIsStillWarm.outcomeContractId, "TRACE_QUARRY", "Trace Quarry selection failed.");
+assertEqual(getRoleplayAbilityMethodName(trailIsStillWarm), "Track", "Track display name mismatch.");
+assertEqual(
+  getRoleplayAbilityContractName(trailIsStillWarm),
+  "Trace Quarry",
+  "Trace Quarry display name mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(trailIsStillWarm),
+  traceQuarryDescriptors.ONE_TARGET.MAJOR,
+  "The Trail Is Still Warm descriptor mismatch.",
+);
+assertEqual(trailIsStillWarm.counter, false, "Prototype Counter request must be forced false.");
+
+trailIsStillWarm = selectRoleplayAbilityScope(trailIsStillWarm, "SMALL_GROUP");
+assertEqual(trailIsStillWarm.scope, "SMALL_GROUP", "Trace Quarry should switch to Small Group.");
+assertEqual(trailIsStillWarm.outcomeContractId, "TRACE_QUARRY", "Small Group switch cleared family.");
+trailIsStillWarm = selectRoleplayAbilityScope(trailIsStillWarm, "ONE_TARGET");
+assertEqual(trailIsStillWarm.scope, "ONE_TARGET", "Trace Quarry should switch back to One Target.");
+assertEqual(trailIsStillWarm.outcomeContractId, "TRACE_QUARRY", "One Target switch cleared family.");
+for (const sceneImpact of regressionImpacts) {
+  trailIsStillWarm = selectRoleplayAbilitySceneImpact(trailIsStillWarm, sceneImpact);
+  assertEqual(
+    trailIsStillWarm.outcomeContractId,
+    "TRACE_QUARRY",
+    `${sceneImpact} switch cleared Trace Quarry.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(trailIsStillWarm),
+    traceQuarryOutcomes.ONE_TARGET[sceneImpact],
+    `${sceneImpact} switched Trace Quarry outcome mismatch.`,
+  );
+}
+
+for (const requestedScope of ["SELF", "LARGE_GROUP", "FACTION_ARMY"] as const) {
+  const invalidated = reconcileRoleplayAbilityAuthoring({
+    ...trailIsStillWarm,
+    scope: requestedScope,
+    counter: true,
+  });
+  assertEqual(
+    invalidated.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    `${requestedScope} raw Trace Quarry authoring should clear the family.`,
+  );
+  assertEqual(invalidated.counter, false, `${requestedScope} invalidation should clear Counter.`);
+}
+for (const incompatible of [
+  { intention: "PERCEPTION" as const, methodId: "DISCERN_TRUTH" as const },
+  { intention: "PERSUASION" as const, methodId: "APPEAL" as const },
+]) {
+  const invalidated = reconcileRoleplayAbilityAuthoring({
+    ...trailIsStillWarm,
+    ...incompatible,
+    counter: true,
+  });
+  assertEqual(
+    invalidated.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    "Incompatible Method or Intention should clear Trace Quarry.",
+  );
+  assertEqual(invalidated.counter, false, "Incompatible authoring should clear Counter.");
+}
+
+for (const restrictionType of [
+  "NONE",
+  "TARGET_ELIGIBILITY",
+  "CIRCUMSTANCE",
+  "OATH_BEHAVIOUR",
+  "SCENE_STATE",
+  "RESOURCE_STATE",
+] as const) {
+  const edited = reconcileRoleplayAbilityAuthoring({
+    ...trailIsStillWarm,
+    name: "The Trail Remains Warm",
+    narrativeTheme: "You interpret one accessible coherent sign of passage.",
+    diceCount: 5,
+    restrictionType,
+    restrictionBand: restrictionType === "NONE" ? "NONE_COSMETIC" : "MODERATE",
+    restrictionTag: restrictionType === "TARGET_ELIGIBILITY" ? "one marked quarry" : "",
+    restrictionText: restrictionType === "NONE" ? "" : "Only while the declared limit applies.",
+  });
+  assertEqual(
+    edited.outcomeContractId,
+    "TRACE_QUARRY",
+    `${restrictionType} and non-authoring edits should retain Trace Quarry.`,
+  );
+}
+const fiveDiceTrace = reconcileRoleplayAbilityAuthoring({
+  ...trailIsStillWarm,
+  sceneImpact: "MAJOR",
+  diceCount: 5,
+});
+assertEqual(
+  renderRoleplayAbilityDescriptor(fiveDiceTrace),
+  traceQuarryDescriptors.ONE_TARGET.MAJOR.replace("roll 3 dice", "roll 5 dice"),
+  "Trace Quarry Dice 3 to 5 should change only the roll count.",
+);
+
+const legacyTrack = normalizeRoleplayAbility(
+  {
+    name: "Legacy Trail",
+    description: "You read the quarry's passage.",
+    intention: "PERCEPTION",
+    specific: "TRACK",
+    sceneImpact: "MAJOR",
+    scope: "ONE_TARGET",
+    diceCount: 3,
+    successOutcome: traceQuarryOutcomes.ONE_TARGET.MAJOR,
+    counter: true,
+  },
+  602,
+);
+assertEqual(legacyTrack.methodId, "TRACK", "Legacy Perception TRACK should migrate to Track.");
+assertEqual(
+  legacyTrack.outcomeContractId,
+  "TRACE_QUARRY",
+  "Matching legacy quarry outcome should migrate to Trace Quarry.",
+);
+assertEqual(legacyTrack.counter, false, "Legacy Trace Quarry must force Counter off.");
+
+const explicitCustomTrack = normalizeRoleplayAbility(
+  {
+    intention: "PERCEPTION",
+    methodId: ROLEPLAY_METHOD_CUSTOM_REVIEW,
+    customMethodName: "Track",
+    customMethodRequest: "A deliberately explicit Custom Track Method.",
+  },
+  603,
+);
+assertEqual(
+  explicitCustomTrack.methodId,
+  ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  "Explicit stored Custom Track must remain Custom.",
+);
+for (const specific of [
+  "SEARCH",
+  "INVESTIGATE",
+  "SENSE_DANGER",
+  "READ_INTENT",
+  "HUNT",
+  "LOCATE",
+] as const) {
+  const ambiguousTrack = normalizeRoleplayAbility(
+    { intention: "PERCEPTION", specific, description: `Legacy ${specific} theme.` },
+    604,
+  );
+  assertEqual(
+    ambiguousTrack.methodId,
+    ROLEPLAY_METHOD_CUSTOM_REVIEW,
+    `${specific} must remain Custom instead of migrating to Track.`,
+  );
+}
+const customTraceOutcomeText = "You instantly arrive beside and capture the quarry";
+const explicitCustomTrace = normalizeRoleplayAbility(
+  {
+    intention: "PERCEPTION",
+    methodId: "TRACK",
+    sceneImpact: "LEGENDARY",
+    scope: "ONE_TARGET",
+    diceCount: 3,
+    outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+    customOutcomeLane: "HELP",
+    customOutcomeRequest: customTraceOutcomeText,
+  },
+  605,
+);
+assertEqual(
+  explicitCustomTrace.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  "Explicit Track Custom Outcome must remain Custom.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(explicitCustomTrace),
+  `Choose one target and roll 3 dice. On success, ${customTraceOutcomeText}.`,
+  "Explicit Track Custom Outcome descriptor regression.",
+);
+
+for (const runtimeTrackingField of [
+  "declaredQuarry",
+  "quarry",
+  "quarryId",
+  "quarryMembers",
+  "trackingTarget",
+  "trackingTargetIds",
+  "startingConnection",
+  "trail",
+  "trailText",
+  "trace",
+  "traceText",
+  "lastKnownLocation",
+  "trackingObjective",
+  "trackingRoute",
+  "currentDirection",
+  "quarrySignature",
+  "pursuitState",
+]) {
+  assert(
+    !Object.hasOwn(trailIsStillWarm, runtimeTrackingField) &&
+      !Object.hasOwn(legacyTrack, runtimeTrackingField),
+    `${runtimeTrackingField} must remain runtime-only state.`,
+  );
+}
+assertEqual(
+  legacyDescriptorRegressions.length +
+    completionDescriptorRegressions.length +
+    personalResolveCells.length,
+  72,
+  "All seventy-two pre-Track outcomes and descriptors must remain under exact regression coverage.",
+);
+assertEqual(libraryAudit.plannedCellCount, 80, "Track audit planned total mismatch.");
+assertEqual(libraryAudit.completedCellCount, 80, "Track audit completed total mismatch.");
+assertEqual(libraryAudit.missingCellCount, 0, "Track audit missing total mismatch.");
+
 console.log("PASS roleplay outcome contract registry smoke");
 console.log("PASS roleplay secure immediate safety contract smoke");
 console.log("PASS roleplay draw hostile attention contract smoke");
@@ -4772,3 +5185,4 @@ console.log("PASS roleplay establish shared resolve contract smoke");
 console.log("PASS roleplay compositional standard library smoke");
 console.log("PASS roleplay complete standard library smoke");
 console.log("PASS roleplay personal resolve self standard library smoke");
+console.log("PASS roleplay quarry tracking standard library smoke");

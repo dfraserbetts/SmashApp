@@ -26,7 +26,8 @@ export type RoleplayStandardMethodId =
   | "INTERRUPT"
   | "CHALLENGE"
   | "OVERAWE"
-  | "DISCERN_TRUTH";
+  | "DISCERN_TRUTH"
+  | "TRACK";
 
 export type RoleplayMethodId =
   | RoleplayStandardMethodId
@@ -329,6 +330,40 @@ export const ROLEPLAY_METHODS = [
       "Does not mechanically alter the target.",
     ],
   },
+  {
+    id: "TRACK",
+    name: "Track",
+    intention: "PERCEPTION",
+    definition:
+      "Locate or follow a missing, concealed, or moving subject by interpreting physical traces, disturbed environments, witness reports, behavioural patterns, magical signatures, spiritual impressions, or another coherent sign of passage.",
+    legalApproaches: [
+      "Follow footprints, tracks, blood, debris, scent, or other physical traces",
+      "Read disturbed terrain, architecture, vegetation, dust, water, or weather",
+      "Connect reliable sightings, testimony, reports, or known movements",
+      "Infer direction and timing from wear, displacement, decay, or environmental change",
+      "Recognise a recurring magical, spiritual, psychic, technological, or supernatural signature supported by the Narrative Theme",
+      "Distinguish genuine signs from false trails or unrelated disturbance",
+      "Predict a likely route from the quarry's established habits, needs, destination, or constraints",
+      "Maintain pursuit as the trail moves through different environments",
+    ],
+    exclusions: [
+      "Does not reveal unrelated secrets merely because the quarry is being tracked.",
+      "Does not identify an exploitable weakness; that uses Reveal Exploitable Weakness.",
+      "Does not establish a concealed truth unrelated to the quarry's trail, passage, route, or location; that uses Uncover Concealed Truth.",
+      "Does not create footprints, evidence, witness testimony, signatures, or traces that do not coherently exist.",
+      "Does not grant omniscience or automatic knowledge of an exact current location.",
+      "Does not guarantee reaching, catching, intercepting, confronting, or defeating the quarry.",
+      "Does not grant an action, Response, measured movement, speed, travel time, or transportation.",
+      "Does not bypass barriers, hazards, locks, access requirements, distance, time, equipment, or environmental limits.",
+      "Does not remove concealment, invisibility, fields, attachments, active powers, conditions, or another quantified effect.",
+      "Does not bypass a mechanical effect that explicitly makes the quarry impossible to track.",
+      "Does not affect or mechanically alter the quarry.",
+      "Does not automatically reveal the trail or result to other characters.",
+      "Does not convert One Target into Small Group.",
+      "Does not convert Small Group into Large Group, Faction / Army, or a diffuse population.",
+      "Does not allow high Difficulty or Legendary Impact to legalise an impossible, incoherent, or inaccessible pursuit.",
+    ],
+  },
 ] as const satisfies readonly RoleplayMethodDefinition[];
 
 export const ROLEPLAY_OUTCOME_LANE_OPTIONS = [
@@ -396,6 +431,7 @@ export type RoleplayStandardOutcomeContractId =
   | "BREAK_SHARED_RESOLVE"
   | "UNCOVER_CONCEALED_TRUTH"
   | "REVEAL_EXPLOITABLE_WEAKNESS"
+  | "TRACE_QUARRY"
   | "SECURE_WILLING_COOPERATION"
   | "ESTABLISH_SHARED_RESOLVE"
   | "SUSTAIN_PERSONAL_RESOLVE"
@@ -859,6 +895,71 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not permit the Game Director to answer an accepted practical subject with an unrelated secret or piece of trivia.",
       "Does not permit the Game Director to return no qualifying opportunity merely because no opportunity was prepared in advance or because the result inconveniences the planned plot.",
       "Does not allow Difficulty or Legendary Impact to legalise an invalid target or impossible investigation.",
+    ],
+  },
+  {
+    id: "TRACE_QUARRY",
+    name: "Trace Quarry",
+    outcomeLane: "HELP",
+    intention: "PERCEPTION",
+    methodId: "TRACK",
+    supportedScopes: ["ONE_TARGET", "SMALL_GROUP"],
+    outcomeTemplate: "{{impact}}",
+    scopeTokens: {
+      ONE_TARGET: {
+        quarryReference: "the selected target",
+        quarryPossessive: "the selected target's",
+      },
+      SMALL_GROUP: {
+        quarryReference: "the selected group",
+        quarryPossessive: "the selected group's",
+      },
+    },
+    impactFragments: {
+      MINOR:
+        "you identify one recent accessible sign of {{quarryPossessive}} passage and the immediate direction or next nearby trace it indicates for the current meaningful exchange",
+      STANDARD:
+        "you establish a reliable trail left by {{quarryReference}} and can follow it through the current scene unless an identifiable change genuinely breaks or obscures that trail",
+      MAJOR:
+        "you establish and maintain a reliable trail to {{quarryReference}} through the current scene despite serious concealment, false trails, difficult terrain, or deliberate evasion unless decisive circumstances make continued tracking impossible or incoherent",
+      LEGENDARY:
+        "you uncover a defining trail, route, or signature leading toward {{quarryReference}} whose significance extends beyond the current scene and can continue following it until the quarry is reached or the pursuit is narratively resolved",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "TRACE_QUARRY",
+    examples: [
+      "Following footprints from a raided farm toward one creature",
+      "Reading blood and broken branches to pursue an injured fugitive",
+      "Connecting witness sightings to trace one missing courier",
+      "Following a stolen object through marks left by its carrier",
+      "Reading magical residue to follow one supernatural quarry",
+      "Identifying the next nearby trace left by one escaping suspect",
+      "Maintaining a trail despite deliberate false tracks",
+      "Following a patrol's shared trail through difficult terrain",
+      "Tracing a small band through changing environments",
+      "Pursuing a defining magical signature across multiple scenes",
+      "Following a legendary quarry until it is reached or the pursuit is resolved",
+    ],
+    exclusions: [
+      "Does not guarantee reaching, catching, intercepting, confronting, or defeating the quarry.",
+      "Does not grant an action, Response, measured movement, speed, travel time, transportation, or teleportation.",
+      "Does not bypass barriers, locks, hazards, access requirements, distance, equipment, time, or environmental restrictions.",
+      "Does not reveal unrelated secrets, motives, memories, weaknesses, or evidence.",
+      "Does not establish more than one coherent trail.",
+      "Does not create traces, evidence, testimony, routes, or signatures that cannot coherently exist.",
+      "Does not grant omniscience or automatic exact current-location knowledge.",
+      "Does not remove concealment, invisibility, conditions, fields, attachments, active powers, or another quantified effect.",
+      "Does not bypass a mechanical effect that explicitly makes tracking impossible.",
+      "Does not alter, slow, hinder, mark, expose, or mechanically affect the quarry.",
+      "Does not automatically reveal the result to another character.",
+      "Does not convert One Target into Small Group.",
+      "Does not convert Small Group into Large Group, Faction / Army, or a diffuse population.",
+      "Does not grant separate trails for members who are not travelling as one coherent group.",
+      "Does not continue every branch automatically after the selected group splits.",
+      "Does not guarantee that future attempts made while following the trail succeed.",
+      "Does not allow high Difficulty or Legendary Impact to legalise an invalid quarry, impossible pursuit, or inaccessible connection.",
+      "Does not permit the Game Director to substitute a false, irrelevant, useless, or deliberately circular trail after a successful accepted declaration.",
+      "Does not permit arbitrary cancellation merely because the trail disrupts the planned plot or encounter.",
     ],
   },
   {
