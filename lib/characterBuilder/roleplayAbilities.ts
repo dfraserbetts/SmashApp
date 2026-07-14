@@ -19,6 +19,7 @@ export const ROLEPLAY_METHOD_CUSTOM_REVIEW = "CUSTOM_REVIEW" as const;
 export type RoleplayStandardMethodId =
   | "APPEAL"
   | "RALLY"
+  | "STEEL_YOURSELF"
   | "MISDIRECT"
   | "DISTRACT"
   | "RESCUE"
@@ -101,6 +102,38 @@ export const ROLEPLAY_METHODS = [
       "Does not resolve unrelated disputes or disagreements.",
       "Does not guarantee that the shared course succeeds.",
       "Does not make high Difficulty or Legendary Impact legalise an incoherent course.",
+    ],
+  },
+  {
+    id: "STEEL_YOURSELF",
+    name: "Steel Yourself",
+    intention: "PERSUASION",
+    definition:
+      "Strengthen your own resolve by deliberately invoking a personal purpose, value, promise, duty, identity, hope, memory, training, ritual, or acceptance of the stakes.",
+    legalApproaches: [
+      "Recall a person, promise, oath, value, or cause that matters",
+      "Focus on one clear immediate purpose",
+      "Repeat a mantra, prayer, ritual, or trained mental discipline",
+      "Acknowledge fear, pain, exhaustion, or doubt without surrendering the chosen course",
+      "Reframe hardship as a chosen cost or sacrifice",
+      "Anchor yourself in identity, duty, hope, love, or responsibility",
+      "Accept the stakes and consciously choose to continue",
+      "Draw strength from a previous hardship, failure, victory, or lesson",
+    ],
+    exclusions: [
+      "Does not target or bind another character; use Appeal or Rally for others.",
+      "Does not rely on deliberate self-deception or a false premise.",
+      "Does not use supernatural domination or control.",
+      "Does not erase fear, doubt, pain, exhaustion, temptation, memory, or emotion.",
+      "Does not remove Fear, Control stacks, conditions, fields, attachments, active powers, Injury, or another quantified effect.",
+      "Does not restore Health, resources, disabled Attributes, or spent abilities.",
+      "Does not grant an additional action, Response, measured movement, bonus, penalty immunity, or another quantified Power output.",
+      "Does not create capability, access, authority, equipment, or resources that do not exist.",
+      "Does not make an impossible course possible.",
+      "Does not guarantee that the declared course succeeds.",
+      "Does not create permanent immunity to fear, doubt, temptation, hardship, or adversity.",
+      "Does not bypass a mechanical prohibition that genuinely prevents the course.",
+      "Does not make high Difficulty or Legendary Impact legalise an impossible, incoherent, or overbroad course.",
     ],
   },
   {
@@ -365,6 +398,7 @@ export type RoleplayStandardOutcomeContractId =
   | "REVEAL_EXPLOITABLE_WEAKNESS"
   | "SECURE_WILLING_COOPERATION"
   | "ESTABLISH_SHARED_RESOLVE"
+  | "SUSTAIN_PERSONAL_RESOLVE"
   | "ESTABLISH_FALSE_BELIEF"
   | "DIVERT_IMMEDIATE_ATTENTION";
 
@@ -947,6 +981,55 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     ],
   },
   {
+    id: "SUSTAIN_PERSONAL_RESOLVE",
+    name: "Sustain Personal Resolve",
+    outcomeLane: "HELP",
+    intention: "PERSUASION",
+    methodId: "STEEL_YOURSELF",
+    supportedScopes: ["SELF"],
+    outcomeTemplate: "{{impact}}",
+    scopeTokens: { SELF: {} },
+    impactFragments: {
+      MINOR:
+        "you steady yourself around one small immediate personal course and sincerely pursue it through the current meaningful exchange despite ordinary fear, doubt, discomfort, or hesitation",
+      STANDARD:
+        "you commit yourself to one clear personal course for the rest of the current scene and sincerely pursue it despite meaningful fear, exhaustion, doubt, temptation, or pressure",
+      MAJOR:
+        "you hold to one difficult personal course for the rest of the current scene and sincerely pursue it despite serious fear, exhaustion, personal cost, temptation, or danger unless decisive circumstances or narrative resolution make that course no longer coherent",
+      LEGENDARY:
+        "you form one defining personal resolve, oath, or purpose whose consequences extend beyond the current scene and sincerely uphold it until it is fulfilled or narratively resolved",
+    },
+    counterEligibility: { default: false },
+    privilegeCostKey: "SUSTAIN_PERSONAL_RESOLVE",
+    examples: [
+      "A bearer continuing toward the destination despite terror and exhaustion",
+      "A witness continuing truthful testimony despite intimidation",
+      "A rescuer refusing to leave until trapped civilians are clear",
+      "A messenger continuing through pursuit and hardship",
+      "A defender holding one evacuation route through the scene",
+      "A tempted character reaffirming one promise and continuing to honour it",
+      "A pilgrim accepting one defining oath whose consequences extend beyond the scene",
+      "A frightened hero choosing to continue one mission without becoming immune to fear",
+    ],
+    exclusions: [
+      "Does not establish more than one bounded Declared Personal Course.",
+      "Does not guarantee that the declared course succeeds.",
+      "Does not grant an action, Response, measured movement, exact route, or exact destination.",
+      "Does not grant bonuses, penalties, advantage, disadvantage, immunity, Resistance, Protection, or another quantified output.",
+      "Does not remove Fear, Control stacks, conditions, fields, attachments, active powers, Injury, or another quantified effect.",
+      "Does not restore Health, resources, Attributes, or disabled abilities.",
+      "Does not permit action while unconscious, defeated, incapacitated, or otherwise mechanically unable to act.",
+      "Does not bypass normal resource costs, restrictions, access, equipment, authority, or capability.",
+      "Does not make an impossible course possible.",
+      "Does not create permanent immunity to fear, doubt, temptation, pain, exhaustion, hardship, or adversity.",
+      "Does not establish a false premise or rewrite memory.",
+      "Does not affect another character.",
+      "Does not become Rally, Appeal, Cleanse, Resist, Blaze of Glory, or a Power.",
+      "Does not allow high Difficulty or Legendary Impact to legalise an invalid course.",
+      "Does not permit arbitrary cancellation after a successful accepted declaration.",
+    ],
+  },
+  {
     id: "ESTABLISH_FALSE_BELIEF",
     name: "Establish False Belief",
     outcomeLane: "HINDER",
@@ -1167,6 +1250,7 @@ const LEGACY_SPECIFIC_LABELS: Readonly<Record<string, string>> = {
   COMMAND: "Command",
   APPEAL: "Appeal",
   RALLY: "Rally",
+  STEEL_YOURSELF: "Steel Yourself",
   NEGOTIATE: "Negotiate",
   PLEAD: "Plead",
   INSPIRE: "Inspire",

@@ -975,17 +975,17 @@ for (const legacyField of ["specific", "description"]) {
 
 assertEqual(
   ROLEPLAY_METHODS.map((method) => method.id).join(","),
-  "APPEAL,RALLY,MISDIRECT,DISTRACT,RESCUE,INTERRUPT,CHALLENGE,OVERAWE,DISCERN_TRUTH",
-  "The standard Method registry should contain exactly the nine approved IDs.",
+  "APPEAL,RALLY,STEEL_YOURSELF,MISDIRECT,DISTRACT,RESCUE,INTERRUPT,CHALLENGE,OVERAWE,DISCERN_TRUTH",
+  "The standard Method registry should contain exactly the ten approved IDs.",
 );
-assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 11, "The registry should contain eleven contracts.");
+assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 12, "The registry should contain twelve contracts.");
 assertEqual(
   ROLEPLAY_OUTCOME_CONTRACTS.reduce(
     (total, contract) => total + enumerateRoleplayResolvedContractCells(contract).length,
     0,
   ),
-  68,
-  "The registry should contain all sixty-eight planned cells.",
+  72,
+  "The registry should contain all seventy-two planned cells.",
 );
 assertEqual(
   getRoleplayMethodDefinition("EXTRACT"),
@@ -1000,6 +1000,7 @@ assertEqual(
 for (const [methodId, intention] of [
   ["APPEAL", "PERSUASION"],
   ["RALLY", "PERSUASION"],
+  ["STEEL_YOURSELF", "PERSUASION"],
   ["MISDIRECT", "DECEPTION"],
   ["DISTRACT", "DECEPTION"],
   ["RESCUE", "INTERVENTION"],
@@ -1048,6 +1049,47 @@ for (const exclusion of [
   "Does not guarantee that the shared course succeeds.",
 ]) {
   assert(rallyMethod.exclusions.includes(exclusion), `Rally exclusion missing: ${exclusion}`);
+}
+
+const steelYourselfMethod = getRoleplayMethodDefinition("STEEL_YOURSELF");
+assert(steelYourselfMethod, "STEEL_YOURSELF should exist in the Method registry.");
+assertEqual(steelYourselfMethod.name, "Steel Yourself", "Steel Yourself name mismatch.");
+assertEqual(
+  steelYourselfMethod.intention,
+  "PERSUASION",
+  "Steel Yourself owning Intention mismatch.",
+);
+assertEqual(
+  steelYourselfMethod.definition,
+  "Strengthen your own resolve by deliberately invoking a personal purpose, value, promise, duty, identity, hope, memory, training, ritual, or acceptance of the stakes.",
+  "Steel Yourself definition mismatch.",
+);
+assertEqual(
+  steelYourselfMethod.legalApproaches.join("|"),
+  [
+    "Recall a person, promise, oath, value, or cause that matters",
+    "Focus on one clear immediate purpose",
+    "Repeat a mantra, prayer, ritual, or trained mental discipline",
+    "Acknowledge fear, pain, exhaustion, or doubt without surrendering the chosen course",
+    "Reframe hardship as a chosen cost or sacrifice",
+    "Anchor yourself in identity, duty, hope, love, or responsibility",
+    "Accept the stakes and consciously choose to continue",
+    "Draw strength from a previous hardship, failure, victory, or lesson",
+  ].join("|"),
+  "Steel Yourself legal approaches mismatch.",
+);
+for (const exclusion of [
+  "Does not target or bind another character; use Appeal or Rally for others.",
+  "Does not rely on deliberate self-deception or a false premise.",
+  "Does not remove Fear, Control stacks, conditions, fields, attachments, active powers, Injury, or another quantified effect.",
+  "Does not restore Health, resources, disabled Attributes, or spent abilities.",
+  "Does not grant an additional action, Response, measured movement, bonus, penalty immunity, or another quantified Power output.",
+  "Does not make high Difficulty or Legendary Impact legalise an impossible, incoherent, or overbroad course.",
+]) {
+  assert(
+    steelYourselfMethod.exclusions.includes(exclusion),
+    `Steel Yourself exclusion missing: ${exclusion}`,
+  );
 }
 
 const misdirectMethod = getRoleplayMethodDefinition("MISDIRECT");
@@ -1127,7 +1169,7 @@ for (const exclusion of [
 }
 
 for (const [intention, expectedIds] of [
-  ["PERSUASION", "APPEAL,RALLY"],
+  ["PERSUASION", "APPEAL,RALLY,STEEL_YOURSELF"],
   ["DECEPTION", "MISDIRECT,DISTRACT"],
   ["INTERVENTION", "RESCUE,INTERRUPT"],
   ["INTIMIDATION", "CHALLENGE,OVERAWE"],
@@ -1143,6 +1185,7 @@ for (const [intention, expectedIds] of [
 for (const [specific, expectedMethodId, intention] of [
   ["APPEAL", "APPEAL", "PERSUASION"],
   ["RALLY", "RALLY", "PERSUASION"],
+  ["STEEL_YOURSELF", "STEEL_YOURSELF", "PERSUASION"],
   ["MISDIRECT", "MISDIRECT", "DECEPTION"],
   ["DISTRACT", "DISTRACT", "DECEPTION"],
   ["RESCUE", "RESCUE", "INTERVENTION"],
@@ -3943,12 +3986,12 @@ assert(
 );
 
 const libraryAudit = auditRoleplayStandardLibrary();
-assertEqual(libraryAudit.plannedCellCount, 68, "Planned standard-library cell count drifted.");
-assertEqual(libraryAudit.completedCellCount, 68, "Completed standard-library cell count drifted.");
+assertEqual(libraryAudit.plannedCellCount, 72, "Planned standard-library cell count drifted.");
+assertEqual(libraryAudit.completedCellCount, 72, "Completed standard-library cell count drifted.");
 assertEqual(libraryAudit.missingCellCount, 0, "Missing standard-library cell count drifted.");
 assertEqual(
   new Set(libraryAudit.privilegeKeys).size,
-  11,
+  12,
   "Each contract family must own one unique privilege cost key.",
 );
 assert(
@@ -3979,6 +4022,7 @@ const expectedMissingCells = {
   REVEAL_EXPLOITABLE_WEAKNESS: 0,
   SECURE_WILLING_COOPERATION: 0,
   ESTABLISH_SHARED_RESOLVE: 0,
+  SUSTAIN_PERSONAL_RESOLVE: 0,
   ESTABLISH_FALSE_BELIEF: 0,
   DIVERT_IMMEDIATE_ATTENTION: 0,
 } as const;
@@ -3992,6 +4036,7 @@ const expectedOutcomeLanes = {
   REVEAL_EXPLOITABLE_WEAKNESS: "HELP",
   SECURE_WILLING_COOPERATION: "HELP",
   ESTABLISH_SHARED_RESOLVE: "HELP",
+  SUSTAIN_PERSONAL_RESOLVE: "HELP",
   ESTABLISH_FALSE_BELIEF: "HINDER",
   DIVERT_IMMEDIATE_ATTENTION: "HINDER",
 } as const;
@@ -4092,7 +4137,7 @@ assertEqual(
 const enumeratedCells = ROLEPLAY_OUTCOME_CONTRACTS.flatMap((contract) =>
   enumerateRoleplayResolvedContractCells(contract),
 );
-assertEqual(enumeratedCells.length, 68, "Every planned standard-library cell must resolve.");
+assertEqual(enumeratedCells.length, 72, "Every planned standard-library cell must resolve.");
 for (const [index, regression] of legacyDescriptorRegressions.entries()) {
   const contract = getRoleplayOutcomeContract(regression.contractId);
   assert(contract, `Regression contract ${regression.contractId} missing.`);
@@ -4225,8 +4270,13 @@ for (const contract of ROLEPLAY_OUTCOME_CONTRACTS) {
     },
     contract.id,
   );
+  const unsupportedScope: RoleplayAbility["scope"] = contract.supportedScopes.some(
+    (scope) => scope === "SELF",
+  )
+    ? "ONE_TARGET"
+    : "SELF";
   for (const [label, invalidAbility] of [
-    ["Scope", { ...validAbility, scope: "SELF" as const }],
+    ["Scope", { ...validAbility, scope: unsupportedScope }],
     [
       "Method",
       {
@@ -4378,6 +4428,336 @@ for (const [index, regression] of completionDescriptorRegressions.entries()) {
   }
 }
 
+assertEqual(
+  ROLEPLAY_OUTCOME_CONTRACTS.map((contract) => contract.id).join("|"),
+  [
+    "HIDE_FROM_IMMEDIATE_DANGER",
+    "SECURE_IMMEDIATE_SAFETY",
+    "DENY_IMMINENT_HOSTILE_ACT",
+    "DRAW_HOSTILE_ATTENTION",
+    "BREAK_SHARED_RESOLVE",
+    "UNCOVER_CONCEALED_TRUTH",
+    "REVEAL_EXPLOITABLE_WEAKNESS",
+    "SECURE_WILLING_COOPERATION",
+    "ESTABLISH_SHARED_RESOLVE",
+    "SUSTAIN_PERSONAL_RESOLVE",
+    "ESTABLISH_FALSE_BELIEF",
+    "DIVERT_IMMEDIATE_ATTENTION",
+  ].join("|"),
+  "Outcome Contract family order mismatch.",
+);
+
+const personalResolveOutcomes = {
+  MINOR:
+    "you steady yourself around one small immediate personal course and sincerely pursue it through the current meaningful exchange despite ordinary fear, doubt, discomfort, or hesitation",
+  STANDARD:
+    "you commit yourself to one clear personal course for the rest of the current scene and sincerely pursue it despite meaningful fear, exhaustion, doubt, temptation, or pressure",
+  MAJOR:
+    "you hold to one difficult personal course for the rest of the current scene and sincerely pursue it despite serious fear, exhaustion, personal cost, temptation, or danger unless decisive circumstances or narrative resolution make that course no longer coherent",
+  LEGENDARY:
+    "you form one defining personal resolve, oath, or purpose whose consequences extend beyond the current scene and sincerely uphold it until it is fulfilled or narratively resolved",
+} as const;
+const personalResolveDescriptors = {
+  MINOR:
+    "Roll 3 dice. On success, you steady yourself around one small immediate personal course and sincerely pursue it through the current meaningful exchange despite ordinary fear, doubt, discomfort, or hesitation.",
+  STANDARD:
+    "Roll 3 dice. On success, you commit yourself to one clear personal course for the rest of the current scene and sincerely pursue it despite meaningful fear, exhaustion, doubt, temptation, or pressure.",
+  MAJOR:
+    "Roll 3 dice. On success, you hold to one difficult personal course for the rest of the current scene and sincerely pursue it despite serious fear, exhaustion, personal cost, temptation, or danger unless decisive circumstances or narrative resolution make that course no longer coherent.",
+  LEGENDARY:
+    "Roll 3 dice. On success, you form one defining personal resolve, oath, or purpose whose consequences extend beyond the current scene and sincerely uphold it until it is fulfilled or narratively resolved.",
+} as const;
+
+const personalResolveContract = getRoleplayOutcomeContract("SUSTAIN_PERSONAL_RESOLVE");
+assert(personalResolveContract, "SUSTAIN_PERSONAL_RESOLVE should exist.");
+assertEqual(
+  personalResolveContract.name,
+  "Sustain Personal Resolve",
+  "Sustain Personal Resolve name mismatch.",
+);
+assertEqual(personalResolveContract.outcomeLane, "HELP", "Personal Resolve should be Help.");
+assertEqual(
+  personalResolveContract.intention,
+  "PERSUASION",
+  "Personal Resolve Intention mismatch.",
+);
+assertEqual(
+  personalResolveContract.methodId,
+  "STEEL_YOURSELF",
+  "Personal Resolve Method mismatch.",
+);
+assertEqual(
+  personalResolveContract.supportedScopes.join("|"),
+  "SELF",
+  "Personal Resolve must be Self only.",
+);
+assertEqual(
+  personalResolveContract.privilegeCostKey,
+  "SUSTAIN_PERSONAL_RESOLVE",
+  "Personal Resolve family privilege key mismatch.",
+);
+assertEqual(
+  getRoleplayOutcomeContractsForMethod("PERSUASION", "STEEL_YOURSELF")
+    .map((contract) => contract.id)
+    .join("|"),
+  "SUSTAIN_PERSONAL_RESOLVE",
+  "Steel Yourself should expose only Sustain Personal Resolve.",
+);
+
+const personalResolveCells = enumerateRoleplayResolvedContractCells(personalResolveContract);
+assertEqual(personalResolveCells.length, 4, "Personal Resolve needs four completed cells.");
+for (const sceneImpact of regressionImpacts) {
+  const cell = personalResolveCells.find(
+    (candidate) => candidate.sceneImpact === sceneImpact,
+  );
+  assert(cell, `Personal Resolve ${sceneImpact} cell missing.`);
+  assertEqual(cell.scope, "SELF", `${sceneImpact} Personal Resolve Scope mismatch.`);
+  assertEqual(
+    cell.successOutcome,
+    personalResolveOutcomes[sceneImpact],
+    `${sceneImpact} Personal Resolve outcome mismatch.`,
+  );
+  assertEqual(
+    cell.counterEligible,
+    false,
+    `${sceneImpact} Personal Resolve must be Counter-ineligible.`,
+  );
+}
+
+let oneMoreStep = selectRoleplayAbilityOutcomeContract(
+  {
+    ...createDefaultRoleplayAbility(500),
+    name: "One More Step",
+    narrativeTheme:
+      "You remember the people depending on you, accept the fear and exhaustion without denying them, and choose to take the next step toward the promise you made.",
+    intention: "PERSUASION",
+    methodId: "STEEL_YOURSELF",
+    sceneImpact: "MAJOR",
+    scope: "ONE_TARGET",
+    diceCount: 3,
+    counter: true,
+  },
+  "SUSTAIN_PERSONAL_RESOLVE",
+);
+assertEqual(
+  oneMoreStep.outcomeContractId,
+  "SUSTAIN_PERSONAL_RESOLVE",
+  "Selecting Personal Resolve should retain the family.",
+);
+assertEqual(oneMoreStep.scope, "SELF", "Contract selection should fall back to Self.");
+assertEqual(getRoleplayAbilityMethodName(oneMoreStep), "Steel Yourself", "Method name mismatch.");
+assertEqual(
+  getRoleplayAbilityContractName(oneMoreStep),
+  "Sustain Personal Resolve",
+  "Contract name mismatch.",
+);
+assertEqual(getRoleplayAbilityOutcomeLane(oneMoreStep), "HELP", "Personal Resolve lane mismatch.");
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(oneMoreStep),
+  personalResolveOutcomes.MAJOR,
+  "One More Step outcome mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(oneMoreStep),
+  personalResolveDescriptors.MAJOR,
+  "One More Step descriptor mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityCounterEligibility(oneMoreStep),
+  false,
+  "Personal Resolve must not permit Counter.",
+);
+assertEqual(oneMoreStep.counter, false, "Personal Resolve should force Counter off.");
+
+for (const sceneImpact of regressionImpacts) {
+  oneMoreStep = selectRoleplayAbilitySceneImpact(oneMoreStep, sceneImpact);
+  assertEqual(
+    oneMoreStep.outcomeContractId,
+    "SUSTAIN_PERSONAL_RESOLVE",
+    `${sceneImpact} switching should retain Personal Resolve.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(oneMoreStep),
+    personalResolveOutcomes[sceneImpact],
+    `${sceneImpact} switched outcome mismatch.`,
+  );
+  const descriptor = renderRoleplayAbilityDescriptor(oneMoreStep);
+  assertEqual(
+    descriptor,
+    personalResolveDescriptors[sceneImpact],
+    `${sceneImpact} Personal Resolve descriptor mismatch.`,
+  );
+  assert(descriptor.startsWith("Roll 3 dice."), `${sceneImpact} Self descriptor prefix mismatch.`);
+  assert(!descriptor.includes("Choose"), `${sceneImpact} Self descriptor must have no Choose clause.`);
+  assertEqual(oneMoreStep.counter, false, `${sceneImpact} should force Counter off.`);
+}
+
+for (const requestedScope of [
+  "ONE_TARGET",
+  "SMALL_GROUP",
+  "LARGE_GROUP",
+  "FACTION_ARMY",
+] as const) {
+  const rawInvalid = reconcileRoleplayAbilityAuthoring({
+    ...oneMoreStep,
+    scope: requestedScope,
+    counter: true,
+  });
+  assertEqual(
+    rawInvalid.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+    `${requestedScope} raw Personal Resolve authoring should clear the family.`,
+  );
+  assertEqual(rawInvalid.counter, false, `${requestedScope} invalidation should clear Counter.`);
+
+  const selectedScope = selectRoleplayAbilityScope(oneMoreStep, requestedScope);
+  assertEqual(
+    selectedScope.outcomeContractId,
+    "SUSTAIN_PERSONAL_RESOLVE",
+    `${requestedScope} UI Scope selection should retain Personal Resolve.`,
+  );
+  assertEqual(
+    selectedScope.scope,
+    "SELF",
+    `${requestedScope} UI Scope selection should fall back to Self.`,
+  );
+}
+
+const fiveDicePersonalResolve = reconcileRoleplayAbilityAuthoring({
+  ...oneMoreStep,
+  diceCount: 5,
+});
+assertEqual(
+  fiveDicePersonalResolve.outcomeContractId,
+  "SUSTAIN_PERSONAL_RESOLVE",
+  "Dice Count edit should retain Personal Resolve.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(fiveDicePersonalResolve),
+  personalResolveDescriptors.LEGENDARY.replace("Roll 3 dice", "Roll 5 dice"),
+  "Dice 3 to 5 should change only the roll count.",
+);
+
+for (const restrictionType of [
+  "NONE",
+  "TARGET_ELIGIBILITY",
+  "CIRCUMSTANCE",
+  "OATH_BEHAVIOUR",
+  "SCENE_STATE",
+  "RESOURCE_STATE",
+] as const) {
+  const edited = reconcileRoleplayAbilityAuthoring({
+    ...oneMoreStep,
+    name: "Still One More Step",
+    narrativeTheme: "You deliberately reaffirm the one accepted personal course.",
+    diceCount: 5,
+    restrictionType,
+    restrictionBand: restrictionType === "NONE" ? "NONE_COSMETIC" : "MODERATE",
+    restrictionTag: restrictionType === "TARGET_ELIGIBILITY" ? "yourself" : "",
+    restrictionText: restrictionType === "NONE" ? "" : "Only while the declared test applies.",
+  });
+  assertEqual(
+    edited.outcomeContractId,
+    "SUSTAIN_PERSONAL_RESOLVE",
+    `${restrictionType} and non-authoring edits should retain Personal Resolve.`,
+  );
+}
+
+const legacySteelYourself = normalizeRoleplayAbility(
+  {
+    name: "Legacy One More Step",
+    description: "You invoke one promise and continue.",
+    intention: "PERSUASION",
+    specific: "STEEL_YOURSELF",
+    sceneImpact: "MAJOR",
+    scope: "SELF",
+    diceCount: 3,
+    successOutcome: personalResolveOutcomes.MAJOR,
+  },
+  501,
+);
+assertEqual(
+  legacySteelYourself.methodId,
+  "STEEL_YOURSELF",
+  "Legacy STEEL_YOURSELF should migrate to the standard Method.",
+);
+assertEqual(
+  legacySteelYourself.outcomeContractId,
+  "SUSTAIN_PERSONAL_RESOLVE",
+  "Matching legacy Personal Resolve outcome should migrate to its family.",
+);
+
+for (const [specific, readableName] of [
+  ["INSPIRE", "Inspire"],
+  ["MOTIVATE", "Motivate"],
+] as const) {
+  const ambiguousLegacy = normalizeRoleplayAbility(
+    {
+      intention: "PERSUASION",
+      specific,
+      description: `Legacy ${readableName} Theme`,
+    },
+    502,
+  );
+  assertEqual(
+    ambiguousLegacy.methodId,
+    ROLEPLAY_METHOD_CUSTOM_REVIEW,
+    `${specific} must remain Custom Method review.`,
+  );
+  assertEqual(
+    ambiguousLegacy.customMethodName,
+    readableName,
+    `${specific} readable Custom Method name mismatch.`,
+  );
+}
+
+const customPersonalResolveText =
+  "You ignore every Injury and mechanical restriction until the mission succeeds";
+const customPersonalResolve = normalizeRoleplayAbility(
+  {
+    name: "Nothing Can Stop Me",
+    narrativeTheme: "You demand an outcome beyond sincere personal resolve.",
+    intention: "PERSUASION",
+    methodId: "STEEL_YOURSELF",
+    sceneImpact: "LEGENDARY",
+    scope: "SELF",
+    diceCount: 3,
+    outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+    customOutcomeLane: "HELP",
+    customOutcomeRequest: customPersonalResolveText,
+  },
+  503,
+);
+assertEqual(
+  customPersonalResolve.outcomeContractId,
+  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+  "Explicit Steel Yourself Custom Outcome must remain Custom Review.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(customPersonalResolve),
+  `Roll 3 dice. On success, ${customPersonalResolveText}.`,
+  "Steel Yourself Custom Outcome descriptor regression.",
+);
+
+for (const runtimePersonalResolveField of [
+  "declaredPersonalCourse",
+  "personalCourse",
+  "chosenCourse",
+  "resolveCourse",
+  "selfResolve",
+  "personalResolve",
+  "resolveText",
+  "adversity",
+  "motivatingMemory",
+  "sustainingPurpose",
+]) {
+  assert(
+    !Object.hasOwn(oneMoreStep, runtimePersonalResolveField) &&
+      !Object.hasOwn(legacySteelYourself, runtimePersonalResolveField),
+    `${runtimePersonalResolveField} must remain runtime-only state.`,
+  );
+}
+
 console.log("PASS roleplay outcome contract registry smoke");
 console.log("PASS roleplay secure immediate safety contract smoke");
 console.log("PASS roleplay draw hostile attention contract smoke");
@@ -4391,3 +4771,4 @@ console.log("PASS roleplay divert immediate attention contract smoke");
 console.log("PASS roleplay establish shared resolve contract smoke");
 console.log("PASS roleplay compositional standard library smoke");
 console.log("PASS roleplay complete standard library smoke");
+console.log("PASS roleplay personal resolve self standard library smoke");

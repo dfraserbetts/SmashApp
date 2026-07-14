@@ -8,6 +8,7 @@ import {
 const EXPECTED_METHOD_ORDER = [
   "APPEAL",
   "RALLY",
+  "STEEL_YOURSELF",
   "MISDIRECT",
   "DISTRACT",
   "RESCUE",
@@ -27,6 +28,7 @@ const EXPECTED_CONTRACT_ORDER = [
   "REVEAL_EXPLOITABLE_WEAKNESS",
   "SECURE_WILLING_COOPERATION",
   "ESTABLISH_SHARED_RESOLVE",
+  "SUSTAIN_PERSONAL_RESOLVE",
   "ESTABLISH_FALSE_BELIEF",
   "DIVERT_IMMEDIATE_ATTENTION",
 ] as const;
@@ -41,6 +43,7 @@ const EXPECTED_MISSING_COUNTS: Record<RoleplayStandardOutcomeContractId, number>
   REVEAL_EXPLOITABLE_WEAKNESS: 0,
   SECURE_WILLING_COOPERATION: 0,
   ESTABLISH_SHARED_RESOLVE: 0,
+  SUSTAIN_PERSONAL_RESOLVE: 0,
   ESTABLISH_FALSE_BELIEF: 0,
   DIVERT_IMMEDIATE_ATTENTION: 0,
 };
@@ -64,13 +67,13 @@ if (!sameOrder(audit.methodIds, EXPECTED_METHOD_ORDER)) {
 if (!sameOrder(audit.contractIds, EXPECTED_CONTRACT_ORDER)) {
   errors.push(`contract-order:${audit.contractIds.join(",")}`);
 }
-if (audit.privilegeKeys.length !== 11) {
+if (audit.privilegeKeys.length !== 12) {
   errors.push(`privilege-key-count:${audit.privilegeKeys.length}`);
 }
-if (audit.plannedCellCount !== 68) {
+if (audit.plannedCellCount !== 72) {
   errors.push(`planned-cell-count:${audit.plannedCellCount}`);
 }
-if (audit.completedCellCount !== 68) {
+if (audit.completedCellCount !== 72) {
   errors.push(`completed-cell-count:${audit.completedCellCount}`);
 }
 if (audit.missingCellCount !== 0) {
