@@ -20,8 +20,8 @@ a higher-authority active source document explicitly promotes them.
 ROLEPLAY STANDARD-LIBRARY STATUS: docs/roleplay-standard-library.md is the
 higher-authority compositional specification. Exact tuple variants, tuple keys,
 and Scope/Impact-filtered contract dropdowns described later are superseded
-history. The live completed library is 10 Methods / 12 families / 12 family
-keys / 72 planned cells / 72 completed cells / 0 missing cells. Steel Yourself
+history. The live completed library is 11 Methods / 13 families / 13 family
+keys / 80 planned cells / 80 completed cells / 0 missing cells. Steel Yourself
 and Sustain Personal Resolve form the first complete Self-facing standard path.
 Its Declared Personal Course is runtime-only, binds sincere pursuit without
 removing player agency or mechanical effects, and follows Narrative Resolution.
@@ -416,12 +416,12 @@ Distract / One Target or Small Group uses DIVERT_IMMEDIATE_ATTENTION across all
 four Impacts. All five
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
-The registry contains exactly ten Methods, twelve standard Outcome Contract
-families, twelve family privilege keys, 72 planned cells, 72 completed cells,
+The registry contains exactly eleven Methods, thirteen standard Outcome Contract
+families, thirteen family privilege keys, 80 planned cells, 80 completed cells,
 and no missing cells. Spot Weakness,
 Investigate, Search, Analyse, and synonymous desired results remain Custom
-Method review rather than new Methods because Discern Truth already defines the
-perceptive approach.
+Method review rather than new Methods. Discern Truth defines concealed-fact and
+weakness discovery; Track separately defines coherent trail establishment.
 
 Global declaration doctrine: Incarnate retains bounded GD judgement but places
 it before the roll and protects purchased outcomes after success. The player
@@ -1596,6 +1596,50 @@ This family remains subject to the parked non-numeric readiness architecture.
 Scene Impact / Scope economics and the single family privilege key are distinct
 future components; Legendary rivalry may later require a separate approved
 adjustment. No numeric costing or discount value is locked.
+
+
+Approved Roleplay Method And Family: Track / Trace Quarry
+
+TRACK / Track is the second Perception Method, after DISCERN_TRUTH. It
+interprets coherent physical, environmental, testimonial, behavioural,
+magical, spiritual, psychic, technological, or supernatural signs of passage
+to locate or follow a missing, concealed, or moving quarry. It is distinct from
+Discern Truth: Uncover Concealed Truth answers what hidden fact is true and
+Reveal Exploitable Weakness identifies an actionable weakness or opportunity;
+neither establishes a trail. Track reveals no unrelated secrets or weaknesses,
+creates no evidence, grants no movement or omniscience, guarantees no capture,
+affects no quarry, and bypasses no barrier or explicit anti-tracking mechanic.
+
+TRACE_QUARRY / Trace Quarry is Help, Perception / Track, One Target and Small
+Group, all four Impacts, Counter unavailable, and family key TRACE_QUARRY.
+Minor identifies a recent accessible sign and next nearby direction; Standard
+establishes a reliable scene-long trail; Major maintains it through serious
+concealment, false trails, difficult terrain, or evasion until decisive
+impossibility/incoherence; Legendary establishes a defining trail, route, or
+signature that may continue until the quarry is reached or pursuit is
+narratively resolved. The exact fragments and tokens remain locked in the
+focused standard-library authority.
+
+Track is an explicit target-access exception: the quarry may be absent, unseen,
+or not directly perceived, but the user must declare an accessible coherent
+connection. Declared Quarry fixes exact identity/membership, starting
+connection, interpreted signs, objective, Scope, and Impact before Difficulty.
+Success binds a true, relevant, actionable trail; the GD may supply an
+unprepared coherent trace consistent with locked fiction but never false,
+irrelevant, circular, or useless substitution. Following still uses normal
+travel, actions, time, access, tools, hazards, and logistics and never guarantees
+reaching or capture. Small Group follows one bounded shared trail and does not
+grant every branch after a split. Narrative Resolution requires fulfilment,
+genuine impossibility/incoherence, or another identifiable meaningful change,
+not plot inconvenience or lack of preparation.
+
+Legacy Perception TRACK migrates only when no explicit methodId is stored;
+explicit Custom Track and ambiguous SEARCH, INVESTIGATE, SENSE_DANGER,
+READ_INTENT, HUNT, and LOCATE remain Custom. Declared Quarry and all pursuit
+state remain runtime-only. The completed standard library is now 11 Methods,
+13 families, 13 family keys, 80 planned cells, 80 completed cells, and zero
+missing. No numeric costing, cooldown, saved tracking state, API/Prisma field,
+migration, measured movement, or combat-runtime mechanic is added.
 
 
 Open Decisions

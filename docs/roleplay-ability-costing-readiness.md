@@ -26,8 +26,9 @@ and future economic components. Outcome Contracts filter by Intention and
 Method; completed Scope and Impact availability resolves after selection.
 The completed non-numeric library and its Hide, Safety, Denial, shared-request,
 and Diversion doctrines remain locked there. Steel Yourself / Sustain Personal
-Resolve adds the first Self-only family and brings coverage to 72 planned / 72
-completed / 0 missing. Declared Personal Course is runtime-only and grants no
+Resolve adds the first Self-only family; Track / Trace Quarry brings coverage
+to 80 planned / 80 completed / 0 missing. Declared Personal Course and Declared
+Quarry are runtime-only and grant no
 mechanical-effect removal or quantified output. Completion approves no numeric
 value.
 
@@ -36,14 +37,14 @@ value.
 The semantic/discovery phase is mature enough for costing architecture. The
 live registry currently contains:
 
-- ten standard Methods;
-- twelve standard Outcome Contract families;
-- seventy-two planned standard cells;
-- seventy-two completed/renderable cells;
+- eleven standard Methods;
+- thirteen standard Outcome Contract families;
+- eighty planned standard cells;
+- eighty completed/renderable cells;
 - zero missing cells and no current completeness backlog;
 - Self, One Target, and Small Group standard coverage;
 - no approved Large Group or Faction / Army standard contract; and
-- twelve unique family-level `privilegeCostKey` values, one per contract.
+- thirteen unique family-level `privilegeCostKey` values, one per contract.
 
 The wider numeric economy is not yet authoritative. Power and Forge costs,
 level affordability, cooldown authority, persisted cooldown caches,
@@ -252,7 +253,7 @@ authoritative number, not a provisional number or zero.
 
 ## Active Family Privilege Inventory
 
-The twelve active family privilege keys are unique and equal to the stable
+The thirteen active family privilege keys are unique and equal to the stable
 contract IDs:
 
 | Outcome Contract | Family `privilegeCostKey` |
@@ -264,6 +265,7 @@ contract IDs:
 | `BREAK_SHARED_RESOLVE` | `BREAK_SHARED_RESOLVE` |
 | `UNCOVER_CONCEALED_TRUTH` | `UNCOVER_CONCEALED_TRUTH` |
 | `REVEAL_EXPLOITABLE_WEAKNESS` | `REVEAL_EXPLOITABLE_WEAKNESS` |
+| `TRACE_QUARRY` | `TRACE_QUARRY` |
 | `SECURE_WILLING_COOPERATION` | `SECURE_WILLING_COOPERATION` |
 | `ESTABLISH_SHARED_RESOLVE` | `ESTABLISH_SHARED_RESOLVE` |
 | `SUSTAIN_PERSONAL_RESOLVE` | `SUSTAIN_PERSONAL_RESOLVE` |
@@ -510,7 +512,7 @@ Future evidence must cover:
 - approved representative restrictions only after restriction doctrine is
   ready;
 - low-, middle-, and high-level contexts after level-budget doctrine settles;
-- all twelve family `privilegeCostKey` values and every independent Scope/Impact
+- all thirteen family `privilegeCostKey` values and every independent Scope/Impact
   component;
 - exact decomposition;
 - monotonicity and deterministic output;
@@ -523,6 +525,31 @@ Narrative outcomes are not converted into wounds, damage, Control stacks,
 movement, defence bonuses, or other Power quantities they do not grant.
 Calibration compares opportunity cost and scene leverage without claiming false
 mechanical equivalence.
+
+## Track / Trace Quarry Readiness
+
+`TRACK` / Track and `TRACE_QUARRY` / Trace Quarry are structurally complete
+without numeric authority. The Help family owns `TRACE_QUARRY`, supports One
+Target and Small Group at all four Impacts, and is Counter-ineligible throughout.
+Its Scope tokens and exact Impact fragments compose eight complete outcomes and
+descriptors. The current library therefore contains 11 Methods, 13 contracts,
+13 unique family keys, 80 planned cells, 80 completed cells, and zero missing.
+
+Track's target-access exception, runtime Declared Quarry, binding true-trail
+result, permission for a previously unspecified coherent trace, normal-travel
+boundary, Small Group shared-trail doctrine, and Narrative Resolution define
+semantic eligibility. They do not add economic inputs. Quarry identity,
+membership, starting connection, trail/trace, last-known location, objective,
+route, direction, signature, and pursuit state are runtime-only and are never
+stored or priced.
+
+Legacy Perception `specific: "TRACK"` without explicit methodId may migrate to
+Track and matching resolved legacy outcomes may migrate to TRACE_QUARRY.
+Explicit Custom Track remains Custom, as do SEARCH, INVESTIGATE, SENSE_DANGER,
+READ_INTENT, HUNT, and LOCATE. This family adds no provisional cost, zero,
+multiplier, cooldown, tuning row, restriction discount, Builder total,
+API/Prisma field, database migration, measured movement, or combat-runtime
+tracking state. Numeric costing remains locked behind every gate below.
 
 ## Numeric Unlock Gates
 

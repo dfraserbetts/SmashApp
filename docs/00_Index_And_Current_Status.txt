@@ -9,8 +9,8 @@ Roleplay compositional architecture authority is
 docs/roleplay-standard-library.md. It supersedes active wording below that
 treats exact Scope / Impact tuples as permanent registry variants, assigns
 tuple-level privilege keys, or filters Outcome Contracts by Scope and Impact.
-The live library has 10 Methods, 12 families, 12 family privilege keys, 72
-planned cells, 72 completed cells, and no missing cells. Steel Yourself is the
+The live library has 11 Methods, 13 families, 13 family privilege keys, 80
+planned cells, 80 completed cells, and no missing cells. Steel Yourself is the
 first Self-facing standard Method and Sustain Personal Resolve is its complete
 Self-only family. The prior 68 descriptors remain exact regression evidence.
 Declared Personal Course, sincere-pursuit, player-agency, mechanical-effect,
@@ -553,9 +553,9 @@ Scope define approved magnitude/persistence and breadth.
 "Method defines the approach. Theme personalises the approach. The Outcome
 Contract defines the result."
 
-The standard Method registry contains exactly ten Methods: APPEAL, RALLY,
+The standard Method registry contains exactly eleven Methods: APPEAL, RALLY,
 STEEL_YOURSELF, MISDIRECT, DISTRACT, RESCUE, INTERRUPT, CHALLENGE, OVERAWE, and
-DISCERN_TRUTH. All five Intentions have at least one approved standard Method.
+DISCERN_TRUTH, followed by TRACK. All five Intentions have at least one approved standard Method.
 Persuasion owns Appeal, Rally, and Steel Yourself. Appeal maps to the
 locked Help / One Target family SECURE_WILLING_COOPERATION, while Rally maps to
 the locked Help / Small Group family ESTABLISH_SHARED_RESOLVE, both at all four
@@ -575,13 +575,15 @@ for both families at every tier. Uncover Concealed Truth answers what hidden
 fact is true. Reveal Exploitable Weakness answers what actionable weakness,
 opening, route, pattern, dependency, or leverage point concerning the target
 can be used. The selected contract defines the purchased entitlement; the
-families are not merged or silently exchanged. The registry therefore contains
-twelve standard Outcome Contract families, twelve family privilege keys, and 72
-planned standard cells, all 72 of which are completed and renderable.
+families are not merged or silently exchanged. Track owns TRACE_QUARRY for One
+Target and Small Group at all four Impacts, with Counter unavailable. The registry therefore contains
+thirteen standard Outcome Contract families, thirteen family privilege keys, and 80
+planned standard cells, all 80 of which are completed and renderable.
 
 No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
 Discern Truth already owns observation, deduction, evidence, physical detail,
-intuition, contradictions, connected clues, and perceptive insight. Legacy Specific
+intuition, contradictions, connected clues, and perceptive insight; Track owns
+the distinct coherent-trail approach. Legacy Specific
 values may migrate into Methods, but Specific is no longer player-facing or
 normalized runtime state. General Custom Outcome review remains available for
 requests outside the standard registry and is never silently migrated merely
@@ -976,6 +978,63 @@ Declared Opposed Course, membership, intimidated target, and target opposition
 remain runtime context only. No Large Group or Faction / Army variant, saved
 declaration/member/target field, numeric cost, cooldown, quantified Fear,
 Control stack, per-member save, or combat-runtime mechanic is added.
+
+
+Perception Track / Trace Quarry Status
+
+LOCKED: TRACK / Track is the second Perception Method, immediately after
+DISCERN_TRUTH. It locates or follows a missing, concealed, or moving subject by
+interpreting physical traces, disturbed environments, witness reports,
+behavioural patterns, magical signatures, spiritual impressions, or another
+coherent sign of passage. It does not reveal unrelated secrets or weaknesses,
+create traces, grant omniscience or movement, guarantee reaching or catching,
+bypass barriers or explicit anti-tracking mechanics, alter the quarry, broaden
+Scope, or make an incoherent pursuit legal. Discern Truth and its Uncover
+Concealed Truth / Reveal Exploitable Weakness contracts learn hidden facts or
+opportunities; Track establishes and follows a true trail.
+
+TRACE_QUARRY / Trace Quarry is Help, Perception / Track, One Target or Small
+Group, Minor through Legendary, Counter unavailable, with family privilege key
+TRACE_QUARRY. One Target uses `the selected target` / `the selected target's`;
+Small Group uses `the selected group` / `the selected group's`. The exact
+Impact fragments are:
+
+- MINOR: "you identify one recent accessible sign of {{quarryPossessive}}
+  passage and the immediate direction or next nearby trace it indicates for the
+  current meaningful exchange"
+- STANDARD: "you establish a reliable trail left by {{quarryReference}} and can
+  follow it through the current scene unless an identifiable change genuinely
+  breaks or obscures that trail"
+- MAJOR: "you establish and maintain a reliable trail to {{quarryReference}}
+  through the current scene despite serious concealment, false trails,
+  difficult terrain, or deliberate evasion unless decisive circumstances make
+  continued tracking impossible or incoherent"
+- LEGENDARY: "you uncover a defining trail, route, or signature leading toward
+  {{quarryReference}} whose significance extends beyond the current scene and
+  can continue following it until the quarry is reached or the pursuit is
+  narratively resolved"
+
+Track is an explicit target-access exception: the quarry need not share the
+scene or be visible or directly perceived, but the declaration must supply an
+accessible coherent connection. Before Attribute or Difficulty the player
+states the runtime Declared Quarry, exact membership, starting connection,
+interpreted signs, objective, Scope, and Impact. Success binds a true, relevant,
+actionable trail. The GD may introduce an unprepared coherent trace that fits
+locked fiction, Method, Theme, Scope, and Impact, but may not substitute a
+false, irrelevant, circular, or useless clue. Following remains normal travel,
+actions, time, access, hazards, tools, and logistics; it never guarantees
+capture. Small Group is one bounded travelling group with one shared trail;
+splitting does not grant every branch.
+
+Narrative Resolution requires the quarry being reached, the objective being
+fulfilled, genuine impossibility, decisive loss of coherence, an incompatible
+group split, or another identifiable meaningful change. Plot inconvenience or
+an unprepared route is insufficient. Legacy Perception `specific: "TRACK"`
+without stored methodId migrates to standard Track and matching generated
+outcomes may migrate to TRACE_QUARRY. Explicit Custom Track remains Custom;
+SEARCH, INVESTIGATE, SENSE_DANGER, READ_INTENT, HUNT, and LOCATE remain Custom.
+Declared Quarry, connection, trail, route, direction, signature, and pursuit
+state remain runtime-only. No numeric costing is unlocked.
 
 
 Roleplay Declaration And Narrative Resolution Status

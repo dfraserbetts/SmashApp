@@ -16,8 +16,8 @@ Method filters contracts; Scope and Impact resolve completed cells after
 contract selection. Each family owns one key equal to its stable ID. Any later
 exact-variant or tuple-key wording in this file is superseded implementation
 history unless explicitly restated under the compositional model. The 68
-descriptors that predate Self completion remain exact; current coverage is 72 planned
-/ 72 completed / 0 missing. Hide, Safety, Denial, Shared Request cooperation,
+descriptors that predate Self completion remain exact; current coverage is 80 planned
+/ 80 completed / 0 missing. Hide, Safety, Denial, Shared Request cooperation,
 and Diversion Impact doctrine is locked by that focused authority. Any later
 statement limiting those families to their former completed Impact cells, or
 assigning Scope/Impact-specific keys, is superseded completion history.
@@ -3225,6 +3225,139 @@ Immediate Danger are no-discount restatements. Potentially meaningful added
 restrictions include only Agents of Morgoth, only a sworn rival, only after the
 target harms an ally, or only while defending a named place or person. Numeric
 discounts are not locked here.
+
+
+Perception Track Method And Trace Quarry Outcome Contract
+
+TRACK / Track is owned by Perception and ordered immediately after
+DISCERN_TRUTH. Exact definition: "Locate or follow a missing, concealed, or
+moving subject by interpreting physical traces, disturbed environments,
+witness reports, behavioural patterns, magical signatures, spiritual
+impressions, or another coherent sign of passage."
+
+Illustrative legal approaches:
+
+- Follow footprints, tracks, blood, debris, scent, or other physical traces.
+- Read disturbed terrain, architecture, vegetation, dust, water, or weather.
+- Connect reliable sightings, testimony, reports, or known movements.
+- Infer direction and timing from wear, displacement, decay, or environmental
+  change.
+- Recognise a recurring magical, spiritual, psychic, technological, or
+  supernatural signature supported by the Narrative Theme.
+- Distinguish genuine signs from false trails or unrelated disturbance.
+- Predict a likely route from established habits, needs, destination, or
+  constraints.
+- Maintain pursuit as the trail moves through different environments.
+
+Approaches are illustrative rather than exhaustive. Track does not reveal
+unrelated secrets, identify an exploitable weakness, answer an unrelated
+concealed truth, create evidence or traces, grant omniscience or exact current
+location, guarantee reaching/catching/intercepting/confronting/defeating, grant
+actions or movement, bypass barriers or explicit mechanical impossibility,
+remove quantified effects, mechanically affect the quarry, automatically share
+the result, broaden Scope, or let high Difficulty or Legendary Impact legalise
+an impossible, incoherent, or inaccessible pursuit.
+
+Discern Truth learns concealed information concerning an accepted subject;
+Uncover Concealed Truth answers what hidden fact is true; Reveal Exploitable
+Weakness identifies an actionable weakness, route, dependency, pattern, or
+leverage point. None establishes and maintains an absent quarry's trail. Track
+interprets signs of passage, may concern a quarry not currently present or
+perceived, requires an accessible coherent connection, and reveals no unrelated
+secret or weakness. Search, Investigate, Sense Danger, and Read Intent do not
+automatically migrate to Track.
+
+TRACE_QUARRY / Trace Quarry is Help, Perception / Track, supports One Target
+and Small Group at Minor, Standard, Major, and Legendary, is Counter-ineligible
+at every cell, and owns family key TRACE_QUARRY. Its template is {{impact}}.
+One Target tokens are quarryReference = "the selected target" and
+quarryPossessive = "the selected target's". Small Group tokens are
+quarryReference = "the selected group" and quarryPossessive = "the selected
+group's". Exact fragments:
+
+- MINOR: "you identify one recent accessible sign of {{quarryPossessive}}
+  passage and the immediate direction or next nearby trace it indicates for the
+  current meaningful exchange"
+- STANDARD: "you establish a reliable trail left by {{quarryReference}} and can
+  follow it through the current scene unless an identifiable change genuinely
+  breaks or obscures that trail"
+- MAJOR: "you establish and maintain a reliable trail to {{quarryReference}}
+  through the current scene despite serious concealment, false trails,
+  difficult terrain, or deliberate evasion unless decisive circumstances make
+  continued tracking impossible or incoherent"
+- LEGENDARY: "you uncover a defining trail, route, or signature leading toward
+  {{quarryReference}} whose significance extends beyond the current scene and
+  can continue following it until the quarry is reached or the pursuit is
+  narratively resolved"
+
+Track explicitly modifies normal target access. The quarry need not be in the
+same scene, visible, directly perceived, addressed, or interacted with. The
+user must instead currently possess an accessible coherent connection: a
+physical trail, trace or disturbance, reliable last-known location, linked
+possession or sample, witness report, known route or behavioural pattern,
+Theme-supported signature, or another coherent sign of passage. This grants
+tracking access only, not interaction/attack range, sight, communication,
+teleportation, or exact current-location knowledge.
+
+Before Attribute or Difficulty the player states the runtime Declared Quarry:
+exact quarry or bounded membership, accessible starting connection, signs or
+evidence interpreted through Method and Theme, tracking objective, and fit with
+Scope and Impact. One Target may be one person, creature, specifically
+traceable moved object, vehicle/conveyance, or other coherent single moved
+subject. Small Group must have travelled together enough to leave one shared
+trail reached through the same connection and expression. Unrelated separate
+travellers, organisations, settlements, factions/armies, diffuse populations,
+bundled trails, abstractions, inaccessible connections, or impossible tracking
+are invalid and must be rejected or revised before Difficulty. Difficulty
+cannot legalise them.
+
+On success the trail is true, relevant to the Declared Quarry, and actionable
+at the purchased Impact. It cannot be trivia, secretly false, circular, useless,
+or subject to a second genuineness roll. The GD may introduce a previously
+unspecified coherent trace, disturbance, witness detail, route, signature, or
+sign as Scene Manifestation when it fits established fiction, contradicts no
+locked premise, is reachable through Method/Theme, fits Scope/Impact, and buys
+no separate outcome. No prewritten trail is required. If no coherent trail can
+exist, reject or revise before Difficulty rather than nullifying success.
+
+Following grants no movement. Normal travel, actions, time, tools, access,
+barriers, hazards, environmental law, unrelated rolls, opposition, terrain,
+distance, and logistics remain. Minor supplies one sign and nearby direction
+for the exchange; Standard supplies a scene trail until a genuine break; Major
+persists through serious concealment, false trails, terrain, and evasion until
+decisive impossibility/incoherence; Legendary may extend until the quarry is
+reached or pursuit resolves, without automatic interception or capture.
+
+Small Group is one collective quarry with membership fixed at Difficulty. It
+grants no independent member trails, exact individual locations, later arrivals,
+organisation propagation, or every branch after a split. A supported branch
+may be followed; another can require a new declaration; decisive splitting may
+resolve the collective pursuit.
+
+Narrative Resolution includes reaching the quarry, fulfilling the objective,
+genuine impossibility, an inaccessible boundary, decisive signature change,
+incompatible group split, new incoherence, or another identifiable meaningful
+development. It does not include inconvenience, plot importance, ordinary
+evasion already covered by Impact, failure to prepare a route, or bypass of an
+expected investigation scene.
+
+Trace Quarry may use the normal Roleplay action in combat when tracking
+information is meaningful, an ordinary outside-combat declaration, or another
+existing legal opportunity. It can never be introduced after formal hostile
+action begins as a Counter and replaces neither Block, Dodge, Resist, Cleanse,
+movement, navigation, travel, Search/investigation Trials, nor Deny Imminent
+Hostile Act.
+
+Legacy Perception specific TRACK without explicit stored methodId migrates to
+standard TRACK; a matching generated legacy outcome may migrate through
+resolved-cell matching to TRACE_QUARRY. Explicit stored CUSTOM_REVIEW named
+Track remains Custom. SEARCH, INVESTIGATE, SENSE_DANGER, READ_INTENT, HUNT, and
+LOCATE remain Custom; explicit Custom Outcomes remain Custom. Declared Quarry,
+quarry/member IDs, starting connection, trail/trace text, last-known location,
+objective, route, direction, signature, pursuit state, and equivalents remain
+runtime-only and are never RoleplayAbility or Builder fields. This locks no
+numeric cost, cooldown, combat-runtime mechanic, API/Prisma field, migration,
+or stored tracking state.
 
 
 Open Items
