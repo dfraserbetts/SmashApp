@@ -20,6 +20,7 @@ export type RoleplayStandardMethodId =
   | "APPEAL"
   | "RALLY"
   | "MISDIRECT"
+  | "DISTRACT"
   | "RESCUE"
   | "INTERRUPT"
   | "CHALLENGE"
@@ -130,6 +131,40 @@ export const ROLEPLAY_METHODS = [
       "Does not establish an unlimited collection of separate false claims.",
       "Does not guarantee that every inference drawn from the premise benefits the Ability user.",
       "Does not make high Difficulty or Legendary Impact legalise an ineligible premise.",
+    ],
+  },
+  {
+    id: "DISTRACT",
+    name: "Distract",
+    intention: "DECEPTION",
+    definition:
+      "Divert a target's immediate attention away from one bounded subject or development by creating a plausible competing focus through spectacle, interruption, bait, urgency, noise, movement, performance, or another attention-capturing act.",
+    legalApproaches: [
+      "Create a sudden noise, spectacle, or commotion",
+      "Engage the target in an absorbing conversation or performance",
+      "Draw attention toward a real competing event",
+      "Use an object, movement, or environmental feature as a temporary focus",
+      "Exploit curiosity, urgency, pride, habit, or professional attention",
+      "Make yourself conspicuous so another development is overlooked",
+      "Occupy the target with a plausible immediate concern",
+      "Redirect sight, hearing, scrutiny, or active monitoring",
+    ],
+    exclusions: [
+      "Does not establish a false or materially misleading premise; that uses Misdirect.",
+      "Does not use supernatural domination or control.",
+      "Does not erase memory, perception, senses, awareness, or capability.",
+      "Does not make the target's current or next action fail.",
+      "Does not cancel or alter a formally declared hostile action.",
+      "Does not force the target to perform one exact alternative action.",
+      "Does not force movement, positioning, or resource use.",
+      "Does not create hostility, loyalty, cooperation, surrender, or obedience.",
+      "Does not make another character hidden or invisible.",
+      "Does not grant another action, Response, or measured movement.",
+      "Does not guarantee that the action enabled by the distraction succeeds.",
+      "Does not create bonuses, penalties, Fear, Control stacks, conditions, fields, attachments, or another quantified Power output.",
+      "Does not automatically affect anyone outside the selected Scope.",
+      "Does not bypass target access, attention capability, Narrative Theme, Outcome Contract, Scene Impact, Scope, or fictional plausibility.",
+      "Does not make high Difficulty legalise an impossible or incoherent distraction.",
     ],
   },
   {
@@ -330,7 +365,8 @@ export type RoleplayStandardOutcomeContractId =
   | "REVEAL_EXPLOITABLE_WEAKNESS"
   | "SECURE_WILLING_COOPERATION"
   | "ESTABLISH_SHARED_RESOLVE"
-  | "ESTABLISH_FALSE_BELIEF";
+  | "ESTABLISH_FALSE_BELIEF"
+  | "DIVERT_IMMEDIATE_ATTENTION";
 
 export type RoleplayOutcomeContractId =
   | RoleplayStandardOutcomeContractId
@@ -1090,6 +1126,57 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not manufacture love, loyalty, devotion, consent, or obedience.",
       "Does not permit arbitrary cancellation after a successful accepted declaration.",
       "Does not allow Difficulty or Legendary Impact to legalise an ineligible premise.",
+    ],
+  },
+  {
+    id: "DIVERT_IMMEDIATE_ATTENTION",
+    name: "Divert Immediate Attention",
+    outcomeLane: "HINDER",
+    variants: [
+      {
+        authoring: {
+          intention: "DECEPTION",
+          methodId: "DISTRACT",
+          sceneImpact: "MINOR",
+          scope: "ONE_TARGET",
+        },
+        successOutcome:
+          "the target's active attention is diverted for the current meaningful exchange, creating a brief opening for one declared small immediate action or development to proceed without that target's deliberate observation or interference",
+        counterEligible: false,
+        privilegeCostKey: "DIVERT_IMMEDIATE_ATTENTION",
+      },
+    ],
+    examples: [
+      "Starting a loud argument so one ally can slip through a side doorway",
+      "Performing an absorbing demonstration while another character examines one document",
+      "Knocking over a display so one small object can be exchanged",
+      "Drawing a sentry into conversation while one witness moves out of scrutiny",
+      "Making yourself conspicuous so another character reaches an accessible control",
+      "Creating a real commotion so one person can enter nearby cover",
+      "Occupying a clerk with an urgent question while a brief message is passed",
+    ],
+    exclusions: [
+      "Does not guarantee that the declared action or development succeeds.",
+      "Does not grant an additional action, Response, or measured movement.",
+      "Does not make the target's current or next action fail.",
+      "Does not cancel a formally declared or already resolved action.",
+      "Does not force the target to take one exact alternative action.",
+      "Does not remove passive senses, memory, perception, awareness, or capability.",
+      "Does not make another character hidden, invisible, or immune from detection.",
+      "Does not prevent other observers from noticing or interfering.",
+      "Does not remove physical barriers, locks, hazards, access requirements, or other obstacles.",
+      "Does not grant bonuses, penalties, advantage, disadvantage, Fear, Control stacks, conditions, fields, attachments, or another quantified output.",
+      "Does not establish a false premise; that uses Establish False Belief.",
+      "Does not permit more than one bounded Declared Opening.",
+      "Does not cover several unrelated actions or an entire plan.",
+      "Does not primarily enable a direct formal hostile action against the distracted target without normal defence or response.",
+      "Does not force movement or alter the target's position.",
+      "Does not automatically affect anyone other than the selected target.",
+      "Does not convert One Target into Small Group, Large Group, or Faction / Army through a broad Declared Opening.",
+      "Does not bypass Distract, Narrative Theme, target access, attention capability, Minor Impact, One Target Scope, or fictional plausibility.",
+      "Does not allow high Difficulty to legalise an impossible distraction.",
+      "Does not permit the Game Director to continue deliberate observation or interference during the accepted opening merely because success disrupts the planned scene.",
+      "Does not create an ongoing effect beyond the current meaningful exchange.",
     ],
   },
 ] as const satisfies readonly RoleplayOutcomeContractDefinition[];
