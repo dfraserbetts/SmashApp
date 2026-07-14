@@ -461,6 +461,12 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     },
     impactFragments: {
       MINOR: "becomes hidden from {{dangerReference}}",
+      STANDARD:
+        "becomes hidden from {{dangerReference}} for the rest of the current scene unless an identifiable change defeats that concealment",
+      MAJOR:
+        "becomes securely hidden from {{dangerReference}} for the rest of the current scene and remains concealed despite active searching, ordinary suspicion, or serious pressure unless decisive circumstances defeat the concealment",
+      LEGENDARY:
+        "becomes hidden from {{dangerReference}} through a defining concealment whose protection extends beyond the current scene until it is decisively exposed or narratively resolved",
     },
     counterEligibility: { default: false },
     privilegeCostKey: "HIDE_FROM_IMMEDIATE_DANGER",
@@ -470,9 +476,11 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Being covered by concealing mist",
       "Slipping beneath a wagon",
       "A companion creating a distraction",
+      "Remaining concealed while searchers actively inspect the surrounding area",
+      "A witness staying hidden from a defining danger beyond the immediate scene",
     ],
     exclusions: [
-      "Does not grant permanent invisibility.",
+      "Does not grant invisibility, sensory immunity, or universal concealment.",
       "Does not hide the selected target or group from every creature in the scene.",
       "Does not end an entire encounter.",
       "Does not remove existing quantified effects.",
@@ -483,6 +491,7 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not convert One Target into Small Group.",
       "Does not convert Small Group into Large Group or Faction / Army.",
       "Does not permit majority interpretation, hidden exemptions, or per-member resistance.",
+      "Does not require one member's later exposure to expose every other member when the fiction supports individual resolution.",
       "Does not permit impossible or incoherent concealment.",
       "Does not permit arbitrary cancellation after success.",
     ],
@@ -500,8 +509,14 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       SMALL_GROUP: { subject: "every accepted member of the selected group" },
     },
     impactFragments: {
+      MINOR:
+        "is secured from one small immediate peril for the current meaningful exchange and is no longer directly threatened by it during that exchange",
       STANDARD:
         "is secured from one declared immediate peril and is no longer directly threatened by it",
+      MAJOR:
+        "is secured from one central immediate peril for the rest of the current scene and remains outside its direct threat despite serious pressure or worsening conditions unless a decisive change defeats the safe state",
+      LEGENDARY:
+        "is secured from one defining peril through an enduring safe state whose protection extends beyond the current scene until it is decisively breached or narratively resolved",
     },
     counterEligibility: { default: false },
     privilegeCostKey: "SECURE_IMMEDIATE_SAFETY",
@@ -514,6 +529,8 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Interposing and directing someone behind substantial cover before a hazardous collapse",
       "Revealing and using a coherent service route to get one target out of an immediate fire",
       "Securing one person outside the crush of a stampeding crowd",
+      "Getting every accepted group member beyond one worsening central peril for the scene",
+      "Establishing an enduring sanctuary from one defining peril",
     ],
     exclusions: [
       "Does not protect the selected target or group from every danger in the scene.",
@@ -529,14 +546,18 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not allow the player to choose an exact tactical destination.",
       "Does not teleport or cross an impossible or inaccessible barrier.",
       "Does not automatically carry, move, or rescue anyone outside the selected Scope.",
+      "Does not require an additional movement, defence, rescue, or target-action roll to establish the purchased safety.",
+      "Does not purchase exact squares, paths, distances, formations, or destinations.",
       "Does not cancel a formally declared hostile action after the normal Response Window has begun.",
       "Does not retroactively prevent an already resolved consequence.",
       "Does not prevent the source from creating a genuinely new threat later.",
-      "Does not preserve safety for a member after voluntary re-entry or an identifiable fictional change defeats that member's safe state.",
+      "Does not preserve safety for a member after voluntary re-entry or after a change decisive enough for the selected Scene Impact defeats that member's safe state.",
       "Does not convert One Target into Small Group.",
       "Does not convert Small Group into Large Group or Faction / Army.",
       "Does not permit majority interpretation, hidden exemptions, or per-member resistance.",
-      "Does not bypass Rescue, Narrative Theme, target access, Standard Impact, the selected supported Scope, or fictional plausibility.",
+      "Does not bypass Rescue, Narrative Theme, target access, the selected Scene Impact, the selected supported Scope, or fictional plausibility.",
+      "Does not apply different declared perils to different accepted members.",
+      "Does not require the source of the peril to end and does not prevent genuinely new dangers.",
       "Does not allow high Difficulty to legalise an impossible rescue.",
       "Does not permit the Game Director to leave the target directly exposed to the same accepted peril after a successful roll.",
       "Does not permit the Game Director to leave any accepted group member directly exposed to the same accepted peril after a successful roll.",
@@ -553,11 +574,21 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     outcomeTemplate: "{{impact}}",
     scopeTokens: { ONE_TARGET: {} },
     impactFragments: {
+      MINOR:
+        "one small immediate hostile act the target is about to take is spoiled before it resolves",
+      STANDARD: "the target's current hostile action fails before it resolves",
       MAJOR: "the target's current or next hostile action fails",
+      LEGENDARY:
+        "the target's defining current or next hostile action fails before it resolves, preventing the defining consequence that action would otherwise establish",
     },
     counterEligibility: { default: true },
     privilegeCostKey: "DENY_IMMINENT_HOSTILE_ACT",
-    examples: ["Stopping an imminent hostile act before it resolves"],
+    examples: [
+      "Spoiling one small immediate hostile act before it resolves",
+      "Stopping the hostile action currently being attempted",
+      "Denying the target's current or next hostile action",
+      "Preventing one defining hostile action and its defining direct consequence",
+    ],
     exclusions: [
       "Does not permanently incapacitate the target.",
       "Does not cancel passive effects.",
@@ -565,6 +596,9 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not prevent every action for the scene.",
       "Does not become ordinary Block, Dodge, Resist, or Cleanse.",
       "Does not automatically affect a group.",
+      "Does not automatically reveal a hidden or unperceived act.",
+      "Does not cancel unrelated prior consequences, future turns, or every hostile objective.",
+      "Does not bypass the requirement for an eligible perceived impending act under the existing timing doctrine.",
     ],
   },
   {
@@ -803,6 +837,7 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     outcomeTemplate: "{{subject}} {{impact}}",
     scopeTokens: {
       ONE_TARGET: { subject: "the target" },
+      SMALL_GROUP: { subject: "every accepted member of the selected group" },
     },
     impactFragments: {
       MINOR:
@@ -825,22 +860,29 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Joining an alliance for a coming war",
       "Swearing to protect a community",
       "Reconciling with a former enemy and upholding a defined peace",
+      "A small group agreeing to carry one shared message",
+      "Every accepted council member committing to one difficult shared request",
     ],
     exclusions: [
-      "Does not grant open-ended authority over the target.",
+      "Does not grant open-ended authority over the selected Scope.",
       "Does not create permanent general obedience.",
       "Does not apply to unspecified future requests.",
       "Does not manufacture love, devotion, intimacy, or consent.",
-      "Does not remove the target's identity or independent judgement.",
+      "Does not remove any accepted member's identity or independent judgement.",
       "Does not make an impossible request possible.",
       "Does not create comprehension, agency, authority, or capability.",
-      "Does not automatically compel anyone other than the selected target.",
+      "Does not automatically compel anyone outside the selected Scope.",
       "Does not guarantee successful completion of the requested task.",
       "Does not permit deliberate sabotage, false cooperation, or technical evasion of the accepted request.",
       "Does not extend beyond the one request accepted before Difficulty was set.",
       "Does not make an ineligible request legal through high Difficulty or Legendary Impact.",
       "Does not prevent legitimate narrative resolution.",
       "Does not permit arbitrary cancellation merely because cooperation becomes inconvenient for the Game Director or planned plot.",
+      "Does not permit different requests for different members or bundled independent requests.",
+      "Does not permit majority interpretation, hidden exemptions, per-member resistance, or a secretly unwilling accepted member.",
+      "Does not convert Small Group into Large Group or Faction / Army.",
+      "Does not propagate to later arrivals, replacements, followers, subordinates, organisations, factions, armies, or the public.",
+      "Does not create a shared mind, shared turn, identical execution, automatic competence, or guaranteed task success.",
     ],
   },
   {
@@ -1002,6 +1044,12 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     impactFragments: {
       MINOR:
         "for the current meaningful exchange, creating a brief opening for one declared small immediate action or development to proceed without {{observationReference}}",
+      STANDARD:
+        "long enough for one declared meaningful action or development relevant to the current scene to proceed without {{observationReference}}",
+      MAJOR:
+        "despite serious vigilance, pressure, or competing priorities, long enough for one declared central action or development capable of changing the current scene to proceed without {{observationReference}}",
+      LEGENDARY:
+        "through a defining diversion, long enough for one declared defining action or development whose consequences extend beyond the current scene to proceed without {{observationReference}}",
     },
     counterEligibility: { default: false },
     privilegeCostKey: "DIVERT_IMMEDIATE_ATTENTION",
@@ -1013,6 +1061,9 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Making yourself conspicuous so another character reaches an accessible control",
       "Creating a real commotion so one person can enter nearby cover",
       "Occupying a clerk with an urgent question while a brief message is passed",
+      "Holding a patrol's attention while one meaningful scene objective proceeds",
+      "Sustaining a diversion despite serious vigilance while one central action proceeds",
+      "Creating a defining diversion for one action whose consequences outlast the scene",
     ],
     exclusions: [
       "Does not guarantee that the declared action or development succeeds.",
@@ -1034,10 +1085,10 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
       "Does not convert One Target into Small Group through a broad Declared Opening.",
       "Does not convert Small Group into Large Group or Faction / Army.",
       "Does not permit majority interpretation, hidden exemptions, or per-member resistance.",
-      "Does not bypass Distract, Narrative Theme, target access, attention capability, Minor Impact, Scope, or fictional plausibility.",
+      "Does not bypass Distract, Narrative Theme, target access, attention capability, the selected Scene Impact, Scope, or fictional plausibility.",
       "Does not allow high Difficulty to legalise an impossible distraction.",
       "Does not permit the Game Director to continue deliberate observation or interference during the accepted opening merely because success disrupts the planned scene.",
-      "Does not create an ongoing effect beyond the current meaningful exchange.",
+      "Does not persist after the one accepted opening has been used.",
     ],
   },
 ] as const satisfies readonly RoleplayOutcomeContractDefinition[];

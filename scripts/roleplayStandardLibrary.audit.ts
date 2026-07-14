@@ -32,17 +32,17 @@ const EXPECTED_CONTRACT_ORDER = [
 ] as const;
 
 const EXPECTED_MISSING_COUNTS: Record<RoleplayStandardOutcomeContractId, number> = {
-  HIDE_FROM_IMMEDIATE_DANGER: 6,
-  SECURE_IMMEDIATE_SAFETY: 6,
-  DENY_IMMINENT_HOSTILE_ACT: 3,
+  HIDE_FROM_IMMEDIATE_DANGER: 0,
+  SECURE_IMMEDIATE_SAFETY: 0,
+  DENY_IMMINENT_HOSTILE_ACT: 0,
   DRAW_HOSTILE_ATTENTION: 0,
   BREAK_SHARED_RESOLVE: 0,
   UNCOVER_CONCEALED_TRUTH: 0,
   REVEAL_EXPLOITABLE_WEAKNESS: 0,
-  SECURE_WILLING_COOPERATION: 4,
+  SECURE_WILLING_COOPERATION: 0,
   ESTABLISH_SHARED_RESOLVE: 0,
   ESTABLISH_FALSE_BELIEF: 0,
-  DIVERT_IMMEDIATE_ATTENTION: 6,
+  DIVERT_IMMEDIATE_ATTENTION: 0,
 };
 
 function sameOrder(actual: readonly string[], expected: readonly string[]) {
@@ -70,10 +70,10 @@ if (audit.privilegeKeys.length !== 11) {
 if (audit.plannedCellCount !== 68) {
   errors.push(`planned-cell-count:${audit.plannedCellCount}`);
 }
-if (audit.completedCellCount !== 43) {
+if (audit.completedCellCount !== 68) {
   errors.push(`completed-cell-count:${audit.completedCellCount}`);
 }
-if (audit.missingCellCount !== 25) {
+if (audit.missingCellCount !== 0) {
   errors.push(`missing-cell-count:${audit.missingCellCount}`);
 }
 
