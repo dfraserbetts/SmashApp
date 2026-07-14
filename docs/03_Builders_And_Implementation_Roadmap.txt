@@ -165,9 +165,9 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
 - Remove free-text Success Outcome from standard contract authoring.
 - Initial standard registry only:
   - HIDE_FROM_IMMEDIATE_DANGER: Help; Intervention / Rescue / Minor / One
-    Target; Counter ineligible.
+    Target or Small Group; Counter ineligible.
   - SECURE_IMMEDIATE_SAFETY: Help; Intervention / Rescue / Standard / One
-    Target; Counter ineligible.
+    Target or Small Group; Counter ineligible.
   - DENY_IMMINENT_HOSTILE_ACT: Hinder; Intervention / Interrupt / Major / One
     Target; Counter eligible.
   - DIVERT_IMMEDIATE_ATTENTION: Hinder; Deception / Distract / Minor / One
@@ -367,24 +367,39 @@ The registry-driven Builder exposes both options without a page fork, retains
 an existing selection while compatible, and never auto-selects or converts a
 Custom Outcome. It adds no Recipient Type, target/subject, investigation,
 Declared Aim/objective, weakness, or opportunity fields. The live inventory is
-nine Methods, eleven standard families, and forty-one variants. Numeric
+nine Methods, eleven standard families, and forty-three variants. Numeric
 costing and cooldown implementation remain parked.
 
-Rescue exposes HIDE_FROM_IMMEDIATE_DANGER only at Minor / One Target and
-SECURE_IMMEDIATE_SAFETY only at Standard / One Target. Secure Immediate Safety
-is Help, Counter-ineligible, has one variant/key, and derives: "the target is
-secured from one declared immediate peril and is no longer directly threatened
-by it". Major and Legendary Rescue cells are intentionally empty. Rescue remains
-the Method; Extract, Catch, Pull Free, Shield With Body, Stabilise, Escort, and
-Evacuate do not become standard Methods.
+Rescue exposes HIDE_FROM_IMMEDIATE_DANGER only at Minor / One Target or Small
+Group and SECURE_IMMEDIATE_SAFETY only at Standard / One Target or Small Group.
+Both are Help and Counter-ineligible, remain in their stable families, and have
+exactly two variants. Existing One Target outcomes, descriptors, keys,
+compatibility, and saved selections remain exact. New Small Group variants are:
 
-Before Difficulty, the player declares the target, one concrete bounded current
-or imminent peril, and a plausible Rescue/Theme means. Success fully establishes
-the target's safety from that peril without another roll. The GD may narrate a
-coherent previously unspecified route or safe feature, but cannot use lack of a
-prepared route to reduce success; genuinely impossible access is rejected before
-Difficulty. Relocation is narrative Scene Manifestation, not measured movement,
-and the player selects no exact tactical destination.
+- HIDE_FROM_IMMEDIATE_DANGER_SMALL_GROUP: "every accepted member of the selected
+  group becomes hidden from one declared immediate danger"
+- SECURE_IMMEDIATE_SAFETY_SMALL_GROUP: "every accepted member of the selected
+  group is secured from one declared immediate peril and is no longer directly
+  threatened by it"
+
+Major and Legendary Rescue cells remain empty; Self, Large Group, and Faction /
+Army remain unsupported. Rescue remains the Method; Extract, Catch, Pull Free,
+Shield With Body, Stabilise, Escort, and Evacuate do not become standard
+Methods.
+
+Before Difficulty, the player declares fixed membership, one shared concrete
+bounded current or imminent danger/peril, the exact Rescue contract, and a
+plausible coherent Rescue/Theme means and result for every accepted member. The
+GD confirms universal eligibility; one ineligible, separate, unreachable, or
+incoherent member causes narrowing, revision, or rejection before Difficulty.
+Success binds every accepted member, without a majority result, hidden
+exemption, post-success narrowing, per-member resistance, or another Hide,
+movement, defence, rescue, or target roll. The GD may narrate a coherent
+previously unspecified route, cover, shelter, or safe feature, but cannot use
+lack of a prepared detail to reduce success; genuinely impossible access is
+rejected before Difficulty. Relocation is narrative Scene Manifestation, not
+measured movement, and the player selects no exact square, distance, path,
+formation, elevation, hostile movement, or separate destination.
 
 The safe state persists until voluntary re-entry or an identifiable fictional
 change defeats it; the original source may remain dangerous. Hide remains Minor
@@ -392,11 +407,16 @@ concealment. Deny remains Interrupt / Major / Counter-eligible and fails an
 action. Secure changes scene state only before formal hostile declaration and
 cannot be introduced once the Response Window begins.
 
-The registry-driven Builder exposes the Standard option automatically and keeps
-Hide at Minor. It adds no Declared Immediate Peril, route/destination selector,
-safe-position input, measured movement, target type/IDs, or saved peril state.
-Incompatible Impact, Method, Intention, or Scope clears selection/Counter;
-non-authoring edits retain it. No page fork, numeric cost/cooldown, defence
+Membership fixes at Difficulty, does not propagate to later arrivals or wider
+groups, and one member's later exposure need not end the others' result. The
+registry-driven Builder exposes both Scopes automatically at the supported
+Impact. One Target to Small Group or back retains the family while changing the
+exact outcome, descriptor, and key; Counter stays false. Incompatible Impact,
+Method, Intention, or Scope clears selection/Counter; Name, Theme, Dice Count,
+and restrictions retain it. The Builder adds no danger/peril, group-member,
+route, cover, shelter, destination, safe-position, measured-movement, or target
+ID controls. Rally, Distract, Break Resolve, and Interrupt retain their distinct
+results. No page fork, saved runtime state, numeric cost/cooldown, defence
 mechanic, or combat-runtime behavior is added.
 
 Appeal filters to SECURE_WILLING_COOPERATION for Persuasion / One Target at all

@@ -385,8 +385,8 @@ Intention states the broad lane; Method defines the structured approach.
 Difficulty and legality respect this pairing without judging prose quality.
 Outcome Contract compatibility uses Method IDs.
 
-Current mappings are Intervention / Rescue / Minor / One Target for
-HIDE_FROM_IMMEDIATE_DANGER; Intervention / Rescue / Standard / One Target for
+Current mappings are Intervention / Rescue / Minor / One Target or Small Group for
+HIDE_FROM_IMMEDIATE_DANGER; Intervention / Rescue / Standard / One Target or Small Group for
 SECURE_IMMEDIATE_SAFETY; Intervention / Interrupt / Major / One Target for
 DENY_IMMINENT_HOSTILE_ACT; and Intimidation / Challenge / One Target across the
 approved DRAW_HOSTILE_ATTENTION Impact variants. Intimidation / Overawe / One
@@ -403,7 +403,7 @@ Distract / Minor / One Target or Small Group uses DIVERT_IMMEDIATE_ATTENTION. Al
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
 The registry contains exactly nine Methods, eleven standard Outcome Contract
-families, and forty-one exact variants. Spot Weakness,
+families, and forty-three exact variants. Spot Weakness,
 Investigate, Search, Analyse, and synonymous desired results remain Custom
 Method review rather than new Methods because Discern Truth already defines the
 perceptive approach.
@@ -522,11 +522,15 @@ HIDE_FROM_IMMEDIATE_DANGER
 
 - Player name: Hide from Immediate Danger
 - Derived lane: Help
-- Exact Success Outcome: "the target becomes hidden from the immediate danger"
-- Compatible: Intervention / Rescue / Minor / One Target
+- Existing One Target Success Outcome: "the target becomes hidden from the
+  immediate danger"
+- Existing One Target key: HIDE_FROM_IMMEDIATE_DANGER
+- Small Group Success Outcome: "every accepted member of the selected group
+  becomes hidden from one declared immediate danger"
+- Small Group key: HIDE_FROM_IMMEDIATE_DANGER_SMALL_GROUP
+- Compatible: Intervention / Rescue / Minor / One Target or Small Group
 - Counter eligible: No
-- Eventual privilege-cost key: HIDE_FROM_IMMEDIATE_DANGER; numeric adjustment
-  remains open.
+- Exactly two variants; no numeric adjustment is assigned.
 - Excludes permanent invisibility; hiding from every creature; ending the
   encounter; quantified-effect removal; measured movement; another action; and
   any additional Hide, movement, or defence roll.
@@ -540,44 +544,56 @@ SECURE_IMMEDIATE_SAFETY
 - Player name: Secure Immediate Safety (accepted v0 working name; naming pass
   eligible)
 - Derived lane: Help
-- Exact Success Outcome: "the target is secured from one declared immediate
+- Existing One Target Success Outcome: "the target is secured from one declared immediate
   peril and is no longer directly threatened by it"
-- Compatible: Intervention / Rescue / Standard / One Target
+- Existing One Target key: SECURE_IMMEDIATE_SAFETY
+- Small Group Success Outcome: "every accepted member of the selected group is
+  secured from one declared immediate peril and is no longer directly
+  threatened by it"
+- Small Group key: SECURE_IMMEDIATE_SAFETY_SMALL_GROUP
+- Compatible: Intervention / Rescue / Standard / One Target or Small Group
 - Counter eligible: No
-- Eventual privilege-cost key: SECURE_IMMEDIATE_SAFETY; no numeric adjustment is
-  assigned.
-- Exactly one variant; Minor, Major, and Legendary are intentionally absent.
+- Exactly two variants; no numeric adjustment is assigned. Minor, Major, and
+  Legendary are intentionally absent.
 
 Rescue remains the existing Method. Extract, Catch, Pull Free, Shield With Body,
 Stabilise, Escort, and Evacuate remain Theme, Scene Manifestation, or Custom
-language. Hide is the unchanged Minor concealment privilege; Secure is the
-Standard completed rescue. Higher Impact cannot generically add dangers,
-duration, immunity, targets, universal safety, or consequence removal.
+language. Hide is the unchanged Minor concealment privilege and Secure is the
+unchanged Standard completed rescue; each gains only its exact Small Group
+variant in the same family. Higher Impact cannot generically add dangers,
+duration, immunity, targets, universal safety, or consequence removal. Self,
+Large Group, and Faction / Army remain unsupported.
 
-Before Attribute or Difficulty the player identifies the target, one concrete
-bounded current or imminent Declared Immediate Peril with a recognisable safe
-state, and how Rescue/Theme plausibly reaches it. Broad declarations such as all
-danger, every attacker, a war, death generally, or every future harm are invalid.
-The GD rejects or narrows impossible, inaccessible, overbroad, or incoherent
-rescues before Difficulty.
+Before Attribute or Difficulty the player identifies the target or fixed Small
+Group membership, one concrete bounded shared immediate danger/peril with a
+recognisable coherent concealment or safe state, the exact Rescue contract, and
+how Rescue/Theme plausibly reaches every accepted member. Every member must
+share the situation and be eligible. The GD narrows, revises, or rejects any
+ineligible, impossible, inaccessible, overbroad, or incoherent group before
+Difficulty; Difficulty cannot legalise it.
 
-Success establishes that the target is actually no longer directly threatened
-by the accepted peril without another movement, defence, rescue, or target roll.
-The GD narrates a complete coherent Scene Manifestation rather than an
-almost-success. Any relocation is narrative, not measured combat movement; the
-player does not select exact distance, path, tactical destination, or other
-creatures' movement.
+Small Group Hide makes every accepted member hidden from the same accepted
+danger. Small Group Secure makes every accepted member no longer directly
+threatened by the same accepted peril. Neither allows a majority result, hidden
+exemption, post-success narrowing, per-member resistance, or another Hide,
+movement, defence, rescue, or target roll. The GD narrates a complete coherent
+Scene Manifestation rather than an almost-success. Any relocation is narrative,
+not measured combat movement; the player selects no exact square, distance,
+path, formation, elevation, hostile movement, or separate destination.
 
 The means need not be prewritten. A coherent supporting beam, alcove, rope,
-service opening, sanctuary threshold, crowd break, or protective feature may be
-introduced if it respects established fiction, locked premises, Standard / One
-Target, and the purchased result. Lack of a prepared route is not an escape;
-genuinely impossible access is rejected before the roll.
+service opening, sanctuary threshold, crowd break, cover, or protective feature
+may be introduced if it respects established fiction, locked premises, the
+purchased Impact and Scope, and the purchased result. Lack of a prepared route
+or hiding detail cannot weaken success; genuinely impossible access is rejected
+before the roll.
 
-The safe state is scene truth until voluntary re-entry, spreading danger,
-failed shelter, breached sanctuary, material environmental change, a genuinely
-new threat, or another identifiable development defeats it. The source may
-remain dangerous and the wider danger is not solved.
+Membership fixes at Difficulty and does not propagate to arrivals, outsiders,
+replacements, followers, other clusters, organisations, settlements, factions,
+or armies. A member may later expose or end safety for themselves without
+automatically ending the result for the rest. Concealment and safety otherwise
+remain scene truth until an identifiable development defeats them. The source
+may remain dangerous and the wider danger is not solved.
 
 Deny Imminent Hostile Act remains Interrupt / Major / Counter-eligible and
 fails one action. Secure changes the endangered target's position/protection
@@ -585,9 +601,17 @@ without failing the source's action. It operates in a Roleplay Window before
 formal hostile declaration and cannot be introduced after the Response Window
 begins or replace Block, Dodge, Resist, Cleanse, movement, or Responses.
 
-Declared Immediate Peril, route, destination, and safe position are runtime
-only. No saved peril/safety/target fields, numeric cost/cooldown, measured
-movement, quantified defence, or combat-runtime behavior is introduced.
+One Target to Small Group or back at the supported Impact retains the family
+and swaps outcome, descriptor, and key; Counter remains false. Unsupported
+Impact, Scope, Method, or Intention clears family and Counter, while Name,
+Theme, Dice Count, and restrictions retain it. Rally may establish a rescue
+course, Distract may create an opening, Break Resolve may end opposition, and
+Interrupt may fail one action; none substitutes for concealment or safety.
+
+Declared danger/peril, membership, route, cover, shelter, destination, and safe
+position are runtime only. No saved peril/member/route/safety fields, numeric
+cost/cooldown, measured movement, quantified defence, or combat-runtime behavior
+is introduced.
 
 DENY_IMMINENT_HOSTILE_ACT
 
@@ -603,8 +627,9 @@ DENY_IMMINENT_HOSTILE_ACT
   every scene action; conversion into Block, Dodge, Resist, or Cleanse; and
   automatic group effect.
 
-Broader concealment or group-scale denial requires a distinct future contract;
-Theme or higher Impact cannot silently enlarge either standard contract.
+Large Group or Faction / Army concealment and any group-scale action denial
+remain unapproved; Theme or higher Impact cannot silently enlarge the current
+contracts.
 
 Standard contract availability is filtered by Intention, Method, Scene
 Impact, and Scope. Custom Outcome - GD Review Required remains available for

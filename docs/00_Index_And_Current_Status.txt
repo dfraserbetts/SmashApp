@@ -558,7 +558,7 @@ fact is true. Reveal Exploitable Weakness answers what actionable weakness,
 opening, route, pattern, dependency, or leverage point concerning the target
 can be used. The selected contract defines the purchased entitlement; the
 families are not merged or silently exchanged. The registry therefore contains
-eleven standard Outcome Contract families and forty-one exact standard
+eleven standard Outcome Contract families and forty-three exact standard
 variants.
 
 No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
@@ -631,40 +631,70 @@ combat-runtime effect is added.
 
 RESCUE remains the Intervention Method for both approved rescue results; no
 Extract, Catch, Pull Free, Shield With Body, Stabilise, Escort, Evacuate, or
-synonymous Method is added. HIDE_FROM_IMMEDIATE_DANGER remains the unchanged
-Minor / One Target concealment privilege. SECURE_IMMEDIATE_SAFETY / Secure
-Immediate Safety is the accepted v0 working name, Help, Intervention / Rescue /
-Standard / One Target, never Counter eligible, and has exactly one variant:
+synonymous Method is added. HIDE_FROM_IMMEDIATE_DANGER remains the Minor
+concealment privilege and SECURE_IMMEDIATE_SAFETY / Secure Immediate Safety
+remains the Standard completed-rescue privilege. Both are Help, Intervention /
+Rescue, support One Target or Small Group, are never Counter eligible, and keep
+their existing stable family IDs. Each family has exactly two variants. The
+existing One Target outcomes and keys remain exact:
 
-- STANDARD / SECURE_IMMEDIATE_SAFETY: "the target is secured from one declared
-  immediate peril and is no longer directly threatened by it"
+- MINOR / ONE_TARGET / HIDE_FROM_IMMEDIATE_DANGER: "the target becomes hidden
+  from the immediate danger"
 
-Minor, Major, and Legendary variants do not exist. Empty higher-tier cells are
-intentional and cannot be filled by generic Impact scaling. A qualifying
-Declared Immediate Peril is a concrete, bounded, current or imminent threat to
-the selected target, has a recognisable coherent safe state, is reachable
-through Rescue and Theme, and fits Standard / One Target. Impossible, overbroad,
-inaccessible, or incoherent rescues are rejected before Difficulty.
+- STANDARD / ONE_TARGET / SECURE_IMMEDIATE_SAFETY: "the target is secured from
+  one declared immediate peril and is no longer directly threatened by it"
 
-Success fully establishes safety from the accepted peril without another
-movement, defence, rescue, or target-action roll. The GD may introduce a
-coherent previously unspecified route or safe detail as Scene Manifestation;
-lack of a prewritten route cannot reduce a successful result, while fiction
-need not supply an impossible route. Any relocation is narrative, not measured
-combat movement, and the player does not select a precise tactical destination.
+The Small Group outcomes and keys are:
 
-The safe state remains scene truth until voluntary re-entry, spreading danger,
-failed shelter, breached sanctuary, material environmental change, a genuinely
-new threat, or another identifiable development defeats it. The source may
-remain dangerous. Hide remains Minor concealment; Deny Imminent Hostile Act
-remains Major / Interrupt / Counter-eligible and fails an action. Secure
-Immediate Safety changes the endangered target's scene state before formal
-hostile declaration, cannot be used as a Counter once the Response Window
-begins, and replaces no combat response or movement rule.
+- MINOR / SMALL_GROUP / HIDE_FROM_IMMEDIATE_DANGER_SMALL_GROUP: "every accepted
+  member of the selected group becomes hidden from one declared immediate
+  danger"
+- STANDARD / SMALL_GROUP / SECURE_IMMEDIATE_SAFETY_SMALL_GROUP: "every accepted
+  member of the selected group is secured from one declared immediate peril and
+  is no longer directly threatened by it"
 
-Declared Immediate Peril, route, destination, and safe position are runtime
-only. No peril/safety/target field, numeric cost, cooldown, movement value,
-defence mechanic, or combat-runtime behaviour is added.
+Hide remains Minor only and Secure remains Standard only. Major and Legendary
+variants do not exist. Self, Large Group, and Faction / Army are unsupported.
+Empty cells cannot be filled by generic Impact or Scope scaling. Before
+Difficulty the player declares exact members or one unambiguous bounded set,
+one shared immediate danger or peril, the exact Rescue contract, how Rescue and
+Theme reach every accepted member, and one coherent concealment or safe state.
+Every member must share the immediate situation, be threatened by the same
+declared danger/peril, be eligible, reachable, and able plausibly to share that
+result. The GD narrows, revises, or rejects an ineligible or impossible group
+before Difficulty; Difficulty cannot legalise it.
+
+Successful Small Group Hide conceals every accepted member from the same
+accepted immediate danger. Successful Small Group Secure establishes that every
+accepted member is no longer directly threatened by the same accepted peril.
+There is no majority result, hidden exemption, post-success narrowing, or
+per-member Hide, movement, defence, rescue, resistance, or target-action roll.
+The GD may introduce a coherent previously unspecified shared hiding place,
+route, cover, shelter, or safe detail as Scene Manifestation; lack of a
+prewritten detail cannot weaken success, while fiction need not supply
+impossible access. Relocation is narrative, not measured combat movement. The
+player chooses no exact squares, distances, paths, formations, elevations,
+hostile movement, or separate member destinations.
+
+Membership fixes at Difficulty and does not propagate to later arrivals,
+outsiders, replacements, followers, organisations, settlements, factions, or
+armies. A member may later expose or end safety for themselves without
+automatically ending every other member's result. Group concealment or safety
+otherwise remains scene truth until an identifiable change defeats it. Hide
+does not necessarily remove the group from danger. Rally may establish a shared
+rescue course, Distract may create an opening, and Overawe may end opposition;
+none grants concealment or safety. Deny Imminent Hostile Act remains Major /
+Interrupt / Counter-eligible and fails an action; Rescue does not.
+
+Switching One Target and Small Group at the family's supported Impact retains
+the family and swaps the exact outcome, descriptor, and key; Counter remains
+false. Unsupported Impact, Scope, Method, or Intention clears family and
+Counter, while Name, Theme, Dice Count, and restriction edits retain it.
+
+Declared danger/peril, membership, route, cover, shelter, destination, and safe
+state are runtime only. No saved peril/member/route/safety field, numeric cost,
+cooldown, movement value, defence mechanic, or combat-runtime behaviour is
+added.
 
 REVEAL_EXPLOITABLE_WEAKNESS / Reveal Exploitable Weakness is the accepted v0
 working name, remains eligible for the naming pass, is Help, Perception /

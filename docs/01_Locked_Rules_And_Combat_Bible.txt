@@ -1779,12 +1779,16 @@ LOCKED CONTRACT:
 - Outcome Lane: Help
 - Intention / Method: Intervention / Rescue
 - Scene Impact: Standard only
-- Scope: One Target only
+- Scope: One Target or Small Group
 - Counter eligible: No
-- Exact Success Outcome: "the target is secured from one declared immediate
+- Existing One Target Success Outcome: "the target is secured from one declared immediate
   peril and is no longer directly threatened by it"
-- Privilege-cost key: SECURE_IMMEDIATE_SAFETY
-- Exactly one variant.
+- Existing One Target privilege-cost key: SECURE_IMMEDIATE_SAFETY
+- Small Group Success Outcome: "every accepted member of the selected group is
+  secured from one declared immediate peril and is no longer directly
+  threatened by it"
+- Small Group privilege-cost key: SECURE_IMMEDIATE_SAFETY_SMALL_GROUP
+- Exactly two variants.
 
 No new Method is added. Rescue already protects or secures a target through
 warning, guidance, shelter, distraction, interposition, or a plausible route to
@@ -1793,13 +1797,16 @@ Evacuate may describe Theme, Scene Manifestation, or Custom requests but do not
 become standard Methods.
 
 Standard-only doctrine: HIDE_FROM_IMMEDIATE_DANGER remains the approved Minor
-Rescue privilege and provides concealment from immediate danger.
+Rescue privilege and provides concealment from immediate danger at One Target
+or Small Group Scope.
 SECURE_IMMEDIATE_SAFETY is the approved Standard privilege and completes one
-meaningful rescue from one accepted immediate peril. Major and Legendary cells
-are intentionally empty. Higher Impact does not automatically protect against
-more dangers or longer durations, create immunity, rescue more targets, grant
-general safety, or remove every consequence. Future higher-tier rescue requires
-a separately designed materially different contract.
+meaningful rescue from one accepted immediate peril at One Target or Small
+Group Scope. Major and Legendary cells are intentionally empty. Self, Large
+Group, and Faction / Army remain unsupported. Higher Impact does not
+automatically protect against more dangers or longer durations, create
+immunity, rescue more targets, grant general safety, or remove every
+consequence. Future higher-tier rescue requires a separately designed
+materially different contract.
 
 Declared Immediate Peril
 
@@ -1807,7 +1814,8 @@ Before Attribute or Difficulty, the player identifies the target, the exact
 immediate peril, and how Rescue and Narrative Theme can plausibly secure the
 target from it. A qualifying peril currently or imminently threatens the target;
 is concrete, bounded, and recognisable; has a coherent state of immediate
-safety; is plausibly addressable through Rescue; fits Standard / One Target; and
+safety; is plausibly addressable through Rescue; fits Standard and the selected
+supported Scope; and
 lies within the target's and user's fictional access.
 
 Valid examples include a collapsing roof section, a fall from a broken ledge,
@@ -1839,7 +1847,7 @@ The route or safe state must be plausible but need not be prewritten. The GD may
 establish a coherent previously unspecified supporting beam, alcove, rope,
 service opening, sanctuary threshold, break in a crowd, or protective feature.
 It must fit established fiction, preserve locked premises, cross no impossible
-barrier, remain within Standard / One Target, and create no unpurchased result.
+barrier, remain within Standard and the selected supported Scope, and create no unpurchased result.
 Lack of a prepared route is not an escape from successful resolution. Where
 fiction genuinely provides no coherent Rescue means, the declaration is rejected
 or revised before Difficulty; the GD need not invent reality-breaking access.
@@ -1877,10 +1885,10 @@ plausibility, Method, Impact, Scope, and current fiction.
 
 Intrinsic exclusions:
 
-- Does not protect the target from every danger in the scene.
+- Does not protect the selected target or group from every danger in the scene.
 - Does not grant invulnerability, immunity, or permanent safety.
 - Does not end the source of the peril.
-- Does not protect anyone other than the selected target.
+- Does not protect anyone outside the selected Scope.
 - Does not extinguish a fire, stabilise a structure, stop a crowd, defeat an
   enemy, or solve the wider danger without a separate outcome.
 - Does not restore Health or treat Injury.
@@ -1897,23 +1905,112 @@ Intrinsic exclusions:
   Window has begun.
 - Does not retroactively prevent an already resolved consequence.
 - Does not prevent the source from creating a genuinely new threat later.
-- Does not preserve safety after voluntary re-entry or an identifiable change
-  defeats the safe state.
-- Does not permit one nominal target to represent a group, crowd, faction, or
-  broader Scope.
-- Does not bypass Rescue, Narrative Theme, target access, Standard Impact, One
-  Target Scope, or fictional plausibility.
+- Does not preserve safety for a member after voluntary re-entry or an
+  identifiable change defeats that member's safe state.
+- Does not permit One Target to represent a group or Small Group to represent a
+  Large Group, diffuse crowd, faction, army, or broader Scope.
+- Does not bypass Rescue, Narrative Theme, target access, Standard Impact, the
+  selected supported Scope, or fictional plausibility.
 - Does not allow high Difficulty to legalise an impossible rescue.
 - Does not permit the GD to leave the target directly exposed to the same
   accepted peril after success.
 - Does not permit arbitrary cancellation because success disrupts the planned
   scene or encounter.
 
-Declared Immediate Peril, route, safe state, and target selection are runtime
-context only. No declaredPeril, immediatePeril, rescuePeril, selectedPeril,
-perilText, safetyTarget, safePosition, extractionPoint, or equivalent saved
-field or Builder control is added. No numeric cost, cooldown, movement value,
-defence mechanic, or combat-runtime behaviour is introduced.
+Declared danger/peril, membership, route, cover, shelter, safe state, and target
+selection are runtime context only. No declaredDanger, declaredPeril,
+immediateDanger, immediatePeril, rescuePeril, selectedPeril, perilText,
+safetyTarget, safePosition, extractionPoint, groupMembers, selectedMembers,
+rescuedGroup, hiddenGroup, rescueTargetIds, groupRoute, groupShelter,
+memberSafety, or equivalent saved field or Builder control is added. No numeric
+cost, cooldown, movement value, defence mechanic, or combat-runtime behaviour
+is introduced.
+
+
+Small Group Rescue Outcome Contract Doctrine
+
+LOCKED: HIDE_FROM_IMMEDIATE_DANGER and SECURE_IMMEDIATE_SAFETY each remain one
+stable-ID family. Scope determines whether the existing Rescue privilege
+affects one target or every accepted member of one Small Group; no Group Rescue
+Method or parallel group contract family is created. Both families have exactly
+two variants, and all four variants are Counter-ineligible.
+
+HIDE_FROM_IMMEDIATE_DANGER is Intervention / Rescue / Minor / One Target or
+Small Group. Its One Target outcome, key, descriptor, examples, exclusions, and
+saved selections remain byte-for-byte authoritative: "the target becomes hidden
+from the immediate danger" / HIDE_FROM_IMMEDIATE_DANGER. Its Small Group
+outcome is "every accepted member of the selected group becomes hidden from one
+declared immediate danger" and its key is
+HIDE_FROM_IMMEDIATE_DANGER_SMALL_GROUP.
+
+SECURE_IMMEDIATE_SAFETY is Intervention / Rescue / Standard / One Target or
+Small Group. Its One Target outcome, key, descriptor, examples, exclusions, and
+saved selections remain byte-for-byte authoritative: "the target is secured
+from one declared immediate peril and is no longer directly threatened by it"
+/ SECURE_IMMEDIATE_SAFETY. Its Small Group outcome is "every accepted member of
+the selected group is secured from one declared immediate peril and is no
+longer directly threatened by it" and its key is
+SECURE_IMMEDIATE_SAFETY_SMALL_GROUP.
+
+Before Attribute or Difficulty, the player identifies exact members or one
+unambiguous bounded set, one shared immediate danger or peril, the exact Rescue
+contract, how Rescue and Narrative Theme plausibly reach every member, and the
+coherent concealment or safe state pursued. The GD confirms group boundary,
+scene-local access, shared immediate situation, the same declared danger/peril
+for every member, universal eligibility, coherent reach, fictional possibility,
+Method, contract, Impact, Scope, and Additional Restriction before choosing
+Attribute and Difficulty. If any member is ineligible, separate, unreachable,
+or unable plausibly to share the result, the GD narrows the group, requests a
+revision, or rejects the declaration. Difficulty may reflect the least
+accessible eligible member but cannot make an ineligible member eligible.
+
+On successful Small Group Hide, every accepted member becomes coherently hidden
+from the same accepted immediate danger. On successful Small Group Secure,
+every accepted member is actually secured from the same accepted immediate
+peril and is no longer directly threatened by it. Neither result uses a
+majority interpretation, hidden exemption, post-success narrowing, per-member
+resistance, or separate Hide, movement, defence, rescue, or target-action roll.
+Hide does not conceal the group from every observer, danger, sense, or the
+entire scene. Secure does not end the source or wider peril.
+
+Manifestation may coordinate existing cover, a shared hiding place, terrain,
+crowds, architecture, smoke, darkness, shelter, sanctuary, a coherent route,
+or another Theme-supported physical, social, magical, spiritual, or
+supernatural feature. Members need not occupy one exact physical point. A
+route, cover feature, or safe detail need not be prewritten: the GD may
+establish a coherent scene detail that respects locked fiction, crosses no
+impossible barrier, fits the purchased Impact and Small Group Scope, and creates
+no additional result. Lack of prepared detail cannot weaken a success;
+reality-breaking access need not be invented, and impossible declarations are
+rejected before Difficulty.
+
+Relocation remains narrative Scene Manifestation. The player gains no exact
+squares, distance, path, formation, elevation, hostile movement, separate
+member destinations, action, Response, Dash, quantified movement,
+teleportation, or impossible passage. The GD selects a coherent manifestation
+that fully honours every accepted member's purchased outcome.
+
+Membership fixes when Difficulty is set and does not propagate to later
+arrivals, outsiders, replacements, followers, other clusters, organisations,
+settlements, factions, or armies. Later, one member may expose themselves or
+end safety for themselves without automatically ending the result for every
+other member. Otherwise Hide persists until concealment is fulfilled, defeated,
+or made incoherent by an identifiable change, and Secure persists until
+voluntary re-entry or an identifiable new or changed threat defeats the safe
+state. Plot or encounter inconvenience cannot cancel the whole result.
+
+Switching One Target to Small Group or back while remaining at Minor for Hide
+or Standard for Secure retains the family and changes the exact outcome,
+descriptor, and privilege key; Counter stays false. Unsupported Impact, Scope,
+Method, or Intention clears family and Counter. Name, Narrative Theme, Dice
+Count, and restriction edits retain the family.
+
+Establish Shared Resolve may make a group pursue a rescue course but grants no
+concealment or safety. Divert Immediate Attention may create an opening but
+does not hide or secure the group. Break Resolve ends one opposed course but
+does not establish safety. Deny Imminent Hostile Act fails one target's action
+and remains Major / One Target / Counter-eligible; Small Group Rescue does not
+make hostile actions fail.
 
 
 Small Group Targeting Doctrine

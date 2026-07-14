@@ -22,7 +22,7 @@ live registry currently contains:
 
 - nine standard Methods;
 - eleven standard Outcome Contract families;
-- forty-one exact standard variants;
+- forty-three exact standard variants;
 - One Target and Small Group standard coverage;
 - no approved Large Group or Faction / Army standard contract; and
 - one `privilegeCostKey` owned by every exact standard variant.
@@ -241,7 +241,9 @@ unlock gates.
 | Intention | Method | Outcome Contract | Impact | Scope | Counter | `privilegeCostKey` | Structural readiness |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Intervention | Rescue | `HIDE_FROM_IMMEDIATE_DANGER` | Minor | One Target | Unavailable | `HIDE_FROM_IMMEDIATE_DANGER` | Ready for calibration |
+| Intervention | Rescue | `HIDE_FROM_IMMEDIATE_DANGER` | Minor | Small Group | Unavailable | `HIDE_FROM_IMMEDIATE_DANGER_SMALL_GROUP` | Ready for calibration |
 | Intervention | Rescue | `SECURE_IMMEDIATE_SAFETY` | Standard | One Target | Unavailable | `SECURE_IMMEDIATE_SAFETY` | Ready for calibration |
+| Intervention | Rescue | `SECURE_IMMEDIATE_SAFETY` | Standard | Small Group | Unavailable | `SECURE_IMMEDIATE_SAFETY_SMALL_GROUP` | Ready for calibration |
 | Intervention | Interrupt | `DENY_IMMINENT_HOSTILE_ACT` | Major | One Target | Eligible | `DENY_IMMINENT_HOSTILE_ACT` | Ready for calibration |
 | Intimidation | Challenge | `DRAW_HOSTILE_ATTENTION` | Minor | One Target | Unavailable | `DRAW_HOSTILE_ATTENTION_MINOR` | Ready for calibration |
 | Intimidation | Challenge | `DRAW_HOSTILE_ATTENTION` | Standard | One Target | Unavailable | `DRAW_HOSTILE_ATTENTION_STANDARD` | Ready for calibration |
@@ -454,7 +456,7 @@ calibration must isolate breadth from contract semantics.
 
 Future evidence must cover:
 
-- all forty-one current standard variants;
+- all forty-three current standard variants;
 - every supported Dice Count;
 - Counter off and every legal Counter-on case;
 - no Additional Restriction as baseline;
