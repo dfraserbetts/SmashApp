@@ -558,7 +558,7 @@ fact is true. Reveal Exploitable Weakness answers what actionable weakness,
 opening, route, pattern, dependency, or leverage point concerning the target
 can be used. The selected contract defines the purchased entitlement; the
 families are not merged or silently exchanged. The registry therefore contains
-eleven standard Outcome Contract families and thirty-two exact standard
+eleven standard Outcome Contract families and thirty-six exact standard
 variants.
 
 No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
@@ -767,9 +767,32 @@ uses false or misleading conclusions. False threats and fabricated authority
 are Misdirect, not Overawe. Overawe creates no quantified Fear, damage, Control,
 condition, bonus, movement, obedience, or permanent emotional rewriting.
 
-BREAK_SHARED_RESOLVE / Break Shared Resolve is the accepted v0 working name,
-Hinder, Intimidation / Overawe / Small Group, Minor through Legendary, and never
-Counter eligible. Exact outcomes and keys:
+BREAK_SHARED_RESOLVE remains the stable internal ID and Break Resolve is the
+player-facing working name, still eligible for the later naming pass. It is
+Hinder, Intimidation / Overawe, One Target or Small Group, Minor through
+Legendary, and never Counter eligible. Both Scopes purchase the same semantic
+privilege--one bounded course of opposition is abandoned--so Scope determines
+whether that privilege binds one target or every accepted Small Group member.
+Splitting One Target into another family would duplicate semantic authority.
+
+Exact One Target outcomes and keys:
+
+- MINOR / BREAK_SHARED_RESOLVE_ONE_TARGET_MINOR: "the target breaks off one
+  small immediate course of opposition for the current meaningful exchange;
+  the target may choose another coherent response but does not pursue that
+  course"
+- STANDARD / BREAK_SHARED_RESOLVE_ONE_TARGET_STANDARD: "the target abandons one
+  clear course of opposition for the rest of the current scene; the target may
+  choose another coherent response but does not pursue that course"
+- MAJOR / BREAK_SHARED_RESOLVE_ONE_TARGET_MAJOR: "the target abandons one
+  central course of opposition for the rest of the current scene and does not
+  resume it despite serious pressure, loyalty, personal cost, or command"
+- LEGENDARY / BREAK_SHARED_RESOLVE_ONE_TARGET_LEGENDARY: "the target adopts an
+  enduring refusal to pursue one defining course of opposition whose
+  consequences extend beyond the current scene and maintains that refusal until
+  it is narratively resolved"
+
+The four existing Small Group outcomes and keys remain exact:
 
 - MINOR / BREAK_SHARED_RESOLVE_MINOR: "the selected group breaks off one small
   immediate shared course of opposition for the current meaningful exchange;
@@ -786,22 +809,51 @@ Counter eligible. Exact outcomes and keys:
   consequences extend beyond the current scene and maintains that refusal until
   it is narratively resolved"
 
-The Declared Opposed Course is one coherent, shared, current or imminent,
-understandable, agency-compatible, accessible, Impact-appropriate course stated
-before Difficulty. It cannot bundle demands or seek general obedience. Every
-accepted member stops that course without per-member resistance, majority
-interpretation, hidden exemptions, or semantic/tactical relabelling. Members
-retain hostility, individual agency, and choice of retreat, negotiation,
-self-protection, unrelated duties, genuinely distinct objectives, movement,
-tactics, and resources. Narrative Resolution may apply to the group or one
-member only when genuinely supported.
+Before Difficulty, a One Target declaration identifies the target, one coherent
+current or imminently intended opposed course within that target's agency, and
+how credible fear, awe, danger, authority, reputation, consequence, omen, or
+resolve makes it untenable through Overawe and Theme. It must be understandable,
+recognisable, Impact-appropriate, and concern the current scene or a suitable
+ongoing conflict. The GD rejects or narrows impossible, bundled, overbroad,
+inaccessible, or incoherent declarations before Difficulty; Difficulty cannot
+legalise one. "Stop this arrest" or "do not complete this sacrifice" may
+qualify. General obedience, alliance, surrender, every future hostile act, or
+an army-wide command does not.
 
-Break Shared Resolve changes intent in a Roleplay Window before formal hostile
-action declaration. It is not a Counter, cannot cancel a resolved action or be
-introduced after the Response Window starts, and does not replace combat
-responses. No Large Group or Faction / Army variant, saved membership/course
-field, numeric cost, cooldown, quantified Fear, Control stack, per-member save,
-or combat-runtime mechanic is added.
+On success the selected target genuinely ceases that accepted course and cannot
+continue it through cosmetic renaming, another tactic, route, weapon, motive, or
+an intermediary acting under its direction. The target retains hostility,
+identity, judgement, and choice of any genuinely distinct response. Selecting
+an authority figure never propagates the result to followers, subordinates,
+allies, witnesses, or an organisation.
+
+All existing Small Group law remains: exact membership and universal
+eligibility are accepted before Difficulty; one shared Declared Opposed Course
+binds every accepted member without per-member rolls, majority interpretation,
+hidden exemption, or secretly continuing loyalist; membership remains fixed;
+and no result propagates to arrivals, replacements, outsiders, followers, or
+intermediaries. Members retain separate agency, turns, tactics, resources, and
+alternative responses. Individual or group Narrative Resolution remains
+available only when genuinely justified.
+
+Changing One Target to Small Group or back at the same Impact retains
+BREAK_SHARED_RESOLVE and changes only the exact outcome and descriptor. Self,
+Large Group, Faction / Army, another Method, or another Intention clears it and
+Counter. Name, Theme, Dice Count, and restriction edits retain it. Challenge
+redirects hostility; Appeal creates willing cooperation; Rally establishes a
+positive shared course; Interrupt denies an imminent formal hostile action and
+may Counter. Break Resolve changes intent in a Roleplay Window before formal
+hostile-action declaration, never selects a replacement response, never
+cancels a formally declared action, and never permits Counter.
+
+Minor, Standard, and Major use their authored exchange/scene boundaries unless
+fulfilled, genuinely impossible, or made incoherent by an identifiable
+meaningful fictional change; Legendary may extend beyond the scene. Plot need,
+repeated orders, renamed tactics, or inconvenience do not cancel the result.
+Declared Opposed Course, membership, intimidated target, and target opposition
+remain runtime context only. No Large Group or Faction / Army variant, saved
+declaration/member/target field, numeric cost, cooldown, quantified Fear,
+Control stack, per-member save, or combat-runtime mechanic is added.
 
 
 Roleplay Declaration And Narrative Resolution Status

@@ -305,7 +305,8 @@ list.
 Overawe uses credible threat, power, authority, reputation, certainty, omen, or
 consequence to make continued opposition feel untenable. Challenge retains
 Draw Hostile Attention and contests attention/hostility/rivalry; Overawe owns
-Break Shared Resolve and breaks one group course. Appeal uses values/reason and
+Break Resolve and breaks one bounded course for one target or a Small Group.
+Appeal uses values/reason and
 Misdirect uses false or misleading conclusions; false threats remain Misdirect.
 The Overawe details panel derives its exact eight illustrative approaches and
 fourteen exclusions from the Method registry.
@@ -366,7 +367,7 @@ The registry-driven Builder exposes both options without a page fork, retains
 an existing selection while compatible, and never auto-selects or converts a
 Custom Outcome. It adds no Recipient Type, target/subject, investigation,
 Declared Aim/objective, weakness, or opportunity fields. The live inventory is
-nine Methods, eleven standard families, and thirty-two variants. Numeric
+nine Methods, eleven standard families, and thirty-six variants. Numeric
 costing and cooldown implementation remain parked.
 
 Rescue exposes HIDE_FROM_IMMEDIATE_DANGER only at Minor / One Target and
@@ -449,9 +450,28 @@ Incompatible Intention, Method, or Scope clears family and Counter. Explicit
 Custom Outcomes remain Custom. No numeric costs, cooldowns, Scope multipliers,
 or headcounts are added.
 
-Overawe filters to BREAK_SHARED_RESOLVE for Intimidation / Small Group at all
-four Impacts. Break Shared Resolve is Hinder, Counter-ineligible, and the
-accepted v0 working name. Exact variants and reserved keys:
+Overawe filters to stable ID BREAK_SHARED_RESOLVE for Intimidation / One Target
+and Small Group at all four Impacts. Break Resolve is the player-facing working
+name, Hinder, and Counter-ineligible. Both Scopes purchase abandonment of one
+bounded opposed course; Scope selects singular or accepted-group breadth rather
+than creating another family. Exact One Target variants and reserved keys:
+
+- Minor / BREAK_SHARED_RESOLVE_ONE_TARGET_MINOR: "the target breaks off one
+  small immediate course of opposition for the current meaningful exchange;
+  the target may choose another coherent response but does not pursue that
+  course"
+- Standard / BREAK_SHARED_RESOLVE_ONE_TARGET_STANDARD: "the target abandons one
+  clear course of opposition for the rest of the current scene; the target may
+  choose another coherent response but does not pursue that course"
+- Major / BREAK_SHARED_RESOLVE_ONE_TARGET_MAJOR: "the target abandons one
+  central course of opposition for the rest of the current scene and does not
+  resume it despite serious pressure, loyalty, personal cost, or command"
+- Legendary / BREAK_SHARED_RESOLVE_ONE_TARGET_LEGENDARY: "the target adopts an
+  enduring refusal to pursue one defining course of opposition whose
+  consequences extend beyond the current scene and maintains that refusal until
+  it is narratively resolved"
+
+Existing Small Group variants remain exact:
 
 - Minor / BREAK_SHARED_RESOLVE_MINOR: "the selected group breaks off one small
   immediate shared course of opposition for the current meaningful exchange;
@@ -468,22 +488,34 @@ accepted v0 working name. Exact variants and reserved keys:
   consequences extend beyond the current scene and maintains that refusal until
   it is narratively resolved"
 
-The Declared Opposed Course is runtime-only: one coherent course shared or
-imminently intended by every accepted member, understandable, within agency,
-accessible through Overawe, and suitable for Impact/Scope. It cannot bundle
-demands or be evaded by cosmetic wording, tactic, route, formation, leader, or
-motive changes. Every member stops that course without individual resistance or
-majority interpretation, while retaining hostility, individual agency, and
-choice of any genuinely distinct response. Narrative Resolution can apply to
-the whole group or one member only when genuinely supported.
+The Declared Opposed Course is runtime-only. One Target identifies the target,
+one coherent current or imminent course within its agency, and a plausible
+Overawe/Theme basis. The GD rejects impossible, bundled, overbroad,
+inaccessible, or incoherent declarations before Difficulty. Success ends that
+course without selecting an alternative and cannot be evaded through cosmetic
+wording, tactics, route, weapon, motive, or a directed intermediary. The target
+retains hostility and genuinely distinct choices; selecting an authority figure
+never propagates to followers, subordinates, allies, witnesses, or an
+organisation.
 
-The registry-driven Builder exposes Challenge and Overawe for Intimidation,
-Overawe details, Small Group compatibility, all four variants, Hinder, and
-Counter unavailable without a page fork. It adds no member selector, Declared
-Opposed Course, Recipient Type, stored course field, numeric cost/cooldown,
-quantified Fear, Control, per-member save, or combat-runtime mechanic. Method,
-Intention, or incompatible Scope edits clear the family; Impact and non-authoring
-edits retain it. Custom Outcomes remain Custom.
+Small Group retains exact accepted membership, universal eligibility, one
+shared course, no per-member roll, no majority interpretation or hidden
+exemption, fixed membership, individual agency, and no propagation to arrivals,
+replacements, followers, outsiders, or intermediaries. Narrative Resolution
+may affect the selected target, the whole group, or one accepted member only
+when fulfilment, impossibility, or identifiable meaningful change genuinely
+supports it; plot inconvenience, repeated orders, or renamed tactics do not.
+
+The registry-driven Builder exposes Challenge and Overawe for Intimidation and
+Break Resolve for both supported Scopes at all four Impacts without a page fork.
+Switching One Target to Small Group or back at the same Impact retains
+BREAK_SHARED_RESOLVE and updates its exact outcome/descriptor; Counter remains
+false. Self, Large Group, Faction / Army, incompatible Method, or incompatible
+Intention clears family and Counter. Name, Theme, Dice Count, and restriction
+edits retain it. The Builder adds no target/member selector, Declared Opposed
+Course, Recipient Type, stored course/target field, numeric cost/cooldown,
+quantified Fear, Control, per-member save, or combat-runtime mechanic. Custom
+Outcomes remain Custom, and legacy BREAK_RESOLVE remains Custom Method review.
 
 Distract filters to DIVERT_IMMEDIATE_ATTENTION only for Deception / Minor / One
 Target. Divert Immediate Attention is Hinder, Counter-ineligible, the accepted

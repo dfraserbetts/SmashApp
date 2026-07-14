@@ -2082,26 +2082,52 @@ No numeric costs, cooldowns, Scope multipliers, privilege values, restriction
 discounts, or Small Group headcount are locked here.
 
 
-Break Shared Resolve Outcome Contract Family
+Break Resolve Outcome Contract Family
 
 LOCKED FAMILY:
 
 - ID: BREAK_SHARED_RESOLVE
-- Working v0 name: Break Shared Resolve; eligible for the later naming pass.
+- Player-facing working name: Break Resolve; eligible for the later naming pass.
 - Outcome Lane: Hinder
 - Intention / Method: Intimidation / Overawe
-- Scope: Small Group only
+- Scope: One Target or Small Group
 - Counter eligible: No at every tier
-- Core privilege: every accepted member ceases pursuing the same bounded
-  Declared Opposed Course for the contract's duration.
+- Core privilege: one bounded Declared Opposed Course is abandoned for the
+  contract's duration, by the selected target or every accepted group member.
 - No Large Group or Faction / Army variant is created.
+
+One Target and Small Group remain in this same stable-ID family because Scope
+determines the breadth of one purchased semantic privilege. A separate singular
+family would duplicate authority. Switching One Target to Small Group or back
+at the same Impact retains BREAK_SHARED_RESOLVE while selecting the exact
+singular or group outcome. Self, Large Group, Faction / Army, another Method, or
+another Intention clears the family and Counter. Name, Narrative Theme, Dice
+Count, and restriction edits retain it.
 
 Challenge remains unchanged and owns DRAW_HOSTILE_ATTENTION only. Challenge
 answers who existing hostility, confrontation, or rivalry focuses upon; Overawe
-answers what bounded shared course of opposition the group ceases pursuing.
+answers what bounded course of opposition one target or accepted group ceases
+pursuing.
 Neither contract is compatible with both Methods.
 
 Exact Impact variants and privilege-cost keys:
+
+- MINOR / BREAK_SHARED_RESOLVE_ONE_TARGET_MINOR: "the target breaks off one
+  small immediate course of opposition for the current meaningful exchange;
+  the target may choose another coherent response but does not pursue that
+  course"
+- STANDARD / BREAK_SHARED_RESOLVE_ONE_TARGET_STANDARD: "the target abandons one
+  clear course of opposition for the rest of the current scene; the target may
+  choose another coherent response but does not pursue that course"
+- MAJOR / BREAK_SHARED_RESOLVE_ONE_TARGET_MAJOR: "the target abandons one
+  central course of opposition for the rest of the current scene and does not
+  resume it despite serious pressure, loyalty, personal cost, or command"
+- LEGENDARY / BREAK_SHARED_RESOLVE_ONE_TARGET_LEGENDARY: "the target adopts an
+  enduring refusal to pursue one defining course of opposition whose
+  consequences extend beyond the current scene and maintains that refusal until
+  it is narratively resolved"
+
+The existing Small Group variants remain byte-for-byte authoritative:
 
 - MINOR / BREAK_SHARED_RESOLVE_MINOR: "the selected group breaks off one small
   immediate shared course of opposition for the current meaningful exchange;
@@ -2120,14 +2146,29 @@ Exact Impact variants and privilege-cost keys:
 
 Declared Opposed Course
 
-Before Attribute or Difficulty, the player states the one bounded shared course
-of opposition the selected group must cease pursuing. It must be one coherent
-course; be currently shared, actively pursued, or imminently intended by every
-accepted member; be understandable to all; concern the current scene or an
-Impact-appropriate ongoing conflict; lie within each member's agency; be
-plausibly reachable through Overawe; fit Impact and Scope; and be specific enough
-for the table to recognise whether it is being pursued. Members may have
-different motives but must share the same course.
+Before Attribute or Difficulty, the player states the one bounded course of
+opposition the selected target or group must cease pursuing. For One Target the
+player identifies the target, the course currently pursued or imminently
+intended, and how Overawe and Narrative Theme can plausibly make that course
+untenable. It must be one coherent course; be understandable to the target;
+concern the current scene or an Impact-appropriate ongoing conflict; lie within
+the target's agency; be plausibly reachable through credible fear, awe, danger,
+authority, reputation, consequence, omen, or demonstrated resolve; fit Impact;
+and be specific enough for the table to recognise whether it continues.
+
+Valid One Target examples include: "Stop carrying out this arrest", "Break off
+your pursuit of the refugees", "Do not complete this sacrifice", "Abandon your
+attempt to silence the witness", "Stop trying to burn the archive", "End your
+personal hunt for the fugitive", and "Do not continue this execution". Invalid
+examples include general obedience, alliance, permanent non-opposition,
+confession plus surrender, every possible future hostile act, rewritten beliefs
+or loyalties, or ordering an entire army to end a war.
+
+For Small Group, the same course must currently be shared, actively pursued, or
+imminently intended by every accepted member; be understandable to all; lie
+within every member's agency; and be reachable through the same accepted
+Overawe expression. Members may have different motives but must share the same
+course. All existing exact-membership and eligibility protections remain.
 
 Opposition may be hostile, coercive, obstructive, persecutory,
 confrontational, or another coherent course directly opposing the Ability user,
@@ -2141,13 +2182,29 @@ all hostility everywhere, or an entire army abandoning a war.
 
 Minimum identifying context is permitted; independent demands are not. Before
 Difficulty, the GD may reject or narrow an overbroad, bundled, unshared,
-impossible, or inaccessible declaration, or one that actually seeks
+impossible, inaccessible, or incoherent declaration, or one that actually seeks
 cooperation, obedience, movement, or another contract. Once accepted and
 successful, the GD cannot evade the result by renaming the same course or using
-cosmetic changes of tactic, formation, route, leader, or motive. A genuinely
-distinct course remains possible; a semantic rewording does not.
+cosmetic changes of tactic, formation, route, weapon, leader, stated motive, or
+an intermediary acting under the selected target's direction. A genuinely
+distinct course remains possible; a semantic rewording does not. Difficulty
+cannot legalise an invalid declaration.
 
-Every accepted member receives the outcome without a separate defence or
+For One Target, success means the target genuinely ceases the accepted course.
+The target retains independent agency and may remain hostile, angry, frightened,
+loyal, ashamed, or opposed in other ways while choosing a genuinely distinct
+response. The contract never automatically forces retreat, surrender,
+confession, cooperation, loyalty, alliance, obedience, movement,
+weapon-dropping, or one exact replacement course. A guard who abandons one
+arrest may withdraw, seek clarification, call a superior, remain suspicious,
+secure the area, or pursue a genuinely separate duty, but cannot perform the
+same arrest under another label or direct a subordinate to complete it. A cult
+leader who abandons one sacrifice stops personally advancing or directing it,
+but does not become an ally, release every prisoner, or bind unselected
+followers. Selecting an authority figure never propagates the result to
+followers, subordinates, allies, witnesses, or an organisation.
+
+For Small Group, every accepted member receives the outcome without a separate defence or
 resistance roll, majority success, hidden partial result, or secretly exempted
 loyalist. Accepted membership remains fixed when Difficulty is set. Members may
 retreat, surrender, negotiate, hide, seek safety, protect themselves or others,
@@ -2168,7 +2225,8 @@ changes.
 The global Narrative Resolution rule applies. Minor, Standard, and Major use
 their authored exchange or scene duration unless fulfilled, genuinely
 impossible, or made incoherent by an identifiable meaningful change. Legendary
-may extend beyond the scene. Resolution may apply to the whole group or one
+may extend beyond the scene. For One Target, a genuine decisive change affecting
+that target may resolve the result. For Small Group, resolution may apply to the whole group or one
 member when genuinely supported; one member's resolution never automatically
 releases all others. Incapacity, permanent departure from the relevant conflict,
 or another decisive personal change may resolve one individual's outcome.
@@ -2179,14 +2237,16 @@ the result, especially at Major or Legendary.
 Timing and related contracts: Draw Hostile Attention redirects existing
 hostility to the user and remains Challenge / One Target; it does not end
 opposition. Deny Imminent Hostile Act makes one target's current or next hostile
-action fail, is Major / One Target, and is Counter eligible. Break Shared
-Resolve changes a Small Group's intent in a Roleplay Window before formal
-hostile-action declaration. It cannot retroactively cancel a resolved action or
+action fail, is Major / One Target, and is Counter eligible. Secure Willing
+Cooperation is Appeal / One Target and creates willing agreement. Establish
+Shared Resolve is Rally / Small Group and establishes a positive course. Break
+Resolve creates neither and never selects an alternative response. It changes
+one target's or a Small Group's intent in a Roleplay Window before formal
+hostile-action declaration. It cannot cancel a formally declared or resolved action or
 be introduced after the ordinary Response Window begins, because it is not a
 Counter and does not replace Block, Dodge, Resist, Cleanse, or normal Response
-Window rules. Secure Willing Cooperation and Establish Shared Resolve create
-willing cooperation or a positive course; Break creates neither. Establish
-False Belief uses Misdirect; Overawe cannot use false threats or authority.
+Window rules. Establish False Belief uses Misdirect; Overawe cannot use false
+threats or authority.
 
 Illustrative tier examples:
 
@@ -2206,10 +2266,10 @@ Illustrative tier examples:
 Examples remain subject to Method, access, Impact, Scope, and current fiction.
 Intrinsic exclusions:
 
-- Does not dictate the group's exact alternative response.
+- Does not dictate the selected target's or group's exact alternative response.
 - Does not automatically force retreat, surrender, confession, cooperation,
   loyalty, alliance, or obedience.
-- Does not end every hostile intention or objective held by the group.
+- Does not end every hostile intention or objective held by the target or group.
 - Does not prevent every future act of opposition.
 - Does not affect more than one bounded Declared Opposed Course.
 - Does not apply to unspecified future commands or conflicts.
@@ -2224,20 +2284,22 @@ Intrinsic exclusions:
 - Does not automatically bind later arrivals, replacements, followers, or intermediaries.
 - Does not automatically propagate through leadership, command, reputation,
   testimony, or institutional authority.
+- Does not convert One Target into Small Group.
 - Does not convert Small Group into Large Group, Faction / Army, or a diffuse crowd.
 - Does not make an impossible or incoherent threat effective.
 - Does not permit deliberate lies or false authority through Overawe.
 - Does not permit cosmetic rewording or tactical relabelling to evade the accepted course.
 - Does not guarantee that a threatened consequence is later carried out.
 - Does not allow high Difficulty or Legendary Impact to legalise an invalid
-  group or overbroad course.
+  target, group, or overbroad course.
 - Does not permit arbitrary cancellation because the result obstructs the
   planned plot or encounter.
 
-Declared Opposed Course and membership are runtime terminology only. No
+Declared Opposed Course, target, and membership are runtime terminology only. No
 declaredOpposedCourse, opposedCourse, brokenCourse, groupOpposition,
-selectedOpposition, opposedCourseText, intimidatedGroup, group-member storage,
-or equivalent Builder field is added. No numeric cost, cooldown, privilege
+selectedOpposition, opposedCourseText, intimidatedGroup, intimidatedTarget,
+targetOpposition, group-member storage, or equivalent Builder field is added.
+No numeric cost, cooldown, privilege
 value, Scope multiplier, saved resistance, or quantified Fear is locked here.
 
 

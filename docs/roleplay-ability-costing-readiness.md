@@ -22,7 +22,7 @@ live registry currently contains:
 
 - nine standard Methods;
 - eleven standard Outcome Contract families;
-- thirty-two exact standard variants;
+- thirty-six exact standard variants;
 - One Target and Small Group standard coverage;
 - no approved Large Group or Faction / Army standard contract; and
 - one `privilegeCostKey` owned by every exact standard variant.
@@ -247,6 +247,10 @@ unlock gates.
 | Intimidation | Challenge | `DRAW_HOSTILE_ATTENTION` | Standard | One Target | Unavailable | `DRAW_HOSTILE_ATTENTION_STANDARD` | Ready for calibration |
 | Intimidation | Challenge | `DRAW_HOSTILE_ATTENTION` | Major | One Target | Unavailable | `DRAW_HOSTILE_ATTENTION_MAJOR` | Ready for calibration |
 | Intimidation | Challenge | `DRAW_HOSTILE_ATTENTION` | Legendary | One Target | Unavailable | `DRAW_HOSTILE_ATTENTION_LEGENDARY` | Ready for calibration |
+| Intimidation | Overawe | `BREAK_SHARED_RESOLVE` | Minor | One Target | Unavailable | `BREAK_SHARED_RESOLVE_ONE_TARGET_MINOR` | Ready for calibration |
+| Intimidation | Overawe | `BREAK_SHARED_RESOLVE` | Standard | One Target | Unavailable | `BREAK_SHARED_RESOLVE_ONE_TARGET_STANDARD` | Ready for calibration |
+| Intimidation | Overawe | `BREAK_SHARED_RESOLVE` | Major | One Target | Unavailable | `BREAK_SHARED_RESOLVE_ONE_TARGET_MAJOR` | Ready for calibration |
+| Intimidation | Overawe | `BREAK_SHARED_RESOLVE` | Legendary | One Target | Unavailable | `BREAK_SHARED_RESOLVE_ONE_TARGET_LEGENDARY` | Ready for calibration |
 | Intimidation | Overawe | `BREAK_SHARED_RESOLVE` | Minor | Small Group | Unavailable | `BREAK_SHARED_RESOLVE_MINOR` | Ready for calibration |
 | Intimidation | Overawe | `BREAK_SHARED_RESOLVE` | Standard | Small Group | Unavailable | `BREAK_SHARED_RESOLVE_STANDARD` | Ready for calibration |
 | Intimidation | Overawe | `BREAK_SHARED_RESOLVE` | Major | Small Group | Unavailable | `BREAK_SHARED_RESOLVE_MAJOR` | Ready for calibration |
@@ -445,7 +449,7 @@ calibration must isolate breadth from contract semantics.
 
 Future evidence must cover:
 
-- all thirty-two current standard variants;
+- all thirty-six current standard variants;
 - every supported Dice Count;
 - Counter off and every legal Counter-on case;
 - no Additional Restriction as baseline;

@@ -389,8 +389,9 @@ Current mappings are Intervention / Rescue / Minor / One Target for
 HIDE_FROM_IMMEDIATE_DANGER; Intervention / Rescue / Standard / One Target for
 SECURE_IMMEDIATE_SAFETY; Intervention / Interrupt / Major / One Target for
 DENY_IMMINENT_HOSTILE_ACT; and Intimidation / Challenge / One Target across the
-approved DRAW_HOSTILE_ATTENTION Impact variants. Intimidation / Overawe / Small
-Group uses BREAK_SHARED_RESOLVE across all four Impact tiers. Perception / Discern Truth /
+approved DRAW_HOSTILE_ATTENTION Impact variants. Intimidation / Overawe / One
+Target or Small Group uses BREAK_SHARED_RESOLVE across all four Impact tiers.
+Perception / Discern Truth /
 One Target offers UNCOVER_CONCEALED_TRUTH and REVEAL_EXPLOITABLE_WEAKNESS, in
 that registry order, across all four approved Impact tiers.
 Persuasion / Appeal / One Target uses SECURE_WILLING_COOPERATION across all four
@@ -402,7 +403,7 @@ Distract / Minor / One Target uses DIVERT_IMMEDIATE_ATTENTION. All five
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
 The registry contains exactly nine Methods, eleven standard Outcome Contract
-families, and thirty-two exact variants. Spot Weakness,
+families, and thirty-six exact variants. Spot Weakness,
 Investigate, Search, Analyse, and synonymous desired results remain Custom
 Method review rather than new Methods because Discern Truth already defines the
 perceptive approach.
@@ -1051,11 +1052,32 @@ runtime context only; no saved course/member fields or Builder controls are
 added. No numeric costs, cooldowns, Scope multipliers, or headcounts are locked.
 
 
-Approved Roleplay Outcome Contract Family: Break Shared Resolve
+Approved Roleplay Outcome Contract Family: Break Resolve
 
-BREAK_SHARED_RESOLVE / Break Shared Resolve is the accepted working v0 name,
-eligible for the naming pass. It is Hinder, Intimidation / Overawe, Small Group,
-and never Counter eligible. No Large Group or Faction / Army variant is added.
+BREAK_SHARED_RESOLVE remains the stable internal ID. Break Resolve is the
+player-facing working name, eligible for the naming pass. It is Hinder,
+Intimidation / Overawe, One Target or Small Group, and never Counter eligible.
+The family purchases abandonment of one bounded course of opposition; Scope
+determines singular or accepted-group breadth, so a separate One Target family
+would duplicate semantic authority. No Large Group or Faction / Army variant is
+added.
+
+- Minor / BREAK_SHARED_RESOLVE_ONE_TARGET_MINOR: "the target breaks off one
+  small immediate course of opposition for the current meaningful exchange;
+  the target may choose another coherent response but does not pursue that
+  course"
+- Standard / BREAK_SHARED_RESOLVE_ONE_TARGET_STANDARD: "the target abandons one
+  clear course of opposition for the rest of the current scene; the target may
+  choose another coherent response but does not pursue that course"
+- Major / BREAK_SHARED_RESOLVE_ONE_TARGET_MAJOR: "the target abandons one
+  central course of opposition for the rest of the current scene and does not
+  resume it despite serious pressure, loyalty, personal cost, or command"
+- Legendary / BREAK_SHARED_RESOLVE_ONE_TARGET_LEGENDARY: "the target adopts an
+  enduring refusal to pursue one defining course of opposition whose
+  consequences extend beyond the current scene and maintains that refusal until
+  it is narratively resolved"
+
+Existing Small Group outcomes and keys remain exact:
 
 - Minor / BREAK_SHARED_RESOLVE_MINOR: "the selected group breaks off one small
   immediate shared course of opposition for the current meaningful exchange;
@@ -1083,13 +1105,28 @@ or false threats. Overawe cannot dominate, create comprehension/agency, inflict
 quantified output, create/remove Fear or Control, dictate alternatives, grant
 general obedience, or bypass access and plausibility.
 
-The Declared Opposed Course is one coherent shared course, currently pursued or
-imminently intended by every accepted member, understood by all, within agency,
-accessible through Overawe, Impact/Scope-appropriate, and recognisable. The GD
-rejects or narrows overbroad, bundled, unshared, impossible, inaccessible, or
-wrong-contract declarations before Difficulty. Semantic renaming or cosmetic
-changes of tactic, route, formation, leader, or motive cannot evade success; a
-genuinely distinct course remains possible.
+For One Target, the Declared Opposed Course identifies the target, one coherent
+course it currently pursues or imminently intends within its agency, and how
+Overawe/Theme can plausibly make it untenable. It must be understandable,
+recognisable, Impact-appropriate, and reachable through credible fear, awe,
+danger, authority, reputation, consequence, omen, or resolve. The GD rejects or
+narrows overbroad, bundled, impossible, inaccessible, incoherent, or
+wrong-contract declarations before Difficulty; Difficulty cannot legalise one.
+On success the target genuinely stops that course, retains hostility and choice
+of genuinely distinct responses, and cannot evade it by cosmetic renaming,
+different tactics, another route, weapon, motive, or a directed intermediary.
+Selecting an authority figure never propagates the result to followers,
+subordinates, allies, witnesses, or an organisation.
+
+For Small Group, the Declared Opposed Course remains one coherent shared course,
+currently pursued or imminently intended by every accepted member, understood
+by all, within agency, accessible through Overawe, Impact/Scope-appropriate, and
+recognisable. Exact membership, universal eligibility, no per-member roll, no
+majority interpretation or hidden exemption, fixed membership, individual
+agency, and no propagation to arrivals, replacements, followers, outsiders, or
+intermediaries remain unchanged. Semantic renaming or cosmetic changes of
+tactic, route, formation, leader, or motive cannot evade success; a genuinely
+distinct course remains possible.
 
 Every accepted member stops the course without an individual resistance roll,
 majority interpretation, hidden loyalist, or partial success. Each retains
@@ -1100,17 +1137,24 @@ Resolution may affect the whole group or one member only through fulfilment,
 impossibility, or identifiable meaningful change. Repeated commands, pressure,
 renaming, or plot need do not cancel the result.
 
-Draw Hostile Attention redirects existing hostility toward the user. Deny
-Imminent Hostile Act affects one formal impending act and permits Counter. Break
-Shared Resolve changes group intent in a Roleplay Window before hostile-action
+Draw Hostile Attention redirects existing hostility toward the user. Secure
+Willing Cooperation obtains willing agreement; Establish Shared Resolve creates
+a positive shared course. Deny Imminent Hostile Act affects one formal impending
+act and permits Counter. Break Resolve changes target or group intent in a
+Roleplay Window before hostile-action
 declaration; it cannot be used after the Response Window begins, cancel a
 resolved action, or replace Block, Dodge, Resist, Cleanse, or normal responses.
 It creates no quantified Fear, Control, damage, condition, modifier, movement,
 action, positive shared course, cooperation, loyalty, or wider Scope.
 
-Declared Opposed Course and membership are runtime only. No saved course/member
-fields, Recipient Type, per-member save, numeric cost/cooldown, quantified Fear,
-or combat-runtime mechanic is introduced.
+Changing One Target to Small Group or back at a supported Impact retains the
+family and changes its exact outcome/descriptor; Counter remains false. Self,
+Large Group, Faction / Army, another Method, or another Intention clears it and
+Counter. Name, Theme, Dice Count, and restriction edits retain it.
+
+Declared Opposed Course, selected target, and membership are runtime only. No
+saved course/member/target fields, Recipient Type, per-member save, numeric
+cost/cooldown, quantified Fear, or combat-runtime mechanic is introduced.
 
 
 Approved Roleplay Outcome Contract Family: Establish False Belief
