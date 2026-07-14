@@ -714,8 +714,8 @@ assertEqual(
 assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 11, "The registry should contain eleven contracts.");
 assertEqual(
   ROLEPLAY_OUTCOME_CONTRACTS.reduce((total, contract) => total + contract.variants.length, 0),
-  32,
-  "The registry should contain thirty-two exact variants.",
+  36,
+  "The registry should contain thirty-six exact variants.",
 );
 assertEqual(
   getRoleplayMethodDefinition("EXTRACT"),
@@ -1049,6 +1049,36 @@ assert(
   "Legacy BAIT should retain the Custom Method approval warning.",
 );
 
+const legacyBreakResolveMethod = normalizeRoleplayAbility(
+  {
+    intention: "INTIMIDATION",
+    specific: "BREAK_RESOLVE",
+    description: "You make one opposed course feel too costly to continue.",
+  },
+  13,
+);
+assertEqual(
+  legacyBreakResolveMethod.methodId,
+  ROLEPLAY_METHOD_CUSTOM_REVIEW,
+  "Legacy BREAK_RESOLVE must remain Custom Method review.",
+);
+assertEqual(
+  legacyBreakResolveMethod.customMethodName,
+  "Break Resolve",
+  "Legacy BREAK_RESOLVE should preserve its readable Method name.",
+);
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(legacyBreakResolveMethod).length,
+  0,
+  "Legacy BREAK_RESOLVE must not match a standard Outcome Contract.",
+);
+assert(
+  getRoleplayAbilityWarnings(legacyBreakResolveMethod).includes(
+    "Custom Method requires Game Director approval.",
+  ),
+  "Legacy BREAK_RESOLVE should retain the Custom Method approval warning.",
+);
+
 const intentionReconciled = reconcileRoleplayAbilityAuthoring({
   ...drawBase,
   intention: "PERCEPTION",
@@ -1114,7 +1144,29 @@ assert(
   "Custom Method matching warning missing.",
 );
 
-const breakSharedResolveOutcomes = {
+const breakResolveOneTargetOutcomes = {
+  MINOR:
+    "the target breaks off one small immediate course of opposition for the current meaningful exchange; the target may choose another coherent response but does not pursue that course",
+  STANDARD:
+    "the target abandons one clear course of opposition for the rest of the current scene; the target may choose another coherent response but does not pursue that course",
+  MAJOR:
+    "the target abandons one central course of opposition for the rest of the current scene and does not resume it despite serious pressure, loyalty, personal cost, or command",
+  LEGENDARY:
+    "the target adopts an enduring refusal to pursue one defining course of opposition whose consequences extend beyond the current scene and maintains that refusal until it is narratively resolved",
+} as const;
+
+const breakResolveOneTargetDescriptors = {
+  MINOR:
+    "Choose one target and roll 3 dice. On success, the target breaks off one small immediate course of opposition for the current meaningful exchange; the target may choose another coherent response but does not pursue that course.",
+  STANDARD:
+    "Choose one target and roll 3 dice. On success, the target abandons one clear course of opposition for the rest of the current scene; the target may choose another coherent response but does not pursue that course.",
+  MAJOR:
+    "Choose one target and roll 3 dice. On success, the target abandons one central course of opposition for the rest of the current scene and does not resume it despite serious pressure, loyalty, personal cost, or command.",
+  LEGENDARY:
+    "Choose one target and roll 3 dice. On success, the target adopts an enduring refusal to pursue one defining course of opposition whose consequences extend beyond the current scene and maintains that refusal until it is narratively resolved.",
+} as const;
+
+const breakSharedResolveGroupOutcomes = {
   MINOR:
     "the selected group breaks off one small immediate shared course of opposition for the current meaningful exchange; each member may choose another coherent response but does not pursue that course",
   STANDARD:
@@ -1125,7 +1177,7 @@ const breakSharedResolveOutcomes = {
     "the selected group adopts an enduring refusal to pursue one defining course of opposition whose consequences extend beyond the current scene and maintains that refusal until it is narratively resolved",
 } as const;
 
-const breakSharedResolveDescriptors = {
+const breakSharedResolveGroupDescriptors = {
   MINOR:
     "Choose a small group of targets and roll 3 dice. On success, the selected group breaks off one small immediate shared course of opposition for the current meaningful exchange; each member may choose another coherent response but does not pursue that course.",
   STANDARD:
@@ -1140,36 +1192,138 @@ const breakSharedResolveContract = getRoleplayOutcomeContract("BREAK_SHARED_RESO
 assert(breakSharedResolveContract, "BREAK_SHARED_RESOLVE should exist.");
 assertEqual(
   breakSharedResolveContract.name,
-  "Break Shared Resolve",
-  "Break Shared Resolve name mismatch.",
+  "Break Resolve",
+  "Break Resolve name mismatch.",
 );
 assertEqual(
   breakSharedResolveContract.outcomeLane,
   "HINDER",
-  "Break Shared Resolve should be Hinder.",
+  "Break Resolve should be Hinder.",
 );
 assertEqual(
   breakSharedResolveContract.variants.length,
-  4,
-  "Break Shared Resolve needs four variants.",
+  8,
+  "Break Resolve needs exactly eight variants.",
 );
-for (const variant of breakSharedResolveContract.variants) {
-  const impact = variant.authoring.sceneImpact;
-  assertEqual(variant.authoring.intention, "INTIMIDATION", `${impact} Intention mismatch.`);
-  assertEqual(variant.authoring.methodId, "OVERAWE", `${impact} Method mismatch.`);
-  assertEqual(variant.authoring.scope, "SMALL_GROUP", `${impact} Scope mismatch.`);
-  assertEqual(variant.counterEligible, false, `${impact} must disallow Counter.`);
-  assertEqual(
-    variant.privilegeCostKey,
-    `BREAK_SHARED_RESOLVE_${impact}`,
-    `${impact} privilege key mismatch.`,
-  );
-  assertEqual(
-    variant.successOutcome,
-    breakSharedResolveOutcomes[impact],
-    `${impact} exact outcome mismatch.`,
-  );
+assertEqual(
+  breakSharedResolveContract.variants.filter(
+    (variant) => variant.authoring.scope === "ONE_TARGET",
+  ).length,
+  4,
+  "Break Resolve needs four One Target variants.",
+);
+assertEqual(
+  breakSharedResolveContract.variants.filter(
+    (variant) => variant.authoring.scope === "SMALL_GROUP",
+  ).length,
+  4,
+  "Break Resolve needs four Small Group variants.",
+);
+for (const sceneImpact of ["MINOR", "STANDARD", "MAJOR", "LEGENDARY"] as const) {
+  for (const scope of ["ONE_TARGET", "SMALL_GROUP"] as const) {
+    const variant = breakSharedResolveContract.variants.find(
+      (candidate) =>
+        candidate.authoring.sceneImpact === sceneImpact && candidate.authoring.scope === scope,
+    );
+    assert(variant, `${sceneImpact} / ${scope} Break Resolve variant should exist.`);
+    assertEqual(
+      variant.authoring.intention,
+      "INTIMIDATION",
+      `${sceneImpact} / ${scope} Intention mismatch.`,
+    );
+    assertEqual(
+      variant.authoring.methodId,
+      "OVERAWE",
+      `${sceneImpact} / ${scope} Method mismatch.`,
+    );
+    assertEqual(
+      variant.counterEligible,
+      false,
+      `${sceneImpact} / ${scope} must disallow Counter.`,
+    );
+    assertEqual(
+      variant.privilegeCostKey,
+      scope === "ONE_TARGET"
+        ? `BREAK_SHARED_RESOLVE_ONE_TARGET_${sceneImpact}`
+        : `BREAK_SHARED_RESOLVE_${sceneImpact}`,
+      `${sceneImpact} / ${scope} privilege key mismatch.`,
+    );
+    assertEqual(
+      variant.successOutcome,
+      scope === "ONE_TARGET"
+        ? breakResolveOneTargetOutcomes[sceneImpact]
+        : breakSharedResolveGroupOutcomes[sceneImpact],
+      `${sceneImpact} / ${scope} exact outcome mismatch.`,
+    );
+  }
 }
+
+for (const sceneImpact of ["MINOR", "STANDARD", "MAJOR", "LEGENDARY"] as const) {
+  for (const scope of ["ONE_TARGET", "SMALL_GROUP"] as const) {
+    assertEqual(
+      getCompatibleRoleplayOutcomeContracts({
+        intention: "INTIMIDATION",
+        methodId: "OVERAWE",
+        sceneImpact,
+        scope,
+      })
+        .map((contract) => contract.id)
+        .join(","),
+      "BREAK_SHARED_RESOLVE",
+      `${sceneImpact} / ${scope} should expose only Break Resolve.`,
+    );
+  }
+}
+
+const standDown = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(18),
+  name: "Stand Down",
+  narrativeTheme:
+    "You step close enough that the target understands your certainty, your capability, and exactly what continuing this course will cost them.",
+  intention: "INTIMIDATION",
+  methodId: "OVERAWE",
+  sceneImpact: "STANDARD",
+  scope: "ONE_TARGET",
+  diceCount: 3,
+  outcomeContractId: "BREAK_SHARED_RESOLVE",
+  counter: true,
+});
+assertEqual(getRoleplayAbilityMethodName(standDown), "Overawe", "Break Resolve should use Overawe.");
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(standDown)
+    .map((contract) => contract.id)
+    .join(","),
+  "BREAK_SHARED_RESOLVE",
+  "Overawe / One Target should expose only Break Resolve.",
+);
+assertEqual(
+  getRoleplayAbilityContractName(standDown),
+  "Break Resolve",
+  "Selected Break Resolve name mismatch.",
+);
+assertEqual(getRoleplayAbilityOutcomeLane(standDown), "HINDER", "Break Resolve lane mismatch.");
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(standDown),
+  breakResolveOneTargetOutcomes.STANDARD,
+  "Break Resolve One Target Standard outcome mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(standDown),
+  breakResolveOneTargetDescriptors.STANDARD,
+  "Break Resolve One Target Standard descriptor mismatch.",
+);
+assertEqual(
+  getRoleplayAbilityCounterEligibility(standDown),
+  false,
+  "Break Resolve should not permit Counter.",
+);
+assertEqual(standDown.counter, false, "Break Resolve reconciliation should force Counter off.");
+assert(
+  !getRoleplayAbilityWarnings(standDown).some(
+    (warning) => warning.includes("Custom Method") || warning.includes("Custom Outcome"),
+  ),
+  "Break Resolve should not produce Custom approval warnings.",
+);
 
 const youDoNotWantThisFight = reconcileRoleplayAbilityAuthoring({
   ...createDefaultRoleplayAbility(18),
@@ -1187,50 +1341,50 @@ const youDoNotWantThisFight = reconcileRoleplayAbilityAuthoring({
 assertEqual(
   getRoleplayAbilityMethodName(youDoNotWantThisFight),
   "Overawe",
-  "Break Shared Resolve should use Overawe.",
+  "Existing Small Group Break Resolve should use Overawe.",
 );
 assertEqual(
   getCompatibleRoleplayOutcomeContracts(youDoNotWantThisFight)
     .map((contract) => contract.id)
     .join(","),
   "BREAK_SHARED_RESOLVE",
-  "Overawe / Small Group should expose only Break Shared Resolve.",
+  "Overawe / Small Group should expose only Break Resolve.",
 );
 assertEqual(
   getRoleplayAbilityContractName(youDoNotWantThisFight),
-  "Break Shared Resolve",
-  "Selected Break Shared Resolve name mismatch.",
+  "Break Resolve",
+  "Selected Small Group Break Resolve name mismatch.",
 );
 assertEqual(
   getRoleplayAbilityOutcomeLane(youDoNotWantThisFight),
   "HINDER",
-  "Break Shared Resolve lane mismatch.",
+  "Small Group Break Resolve lane mismatch.",
 );
 assertEqual(
   getRoleplayAbilitySuccessOutcome(youDoNotWantThisFight),
-  breakSharedResolveOutcomes.STANDARD,
-  "Break Shared Resolve Standard outcome mismatch.",
+  breakSharedResolveGroupOutcomes.STANDARD,
+  "Existing Small Group Standard outcome mismatch.",
 );
 assertEqual(
   renderRoleplayAbilityDescriptor(youDoNotWantThisFight),
-  breakSharedResolveDescriptors.STANDARD,
-  "Break Shared Resolve Standard descriptor mismatch.",
+  breakSharedResolveGroupDescriptors.STANDARD,
+  "Existing Small Group Standard descriptor mismatch.",
 );
 assertEqual(
   getRoleplayAbilityCounterEligibility(youDoNotWantThisFight),
   false,
-  "Break Shared Resolve should not permit Counter.",
+  "Small Group Break Resolve should not permit Counter.",
 );
 assertEqual(
   youDoNotWantThisFight.counter,
   false,
-  "Break Shared Resolve reconciliation should force Counter off.",
+  "Small Group Break Resolve reconciliation should force Counter off.",
 );
 assert(
   !getRoleplayAbilityWarnings(youDoNotWantThisFight).some(
     (warning) => warning.includes("Custom Method") || warning.includes("Custom Outcome"),
   ),
-  "Break Shared Resolve should not produce Custom approval warnings.",
+  "Small Group Break Resolve should not produce Custom approval warnings.",
 );
 
 let persistentBreakSharedResolve = reconcileRoleplayAbilityAuthoring({
@@ -1247,28 +1401,102 @@ for (const sceneImpact of ["STANDARD", "MAJOR", "LEGENDARY", "MINOR"] as const) 
   assertEqual(
     persistentBreakSharedResolve.outcomeContractId,
     "BREAK_SHARED_RESOLVE",
-    `${sceneImpact} should retain Break Shared Resolve.`,
+    `${sceneImpact} should retain Small Group Break Resolve.`,
   );
   assertEqual(
     getRoleplayAbilitySuccessOutcome(persistentBreakSharedResolve),
-    breakSharedResolveOutcomes[sceneImpact],
-    `${sceneImpact} Break Shared Resolve outcome mismatch.`,
+    breakSharedResolveGroupOutcomes[sceneImpact],
+    `${sceneImpact} Small Group Break Resolve outcome mismatch.`,
   );
   assertEqual(
     renderRoleplayAbilityDescriptor(persistentBreakSharedResolve),
-    breakSharedResolveDescriptors[sceneImpact],
-    `${sceneImpact} Break Shared Resolve descriptor mismatch.`,
+    breakSharedResolveGroupDescriptors[sceneImpact],
+    `${sceneImpact} Small Group Break Resolve descriptor mismatch.`,
   );
   assertEqual(
     persistentBreakSharedResolve.counter,
     false,
-    `${sceneImpact} Break Shared Resolve should force Counter off.`,
+    `${sceneImpact} Small Group Break Resolve should force Counter off.`,
   );
+}
+
+let persistentOneTargetBreakResolve = reconcileRoleplayAbilityAuthoring({
+  ...standDown,
+  sceneImpact: "MINOR",
+  outcomeContractId: "BREAK_SHARED_RESOLVE",
+});
+for (const sceneImpact of ["STANDARD", "MAJOR", "LEGENDARY", "MINOR"] as const) {
+  persistentOneTargetBreakResolve = reconcileRoleplayAbilityAuthoring({
+    ...persistentOneTargetBreakResolve,
+    sceneImpact,
+    counter: true,
+  });
+  assertEqual(
+    persistentOneTargetBreakResolve.outcomeContractId,
+    "BREAK_SHARED_RESOLVE",
+    `${sceneImpact} One Target should retain Break Resolve.`,
+  );
+  assertEqual(
+    getRoleplayAbilitySuccessOutcome(persistentOneTargetBreakResolve),
+    breakResolveOneTargetOutcomes[sceneImpact],
+    `${sceneImpact} One Target Break Resolve outcome mismatch.`,
+  );
+  assertEqual(
+    renderRoleplayAbilityDescriptor(persistentOneTargetBreakResolve),
+    breakResolveOneTargetDescriptors[sceneImpact],
+    `${sceneImpact} One Target Break Resolve descriptor mismatch.`,
+  );
+  assertEqual(
+    persistentOneTargetBreakResolve.counter,
+    false,
+    `${sceneImpact} One Target Break Resolve should force Counter off.`,
+  );
+}
+
+for (const sceneImpact of ["MINOR", "STANDARD", "MAJOR", "LEGENDARY"] as const) {
+  const oneTarget = reconcileRoleplayAbilityAuthoring({
+    ...standDown,
+    sceneImpact,
+    scope: "ONE_TARGET",
+    outcomeContractId: "BREAK_SHARED_RESOLVE",
+    counter: true,
+  });
+  const smallGroup = reconcileRoleplayAbilityAuthoring({
+    ...oneTarget,
+    scope: "SMALL_GROUP",
+    counter: true,
+  });
+  const oneTargetAgain = reconcileRoleplayAbilityAuthoring({
+    ...smallGroup,
+    scope: "ONE_TARGET",
+    counter: true,
+  });
+  for (const [label, ability, outcome, descriptor] of [
+    ["initial One Target", oneTarget, breakResolveOneTargetOutcomes[sceneImpact], breakResolveOneTargetDescriptors[sceneImpact]],
+    ["Small Group", smallGroup, breakSharedResolveGroupOutcomes[sceneImpact], breakSharedResolveGroupDescriptors[sceneImpact]],
+    ["restored One Target", oneTargetAgain, breakResolveOneTargetOutcomes[sceneImpact], breakResolveOneTargetDescriptors[sceneImpact]],
+  ] as const) {
+    assertEqual(
+      ability.outcomeContractId,
+      "BREAK_SHARED_RESOLVE",
+      `${sceneImpact} ${label} scope switch should retain Break Resolve.`,
+    );
+    assertEqual(
+      getRoleplayAbilitySuccessOutcome(ability),
+      outcome,
+      `${sceneImpact} ${label} scope switch outcome mismatch.`,
+    );
+    assertEqual(
+      renderRoleplayAbilityDescriptor(ability),
+      descriptor,
+      `${sceneImpact} ${label} scope switch descriptor mismatch.`,
+    );
+    assertEqual(ability.counter, false, `${sceneImpact} ${label} should force Counter off.`);
+  }
 }
 
 for (const invalidAuthoring of [
   { scope: "SELF" as const },
-  { scope: "ONE_TARGET" as const },
   { scope: "LARGE_GROUP" as const },
   { scope: "FACTION_ARMY" as const },
   { methodId: "CHALLENGE" as const },
@@ -1279,13 +1507,12 @@ for (const invalidAuthoring of [
       ...youDoNotWantThisFight,
       ...invalidAuthoring,
     }).some((contract) => contract.id === "BREAK_SHARED_RESOLVE"),
-    `Break Shared Resolve should reject ${JSON.stringify(invalidAuthoring)}.`,
+    `Break Resolve should reject ${JSON.stringify(invalidAuthoring)}.`,
   );
 }
 
 for (const [label, invalidAbility] of [
   ["Self Scope", { ...youDoNotWantThisFight, scope: "SELF" as const }],
-  ["One Target Scope", { ...youDoNotWantThisFight, scope: "ONE_TARGET" as const }],
   ["Large Group Scope", { ...youDoNotWantThisFight, scope: "LARGE_GROUP" as const }],
   ["Faction / Army Scope", { ...youDoNotWantThisFight, scope: "FACTION_ARMY" as const }],
   ["Method", { ...youDoNotWantThisFight, methodId: "CHALLENGE" as const }],
@@ -1295,30 +1522,30 @@ for (const [label, invalidAbility] of [
   assertEqual(
     reconciled.outcomeContractId,
     ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
-    `${label} should clear Break Shared Resolve.`,
+    `${label} should clear Break Resolve.`,
   );
   assertEqual(reconciled.counter, false, `${label} should clear Counter.`);
 }
 
-const editedBreakSharedResolve = reconcileRoleplayAbilityAuthoring({
-  ...youDoNotWantThisFight,
+const editedBreakResolve = reconcileRoleplayAbilityAuthoring({
+  ...standDown,
   name: "Enough",
-  narrativeTheme: "You name the cost of continuing and let the group see your resolve.",
+  narrativeTheme: "You name the cost of continuing and let the target see your resolve.",
   diceCount: 5,
   restrictionType: "CIRCUMSTANCE",
   restrictionBand: "MODERATE",
-  restrictionTag: "while the group can see you",
-  restrictionText: "Only while every accepted member can witness the warning.",
+  restrictionTag: "while the target can see you",
+  restrictionText: "Only while the selected target can witness the warning.",
 });
 assertEqual(
-  editedBreakSharedResolve.outcomeContractId,
+  editedBreakResolve.outcomeContractId,
   "BREAK_SHARED_RESOLVE",
-  "Non-invalidating edits should retain Break Shared Resolve.",
+  "Non-invalidating edits should retain Break Resolve.",
 );
 assertEqual(
-  renderRoleplayAbilityDescriptor(editedBreakSharedResolve),
-  breakSharedResolveDescriptors.STANDARD.replace("roll 3 dice", "roll 5 dice"),
-  "Break Shared Resolve Dice Count should only change the roll count.",
+  renderRoleplayAbilityDescriptor(editedBreakResolve),
+  breakResolveOneTargetDescriptors.STANDARD.replace("roll 3 dice", "roll 5 dice"),
+  "Break Resolve Dice Count should only change the roll count.",
 );
 
 for (const runtimeCourseField of [
@@ -1329,23 +1556,26 @@ for (const runtimeCourseField of [
   "selectedOpposition",
   "opposedCourseText",
   "intimidatedGroup",
+  "intimidatedTarget",
+  "targetOpposition",
 ]) {
   assert(
-    !Object.hasOwn(youDoNotWantThisFight, runtimeCourseField),
+    !Object.hasOwn(standDown, runtimeCourseField) &&
+      !Object.hasOwn(youDoNotWantThisFight, runtimeCourseField),
     `${runtimeCourseField} must remain runtime context rather than stored Ability state.`,
   );
 }
 
 const customOveraweOutcomeText =
-  "The selected group publicly confesses who ordered the current attack";
+  "The target publicly confesses who ordered the current attack";
 const customOveraweOutcome = normalizeRoleplayAbility(
   {
-    name: "Tell Them Who Sent You",
-    narrativeTheme: "You make clear that silence will cost the group more than honesty.",
+    name: "Tell Me Who Sent You",
+    narrativeTheme: "You make clear that silence will cost the target more than honesty.",
     intention: "INTIMIDATION",
     methodId: "OVERAWE",
     sceneImpact: "STANDARD",
-    scope: "SMALL_GROUP",
+    scope: "ONE_TARGET",
     diceCount: 3,
     outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
     customOutcomeLane: "HINDER",
@@ -1360,7 +1590,7 @@ assertEqual(
 );
 assertEqual(
   renderRoleplayAbilityDescriptor(customOveraweOutcome),
-  `Choose a small group of targets and roll 3 dice. On success, ${customOveraweOutcomeText}.`,
+  `Choose one target and roll 3 dice. On success, ${customOveraweOutcomeText}.`,
   "Overawe Custom Outcome descriptor regression.",
 );
 assert(
