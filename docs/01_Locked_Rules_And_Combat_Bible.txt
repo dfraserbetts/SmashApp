@@ -15,12 +15,21 @@ Scope grammar + Impact fragment compose a descriptor. Intention filters Method;
 Method filters contracts; Scope and Impact resolve completed cells after
 contract selection. Each family owns one key equal to its stable ID. Any later
 exact-variant or tuple-key wording in this file is superseded implementation
-history unless explicitly restated under the compositional model. The 43 current
-descriptors that predate completion remain exact; current coverage is 68 planned
-/ 68 completed / 0 missing. Hide, Safety, Denial, Shared Request cooperation,
+history unless explicitly restated under the compositional model. The 68
+descriptors that predate Self completion remain exact; current coverage is 72 planned
+/ 72 completed / 0 missing. Hide, Safety, Denial, Shared Request cooperation,
 and Diversion Impact doctrine is locked by that focused authority. Any later
 statement limiting those families to their former completed Impact cells, or
 assigning Scope/Impact-specific keys, is superseded completion history.
+
+SELF RESOLVE AUTHORITY: Persuasion now contains Appeal, Rally, and Steel
+Yourself. STEEL_YOURSELF is Self only and owns SUSTAIN_PERSONAL_RESOLVE, a Help,
+Counter-ineligible four-Impact family. The player declares one runtime-only
+Declared Personal Course before Difficulty. Success binds sincere pursuit while
+preserving player authority over tactics and decisions; it removes no
+mechanical effect, grants no quantified output, and resolves only through the
+locked Narrative Resolution doctrine. Full exact Method, Impact, timing,
+distinction, legacy, and exclusion law is in docs/roleplay-standard-library.md.
 
 
 Roll Grammar And Success Quality

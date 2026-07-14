@@ -128,6 +128,7 @@ Every family owns exactly one unique privilege key, equal to its stable ID:
 - `REVEAL_EXPLOITABLE_WEAKNESS`
 - `SECURE_WILLING_COOPERATION`
 - `ESTABLISH_SHARED_RESOLVE`
+- `SUSTAIN_PERSONAL_RESOLVE`
 - `ESTABLISH_FALSE_BELIEF`
 - `DIVERT_IMMEDIATE_ATTENTION`
 
@@ -139,7 +140,7 @@ approved adjustments.
 
 ## Current Coverage
 
-The library contains nine Methods and eleven Outcome Contract families. Planned
+The library contains ten Methods and twelve Outcome Contract families. Planned
 coverage is every declared supported Scope across all four Impact tiers:
 
 | Contract | Planned Scopes | Completed Impacts |
@@ -153,10 +154,11 @@ coverage is every declared supported Scope across all four Impact tiers:
 | `REVEAL_EXPLOITABLE_WEAKNESS` | One Target | All four |
 | `SECURE_WILLING_COOPERATION` | One Target, Small Group | All four for both |
 | `ESTABLISH_SHARED_RESOLVE` | Small Group | All four |
+| `SUSTAIN_PERSONAL_RESOLVE` | Self | All four |
 | `ESTABLISH_FALSE_BELIEF` | One Target, Small Group | All four for both |
 | `DIVERT_IMMEDIATE_ATTENTION` | One Target, Small Group | All four for both |
 
-This is 68 planned cells, 68 completed/renderable cells, and zero missing cells.
+This is 72 planned cells, 72 completed/renderable cells, and zero missing cells.
 Every declared supported Scope exposes Minor, Standard, Major, and Legendary.
 There is no current standard-library completeness backlog. The forty-three cells
 that predate library completion remain byte-for-byte regression authority; the
@@ -264,6 +266,162 @@ Diversion creates no false belief or concealment, fails no action, cannot bypass
 a direct formal hostile action, permits no Counter, affects only the selected
 Scope, and does not persist after the accepted opening is used.
 
+## Steel Yourself And Sustain Personal Resolve
+
+`STEEL_YOURSELF` / Steel Yourself is the first Self-facing standard Method. It
+belongs to Persuasion and sits after Rally in Method order. Its exact definition
+is: "Strengthen your own resolve by deliberately invoking a personal purpose,
+value, promise, duty, identity, hope, memory, training, ritual, or acceptance of
+the stakes."
+
+Its illustrative legal approaches are:
+
+- Recall a person, promise, oath, value, or cause that matters
+- Focus on one clear immediate purpose
+- Repeat a mantra, prayer, ritual, or trained mental discipline
+- Acknowledge fear, pain, exhaustion, or doubt without surrendering the chosen course
+- Reframe hardship as a chosen cost or sacrifice
+- Anchor yourself in identity, duty, hope, love, or responsibility
+- Accept the stakes and consciously choose to continue
+- Draw strength from a previous hardship, failure, victory, or lesson
+
+Approaches are illustrative rather than exhaustive. Steel Yourself does not
+target or bind another character; rely on deliberate self-deception or a false
+premise; use supernatural domination; erase fear, doubt, pain, exhaustion,
+temptation, memory, or emotion; remove quantified effects or Injury; restore
+Health, resources, Attributes, or spent abilities; grant an action, Response,
+movement, bonus, immunity, or another quantified Power output; create missing
+capability, access, authority, equipment, or resources; make an impossible
+course possible; guarantee success; create permanent immunity to adversity;
+bypass a mechanical prohibition; or let Difficulty or Legendary Impact
+legalise an impossible, incoherent, or overbroad course.
+
+### Persuasion Distinctions
+
+Appeal persuades one target or accepted Small Group to agree willingly to one
+request by connecting it to their values, interests, relationships, duties,
+emotions, or understanding. Rally unites an accepted Small Group around one
+shared course that all accepted members can pursue. Steel Yourself is Self only
+and strengthens the character's sincere resolve around one personal course; it
+does not persuade, command, coordinate, or bind anyone else.
+
+`ESTABLISH_SHARED_RESOLVE` creates a positive group course and does not apply to
+Self through Rally. `SUSTAIN_PERSONAL_RESOLVE` establishes or sustains the
+character's own personal course and creates neither group coordination nor
+another character's cooperation. Cleanse, Resist, and Powers remove, resist, or
+quantify mechanical effects under their own rules; Steel Yourself does not
+remove or suppress Fear, Control, conditions, Injury, or another quantified
+effect. Blaze of Glory restores Attributes/resources and grants an immediate
+final turn before death; Sustain Personal Resolve grants none of those effects.
+
+### Contract And Exact Impact Fragments
+
+`SUSTAIN_PERSONAL_RESOLVE` / Sustain Personal Resolve is Help,
+Persuasion / Steel Yourself, Self only, Counter-ineligible, and owns the one
+family key `SUSTAIN_PERSONAL_RESOLVE`. It composes `{{impact}}` with an empty
+Self token map and these exact fragments:
+
+- Minor: `you steady yourself around one small immediate personal course and sincerely pursue it through the current meaningful exchange despite ordinary fear, doubt, discomfort, or hesitation`
+- Standard: `you commit yourself to one clear personal course for the rest of the current scene and sincerely pursue it despite meaningful fear, exhaustion, doubt, temptation, or pressure`
+- Major: `you hold to one difficult personal course for the rest of the current scene and sincerely pursue it despite serious fear, exhaustion, personal cost, temptation, or danger unless decisive circumstances or narrative resolution make that course no longer coherent`
+- Legendary: `you form one defining personal resolve, oath, or purpose whose consequences extend beyond the current scene and sincerely uphold it until it is fulfilled or narratively resolved`
+
+Self uses the global descriptor form `Roll X dice.` with no Choose clause.
+
+### Declared Personal Course
+
+Before Attribute or Difficulty, the player identifies one exact personal course,
+why the character is struggling to continue or hold to it, how Steel Yourself
+and Narrative Theme reinforce it, and how it fits the selected Impact. This
+runtime declaration is the **Declared Personal Course**.
+
+It must be one coherent, recognisable course within the character's agency,
+actual capability, access, and current fiction; fit the selected Impact; concern
+the current exchange, scene, or an Impact-appropriate continuing purpose; be
+plausibly supported by Method and Theme; and not bundle independent goals. The
+GD rejects or narrows an impossible, bundled, overbroad, inaccessible, or
+incoherent course before Difficulty. Difficulty cannot legalise an invalid
+course.
+
+Valid examples include continuing a rescue until civilians are clear, crossing
+a dangerous chamber to reach a trapped witness, giving truthful testimony
+despite threats, holding a gate until evacuation is complete, delivering a
+message through pursuit, refusing to abandon a named companion in the current
+crisis, or upholding a defining promise beyond the scene. Invalid examples
+include succeeding at everything, never feeling fear, ignoring mechanical
+restrictions, becoming immune to Control, gaining another turn, moving any
+distance, overcoming an impossible barrier, completing every party objective,
+never needing recovery, becoming incapable of doubt, or bundling unrelated
+courses.
+
+Declared Personal Course is runtime terminology only and adds no stored field.
+
+### Binding Result And Player Agency
+
+On success the character genuinely treats the accepted course as a personal
+priority and makes a sincere good-faith effort to pursue it without casually
+abandoning it because of adversity covered by the selected Impact. No second
+roll establishes the resolve. The GD cannot reduce success to feeling slightly
+better or cancel it because it disrupts the planned scene.
+
+The player retains authority over tactics, route, normal timing, resources,
+responses to new information, unexpected developments, and unrelated values,
+relationships, and priorities. The result guarantees neither competence,
+survival, access, movement, action availability, completion, nor success of any
+roll. Because the player authored the course voluntarily, the result binds the
+character's fictional resolve without removing player agency; the player
+portrays sincere pursuit or identifies legitimate Narrative Resolution.
+
+Minor covers one small immediate course through the current meaningful
+exchange and ordinary fear, doubt, discomfort, or hesitation. Standard covers
+one clear scene-long course and meaningful fear, exhaustion, doubt, temptation,
+or pressure. Major covers one difficult scene-long course and serious fear,
+exhaustion, cost, temptation, or danger, but may resolve when decisive
+circumstances make it impossible or incoherent. Legendary is one defining
+resolve, oath, or purpose extending beyond the scene until fulfilled or
+narratively resolved; it grants no permanent immunity, survival, or endless
+endurance.
+
+### Narrative And Mechanical Boundaries
+
+Global Narrative Resolution applies. The course may resolve when fulfilled,
+genuinely impossible, rendered incoherent by a decisive change, fundamentally
+reinterpreted by new knowledge, resolved by a freely confronted defining
+transformation, or ended by another identifiable meaningful development. It
+does not end from inconvenience, covered ordinary fear or doubt, GD plot need,
+an expected surrender, or a necessary tactical change while the course remains
+coherent.
+
+The contract establishes only one bounded course. It grants no action,
+Response, measured movement, exact route or destination, bonus, penalty,
+advantage, disadvantage, immunity, Resistance, Protection, quantified output,
+Health, resource, Attribute, or disabled ability. It removes no Fear, Control,
+condition, field, attachment, active Power, or Injury; permits no action while
+mechanically unable; bypasses no costs, restrictions, access, equipment,
+authority, or capability; makes no impossible course possible; establishes no
+false premise or rewritten memory; affects no other character; and does not
+become Rally, Appeal, Cleanse, Resist, Blaze of Glory, or a Power. An accepted
+success cannot be arbitrarily cancelled.
+
+It is Counter-ineligible. It may use the normal Roleplay Ability action, an
+ordinary outside-combat declaration, or a permitted Roleplay Window before
+formal hostile-action declaration. It cannot be inserted as a Counter and does
+not replace Block, Dodge, Resist, Cleanse, movement, a normal Response, or Deny
+Imminent Hostile Act.
+
+### Legacy And Runtime State
+
+Legacy `specific: "STEEL_YOURSELF"` under Persuasion migrates to the standard
+Method, and an exact generated outcome may migrate through resolved-cell
+matching. `INSPIRE`, `ENCOURAGE`, `REASSURE`, `MOTIVATE`, `PERSEVERE`, `ENDURE`,
+and `HOLD_FAST` remain Custom Method review because they are ambiguous between
+Self, other recipients, Theme, and desired outcome. Explicit Custom Outcomes
+remain Custom.
+
+No `declaredPersonalCourse`, `personalCourse`, `chosenCourse`, `resolveCourse`,
+`selfResolve`, `personalResolve`, `resolveText`, `adversity`, `motivatingMemory`,
+`sustainingPurpose`, or equivalent field is stored or exposed by the Builder.
+
 ## Normalization And Stored State
 
 Legacy migration enumerates completed resolved cells and compares normalized
@@ -281,7 +439,7 @@ persistence, Prisma, API, and combat runtime require no shape change.
 
 `scripts/roleplayStandardLibrary.audit.ts` is the read-only structural and
 coverage authority. Default mode and `--require-complete` both report and pass
-9 Methods / 11 contracts / 11 keys / 68 planned / 68 completed / 0 missing.
+10 Methods / 12 contracts / 12 keys / 72 planned / 72 completed / 0 missing.
 
 The audit reports Method and contract order, supported Scopes, completed Impacts,
 missing cells by contract, unresolved tokens, missing Scope fragments, duplicate
@@ -290,11 +448,12 @@ errors.
 
 ## Future Scope Work
 
-Later Self-facing Methods require coherent Self grammar and effect identity;
-Self is not unlocked by this migration. Large Group and Faction / Army remain
+Steel Yourself is the first coherent Self-facing Method and Sustain Personal
+Resolve is its only Self contract. Self is not generically unlocked for Rally,
+Appeal, or any other family. Later Self-facing Methods still require coherent
+Self grammar and effect identity. Large Group and Faction / Army remain
 authorable only after coherent contract-specific Scope support and all required
-Impact fragments are written and audited. Empty cells are backlog, not a promise
-that generic scaling can safely invent them.
+Impact fragments are written and audited.
 
 No numeric cost, cooldown, tuning, restriction discount, Prisma field, API
 field, calculator behaviour, or combat-runtime mechanic is added here.

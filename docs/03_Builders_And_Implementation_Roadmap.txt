@@ -16,8 +16,12 @@ Contract, Scope, Impact, Dice, Counter, Restriction. Outcome Contracts filter by
 Intention and Method only. A selected contract then supplies only completed
 Scopes and Impacts, with stable-order fallbacks that retain the family. Exact
 tuple variants and tuple privilege keys are superseded implementation history.
-Current coverage is 68 planned / 68 completed / 0 missing cells. Every supported
-Scope now exposes all four Impacts; no Builder page fork is required.
+Current coverage is 72 planned / 72 completed / 0 missing cells. Persuasion
+filters to Appeal, Rally, and Steel Yourself. Steel Yourself exposes Sustain
+Personal Resolve, Self only, all four Impacts, Help, and no Counter. Existing
+registry selection moves the default One Target Scope to Self and renders
+`Roll X dice.` without a Builder page fork. Declared Personal Course remains
+runtime-only.
 
 
 Current Builder Surfaces
@@ -376,8 +380,8 @@ The registry-driven Builder exposes both options without a page fork, retains
 an existing selection while compatible, and never auto-selects or converts a
 Custom Outcome. It adds no Recipient Type, target/subject, investigation,
 Declared Aim/objective, weakness, or opportunity fields. The live inventory is
-nine Methods, eleven standard families, eleven family privilege keys, 68
-planned cells, 68 completed cells, and no missing cells. Numeric
+ten Methods, twelve standard families, twelve family privilege keys, 72
+planned cells, 72 completed cells, and no missing cells. Numeric
 costing and cooldown implementation remain parked.
 
 Rescue exposes HIDE_FROM_IMMEDIATE_DANGER and SECURE_IMMEDIATE_SAFETY at all

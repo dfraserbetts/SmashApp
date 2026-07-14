@@ -20,10 +20,13 @@ a higher-authority active source document explicitly promotes them.
 ROLEPLAY STANDARD-LIBRARY STATUS: docs/roleplay-standard-library.md is the
 higher-authority compositional specification. Exact tuple variants, tuple keys,
 and Scope/Impact-filtered contract dropdowns described later are superseded
-history. The live completed library is 9 Methods / 11 families / 11 family keys
-/ 68 planned cells / 68 completed cells / 0 missing cells. There is no current
-standard-library completeness backlog. The five completion doctrines are locked
-in the focused authority and unlock no numeric costing.
+history. The live completed library is 10 Methods / 12 families / 12 family
+keys / 72 planned cells / 72 completed cells / 0 missing cells. Steel Yourself
+and Sustain Personal Resolve form the first complete Self-facing standard path.
+Its Declared Personal Course is runtime-only, binds sincere pursuit without
+removing player agency or mechanical effects, and follows Narrative Resolution.
+There is no current standard-library completeness backlog and no numeric
+costing is unlocked.
 
 
 Roleplay System Roadmap
@@ -404,15 +407,17 @@ One Target offers UNCOVER_CONCEALED_TRUTH and REVEAL_EXPLOITABLE_WEAKNESS, in
 that registry order, across all four approved Impact tiers.
 Persuasion / Appeal / One Target or Small Group uses SECURE_WILLING_COOPERATION across all four
 approved Impact tiers. Persuasion / Rally / Small Group uses
-ESTABLISH_SHARED_RESOLVE across all four approved Impact tiers. Deception /
+ESTABLISH_SHARED_RESOLVE across all four approved Impact tiers. Persuasion /
+Steel Yourself / Self uses SUSTAIN_PERSONAL_RESOLVE across all four approved
+Impact tiers. Deception /
 Misdirect / One Target or Small Group uses
 ESTABLISH_FALSE_BELIEF across all four approved Impact tiers. Deception /
 Distract / One Target or Small Group uses DIVERT_IMMEDIATE_ATTENTION across all
 four Impacts. All five
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
-The registry contains exactly nine Methods, eleven standard Outcome Contract
-families, eleven family privilege keys, 68 planned cells, 68 completed cells,
+The registry contains exactly ten Methods, twelve standard Outcome Contract
+families, twelve family privilege keys, 72 planned cells, 72 completed cells,
 and no missing cells. Spot Weakness,
 Investigate, Search, Analyse, and synonymous desired results remain Custom
 Method review rather than new Methods because Discern Truth already defines the

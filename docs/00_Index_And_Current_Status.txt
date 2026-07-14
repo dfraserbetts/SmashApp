@@ -9,12 +9,13 @@ Roleplay compositional architecture authority is
 docs/roleplay-standard-library.md. It supersedes active wording below that
 treats exact Scope / Impact tuples as permanent registry variants, assigns
 tuple-level privilege keys, or filters Outcome Contracts by Scope and Impact.
-The live library has 9 Methods, 11 families, 11 family privilege keys, 68
-planned cells, 68 completed cells, and no missing cells. The 43 descriptors that
-predate completion remain exact regression evidence; the 25 newly completed
-cells extend that baseline without changing it. All five completion doctrines
-are locked in docs/roleplay-standard-library.md. No numeric Roleplay costing is
-unlocked.
+The live library has 10 Methods, 12 families, 12 family privilege keys, 72
+planned cells, 72 completed cells, and no missing cells. Steel Yourself is the
+first Self-facing standard Method and Sustain Personal Resolve is its complete
+Self-only family. The prior 68 descriptors remain exact regression evidence.
+Declared Personal Course, sincere-pursuit, player-agency, mechanical-effect,
+Narrative Resolution, timing, legacy, and runtime-only doctrine is locked in
+docs/roleplay-standard-library.md. No numeric Roleplay costing is unlocked.
 
 Any later statement limiting Hide, Safety, Denial, Cooperation, or Diversion to
 their former Impact/Scope coverage, or assigning cell-specific privilege keys,
@@ -552,12 +553,14 @@ Scope define approved magnitude/persistence and breadth.
 "Method defines the approach. Theme personalises the approach. The Outcome
 Contract defines the result."
 
-The standard Method registry contains exactly nine Methods: APPEAL, RALLY,
-MISDIRECT, DISTRACT, RESCUE, INTERRUPT, CHALLENGE, OVERAWE, and DISCERN_TRUTH. All five Intentions have at least one
-approved standard Method. Persuasion owns Appeal and Rally. Appeal maps to the
+The standard Method registry contains exactly ten Methods: APPEAL, RALLY,
+STEEL_YOURSELF, MISDIRECT, DISTRACT, RESCUE, INTERRUPT, CHALLENGE, OVERAWE, and
+DISCERN_TRUTH. All five Intentions have at least one approved standard Method.
+Persuasion owns Appeal, Rally, and Steel Yourself. Appeal maps to the
 locked Help / One Target family SECURE_WILLING_COOPERATION, while Rally maps to
 the locked Help / Small Group family ESTABLISH_SHARED_RESOLVE, both at all four
-Impact tiers. ESTABLISH_SHARED_RESOLVE is the first approved Small Group
+Impact tiers. Steel Yourself maps to Self-only Help family
+SUSTAIN_PERSONAL_RESOLVE at all four Impacts. ESTABLISH_SHARED_RESOLVE is the first approved Small Group
 contract. Large Group and Faction / Army remain unproven and receive no approved
 standard contract in this pass.
 Misdirect is the approved Deception Method and maps to the locked Hinder / One
@@ -573,8 +576,8 @@ fact is true. Reveal Exploitable Weakness answers what actionable weakness,
 opening, route, pattern, dependency, or leverage point concerning the target
 can be used. The selected contract defines the purchased entitlement; the
 families are not merged or silently exchanged. The registry therefore contains
-eleven standard Outcome Contract families, eleven family privilege keys, and 68
-planned standard cells, all 68 of which are completed and renderable.
+twelve standard Outcome Contract families, twelve family privilege keys, and 72
+planned standard cells, all 72 of which are completed and renderable.
 
 No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
 Discern Truth already owns observation, deduction, evidence, physical detail,

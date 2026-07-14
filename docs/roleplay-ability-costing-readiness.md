@@ -25,22 +25,25 @@ family-level key per contract, with Scope and Impact as separate compositional
 and future economic components. Outcome Contracts filter by Intention and
 Method; completed Scope and Impact availability resolves after selection.
 The completed non-numeric library and its Hide, Safety, Denial, shared-request,
-and Diversion doctrines are locked there at 68 planned / 68 completed / 0
-missing. Completion does not approve any numeric value.
+and Diversion doctrines remain locked there. Steel Yourself / Sustain Personal
+Resolve adds the first Self-only family and brings coverage to 72 planned / 72
+completed / 0 missing. Declared Personal Course is runtime-only and grants no
+mechanical-effect removal or quantified output. Completion approves no numeric
+value.
 
 ## Current Readiness State
 
 The semantic/discovery phase is mature enough for costing architecture. The
 live registry currently contains:
 
-- nine standard Methods;
-- eleven standard Outcome Contract families;
-- sixty-eight planned standard cells;
-- sixty-eight completed/renderable cells;
+- ten standard Methods;
+- twelve standard Outcome Contract families;
+- seventy-two planned standard cells;
+- seventy-two completed/renderable cells;
 - zero missing cells and no current completeness backlog;
-- One Target and Small Group standard coverage;
+- Self, One Target, and Small Group standard coverage;
 - no approved Large Group or Faction / Army standard contract; and
-- eleven unique family-level `privilegeCostKey` values, one per contract.
+- twelve unique family-level `privilegeCostKey` values, one per contract.
 
 The wider numeric economy is not yet authoritative. Power and Forge costs,
 level affordability, cooldown authority, persisted cooldown caches,
@@ -249,7 +252,7 @@ authoritative number, not a provisional number or zero.
 
 ## Active Family Privilege Inventory
 
-The eleven active family privilege keys are unique and equal to the stable
+The twelve active family privilege keys are unique and equal to the stable
 contract IDs:
 
 | Outcome Contract | Family `privilegeCostKey` |
@@ -263,6 +266,7 @@ contract IDs:
 | `REVEAL_EXPLOITABLE_WEAKNESS` | `REVEAL_EXPLOITABLE_WEAKNESS` |
 | `SECURE_WILLING_COOPERATION` | `SECURE_WILLING_COOPERATION` |
 | `ESTABLISH_SHARED_RESOLVE` | `ESTABLISH_SHARED_RESOLVE` |
+| `SUSTAIN_PERSONAL_RESOLVE` | `SUSTAIN_PERSONAL_RESOLVE` |
 | `ESTABLISH_FALSE_BELIEF` | `ESTABLISH_FALSE_BELIEF` |
 | `DIVERT_IMMEDIATE_ATTENTION` | `DIVERT_IMMEDIATE_ATTENTION` |
 
@@ -506,7 +510,7 @@ Future evidence must cover:
 - approved representative restrictions only after restriction doctrine is
   ready;
 - low-, middle-, and high-level contexts after level-budget doctrine settles;
-- all eleven family `privilegeCostKey` values and every independent Scope/Impact
+- all twelve family `privilegeCostKey` values and every independent Scope/Impact
   component;
 - exact decomposition;
 - monotonicity and deterministic output;

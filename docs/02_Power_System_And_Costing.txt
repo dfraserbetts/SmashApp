@@ -14,8 +14,12 @@ ROLEPLAY COSTING ARCHITECTURE: docs/roleplay-standard-library.md supersedes
 exact-tuple privilege authority. Every Roleplay family owns one unique stable-ID
 privilege key; Scope and Impact remain separate future economic components.
 Scope/Impact-suffixed historical keys are migration evidence only and are not
-runtime aliases. The completed library is 68 planned / 68 completed / 0 missing
-cells. The five
+runtime aliases. The completed library is 72 planned / 72 completed / 0 missing
+cells. Steel Yourself / Sustain Personal Resolve adds the first Self-facing
+standard family with one family key and no numeric value. Declared Personal
+Course is runtime-only; sincere resolve does not remove Fear, Control,
+conditions, Injury, or any quantified effect, and it grants no Blaze of Glory,
+Power, action, movement, resource, or bonus. The prior five
 completion doctrines are locked in docs/roleplay-standard-library.md. Later
 statements limiting Hide, Safety, Denial, Cooperation, or Diversion to former
 Impact/Scope coverage are superseded completion history. No numeric Roleplay
@@ -1190,10 +1194,11 @@ ESTABLISH_SHARED_RESOLVE, Misdirect uses ESTABLISH_FALSE_BELIEF, Distract uses
 DIVERT_IMMEDIATE_ATTENTION across all four Impacts, and Discern
 Truth offers two compatible families in registry order: UNCOVER_CONCEALED_TRUTH
 and REVEAL_EXPLOITABLE_WEAKNESS. Rally is Small Group only; Overawe's Break
-Resolve and Establish False Belief support One Target and Small Group, while the
-other current families are scoped as explicitly authored. The registry has nine
-standard Methods, eleven standard Outcome Contract families, eleven family
-privilege keys, 68 planned cells, 68 completed cells, and no missing cells. The
+Resolve and Establish False Belief support One Target and Small Group, while
+Steel Yourself / Sustain Personal Resolve supports Self only and other current
+families are scoped as explicitly authored. The registry has ten standard
+Methods, twelve standard Outcome Contract families, twelve family privilege
+keys, 72 planned cells, 72 completed cells, and no missing cells. The
 43 prior fragments remain exact and the 25 completion fragments add the locked
 Impact doctrine. Custom
 Outcome review remains
