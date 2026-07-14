@@ -1574,7 +1574,7 @@ MISDIRECT
   - Does not create physical evidence, documents, disguises, credentials, or
     authority that do not exist.
   - Does not compel a particular action or emotional response.
-  - Does not automatically deceive anyone other than the selected target.
+  - Does not automatically deceive anyone outside the selected Scope.
   - Does not establish an unlimited collection of separate false claims.
   - Does not guarantee that every inference drawn from the premise benefits the
     Ability user.
@@ -2311,12 +2311,19 @@ LOCKED FAMILY:
 - Working v0 name: Establish False Belief; eligible for the later naming pass.
 - Outcome Lane: Hinder
 - Intention / Method: Deception / Misdirect
-- Scope: One Target only
+- Scope: One Target or Small Group
 - Counter eligible: No at every tier
-- Core privilege: the selected target genuinely accepts one bounded false or
-  materially misleading premise as true and treats it as true when making
-  decisions to which that premise is relevant. The target retains independent
-  judgement, values, priorities, and agency over how they respond.
+- Core privilege: one bounded false or materially misleading premise is
+  genuinely accepted as true and treated as true in relevant decisions by the
+  selected target or every accepted Small Group member. Each affected person
+  retains independent judgement, values, priorities, and response agency.
+
+Both Scopes share this stable-ID family because Scope determines the breadth of
+one semantic privilege. A separate group contract would duplicate authority.
+Switching One Target to Small Group or back at the same Impact retains
+ESTABLISH_FALSE_BELIEF and selects the exact scope variant. Self, Large Group,
+Faction / Army, another Method, or another Intention clears family and Counter;
+Name, Narrative Theme, Dice Count, and restriction edits retain it.
 
 Exact Impact variants and privilege-cost keys:
 
@@ -2337,6 +2344,30 @@ Exact Impact variants and privilege-cost keys:
   as true and treats it as true when making relevant decisions until it is
   decisively disproved or narratively resolved"
 
+The four existing One Target outcomes and keys above remain byte-for-byte
+authoritative. New Small Group variants and keys:
+
+- MINOR / ESTABLISH_FALSE_BELIEF_SMALL_GROUP_MINOR: "every accepted member of
+  the selected group accepts one small and immediately plausible false premise
+  as true for the current meaningful exchange and treats it as true when making
+  relevant decisions"
+- STANDARD / ESTABLISH_FALSE_BELIEF_SMALL_GROUP_STANDARD: "every accepted
+  member of the selected group genuinely accepts one plausible false premise
+  relevant to the current situation as true for the rest of the current scene
+  and treats it as true when making relevant decisions unless meaningful
+  contradictory evidence resolves that member's belief"
+- MAJOR / ESTABLISH_FALSE_BELIEF_SMALL_GROUP_MAJOR: "every accepted member of
+  the selected group genuinely accepts one central false premise shaping the
+  current situation as true for the rest of the current scene and continues to
+  treat it as true when making relevant decisions unless decisive contradictory
+  evidence, direct experience, or narrative resolution ends that member's
+  belief"
+- LEGENDARY / ESTABLISH_FALSE_BELIEF_SMALL_GROUP_LEGENDARY: "every accepted
+  member of the selected group genuinely accepts one defining false premise
+  whose consequences extend beyond the current scene as true and treats it as
+  true when making relevant decisions until it is decisively disproved or
+  narratively resolved for that member"
+
 Declared Premise:
 
 Before the GD selects Attribute or Difficulty, the player states the exact
@@ -2348,9 +2379,7 @@ The GD may reject or request revision before Difficulty. Once accepted and
 successful, the target genuinely accepts that premise; the GD cannot secretly
 withhold belief, substitute a weaker or unrelated belief, or cancel it because
 it obstructs the planned scene. Difficulty measures an eligible deception and
-never legalises an impossible or ineligible premise. "Declared Premise" is
-runtime terminology only: no declaredPremise, premise, falseBelief, beliefText,
-or equivalent field is saved on RoleplayAbility or added to the Builder.
+never legalises an impossible or ineligible premise.
 
 One bounded premise means one coherent conclusion, including only the minimum
 context needed to understand it. "The disturbance upstairs is routine
@@ -2358,6 +2387,54 @@ maintenance already being handled" is bounded. "I am authorised, the captain
 ordered you to leave, the prisoner is innocent, and the disturbance is
 harmless" bundles independent beliefs and must be narrowed or resolved through
 separate effects.
+
+Shared Declared Premise and member eligibility:
+
+For Small Group, before Attribute or Difficulty the player identifies exact
+members or one unambiguous bounded set, one exact shared Declared Premise, and
+how one coherent Misdirect expression or shared staged cue plus Narrative Theme
+establishes it for every member. The GD confirms boundary, scene-local access,
+perception, comprehension, shared immediate situation, every member's
+eligibility, plausibility relative to every member's knowledge, prior conclusive
+knowledge, Method, contract, Impact, Scope, and Additional Restriction before
+choosing Attribute and Difficulty.
+
+The premise must be one coherent bounded conclusion, identical and
+understandable for every accepted member, plausible against every member's
+knowledge and current fiction, reachable through the shared expression,
+Impact/Scope-appropriate, relevant to each member's decisions, and not
+contradicted by conclusive knowledge held by any accepted member. Minimum shared
+context is allowed; independent or member-tailored premises are not. A scheduled
+drill, moved meeting, transferred prisoner, withdrawn search order, legitimate
+messenger, rival faction's responsibility, commander's betrayal, or rightful
+heir may qualify. Different lies per member, bundled claims, impossible
+perception/comprehension, general future belief or obedience, memory rewriting,
+or an army called one Small Group does not.
+
+If any declared member has conclusive contrary knowledge, cannot perceive or
+understand the expression/premise, lacks the shared situation, or is otherwise
+ineligible, the GD narrows the group, requests revision, or rejects the use
+before Difficulty. Difficulty may reflect mixed receptiveness, suspicion,
+different experiences, internal communication, partial knowledge, or the least
+receptive eligible member, but cannot legalise an ineligible member. On success
+every accepted member genuinely accepts the same premise without per-member
+resistance, majority interpretation, hidden exemption, secretly unconvinced
+dissenter, different substituted belief, or post-success group narrowing.
+
+Each member retains independent judgement, values, priorities, loyalties,
+emotions, tactics, resources, and agency over reaction. A patrol believing its
+orders were withdrawn may return, verify, pursue an unrelated duty, protect
+civilians, or disagree over its next step, but may not secretly execute the
+exact order while the GD claims belief. A deceived council may react differently
+member by member; imprisonment, violence, exile, cooperation, and support for
+the user are never automatic.
+
+Membership fixes when Difficulty is set. The result does not automatically bind
+later arrivals, replacements, nearby outsiders, followers, subordinates, later
+listeners, organisations, factions, armies, or the public. A selected leader's
+belief does not bind followers, and a selected group's belief does not
+automatically spread through command, testimony, reputation, institutional
+authority, reports, or rumours.
 
 Belief and agency: "The target treats the accepted premise as true when making
 decisions to which it is relevant, but retains independent judgement,
@@ -2383,6 +2460,19 @@ Legendary may extend beyond the scene and requires decisive disproof or
 narrative resolution. Meaningful evidence materially challenges the premise;
 decisive evidence makes it no longer coherently sustainable. Resolution must
 follow an identifiable meaningful fictional change explainable to the table.
+For Small Group, contradictory evidence, direct experience, or Narrative
+Resolution may affect the whole group or one member. One member's resolution,
+suspicion, departure, or decisive proof never automatically resolves every
+other member; communication becomes evidence only for members who meaningfully
+receive it at the applicable Impact threshold. Plot need or inconvenience never
+cancels the group result.
+
+Related contracts remain distinct. Divert Immediate Attention uses Distract and
+redirects attention without establishing belief. Establish Shared Resolve uses
+Rally and creates a sincere positive course. Secure Willing Cooperation uses
+Appeal and creates willing agreement. Break Resolve uses Overawe and ends one
+opposed course. Establish False Belief uses Misdirect and directly grants none
+of those other results.
 
 Illustrative examples by tier:
 
@@ -2403,29 +2493,36 @@ Examples remain subject to target knowledge, plausibility, Method, access,
 Impact, and current fiction. Intrinsic exclusions:
 
 - Does not compel a specific action.
-- Does not control how the target responds to the premise.
-- Does not remove the target's independent priorities, values, or judgement.
+- Does not control how any target responds to the premise.
+- Does not remove any target's independent priorities, values, judgement, or agency.
 - Does not rewrite memories.
 - Does not establish more than one bounded premise.
 - Does not establish unspecified future lies.
 - Does not make an impossible or internally incoherent premise believable.
-- Does not override conclusive knowledge already possessed by the target.
+- Does not override conclusive knowledge already possessed by an accepted target.
 - Does not automatically survive contradictory evidence sufficient for its
   Impact.
 - Does not create supporting proof, evidence, credentials, disguises, authority,
   or documents.
-- Does not force third parties to share the belief.
+- Does not force unselected third parties to share the belief.
 - Does not automatically propagate through testimony, reputation, command, or
   institutional authority.
-- Does not guarantee that the target's reaction benefits the Ability user.
+- Does not guarantee that any target's reaction benefits the Ability user.
 - Does not manufacture love, loyalty, devotion, consent, or obedience.
 - Does not permit arbitrary cancellation after a successful accepted
   declaration.
 - Does not allow Difficulty or Legendary Impact to legalise an ineligible
   premise.
+- Does not convert One Target into Small Group.
+- Does not convert Small Group into Large Group or Faction / Army.
+- Does not permit majority interpretation, hidden exemptions, or per-member resistance.
 
-No numeric costs, cooldowns, privilege values, or restriction discounts are
-locked here.
+Declared Premise and group membership are runtime terminology only. No
+declaredPremise, premise, falseBelief, beliefText, groupPremise, sharedPremise,
+groupMembers, selectedMembers, deceivedGroup, beliefTargetIds, memberBeliefs, or
+equivalent field is saved on RoleplayAbility or added to the Builder. No numeric
+cost, cooldown, combat-runtime mechanic, per-member roll, privilege value, or
+restriction discount is introduced.
 
 
 Divert Immediate Attention Outcome Contract

@@ -367,7 +367,7 @@ The registry-driven Builder exposes both options without a page fork, retains
 an existing selection while compatible, and never auto-selects or converts a
 Custom Outcome. It adds no Recipient Type, target/subject, investigation,
 Declared Aim/objective, weakness, or opportunity fields. The live inventory is
-nine Methods, eleven standard families, and thirty-six variants. Numeric
+nine Methods, eleven standard families, and forty variants. Numeric
 costing and cooldown implementation remain parked.
 
 Rescue exposes HIDE_FROM_IMMEDIATE_DANGER only at Minor / One Target and
@@ -546,10 +546,11 @@ state, Recipient Type, measured duration, saved fields, numeric cost/cooldown,
 or runtime mechanic. Incompatible authoring clears selection/Counter;
 non-authoring edits retain it. Explicit Custom Outcomes remain Custom.
 
-Misdirect filters to ESTABLISH_FALSE_BELIEF for Deception / One Target at all
+Misdirect filters to stable ID ESTABLISH_FALSE_BELIEF for Deception / One Target
+or Small Group at all
 four Impacts. Establish False Belief is the accepted working v0 name, remains
 eligible for the naming pass, is Hinder, and is Counter-ineligible. Exact
-variants and reserved keys are:
+existing One Target variants and reserved keys remain:
 
 - Minor / ESTABLISH_FALSE_BELIEF_MINOR: "the target accepts one small and
   immediately plausible false premise as true for the current meaningful
@@ -568,6 +569,29 @@ variants and reserved keys are:
   as true and treats it as true when making relevant decisions until it is
   decisively disproved or narratively resolved"
 
+New Small Group variants and keys:
+
+- Minor / ESTABLISH_FALSE_BELIEF_SMALL_GROUP_MINOR: "every accepted member of
+  the selected group accepts one small and immediately plausible false premise
+  as true for the current meaningful exchange and treats it as true when making
+  relevant decisions"
+- Standard / ESTABLISH_FALSE_BELIEF_SMALL_GROUP_STANDARD: "every accepted
+  member of the selected group genuinely accepts one plausible false premise
+  relevant to the current situation as true for the rest of the current scene
+  and treats it as true when making relevant decisions unless meaningful
+  contradictory evidence resolves that member's belief"
+- Major / ESTABLISH_FALSE_BELIEF_SMALL_GROUP_MAJOR: "every accepted member of
+  the selected group genuinely accepts one central false premise shaping the
+  current situation as true for the rest of the current scene and continues to
+  treat it as true when making relevant decisions unless decisive contradictory
+  evidence, direct experience, or narrative resolution ends that member's
+  belief"
+- Legendary / ESTABLISH_FALSE_BELIEF_SMALL_GROUP_LEGENDARY: "every accepted
+  member of the selected group genuinely accepts one defining false premise
+  whose consequences extend beyond the current scene as true and treats it as
+  true when making relevant decisions until it is decisively disproved or
+  narratively resolved for that member"
+
 The exact one-bounded-premise Declared Aim is runtime scene context, judged for
 clarity, plausibility, target knowledge, Method, Impact, access, Scope, and
 fiction before Difficulty. It is not stored. The accepted belief binds on
@@ -577,8 +601,26 @@ plot inconvenience cannot cancel it. Builder reconciliation retains the family
 across all four supported Impact variants and non-authoring edits, updates the
 exact outcome/descriptor, and keeps Counter false. Incompatible Intention,
 Method, or Scope clears the family and Counter. Existing explicit Custom Outcome
-records remain Custom. No numeric costs, cooldowns, privilege values, or
-restriction discounts are introduced.
+records remain Custom.
+
+Small Group uses exact fixed membership, one Shared Declared Premise, universal
+member eligibility, and one coherent Misdirect/Theme expression. The GD narrows,
+revises, or rejects ineligible groups before Difficulty. Success has no
+per-member roll, majority interpretation, hidden exemption, tailored premise,
+or post-success narrowing. Members retain reaction agency. No belief propagates
+to arrivals, replacements, outsiders, followers, organisations, testimony, or
+command. Contradiction and Narrative Resolution can apply individually without
+automatically releasing the group.
+
+The registry-driven Builder automatically exposes both Scopes at all four
+Impacts without a page fork. One Target to Small Group or back retains the
+family and swaps exact outcome/descriptor; Counter stays false. Self, Large
+Group, Faction / Army, Distract, or another Intention clears family and Counter.
+Name, Theme, Dice Count, and restriction edits retain it. No Declared Premise,
+member selector, saved premise/member state, numeric cost, cooldown,
+combat-runtime mechanic, privilege value, or restriction discount is added.
+Explicit Misdirect / Small Group Custom Outcomes remain Custom, and legacy
+CONFUSE remains Custom Method review.
 
 Declared Aim/request is runtime scene context and must not be added to
 RoleplayAbility storage or the Builder form. At use time, Ability, target, Aim,
