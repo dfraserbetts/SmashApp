@@ -1877,7 +1877,7 @@ export default function CharacterBuilderPage() {
                     </div>
 
                     {!powerCollapsed ? (
-                      <div id={powerBodyId}>
+                      <div id={powerBodyId} className="flex flex-col">
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       <label className="block">
                         <span className="text-xs text-zinc-400">Power Name</span>
@@ -2219,7 +2219,7 @@ export default function CharacterBuilderPage() {
                       </label>
                     </div>
 
-                    <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/60 p-3">
+                    <div className="order-2 mt-4 rounded-lg border border-zinc-800 bg-zinc-950/60 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <h4 className="text-sm font-semibold">Primary Packet</h4>
                         <button
@@ -2795,7 +2795,7 @@ export default function CharacterBuilderPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-3 md:grid-cols-4">
+                    <div className="order-1 mt-4 grid gap-3 md:grid-cols-4">
                       <label className="block">
                         <span className="text-xs text-zinc-400">Range</span>
                         <select
@@ -2998,7 +2998,7 @@ export default function CharacterBuilderPage() {
                       ) : null}
                     </div>
 
-                    <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/70 p-3">
+                    <div className="order-3 mt-4 rounded-lg border border-zinc-800 bg-zinc-950/70 p-3">
                       <div className="text-xs uppercase text-zinc-500">Descriptor</div>
                       {summary?.descriptorLines.length ? (
                         <ul className="mt-2 space-y-1 text-sm text-zinc-200">

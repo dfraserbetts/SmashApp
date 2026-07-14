@@ -10423,7 +10423,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                   />
                   </label>
                   </div>
-                  {showRangeSection && powerRangeSection}
+                  {showRangeSection && !showChassisDependentSections && powerRangeSection}
                   {showDiceCountSection && diceCountSection}
                   {showPowerLevelSection && (
                   <div className="order-1 space-y-2 pt-2">
@@ -11143,6 +11143,7 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                       )}
                     </div>
                   </div>
+                  {showRangeSection && powerRangeSection}
                   <div className="order-2 space-y-2 pt-2">
                     <div className="flex items-center justify-between">
                       <p className="text-[11px] text-zinc-500 uppercase tracking-wide">Effect Packets</p>
