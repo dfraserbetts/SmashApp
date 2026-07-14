@@ -3473,7 +3473,7 @@ export default function CharacterBuilderPage() {
   }
 
   const editorPanel = (
-    <form onSubmit={handleSave} className="space-y-4">
+    <form onSubmit={handleSave} className="space-y-4 pb-2">
       <div className="sticky top-3 z-30 rounded-xl border border-zinc-800 bg-black/95 p-3 shadow-lg shadow-black/30 backdrop-blur">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
