@@ -1122,6 +1122,28 @@ table-facing patterns must be recorded before standard-library changes are
 proposed.
 
 
+Deferred Closed Beta Pregen Roleplay Package Status
+
+LOCKED DEFERRED PREGEN ROLEPLAY PACKAGE PLAN: the four future character concepts
+now have an authoritative 3 / 3 / 4 / 4 allocation across Striker / Legolas-type,
+Defender / Boromir-type, Authority / Gandalf-type, and Trickster / Hobbit-type.
+All fourteen validation Abilities and all fourteen Outcome Contracts appear
+exactly once across the party, with Not This Time as the sole Counter.
+
+Implementation is deferred until the active balance baseline supports full
+character construction, including budgets, stats, Powers, equipment,
+survivability, encounter pressure, the Authority restricted-power test, and
+Roleplay costing or explicit temporary allocation authority. This lock creates
+no character record, Builder or fixture change, production rule, or numeric
+authority. Fixture Dice Count 3 is semantic-test input, not final pregen balance
+authority.
+
+The full allocation and deferred boundaries are recorded in
+`docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt`; implementation obligations
+are in `docs/03_Builders_And_Implementation_Roadmap.txt`; exact fixture mappings
+remain alongside the test plan in `docs/roleplay-closed-beta-test-pack.md`.
+
+
 Roleplay Declaration And Narrative Resolution Status
 
 LOCKED: "Incarnate does not eliminate Game Director judgement. It defines where

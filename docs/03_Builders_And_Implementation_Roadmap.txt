@@ -749,6 +749,29 @@ Narrative Resolution. Record repeated patterns before changing the standard
 library. This evidence gate unlocks no numeric Roleplay costing.
 
 
+Deferred Closed Beta Pregen Roleplay Packages
+
+LOCKED DEFERRED PREGEN ROLEPLAY PACKAGE PLAN: the four future concepts use the
+authoritative 3 / 3 / 4 / 4 allocation recorded in
+`docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt` and
+`docs/roleplay-closed-beta-test-pack.md`. It assigns every current validation
+Ability and Outcome Contract exactly once. The existing six archetypes remain
+semantic fixture groupings rather than final pregenerated builds.
+
+Character construction remains blocked until the active balance baseline can
+support full levels and budgets, Attributes and derived stats, Powers and
+affordability, equipment and Protection, cooldowns, survivability, enemy and
+objective pressure, the Authority restricted-power test, and Roleplay numeric
+costing or explicit temporary Closed Beta allocation authority. Future
+implementation must begin with the locked packages, validate affordability and
+action economy, and explicitly report any package that cannot fit. It must not
+silently reduce Scope or Impact or remove or redistribute an Ability.
+
+This lock authorizes no current Builder, persistence, fixture, production-code,
+or numeric-costing change. Fixture Dice Count 3 remains deterministic semantic
+coverage only and is not final pregen balance authority.
+
+
 Builder Rules To Preserve
 
 - Summoning Circle remains the reference implementation for shared power

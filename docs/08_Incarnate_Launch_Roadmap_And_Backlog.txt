@@ -114,6 +114,171 @@ Locked first-pass party makeup:
 - Trickster / Hobbit-type:
   - Distract, Rescue, bravery, objective play.
 
+
+LOCKED DEFERRED PREGEN ROLEPLAY PACKAGE PLAN
+
+Status: LOCKED DEFERRED PREGEN ROLEPLAY PACKAGE PLAN.
+
+These four concepts are the locked first-pass party makeup, and the allocation
+below is the authoritative intended Roleplay Ability package for them. Character
+implementation remains deferred until active balance work establishes a stable
+baseline for full pregen construction. No current character records are created
+and no numeric Roleplay costing is unlocked. Later construction must not silently
+redistribute this allocation; any necessary change requires an explicit design
+decision supported by balance or table evidence.
+
+Legolas, Boromir, Gandalf, and Hobbit are internal shorthand only. They are not
+final names, setting identities, or launch-facing intellectual property.
+
+1. Striker / Legolas-type - 3
+
+Roleplay identity: FIND THEM. UNDERSTAND THEM. EXPOSE THE OPENING.
+
+- What Are They Hiding?
+  - Perception / Discern Truth
+  - UNCOVER_CONCEALED_TRUTH
+  - One Target / Standard
+  - Counter false
+- The Weak Link
+  - Perception / Discern Truth
+  - REVEAL_EXPLOITABLE_WEAKNESS
+  - One Target / Major
+  - Counter false
+- Trail Through Ash
+  - Perception / Track
+  - TRACE_QUARRY
+  - Small Group / Standard
+  - Counter false
+
+Purpose: reconnaissance, concealed information, tactical vulnerability
+discovery, and pursuit of a coherent hostile or fleeing group. This supports
+damage, mobility, perception, and precision without granting quantified combat
+bonuses.
+
+2. Defender / Boromir-type - 3
+
+Roleplay identity: TAKE THE PRESSURE. STOP THE DECISIVE BLOW. GET PEOPLE TO
+SAFETY.
+
+- Face Me
+  - Intimidation / Challenge
+  - DRAW_HOSTILE_ATTENTION
+  - One Target / Minor
+  - Counter false
+- Not This Time
+  - Intervention / Interrupt
+  - DENY_IMMINENT_HOSTILE_ACT
+  - One Target / Major
+  - Counter true
+- Everyone Clear
+  - Intervention / Rescue
+  - SECURE_IMMEDIATE_SAFETY
+  - Small Group / Standard
+  - Counter false
+
+Purpose: protective confrontation, holding hostile attention, denying one
+decisive hostile act, and securing allies or civilians from immediate peril.
+
+The Defender concept includes heroic morale, but Hold Together remains assigned
+to the Authority character because command and encouragement are central to that
+character's early-round identity. The Defender expresses heroic morale through
+combat construction, portrayal, confrontation, interruption, and rescue.
+
+3. Authority / Gandalf-type - 4
+
+Roleplay identity: UNITE ALLIES. NEGOTIATE COOPERATION. ESTABLISH TRUTH. BREAK
+OPPOSITION THROUGH AUTHORITY.
+
+- Hold Together
+  - Persuasion / Rally
+  - ESTABLISH_SHARED_RESOLVE
+  - Small Group / Standard
+  - Counter false
+- A Fair Exchange
+  - Persuasion / Appeal
+  - SECURE_WILLING_COOPERATION
+  - One Target / Standard
+  - Counter false
+- The Evidence Speaks
+  - Perception / Prove
+  - ESTABLISH_VERIFIED_TRUTH
+  - Small Group / Major
+  - Counter false
+- Your Hunt Ends Here
+  - Intimidation / Overawe
+  - BREAK_SHARED_RESOLVE
+  - Small Group / Legendary
+  - Counter false
+
+Purpose: command and encouragement, meaningful voluntary cooperation,
+evidence-backed authority, and overwhelming a hostile group's defining
+opposition.
+
+This Roleplay-heavy package gives the Authority character meaningful choices
+while the restricted major combat power remains unavailable. The Roleplay
+package is not that restricted combat power. Your Hunt Ends Here still requires
+an eligible declaration, a declared Difficulty, and a successful roll. The
+separate restricted-power test remains unavailable during Round 1 and Round 2,
+becoming available at Round 3 or comparable escalation.
+
+4. Trickster / Hobbit-type - 4
+
+Roleplay identity: DECEIVE. CREATE OPENINGS. SAVE PEOPLE CLEVERLY. FIND COURAGE
+WHEN IT MATTERS.
+
+- Wrong Door
+  - Deception / Misdirect
+  - ESTABLISH_FALSE_BELIEF
+  - One Target / Standard
+  - Counter false
+- All Eyes Here
+  - Deception / Distract
+  - DIVERT_IMMEDIATE_ATTENTION
+  - Small Group / Minor
+  - Counter false
+- Down, Stay Quiet
+  - Intervention / Rescue
+  - HIDE_FROM_IMMEDIATE_DANGER
+  - Small Group / Minor
+  - Counter false
+- One More Step
+  - Persuasion / Steel Yourself
+  - SUSTAIN_PERSONAL_RESOLVE
+  - Self / Major
+  - Counter false
+
+Purpose: establish one false premise, create an objective-playing opening,
+rescue through concealment and ingenuity, and continue despite fear,
+exhaustion, temptation, danger, or personal cost without removing quantified
+effects.
+
+Package invariants: four concepts; fourteen abilities; a 3 / 3 / 4 / 4 split;
+every current Outcome Contract and validation Ability exactly once; no duplicate
+or omitted Ability; all twelve Methods; Self, One Target, and Small Group; Minor,
+Standard, Major, and Legendary; both Help and Hinder; and exactly one Counter,
+Not This Time. This is package-allocation authority, not numeric balance
+authority.
+
+Implementation gate: full pregen construction remains blocked until active
+balance work produces a sufficiently stable baseline for character level and
+point budgets, Attributes and derived stats, Power construction and
+affordability, equipment and Protection, cooldown expectations, Injury and
+survivability, enemy pressure, objective-track timing, the Authority character's
+restricted major combat power, and Roleplay numeric costing or explicit
+temporary Closed Beta allocation authority. When construction begins, use these
+packages as the starting Roleplay allocation, build the full characters around
+them, validate affordability and action economy, and report any package that
+cannot fit. Do not silently reduce Scope or Impact or remove or redistribute an
+Ability; escalate necessary changes for explicit design approval.
+
+Not locked by this allocation: final character names or setting identities;
+final Narrative Theme prose or post-naming-pass Ability names; final Dice
+Counts; Potential costs; cooldowns; Additional Restrictions; runtime
+Attributes; character level; combat Powers; Signature Move details; equipment;
+resources; point allocation; scenario Difficulty; final character records; or
+print layout. The current validation fixtures use three dice for deterministic
+semantic coverage. Three dice is not final pregen balance authority.
+
 Gandalf-style restriction test:
 
 - Round 1: restriction not met.

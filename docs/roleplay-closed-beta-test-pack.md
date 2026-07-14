@@ -27,6 +27,116 @@ semantic breadth. Production Roleplay rules remain unchanged at 12 Methods, 14
 contracts, 14 family keys, 88 planned cells, 88 completed cells, and zero
 missing cells.
 
+## Deferred Four-Character Pregen Package Allocation
+
+Status: **LOCKED DEFERRED PREGEN ROLEPLAY PACKAGE PLAN**.
+
+The six archetypes below remain semantic validation groupings for the canonical
+fixtures; they are not the eventual character packages. The locked first-pass
+party instead allocates every fixture exactly once across four future
+pregenerated-character concepts. This is package-allocation authority, not
+numeric balance authority. Legolas, Boromir, Gandalf, and Hobbit are internal
+shorthand only, not final names, setting identities, or launch-facing
+intellectual property.
+
+### Striker / Legolas-type - 3
+
+Roleplay identity: **FIND THEM. UNDERSTAND THEM. EXPOSE THE OPENING.**
+
+- **What Are They Hiding?** - Perception / Discern Truth;
+  `UNCOVER_CONCEALED_TRUTH`; One Target / Standard; Counter false.
+- **The Weak Link** - Perception / Discern Truth;
+  `REVEAL_EXPLOITABLE_WEAKNESS`; One Target / Major; Counter false.
+- **Trail Through Ash** - Perception / Track; `TRACE_QUARRY`; Small Group /
+  Standard; Counter false.
+
+This package owns reconnaissance, concealed information, tactical vulnerability
+discovery, and pursuit of a coherent hostile or fleeing group. It supports the
+concept's damage, mobility, perception, and precision without granting
+quantified combat bonuses.
+
+### Defender / Boromir-type - 3
+
+Roleplay identity: **TAKE THE PRESSURE. STOP THE DECISIVE BLOW. GET PEOPLE TO
+SAFETY.**
+
+- **Face Me** - Intimidation / Challenge; `DRAW_HOSTILE_ATTENTION`; One Target /
+  Minor; Counter false.
+- **Not This Time** - Intervention / Interrupt; `DENY_IMMINENT_HOSTILE_ACT`;
+  One Target / Major; Counter true.
+- **Everyone Clear** - Intervention / Rescue; `SECURE_IMMEDIATE_SAFETY`; Small
+  Group / Standard; Counter false.
+
+This package owns protective confrontation, hostile attention, denial of one
+decisive hostile act, and immediate safety. The concept includes heroic morale,
+but Hold Together remains with the Authority character because command and
+encouragement are central to that character's early-round identity. The Defender
+expresses heroic morale through combat construction, portrayal, confrontation,
+interruption, and rescue.
+
+### Authority / Gandalf-type - 4
+
+Roleplay identity: **UNITE ALLIES. NEGOTIATE COOPERATION. ESTABLISH TRUTH. BREAK
+OPPOSITION THROUGH AUTHORITY.**
+
+- **Hold Together** - Persuasion / Rally; `ESTABLISH_SHARED_RESOLVE`; Small
+  Group / Standard; Counter false.
+- **A Fair Exchange** - Persuasion / Appeal; `SECURE_WILLING_COOPERATION`; One
+  Target / Standard; Counter false.
+- **The Evidence Speaks** - Perception / Prove; `ESTABLISH_VERIFIED_TRUTH`;
+  Small Group / Major; Counter false.
+- **Your Hunt Ends Here** - Intimidation / Overawe; `BREAK_SHARED_RESOLVE`;
+  Small Group / Legendary; Counter false.
+
+This package owns command and encouragement, meaningful voluntary cooperation,
+evidence-backed authority, and breaking a hostile group's defining opposition.
+Its Roleplay-heavy allocation supplies meaningful choices while the separate
+restricted major combat power remains unavailable. The Roleplay package is not
+that Power. Your Hunt Ends Here still requires an eligible declaration,
+Difficulty, and successful roll. The restricted-power test remains unavailable
+during Round 1 and Round 2 and becomes available at Round 3 or comparable
+escalation.
+
+### Trickster / Hobbit-type - 4
+
+Roleplay identity: **DECEIVE. CREATE OPENINGS. SAVE PEOPLE CLEVERLY. FIND COURAGE
+WHEN IT MATTERS.**
+
+- **Wrong Door** - Deception / Misdirect; `ESTABLISH_FALSE_BELIEF`; One Target /
+  Standard; Counter false.
+- **All Eyes Here** - Deception / Distract; `DIVERT_IMMEDIATE_ATTENTION`; Small
+  Group / Minor; Counter false.
+- **Down, Stay Quiet** - Intervention / Rescue; `HIDE_FROM_IMMEDIATE_DANGER`;
+  Small Group / Minor; Counter false.
+- **One More Step** - Persuasion / Steel Yourself; `SUSTAIN_PERSONAL_RESOLVE`;
+  Self / Major; Counter false.
+
+This package owns deception, objective-playing openings, rescue through
+concealment and ingenuity, and courage despite fear, exhaustion, temptation,
+danger, or personal cost without removing quantified effects.
+
+The locked allocation is 3 / 3 / 4 / 4. Across the four packages, all fourteen
+validation Abilities and all fourteen Outcome Contracts appear exactly once,
+with no duplicates or omissions. All twelve Methods, both Outcome Lanes, Self,
+One Target, Small Group, and all four Scene Impacts are represented. Not This
+Time is the sole Counter-enabled Ability.
+
+Actual character construction remains blocked until active balance work
+stabilises character budgets, Attributes and derived stats, Power affordability,
+equipment and Protection, cooldown expectations, Injury and survivability,
+enemy pressure, objective timing, the Authority restricted-power test, and
+Roleplay costing or explicit temporary Closed Beta allocation authority. Future
+construction must start from these packages, validate affordability and action
+economy, and report conflicts for explicit design approval instead of silently
+reducing Scope or Impact or removing or redistributing an Ability.
+
+Final names, identities, themes, post-naming-pass Ability names, Dice Counts,
+costs, cooldowns, restrictions, Attributes, levels, Powers, Signature Moves,
+equipment, resources, point allocation, scenario Difficulty, character records,
+and print layout remain deferred. Every current fixture uses three dice only for
+deterministic semantic coverage. Fixture Dice Count 3 is not final pregen
+authority.
+
 ## Canonical Validation Loadouts
 
 Every fixture uses three dice. The exact live descriptors are recorded below.
