@@ -236,6 +236,13 @@ const hideAuthoring = {
   sceneImpact: "MINOR" as const,
   scope: "ONE_TARGET" as const,
 };
+const hideImmediateDangerOutcome = "the target becomes hidden from the immediate danger";
+const hideImmediateDangerDescriptor =
+  "Choose one target and roll 3 dice. On success, the target becomes hidden from the immediate danger.";
+const hideImmediateDangerSmallGroupOutcome =
+  "every accepted member of the selected group becomes hidden from one declared immediate danger";
+const hideImmediateDangerSmallGroupDescriptor =
+  "Choose a small group of targets and roll 3 dice. On success, every accepted member of the selected group becomes hidden from one declared immediate danger.";
 assertEqual(
   getCompatibleRoleplayOutcomeContracts(hideAuthoring).map((contract) => contract.id).join(","),
   "HIDE_FROM_IMMEDIATE_DANGER",
@@ -249,23 +256,61 @@ assertEqual(
 
 const hideContract = getRoleplayOutcomeContract("HIDE_FROM_IMMEDIATE_DANGER");
 assert(hideContract, "HIDE_FROM_IMMEDIATE_DANGER should still exist.");
-assertEqual(hideContract.variants.length, 1, "Hide should retain exactly one variant.");
+assertEqual(hideContract.variants.length, 2, "Hide should contain exactly two variants.");
 assertEqual(
-  hideContract.variants[0].successOutcome,
-  "the target becomes hidden from the immediate danger",
+  hideContract.variants.filter((variant) => variant.authoring.scope === "ONE_TARGET").length,
+  1,
+  "Hide should contain one One Target variant.",
+);
+assertEqual(
+  hideContract.variants.filter((variant) => variant.authoring.scope === "SMALL_GROUP").length,
+  1,
+  "Hide should contain one Small Group variant.",
+);
+const hideOneTargetVariant = hideContract.variants.find(
+  (variant) => variant.authoring.scope === "ONE_TARGET",
+);
+const hideSmallGroupVariant = hideContract.variants.find(
+  (variant) => variant.authoring.scope === "SMALL_GROUP",
+);
+assert(hideOneTargetVariant, "Hide One Target variant should exist.");
+assert(hideSmallGroupVariant, "Hide Small Group variant should exist.");
+assertEqual(
+  hideOneTargetVariant.successOutcome,
+  hideImmediateDangerOutcome,
   "Hide outcome must remain unchanged.",
 );
 assertEqual(
-  hideContract.variants[0].privilegeCostKey,
+  hideOneTargetVariant.privilegeCostKey,
   "HIDE_FROM_IMMEDIATE_DANGER",
   "Hide privilege key must remain unchanged.",
 );
-assertEqual(hideContract.variants[0].counterEligible, false, "Hide Counter must remain false.");
+assertEqual(hideOneTargetVariant.counterEligible, false, "Hide Counter must remain false.");
+assertEqual(
+  hideSmallGroupVariant.successOutcome,
+  hideImmediateDangerSmallGroupOutcome,
+  "Small Group Hide outcome mismatch.",
+);
+assertEqual(
+  hideSmallGroupVariant.privilegeCostKey,
+  "HIDE_FROM_IMMEDIATE_DANGER_SMALL_GROUP",
+  "Small Group Hide privilege key mismatch.",
+);
+assertEqual(hideSmallGroupVariant.counterEligible, false, "Small Group Hide Counter must be false.");
+for (const variant of hideContract.variants) {
+  assertEqual(variant.authoring.intention, "INTERVENTION", "Hide Intention mismatch.");
+  assertEqual(variant.authoring.methodId, "RESCUE", "Hide Method mismatch.");
+  assertEqual(variant.authoring.sceneImpact, "MINOR", "Hide Impact mismatch.");
+}
 
 const secureImmediateSafetyOutcome =
   "the target is secured from one declared immediate peril and is no longer directly threatened by it";
 const secureImmediateSafetyDescriptor =
   "Choose one target and roll 3 dice. On success, the target is secured from one declared immediate peril and is no longer directly threatened by it.";
+const secureImmediateSafetySmallGroupOutcome =
+  "every accepted member of the selected group is secured from one declared immediate peril and is no longer directly threatened by it";
+const secureImmediateSafetySmallGroupDescriptor =
+  "Choose a small group of targets and roll 3 dice. On success, every accepted member of the selected group is secured from one declared immediate peril and is no longer directly threatened by it.";
 const secureImmediateSafetyContract = getRoleplayOutcomeContract("SECURE_IMMEDIATE_SAFETY");
 assert(secureImmediateSafetyContract, "SECURE_IMMEDIATE_SAFETY should exist.");
 assertEqual(
@@ -280,10 +325,34 @@ assertEqual(
 );
 assertEqual(
   secureImmediateSafetyContract.variants.length,
-  1,
-  "Secure Immediate Safety must have exactly one variant.",
+  2,
+  "Secure Immediate Safety must have exactly two variants.",
 );
-const secureImmediateSafetyVariant = secureImmediateSafetyContract.variants[0];
+assertEqual(
+  secureImmediateSafetyContract.variants.filter(
+    (variant) => variant.authoring.scope === "ONE_TARGET",
+  ).length,
+  1,
+  "Secure Immediate Safety needs one One Target variant.",
+);
+assertEqual(
+  secureImmediateSafetyContract.variants.filter(
+    (variant) => variant.authoring.scope === "SMALL_GROUP",
+  ).length,
+  1,
+  "Secure Immediate Safety needs one Small Group variant.",
+);
+const secureImmediateSafetyVariant = secureImmediateSafetyContract.variants.find(
+  (variant) => variant.authoring.scope === "ONE_TARGET",
+);
+const secureImmediateSafetySmallGroupVariant = secureImmediateSafetyContract.variants.find(
+  (variant) => variant.authoring.scope === "SMALL_GROUP",
+);
+assert(secureImmediateSafetyVariant, "Secure Immediate Safety One Target variant should exist.");
+assert(
+  secureImmediateSafetySmallGroupVariant,
+  "Secure Immediate Safety Small Group variant should exist.",
+);
 assertEqual(
   secureImmediateSafetyVariant.authoring.intention,
   "INTERVENTION",
@@ -319,20 +388,61 @@ assertEqual(
   secureImmediateSafetyOutcome,
   "Secure Immediate Safety exact outcome mismatch.",
 );
+assertEqual(
+  secureImmediateSafetySmallGroupVariant.authoring.intention,
+  "INTERVENTION",
+  "Small Group Secure Immediate Safety Intention mismatch.",
+);
+assertEqual(
+  secureImmediateSafetySmallGroupVariant.authoring.methodId,
+  "RESCUE",
+  "Small Group Secure Immediate Safety Method mismatch.",
+);
+assertEqual(
+  secureImmediateSafetySmallGroupVariant.authoring.sceneImpact,
+  "STANDARD",
+  "Small Group Secure Immediate Safety Impact mismatch.",
+);
+assertEqual(
+  secureImmediateSafetySmallGroupVariant.counterEligible,
+  false,
+  "Small Group Secure Immediate Safety must disallow Counter.",
+);
+assertEqual(
+  secureImmediateSafetySmallGroupVariant.privilegeCostKey,
+  "SECURE_IMMEDIATE_SAFETY_SMALL_GROUP",
+  "Small Group Secure Immediate Safety privilege key mismatch.",
+);
+assertEqual(
+  secureImmediateSafetySmallGroupVariant.successOutcome,
+  secureImmediateSafetySmallGroupOutcome,
+  "Small Group Secure Immediate Safety exact outcome mismatch.",
+);
 
-for (const [sceneImpact, expectedIds] of [
-  ["MINOR", "HIDE_FROM_IMMEDIATE_DANGER"],
-  ["STANDARD", "SECURE_IMMEDIATE_SAFETY"],
-  ["MAJOR", ""],
-  ["LEGENDARY", ""],
-] as const) {
-  assertEqual(
-    getCompatibleRoleplayOutcomeContracts({ ...hideAuthoring, sceneImpact })
-      .map((contract) => contract.id)
-      .join(","),
-    expectedIds,
-    `${sceneImpact} Rescue compatibility mismatch.`,
-  );
+for (const scope of ["ONE_TARGET", "SMALL_GROUP"] as const) {
+  for (const [sceneImpact, expectedIds] of [
+    ["MINOR", "HIDE_FROM_IMMEDIATE_DANGER"],
+    ["STANDARD", "SECURE_IMMEDIATE_SAFETY"],
+    ["MAJOR", ""],
+    ["LEGENDARY", ""],
+  ] as const) {
+    assertEqual(
+      getCompatibleRoleplayOutcomeContracts({ ...hideAuthoring, sceneImpact, scope })
+        .map((contract) => contract.id)
+        .join(","),
+      expectedIds,
+      `${sceneImpact} / ${scope} Rescue compatibility mismatch.`,
+    );
+  }
+}
+for (const scope of ["SELF", "LARGE_GROUP", "FACTION_ARMY"] as const) {
+  for (const sceneImpact of ["MINOR", "STANDARD", "MAJOR", "LEGENDARY"] as const) {
+    assertEqual(
+      getCompatibleRoleplayOutcomeContracts({ ...hideAuthoring, sceneImpact, scope }).length,
+      0,
+      `${sceneImpact} / ${scope} Rescue should expose no standard contract.`,
+    );
+  }
 }
 
 const iveGotYou = reconcileRoleplayAbilityAuthoring({
@@ -389,69 +499,204 @@ assert(
   "Secure Immediate Safety should not produce Custom approval warnings.",
 );
 
-for (const invalidAuthoring of [
-  { sceneImpact: "MINOR" as const },
-  { sceneImpact: "MAJOR" as const },
-  { sceneImpact: "LEGENDARY" as const },
-  { scope: "SELF" as const },
-  { scope: "SMALL_GROUP" as const },
-  { scope: "LARGE_GROUP" as const },
-  { scope: "FACTION_ARMY" as const },
-  { methodId: "INTERRUPT" as const },
-  { intention: "PERSUASION" as const },
-]) {
-  assert(
-    !getCompatibleRoleplayOutcomeContracts({
-      ...iveGotYou,
-      ...invalidAuthoring,
-    }).some((contract) => contract.id === "SECURE_IMMEDIATE_SAFETY"),
-    `Secure Immediate Safety should reject ${JSON.stringify(invalidAuthoring)}.`,
-  );
-}
-
-for (const [label, invalidAbility] of [
-  ["Minor Impact", { ...iveGotYou, sceneImpact: "MINOR" as const }],
-  ["Major Impact", { ...iveGotYou, sceneImpact: "MAJOR" as const }],
-  ["Legendary Impact", { ...iveGotYou, sceneImpact: "LEGENDARY" as const }],
-  ["Self Scope", { ...iveGotYou, scope: "SELF" as const }],
-  ["Small Group Scope", { ...iveGotYou, scope: "SMALL_GROUP" as const }],
-  ["Large Group Scope", { ...iveGotYou, scope: "LARGE_GROUP" as const }],
-  ["Faction / Army Scope", { ...iveGotYou, scope: "FACTION_ARMY" as const }],
-  ["Method", { ...iveGotYou, methodId: "INTERRUPT" as const }],
-  ["Intention", { ...iveGotYou, intention: "PERSUASION" as const }],
-] as const) {
-  const reconciled = reconcileRoleplayAbilityAuthoring({ ...invalidAbility, counter: true });
-  assertEqual(
-    reconciled.outcomeContractId,
-    ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
-    `${label} should clear Secure Immediate Safety.`,
-  );
-  assertEqual(reconciled.counter, false, `${label} should clear Counter.`);
-}
-
-const editedImmediateSafety = reconcileRoleplayAbilityAuthoring({
-  ...iveGotYou,
-  name: "Safe, For Now",
-  narrativeTheme: "You spot the safe opening and pull the target clear before it closes.",
-  diceCount: 5,
-  restrictionType: "CIRCUMSTANCE",
-  restrictionBand: "MODERATE",
-  restrictionTag: "while a coherent route remains",
-  restrictionText: "Only while you can directly reach the endangered target.",
+const downStayQuiet = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(25),
+  name: "Down, Stay Quiet",
+  narrativeTheme:
+    "You sweep the frightened civilians into one concealed pocket of the ruins and draw the danger's attention past them.",
+  intention: "INTERVENTION",
+  methodId: "RESCUE",
+  sceneImpact: "MINOR",
+  scope: "SMALL_GROUP",
+  diceCount: 3,
+  outcomeContractId: "HIDE_FROM_IMMEDIATE_DANGER",
+  counter: true,
 });
+assertEqual(getRoleplayAbilityMethodName(downStayQuiet), "Rescue", "Small Group Hide Method mismatch.");
 assertEqual(
-  editedImmediateSafety.outcomeContractId,
-  "SECURE_IMMEDIATE_SAFETY",
-  "Non-invalidating edits should retain Secure Immediate Safety.",
+  getCompatibleRoleplayOutcomeContracts(downStayQuiet).map((contract) => contract.id).join(","),
+  "HIDE_FROM_IMMEDIATE_DANGER",
+  "Minor Small Group Rescue should expose only Hide from Immediate Danger.",
+);
+assertEqual(getRoleplayAbilityOutcomeLane(downStayQuiet), "HELP", "Small Group Hide lane mismatch.");
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(downStayQuiet),
+  hideImmediateDangerSmallGroupOutcome,
+  "Small Group Hide prototype outcome mismatch.",
 );
 assertEqual(
-  renderRoleplayAbilityDescriptor(editedImmediateSafety),
-  secureImmediateSafetyDescriptor.replace("roll 3 dice", "roll 5 dice"),
-  "Secure Immediate Safety Dice Count should only change the roll count.",
+  renderRoleplayAbilityDescriptor(downStayQuiet),
+  hideImmediateDangerSmallGroupDescriptor,
+  "Small Group Hide descriptor mismatch.",
+);
+assertEqual(downStayQuiet.counter, false, "Small Group Hide should force Counter off.");
+assert(
+  !getRoleplayAbilityWarnings(downStayQuiet).some(
+    (warning) => warning.includes("Custom Method") || warning.includes("Custom Outcome"),
+  ),
+  "Small Group Hide should not produce Custom warnings.",
 );
 
-for (const runtimePerilField of [
+const everyoneThrough = reconcileRoleplayAbilityAuthoring({
+  ...createDefaultRoleplayAbility(26),
+  name: "Everyone Through",
+  narrativeTheme:
+    "You identify one coherent route through the collapsing district and coordinate the entire group through it before the peril closes.",
+  intention: "INTERVENTION",
+  methodId: "RESCUE",
+  sceneImpact: "STANDARD",
+  scope: "SMALL_GROUP",
+  diceCount: 3,
+  outcomeContractId: "SECURE_IMMEDIATE_SAFETY",
+  counter: true,
+});
+assertEqual(getRoleplayAbilityMethodName(everyoneThrough), "Rescue", "Small Group Safety Method mismatch.");
+assertEqual(
+  getCompatibleRoleplayOutcomeContracts(everyoneThrough)
+    .map((contract) => contract.id)
+    .join(","),
+  "SECURE_IMMEDIATE_SAFETY",
+  "Standard Small Group Rescue should expose only Secure Immediate Safety.",
+);
+assertEqual(getRoleplayAbilityOutcomeLane(everyoneThrough), "HELP", "Small Group Safety lane mismatch.");
+assertEqual(
+  getRoleplayAbilitySuccessOutcome(everyoneThrough),
+  secureImmediateSafetySmallGroupOutcome,
+  "Small Group Safety prototype outcome mismatch.",
+);
+assertEqual(
+  renderRoleplayAbilityDescriptor(everyoneThrough),
+  secureImmediateSafetySmallGroupDescriptor,
+  "Small Group Safety descriptor mismatch.",
+);
+assertEqual(everyoneThrough.counter, false, "Small Group Safety should force Counter off.");
+assert(
+  !getRoleplayAbilityWarnings(everyoneThrough).some(
+    (warning) => warning.includes("Custom Method") || warning.includes("Custom Outcome"),
+  ),
+  "Small Group Safety should not produce Custom warnings.",
+);
+
+for (const [family, oneTarget, smallGroup, oneOutcome, groupOutcome, oneDescriptor, groupDescriptor] of [
+  [
+    "HIDE_FROM_IMMEDIATE_DANGER",
+    reconcileRoleplayAbilityAuthoring({ ...downStayQuiet, scope: "ONE_TARGET" }),
+    downStayQuiet,
+    hideImmediateDangerOutcome,
+    hideImmediateDangerSmallGroupOutcome,
+    hideImmediateDangerDescriptor,
+    hideImmediateDangerSmallGroupDescriptor,
+  ],
+  [
+    "SECURE_IMMEDIATE_SAFETY",
+    iveGotYou,
+    everyoneThrough,
+    secureImmediateSafetyOutcome,
+    secureImmediateSafetySmallGroupOutcome,
+    secureImmediateSafetyDescriptor,
+    secureImmediateSafetySmallGroupDescriptor,
+  ],
+] as const) {
+  const switchedToGroup = reconcileRoleplayAbilityAuthoring({
+    ...oneTarget,
+    scope: "SMALL_GROUP",
+    counter: true,
+  });
+  const switchedBack = reconcileRoleplayAbilityAuthoring({
+    ...switchedToGroup,
+    scope: "ONE_TARGET",
+    counter: true,
+  });
+  for (const [label, ability, outcome, descriptor] of [
+    ["One Target", oneTarget, oneOutcome, oneDescriptor],
+    ["Small Group", switchedToGroup, groupOutcome, groupDescriptor],
+    ["One Target round-trip", switchedBack, oneOutcome, oneDescriptor],
+  ] as const) {
+    assertEqual(ability.outcomeContractId, family, `${label} should retain ${family}.`);
+    assertEqual(getRoleplayAbilitySuccessOutcome(ability), outcome, `${label} outcome mismatch.`);
+    assertEqual(renderRoleplayAbilityDescriptor(ability), descriptor, `${label} descriptor mismatch.`);
+    assertEqual(ability.counter, false, `${label} should force Counter off.`);
+  }
+  assertEqual(smallGroup.outcomeContractId, family, `Initial Small Group should retain ${family}.`);
+}
+
+for (const [family, ability, invalidChanges] of [
+  [
+    "HIDE_FROM_IMMEDIATE_DANGER",
+    downStayQuiet,
+    [
+      { sceneImpact: "STANDARD" as const },
+      { sceneImpact: "MAJOR" as const },
+      { sceneImpact: "LEGENDARY" as const },
+      { scope: "SELF" as const },
+      { scope: "LARGE_GROUP" as const },
+      { scope: "FACTION_ARMY" as const },
+      { methodId: "INTERRUPT" as const },
+      { intention: "PERSUASION" as const },
+    ],
+  ],
+  [
+    "SECURE_IMMEDIATE_SAFETY",
+    everyoneThrough,
+    [
+      { sceneImpact: "MINOR" as const },
+      { sceneImpact: "MAJOR" as const },
+      { sceneImpact: "LEGENDARY" as const },
+      { scope: "SELF" as const },
+      { scope: "LARGE_GROUP" as const },
+      { scope: "FACTION_ARMY" as const },
+      { methodId: "INTERRUPT" as const },
+      { intention: "PERSUASION" as const },
+    ],
+  ],
+] as const) {
+  for (const invalidChange of invalidChanges) {
+    assert(
+      !getCompatibleRoleplayOutcomeContracts({ ...ability, ...invalidChange }).some(
+        (contract) => contract.id === family,
+      ),
+      `${family} should reject ${JSON.stringify(invalidChange)}.`,
+    );
+    const reconciled = reconcileRoleplayAbilityAuthoring({
+      ...ability,
+      ...invalidChange,
+      counter: true,
+    });
+    assertEqual(
+      reconciled.outcomeContractId,
+      ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED,
+      `${family} should clear for ${JSON.stringify(invalidChange)}.`,
+    );
+    assertEqual(reconciled.counter, false, `${family} invalidation should clear Counter.`);
+  }
+}
+
+for (const [family, ability, expectedDescriptor] of [
+  ["HIDE_FROM_IMMEDIATE_DANGER", downStayQuiet, hideImmediateDangerSmallGroupDescriptor],
+  ["SECURE_IMMEDIATE_SAFETY", everyoneThrough, secureImmediateSafetySmallGroupDescriptor],
+] as const) {
+  const edited = reconcileRoleplayAbilityAuthoring({
+    ...ability,
+    name: `${ability.name} Revised`,
+    narrativeTheme: `${ability.narrativeTheme} The whole group remains reachable.`,
+    diceCount: 5,
+    restrictionType: "CIRCUMSTANCE",
+    restrictionBand: "MODERATE",
+    restrictionTag: "while one coherent route or concealment remains",
+    restrictionText: "Only while every accepted member shares the immediate situation.",
+  });
+  assertEqual(edited.outcomeContractId, family, `Non-authoring edits should retain ${family}.`);
+  assertEqual(
+    renderRoleplayAbilityDescriptor(edited),
+    expectedDescriptor.replace("roll 3 dice", "roll 5 dice"),
+    `${family} Dice Count should only change the roll count.`,
+  );
+}
+
+for (const runtimeRescueField of [
+  "declaredDanger",
   "declaredPeril",
+  "immediateDanger",
   "immediatePeril",
   "rescuePeril",
   "selectedPeril",
@@ -459,46 +704,58 @@ for (const runtimePerilField of [
   "safetyTarget",
   "safePosition",
   "extractionPoint",
+  "groupMembers",
+  "selectedMembers",
+  "rescuedGroup",
+  "hiddenGroup",
+  "rescueTargetIds",
+  "groupRoute",
+  "groupShelter",
+  "memberSafety",
 ]) {
   assert(
-    !Object.hasOwn(iveGotYou, runtimePerilField),
-    `${runtimePerilField} must remain runtime context rather than stored Ability state.`,
+    !Object.hasOwn(downStayQuiet, runtimeRescueField) &&
+      !Object.hasOwn(everyoneThrough, runtimeRescueField),
+    `${runtimeRescueField} must remain runtime context rather than stored Ability state.`,
   );
 }
 
-const customRescueOutcomeText =
-  "The target and every nearby ally are carried to a destination chosen by the player";
-const customRescueOutcome = normalizeRoleplayAbility(
-  {
-    name: "Everyone Out",
-    narrativeTheme: "You direct a broad evacuation through the surrounding danger.",
-    intention: "INTERVENTION",
-    methodId: "RESCUE",
-    sceneImpact: "STANDARD",
-    scope: "ONE_TARGET",
-    diceCount: 3,
-    outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
-    customOutcomeLane: "HELP",
-    customOutcomeRequest: customRescueOutcomeText,
-  },
-  21,
-);
-assertEqual(
-  customRescueOutcome.outcomeContractId,
-  ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
-  "Explicit Rescue Custom Outcome must remain Custom Review.",
-);
-assertEqual(
-  renderRoleplayAbilityDescriptor(customRescueOutcome),
-  `Choose one target and roll 3 dice. On success, ${customRescueOutcomeText}.`,
-  "Rescue Custom Outcome descriptor regression.",
-);
-assert(
-  getRoleplayAbilityWarnings(customRescueOutcome).some((warning) =>
-    warning.includes("Custom Outcome requires Game Director approval"),
-  ),
-  "Rescue Custom Outcome approval warning should remain.",
-);
+for (const [sceneImpact, customOutcomeRequest] of [
+  ["MINOR", "The selected group becomes hidden from every danger in the scene"],
+  ["STANDARD", "The selected group is carried to separate destinations chosen by the player"],
+] as const) {
+  const customRescueOutcome = normalizeRoleplayAbility(
+    {
+      name: "Everyone Out",
+      narrativeTheme: "You direct a broad evacuation through the surrounding danger.",
+      intention: "INTERVENTION",
+      methodId: "RESCUE",
+      sceneImpact,
+      scope: "SMALL_GROUP",
+      diceCount: 3,
+      outcomeContractId: ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+      customOutcomeLane: "HELP",
+      customOutcomeRequest,
+    },
+    27,
+  );
+  assertEqual(
+    customRescueOutcome.outcomeContractId,
+    ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW,
+    `Explicit ${sceneImpact} / Small Group Rescue Custom Outcome must remain Custom Review.`,
+  );
+  assertEqual(
+    renderRoleplayAbilityDescriptor(customRescueOutcome),
+    `Choose a small group of targets and roll 3 dice. On success, ${customOutcomeRequest}.`,
+    `${sceneImpact} / Small Group Rescue Custom Outcome descriptor regression.`,
+  );
+  assert(
+    getRoleplayAbilityWarnings(customRescueOutcome).some((warning) =>
+      warning.includes("Custom Outcome requires Game Director approval"),
+    ),
+    `${sceneImpact} / Small Group Rescue Custom Outcome warning should remain.`,
+  );
+}
 
 const denyAuthoring = {
   intention: "INTERVENTION" as const,
@@ -714,8 +971,8 @@ assertEqual(
 assertEqual(ROLEPLAY_OUTCOME_CONTRACTS.length, 11, "The registry should contain eleven contracts.");
 assertEqual(
   ROLEPLAY_OUTCOME_CONTRACTS.reduce((total, contract) => total + contract.variants.length, 0),
-  41,
-  "The registry should contain forty-one exact variants.",
+  43,
+  "The registry should contain forty-three exact variants.",
 );
 assertEqual(
   getRoleplayMethodDefinition("EXTRACT"),
