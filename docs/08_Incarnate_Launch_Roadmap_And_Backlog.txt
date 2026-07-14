@@ -322,6 +322,7 @@ The standard Method registry initially contains exactly:
 - Appeal (APPEAL), owned by Persuasion
 - Rally (RALLY), owned by Persuasion
 - Misdirect (MISDIRECT), owned by Deception
+- Distract (DISTRACT), owned by Deception
 - Rescue (RESCUE), owned by Intervention
 - Interrupt (INTERRUPT), owned by Intervention
 - Challenge (CHALLENGE), owned by Intimidation
@@ -346,6 +347,10 @@ through direct falsehood, omission, implication, distraction, selective truth,
 staged cues, or deceptive framing. It may use words, behaviour, presentation,
 existing evidence, or omission; classification follows the conclusion
 deliberately created rather than whether every literal sentence is false.
+Distract redirects one target's immediate attention from one bounded subject or
+development through a plausible competing focus such as noise, spectacle,
+movement, urgency, bait, or performance. It requires no false belief and creates
+one brief opening rather than making an action fail.
 Rescue protects or secures a target from immediate danger through warning,
 guidance, shelter, distraction, interposition, or plausible routes to safety.
 Interrupt intervenes at the moment of a meaningful impending act to stop,
@@ -392,11 +397,12 @@ Persuasion / Appeal / One Target uses SECURE_WILLING_COOPERATION across all four
 approved Impact tiers. Persuasion / Rally / Small Group uses
 ESTABLISH_SHARED_RESOLVE across all four approved Impact tiers. Deception /
 Misdirect / One Target uses
-ESTABLISH_FALSE_BELIEF across all four approved Impact tiers. All five
+ESTABLISH_FALSE_BELIEF across all four approved Impact tiers. Deception /
+Distract / Minor / One Target uses DIVERT_IMMEDIATE_ATTENTION. All five
 Intentions now have at least one approved standard Method.
 Custom Outcome review remains available for other requested results.
-The registry contains exactly eight Methods, ten standard Outcome Contract
-families, and thirty-one exact variants. Spot Weakness,
+The registry contains exactly nine Methods, eleven standard Outcome Contract
+families, and thirty-two exact variants. Spot Weakness,
 Investigate, Search, Analyse, and synonymous desired results remain Custom
 Method review rather than new Methods because Discern Truth already defines the
 perceptive approach.
@@ -1191,6 +1197,62 @@ or let Difficulty/Legendary Impact legalise an ineligible premise. Declared
 Premise is runtime terminology only; no premise field is stored or exposed in
 the Builder. No numeric costs, cooldowns, privilege values, or restriction
 discounts are locked.
+
+
+Approved Roleplay Outcome Contract: Divert Immediate Attention
+
+DIVERT_IMMEDIATE_ATTENTION / Divert Immediate Attention is the accepted v0
+working name, Hinder, Deception / Distract / Minor / One Target, never Counter
+eligible, and exactly one variant/key:
+
+- Minor / DIVERT_IMMEDIATE_ATTENTION: "the target's active attention is diverted
+  for the current meaningful exchange, creating a brief opening for one declared
+  small immediate action or development to proceed without that target's
+  deliberate observation or interference"
+
+Distract means: "Divert a target's immediate attention away from one bounded
+subject or development by creating a plausible competing focus through
+spectacle, interruption, bait, urgency, noise, movement, performance, or another
+attention-capturing act." Illustrative approaches include commotion,
+conversation/performance, real competing events, objects/movement/environment,
+curiosity/urgency/pride/habit, conspicuousness, immediate concerns, and
+redirected senses/scrutiny.
+
+Misdirect establishes false interpretation; Distract redirects attention without
+requiring one. Interrupt fails an impending action; Distract does not. Challenge
+redirects hostility/rivalry, and Rescue owns safety. Distract cannot dominate,
+erase senses/memory, fail/cancel actions, dictate alternatives/movement, create
+hostility/cooperation/hidden state, grant actions/movement, guarantee the enabled
+action, create quantified output, affect outsiders, or bypass plausibility.
+
+Standard, Major, Legendary, and group variants are intentionally absent. Higher
+Impact cannot create scene-long ignorance, total awareness loss, multiple
+openings, blindness, group distraction, or concealment/immunity. A different
+privilege requires separate design.
+
+Before Difficulty, the player states the target, one coherent small immediate
+Declared Opening, and how Distract/Theme captures attention. It uses normal
+agency, action opportunity/costs/rules; concerns something the target could
+observe or interfere with; fits Minor / One Target; and is recognisable when
+used. Multiple actions, whole plans, party-wide concealment, action loss, and
+direct formal attacks without normal response are invalid.
+
+Success establishes deliberate inattention to that opening without a second
+diversion roll. "Proceed" does not mean "succeed": normal rolls, other observers,
+passive senses, locks, barriers, hazards, defences, tools, access, capability,
+and timing remain. No additional action is granted. The target is not blinded,
+unconscious, mindless, moved, or stripped of awareness; the accepted opening
+cannot be replaced and ends when used or the exchange ends.
+
+Establish False Belief remains Misdirect. Deny remains Interrupt / Major /
+Counter-eligible. Divert never fails an action and can act only before formal
+hostile declaration in a Roleplay Window, not after the Response Window begins.
+Hide/Secure affect the protected subject; Divert affects one observer. Draw
+Hostile Attention redirects hostility and may create rivalry; Divert does not.
+
+Declared Opening and attention context are runtime only. No opening/action/
+focus/subject field, Recipient Type, measured duration, numeric cost/cooldown,
+quantified output, or combat-runtime behavior is added.
 
 
 Approved Roleplay Outcome Contract Family: Secure Willing Cooperation

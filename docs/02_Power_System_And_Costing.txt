@@ -1094,7 +1094,7 @@ Free-text Success Outcome is not part of ordinary standard-contract authoring.
 Method Registry
 
 The standard Method registry contains APPEAL and RALLY (Persuasion), MISDIRECT
-(Deception), RESCUE and INTERRUPT (Intervention), CHALLENGE and OVERAWE
+and DISTRACT (Deception), RESCUE and INTERRUPT (Intervention), CHALLENGE and OVERAWE
 (Intimidation), and
 DISCERN_TRUTH (Perception). All five Intentions have an approved standard
 Method. Each definition owns a concise definition, illustrative legal
@@ -1126,6 +1126,19 @@ rewrite memory, invent perception/capability/evidence/credentials/authority,
 overcome conclusive knowledge, compel action/emotion, deceive unselected targets,
 bundle unlimited claims, guarantee beneficial inference, or make an ineligible
 premise legal through Difficulty or Impact.
+
+DISTRACT means: "Divert a target's immediate attention away from one bounded
+subject or development by creating a plausible competing focus through
+spectacle, interruption, bait, urgency, noise, movement, performance, or another
+attention-capturing act." It may use commotion, conversation/performance, a real
+competing event, object/movement/environment, curiosity/urgency/pride/habit,
+conspicuousness, an immediate concern, or redirected senses/scrutiny. Misdirect
+creates a false conclusion; Distract redirects attention without requiring one.
+Interrupt fails an act, Challenge redirects hostility, and Rescue owns safety.
+Distract cannot dominate, erase senses/memory, fail/cancel actions, dictate
+alternatives/movement/resources, create hostility/cooperation/hidden state,
+grant actions/movement, guarantee the enabled act, create quantified output,
+affect outsiders, or let Difficulty legalise incoherence.
 
 OVERAWE means: "Intimidate through a credible threat, display of power,
 authority, reputation, certainty, omen, or consequence that makes continued
@@ -1161,11 +1174,12 @@ Current standard compatibility is Rescue with HIDE_FROM_IMMEDIATE_DANGER at
 Minor and SECURE_IMMEDIATE_SAFETY at Standard,
 Interrupt with DENY_IMMINENT_HOSTILE_ACT, and Challenge with
 DRAW_HOSTILE_ATTENTION, while Overawe uses BREAK_SHARED_RESOLVE. Appeal uses SECURE_WILLING_COOPERATION, Rally uses
-ESTABLISH_SHARED_RESOLVE, Misdirect uses ESTABLISH_FALSE_BELIEF, and Discern
+ESTABLISH_SHARED_RESOLVE, Misdirect uses ESTABLISH_FALSE_BELIEF, Distract uses
+DIVERT_IMMEDIATE_ATTENTION at Minor only, and Discern
 Truth offers two compatible families in registry order: UNCOVER_CONCEALED_TRUTH
 and REVEAL_EXPLOITABLE_WEAKNESS. Rally and Overawe are Small Group only; the
-others are One Target. The registry has eight standard Methods, ten standard
-Outcome Contract families, and thirty-one exact standard variants. Each family has all four
+others are One Target. The registry has nine standard Methods, eleven standard
+Outcome Contract families, and thirty-two exact standard variants. Each family has all four
 approved Impact tiers where specified. Custom
 Outcome review remains
 available for results outside the registry and existing Custom Outcome records
@@ -1451,6 +1465,48 @@ Declared Premise is runtime terminology only and no premise field is stored or
 costed. No numeric cost, cooldown, privilege value, or restriction discount is
 locked.
 
+DIVERT_IMMEDIATE_ATTENTION is the Hinder / Deception / Distract / Minor / One
+Target contract named Divert Immediate Attention, an accepted v0 working name.
+It is Counter-ineligible and has one exact variant/key:
+
+- Minor / DIVERT_IMMEDIATE_ATTENTION: "the target's active attention is diverted
+  for the current meaningful exchange, creating a brief opening for one declared
+  small immediate action or development to proceed without that target's
+  deliberate observation or interference"
+
+Standard, Major, Legendary, and group cells are intentionally empty. Higher
+Impact does not create scene-long ignoring, loss of awareness, multiple openings,
+blindness, group distraction, or hidden/immunity state. A stronger privilege
+requires separate design.
+
+Before Difficulty the player identifies the target, one small immediate
+Declared Opening, and how Distract/Theme captures attention. The opening uses
+normal agency, opportunity, costs, and rules; concerns something the target could
+observe or interfere with; fits Minor / One Target; and is recognisable when
+used. Whole-party concealment, multiple actions, entire plans, objective/action
+loss, and direct formal attacks without normal response are invalid. The GD
+rejects or narrows invalid declarations before Difficulty.
+
+Success binds the target's deliberate inattention to the accepted opening
+without a second diversion roll. "Proceed" does not mean "succeed": required
+rolls, other observers, passive senses, barriers, locks, hazards, defences,
+tools, access, capability, and action timing remain. The contract grants no
+additional action, movement, bonus, penalty, hidden state, safety, or belief.
+The accepted opening cannot be exchanged after success and ends when used or the
+meaningful exchange ends.
+
+Misdirect/Establish False Belief creates a false premise; real competing focus
+uses Distract. Interrupt/Deny fails one action and permits Counter; Divert never
+fails an action and is Counter-ineligible. It may operate in a Roleplay Window
+before formal hostile declaration, but cannot be introduced after the Response
+Window begins or replace combat responses/Interrupt. Hide and Secure affect the
+protected subject; Divert affects one observer. Draw Hostile Attention redirects
+hostility/rivalry; Divert creates neither.
+
+Declared Opening and attention context are runtime only. No opening/attention/
+subject storage, numeric cost/cooldown, quantified output, or combat-runtime
+effect is added.
+
 Outcome Contract Registry
 
 The registry catalogues materially distinct rule privileges, not every
@@ -1668,7 +1724,7 @@ authoring receives no authoritative numeric result. Large Group, Faction / Army,
 all numeric values, cooldown rules, privilege adjustments, Scope calibration,
 and restriction discounts remain open.
 
-The complete resolver contract, live thirty-one-variant inventory, authority
+The complete resolver contract, live thirty-two-variant inventory, authority
 rules, invariants, evidence matrix, and numeric unlock gates are in
 [Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 

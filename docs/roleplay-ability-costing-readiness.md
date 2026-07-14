@@ -20,9 +20,9 @@ workflow.
 The semantic/discovery phase is mature enough for costing architecture. The
 live registry currently contains:
 
-- eight standard Methods;
-- ten standard Outcome Contract families;
-- thirty-one exact standard variants;
+- nine standard Methods;
+- eleven standard Outcome Contract families;
+- thirty-two exact standard variants;
 - One Target and Small Group standard coverage;
 - no approved Large Group or Faction / Army standard contract; and
 - one `privilegeCostKey` owned by every exact standard variant.
@@ -271,6 +271,7 @@ unlock gates.
 | Deception | Misdirect | `ESTABLISH_FALSE_BELIEF` | Standard | One Target | Unavailable | `ESTABLISH_FALSE_BELIEF_STANDARD` | Ready for calibration |
 | Deception | Misdirect | `ESTABLISH_FALSE_BELIEF` | Major | One Target | Unavailable | `ESTABLISH_FALSE_BELIEF_MAJOR` | Ready for calibration |
 | Deception | Misdirect | `ESTABLISH_FALSE_BELIEF` | Legendary | One Target | Unavailable | `ESTABLISH_FALSE_BELIEF_LEGENDARY` | Ready for calibration |
+| Deception | Distract | `DIVERT_IMMEDIATE_ATTENTION` | Minor | One Target | Unavailable | `DIVERT_IMMEDIATE_ATTENTION` | Ready for calibration |
 
 ## Current Automatic-Costing Boundary
 
@@ -444,7 +445,7 @@ calibration must isolate breadth from contract semantics.
 
 Future evidence must cover:
 
-- all thirty-one current standard variants;
+- all thirty-two current standard variants;
 - every supported Dice Count;
 - Counter off and every legal Counter-on case;
 - no Additional Restriction as baseline;

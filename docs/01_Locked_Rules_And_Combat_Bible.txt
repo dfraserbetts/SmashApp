@@ -1582,6 +1582,48 @@ MISDIRECT
     premise.
 - Current standard contract: ESTABLISH_FALSE_BELIEF.
 
+DISTRACT
+
+- Intention: Deception
+- Definition: "Divert a target's immediate attention away from one bounded
+  subject or development by creating a plausible competing focus through
+  spectacle, interruption, bait, urgency, noise, movement, performance, or
+  another attention-capturing act."
+- Legal approaches: create a sudden noise, spectacle, or commotion; engage the
+  target in absorbing conversation or performance; draw attention toward a real
+  competing event; use an object, movement, or environmental feature as a
+  temporary focus; exploit curiosity, urgency, pride, habit, or professional
+  attention; become conspicuous so another development is overlooked; occupy
+  the target with a plausible immediate concern; redirect sight, hearing,
+  scrutiny, or active monitoring. These are illustrative, not exhaustive.
+- Distinctions: Misdirect establishes a false or materially misleading
+  conclusion and uses distraction only when producing false interpretation.
+  Distract redirects active attention without requiring false belief and creates
+  one brief opening. Interrupt stops/spoils an impending act and may use a timely
+  distraction as expression; Distract never makes an action fail or substitutes
+  for Interrupt. Challenge redirects hostility/rivalry, not neutral attention.
+  Rescue may use protective distraction but owns safety rather than an opening.
+  Classification follows purchased result and primary approach, not noise alone.
+- Exact exclusions:
+  - Does not establish a false or materially misleading premise; that uses Misdirect.
+  - Does not use supernatural domination or control.
+  - Does not erase memory, perception, senses, awareness, or capability.
+  - Does not make the target's current or next action fail.
+  - Does not cancel or alter a formally declared hostile action.
+  - Does not force the target to perform one exact alternative action.
+  - Does not force movement, positioning, or resource use.
+  - Does not create hostility, loyalty, cooperation, surrender, or obedience.
+  - Does not make another character hidden or invisible.
+  - Does not grant another action, Response, or measured movement.
+  - Does not guarantee that the action enabled by the distraction succeeds.
+  - Does not create bonuses, penalties, Fear, Control stacks, conditions,
+    fields, attachments, or another quantified Power output.
+  - Does not automatically affect anyone outside the selected Scope.
+  - Does not bypass target access, attention capability, Narrative Theme,
+    Outcome Contract, Scene Impact, Scope, or fictional plausibility.
+  - Does not make high Difficulty legalise an impossible or incoherent distraction.
+- Current standard contract: DIVERT_IMMEDIATE_ATTENTION.
+
 RESCUE
 
 - Intention: Intervention
@@ -2322,6 +2364,128 @@ Impact, and current fiction. Intrinsic exclusions:
 
 No numeric costs, cooldowns, privilege values, or restriction discounts are
 locked here.
+
+
+Divert Immediate Attention Outcome Contract
+
+LOCKED CONTRACT:
+
+- ID: DIVERT_IMMEDIATE_ATTENTION
+- Working v0 name: Divert Immediate Attention; naming-pass eligible.
+- Outcome Lane: Hinder
+- Intention / Method: Deception / Distract
+- Scene Impact: Minor only
+- Scope: One Target only
+- Counter eligible: No
+- Exact Success Outcome: "the target's active attention is diverted for the
+  current meaningful exchange, creating a brief opening for one declared small
+  immediate action or development to proceed without that target's deliberate
+  observation or interference"
+- Privilege-cost key: DIVERT_IMMEDIATE_ATTENTION
+- Exactly one variant; no Standard, Major, Legendary, or group variants.
+
+Minor-only doctrine: the purchased result creates one brief opening. Higher
+Impact does not extend inattention for the scene, remove all awareness, cover
+multiple actions, prevent later reaction, simulate blindness, affect a group,
+or make another subject hidden or scrutiny-immune. Longer, broader, or stronger
+attention control requires a materially distinct future contract. Empty higher
+Impact cells are intentional.
+
+Declared Opening
+
+Before Attribute or Difficulty, the player identifies the target whose
+attention is diverted, one small immediate action or development using the
+opening, and how Distract/Theme plausibly captures attention. The opening must be
+one coherent small immediate development within the current meaningful exchange;
+within normal agency/capability and normal action rules; something the target
+could deliberately observe, scrutinise, monitor, question, prevent, or interfere
+with; plausibly freed by redirecting that target; Minor / One Target; and
+specific enough to recognise when used.
+
+Valid openings include one ally slipping through one doorway, one brief message,
+one document examination, one small object exchange, one witness leaving
+scrutiny, one person reaching an accessible lever, one character entering nearby
+cover, or one unmonitored brief conversation. The entire party unseen, every
+party action, a whole heist, scene-long ignoring, objective abandonment, action
+loss, every guard overlooking everyone, bundled actions, group concealment,
+direct attack without normal response, or failure of an impending action are
+invalid. The GD rejects or narrows overbroad, bundled, impossible, inaccessible,
+or incoherent openings before Difficulty; Difficulty cannot legalise them.
+
+On success attention is genuinely diverted and the accepted opening may proceed
+without that target deliberately observing or interfering. No second roll is
+required to establish diversion, and the GD cannot continue arbitrary scrutiny
+or nullify success for plot convenience. The acting character still acts only
+when permitted, pays normal costs, makes normally required rolls, faces other
+observers/obstacles/defences/hazards, and may fail for unrelated reasons.
+"Proceed" does not mean "succeed" and no additional action is granted.
+
+The target is not unconscious, blinded, mindless, or stripped of passive senses.
+During the accepted opening it does not deliberately watch, scrutinise, track,
+question, monitor, block, or interfere with that development. Physical facts,
+locks, other observers, noise, tools, access, and capability remain. A guard in
+a sealed doorway does not vanish or move. The opening cannot primarily be a
+direct formal hostile action against the target; open confrontation or attack is
+rejected/revised before Difficulty. Subtle interaction may be eligible but uses
+normal rules. The accepted opening cannot be replaced by a materially different
+action. Attention returns normally when used or the exchange ends.
+
+Establish False Belief uses Misdirect and creates a false premise. Divert uses
+Distract and creates no belief. A false explanation that noise came from the east
+is Misdirect; a real eastern commotion that draws a guard's gaze is Distract.
+Deny Imminent Hostile Act uses Interrupt, is Major, fails one action, and permits
+Counter. Divert is Minor, never fails an action, and is Counter-ineligible. It
+may act in a Roleplay Window before formal hostile declaration but cannot be
+introduced once the normal Response Window begins or replace Block, Dodge,
+Resist, Cleanse, movement, Responses, or Interrupt.
+
+Hide makes its selected target hidden; Secure Immediate Safety secures its
+selected target from peril. Divert affects one observer and grants neither
+concealment nor safety from other observers/dangers. Draw Hostile Attention
+redirects hostility toward the user and may create rivalry; Divert redirects
+limited attention, creates no hostility/rivalry, and need not focus on the user.
+
+Illustrative examples include an argument while an ally slips through a side
+door; a demonstration while another examines one document; knocking over a
+display during one object exchange; occupying a sentry while a witness leaves;
+becoming conspicuous while someone reaches a control; a real commotion while one
+person enters nearby cover; or an urgent question while a message passes.
+
+Intrinsic exclusions:
+
+- Does not guarantee that the declared action or development succeeds.
+- Does not grant an additional action, Response, or measured movement.
+- Does not make the target's current or next action fail.
+- Does not cancel a formally declared or already resolved action.
+- Does not force the target to take one exact alternative action.
+- Does not remove passive senses, memory, perception, awareness, or capability.
+- Does not make another character hidden, invisible, or immune from detection.
+- Does not prevent other observers from noticing or interfering.
+- Does not remove physical barriers, locks, hazards, access requirements, or
+  other obstacles.
+- Does not grant bonuses, penalties, advantage, disadvantage, Fear, Control
+  stacks, conditions, fields, attachments, or another quantified output.
+- Does not establish a false premise; that uses Establish False Belief.
+- Does not permit more than one bounded Declared Opening.
+- Does not cover several unrelated actions or an entire plan.
+- Does not primarily enable a direct formal hostile action against the
+  distracted target without normal defence or response.
+- Does not force movement or alter the target's position.
+- Does not automatically affect anyone other than the selected target.
+- Does not convert One Target into Small Group, Large Group, or Faction / Army
+  through a broad Declared Opening.
+- Does not bypass Distract, Narrative Theme, target access, attention capability,
+  Minor Impact, One Target Scope, or fictional plausibility.
+- Does not allow high Difficulty to legalise an impossible distraction.
+- Does not permit the GD to continue deliberate observation or interference
+  during the accepted opening merely because success disrupts the planned scene.
+- Does not create an ongoing effect beyond the current meaningful exchange.
+
+Declared Opening and attention context are runtime only. No declaredOpening,
+openingAction, openingDevelopment, divertedFrom, attentionSubject,
+protectedSubject, competingFocus, distractionTarget, openingText, or equivalent
+saved field/Builder control is added. No numeric cost/cooldown, quantified
+penalty, combat-runtime effect, or saved declaration state is introduced.
 
 
 Secure Willing Cooperation Outcome Contract Family

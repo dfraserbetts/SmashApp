@@ -170,6 +170,8 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
     Target; Counter ineligible.
   - DENY_IMMINENT_HOSTILE_ACT: Hinder; Intervention / Interrupt / Major / One
     Target; Counter eligible.
+  - DIVERT_IMMEDIATE_ATTENTION: Hinder; Deception / Distract / Minor / One
+    Target; Counter ineligible.
 - Filter standard contracts by Intention, Method, Scene Impact, and Scope.
   Keep Custom Outcome - GD Review Required available for all combinations.
 - Custom Outcome stores a proposed lane and request, remains Pending GD
@@ -285,7 +287,7 @@ Outcome Contract's built-in limits and that repeating normal applicability earns
 no discount. Persisted restriction field names remain unchanged.
 
 The standard Method registry contains Appeal and Rally under Persuasion,
-Misdirect under Deception, Rescue and Interrupt under Intervention, Challenge
+Misdirect and Distract under Deception, Rescue and Interrupt under Intervention, Challenge
 and Overawe under Intimidation, and Discern Truth under Perception. All five Intentions have
 an approved standard Method. Rally unites a bounded group around one shared
 course through common purpose, courage, duty, identity, hope, urgency, or mutual
@@ -364,7 +366,7 @@ The registry-driven Builder exposes both options without a page fork, retains
 an existing selection while compatible, and never auto-selects or converts a
 Custom Outcome. It adds no Recipient Type, target/subject, investigation,
 Declared Aim/objective, weakness, or opportunity fields. The live inventory is
-eight Methods, ten standard families, and thirty-one variants. Numeric
+nine Methods, eleven standard families, and thirty-two variants. Numeric
 costing and cooldown implementation remain parked.
 
 Rescue exposes HIDE_FROM_IMMEDIATE_DANGER only at Minor / One Target and
@@ -482,6 +484,35 @@ Opposed Course, Recipient Type, stored course field, numeric cost/cooldown,
 quantified Fear, Control, per-member save, or combat-runtime mechanic. Method,
 Intention, or incompatible Scope edits clear the family; Impact and non-authoring
 edits retain it. Custom Outcomes remain Custom.
+
+Distract filters to DIVERT_IMMEDIATE_ATTENTION only for Deception / Minor / One
+Target. Divert Immediate Attention is Hinder, Counter-ineligible, the accepted
+v0 working name, and has one exact variant/key: "the target's active attention
+is diverted for the current meaningful exchange, creating a brief opening for
+one declared small immediate action or development to proceed without that
+target's deliberate observation or interference" / DIVERT_IMMEDIATE_ATTENTION.
+
+Standard, Major, Legendary, and group variants are intentionally absent. The
+runtime Declared Opening is one coherent small immediate action/development,
+uses normal agency/action rules, is something the target could observe or
+interfere with, and fits Minor / One Target. Success binds the attention result,
+but proceeding does not guarantee success: other observers, rolls, barriers,
+hazards, defences, access, and capability remain; no extra action is granted.
+Direct formal attacks, bundled plans, action denial, hidden state, safety, false
+belief, and broader Scope are not supplied.
+
+Misdirect keeps Establish False Belief and false interpretation; Distract uses a
+real or plausible competing focus without requiring false belief. Interrupt
+keeps Deny and action failure. Challenge redirects hostility; Rescue owns safety.
+Divert is Counter-ineligible and can only precede formal hostile declaration in
+a Roleplay Window. It cannot replace Interrupt or combat responses.
+
+The registry-driven Builder exposes Misdirect and Distract under Deception,
+Distract details, Minor / One Target, Hinder, and Counter unavailable without a
+page fork. It adds no Declared Opening, focus/subject/action selector, attention
+state, Recipient Type, measured duration, saved fields, numeric cost/cooldown,
+or runtime mechanic. Incompatible authoring clears selection/Counter;
+non-authoring edits retain it. Explicit Custom Outcomes remain Custom.
 
 Misdirect filters to ESTABLISH_FALSE_BELIEF for Deception / One Target at all
 four Impacts. Establish False Belief is the accepted working v0 name, remains

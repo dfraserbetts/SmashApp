@@ -255,7 +255,7 @@ law until the owning active doc is updated with an explicit decision.
   Game Director-narrated Scene Manifestation. Standard contracts derive Outcome
   Lane and Success Outcome; Custom Method and Custom Outcome requests require GD
   review and cannot be automatically costed. The standard Method registry
-  contains APPEAL, RALLY, MISDIRECT, RESCUE, INTERRUPT, CHALLENGE, OVERAWE, and
+  contains APPEAL, RALLY, MISDIRECT, DISTRACT, RESCUE, INTERRUPT, CHALLENGE, OVERAWE, and
   DISCERN_TRUTH. Universal Roleplay
   Window access, contract-gated
   paid Counter permission, timing law, Scope, Scene Impact, Attribute handling,
@@ -537,8 +537,8 @@ Scope define approved magnitude/persistence and breadth.
 "Method defines the approach. Theme personalises the approach. The Outcome
 Contract defines the result."
 
-The standard Method registry contains exactly eight Methods: APPEAL, RALLY,
-MISDIRECT, RESCUE, INTERRUPT, CHALLENGE, OVERAWE, and DISCERN_TRUTH. All five Intentions have at least one
+The standard Method registry contains exactly nine Methods: APPEAL, RALLY,
+MISDIRECT, DISTRACT, RESCUE, INTERRUPT, CHALLENGE, OVERAWE, and DISCERN_TRUTH. All five Intentions have at least one
 approved standard Method. Persuasion owns Appeal and Rally. Appeal maps to the
 locked Help / One Target family SECURE_WILLING_COOPERATION, while Rally maps to
 the locked Help / Small Group family ESTABLISH_SHARED_RESOLVE, both at all four
@@ -558,7 +558,7 @@ fact is true. Reveal Exploitable Weakness answers what actionable weakness,
 opening, route, pattern, dependency, or leverage point concerning the target
 can be used. The selected contract defines the purchased entitlement; the
 families are not merged or silently exchanged. The registry therefore contains
-ten standard Outcome Contract families and thirty-one exact standard
+eleven standard Outcome Contract families and thirty-two exact standard
 variants.
 
 No Spot Weakness, Investigate, Search, Analyse, or synonymous Method is added:
@@ -568,6 +568,40 @@ values may migrate into Methods, but Specific is no longer player-facing or
 normalized runtime state. General Custom Outcome review remains available for
 requests outside the standard registry and is never silently migrated merely
 because a later standard contract exists.
+
+DISTRACT / Distract is the second Deception Method. It diverts a target's
+immediate active attention from one bounded subject or development through a
+plausible competing focus such as spectacle, noise, movement, performance,
+urgency, bait, or commotion. Misdirect establishes a false/misleading conclusion;
+Distract requires no false belief. Interrupt fails an impending act; Distract
+does not fail or cancel actions. Challenge redirects hostility, while Rescue may
+use distraction only as manifestation of safety. Classification follows the
+purchased result and primary approach.
+
+DIVERT_IMMEDIATE_ATTENTION / Divert Immediate Attention is the accepted v0
+working name, Hinder, Deception / Distract / Minor / One Target, never Counter
+eligible, and exactly one variant/key:
+
+- MINOR / DIVERT_IMMEDIATE_ATTENTION: "the target's active attention is diverted
+  for the current meaningful exchange, creating a brief opening for one declared
+  small immediate action or development to proceed without that target's
+  deliberate observation or interference"
+
+Standard, Major, Legendary, and group variants are intentionally absent. The
+runtime Declared Opening identifies one coherent small immediate development,
+uses normal agency/action opportunity/rules, is something the target could
+otherwise observe or interfere with, and fits Minor / One Target. Success binds
+the attention diversion without a second roll, but "proceed" does not mean
+"succeed": required rolls, other observers, locks, obstacles, hazards,
+defences, access, and capability remain, and no additional action is granted.
+
+The opening cannot primarily be a direct formal hostile action against the
+target or bundle multiple actions. Distract creates no belief, hidden state,
+safety, action denial, hostility, rivalry, quantified penalty, or Counter. It
+may operate before formal hostile declaration in a Roleplay Window, but cannot
+be introduced once the Response Window begins. Declared Opening and attention
+context are runtime only; no opening/attention/subject field, numeric
+cost/cooldown, or combat-runtime effect is added.
 
 RESCUE remains the Intervention Method for both approved rescue results; no
 Extract, Catch, Pull Free, Shield With Body, Stabilise, Escort, Evacuate, or
