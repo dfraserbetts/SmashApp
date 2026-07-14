@@ -127,7 +127,7 @@ export const ROLEPLAY_METHODS = [
       "Does not overcome conclusive knowledge already possessed by the target.",
       "Does not create physical evidence, documents, disguises, credentials, or authority that do not exist.",
       "Does not compel a particular action or emotional response.",
-      "Does not automatically deceive anyone other than the selected target.",
+      "Does not automatically deceive anyone outside the selected Scope.",
       "Does not establish an unlimited collection of separate false claims.",
       "Does not guarantee that every inference drawn from the premise benefits the Ability user.",
       "Does not make high Difficulty or Legendary Impact legalise an ineligible premise.",
@@ -1136,6 +1136,54 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
         counterEligible: false,
         privilegeCostKey: "ESTABLISH_FALSE_BELIEF_LEGENDARY",
       },
+      {
+        authoring: {
+          intention: "DECEPTION",
+          methodId: "MISDIRECT",
+          sceneImpact: "MINOR",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "every accepted member of the selected group accepts one small and immediately plausible false premise as true for the current meaningful exchange and treats it as true when making relevant decisions",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_SMALL_GROUP_MINOR",
+      },
+      {
+        authoring: {
+          intention: "DECEPTION",
+          methodId: "MISDIRECT",
+          sceneImpact: "STANDARD",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "every accepted member of the selected group genuinely accepts one plausible false premise relevant to the current situation as true for the rest of the current scene and treats it as true when making relevant decisions unless meaningful contradictory evidence resolves that member's belief",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_SMALL_GROUP_STANDARD",
+      },
+      {
+        authoring: {
+          intention: "DECEPTION",
+          methodId: "MISDIRECT",
+          sceneImpact: "MAJOR",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "every accepted member of the selected group genuinely accepts one central false premise shaping the current situation as true for the rest of the current scene and continues to treat it as true when making relevant decisions unless decisive contradictory evidence, direct experience, or narrative resolution ends that member's belief",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_SMALL_GROUP_MAJOR",
+      },
+      {
+        authoring: {
+          intention: "DECEPTION",
+          methodId: "MISDIRECT",
+          sceneImpact: "LEGENDARY",
+          scope: "SMALL_GROUP",
+        },
+        successOutcome:
+          "every accepted member of the selected group genuinely accepts one defining false premise whose consequences extend beyond the current scene as true and treats it as true when making relevant decisions until it is decisively disproved or narratively resolved for that member",
+        counterEligible: false,
+        privilegeCostKey: "ESTABLISH_FALSE_BELIEF_SMALL_GROUP_LEGENDARY",
+      },
     ],
     examples: [
       "The noise came from outside",
@@ -1160,21 +1208,24 @@ export const ROLEPLAY_OUTCOME_CONTRACTS = [
     ],
     exclusions: [
       "Does not compel a specific action.",
-      "Does not control how the target responds to the premise.",
-      "Does not remove the target's independent priorities, values, or judgement.",
+      "Does not control how any target responds to the premise.",
+      "Does not remove any target's independent priorities, values, judgement, or agency.",
       "Does not rewrite memories.",
       "Does not establish more than one bounded premise.",
       "Does not establish unspecified future lies.",
       "Does not make an impossible or internally incoherent premise believable.",
-      "Does not override conclusive knowledge already possessed by the target.",
+      "Does not override conclusive knowledge already possessed by an accepted target.",
       "Does not automatically survive contradictory evidence sufficient for its Impact.",
       "Does not create supporting proof, evidence, credentials, disguises, authority, or documents.",
-      "Does not force third parties to share the belief.",
+      "Does not force unselected third parties to share the belief.",
       "Does not automatically propagate through testimony, reputation, command, or institutional authority.",
-      "Does not guarantee that the target's reaction benefits the Ability user.",
+      "Does not guarantee that any target's reaction benefits the Ability user.",
       "Does not manufacture love, loyalty, devotion, consent, or obedience.",
       "Does not permit arbitrary cancellation after a successful accepted declaration.",
       "Does not allow Difficulty or Legendary Impact to legalise an ineligible premise.",
+      "Does not convert One Target into Small Group.",
+      "Does not convert Small Group into Large Group or Faction / Army.",
+      "Does not permit majority interpretation, hidden exemptions, or per-member resistance.",
     ],
   },
   {
