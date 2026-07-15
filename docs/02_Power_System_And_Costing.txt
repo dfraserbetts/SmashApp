@@ -509,6 +509,163 @@ Costing should account for:
 - defensive pool depth and burst where relevant
 
 
+POWER RESTRICTIONS AND POWER BURDENS - LOCKED NON-NUMERIC ARCHITECTURE
+
+System Taxonomy
+
+A Restriction is one atomic, enforceable narrative eligibility condition that
+must already be true before an Ability can be used. It answers, "May this
+Ability be used in the current fiction?" Restrictions may apply to Powers and
+Roleplay Abilities.
+
+A Power Burden is one whole-Power cost or consequence attached to using a
+Power. It is exactly one of Activation Cost or Backlash. Activation Cost
+answers, "What must the actor pay before this Power can take effect?" Backlash
+answers, "What happens to the actor because this Power was used?" Power Burdens
+never apply to Roleplay Abilities in V1.
+
+Sacrifice is separate. Permanent deterioration, permanent Attribute loss,
+permanent maximum-Health loss, terminal Withering, guaranteed death, and
+similar irreversible sacrifice belong to the future Limit Break engine, not an
+ordinary Restriction, Activation Cost, or Backlash.
+
+V1 Authoring Limits
+
+A Power may have zero or one Restriction and zero or one Power Burden. Its one
+Burden may be Activation Cost or Backlash, never both. Legal combinations are:
+
+- neither Restriction nor Burden;
+- Restriction only;
+- Activation Cost only;
+- Backlash only;
+- Restriction plus Activation Cost; or
+- Restriction plus Backlash.
+
+A Roleplay Ability may have zero or one Restriction and no Burden. Restrictions
+and Burdens apply to the complete Ability or Power and are never packet-local.
+V1 permits no stacked Restrictions, several Activation Costs, several
+Backlashes, or Activation Cost plus Backlash on one Power.
+
+Restriction Validity And Practical Value
+
+A valid Restriction is atomic, clearly judgeable, true before activation,
+grounded in the current fiction, materially limiting, additional to intrinsic
+rules, and applicable to the whole Ability. It cannot be created by the Ability
+it governs or by that Ability's Cost, Backlash, or Effect Packets. It cannot
+rewrite output, enlarge targeting, Scope, duration, timing, or result, repeat an
+intrinsic rule, rely only on cosmetic prose, or be trivially declared into
+existence without meaningful cost or opportunity loss.
+
+Structural validity does not itself earn meaningful credit. Classification must
+measure practical lost legal availability: natural frequency, how often use is
+actually blocked, character or ally control, cheap enabling, reliable enabling
+by another owned Power, normal build state, campaign/encounter frequency, and
+ease of manufacture. Dramatic writing, claimed inconvenience, and a requested
+band are not economic evidence. "Bleeding" is not a defined standard Incarnate
+condition or standard Restriction option in this architecture pass.
+
+Cross-Ability enabling becomes legal only after the enabling Ability completes
+resolution and its state remains true. Reliable self-enabling may make approval
+stale or require a lower practical classification.
+
+Restriction Approval Lifecycle
+
+The conceptual lifecycle is Draft, Pending Game Director Approval, Approved,
+Rejected, and Approval Stale. Exact future enum names remain open.
+
+- Draft may be saved but grants no credit or active character-sheet authority.
+- Pending may preview its descriptor but grants no credit and is not finalized.
+- Approved binds Game Director-approved wording, classification, and economic
+  band; only that approved classification may later receive automatic credit.
+- Rejected grants no credit, requires revision/removal, and should retain a
+  reason.
+- Approval Stale removes credit authority after an economically relevant
+  change and requires reapproval.
+
+Requested and approved bands are distinct authorities. Player selection and
+free text cannot approve themselves. Approval must retain provenance, bind to a
+normalized Restriction fingerprint, and respect campaign and character context.
+A wording, Ability, classification, context, or reliable-enabler change can
+stale approval. Exact templates, registries, enums, fingerprint format,
+persistence, and automatic standard-versus-Custom approval remain open.
+
+Descriptor Separation
+
+The normal Power or Roleplay Ability descriptor explains mechanical operation.
+The separate Restriction Descriptor explains the narrative condition governing
+eligibility. Builder previews, character sheets, printable and Power/Roleplay
+references, and relevant runtime inspection must eventually show a separate
+Restriction line. Arbitrary Restriction prose must not be spliced into core
+target or packet grammar.
+
+Power Burden Authoring
+
+Activation Costs and Backlash are Power-level and Intention-agnostic; do not
+filter legal types by Power Intention merely for theme. The actor pays their own
+Activation Cost. Ally, enemy, target, summon, or unrelated-character payment is
+not an ordinary Activation Cost.
+
+Activation Cost resolves before the Response Window, roll, and output, so its
+post-cost state may impair or stop the current Power. Backlash is locked at
+commitment and ordinarily resolves after the complete initial execution/result
+bundle, independently of whether the Power succeeds or continues to exist.
+Removing or Cleansing a Power cannot cancel owed Backlash. Runtime order and
+absolute-application law live in docs/01_Locked_Rules_And_Combat_Bible.txt.
+
+Non-Numeric Economic Decomposition
+
+Potency is packet-local and is not an Activation Cost magnitude anchor. The
+future authoring flow selects an approved Burden type and severity, derives the
+payable resource amount or structured state severity from stable character
+capacity, and derives economic credit independently from unrestricted
+whole-Power Gross BPV.
+
+Symbolically:
+
+Activation Cost Amount = approved resource/state severity model
+
+Restriction Credit = Gross BPV x approved Restriction rate
+
+Power Burden Credit = Gross BPV x approved Activation Cost rate
+
+OR
+
+Power Burden Credit = Gross BPV x approved Backlash rate
+
+Combined Drawback Credit = Restriction Credit + Power Burden Credit
+
+Net BPV = Gross BPV - Combined Drawback Credit
+
+Gross BPV and Cooldown Basis are calculated from the unrestricted complete
+Power. Restriction and Burden credits target Gross BPV independently and are
+not applied sequentially to a reduced subtotal. The future resolver then applies
+one approved combined-credit cap, one approved minimum Net BPV floor, and one
+final rounding step. Restrictions and Burdens never reduce Gross BPV, Cooldown
+Basis, or derived cooldown pressure.
+
+Every rate, amount, severity, cap, floor, and rounding rule remains OPEN. This
+document creates no tuning row or numeric authority.
+
+Activation Cost and Backlash require separate future tuning tables. For the
+same effect, magnitude, and duration, Activation Cost receives greater credit
+where pre-resolution timing creates real current-use risk or impairs the current
+Power; Backlash receives less where the current Power resolves first. This is
+not a universal ranking: a severe/long Backlash may exceed a light Activation
+Cost. Calibration must test whether pre-resolution timing actually affects the
+current use, such as Blinded before a hostile non-self Power but not necessarily
+before a Self-only Power.
+
+Willpower Caveat
+
+Willpower currently participates in Major Injury survival interaction, while
+its broader resource mechanics are not finalized. Willpower is reserved as a
+future legal Activation Cost type because spending it reduces later Major
+Injury survivability, but this pass assigns no magnitude or credit and adds no
+runtime cost. Future work must settle maximum pool, recovery, Major Injury
+spending, Activation Cost denomination and affordability, credit value, Blaze
+interaction, and temporary-Willpower treatment.
+
+
 Formula Architecture Status
 
 The post-c89338d formula-shape audit is complete. It found that current data
@@ -1798,8 +1955,9 @@ Example: You Shall Not Pass
 - Restriction: only Agents of Morgoth
 - Counter: Yes
 - Derived Success Outcome: "the target's current or next hostile action fails"
-- Descriptor: "Choose one Agent of Morgoth and roll 4 dice. On success, the
+- Descriptor: "Choose one target and roll 4 dice. On success, the
   target's current or next hostile action fails."
+- Restriction Descriptor: "This Ability may only target an Agent of Morgoth."
 
 Example: Frodo Hide!
 
@@ -1813,8 +1971,9 @@ Example: Frodo Hide!
 - Restriction: Frodo only
 - Counter: No
 - Derived Success Outcome: "the target becomes hidden from the immediate danger"
-- Descriptor: "Choose Frodo and roll 3 dice. On success, the target becomes
+- Descriptor: "Choose one target and roll 3 dice. On success, the target becomes
   hidden from the immediate danger."
+- Restriction Descriptor: "This Ability may target only Frodo."
 
 Roleplay Ability Potential Cost Principles
 
@@ -1828,9 +1987,10 @@ future order:
 5. Resolve selected Counter surcharge where eligible.
 6. Establish Gross Potential and the cooldown basis.
 7. Resolve any separately approved cooldown tradeoff.
-8. Apply an approved Additional Restriction discount last.
-9. Produce Net Potential.
-10. Validate against the separate character budget authority.
+8. Resolve an approved Restriction credit independently against Gross Potential.
+9. Subtract that approved Restriction credit last.
+10. Produce Net Potential.
+11. Validate against the separate character budget authority.
 
 Symbolically:
 
@@ -1842,7 +2002,9 @@ CooldownBasisPotential = GrossPotential
 GrossPotential + ApprovedCooldownTradeoffAdjustment =
 PreRestrictionPotential
 
-PreRestrictionPotential - ApprovedAdditionalRestrictionDiscount = NetPotential
+RestrictionCreditAnchor = GrossPotential
+
+PreRestrictionPotential - ApprovedRestrictionCredit = NetPotential
 
 No term has a numeric value. Cost resolution and character-budget validation
 are separate authorities.
@@ -1862,9 +2024,11 @@ cannot lengthen cooldown automatically, shorten derived cooldown, or cause cost
 and cooldown to recalculate each other recursively. Player-selectable Roleplay
 cooldown remains unavailable until this circularity gate is separately approved.
 
-Restriction discounts reduce Net Potential only after approval. Requested band
-and free-text prose are not automatic discount authority. Intrinsic contract
-limits and cosmetic wording earn no discount. Without approved classification,
+Restriction credits reduce Net Potential only after approval. The credit is
+anchored to unrestricted Gross Potential and subtracted last; it is not derived
+sequentially from PreRestrictionPotential or another reduced subtotal. Requested
+band and free-text prose are not automatic credit authority. Intrinsic contract
+limits and cosmetic wording earn no credit. Without approved classification,
 a future resolver may expose Gross Potential but cannot claim authoritative Net
 Potential.
 
@@ -1873,10 +2037,10 @@ not create support: a fully resolved compositional standard cell does. Dice
 Count prices reliability, not permission ceiling. Custom, unsupported,
 incomplete, or missing-tuning authoring receives no authoritative numeric
 result. Large Group, Faction / Army, all numeric values, cooldown rules,
-privilege adjustments, Scope calibration, and restriction discounts remain
+privilege adjustments, Scope calibration, and Restriction credits remain
 open.
 
-The complete resolver contract, live 68 / 68 / 0 cell inventory, authority
+The complete resolver contract, live 88 / 88 / 0 cell inventory, authority
 rules, invariants, evidence matrix, and numeric unlock gates are in
 [Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 
@@ -1884,13 +2048,20 @@ Power Action remains the current working action name. Do not rename it as part
 of this framework alignment; capture any wider action terminology change as
 future work.
 
-Restriction discount bands v0:
+Prototype Restriction Request Labels - Not Locked Severity Authority
+
+Earlier v0 testing exposed these request labels:
 
 - None / Cosmetic
 - Light
 - Moderate
 - Harsh
 - Severe / Oath-Level
+
+These labels are prototype authoring/migration evidence only. They are not the
+locked standard Restriction registry, final severity bands, approved economic
+classification, or numeric rates. Exact templates, types, severity bands, and
+credits remain OPEN under the architecture above.
 
 A restriction earns a discount only if it is clear, enforceable, meaningfully
 limiting, relevant in actual play, not decorative, not a loophole, and likely
@@ -1906,16 +2077,15 @@ Strong restriction:
 - "Only works on Agents of Morgoth."
 - Reason: narrow, campaign-relevant, often unavailable, table-visible.
 
-Severe / Oath-Level restrictions are allowed on normal Powers and Roleplay
-Abilities in v0 testing. Watch playtests carefully. If every player adds
-Oath-Level restrictions to everything, either discounts are too generous,
-restrictions are too easy to write around, enforcement is too soft, or the
-table is genuinely enjoying oath-driven thematic greatness. Do not assume
-failure; test it.
+Prototype Severe / Oath-Level requests may still be observed in legacy v0
+testing, but their label grants no approval or credit. If players request that
+classification broadly, inspect practical availability, enabling, enforcement,
+and table preference rather than treating the requested label as evidence.
 
-For v0, restrictions can be manually authored, reviewed, and priced by the
-Architect / Game Director. No structured tag engine or automatic restriction
-calculator is required immediately.
+Restrictions may be drafted and reviewed manually while implementation is
+parked. No manual label or stored percentage becomes authoritative pricing, and
+no structured registry, automatic calculator, or numeric value is authorized by
+this pass.
 
 Restrictions do not add upside. If text says "only works on allies, but doubles
 effect," the "doubles effect" part is not a restriction. Upside belongs to

@@ -11,7 +11,7 @@ for calibration, and the gates that prevent premature pricing.
 > costing remains unavailable pending the whole-system balance baseline.
 
 This specification assigns no numeric cost, cooldown, multiplier, privilege
-value, restriction discount, floor, cap, or tuning row. It does not author a
+value, Restriction credit, floor, cap, or tuning row. It does not author a
 resolver, Builder total, saved cost/cooldown field, tuning schema, or database
 workflow.
 
@@ -66,7 +66,7 @@ Roleplay semantics and economics are separate authorities:
 - Scope defines breadth.
 - Dice Count defines reliability.
 - Counter adds approved timing flexibility when selected and eligible.
-- Additional Restrictions may reduce final spend only after approval.
+- A Restriction may reduce final spend only after approval.
 - Runtime Difficulty measures the challenge of one eligible scene-specific use.
 
 The semantic registry owns:
@@ -87,12 +87,40 @@ Future economic tuning owns:
 - selected Counter surcharge;
 - cooldown curves;
 - cooldown tradeoff adjustments;
-- restriction discounts; and
+- Restriction credits; and
 - floors, caps, rounding, and level interactions.
 
 The registry owns privilege-key identity, never its numeric value. Numeric
 economic values must not be placed in
 `lib/characterBuilder/roleplayAbilities.ts`.
+
+## Roleplay Restriction And Power-Burden Boundary
+
+A Roleplay Ability may have zero or one Restriction. A Restriction is one
+atomic, enforceable narrative eligibility condition that must already be true
+immediately before the Ability is committed. It applies to the whole Ability,
+never to an individual Outcome Contract component, Scope, Impact, or other
+compositional cell. Multiple or stacked Restrictions are unavailable in V1.
+
+The Restriction cannot be created, applied, paid, or revealed by the Ability
+whose use it governs. A state created by another Ability may enable it only
+after that other Ability completes resolution and the state remains true.
+Cross-Ability enabling is legal, but reliable character-controlled or
+ally-controlled enabling reduces practical lost availability and therefore
+matters to approval and severity.
+
+A Power Burden is either an Activation Cost or Backlash and belongs only to a
+Power. A Roleplay Ability receives no Activation Cost, no Backlash, and no
+Power-Burden economic credit in V1. Irreversible Sacrifice remains future Limit
+Break authority rather than Roleplay authoring.
+
+The normal Roleplay Ability descriptor and its Restriction Descriptor are
+separate authorities. The first explains the Ability's operation; the second
+explains the pre-existing narrative eligibility condition. Future previews,
+character sheets, printable references, and inspection surfaces must render a
+Restriction separately instead of splicing its prose into Outcome Contract
+grammar. This document authorizes no Builder, schema, database, resolver, or
+runtime implementation.
 
 ## Components That Never Directly Change Automatic Cost
 
@@ -126,9 +154,11 @@ A future automatic resolver must preserve this order:
 5. Resolve selected Counter surcharge where eligible.
 6. Establish Gross Potential and the cooldown basis.
 7. Resolve any separately approved cooldown tradeoff.
-8. Apply an approved Additional Restriction discount last.
-9. Produce Net Potential.
-10. Validate against the separate character budget authority.
+8. Resolve any approved Restriction credit independently against unrestricted
+   Gross Potential.
+9. Subtract the approved Restriction credit last.
+10. Produce Net Potential.
+11. Validate against the separate character budget authority.
 
 The symbolic decomposition is:
 
@@ -141,31 +171,40 @@ ImpactScopeBase
 
 CooldownBasisPotential = GrossPotential
 
+RestrictionCreditAnchor = GrossPotential
+ApprovedRestrictionCredit = approved classification resolved against
+  RestrictionCreditAnchor
+
 GrossPotential
 + ApprovedCooldownTradeoffAdjustment
 = PreRestrictionPotential
 
 PreRestrictionPotential
-- ApprovedAdditionalRestrictionDiscount
+- ApprovedRestrictionCredit
 = NetPotential
 ```
 
 No term has a numeric value in this specification. The character's available
 budget is not part of the formula. Cost resolution and budget validation are
-separate authorities.
+separate authorities. "Subtract last" describes final calculation order only.
+It does not derive the Restriction credit sequentially from an already adjusted
+or reduced subtotal. The credit is independently anchored to unrestricted Gross
+Potential before it is subtracted from Pre-Restriction Potential.
 
 ## Gross Potential And Net Potential
 
 Gross Potential is unrestricted authored value before any cooldown tradeoff or
-Additional Restriction discount. Net Potential is final spend after every
-approved adjustment.
+Restriction credit. Net Potential is final spend after every approved
+adjustment.
 
 Locked invariants:
 
-- Additional Restrictions never lower Gross Potential.
-- Additional Restrictions never lower Cooldown Basis Potential.
-- Additional Restrictions never produce a shorter derived cooldown.
-- Restriction discounts apply last.
+- Restrictions never lower Gross Potential.
+- Restrictions never lower Cooldown Basis Potential.
+- Restrictions never produce a shorter derived cooldown.
+- Restriction credit magnitude is anchored to unrestricted Gross Potential.
+- Restriction credits are subtracted last but are never derived sequentially
+  from Pre-Restriction Potential or another reduced subtotal.
 - Intrinsic contract boundaries earn no discount.
 - Cosmetic wording earns no discount.
 - A restriction cannot discount something the contract already forbids.
@@ -183,14 +222,14 @@ different concepts must remain separate:
 1. baseline derived cooldown; and
 2. a possible future player-authored cooldown tradeoff.
 
-Baseline cooldown derives from Gross Potential before restrictions. A future
+Baseline cooldown derives from Gross Potential before Restrictions. A future
 tradeoff might change spend or effective cooldown, but no rule is approved.
 
 Locked protections:
 
-- Restriction discount cannot influence baseline cooldown.
+- Restriction credit cannot influence baseline cooldown.
 - Net Potential cannot feed back into baseline cooldown derivation.
-- An Additional Restriction cannot automatically grant a longer cooldown.
+- A Restriction cannot automatically grant a longer cooldown.
 - A lower Net Potential cannot also create a shorter cooldown.
 - Cost and cooldown formulas cannot recursively recalculate one another.
 - A future cooldown tradeoff operates relative to an already resolved baseline
@@ -349,7 +388,7 @@ Automatic numeric costing must remain unavailable for:
 - Faction / Army;
 - a future completed cell whose family privilege or Scope/Impact components are
   missing or uncalibrated;
-- an unresolved restriction discount; or
+- an unresolved Restriction approval or credit; or
 - a missing authoritative tuning snapshot.
 
 A Scope appearing in a global dropdown does not make it costable. Support comes
@@ -395,23 +434,61 @@ not a pricing curve.
 The current live registry permits Counter only for
 `DENY_IMMINENT_HOSTILE_ACT`. No surcharge value is approved.
 
-## Additional Restriction Approval
+## Restriction Approval Lifecycle
 
-The resolver must not judge free-text restriction quality:
+The conceptual approval lifecycle is locked:
 
-- Restriction prose remains subject to Game Director / Architect judgement.
-- A requested band is not proof that a discount is earned.
-- An authoritative discount requires an approved restriction classification.
+1. Draft.
+2. Pending Game Director Approval.
+3. Approved.
+4. Rejected.
+5. Approval Stale.
+
+Exact future enum names are not locked. Draft may be saved for future Builder
+work but grants no credit and is not active approved character-sheet authority.
+Pending has been submitted for review but grants no credit and cannot be treated
+as finalized. Approved means the Game Director has approved the wording,
+classification, and economic band; only that approved classification and band
+may later receive automatic credit. Rejected grants no credit, must be revised
+or removed, and should support a rejection reason. Approval Stale removes credit
+authority and requires reapproval after an economically relevant change.
+
+Requested and approved classifications and economic bands are separate
+authorities. Player selection is only a request; free text cannot approve
+itself. Approval must retain provenance, be bound to a normalized Restriction
+fingerprint, and be evaluated in campaign and character context. A wording,
+classification,
+fingerprint, Ability, campaign-context, or relevant character-capability change
+may make approval stale. Adding or improving a reliable self-enabler or cheap
+ally-enabler must trigger reassessment because severity measures practical lost
+availability, not how dramatic the condition sounds.
+
+The resolver must not judge free-text Restriction quality:
+
+- A structurally valid Restriction does not automatically earn meaningful
+  credit.
+- A requested band is not proof that credit is earned.
+- Authoritative credit requires an Approved classification with valid
+  provenance.
 - Without approval, a future resolver may show Gross Potential but cannot claim
-  an authoritative discounted Net Potential.
+  an authoritative credited Net Potential.
 - Writing length, wording, vocabulary, or drama cannot infer severity.
-- Intrinsic contract limits cannot be repackaged as paid restrictions.
+- Intrinsic contract limits cannot be repackaged as credited Restrictions.
 - Target Eligibility must genuinely narrow existing target rules.
-- Final implementation must distinguish requested from approved classification,
-  or otherwise expose approval provenance.
 
-The approval workflow and storage model remain OPEN. No approval field is added
-by this specification.
+The Restriction Descriptor remains separate from the normal Ability descriptor
+through draft, review, approval, and presentation. Current Roleplay fields such
+as `restrictionType`, `restrictionBand`, `restrictionTag`, and
+`restrictionText`, together with any prototype `restrictionDiscountPercent`
+field, are prototype or migration input rather than permanent shared
+architecture, approval provenance, or numeric authority. Their presence does
+not mean a Restriction is approved and a stored percentage cannot approve
+itself.
+
+Exact enums, standard templates, classification registry, severity bands,
+numeric credits, fingerprint format, persistence schema, stale-detection
+mechanism, and UI remain OPEN. This specification adds no approval field, code,
+schema, database workflow, or runtime behaviour.
 
 ## Future Pure Resolver Contract
 
@@ -421,7 +498,8 @@ A future pure resolver receives explicit:
 - character level or other required economic context;
 - exact standard registry state;
 - an authoritative versioned Roleplay tuning snapshot;
-- approved restriction classification, where applicable;
+- approved Restriction classification, lifecycle state, provenance, and matching
+  normalized fingerprint, where applicable;
 - explicit authority mode; and
 - budget context only where cooldown derivation requires it.
 
@@ -447,7 +525,8 @@ Its conceptual output contains:
 - cooldown authority result;
 - optional approved cooldown adjustment;
 - Pre-Restriction Potential;
-- approved restriction discount;
+- Gross-Potential Restriction credit anchor;
+- approved Restriction credit;
 - Net Potential;
 - warnings and blocking reasons;
 - tuning provenance; and
@@ -488,8 +567,11 @@ For otherwise identical supported authoring:
 - selecting Counter cannot lower Gross Potential or cooldown pressure;
 - adding a restriction cannot change Gross Potential or Cooldown Basis
   Potential;
-- restriction discount cannot exceed Pre-Restriction Potential;
+- approved Restriction credit is independently anchored to Gross Potential and
+  cannot exceed Gross Potential or Pre-Restriction Potential;
 - Net Potential cannot exceed Pre-Restriction Potential or become negative;
+- an economically relevant change invalidates approved Restriction credit until
+  reapproval;
 - Name and Narrative Theme changes alter no cost component;
 - unsupported or custom authoring receives no authoritative numeric result;
 - missing tuning never becomes zero; and
@@ -504,12 +586,13 @@ calibration must isolate breadth from contract semantics.
 
 Future evidence must cover:
 
-- all sixty-eight completed cells, including byte-for-byte regression evidence
-  for the forty-three pre-completion descriptors and exact evidence for the
-  twenty-five completion descriptors;
+- all eighty-eight completed cells, including byte-for-byte regression evidence
+  for the forty-three pre-completion descriptors, exact evidence for the
+  twenty-five completion descriptors that formed the earlier sixty-eight-cell
+  baseline, and exact evidence for the later twenty cells;
 - every supported Dice Count;
 - Counter off and every legal Counter-on case;
-- no Additional Restriction as baseline;
+- no Restriction as baseline;
 - approved representative restrictions only after restriction doctrine is
   ready;
 - low-, middle-, and high-level contexts after level-budget doctrine settles;
@@ -548,7 +631,7 @@ Legacy Perception `specific: "TRACK"` without explicit methodId may migrate to
 Track and matching resolved legacy outcomes may migrate to TRACE_QUARRY.
 Explicit Custom Track remains Custom, as do SEARCH, INVESTIGATE, SENSE_DANGER,
 READ_INTENT, HUNT, and LOCATE. This family adds no provisional cost, zero,
-multiplier, cooldown, tuning row, restriction discount, Builder total,
+multiplier, cooldown, tuning row, Restriction credit, Builder total,
 API/Prisma field, database migration, measured movement, or combat-runtime
 tracking state. Numeric costing remains locked behind every gate below.
 
@@ -590,7 +673,8 @@ Numeric Roleplay costing must not begin until every gate is explicitly met:
 8. Every family `privilegeCostKey` and required Scope/Impact component is
    calibrated.
 9. Scope calibration exists independently of contract semantics.
-10. Restriction approval and discount authority are defined.
+10. Restriction approval implementation, persistence, classification, and
+    numeric credit authority are defined.
 11. Required deterministic smoke and benchmark coverage is designed.
 12. The user / Chief Balance authority explicitly approves numeric
     implementation.
@@ -613,7 +697,8 @@ OPEN:
 - cooldown curve and cooldown tradeoff;
 - cooldown floors/caps;
 - level dependence and rounding;
-- restriction discounts and approval persistence;
+- exact Restriction templates, classifications, severity bands, numeric credits,
+  future enum names, fingerprint/storage formats, and approval persistence;
 - tuning schema and database storage;
 - cached cost/cooldown fields;
 - migration of existing Roleplay Abilities;

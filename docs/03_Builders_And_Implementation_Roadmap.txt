@@ -772,6 +772,74 @@ or numeric-costing change. Fixture Dice Count 3 remains deterministic semantic
 coverage only and is not final pregen balance authority.
 
 
+Restrictions, Power Burdens, And Blaze - Future Implementation Sequence
+
+LOCKED DESIGN / IMPLEMENTATION NOT AUTHORIZED BY THIS DOCUMENTATION PASS.
+
+Phase 1 - Shared Restriction architecture:
+
+- define one shared whole-Ability Restriction data model for Powers and
+  Roleplay Abilities;
+- implement pure structural validation and the pre-commit eligibility model;
+- support Draft, Pending Game Director Approval, Approved, Rejected, and
+  Approval Stale lifecycle semantics;
+- retain requested versus approved classification, normalized fingerprint, and
+  approval provenance; and
+- render a separate Restriction Descriptor in preview/reference surfaces.
+
+Phase 2 - Power Burden authoring:
+
+- define whole-Power Activation Cost and Backlash data models;
+- create structured type/severity registries rather than free-form economic
+  inference;
+- enforce zero/one Burden and mutual exclusion between Cost and Backlash;
+- validate intention-agnostic legality and actor-paid Activation Costs; and
+- render Burden descriptors separately from packet and target grammar.
+
+Phase 3 - Builder and approval UI:
+
+- expose the structured Restriction and Power Burden controls;
+- distinguish Draft, Pending, Approved, Rejected, and Approval Stale states;
+- display requested and approved bands as separate authorities;
+- expose approval/rejection provenance and stale reasons; and
+- invalidate approval after any economically relevant fingerprint change.
+
+Phase 4 - Runtime integration:
+
+- enforce immediate-before-commit Restriction eligibility;
+- resolve Activation Cost before Response Window, roll, and output;
+- resolve Backlash after initial execution and independently of Cleanse/source
+  removal;
+- integrate Health, Major Injury, terminal Trial, and Activation-Cost-triggered
+  Blaze ordering; and
+- implement the locked Player Character Blaze procedures without importing
+  them into Legendary Monsters by accident.
+
+Phase 5 - Economic calibration:
+
+- calibrate separate Restriction, Activation Cost, and Backlash registries;
+- derive credits in parallel from unrestricted Gross BPV;
+- establish combined-credit caps, minimum Net BPV floors, final rounding, and
+  versioned tuning authority; and
+- validate practical availability and reliable self-enabling before approval.
+
+Phase 6 - Shared Blaze and tooling:
+
+- implement simultaneous decision windows and Shared Blaze state/action
+  tracking;
+- support free interleaving and coordinated sequential/simultaneous beats;
+- design the still-open Shared-Blaze special-action allocation; and
+- add deterministic runtime, Combat Lab, and reporting coverage only after the
+  rules and allocation decisions are complete.
+
+The current Roleplay fields `restrictionType`, `restrictionBand`,
+`restrictionTag`, and `restrictionText`, and the Power prototype
+`restrictionDiscountPercent`, are prototype or migration inputs. They are not
+the permanent shared schema, approval provenance, or numeric authority. No
+Builder, persistence, migration, runtime, test, calculator, tuning, or Combat
+Lab work is authorized here, and no numeric discount is unlocked.
+
+
 Builder Rules To Preserve
 
 - Summoning Circle remains the reference implementation for shared power

@@ -138,6 +138,35 @@ Counter permission are now locked rule law in their owner documents. Numeric
 Roleplay Ability costs and final contract privilege adjustments remain open.
 
 
+Restrictions, Power Burdens, And Blaze Status
+
+LOCKED NON-NUMERIC DESIGN AUTHORITY / UNIMPLEMENTED. A Restriction is one
+atomic, enforceable narrative eligibility condition that must already be true
+immediately before an Ability is committed. A Power or Roleplay Ability may
+have zero or one whole-Ability Restriction. The conceptual Draft, Pending Game
+Director Approval, Approved, Rejected, and Approval Stale lifecycle is locked;
+exact future enums, structured registries, persistence, UI, numeric bands, and
+discount values remain open. Runtime eligibility law lives in docs/01, Power
+authoring and non-numeric economic architecture in docs/02, future Builder work
+in docs/03, implementation boundaries in docs/05, system sequencing in docs/08,
+and the Roleplay-only boundary in docs/roleplay-ability-costing-readiness.md.
+
+A Power Burden is one whole-Power Activation Cost or Backlash. A Power may have
+zero or one Burden, never both types, while Roleplay Abilities receive neither.
+Activation Cost and Backlash timing is locked in docs/01 and their non-numeric
+authoring architecture is locked in docs/02, but no Builder, runtime, database,
+calculator, Combat Lab, or simulation implementation is claimed. Exact
+Restriction and Burden credits remain open. A future Willpower Activation Cost
+is reserved as an authoring direction; its resource mechanics, magnitude, and
+economic credit are not finalized.
+
+The complete Player Character Blaze of Glory design and Shared Blaze of Glory
+Event framework are locked in docs/01. Runtime integration remains
+unimplemented under the docs/03 and docs/05 handoffs. Shared-Blaze
+special-action allocation, tactical Blaze AI, and full Legendary Monster Blaze
+treatment remain explicit open work in docs/08.
+
+
 Open Decisions Index
 
 The following items are intentionally unresolved. Do not treat them as locked
@@ -275,17 +304,22 @@ law until the owning active doc is updated with an explicit decision.
   DISCERN_TRUTH. Universal Roleplay
   Window access, contract-gated
   paid Counter permission, timing law, Scope, Scene Impact, Attribute handling,
-  the non-numeric Potential cost skeleton, and restriction discount order are
+  the non-numeric Potential cost skeleton, Gross-Potential Restriction credit
+  anchor, and final credit-subtraction order are
   captured in the active source documents. Numeric constants, future registry
   expansion, and the wider action terminology pass remain OPEN / NEEDS
   ARCHITECT DECISION unless explicitly locked elsewhere.
-- Full Blaze of Glory runtime flow and Blaze AI.
-  Status: DEFERRED / NEEDS ARCHITECT DECISION.
+- Full Blaze of Glory runtime implementation, Blaze AI, and Legendary treatment.
+  Status: PLAYER CHARACTER / SHARED DESIGN LOCKED; RUNTIME UNIMPLEMENTED;
+  BLAZE AI AND FULL LEGENDARY TREATMENT OPEN.
   Owner: docs/01_Locked_Rules_And_Combat_Bible.txt and
-  docs/05_Implementation_Handoffs.txt.
-  Note: Blaze is available only to Player Characters and Legendary Monsters.
-  Auto-sim defaults to "Blaze available but not used." Manual/test forcing may
-  be added later; do not invent tactical Blaze AI.
+  docs/05_Implementation_Handoffs.txt, with open design work in
+  docs/08_Incarnate_Launch_Roadmap_And_Backlog.txt.
+  Note: Full Player Character Blaze and the Shared Blaze event framework are
+  locked design authority but are not implemented. Existing Legendary Monster
+  availability does not import the complete Player Character procedure; full
+  Legendary treatment remains open. Auto-sim defaults to "Blaze available but
+  not used." Do not invent tactical Blaze AI.
 - C14 UI controls and reporting polish.
   Status: DEFERRED.
   Owner: docs/05_Implementation_Handoffs.txt and future UI/reporting pass.
@@ -305,11 +339,15 @@ law until the owning active doc is updated with an explicit decision.
   Owner: docs/03_Builders_And_Implementation_Roadmap.txt.
   Note: Campaign-local workflows are current; global protected asset policy is
   future work.
-- Spark/Restriction scope.
-  Status: OPEN.
-  Owner: docs/03_Builders_And_Implementation_Roadmap.txt.
-  Note: Character Creator is still missing Spark and Power Restriction support.
-  Final Spark/Restriction scope is not locked.
+- Spark and Restriction implementation scope.
+  Status: RESTRICTION NON-NUMERIC DESIGN LOCKED / IMPLEMENTATION AND NUMERIC
+  CALIBRATION OPEN; SPARK OPEN.
+  Owner: docs/02_Power_System_And_Costing.txt and
+  docs/03_Builders_And_Implementation_Roadmap.txt.
+  Note: Character Creator is still missing Spark and shared Restriction support.
+  Restriction definition, V1 whole-Ability limit, and conceptual approval
+  lifecycle are locked. Exact templates, registries, persistence, UI, runtime
+  integration, severity classifications, and numeric credits remain open.
 - Transformation/Summoning/object/structure/machine/mount builder scopes.
   Status: OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and
@@ -1170,10 +1208,12 @@ and numerically unavailable pending calibration.
 
 The live semantic registry owns exact variants, Counter eligibility, and
 privilegeCostKey identity. Future versioned tuning owns all numeric values.
-Gross Potential resolves before cooldown tradeoff or restrictions; baseline
-cooldown uses Gross Potential; approved restriction discounts apply last to Net
-Potential. Runtime Difficulty, Narrative Theme, writing quality, and runtime
-declarations never directly change build cost.
+Gross Potential resolves before cooldown tradeoff or Restrictions; baseline
+cooldown uses Gross Potential. Any approved Restriction credit is independently
+anchored to Gross Potential and subtracted last from Pre-Restriction Potential;
+"last" describes subtraction order, not sequential derivation from an already
+reduced subtotal. Runtime Difficulty, Narrative Theme, writing quality, and
+runtime declarations never directly change build cost.
 
 No Roleplay resolver, numeric values, Builder totals, budget enforcement,
 cooldown display, tuning rows, or saved cost/cooldown fields are approved.

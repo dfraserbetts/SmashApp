@@ -116,7 +116,9 @@ Future implementation work must keep checking:
   follow actor type: non-Legendary Monsters die at 0 in either health channel;
   Player Characters and Legendary Monsters make affected-channel Major Injury
   Trials after the current simultaneous packet/result bundle unless same-bundle
-  healing restores the pool above 0 or Blaze of Glory is declared. Runtime
+  healing restores the pool above 0. Player Character Blaze is available only
+  before a Terminal Major Injury Trial; Legendary Monsters retain their separate
+  simplified Blaze permission. Runtime
   should represent this through an explicit defeat model / actor category rather
   than inferring only from monster tier.
 
@@ -197,7 +199,9 @@ counting of 1-3 = 0, 4-9 = 1, and 10+ = 2 successes; overflow modifier applied
 to each die result before success counting; 0-1 total successes = Major
 Injury, 2 = Minor Injury, and 3+ = No Injury; separate Physical and Mental
 injury tracks; dual-channel 0 in one bundle creates both Major Injury events for
-PC / Legendary actors unless Blaze of Glory is declared; Mental injury events
+PC / Legendary actors; Player Characters may replace only terminal decisions
+with the locked single/Shared Blaze procedure, while Legendary Monsters retain
+their simplified separate Blaze rule; Mental injury events
 resolve before Physical injury events as a runtime ordering rule; same-bundle
 healing can prevent a trial if the relevant pool is restored above 0 before
 injury processing; Blaze of Glory timing and final removal; and no mid-bundle
@@ -412,6 +416,71 @@ Mental Wailer remains a specific Soldier red flag if it beats a PC heavily in
 1v1. That does not mean all Soldiers should be tuned to win 1v1; it means the
 Mental Wailer lane, control/damage pressure, or counter-matchup shape needs
 inspection against the locked Soldier attacks-to-defeat doctrine.
+
+
+Restrictions, Power Burdens, And Blaze Implementation Handoff
+
+LOCKED DOCTRINE / CURRENT IMPLEMENTATION INCOMPLETE. Runtime law is owned by
+docs/01_Locked_Rules_And_Combat_Bible.txt and non-numeric authoring/economic law
+by docs/02_Power_System_And_Costing.txt. Do not infer implementation completion
+from those locks.
+
+Future implementation must preserve:
+
+- one atomic, pre-existing, whole-Ability Restriction checked immediately before
+  commitment;
+- zero/one Restriction and zero/one whole-Power Burden, with Activation Cost and
+  Backlash mutually exclusive;
+- Power-only Burdens and the Roleplay no-Burden boundary;
+- separate normal, Restriction, and Burden descriptors;
+- the Draft/Pending/Approved/Rejected/Approval Stale lifecycle, requested versus
+  approved authority, provenance, and normalized fingerprints;
+- pre-Response Activation Cost, post-initial-execution Backlash, absolute
+  application, and the committed-use cooldown obligation;
+- terminal-only Player Character Blaze, Activation-Cost-triggered Blaze, Blaze
+  opening state, Assists, special actions, Limit Break donation, permanent
+  death, and Shared Blaze; and
+- separate simplified Legendary Monster authority until later design approves
+  anything more.
+
+Prohibited shortcuts:
+
+- no packet-local Restriction, Activation Cost, or Backlash;
+- no stacked Restrictions or several Burdens and no Cost-plus-Backlash Power;
+- no sequential percentage application to an already reduced subtotal;
+- no Ability satisfying its own Restriction from its Cost, Backlash, or packet;
+- no prevention, redirection, conversion, refund, or same-Power mitigation of a
+  Burden;
+- no Cleanse, source removal, expiry, interruption, failure, miss, resistance,
+  or early ending cancelling owed Backlash (no success fishing);
+- no mixed donor and recipient Limit Break die sizes in one Blaze roll;
+- no literal extra turns, turn-starts, refreshes, or duration ticks from Make It
+  Count! action packages;
+- no Power Action silently granted by Hit It Again!;
+- no automatic merged attack or universal combined defence for a Shared Blaze
+  simultaneous beat; and
+- no implementation prompt applied without inspecting current files, schemas,
+  runtime order, tests, and migrations first.
+
+Current gaps include the shared structured schema, approval/provenance and stale
+detection, separate descriptor presentation, structured Burden registries,
+numeric tuning authority, Activation Cost/Backlash runtime state, terminal and
+Shared Blaze orchestration, special actions/turn debt/donation, coordinated-beat
+resolution, persistence, UI, Combat Lab, simulation policy, and reporting.
+
+Future deterministic tests must cover every V1 legal Restriction/Burden
+combination; invalid stacking and Cost-plus-Backlash; pre-commit self-
+satisfaction rejection; absolute Cost/Backlash application; misses, resistance,
+Counters, interruption, Cleanse, early ending, source destruction, delayed and
+minimum-duration Backlash; Major Injury and activation-triggered Blaze ordering;
+mandatory first Power Action; cost repayment on later reuse; Blaze suppression
+without resource restoration; Assist Response consumption; each ally's one
+special-action choice; turn debt; donation and die-size conversion; permanent
+death; simultaneous choices; free interleaving; coordinated-beat cleanup; and
+the explicit OPEN Shared-Blaze allocation boundary.
+
+This pass changes documentation only. Do not claim Builder, API, Prisma,
+database, calculator, tuning, Combat Lab, simulator, test, or runtime support.
 
 
 Codex Tooling Guidance

@@ -169,6 +169,153 @@ and source lifecycle removal are separate from Cleanse. They may remove effects
 without using Cleanse, but they do not broaden what a Cleanse packet can target.
 
 
+Ability Restrictions And Power Burdens
+
+A Restriction is one atomic, enforceable narrative eligibility condition that
+must already be true before an Ability can be used. Restrictions may apply to
+Powers and Roleplay Abilities. They apply to the whole Ability and are never
+packet-local.
+
+Restriction eligibility is determined immediately before an Ability is
+committed. The Restriction must already be true at that checkpoint. Nothing
+created, applied, paid, or revealed by that Ability can satisfy its own
+Restriction for the same use.
+
+The Restriction must be grounded in the current fiction, clearly judgeable as
+true or false, materially limiting, additional to the Ability's intrinsic rules,
+and applicable to the whole Ability. It cannot be created by the governed
+Ability's own Activation Cost, Backlash, or Effect Packet; rewrite or increase
+the Ability's result; enlarge targeting, Scope, duration, timing, or output;
+repeat an intrinsic rule or exclusion; or consist only of cosmetic prose or a
+state the player can trivially declare into existence.
+
+A state created by another Ability may satisfy the Restriction only after the
+creating Ability has completed its current resolution and the state remains
+true. Cross-Ability enabling is legal. Reliable character-controlled enabling
+must be considered separately when judging the Restriction's economic value.
+
+A Power Burden is a whole-Power cost or consequence attached to using a Power.
+A Power Burden is exactly one of Activation Cost or Backlash. Power Burdens
+apply only to Powers; Roleplay Abilities do not receive Activation Costs or
+Backlash. Permanent deterioration, permanent Attribute or maximum-Health loss,
+terminal Withering, guaranteed death, and similar irreversible sacrifice belong
+to the future Limit Break engine rather than ordinary Restrictions or Power
+Burdens.
+
+
+Activation Cost
+
+An Activation Cost is paid and fully resolved before the Power's Response
+Window, roll, or mechanical output begins. It answers, "What must the actor pay
+before this Power can take effect?" Activation Costs are Power-level and
+Intention-agnostic. The actor must pay their own Activation Cost; payment by an
+ally, enemy, target, summon, or unrelated character is not an ordinary
+Activation Cost.
+
+Resolve an Activation Cost in this order:
+
+1. The actor declares the Power, intended use, targets, and required choices.
+2. Confirm normal legality.
+3. Check any Restriction against the pre-existing fiction.
+4. Confirm that the actor can pay or apply the Activation Cost.
+5. The actor commits to the Power.
+6. Pay and apply the Activation Cost in full.
+7. Resolve the Activation Cost as its own completed event.
+8. Resolve every immediate Health, condition, Major Injury, Blaze of Glory,
+   defeat, or capability consequence caused by that event.
+9. If the actor remains able to resolve the Power, open the normal Response
+   Window where applicable and continue ordinary Power resolution.
+10. If the actor can no longer resolve the Power, the Power produces no output.
+11. The Activation Cost remains paid.
+12. The committed use enters cooldown under the eventual implementation even
+    when the Activation Cost prevents its output.
+
+An invalid declaration is rejected before commitment and pays nothing. Once
+committed, a miss, resistance, Counter, interruption, Major Injury, defeat, or
+loss of a required Attribute or capability does not refund the cost. The Power
+resolves under the actor's post-cost state. If the cost imposes Blinded, Blinded
+affects the current non-self Power. If the cost causes a Major Injury that
+disables a required Attribute, the Power may fail to resolve. This is an
+accepted risk, not a rules error.
+
+A wound-based Activation Cost may reduce a Health channel to 0, create overflow,
+and create an ordinary or Terminal Major Injury Trial. This is legal and
+intentional. The Activation Cost is its own completed damage event, and the
+Major Injury decision and any resulting Trial resolve before Power output.
+Healing, Cleanse, defence, prevention, or another Effect Packet inside the same
+Power cannot retroactively prevent the cost event or its Major Injury decision.
+The Power's later healing is not part of the Activation Cost's result bundle. If
+the player declines Blaze and dies or is defeated, the Power does not resolve.
+If Blaze is declared, use Activation-Cost-Triggered Blaze below.
+
+
+Backlash
+
+Backlash is locked when the Power is committed and applied after the Power's
+complete initial execution and result bundle resolve. It answers, "What happens
+to the actor because this Power was used?" Ordinary Backlash resolves after
+initial execution, not after the Power's entire Lifespan. A Field, Attachment,
+Passive, Channel, Reserve, Trigger, or multi-turn Lifespan does not defer
+ordinary Backlash until expiry unless the Backlash explicitly uses an approved
+delayed model.
+
+Once a Power is committed, its Backlash remains owed regardless of success,
+failure, misses, resistance, Counters, interruption, early voluntary ending,
+expiry, source or carrier destruction, Cleanse, removal of the active Power,
+reducing active successes to 0, or removal of a Field, Attachment, Passive,
+Channel, charge state, or other ongoing source.
+
+Backlash is locked when the Power is committed and resolves independently of
+the Power's continued existence. Removing, ending, suppressing, or Cleansing
+the Power cannot prevent, remove, refund, or shorten its Backlash.
+
+Player-facing rule: "Removing the Power does not remove its Backlash. Once you
+use the Power, you must suffer the full Backlash."
+
+If a future approved Backlash is explicitly delayed until the Power ends,
+ending or Cleansing the Power early triggers the pending Backlash immediately;
+it does not cancel it. If a future ongoing Backlash has a minimum duration,
+Cleanse and ending the Power cannot end it early. It persists for its complete
+minimum duration. Cooldown cannot begin before the Backlash associated with the
+initial use has resolved.
+
+
+Absolute Burden Application And Cross-Power Synergy
+
+Activation Costs and Backlash are absolute when paid or applied. They cannot be
+prevented, reduced, resisted, absorbed, redirected, transferred, substituted,
+converted, or refunded. Once fully applied, later recovery follows the normal
+rules unless the Backlash explicitly establishes a minimum duration.
+
+Player-facing rule: "You always pay an Activation Cost or suffer Backlash in
+full. It cannot be reduced, prevented, redirected, or avoided. Afterward,
+normal recovery can affect it unless the Backlash says otherwise."
+
+The same Power cannot prevent, absorb, heal, or Cleanse its own Cost before that
+Cost completes; refund its own spent resource; remove its own Backlash; or
+convert its Burden into a harmless result. Once the Burden has completed, later
+normal healing or recovery may apply unless an explicit minimum duration says
+otherwise.
+
+Activation Costs and Backlash create real game states. After the creating Power
+has completed its current resolution, those states may satisfy another
+Ability's Restriction, trigger another legal "when wounded", "when affected",
+or equivalent effect, and support deliberate cross-Power combinations. They
+cannot satisfy the Restriction of the Power that created them, refund or
+mitigate themselves, recursively trigger themselves, or create an infinite
+resolution loop.
+
+
+Blinded
+
+When making an attack or using a Power on any target other than self, all
+successes are rerolled, with the second roll being treated as the final result.
+
+Blinded does not affect a Power used only on Self under this rule. Blinded adds
+no movement restriction, targeting prohibition, immunity, perception rule, or
+automatic failure unless a later rule explicitly establishes one.
+
+
 Response Window / Incarnate Stack
 
 When a hostile action is declared, resolve in this order:
@@ -330,12 +477,13 @@ Course, runtime target, GD-selected Attribute, runtime Difficulty, Outcome Lane
 alone, Intention alone, and Method alone are not direct cost components. Help
 and Hinder are classifications, not price bands.
 
-Gross Potential is resolved before any cooldown tradeoff or Additional
-Restriction discount. Baseline cooldown derives from Gross Potential, never
-discounted Net Potential. An approved Additional Restriction discount applies
-last; it cannot lower Gross Potential or the cooldown basis, and intrinsic
-contract exclusions or cosmetic wording earn no discount. Net Potential cannot
-be negative or erase the economic identity of a non-empty standard Ability.
+Gross Potential is resolved before any cooldown tradeoff or Restriction credit.
+Baseline cooldown derives from Gross Potential, never credited Net Potential.
+An approved Restriction credit is independently anchored to Gross Potential and
+subtracted last from Pre-Restriction Potential; it cannot lower Gross Potential
+or the cooldown basis, and intrinsic contract exclusions or cosmetic wording
+earn no credit. Net Potential cannot be negative or erase the economic identity
+of a non-empty standard Ability.
 
 Numeric Roleplay costing remains unavailable until whole-system balance,
 cooldown, tuning, privilege-key, Scope, restriction-approval, and evidence gates
@@ -1335,13 +1483,14 @@ Non-Legendary Monsters:
 - They do not use Blaze of Glory unless explicitly promoted to Legendary or
   specially authored.
 
-Player Characters and Legendary Monsters:
+Shared Major Injury procedure for Player Characters and Legendary Monsters:
 
 - When Physical or Mental Health is reduced to 0, they do not immediately leave
   combat.
 - After the full triggering action, effect tick, or simultaneous result bundle
-  resolves, they make a Major Injury Trial for the affected side unless they
-  declare Blaze of Glory.
+  resolves, they make a Major Injury Trial for the affected side. Player
+  Character and Legendary Monster Blaze eligibility is different and is stated
+  separately below.
 - Physical side attributes are Attack, Guard, and Fortitude.
 - Mental side attributes are Intellect, Synergy, and Bravery.
 - The actor chooses one attribute from the affected side to place at risk.
@@ -1435,6 +1584,8 @@ Both channels hit 0 in the same bundle:
   Physical and Mental injury tracking.
 - Do not collapse this into one defeat event for PC / Legendary Major Injury
   handling.
+- Player Character simultaneous terminal decisions use the Shared Blaze rules
+  below. Legendary Monsters retain their separate simplified Blaze rule.
 - For ordinary non-Legendary Monsters, either channel at 0 defeats them.
 
 Same-bundle healing:
@@ -1449,18 +1600,347 @@ Removal timing:
 - A defeated target is removed after the full triggering attack, power, effect
   tick, or simultaneous result bundle that defeated them resolves.
 
-Blaze of Glory:
+Terminal Major Injury Trial
 
-- Only Player Characters and Legendary Monsters may declare Blaze of Glory.
-- Blaze of Glory is declared after the triggering attack or effect bundle would
-  prompt a Major Injury Trial and before the Major Injury Trial is rolled.
-- Declaring Blaze of Glory cancels the pending Major Injury Trial.
-- The actor immediately takes their Blaze of Glory turn.
-- Once all Blaze actions resolve, including movement, Main Action, Power Action,
-  and Limit Breaks if legal, the actor is defeated and removed from combat.
-- If one triggering bundle would cause both Physical and Mental Major Injury
-  Trials, one Blaze of Glory declaration cancels all pending Major Injury Trials
-  from that bundle.
+A Terminal Major Injury Trial is a Major Injury Trial where receiving a Major
+Injury result would disable the third Attribute on the affected Physical or
+Mental side and cause the Player Character's death or defeat.
+
+A Player Character may declare Blaze of Glory only immediately before rolling a
+Terminal Major Injury Trial. Blaze is unavailable for an ordinary non-terminal
+Major Injury Trial. If one triggering bundle creates terminal Trials in both
+channels for the same Player Character, one Blaze declaration cancels every
+pending terminal Major Injury Trial created by that bundle.
+
+
+Legendary Monster Blaze Of Glory - Preserved Simplified Rule
+
+The complete Player Character system below does not redefine Legendary Monster
+Blaze. A Legendary Monster may retain the earlier simplified permission to
+declare Blaze after a triggering bundle prompts one or more Major Injury Trials
+and before a pending Trial is rolled. That declaration cancels the Legendary
+Monster's pending Trials from the bundle, grants its simplified immediate Blaze
+turn, and ends in defeat/removal after its available Blaze actions resolve.
+
+Legendary Monsters do not receive Make It Count!, Hit It Again!, allied turn
+donation, Limit Break donation, or the Shared Player Character Blaze system.
+Full Legendary Monster Blaze treatment remains open until separately approved.
+
+
+Player Character Blaze Of Glory - Intent And Trigger
+
+"Blaze of Glory is a player-chosen final stand designed to grant a memorable and
+meaningful death."
+
+Blaze intentionally permits a Player Character to exceed normal encounter
+balance temporarily. Permanent and unavoidable character death is the cost.
+The cinematic outcome is non-negotiable.
+
+When a hostile action creates a Terminal Major Injury Trial:
+
+1. Resolve the complete hostile action, all packets, simultaneous result bundle,
+   Responses, prevention, damage, and immediate consequences.
+2. Before rolling the Terminal Major Injury Trial, the player may declare Blaze
+   of Glory.
+3. Cancel the pending Terminal Major Injury Trial.
+4. End the triggering hostile actor's turn immediately.
+5. Lose every unused ordinary Move, Main, Power, or other turn action belonging
+   to that hostile actor.
+6. The Blazing Player Character immediately begins a Blaze of Glory turn.
+7. The Blaze turn is legal even if that character already completed a full turn
+   during the current round.
+
+If an effect tick or another event without an acting hostile turn causes the
+trigger, finish that completed event and begin Blaze immediately.
+
+
+Blaze Opening State
+
+At the beginning of a Player Character's Blaze of Glory:
+
+1. Restore all of that character's Limit Break dice.
+2. Remove every cooldown from that character's Powers.
+3. Do not restore Physical Health.
+4. Do not restore Mental Health.
+5. Do not restore Willpower.
+6. Suppress every hostile Debuff, hostile Control effect, hostile ongoing
+   negative effect, hostile damage-over-time effect, and Major Injury Attribute
+   restriction for the complete Blaze event.
+7. Preserve legal positive effects, Augmentations, beneficial ongoing effects,
+   allied support, and other positive states.
+8. Prevent the character from being defeated, incapacitated, removed, forced to
+   end their turn, or otherwise stopped before the Blaze event is complete.
+
+Suppressed negative effects remain fictionally present where appropriate, but
+produce no mechanical impairment during Blaze. Blaze restores only Limit Break
+dice and Power availability through cooldown removal. It does not restore
+Health, Willpower, consumed items, charges, or sacrificed resources.
+Health restoration is unnecessary because Blaze itself prevents death/removal
+until completion. Willpower remains meaningful because any future finite
+Willpower Activation Cost must still be payable.
+
+
+Normal Rules During Blaze
+
+Blaze does not grant automatic success. The Blazing character must still
+declare legal Powers, satisfy every Restriction, pay every Activation Cost,
+suffer every Backlash, select legal targets, obey range and targeting, roll
+normally, face legal defence, Resist, Counter, prevention, and opposition, and
+obey Power structure and packet rules.
+
+Costs and Backlash remain absolute and finite resources remain spent. After
+Blaze begins, however, no Activation Cost, Backlash, wound, condition, Debuff,
+Control effect, Attribute penalty, Major Injury, or similar negative result may
+weaken the Blazing character, reduce a current roll, remove an action, disable
+an Attribute, incapacitate or defeat them, remove them, or end Blaze early.
+
+Player-facing rule: "You still pay every cost during Blaze of Glory, but no
+cost or Backlash can weaken or stop you before your final turn ends. Spent
+resources remain spent."
+
+
+Blaze Action Package
+
+A normal single-character Blaze grants one Move Action, one Main Action, and one
+Power Action. This is a genuine bonus turn even if the character already acted
+in the round. Actions granted by Make It Count! are additional action packages
+inside this same Blaze turn, not additional turns.
+
+
+Activation-Cost-Triggered Blaze
+
+Resolve Activation-Cost-triggered Blaze exactly in this order:
+
+1. The player declares and legally commits to the triggering Power.
+2. Its Restriction has already been confirmed.
+3. Pay and apply the Activation Cost.
+4. Resolve the Activation Cost as its own completed event.
+5. The cost creates a Terminal Major Injury Trial.
+6. Before rolling, the player chooses whether to make the Trial or declare
+   Blaze.
+7. If Blaze is declared, cancel the pending Trial.
+8. End the originating ordinary turn and begin the Blaze turn.
+9. Restore Limit Break dice and remove cooldowns.
+10. The triggering Power remains committed.
+11. The first Power Action used during Blaze must resolve that triggering Power.
+12. The triggering Power cannot be abandoned, exchanged, or replaced.
+13. Do not pay the Activation Cost again for that already committed use.
+14. When that Power Action begins, the player may declare a legal Limit Break on
+    the committed Power.
+15. After it resolves, later available Power Actions may use other legal Powers.
+16. If that same Power is used again later during Blaze, pay its Activation Cost
+    again normally.
+
+The player may use the Blaze Move or Main Action before beginning the first
+Power Action. The committed triggering Power nevertheless remains allocated to
+the first Power Action.
+
+
+Limit Breaks During Blaze
+
+Blaze may use Limit Breaks. Blaze opening restores the character's complete
+Limit Break pool. Ordinary per-use and per-roll Limit Break spending caps are
+suspended for Blaze; the character may commit any number of currently available
+Limit Break dice to a legal roll, with no Blaze-specific maximum. A legitimately
+assembled pool of 60 or more dice is legal.
+
+Every die in one roll uses the Blazing character's die size for that roll.
+Never mix donor die sizes. A physical table may roll a very large pool in
+practical batches and total it as one roll; digital tooling may resolve one
+combined pool.
+
+
+Assists During Blaze
+
+Allies may use otherwise legal Assists during Blaze. Every separate eligible
+action is its own Assist opportunity, including eligible base Move, Main, and
+Power Actions, each action granted by Make It Count!, and each coordinated
+action in a Shared Blaze. Each action may receive at most one Assist from each
+character.
+
+Every Assist consumes one of the assisting character's normal Responses and
+remains subject to the normal two-Response limit, ordinary Assist legality,
+duplicate-Intention rules, and stacking rules. Blaze does not refresh
+Responses. Make It Count! and Hit It Again! exist outside the normal Response
+allowance, so an ally may use one special action in addition to legal Assists if
+they still possess the Responses required for those Assists.
+
+
+Make It Count!
+
+Make It Count! is a Blaze-only Free Response available to eligible allied Player
+Characters. It exists outside the normal Response limit and may be used in
+addition to a legal Assist.
+
+"Sacrifice your next scheduled turn. The Blazing character gains one additional
+Move Action, Main Action, and Power Action during the current Blaze event."
+
+The three actions are one action package inside the existing Blaze turn. They do
+not create another start or end of turn, Response refresh, cooldown clear, Limit
+Break restoration, duration tick, once-per-turn refresh, or Blaze trigger. They
+may be freely interleaved with the Blazing character's other actions. Unused
+actions are lost when Blaze ends, and the donated turn remains sacrificed even
+if some or all granted actions are unused.
+
+
+Hit It Again!
+
+Hit It Again! is a Blaze-only Free Response available to eligible allied Player
+Characters. It exists outside the normal Response limit and may be used in
+addition to a legal Assist.
+
+"Sacrifice your next scheduled turn. Immediately remove the cooldown from one
+selected Power belonging to the Blazing character."
+
+The selected Power must currently be on cooldown. Hit It Again! grants no Power
+Action; the Blazing character needs an available Power Action to use it. It may
+select a Power used earlier during the same Blaze or the Activation-Cost-
+triggering Power after that Power resolves and enters cooldown. Several allies
+may use Hit It Again! on the same Power at different times, provided it is on
+cooldown each time.
+
+
+Special-Action Eligibility, Timing, And Limit Break Donation
+
+Only allied Player Characters may use Make It Count! or Hit It Again! during a
+single-character Blaze. Summons, followers, non-PC companions, NPC allies,
+duplicates, controlled creatures, and temporary entities cannot use them.
+
+Each allied Player Character may choose at most one of Make It Count! or Hit It
+Again! during the same Blaze and cannot use both. A character who already owes a
+skipped turn cannot use either action again until that debt is paid or expires.
+One future turn cannot be sacrificed more than once.
+
+An eligible ally may declare either action at an open decision point before the
+first Blaze action, after a current action has completely resolved, or before
+the Blazing character declares Blaze complete. It cannot interrupt a roll,
+defence, Response Window, simultaneous result bundle, or resolving Power. The
+table receives one final declaration opportunity before Blaze ends; after the
+Blazing character confirms completion, no special action may be declared.
+
+When declaring either special action, the ally may optionally donate any number
+of currently available Limit Break dice. The donor chooses the exact number;
+the dice leave the donor's pool and enter the Blazing character's available
+pool immediately. Multiple donations combine, cannot be withdrawn, require no
+additional action or Response, and cannot include spent or unavailable dice.
+Donated dice use the Blazing character's die size when rolled. Unused donated
+dice disappear when Blaze ends, and normal Blaze Limit Break caps remain
+suspended.
+
+
+Sacrificed-Turn Debt
+
+Make It Count! and Hit It Again! sacrifice the ally's next scheduled full turn.
+That skipped turn may fall later in the current round, in the next round, after
+an immediate phase or initiative transition, or in an immediate continuation of
+the same crisis or encounter.
+
+The debt persists if a boss dies but the crisis immediately escalates, a ritual
+changes phase, new enemies emerge, the battlefield transforms, or the same
+encounter continues under a new objective. It expires only if the continuous
+encounter or crisis genuinely ends and meaningful downtime or an unrelated
+later scene begins before that ally receives another turn. It does not follow a
+character into an unrelated scene days later.
+
+
+Single-Character Blaze Completion And Death
+
+A single-character Blaze continues until every available action is used or
+waived, every pending coordinated action resolves, the table receives the final
+special-action opportunity, and the Blazing player declares the final stand
+complete.
+
+The Player Character then dies permanently. Death cannot be prevented, delayed,
+redirected, transferred, healed away, or undone by ordinary resurrection or
+character mechanics. Source-owned effects clean up under normal defeat rules
+unless explicitly authored to outlive their source. Skipped-turn debts owed by
+surviving allies remain owed while the crisis continues.
+
+
+Simultaneous Terminal Events And Shared Blaze Of Glory
+
+"When one triggering action, effect tick, or simultaneous result bundle creates
+terminal Major Injury Trials for two or more Player Characters, all affected players choose
+whether to make their Trial or declare Blaze of Glory before any
+choice resolves. Trial choices resolve first. Every character who declares
+Blaze then enters one Shared Blaze of Glory Event. Each receives the full Blaze
+benefits and their own action package. The Blazing players freely interleave
+their actions and may declare coordinated sequential or simultaneous action
+beats. No Blazing character dies, and the scene cannot advance beyond the
+shared event, until every Blazing character has completed or waived their final
+actions. All Blazing characters then die permanently together at the end of the
+event."
+
+This procedure applies only when the same completed triggering action, effect
+tick, or simultaneous result bundle creates terminal decisions for at least two
+Player Characters. Separate events elsewhere in the round do not merge.
+
+Before any affected player rolls or begins Blaze, every affected player chooses
+Roll or Blaze. They may discuss, but every choice locks before any resolves; no
+one may wait for another terminal roll or Blaze action. Trial choices resolve
+first. A successful roller remains active; a terminal failure kills or defeats
+that character. A surviving roller may later Assist the Shared Blaze and may
+eventually use an eligible special action under finalized Shared-Blaze
+allocation rules, but cannot retroactively switch to Blaze after seeing a roll.
+
+
+Shared Blaze Opening And Interleaving
+
+Every Player Character who chose Blaze independently receives complete Limit
+Break restoration, complete cooldown removal, hostile-negative-effect and Major
+Injury Attribute-restriction suppression, protection from defeat, incapacity,
+removal, and forced ending, and their own Move, Main, and Power Action. No
+Blazing character becomes merely an Assist for another.
+
+Do not require lockstep declarations. The Blazing players jointly choose the
+order of all movement, Main Actions, Power Actions, legal Assists, donated action
+packages, and coordinated beats, and may freely interleave them.
+
+
+Coordinated Action Beats
+
+Blazing characters may declare two or more actions as one coordinated cinematic
+beat.
+
+For a sequential combination, one action establishes, modifies, or enables the
+next. Resolve each action in the chosen order under normal rules.
+
+For a simultaneous combination, commit the actions together and treat them as
+fictionally occurring at the same moment. Each action retains its own roll,
+defence or opposition, targets, packets, damage lanes, Assists, and legal Counter
+and prevention paths. Apply their outputs as one shared final result beat, with
+defeat and cleanup only after every action in that beat resolves.
+
+Do not merge the actions into one automatic combined attack or give a target one
+universal combined defence by default. Any future United Strike rule requires
+separate approval.
+
+
+Shared Blaze Scene Protection And Completion
+
+The Game Director cannot advance the scene beyond the Shared Blaze Event merely
+because a boss or original target is defeated, the immediate objective is
+completed, an encounter phase would normally change, or another threat would
+normally enter. The event continues until every Blazing character uses or
+waives every action, completes every coordinated beat, and confirms their final
+stand.
+
+Remaining actions may pursue any otherwise legal meaningful purpose, including
+defeating another threat, securing an objective, healing allies, rescuing
+civilians, moving someone to safety, closing a portal, delivering a final
+message, or completing another scene-defining act. No Blazing character dies
+and the scene does not advance past the event until all are complete. All
+Blazing characters then die permanently together.
+
+
+Shared-Blaze Special-Action Interaction - OPEN
+
+The following remain explicit design work and are not decided here: which
+Blazing character receives Make It Count! or Hit It Again!; whether one donated
+package or donated Limit Break pool can be split among Blazing characters;
+whether a simultaneously Blazing character can donate despite having no future
+turn to sacrifice; and how special-action targeting is declared in a
+multi-Blaze event. Single-character Blaze special-action rules above are locked.
 
 Combat Lab / simulation policy:
 

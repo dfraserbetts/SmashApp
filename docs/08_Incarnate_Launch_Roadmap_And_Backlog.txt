@@ -934,9 +934,9 @@ saved cost/cooldown fields remain unavailable. The focused authority, live
 variant inventory, circularity gate, evidence matrix, and unlock gates are in
 [Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 
-P. Restriction Discount Bands
+P. Prototype Restriction Request Labels - Final Registry And Bands Open
 
-Restriction discount bands for v0 testing:
+Earlier v0 testing exposed these requested authoring labels:
 
 - None / Cosmetic
 - Light
@@ -944,9 +944,10 @@ Restriction discount bands for v0 testing:
 - Harsh
 - Severe / Oath-Level
 
-These labels are requested authoring classifications only. They do not grant an
-automatic authoritative discount; approval provenance and discount values remain
-OPEN.
+These labels are prototype/migration evidence only. They are not the final
+Restriction type registry, locked severity bands, approved classification, or
+numeric rates. They grant no automatic credit; exact templates, registries,
+bands, approval automation, provenance storage, and values remain OPEN.
 
 A restriction earns a discount only if it is clear, enforceable, meaningfully
 limiting, relevant in actual play, not decorative, not a loophole, and likely
@@ -962,16 +963,15 @@ Strong restriction:
 - "Only works on Agents of Morgoth."
 - Reason: narrow, campaign-relevant, often unavailable, table-visible.
 
-Severe / Oath-Level restrictions are allowed on normal Powers and Roleplay
-Abilities in v0 testing. Watch playtests carefully. If every player adds
-Oath-Level restrictions to everything, either discounts are too generous,
-restrictions are too easy to write around, enforcement is too soft, or the
-table is genuinely enjoying oath-driven thematic greatness. Do not assume
-failure; test it.
+Legacy Severe / Oath-Level requests may remain useful playtest evidence, but the
+requested label grants no approval or credit. Broad use must trigger inspection
+of practical availability, reliable enabling, enforcement, and table preference
+rather than automatic economic treatment.
 
-For v0, restrictions can be manually authored, reviewed, and priced by the
-Architect / Game Director. No structured tag engine or automatic restriction
-calculator is required immediately.
+Restrictions may be drafted and manually reviewed while implementation remains
+parked. Manual prose, a selected label, or a stored percentage cannot approve or
+price itself. Structured shared architecture and numeric calibration remain
+future work.
 
 Restrictions do not add upside. If text says "only works on allies, but doubles
 effect," the "doubles effect" part is not a restriction. Upside belongs to
@@ -1867,6 +1867,49 @@ resolver, or balance calibration. Observe repeated player/GD patterns before
 proposing semantic changes. One confusing example never creates a new Method
 or contract. No numeric cost, cooldown, discount, budget integration, or tuning
 authority is unlocked.
+
+
+Restrictions, Power Burdens, And Blaze Development Order
+
+LOCKED DEPENDENCY DIRECTION / IMPLEMENTATION PARKED. For these connected
+systems, use this intended order:
+
+1. Restriction architecture and approval lifecycle.
+2. Structured Activation Cost and Backlash authoring.
+3. Separate descriptor integration.
+4. Economic calibration and versioned tuning authority.
+5. Runtime, Major Injury, and Player/Shared Blaze integration.
+6. Sparks.
+7. Archetypes.
+
+This is the dependency order for these systems, not a statement that every
+phase blocks all unrelated project work.
+
+OPEN design, calibration, content, and implementation work:
+
+- exact standard Restriction templates and type registry;
+- exact Restriction severity bands and discount/credit rates;
+- exact Activation Cost and Backlash type registries;
+- exact resource percentages and structured state severities;
+- complete Willpower mechanics, Willpower Activation Cost magnitude,
+  affordability, credit, Blaze interaction, and temporary-Willpower treatment;
+- Activation Cost and Backlash credit rates;
+- combined drawback-credit cap, minimum Net BPV floor, and final rounding;
+- standard-versus-Custom approval automation;
+- persistence schema, approval provenance storage, normalized fingerprints, and
+  stale-approval detection;
+- Builder UI and descriptor surfaces;
+- runtime state, Combat Lab support, and automatic simulation policy;
+- Shared-Blaze allocation for Make It Count!, Hit It Again!, action packages,
+  donated Limit Break dice, simultaneously Blazing donors, and multi-Blaze
+  special-action targeting;
+- full Legendary Monster Blaze treatment; and
+- any future United Strike mechanic.
+
+The Shared Blaze action/interleaving framework is locked, but its special-action
+allocation is explicitly OPEN and must not be invented during implementation.
+No runtime, Builder, schema, database, calculator, tuning, or test work is
+authorized by this documentation pass.
 
 
 Open Decisions
