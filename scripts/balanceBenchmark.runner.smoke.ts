@@ -345,6 +345,7 @@ assert.deepEqual(mobilitySuite?.modes, ["full", "changed"]);
 for (const path of [
   "lib/combat-lab/actionResolver.ts",
   "lib/calculators/monsterOutcomeCalculator.ts",
+  "lib/calculators/calculatorConfig.ts",
   "scripts/monsterOutcomeCalculator.smoke.ts",
   "scripts/balanceAudit.summoningCircleControlPressureReconciliation.ts",
 ]) {

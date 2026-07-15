@@ -30,6 +30,14 @@ import {
   getRawSurvivabilityBudgetTarget,
   type ProtectionTuningValues,
 } from "@/lib/config/combatTuningShared";
+import {
+  aggregateAugmentDebuffPowerDelivery,
+  createMatchedReferenceResistDistribution,
+  evaluateAugmentDebuffPacket,
+  type EconomicDuration,
+  type IncarnateDieSides,
+  type PacketDeliveryEvaluation,
+} from "@/lib/summoning/augmentDebuffEconomics";
 
 export type { MonsterCalculatorArchetype };
 
@@ -2331,6 +2339,9 @@ function createSemanticControlPackages(params: {
       const details = controlPressureRecord(packet.detailsJson);
       const timing = String(packet.effectTimingType ?? "ON_CAST").toUpperCase();
       const durationKind = String(packet.effectDurationType ?? "INSTANT").toUpperCase();
+      if (intention === "DEBUFF" && packet.modifier !== null && packet.modifier !== undefined) {
+        continue;
+      }
       const supportedRecurringTiming =
         durationKind === "TURNS" &&
         (timing === "START_OF_TURN" || timing === "START_OF_TURN_WHILST_CHANNELLED");
@@ -2530,6 +2541,532 @@ function getControlPressureProxy(
   return { proxy, weightedComponents };
 }
 
+type NewFormatDebuffControlRejection = {
+  code: string;
+  powerId: string | null;
+  powerName: string;
+  packetIndex: number | null;
+  reason: string;
+};
+
+type NewFormatDebuffControlPowerPackage = {
+  powerId: string | null;
+  powerName: string;
+  packetEvaluations: PacketDeliveryEvaluation[];
+  aggregateDeliveryUnits: number;
+  attributeDeliveryUnits: Record<string, number>;
+  affectedAttributes: string[];
+  cooldownTurns: number;
+  cooldownAuthoritySource: string;
+  availability: number;
+  actionCost: 1;
+  demand: number;
+  overlapFactor: number;
+  overlapAdjustedDeliveryUnits: number;
+  deliveredProxy: number;
+  duplicateSignature: string;
+};
+
+type NewFormatDebuffControlExtraction = {
+  detectedPacketCount: number;
+  candidatePowerPackages: NewFormatDebuffControlPowerPackage[];
+  powerPackages: NewFormatDebuffControlPowerPackage[];
+  exactDuplicateSignaturesRemoved: string[];
+  rejections: NewFormatDebuffControlRejection[];
+};
+
+function powerContainsNewFormatDebuff(
+  power: MonsterUpsertInput["powers"][number] | null | undefined,
+): boolean {
+  if (!power) return false;
+  const packets = power.effectPackets?.length ? power.effectPackets : power.intentions;
+  return packets.some(
+    (packet) =>
+      String(packet.intention ?? packet.type).toUpperCase() === "DEBUFF" &&
+      packet.modifier !== null &&
+      packet.modifier !== undefined,
+  );
+}
+
+function newFormatDebuffSourceDieSides(value: unknown): IncarnateDieSides | null {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  if (normalized === "D4") return 4;
+  if (normalized === "D6") return 6;
+  if (normalized === "D8") return 8;
+  if (normalized === "D10") return 10;
+  if (normalized === "D12") return 12;
+  return null;
+}
+
+function newFormatDebuffDuration(
+  power: MonsterUpsertInput["powers"][number],
+  packet: MonsterUpsertInput["powers"][number]["intentions"][number],
+): { duration: EconomicDuration; recurring: boolean } | null {
+  const durationKind = String(
+    packet.effectDurationType ?? power.effectDurationType ?? power.durationType ?? "INSTANT",
+  ).toUpperCase();
+  const timing = String(packet.effectTimingType ?? "ON_CAST").toUpperCase();
+  const recurring =
+    timing === "START_OF_TURN" || timing === "START_OF_TURN_WHILST_CHANNELLED";
+  if (timing !== "ON_CAST" && !recurring) return null;
+  if (durationKind === "PASSIVE") return { duration: { kind: "PASSIVE" }, recurring: false };
+  if (durationKind === "UNTIL_TARGET_NEXT_TURN") {
+    return { duration: { kind: "UNTIL_TARGET_NEXT_TURN" }, recurring: false };
+  }
+  if (durationKind === "INSTANT") {
+    return { duration: { kind: "TURNS", turns: 1 }, recurring: false };
+  }
+  if (durationKind !== "TURNS") return null;
+  const turns = Number(packet.effectDurationTurns ?? power.effectDurationTurns ?? power.durationTurns);
+  if (!Number.isInteger(turns) || turns < 1 || turns > 4) return null;
+  return {
+    duration: { kind: "TURNS", turns: turns as 1 | 2 | 3 | 4 },
+    recurring,
+  };
+}
+
+function newFormatDebuffTargeting(
+  power: MonsterUpsertInput["powers"][number],
+  packet: MonsterUpsertInput["powers"][number]["intentions"][number],
+): { expectedTargetCount: number; targetBucket: string } | null {
+  const local = packet.localTargetingOverride;
+  let range: "MELEE" | "RANGED" | "AOE" | null = null;
+  let rawTargets: unknown = null;
+  if (local && Number(local.aoeCount) > 0) {
+    range = "AOE";
+    rawTargets = local.aoeCount;
+  } else if (
+    local &&
+    (Number(local.rangedTargets) > 0 || Number(local.rangedDistanceFeet) > 0)
+  ) {
+    range = "RANGED";
+    rawTargets = local.rangedTargets;
+  } else if (local && Number(local.meleeTargets) > 0) {
+    range = "MELEE";
+    rawTargets = local.meleeTargets;
+  } else {
+    range = getPowerRangeCategory(power);
+    rawTargets =
+      range === "AOE"
+        ? power.aoeCount
+        : range === "RANGED"
+          ? power.rangedTargets
+          : range === "MELEE"
+            ? power.meleeTargets
+            : null;
+  }
+  const expectedTargetCount = Number(rawTargets);
+  if (
+    range === null ||
+    !Number.isFinite(expectedTargetCount) ||
+    expectedTargetCount <= 0
+  ) {
+    return null;
+  }
+  return {
+    expectedTargetCount,
+    targetBucket: `${packet.applyTo ?? "PRIMARY_TARGET"}:${range}:${expectedTargetCount}`,
+  };
+}
+
+function newFormatDebuffPacketSignature(
+  evaluation: PacketDeliveryEvaluation,
+): string {
+  const input = evaluation.input;
+  return JSON.stringify({
+    family: input.family,
+    attribute: input.attribute,
+    targetBucket: input.targetBucket,
+    diceCount: input.diceCount,
+    potency: input.potency,
+    modifier: input.modifier,
+    duration: input.duration,
+    recurring: input.recurring,
+    expectedTargetCount: input.expectedTargetCount,
+    resolutionMode: input.resolution.mode,
+    dependencyId:
+      input.resolution.mode === "LINKED" ? "PRIMARY_PACKET" : null,
+    sourceDieSides: input.sourceDieSides ?? null,
+  });
+}
+
+function createNewFormatDebuffControlPackages(params: {
+  monster: MonsterOutcomeInput;
+  powerContribution?: CanonicalPowerContribution | null;
+  supportedLevel: number;
+}): NewFormatDebuffControlExtraction {
+  const candidatePowerPackages: NewFormatDebuffControlPowerPackage[] = [];
+  const rejections: NewFormatDebuffControlRejection[] = [];
+  let detectedPacketCount = 0;
+  const sourceDieSides = newFormatDebuffSourceDieSides(params.monster.attackDie);
+  const entries = params.powerContribution?.powers?.length
+    ? params.powerContribution.powers
+    : (params.monster.powers ?? []).map((power) => ({
+        id: power.id ?? null,
+        name: power.name,
+        authoredPower: power,
+        cooldownAuthority: power.cooldownAuthority ?? null,
+      }));
+
+  const reject = (
+    entry: NonNullable<CanonicalPowerContribution["powers"]>[number],
+    packetIndex: number | null,
+    code: string,
+    reason: string,
+  ) => {
+    rejections.push({
+      code,
+      powerId: entry.id ?? null,
+      powerName: entry.name ?? entry.authoredPower?.name ?? "unknown",
+      packetIndex,
+      reason,
+    });
+  };
+
+  for (const entry of entries) {
+    const power = entry.authoredPower;
+    if (!power) continue;
+    const packets = power.effectPackets?.length ? power.effectPackets : power.intentions;
+    const newFormatPackets = packets.filter(
+      (packet) =>
+        String(packet.intention ?? packet.type).toUpperCase() === "DEBUFF" &&
+        packet.modifier !== null &&
+        packet.modifier !== undefined,
+    );
+    if (newFormatPackets.length === 0) continue;
+    detectedPacketCount += newFormatPackets.length;
+
+    if (Math.max(1, Math.trunc(params.monster.level || 1)) !== params.supportedLevel) {
+      for (const packet of newFormatPackets) {
+        reject(
+          entry,
+          packet.packetIndex ?? packet.sortOrder,
+          "NEW_FORMAT_DEBUFF_CONTROL_BASELINE_UNAVAILABLE_FOR_LEVEL",
+          `New-format Debuff Control supports Level ${params.supportedLevel} only.`,
+        );
+      }
+      continue;
+    }
+    if (sourceDieSides === null) {
+      for (const packet of newFormatPackets) {
+        reject(
+          entry,
+          packet.packetIndex ?? packet.sortOrder,
+          "NEW_FORMAT_DEBUFF_CONTROL_SOURCE_DIE_UNRESOLVED",
+          `Attack die ${String(params.monster.attackDie)} is not supported.`,
+        );
+      }
+      continue;
+    }
+    const cooldownTurns = getPressurePowerCooldown(entry);
+    if (cooldownTurns === null) {
+      for (const packet of newFormatPackets) {
+        reject(
+          entry,
+          packet.packetIndex ?? packet.sortOrder,
+          "NEW_FORMAT_DEBUFF_CONTROL_COOLDOWN_AUTHORITY_UNRESOLVED",
+          "Current authoritative cooldown is unresolved; stored cooldown was not used.",
+        );
+      }
+      continue;
+    }
+
+    const independentEvaluations: PacketDeliveryEvaluation[] = [];
+    const linkedPackets: Array<{
+      packet: (typeof newFormatPackets)[number];
+      packetId: string;
+      attribute: string;
+      duration: { duration: EconomicDuration; recurring: boolean };
+      targeting: { expectedTargetCount: number; targetBucket: string };
+      modifier: 1 | 2 | 3 | 4 | 5;
+    }> = [];
+    let powerRejected = false;
+    const seenPacketSignatures = new Set<string>();
+    const primaryPacketId = `${entry.id ?? power.name}:new-format-primary`;
+
+    for (const [packetOffset, packet] of newFormatPackets.entries()) {
+      const packetIndex = packet.packetIndex ?? packet.sortOrder ?? packetOffset;
+      const modifier = Number(packet.modifier);
+      if (!Number.isInteger(modifier) || modifier < 1 || modifier > 5) {
+        reject(
+          entry,
+          packetIndex,
+          "NEW_FORMAT_DEBUFF_CONTROL_MODIFIER_UNSUPPORTED",
+          "Modifier must be an integer from 1 through 5.",
+        );
+        powerRejected = true;
+        continue;
+      }
+      const attribute = controlPressureAttribute(
+        packet.targetedAttribute ??
+          controlPressureRecord(packet.detailsJson).statTarget ??
+          controlPressureRecord(packet.detailsJson).statChoice ??
+          packet.specific,
+      );
+      if (!attribute) {
+        reject(
+          entry,
+          packetIndex,
+          "NEW_FORMAT_DEBUFF_CONTROL_ATTRIBUTE_UNRESOLVED",
+          "Debuff target attribute is unresolved.",
+        );
+        powerRejected = true;
+        continue;
+      }
+      const duration = newFormatDebuffDuration(power, packet);
+      if (!duration) {
+        reject(
+          entry,
+          packetIndex,
+          "NEW_FORMAT_DEBUFF_CONTROL_DURATION_OR_TIMING_UNSUPPORTED",
+          "Duration or timing cannot be represented by the four-turn semantic horizon.",
+        );
+        powerRejected = true;
+        continue;
+      }
+      const targeting = newFormatDebuffTargeting(power, packet);
+      if (!targeting) {
+        reject(
+          entry,
+          packetIndex,
+          "NEW_FORMAT_DEBUFF_CONTROL_TARGET_COUNT_UNRESOLVED",
+          "An explicit positive expected-target count is required.",
+        );
+        powerRejected = true;
+        continue;
+      }
+      const dependencyMode =
+        packetIndex <= 0
+          ? "PRIMARY"
+          : String(packet.secondaryDependencyMode ?? "LINKED_TO_PRIMARY").toUpperCase();
+      if (
+        dependencyMode === "DEPENDENT_SEQUENTIAL" ||
+        dependencyMode === "TRIGGERED_CONDITIONAL"
+      ) {
+        reject(
+          entry,
+          packetIndex,
+          "NEW_FORMAT_DEBUFF_CONTROL_DEPENDENCY_UNSUPPORTED",
+          `Dependency mode ${dependencyMode} has no safe target-local correlation model.`,
+        );
+        powerRejected = true;
+        continue;
+      }
+      const packetId =
+        dependencyMode === "PRIMARY"
+          ? primaryPacketId
+          : `${entry.id ?? power.name}:new-format:${packetIndex}`;
+      const signature = JSON.stringify({
+        attribute,
+        duration,
+        targeting,
+        diceCount: packet.diceCount ?? power.diceCount,
+        potency: packet.potency ?? power.potency,
+        modifier,
+        dependencyMode,
+      });
+      if (seenPacketSignatures.has(signature)) continue;
+      seenPacketSignatures.add(signature);
+
+      const diceCount = Number(packet.diceCount ?? power.diceCount);
+      const potency = Number(packet.potency ?? power.potency);
+      if (
+        !Number.isInteger(diceCount) ||
+        diceCount < 1 ||
+        diceCount > 20 ||
+        !Number.isInteger(potency) ||
+        potency < 1 ||
+        potency > 20
+      ) {
+        reject(
+          entry,
+          packetIndex,
+          "NEW_FORMAT_DEBUFF_CONTROL_SEMANTIC_INPUT_UNSUPPORTED",
+          "Dice Count and Potency must be integers from 1 through 20.",
+        );
+        powerRejected = true;
+        continue;
+      }
+
+      if (dependencyMode === "LINKED_TO_PRIMARY") {
+        linkedPackets.push({
+          packet,
+          packetId,
+          attribute,
+          duration,
+          targeting,
+          modifier: modifier as 1 | 2 | 3 | 4 | 5,
+        });
+        continue;
+      }
+      const evaluation = evaluateAugmentDebuffPacket({
+        id: packetId,
+        family: "DEBUFF",
+        attribute,
+        targetBucket: targeting.targetBucket,
+        diceCount,
+        potency,
+        modifier: modifier as 1 | 2 | 3 | 4 | 5,
+        duration: duration.duration,
+        recurring: duration.recurring,
+        expectedTargetCount: targeting.expectedTargetCount,
+        resolution: { mode: "INDEPENDENT", correlationId: packetId },
+        sourceDieSides,
+        resistSuccessDistribution: createMatchedReferenceResistDistribution(),
+        retainedShellInputs: {
+          sourceAttribute: "Attack",
+          sourcePowerId: entry.id ?? null,
+          sourcePacketIndex: packetIndex,
+        },
+      });
+      independentEvaluations.push(evaluation);
+    }
+
+    if (powerRejected) continue;
+    const primaryEvaluation = independentEvaluations[0];
+    if (linkedPackets.length > 0 && !primaryEvaluation) {
+      for (const linked of linkedPackets) {
+        reject(
+          entry,
+          linked.packet.packetIndex ?? linked.packet.sortOrder,
+          "NEW_FORMAT_DEBUFF_CONTROL_CORRELATION_UNRESOLVED",
+          "Linked Debuff has no supported independent primary distribution.",
+        );
+      }
+      continue;
+    }
+    const evaluations = [...independentEvaluations];
+    for (const linked of linkedPackets) {
+      const packetIndex = linked.packet.packetIndex ?? linked.packet.sortOrder;
+      evaluations.push(
+        evaluateAugmentDebuffPacket({
+          id: linked.packetId,
+          family: "DEBUFF",
+          attribute: linked.attribute,
+          targetBucket: linked.targeting.targetBucket,
+          diceCount: Math.trunc(Number(linked.packet.diceCount ?? power.diceCount)),
+          potency: Math.trunc(Number(linked.packet.potency ?? power.potency)),
+          modifier: linked.modifier,
+          duration: linked.duration.duration,
+          recurring: linked.duration.recurring,
+          expectedTargetCount: linked.targeting.expectedTargetCount,
+          resolution: {
+            mode: "LINKED",
+            dependencyId: primaryEvaluation.input.id,
+            inheritedAppliedSuccessDistribution:
+              primaryEvaluation.appliedSuccessDistribution,
+          },
+          sourceDieSides,
+          retainedShellInputs: {
+            sourceAttribute: "Attack",
+            sourcePowerId: entry.id ?? null,
+            sourcePacketIndex: packetIndex,
+            linkedDependencyIdentity: primaryEvaluation.input.id,
+          },
+        }),
+      );
+    }
+    if (evaluations.length === 0) continue;
+    const aggregate = aggregateAugmentDebuffPowerDelivery(evaluations);
+    if (aggregate.status !== "SUPPORTED" || aggregate.totalDeliveryUnits === null) {
+      reject(
+        entry,
+        null,
+        "NEW_FORMAT_DEBUFF_CONTROL_CORRELATION_UNRESOLVED",
+        aggregate.diagnostics.join("; ") || "Power delivery correlation is unsupported.",
+      );
+      continue;
+    }
+    const availability = controlPressureAvailability(cooldownTurns).contribution;
+    const affectedAttributes = [...new Set(evaluations.map((item) => item.input.attribute))].sort();
+    const attributeDeliveryUnits = aggregate.groups.reduce<Record<string, number>>(
+      (units, group) => {
+        units[group.attribute] = (units[group.attribute] ?? 0) + (group.deliveryUnits ?? 0);
+        return units;
+      },
+      {},
+    );
+    candidatePowerPackages.push({
+      powerId: entry.id ?? power.id ?? null,
+      powerName: entry.name ?? power.name,
+      packetEvaluations: evaluations,
+      aggregateDeliveryUnits: aggregate.totalDeliveryUnits,
+      attributeDeliveryUnits,
+      affectedAttributes,
+      cooldownTurns,
+      cooldownAuthoritySource: entry.cooldownAuthority?.source ?? "UNRESOLVED",
+      availability,
+      actionCost: 1,
+      demand: availability,
+      overlapFactor: 1,
+      overlapAdjustedDeliveryUnits: aggregate.totalDeliveryUnits,
+      deliveredProxy: 0,
+      duplicateSignature: JSON.stringify({
+        packets: evaluations.map(newFormatDebuffPacketSignature).sort(),
+        cooldownTurns,
+      }),
+    });
+  }
+
+  const seenPowerSignatures = new Set<string>();
+  const exactDuplicateSignaturesRemoved: string[] = [];
+  const powerPackages = candidatePowerPackages.filter((candidate) => {
+    if (seenPowerSignatures.has(candidate.duplicateSignature)) {
+      exactDuplicateSignaturesRemoved.push(candidate.duplicateSignature);
+      return false;
+    }
+    seenPowerSignatures.add(candidate.duplicateSignature);
+    return true;
+  });
+  return {
+    detectedPacketCount,
+    candidatePowerPackages,
+    powerPackages,
+    exactDuplicateSignaturesRemoved,
+    rejections,
+  };
+}
+
+function applyNewFormatDebuffThroughput(params: {
+  packages: NewFormatDebuffControlPowerPackage[];
+  capacity: number;
+}) {
+  const overlapCounts = new Map<string, number>();
+  const packages = params.packages.map((controlPackage) => {
+    let overlapAdjustedDeliveryUnits = 0;
+    for (const [attribute, deliveryUnits] of Object.entries(
+      controlPackage.attributeDeliveryUnits,
+    )) {
+      const previous = overlapCounts.get(attribute) ?? 0;
+      const factor = previous === 0 ? 1 : Math.max(0.35, 0.6 ** previous);
+      overlapCounts.set(attribute, previous + 1);
+      overlapAdjustedDeliveryUnits += deliveryUnits * factor;
+    }
+    const overlapFactor =
+      controlPackage.aggregateDeliveryUnits > 0
+        ? overlapAdjustedDeliveryUnits / controlPackage.aggregateDeliveryUnits
+        : 1;
+    return { ...controlPackage, overlapFactor, overlapAdjustedDeliveryUnits };
+  });
+  const totalDemand = packages.reduce((sum, item) => sum + item.demand, 0);
+  const allocationScale = totalDemand > 0 ? Math.min(1, params.capacity / totalDemand) : 1;
+  const deliveredPackages = packages.map((item) => ({
+    ...item,
+    deliveredProxy:
+      item.overlapAdjustedDeliveryUnits * item.availability * allocationScale,
+  }));
+  return {
+    packages: deliveredPackages,
+    totalDemand,
+    capacity: params.capacity,
+    allocationScale,
+    totalDeliveredProxy: deliveredPackages.reduce(
+      (sum, item) => sum + item.deliveredProxy,
+      0,
+    ),
+  };
+}
+
 function buildControlPressureAxisBaselineModel(params: {
   monster: MonsterOutcomeInput;
   config: CalculatorConfig;
@@ -2552,6 +3089,17 @@ function buildControlPressureAxisBaselineModel(params: {
   });
   const actionsPerTurn = getPressureActionsPerTurn(params.monster);
   const actual = getControlPressureComponents(extraction.packages, actionsPerTurn);
+  const newFormatExtraction = createNewFormatDebuffControlPackages({
+    monster: params.monster,
+    powerContribution: params.powerContribution,
+    supportedLevel: tuning.newFormatDebuff.supportedLevel,
+  });
+  const newFormatWarnings = newFormatExtraction.rejections.map(
+    (rejection) =>
+      `${rejection.code}: Power ${rejection.powerName}${
+        rejection.packetIndex === null ? "" : ` packet ${rejection.packetIndex}`
+      }: ${rejection.reason}`,
+  );
   const common = {
     policy: "control_pressure_runtime_semantics_v1",
     definition:
@@ -2581,10 +3129,13 @@ function buildControlPressureAxisBaselineModel(params: {
       excludedLegacyContributions: params.excludedLegacyContributions,
       reason: "Generic Manipulation weights do not prove authored hostile table-facing control.",
     },
-    unsupportedAuthoringWarnings: extraction.unsupportedWarnings,
+    unsupportedAuthoringWarnings: [
+      ...extraction.unsupportedWarnings,
+      ...newFormatWarnings,
+    ],
   };
-  if (!baseline) {
-    return {
+  const legacyResult = !baseline
+    ? {
       ...common,
       mode: tuning.nonCalibratedFallbackMode,
       calibrated: false,
@@ -2603,35 +3154,170 @@ function buildControlPressureAxisBaselineModel(params: {
       capReason: null,
       fallbackPolicy:
         "Non-Level-3 creatures retain the explicitly labelled legacy cost-coupled Manipulation curve until level-specific doctrine is accepted.",
+      }
+    : (() => {
+        const baselineComponents = getControlPressureBaselineComponents(baseline);
+        const actualProxy = getControlPressureProxy(actual.values, tuning);
+        const baselineProxy = getControlPressureProxy(baselineComponents, tuning);
+        const ratio = baselineProxy.proxy > 0 ? actualProxy.proxy / baselineProxy.proxy : 0;
+        const uncappedScore =
+          extraction.packages.length > 0 && actualProxy.proxy > 0 && ratio > 0
+            ? tuning.midpointScore + Math.log2(ratio) * tuning.logRatioScale
+            : 0;
+        const finalScore = clampRadarScore(uncappedScore);
+        return {
+          ...common,
+          mode: "LEVEL_3_BASELINE_RELATIVE",
+          calibrated: true,
+          fallback: false,
+          baselinePackageId: baseline.id,
+          baselinePackage: baseline,
+          baselineComponents,
+          weightedActualComponents: actualProxy.weightedComponents,
+          weightedBaselineComponents: baselineProxy.weightedComponents,
+          rawActualControlPressureProxy: actualProxy.proxy,
+          rawBaselineControlPressureProxy: baselineProxy.proxy,
+          ratioToBaseline: ratio,
+          uncappedScore,
+          finalScore,
+          capped: finalScore !== uncappedScore,
+          capReason:
+            finalScore !== uncappedScore
+              ? uncappedScore > 10
+                ? "MAX_10"
+                : "MIN_0"
+              : null,
+          fallbackPolicy: null,
+        };
+      })();
+
+  const newFormatEvidence = {
+    detectedPacketCount: newFormatExtraction.detectedPacketCount,
+    candidatePowerPackages: newFormatExtraction.candidatePowerPackages,
+    exactDuplicateSignaturesRemoved:
+      newFormatExtraction.exactDuplicateSignaturesRemoved,
+    rejections: newFormatExtraction.rejections,
+  };
+  if (newFormatExtraction.powerPackages.length === 0) {
+    if (
+      newFormatExtraction.detectedPacketCount > 0 &&
+      extraction.packages.length === 0
+    ) {
+      return {
+        ...legacyResult,
+        policy: "new_format_debuff_control_pressure_v1",
+        branch: "NEW_FORMAT_DEBUFF_CONTROL",
+        mode: "NEW_FORMAT_DEBUFF_CONTROL_UNSUPPORTED",
+        calibrated: true,
+        fallback: false,
+        rawActualControlPressureProxy: 0,
+        rawBaselineControlPressureProxy: null,
+        ratioToBaseline: null,
+        uncappedScore: 0,
+        finalScore: 0,
+        capped: false,
+        capReason: null,
+        fallbackPolicy: null,
+        newFormatDebuffControl: {
+          ...newFormatEvidence,
+          sourceAttribute: "Attack",
+          actualSourceDie: params.monster.attackDie,
+          supportedLevel: tuning.newFormatDebuff.supportedLevel,
+          totalDemand: 0,
+          capacity: tuning.newFormatDebuff.tierBaselines[params.monster.tier].actionCapacity,
+          allocationScale: 1,
+          preNormalizationProxy: 0,
+          baselineProxy: null,
+          normalizationScale: null,
+          coefficient: tuning.newFormatDebuff.coefficient,
+          referenceConstant: tuning.newFormatDebuff.referenceConstant,
+          uncappedScore: 0,
+          finalScore: 0,
+        },
+      };
+    }
+    return {
+      ...legacyResult,
+      branch: "LEGACY_CONTROL",
+      newFormatDebuffControl: newFormatEvidence,
     };
   }
-  const baselineComponents = getControlPressureBaselineComponents(baseline);
-  const actualProxy = getControlPressureProxy(actual.values, tuning);
-  const baselineProxy = getControlPressureProxy(baselineComponents, tuning);
-  const ratio = baselineProxy.proxy > 0 ? actualProxy.proxy / baselineProxy.proxy : 0;
+
+  if (extraction.packages.length > 0) {
+    const mixedWarning =
+      "NEW_FORMAT_DEBUFF_CONTROL_MIXED_FAMILY_NORMALIZATION_UNSUPPORTED: " +
+      "New-format Debuff contribution was excluded; the complete legacy/non-Debuff Control score was preserved.";
+    return {
+      ...legacyResult,
+      branch: "MIXED_UNSUPPORTED",
+      unsupportedAuthoringWarnings: [
+        ...legacyResult.unsupportedAuthoringWarnings,
+        mixedWarning,
+      ],
+      newFormatDebuffControl: {
+        ...newFormatEvidence,
+        excludedFromScore: true,
+        exclusionReason: mixedWarning,
+      },
+    };
+  }
+
+  const tierBaseline = tuning.newFormatDebuff.tierBaselines[params.monster.tier];
+  const throughput = applyNewFormatDebuffThroughput({
+    packages: newFormatExtraction.powerPackages,
+    capacity: tierBaseline.actionCapacity,
+  });
   const uncappedScore =
-    extraction.packages.length > 0 && actualProxy.proxy > 0 && ratio > 0
-      ? tuning.midpointScore + Math.log2(ratio) * tuning.logRatioScale
+    throughput.totalDeliveredProxy > 0
+      ? tuning.newFormatDebuff.coefficient *
+        Math.log1p(throughput.totalDeliveredProxy / tierBaseline.normalizationScale)
       : 0;
   const finalScore = clampRadarScore(uncappedScore);
   return {
     ...common,
-    mode: "LEVEL_3_BASELINE_RELATIVE",
+    policy: "new_format_debuff_control_pressure_v1",
+    branch: "NEW_FORMAT_DEBUFF_CONTROL",
+    mode: "LEVEL_3_NEW_FORMAT_DEBUFF_CONTROL",
     calibrated: true,
     fallback: false,
-    baselinePackageId: baseline.id,
-    baselinePackage: baseline,
-    baselineComponents,
-    weightedActualComponents: actualProxy.weightedComponents,
-    weightedBaselineComponents: baselineProxy.weightedComponents,
-    rawActualControlPressureProxy: actualProxy.proxy,
-    rawBaselineControlPressureProxy: baselineProxy.proxy,
-    ratioToBaseline: ratio,
+    baselinePackageId: null,
+    baselinePackage: null,
+    baselineComponents: null,
+    weightedActualComponents: null,
+    weightedBaselineComponents: null,
+    rawActualControlPressureProxy: throughput.totalDeliveredProxy,
+    rawBaselineControlPressureProxy: tierBaseline.baselineProxy,
+    ratioToBaseline:
+      throughput.totalDeliveredProxy / tierBaseline.baselineProxy,
     uncappedScore,
     finalScore,
     capped: finalScore !== uncappedScore,
-    capReason: finalScore !== uncappedScore ? (uncappedScore > 10 ? "MAX_10" : "MIN_0") : null,
+    capReason:
+      finalScore !== uncappedScore
+        ? uncappedScore > 10
+          ? "MAX_10"
+          : "MIN_0"
+        : null,
     fallbackPolicy: null,
+    newFormatDebuffControl: {
+      ...newFormatEvidence,
+      sourceAttribute: "Attack",
+      actualSourceDie: params.monster.attackDie,
+      matchedResistanceDistribution: createMatchedReferenceResistDistribution(),
+      deliveredPowerPackages: throughput.packages,
+      totalDemand: throughput.totalDemand,
+      capacity: throughput.capacity,
+      allocationScale: throughput.allocationScale,
+      preNormalizationProxy: throughput.totalDeliveredProxy,
+      tier: params.monster.tier,
+      level,
+      baselineProxy: tierBaseline.baselineProxy,
+      normalizationScale: tierBaseline.normalizationScale,
+      coefficient: tuning.newFormatDebuff.coefficient,
+      referenceConstant: tuning.newFormatDebuff.referenceConstant,
+      uncappedScore,
+      finalScore,
+    },
   };
 }
 
@@ -4163,8 +4849,20 @@ export function computeMonsterOutcomes(
       traitAxisBonuses.mobility,
     presence: calibratedPressureRaw,
   };
+  const newFormatDebuffResolverManipulationExcluded =
+    opts?.powerContribution?.powers?.reduce((sum, power, index) => {
+      if (!powerContainsNewFormatDebuff(power.authoredPower)) return sum;
+      return (
+        sum +
+        Number(
+          powerAvailability.perPower[index]?.effectivePowerAxisVector.manipulation ?? 0,
+        )
+      );
+    }, 0) ?? 0;
   const legacyManipulationRaw =
-    nonPowerContribution.manipulation + effectivePowerAxisVector.manipulation;
+    nonPowerContribution.manipulation +
+    effectivePowerAxisVector.manipulation -
+    newFormatDebuffResolverManipulationExcluded;
   const controlPressureAxisBaselineModel = buildControlPressureAxisBaselineModel({
     monster,
     config: cfg,
@@ -4172,6 +4870,7 @@ export function computeMonsterOutcomes(
     legacyManipulationRaw,
     excludedLegacyContributions: {
       genericPowerResolver: effectivePowerAxisVector.manipulation,
+      newFormatDebuffResolverExcluded: newFormatDebuffResolverManipulationExcluded,
       equipment: equipmentModifierAxisBonuses.manipulation,
       naturalAttackGreaterSuccess: naturalAttackGsAxisBonuses.manipulation,
       customLimitBreak: customLimitBreakAxisBonuses.manipulation,

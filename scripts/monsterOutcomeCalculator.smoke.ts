@@ -11,6 +11,10 @@ import {
 } from "../lib/calculators/monsterOutcomeCalculator";
 import type { MonsterAttack, MonsterUpsertInput } from "../lib/summoning/types";
 import { makeResolvedPowerCooldownAuthority } from "../lib/summoning/resolvePowerCooldownAuthority";
+import {
+  createSuccessDistribution,
+  evaluateAugmentDebuffPacket,
+} from "../lib/summoning/augmentDebuffEconomics";
 
 function activeCooldownAuthority(
   effectiveCooldownTurns: number,
@@ -434,6 +438,7 @@ function getControlPressureAxisDebug(result: ReturnType<typeof computeMonsterOut
   const debug = result.debug as {
     normalizationBreakdown?: {
       controlPressureAxisBaselineModel?: {
+        branch?: "LEGACY_CONTROL" | "NEW_FORMAT_DEBUFF_CONTROL" | "MIXED_UNSUPPORTED";
         mode?: string;
         baselinePackageId?: string | null;
         semanticPackagesConsidered?: Array<{
@@ -466,6 +471,43 @@ function getControlPressureAxisDebug(result: ReturnType<typeof computeMonsterOut
         ratioToBaseline?: number | null;
         uncappedScore?: number | null;
         finalScore?: number | null;
+        newFormatDebuffControl?: {
+          detectedPacketCount?: number;
+          actualSourceDie?: string;
+          totalDemand?: number;
+          capacity?: number;
+          allocationScale?: number;
+          preNormalizationProxy?: number;
+          baselineProxy?: number | null;
+          normalizationScale?: number | null;
+          uncappedScore?: number;
+          finalScore?: number;
+          exactDuplicateSignaturesRemoved?: string[];
+          rejections?: Array<{ code?: string; reason?: string }>;
+          deliveredPowerPackages?: Array<{
+            powerId?: string | null;
+            aggregateDeliveryUnits?: number;
+            availability?: number;
+            actionCost?: number;
+            demand?: number;
+            overlapFactor?: number;
+            deliveredProxy?: number;
+            packetEvaluations?: Array<{
+              applicationProbability?: number;
+              expectedActiveTurns?: number;
+              expectedActiveTargetTurns?: number;
+              deliveryUnits?: number;
+              sourceDistribution?: number[];
+              resistDistribution?: number[] | null;
+              appliedSuccessDistribution?: number[];
+              input?: {
+                modifier?: number;
+                attribute?: string;
+                resolution?: { mode?: string; dependencyId?: string };
+              };
+            }>;
+          }>;
+        };
       };
     };
   };
@@ -1754,6 +1796,7 @@ type ControlPressurePowerOptions = {
   movementMode?: string;
   resistAttribute?: "FORTITUDE" | "INTELLECT" | "BRAVERY" | null;
   linkedDamageWs?: number;
+  modifier?: number | null;
 };
 
 function createControlPressurePower(
@@ -1775,6 +1818,7 @@ function createControlPressurePower(
     type: options.intention,
     diceCount: options.diceCount ?? 1,
     potency,
+    modifier: options.modifier,
     effectTimingType: options.timing ?? "ON_CAST",
     effectTimingTurns: null,
     effectDurationType: duration,
@@ -1840,6 +1884,82 @@ function createControlPressurePower(
   };
 }
 
+type NewFormatDebuffPacketFixture = {
+  modifier: number;
+  attribute?: "ATTACK" | "GUARD" | "FORTITUDE" | "INTELLECT" | "SYNERGY" | "BRAVERY";
+  diceCount?: number;
+  potency?: number;
+  dependencyMode?: "INDEPENDENT" | "LINKED_TO_PRIMARY" | "DEPENDENT_SEQUENTIAL" | "TRIGGERED_CONDITIONAL";
+  duration?: "INSTANT" | "TURNS" | "PASSIVE" | "UNTIL_TARGET_NEXT_TURN";
+  durationTurns?: number;
+  timing?: "ON_CAST" | "START_OF_TURN" | "START_OF_TURN_WHILST_CHANNELLED";
+};
+
+function createNewFormatDebuffPower(options: {
+  name: string;
+  targets?: number;
+  cooldown?: number;
+  packets?: NewFormatDebuffPacketFixture[];
+}): MonsterUpsertInput["powers"][number] {
+  const packetOptions = options.packets ?? [{ modifier: 3 }];
+  const packets: FixtureEffectPacket[] = packetOptions.map((packet, index) => {
+    const duration = packet.duration ?? "TURNS";
+    const attribute = packet.attribute ?? "ATTACK";
+    return {
+      packetIndex: index,
+      sortOrder: index,
+      hostility: "HOSTILE",
+      intention: "DEBUFF",
+      type: "DEBUFF",
+      diceCount: packet.diceCount ?? 3,
+      potency: packet.potency ?? 3,
+      modifier: packet.modifier,
+      effectTimingType: packet.timing ?? "ON_CAST",
+      effectTimingTurns: null,
+      effectDurationType: duration,
+      effectDurationTurns: duration === "TURNS" ? (packet.durationTurns ?? 2) : null,
+      dealsWounds: false,
+      woundChannel: null,
+      targetedAttribute: attribute,
+      secondaryDependencyMode:
+        index === 0 ? undefined : (packet.dependencyMode ?? "INDEPENDENT"),
+      detailsJson: { statTarget: attribute },
+    };
+  });
+  return {
+    id: options.name.toLowerCase().replace(/\s+/g, "-"),
+    sortOrder: 0,
+    name: options.name,
+    description: null,
+    descriptorChassis: "IMMEDIATE",
+    cooldownTurns: options.cooldown ?? 1,
+    cooldownReduction: 0,
+    counterMode: "NO",
+    rangeCategories: ["RANGED"],
+    meleeTargets: 1,
+    rangedTargets: options.targets ?? 1,
+    rangedDistanceFeet: 30,
+    aoeCount: 1,
+    aoeCenterRangeFeet: null,
+    primaryDefenceGate: {
+      sourcePacketIndex: 0,
+      gateResult: "RESIST",
+      protectionChannel: null,
+      resistAttribute: "FORTITUDE",
+      hostileEntryPattern: "DIRECT",
+      resolutionSource: "EXPLICIT",
+    },
+    effectDurationType: packets[0].effectDurationType,
+    effectDurationTurns: packets[0].effectDurationTurns,
+    durationType: packets[0].effectDurationType,
+    durationTurns: packets[0].effectDurationTurns,
+    effectPackets: packets,
+    intentions: packets,
+    diceCount: packets[0].diceCount ?? 3,
+    potency: packets[0].potency ?? 3,
+  };
+}
+
 function createPressureNaturalAttack(
   range: "MELEE" | "RANGED" | "AOE",
   targets: number,
@@ -1886,22 +2006,26 @@ function createPressureNaturalAttack(
 }
 
 function computePressureFixture(options: {
+  level?: number;
   tier?: "MINION" | "SOLDIER" | "ELITE" | "BOSS";
   legendary?: boolean;
+  attackDie?: "D4" | "D6" | "D8" | "D10" | "D12" | string;
   naturalRange?: "MELEE" | "RANGED" | "AOE";
   naturalTargets?: number;
   naturalStrength?: number;
   powers?: MonsterUpsertInput["powers"];
   genericPresence?: number;
   genericManipulation?: number;
+  unresolvedCooldownPowerIds?: string[];
 }) {
   const powers = options.powers ?? [];
   return computeMonsterOutcomes(
     {
       ...createBaseMonster(),
-      level: 3,
+      level: options.level ?? 3,
       tier: options.tier ?? "SOLDIER",
       legendary: options.legendary ?? false,
+      attackDie: (options.attackDie ?? "D8") as MonsterUpsertInput["attackDie"],
       attacks: [
         createPressureNaturalAttack(
           options.naturalRange ?? "MELEE",
@@ -1927,10 +2051,12 @@ function computePressureFixture(options: {
                 manipulation: options.genericManipulation ?? 0,
               },
               authoredPower: power as never,
-              cooldownAuthority: activeCooldownAuthority(
-                Math.max(1, power.cooldownTurns ?? 1),
-                power.cooldownTurns ?? null,
-              ),
+              cooldownAuthority: options.unresolvedCooldownPowerIds?.includes(power.id ?? "")
+                ? null
+                : activeCooldownAuthority(
+                    Math.max(0, power.cooldownTurns ?? 1),
+                    power.cooldownTurns ?? null,
+                  ),
               derivedCooldownTurns: power.cooldownTurns,
               cooldownTurns: power.cooldownTurns,
               cooldownReduction: 0,
@@ -2754,6 +2880,642 @@ for (const axis of [
   );
 }
 
+const capturedLevelThreeComparatorBaseline = {
+  MINION: {
+    forcedMovement: 4.8847834105706935,
+    movementDenial: 5.47723863946136,
+    mainActionDenial: 5.981401314213827,
+    legacyDebuff: 5.695020518553033,
+  },
+  SOLDIER: {
+    forcedMovement: 3.8732277320282194,
+    movementDenial: 4.465682960918886,
+    mainActionDenial: 4.969845635671353,
+    legacyDebuff: 4.68346484001056,
+  },
+  ELITE: {
+    forcedMovement: 2.2133669405464786,
+    movementDenial: 2.805822169437145,
+    mainActionDenial: 3.3099848441896125,
+    legacyDebuff: 3.023604048528819,
+  },
+  BOSS: {
+    forcedMovement: 2.02161094377129,
+    movementDenial: 2.550215973154207,
+    mainActionDenial: 3.0074121173857904,
+    legacyDebuff: 2.746930962262311,
+  },
+} as const;
+
+const levelThreeComparatorResults = Object.fromEntries(
+  (Object.keys(capturedLevelThreeComparatorBaseline) as Array<keyof typeof capturedLevelThreeComparatorBaseline>)
+    .map((tier) => {
+      const forcedMovement = computePressureFixture({
+        tier,
+        powers: [
+          createControlPressurePower({
+            name: `${tier} Comparator Forced Movement`,
+            intention: "MOVEMENT",
+            cooldown: 2,
+            resistAttribute: "FORTITUDE",
+          }),
+        ],
+      });
+      const movementDenial = computePressureFixture({
+        tier,
+        powers: [
+          createControlPressurePower({
+            name: `${tier} Comparator Movement Denial`,
+            intention: "CONTROL",
+            controlMode: "Force no move",
+            cooldown: 2,
+            resistAttribute: "FORTITUDE",
+          }),
+        ],
+      });
+      const mainActionDenial = computePressureFixture({
+        tier,
+        powers: [
+          createControlPressurePower({
+            name: `${tier} Comparator Main Action Denial`,
+            intention: "CONTROL",
+            controlMode: "Force no main action",
+            cooldown: 2,
+            resistAttribute: "FORTITUDE",
+          }),
+        ],
+      });
+      const legacyDebuff = computePressureFixture({
+        tier,
+        powers: [
+          createControlPressurePower({
+            name: `${tier} Comparator Legacy Debuff`,
+            intention: "DEBUFF",
+            potency: 3,
+            diceCount: 3,
+            modifier: null,
+            duration: "TURNS",
+            durationTurns: 1,
+            cooldown: 2,
+            resistAttribute: "FORTITUDE",
+          }),
+        ],
+      });
+      const actual = {
+        forcedMovement: forcedMovement.radarAxes.manipulation,
+        movementDenial: movementDenial.radarAxes.manipulation,
+        mainActionDenial: mainActionDenial.radarAxes.manipulation,
+        legacyDebuff: legacyDebuff.radarAxes.manipulation,
+      };
+      const expected = capturedLevelThreeComparatorBaseline[tier];
+      for (const key of Object.keys(expected) as Array<keyof typeof expected>) {
+        assertApprox(actual[key], expected[key], 1e-12, `${tier} ${key} comparator regression`);
+      }
+      return [tier, actual];
+    }),
+);
+
+const midpointFixtures = {
+  MINION: computePressureFixture({
+    tier: "MINION",
+    attackDie: "D6",
+    powers: [
+      createNewFormatDebuffPower({
+        name: "Minion New Format Midpoint",
+        targets: 1,
+        cooldown: 1,
+        packets: [{ modifier: 3, diceCount: 3, potency: 3, durationTurns: 2 }],
+      }),
+    ],
+  }),
+  SOLDIER: computePressureFixture({
+    tier: "SOLDIER",
+    attackDie: "D8",
+    powers: [
+      createNewFormatDebuffPower({
+        name: "Soldier New Format Midpoint",
+        targets: 2,
+        cooldown: 1,
+        packets: [{ modifier: 2, diceCount: 3, potency: 3, durationTurns: 2 }],
+      }),
+    ],
+  }),
+  ELITE: computePressureFixture({
+    tier: "ELITE",
+    attackDie: "D10",
+    powers: [
+      createNewFormatDebuffPower({
+        name: "Elite New Format Midpoint",
+        targets: 6,
+        cooldown: 2,
+        packets: [{ modifier: 2, diceCount: 3, potency: 3, durationTurns: 2 }],
+      }),
+    ],
+  }),
+  BOSS: computePressureFixture({
+    tier: "BOSS",
+    attackDie: "D10",
+    powers: [
+      createNewFormatDebuffPower({
+        name: "Boss New Format Midpoint Attack",
+        targets: 3,
+        cooldown: 1,
+        packets: [{ modifier: 2, attribute: "ATTACK", diceCount: 3, potency: 3, durationTurns: 2 }],
+      }),
+      createNewFormatDebuffPower({
+        name: "Boss New Format Midpoint Guard",
+        targets: 3,
+        cooldown: 1,
+        packets: [{ modifier: 2, attribute: "GUARD", diceCount: 3, potency: 3, durationTurns: 2 }],
+      }),
+    ],
+  }),
+};
+for (const [tier, result] of Object.entries(midpointFixtures)) {
+  assertApprox(result.radarAxes.manipulation, 5, 1e-12, `${tier} new-format midpoint`);
+  assert.equal(getControlPressureAxisDebug(result)?.branch, "NEW_FORMAT_DEBUFF_CONTROL");
+}
+
+function computeEliteNewFormat(options: {
+  modifier?: number;
+  targets?: number;
+  cooldown?: number;
+  duration?: "INSTANT" | "TURNS" | "PASSIVE" | "UNTIL_TARGET_NEXT_TURN";
+  durationTurns?: number;
+  timing?: "ON_CAST" | "START_OF_TURN" | "START_OF_TURN_WHILST_CHANNELLED";
+  attackDie?: "D4" | "D6" | "D8" | "D10" | "D12" | string;
+}) {
+  return computePressureFixture({
+    tier: "ELITE",
+    attackDie: options.attackDie ?? "D10",
+    powers: [
+      createNewFormatDebuffPower({
+        name: `Elite Grid ${JSON.stringify(options)}`,
+        targets: options.targets ?? 1,
+        cooldown: options.cooldown ?? 1,
+        packets: [{
+          modifier: options.modifier ?? 3,
+          diceCount: 3,
+          potency: 3,
+          duration: options.duration ?? "TURNS",
+          durationTurns: options.durationTurns ?? 2,
+          timing: options.timing ?? "ON_CAST",
+        }],
+      }),
+    ],
+  });
+}
+
+const eliteModifierGrid = [1, 2, 3, 4, 5].map((modifier) =>
+  computeEliteNewFormat({ modifier }).radarAxes.manipulation,
+);
+
+const eliteResistanceProxy = (resistDiceCount: number) => {
+  const evaluation = evaluateAugmentDebuffPacket({
+    id: `elite-resistance-${resistDiceCount}`,
+    family: "DEBUFF",
+    attribute: "Attack",
+    targetBucket: "one-target",
+    diceCount: 3,
+    potency: 3,
+    modifier: 3,
+    duration: { kind: "TURNS", turns: 2 },
+    recurring: false,
+    expectedTargetCount: 1,
+    resolution: { mode: "INDEPENDENT" },
+    sourceDieSides: 10,
+    resistSuccessDistribution:
+      resistDiceCount === 0
+        ? [1]
+        : createSuccessDistribution({ dieSides: 8, diceCount: resistDiceCount }),
+  });
+  const proxy = evaluation.deliveryUnits * 0.9;
+  return 4 * Math.log1p(proxy / calculatorConfig.controlPressureAxisTuning.newFormatDebuff.tierBaselines.ELITE.normalizationScale);
+};
+const eliteResistanceGrid = [6, 3, 1, 0].map(eliteResistanceProxy);
+[0.658631, 2.231836, 3.333849, 3.588285].forEach((expected, index) =>
+  assertApprox(eliteResistanceGrid[index], expected, 0.000001, `Elite resistance grid ${index}`),
+);
+[0.889483, 1.616707, 2.231836, 2.764856, 3.235128].forEach((expected, index) =>
+  assertApprox(eliteModifierGrid[index], expected, 0.000001, `Elite M${index + 1}`),
+);
+
+const eliteBreadthGrid = [1, 3, 6].map((targets) =>
+  computeEliteNewFormat({ targets, cooldown: targets === 1 ? 1 : targets === 3 ? 2 : 3 })
+    .radarAxes.manipulation,
+);
+[2.231836, 4.214121, 5.533572].forEach((expected, index) =>
+  assertApprox(eliteBreadthGrid[index], expected, 0.000001, `Elite breadth ${[1, 3, 6][index]}`),
+);
+
+const eliteDurationGrid = [1, 2, 4].map((durationTurns) =>
+  computeEliteNewFormat({ durationTurns, cooldown: 1 })
+    .radarAxes.manipulation,
+);
+[1.269599, 2.231836, 3.316246].forEach((expected, index) =>
+  assertApprox(eliteDurationGrid[index], expected, 0.000001, `Elite duration ${[1, 2, 4][index]}`),
+);
+const elitePassive = computeEliteNewFormat({ duration: "PASSIVE" });
+assertApprox(elitePassive.radarAxes.manipulation, 3.316246, 0.000001, "Elite passive four-turn horizon");
+const eliteRecurring = computeEliteNewFormat({
+  duration: "TURNS",
+  durationTurns: 2,
+  timing: "START_OF_TURN",
+  cooldown: 2,
+});
+assertApprox(eliteRecurring.radarAxes.manipulation, 3.99022, 0.000001, "Elite recurring");
+
+const eliteCooldownGrid = [1, 2, 3, 4, 5].map((cooldown) =>
+  computeEliteNewFormat({ cooldown }).radarAxes.manipulation,
+);
+[2.231836, 1.936084, 1.616707, 1.020243, 0.889483].forEach((expected, index) =>
+  assertApprox(eliteCooldownGrid[index], expected, 0.000001, `Elite CD${index + 1}`),
+);
+
+function computeBossNewFormat(powers: MonsterUpsertInput["powers"]) {
+  return computePressureFixture({ tier: "BOSS", attackDie: "D10", powers });
+}
+const bossOneRoutine = computeBossNewFormat([
+  createNewFormatDebuffPower({ name: "Boss One Routine", packets: [{ modifier: 3 }] }),
+]);
+const bossTwoRoutine = computeBossNewFormat([
+  createNewFormatDebuffPower({ name: "Boss Two Routine Attack", packets: [{ modifier: 3, attribute: "ATTACK" }] }),
+  createNewFormatDebuffPower({ name: "Boss Two Routine Guard", packets: [{ modifier: 3, attribute: "GUARD" }] }),
+]);
+const bossThreeTargetPlusM5 = computeBossNewFormat([
+  createNewFormatDebuffPower({ name: "Boss Three Target M3", targets: 3, cooldown: 2, packets: [{ modifier: 3, attribute: "ATTACK" }] }),
+  createNewFormatDebuffPower({ name: "Boss One Target M5", targets: 1, cooldown: 1, packets: [{ modifier: 5, attribute: "GUARD" }] }),
+]);
+const bossPrimaryLinked = computeBossNewFormat([
+  createNewFormatDebuffPower({
+    name: "Boss Primary Linked",
+    cooldown: 2,
+    packets: [
+      { modifier: 3, attribute: "ATTACK" },
+      { modifier: 2, attribute: "ATTACK", dependencyMode: "LINKED_TO_PRIMARY" },
+    ],
+  }),
+]);
+const bossThreeCompeting = computeBossNewFormat([
+  createNewFormatDebuffPower({ name: "Boss Competing Attack", packets: [{ modifier: 3, attribute: "ATTACK" }] }),
+  createNewFormatDebuffPower({ name: "Boss Competing Guard", packets: [{ modifier: 3, attribute: "GUARD" }] }),
+  createNewFormatDebuffPower({ name: "Boss Competing Fortitude", packets: [{ modifier: 3, attribute: "FORTITUDE" }] }),
+]);
+const bossBroadPlusM5 = computeBossNewFormat([
+  createNewFormatDebuffPower({ name: "Boss Broad M2", targets: 6, cooldown: 2, packets: [{ modifier: 2, attribute: "ATTACK" }] }),
+  createNewFormatDebuffPower({ name: "Boss M5", targets: 1, cooldown: 1, packets: [{ modifier: 5, attribute: "GUARD" }] }),
+]);
+const bossAcceptance = {
+  oneRoutine: bossOneRoutine.radarAxes.manipulation,
+  twoRoutine: bossTwoRoutine.radarAxes.manipulation,
+  threeTargetPlusM5: bossThreeTargetPlusM5.radarAxes.manipulation,
+  primaryLinked: bossPrimaryLinked.radarAxes.manipulation,
+  threeCompeting: bossThreeCompeting.radarAxes.manipulation,
+  midpoint: midpointFixtures.BOSS.radarAxes.manipulation,
+  broadPlusM5: bossBroadPlusM5.radarAxes.manipulation,
+};
+const expectedBossAcceptance = {
+  oneRoutine: 1.936084,
+  twoRoutine: 3.235128,
+  threeTargetPlusM5: 5.117183,
+  primaryLinked: 2.492406,
+  threeCompeting: 3.47432,
+  midpoint: 5,
+  broadPlusM5: 5.656541,
+};
+for (const key of Object.keys(expectedBossAcceptance) as Array<keyof typeof expectedBossAcceptance>) {
+  assertApprox(bossAcceptance[key], expectedBossAcceptance[key], 0.000001, `Boss ${key}`);
+}
+assertApprox(
+  getControlPressureAxisDebug(bossPrimaryLinked)?.newFormatDebuffControl?.totalDemand ?? -1,
+  0.75,
+  1e-12,
+  "Linked packet adds no action demand",
+);
+assertApprox(
+  getControlPressureAxisDebug(bossThreeCompeting)?.newFormatDebuffControl?.allocationScale ?? -1,
+  2 / 2.7,
+  1e-12,
+  "Boss three-power capacity allocation",
+);
+
+const sourceDieOrdering = (["D4", "D6", "D8", "D10", "D12"] as const).map(
+  (attackDie) => computeEliteNewFormat({ attackDie }).radarAxes.manipulation,
+);
+for (let index = 1; index < sourceDieOrdering.length; index += 1) {
+  assert.ok(sourceDieOrdering[index] > sourceDieOrdering[index - 1], "Actual Attack die ordering");
+}
+
+const invalidSourceDie = computeEliteNewFormat({ attackDie: "D20" });
+assert.equal(invalidSourceDie.radarAxes.manipulation, 0);
+assert.ok(
+  getControlPressureAxisDebug(invalidSourceDie)?.newFormatDebuffControl?.rejections?.some(
+    (rejection) => rejection.code === "NEW_FORMAT_DEBUFF_CONTROL_SOURCE_DIE_UNRESOLVED",
+  ),
+);
+
+for (const level of [1, 5, 10]) {
+  const unsupported = computePressureFixture({
+    level,
+    tier: "ELITE",
+    attackDie: "D10",
+    powers: [createNewFormatDebuffPower({ name: `Unsupported Level ${level}` })],
+  });
+  assert.equal(unsupported.radarAxes.manipulation, 0);
+  assert.ok(
+    getControlPressureAxisDebug(unsupported)?.newFormatDebuffControl?.rejections?.some(
+      (rejection) =>
+        rejection.code === "NEW_FORMAT_DEBUFF_CONTROL_BASELINE_UNAVAILABLE_FOR_LEVEL",
+    ),
+  );
+}
+
+const mixedMovementPower = createControlPressurePower({
+  name: "Mixed Movement Denial",
+  intention: "CONTROL",
+  controlMode: "Force no move",
+  cooldown: 2,
+  resistAttribute: "FORTITUDE",
+});
+const mixedMovementBaseline = computePressureFixture({ tier: "ELITE", powers: [mixedMovementPower] });
+const mixedMovement = computePressureFixture({
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [mixedMovementPower, createNewFormatDebuffPower({ name: "Excluded Mixed Debuff" })],
+});
+assertApprox(
+  mixedMovement.radarAxes.manipulation,
+  mixedMovementBaseline.radarAxes.manipulation,
+  1e-12,
+  "Mixed movement denial preserves legacy score",
+);
+assert.equal(getControlPressureAxisDebug(mixedMovement)?.branch, "MIXED_UNSUPPORTED");
+assert.ok(
+  getControlPressureAxisDebug(mixedMovement)?.unsupportedAuthoringWarnings?.some((warning) =>
+    warning.includes("NEW_FORMAT_DEBUFF_CONTROL_MIXED_FAMILY_NORMALIZATION_UNSUPPORTED"),
+  ),
+);
+
+const legacyMixedPower = createControlPressurePower({
+  name: "Mixed Legacy Debuff",
+  intention: "DEBUFF",
+  modifier: null,
+  potency: 3,
+  duration: "TURNS",
+  durationTurns: 2,
+  cooldown: 2,
+});
+const legacyMixedBaseline = computePressureFixture({ tier: "ELITE", powers: [legacyMixedPower] });
+const legacyMixed = computePressureFixture({
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [legacyMixedPower, createNewFormatDebuffPower({ name: "Excluded Legacy Mixed Debuff" })],
+});
+assertApprox(
+  legacyMixed.radarAxes.manipulation,
+  legacyMixedBaseline.radarAxes.manipulation,
+  1e-12,
+  "Mixed legacy Debuff preserves legacy score",
+);
+assert.equal(getControlPressureAxisDebug(legacyMixed)?.branch, "MIXED_UNSUPPORTED");
+
+const eliteDifferentAttributePair = computePressureFixture({
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [
+    createNewFormatDebuffPower({
+      name: "Elite Different Attribute Pair",
+      packets: [
+        { modifier: 3, attribute: "ATTACK" },
+        { modifier: 3, attribute: "GUARD", dependencyMode: "INDEPENDENT" },
+      ],
+    }),
+  ],
+});
+const eliteSameAttributePair = computePressureFixture({
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [
+    createNewFormatDebuffPower({
+      name: "Elite Same Attribute Pair",
+      packets: [
+        { modifier: 3, attribute: "ATTACK" },
+        { modifier: 3, attribute: "ATTACK", dependencyMode: "INDEPENDENT" },
+      ],
+    }),
+  ],
+});
+const duplicatePowerOne = createNewFormatDebuffPower({
+  name: "Elite Exact Duplicate One",
+  packets: [{ modifier: 3, attribute: "ATTACK" }],
+});
+const duplicatePowerTwo = {
+  ...duplicatePowerOne,
+  id: "elite-exact-duplicate-two",
+  name: "Elite Exact Duplicate Two",
+};
+const eliteExactDuplicate = computePressureFixture({
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [duplicatePowerOne, duplicatePowerTwo],
+});
+assertApprox(eliteDifferentAttributePair.radarAxes.manipulation, 3.655881, 0.000001, "Elite different-attribute pair");
+assertApprox(eliteSameAttributePair.radarAxes.manipulation, 3.450824, 0.000001, "Elite same-attribute pair");
+assertApprox(eliteExactDuplicate.radarAxes.manipulation, 2.231836, 0.000001, "Elite exact duplicate");
+assert.equal(
+  getControlPressureAxisDebug(eliteExactDuplicate)?.newFormatDebuffControl
+    ?.exactDuplicateSignaturesRemoved?.length,
+  1,
+);
+
+const eliteM1ByTier = {
+  MINION: computePressureFixture({
+    tier: "MINION",
+    attackDie: "D6",
+    powers: [createNewFormatDebuffPower({ name: "Minion M1", packets: [{ modifier: 1 }] })],
+  }),
+  SOLDIER: computePressureFixture({
+    tier: "SOLDIER",
+    attackDie: "D8",
+    powers: [createNewFormatDebuffPower({ name: "Soldier M1", packets: [{ modifier: 1 }] })],
+  }),
+  ELITE: computePressureFixture({
+    tier: "ELITE",
+    attackDie: "D10",
+    powers: [createNewFormatDebuffPower({ name: "Elite M1 Comparator", packets: [{ modifier: 1 }] })],
+  }),
+  BOSS: computePressureFixture({
+    tier: "BOSS",
+    attackDie: "D10",
+    powers: [createNewFormatDebuffPower({ name: "Boss M1", packets: [{ modifier: 1 }] })],
+  }),
+};
+const eliteM3ByTier = {
+  MINION: computePressureFixture({
+    tier: "MINION",
+    attackDie: "D6",
+    powers: [createNewFormatDebuffPower({ name: "Minion M3 Comparator" })],
+  }),
+  SOLDIER: computePressureFixture({
+    tier: "SOLDIER",
+    attackDie: "D8",
+    powers: [createNewFormatDebuffPower({ name: "Soldier M3 Comparator" })],
+  }),
+  ELITE: computePressureFixture({
+    tier: "ELITE",
+    attackDie: "D10",
+    powers: [createNewFormatDebuffPower({ name: "Elite M3 Comparator" })],
+  }),
+  BOSS: computePressureFixture({
+    tier: "BOSS",
+    attackDie: "D10",
+    powers: [createNewFormatDebuffPower({ name: "Boss M3 Comparator" })],
+  }),
+};
+for (const tier of Object.keys(capturedLevelThreeComparatorBaseline) as Array<keyof typeof capturedLevelThreeComparatorBaseline>) {
+  assert.ok(
+    eliteM1ByTier[tier].radarAxes.manipulation < capturedLevelThreeComparatorBaseline[tier].movementDenial,
+    `${tier} M1 remains below same-tier movement denial`,
+  );
+  assert.ok(
+    eliteM3ByTier[tier].radarAxes.manipulation < capturedLevelThreeComparatorBaseline[tier].mainActionDenial,
+    `${tier} M3 remains below same-tier Main Action denial`,
+  );
+}
+
+const supportedPower = createNewFormatDebuffPower({
+  name: "Supported Alongside Rejected Cooldown",
+  packets: [{ modifier: 3, attribute: "ATTACK" }],
+});
+const unresolvedPower = createNewFormatDebuffPower({
+  name: "Rejected Unresolved Cooldown",
+  packets: [{ modifier: 3, attribute: "GUARD" }],
+});
+const supportedOnly = computePressureFixture({ tier: "ELITE", attackDie: "D10", powers: [supportedPower] });
+const withUnresolvedCooldown = computePressureFixture({
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [supportedPower, unresolvedPower],
+  unresolvedCooldownPowerIds: [unresolvedPower.id ?? ""],
+});
+assertApprox(
+  withUnresolvedCooldown.radarAxes.manipulation,
+  supportedOnly.radarAxes.manipulation,
+  1e-12,
+  "Unresolved cooldown rejects only affected new-format package",
+);
+assert.ok(
+  getControlPressureAxisDebug(withUnresolvedCooldown)?.newFormatDebuffControl?.rejections?.some(
+    (rejection) => rejection.code === "NEW_FORMAT_DEBUFF_CONTROL_COOLDOWN_AUTHORITY_UNRESOLVED",
+  ),
+);
+
+const nonControlPower = createControlPressurePower({
+  name: "Non-Control Capacity Neutral",
+  intention: "DEBUFF",
+  modifier: null,
+});
+nonControlPower.effectPackets = nonControlPower.effectPackets.map((packet) => ({
+  ...packet,
+  intention: "ATTACK",
+  type: "ATTACK",
+  modifier: null,
+}));
+nonControlPower.intentions = nonControlPower.effectPackets;
+const newFormatWithNonControl = computePressureFixture({
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [supportedPower, nonControlPower],
+});
+assertApprox(
+  newFormatWithNonControl.radarAxes.manipulation,
+  supportedOnly.radarAxes.manipulation,
+  1e-12,
+  "Non-Control power does not consume Control capacity",
+);
+
+const genericManipulationZero = computePressureFixture({
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [supportedPower],
+  genericManipulation: 0,
+});
+const genericManipulationHuge = computePressureFixture({
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [supportedPower],
+  genericManipulation: 999,
+});
+assertApprox(
+  genericManipulationZero.radarAxes.manipulation,
+  genericManipulationHuge.radarAxes.manipulation,
+  1e-12,
+  "New-format score ignores generic BPV/manipulation vector",
+);
+for (const axis of [
+  "physicalThreat",
+  "mentalThreat",
+  "physicalSurvivability",
+  "mentalSurvivability",
+  "synergy",
+  "mobility",
+  "presence",
+] as const) {
+  assertApprox(
+    genericManipulationZero.radarAxes[axis],
+    genericManipulationHuge.radarAxes[axis],
+    1e-12,
+    `New-format ${axis} isolation`,
+  );
+}
+
+for (const [tier, baseline] of Object.entries(
+  calculatorConfig.controlPressureAxisTuning.newFormatDebuff.tierBaselines,
+)) {
+  assertApprox(
+    baseline.baselineProxy / baseline.normalizationScale,
+    calculatorConfig.controlPressureAxisTuning.newFormatDebuff.referenceConstant,
+    1e-12,
+    `${tier} new-format baseline reference constant`,
+  );
+}
+
+const unsupportedLevelOtherControl = computePressureFixture({
+  level: 5,
+  tier: "ELITE",
+  powers: [
+    createControlPressurePower({
+      name: "Level Five Existing Control",
+      intention: "CONTROL",
+      controlMode: "Force no move",
+      cooldown: 2,
+    }),
+  ],
+  genericManipulation: 5,
+});
+const unsupportedLevelMixed = computePressureFixture({
+  level: 5,
+  tier: "ELITE",
+  attackDie: "D10",
+  powers: [
+    createControlPressurePower({
+      name: "Level Five Existing Control",
+      intention: "CONTROL",
+      controlMode: "Force no move",
+      cooldown: 2,
+    }),
+    createNewFormatDebuffPower({ name: "Level Five Omitted New Format" }),
+  ],
+  genericManipulation: 5,
+});
+assert.ok(unsupportedLevelOtherControl.radarAxes.manipulation > 0);
+assertApprox(
+  unsupportedLevelMixed.radarAxes.manipulation,
+  unsupportedLevelOtherControl.radarAxes.manipulation,
+  1e-12,
+  "Unsupported-level new format does not suppress or inflate other Control",
+);
+
 console.log(
   JSON.stringify(
     {
@@ -2959,6 +3721,29 @@ console.log(
           controlPressureRegressionA.radarAxes.manipulation,
           controlPressureRegressionB.radarAxes.manipulation,
         ],
+        comparatorBaselineByTier: levelThreeComparatorResults,
+        newFormatDebuff: {
+          midpoints: Object.fromEntries(
+            Object.entries(midpointFixtures).map(([tier, result]) => [
+              tier,
+              result.radarAxes.manipulation,
+            ]),
+          ),
+          elite: {
+            modifiers: eliteModifierGrid,
+            resistance: eliteResistanceGrid,
+            breadth: eliteBreadthGrid,
+            duration: eliteDurationGrid,
+            passiveFourTurnHorizon: elitePassive.radarAxes.manipulation,
+            recurrence: eliteRecurring.radarAxes.manipulation,
+            cooldown: eliteCooldownGrid,
+            differentAttributePair: eliteDifferentAttributePair.radarAxes.manipulation,
+            sameAttributePair: eliteSameAttributePair.radarAxes.manipulation,
+            exactDuplicate: eliteExactDuplicate.radarAxes.manipulation,
+          },
+          boss: bossAcceptance,
+          sourceDieOrdering,
+        },
       },
     },
     null,

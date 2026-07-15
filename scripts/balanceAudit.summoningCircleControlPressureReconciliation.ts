@@ -674,6 +674,338 @@ function syntheticDireWolfFixture(
   } as MonsterRow;
 }
 
+type SyntheticNewFormatPacket = {
+  identity: string;
+  modifier: number | null;
+  attribute?: "ATTACK" | "GUARD" | "FORTITUDE";
+  dependencyMode?: "INDEPENDENT" | "LINKED_TO_PRIMARY";
+  intention?: "DEBUFF" | "CONTROL" | "MOVEMENT";
+  controlMode?: string;
+};
+
+function syntheticControlPower(options: {
+  identity: string;
+  name: string;
+  targets?: number;
+  diceCount?: number;
+  potency?: number;
+  durationTurns?: number;
+  packets?: SyntheticNewFormatPacket[];
+}) {
+  const powerId = `control-pressure-reconciliation-power:${options.identity}`;
+  const packetSpecs = options.packets ?? [{ identity: "primary", modifier: 3 }];
+  const effectPackets = packetSpecs.map((packet, index) => {
+    const intention = packet.intention ?? "DEBUFF";
+    return {
+      id: `control-pressure-reconciliation-packet:${options.identity}:${packet.identity}`,
+      packetIndex: index,
+      sortOrder: index,
+      hostility: "HOSTILE",
+      intention,
+      type: intention,
+      specific: null,
+      diceCount: options.diceCount ?? 3,
+      potency: options.potency ?? 3,
+      modifier: packet.modifier,
+      effectTimingType: "ON_CAST",
+      effectTimingTurns: null,
+      effectDurationType: "TURNS",
+      effectDurationTurns: options.durationTurns ?? 2,
+      dealsWounds: false,
+      woundChannel: null,
+      targetedAttribute: intention === "DEBUFF" ? (packet.attribute ?? "ATTACK") : null,
+      applicationModeKey: null,
+      resolutionOrigin: "PRIMARY",
+      applyTo: "PRIMARY_TARGET",
+      secondaryDependencyMode:
+        index === 0 ? null : (packet.dependencyMode ?? "INDEPENDENT"),
+      triggerConditionText: null,
+      detailsJson:
+        intention === "DEBUFF"
+          ? { statTarget: packet.attribute ?? "ATTACK" }
+          : intention === "CONTROL"
+            ? { controlMode: packet.controlMode ?? "Force no move" }
+            : { movementMode: "Force Push" },
+      localTargetingOverride: null,
+    };
+  });
+  return {
+    id: powerId,
+    sortOrder: 0,
+    name: options.name,
+    description: null,
+    schemaVersion: 2,
+    descriptorChassis: "IMMEDIATE",
+    cooldownTurns: 1,
+    cooldownReduction: 0,
+    counterMode: "NO",
+    commitmentModifier: "STANDARD",
+    rangeCategories: ["RANGED"],
+    meleeTargets: 1,
+    rangedTargets: options.targets ?? 1,
+    rangedDistanceFeet: 30,
+    aoeCount: 1,
+    aoeCenterRangeFeet: null,
+    primaryDefenceGate: {
+      sourcePacketIndex: 0,
+      gateResult: "RESIST",
+      protectionChannel: null,
+      resistAttribute: "FORTITUDE",
+      hostileEntryPattern: "DIRECT",
+      resolutionSource: "EXPLICIT",
+    },
+    effectDurationType: "TURNS",
+    effectDurationTurns: options.durationTurns ?? 2,
+    durationType: "TURNS",
+    durationTurns: options.durationTurns ?? 2,
+    effectPackets,
+    intentions: effectPackets,
+    diceCount: options.diceCount ?? 3,
+    potency: options.potency ?? 3,
+  };
+}
+
+function summarizeSyntheticNewFormatFixture(params: {
+  direWolf: MonsterRow;
+  tuning: Awaited<ReturnType<typeof loadActiveTuning>>;
+  name: string;
+  level?: number;
+  tier: "MINION" | "SOLDIER" | "ELITE" | "BOSS";
+  attackDie: "D4" | "D6" | "D8" | "D10" | "D12";
+  powers: ReturnType<typeof syntheticControlPower>[];
+}) {
+  const resolutions = params.powers.map((power) =>
+    resolvePowerCooldownAuthority({
+      power: power as unknown as Parameters<typeof resolvePowerCooldownAuthority>[0]["power"],
+      mode: "ACTIVE_CURRENT_BALANCE",
+      tuningSnapshot: params.tuning.powerSnapshot,
+      context: { level: params.level ?? 3, tier: params.tier },
+    }),
+  );
+  if (resolutions.some((resolution) => !resolution.ok)) {
+    throw new Error(
+      `Synthetic cooldown authority failed for ${params.name}: ${JSON.stringify(resolutions)}`,
+    );
+  }
+  const powers = params.powers.map((power, index) =>
+    attachPowerCooldownAuthority(
+      power as unknown as Parameters<typeof attachPowerCooldownAuthority>[0],
+      resolutions[index],
+    ),
+  );
+  const base = buildCalculatorInput(params.direWolf);
+  const outcome = computeMonsterOutcomes(
+    {
+      ...base,
+      id: `synthetic-${params.name}`,
+      name: params.name,
+      level: params.level ?? 3,
+      tier: params.tier,
+      legendary: false,
+      attackDie: params.attackDie,
+      powers,
+    } as unknown as Parameters<typeof computeMonsterOutcomes>[0],
+    params.tuning.calculatorConfig,
+    {
+      powerContribution: {
+        axisVector: {},
+        powerCount: powers.length,
+        powers: powers.map((power, index) => ({
+          id: power.id ?? null,
+          name: power.name,
+          axisVector: {},
+          authoredPower: power,
+          cooldownAuthority: resolutions[index].ok ? resolutions[index].result : null,
+        })),
+      },
+    },
+  );
+  const debug = asRecord(outcome.debug);
+  const normalization = asRecord(debug.normalizationBreakdown);
+  const model = asRecord(normalization.controlPressureAxisBaselineModel);
+  const semantic = asRecord(model.newFormatDebuffControl);
+  return {
+    name: params.name,
+    level: params.level ?? 3,
+    tier: params.tier,
+    attackDie: params.attackDie,
+    score: asNumber(outcome.radarAxes.manipulation),
+    branch: String(model.branch ?? "unknown"),
+    mode: String(model.mode ?? "unknown"),
+    warnings: asStringArray(model.unsupportedAuthoringWarnings),
+    semantic,
+    cooldownAuthority: resolutions.map((resolution, index) => ({
+      power: powers[index].name,
+      resolved: resolution.ok,
+      cooldownTurns: resolution.ok ? resolution.result.effectiveCooldownTurns : null,
+      source: resolution.ok ? resolution.result.source : null,
+      basePowerValue: resolution.ok ? resolution.result.basePowerValue : null,
+    })),
+  };
+}
+
+function buildNewFormatAcceptance(
+  direWolf: MonsterRow,
+  tuning: Awaited<ReturnType<typeof loadActiveTuning>>,
+) {
+  const fixture = (
+    name: string,
+    tier: "MINION" | "SOLDIER" | "ELITE" | "BOSS",
+    attackDie: "D4" | "D6" | "D8" | "D10" | "D12",
+    powers: ReturnType<typeof syntheticControlPower>[],
+    level = 3,
+  ) => summarizeSyntheticNewFormatFixture({ direWolf, tuning, name, tier, attackDie, powers, level });
+  const midpoints = {
+    MINION: fixture("Minion midpoint", "MINION", "D6", [
+      syntheticControlPower({
+        identity: "tier-midpoint-minion",
+        name: "Minion midpoint",
+        targets: 1,
+        packets: [{ identity: "primary", modifier: 3 }],
+      }),
+    ]),
+    SOLDIER: fixture("Soldier midpoint", "SOLDIER", "D8", [
+      syntheticControlPower({
+        identity: "tier-midpoint-soldier",
+        name: "Soldier midpoint",
+        targets: 2,
+        packets: [{ identity: "primary", modifier: 2 }],
+      }),
+    ]),
+    ELITE: fixture("Elite midpoint", "ELITE", "D10", [
+      syntheticControlPower({
+        identity: "tier-midpoint-elite",
+        name: "Elite midpoint",
+        targets: 6,
+        packets: [{ identity: "primary", modifier: 2 }],
+      }),
+    ]),
+    BOSS: fixture("Boss midpoint", "BOSS", "D10", [
+      syntheticControlPower({
+        identity: "tier-midpoint-boss-attack",
+        name: "Boss midpoint Attack",
+        targets: 3,
+        packets: [{ identity: "primary", modifier: 2, attribute: "ATTACK" }],
+      }),
+      syntheticControlPower({
+        identity: "tier-midpoint-boss-guard",
+        name: "Boss midpoint Guard",
+        targets: 3,
+        packets: [{ identity: "primary", modifier: 2, attribute: "GUARD" }],
+      }),
+    ]),
+  };
+  const eliteModifiers = [1, 2, 3, 4, 5].map((modifier) =>
+    fixture(`Elite M${modifier}`, "ELITE", "D10", [
+      syntheticControlPower({
+        identity: `elite-modifier-m${modifier}`,
+        name: `Elite M${modifier}`,
+        packets: [{ identity: "primary", modifier }],
+      }),
+    ]),
+  );
+  const eliteBreadth = [1, 3, 6].map((targets) =>
+    fixture(`Elite targets ${targets}`, "ELITE", "D10", [
+      syntheticControlPower({
+        identity: `elite-breadth-targets-${targets}`,
+        name: `Elite targets ${targets}`,
+        targets,
+        packets: [{ identity: "primary", modifier: 3 }],
+      }),
+    ]),
+  );
+  const bossThroughput = [1, 2, 3].map((count) =>
+    fixture(
+      `Boss powers ${count}`,
+      "BOSS",
+      "D10",
+      (["ATTACK", "GUARD", "FORTITUDE"] as const).slice(0, count).map((attribute) =>
+        syntheticControlPower({
+          identity: `boss-throughput-${count}-${attribute.toLowerCase()}`,
+          name: `Boss power ${count}-${attribute.toLowerCase()}`,
+          packets: [{ identity: "primary", modifier: 3, attribute }],
+        }),
+      ),
+    ),
+  );
+  const sourceDieOrdering = (["D4", "D6", "D8", "D10", "D12"] as const).map((attackDie) =>
+    fixture(`Elite source ${attackDie}`, "ELITE", attackDie, [
+      syntheticControlPower({
+        identity: `elite-source-${attackDie.toLowerCase()}`,
+        name: `Elite source ${attackDie}`,
+        packets: [{ identity: "primary", modifier: 3 }],
+      }),
+    ]),
+  );
+  const unsupportedLevels = [1, 5, 10].map((level) =>
+    fixture(`Unsupported level ${level}`, "ELITE", "D10", [
+      syntheticControlPower({
+        identity: `unsupported-level-${level}`,
+        name: `Unsupported level ${level}`,
+        packets: [{ identity: "primary", modifier: 3 }],
+      }),
+    ], level),
+  );
+  const mixedLegacyPower = syntheticControlPower({
+    identity: "mixed-legacy-movement-denial",
+    name: "Mixed movement denial",
+    packets: [{
+      identity: "primary",
+      modifier: null,
+      intention: "CONTROL",
+      controlMode: "Force no move",
+    }],
+  });
+  const mixedBaseline = fixture("Mixed baseline", "ELITE", "D10", [mixedLegacyPower]);
+  const mixed = fixture("Mixed fail closed", "ELITE", "D10", [
+    mixedLegacyPower,
+    syntheticControlPower({
+      identity: "mixed-excluded-new-format",
+      name: "Mixed excluded new format",
+      packets: [{ identity: "primary", modifier: 3 }],
+    }),
+  ]);
+  const checks = {
+    midpoints: Object.values(midpoints).every((entry) => Math.abs(entry.score - 5) < 0.000001),
+    eliteModifiers: [0.889483, 1.616707, 2.231836, 2.764856, 3.235128].every(
+      (expected, index) => Math.abs(eliteModifiers[index].score - expected) < 0.000001,
+    ),
+    eliteBreadth: [2.231836, 4.214121, 5.533572].every(
+      (expected, index) => Math.abs(eliteBreadth[index].score - expected) < 0.000001,
+    ),
+    bossThroughput: [1.936084, 3.235128, 3.47432].every(
+      (expected, index) => Math.abs(bossThroughput[index].score - expected) < 0.000001,
+    ),
+    sourceDieOrdering: sourceDieOrdering.every(
+      (entry, index) => index === 0 || entry.score > sourceDieOrdering[index - 1].score,
+    ),
+    unsupportedLevels: unsupportedLevels.every(
+      (entry) =>
+        entry.score === 0 &&
+        entry.warnings.some((warning) =>
+          warning.includes("NEW_FORMAT_DEBUFF_CONTROL_BASELINE_UNAVAILABLE_FOR_LEVEL"),
+        ),
+    ),
+    mixedFailClosed:
+      Math.abs(mixed.score - mixedBaseline.score) < 0.000001 &&
+      mixed.branch === "MIXED_UNSUPPORTED" &&
+      mixed.warnings.some((warning) =>
+        warning.includes("NEW_FORMAT_DEBUFF_CONTROL_MIXED_FAMILY_NORMALIZATION_UNSUPPORTED"),
+      ),
+  };
+  return {
+    midpoints,
+    eliteModifiers,
+    eliteBreadth,
+    bossThroughput,
+    sourceDieOrdering,
+    unsupportedLevels,
+    mixed: { baseline: mixedBaseline, combined: mixed },
+    checks,
+    passed: Object.values(checks).every(Boolean),
+  };
+}
+
 function acceptancePackage(
   summary: ReturnType<typeof summarizeMonster>,
 ) {
@@ -818,6 +1150,22 @@ function printHuman(payload: Awaited<ReturnType<typeof buildPayload>>) {
   for (const warning of acceptance.fixtures.saved.controlPressure.semanticModel.unsupportedAuthoringWarnings) {
     console.log(`savedWarning=${warning}`);
   }
+  console.log("");
+  console.log(
+    `New-format acceptance=${payload.newFormatAcceptance.passed ? "PASS" : "FAIL"} checks=${JSON.stringify(payload.newFormatAcceptance.checks)}`,
+  );
+  console.log(
+    `New-format midpoints=${JSON.stringify(Object.fromEntries(Object.entries(payload.newFormatAcceptance.midpoints).map(([tier, entry]) => [tier, round(entry.score, 6)])))}`,
+  );
+  console.log(
+    `Elite M1-M5=${payload.newFormatAcceptance.eliteModifiers.map((entry) => round(entry.score, 6)).join("/")}`,
+  );
+  console.log(
+    `Elite targets 1/3/6=${payload.newFormatAcceptance.eliteBreadth.map((entry) => round(entry.score, 6)).join("/")}`,
+  );
+  console.log(
+    `Boss powers 1/2/3=${payload.newFormatAcceptance.bossThroughput.map((entry) => round(entry.score, 6)).join("/")}`,
+  );
 }
 
 async function buildPayload() {
@@ -831,6 +1179,12 @@ async function buildPayload() {
     const acceptance = buildAcceptance(direWolf, tuning);
     if (!acceptance.passed) {
       throw new Error(`Terrifying Gaze acceptance failed: ${JSON.stringify(acceptance.checks)}.`);
+    }
+    const newFormatAcceptance = buildNewFormatAcceptance(direWolf, tuning);
+    if (!newFormatAcceptance.passed) {
+      throw new Error(
+        `New-format Debuff Control acceptance failed: ${JSON.stringify(newFormatAcceptance.checks)}.`,
+      );
     }
     return {
       title: "Summoning Circle Control Pressure reconciliation",
@@ -848,6 +1202,7 @@ async function buildPayload() {
       missingSamples: SAMPLE_NAMES.filter((name) => !found.has(name)),
       samples: monsters.map((monster) => summarizeMonster(monster, tuning)),
       acceptance,
+      newFormatAcceptance,
     };
   } finally {
     await prisma.$disconnect();

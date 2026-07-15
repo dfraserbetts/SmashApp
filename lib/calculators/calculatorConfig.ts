@@ -63,6 +63,12 @@ export type ControlPressureBaselinePackage = {
   expectedActionsPerTurn: number;
 };
 
+export type NewFormatDebuffControlTierBaseline = {
+  baselineProxy: number;
+  normalizationScale: number;
+  actionCapacity: number;
+};
+
 export type CalculatorConfig = {
   tierMultipliers: {
     MINION: number;
@@ -192,6 +198,15 @@ export type CalculatorConfig = {
       linkedRelationships: number;
     };
     baselines: ControlPressureBaselinePackage[];
+    newFormatDebuff: {
+      supportedLevel: 3;
+      coefficient: 4;
+      referenceConstant: number;
+      tierBaselines: Record<
+        "MINION" | "SOLDIER" | "ELITE" | "BOSS",
+        NewFormatDebuffControlTierBaseline
+      >;
+    };
   };
   durabilityAxisTuning: {
     calibratedLevel: number;
@@ -510,6 +525,33 @@ export const calculatorConfig: CalculatorConfig = {
       actionEconomy: 2,
       reliability: 4,
       linkedRelationships: 2,
+    },
+    newFormatDebuff: {
+      supportedLevel: 3,
+      coefficient: 4,
+      referenceConstant: 2.4903429574618414,
+      tierBaselines: {
+        MINION: {
+          baselineProxy: 1.25771484375,
+          normalizationScale: 0.5050368022530775,
+          actionCapacity: 1,
+        },
+        SOLDIER: {
+          baselineProxy: 2.429901123046875,
+          normalizationScale: 0.9757295137869008,
+          actionCapacity: 1,
+        },
+        ELITE: {
+          baselineProxy: 9.009,
+          normalizationScale: 3.617574026503553,
+          actionCapacity: 1,
+        },
+        BOSS: {
+          baselineProxy: 10.8108,
+          normalizationScale: 4.341088831804264,
+          actionCapacity: 2,
+        },
+      },
     },
     baselines: [
       {
@@ -965,6 +1007,14 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
       componentCaps: {
         ...calculatorConfig.controlPressureAxisTuning.componentCaps,
         ...overrides.controlPressureAxisTuning?.componentCaps,
+      },
+      newFormatDebuff: {
+        ...calculatorConfig.controlPressureAxisTuning.newFormatDebuff,
+        ...overrides.controlPressureAxisTuning?.newFormatDebuff,
+        tierBaselines: {
+          ...calculatorConfig.controlPressureAxisTuning.newFormatDebuff.tierBaselines,
+          ...overrides.controlPressureAxisTuning?.newFormatDebuff?.tierBaselines,
+        },
       },
       baselines:
         overrides.controlPressureAxisTuning?.baselines ??
