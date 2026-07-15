@@ -29,6 +29,11 @@ import {
   getThreeFieldAugmentDebuffPublicWriteError,
   getThreeFieldAugmentDebuffReadDiagnostics,
 } from "@/lib/powers/authoringRules";
+import {
+  collectSubmittedPowerIdentityIds,
+  MonsterPowerIdentityError,
+  planMonsterPowerReconciliation,
+} from "@/lib/summoning/monsterPowerReconciliation";
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
@@ -816,6 +821,7 @@ function buildPowerCreateData(power: Power) {
   const effectDurationType = power.effectDurationType ?? power.durationType ?? "INSTANT";
   const descriptorChassis = normalizeDescriptorChassis(power.descriptorChassis);
   return {
+    ...(power.id ? { id: power.id } : {}),
     sortOrder: power.sortOrder,
     sourceType: "MONSTER_POWER" as const,
     name: power.name,
@@ -881,6 +887,7 @@ function buildPowerCreateData(power: Power) {
       create: effectPackets.map((effectPacket, packetIndex) => {
         const normalizedDurationType = (effectPacket.effectDurationType ?? effectDurationType) as EffectDurationType;
         return {
+          ...(effectPacket.id ? { id: effectPacket.id } : {}),
           packetIndex: effectPacket.packetIndex ?? effectPacket.sortOrder ?? packetIndex,
           hostility: effectPacket.hostility ?? "NON_HOSTILE",
           intention: effectPacket.intention ?? effectPacket.type ?? "ATTACK",
@@ -1279,8 +1286,42 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: synchronizedPowers.message }, { status: 400 });
     }
 
-    const monster = await prisma.monster.create({
-      data: {
+    const submittedPowers = synchronizedPowers.powers.map((power) => ({
+      ...(power.id ? { id: power.id } : {}),
+      packets: power.effectPackets.map((packet) => ({
+        ...(packet.id ? { id: packet.id } : {}),
+      })),
+    }));
+    const submittedIdentityIds = collectSubmittedPowerIdentityIds(submittedPowers);
+    const monster = await prisma.$transaction(async (tx) => {
+      const [occupiedPowers, occupiedPackets] = await Promise.all([
+        submittedIdentityIds.powerIds.length > 0
+          ? tx.power.findMany({
+              where: { id: { in: submittedIdentityIds.powerIds } },
+              select: { id: true, monsterId: true },
+            })
+          : [],
+        submittedIdentityIds.packetIds.length > 0
+          ? tx.effectPacket.findMany({
+              where: { id: { in: submittedIdentityIds.packetIds } },
+              select: { id: true, powerId: true, power: { select: { monsterId: true } } },
+            })
+          : [],
+      ]);
+      planMonsterPowerReconciliation({
+        mode: "CREATE",
+        monsterId: null,
+        submittedPowers,
+        existingPowers: [],
+        occupiedPowers,
+        occupiedPackets: occupiedPackets.map((packet) => ({
+          id: packet.id,
+          powerId: packet.powerId,
+          monsterId: packet.power.monsterId,
+        })),
+      });
+      return tx.monster.create({
+        data: {
         name: data.name,
         imageUrl: data.imageUrl,
         imagePosX: data.imagePosX,
@@ -1384,11 +1425,15 @@ export async function POST(req: Request) {
           create: synchronizedPowers.powers.map(buildPowerCreateData),
         },
       },
-      include: MONSTER_INCLUDE,
+        include: MONSTER_INCLUDE,
+      });
     });
 
     return NextResponse.json(serializeMonster(monster), { status: 201 });
   } catch (error) {
+    if (error instanceof MonsterPowerIdentityError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     const message = error instanceof Error ? error.message : "Failed to create monster";
     if (message === "UNAUTHORIZED") {
       return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });

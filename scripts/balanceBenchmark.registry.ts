@@ -165,6 +165,16 @@ const augmentDebuffThreeFieldSemanticDependencyPatterns = [
   "lib/combat-lab/liveAdapters.ts",
   "scripts/augmentDebuffThreeFieldSemantic.smoke.ts",
 ];
+const summoningCircleModifierInfrastructureDependencyPatterns = [
+  "app/summoning-circle/components/SummoningCircleEditor.tsx",
+  "lib/summoning/monsterPowerReconciliation.ts",
+  "lib/summoning/validation.ts",
+  "lib/summoning/powerCostResolver.ts",
+  "lib/powers/authoringRules.ts",
+  "app/api/summoning-circle/monsters/route.ts",
+  "app/api/summoning-circle/monsters/[id]/route.ts",
+  "scripts/summoningCircleModifierInfrastructure.smoke.ts",
+];
 const augmentDebuffEconomicsDependencyPatterns = [
   "lib/summoning/augmentDebuffEconomics.ts",
   "lib/summoning/powerCostResolver.ts",
@@ -317,6 +327,23 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
     supportsJson: false,
     baselinePolicy: selfAsserting("The focused smoke owns the locked three-field semantic contract."),
     notes: ["Uses in-memory fixtures only; public Modifier authoring remains disabled."],
+  }),
+  tsxSuite({
+    id: "summoning-circle-modifier-infrastructure-smoke",
+    title: "Summoning Circle Modifier infrastructure smoke",
+    family: "Core resolver and cooldown authority",
+    description: "Verify stable client identity, API normalization/reconciliation, and fail-closed semantic preview infrastructure.",
+    compatibility: "AVAILABLE",
+    modes: ["full", "changed"],
+    script: "scripts/summoningCircleModifierInfrastructure.smoke.ts",
+    deterministicSeeds: [],
+    mutationSafety: syntheticReadOnly,
+    timeoutMs: 120_000,
+    changedPathPatterns: summoningCircleModifierInfrastructureDependencyPatterns,
+    failureSeverity: "REGRESSION",
+    supportsJson: false,
+    baselinePolicy: selfAsserting("The focused smoke owns Summoning identity, reconciliation, and preview preflight invariants."),
+    notes: ["Uses deterministic in-memory fixtures and static source assertions; performs no database or repository writes."],
   }),
   tsxSuite({
     id: "augment-debuff-economics-smoke",

@@ -188,6 +188,15 @@ assert.ok(
   full.selected.some((suite) => suite.id === "augment-debuff-economics-smoke"),
   "full mode omitted augment-debuff-economics-smoke",
 );
+assert.ok(
+  full.selected.some((suite) => suite.id === "summoning-circle-modifier-infrastructure-smoke"),
+  "full mode omitted summoning-circle-modifier-infrastructure-smoke",
+);
+assert.equal(
+  quick.selected.some((suite) => suite.id === "summoning-circle-modifier-infrastructure-smoke"),
+  false,
+  "Summoning infrastructure smoke must remain outside quick mode.",
+);
 for (const reconciliationId of reconciliationIds) {
   const suite = BALANCE_BENCHMARK_REGISTRY.find((candidate) => candidate.id === reconciliationId);
   assert.ok(suite, `${reconciliationId} must be uniquely registered.`);
@@ -298,6 +307,28 @@ const semanticSuite = BALANCE_BENCHMARK_REGISTRY.find(
 assert.equal(semanticSuite?.compatibility, "AVAILABLE");
 assert.equal(semanticSuite?.mutationSafety.classification, "READ_ONLY");
 assert.equal(semanticSuite?.mutationSafety.databaseAccess, "none");
+const summoningInfrastructureSuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "summoning-circle-modifier-infrastructure-smoke",
+);
+assert.equal(summoningInfrastructureSuite?.compatibility, "AVAILABLE");
+assert.deepEqual(summoningInfrastructureSuite?.modes, ["full", "changed"]);
+assert.equal(summoningInfrastructureSuite?.mutationSafety.classification, "READ_ONLY");
+assert.equal(summoningInfrastructureSuite?.mutationSafety.databaseAccess, "none");
+for (const path of [
+  "app/summoning-circle/components/SummoningCircleEditor.tsx",
+  "lib/summoning/monsterPowerReconciliation.ts",
+  "lib/summoning/validation.ts",
+  "app/api/summoning-circle/monsters/route.ts",
+  "app/api/summoning-circle/monsters/[id]/route.ts",
+  "scripts/summoningCircleModifierInfrastructure.smoke.ts",
+]) {
+  assert.ok(
+    changed(path).selected.some(
+      (suite) => suite.id === "summoning-circle-modifier-infrastructure-smoke",
+    ),
+    `${path} must select the Summoning infrastructure smoke.`,
+  );
+}
 const economicsSuite = BALANCE_BENCHMARK_REGISTRY.find(
   (suite) => suite.id === "augment-debuff-economics-smoke",
 );

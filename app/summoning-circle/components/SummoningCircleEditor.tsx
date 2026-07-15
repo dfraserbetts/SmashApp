@@ -122,6 +122,13 @@ import {
   resolvePowerCooldownAuthority,
 } from "@/lib/summoning/resolvePowerCooldownAuthority";
 import {
+  assignSummoningPowerIdentities,
+  createSummoningOpaqueId,
+  getSummoningCollectionIdentityDiagnostics,
+  getSummoningSemanticPreviewDiagnostics,
+  readSummoningOpaqueId,
+} from "@/lib/summoning/monsterPowerReconciliation";
+import {
   APPROVED_CANARY_POWERS,
   buildApprovedCanarySuite,
   cloneApprovedCanaryPower,
@@ -1766,6 +1773,8 @@ function analyzePowerIntegrity(power: MonsterPower): {
   const primaryPacketTriggerConditionText = getPacketTriggerConditionText(primaryEffectPacket ?? primaryDetails);
   const attachedPayloadTriggerText = primaryPacketTriggerConditionText || payloadTriggerText;
 
+  errors.push(...getSummoningSemanticPreviewDiagnostics(power));
+
   if (laterHostile && !primaryIsHostile) {
     errors.push("Packet 1 must be hostile if any later packet is hostile.");
   }
@@ -1919,11 +1928,13 @@ function analyzePowerIntegrity(power: MonsterPower): {
   return { errors, warnings, notes };
 }
 
-function createDefaultPowerPacket(
+export function createDefaultPowerPacket(
   type: MonsterPowerIntentionType,
   sortOrder = 0,
+  createId: () => string = createSummoningOpaqueId,
 ): MonsterPower["intentions"][number] {
   return {
+    id: createId(),
     sortOrder,
     packetIndex: sortOrder,
     type,
@@ -1960,14 +1971,18 @@ function normalizePowerEffectPacket(
       : {};
   const hostileEntryPattern = power?.primaryDefenceGate?.hostileEntryPattern;
   const primaryEffectPacket = sortOrder > 0 ? getRawPrimaryPowerEffectPacket(power) : undefined;
-  const effectTimingType = normalizeEffectTimingType(
-    packet?.effectTimingType,
-    descriptorChassis,
-    sortOrder,
-    hostileEntryPattern,
-    normalizeCommitmentModifier(power?.commitmentModifier, descriptorChassis),
-    primaryEffectPacket,
-  );
+  const effectTimingType = EFFECT_TIMING_OPTIONS.includes(
+    packet?.effectTimingType as SupportedEffectTimingType,
+  )
+    ? packet?.effectTimingType
+    : normalizeEffectTimingType(
+        packet?.effectTimingType,
+        descriptorChassis,
+        sortOrder,
+        hostileEntryPattern,
+        normalizeCommitmentModifier(power?.commitmentModifier, descriptorChassis),
+        primaryEffectPacket,
+      );
   const rawDetails =
     packet?.detailsJson && typeof packet.detailsJson === "object"
       ? (packet.detailsJson as Record<string, unknown>)
@@ -2025,7 +2040,11 @@ function normalizePowerEffectPacket(
   const normalizedHostility =
     intention === "MOVEMENT" && normalizedApplyTo === "SELF" ? "NON_HOSTILE" : packet?.hostility;
   return {
-    ...createDefaultPowerPacket(intention, sortOrder),
+    ...createDefaultPowerPacket(
+      intention,
+      sortOrder,
+      packet?.id ? () => packet.id as string : createSummoningOpaqueId,
+    ),
     ...packet,
     sortOrder,
     packetIndex: packet?.packetIndex ?? sortOrder,
@@ -2036,18 +2055,23 @@ function normalizePowerEffectPacket(
     potency: Number(packet?.potency ?? power?.potency ?? 1),
     effectTimingType,
     effectTimingTurns:
-      effectTimingType === "ON_TRIGGER"
-        ? Math.max(1, Number(packet?.effectTimingTurns ?? 1))
-        : null,
-    effectDurationType: normalizeEffectDurationTypeForTiming(
-      packet?.effectDurationType ?? power?.effectDurationType ?? power?.durationType ?? "INSTANT",
-      effectTimingType,
-    ),
+      typeof packet?.effectTimingTurns === "number"
+        ? packet.effectTimingTurns
+        : effectTimingType === "ON_TRIGGER"
+          ? 1
+          : null,
+    effectDurationType:
+      packet?.effectDurationType === "INSTANT" ||
+      packet?.effectDurationType === "TURNS" ||
+      packet?.effectDurationType === "PASSIVE" ||
+      packet?.effectDurationType === "UNTIL_TARGET_NEXT_TURN"
+        ? packet.effectDurationType
+        : normalizeEffectDurationTypeForTiming(
+            power?.effectDurationType ?? power?.durationType ?? "INSTANT",
+            effectTimingType,
+          ),
     effectDurationTurns:
-      normalizeEffectDurationTypeForTiming(
-        packet?.effectDurationType ?? power?.effectDurationType ?? power?.durationType ?? "INSTANT",
-        effectTimingType,
-      ) === "TURNS"
+      (packet?.effectDurationType ?? power?.effectDurationType ?? power?.durationType) === "TURNS"
         ? (packet?.effectDurationTurns ?? null)
         : null,
     applicationModeKey: null,
@@ -3002,7 +3026,11 @@ function defaultMonster(): EditableMonster {
   };
 }
 
-function toEditable(raw: Record<string, unknown>): EditableMonster {
+export function toEditable(
+  raw: Record<string, unknown>,
+  options: { createId?: () => string } = {},
+): EditableMonster {
+  const createId = options.createId ?? createSummoningOpaqueId;
   const tagsRaw = Array.isArray(raw.tags)
     ? raw.tags.map((entry) => String((entry as { tag?: unknown }).tag ?? ""))
     : [];
@@ -3074,7 +3102,20 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
               const rawType = String(it.type ?? it.intention ?? "ATTACK").toUpperCase();
               const type = (rawType === "SUMMON" ? "SUMMONING" : rawType) as MonsterPowerIntentionType;
               return {
-                ...createDefaultPowerPacket(type, j),
+                ...createDefaultPowerPacket(type, j, createId),
+                id: readSummoningOpaqueId(it.id) ?? createId(),
+                packetIndex: typeof it.packetIndex === "number" ? it.packetIndex : j,
+                sortOrder: typeof it.sortOrder === "number" ? it.sortOrder : j,
+                hostility:
+                  it.hostility === "HOSTILE" || it.hostility === "NON_HOSTILE"
+                    ? (it.hostility as MonsterPower["effectPackets"][number]["hostility"])
+                    : undefined,
+                specific: typeof it.specific === "string" ? it.specific : null,
+                diceCount: typeof it.diceCount === "number" ? it.diceCount : undefined,
+                potency: typeof it.potency === "number" ? it.potency : undefined,
+                ...(Object.prototype.hasOwnProperty.call(it, "modifier")
+                  ? { modifier: it.modifier == null ? null : Number(it.modifier) }
+                  : {}),
                 detailsJson:
                   it.detailsJson && typeof it.detailsJson === "object"
                     ? (it.detailsJson as Record<string, unknown>)
@@ -3083,7 +3124,6 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
                   it.applyTo === "SELF" || it.applyTo === "ALLIES" || it.applyTo === "PRIMARY_TARGET"
                     ? (it.applyTo as MonsterPower["effectPackets"][number]["applyTo"])
                     : undefined,
-                secondaryDependencyMode: normalizeSecondaryDependencyMode(it.secondaryDependencyMode, j),
                 triggerConditionText:
                   typeof it.triggerConditionText === "string"
                     ? it.triggerConditionText
@@ -3095,14 +3135,16 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
                           )
                         : null,
                 effectTimingType:
-                  normalizeEffectTimingType(
-                    it.effectTimingType,
-                    normalizePowerDescriptorChassis(p.descriptorChassis),
-                    j,
-                    ((p.primaryDefenceGate as { hostileEntryPattern?: unknown } | null | undefined)?.hostileEntryPattern ??
-                      null) as "DIRECT" | "ON_ATTACH" | "ON_PAYLOAD" | null,
-                    commitmentModifier,
-                  ),
+                  EFFECT_TIMING_OPTIONS.includes(it.effectTimingType as SupportedEffectTimingType)
+                    ? (it.effectTimingType as MonsterPower["effectPackets"][number]["effectTimingType"])
+                    : normalizeEffectTimingType(
+                        it.effectTimingType,
+                        normalizePowerDescriptorChassis(p.descriptorChassis),
+                        j,
+                        ((p.primaryDefenceGate as { hostileEntryPattern?: unknown } | null | undefined)?.hostileEntryPattern ??
+                          null) as "DIRECT" | "ON_ATTACH" | "ON_PAYLOAD" | null,
+                        commitmentModifier,
+                      ),
                 effectTimingTurns:
                   typeof it.effectTimingTurns === "number" ? it.effectTimingTurns : null,
                 effectDurationType:
@@ -3111,6 +3153,29 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
                     : (p.durationType as MonsterPower["intentions"][number]["effectDurationType"]) ?? "INSTANT",
                 effectDurationTurns:
                   typeof it.effectDurationTurns === "number" ? it.effectDurationTurns : null,
+                dealsWounds: typeof it.dealsWounds === "boolean" ? it.dealsWounds : undefined,
+                woundChannel:
+                  it.woundChannel === "PHYSICAL" || it.woundChannel === "MENTAL"
+                    ? (it.woundChannel as MonsterPower["effectPackets"][number]["woundChannel"])
+                    : null,
+                targetedAttribute: normalizeLegacyCoreAttribute(it.targetedAttribute),
+                applicationModeKey:
+                  typeof it.applicationModeKey === "string" ? it.applicationModeKey : null,
+                resolutionOrigin:
+                  it.resolutionOrigin === "CASTER" ||
+                  it.resolutionOrigin === "PRIMARY_TARGET" ||
+                  it.resolutionOrigin === "ATTACHED_HOST" ||
+                  it.resolutionOrigin === "FIELD_ORIGIN" ||
+                  it.resolutionOrigin === "PACKET_LOCAL"
+                    ? (it.resolutionOrigin as MonsterPower["effectPackets"][number]["resolutionOrigin"])
+                    : "CASTER",
+                secondaryDependencyMode: normalizeSecondaryDependencyMode(it.secondaryDependencyMode, j),
+                localTargetingOverride:
+                  it.localTargetingOverride &&
+                  typeof it.localTargetingOverride === "object" &&
+                  !Array.isArray(it.localTargetingOverride)
+                    ? it.localTargetingOverride as MonsterPower["effectPackets"][number]["localTargetingOverride"]
+                    : null,
               };
             });
         const primaryEffectPacket = effectPackets[0];
@@ -3148,9 +3213,18 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
           p.lifespanType === "TURNS" ? Number(p.lifespanTurns ?? 1) : null,
         );
         return {
+          id: readSummoningOpaqueId(p.id) ?? createId(),
           sortOrder: i,
           name: String(p.name ?? ""),
           description: p.description ? String(p.description) : null,
+          schemaVersion: typeof p.schemaVersion === "number" ? p.schemaVersion : 1,
+          rulesVersion: typeof p.rulesVersion === "string" ? p.rulesVersion : "v1",
+          contentRevision: typeof p.contentRevision === "number" ? p.contentRevision : 1,
+          previewRendererVersion:
+            typeof p.previewRendererVersion === "number" ? p.previewRendererVersion : 1,
+          status: (p.status === "DRAFT" || p.status === "ARCHIVED"
+            ? p.status
+            : "ACTIVE") as MonsterPower["status"],
           descriptorChassis,
           chargeType:
             p.chargeType === "BUILD_POWER" || p.chargeType === "DELAYED_RELEASE"
@@ -3398,7 +3472,7 @@ function toEditable(raw: Record<string, unknown>): EditableMonster {
   };
 }
 
-function toPayload(monster: EditableMonster): MonsterUpsertInput {
+export function toPayload(monster: EditableMonster): MonsterUpsertInput {
   const normalizedAttacks = monster.attacks
     .slice(0, 3)
     .map((attack, index) => ({
@@ -3431,8 +3505,12 @@ function toPayload(monster: EditableMonster): MonsterUpsertInput {
   };
 }
 
-function defaultPower(): MonsterPower {
-  return {
+export function defaultPower(
+  options: { createId?: () => string } = {},
+): MonsterPower {
+  const createId = options.createId ?? createSummoningOpaqueId;
+  const packet = createDefaultPowerPacket("ATTACK", 0, createId);
+  return assignSummoningPowerIdentities({
     sortOrder: 0,
     name: "",
     description: null,
@@ -3457,13 +3535,15 @@ function defaultPower(): MonsterPower {
     commitmentModifier: "STANDARD",
     triggerMethod: null,
     attachedHostAnchorType: null,
-    intentions: [createDefaultPowerPacket("ATTACK", 0)],
-    effectPackets: [createDefaultPowerPacket("ATTACK", 0)],
-  };
+    intentions: [{ ...packet }],
+    effectPackets: [packet],
+  }, { createId });
 }
 
 function createCanarySuite(): MonsterPower[] {
-  return buildApprovedCanarySuite();
+  return buildApprovedCanarySuite().map((power) =>
+    assignSummoningPowerIdentities(power, { forceNew: true }),
+  );
 }
 
 function listFromCsv(value: string): string[] {
@@ -5734,26 +5814,40 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
   );
   const previewResolvedPowerCosts = useMemo(() => {
     if (!previewMonster || !powerTuning.snapshot) return null;
+    const identityDiagnostics = getSummoningCollectionIdentityDiagnostics(previewMonster.powers ?? []);
     const validPowers = (previewMonster.powers ?? []).filter(
-      (power) => analyzePowerIntegrity(power).errors.length === 0,
+      (power, powerIndex) =>
+        analyzePowerIntegrity(power).errors.length === 0 &&
+        (identityDiagnostics.get(powerIndex)?.length ?? 0) === 0,
     );
-    return resolvePowerCosts(validPowers, powerTuning.snapshot, {
-      level: previewMonster.level,
-      tier: previewMonster.tier,
-    });
+    try {
+      return resolvePowerCosts(validPowers, powerTuning.snapshot, {
+        level: previewMonster.level,
+        tier: previewMonster.tier,
+      });
+    } catch {
+      return null;
+    }
   }, [powerTuning.snapshot, previewMonster]);
   const previewMonsterWithCooldownAuthority = useMemo(() => {
     if (!previewMonster) return null;
     return {
       ...previewMonster,
       powers: (previewMonster.powers ?? []).map((power) => {
-        const authority = resolvePowerCooldownAuthority({
-          power,
-          mode: "ACTIVE_CURRENT_BALANCE",
-          tuningSnapshot: powerTuning.snapshot,
-          context: { level: previewMonster.level, tier: previewMonster.tier },
-        });
-        return attachPowerCooldownAuthority(power, authority);
+        if (analyzePowerIntegrity(power).errors.length > 0) {
+          return { ...power, cooldownAuthority: null };
+        }
+        try {
+          const authority = resolvePowerCooldownAuthority({
+            power,
+            mode: "ACTIVE_CURRENT_BALANCE",
+            tuningSnapshot: powerTuning.snapshot,
+            context: { level: previewMonster.level, tier: previewMonster.tier },
+          });
+          return attachPowerCooldownAuthority(power, authority);
+        } catch {
+          return { ...power, cooldownAuthority: null };
+        }
       }),
     };
   }, [powerTuning.snapshot, previewMonster]);
@@ -6266,17 +6360,30 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
 
   const hasEditor = !!editor;
   const editorPowers = useMemo(() => editor?.powers ?? [], [editor?.powers]);
-  const validEditorPowers = useMemo(
-    () => editorPowers.filter((power) => analyzePowerIntegrity(power).errors.length === 0),
+  const editorIdentityDiagnostics = useMemo(
+    () => getSummoningCollectionIdentityDiagnostics(editorPowers),
     [editorPowers],
+  );
+  const validEditorPowers = useMemo(
+    () => editorPowers.filter(
+      (power, powerIndex) =>
+        analyzePowerIntegrity(power).errors.length === 0 &&
+        (editorIdentityDiagnostics.get(powerIndex)?.length ?? 0) === 0,
+    ),
+    [editorIdentityDiagnostics, editorPowers],
   );
   const powerCostPreview = useMemo(() => {
     if (!hasEditor || !powerTuning.snapshot) return null;
 
-    const resolvedPowerCosts = resolvePowerCosts(validEditorPowers, powerTuning.snapshot, {
-      level: editor?.level,
-      tier: editor?.tier,
-    });
+    let resolvedPowerCosts: ReturnType<typeof resolvePowerCosts>;
+    try {
+      resolvedPowerCosts = resolvePowerCosts(validEditorPowers, powerTuning.snapshot, {
+        level: editor?.level,
+        tier: editor?.tier,
+      });
+    } catch {
+      return null;
+    }
 
     return {
       tuningSetId: powerTuning.snapshot?.setId ?? null,
@@ -6310,7 +6417,14 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
   }, [editor?.level, editor?.tier, editorPowers.length, hasEditor, powerTuning.loading, powerTuning.snapshot, validEditorPowers]);
 
   const loadSingleCanary = useCallback((power: MonsterPower) => {
-    setEditor((prev) => (prev ? { ...prev, powers: [cloneApprovedCanaryPower(power)] } : prev));
+    setEditor((prev) =>
+      prev
+        ? {
+            ...prev,
+            powers: [assignSummoningPowerIdentities(cloneApprovedCanaryPower(power), { forceNew: true })],
+          }
+        : prev,
+    );
   }, []);
 
   const clearPowers = useCallback(() => {
@@ -9854,12 +9968,19 @@ export function SummoningCircleEditor({ campaignId, canDeleteMonsters = false }:
                 selectedDescriptorChassis !== "IMMEDIATE";
               const showChassisDependentSections =
                 showPowerLevelSection && selectedDescriptorChassis !== null && chassisSpecificsComplete;
-              const powerIntegrity = analyzePowerIntegrity({
+              const analyzedPowerIntegrity = analyzePowerIntegrity({
                 ...power,
                 descriptorChassis,
                 counterMode: power.counterMode === "YES" ? "YES" : "NO",
                 commitmentModifier,
               });
+              const powerIntegrity = {
+                ...analyzedPowerIntegrity,
+                errors: [
+                  ...analyzedPowerIntegrity.errors,
+                  ...(editorIdentityDiagnostics.get(i) ?? []),
+                ],
+              };
               const hasIntegrityFeedback =
                 powerIntegrity.errors.length > 0 ||
                 powerIntegrity.warnings.length > 0 ||

@@ -31,6 +31,7 @@ import {
   POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS,
   validateThreeFieldAugmentDebuffPowers,
 } from "@/lib/powers/authoringRules";
+import { readSummoningOpaqueId } from "@/lib/summoning/monsterPowerReconciliation";
 
 const DICE_SET = new Set<DiceSize>(["D4", "D6", "D8", "D10", "D12"]);
 const TIER_SET = new Set<MonsterTier>(["MINION", "SOLDIER", "ELITE", "BOSS"]);
@@ -1033,6 +1034,7 @@ function normalizePacketIntention(
           ? "PHYSICAL"
           : null;
   return {
+    ...(readSummoningOpaqueId(raw.id) ? { id: readSummoningOpaqueId(raw.id) } : {}),
     sortOrder: packetIndex,
     // Keep packet indices 0-based for now to match the current array-backed
     // Summoning Circle editor bridge and avoid a risky UI/data off-by-one change
@@ -1068,6 +1070,15 @@ function normalizePacketIntention(
     resolutionOrigin:
       asString(raw.resolutionOrigin, "CASTER") as EffectPacket["resolutionOrigin"],
     applyTo,
+    secondaryDependencyMode:
+      raw.secondaryDependencyMode === "INDEPENDENT" ||
+      raw.secondaryDependencyMode === "LINKED_TO_PRIMARY" ||
+      raw.secondaryDependencyMode === "DEPENDENT_SEQUENTIAL" ||
+      raw.secondaryDependencyMode === "TRIGGERED_CONDITIONAL"
+        ? raw.secondaryDependencyMode
+        : packetIndex === 0
+          ? null
+          : "LINKED_TO_PRIMARY",
     triggerConditionText,
     detailsJson: details,
     localTargetingOverride:
@@ -1416,6 +1427,7 @@ function normalizePower(value: unknown, sortOrder: number): Power {
   );
 
   return {
+    ...(readSummoningOpaqueId(raw.id) ? { id: readSummoningOpaqueId(raw.id) } : {}),
     sortOrder,
     name: asString(raw.name, ""),
     description: asString(raw.description, "") || null,
@@ -1623,6 +1635,48 @@ export function normalizeMonsterUpsertInput(body: unknown): {
   }
 
   const powersRaw = Array.isArray(raw.powers) ? raw.powers : [];
+  const powerIds = new Set<string>();
+  const packetIds = new Set<string>();
+  for (const [powerIndex, powerValue] of powersRaw.entries()) {
+    const power = powerValue && typeof powerValue === "object" && !Array.isArray(powerValue)
+      ? powerValue as Record<string, unknown>
+      : {};
+    if (Object.prototype.hasOwnProperty.call(power, "id")) {
+      const id = readSummoningOpaqueId(power.id);
+      if (!id) {
+        return {
+          ok: false,
+          error: `POWER_${powerIndex + 1}_ID_INVALID: Power IDs must be non-empty opaque strings of at most 200 characters`,
+        };
+      }
+      if (powerIds.has(id)) {
+        return { ok: false, error: "DUPLICATE_POWER_ID: Power IDs must be unique within one payload" };
+      }
+      powerIds.add(id);
+    }
+    const packets = Array.isArray(power.effectPackets)
+      ? power.effectPackets
+      : Array.isArray(power.intentions)
+        ? power.intentions
+        : [];
+    for (const [packetIndex, packetValue] of packets.entries()) {
+      const packet = packetValue && typeof packetValue === "object" && !Array.isArray(packetValue)
+        ? packetValue as Record<string, unknown>
+        : {};
+      if (!Object.prototype.hasOwnProperty.call(packet, "id")) continue;
+      const id = readSummoningOpaqueId(packet.id);
+      if (!id) {
+        return {
+          ok: false,
+          error: `POWER_${powerIndex + 1}_PACKET_${packetIndex + 1}_ID_INVALID: Packet IDs must be non-empty opaque strings of at most 200 characters`,
+        };
+      }
+      if (packetIds.has(id)) {
+        return { ok: false, error: "DUPLICATE_PACKET_ID: Packet IDs must be unique within one payload" };
+      }
+      packetIds.add(id);
+    }
+  }
   const threeFieldValidationError = validateThreeFieldAugmentDebuffPowers(powersRaw);
   if (threeFieldValidationError) {
     return { ok: false, error: threeFieldValidationError };

@@ -34,6 +34,11 @@ import {
   getThreeFieldAugmentDebuffPublicWriteError,
   getThreeFieldAugmentDebuffReadDiagnostics,
 } from "@/lib/powers/authoringRules";
+import {
+  collectSubmittedPowerIdentityIds,
+  MonsterPowerIdentityError,
+  planMonsterPowerReconciliation,
+} from "@/lib/summoning/monsterPowerReconciliation";
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
@@ -821,6 +826,7 @@ function buildPowerCreateData(power: Power) {
   const effectDurationType = power.effectDurationType ?? power.durationType ?? "INSTANT";
   const descriptorChassis = normalizeDescriptorChassis(power.descriptorChassis);
   return {
+    ...(power.id ? { id: power.id } : {}),
     sortOrder: power.sortOrder,
     sourceType: "MONSTER_POWER" as const,
     name: power.name,
@@ -886,6 +892,7 @@ function buildPowerCreateData(power: Power) {
       create: effectPackets.map((effectPacket, packetIndex) => {
         const normalizedDurationType = (effectPacket.effectDurationType ?? effectDurationType) as EffectDurationType;
         return {
+          ...(effectPacket.id ? { id: effectPacket.id } : {}),
           packetIndex: effectPacket.packetIndex ?? effectPacket.sortOrder ?? packetIndex,
           hostility: effectPacket.hostility ?? "NON_HOSTILE",
           intention: effectPacket.intention ?? effectPacket.type ?? "ATTACK",
@@ -931,6 +938,29 @@ function buildPowerCreateData(power: Power) {
       }),
     },
   };
+}
+
+function omitKeys<T extends object, K extends keyof T>(value: T, keys: readonly K[]): Omit<T, K> {
+  const result = { ...value };
+  for (const key of keys) Reflect.deleteProperty(result, key);
+  return result;
+}
+
+function buildPowerScalarData(power: Power) {
+  return omitKeys(
+    buildPowerCreateData(power),
+    ["id", "rangeCategories", "primaryDefenceGate", "effectPackets"] as const,
+  );
+}
+
+function buildEffectPacketScalarData(power: Power, packetIndex: number) {
+  const packetData = buildPowerCreateData(power).effectPackets.create[packetIndex];
+  return omitKeys(packetData, ["id", "localTargetingOverride"] as const);
+}
+
+function buildEffectPacketLocalTargetingData(power: Power, packetIndex: number) {
+  return buildPowerCreateData(power).effectPackets.create[packetIndex]
+    .localTargetingOverride?.create;
 }
 
 function serializePower(
@@ -1304,6 +1334,52 @@ export async function PUT(
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      const submittedPowers = synchronizedPowers.powers.map((power) => ({
+        ...(power.id ? { id: power.id } : {}),
+        packets: power.effectPackets.map((packet) => ({
+          ...(packet.id ? { id: packet.id } : {}),
+        })),
+      }));
+      const submittedIdentityIds = collectSubmittedPowerIdentityIds(submittedPowers);
+      const [existingPowers, occupiedPowers, occupiedPackets] = await Promise.all([
+        tx.power.findMany({
+          where: { monsterId: id },
+          select: {
+            id: true,
+            monsterId: true,
+            effectPackets: { select: { id: true } },
+          },
+        }),
+        submittedIdentityIds.powerIds.length > 0
+          ? tx.power.findMany({
+              where: { id: { in: submittedIdentityIds.powerIds } },
+              select: { id: true, monsterId: true },
+            })
+          : [],
+        submittedIdentityIds.packetIds.length > 0
+          ? tx.effectPacket.findMany({
+              where: { id: { in: submittedIdentityIds.packetIds } },
+              select: { id: true, powerId: true, power: { select: { monsterId: true } } },
+            })
+          : [],
+      ]);
+      const reconciliationPlan = planMonsterPowerReconciliation({
+        mode: "UPDATE",
+        monsterId: id,
+        submittedPowers,
+        existingPowers: existingPowers.map((power) => ({
+          id: power.id,
+          monsterId: power.monsterId,
+          packets: power.effectPackets,
+        })),
+        occupiedPowers,
+        occupiedPackets: occupiedPackets.map((packet) => ({
+          id: packet.id,
+          powerId: packet.powerId,
+          monsterId: packet.power.monsterId,
+        })),
+      });
+
       await tx.monster.update({
         where: { id },
         data: {
@@ -1380,9 +1456,14 @@ export async function PUT(
 
       await tx.monsterTag.deleteMany({ where: { monsterId: id } });
       await tx.monsterTrait.deleteMany({ where: { monsterId: id } });
-      await tx.power.deleteMany({ where: { monsterId: id } });
       await tx.monsterAttack.deleteMany({ where: { monsterId: id } });
       await tx.monsterNaturalAttack.deleteMany({ where: { monsterId: id } });
+
+      if (reconciliationPlan.deletePowerIds.length > 0) {
+        await tx.power.deleteMany({
+          where: { monsterId: id, id: { in: reconciliationPlan.deletePowerIds } },
+        });
+      }
 
       if (data.tags.length > 0) {
         await tx.monsterTag.createMany({
@@ -1423,7 +1504,90 @@ export async function PUT(
         });
       }
 
-      for (const power of synchronizedPowers.powers) {
+      for (const powerPlan of reconciliationPlan.updatePowers) {
+        const power = synchronizedPowers.powers[powerPlan.submittedPowerIndex];
+        await tx.power.update({
+          where: { id: powerPlan.powerId },
+          data: buildPowerScalarData(power),
+        });
+        await tx.powerRangeCategory.deleteMany({ where: { powerId: powerPlan.powerId } });
+        const rangeCategories = buildPowerRangeCategories(power);
+        if (rangeCategories.length > 0) {
+          await tx.powerRangeCategory.createMany({
+            data: rangeCategories.map((rangeCategory) => ({
+              powerId: powerPlan.powerId,
+              rangeCategory,
+            })),
+          });
+        }
+
+        if (power.primaryDefenceGate) {
+          const gateData = {
+            sourcePacketIndex: power.primaryDefenceGate.sourcePacketIndex,
+            gateResult: power.primaryDefenceGate.gateResult,
+            protectionChannel: power.primaryDefenceGate.protectionChannel,
+            resistAttribute: power.primaryDefenceGate.resistAttribute,
+            hostileEntryPattern: power.primaryDefenceGate.hostileEntryPattern,
+            resolutionSource: power.primaryDefenceGate.resolutionSource,
+          };
+          await tx.primaryDefenceGate.upsert({
+            where: { powerId: powerPlan.powerId },
+            create: { powerId: powerPlan.powerId, ...gateData },
+            update: gateData,
+          });
+        } else {
+          await tx.primaryDefenceGate.deleteMany({ where: { powerId: powerPlan.powerId } });
+        }
+
+        if (powerPlan.deletePacketIds.length > 0) {
+          await tx.effectPacket.deleteMany({
+            where: {
+              powerId: powerPlan.powerId,
+              id: { in: powerPlan.deletePacketIds },
+            },
+          });
+        }
+        for (const packetPlan of powerPlan.updatePackets) {
+          await tx.effectPacket.update({
+            where: { id: packetPlan.packetId },
+            data: buildEffectPacketScalarData(power, packetPlan.submittedPacketIndex),
+          });
+          const localTargetingData = buildEffectPacketLocalTargetingData(
+            power,
+            packetPlan.submittedPacketIndex,
+          );
+          if (localTargetingData) {
+            await tx.effectPacketLocalTargetingOverride.upsert({
+              where: { packetId: packetPlan.packetId },
+              create: { packetId: packetPlan.packetId, ...localTargetingData },
+              update: localTargetingData,
+            });
+          } else {
+            await tx.effectPacketLocalTargetingOverride.deleteMany({
+              where: { packetId: packetPlan.packetId },
+            });
+          }
+        }
+        for (const packetPlan of powerPlan.createPackets) {
+          const localTargetingData = buildEffectPacketLocalTargetingData(
+            power,
+            packetPlan.submittedPacketIndex,
+          );
+          await tx.effectPacket.create({
+            data: {
+              ...(packetPlan.suppliedId ? { id: packetPlan.suppliedId } : {}),
+              powerId: powerPlan.powerId,
+              ...buildEffectPacketScalarData(power, packetPlan.submittedPacketIndex),
+              ...(localTargetingData
+                ? { localTargetingOverride: { create: localTargetingData } }
+                : {}),
+            },
+          });
+        }
+      }
+
+      for (const powerPlan of reconciliationPlan.createPowers) {
+        const power = synchronizedPowers.powers[powerPlan.submittedPowerIndex];
         await tx.power.create({
           data: {
             monsterId: id,
@@ -1443,6 +1607,9 @@ export async function PUT(
 
     return NextResponse.json(updated);
   } catch (error) {
+    if (error instanceof MonsterPowerIdentityError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     const message = error instanceof Error ? error.message : "Failed to update monster";
     if (message === "UNAUTHORIZED") {
       return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
