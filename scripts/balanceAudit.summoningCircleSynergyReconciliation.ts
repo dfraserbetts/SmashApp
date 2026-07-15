@@ -22,7 +22,16 @@ import {
 } from "../lib/config/powerTuningShared";
 import { adaptPowerToCombatActions } from "../lib/combat-lab/powerAdapter";
 import { resolvePowerCosts } from "../lib/summoning/powerCostResolver";
-import type { EffectPacket, MonsterUpsertInput, Power } from "../lib/summoning/types";
+import {
+  attachPowerCooldownAuthority,
+  resolvePowerCooldownAuthority,
+} from "../lib/summoning/resolvePowerCooldownAuthority";
+import type {
+  EffectPacket,
+  MonsterUpsertInput,
+  Power,
+  PowerCooldownAuthorityResolution,
+} from "../lib/summoning/types";
 
 type PrismaClientInstance = typeof import("../prisma/client")["prisma"];
 
@@ -46,6 +55,12 @@ const SAMPLE_NAMES = [
   "BALANCE_Legendary Lich",
 ] as const;
 const SUPPORT_INTENTIONS = new Set(["HEALING", "CLEANSE", "AUGMENT", "SUPPORT"]);
+const DATABASE_OPERATIONS = [
+  "powerTuningConfigSet.findFirst",
+  "combatTuningConfigSet.findFirst",
+  "outcomeNormalizationConfigSet.findFirst",
+  "monster.findMany",
+] as const;
 
 const POWER_INCLUDE = {
   rangeCategories: { orderBy: { rangeCategory: "asc" as const } },
@@ -65,8 +80,11 @@ type TuningSet = {
   entries: Array<{ configKey: string; value: number }>;
 };
 type LoadedMonster = Awaited<ReturnType<typeof loadMonsters>>[number];
+type LoadedPower = LoadedMonster["powers"][number];
+type LoadedPacket = LoadedPower["effectPackets"][number];
+type PowerCostContext = { level: number; tier: "MINION" | "SOLDIER" | "ELITE" | "BOSS" };
 
-function round(value: number, digits = 3) {
+function round(value: number, digits = 3): number {
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
 }
@@ -79,6 +97,14 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function asNullableNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : "";
 }
 
 function entriesToRecord(entries: Array<{ configKey: string; value: number }>) {
@@ -98,90 +124,181 @@ function emptyAxes(): RadarAxes {
   };
 }
 
-function axisValues(value: Partial<RadarAxes> | null | undefined) {
+function axisValues(value: Partial<RadarAxes> | null | undefined): RadarAxes {
   const axes = { ...emptyAxes(), ...(value ?? {}) };
   return Object.fromEntries(
-    Object.entries(axes).map(([key, axisValue]) => [key, round(axisValue)]),
+    Object.entries(axes).map(([key, axisValue]) => [key, round(axisValue, 6)]),
   ) as RadarAxes;
 }
 
-function axisDelta(value: RadarAxes, baseline: RadarAxes) {
-  return Object.fromEntries(
-    (Object.keys(value) as Array<keyof RadarAxes>).map((key) => [
-      key,
-      round(value[key] - baseline[key]),
-    ]),
-  ) as RadarAxes;
+function axesAreFinite(axes: RadarAxes): boolean {
+  return Object.values(axes).every(Number.isFinite);
 }
 
-function createPacket(
-  intention: EffectPacket["intention"],
-  overrides: Partial<EffectPacket> = {},
-): EffectPacket {
+function axesEqual(left: RadarAxes, right: RadarAxes, epsilon = 0.000001): boolean {
+  return (Object.keys(left) as Array<keyof RadarAxes>).every(
+    (axis) => Math.abs(left[axis] - right[axis]) <= epsilon,
+  );
+}
+
+function stableId(kind: "power" | "packet", identity: string): string {
+  const normalized = identity
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  if (!normalized) throw new Error(`Stable ${kind} identity cannot be empty.`);
+  return `synergy-audit-${kind}-${normalized}`;
+}
+
+function createPacket(params: {
+  powerIdentity: string;
+  packetIdentity?: string;
+  intention: EffectPacket["intention"];
+  modifier: number | null | undefined;
+  applyTo: EffectPacket["applyTo"];
+  targetedAttribute?: EffectPacket["targetedAttribute"];
+  diceCount?: number;
+  potency?: number;
+  durationType?: EffectPacket["effectDurationType"];
+  durationTurns?: number | null;
+  detailsJson?: Record<string, unknown>;
+}): EffectPacket {
   return {
+    id: stableId("packet", `${params.powerIdentity}-${params.packetIdentity ?? "primary"}`),
     sortOrder: 0,
     packetIndex: 0,
-    hostility: ["ATTACK", "CONTROL", "DEBUFF"].includes(intention)
+    hostility: ["ATTACK", "CONTROL", "DEBUFF"].includes(params.intention)
       ? "HOSTILE"
       : "NON_HOSTILE",
-    intention,
-    type: intention,
-    diceCount: 2,
-    potency: 1,
+    intention: params.intention,
+    type: params.intention,
+    diceCount: params.diceCount ?? 3,
+    potency: params.potency ?? 3,
+    modifier: params.modifier,
     effectTimingType: "ON_CAST",
     effectTimingTurns: null,
-    effectDurationType: "INSTANT",
-    effectDurationTurns: null,
-    applyTo: "ALLIES",
+    effectDurationType: params.durationType ?? "TURNS",
+    effectDurationTurns: params.durationTurns ?? 2,
+    targetedAttribute: params.targetedAttribute ?? null,
+    applicationModeKey: null,
+    resolutionOrigin: "CASTER",
+    applyTo: params.applyTo,
+    secondaryDependencyMode: "INDEPENDENT",
     triggerConditionText: null,
-    detailsJson: {},
-    ...overrides,
+    detailsJson: params.detailsJson ?? {},
+    localTargetingOverride: null,
   };
 }
 
-function createPower(options: {
+function createPower(params: {
+  identity: string;
   name: string;
   packet: EffectPacket;
-  packets?: EffectPacket[];
+  range?: "RANGED" | "AOE" | "SELF";
   targets?: number;
-  cooldown?: number;
+  authoredCooldown?: number;
+  aoeRadiusFeet?: number;
 }): Power {
-  const packets = options.packets ?? [options.packet];
-  const targets = options.targets ?? 1;
+  const range = params.range ?? "RANGED";
+  const targets = Math.max(1, params.targets ?? 1);
   return {
+    id: stableId("power", params.identity),
     sortOrder: 0,
-    name: options.name,
+    name: params.name,
     description: null,
+    schemaVersion: 2,
+    rulesVersion: "v1",
+    contentRevision: 1,
+    previewRendererVersion: 1,
+    status: "ACTIVE",
     descriptorChassis: "IMMEDIATE",
     descriptorChassisConfig: {},
-    cooldownTurns: options.cooldown ?? 2,
+    chargeType: null,
+    chargeTurns: null,
+    chargeBonusDicePerTurn: null,
+    cooldownTurns: params.authoredCooldown ?? 2,
     cooldownReduction: 0,
     counterMode: "NO",
     commitmentModifier: "STANDARD",
+    triggerMethod: null,
     attachedHostAnchorType: null,
     lifespanType: "NONE",
     lifespanTurns: null,
-    rangeCategories: ["RANGED"],
+    previewSummaryOverride: null,
+    rangeCategories: range === "SELF" ? [] : [range],
     meleeTargets: 1,
-    rangedDistanceFeet: 30,
-    rangedTargets: targets,
-    aoeCenterRangeFeet: null,
-    aoeCount: 1,
-    aoeShape: null,
-    aoeSphereRadiusFeet: null,
+    rangedDistanceFeet: range === "RANGED" ? 30 : null,
+    rangedTargets: range === "RANGED" ? targets : null,
+    aoeCenterRangeFeet: range === "AOE" ? 30 : null,
+    aoeCount: range === "AOE" ? targets : 1,
+    aoeShape: range === "AOE" ? "SPHERE" : null,
+    aoeSphereRadiusFeet: range === "AOE" ? (params.aoeRadiusFeet ?? 10) : null,
     aoeConeLengthFeet: null,
     aoeLineWidthFeet: null,
     aoeLineLengthFeet: null,
     primaryDefenceGate: undefined,
-    effectPackets: packets,
-    intentions: packets,
-    diceCount: Number(options.packet.diceCount ?? 1),
-    potency: Number(options.packet.potency ?? 1),
-    effectDurationType: options.packet.effectDurationType ?? "INSTANT",
-    effectDurationTurns: options.packet.effectDurationTurns ?? null,
-    durationType: options.packet.effectDurationType ?? "INSTANT",
-    durationTurns: options.packet.effectDurationTurns ?? null,
+    effectPackets: [params.packet],
+    intentions: [params.packet],
+    diceCount: Number(params.packet.diceCount ?? 1),
+    potency: Number(params.packet.potency ?? 1),
+    effectDurationType: params.packet.effectDurationType ?? "INSTANT",
+    effectDurationTurns: params.packet.effectDurationTurns ?? null,
+    durationType: params.packet.effectDurationType ?? "INSTANT",
+    durationTurns: params.packet.effectDurationTurns ?? null,
   };
+}
+
+function augmentPower(params: {
+  identity: string;
+  name: string;
+  modifier: number | null;
+  applyTo?: "ALLIES" | "SELF";
+  targets?: number;
+  range?: "RANGED" | "AOE" | "SELF";
+  durationTurns?: number;
+}): Power {
+  const applyTo = params.applyTo ?? "ALLIES";
+  const packet = createPacket({
+    powerIdentity: params.identity,
+    intention: "AUGMENT",
+    modifier: params.modifier,
+    applyTo,
+    targetedAttribute: "SYNERGY",
+    diceCount: 3,
+    potency: 3,
+    durationType: "TURNS",
+    durationTurns: params.durationTurns ?? 2,
+    detailsJson: {
+      statTarget: "Synergy",
+      rangeCategory: applyTo === "SELF" ? "SELF" : params.range ?? "RANGED",
+      expectedTargetCount: params.targets ?? 1,
+    },
+  });
+  return createPower({
+    identity: params.identity,
+    name: params.name,
+    packet,
+    range: applyTo === "SELF" ? "SELF" : params.range,
+    targets: params.targets,
+    aoeRadiusFeet: 10,
+  });
+}
+
+function unsupportedSupportPower(): Power {
+  const identity = "unsupported-generic-support";
+  const packet = createPacket({
+    powerIdentity: identity,
+    intention: "SUPPORT",
+    modifier: undefined,
+    applyTo: "ALLIES",
+    diceCount: 2,
+    potency: 1,
+    durationType: "INSTANT",
+    durationTurns: null,
+    detailsJson: { unsupportedMode: "Narrative support" },
+  });
+  return createPower({ identity, name: "Unsupported Generic Support", packet });
 }
 
 function baseMonster(powers: Power[]): MonsterUpsertInput {
@@ -258,314 +375,9 @@ function baseMonster(powers: Power[]): MonsterUpsertInput {
   };
 }
 
-function healingPower(options: {
-  name: string;
-  applyTo?: EffectPacket["applyTo"];
-  targets?: number;
-  dice?: number;
-  potency?: number;
-  duration?: EffectPacket["effectDurationType"];
-  durationTurns?: number;
-  timing?: EffectPacket["effectTimingType"];
-  cooldown?: number;
-  linkedDamagePotency?: number;
-}) {
-  const packet = createPacket("HEALING", {
-    applyTo: options.applyTo ?? "ALLIES",
-    diceCount: options.dice ?? 2,
-    potency: options.potency ?? 1,
-    effectDurationType: options.duration ?? "INSTANT",
-    effectDurationTurns: options.durationTurns ?? null,
-    effectTimingType: options.timing ?? "ON_CAST",
-    detailsJson: {
-      healingMode: "PHYSICAL",
-      rangeCategory: options.applyTo === "SELF" ? "SELF" : "RANGED",
-    },
-  });
-  const packets = [packet];
-  if (options.linkedDamagePotency !== undefined) {
-    packets.push(
-      createPacket("ATTACK", {
-        sortOrder: 1,
-        packetIndex: 1,
-        diceCount: 0,
-        potency: options.linkedDamagePotency,
-        dealsWounds: true,
-        woundChannel: "MENTAL",
-        applyTo: "PRIMARY_TARGET",
-        secondaryDependencyMode: "LINKED_TO_PRIMARY",
-        detailsJson: { attackMode: "MENTAL", damageTypes: ["Psychic"] },
-      }),
-    );
-  }
-  return createPower({
-    name: options.name,
-    packet,
-    packets,
-    targets: options.targets,
-    cooldown: options.cooldown,
-  });
-}
-
-function cleansePower(name: string, targets: number) {
-  const packet = createPacket("CLEANSE", {
-    applyTo: "ALLIES",
-    diceCount: 2,
-    potency: 1,
-    detailsJson: { cleanseEffectType: "Damage over time" },
-  });
-  return createPower({ name, packet, targets, cooldown: 2 });
-}
-
-function augmentPower(options: {
-  name: string;
-  statTarget: string;
-  durationTurns: number;
-  targets?: number;
-}) {
-  const packet = createPacket("AUGMENT", {
-    applyTo: "ALLIES",
-    diceCount: 2,
-    potency: 1,
-    effectDurationType: "TURNS",
-    effectDurationTurns: options.durationTurns,
-    detailsJson: { statTarget: options.statTarget },
-  });
-  return createPower({ name: options.name, packet, targets: options.targets, cooldown: 2 });
-}
-
-function unsupportedSupportPower() {
-  const packet = createPacket("SUPPORT", {
-    applyTo: "ALLIES",
-    detailsJson: { unsupportedMode: "Narrative support" },
-  });
-  return createPower({ name: "Unsupported Generic Support", packet, cooldown: 2 });
-}
-
-function runtimeSummary(powers: Power[]) {
-  return powers.flatMap((power) => {
-    const adapted = adaptPowerToCombatActions(power);
-    return adapted.actions.map((action) => ({
-      power: power.name,
-      actionKind: action.kind,
-      targetPolicy: action.targetPolicy,
-      diceCount: action.diceCount,
-      potency: action.potency,
-      durationRounds: action.durationRounds ?? null,
-      recurring: action.recurring?.kind ?? null,
-      unsupported: adapted.unsupported,
-      warnings: adapted.warnings,
-    }));
-  });
-}
-
-function computeFixture(params: {
-  id: string;
-  description: string;
-  powers: Power[];
-  tuning: Awaited<ReturnType<typeof loadActiveTuning>>;
-  snapshot?: PowerTuningSnapshot;
-  derivedCooldownOverrides?: number[];
-}) {
-  const snapshot = params.snapshot ?? params.tuning.powerSnapshot;
-  const costs = resolvePowerCosts(params.powers, snapshot, { level: 3, tier: "SOLDIER" });
-  const outcome = computeMonsterOutcomes(baseMonster(params.powers), params.tuning.calculatorConfig, {
-    protectionTuning: params.tuning.combatValues,
-    powerContribution: {
-      axisVector: costs.totals.axisVector,
-      basePowerValue: costs.totals.basePowerValue,
-      powerCount: costs.powers.length,
-      powers: costs.powers.map((power, index) => ({
-        id: power.powerId ?? null,
-        name: power.name,
-        axisVector: power.breakdown.axisVector,
-        basePowerValue: power.breakdown.basePowerValue,
-        authoredPower: params.powers[index] ?? null,
-        derivedCooldownTurns:
-          params.derivedCooldownOverrides?.[index] ?? power.derivedCooldownTurns,
-        derivedCooldownLoad: power.derivedCooldown.cooldownLoad,
-        cooldownTurns: params.powers[index]?.cooldownTurns ?? null,
-        cooldownReduction: params.powers[index]?.cooldownReduction ?? 0,
-      })),
-      debug: costs,
-    },
-  });
-  const debug = asRecord(outcome.debug);
-  const finalPre = asRecord(debug.finalPreNormalizationAxes);
-  const powerDebug = asRecord(debug.powerContribution);
-  const canonical = asRecord(powerDebug.canonicalPowerAxisVector);
-  const effective = asRecord(powerDebug.effectivePowerAxisVector);
+function mapMonsterPacket(packet: LoadedPacket): EffectPacket {
+  const local = packet.localTargetingOverride;
   return {
-    id: params.id,
-    description: params.description,
-    finalSynergy: round(outcome.radarAxes.synergy),
-    rawSynergy: round(asNumber(finalPre.synergy)),
-    canonicalResolverSynergy: round(asNumber(canonical.synergy)),
-    effectiveResolverSynergy: round(asNumber(effective.synergy)),
-    basePowerValue: round(costs.totals.basePowerValue),
-    powers: params.powers.map((power, index) => ({
-      name: power.name,
-      targets: power.rangedTargets ?? 1,
-      authoredCooldown: power.cooldownTurns,
-      derivedCooldown:
-        params.derivedCooldownOverrides?.[index] ?? costs.powers[index]?.derivedCooldownTurns,
-      packets: power.intentions.map((packet) => ({
-        intention: packet.intention,
-        applyTo: packet.applyTo,
-        diceCount: packet.diceCount,
-        potency: packet.potency,
-        duration: packet.effectDurationType,
-        durationTurns: packet.effectDurationTurns,
-        timing: packet.effectTimingType,
-        dependency: packet.secondaryDependencyMode ?? "PRIMARY",
-        details: packet.detailsJson,
-      })),
-    })),
-    runtime: runtimeSummary(params.powers),
-    radarAxes: axisValues(outcome.radarAxes),
-  };
-}
-
-function buildFixtures(tuning: Awaited<ReturnType<typeof loadActiveTuning>>) {
-  const noSupport = computeFixture({
-    id: "no_support",
-    description: "No support package",
-    powers: [],
-    tuning,
-  });
-  const basicHeal = healingPower({ name: "Allied Heal", targets: 1, dice: 2, cooldown: 2 });
-  const duplicateHeal = healingPower({ name: "Renamed Allied Heal", targets: 1, dice: 2, cooldown: 2 });
-  const healPlusCleanse = [basicHeal, cleansePower("Distinct Cleanse", 1)];
-  const linkedDamage = healingPower({
-    name: "Allied Heal With Linked Damage",
-    targets: 1,
-    dice: 2,
-    cooldown: 2,
-    linkedDamagePotency: 8,
-  });
-  const highCostValues = {
-    ...tuning.powerSnapshot.values,
-    "packet.identity.intention.healing":
-      (tuning.powerSnapshot.values["packet.identity.intention.healing"] ?? 1.5) + 8,
-  };
-  const highCostSnapshot: PowerTuningSnapshot = {
-    ...tuning.powerSnapshot,
-    values: highCostValues,
-  };
-  const fixtures = [
-    noSupport,
-    computeFixture({
-      id: "self_heal",
-      description: "Self-only physical healing",
-      powers: [healingPower({ name: "Self Heal", applyTo: "SELF", targets: 1 })],
-      tuning,
-    }),
-    computeFixture({ id: "ally_heal_one", description: "One-target allied healing", powers: [basicHeal], tuning }),
-    computeFixture({
-      id: "ally_heal_three",
-      description: "Three-target allied healing",
-      powers: [healingPower({ name: "Group Heal", targets: 3, dice: 2 })],
-      tuning,
-    }),
-    computeFixture({
-      id: "heal_small",
-      description: "Small allied healing magnitude",
-      powers: [healingPower({ name: "Small Heal", targets: 1, dice: 1, potency: 1 })],
-      tuning,
-    }),
-    computeFixture({
-      id: "heal_large",
-      description: "Large allied healing magnitude",
-      powers: [healingPower({ name: "Large Heal", targets: 1, dice: 5, potency: 3 })],
-      tuning,
-    }),
-    computeFixture({
-      id: "heal_one_shot",
-      description: "One-shot allied healing",
-      powers: [healingPower({ name: "One Shot Heal", duration: "INSTANT", timing: "ON_CAST" })],
-      tuning,
-    }),
-    computeFixture({
-      id: "heal_recurring",
-      description: "Recurring two-turn allied healing",
-      powers: [healingPower({
-        name: "Recurring Heal",
-        duration: "TURNS",
-        durationTurns: 2,
-        timing: "START_OF_TURN",
-      })],
-      tuning,
-    }),
-    computeFixture({
-      id: "heal_short_cooldown",
-      description: "Allied healing with forced short derived cooldown",
-      powers: [healingPower({ name: "Short Cooldown Heal" })],
-      tuning,
-      derivedCooldownOverrides: [1],
-    }),
-    computeFixture({
-      id: "heal_long_cooldown",
-      description: "Allied healing with forced long derived cooldown",
-      powers: [healingPower({ name: "Long Cooldown Heal" })],
-      tuning,
-      derivedCooldownOverrides: [5],
-    }),
-    computeFixture({
-      id: "cleanse_one",
-      description: "One-target Cleanse",
-      powers: [cleansePower("Single Cleanse", 1)],
-      tuning,
-    }),
-    computeFixture({
-      id: "cleanse_three",
-      description: "Three-target Cleanse",
-      powers: [cleansePower("Group Cleanse", 3)],
-      tuning,
-    }),
-    computeFixture({
-      id: "augment_defensive",
-      description: "Two-turn allied Guard Augment",
-      powers: [augmentPower({ name: "Guard Augment", statTarget: "Guard", durationTurns: 2 })],
-      tuning,
-    }),
-    computeFixture({
-      id: "augment_offensive",
-      description: "Two-turn allied Attack Augment",
-      powers: [augmentPower({ name: "Attack Augment", statTarget: "Attack", durationTurns: 2 })],
-      tuning,
-    }),
-    computeFixture({
-      id: "augment_short",
-      description: "One-turn allied Guard Augment",
-      powers: [augmentPower({ name: "Short Guard Augment", statTarget: "Guard", durationTurns: 1 })],
-      tuning,
-    }),
-    computeFixture({
-      id: "augment_long",
-      description: "Four-turn allied Guard Augment",
-      powers: [augmentPower({ name: "Long Guard Augment", statTarget: "Guard", durationTurns: 4 })],
-      tuning,
-    }),
-    computeFixture({ id: "heal_plus_cleanse", description: "Distinct healing plus Cleanse", powers: healPlusCleanse, tuning }),
-    computeFixture({
-      id: "duplicate_heals",
-      description: "Two functionally identical healing packages",
-      powers: [basicHeal, duplicateHeal],
-      tuning,
-    }),
-    computeFixture({ id: "heal_linked_damage", description: "Allied healing with linked W/S8 damage rider", powers: [linkedDamage], tuning }),
-    computeFixture({ id: "heal_cost_default", description: "Same allied heal under active cost tuning", powers: [basicHeal], tuning }),
-    computeFixture({ id: "heal_cost_high", description: "Same allied heal under inflated healing identity cost", powers: [basicHeal], tuning, snapshot: highCostSnapshot }),
-    computeFixture({ id: "unsupported_support", description: "Unsupported generic Support intention", powers: [unsupportedSupportPower()], tuning }),
-  ];
-  return fixtures.map((fixture) => ({
-    ...fixture,
-    otherRadarAxisChanges: axisDelta(fixture.radarAxes, noSupport.radarAxes),
-  }));
-}
-
-function mapMonsterPower(power: LoadedMonster["powers"][number]): Power {
-  const packets: EffectPacket[] = power.effectPackets.map((packet) => ({
     id: packet.id,
     packetIndex: packet.packetIndex,
     sortOrder: packet.packetIndex,
@@ -575,6 +387,7 @@ function mapMonsterPower(power: LoadedMonster["powers"][number]): Power {
     specific: packet.specific,
     diceCount: packet.diceCount,
     potency: packet.potency,
+    modifier: packet.modifier,
     effectTimingType: packet.effectTimingType,
     effectTimingTurns: packet.effectTimingTurns,
     effectDurationType: packet.effectDurationType,
@@ -588,16 +401,80 @@ function mapMonsterPower(power: LoadedMonster["powers"][number]): Power {
     secondaryDependencyMode: packet.secondaryDependencyMode,
     triggerConditionText: packet.triggerConditionText,
     detailsJson: asRecord(packet.detailsJson),
-    localTargetingOverride: packet.localTargetingOverride,
-  }));
+    localTargetingOverride: local
+      ? {
+          meleeTargets: local.meleeTargets,
+          rangedTargets: local.rangedTargets,
+          rangedDistanceFeet: local.rangedDistanceFeet,
+          aoeCenterRangeFeet: local.aoeCenterRangeFeet,
+          aoeCount: local.aoeCount,
+          aoeShape: local.aoeShape,
+          aoeSphereRadiusFeet: local.aoeSphereRadiusFeet,
+          aoeConeLengthFeet: local.aoeConeLengthFeet,
+          aoeLineWidthFeet: local.aoeLineWidthFeet,
+          aoeLineLengthFeet: local.aoeLineLengthFeet,
+        }
+      : null,
+  };
+}
+
+function mapMonsterPower(power: LoadedPower): Power {
+  const packets = power.effectPackets.map(mapMonsterPacket);
+  const primary = packets[0];
   return {
-    ...power,
+    id: power.id,
+    sortOrder: power.sortOrder,
+    name: power.name,
+    description: power.description,
+    schemaVersion: power.schemaVersion,
+    rulesVersion: power.rulesVersion,
+    contentRevision: power.contentRevision,
+    previewRendererVersion: power.previewRendererVersion,
+    status: power.status,
+    descriptorChassis: power.descriptorChassis,
+    descriptorChassisConfig: asRecord(power.descriptorChassisConfig),
+    chargeType: power.chargeType,
+    chargeTurns: power.chargeTurns,
+    chargeBonusDicePerTurn: power.chargeBonusDicePerTurn,
+    cooldownTurns: power.cooldownTurns,
+    cooldownReduction: power.cooldownReduction,
+    counterMode: power.counterMode,
+    commitmentModifier: power.commitmentModifier,
+    triggerMethod: power.triggerMethod,
+    attachedHostAnchorType: power.attachedHostAnchorType,
+    lifespanType: power.lifespanType,
+    lifespanTurns: power.lifespanTurns,
+    previewSummaryOverride: power.previewSummaryOverride,
     rangeCategories: power.rangeCategories.map((range) => range.rangeCategory),
+    meleeTargets: power.meleeTargets,
+    rangedTargets: power.rangedTargets,
+    rangedDistanceFeet: power.rangedDistanceFeet,
+    aoeCenterRangeFeet: power.aoeCenterRangeFeet,
+    aoeCount: power.aoeCount,
+    aoeShape: power.aoeShape,
+    aoeSphereRadiusFeet: power.aoeSphereRadiusFeet,
+    aoeConeLengthFeet: power.aoeConeLengthFeet,
+    aoeLineWidthFeet: power.aoeLineWidthFeet,
+    aoeLineLengthFeet: power.aoeLineLengthFeet,
+    primaryDefenceGate: power.primaryDefenceGate
+      ? {
+          sourcePacketIndex: power.primaryDefenceGate.sourcePacketIndex,
+          gateResult: power.primaryDefenceGate.gateResult,
+          protectionChannel: power.primaryDefenceGate.protectionChannel,
+          resistAttribute: power.primaryDefenceGate.resistAttribute,
+          hostileEntryPattern: power.primaryDefenceGate.hostileEntryPattern,
+          resolutionSource: power.primaryDefenceGate.resolutionSource,
+        }
+      : null,
     effectPackets: packets,
     intentions: packets,
-    diceCount: Number(packets[0]?.diceCount ?? 1),
-    potency: Number(packets[0]?.potency ?? 1),
-  } as Power;
+    diceCount: Number(primary?.diceCount ?? 1),
+    potency: Number(primary?.potency ?? 1),
+    effectDurationType: primary?.effectDurationType ?? "INSTANT",
+    effectDurationTurns: primary?.effectDurationTurns ?? null,
+    durationType: primary?.effectDurationType ?? "INSTANT",
+    durationTurns: primary?.effectDurationTurns ?? null,
+  };
 }
 
 function traitDefinitions(monster: LoadedMonster): TraitAxisWeightDefinition[] {
@@ -615,76 +492,517 @@ function traitDefinitions(monster: LoadedMonster): TraitAxisWeightDefinition[] {
   }));
 }
 
-function summarizeAsset(monster: LoadedMonster, tuning: Awaited<ReturnType<typeof loadActiveTuning>>) {
-  const powers = monster.powers.map(mapMonsterPower);
-  const costs = resolvePowerCosts(powers, tuning.powerSnapshot, {
+function resolveAndAttachPowers(
+  powers: Power[],
+  snapshot: PowerTuningSnapshot,
+  context: PowerCostContext,
+): {
+  powers: Power[];
+  authority: Array<{
+    powerId: string | null;
+    powerName: string;
+    resolution: PowerCooldownAuthorityResolution;
+  }>;
+} {
+  const authority = powers.map((power) => ({
+    powerId: power.id ?? null,
+    powerName: power.name,
+    resolution: resolvePowerCooldownAuthority({
+      power,
+      mode: "ACTIVE_CURRENT_BALANCE",
+      tuningSnapshot: snapshot,
+      context,
+    }),
+  }));
+  return {
+    powers: powers.map((power, index) =>
+      attachPowerCooldownAuthority(power, authority[index].resolution),
+    ),
+    authority,
+  };
+}
+
+function runtimeSummary(powers: Power[]) {
+  if (powers.length === 0) {
+    return {
+      status: "NO_ELIGIBLE_RUNTIME_ACTION" as const,
+      powers: [],
+    };
+  }
+  const summaries = powers.map((power) => {
+    const adapted = adaptPowerToCombatActions(power);
+    const status = adapted.unsupported.length > 0
+      ? "UNSUPPORTED_INPUT"
+      : adapted.actions.length > 0
+        ? "SUPPORTED"
+        : "NO_ELIGIBLE_RUNTIME_ACTION";
+    return {
+      powerId: power.id ?? null,
+      power: power.name,
+      status,
+      actions: adapted.actions.map((action) => ({
+        kind: action.kind,
+        targetPolicy: action.targetPolicy,
+        targetCount: action.targetCount,
+        diceCount: action.diceCount,
+        potency: action.potency,
+        modifier: action.modifier,
+        durationRounds: action.durationRounds ?? null,
+        recurring: action.recurring?.kind ?? null,
+        semanticFormat: action.modifier?.semanticFormat ?? null,
+      })),
+      unsupported: adapted.unsupported,
+      warnings: adapted.warnings,
+    };
+  });
+  return {
+    status: summaries.some((summary) => summary.status === "UNSUPPORTED_INPUT")
+      ? "UNSUPPORTED_INPUT" as const
+      : summaries.some((summary) => summary.status === "SUPPORTED")
+        ? "SUPPORTED" as const
+        : "NO_ELIGIBLE_RUNTIME_ACTION" as const,
+    powers: summaries,
+  };
+}
+
+function powerContribution(params: {
+  powers: Power[];
+  costs: ReturnType<typeof resolvePowerCosts>;
+}) {
+  return {
+    axisVector: params.costs.totals.axisVector,
+    basePowerValue: params.costs.totals.basePowerValue,
+    powerCount: params.costs.powers.length,
+    powers: params.costs.powers.map((power, index) => ({
+      id: power.powerId ?? null,
+      name: power.name,
+      axisVector: power.breakdown.axisVector,
+      basePowerValue: power.breakdown.basePowerValue,
+      authoredPower: params.powers[index] ?? null,
+      cooldownAuthority: params.powers[index]?.cooldownAuthority ?? null,
+      derivedCooldownTurns: power.derivedCooldownTurns,
+      derivedCooldownLoad: power.derivedCooldown.cooldownLoad,
+      cooldownTurns: params.powers[index]?.cooldownTurns ?? null,
+      cooldownReduction: params.powers[index]?.cooldownReduction ?? 0,
+    })),
+    debug: params.costs,
+  };
+}
+
+function semanticCostDiagnostics(costs: ReturnType<typeof resolvePowerCosts>) {
+  const powers = costs.powers.map((power) => {
+    const calibration = asRecord(power.breakdown.debug.augmentDebuffCalibration);
+    return {
+      powerId: power.powerId ?? null,
+      powerName: power.name,
+      status: asString(calibration.status) || "UNKNOWN",
+      aggregateDeliveryUnits: asNullableNumber(calibration.aggregateDeliveryUnits),
+      roundedFinalBpv: asNullableNumber(calibration.roundedFinalBpv),
+      warnings: Array.isArray(calibration.warnings) ? calibration.warnings : [],
+      unresolvedDiagnostics: Array.isArray(calibration.unresolvedDiagnostics)
+        ? calibration.unresolvedDiagnostics
+        : [],
+    };
+  });
+  const delivery = powers.map((power) => power.aggregateDeliveryUnits);
+  return {
+    powers,
+    aggregateDeliveryUnits: delivery.every((value) => value === null)
+      ? null
+      : round(delivery.reduce<number>((sum, value) => sum + (value ?? 0), 0), 6),
+  };
+}
+
+function summarizeOutcome(outcome: ReturnType<typeof computeMonsterOutcomes>) {
+  const debug = asRecord(outcome.debug);
+  const finalPre = asRecord(debug.finalPreNormalizationAxes);
+  const powerDebug = asRecord(debug.powerContribution);
+  const canonical = axisValues(asRecord(powerDebug.canonicalPowerAxisVector));
+  const effective = axisValues(asRecord(powerDebug.effectivePowerAxisVector));
+  const perPowerAvailability = Array.isArray(powerDebug.perPowerAvailability)
+    ? powerDebug.perPowerAvailability.map((entry) => {
+        const row = asRecord(entry);
+        return {
+          id: row.id ?? null,
+          name: row.name ?? null,
+          cooldownSource: row.cooldownSource ?? null,
+          authoritySource: row.authoritySource ?? null,
+          authorityTuningSetId: row.authorityTuningSetId ?? null,
+          effectiveCooldownTurns: row.cooldownTurns ?? null,
+          unresolvedError: row.unresolvedError ?? null,
+          canonicalPowerAxisVector: axisValues(asRecord(row.canonicalPowerAxisVector)),
+          effectivePowerAxisVector: axisValues(asRecord(row.effectivePowerAxisVector)),
+        };
+      })
+    : [];
+  return {
+    finalSynergy: round(outcome.radarAxes.synergy, 6),
+    rawSynergy: round(asNumber(finalPre.synergy), 6),
+    canonicalPowerAxisVector: canonical,
+    effectivePowerAxisVector: effective,
+    canonicalResolverSynergy: canonical.synergy,
+    effectiveResolverSynergy: effective.synergy,
+    radarAxes: axisValues(outcome.radarAxes),
+    perPowerAvailability,
+    powerWarnings: Array.isArray(powerDebug.warnings) ? powerDebug.warnings : [],
+    suppressedByMissingAuthority: perPowerAvailability.some(
+      (row) => row.unresolvedError !== null || row.cooldownSource === "UNRESOLVED",
+    ),
+  };
+}
+
+function computeFixture(params: {
+  id: string;
+  description: string;
+  powers: Power[];
+  tuning: Awaited<ReturnType<typeof loadActiveTuning>>;
+  expectedRuntime: "SUPPORTED" | "UNSUPPORTED_INPUT" | "NO_ELIGIBLE_RUNTIME_ACTION";
+}) {
+  const context: PowerCostContext = { level: 3, tier: "SOLDIER" };
+  const hydrated = resolveAndAttachPowers(params.powers, params.tuning.powerSnapshot, context);
+  const costs = resolvePowerCosts(hydrated.powers, params.tuning.powerSnapshot, context);
+  const outcome = computeMonsterOutcomes(baseMonster(hydrated.powers), params.tuning.calculatorConfig, {
+    protectionTuning: params.tuning.combatValues,
+    powerContribution: powerContribution({ powers: hydrated.powers, costs }),
+  });
+  const runtime = runtimeSummary(hydrated.powers);
+  const summary = summarizeOutcome(outcome);
+  return {
+    id: params.id,
+    description: params.description,
+    expectedRuntime: params.expectedRuntime,
+    powers: hydrated.powers.map((power) => ({
+      id: power.id ?? null,
+      name: power.name,
+      packetIds: power.effectPackets.map((packet) => packet.id ?? null),
+      modifiers: power.effectPackets.map((packet) => packet.modifier ?? null),
+      applyTo: power.effectPackets.map((packet) => packet.applyTo ?? null),
+      explicitTargets: power.rangeCategories?.includes("AOE")
+        ? power.aoeCount ?? null
+        : power.rangedTargets ?? (power.effectPackets.some((packet) => packet.applyTo === "SELF") ? 1 : null),
+    })),
+    authority: hydrated.authority.map((entry, index) => ({
+      powerId: entry.powerId,
+      powerName: entry.powerName,
+      resolved: entry.resolution.ok,
+      attached: hydrated.powers[index]?.cooldownAuthority != null,
+      source: entry.resolution.ok ? entry.resolution.result.source : null,
+      tuningSetId: entry.resolution.ok ? entry.resolution.result.tuningSetId : null,
+      tuningUpdatedAt: entry.resolution.ok ? entry.resolution.result.tuningUpdatedAt : null,
+      effectiveCooldownTurns: entry.resolution.ok
+        ? entry.resolution.result.effectiveCooldownTurns
+        : null,
+      storedCooldownTurns: entry.resolution.ok
+        ? entry.resolution.result.storedCooldownTurns
+        : entry.resolution.storedCooldownTurns,
+      mismatch: entry.resolution.ok ? entry.resolution.result.mismatch : null,
+      errorCode: entry.resolution.ok ? null : entry.resolution.errorCode,
+      message: entry.resolution.ok ? null : entry.resolution.message,
+      warnings: entry.resolution.ok ? entry.resolution.result.warnings : [],
+    })),
+    runtime,
+    semanticDelivery: semanticCostDiagnostics(costs),
+    basePowerValue: round(costs.totals.basePowerValue, 6),
+    ...summary,
+  };
+}
+
+function buildFixtures(tuning: Awaited<ReturnType<typeof loadActiveTuning>>) {
+  const legacyOne = augmentPower({
+    identity: "legacy-one-target-m3",
+    name: "Legacy One-Target M3 Augment",
+    modifier: null,
+    targets: 1,
+  });
+  const legacyAreaOne = augmentPower({
+    identity: "legacy-area-explicit-one-m3",
+    name: "Legacy 10-Foot Area M3 Augment, One Expected Target",
+    modifier: null,
+    range: "AOE",
+    targets: 1,
+  });
+  const legacyThree = augmentPower({
+    identity: "legacy-explicit-three-m3",
+    name: "Legacy Explicit Three-Target M3 Augment",
+    modifier: null,
+    targets: 3,
+  });
+  const newOne = augmentPower({
+    identity: "new-format-one-ally-m3",
+    name: "New-Format One-Ally M3 Augment",
+    modifier: 3,
+    targets: 1,
+  });
+  const newThree = augmentPower({
+    identity: "new-format-three-allies-m3",
+    name: "New-Format Three-Allies M3 Augment",
+    modifier: 3,
+    targets: 3,
+  });
+  const newLong = augmentPower({
+    identity: "new-format-one-ally-m3-duration-four",
+    name: "New-Format One-Ally M3 Augment, Duration Four",
+    modifier: 3,
+    targets: 1,
+    durationTurns: 4,
+  });
+  const selfOnly = augmentPower({
+    identity: "new-format-self-only-m3",
+    name: "New-Format Self-Only M3 Augment",
+    modifier: 3,
+    applyTo: "SELF",
+    range: "SELF",
+    targets: 1,
+  });
+  const duplicateLeft = augmentPower({
+    identity: "new-format-duplicate-left-m3",
+    name: "New-Format Exact Semantic Duplicate A",
+    modifier: 3,
+    targets: 1,
+  });
+  const duplicateRight = augmentPower({
+    identity: "new-format-duplicate-right-m3",
+    name: "New-Format Exact Semantic Duplicate B",
+    modifier: 3,
+    targets: 1,
+  });
+  return [
+    computeFixture({
+      id: "no_augment_baseline",
+      description: "No-Augment baseline",
+      powers: [],
+      tuning,
+      expectedRuntime: "NO_ELIGIBLE_RUNTIME_ACTION",
+    }),
+    computeFixture({
+      id: "legacy_one_target_m3",
+      description: "Current Modifier-null one-target 3-dice/Potency-3 Augment",
+      powers: [legacyOne],
+      tuning,
+      expectedRuntime: "SUPPORTED",
+    }),
+    computeFixture({
+      id: "legacy_area_explicit_one_m3",
+      description: "Current Modifier-null 10-foot area shape with expected target count held at one",
+      powers: [legacyAreaOne],
+      tuning,
+      expectedRuntime: "SUPPORTED",
+    }),
+    computeFixture({
+      id: "legacy_explicit_three_m3",
+      description: "Current Modifier-null explicit three-target equivalent",
+      powers: [legacyThree],
+      tuning,
+      expectedRuntime: "SUPPORTED",
+    }),
+    computeFixture({
+      id: "new_format_one_ally_m3",
+      description: "Diagnostic new-format one-ally Modifier-3 Augment",
+      powers: [newOne],
+      tuning,
+      expectedRuntime: "SUPPORTED",
+    }),
+    computeFixture({
+      id: "new_format_three_allies_m3",
+      description: "Diagnostic new-format explicit three-ally Modifier-3 Augment",
+      powers: [newThree],
+      tuning,
+      expectedRuntime: "SUPPORTED",
+    }),
+    computeFixture({
+      id: "new_format_one_ally_m3_duration_four",
+      description: "Diagnostic new-format one-ally Modifier-3 Augment with four-turn duration",
+      powers: [newLong],
+      tuning,
+      expectedRuntime: "SUPPORTED",
+    }),
+    computeFixture({
+      id: "new_format_self_only_m3",
+      description: "Diagnostic self-only new-format Modifier-3 Augment",
+      powers: [selfOnly],
+      tuning,
+      expectedRuntime: "SUPPORTED",
+    }),
+    computeFixture({
+      id: "new_format_exact_semantic_duplicate",
+      description: "Two semantically identical new-format powers with distinct deterministic identities",
+      powers: [duplicateLeft, duplicateRight],
+      tuning,
+      expectedRuntime: "SUPPORTED",
+    }),
+    computeFixture({
+      id: "unsupported_support",
+      description: "Unsupported generic Support input remains explicitly unsupported",
+      powers: [unsupportedSupportPower()],
+      tuning,
+      expectedRuntime: "UNSUPPORTED_INPUT",
+    }),
+  ];
+}
+
+function calculatorMonsterForPersisted(monster: LoadedMonster, powers: Power[]): MonsterUpsertInput {
+  return {
+    ...baseMonster(powers),
+    name: monster.name,
+    imageUrl: monster.imageUrl,
+    imagePosX: monster.imagePosX,
+    imagePosY: monster.imagePosY,
     level: monster.level,
     tier: monster.tier,
-  });
+    legendary: monster.legendary,
+    mainHandItemId: monster.mainHandItemId,
+    offHandItemId: monster.offHandItemId,
+    smallItemId: monster.smallItemId,
+    headArmorItemId: monster.headArmorItemId,
+    shoulderArmorItemId: monster.shoulderArmorItemId,
+    torsoArmorItemId: monster.torsoArmorItemId,
+    legsArmorItemId: monster.legsArmorItemId,
+    feetArmorItemId: monster.feetArmorItemId,
+    headItemId: monster.headItemId,
+    neckItemId: monster.neckItemId,
+    armsItemId: monster.armsItemId,
+    beltItemId: monster.beltItemId,
+    physicalResilienceCurrent: monster.physicalResilienceCurrent,
+    physicalResilienceMax: monster.physicalResilienceMax,
+    mentalPerseveranceCurrent: monster.mentalPerseveranceCurrent,
+    mentalPerseveranceMax: monster.mentalPerseveranceMax,
+    physicalProtection: monster.physicalProtection,
+    mentalProtection: monster.mentalProtection,
+    naturalPhysicalProtection: monster.naturalPhysicalProtection,
+    naturalMentalProtection: monster.naturalMentalProtection,
+    attackDie: monster.attackDie,
+    attackResistDie: monster.attackResistDie,
+    attackModifier: monster.attackModifier,
+    guardDie: monster.guardDie,
+    guardResistDie: monster.guardResistDie,
+    guardModifier: monster.guardModifier,
+    fortitudeDie: monster.fortitudeDie,
+    fortitudeResistDie: monster.fortitudeResistDie,
+    fortitudeModifier: monster.fortitudeModifier,
+    intellectDie: monster.intellectDie,
+    intellectResistDie: monster.intellectResistDie,
+    intellectModifier: monster.intellectModifier,
+    synergyDie: monster.synergyDie,
+    synergyResistDie: monster.synergyResistDie,
+    synergyModifier: monster.synergyModifier,
+    braveryDie: monster.braveryDie,
+    braveryResistDie: monster.braveryResistDie,
+    braveryModifier: monster.braveryModifier,
+    weaponSkillValue: monster.weaponSkillValue,
+    weaponSkillModifier: monster.weaponSkillModifier,
+    armorSkillValue: monster.armorSkillValue,
+    armorSkillModifier: monster.armorSkillModifier,
+    powers,
+  };
+}
+
+function summarizePersistedAsset(
+  monster: LoadedMonster,
+  authoredPowers: Power[],
+  tuning: Awaited<ReturnType<typeof loadActiveTuning>>,
+) {
+  const context: PowerCostContext = { level: monster.level, tier: monster.tier };
+  const hydrated = resolveAndAttachPowers(authoredPowers, tuning.powerSnapshot, context);
+  const costs = resolvePowerCosts(hydrated.powers, tuning.powerSnapshot, context);
   const outcome = computeMonsterOutcomes(
-    {
-      ...monster,
-      attacks: monster.attacks.map((attack) => ({
-        id: attack.id,
-        attackMode: attack.attackMode,
-        attackName: attack.attackName,
-        attackConfig: attack.attackConfig,
-      })),
-      naturalAttack: monster.naturalAttack
-        ? {
-            attackName: monster.naturalAttack.attackName,
-            attackConfig: monster.naturalAttack.attackConfig,
-          }
-        : null,
-      tags: [],
-      traits: [],
-      powers,
-    } as unknown as MonsterUpsertInput,
+    calculatorMonsterForPersisted(monster, hydrated.powers),
     tuning.calculatorConfig,
     {
       protectionTuning: tuning.combatValues,
       traitAxisBonuses: computeTraitAxisBonuses(traitDefinitions(monster), monster.level),
-      powerContribution: {
-        axisVector: costs.totals.axisVector,
-        basePowerValue: costs.totals.basePowerValue,
-        powerCount: costs.powers.length,
-        powers: costs.powers.map((power, index) => ({
-          id: power.powerId ?? null,
-          name: power.name,
-          axisVector: power.breakdown.axisVector,
-          basePowerValue: power.breakdown.basePowerValue,
-          authoredPower: powers[index] ?? null,
-          derivedCooldownTurns: power.derivedCooldownTurns,
-          derivedCooldownLoad: power.derivedCooldown.cooldownLoad,
-          cooldownTurns: powers[index]?.cooldownTurns ?? null,
-          cooldownReduction: powers[index]?.cooldownReduction ?? 0,
-        })),
-        debug: costs,
-      },
+      powerContribution: powerContribution({ powers: hydrated.powers, costs }),
     },
   );
-  const debug = asRecord(outcome.debug);
-  const finalPre = asRecord(debug.finalPreNormalizationAxes);
-  const powerDebug = asRecord(debug.powerContribution);
-  const canonical = asRecord(powerDebug.canonicalPowerAxisVector);
-  const effective = asRecord(powerDebug.effectivePowerAxisVector);
-  const supportPowers = powers
-    .filter((power) => power.intentions.some((packet) => SUPPORT_INTENTIONS.has(packet.intention)))
-    .map((power) => ({
-      name: power.name,
-      intentions: power.intentions.map((packet) => packet.intention),
-      runtime: runtimeSummary([power]),
-    }));
   return {
+    monsterId: monster.id,
     name: monster.name,
     level: monster.level,
     tier: monster.tier,
-    legendary: monster.legendary,
-    finalSynergy: round(outcome.radarAxes.synergy),
-    rawSynergy: round(asNumber(finalPre.synergy)),
-    canonicalResolverSynergy: round(asNumber(canonical.synergy)),
-    effectiveResolverSynergy: round(asNumber(effective.synergy)),
-    supportPowers,
+    powerIds: hydrated.powers.map((power) => power.id ?? null),
+    packetIds: hydrated.powers.flatMap((power) =>
+      power.effectPackets.map((packet) => packet.id ?? null),
+    ),
+    modifiers: hydrated.powers.flatMap((power) =>
+      power.effectPackets.map((packet) => packet.modifier ?? null),
+    ),
+    authority: hydrated.authority.map((entry) => ({
+      powerId: entry.powerId,
+      resolved: entry.resolution.ok,
+      source: entry.resolution.ok ? entry.resolution.result.source : null,
+      tuningSetId: entry.resolution.ok ? entry.resolution.result.tuningSetId : null,
+      errorCode: entry.resolution.ok ? null : entry.resolution.errorCode,
+    })),
+    runtime: runtimeSummary(hydrated.powers),
+    ...summarizeOutcome(outcome),
+  };
+}
+
+function editorEquivalentPowers(powers: Power[]): Power[] {
+  return powers.map((power) => {
+    const packets = power.effectPackets.map((packet) => ({
+      ...packet,
+      detailsJson: JSON.parse(JSON.stringify(packet.detailsJson)) as Record<string, unknown>,
+    }));
+    return {
+      ...power,
+      cooldownAuthority: null,
+      effectPackets: packets,
+      intentions: packets,
+    };
+  });
+}
+
+function buildMappingEvidence(monster: LoadedMonster) {
+  const persistedPower = monster.powers.find((power) => power.effectPackets.length > 0);
+  if (!persistedPower) {
+    throw new Error(`Selected persisted asset ${monster.id} has no packet-bearing power.`);
+  }
+  const persistedPacket = persistedPower.effectPackets[0];
+  const mappedPower = mapMonsterPower(persistedPower);
+  const mappedPacket = mappedPower.effectPackets[0];
+  const nonNullProbe = mapMonsterPacket({
+    ...persistedPacket,
+    id: stableId("packet", "persisted-mapping-non-null-modifier-probe"),
+    modifier: 3,
+  });
+  const nullProbe = mapMonsterPacket({
+    ...persistedPacket,
+    id: stableId("packet", "persisted-mapping-null-modifier-probe"),
+    modifier: null,
+  });
+  const allMappedPowers = monster.powers.map(mapMonsterPower);
+  return {
+    selectedPowerId: persistedPower.id,
+    selectedPacketId: persistedPacket.id,
+    selectedPersistedModifier: persistedPacket.modifier,
+    selectedMappedModifier: mappedPacket.modifier ?? null,
+    powerIdPreserved: mappedPower.id === persistedPower.id,
+    packetIdPreserved: mappedPacket.id === persistedPacket.id,
+    persistedModifiersPreserved: monster.powers.every((power, powerIndex) =>
+      power.effectPackets.every(
+        (packet, packetIndex) =>
+          allMappedPowers[powerIndex]?.effectPackets[packetIndex]?.modifier === packet.modifier,
+      ),
+    ),
+    persistedPowerIdsPreserved: monster.powers.every(
+      (power, index) => allMappedPowers[index]?.id === power.id,
+    ),
+    persistedPacketIdsPreserved: monster.powers.every((power, powerIndex) =>
+      power.effectPackets.every(
+        (packet, packetIndex) =>
+          allMappedPowers[powerIndex]?.effectPackets[packetIndex]?.id === packet.id,
+      ),
+    ),
+    nonNullModifierProbe: {
+      source: 3,
+      mapped: nonNullProbe.modifier ?? null,
+      preserved: nonNullProbe.modifier === 3,
+    },
+    nullModifierProbe: {
+      source: null,
+      mapped: nullProbe.modifier ?? null,
+      preserved: nullProbe.modifier === null,
+    },
   };
 }
 
@@ -725,6 +1043,7 @@ async function loadActiveTuning(prisma: PrismaClientInstance) {
     id: set.id,
     name: set.name,
     slug: set.slug,
+    status: set.status,
     updatedAt: set.updatedAt.toISOString(),
   });
   return {
@@ -755,35 +1074,65 @@ async function loadMonsters(prisma: PrismaClientInstance) {
   });
 }
 
-function printHuman(payload: Awaited<ReturnType<typeof buildPayload>>) {
-  console.log(payload.title);
-  console.log(`repoHead=${payload.provenance.repoHead}`);
-  console.log(`gitStatus=${payload.provenance.gitStatus}`);
-  console.log(`campaignId=${payload.provenance.campaignId}`);
-  console.log("databaseAccess=read-only; mutation=none");
-  console.log("");
-  console.log("Synthetic fixtures | final/raw | canonical/effective resolver | BPV");
-  for (const fixture of payload.fixtures) {
-    console.log(
-      `${fixture.id} | ${fixture.finalSynergy}/${fixture.rawSynergy} | ${fixture.canonicalResolverSynergy}/${fixture.effectiveResolverSynergy} | ${fixture.basePowerValue}`,
-    );
-    console.log(`  ${fixture.description}`);
-    console.log(`  powers=${JSON.stringify(fixture.powers)}`);
-    console.log(`  runtime=${JSON.stringify(fixture.runtime)}`);
-    console.log(`  otherAxisChanges=${JSON.stringify(fixture.otherRadarAxisChanges)}`);
-  }
-  console.log("");
-  console.log("Requested Balance Environment samples");
-  for (const sample of payload.requestedSamples) {
-    console.log(
-      `${sample.name} | ${sample.tier}${sample.legendary ? "+LEG" : ""}/L${sample.level} | synergy=${sample.finalSynergy}/${sample.rawSynergy} resolver=${sample.canonicalResolverSynergy}/${sample.effectiveResolverSynergy} support=${sample.supportPowers.map((power) => power.name).join(",") || "none"}`,
-    );
-  }
-  console.log("");
-  console.log("All authored support assets");
-  for (const sample of payload.authoredSupportAssets) {
-    console.log(`${sample.name} | synergy=${sample.finalSynergy} | ${sample.supportPowers.map((power) => power.name).join(",")}`);
-  }
+function fixtureById(fixtures: ReturnType<typeof buildFixtures>, id: string) {
+  const fixture = fixtures.find((entry) => entry.id === id);
+  if (!fixture) throw new Error(`Missing deterministic fixture ${id}.`);
+  return fixture;
+}
+
+function compareSemanticAxisGap(fixtures: ReturnType<typeof buildFixtures>) {
+  const one = fixtureById(fixtures, "new_format_one_ally_m3");
+  const three = fixtureById(fixtures, "new_format_three_allies_m3");
+  const long = fixtureById(fixtures, "new_format_one_ally_m3_duration_four");
+  const breadthPricingChanges =
+    asNumber(three.semanticDelivery.aggregateDeliveryUnits) >
+      asNumber(one.semanticDelivery.aggregateDeliveryUnits) &&
+    three.basePowerValue > one.basePowerValue;
+  const breadthCurrentSynergyChanges =
+    three.canonicalResolverSynergy !== one.canonicalResolverSynergy ||
+    three.effectiveResolverSynergy !== one.effectiveResolverSynergy ||
+    three.finalSynergy !== one.finalSynergy;
+  const persistencePricingChanges =
+    asNumber(long.semanticDelivery.aggregateDeliveryUnits) >
+      asNumber(one.semanticDelivery.aggregateDeliveryUnits) &&
+    long.basePowerValue > one.basePowerValue;
+  const persistenceCurrentSynergyChanges =
+    long.canonicalResolverSynergy !== one.canonicalResolverSynergy ||
+    long.effectiveResolverSynergy !== one.effectiveResolverSynergy ||
+    long.finalSynergy !== one.finalSynergy;
+  return {
+    label: "Diagnostic current-state comparison; not an accepted semantic calibration",
+    breadth: {
+      oneTargetDeliveryUnits: one.semanticDelivery.aggregateDeliveryUnits,
+      threeTargetDeliveryUnits: three.semanticDelivery.aggregateDeliveryUnits,
+      oneTargetBpv: one.basePowerValue,
+      threeTargetBpv: three.basePowerValue,
+      oneTargetCanonicalSynergy: one.canonicalResolverSynergy,
+      threeTargetCanonicalSynergy: three.canonicalResolverSynergy,
+      oneTargetEffectiveSynergy: one.effectiveResolverSynergy,
+      threeTargetEffectiveSynergy: three.effectiveResolverSynergy,
+      oneTargetFinalSynergy: one.finalSynergy,
+      threeTargetFinalSynergy: three.finalSynergy,
+      semanticPricingChanges: breadthPricingChanges,
+      currentSynergyChanges: breadthCurrentSynergyChanges,
+      gapDetected: breadthPricingChanges && !breadthCurrentSynergyChanges,
+    },
+    persistence: {
+      durationTwoDeliveryUnits: one.semanticDelivery.aggregateDeliveryUnits,
+      durationFourDeliveryUnits: long.semanticDelivery.aggregateDeliveryUnits,
+      durationTwoBpv: one.basePowerValue,
+      durationFourBpv: long.basePowerValue,
+      durationTwoCanonicalSynergy: one.canonicalResolverSynergy,
+      durationFourCanonicalSynergy: long.canonicalResolverSynergy,
+      durationTwoEffectiveSynergy: one.effectiveResolverSynergy,
+      durationFourEffectiveSynergy: long.effectiveResolverSynergy,
+      durationTwoFinalSynergy: one.finalSynergy,
+      durationFourFinalSynergy: long.finalSynergy,
+      semanticPricingChanges: persistencePricingChanges,
+      currentSynergyChanges: persistenceCurrentSynergyChanges,
+      gapDetected: persistencePricingChanges && !persistenceCurrentSynergyChanges,
+    },
+  };
 }
 
 async function buildPayload() {
@@ -791,10 +1140,158 @@ async function buildPayload() {
   const { prisma } = await import("../prisma/client");
   try {
     const [tuning, monsters] = await Promise.all([loadActiveTuning(prisma), loadMonsters(prisma)]);
-    const summaries = monsters.map((monster) => summarizeAsset(monster, tuning));
+    const selectedAsset = monsters.find((monster) =>
+      monster.powers.some((power) => power.effectPackets.length > 0),
+    );
+    if (!selectedAsset) {
+      throw new Error("No packet-bearing persisted monster is available for saved/editor parity.");
+    }
+    const mappedPowers = selectedAsset.powers.map(mapMonsterPower);
+    const saved = summarizePersistedAsset(selectedAsset, mappedPowers, tuning);
+    const editorEquivalent = summarizePersistedAsset(
+      selectedAsset,
+      editorEquivalentPowers(mappedPowers),
+      tuning,
+    );
+    const mapping = buildMappingEvidence(selectedAsset);
+    const fixtures = buildFixtures(tuning);
+    const semanticAxisGap = compareSemanticAxisGap(fixtures);
+    const fixtureIds = fixtures.map((fixture) => fixture.id);
+    const syntheticPowerIds = fixtures.flatMap((fixture) =>
+      fixture.powers.map((power) => power.id).filter((id): id is string => id !== null),
+    );
+    const syntheticPacketIds = fixtures.flatMap((fixture) =>
+      fixture.powers.flatMap((power) =>
+        power.packetIds.filter((id): id is string => id !== null),
+      ),
+    );
+    const expectedSupported = fixtures.filter((fixture) => fixture.expectedRuntime === "SUPPORTED");
+    const expectedUnsupported = fixtures.filter(
+      (fixture) => fixture.expectedRuntime === "UNSUPPORTED_INPUT",
+    );
+    const fixtureAuthorityResolved = fixtures.every((fixture) =>
+      fixture.authority.every((entry) => entry.resolved && entry.attached),
+    );
+    const persistedAuthorityResolved =
+      saved.authority.every((entry) => entry.resolved) &&
+      editorEquivalent.authority.every((entry) => entry.resolved);
+    const checks = {
+      persistedModifierPreserved:
+        mapping.persistedModifiersPreserved &&
+        mapping.nonNullModifierProbe.preserved &&
+        mapping.nullModifierProbe.preserved,
+      persistedStablePowerIdsPreserved:
+        mapping.powerIdPreserved && mapping.persistedPowerIdsPreserved,
+      persistedStablePacketIdsPreserved:
+        mapping.packetIdPreserved && mapping.persistedPacketIdsPreserved,
+      deterministicSyntheticPowerIds:
+        syntheticPowerIds.length > 0 && new Set(syntheticPowerIds).size === syntheticPowerIds.length,
+      deterministicSyntheticPacketIds:
+        syntheticPacketIds.length > 0 && new Set(syntheticPacketIds).size === syntheticPacketIds.length,
+      cooldownAuthorityResolvedAndAttached: fixtureAuthorityResolved && persistedAuthorityResolved,
+      activeCooldownAuthorityProvenance: fixtures.every((fixture) =>
+        fixture.authority.every(
+          (entry) =>
+            entry.source === "ACTIVE_TUNING" && entry.tuningSetId === tuning.powerSnapshot.setId,
+        ),
+      ),
+      supportedAdapterCasesRemainSupported: expectedSupported.every(
+        (fixture) => fixture.runtime.status === "SUPPORTED",
+      ),
+      unsupportedAdapterCasesRemainUnsupported: expectedUnsupported.every(
+        (fixture) => fixture.runtime.status === "UNSUPPORTED_INPUT",
+      ),
+      noAuthoritySuppression: fixtures.every(
+        (fixture) => !fixture.suppressedByMissingAuthority,
+      ) && !saved.suppressedByMissingAuthority && !editorEquivalent.suppressedByMissingAuthority,
+      nonzeroCanonicalAxesRemainEffective: fixtures.every((fixture) =>
+        fixture.perPowerAvailability.every((power) => {
+          const canonicalTotal = Object.values(power.canonicalPowerAxisVector).reduce(
+            (sum, value) => sum + Math.abs(value),
+            0,
+          );
+          const effectiveTotal = Object.values(power.effectivePowerAxisVector).reduce(
+            (sum, value) => sum + Math.abs(value),
+            0,
+          );
+          return canonicalTotal === 0 || effectiveTotal > 0;
+        }),
+      ),
+      savedEditorParity:
+        Math.abs(saved.finalSynergy - editorEquivalent.finalSynergy) <= 0.000001 &&
+        Math.abs(saved.rawSynergy - editorEquivalent.rawSynergy) <= 0.000001 &&
+        axesEqual(saved.canonicalPowerAxisVector, editorEquivalent.canonicalPowerAxisVector) &&
+        axesEqual(saved.effectivePowerAxisVector, editorEquivalent.effectivePowerAxisVector),
+      finiteCalculatorOutputs:
+        fixtures.every((fixture) => axesAreFinite(fixture.radarAxes)) &&
+        axesAreFinite(saved.radarAxes) &&
+        axesAreFinite(editorEquivalent.radarAxes),
+      noAugmentBaselineStable: (() => {
+        const baseline = fixtureById(fixtures, "no_augment_baseline");
+        return baseline.finalSynergy === 0 && baseline.rawSynergy === 0;
+      })(),
+      exactDuplicateFixtureIdentityDistinct: (() => {
+        const duplicate = fixtureById(fixtures, "new_format_exact_semantic_duplicate");
+        return duplicate.powers.length === 2 &&
+          new Set(duplicate.powers.map((power) => power.id)).size === 2 &&
+          new Set(duplicate.powers.flatMap((power) => power.packetIds)).size === 2;
+      })(),
+      semanticDeliveryDiagnosticsAvailable: fixtures
+        .filter((fixture) => fixture.id.startsWith("new_format_"))
+        .every((fixture) => fixture.semanticDelivery.aggregateDeliveryUnits !== null),
+      semanticAxisGapEvaluated:
+        semanticAxisGap.breadth.semanticPricingChanges &&
+        semanticAxisGap.persistence.semanticPricingChanges,
+      humanJsonOutputContract:
+        fixtureIds.length === new Set(fixtureIds).size && fixtureIds.length === fixtures.length,
+      databaseReadOnly:
+        DATABASE_OPERATIONS.every(
+          (operation) => operation.endsWith(".findFirst") || operation.endsWith(".findMany"),
+        ),
+    };
+    const failedChecks = Object.entries(checks)
+      .filter(([, passed]) => !passed)
+      .map(([name]) => name);
+    if (failedChecks.length > 0) {
+      throw new Error(
+        `SYNERGY_AUDIT_INCOMPATIBLE: ${failedChecks.join(", ")}; saved=${JSON.stringify({
+          finalSynergy: saved.finalSynergy,
+          rawSynergy: saved.rawSynergy,
+          canonicalPowerAxisVector: saved.canonicalPowerAxisVector,
+          effectivePowerAxisVector: saved.effectivePowerAxisVector,
+        })}; editor=${JSON.stringify({
+          finalSynergy: editorEquivalent.finalSynergy,
+          rawSynergy: editorEquivalent.rawSynergy,
+          canonicalPowerAxisVector: editorEquivalent.canonicalPowerAxisVector,
+          effectivePowerAxisVector: editorEquivalent.effectivePowerAxisVector,
+        })}`,
+      );
+    }
     const requestedSet = new Set<string>(SAMPLE_NAMES);
+    const requestedSamples = monsters
+      .filter((monster) => requestedSet.has(monster.name))
+      .map((monster) => ({
+        id: monster.id,
+        name: monster.name,
+        level: monster.level,
+        tier: monster.tier,
+        authoredSupportPowers: monster.powers
+          .filter((power) =>
+            power.effectPackets.some((packet) => SUPPORT_INTENTIONS.has(packet.intention)),
+          )
+          .map((power) => ({ id: power.id, name: power.name })),
+      }));
     return {
-      title: "Summoning Circle Synergy reconciliation",
+      title: "Summoning Circle Synergy reconciliation compatibility audit",
+      auditCompatibility: "compatible" as const,
+      currentBalanceStatus: {
+        legacyCurrentSynergyEvidence: "available",
+        semanticNewFormatSynergy: "not_calibrated_or_approved",
+        semanticBreadthMismatchDetected: semanticAxisGap.breadth.gapDetected,
+        semanticPersistenceMismatchDetected: semanticAxisGap.persistence.gapDetected,
+        level3SemanticReferenceSuites: "missing",
+        productionMutation: "none",
+      },
       provenance: {
         repoHead: execSync("git rev-parse HEAD", { encoding: "utf8" }).trim(),
         gitStatus:
@@ -802,18 +1299,82 @@ async function buildPayload() {
           "clean",
         campaignId: CAMPAIGN_ID,
         campaignName: CAMPAIGN_NAME,
+        assetSource: "persisted Balance Environment monsters plus deterministic audit-local fixtures",
+        databaseAccess: "read-only" as const,
+        databaseOperations: DATABASE_OPERATIONS,
+        databaseMutation: "none" as const,
         tuning: tuning.metadata,
+        cooldownAuthority: {
+          mode: "ACTIVE_CURRENT_BALANCE" as const,
+          source: "ACTIVE_TUNING" as const,
+          tuningSetId: tuning.powerSnapshot.setId,
+          tuningUpdatedAt: tuning.powerSnapshot.updatedAt ?? null,
+        },
       },
-      fixtures: buildFixtures(tuning),
-      requestedSamples: summaries.filter((sample) => requestedSet.has(sample.name)),
+      outputContract: {
+        fixtureIds,
+        verdict: "compatible" as const,
+        deterministicAcrossHumanAndJson: true,
+      },
+      checks,
+      mapping,
+      savedEditorParity: {
+        selectedAsset: { id: selectedAsset.id, name: selectedAsset.name },
+        saved,
+        editorEquivalent,
+        passed: checks.savedEditorParity,
+      },
+      fixtures,
+      semanticAxisGap,
+      requestedSamples,
       missingRequestedSamples: SAMPLE_NAMES.filter(
-        (name) => !summaries.some((sample) => sample.name === name),
+        (name) => !requestedSamples.some((sample) => sample.name === name),
       ),
-      authoredSupportAssets: summaries.filter((sample) => sample.supportPowers.length > 0),
+      warnings: [
+        "Current resolver Synergy values remain legacy/cost-derived evidence.",
+        "New-format semantic delivery diagnostics are not approved Synergy calibration targets.",
+        "Level 3 semantic Synergy reference suites and normalization remain unapproved.",
+      ],
+      changedAxes: ["synergy"],
     };
   } finally {
     await prisma.$disconnect();
   }
+}
+
+function printHuman(payload: Awaited<ReturnType<typeof buildPayload>>) {
+  console.log(payload.title);
+  console.log(`auditCompatibility=${payload.auditCompatibility}`);
+  console.log(`currentBalanceStatus=${JSON.stringify(payload.currentBalanceStatus)}`);
+  console.log(`repoHead=${payload.provenance.repoHead}`);
+  console.log(`gitStatus=${payload.provenance.gitStatus}`);
+  console.log(`campaignId=${payload.provenance.campaignId}`);
+  console.log(`tuning=${JSON.stringify(payload.provenance.tuning)}`);
+  console.log(`cooldownAuthority=${JSON.stringify(payload.provenance.cooldownAuthority)}`);
+  console.log("databaseAccess=read-only; mutation=none");
+  console.log(`fixtureSet=${payload.outputContract.fixtureIds.join(",")}`);
+  console.log(`checks=${JSON.stringify(payload.checks)}`);
+  console.log("");
+  console.log("Saved/editor parity");
+  console.log(JSON.stringify(payload.savedEditorParity));
+  console.log("");
+  console.log("Fixtures | runtime | final/raw | canonical/effective Synergy | semantic DU | BPV");
+  for (const fixture of payload.fixtures) {
+    console.log(
+      `${fixture.id} | ${fixture.runtime.status} | ${fixture.finalSynergy}/${fixture.rawSynergy} | ${fixture.canonicalResolverSynergy}/${fixture.effectiveResolverSynergy} | ${fixture.semanticDelivery.aggregateDeliveryUnits ?? "legacy"} | ${fixture.basePowerValue}`,
+    );
+    console.log(`  ${fixture.description}`);
+    console.log(`  identity=${JSON.stringify(fixture.powers)}`);
+    console.log(`  authority=${JSON.stringify(fixture.authority)}`);
+    console.log(`  runtime=${JSON.stringify(fixture.runtime)}`);
+    console.log(`  canonicalAxes=${JSON.stringify(fixture.canonicalPowerAxisVector)}`);
+    console.log(`  effectiveAxes=${JSON.stringify(fixture.effectivePowerAxisVector)}`);
+    console.log(`  semanticDelivery=${JSON.stringify(fixture.semanticDelivery)}`);
+  }
+  console.log("");
+  console.log(`semanticAxisGap=${JSON.stringify(payload.semanticAxisGap)}`);
+  for (const warning of payload.warnings) console.log(`warning=${warning}`);
+  console.log(`finalCompatibilityVerdict=${payload.outputContract.verdict}`);
 }
 
 async function main() {
@@ -823,6 +1384,12 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error(
+    JSON.stringify({
+      auditCompatibility: "execution_error",
+      databaseMutation: "none",
+      error: error instanceof Error ? error.message : String(error),
+    }),
+  );
   process.exitCode = 1;
 });

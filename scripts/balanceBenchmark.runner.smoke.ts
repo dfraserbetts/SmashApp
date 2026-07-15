@@ -120,14 +120,22 @@ const explicitSynergy = selectSuites({
   suiteIds: ["synergy-reconciliation"],
   includePartial: true,
 });
-assert.equal(explicitSynergy.selected.length, 0, "Incompatible Synergy must never be executable.");
-assert.deepEqual(explicitSynergy.skipped.map(({ suite }) => suite.id), ["synergy-reconciliation"]);
+assert.deepEqual(
+  explicitSynergy.selected.map((suite) => suite.id),
+  ["synergy-reconciliation"],
+  "Compatible read-only Synergy reconciliation must be directly executable.",
+);
+assert.equal(explicitSynergy.skipped.length, 0);
 
 const axesDefault = selectSuites({ mode: "axes", includePartial: false });
 assert.ok(axesDefault.selected.some((suite) => suite.id === "power-threat-monotonic-smoke"));
 assert.ok(
   axesDefault.selected.some((suite) => suite.id === "control-pressure-axis-reconciliation"),
   "AVAILABLE Control Pressure reconciliation must run in axes mode without --include-partial.",
+);
+assert.ok(
+  axesDefault.selected.some((suite) => suite.id === "synergy-reconciliation"),
+  "AVAILABLE Synergy reconciliation must run in axes mode without --include-partial.",
 );
 assert.ok(
   axesDefault.selected.every((suite) => suite.compatibility !== "PARTIAL"),
@@ -339,7 +347,40 @@ const mobilitySuite = BALANCE_BENCHMARK_REGISTRY.find(
   (suite) => suite.id === "mobility-reconciliation",
 );
 assert.equal(controlPressureSuite?.compatibility, "AVAILABLE");
-assert.equal(synergySuite?.compatibility, "AVAILABLE_BUT_INCOMPATIBLE");
+assert.equal(synergySuite?.compatibility, "AVAILABLE");
+assert.equal(synergySuite?.mutationSafety.classification, "READ_ONLY");
+assert.equal(synergySuite?.mutationSafety.databaseAccess, "read-only");
+assert.deepEqual(synergySuite?.modes, ["axes", "full", "changed"]);
+assert.ok(synergySuite?.notes.some((note) => /legacy\/cost-derived evidence/i.test(note)));
+assert.ok(synergySuite?.notes.some((note) => /blocked on approved Level 3 reference suites/i.test(note)));
+assert.ok(full.selected.some((suite) => suite.id === "synergy-reconciliation"));
+assert.equal(quick.selected.some((suite) => suite.id === "synergy-reconciliation"), false);
+assert.equal(
+  selectSuites({ mode: "runtime", includePartial: false }).selected.some(
+    (suite) => suite.id === "synergy-reconciliation",
+  ),
+  false,
+);
+assert.ok(
+  changed("scripts/balanceAudit.summoningCircleSynergyReconciliation.ts").selected.some(
+    (suite) => suite.id === "synergy-reconciliation",
+  ),
+);
+assert.ok(
+  changed("lib/summoning/resolvePowerCooldownAuthority.ts").selected.some(
+    (suite) => suite.id === "synergy-reconciliation",
+  ),
+);
+assert.ok(
+  changed("lib/combat-lab/powerAdapter.ts").selected.some(
+    (suite) => suite.id === "synergy-reconciliation",
+  ),
+);
+assert.ok(
+  changed("lib/calculators/monsterOutcomeCalculator.ts").selected.some(
+    (suite) => suite.id === "synergy-reconciliation",
+  ),
+);
 assert.equal(mobilitySuite?.compatibility, "MISSING");
 assert.deepEqual(mobilitySuite?.modes, ["full", "changed"]);
 for (const path of [
@@ -529,7 +570,7 @@ console.log(
         "unique suite IDs and valid compatibility states",
         "registered command/script existence",
         "explicit mutation-safety declarations",
-        "incompatible Synergy exclusion",
+        "compatible Synergy safe-mode selection",
         "PARTIAL default exclusion and deliberate inclusion",
         "required quick-mode selection",
         "representative changed-path mappings and unmapped warning",
