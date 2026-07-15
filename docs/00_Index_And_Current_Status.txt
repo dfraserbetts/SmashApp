@@ -162,9 +162,12 @@ economic credit are not finalized.
 
 The complete Player Character Blaze of Glory design and Shared Blaze of Glory
 Event framework are locked in docs/01. Runtime integration remains
-unimplemented under the docs/03 and docs/05 handoffs. Shared-Blaze
-special-action allocation, tactical Blaze AI, and full Legendary Monster Blaze
-treatment remain explicit open work in docs/08.
+unimplemented under the docs/03 and docs/05 handoffs. Shared-Blaze special-
+action recipient and same-recipient Limit Break donation allocation are locked:
+one eligible non-Blazing ally sacrifices one future turn for one selected
+Blazing character, with no split or duplication. Runtime/toolkit integration,
+tactical Blaze AI, simulation policy, unresolved edge cases, and full Legendary
+Monster Blaze treatment remain explicit open work in docs/08.
 
 
 Open Decisions Index

@@ -1880,8 +1880,8 @@ Roll or Blaze. They may discuss, but every choice locks before any resolves; no
 one may wait for another terminal roll or Blaze action. Trial choices resolve
 first. A successful roller remains active; a terminal failure kills or defeats
 that character. A surviving roller may later Assist the Shared Blaze and may
-eventually use an eligible special action under finalized Shared-Blaze
-allocation rules, but cannot retroactively switch to Blaze after seeing a roll.
+use an eligible special action under the locked recipient rules below, but
+cannot retroactively switch to Blaze after seeing a roll.
 
 
 Shared Blaze Opening And Interleaving
@@ -1933,14 +1933,82 @@ and the scene does not advance past the event until all are complete. All
 Blazing characters then die permanently together.
 
 
-Shared-Blaze Special-Action Interaction - OPEN
+Shared-Blaze Special-Action Recipient Allocation - LOCKED
 
-The following remain explicit design work and are not decided here: which
-Blazing character receives Make It Count! or Hit It Again!; whether one donated
-package or donated Limit Break pool can be split among Blazing characters;
-whether a simultaneously Blazing character can donate despite having no future
-turn to sacrifice; and how special-action targeting is declared in a
-multi-Blaze event. Single-character Blaze special-action rules above are locked.
+During a Shared Blaze, an eligible non-Blazing allied Player Character who uses
+Make It Count! or Hit It Again! chooses exactly one Blazing character as the
+recipient. The selected special action affects only that chosen Blazing
+character. It does not duplicate across all Blazing characters. One sacrificed
+future turn purchases one character-specific intervention.
+
+Make It Count! during Shared Blaze resolves as follows:
+
+1. The eligible non-Blazing ally sacrifices their next scheduled full turn.
+2. They choose exactly one Blazing character.
+3. The selected Blazing character gains one additional Move Action, one
+   additional Main Action, and one additional Power Action.
+4. The complete action package belongs only to the selected Blazing character.
+5. Those actions remain inside the existing Shared Blaze event and do not create
+   another turn.
+6. The selected character's granted actions may be freely interleaved with all
+   other Shared Blaze actions.
+7. The action package cannot be split between several Blazing characters.
+8. The recipient cannot change after declaration.
+9. Several eligible allies may choose the same Blazing character.
+10. Different eligible allies may choose different Blazing characters.
+
+All existing Make It Count! limits remain: no additional start/end-of-turn
+event, Response refresh, cooldown clear, Limit Break restoration, duration
+tick, once-per-turn refresh, or new Blaze trigger. Unused actions are lost and
+the sacrificed-turn debt remains owed.
+
+Hit It Again! during Shared Blaze resolves as follows:
+
+1. The eligible non-Blazing ally sacrifices their next scheduled full turn.
+2. They choose exactly one Blazing character.
+3. They choose one Power belonging to that selected Blazing character that is
+   currently on cooldown.
+4. Remove that Power's cooldown immediately.
+5. No other Blazing character receives a cooldown removal.
+6. Hit It Again! grants no Power Action; the selected character must possess or
+   receive a legal Power Action to use the refreshed Power.
+7. The effect cannot be split between characters or Powers.
+8. The recipient and selected Power cannot change after declaration.
+9. Several eligible allies may choose the same Blazing character at different
+   legal decision points.
+10. Different eligible allies may choose different Blazing characters.
+
+The selected Power must be on cooldown, declaration must occur at an open
+decision point, and the special action cannot interrupt a roll, defence,
+Response Window, simultaneous result bundle, or resolving Power.
+
+When declaring either special action, the ally may optionally donate any number
+of currently available Limit Break dice to the same selected Blazing character.
+All dice donated through that declaration go to exactly one recipient and
+cannot be split between several Blazing characters, redirected, or withdrawn.
+Different allies may donate to different Blazing characters, and several allies
+may donate to the same Blazing character.
+
+The dice immediately leave the donor's pool and enter the selected recipient's
+available pool. They use that selected Blazing character's die size when rolled,
+and unused donated dice disappear when Shared Blaze ends. Donation requires no
+additional action or Response, cannot include spent or unavailable dice, and
+remains optional. Blaze Limit Break spending remains uncapped.
+
+Only eligible non-Blazing allied Player Characters may use these special actions
+during Shared Blaze. A Blazing character cannot use either because they have no
+future turn available to sacrifice. A surviving Player Character who chose and
+survived their Terminal Major Injury Trial remains eligible. Each eligible ally
+may use at most one of Make It Count! or Hit It Again! during the entire Shared
+Blaze and cannot use both. A character already owing a skipped turn cannot
+sacrifice that same future turn again. One future turn cannot be spent more than
+once.
+
+This character-specific allocation preserves proportionality, tactical and
+relationship-driven choice, and loyalty, rivalry, trust, debt, and history. Do
+not force equal distribution, duplicate one sacrifice across every Blazing
+character, prohibit several allies from selecting the same recipient, or
+prevent different allies from spreading support among different recipients.
 
 Combat Lab / simulation policy:
 

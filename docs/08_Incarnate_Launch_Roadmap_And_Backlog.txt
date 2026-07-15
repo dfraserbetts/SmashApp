@@ -1900,14 +1900,20 @@ OPEN design, calibration, content, and implementation work:
   stale-approval detection;
 - Builder UI and descriptor surfaces;
 - runtime state, Combat Lab support, and automatic simulation policy;
-- Shared-Blaze allocation for Make It Count!, Hit It Again!, action packages,
-  donated Limit Break dice, simultaneously Blazing donors, and multi-Blaze
-  special-action targeting;
+- Shared Blaze runtime/toolkit integration and unresolved edge cases not decided
+  by the locked one-donor/one-selected-recipient rule;
 - full Legendary Monster Blaze treatment; and
 - any future United Strike mechanic.
 
-The Shared Blaze action/interleaving framework is locked, but its special-action
-allocation is explicitly OPEN and must not be invented during implementation.
+The Shared Blaze action/interleaving framework and special-action recipient
+allocation are locked. Each eligible non-Blazing allied Player Character
+sacrifices one future turn, chooses exactly one Blazing character, applies Make
+It Count! or Hit It Again! only to that recipient, and sends any accompanying
+Limit Break donation to that same recipient. Packages, cooldown removal, and
+dice cannot be split or duplicated; several allies may choose the same recipient
+and different allies may choose different recipients. A Blazing character
+cannot donate a future turn. Runtime, toolkit UI, simulation policy, Blaze AI,
+unresolved edge cases, full Legendary treatment, and implementation remain OPEN.
 No runtime, Builder, schema, database, calculator, tuning, or test work is
 authorized by this documentation pass.
 

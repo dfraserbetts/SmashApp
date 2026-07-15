@@ -440,6 +440,10 @@ Future implementation must preserve:
 - terminal-only Player Character Blaze, Activation-Cost-triggered Blaze, Blaze
   opening state, Assists, special actions, Limit Break donation, permanent
   death, and Shared Blaze; and
+- during Shared Blaze, only an eligible non-Blazing allied Player Character may
+  sacrifice one future turn, choose one Blazing recipient, apply one selected
+  special action only to that recipient, and donate dice only to that same
+  recipient; and
 - separate simplified Legendary Monster authority until later design approves
   anything more.
 
@@ -457,6 +461,9 @@ Prohibited shortcuts:
 - no literal extra turns, turn-starts, refreshes, or duration ticks from Make It
   Count! action packages;
 - no Power Action silently granted by Hit It Again!;
+- no Make It Count! package, Hit It Again! cooldown removal, or same-declaration
+  Limit Break donation split between or duplicated across Blazing characters;
+- no Blazing character sacrificing a nonexistent future turn;
 - no automatic merged attack or universal combined defence for a Shared Blaze
   simultaneous beat; and
 - no implementation prompt applied without inspecting current files, schemas,
@@ -477,7 +484,10 @@ mandatory first Power Action; cost repayment on later reuse; Blaze suppression
 without resource restoration; Assist Response consumption; each ally's one
 special-action choice; turn debt; donation and die-size conversion; permanent
 death; simultaneous choices; free interleaving; coordinated-beat cleanup; and
-the explicit OPEN Shared-Blaze allocation boundary.
+the locked one-donor/one-recipient rule, immutable recipient/Power choice,
+same-recipient donation, no split/duplication, same-recipient multi-donor cases,
+and different-recipient multi-donor cases. Unresolved edge cases and Shared
+Blaze runtime/toolkit/simulation policy remain open.
 
 This pass changes documentation only. Do not claim Builder, API, Prisma,
 database, calculator, tuning, Combat Lab, simulator, test, or runtime support.

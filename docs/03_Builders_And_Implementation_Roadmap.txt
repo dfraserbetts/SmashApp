@@ -828,9 +828,14 @@ Phase 6 - Shared Blaze and tooling:
 - implement simultaneous decision windows and Shared Blaze state/action
   tracking;
 - support free interleaving and coordinated sequential/simultaneous beats;
-- design the still-open Shared-Blaze special-action allocation; and
+- implement the locked one-donor/one-selected-Blazing-recipient allocation for
+  Make It Count!, Hit It Again!, and same-recipient Limit Break donation,
+  including immutable recipient/Power selection and no package or dice split;
+- expose the selected recipient, selected Power where applicable, granted action
+  package, donated dice, and sacrificed-turn debt in future runtime/toolkit UI;
+  and
 - add deterministic runtime, Combat Lab, and reporting coverage only after the
-  rules and allocation decisions are complete.
+  remaining implementation and simulation decisions are complete.
 
 The current Roleplay fields `restrictionType`, `restrictionBand`,
 `restrictionTag`, and `restrictionText`, and the Power prototype
