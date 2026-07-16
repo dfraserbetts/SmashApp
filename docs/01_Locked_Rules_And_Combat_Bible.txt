@@ -1308,6 +1308,118 @@ Self where a Secondary Packet needs a different target class from Packet 1.
 Allies includes self by default unless an explicit authored restriction says
 otherwise.
 
+
+Zone Range And Physical AoE Template Direction
+
+LOCKED DESIGN DIRECTION / DETAILED SPATIAL RULES AND IMPLEMENTATION OPEN.
+
+Incarnate is moving toward a relative, zone-based spatial language for ordinary
+movement, melee reach, ranged reach, Power reach, scene positioning, and
+tactical travel between meaningful locations. The future system should care
+about fictional relationships such as the same immediate area, the same zone,
+an adjacent zone, several zones away, or elsewhere in the current scene, rather
+than repeated square counting, minor diagonal disputes, or a target being five
+feet beyond an arbitrary limit. Exact range-band names and movement-action
+costs remain open. Do not automatically import another game's Close, Short,
+Medium, Long, or Extreme definitions.
+
+Map Compatibility And Zone Authority
+
+Mapped play remains compatible with the thousands of existing standard
+battlemaps available online. The default physical scale remains 1 inch, or one
+standard square, representing 5 feet for miniatures, terrain, map compatibility,
+physical AoE footprint, and digital template overlays. Once the zone system
+exists, ordinary Power Range and Movement should not require counting those
+squares.
+
+Miniature position inside a zone remains physically meaningful for AoE template
+coverage, terrain, barriers, line of sight, line of effect, occupied features,
+and tactical placement. That does not restore exact-square authority to
+ordinary Range or Movement.
+
+On a map, tactically meaningful zones, boundaries, and connections should
+normally be established before combat begins or before they become mechanically
+relevant. Zones should follow meaningful fictional spaces such as a ritual
+platform, courtyard, upper gallery, entrance hall, battlement, bridge, or ship
+deck. Neither GD nor players may redraw, reinterpret, or relocate a boundary
+retroactively for tactical convenience. The zone map may change when the
+fiction genuinely changes, such as a destroyed wall, collapsed bridge, opened
+portal, separating platforms, flooding chamber, or ships moving alongside each
+other. Fiction changes the zone map; tactical convenience does not.
+
+Exact rules for open plains, very large or nested spaces, vertical zones,
+moving vehicles, huge creatures, and dynamic zone splitting remain open.
+
+AoE Template Foundation And Remote Origin
+
+Incarnate retains Sphere, Cone, and Line as its three core AoE shapes. Each has
+three ordered template Size bands, producing nine mechanical shape/size
+footprints. Exact player-facing Size labels, physical dimensions, radii, cone
+angle, line width and length, and whether a retail product uses nine pieces or
+three multi-size pieces remain open. Equivalent physical templates, printable
+templates, and digital overlays must all deliver the rules; no premium
+accessory purchase is mechanically required.
+
+All three shapes may originate remotely. There is no baseline Placed-versus-
+Emitted split, and neither Cone nor Line is forced to begin at the caster. An
+AoE Power retains Cast Range or equivalent Origin Range authority that
+determines where its template origin may be placed. The final player-facing
+rename remains open; use "legal origin range" while terminology is uncertain.
+This preserves cones detonating from distant points, lightning walls appearing
+across the battlefield, several giant stone walls erupting around distant
+enemies, Lines beginning from summoned foci, and remotely detonated Spheres.
+
+Only the template origin must lie within legal origin range. The entire
+template need not fit inside the origin zone, legal cast zone, or nominal range
+band. Conceptually, the origin is the Sphere centre, Cone apex marker, or Line
+starting marker/edge; exact manufactured markings remain open. After legal
+origin placement, orient the template where relevant. Its footprint may extend
+beyond origin range, cross one or more zone boundaries, and affect targets in
+another zone. A zone boundary is not an invisible wall.
+
+Barriers And Coverage
+
+Abstract zone boundaries do not stop an AoE. Actual fictional barriers may
+block, interrupt, or modify it under the future line-of-effect rules, including
+walls, sealed doors, solid cover, terrain, magical barriers, and material the
+Power cannot penetrate. A Cone does not automatically turn corners, a Line does
+not automatically pass through an impassable barrier, and a Sphere does not
+automatically ignore a solid wall. Explicit Power exceptions may be authored
+later. Detailed barrier and line-of-effect law remains open.
+
+Once legally placed, the physical or digital template determines which occupied
+spaces are inside the footprint. Do not replace ordinary template use with
+subjective local groups, abstract clusters, automatic whole-zone coverage, or
+target approximations merely because actors share a zone.
+
+The inclusion rule remains open: any overlap versus base-centre coverage, token
+centre marking, large bases, multi-zone or enormous creatures, repeat hits on
+one creature from one template, vertical volume, and theatre-of-the-mind
+fallback all require the dedicated spatial design pass.
+
+Origin Range And AoE Size
+
+Origin Range determines where the template may begin. AoE Size determines how
+much physical space it covers after it begins, including inherent projection
+beyond the origin. A Large Cone or Line may therefore extend through several
+zones from a nearby origin. Longer Origin Range still provides access to
+distant formations, better attack angles, backline and safer placement,
+reduced friendly-fire risk, origins behind or beside formations, remote hazards
+or walls, and locations the caster cannot approach. Whether those benefits
+justify current pricing requires evidence. Do not constrain a template to one
+zone to protect Range pricing, and do not charge Range according to a template's
+furthest edge without a later explicit design decision.
+
+Current Implementation Boundary
+
+The current Builder, stored Power data, descriptors, calculators, Combat Lab,
+and runtime still use exact-foot fields and geometric dimensions. This lock does
+not migrate them or change current behaviour. Preserve exact-distance data until
+an authorized migration exists. Complete range-band law, zone ontology,
+movement, line-of-sight and line-of-effect rules, template dimensions,
+migration planning, Builder/runtime implementation, and Combat Lab revalidation
+remain open.
+
 Secondary Packet Dependency And Timed Delivery
 
 Secondary Packets are always powered by the Primary Packet result. They never

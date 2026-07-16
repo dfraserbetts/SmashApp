@@ -1913,6 +1913,60 @@ or contract. No numeric cost, cooldown, discount, budget integration, or tuning
 authority is unlocked.
 
 
+Zone Range And AoE Template Development Project
+
+LOCKED DESIGN DIRECTION / DETAILED SPATIAL RULES AND IMPLEMENTATION OPEN.
+Incarnate is moving to relative zones for ordinary movement, melee/ranged/Power
+reach, scene position, and tactical travel. It retains mapped-play compatibility
+at 1 inch / one standard square = 5 feet for miniatures, terrain, maps, and
+physical/digital AoE footprints, without making ordinary future Range or
+Movement depend on square counting.
+
+Mapped zones, boundaries, and connections should be established before combat
+or mechanical relevance. Fictional change may alter them; retroactive tactical
+convenience may not. Miniature position inside a zone remains relevant to AoE
+coverage, terrain, barriers, line of sight/effect, occupied features, and
+tactical placement.
+
+Sphere, Cone, and Line each retain three ordered template Size bands. Every
+shape may originate remotely. Only its centre/apex/start origin must lie in
+legal origin range; after placement its physical/digital footprint may project
+beyond that range and cross zones. Zone boundaries do not block AoEs, but actual
+barriers may block or modify them under future line-of-effect law. Templates,
+not subjective groups or automatic whole-zone coverage, determine occupied
+spaces affected.
+
+AoE Size is the heavier spatial pricing driver; Origin Range grants placement
+freedom without enlarging the template. Preserve separate future tuning seams
+by shape, but lock no numeric price, multiplier, dimension, radius, angle,
+width, length, expected-target assumption, or inclusion rule here.
+
+Create a dedicated Spatial System Design project and resolve:
+
+1. Zone ontology and map authority.
+2. Range-band ladder.
+3. Movement and zone transitions.
+4. Engagement, line of sight, and line of effect.
+5. AoE template dimensions and inclusion rule.
+6. Forced movement, teleportation, flight, and verticality.
+7. Large creatures and moving scenes.
+8. Costing and Combat Lab validation.
+9. Data and code migration.
+
+Open details include exact band and Size names, movement costs, open plains,
+large/nested/vertical spaces, moving vehicles, huge and multi-zone creatures,
+dynamic splitting, dimensions and manufactured markings, token/base inclusion,
+repeat hits, vertical volume, theatre-of-the-mind fallback, and physical product
+configuration. Equivalent physical, printable, and digital templates must work;
+premium accessories are optional.
+
+The current Builder, stored Power data, descriptors, calculators, Combat Lab,
+runtime, Range enums, feet fields, and geometric dimensions remain unchanged.
+Preserve exact-distance data until an authorized migration. This pass authorizes
+no Summoning Circle, Character Builder, Monster Builder, Forge, Combat Lab,
+costing, descriptor, schema, or data change.
+
+
 Restrictions, Power Burdens, And Blaze Development Order
 
 LOCKED DEPENDENCY DIRECTION / IMPLEMENTATION PARKED. For these connected

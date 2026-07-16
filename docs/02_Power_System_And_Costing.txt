@@ -1134,6 +1134,28 @@ Target / Range / AoE Treatment
 
 Target count and AoE are force multipliers.
 
+LOCKED DESIGN DIRECTION / DETAILED SPATIAL RULES AND IMPLEMENTATION OPEN. The
+future ordinary spatial language is zone-based, while AoE coverage remains a
+physical/digital template question. Origin Range determines where a Sphere
+centre, Cone apex, or Line starting marker/edge may be placed. AoE Size
+determines the footprint after that legal origin is placed. The footprint may
+project beyond origin range and cross zones; only the origin must be in legal
+origin range. All Sphere, Cone, and Line templates may originate remotely.
+
+Each of the three shapes has three ordered Size bands, for nine mechanical
+shape/size footprints. Exact Size labels, dimensions, radii, cone angle, line
+width/length, inclusion rules, and physical product configuration remain open.
+The rules must support equivalent physical templates, printable templates, and
+digital overlays without requiring purchase of a premium accessory.
+
+Current implementation truth remains exact-foot based. Builder and stored Power
+fields include ranged distance, AoE centre/cast range, Sphere radius, Cone
+length, and Line width/length; descriptors, calculators, Combat Lab, runtime,
+and current cost evidence consume that model. This documentation changes none
+of it. Preserve current fields and data until a separately authorized migration.
+Existing exact-foot examples and evidence below describe the current system and
+become historical/current-system evidence until the future model is implemented.
+
 Required doctrine:
 
 - single target is baseline
@@ -1146,6 +1168,27 @@ Required doctrine:
 - target and AoE modifiers may be capped or use expected-target curves to avoid
   pricing only by theoretical maximum, but they must not be flat trivial
   additions
+
+Future Spatial Pricing Direction
+
+AoE Size is a substantially heavier spatial cost driver than Origin Range.
+Increasing Size may simultaneously increase physical footprint, inherent reach
+beyond the origin, potential target count, placement tolerance, chokepoint and
+multi-zone coverage, and pressure against spread formations. Increasing Origin
+Range grants placement freedom but does not enlarge the template.
+
+Large nearby Cones and Lines do not make longer Origin Range inherently
+meaningless: longer Range may access distant formations, backlines, safer or
+better angles, lower-friendly-fire placements, remote walls or hazards, and
+origins the caster cannot approach. Test whether those benefits justify current
+pricing. Do not confine templates to one zone to defend Range prices, and do not
+price Range from the template's furthest edge without a later explicit lock.
+
+Preserve tuning separation capable of expressing AoESizeCost(shape, size) and,
+if evidence requires it, OriginRangeCost(shape, range). These are conceptual
+seams, not implemented formulas. Numeric costs, multipliers, final dimensions,
+expected-target assumptions, shape-specific values, and whether Origin Range
+pricing varies by shape all remain open Combat Lab/tuning questions.
 
 
 Duration / Ongoing / Repeating Effects

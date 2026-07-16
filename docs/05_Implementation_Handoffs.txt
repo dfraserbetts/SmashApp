@@ -277,6 +277,50 @@ storage. Do not assume top-level power fields are the freshest source if the UI
 edits packet-local details.
 
 
+Zone Range And AoE Template Handoff
+
+LOCKED DESIGN DIRECTION / DETAILED SPATIAL RULES AND IMPLEMENTATION OPEN. Do not
+implement this direction until a dedicated Spatial System Design project has
+resolved zone ontology, range bands, movement/transitions, engagement and
+line-of-sight/effect, AoE dimensions and inclusion, forced movement/teleport/
+flight/verticality, large creatures/moving scenes, costing validation, and an
+explicit data/code migration.
+
+The eventual implementation must preserve:
+
+- relative zones for ordinary movement, melee/ranged/Power reach, position, and
+  scene travel without ordinary square counting;
+- 1 inch / one standard square = 5 feet for battlemaps, miniatures, terrain,
+  template footprints, and digital overlays;
+- meaningful miniature position inside zones for templates, terrain, barriers,
+  sight/effect, features, and tactical placement;
+- map zones and connections established before combat or mechanical relevance,
+  with changes driven by changed fiction rather than tactical convenience;
+- Sphere, Cone, and Line, each with three ordered template Size bands;
+- remote origins for all three shapes, with no baseline Placed/Emitted split;
+- only the centre/apex/start origin required inside legal origin range, while
+  the footprint may project beyond range and cross zones;
+- actual barriers rather than abstract zone boundaries governing future line
+  of effect;
+- physical/digital template coverage rather than automatic whole-zone or
+  subjective-group coverage; and
+- equivalent physical, printable, and digital delivery with no premium
+  accessory requirement.
+
+The current Builder, stored data, descriptors, calculators, Combat Lab, and
+runtime use exact-foot and geometric fields. Preserve those fields and all
+current exact-distance data until the migration is separately authorized. This
+handoff authorizes no Range-enum, movement, dimension, template, cost,
+descriptor, Summoning Circle, Character Builder, Monster Builder, Forge, Combat
+Lab, schema, or data change.
+
+Keep Origin Range and AoE Size as separate tuning seams. Size is the heavier
+spatial cost driver; Origin Range changes placement freedom but does not enlarge
+the template. Do not implement numeric costs, multipliers, dimensions,
+inclusion rules, shape-specific values, or furthest-edge Range pricing from this
+direction alone.
+
+
 Balance Handoff Notes
 
 Do not tune from one scenario unless it exposes a clear code/routing bug or

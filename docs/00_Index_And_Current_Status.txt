@@ -215,6 +215,39 @@ tactical Blaze AI, simulation policy, unresolved edge cases, and full Legendary
 Monster Blaze treatment remain explicit open work in docs/08.
 
 
+Zone Range And AoE Template Status
+
+LOCKED DESIGN DIRECTION / DETAILED SPATIAL RULES AND IMPLEMENTATION OPEN.
+Incarnate is moving toward relative zones for ordinary movement, melee/ranged
+reach, Power reach, scene position, and tactical travel. Exact band names,
+movement costs, zone ontology, sight/effect law, and edge cases remain open.
+
+Mapped play retains 1 inch / one standard square = 5 feet for compatibility
+with existing battlemaps, miniatures, terrain, and physical/digital AoE
+templates. Inside-zone position still matters to templates, terrain, barriers,
+line of sight/effect, features, and tactics, but future ordinary Range and
+Movement should not require square counting. Zones and connections should be
+established before combat or mechanical relevance and may change only when the
+fiction changes, not for retroactive tactical convenience.
+
+Sphere, Cone, and Line remain the three AoE shapes, each with three ordered Size
+bands. All may originate remotely. Only the centre/apex/start origin must lie in
+legal origin range; the footprint may extend beyond it and cross zones. Zone
+boundaries do not block effects, although real barriers may do so under future
+line-of-effect rules. Physical/digital templates determine coverage, not
+automatic whole-zone or subjective group approximation.
+
+AoE Size is the heavier spatial pricing driver because it enlarges footprint,
+inherent projection, target opportunity, placement tolerance, and multi-zone or
+chokepoint pressure; Origin Range grants placement freedom without enlarging the
+template. No numeric costs, dimensions, inclusion rules, or final terminology
+are locked. The current Builder, stored data, descriptors, calculators, Combat
+Lab, and runtime remain exact-foot/geometric and unchanged; preserve that data
+until an authorized migration. Detailed authority is in docs/01 and docs/02,
+with implementation, validation, tuning, and backlog gates in docs/03-05,
+docs/07, and docs/08.
+
+
 Open Decisions Index
 
 The following items are intentionally unresolved. Do not treat them as locked

@@ -945,6 +945,45 @@ Builder Rules To Preserve
 - Primary Defence Gate is derived from Packet 1, not chosen freely by default.
 
 
+Spatial System Design Project - Required Before Implementation
+
+LOCKED DESIGN DIRECTION / DETAILED SPATIAL RULES AND IMPLEMENTATION OPEN. Future
+ordinary movement and Range use relative zones; mapped AoE coverage continues
+to use Sphere, Cone, and Line templates with three ordered Size bands each. All
+three shapes permit remote origins, only the origin must lie in legal origin
+range, and a footprint may cross zone boundaries. Current exact-foot Builder,
+stored Power, descriptor, calculator, Combat Lab, and runtime behaviour remains
+authoritative implementation truth until migration.
+
+Create a dedicated Spatial System Design project before implementation. Resolve
+in this order:
+
+1. Zone ontology and map authority.
+2. Range-band ladder.
+3. Movement and zone transitions.
+4. Engagement, line of sight, and line of effect.
+5. AoE template dimensions and target-inclusion rule.
+6. Forced movement, teleportation, flight, and verticality.
+7. Large creatures and moving scenes.
+8. Costing and Combat Lab validation.
+9. Data and code migration.
+
+That project must also preserve 1-inch-square / 5-foot mapped compatibility,
+pre-established fair zone boundaries, fiction-driven zone changes, actual
+barrier authority, equivalent physical/printable/digital templates, and no
+premium accessory requirement. It must resolve open plains, large and nested
+spaces, vertical zones, moving vehicles, huge or multi-zone creatures, dynamic
+splitting, exact Size labels/dimensions, Cone angle, Line width/length, template
+markings, base/token inclusion, repeat-hit and vertical-volume rules, and a
+theatre-of-the-mind fallback.
+
+This documentation does not authorize replacing Range enums; changing stored
+feet, movement, AoE dimensions, templates, Power costs, or descriptors;
+modifying Summoning Circle, Character Builder, Monster Builder, Forge, or Combat
+Lab; or performing data migration. Preserve current exact-distance data until
+an authorized migration exists.
+
+
 Open Items
 
 OPEN / NEEDS ARCHITECT DECISION:
@@ -962,3 +1001,4 @@ OPEN / NEEDS ARCHITECT DECISION:
 - Closed Beta roleplay ability display/test-card handling, Outcome Lane,
   Success Outcome, Scene Impact presentation, restrictions, difficulty
   guidance, descriptor preview text, and print output.
+- Dedicated Spatial System Design project and its ordered decisions above.

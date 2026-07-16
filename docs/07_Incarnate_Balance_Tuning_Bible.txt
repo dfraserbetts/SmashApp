@@ -290,6 +290,31 @@ Current state:
 - Monster Outcome Calculator Phase 1 expected-output corrections are
   implemented for supported attack outputs.
 
+Future spatial pricing direction:
+
+- ordinary Range and Movement are moving to relative zones, while Sphere,
+  Cone, and Line coverage remains template-based;
+- each shape has three ordered Size bands, all shapes may originate remotely,
+  and only the origin must lie in legal origin range;
+- AoE Size is a substantially heavier spatial cost driver than Origin Range
+  because Size can increase footprint, inherent projection, target opportunity,
+  placement tolerance, chokepoint/multi-zone coverage, and pressure against
+  spread formations;
+- Origin Range grants access and placement freedom without enlarging the
+  template and remains separately testable by shape if evidence requires it;
+- preserve conceptual AoESizeCost(shape, size) and optional
+  OriginRangeCost(shape, range) seams, but treat them as future tuning
+  architecture rather than implemented formulas; and
+- do not lock numeric costs, multipliers, dimensions, expected-target
+  assumptions, shape-specific values, or furthest-edge Range pricing before
+  dedicated spatial design and Combat Lab validation.
+
+Current target/range/AoE tuning, exact-foot fields, geometry, calculators, and
+evidence remain current-system truth. This direction changes no tuning value or
+runtime behaviour. Revalidate every Shape/Size across cramped, ordinary multi-
+zone, open, corridor, vertical/divided, clustered/spread, mixed-side, backline,
+barrier, and chokepoint scenarios after the future model is implemented.
+
 
 SECTION 8 - Monster Outcome Calculator Doctrine
 

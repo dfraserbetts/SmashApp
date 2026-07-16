@@ -359,6 +359,41 @@ multidimensional Monster Outcome Calculator may diagnose a profile, but cannot
 prove encounter balance.
 
 
+Future Zone Range And AoE Template Validation
+
+LOCKED DESIGN DIRECTION / IMPLEMENTATION AND DETAILED RULES OPEN. After the
+dedicated spatial design and runtime migration exist, compare every Sphere,
+Cone, and Line Size band across:
+
+- cramped interiors;
+- ordinary multi-zone maps;
+- large open battlefields;
+- long corridors;
+- vertical or divided maps;
+- clustered and spread enemies;
+- mixed allies and enemies;
+- protected backlines; and
+- barriers and chokepoints.
+
+Measure how many valuable placements longer Origin Range creates; whether Large
+Cone or Line makes longer Origin Range routinely redundant; whether Size
+produces more consistent value than Origin Range; how often templates cross
+zones; whether all three Size bands have distinct table impact; and whether
+physical placement is quick and dispute-resistant.
+
+AoE Size is expected to be the heavier spatial cost driver because it can
+increase footprint, inherent reach, target opportunity, placement tolerance,
+chokepoint and multi-zone coverage, and pressure against spread formations.
+Origin Range grants placement freedom without enlarging the footprint. This is
+a non-numeric hypothesis to validate, not authority for costs, dimensions,
+target assumptions, or shape-specific values.
+
+Current exact-foot Combat Lab and calculator evidence remains valid only as
+historical/current-system evidence after the future model is implemented. Do
+not use it as zone/template evidence without revalidation. Current Combat Lab,
+runtime, calculators, and data remain unchanged by this documentation pass.
+
+
 Canonical Regression Matrix
 
 The scenario-matrix runner exists at scripts/combatLab.scenarioMatrix.ts.
