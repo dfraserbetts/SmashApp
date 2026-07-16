@@ -101,7 +101,12 @@ Character Creator:
 
 - Character Creator is still missing Spark support.
 - Character Creator is still missing Power Restrictions support.
-- Spark and Restriction scope remains OPEN / NEEDS ARCHITECT DECISION.
+- The shared Restriction authoring model is locked for Player Powers, Roleplay
+  Abilities, and GD-authored Monster Powers. Its domain, persistence,
+  governance, UI, and optional evaluation implementation remain absent. Spark
+  scope remains OPEN / NEEDS ARCHITECT DECISION, and Restriction economics,
+  specific content, scenario assumptions, and preserved governance questions
+  remain later work.
 - Develop Signature Move uniqueness remains OPEN / NEEDS ARCHITECT DECISION.
   Character Builder should eventually support any Signature-specific
   presentation, restrictions, scaling hooks, cooldown/friction display, and
@@ -151,7 +156,8 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
   - Outcome Contract
   - Dice Count
 - Optional / conditional fields:
-  - Additional Restriction
+  - Restriction through the future shared editor; current Roleplay restriction
+    controls are legacy prototype/migration input only
   - Counter permission where the selected standard contract permits it
   - Proposed Method Name and Custom Method Request for Custom Method review
   - proposed Outcome Lane and Custom Outcome Request for Custom Outcome review
@@ -209,7 +215,7 @@ Closed Beta Vertical Slice / Roleplay Ability Testbed:
 - Builder should not suggest typical Attributes.
 - The Game Director validates the selected contract, derived lane/outcome,
   Narrative Theme, Method, Scope, Scene Impact, fictional position, and
-  Additional Restriction,
+  Restriction,
   then declares Difficulty and Attribute. On success, no additional roll or
   target action is required to establish the contract outcome.
 - Roleplay numeric costing implementation is BLOCKED / PARKED pending every
@@ -294,10 +300,14 @@ Scope, Intention, or Method outside the family clears the selection and
 Counter. Counter stays disabled at every tier. The derived panel should identify
 the current Impact variant; no separate duration field is authored.
 
-The visible restriction control is "Additional Restriction Type". Its guidance
-must explain that an Additional Restriction narrows the Ability beyond the
-Outcome Contract's built-in limits and that repeating normal applicability earns
-no discount. Persisted restriction field names remain unchanged.
+The current visible control labelled "Additional Restriction Type", its band,
+tag, and free-text fields are prototype UI and migration input, not the
+permanent editor contract. The future shared editor uses exactly Standard
+Structured, Campaign-Custom Structured, and Custom Narrative modes, renders a
+separate Restriction descriptor, and never rewrites ordinary target or Outcome
+Contract grammar. Legacy `restrictionType`, `restrictionBand`,
+`restrictionTag`, and `restrictionText` names must be read conservatively during
+migration but are not the permanent persisted API.
 
 The standard Method registry contains Appeal and Rally under Persuasion,
 Misdirect and Distract under Deception, Rescue and Interrupt under Intervention, Challenge
@@ -772,77 +782,126 @@ or numeric-costing change. Fixture Dice Count 3 remains deterministic semantic
 coverage only and is not final pregen balance authority.
 
 
-Restrictions, Power Burdens, And Blaze - Future Implementation Sequence
+Shared Restriction Authoring - Future Implementation Sequence
 
-LOCKED DESIGN / IMPLEMENTATION NOT AUTHORIZED BY THIS DOCUMENTATION PASS.
+LOCKED AUTHORING MODEL / IMPLEMENTATION NOT AUTHORIZED BY THIS DOCUMENTATION
+PASS. One future shared editor must serve Player Character Powers, Roleplay
+Abilities, and GD-authored Monster Powers while respecting their different
+storage and governance adapters. UI must not precede proof of the shared domain
+model.
 
-Phase 1 - Shared Restriction architecture:
+Phase 1 - Shared domain foundation:
 
-- define one shared whole-Ability Restriction data model for Powers and
-  Roleplay Abilities;
-- implement pure structural validation and the pre-commit eligibility model;
-- support Draft, Pending Game Director Approval, Approved, Rejected, and
-  Approval Stale lifecycle semantics;
-- retain requested versus approved classification, normalized fingerprint, and
-  approval provenance; and
-- render a separate Restriction Descriptor in preview/reference surfaces.
+- define one versioned zero-or-one whole-Ability semantic definition supporting
+  exactly Standard Structured, Campaign-Custom Structured, and Custom Narrative;
+- build the pure registry contract, typed parameters, normalizer, structural
+  validator, deterministic descriptor renderer, evaluation-capability metadata,
+  canonicalizer, and semantic fingerprint;
+- prove atomicity, no packet-local model, no self-satisfaction, and separation
+  from ordinary descriptors, governance records, and future economics; and
+- keep this layer independent of React, APIs, Prisma, databases, runtime,
+  Combat Lab, and numeric tuning.
 
-Phase 2 - Power Burden authoring:
+Phase 2 - Persistence adapters:
 
-- define whole-Power Activation Cost and Backlash data models;
-- create structured type/severity registries rather than free-form economic
-  inference;
-- enforce zero/one Burden and mutual exclusion between Cost and Backlash;
-- validate intention-agnostic legality and actor-paid Activation Costs; and
-- render Burden descriptors separately from packet and target grammar.
+- normalize and preserve versioned definitions within
+  CampaignCharacter.builderData JSON for Player Powers, Signature Moves, and
+  Roleplay Abilities without a Player Power relational migration;
+- add a live-schema-justified Monster Power adapter without prematurely locking
+  a Prisma field or creating a MonsterRestriction model;
+- conservatively migrate legacy Roleplay fields, default unproven approval to
+  Draft, and tolerate inert CharacterPower discount placeholders without
+  treating them as semantic data; and
+- preserve Monster Power identities, packet identities, reconciliation, and
+  core/read-only-to-campaign-copy behaviour.
 
-Phase 3 - Builder and approval UI:
+Phase 3 - Standard Structured and Custom Narrative UI:
 
-- expose the structured Restriction and Power Burden controls;
-- distinguish Draft, Pending, Approved, Rejected, and Approval Stale states;
-- display requested and approved bands as separate authorities;
-- expose approval/rejection provenance and stale reasons; and
-- invalidate approval after any economically relevant fingerprint change.
+- build the dependent Subject + Condition + Operator + Value editor from the
+  shared registry rather than a finished-sentence mega-dropdown;
+- expose generated descriptor, evaluation status, validation status, and
+  approval status separately from the ordinary Ability descriptor;
+- expose the exact user label "Fully Custom — GD Review and Manual Adjudication
+  Required", heuristic compound warnings, and honest unsupported states; and
+- use the shared component contract on all three consumer surfaces without
+  carrying forward the legacy Roleplay control names as permanent UI.
 
-Phase 4 - Runtime integration:
+Phase 4 - Governance:
 
-- enforce immediate-before-commit Restriction eligibility;
-- resolve Activation Cost before Response Window, roll, and output;
-- resolve Backlash after initial execution and independently of Cleanse/source
-  removal;
-- integrate Health, Major Injury, terminal Trial, and Activation-Cost-triggered
-  Blaze ordering; and
-- implement the locked Player Character Blaze procedures without importing
-  them into Legendary Monsters by accident.
+- implement player Draft, Pending Game Director Approval, Approved, Rejected,
+  and Approval Stale transitions with authenticated server-side authority;
+- store governance separately from the semantic definition, bind approval to
+  the normalized fingerprint, and record submitted/reviewed times, reviewer,
+  and notes;
+- stale approval after a direct semantic-definition edit without prematurely
+  deciding the three preserved wider-context governance questions; and
+- immediately approve valid GD-authored Monster Restrictions on save with
+  authenticated provenance and no performative Pending self-review or economic
+  credit.
 
-Phase 5 - Economic calibration:
+Phase 5 - Campaign-custom structured values:
 
-- calibrate separate Restriction, Activation Cost, and Backlash registries;
-- derive credits in parallel from unrestricted Gross BPV;
-- establish combined-credit caps, minimum Net BPV floors, final rounding, and
-  versioned tuning authority; and
-- validate practical availability and reliable self-enabling before approval.
+- reuse existing campaign-owned tags, factions, entities, items, objects,
+  zones, summons, or named features where practical;
+- add only the smallest missing reusable campaign-scoped value layer with
+  stable identity separate from display label;
+- require GD review before player-requested values become reusable and permit
+  authenticated GD Monster authoring to use GD-created values directly; and
+- reject Ability-local magic strings, silent prose-to-predicate conversion, and
+  a giant general campaign ontology.
 
-Phase 6 - Shared Blaze and tooling:
+Phase 6 - Surface integration and polish:
 
-- implement simultaneous decision windows and Shared Blaze state/action
-  tracking;
-- support free interleaving and coordinated sequential/simultaneous beats;
-- implement the locked one-donor/one-selected-Blazing-recipient allocation for
-  Make It Count!, Hit It Again!, and same-recipient Limit Break donation,
-  including immutable recipient/Power selection and no package or dice split;
-- expose the selected recipient, selected Power where applicable, granted action
-  package, donated dice, and sacrificed-turn debt in future runtime/toolkit UI;
-  and
-- add deterministic runtime, Combat Lab, and reporting coverage only after the
-  remaining implementation and simulation decisions are complete.
+- integrate the shared editor, read-only display, descriptor, lifecycle, and
+  provenance surfaces across Character Power, Roleplay Ability, and Monster
+  Power authoring;
+- cover safe label resolution, punctuation/pluralisation, stale campaign
+  references, accessibility, loading/error states, print/reference output, and
+  legacy migration diagnostics; and
+- add deterministic domain, adapter, governance, renderer, and round-trip tests
+  before claiming production completion.
 
-The current Roleplay fields `restrictionType`, `restrictionBand`,
-`restrictionTag`, and `restrictionText`, and the Power prototype
-`restrictionDiscountPercent`, are prototype or migration inputs. They are not
-the permanent shared schema, approval provenance, or numeric authority. No
-Builder, persistence, migration, runtime, test, calculator, tuning, or Combat
-Lab work is authorized here, and no numeric discount is unlocked.
+Phase 7 - Optional evaluation foundation, only after separate authorization:
+
+- add pure evaluation helpers for supported Automatic predicates and explicit
+  eligible/ineligible/GD-adjudication outcomes;
+- keep Scene Context and unsupported predicates visibly adjudicated rather than
+  silently ignored; and
+- do not infer combat declaration blocking, runtime integration, Combat Lab,
+  simulation, scenario assumptions, or economic value from authoring metadata.
+
+Current implementation truth: Player Powers, Signature Moves, and Roleplay
+Abilities persist in CampaignCharacter.builderData JSON; Monster Powers persist
+as relational Prisma Power records and share the common Power type. No complete
+shared Restriction definition, registry, validator, renderer, fingerprint,
+approval system, campaign-custom value layer, persistence adapter, runtime
+evaluator, Combat Lab integration, or simulation support exists.
+
+The current Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`,
+and `restrictionText` fields and UI are migration inputs only. CharacterPower
+`sparkDiscountPercent?: 0` and `restrictionDiscountPercent?: 0` are inert
+placeholders, not the new Restriction API. No numeric credit is unlocked.
+
+Power Burden And Blaze - Separate Future Sequence
+
+The Restriction phase numbers above do not renumber or silently authorize these
+separate systems:
+
+- Power Burden authoring still requires whole-Power Activation Cost and
+  Backlash models, structured registries, zero/one mutual exclusion, actor-paid
+  validation, and separate descriptors.
+- Runtime Burden work still resolves Activation Cost before the Response Window
+  and Backlash after initial execution, with Health, Major Injury, terminal
+  Trial, and Activation-Cost-triggered Blaze ordering preserved.
+- Economic calibration still requires separately authorized Restriction,
+  Activation Cost, and Backlash classifications, caps, floors, rounding, and
+  versioned tuning authority.
+- Shared Blaze tooling still requires simultaneous decision windows, free
+  interleaving, the locked donor/recipient allocation, turn debt, reporting,
+  and later runtime/Combat Lab policy.
+
+No Builder, persistence, migration, runtime, test, calculator, tuning, or Combat
+Lab implementation is authorized here.
 
 
 Builder Rules To Preserve
@@ -865,7 +924,9 @@ Open Items
 OPEN / NEEDS ARCHITECT DECISION:
 
 - Exact future Setting Package authoring and promotion workflow.
-- Final Spark and Restriction implementation scope.
+- Final Spark scope; Restriction implementation scheduling, exact persistence
+  shape, complete standard-template inventory, numeric economics, and preserved
+  governance decisions beyond the locked shared authoring model.
 - Final Transformation, Summoning, object, structure, machine, and mount builder
   scopes.
 - Whether Signature Move eventually becomes Spark-aligned or gains another

@@ -25,7 +25,7 @@ Authority resolves in this order:
 4. Scope defines who or how many are affected.
 5. Scene Impact defines potency, burden, consequence, or persistence.
 6. Dice Count defines reliability.
-7. Counter and Additional Restrictions remain separate permissions.
+7. Counter and the optional shared Restriction remain separate permissions.
 
 Method owns no Scope or Impact filter. An Outcome Contract remains visible for
 its owning Intention and Method even when the current Scope or Impact is not a
@@ -40,8 +40,10 @@ selection.
 - Large Group: `Choose a large group of targets and roll X dice.`
 - Faction / Army: `Choose a faction or army and roll X dice.`
 
-Target Eligibility restrictions may replace the normal target phrase under the
-existing rule. They do not duplicate or rewrite the effect template.
+Restrictions never replace the normal target phrase or rewrite Scope/Outcome
+Contract grammar. A separate Restriction descriptor states any additional
+eligibility condition; the ordinary descriptor continues to use the global
+Scope targeting component.
 
 ## Pure Contract Data
 
@@ -98,7 +100,7 @@ The player-facing order is:
 7. Scene Impact
 8. Dice Count
 9. Counter
-10. Additional Restriction
+10. Restriction (optional shared editor)
 
 The Outcome Contract list filters by Intention and Method only. Custom Outcome
 remains available under existing rules. After a standard contract is selected,

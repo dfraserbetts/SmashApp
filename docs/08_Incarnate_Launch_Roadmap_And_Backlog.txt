@@ -273,7 +273,7 @@ Ability; escalate necessary changes for explicit design approval.
 
 Not locked by this allocation: final character names or setting identities;
 final Narrative Theme prose or post-naming-pass Ability names; final Dice
-Counts; Potential costs; cooldowns; Additional Restrictions; runtime
+Counts; Potential costs; cooldowns; specific Restriction definitions; runtime
 Attributes; character level; combat Powers; Signature Move details; equipment;
 resources; point allocation; scenario Difficulty; final character records; or
 print layout. The current validation fixtures use three dice for deterministic
@@ -286,6 +286,10 @@ Gandalf-style restriction test:
 - Round 3 or comparable escalation: restriction met.
 - Purpose: test whether the character is fun while restricted and whether
   release feels earned and powerful.
+
+The test concept is preserved, but its exact Restriction definition, structured
+template or campaign value, evaluation assumption, and runtime enforcement are
+not selected by this roadmap entry.
 
 Normal roleplay versus Roleplay Abilities:
 
@@ -919,8 +923,9 @@ behind the whole-system balance gates.
 The locked order resolves exact legal authoring, Impact/Scope base, exact
 contract privilege key, Dice reliability, and selected eligible Counter into
 Gross Potential. Baseline cooldown uses Gross Potential. Any separately approved
-cooldown tradeoff follows without recursion; an approved Additional Restriction
-discount applies last to produce Net Potential. Budget validation is separate.
+cooldown tradeoff follows without recursion; any separately authorized future
+Player Restriction credit applies last to produce Net Potential. Budget
+validation is separate. This phase authorizes no numeric Restriction credit.
 
 Roleplay Window access is universal and has no purchased permission surcharge.
 Help / Hinder alone is not the primary privilege price. The selected Outcome
@@ -934,7 +939,7 @@ saved cost/cooldown fields remain unavailable. The focused authority, live
 variant inventory, circularity gate, evidence matrix, and unlock gates are in
 [Roleplay Ability Costing Readiness](roleplay-ability-costing-readiness.md).
 
-P. Prototype Restriction Request Labels - Final Registry And Bands Open
+P. Shared Restriction Authoring Model Locked - Numeric Classification Open
 
 Earlier v0 testing exposed these requested authoring labels:
 
@@ -944,14 +949,32 @@ Earlier v0 testing exposed these requested authoring labels:
 - Harsh
 - Severe / Oath-Level
 
-These labels are prototype/migration evidence only. They are not the final
-Restriction type registry, locked severity bands, approved classification, or
-numeric rates. They grant no automatic credit; exact templates, registries,
-bands, approval automation, provenance storage, and values remain OPEN.
+These labels are prototype/migration evidence only. They are not the shared
+Restriction API, complete standard-template inventory, locked severity bands,
+approved economic classification, or numeric rates. They grant no automatic
+credit.
 
-A restriction earns a discount only if it is clear, enforceable, meaningfully
-limiting, relevant in actual play, not decorative, not a loophole, and likely
-to sometimes make the player wish they did not have it.
+The shared non-numeric authoring architecture is locked in docs/02 for Player
+Character Powers, Roleplay Abilities, and GD-authored Monster Powers. It permits
+zero or one whole-Ability Restriction and exactly three conceptual modes:
+Standard Structured, Campaign-Custom Structured, and Custom Narrative. The
+structured Subject + Condition + Operator + Value grammar, V1 subjects and
+eight condition-family directions, evaluation-capability classes, separate
+Restriction descriptor, deterministic semantic fingerprint, campaign-scoped
+stable custom values, and separation of definition/governance/future economics
+are locked. Custom Narrative requires GD review and manual adjudication.
+
+Player-authored content uses Draft, Pending Game Director Approval, Approved,
+Rejected, and Approval Stale. A direct semantic-definition edit stales
+approval. A valid GD-authored Monster Restriction auto-approves on save with
+authenticated provenance and no performative Pending self-review. Monster
+Restrictions grant no Power Point discount, BPV reduction, threat refund,
+Effective Encounter Load, or other economic credit.
+
+A Restriction may receive separately approved future economic consideration
+only if it is clear, enforceable, meaningfully limiting, relevant in actual
+play, not decorative, not a loophole, and likely to sometimes make the player
+wish they did not have it. This phase grants no credit.
 
 Bad / irrelevant restriction:
 
@@ -970,8 +993,10 @@ rather than automatic economic treatment.
 
 Restrictions may be drafted and manually reviewed while implementation remains
 parked. Manual prose, a selected label, or a stored percentage cannot approve or
-price itself. Structured shared architecture and numeric calibration remain
-future work.
+price itself. Complete standard-template coverage, exact persistence and UI,
+specific pregen Restrictions, scenario assumptions, numeric classifications and
+values, runtime enforcement, Combat Lab execution, and simulation remain future
+work.
 
 Restrictions do not add upside. If text says "only works on allies, but doubles
 effect," the "doubles effect" part is not a restriction. Upside belongs to
@@ -1755,8 +1780,9 @@ compelling hostile action. Its exact outcomes are:
 Legendary rivalry is a persistent narrative relationship, not permanent forced
 targeting or mechanical domination. The locked combat bible contains hostility
 guidance, narrative-resolution examples, and intrinsic exclusions. These
-boundaries do not earn Restriction discounts; only an Additional Restriction
-that genuinely narrows the contract may do so.
+boundaries do not earn Restriction discounts; only a separately authored
+Restriction that genuinely narrows the contract may qualify for future
+consideration.
 
 This family remains subject to the parked non-numeric readiness architecture.
 Scene Impact / Scope economics and the single family privilege key are distinct
@@ -1874,7 +1900,10 @@ Restrictions, Power Burdens, And Blaze Development Order
 LOCKED DEPENDENCY DIRECTION / IMPLEMENTATION PARKED. For these connected
 systems, use this intended order:
 
-1. Restriction architecture and approval lifecycle.
+1. Implement the locked shared Restriction authoring model through the seven
+   phases in docs/03: domain, persistence adapters, Standard/Custom Narrative
+   UI, governance, campaign-custom values, surface polish, then separately
+   authorized optional evaluation.
 2. Structured Activation Cost and Backlash authoring.
 3. Separate descriptor integration.
 4. Economic calibration and versioned tuning authority.
@@ -1887,7 +1916,8 @@ phase blocks all unrelated project work.
 
 OPEN design, calibration, content, and implementation work:
 
-- exact standard Restriction templates and type registry;
+- complete standard Restriction template inventory beyond the locked V1
+  subjects, condition-family direction, grammar, and registry contract;
 - exact Restriction severity bands and discount/credit rates;
 - exact Activation Cost and Backlash type registries;
 - exact resource percentages and structured state severities;
@@ -1895,10 +1925,14 @@ OPEN design, calibration, content, and implementation work:
   affordability, credit, Blaze interaction, and temporary-Willpower treatment;
 - Activation Cost and Backlash credit rates;
 - combined drawback-credit cap, minimum Net BPV floor, and final rounding;
-- standard-versus-Custom approval automation;
-- persistence schema, approval provenance storage, normalized fingerprints, and
-  stale-approval detection;
-- Builder UI and descriptor surfaces;
+- whether a GD may approve a Restriction on their own Player Character, whether
+  broader non-Restriction character-build edits stale approval, and whether
+  reliable-enabler or wider-context changes automatically stale approval;
+- exact persistence schema and adapter implementation, governance storage, and
+  server endpoints under the locked provenance/fingerprint rules;
+- Builder/Monster editor UI and descriptor surfaces;
+- specific pregen Restrictions, campaign values, and explicit scenario
+  assumptions, including the preserved Gandalf-style playtest;
 - runtime state, Combat Lab support, and automatic simulation policy;
 - Shared Blaze runtime/toolkit integration and unresolved edge cases not decided
   by the locked one-donor/one-selected-recipient rule;

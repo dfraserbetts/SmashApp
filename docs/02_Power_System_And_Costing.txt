@@ -565,38 +565,299 @@ band are not economic evidence. "Bleeding" is not a defined standard Incarnate
 condition or standard Restriction option in this architecture pass.
 
 Cross-Ability enabling becomes legal only after the enabling Ability completes
-resolution and its state remains true. Reliable self-enabling may make approval
-stale or require a lower practical classification.
+resolution and its state remains true. Reliable player-controlled or party-
+controlled enabling may affect a future economic assessment, but does not
+invalidate an otherwise legal Restriction automatically. Whether reliable-
+enabler or wider-context changes automatically stale approval remains an open
+governance decision; only direct semantic-definition edits are locked to do so.
 
-Restriction Approval Lifecycle
+Exactly Three Restriction Authoring Modes
 
-The conceptual lifecycle is Draft, Pending Game Director Approval, Approved,
-Rejected, and Approval Stale. Exact future enum names remain open.
+The shared authoring model has exactly three conceptual modes:
 
-- Draft may be saved but grants no credit or active character-sheet authority.
-- Pending may preview its descriptor but grants no credit and is not finalized.
-- Approved binds Game Director-approved wording, classification, and economic
-  band; only that approved classification may later receive automatic credit.
-- Rejected grants no credit, requires revision/removal, and should retain a
-  reason.
-- Approval Stale removes credit authority after an economically relevant
-  change and requires reapproval.
+1. STANDARD STRUCTURED
+2. CAMPAIGN-CUSTOM STRUCTURED
+3. CUSTOM NARRATIVE
 
-Requested and approved bands are distinct authorities. Player selection and
-free text cannot approve themselves. Approval must retain provenance, bind to a
-normalized Restriction fingerprint, and respect campaign and character context.
-A wording, Ability, classification, context, or reliable-enabler change can
-stale approval. Exact templates, registries, enums, fingerprint format,
-persistence, and automatic standard-versus-Custom approval remain open.
+"No Restriction" is the absence of a Restriction, not a fourth mode.
 
-Descriptor Separation
+STANDARD STRUCTURED is the default path. The system owns the predicate grammar,
+template identity and version, valid subjects, valid operators, parameter
+schema, standard values, validation, deterministic descriptor rendering, and
+evaluation-capability classification.
 
-The normal Power or Roleplay Ability descriptor explains mechanical operation.
-The separate Restriction Descriptor explains the narrative condition governing
-eligibility. Builder previews, character sheets, printable and Power/Roleplay
-references, and relevant runtime inspection must eventually show a separate
-Restriction line. Arbitrary Restriction prose must not be spliced into core
-target or packet grammar.
+Standard example:
+
+- Subject: The Actor
+- Condition: Physical Health
+- Operator: At or below
+- Value: 50% of maximum
+- Generated descriptor: "Restriction: This Power may only be used while the
+  actor is at or below 50% of maximum Physical Health."
+
+CAMPAIGN-CUSTOM STRUCTURED keeps the system-owned predicate, operator,
+parameter shape, descriptor grammar, validation, and evaluation-capability
+classification while a campaign-owned value supplies the specific concept.
+Each value must represent a real campaign concept, be campaign-scoped, have
+stable identity separate from its display label, and be reusable after
+approval. It should reference existing campaign tags, factions, entities,
+items, objects, zones, summons, or named features where current infrastructure
+supports them. It must not become a private Ability-local magic string or be
+silently converted from prose into an executable predicate. Player-requested
+campaign values require GD review before reuse. Authenticated GD-authored
+Monster content may use GD-created campaign values directly where server-side
+permissions permit it. Later implementation should reuse current campaign-
+owned concepts and add only the smallest missing reusable layer; this lock does
+not authorize a giant general campaign ontology.
+
+Campaign-custom example:
+
+- Subject: The Target
+- Condition: Has tag
+- Value: Servant of the Ashen Crown
+- Generated descriptor: "Restriction: This Power may only target a character
+  with the Servant of the Ashen Crown tag."
+
+CUSTOM NARRATIVE lets the author write one complete Restriction in prose. Its
+player-facing mode label is "Fully Custom — GD Review and Manual Adjudication
+Required". It requires mechanical-validity and atomicity review, GD approval,
+and manual runtime adjudication unless a later explicit scenario assumption
+exists. Custom Narrative text is data, not executable code, and carries no
+automatic claim of machine-resolvable eligibility.
+
+Structured Grammar And Registry Ownership
+
+The user-facing structured grammar is:
+
+Subject + Condition + Operator + Value = Generated Restriction
+
+The permanent editor must be dependent and registry-driven, not one enormous
+dropdown of finished sentences. The conceptual sequence is:
+
+1. Authoring mode.
+2. Subject.
+3. Condition.
+4. Operator.
+5. Parameters or value.
+6. Generated descriptor.
+7. Evaluation status.
+8. Validation status.
+9. Approval status.
+
+The semantic definition should contain schema version, authoring mode, template
+key, template version, typed structured parameters, and Custom Narrative text
+where applicable. The registry owns template key/version, subject, condition
+family or predicate, supported operators, parameter schema, compatible value
+sources, descriptor renderer, validator, and evaluation capability.
+
+Generated descriptor prose is not persisted as mechanical authority. A later
+review snapshot may be retained for audit if justified, but the fingerprinted
+semantic definition remains authoritative. This documentation phase does not
+lock an exact TypeScript path or Prisma storage shape.
+
+V1 Subjects And Condition-Family Direction
+
+The locked user-facing subjects are:
+
+- The Actor;
+- The Target;
+- The Scene;
+- A Location or Zone;
+- An Item or Object;
+- Another Character or Group; and
+- An Oath or Behaviour.
+
+Internal identifiers may follow repository conventions without exposing
+unnecessary implementation jargon. V1 registry coverage is directed around
+these eight condition families; Custom modes remain the long-tail path and the
+list is not a claim to cover every narrative Restriction:
+
+A. Actor State: Physical or Mental Health above, below, at, or at maximum;
+selected condition present/absent; selected tag present/absent; an implemented
+Attribute disabled/available; or an actually implemented finite resource at a
+threshold. Do not invent resources the runtime does not represent consistently.
+
+B. Target Identity: selected tag present/absent; ally/hostile; summon; Player
+Character/Monster; object/structure/machine; selected faction; or selected
+relationship to the actor. Validation must detect or warn when this only
+repeats intrinsic targeting.
+
+C. Target State: Health threshold or 0 Health; selected condition present/
+absent; disabled Attribute; selected zone occupancy; or touching/carrying a
+selected tagged object.
+
+D. Equipment Or Anchor State: actor wielding/carrying/wearing a selected tagged
+item; actor touching a selected object; actor within a selected distance of an
+anchor; selected object intact/active; or a companion, summon, focus, altar,
+phylactery, ward, or ritual anchor active.
+
+E. Position Or Zone State: actor inside/outside a selected zone, adjacent to a
+selected feature, within a selected distance of a zone/object, target inside a
+selected zone, or actor in a selected terrain state. This does not authorize a
+complete map or zone engine.
+
+F. Scene Or Environment State: selected environment tag, direct sunlight,
+darkness, underwater, active open flame, selected weather, named environmental
+feature active, or objective/scene track at a selected state. Without explicit
+scene-state infrastructure, these may remain structured but scene-context or
+GD-adjudicated.
+
+G. Related Entity Or Count State: at least one allied tagged entity active; a
+selected count of tagged entities active; no hostile tagged entities active;
+named ally conscious; selected summon active; or selected object/structure
+intact.
+
+H. Oath Or Behaviour: selected oath unbroken; defending a named person; no
+willing harm to a protected class; target violated a declared law/compact; or
+a formal challenge issued and maintained. These are generally GD-adjudicated;
+structured wording does not make narrative compliance machine-verifiable.
+
+Evaluation Capability
+
+Every structured template declares one conceptual evaluation capability:
+
+- AUTOMATIC - player-facing label "Automatically checked";
+- SCENE_CONTEXT - player-facing label "Checked through scene context"; or
+- GD_ADJUDICATION - player-facing label "Requires GD adjudication".
+
+Exact future code enum names may follow repository conventions. Actor at or
+below 50% Physical Health, target with an Undead tag, actor Blinded, and a count
+of represented tagged entities are Automatic in principle. Direct Sunlight, a
+ritual-circle position, an intact altar, or an objective threshold are Scene
+Context. Oath faithfulness, public betrayal, or whether an act qualifies as
+mercy require GD adjudication.
+
+Evaluation capability is authoring metadata. It does not claim current combat
+runtime or Combat Lab enforcement. Machine readability and economic value are
+separate; automatically checkable does not mean automatically worthy of future
+economic credit.
+
+Atomicity And Validation
+
+The structured model permits one atomic predicate only. It must never expose
+Add another condition, AND, OR, nested groups, alternative clauses, or exception
+trees. A Power or Roleplay Ability has zero or exactly one whole-Ability
+Restriction: no multiple Restrictions, AND/OR trees, nested clauses, or packet-
+level Restrictions in V1.
+
+Custom Narrative validation should warn heuristically about likely compound
+wording such as "and", "or", "unless", semicolon-separated clauses, unrelated
+thresholds, or several eligibility statements. These warnings are not proof;
+the GD remains final authority.
+
+Where software can be honest it validates missing template/parameter, invalid
+operator/value type, unsupported range, unsupported or stale campaign
+reference, blank Custom Narrative text, likely compound text, cosmetic or
+trivially declared wording, duplicated intrinsic targeting, impossible subject/
+template combinations, unsupported automatic-evaluation claims, and
+mechanically obvious self-satisfaction. Where semantic certainty is impossible,
+emit a warning, require GD review, do not silently approve, and do not claim
+software understands every Power interaction.
+
+Descriptor Separation And Acceptance Examples
+
+The ordinary Ability descriptor and Restriction descriptor are separate
+authorities. Restrictions never splice into ordinary targeting grammar, rewrite
+the mechanical descriptor, or alter target, Scope, output, timing, or result.
+The future renderer must be deterministic and registry-owned, safely resolve
+campaign labels and Custom Narrative text, avoid duplicate punctuation, and be
+covered by exact-string or snapshot tests.
+
+Acceptance examples:
+
+- Player Power / Standard Structured: "Restriction: This Power may only be used
+  while the actor is at or below 50% of maximum Physical Health."
+- Player Power / Target Tag: "Restriction: This Power may only target a
+  character with the Undead tag."
+- Roleplay Ability / Custom Narrative: "Restriction: This Ability may only be
+  used after the actor has publicly accepted responsibility for the dispute."
+- Monster Power / Ritual Circle: "Restriction: This Power may only be used
+  while the actor remains inside the Blood Ritual Circle."
+- Monster Power / Related Entity: "Restriction: This Power may only be used
+  while at least one allied Blood Thrall remains active."
+- Campaign-Custom Target Tag: "Restriction: This Power may only target a
+  character with the Servant of the Ashen Crown tag."
+
+"This Power may only be used at night and while the target is wounded" is
+likely compound prose requiring correction, not one clean structured condition.
+
+Governance Separation And Fingerprints
+
+The conceptual player lifecycle is Draft, Pending Game Director Approval,
+Approved, Rejected, and Approval Stale. Exact future enum spellings may follow
+repository conventions. The semantic Restriction definition and governance
+record are separate objects; approval state, reviewer identity, timestamps,
+review notes, and future economic credit do not belong inside the definition.
+
+Player workflow is Draft, validation, submission, authenticated GD approval or
+rejection/return for correction. A direct edit to the approved semantic
+definition makes approval stale. The client cannot manufacture approval;
+future submit, approve, and reject operations must be enforced server-side.
+Approval provenance should include lifecycle state, approved-definition
+fingerprint, submitted/reviewed times, authenticated reviewer, and review or
+rejection note.
+
+A valid GD-authored Monster Restriction is immediately Approved on save with
+provenance from authenticated server context. It does not perform a Pending
+self-review and has no player economic classification or credit.
+
+These governance decisions remain explicitly unresolved: whether a GD may
+approve a Restriction on their own Player Character; whether broader non-
+Restriction build edits stale approval; and whether reliable-enabler or wider-
+context changes automatically stale approval. Only direct semantic-definition
+changes are locked to stale approval.
+
+The deterministic normalized fingerprint includes schema version, authoring
+mode, template key/version, normalized parameters, normalized Custom Narrative
+text, and referenced campaign-value identity. It excludes lifecycle state,
+timestamps, reviewer identity, review notes, generated UI state, descriptor-only
+formatting, and future economic classification. Canonicalization must sort
+object keys, normalize whitespace and absent/null fields consistently, avoid
+nondeterministic object/array ordering, survive save/load round trips, and
+change when semantic meaning changes.
+
+Consumer, Persistence, Economic, And Runtime Boundaries
+
+Player Character Powers and Roleplay Abilities use player/GD governance. A
+Roleplay Ability receives no Activation Cost or Backlash. Neither consumer
+receives numeric Restriction credit in this phase. Gross BPV and cooldown basis
+remain unchanged.
+
+Monster Powers are GD-authored. A Monster Restriction grants no Power Point
+discount, BPV reduction, threat-budget refund, Effective Encounter Load, or
+automatic claim that an encounter is fairer. It is a narrative/tactical tool
+for limitations, weaknesses, risks, dependencies, and player counterplay.
+Combat Lab remains the future authority for testing an exact Monster against an
+exact party after actual runtime support exists.
+
+Current storage is deliberately split. Player Character Powers, Signature
+Moves, and Roleplay Abilities remain inside CampaignCharacter.builderData JSON;
+later adapters must normalize versioned definitions on load and preserve them
+on save without a Player Power relational migration. Monster Powers remain
+relational Prisma Power records; a later phase may choose a versioned nullable
+JSON field or another live-schema-justified convention, but this phase locks no
+field, creates no MonsterRestriction model, and adds no player economic fields
+to Monster Power.
+
+Legacy Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`, and
+`restrictionText` are migration input only. NONE becomes no Restriction;
+non-None data maps only where unambiguous; legacy text/tags are preserved; no
+Approved state, GD provenance, or credit is manufactured; and unproven history
+defaults to Draft. Retire legacy behaviour that splices target eligibility into
+normal descriptor grammar. CharacterPower `sparkDiscountPercent?: 0` and
+`restrictionDiscountPercent?: 0` placeholders must be tolerated and normalized
+safely but are not semantic Restriction data. Existing Monster Powers have no
+Restriction unless actual persisted source data exists. Existing Monster Power
+identity/reconciliation and the core/read-only-to-campaign-copy workflow must
+be preserved.
+
+No shared definition, registry, validator, renderer, fingerprint, approval
+system, campaign-custom value layer, persistence adapter, runtime evaluator,
+Combat Lab integration, or simulation support currently exists. A future
+runtime may distinguish eligible, ineligible, and GD-adjudicated outcomes, but
+exact enum names and implementation are separately authorized later work.
+Unsupported conditions must remain visibly unsupported or adjudicated, never
+silently ignored.
 
 Power Burden Authoring
 
@@ -2059,13 +2320,16 @@ Earlier v0 testing exposed these request labels:
 - Severe / Oath-Level
 
 These labels are prototype authoring/migration evidence only. They are not the
-locked standard Restriction registry, final severity bands, approved economic
-classification, or numeric rates. Exact templates, types, severity bands, and
-credits remain OPEN under the architecture above.
+locked shared Restriction model, complete standard-template inventory, final
+severity bands, approved economic classification, or numeric rates. The three
+authoring modes, registry ownership, V1 subjects and condition families, and
+evaluation classes are locked above; exact template coverage, severity bands,
+and credits remain later work.
 
-A restriction earns a discount only if it is clear, enforceable, meaningfully
-limiting, relevant in actual play, not decorative, not a loophole, and likely
-to sometimes make the player wish they did not have it.
+A Restriction may receive separately approved future economic consideration
+only if it is clear, enforceable, meaningfully limiting, relevant in actual
+play, not decorative, not a loophole, and likely to sometimes make the player
+wish they did not have it. This phase grants no credit.
 
 Bad / irrelevant restriction:
 

@@ -66,7 +66,8 @@ Roleplay semantics and economics are separate authorities:
 - Scope defines breadth.
 - Dice Count defines reliability.
 - Counter adds approved timing flexibility when selected and eligible.
-- A Restriction may reduce final spend only after approval.
+- A future separately authorized Restriction credit may reduce final spend only
+  after approval; no numeric credit is authorized now.
 - Runtime Difficulty measures the challenge of one eligible scene-specific use.
 
 The semantic registry owns:
@@ -102,6 +103,15 @@ immediately before the Ability is committed. It applies to the whole Ability,
 never to an individual Outcome Contract component, Scope, Impact, or other
 compositional cell. Multiple or stacked Restrictions are unavailable in V1.
 
+Roleplay uses the shared Restriction authoring model owned by
+[`02_Power_System_And_Costing.txt`](./02_Power_System_And_Costing.txt): exactly
+Standard Structured, Campaign-Custom Structured, or Custom Narrative. "No
+Restriction" is absence, not a fourth mode. The structured path uses the shared
+Subject + Condition + Operator + Value grammar and registry; Custom Narrative
+uses the player-facing label "Fully Custom — GD Review and Manual Adjudication
+Required". Evaluation metadata does not claim current runtime or Combat Lab
+support.
+
 The Restriction cannot be created, applied, paid, or revealed by the Ability
 whose use it governs. A state created by another Ability may enable it only
 after that other Ability completes resolution and the state remains true.
@@ -121,6 +131,12 @@ character sheets, printable references, and inspection surfaces must render a
 Restriction separately instead of splicing its prose into Outcome Contract
 grammar. This document authorizes no Builder, schema, database, resolver, or
 runtime implementation.
+
+Current `restrictionType`, `restrictionBand`, `restrictionTag`, and
+`restrictionText` fields and their UI are conservative migration input only,
+not the permanent shared definition, editor, governance, or economic API. In
+particular, legacy Target Eligibility text must stop replacing ordinary target
+grammar when the shared model is implemented.
 
 ## Components That Never Directly Change Automatic Cost
 
@@ -447,21 +463,24 @@ The conceptual approval lifecycle is locked:
 Exact future enum names are not locked. Draft may be saved for future Builder
 work but grants no credit and is not active approved character-sheet authority.
 Pending has been submitted for review but grants no credit and cannot be treated
-as finalized. Approved means the Game Director has approved the wording,
-classification, and economic band; only that approved classification and band
-may later receive automatic credit. Rejected grants no credit, must be revised
-or removed, and should support a rejection reason. Approval Stale removes credit
-authority and requires reapproval after an economically relevant change.
+as finalized. Approved means an authenticated Game Director approved the exact
+semantic definition represented by its fingerprint. Rejected grants no credit,
+must be revised or removed, and should support a rejection reason. Approval
+Stale means the approved definition fingerprint no longer matches and requires
+review before approved authority can be claimed.
 
-Requested and approved classifications and economic bands are separate
-authorities. Player selection is only a request; free text cannot approve
-itself. Approval must retain provenance, be bound to a normalized Restriction
-fingerprint, and be evaluated in campaign and character context. A wording,
-classification,
-fingerprint, Ability, campaign-context, or relevant character-capability change
-may make approval stale. Adding or improving a reliable self-enabler or cheap
-ally-enabler must trigger reassessment because severity measures practical lost
-availability, not how dramatic the condition sounds.
+The semantic Restriction definition, governance record, and any future economic
+classification are separate. Player selection and free text cannot approve
+themselves, and the client cannot manufacture approval. Provenance should record
+lifecycle state, approved-definition fingerprint, submitted/reviewed times,
+authenticated reviewer, and review/rejection note. Direct edits to the approved
+semantic definition stale approval.
+
+Whether a GD may approve a Restriction on their own Player Character, whether
+broader non-Restriction character-build edits stale approval, and whether
+reliable-enabler or wider-context changes automatically stale approval remain
+unresolved. Reliable player/party enabling may inform a future economic review
+but does not automatically invalidate the Restriction under this authoring lock.
 
 The resolver must not judge free-text Restriction quality:
 
@@ -477,18 +496,19 @@ The resolver must not judge free-text Restriction quality:
 - Target Eligibility must genuinely narrow existing target rules.
 
 The Restriction Descriptor remains separate from the normal Ability descriptor
-through draft, review, approval, and presentation. Current Roleplay fields such
-as `restrictionType`, `restrictionBand`, `restrictionTag`, and
-`restrictionText`, together with any prototype `restrictionDiscountPercent`
-field, are prototype or migration input rather than permanent shared
-architecture, approval provenance, or numeric authority. Their presence does
-not mean a Restriction is approved and a stored percentage cannot approve
-itself.
+through draft, review, approval, and presentation. Legacy Roleplay fields and
+any prototype `restrictionDiscountPercent` field are migration input rather
+than permanent shared architecture, provenance, or numeric authority. Their
+presence proves neither approval nor credit.
 
-Exact enums, standard templates, classification registry, severity bands,
-numeric credits, fingerprint format, persistence schema, stale-detection
-mechanism, and UI remain OPEN. This specification adds no approval field, code,
-schema, database workflow, or runtime behaviour.
+The fingerprint contract is locked in the shared authority: schema version,
+mode, template key/version, normalized parameters or Custom Narrative text, and
+campaign-value identity are semantic inputs; lifecycle, reviewer/timestamps,
+notes, UI state, descriptor-only formatting, and future economics are excluded.
+Exact future enum spellings, complete standard-template inventory, persistence
+shape, server endpoints, UI, and numeric classification/credits remain later
+work. This specification adds no approval field, code, schema, database
+workflow, or runtime behaviour.
 
 ## Future Pure Resolver Contract
 
@@ -570,8 +590,9 @@ For otherwise identical supported authoring:
 - approved Restriction credit is independently anchored to Gross Potential and
   cannot exceed Gross Potential or Pre-Restriction Potential;
 - Net Potential cannot exceed Pre-Restriction Potential or become negative;
-- an economically relevant change invalidates approved Restriction credit until
-  reapproval;
+- a direct semantic Restriction-definition change invalidates its approval and
+  any future credit until reapproval; broader-context staleness follows only a
+  separately approved future policy;
 - Name and Narrative Theme changes alter no cost component;
 - unsupported or custom authoring receives no authoritative numeric result;
 - missing tuning never becomes zero; and
@@ -697,8 +718,9 @@ OPEN:
 - cooldown curve and cooldown tradeoff;
 - cooldown floors/caps;
 - level dependence and rounding;
-- exact Restriction templates, classifications, severity bands, numeric credits,
-  future enum names, fingerprint/storage formats, and approval persistence;
+- complete Restriction template inventory, economic classifications, severity
+  bands, numeric credits, future enum names, exact fingerprint serialization,
+  storage formats, and approval persistence implementation;
 - tuning schema and database storage;
 - cached cost/cooldown fields;
 - migration of existing Roleplay Abilities;

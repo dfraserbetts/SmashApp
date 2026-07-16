@@ -140,16 +140,36 @@ Roleplay Ability costs and final contract privilege adjustments remain open.
 
 Restrictions, Power Burdens, And Blaze Status
 
-LOCKED NON-NUMERIC DESIGN AUTHORITY / UNIMPLEMENTED. A Restriction is one
-atomic, enforceable narrative eligibility condition that must already be true
-immediately before an Ability is committed. A Power or Roleplay Ability may
-have zero or one whole-Ability Restriction. The conceptual Draft, Pending Game
-Director Approval, Approved, Rejected, and Approval Stale lifecycle is locked;
-exact future enums, structured registries, persistence, UI, numeric bands, and
-discount values remain open. Runtime eligibility law lives in docs/01, Power
-authoring and non-numeric economic architecture in docs/02, future Builder work
-in docs/03, implementation boundaries in docs/05, system sequencing in docs/08,
-and the Roleplay-only boundary in docs/roleplay-ability-costing-readiness.md.
+LOCKED SHARED AUTHORING AUTHORITY / UNIMPLEMENTED. A Restriction is one atomic,
+enforceable, pre-existing, whole-Ability narrative eligibility condition. A
+Player Character Power, Roleplay Ability, or GD-authored Monster Power may have
+zero or exactly one Restriction. Exactly three conceptual authoring modes are
+locked: Standard Structured, Campaign-Custom Structured, and Custom Narrative.
+The shared Subject + Condition + Operator + Value grammar, registry ownership,
+V1 subjects and condition-family direction, evaluation-capability classes,
+descriptor separation, deterministic semantic fingerprints, and mechanical-
+definition/governance separation are locked in docs/02.
+
+Player-authored Restrictions use the Draft, Pending Game Director Approval,
+Approved, Rejected, and Approval Stale lifecycle. A valid GD-authored Monster
+Restriction is immediately approved on save with authenticated provenance; it
+does not perform a Pending self-review and grants no Power Point discount, BPV
+reduction, threat-budget refund, or Effective Encounter Load. Direct edits to
+an approved semantic definition stale its approval. Whether a GD may approve a
+Restriction on their own Player Character, whether broader non-Restriction
+build edits stale approval, and whether reliable-enabler or wider-context
+changes automatically stale approval remain open.
+
+No shared definition, registry, validator, renderer, fingerprint, approval,
+campaign-custom value, persistence-adapter, runtime-evaluator, Combat Lab, or
+simulation implementation is claimed. Exact standard template inventory,
+storage shape, future enum spellings, UI, specific pregen Restrictions, scenario
+assumptions, economic classifications, numeric bands, and credit values remain
+later work. Gross BPV and cooldown basis remain unchanged. Runtime eligibility
+law lives in docs/01, shared non-numeric authoring authority in docs/02, future
+Builder work in docs/03, implementation boundaries in docs/05, system
+sequencing in docs/08, and the Roleplay-only boundary in
+docs/roleplay-ability-costing-readiness.md.
 
 A Power Burden is one whole-Power Activation Cost or Backlash. A Power may have
 zero or one Burden, never both types, while Roleplay Abilities receive neither.
@@ -343,14 +363,18 @@ law until the owning active doc is updated with an explicit decision.
   Note: Campaign-local workflows are current; global protected asset policy is
   future work.
 - Spark and Restriction implementation scope.
-  Status: RESTRICTION NON-NUMERIC DESIGN LOCKED / IMPLEMENTATION AND NUMERIC
-  CALIBRATION OPEN; SPARK OPEN.
+  Status: RESTRICTION SHARED AUTHORING MODEL LOCKED / IMPLEMENTATION, SPECIFIC
+  CONTENT, RUNTIME, AND NUMERIC CALIBRATION OPEN; SPARK OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and
   docs/03_Builders_And_Implementation_Roadmap.txt.
-  Note: Character Creator is still missing Spark and shared Restriction support.
-  Restriction definition, V1 whole-Ability limit, and conceptual approval
-  lifecycle are locked. Exact templates, registries, persistence, UI, runtime
-  integration, severity classifications, and numeric credits remain open.
+  Note: Character Creator is still missing Spark and permanent shared
+  Restriction support. The three authoring modes, structured grammar and
+  registry direction, V1 subjects and condition families, evaluation classes,
+  governance separation, fingerprints, and consumer-specific boundaries are
+  locked. Exact standard template inventory, persistence shape, UI, runtime and
+  Combat Lab integration, specific content, economic classifications, and
+  numeric credits remain later work. The three governance questions listed in
+  the status section above remain explicitly unresolved.
 - Transformation/Summoning/object/structure/machine/mount builder scopes.
   Status: OPEN.
   Owner: docs/02_Power_System_And_Costing.txt and

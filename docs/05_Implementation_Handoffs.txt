@@ -418,7 +418,87 @@ Mental Wailer lane, control/damage pressure, or counter-matchup shape needs
 inspection against the locked Soldier attacks-to-defeat doctrine.
 
 
-Restrictions, Power Burdens, And Blaze Implementation Handoff
+Shared Restriction Authoring Implementation Handoff
+
+LOCKED AUTHORING AUTHORITY / NO IMPLEMENTATION CLAIM. The primary shared model
+is owned by docs/02_Power_System_And_Costing.txt; commitment-time runtime law is
+owned by docs/01_Locked_Rules_And_Combat_Bible.txt; the mandatory seven-phase
+implementation order is in docs/03_Builders_And_Implementation_Roadmap.txt.
+
+Current implementation truth:
+
+- Player Character Powers, Signature Moves, and Roleplay Abilities are
+  normalized through CharacterBuilderData and persist inside
+  CampaignCharacter.builderData JSON.
+- Monster Powers persist relationally through Prisma Power records;
+  MonsterPower is currently an alias of the shared Power type.
+- Roleplay's `restrictionType`, `restrictionBand`, `restrictionTag`, and
+  `restrictionText` fields and visible controls are legacy prototype/migration
+  input. Target Eligibility currently rewrites the ordinary target phrase; that
+  behaviour must be retired, not preserved as permanent architecture.
+- CharacterPower `sparkDiscountPercent?: 0` and
+  `restrictionDiscountPercent?: 0` are inert placeholders, not the new API.
+- No complete shared definition, registry, validator, renderer, fingerprint,
+  approval system, campaign-custom value layer, persistence adapter, runtime
+  evaluator, Combat Lab integration, or simulation support currently exists.
+- Core/read-only Monsters remain non-editable and are copied into campaign-local
+  editable Monsters through the existing workflow.
+
+Implement only in the locked order: (1) shared domain foundation, (2)
+persistence adapters, (3) Standard Structured and Custom Narrative UI, (4)
+governance, (5) Campaign-Custom Structured values, (6) surface integration and
+polish, then (7) an optional evaluation foundation only after separate
+authorization. UI must not precede proof of the domain model.
+
+Persistence and migration requirements:
+
+- Keep Player Power, Signature Move, and Roleplay data in builderData JSON;
+  normalize a versioned semantic definition on load and preserve it on save.
+- Do not migrate Player Powers to relational records.
+- Choose Monster persistence only after live Prisma inspection; a versioned
+  nullable JSON field may be considered, but this lock selects no field and
+  forbids a new MonsterRestriction model or player-economic Monster fields.
+- Map legacy NONE to no Restriction. Map non-None Roleplay data only where
+  unambiguous, preserve legacy text/tags, manufacture neither approval nor GD
+  provenance nor credit, and default to Draft when history cannot be proven.
+- Treat existing Monster Powers as having no Restriction unless actual persisted
+  source data exists.
+- Preserve Monster Power and packet identities, reconciliation, cost/render
+  behaviour, and core/read-only-to-campaign-copy semantics.
+
+Trust and governance requirements:
+
+- Keep semantic definition, governance record, and future Player economics
+  separate. The client cannot manufacture approval.
+- Enforce player submit/approve/reject transitions server-side and bind approval
+  to a deterministic normalized semantic fingerprint.
+- Direct semantic-definition edits stale approval. Do not decide whether GD
+  self-approval on their own Player Character, broader non-Restriction build
+  edits, or reliable-enabler/wider-context changes also stale approval.
+- A valid GD-authored Monster Restriction auto-approves on save using
+  authenticated server provenance, without Pending self-review.
+- Monster Restrictions grant no Power Point discount, BPV reduction, threat-
+  budget refund, Effective Encounter Load, or other economic credit.
+
+Deterministic test categories for later authorized phases include: definition
+normalization and zero/one atomicity; every mode/template/operator/value
+combination; validator errors and heuristic warnings; descriptor exact strings;
+fingerprint canonicalization and save/load stability; legacy migration and
+placeholder tolerance; builderData and Monster adapter round trips; stale
+campaign references; server permission and lifecycle transitions; stale-on-
+definition-edit behaviour; authenticated Monster auto-approval/provenance;
+Monster no-credit invariants; and explicit unsupported/adjudicated evaluation
+results. Authoring metadata alone must never make a runtime or Combat Lab claim.
+
+Parallel-work safety: inspect current files and dirty state before every phase;
+keep domain, adapters, UI, governance, campaign values, evaluation, and economic
+work in separately reviewable boundaries; never rewrite unrelated Power,
+Summoning, calculator, API, or reconciliation work; stage exact paths only; and
+re-run identity/reconciliation coverage whenever a later Monster adapter is
+authorized.
+
+
+Power Burdens And Blaze Implementation Handoff
 
 LOCKED DOCTRINE / CURRENT IMPLEMENTATION INCOMPLETE. Runtime law is owned by
 docs/01_Locked_Rules_And_Combat_Bible.txt and non-numeric authoring/economic law
@@ -427,14 +507,10 @@ from those locks.
 
 Future implementation must preserve:
 
-- one atomic, pre-existing, whole-Ability Restriction checked immediately before
-  commitment;
-- zero/one Restriction and zero/one whole-Power Burden, with Activation Cost and
-  Backlash mutually exclusive;
+- zero/one whole-Power Burden, with Activation Cost and Backlash mutually
+  exclusive;
 - Power-only Burdens and the Roleplay no-Burden boundary;
-- separate normal, Restriction, and Burden descriptors;
-- the Draft/Pending/Approved/Rejected/Approval Stale lifecycle, requested versus
-  approved authority, provenance, and normalized fingerprints;
+- separate normal and Burden descriptors;
 - pre-Response Activation Cost, post-initial-execution Backlash, absolute
   application, and the committed-use cooldown obligation;
 - terminal-only Player Character Blaze, Activation-Cost-triggered Blaze, Blaze
@@ -449,10 +525,9 @@ Future implementation must preserve:
 
 Prohibited shortcuts:
 
-- no packet-local Restriction, Activation Cost, or Backlash;
-- no stacked Restrictions or several Burdens and no Cost-plus-Backlash Power;
+- no packet-local Activation Cost or Backlash;
+- no several Burdens and no Cost-plus-Backlash Power;
 - no sequential percentage application to an already reduced subtotal;
-- no Ability satisfying its own Restriction from its Cost, Backlash, or packet;
 - no prevention, redirection, conversion, refund, or same-Power mitigation of a
   Burden;
 - no Cleanse, source removal, expiry, interruption, failure, miss, resistance,
@@ -469,17 +544,16 @@ Prohibited shortcuts:
 - no implementation prompt applied without inspecting current files, schemas,
   runtime order, tests, and migrations first.
 
-Current gaps include the shared structured schema, approval/provenance and stale
-detection, separate descriptor presentation, structured Burden registries,
-numeric tuning authority, Activation Cost/Backlash runtime state, terminal and
-Shared Blaze orchestration, special actions/turn debt/donation, coordinated-beat
-resolution, persistence, UI, Combat Lab, simulation policy, and reporting.
+Current gaps include structured Burden registries, numeric tuning authority,
+Activation Cost/Backlash runtime state, terminal and Shared Blaze orchestration,
+special actions/turn debt/donation, coordinated-beat resolution, persistence,
+UI, Combat Lab, simulation policy, and reporting.
 
-Future deterministic tests must cover every V1 legal Restriction/Burden
-combination; invalid stacking and Cost-plus-Backlash; pre-commit self-
-satisfaction rejection; absolute Cost/Backlash application; misses, resistance,
-Counters, interruption, Cleanse, early ending, source destruction, delayed and
-minimum-duration Backlash; Major Injury and activation-triggered Blaze ordering;
+Future deterministic tests must cover every V1 legal Burden state; invalid
+stacking and Cost-plus-Backlash; absolute Cost/Backlash application; misses,
+resistance, Counters, interruption, Cleanse, early ending, source destruction,
+delayed and minimum-duration Backlash; Major Injury and activation-triggered
+Blaze ordering;
 mandatory first Power Action; cost repayment on later reuse; Blaze suppression
 without resource restoration; Assist Response consumption; each ally's one
 special-action choice; turn debt; donation and die-size conversion; permanent
