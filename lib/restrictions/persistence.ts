@@ -4,6 +4,12 @@ import {
   type AbilityRestrictionDefinitionV1,
   type RestrictionIssue,
 } from "@/lib/restrictions";
+import {
+  ROLEPLAY_RESTRICTION_BAND_VALUES,
+  ROLEPLAY_RESTRICTION_TYPE_VALUES,
+  type RoleplayRestrictionBand,
+  type RoleplayRestrictionType,
+} from "@/lib/characterBuilder/legacyRoleplayRestrictions";
 
 export type PersistedRestrictionStatus = "NONE" | "VALID" | "UNSUPPORTED" | "INVALID";
 
@@ -64,28 +70,11 @@ export function normalizePersistedRestriction(
   }
 }
 
-export const LEGACY_ROLEPLAY_RESTRICTION_TYPES = [
-  "NONE",
-  "TARGET_ELIGIBILITY",
-  "CIRCUMSTANCE",
-  "OATH_BEHAVIOUR",
-  "SCENE_STATE",
-  "RESOURCE_STATE",
-] as const;
+export const LEGACY_ROLEPLAY_RESTRICTION_TYPES = ROLEPLAY_RESTRICTION_TYPE_VALUES;
+export type LegacyRoleplayRestrictionType = RoleplayRestrictionType;
 
-export type LegacyRoleplayRestrictionType =
-  (typeof LEGACY_ROLEPLAY_RESTRICTION_TYPES)[number];
-
-export const LEGACY_ROLEPLAY_RESTRICTION_BANDS = [
-  "NONE_COSMETIC",
-  "LIGHT",
-  "MODERATE",
-  "HARSH",
-  "SEVERE_OATH",
-] as const;
-
-export type LegacyRoleplayRestrictionBand =
-  (typeof LEGACY_ROLEPLAY_RESTRICTION_BANDS)[number];
+export const LEGACY_ROLEPLAY_RESTRICTION_BANDS = ROLEPLAY_RESTRICTION_BAND_VALUES;
+export type LegacyRoleplayRestrictionBand = RoleplayRestrictionBand;
 
 export type LegacyRoleplayRestrictionSource = {
   restrictionType: LegacyRoleplayRestrictionType;
@@ -157,6 +146,18 @@ function customNarrative(textValue: string): AbilityRestrictionDefinitionV1 {
   };
 }
 
+export function isLegacyCircumstanceEligibleForAutomaticMigration(
+  value: string,
+): boolean {
+  const normalized = text(value, 1000);
+  if (!/[.!?]$/u.test(normalized)) return false;
+  const condition = normalized.replace(/[.!?]+$/u, "").trim();
+  return (
+    /^this ability may only\b\s+\S/iu.test(condition) ||
+    /^only\s+(?:while|when|after|before|if)\b\s+\S/iu.test(condition)
+  );
+}
+
 export function migrateLegacyRoleplayRestriction(
   input: unknown,
 ): LegacyRoleplayRestrictionMigrationResult {
@@ -202,7 +203,7 @@ export function migrateLegacyRoleplayRestriction(
     }
   } else if (
     legacySource.restrictionType === "CIRCUMSTANCE" &&
-    /[.!?]$/u.test(legacySource.restrictionText)
+    isLegacyCircumstanceEligibleForAutomaticMigration(legacySource.restrictionText)
   ) {
     narrative = legacySource.restrictionText;
   }

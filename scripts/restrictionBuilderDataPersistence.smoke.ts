@@ -9,6 +9,7 @@ import {
   normalizeCharacterPower,
 } from "../lib/characterBuilder/powers";
 import {
+  LEGACY_ROLEPLAY_RESTRICTION_BANDS,
   LEGACY_ROLEPLAY_RESTRICTION_TYPES,
   diagnoseRoleplayRestrictionTransition,
   migrateLegacyRoleplayRestriction,
@@ -18,8 +19,14 @@ import {
   createDefaultRoleplayAbility,
   getRoleplayRestrictionTransitionIssues,
   normalizeRoleplayAbility,
+  ROLEPLAY_RESTRICTION_BAND_OPTIONS,
+  ROLEPLAY_RESTRICTION_TYPE_OPTIONS,
   renderRoleplayAbilityDescriptor,
 } from "../lib/characterBuilder/roleplayAbilities";
+import {
+  ROLEPLAY_RESTRICTION_BAND_VALUES,
+  ROLEPLAY_RESTRICTION_TYPE_VALUES,
+} from "../lib/characterBuilder/legacyRoleplayRestrictions";
 import type {
   AbilityRestrictionDefinitionV1,
   RestrictionCampaignReference,
@@ -41,6 +48,14 @@ function deepEqual(actual: unknown, expected: unknown, message: string): void {
 function hasCode(issues: readonly { code: string }[], code: string): boolean {
   return issues.some((entry) => entry.code === code);
 }
+
+// One canonical legacy inventory serves both live Roleplay and migration callers.
+equal(LEGACY_ROLEPLAY_RESTRICTION_TYPES, ROLEPLAY_RESTRICTION_TYPE_VALUES, "Migration types must reference the canonical inventory.");
+equal(LEGACY_ROLEPLAY_RESTRICTION_BANDS, ROLEPLAY_RESTRICTION_BAND_VALUES, "Migration bands must reference the canonical inventory.");
+deepEqual(ROLEPLAY_RESTRICTION_TYPE_OPTIONS.map((option) => option.value), ROLEPLAY_RESTRICTION_TYPE_VALUES, "Live Roleplay type options must expose the canonical values.");
+deepEqual(ROLEPLAY_RESTRICTION_BAND_OPTIONS.map((option) => option.value), ROLEPLAY_RESTRICTION_BAND_VALUES, "Live Roleplay band options must expose the canonical values.");
+deepEqual(ROLEPLAY_RESTRICTION_TYPE_VALUES, ["NONE", "TARGET_ELIGIBILITY", "CIRCUMSTANCE", "OATH_BEHAVIOUR", "SCENE_STATE", "RESOURCE_STATE"], "All six legacy Restriction types must remain available in order.");
+deepEqual(ROLEPLAY_RESTRICTION_BAND_VALUES, ["NONE_COSMETIC", "LIGHT", "MODERATE", "HARSH", "SEVERE_OATH"], "All five legacy Restriction bands must remain available in order.");
 
 const standard: AbilityRestrictionDefinitionV1 = {
   schemaVersion: 1,
@@ -262,6 +277,55 @@ const circumstanceMigration = migrateLegacyRoleplayRestriction({
 check(circumstanceMigration.migrationApplied, "Complete Circumstance text is unambiguous.");
 equal(circumstanceMigration.definition?.customNarrativeText, "Only while the actor remains under direct moonlight.", "Circumstance sentence must be preserved.");
 equal(circumstanceMigration.legacySource.restrictionTag, "preserved circumstance tag", "Circumstance tag remains available for audit.");
+
+for (const [sourceText, expectedText] of [
+  ["This Ability may only be used while the actor is in direct moonlight.", "This Ability may only be used while the actor is in direct moonlight."],
+  ["Only while the actor remains under direct moonlight.", "Only while the actor remains under direct moonlight."],
+  ["  Only   after the actor has publicly accepted responsibility.  ", "Only after the actor has publicly accepted responsibility."],
+] as const) {
+  const result = migrateLegacyRoleplayRestriction({
+    restrictionType: "CIRCUMSTANCE",
+    restrictionBand: "MODERATE",
+    restrictionTag: "preserved tag",
+    restrictionText: sourceText,
+  });
+  check(result.migrationApplied, `${sourceText} must be explicit enough to migrate.`);
+  equal(result.definition?.customNarrativeText, expectedText, "Accepted Circumstance text must normalize without changing meaning.");
+  equal(result.legacySource.restrictionTag, "preserved tag", "Accepted Circumstance migration must preserve its tag.");
+}
+
+for (const sourceText of [
+  "Moonlight.",
+  "The battlefield.",
+  " ",
+  "...",
+  "Direct moonlight.",
+  "The actor remains under direct moonlight.",
+  "When angry.",
+]) {
+  const result = migrateLegacyRoleplayRestriction({
+    restrictionType: "CIRCUMSTANCE",
+    restrictionBand: "LIGHT",
+    restrictionTag: "preserved tag",
+    restrictionText: sourceText,
+  });
+  equal(result.definition, null, `${sourceText || "blank text"} must remain review-only.`);
+  check(!result.migrationApplied, `${sourceText || "blank text"} must not apply migration.`);
+  check(hasCode(result.issues, "LEGACY_RESTRICTION_REQUIRES_REVIEW"), `${sourceText || "blank text"} must require review.`);
+  equal(result.legacySource.restrictionTag, "preserved tag", "Review-only migration must preserve its tag.");
+  equal(result.legacySource.restrictionText, sourceText.trim().replace(/\s+/gu, " "), "Review-only migration must preserve normalized source text.");
+}
+
+const compoundCircumstance = migrateLegacyRoleplayRestriction({
+  restrictionType: "CIRCUMSTANCE",
+  restrictionBand: "HARSH",
+  restrictionTag: "compound audit tag",
+  restrictionText: "Only while the actor is in moonlight and the target is wounded.",
+});
+check(compoundCircumstance.migrationApplied, "Explicit compound-looking eligibility prose may migrate for GD review.");
+check(hasCode(compoundCircumstance.issues, "LIKELY_COMPOUND_NARRATIVE"), "Compound-looking migrated prose must retain the GD-review warning.");
+check(!compoundCircumstance.issues.some((entry) => entry.code === "LIKELY_COMPOUND_NARRATIVE" && entry.severity === "error"), "Compound narrative review must remain a warning.");
+check(!JSON.stringify(compoundCircumstance.definition).includes("APPROVED"), "Compound migration must not manufacture approval.");
 
 const blankTarget = migrateLegacyRoleplayRestriction({ restrictionType: "TARGET_ELIGIBILITY", restrictionBand: "LIGHT", restrictionTag: " ", restrictionText: "" });
 equal(blankTarget.definition, null, "Blank Target Eligibility cannot manufacture a definition.");

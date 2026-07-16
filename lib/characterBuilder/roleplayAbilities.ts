@@ -3,6 +3,19 @@ import {
   diagnoseRoleplayRestrictionTransition,
   normalizePersistedRestriction,
 } from "@/lib/restrictions/persistence";
+import {
+  ROLEPLAY_RESTRICTION_BAND_OPTIONS,
+  ROLEPLAY_RESTRICTION_TYPE_OPTIONS,
+  type RoleplayRestrictionBand,
+  type RoleplayRestrictionType,
+} from "@/lib/characterBuilder/legacyRoleplayRestrictions";
+
+export {
+  ROLEPLAY_RESTRICTION_BAND_OPTIONS,
+  ROLEPLAY_RESTRICTION_TYPE_OPTIONS,
+  type RoleplayRestrictionBand,
+  type RoleplayRestrictionType,
+} from "@/lib/characterBuilder/legacyRoleplayRestrictions";
 
 export type RoleplayOption<T extends string = string> = {
   value: T;
@@ -437,29 +450,6 @@ export type RoleplayScope = (typeof ROLEPLAY_SCOPE_OPTIONS)[number]["value"];
 
 export const ROLEPLAY_DICE_COUNT_OPTIONS = [1, 2, 3, 4, 5] as const;
 export type RoleplayDiceCount = (typeof ROLEPLAY_DICE_COUNT_OPTIONS)[number];
-
-export const ROLEPLAY_RESTRICTION_TYPE_OPTIONS = [
-  { value: "NONE", label: "None" },
-  { value: "TARGET_ELIGIBILITY", label: "Target Eligibility" },
-  { value: "CIRCUMSTANCE", label: "Circumstance" },
-  { value: "OATH_BEHAVIOUR", label: "Oath / Behaviour" },
-  { value: "SCENE_STATE", label: "Scene State" },
-  { value: "RESOURCE_STATE", label: "Resource State" },
-] as const;
-
-export type RoleplayRestrictionType =
-  (typeof ROLEPLAY_RESTRICTION_TYPE_OPTIONS)[number]["value"];
-
-export const ROLEPLAY_RESTRICTION_BAND_OPTIONS = [
-  { value: "NONE_COSMETIC", label: "None / Cosmetic" },
-  { value: "LIGHT", label: "Light" },
-  { value: "MODERATE", label: "Moderate" },
-  { value: "HARSH", label: "Harsh" },
-  { value: "SEVERE_OATH", label: "Severe / Oath" },
-] as const;
-
-export type RoleplayRestrictionBand =
-  (typeof ROLEPLAY_RESTRICTION_BAND_OPTIONS)[number]["value"];
 
 export const ROLEPLAY_OUTCOME_CONTRACT_UNSELECTED = "UNSELECTED" as const;
 export const ROLEPLAY_OUTCOME_CONTRACT_CUSTOM_REVIEW = "CUSTOM_REVIEW" as const;
