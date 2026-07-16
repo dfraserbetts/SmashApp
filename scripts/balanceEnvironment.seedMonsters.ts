@@ -20,6 +20,7 @@ import {
   normalizeMonsterUpsertInput,
 } from "../lib/summoning/validation";
 import { isSelectableDamageTypeName } from "../lib/damageTypes/selectable";
+import { serializeMonsterRestrictionForDatabase } from "../lib/restrictions/monsterPersistence";
 import type {
   CoreAttribute,
   EffectDurationType,
@@ -850,6 +851,7 @@ function buildPowerCreateData(power: Power) {
     sourceType: "MONSTER_POWER" as const,
     name: power.name,
     description: power.description,
+    restrictionJson: serializeMonsterRestrictionForDatabase(power.restriction, Prisma.DbNull),
     schemaVersion: power.schemaVersion ?? 1,
     rulesVersion: power.rulesVersion ?? "v1",
     contentRevision: power.contentRevision ?? 1,
@@ -1128,7 +1130,9 @@ async function main() {
 
     const { powerTuning, protectionTuning } = await loadTuning(prisma);
     const normalized = MONSTERS.map((spec) => {
-      const result = normalizeMonsterUpsertInput(baseMonster(spec));
+      const result = normalizeMonsterUpsertInput(baseMonster(spec), {
+        campaignId: BALANCE_CAMPAIGN_ID,
+      });
       if (!result.ok) {
         throw new Error(`${spec.name}: ${result.error}`);
       }

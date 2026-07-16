@@ -161,6 +161,7 @@ import {
   createEmptyMonsterTraitMechanicalModifiers,
   type MonsterTraitMechanicalEffectSummary,
 } from "@/lib/summoning/traitMechanics";
+import { readMonsterRestrictionFromDatabase } from "@/lib/restrictions/monsterPersistence";
 
 type Props = {
   campaignId: string;
@@ -3242,6 +3243,7 @@ export function toEditable(
           sortOrder: i,
           name: String(p.name ?? ""),
           description: p.description ? String(p.description) : null,
+          restriction: readMonsterRestrictionFromDatabase(p.restriction).definition,
           schemaVersion: typeof p.schemaVersion === "number" ? p.schemaVersion : 1,
           rulesVersion: typeof p.rulesVersion === "string" ? p.rulesVersion : "v1",
           contentRevision: typeof p.contentRevision === "number" ? p.contentRevision : 1,
@@ -3539,6 +3541,7 @@ export function defaultPower(
     sortOrder: 0,
     name: "",
     description: null,
+    restriction: null,
     descriptorChassis: undefined,
     descriptorChassisConfig: {},
     chargeType: null,

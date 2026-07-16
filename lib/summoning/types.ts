@@ -1,3 +1,5 @@
+import type { AbilityRestrictionDefinitionV1 } from "@/lib/restrictions";
+
 export type MonsterTier = "MINION" | "SOLDIER" | "ELITE" | "BOSS";
 export type MonsterSource = "CORE" | "CAMPAIGN";
 export type MonsterTraitBand = "MINOR" | "STANDARD" | "MAJOR" | "BOSS";
@@ -191,6 +193,7 @@ export type Power = {
   sortOrder: number;
   name: string;
   description: string | null;
+  restriction?: AbilityRestrictionDefinitionV1 | null;
   schemaVersion?: number;
   rulesVersion?: string;
   contentRevision?: number;

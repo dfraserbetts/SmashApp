@@ -78,7 +78,7 @@ export function SummoningCirclePrintMode({ campaignId }: Props) {
             ? raw.tags.map((entry) => String((entry as { tag?: unknown }).tag ?? ""))
             : [],
         };
-        const parsed = normalizeMonsterUpsertInput(normalizedInput);
+        const parsed = normalizeMonsterUpsertInput(normalizedInput, { campaignId });
         if (!parsed.ok) {
           throw new Error(parsed.error);
         }

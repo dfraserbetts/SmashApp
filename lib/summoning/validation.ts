@@ -33,6 +33,7 @@ import {
 } from "@/lib/powers/authoringRules";
 import { readSummoningOpaqueId } from "@/lib/summoning/monsterPowerReconciliation";
 import { applyAutomaticExpectedTargetsToPower } from "@/lib/powers/expectedTargetEstimation";
+import { normalizeMonsterRestrictionForWrite } from "@/lib/restrictions/monsterPersistence";
 
 const DICE_SET = new Set<DiceSize>(["D4", "D6", "D8", "D10", "D12"]);
 const TIER_SET = new Set<MonsterTier>(["MINION", "SOLDIER", "ELITE", "BOSS"]);
@@ -1232,7 +1233,11 @@ function derivePrimaryDefenceGate(
   };
 }
 
-function normalizePower(value: unknown, sortOrder: number): Power {
+function normalizePower(
+  value: unknown,
+  sortOrder: number,
+  restriction: Power["restriction"] = null,
+): Power {
   const raw = (value ?? {}) as Record<string, unknown>;
   const descriptorChassis = normalizeDescriptorChassis(raw.descriptorChassis);
   const rawDescriptorChassisConfig =
@@ -1432,6 +1437,7 @@ function normalizePower(value: unknown, sortOrder: number): Power {
     sortOrder,
     name: asString(raw.name, ""),
     description: asString(raw.description, "") || null,
+    restriction,
     schemaVersion: Math.max(1, asInt(raw.schemaVersion, 1)),
     rulesVersion: asString(raw.rulesVersion, "v1") || "v1",
     contentRevision: Math.max(1, asInt(raw.contentRevision, 1)),
@@ -1546,7 +1552,10 @@ function clampImagePosition(value: unknown, fallback: number): number {
   return n;
 }
 
-export function normalizeMonsterUpsertInput(body: unknown): {
+export function normalizeMonsterUpsertInput(
+  body: unknown,
+  context: { campaignId?: string | null } = {},
+): {
   ok: true;
   data: MonsterUpsertInput;
 } | {
@@ -1686,7 +1695,27 @@ export function normalizeMonsterUpsertInput(body: unknown): {
   if (threeFieldValidationError) {
     return { ok: false, error: threeFieldValidationError };
   }
-  const normalizedPowers = powersRaw.map((entry, index) => normalizePower(entry, index));
+  const normalizedPowers: Power[] = [];
+  for (const [index, entry] of powersRaw.entries()) {
+    const power = entry && typeof entry === "object" && !Array.isArray(entry)
+      ? entry as Record<string, unknown>
+      : {};
+    const restriction = normalizeMonsterRestrictionForWrite(power.restriction, {
+      campaignId: context.campaignId ?? null,
+    });
+    if (!restriction.ok) {
+      const issue = restriction.issues.find((entry) => entry.severity === "error")
+        ?? restriction.issues[0];
+      const detail = issue
+        ? `${issue.code}: ${issue.message}`
+        : "The Restriction definition is invalid.";
+      return {
+        ok: false,
+        error: `POWER_${index + 1}_RESTRICTION_INVALID: ${detail}`,
+      };
+    }
+    normalizedPowers.push(normalizePower(entry, index, restriction.definition));
+  }
 
   for (const power of normalizedPowers) {
     if (!power.name.trim()) return { ok: false, error: "Each power requires a name" };

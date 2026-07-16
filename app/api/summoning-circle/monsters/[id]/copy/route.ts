@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/prisma/client";
-import type { EffectDurationType, Prisma } from "@prisma/client";
+import { Prisma, type EffectDurationType } from "@prisma/client";
 import { renderAttackActionLines } from "@/lib/summoning/render";
 import { getActivePowerTuningSet } from "@/lib/config/powerTuning";
 import { synchronizePowerCooldownCacheBatch } from "@/lib/summoning/powerCooldownCacheSynchronization";
@@ -22,6 +22,11 @@ import {
   getThreeFieldAugmentDebuffPublicWriteError,
   getThreeFieldAugmentDebuffReadDiagnostics,
 } from "@/lib/powers/authoringRules";
+import {
+  normalizeMonsterRestrictionForWrite,
+  readMonsterRestrictionFromDatabase,
+  serializeMonsterRestrictionForDatabase,
+} from "@/lib/restrictions/monsterPersistence";
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
@@ -598,6 +603,7 @@ function buildPowerCreateData(power: Power) {
     sourceType: "MONSTER_POWER" as const,
     name: power.name,
     description: power.description,
+    restrictionJson: serializeMonsterRestrictionForDatabase(power.restriction, Prisma.DbNull),
     schemaVersion: power.schemaVersion ?? 1,
     rulesVersion: power.rulesVersion ?? "v1",
     contentRevision: power.contentRevision ?? 1,
@@ -755,6 +761,7 @@ function serializePower(
     sortOrder: power.sortOrder,
     name: power.name,
     description: power.description,
+    restriction: readMonsterRestrictionFromDatabase(power.restrictionJson).definition,
     schemaVersion: power.schemaVersion,
     rulesVersion: power.rulesVersion,
     contentRevision: power.contentRevision,
@@ -975,6 +982,23 @@ export async function POST(
     }
 
     const serializedSourcePowers = source.powers.map(serializePower);
+    for (const [powerIndex, power] of serializedSourcePowers.entries()) {
+      const restriction = normalizeMonsterRestrictionForWrite(power.restriction, {
+        campaignId: source.campaignId,
+      });
+      if (!restriction.ok) {
+        const issue = restriction.issues.find((entry) => entry.severity === "error")
+          ?? restriction.issues[0];
+        const detail = issue
+          ? `${issue.code}: ${issue.message}`
+          : "The Restriction definition is invalid.";
+        return NextResponse.json(
+          { error: `POWER_${powerIndex + 1}_RESTRICTION_INVALID: ${detail}` },
+          { status: 400 },
+        );
+      }
+      power.restriction = restriction.definition;
+    }
     const authoringError = getThreeFieldAugmentDebuffPublicWriteError(serializedSourcePowers);
     if (authoringError) {
       return NextResponse.json({ error: authoringError }, { status: 400 });

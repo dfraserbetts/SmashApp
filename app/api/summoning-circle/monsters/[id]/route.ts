@@ -40,6 +40,10 @@ import {
   MonsterPowerIdentityError,
   planMonsterPowerReconciliation,
 } from "@/lib/summoning/monsterPowerReconciliation";
+import {
+  readMonsterRestrictionFromDatabase,
+  serializeMonsterRestrictionForDatabase,
+} from "@/lib/restrictions/monsterPersistence";
 
 const MONSTER_INCLUDE = {
   tags: { orderBy: { tag: "asc" as const } },
@@ -832,6 +836,7 @@ function buildPowerCreateData(power: Power) {
     sourceType: "MONSTER_POWER" as const,
     name: power.name,
     description: power.description,
+    restrictionJson: serializeMonsterRestrictionForDatabase(power.restriction, Prisma.DbNull),
     schemaVersion: power.schemaVersion ?? 1,
     rulesVersion: power.rulesVersion ?? "v1",
     contentRevision: power.contentRevision ?? 1,
@@ -1000,6 +1005,7 @@ function serializePower(
     sortOrder: power.sortOrder,
     name: power.name,
     description: power.description,
+    restriction: readMonsterRestrictionFromDatabase(power.restrictionJson).definition,
     schemaVersion: power.schemaVersion,
     rulesVersion: power.rulesVersion,
     contentRevision: power.contentRevision,
@@ -1268,7 +1274,7 @@ export async function PUT(
     return NextResponse.json({ error: authoringError }, { status: 400 });
   }
 
-  const parsed = normalizeMonsterUpsertInput(body);
+  const parsed = normalizeMonsterUpsertInput(body, { campaignId });
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
