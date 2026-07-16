@@ -677,6 +677,7 @@ model Power {
   sortOrder               Int                     @default(0)
   name                    String
   description             String?                 @db.Text
+  restrictionJson         Json?
   schemaVersion           Int                     @default(1)
   rulesVersion            String                  @default("v1")
   contentRevision         Int                     @default(1)
