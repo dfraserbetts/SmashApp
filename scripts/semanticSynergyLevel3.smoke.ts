@@ -445,6 +445,44 @@ check("Fixture 7 Passive M4 diagnostic cooldown 4", passiveM4.cooldowns[0] === 4
 near(passiveM4.rawSupport, 17.626953125, 1e-9, "Fixture 7 Passive M4 four-turn raw support");
 near(passiveM4.score, 5.44, 0.001, "Fixture 7 Passive M4 score");
 check("Fixture 7 Passive is capacity-free", passiveM4.model.policy.passiveConsumesCapacity === false);
+check(
+  "Fixture 7 Passive is explicitly the PREPARED_ACTIVE authored-creature reference",
+  passiveM4.model.policy.passiveState === "PREPARED_ACTIVE" &&
+    passiveM4.model.diagnostics.some((entry) =>
+      entry.code === SEMANTIC_SYNERGY_DIAGNOSTIC.preparedActiveReference),
+);
+
+const inactivePowers = hydratePowers([
+  singlePower({ identity: "Inactive Passive M4", diceCount: 3, potency: 3, modifier: 4, duration: "PASSIVE" }),
+  singlePower({ identity: "Inactive Competitor M3", diceCount: 3, potency: 3, modifier: 3, durationTurns: 2 }),
+], "SOLDIER", 3);
+const inactiveContribution = contribution(inactivePowers, "SOLDIER", 3);
+const inactivePassiveModel = computeLevel3SemanticSynergy({
+  monster: baseMonster({ powers: inactivePowers, tier: "SOLDIER", level: 3 }),
+  powers: inactiveContribution.powers,
+  legacyRawSynergy: Number(inactiveContribution.axisVector?.synergy ?? 0),
+  legacyNonPowerSynergy: 0,
+  passiveState: "INACTIVE",
+});
+const inactivePassiveSchedule = inactivePassiveModel.legalActivationTurns.find((entry) => entry.passive);
+check(
+  "INACTIVE Passive activation competes for finite-horizon capacity with an active power",
+  inactivePassiveModel.mode === "LEVEL_3_SEMANTIC" &&
+    inactivePassiveModel.policy.passiveState === "INACTIVE" &&
+    inactivePassiveModel.policy.passiveConsumesCapacity &&
+    inactivePassiveModel.activeCapacity === 1 &&
+    inactivePassiveModel.optimizer !== null &&
+    inactivePassiveModel.optimizer.passiveActivationChoices > 0 &&
+    inactivePassiveModel.optimizer.choiceCount > inactivePassiveModel.optimizer.passiveActivationChoices,
+);
+check(
+  "INACTIVE Passive failure branches remain eligible only for a later paid activation choice",
+  inactivePassiveModel.optimizer !== null &&
+    inactivePassiveModel.optimizer.passiveActivationFailureBranches > 0 &&
+    inactivePassiveSchedule?.turns.join(",") === "1,2,3,4,5" &&
+    !inactivePassiveModel.diagnostics.some((entry) =>
+      entry.code === SEMANTIC_SYNERGY_DIAGNOSTIC.preparedActiveReference),
+);
 
 const threeTargetM3 = runFixture({
   id: "three-target-m3",

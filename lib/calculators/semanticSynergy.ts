@@ -23,6 +23,7 @@ export const SEMANTIC_SYNERGY_DIAGNOSTIC = {
   unsupportedTargeting: "SEMANTIC_SYNERGY_TARGETING_UNSUPPORTED",
   unsupportedDie: "SEMANTIC_SYNERGY_SOURCE_DIE_UNSUPPORTED",
   unsupportedDependency: "SEMANTIC_SYNERGY_DEPENDENCY_UNSUPPORTED",
+  preparedActiveReference: "PASSIVE_SYNERGY_PREPARED_ACTIVE_REFERENCE",
 } as const;
 
 export type SemanticSynergyDiagnosticCode =
@@ -102,7 +103,10 @@ export type SemanticSynergyInput = {
   legacyRawSynergy: number;
   legacyNonPowerSynergy: number;
   tuning?: SemanticSynergyTuning;
+  passiveState?: SemanticSynergyPassiveState;
 };
+
+export type SemanticSynergyPassiveState = "PREPARED_ACTIVE" | "INACTIVE";
 
 type PacketModel = {
   packetId: string;
@@ -151,6 +155,7 @@ type OptimizerState = {
   statuses: StatusState[];
   recurrences: RecurrenceState[];
   passiveEstablished: boolean;
+  activePassivePowerIds: string[];
 };
 
 type OptimizerCounters = {
@@ -159,6 +164,9 @@ type OptimizerCounters = {
   memoHits: number;
   transitionBranches: number;
   choiceCount: number;
+  passiveActivationChoices: number;
+  passiveActivationBranches: number;
+  passiveActivationFailureBranches: number;
 };
 
 type Extraction = {
@@ -207,13 +215,17 @@ export type SemanticSynergyResult = {
     memoHits: number;
     transitionBranches: number;
     choiceCount: number;
+    passiveActivationChoices: number;
+    passiveActivationBranches: number;
+    passiveActivationFailureBranches: number;
     runtimeMs: number;
   } | null;
   policy: {
     actualRelevantDice: true;
     cooldownCadence: "NEXT_LEGAL_USE_T_PLUS_C_PLUS_1";
     passiveContributionTurns: number;
-    passiveConsumesCapacity: false;
+    passiveState: SemanticSynergyPassiveState;
+    passiveConsumesCapacity: boolean;
     activeCapacityIsThroughputCeiling: true;
     sameAttributeClamp: number;
     linkedApplication: "INHERIT_TARGET_LOCAL_PRIMARY";
@@ -654,6 +666,7 @@ function stateKey(state: OptimizerState): string {
   return [
     state.turn,
     state.passiveEstablished ? 1 : 0,
+    state.activePassivePowerIds.join(","),
     state.nextLegalTurns.join(","),
     statusKey(state.statuses),
     recurrenceKey(state.recurrences),
@@ -686,13 +699,14 @@ type TransitionBranch = {
   probability: number;
   statuses: StatusState[];
   recurrences: RecurrenceState[];
+  activePassivePowerIds: string[];
 };
 
 function mergeBranches(branches: TransitionBranch[]): TransitionBranch[] {
   const merged = new Map<string, TransitionBranch>();
   for (const branch of branches) {
     if (branch.probability <= EPSILON) continue;
-    const key = `${statusKey(branch.statuses)};${recurrenceKey(branch.recurrences)}`;
+    const key = `${branch.activePassivePowerIds.join(",")};${statusKey(branch.statuses)};${recurrenceKey(branch.recurrences)}`;
     const existing = merged.get(key);
     if (existing) existing.probability += branch.probability;
     else merged.set(key, { ...branch });
@@ -715,6 +729,7 @@ function applyRollGroup(
         probability: branch.probability * probability,
         statuses,
         recurrences: branch.recurrences,
+        activePassivePowerIds: branch.activePassivePowerIds,
       });
     });
   }
@@ -729,6 +744,7 @@ function applyRecurrences(
     probability: 1,
     statuses: state.statuses,
     recurrences: state.recurrences.map((recurrence) => ({ ...recurrence })),
+    activePassivePowerIds: state.activePassivePowerIds,
   }];
   for (const recurrence of state.recurrences) {
     const group = extraction.rollGroups.get(recurrence.groupId);
@@ -769,6 +785,53 @@ function applyPowers(
     }
   }
   return mergeBranches(output);
+}
+
+function applyInactivePassiveActivation(
+  branches: TransitionBranch[],
+  power: PowerModel,
+  tuning: SemanticSynergyTuning,
+  counters: OptimizerCounters,
+): TransitionBranch[] {
+  const [activationGroup, ...remainingGroups] = power.rollGroups;
+  if (!activationGroup) return branches;
+  const activated: TransitionBranch[] = [];
+  const failed: TransitionBranch[] = [];
+  for (const branch of branches) {
+    activationGroup.distribution.forEach((probability, successes) => {
+      if (probability <= EPSILON) return;
+      let statuses = branch.statuses;
+      for (const packet of activationGroup.packets) {
+        statuses = applyPacketSuccesses(statuses, packet, successes);
+      }
+      const next: TransitionBranch = {
+        probability: branch.probability * probability,
+        statuses,
+        recurrences: branch.recurrences,
+        activePassivePowerIds: successes > 0
+          ? [...new Set([...branch.activePassivePowerIds, power.id])].sort()
+          : branch.activePassivePowerIds,
+      };
+      if (successes > 0) activated.push(next);
+      else failed.push(next);
+    });
+  }
+  counters.passiveActivationBranches += activated.length + failed.length;
+  counters.passiveActivationFailureBranches += failed.length;
+  let successful = mergeBranches(activated);
+  if (activationGroup.recurringPackets.length > 0) {
+    successful = successful.map((branch) => ({
+      ...branch,
+      recurrences: normalizeRecurrences([
+        ...branch.recurrences.filter((entry) => entry.groupId !== activationGroup.id),
+        { groupId: activationGroup.id, attemptsRemaining: tuning.horizonTurns - 1 },
+      ]),
+    }));
+  }
+  if (remainingGroups.length > 0) {
+    successful = applyPowers(successful, [{ ...power, rollGroups: remainingGroups }], tuning);
+  }
+  return mergeBranches([...failed, ...successful]);
 }
 
 function rewardForStatuses(
@@ -820,6 +883,7 @@ function optimizeSemanticSynergy(
   extraction: Extraction,
   tuning: SemanticSynergyTuning,
   tier: SemanticSynergyTier,
+  passiveState: SemanticSynergyPassiveState,
 ): { rawSupport: number; counters: OptimizerCounters; runtimeMs: number } {
   const started = performance.now();
   const powers = extraction.powers;
@@ -828,6 +892,10 @@ function optimizeSemanticSynergy(
     .filter(({ power }) => !power.passive)
     .map(({ index }) => index);
   const passivePowers = powers.filter((power) => power.passive);
+  const passivePowerIndexes = powers
+    .map((power, index) => ({ power, index }))
+    .filter(({ power }) => power.passive)
+    .map(({ index }) => index);
   const capacity = tuning.tiers[tier].activeCapacity;
   const memo = new Map<string, number>();
   const counters: OptimizerCounters = {
@@ -836,6 +904,9 @@ function optimizeSemanticSynergy(
     memoHits: 0,
     transitionBranches: 0,
     choiceCount: 0,
+    passiveActivationChoices: 0,
+    passiveActivationBranches: 0,
+    passiveActivationFailureBranches: 0,
   };
 
   const solve = (state: OptimizerState): number => {
@@ -847,9 +918,12 @@ function optimizeSemanticSynergy(
       return cached;
     }
     counters.statesVisited += 1;
-    const legal = activePowerIndexes.filter(
-      (index) => state.nextLegalTurns[index] <= state.turn,
-    );
+    const legal = [
+      ...activePowerIndexes.filter((index) => state.nextLegalTurns[index] <= state.turn),
+      ...(passiveState === "INACTIVE"
+        ? passivePowerIndexes.filter((index) => !state.activePassivePowerIds.includes(powers[index].id))
+        : []),
+    ].sort((left, right) => powers[left].id.localeCompare(powers[right].id));
     const choices = combinations(legal, capacity).sort((left, right) => {
       const leftKey = left.map((index) => powers[index].id).join("|");
       const rightKey = right.map((index) => powers[index].id).join("|");
@@ -859,11 +933,18 @@ function optimizeSemanticSynergy(
     for (const choice of choices) {
       counters.choiceCount += 1;
       let branches = applyRecurrences(state, extraction);
-      if (!state.passiveEstablished) {
+      if (passiveState === "PREPARED_ACTIVE" && !state.passiveEstablished) {
         branches = applyPowers(branches, passivePowers, tuning);
       }
-      const chosenPowers = choice.map((index) => powers[index]);
-      branches = applyPowers(branches, chosenPowers, tuning);
+      for (const index of choice) {
+        const power = powers[index];
+        if (power.passive) {
+          counters.passiveActivationChoices += 1;
+          branches = applyInactivePassiveActivation(branches, power, tuning, counters);
+        } else {
+          branches = applyPowers(branches, [power], tuning);
+        }
+      }
       counters.transitionBranches += branches.length;
       const nextLegalTurns = [...state.nextLegalTurns];
       for (const index of choice) {
@@ -882,7 +963,8 @@ function optimizeSemanticSynergy(
           nextLegalTurns,
           statuses: advanceStatuses(branch.statuses, extraction.packetModels),
           recurrences: branch.recurrences,
-          passiveEstablished: true,
+          passiveEstablished: passiveState === "PREPARED_ACTIVE",
+          activePassivePowerIds: branch.activePassivePowerIds,
         });
         expected += branch.probability * (reward + future);
       }
@@ -900,6 +982,7 @@ function optimizeSemanticSynergy(
     statuses: [],
     recurrences: [],
     passiveEstablished: false,
+    activePassivePowerIds: [],
   });
   return { rawSupport, counters, runtimeMs: performance.now() - started };
 }
@@ -913,8 +996,16 @@ export function normalizeLevel3SemanticSynergy(
   return Math.min(10, coefficient * Math.log1p(rawSupport / tierScale));
 }
 
-function legalActivationTurns(power: PowerModel, tuning: SemanticSynergyTuning): number[] {
-  if (power.passive) return [1];
+function legalActivationTurns(
+  power: PowerModel,
+  tuning: SemanticSynergyTuning,
+  passiveState: SemanticSynergyPassiveState,
+): number[] {
+  if (power.passive) {
+    return passiveState === "PREPARED_ACTIVE"
+      ? [1]
+      : Array.from({ length: tuning.horizonTurns }, (_, index) => index + 1);
+  }
   const turns: number[] = [];
   for (let turn = 1; turn <= tuning.horizonTurns; turn += power.cooldownTurns + 1) {
     turns.push(turn);
@@ -924,6 +1015,7 @@ function legalActivationTurns(power: PowerModel, tuning: SemanticSynergyTuning):
 
 export function computeLevel3SemanticSynergy(input: SemanticSynergyInput): SemanticSynergyResult {
   const tuning = input.tuning ?? LEVEL_3_SEMANTIC_SYNERGY_TUNING;
+  const passiveState = input.passiveState ?? "PREPARED_ACTIVE";
   const extraction = extractSemanticPowers(input);
   const tier = String(input.monster.tier ?? "ELITE").toUpperCase() as SemanticSynergyTier;
   const tierTuning = tuning.tiers[tier] ?? null;
@@ -939,13 +1031,14 @@ export function computeLevel3SemanticSynergy(input: SemanticSynergyInput): Seman
       powerName: power.name,
       passive: power.passive,
       cooldownTurns: power.cooldownTurns,
-      turns: legalActivationTurns(power, tuning),
+      turns: legalActivationTurns(power, tuning, passiveState),
     })),
     policy: {
       actualRelevantDice: true as const,
       cooldownCadence: "NEXT_LEGAL_USE_T_PLUS_C_PLUS_1" as const,
       passiveContributionTurns: tuning.passiveContributionTurns,
-      passiveConsumesCapacity: false as const,
+      passiveState,
+      passiveConsumesCapacity: passiveState === "INACTIVE",
       activeCapacityIsThroughputCeiling: true as const,
       sameAttributeClamp: tuning.clampMaximum,
       linkedApplication: "INHERIT_TARGET_LOCAL_PRIMARY" as const,
@@ -1033,7 +1126,8 @@ export function computeLevel3SemanticSynergy(input: SemanticSynergyInput): Seman
       optimizer: null,
     };
   }
-  const optimized = optimizeSemanticSynergy(extraction, tuning, tier);
+  const optimized = optimizeSemanticSynergy(extraction, tuning, tier, passiveState);
+  const hasPassive = extraction.powers.some((power) => power.passive);
   return {
     ...base,
     mode: "LEVEL_3_SEMANTIC",
@@ -1046,6 +1140,15 @@ export function computeLevel3SemanticSynergy(input: SemanticSynergyInput): Seman
     tierScale: tierTuning.tierScale,
     midpointRawSupport: tierTuning.midpointRawSupport,
     activeCapacity: tierTuning.activeCapacity,
+    diagnostics: hasPassive && passiveState === "PREPARED_ACTIVE"
+      ? [
+          ...base.diagnostics,
+          diagnostic(
+            SEMANTIC_SYNERGY_DIAGNOSTIC.preparedActiveReference,
+            "Passive Synergy uses the canonical PREPARED_ACTIVE authored-creature reference; it does not assert current campaign state.",
+          ),
+        ]
+      : base.diagnostics,
     optimizer: {
       exact: true,
       algorithm: "FINITE_HORIZON_MEMOIZED_STATE_ENUMERATION",

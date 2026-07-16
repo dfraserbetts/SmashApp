@@ -1,8 +1,11 @@
 import {
   getLivingActors,
   getOppositeSide,
+  getSemanticPassiveState,
+  getSemanticPassiveStateForAction,
   hasActiveMovementDenial,
   isActionOnCooldown,
+  isSemanticPassiveAction,
   isVoluntaryMovementAction,
 } from "./combatState";
 import { expectedSuccesses } from "./dice";
@@ -367,13 +370,25 @@ export function chooseAction(actor: CombatActor, state: CombatState): CombatActi
   return chooseTurnAction(actor, state, "main");
 }
 
-function readyActions(actor: CombatActor, state: CombatState): CombatAction[] {
+function readyActions(
+  actor: CombatActor,
+  state: CombatState,
+  lane: "main" | "power",
+): CombatAction[] {
   const available = actor.actions.filter((action) => {
     if (!action.supported) return false;
     if (hasActiveMovementDenial(state, actor.id) && isVoluntaryMovementAction(action)) return false;
+    if (isSemanticPassiveAction(action)) {
+      const runtime = getSemanticPassiveStateForAction(state, actor, action);
+      return lane === "power" && runtime?.status === "INACTIVE" && runtime.cooldownRemaining <= 0;
+    }
     return !isActionOnCooldown(state, actor.id, action.id);
   });
-  return available.filter((action) => !action.counterMode && !action.passive);
+  return available.filter(
+    (action) =>
+      !action.counterMode &&
+      (!action.passive || (lane === "power" && isSemanticPassiveAction(action))),
+  );
 }
 
 function hasLegalTarget(actor: CombatActor, action: CombatAction, state: CombatState): boolean {
@@ -385,10 +400,19 @@ function hasLegalTarget(actor: CombatActor, action: CombatAction, state: CombatS
 
 function isContextuallyUsefulPower(actor: CombatActor, action: CombatAction, state: CombatState): boolean {
   if (!hasLegalTarget(actor, action, state)) return false;
+  if (isSemanticPassiveAction(action)) return true;
   const allies = getLivingActors(state, actor.side);
   const enemies = getLivingActors(state, getOppositeSide(actor.side));
   if (action.kind === "healing") return allies.some((ally) => hpPercent(ally) < 0.98);
-  if (action.kind === "cleanse") return hasRemovableHostileEffect(actor, state);
+  if (action.kind === "cleanse") {
+    if (action.targetSourcePowerId) {
+      return [...allies, ...enemies].some(
+        (candidate) =>
+          getSemanticPassiveState(state, candidate.id, action.targetSourcePowerId!)?.status === "ACTIVE",
+      );
+    }
+    return hasRemovableHostileEffect(actor, state);
+  }
   if (action.kind === "buff") {
     if (action.targetPolicy === "ally" && allies.length <= 1) return false;
     return !actionAlreadyApplied(actor, action, state);
@@ -430,7 +454,7 @@ export function chooseTurnAction(
   state: CombatState,
   lane: "main" | "power",
 ): CombatAction | null {
-  const available = readyActions(actor, state).filter((action) => hasLegalTarget(actor, action, state));
+  const available = readyActions(actor, state, lane).filter((action) => hasLegalTarget(actor, action, state));
   if (lane === "main" && shouldUseUniversalCleanup(actor, state, available)) return UNIVERSAL_CLEANUP_ACTION;
   if (available.length === 0) return null;
 
@@ -537,6 +561,12 @@ export function chooseTarget(actor: CombatActor, action: CombatAction, state: Co
     return [...candidates].sort((a, b) => hpPercent(a) - hpPercent(b))[0] ?? null;
   }
   if (action.kind === "cleanse") {
+    if (action.targetSourcePowerId) {
+      return candidates.find(
+        (candidate) =>
+          getSemanticPassiveState(state, candidate.id, action.targetSourcePowerId!)?.status === "ACTIVE",
+      ) ?? null;
+    }
     return [...candidates].find((candidate) =>
       state.statusEffects.some((effect) => effect.targetActorId === candidate.id && effect.sourceActorId !== actor.id),
     ) ?? null;

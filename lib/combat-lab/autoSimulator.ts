@@ -5,6 +5,7 @@ import {
   createEmptyMetrics,
   emitCombatStartResponses,
   emitTranscriptEvent,
+  getSemanticPassiveStateForAction,
   getLivingActors,
   getOppositeSide,
   hasActiveMovementDenial,
@@ -70,6 +71,14 @@ export function establishSemanticPassivesAtCombatStart(
         !action.passive ||
         !action.passiveDuration ||
         action.modifier?.semanticFormat !== "augmentDebuffThreeFieldV1"
+      ) {
+        continue;
+      }
+      const runtime = getSemanticPassiveStateForAction(state, actor, action);
+      if (
+        !runtime ||
+        runtime.status !== "ACTIVE" ||
+        !runtime.activationSourceSuccesses
       ) {
         continue;
       }
@@ -525,7 +534,13 @@ function powerActionSkipReason(actor: CombatActor, state: ReturnType<typeof crea
       (action.sourceType === "power" || action.sourceType === "signatureMove") &&
       action.supported &&
       !action.counterMode &&
-      !action.passive,
+      (
+        !action.passive ||
+        (() => {
+          const runtime = getSemanticPassiveStateForAction(state, actor, action);
+          return runtime?.status === "INACTIVE" && runtime.cooldownRemaining <= 0;
+        })()
+      ),
   );
   if (supportedPowers.length === 0) return "no supported ready powers are hydrated for this actor";
 
@@ -985,7 +1000,10 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
   const maxRounds = scenario.maxRounds ?? 20;
   const turnOrder = scenario.turnOrder ?? "alternatingByRound";
   const captureTranscript = runIndex === 0;
-  const state = createCombatState(scenario.players, scenario.monsters, { captureTranscript });
+  const state = createCombatState(scenario.players, scenario.monsters, {
+    captureTranscript,
+    semanticPassiveStates: scenario.semanticPassiveStates,
+  });
   state.statusEffects.push(...(scenario.initialStatusEffects ?? []).map((effect) => ({ ...effect })));
   const metrics = createEmptyMetrics();
   const offensiveContributionEvents: CombatOffensiveContributionEvent[] = [];
@@ -1279,6 +1297,13 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
     unsupported: collectUnsupportedSummary(state.actors),
     log: state.log,
     offensiveContributionEvents,
+    semanticPassiveRuntime: {
+      finalStates: Object.values(state.semanticPassiveStates).map((runtime) => ({ ...runtime })),
+      transitions: state.semanticPassiveTransitions.map((transition) => ({
+        ...transition,
+        details: transition.details ? { ...transition.details } : undefined,
+      })),
+    },
   };
 }
 

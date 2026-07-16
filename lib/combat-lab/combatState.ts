@@ -17,12 +17,229 @@ import type {
   CombatSide,
   CombatState,
   CombatTranscriptEvent,
+  SemanticPassiveLifecycleTransition,
+  SemanticPassiveRuntimeState,
   UnsupportedPowerSummary,
 } from "./types";
 import { createSeededRng, rollDice, successCountForRoll, type Rng } from "./dice";
 
 const MAX_TRANSCRIPT_LINES = 1200;
 const MAJOR_INJURIES_TO_DEFEAT = 3;
+
+export function isSemanticPassiveAction(action: CombatAction): boolean {
+  return Boolean(
+    action.passive &&
+      action.passiveDuration &&
+      action.modifier?.semanticFormat === "augmentDebuffThreeFieldV1" &&
+      action.sourcePowerId,
+  );
+}
+
+export function semanticPassiveRuntimeKey(actorId: string, powerId: string): string {
+  return `${actorId}:${powerId}`;
+}
+
+export function getSemanticPassiveState(
+  state: CombatState,
+  actorId: string,
+  powerId: string,
+): SemanticPassiveRuntimeState | null {
+  return state.semanticPassiveStates[semanticPassiveRuntimeKey(actorId, powerId)] ?? null;
+}
+
+export function getSemanticPassiveStateForAction(
+  state: CombatState,
+  actor: CombatActor,
+  action: CombatAction,
+): SemanticPassiveRuntimeState | null {
+  const powerId = action.sourcePowerId?.trim();
+  return powerId ? getSemanticPassiveState(state, actor.id, powerId) : null;
+}
+
+function semanticPassiveActionForPower(
+  state: CombatState,
+  actorId: string,
+  powerId: string,
+): { actor: CombatActor; action: CombatAction } | null {
+  const actor = state.actors.find((candidate) => candidate.id === actorId);
+  const action = actor?.actions.find(
+    (candidate) => isSemanticPassiveAction(candidate) && candidate.sourcePowerId === powerId,
+  );
+  return actor && action ? { actor, action } : null;
+}
+
+function recordSemanticPassiveTransition(
+  state: CombatState,
+  runtime: SemanticPassiveRuntimeState,
+  type: SemanticPassiveLifecycleTransition["type"],
+  actionId: string | null,
+  details?: Record<string, unknown>,
+): SemanticPassiveLifecycleTransition {
+  const transition: SemanticPassiveLifecycleTransition = {
+    sequence: state.semanticPassiveTransitions.length + 1,
+    round: state.round,
+    turnActorId: state.currentTurnActorId ?? null,
+    actorId: runtime.actorId,
+    powerId: runtime.powerId,
+    actionId,
+    type,
+    status: runtime.status,
+    activationSourceSuccesses: runtime.activationSourceSuccesses,
+    cooldownRemaining: runtime.cooldownRemaining,
+    details,
+  };
+  state.semanticPassiveTransitions.push(transition);
+  const source = semanticPassiveActionForPower(state, runtime.actorId, runtime.powerId);
+  emitTranscriptEvent(state, {
+    type: "passiveLifecycle",
+    actorId: runtime.actorId,
+    actorName: source?.actor.name,
+    actionId: actionId ?? source?.action.id,
+    actionName: source?.action.name,
+    message: `Passive lifecycle: ${source?.action.name ?? runtime.powerId} ${type} (${runtime.status}, cooldown ${runtime.cooldownRemaining}).`,
+    details: { ...transition, details },
+  });
+  return transition;
+}
+
+export function markSemanticPassiveActivationSucceeded(
+  state: CombatState,
+  actor: CombatActor,
+  action: CombatAction,
+  sourceSuccesses: number,
+): boolean {
+  const runtime = getSemanticPassiveStateForAction(state, actor, action);
+  if (!runtime || runtime.status !== "INACTIVE" || runtime.cooldownRemaining > 0 || sourceSuccesses <= 0) {
+    return false;
+  }
+  runtime.status = "ACTIVE";
+  runtime.activationSourceSuccesses = Math.max(1, Math.trunc(sourceSuccesses));
+  recordSemanticPassiveTransition(state, runtime, "activationSucceeded", action.id, {
+    sourceSuccesses: runtime.activationSourceSuccesses,
+  });
+  return true;
+}
+
+export function markSemanticPassiveActivationFailed(
+  state: CombatState,
+  actor: CombatActor,
+  action: CombatAction,
+): void {
+  const runtime = getSemanticPassiveStateForAction(state, actor, action);
+  if (!runtime) return;
+  runtime.status = "INACTIVE";
+  runtime.activationSourceSuccesses = null;
+  recordSemanticPassiveTransition(state, runtime, "activationFailed", action.id);
+}
+
+export function markSemanticPassiveCombatStartEstablished(
+  state: CombatState,
+  actor: CombatActor,
+  action: CombatAction,
+): void {
+  const runtime = getSemanticPassiveStateForAction(state, actor, action);
+  if (!runtime || runtime.status !== "ACTIVE") return;
+  if (
+    state.semanticPassiveTransitions.some(
+      (transition) =>
+        transition.type === "combatStartEstablished" &&
+        transition.actorId === runtime.actorId &&
+        transition.powerId === runtime.powerId,
+    )
+  ) return;
+  recordSemanticPassiveTransition(state, runtime, "combatStartEstablished", action.id, {
+    sourceSuccesses: runtime.activationSourceSuccesses,
+  });
+}
+
+function removeSemanticPassivePowerEffects(
+  state: CombatState,
+  actorId: string,
+  powerId: string,
+): { removedStatuses: number; removedPools: number } {
+  const statusCount = state.statusEffects.length;
+  const poolCount = state.defensivePools.length;
+  state.statusEffects = state.statusEffects.filter(
+    (effect) => effect.sourceActorId !== actorId || effect.sourcePowerId !== powerId,
+  );
+  state.defensivePools = state.defensivePools.filter(
+    (pool) => pool.sourceActorId !== actorId || pool.sourcePowerId !== powerId,
+  );
+  return {
+    removedStatuses: statusCount - state.statusEffects.length,
+    removedPools: poolCount - state.defensivePools.length,
+  };
+}
+
+function applySemanticPassiveCooldown(
+  state: CombatState,
+  runtime: SemanticPassiveRuntimeState,
+  action: CombatAction,
+): void {
+  runtime.cooldownRemaining = Math.max(0, Math.trunc(action.cooldownRounds));
+  const source = semanticPassiveActionForPower(state, runtime.actorId, runtime.powerId);
+  if (source && runtime.cooldownRemaining > 0) {
+    ensureCooldownTrace(state, source.actor, source.action).cooldownApplied += 1;
+  }
+  recordSemanticPassiveTransition(state, runtime, "cooldownApplied", action.id, {
+    cooldownRounds: runtime.cooldownRemaining,
+  });
+}
+
+type SemanticPassiveDeactivationResult = {
+  ok: boolean;
+  reason?: string;
+  removedStatuses: number;
+  removedPools: number;
+};
+
+export function cancelSemanticPassive(
+  state: CombatState,
+  actorId: string,
+  powerId: string,
+): SemanticPassiveDeactivationResult {
+  const runtime = getSemanticPassiveState(state, actorId, powerId);
+  const source = semanticPassiveActionForPower(state, actorId, powerId);
+  if (!runtime || !source) return { ok: false, reason: "unknownPassive", removedStatuses: 0, removedPools: 0 };
+  if (runtime.status !== "ACTIVE") return { ok: false, reason: "passiveInactive", removedStatuses: 0, removedPools: 0 };
+  if (state.currentTurnActorId && state.currentTurnActorId !== actorId) {
+    return { ok: false, reason: "notSourceTurn", removedStatuses: 0, removedPools: 0 };
+  }
+  const removed = removeSemanticPassivePowerEffects(state, actorId, powerId);
+  runtime.status = "INACTIVE";
+  runtime.activationSourceSuccesses = null;
+  recordSemanticPassiveTransition(state, runtime, "cancelled", source.action.id, removed);
+  applySemanticPassiveCooldown(state, runtime, source.action);
+  return { ok: true, ...removed };
+}
+
+export function completelyCleanseSemanticPassive(params: {
+  state: CombatState;
+  sourceActorId: string;
+  powerId: string;
+  cleanseSuccesses: number;
+  cleanseActionId: string;
+}): SemanticPassiveDeactivationResult {
+  const { state, sourceActorId, powerId, cleanseSuccesses, cleanseActionId } = params;
+  const runtime = getSemanticPassiveState(state, sourceActorId, powerId);
+  const source = semanticPassiveActionForPower(state, sourceActorId, powerId);
+  if (!runtime || !source) return { ok: false, reason: "unknownPassive", removedStatuses: 0, removedPools: 0 };
+  if (runtime.status !== "ACTIVE" || !runtime.activationSourceSuccesses) {
+    return { ok: false, reason: "passiveInactive", removedStatuses: 0, removedPools: 0 };
+  }
+  if (cleanseSuccesses < runtime.activationSourceSuccesses) {
+    return { ok: false, reason: "insufficientCleanseSuccesses", removedStatuses: 0, removedPools: 0 };
+  }
+  const removed = removeSemanticPassivePowerEffects(state, sourceActorId, powerId);
+  runtime.status = "INACTIVE";
+  runtime.activationSourceSuccesses = null;
+  recordSemanticPassiveTransition(state, runtime, "completelyCleansed", cleanseActionId, {
+    cleanseSuccesses,
+    ...removed,
+  });
+  applySemanticPassiveCooldown(state, runtime, source.action);
+  return { ok: true, ...removed };
+}
 
 type DefeatProcessingContext = {
   sourceActorId?: string | null;
@@ -128,7 +345,10 @@ export function createActorInstances(actor: CombatActor, quantity: number): Comb
 export function createCombatState(
   players: CombatActor[],
   monsters: CombatActor[],
-  options: { captureTranscript?: boolean } = {},
+  options: {
+    captureTranscript?: boolean;
+    semanticPassiveStates?: SemanticPassiveRuntimeState[];
+  } = {},
 ): CombatState {
   const actors = [...players, ...monsters].map((actor) => ({
     ...cloneActor(actor),
@@ -140,10 +360,40 @@ export function createCombatState(
     physicalPendingInjuryOverflow: null,
     mentalPendingInjuryOverflow: null,
   }));
+  const suppliedPassiveStates = new Map(
+    (options.semanticPassiveStates ?? []).map((runtime) => [
+      semanticPassiveRuntimeKey(runtime.actorId, runtime.powerId),
+      runtime,
+    ]),
+  );
+  const semanticPassiveStates: Record<string, SemanticPassiveRuntimeState> = {};
+  for (const actor of actors) {
+    for (const action of actor.actions) {
+      if (!isSemanticPassiveAction(action)) continue;
+      const powerId = action.sourcePowerId?.trim();
+      if (!powerId) continue;
+      const key = semanticPassiveRuntimeKey(actor.id, powerId);
+      if (semanticPassiveStates[key]) continue;
+      const supplied = suppliedPassiveStates.get(key);
+      const suppliedSuccesses = Math.max(0, Math.trunc(supplied?.activationSourceSuccesses ?? 0));
+      const active = supplied?.status === "ACTIVE" && suppliedSuccesses > 0;
+      semanticPassiveStates[key] = {
+        actorId: actor.id,
+        powerId,
+        status: active ? "ACTIVE" : "INACTIVE",
+        activationSourceSuccesses: active ? suppliedSuccesses : null,
+        cooldownRemaining: active
+          ? 0
+          : Math.max(0, Math.trunc(supplied?.cooldownRemaining ?? 0)),
+      };
+    }
+  }
   return {
     round: 1,
     actors,
     cooldowns: {},
+    semanticPassiveStates,
+    semanticPassiveTransitions: [],
     currentTurnActorId: null,
     cooldownTrace: {},
     counterCandidateDiagnostics: {},
@@ -686,7 +936,16 @@ export function removeStatusEffectById(state: CombatState, effectId: string): bo
 
 export function sampleActorCooldownAvailability(state: CombatState, actor: CombatActor) {
   for (const action of actor.actions) {
-    if (action.cooldownRounds <= 0 || action.passive) continue;
+    if (action.cooldownRounds <= 0) continue;
+    if (isSemanticPassiveAction(action)) {
+      const runtime = getSemanticPassiveStateForAction(state, actor, action);
+      if (!runtime || runtime.status === "ACTIVE") continue;
+      const trace = ensureCooldownTrace(state, actor, action);
+      if (runtime.cooldownRemaining > 0) trace.unavailableTurns += 1;
+      else trace.availableTurns += 1;
+      continue;
+    }
+    if (action.passive) continue;
     const trace = ensureCooldownTrace(state, actor, action);
     if (isActionOnCooldown(state, actor.id, action.id)) {
       trace.unavailableTurns += 1;
@@ -755,6 +1014,30 @@ export function tickActorCooldowns(state: CombatState, actorId: string) {
         });
       }
     }
+  }
+  for (const runtime of Object.values(state.semanticPassiveStates)) {
+    if (runtime.actorId !== actorId || runtime.cooldownRemaining <= 0) continue;
+    const source = semanticPassiveActionForPower(state, runtime.actorId, runtime.powerId);
+    if (!source) continue;
+    const appliedThisTurn = [...state.semanticPassiveTransitions].reverse().find(
+      (transition) =>
+        transition.actorId === runtime.actorId &&
+        transition.powerId === runtime.powerId &&
+        transition.type === "cooldownApplied",
+    );
+    if (
+      appliedThisTurn?.round === state.round &&
+      appliedThisTurn.turnActorId === actorId
+    ) {
+      continue;
+    }
+    const previousCooldown = runtime.cooldownRemaining;
+    runtime.cooldownRemaining = Math.max(0, runtime.cooldownRemaining - 1);
+    ensureCooldownTrace(state, source.actor, source.action).cooldownTicks += 1;
+    recordSemanticPassiveTransition(state, runtime, "cooldownTicked", source.action.id, {
+      previousCooldown,
+      remainingCooldown: runtime.cooldownRemaining,
+    });
   }
 }
 

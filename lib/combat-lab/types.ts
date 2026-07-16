@@ -77,6 +77,7 @@ export type CombatAction = {
   sourcePowerId?: string | null;
   sourcePacketId?: string | null;
   targetStatusId?: string | null;
+  targetSourcePowerId?: string | null;
   sourceType: CombatActionSourceType;
   name: string;
   kind: CombatActionKind;
@@ -329,10 +330,45 @@ export type CombatCooldownEntry = {
   appliedOnOwnerTurn: boolean;
 };
 
+export type SemanticPassiveLifecycleStatus = "INACTIVE" | "ACTIVE";
+
+export type SemanticPassiveRuntimeState = {
+  actorId: string;
+  powerId: string;
+  status: SemanticPassiveLifecycleStatus;
+  activationSourceSuccesses: number | null;
+  cooldownRemaining: number;
+};
+
+export type SemanticPassiveLifecycleTransitionType =
+  | "activationSucceeded"
+  | "activationFailed"
+  | "combatStartEstablished"
+  | "cancelled"
+  | "completelyCleansed"
+  | "cooldownApplied"
+  | "cooldownTicked";
+
+export type SemanticPassiveLifecycleTransition = {
+  sequence: number;
+  round: number;
+  turnActorId: string | null;
+  actorId: string;
+  powerId: string;
+  actionId: string | null;
+  type: SemanticPassiveLifecycleTransitionType;
+  status: SemanticPassiveLifecycleStatus;
+  activationSourceSuccesses: number | null;
+  cooldownRemaining: number;
+  details?: Record<string, unknown>;
+};
+
 export type CombatState = {
   round: number;
   actors: CombatActor[];
   cooldowns: Record<string, CombatCooldownEntry>;
+  semanticPassiveStates: Record<string, SemanticPassiveRuntimeState>;
+  semanticPassiveTransitions: SemanticPassiveLifecycleTransition[];
   currentTurnActorId?: string | null;
   cooldownTrace: Record<string, CombatCooldownTrace>;
   counterCandidateDiagnostics: Record<string, CombatCounterCandidateDiagnostic>;
@@ -461,6 +497,7 @@ export type CombatTranscriptEventType =
   | "stackChanged"
   | "cooldownApplied"
   | "cooldownTicked"
+  | "passiveLifecycle"
   | "actionSkipped"
   | "majorInjury"
   | "actorDefeated"
@@ -693,6 +730,10 @@ export type CombatRunResult = {
   unsupported: UnsupportedPowerSummary;
   log: CombatLogEntry[];
   offensiveContributionEvents: CombatOffensiveContributionEvent[];
+  semanticPassiveRuntime: {
+    finalStates: SemanticPassiveRuntimeState[];
+    transitions: SemanticPassiveLifecycleTransition[];
+  };
 };
 
 export type CombatOffensiveContributionEvent = {
@@ -994,6 +1035,7 @@ export type CombatScenario = {
   players: CombatActor[];
   monsters: CombatActor[];
   initialStatusEffects?: CombatStatusEffect[];
+  semanticPassiveStates?: SemanticPassiveRuntimeState[];
   runs: number;
   seed: number;
   maxRounds?: number;

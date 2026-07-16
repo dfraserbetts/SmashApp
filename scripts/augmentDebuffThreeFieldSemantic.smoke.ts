@@ -12,12 +12,15 @@ import {
   runCombatScenario,
 } from "../lib/combat-lab/autoSimulator";
 import {
+  cancelSemanticPassive,
   createCombatState,
   getAttributeModifier,
   getAttributeModifierLaneBreakdown,
   isActionOnCooldown,
+  getSemanticPassiveState,
   markDefeatedActors,
   removeStatusEffectById,
+  tickActorCooldowns,
   tickTargetTurnEffects,
 } from "../lib/combat-lab/combatState";
 import type { Rng } from "../lib/combat-lab/dice";
@@ -248,12 +251,12 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
   check("Linked Modifier is not multiplied", linkedStatus?.modifierMagnitude === 5 && getAttributeModifier(linkedState, source.id, "Attack") === 5);
 }
 
-// Semantic Passive runtime establishment
+// Semantic Passive activation lifecycle
 {
   const semanticAdaptation = adaptedPower({ passive: true });
   const semanticPassive = semanticAdaptation.actions[0];
   check(
-    "Semantic Passive hydration preserves economic cooldown and marks automatic runtime behavior",
+    "Semantic Passive hydration preserves economic cooldown and marks lifecycle behavior",
     semanticPassive?.passive === true &&
       semanticPassive.passiveDuration === true &&
       semanticPassive.durationKind === "passive" &&
@@ -307,40 +310,63 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
   const target = actor("automatic-passive-target", "monsters");
   target.actions = [mainAttack];
   const state = createCombatState([source], [target], { captureTranscript: true });
-  let initialRolls = 0;
-  const establishments = establishSemanticPassivesAtCombatStart(state, () => {
-    initialRolls += 1;
+  check(
+    "Missing semantic Passive runtime state defaults to INACTIVE",
+    getSemanticPassiveState(state, source.id, "automatic-passive-power")?.status === "INACTIVE",
+  );
+  let defaultStartRngCalls = 0;
+  const defaultEstablishments = establishSemanticPassivesAtCombatStart(state, () => {
+    defaultStartRngCalls += 1;
     return 0.99;
   });
+  check(
+    "INACTIVE semantic Passive does not establish or roll at combat start",
+    defaultEstablishments.length === 0 && defaultStartRngCalls === 0 && state.statusEffects.length === 0,
+  );
+  state.actors[0].actions = [passiveAction, mainAttack];
+  check(
+    "INACTIVE ready semantic Passive is selectable only through Power Action",
+    chooseTurnAction(state.actors[0], state, "main")?.id === mainAttack.id &&
+      chooseTurnAction(state.actors[0], state, "power")?.id === passiveAction.id,
+  );
+  state.actors[0].actions = [passiveAction, activePower, mainAttack];
+
+  const activation = resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    action: passiveAction,
+    target: state.actors[0],
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  const activatedRuntime = getSemanticPassiveState(state, source.id, "automatic-passive-power");
   const established = state.statusEffects[0];
   check(
-    "Semantic Passive establishes once at combat start before ordinary actions",
-    establishments.length === 1 && established?.sourceActionId === passiveAction.id && state.log.length === 1,
+    "Successful Power Action activation stores original source successes and creates stacks",
+    activation.rawSuccesses > 0 &&
+      activatedRuntime?.status === "ACTIVE" &&
+      activatedRuntime.activationSourceSuccesses === 2 &&
+      established?.stackCount === 20,
   );
   check(
-    "Semantic Passive uses the actor's actual relevant die for exactly one initial roll",
-    initialRolls === 1 &&
-      state.transcriptEvents.some((event) => event.actionId === passiveAction.id && event.roll?.dieSize === "D12"),
+    "Successful Passive activation starts no cooldown and preserves responses",
+    activatedRuntime?.cooldownRemaining === 0 &&
+      !isActionOnCooldown(state, state.actors[0].id, passiveAction.id) &&
+      state.responsesRemaining[state.actors[0].id] === 2,
   );
   check(
-    "Semantic Passive consumes no ordinary runtime cooldown or cooldown trace",
-    !isActionOnCooldown(state, state.actors[0].id, passiveAction.id) &&
-      state.cooldownTrace[`${state.actors[0].id}:${passiveAction.id}`] === undefined,
-  );
-  check(
-    "Semantic Passive consumes no Response",
-    state.responsesRemaining[state.actors[0].id] === 2 && state.responsesRemaining[state.actors[1].id] === 2,
-  );
-  check(
-    "Semantic Passive is excluded while active non-Passive powers remain selectable",
-    chooseTurnAction(state.actors[0], state, "main")?.id === mainAttack.id &&
-      chooseTurnAction(state.actors[0], state, "power")?.id === activePower.id,
+    "ACTIVE Passive is excluded while active non-Passive powers remain selectable",
+    chooseTurnAction(state.actors[0], state, "power")?.id === activePower.id,
   );
   const stacksBeforeTick = established?.stackCount ?? 0;
   tickTargetTurnEffects(state, state.actors[0].id);
   check(
-    "Automatic Passive stacks degrade by one at the affected target's turn end",
+    "Passive stacks degrade locally without deactivating the source Power",
     state.statusEffects[0]?.stackCount === stacksBeforeTick - 1,
+  );
+  check(
+    "Natural degradation leaves the source Passive ACTIVE",
+    getSemanticPassiveState(state, source.id, "automatic-passive-power")?.status === "ACTIVE",
   );
   for (let turn = 0; turn < 4; turn += 1) tickTargetTurnEffects(state, state.actors[0].id);
   check(
@@ -348,37 +374,70 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
     state.statusEffects[0]?.remainingRounds === 4 && (state.statusEffects[0]?.stackCount ?? 0) > 0,
   );
   check(
-    "Semantic Passive cleanup removes the status without activating economic cooldown metadata",
+    "Target-local cleanup removes only the status without deactivating or cooling the source Passive",
     Boolean(established) &&
       removeStatusEffectById(state, established.id) &&
       state.statusEffects.length === 0 &&
-      !isActionOnCooldown(state, state.actors[0].id, passiveAction.id) &&
-      passiveAction.cooldownRounds === 4,
+      getSemanticPassiveState(state, source.id, "automatic-passive-power")?.status === "ACTIVE" &&
+      getSemanticPassiveState(state, source.id, "automatic-passive-power")?.cooldownRemaining === 0,
   );
 
   const failedSource = actor("failed-passive-source", "players");
   failedSource.actions = [{ ...passiveAction, id: "failed-passive", sourcePacketId: "failed-passive-packet", diceCount: 1 }];
   const failedTarget = actor("failed-passive-target", "monsters");
   const failedState = createCombatState([failedSource], [failedTarget]);
-  failedState.statusEffects = [status({
-    id: "other-source-existing-status",
-    sourceActorId: failedState.actors[1].id,
-    targetActorId: failedState.actors[0].id,
-    sourcePowerId: "other-source-power",
-    sourcePacketId: "other-source-packet",
-  })];
-  let failedRolls = 0;
-  establishSemanticPassivesAtCombatStart(failedState, () => {
-    failedRolls += 1;
-    return 0;
+  const failedResolution = resolveCombatAction({
+    state: failedState,
+    actor: failedState.actors[0],
+    action: failedState.actors[0].actions[0],
+    target: failedState.actors[0],
+    rng: rngFrom([0]),
+    lane: "power",
   });
   check(
-    "Failed initial Passive application preserves other sources and does not enter cooldown or become a free reroll action",
-    failedRolls === 1 &&
-      failedState.statusEffects.length === 1 &&
-      failedState.statusEffects[0]?.id === "other-source-existing-status" &&
-      !isActionOnCooldown(failedState, failedState.actors[0].id, "failed-passive") &&
-      chooseTurnAction(failedState.actors[0], failedState, "power")?.id !== "failed-passive",
+    "Failed activation remains INACTIVE, starts no cooldown, and creates no status",
+    failedResolution.rawSuccesses === 0 &&
+      getSemanticPassiveState(failedState, failedSource.id, "automatic-passive-power")?.status === "INACTIVE" &&
+      getSemanticPassiveState(failedState, failedSource.id, "automatic-passive-power")?.cooldownRemaining === 0 &&
+      failedState.statusEffects.length === 0,
+  );
+  let failedRetryRolls = 0;
+  establishSemanticPassivesAtCombatStart(failedState, () => {
+    failedRetryRolls += 1;
+    return 0.99;
+  });
+  check(
+    "Failed activation receives no free automatic retry but remains ready for a later Power Action",
+    failedRetryRolls === 0 && chooseTurnAction(failedState.actors[0], failedState, "power")?.id === "failed-passive",
+  );
+
+  const multiPacketSource = actor("multi-packet-passive-source", "players");
+  multiPacketSource.attributeDice.Guard = "D12";
+  const siblingPassiveAction = {
+    ...passiveAction,
+    id: "automatic-passive-sibling",
+    sourcePacketId: "automatic-passive-sibling-packet",
+    modifier: { ...passiveAction.modifier!, attribute: "Bravery" as const },
+  };
+  multiPacketSource.actions = [passiveAction, siblingPassiveAction];
+  const multiPacketState = createCombatState(
+    [multiPacketSource],
+    [actor("multi-packet-passive-target", "monsters")],
+  );
+  resolveCombatAction({
+    state: multiPacketState,
+    actor: multiPacketState.actors[0],
+    action: multiPacketState.actors[0].actions[0],
+    target: multiPacketState.actors[0],
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  check(
+    "One Passive Power activation applies every root packet from the stored source result",
+    multiPacketState.statusEffects.map((effect) => effect.sourcePacketId).sort().join(",") ===
+      "automatic-passive-packet,automatic-passive-sibling-packet" &&
+      multiPacketState.semanticPassiveTransitions.filter((transition) =>
+        transition.type === "activationSucceeded").length === 1,
   );
 
   const defeatSource = actor("passive-defeat-source", "players");
@@ -386,7 +445,15 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
   defeatSource.attributeDice.Guard = "D12";
   defeatSource.actions = [passiveAction];
   const defeatTarget = actor("passive-defeat-target", "monsters");
-  const defeatState = createCombatState([defeatSource], [defeatTarget]);
+  const defeatState = createCombatState([defeatSource], [defeatTarget], {
+    semanticPassiveStates: [{
+      actorId: defeatSource.id,
+      powerId: "automatic-passive-power",
+      status: "ACTIVE",
+      activationSourceSuccesses: 2,
+      cooldownRemaining: 0,
+    }],
+  });
   establishSemanticPassivesAtCombatStart(defeatState, rngFrom([0.99]));
   defeatState.actors[0].physicalHpCurrent = 0;
   markDefeatedActors(defeatState);
@@ -422,6 +489,208 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
   check(
     "Legacy Modifier-null Passive removal cooldown remains unchanged",
     isActionOnCooldown(legacyRemovalState, legacyRemovalState.actors[0].id, legacyRemovalAction.id),
+  );
+}
+
+// Source-Power Cleanse, cancellation, and cooldown lifecycle
+{
+  const passive = action({
+    id: "source-scope-passive",
+    name: "Source Scope Passive",
+    sourcePowerId: "source-scope-passive-power",
+    sourcePacketId: "source-scope-passive-primary",
+    targetPolicy: "self",
+    accuracyAttribute: "Guard",
+    diceCount: 1,
+    potency: 2,
+    durationKind: "passive",
+    passiveDuration: true,
+    passive: true,
+    cooldownRounds: 4,
+  });
+  const owner = actor("source-scope-owner", "players");
+  owner.attributeDice.Guard = "D12";
+  owner.actions = [passive];
+  const ally = actor("source-scope-ally", "players");
+  const cleanser = actor("source-scope-cleanser", "monsters");
+  cleanser.attributeDice.Intellect = "D12";
+  const cleanse = action({
+    id: "complete-source-cleanse",
+    name: "Complete Source Cleanse",
+    sourcePowerId: "cleanser-power",
+    sourcePacketId: "cleanser-packet",
+    kind: "cleanse",
+    targetPolicy: "enemy",
+    accuracyAttribute: "Intellect",
+    modifier: undefined,
+    diceCount: 1,
+    targetSourcePowerId: passive.sourcePowerId,
+    cooldownRounds: 0,
+  });
+  cleanser.actions = [cleanse];
+  const state = createCombatState([owner, ally], [cleanser], {
+    captureTranscript: true,
+    semanticPassiveStates: [{
+      actorId: owner.id,
+      powerId: passive.sourcePowerId!,
+      status: "ACTIVE",
+      activationSourceSuccesses: 2,
+      cooldownRemaining: 0,
+    }],
+  });
+  state.statusEffects = [
+    status({
+      id: "source-scope-primary-status",
+      sourceActorId: owner.id,
+      sourcePowerId: passive.sourcePowerId!,
+      sourcePacketId: passive.sourcePacketId!,
+      targetActorId: owner.id,
+    }),
+    status({
+      id: "source-scope-linked-status",
+      sourceActorId: owner.id,
+      sourcePowerId: passive.sourcePowerId!,
+      sourcePacketId: "source-scope-passive-linked",
+      targetActorId: ally.id,
+    }),
+  ];
+  state.defensivePools = [{
+    id: "source-scope-pool",
+    sourceActorId: owner.id,
+    sourceActorName: owner.name,
+    sourceSide: owner.side,
+    sourceActionId: passive.id,
+    sourceActionName: passive.name,
+    sourcePowerId: passive.sourcePowerId,
+    sourcePacketId: passive.sourcePacketId,
+    protectedActorId: ally.id,
+    protectedActorName: ally.name,
+    poolType: "DODGE",
+    woundChannel: null,
+    resistedAttribute: null,
+    remainingPoints: 2,
+    initialPoints: 2,
+    perTriggerCap: 1,
+    remainingRounds: 4,
+    durationKind: "passive",
+    sourceChassis: "UNKNOWN",
+    sourceCommitmentModifier: "STANDARD",
+    createdRound: 0,
+    createdTurnActorId: null,
+    reapplyKey: "source-scope-pool",
+  }];
+
+  const failed = resolveCombatAction({
+    state,
+    actor: state.actors[2],
+    action: cleanse,
+    target: state.actors[0],
+    rng: rngFrom([0.6]),
+    lane: "power",
+  });
+  check(
+    "Source-Power Cleanse below the activation snapshot threshold fails and preserves every effect",
+    failed.rawSuccesses === 1 &&
+      getSemanticPassiveState(state, owner.id, passive.sourcePowerId!)?.status === "ACTIVE" &&
+      getSemanticPassiveState(state, owner.id, passive.sourcePowerId!)?.activationSourceSuccesses === 2 &&
+      state.statusEffects.length === 2 &&
+      state.defensivePools.length === 1,
+  );
+
+  const succeeded = resolveCombatAction({
+    state,
+    actor: state.actors[2],
+    action: cleanse,
+    target: state.actors[0],
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  const cleansedRuntime = getSemanticPassiveState(state, owner.id, passive.sourcePowerId!);
+  check(
+    "Source-Power Cleanse meeting the snapshot removes all packets and pools and clears ACTIVE state",
+    succeeded.rawSuccesses === 2 &&
+      state.statusEffects.length === 0 &&
+      state.defensivePools.length === 0 &&
+      cleansedRuntime?.status === "INACTIVE" &&
+      cleansedRuntime.activationSourceSuccesses === null,
+  );
+  check(
+    "Complete Source-Power Cleanse applies the Passive cooldown exactly once",
+    cleansedRuntime?.cooldownRemaining === 4 &&
+      state.semanticPassiveTransitions.filter((transition) =>
+        transition.actorId === owner.id &&
+        transition.powerId === passive.sourcePowerId &&
+        transition.type === "cooldownApplied").length === 1,
+  );
+  for (let turn = 0; turn < 4; turn += 1) tickActorCooldowns(state, owner.id);
+  check(
+    "Cooldown expiry leaves the Passive INACTIVE and ready without reactivating it",
+    cleansedRuntime?.cooldownRemaining === 0 &&
+      cleansedRuntime.status === "INACTIVE" &&
+      state.statusEffects.length === 0 &&
+      chooseTurnAction(state.actors[0], state, "power")?.id === passive.id,
+  );
+  resolveCombatAction({
+    state,
+    actor: state.actors[0],
+    action: passive,
+    target: state.actors[0],
+    rng: rngFrom([0.99]),
+    lane: "power",
+  });
+  check(
+    "Reactivation after cooldown requires and records a new Power Action activation",
+    getSemanticPassiveState(state, owner.id, passive.sourcePowerId!)?.status === "ACTIVE" &&
+      state.transcriptEvents.some((event) =>
+        event.type === "powerAction" && event.actorId === owner.id && event.actionId === passive.id),
+  );
+
+  const cancelOwner = actor("cancel-owner", "players");
+  cancelOwner.actions = [{ ...passive, sourcePowerId: "cancel-passive-power" }];
+  const cancelOther = actor("cancel-other", "monsters");
+  const cancelState = createCombatState([cancelOwner], [cancelOther], {
+    semanticPassiveStates: [{
+      actorId: cancelOwner.id,
+      powerId: "cancel-passive-power",
+      status: "ACTIVE",
+      activationSourceSuccesses: 2,
+      cooldownRemaining: 0,
+    }],
+  });
+  cancelState.statusEffects = [status({
+    id: "cancel-status",
+    sourceActorId: cancelOwner.id,
+    sourcePowerId: "cancel-passive-power",
+    targetActorId: cancelOwner.id,
+  })];
+  cancelState.currentTurnActorId = cancelOther.id;
+  const rejectedCancellation = cancelSemanticPassive(cancelState, cancelOwner.id, "cancel-passive-power");
+  cancelState.currentTurnActorId = cancelOwner.id;
+  const actionsBeforeCancellation = cancelState.log.length;
+  const responsesBeforeCancellation = cancelState.responsesRemaining[cancelOwner.id];
+  const cancellation = cancelSemanticPassive(cancelState, cancelOwner.id, "cancel-passive-power");
+  const cancelledRuntime = getSemanticPassiveState(cancelState, cancelOwner.id, "cancel-passive-power");
+  check(
+    "Voluntary cancellation is source-turn-only in combat and removes all source-Power effects",
+    rejectedCancellation.reason === "notSourceTurn" &&
+      cancellation.ok &&
+      cancelState.statusEffects.length === 0 &&
+      cancelledRuntime?.status === "INACTIVE" &&
+      cancelledRuntime.activationSourceSuccesses === null,
+  );
+  check(
+    "Voluntary cancellation consumes no action or Response and applies cooldown once",
+    cancelState.log.length === actionsBeforeCancellation &&
+      cancelState.responsesRemaining[cancelOwner.id] === responsesBeforeCancellation &&
+      cancelledRuntime?.cooldownRemaining === 4 &&
+      cancelState.semanticPassiveTransitions.filter((transition) =>
+        transition.actorId === cancelOwner.id &&
+        transition.powerId === "cancel-passive-power" &&
+        transition.type === "cooldownApplied").length === 1,
+  );
+  check(
+    "An already INACTIVE Passive cannot be cancelled again",
+    cancelSemanticPassive(cancelState, cancelOwner.id, "cancel-passive-power").reason === "passiveInactive",
   );
 }
 
@@ -485,11 +754,20 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
   const target = actor("passive-debuff-target", "monsters");
   target.attributeDice.Fortitude = "D4";
   target.actions = [counter];
-  const state = createCombatState([source], [target], { captureTranscript: true });
+  const state = createCombatState([source], [target], {
+    captureTranscript: true,
+    semanticPassiveStates: [{
+      actorId: source.id,
+      powerId: "passive-debuff-power",
+      status: "ACTIVE",
+      activationSourceSuccesses: 2,
+      cooldownRemaining: 0,
+    }],
+  });
   let rngCalls = 0;
   const [establishment] = establishSemanticPassivesAtCombatStart(state, () => {
     rngCalls += 1;
-    return rngCalls === 1 ? 0.99 : 0;
+    return 0;
   });
   const primary = state.statusEffects.find((effect) => effect.sourcePacketId === "passive-debuff-packet");
   const linked = state.statusEffects.find((effect) => effect.sourcePacketId === "passive-linked-packet");
@@ -501,7 +779,7 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
   );
   check(
     "Passive linked packet inherits target-local successes without another roll or resistance gate",
-    rngCalls === 4 &&
+    rngCalls === 3 &&
       establishment?.resolution.resistRolls === 1 &&
       linked?.stackCount === establishment.resolution.hostileSuccessesAfterResist * linkedDebuff.potency,
   );
@@ -510,10 +788,15 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
     linked?.modifierMagnitude === 2 && linked.stackCount === (primary?.stackCount ?? 0) / passiveDebuff.potency * linkedDebuff.potency,
   );
   check(
-    "Combat-start Passive Debuff consumes no Response or Counter cooldown",
+    "Combat-start Passive Debuff reuses its snapshot without a source reroll or Response",
     state.responsesRemaining[state.actors[1].id] === 2 &&
       !isActionOnCooldown(state, state.actors[1].id, counter.id) &&
-      establishment?.resolution.responsesUsed === 0,
+      establishment?.resolution.responsesUsed === 0 &&
+      getSemanticPassiveState(state, source.id, passiveDebuff.sourcePowerId!)?.activationSourceSuccesses === 2 &&
+      state.transcriptEvents.some((event) =>
+        event.actorId === source.id &&
+        event.actionId === passiveDebuff.id &&
+        event.details?.sourceRerolled === false),
   );
 }
 
@@ -557,19 +840,26 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
   const target = actor("auto-sim-target", "monsters");
   target.actions = [main];
   const result = runCombatScenario({
-    name: "semantic Passive automatic lifecycle",
+    name: "semantic Passive prepared-active lifecycle",
     players: [source],
     monsters: [target],
     runs: 1,
     seed: 17,
     maxRounds: 1,
     turnOrder: "playersFirst",
+    semanticPassiveStates: [{
+      actorId: source.id,
+      powerId: "auto-sim-passive-power",
+      status: "ACTIVE",
+      activationSourceSuccesses: 2,
+      cooldownRemaining: 0,
+    }],
   });
   const events = result.firstRunTranscript?.events ?? [];
   const passiveIndex = events.findIndex((event) => event.actionId === passive.id && event.lane === "combatStart");
   const firstTurnIndex = events.findIndex((event) => event.type === "turnStart");
   check(
-    "Automated simulation establishes semantic Passive before the first ordinary turn",
+    "Automated simulation establishes an explicit ACTIVE semantic Passive before the first ordinary turn",
     passiveIndex >= 0 && firstTurnIndex >= 0 && passiveIndex < firstTurnIndex,
   );
   check(
@@ -590,6 +880,64 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
       result.metrics.mainActionsUsed.players === playerMainEvents &&
       result.metrics.powerActionsUsed.players === playerPowerEvents &&
       !result.metrics.cooldownTrace[`${source.id}:${passive.id}`],
+  );
+
+  const inactiveSource = actor("auto-sim-inactive-source", "players");
+  inactiveSource.actions = [passive, main];
+  const inactiveTarget = actor("auto-sim-inactive-target", "monsters");
+  inactiveTarget.actions = [main];
+  const inactiveResult = runCombatScenario({
+    name: "semantic Passive inactive activation lifecycle",
+    players: [inactiveSource],
+    monsters: [inactiveTarget],
+    runs: 1,
+    seed: 17,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  check(
+    "Automated INACTIVE activation consumes a Power Action and stores its successful snapshot",
+    inactiveResult.metrics.powerActionsUsed.players === 1 &&
+      inactiveResult.semanticPassiveRuntime.transitions.some((transition) =>
+        transition.actorId === inactiveSource.id &&
+        transition.powerId === passive.sourcePowerId &&
+        transition.type === "activationSucceeded" &&
+        (transition.activationSourceSuccesses ?? 0) > 0) &&
+      inactiveResult.semanticPassiveRuntime.finalStates.some((runtime) =>
+        runtime.actorId === inactiveSource.id &&
+        runtime.powerId === passive.sourcePowerId &&
+        runtime.status === "ACTIVE" &&
+        (runtime.activationSourceSuccesses ?? 0) > 0),
+  );
+
+  const failedPassive = { ...passive, id: "auto-sim-failed-passive", diceCount: 0 };
+  const failedSource = actor("auto-sim-failed-source", "players");
+  failedSource.actions = [failedPassive, main];
+  const failedTarget = actor("auto-sim-failed-target", "monsters");
+  failedTarget.actions = [main];
+  const failedResult = runCombatScenario({
+    name: "semantic Passive failed activation lifecycle",
+    players: [failedSource],
+    monsters: [failedTarget],
+    runs: 1,
+    seed: 17,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  check(
+    "Automated failed activation still consumes its Power Action without cooldown or free establishment",
+    failedResult.metrics.powerActionsUsed.players === 1 &&
+      failedResult.semanticPassiveRuntime.transitions.filter((transition) =>
+        transition.actorId === failedSource.id &&
+        transition.powerId === passive.sourcePowerId &&
+        transition.type === "activationFailed").length === 1 &&
+      failedResult.semanticPassiveRuntime.finalStates.some((runtime) =>
+        runtime.actorId === failedSource.id &&
+        runtime.powerId === passive.sourcePowerId &&
+        runtime.status === "INACTIVE" &&
+        runtime.cooldownRemaining === 0) &&
+      !failedResult.firstRunTranscript?.events.some((event) =>
+        event.actionId === failedPassive.id && event.lane === "combatStart"),
   );
 }
 
@@ -835,5 +1183,5 @@ check(
     rejectedWithStableIds.effectPackets[0].id === rejectedIdsBefore[1],
 );
 
-assert.equal(assertionCount, 78, `Expected exactly 78 semantic assertions, got ${assertionCount}.`);
+assert.equal(assertionCount, 92, `Expected exactly 92 semantic assertions, got ${assertionCount}.`);
 console.log(`augment-debuff-three-field-semantic smoke passed (${assertionCount} assertions).`);

@@ -1,15 +1,22 @@
 import { diceSides, expectedSuccesses, rollDice, successCountForRoll, type Rng } from "./dice";
 import {
   applyActionCooldown,
+  completelyCleanseSemanticPassive,
   emitTranscriptEvent,
+  getSemanticPassiveState,
+  getSemanticPassiveStateForAction,
   getAttributeModifier,
   getLivingActors,
   getOppositeSide,
   getProtectionModifier,
   hasActiveMovementDenial,
   isActionOnCooldown,
+  isSemanticPassiveAction,
   isVoluntaryMovementAction,
   markDefeatedActors,
+  markSemanticPassiveActivationFailed,
+  markSemanticPassiveActivationSucceeded,
+  markSemanticPassiveCombatStartEstablished,
   createEmptyDefensivePoolMetrics,
   createEmptyDefensivePoolSideTotals,
   createEmptyOngoingPressureMetrics,
@@ -75,14 +82,6 @@ export function threeFieldAugmentDebuffStatusId(params: {
     params.attribute,
     params.effectFamily,
   ])}`;
-}
-
-function isSemanticPassiveAction(action: CombatAction): boolean {
-  return Boolean(
-    action.passive &&
-    action.passiveDuration &&
-    action.modifier?.semanticFormat === "augmentDebuffThreeFieldV1",
-  );
 }
 
 export type ManualAssistDeclarationParams = {
@@ -1826,6 +1825,16 @@ function resolveTargets(state: CombatState, actor: CombatActor, action: CombatAc
   ];
 }
 
+function semanticPassivePrimaryTarget(
+  state: CombatState,
+  actor: CombatActor,
+  action: CombatAction,
+): CombatActor | null {
+  if (action.targetPolicy === "self" || action.targetPolicy === "allAllies") return actor;
+  const targetSide = action.targetPolicy === "ally" ? actor.side : getOppositeSide(actor.side);
+  return getLivingActors(state, targetSide)[0] ?? null;
+}
+
 function actionUsesAoeAbstraction(action: CombatAction): boolean {
   return action.targetPolicy === "allAllies" || action.targetPolicy === "allEnemies" || action.rangeCategory === "AOE";
 }
@@ -3413,6 +3422,7 @@ function resolveSingleTargetAction(params: {
   gateAlreadyResolved?: boolean;
   primaryAppliedSuccesses?: number;
   linkedPrimaryContext?: LinkedPrimaryContext;
+  sourceSuccessesOverride?: number | null;
 }): CombatResolutionMetrics {
   const { state, actor, action, target, rng, lane } = params;
   const gateAlreadyResolved = Boolean(params.gateAlreadyResolved || params.fromSecondary);
@@ -3424,6 +3434,9 @@ function resolveSingleTargetAction(params: {
   if (actorAttributeModifier < 0) metrics.debuffedActions = 1;
   const inheritedPrimaryAppliedSuccesses = Math.max(0, Math.trunc(params.primaryAppliedSuccesses ?? 0));
   const skipOwnRoll = Boolean(params.fromSecondary && (action.skipOwnRoll || action.usesPrimaryAppliedSuccesses));
+  const hasSourceSuccessesOverride =
+    typeof params.sourceSuccessesOverride === "number" &&
+    Number.isFinite(params.sourceSuccessesOverride);
   const poolForCounterDeclaration = action.pool ?? "physical";
   const currentAssistTriggerId = assistTriggerId({ state, triggeringAlly: actor, triggeringAction: action, targetActor: target });
   const counterDeclaration =
@@ -3436,13 +3449,17 @@ function resolveSingleTargetAction(params: {
   addMetrics(metrics, counterDeclaration.metrics);
   const counterRoll = rollDeclaredCounter(state, target, actor, counterDeclaration.declared, rng);
   const diceCount = Math.max(0, action.diceCount);
-  const roll = skipOwnRoll
+  const roll = skipOwnRoll || hasSourceSuccessesOverride
     ? null
     : rollDice(diceCount, getActorDie(actor, accuracyAttribute), rng, actorAttributeModifier);
   const rollSummary = roll
     ? summarizeRoll({ actor, reason: action.name, attribute: accuracyAttribute, roll })
     : null;
-  metrics.rawSuccesses = skipOwnRoll ? inheritedPrimaryAppliedSuccesses : (roll?.successes ?? 0);
+  metrics.rawSuccesses = hasSourceSuccessesOverride
+    ? Math.max(0, Math.trunc(params.sourceSuccessesOverride ?? 0))
+    : skipOwnRoll
+      ? inheritedPrimaryAppliedSuccesses
+      : (roll?.successes ?? 0);
   if (roll && rollSummary) {
     emitTranscriptEvent(state, {
       type: rollEventType(action),
@@ -3456,6 +3473,20 @@ function resolveSingleTargetAction(params: {
       message: `Roll: ${rollText(rollSummary)}`,
       roll: rollSummary,
       details: { actionKind: action.kind, potency: action.potency, pool: action.pool ?? null },
+    });
+  }
+  if (hasSourceSuccessesOverride && !params.fromSecondary) {
+    emitTranscriptEvent(state, {
+      type: "statusCreated",
+      actorId: actor.id,
+      actorName: actor.name,
+      targetId: target.id,
+      targetName: target.name,
+      actionId: action.id,
+      actionName: action.name,
+      lane,
+      message: `Passive source snapshot: ${action.name} uses ${metrics.rawSuccesses} stored activation success${metrics.rawSuccesses === 1 ? "" : "es"}; no source roll is made.`,
+      details: { storedActivationSourceSuccesses: metrics.rawSuccesses, sourceRerolled: false },
     });
   }
 
@@ -4275,6 +4306,38 @@ function resolveSingleTargetAction(params: {
       details: { positionalAbstraction: true },
     });
   } else if (action.kind === "cleanse") {
+    if (action.targetSourcePowerId) {
+      const runtime = getSemanticPassiveState(state, target.id, action.targetSourcePowerId);
+      const threshold = runtime?.activationSourceSuccesses ?? null;
+      const result = completelyCleanseSemanticPassive({
+        state,
+        sourceActorId: target.id,
+        powerId: action.targetSourcePowerId,
+        cleanseSuccesses: activeAppliedSuccesses,
+        cleanseActionId: action.id,
+      });
+      metrics.mitigationApplied = result.ok ? result.removedStatuses + result.removedPools : 0;
+      if (!result.ok) metrics.wastedActions = 1;
+      emitTranscriptEvent(state, {
+        type: result.ok ? "stackChanged" : "actionSkipped",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: result.ok
+          ? `Complete Passive Cleanse: ${action.name} rolled ${activeAppliedSuccesses} successes against threshold ${threshold}; ${action.targetSourcePowerId} is removed at source scope.`
+          : `Complete Passive Cleanse failed: ${action.name} rolled ${activeAppliedSuccesses} successes against threshold ${threshold ?? "unavailable"}; the Passive and all emitted effects remain active.`,
+        details: {
+          sourcePowerId: action.targetSourcePowerId,
+          cleanseSuccesses: activeAppliedSuccesses,
+          threshold,
+          result,
+        },
+      });
+    } else {
     const cleanseUnits = Math.max(1, activeAppliedSuccesses * Math.max(1, action.potency));
     const removable = selectCleanableEffect(
       state.statusEffects.filter(
@@ -4372,6 +4435,7 @@ function resolveSingleTargetAction(params: {
         lane,
         message: `Action wasted: ${action.name} found no removable hostile effect on ${target.name}.`,
       });
+    }
     }
   }
 
@@ -4494,6 +4558,110 @@ export function resolveCombatAction(params: {
     });
     return metrics;
   }
+  const semanticPassive = isSemanticPassiveAction(action);
+  const passiveRuntime = semanticPassive
+    ? getSemanticPassiveStateForAction(state, actor, action)
+    : null;
+  let semanticPassiveSourceSuccesses: number | null = null;
+  if (semanticPassive) {
+    if (!passiveRuntime) {
+      metrics.wastedActions = 1;
+      emitTranscriptEvent(state, {
+        type: "actionSkipped",
+        actorId: actor.id,
+        actorName: actor.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `${action.name} has no semantic Passive runtime state and cannot resolve.`,
+        details: { reason: "missingSemanticPassiveRuntimeState" },
+      });
+      return metrics;
+    }
+    if (lane === "combatStart") {
+      if (passiveRuntime.status !== "ACTIVE" || !passiveRuntime.activationSourceSuccesses) {
+        metrics.wastedActions = 1;
+        return metrics;
+      }
+      semanticPassiveSourceSuccesses = passiveRuntime.activationSourceSuccesses;
+      markSemanticPassiveCombatStartEstablished(state, actor, action);
+    } else if (lane === "power") {
+      if (passiveRuntime.status !== "INACTIVE" || passiveRuntime.cooldownRemaining > 0) {
+        metrics.wastedActions = 1;
+        emitTranscriptEvent(state, {
+          type: "actionSkipped",
+          actorId: actor.id,
+          actorName: actor.name,
+          actionId: action.id,
+          actionName: action.name,
+          lane,
+          message: `${action.name} cannot activate while ${passiveRuntime.status.toLowerCase()} with cooldown ${passiveRuntime.cooldownRemaining}.`,
+          details: { reason: "semanticPassiveNotReady", ...passiveRuntime },
+        });
+        return metrics;
+      }
+      recordActionUse(state, actor, action);
+      const accuracyAttribute = effectiveAccuracyAttribute(actor, target, action);
+      const modifier = getAttributeModifier(state, actor.id, accuracyAttribute);
+      const sourceRoll = rollDice(
+        Math.max(0, action.diceCount),
+        getActorDie(actor, accuracyAttribute),
+        rng,
+        modifier,
+      );
+      const sourceRollSummary = summarizeRoll({
+        actor,
+        reason: `${action.name} activation`,
+        attribute: accuracyAttribute,
+        roll: sourceRoll,
+      });
+      semanticPassiveSourceSuccesses = sourceRoll.successes;
+      emitTranscriptEvent(state, {
+        type: rollEventType(action),
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: target.id,
+        targetName: target.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `Passive activation roll: ${rollText(sourceRollSummary)}`,
+        roll: sourceRollSummary,
+        details: { passiveActivation: true, sourceSuccesses: sourceRoll.successes },
+      });
+      if (sourceRoll.successes <= 0) {
+        metrics.rawSuccesses = sourceRoll.successes;
+        emitTranscriptEvent(state, {
+          type: "powerAction",
+          actorId: actor.id,
+          actorName: actor.name,
+          targetId: target.id,
+          targetName: target.name,
+          actionId: action.id,
+          actionName: action.name,
+          lane,
+          message: `Power Action: ${actor.name} attempts to activate ${action.name}, but the source roll produces no successes.`,
+          details: { passiveActivation: true, sourceSuccesses: 0 },
+        });
+        markSemanticPassiveActivationFailed(state, actor, action);
+        return metrics;
+      }
+      markSemanticPassiveActivationSucceeded(state, actor, action, sourceRoll.successes);
+    } else {
+      metrics.wastedActions = 1;
+      emitTranscriptEvent(state, {
+        type: "actionSkipped",
+        actorId: actor.id,
+        actorName: actor.name,
+        actionId: action.id,
+        actionName: action.name,
+        lane,
+        message: `${action.name} may activate only as a Power Action or establish from explicit ACTIVE state at combat start.`,
+        details: { reason: "illegalSemanticPassiveLane" },
+      });
+      return metrics;
+    }
+  }
   if (hasActiveMovementDenial(state, actor.id) && isVoluntaryMovementAction(action)) {
     metrics.wastedActions = 1;
     emitTranscriptEvent(state, {
@@ -4511,7 +4679,6 @@ export function resolveCombatAction(params: {
   if (action.runtimeCleanup) {
     return resolveUniversalCleanupAction({ state, actor, action, rng, lane });
   }
-  const semanticPassive = isSemanticPassiveAction(action);
   if (!semanticPassive) recordActionUse(state, actor, action);
 
   const targets = resolveTargets(state, actor, action, target);
@@ -4548,7 +4715,67 @@ export function resolveCombatAction(params: {
     metrics.positionalAbstractionsUsed += 1;
   }
   for (const resolvedTarget of targets) {
-    addMetrics(metrics, resolveSingleTargetAction({ state, actor, action, target: resolvedTarget, rng, lane }));
+    addMetrics(metrics, resolveSingleTargetAction({
+      state,
+      actor,
+      action,
+      target: resolvedTarget,
+      rng,
+      lane,
+      sourceSuccessesOverride: semanticPassiveSourceSuccesses,
+    }));
+  }
+  if (semanticPassive && lane === "power" && action.sourcePowerId) {
+    const siblingActions = actor.actions.filter(
+      (candidate) =>
+        candidate.id !== action.id &&
+        candidate.sourcePowerId === action.sourcePowerId &&
+        isSemanticPassiveAction(candidate),
+    );
+    for (const sibling of siblingActions) {
+      const siblingPrimaryTarget = semanticPassivePrimaryTarget(state, actor, sibling);
+      if (!siblingPrimaryTarget) {
+        emitTranscriptEvent(state, {
+          type: "actionSkipped",
+          actorId: actor.id,
+          actorName: actor.name,
+          actionId: sibling.id,
+          actionName: sibling.name,
+          lane,
+          message: `Passive activation packet skipped: ${sibling.name} has no legal target.`,
+          details: { sourcePowerId: action.sourcePowerId, passiveActivation: true },
+        });
+        continue;
+      }
+      emitTranscriptEvent(state, {
+        type: "statusCreated",
+        actorId: actor.id,
+        actorName: actor.name,
+        targetId: siblingPrimaryTarget.id,
+        targetName: siblingPrimaryTarget.name,
+        actionId: sibling.id,
+        actionName: sibling.name,
+        lane,
+        message: `Passive activation packet: ${sibling.name} shares ${semanticPassiveSourceSuccesses} stored source successes from ${action.name}.`,
+        details: {
+          sourcePowerId: action.sourcePowerId,
+          passiveActivation: true,
+          sourceSuccesses: semanticPassiveSourceSuccesses,
+          additionalCapacitySpent: false,
+        },
+      });
+      for (const siblingTarget of resolveTargets(state, actor, sibling, siblingPrimaryTarget)) {
+        addMetrics(metrics, resolveSingleTargetAction({
+          state,
+          actor,
+          action: sibling,
+          target: siblingTarget,
+          rng,
+          lane,
+          sourceSuccessesOverride: semanticPassiveSourceSuccesses,
+        }));
+      }
+    }
   }
 
   if (
