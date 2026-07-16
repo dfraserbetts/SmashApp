@@ -4,6 +4,7 @@ import { FormEvent, type CSSProperties, useEffect, useMemo, useState } from "rea
 import { useParams, useRouter } from "next/navigation";
 
 import { CampaignNav } from "@/app/components/CampaignNav";
+import { RestrictionEditor } from "@/app/components/restrictions/RestrictionEditor";
 import {
   CHARACTER_SHEET_THEME_LABELS,
   CharacterSheetPreview,
@@ -90,6 +91,7 @@ import {
   getCharacterPowerPrimaryDefenceLabel,
   isCharacterPowerPacketTimingAuthorable,
   isCharacterPowerSecondaryDiceAuthored,
+  prepareCharacterPowerIdsForPersistence,
   readCharacterPowerAttachedHostileEntryPattern,
   SECONDARY_DEPENDENCY_MODE_LABELS,
   SECONDARY_DEPENDENCY_MODE_OPTIONS,
@@ -98,6 +100,16 @@ import {
   validateCharacterPowers,
   type CharacterPower,
 } from "@/lib/characterBuilder/powers";
+import { createRestrictionDraftFromDefinition } from "@/lib/restrictions/editorModel";
+import {
+  getPlayerPowerRestrictionDraftKey,
+  getPlayerPowerRestrictionSummaryLabel,
+  initializePlayerPowerRestrictionDrafts,
+  materializePlayerPowerRestrictionDrafts,
+  reconcilePlayerPowerRestrictionDrafts,
+  rehydratePlayerPowerRestrictionDrafts,
+  type PlayerPowerRestrictionDraftMap,
+} from "@/lib/restrictions/playerPowerEditorIntegration";
 import {
   ROLEPLAY_DICE_COUNT_OPTIONS,
   ROLEPLAY_INTENTION_OPTIONS,
@@ -486,6 +498,13 @@ function displayName(name: string | null | undefined) {
 }
 
 function makeDraft(character: CharacterBuilderRecord): BuilderDraft {
+  const normalizedBuilderData = normalizeBuilderData(
+    character.builderData ?? defaultBuilderData(),
+  );
+  const preparedPowerIds = prepareCharacterPowerIdsForPersistence({
+    powers: normalizedBuilderData.powers,
+    signatureMove: normalizedBuilderData.signatureMove,
+  });
   return {
     name: displayName(character.name) === "UNNAMED" ? "" : character.name,
     imageUrl: character.imageUrl ?? "",
@@ -493,7 +512,11 @@ function makeDraft(character: CharacterBuilderRecord): BuilderDraft {
     race: character.race ?? "",
     description: character.description ?? "",
     level: String(character.level || 1),
-    builderData: normalizeBuilderData(character.builderData ?? defaultBuilderData()),
+    builderData: {
+      ...normalizedBuilderData,
+      powers: preparedPowerIds.powers,
+      signatureMove: preparedPowerIds.signatureMove,
+    },
   };
 }
 
@@ -1249,6 +1272,7 @@ export default function CharacterBuilderPage() {
   const [selectedBackpackItemId, setSelectedBackpackItemId] = useState("");
   const [pendingHandEquipItemId, setPendingHandEquipItemId] = useState("");
   const [collapsedPowerKeys, setCollapsedPowerKeys] = useState<Record<string, boolean>>({});
+  const [restrictionDrafts, setRestrictionDrafts] = useState<PlayerPowerRestrictionDraftMap>({});
   const [modifierConversionDrafts, setModifierConversionDrafts] = useState<
     Record<string, ModifierConversionDraft>
   >({});
@@ -1296,6 +1320,19 @@ export default function CharacterBuilderPage() {
       ? applyAutomaticExpectedTargetsToPower(builderData.signatureMove, expectedTargetTeamContext)
       : null,
   }), [builderData, expectedTargetTeamContext]);
+  const restrictionMaterialization = useMemo(
+    () => materializePlayerPowerRestrictionDrafts(
+      builderDataWithAutomaticExpectedTargets,
+      restrictionDrafts,
+    ),
+    [builderDataWithAutomaticExpectedTargets, restrictionDrafts],
+  );
+  const restrictionValidationErrors = useMemo(
+    () => restrictionMaterialization.ok
+      ? []
+      : restrictionMaterialization.issues.map((issue) => issue.message),
+    [restrictionMaterialization],
+  );
   const selectedBackpackItem = useMemo(
     () => backpackItems.find((item) => item.id === selectedBackpackItemId) ?? null,
     [backpackItems, selectedBackpackItemId],
@@ -1446,8 +1483,9 @@ export default function CharacterBuilderPage() {
       ...builderValidationErrors,
       ...powerValidationErrors,
       ...signatureMoveValidationErrors,
+      ...restrictionValidationErrors,
     ],
-    [builderValidationErrors, powerValidationErrors, signatureMoveValidationErrors],
+    [builderValidationErrors, powerValidationErrors, restrictionValidationErrors, signatureMoveValidationErrors],
   );
   const canSave =
     canEdit &&
@@ -1493,8 +1531,12 @@ export default function CharacterBuilderPage() {
         throw new Error(data.error ?? "Failed to load character builder.");
       }
 
+      const loadedDraft = makeDraft(data.character);
       setPayload(data);
-      setDraft(makeDraft(data.character));
+      setDraft(loadedDraft);
+      setRestrictionDrafts(
+        initializePlayerPowerRestrictionDrafts(loadedDraft.builderData),
+      );
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load builder.");
     } finally {
@@ -1578,9 +1620,14 @@ export default function CharacterBuilderPage() {
   }
 
   function updatePowers(powers: CharacterPower[]) {
+    const nextPowers = powers.map((power, index) => ({ ...power, sortOrder: index }));
     updateBuilderData({
-      powers: powers.map((power, index) => ({ ...power, sortOrder: index })),
+      powers: nextPowers,
     });
+    setRestrictionDrafts((current) => reconcilePlayerPowerRestrictionDrafts(
+      current,
+      { ...builderData, powers: nextPowers },
+    ));
   }
 
   function updateRoleplayAbilities(roleplayAbilities: RoleplayAbility[]) {
@@ -1648,9 +1695,35 @@ export default function CharacterBuilderPage() {
   }
 
   function updateSignatureMove(power: CharacterPower | null) {
+    const nextSignatureMove = power
+      ? reconcilePowerPacketTimingForUi({ ...power, sortOrder: 0 })
+      : null;
     updateBuilderData({
-      signatureMove: power ? reconcilePowerPacketTimingForUi({ ...power, sortOrder: 0 }) : null,
+      signatureMove: nextSignatureMove,
     });
+    setRestrictionDrafts((current) => reconcilePlayerPowerRestrictionDrafts(
+      current,
+      { ...builderData, signatureMove: nextSignatureMove },
+    ));
+  }
+
+  function updatePowerRestrictionDraft(
+    powerIndex: number,
+    power: CharacterPower,
+    nextRestrictionDraft: ReturnType<typeof createRestrictionDraftFromDefinition>,
+  ) {
+    const key = getPlayerPowerRestrictionDraftKey(power);
+    if (!key) {
+      setError("This Power needs a stable identity before its Restriction can be edited.");
+      return;
+    }
+    if (powerIndex === SIGNATURE_MOVE_POWER_INDEX && !builderData.signatureMove) {
+      updateSignatureMove(power);
+    }
+    setRestrictionDrafts((current) => ({
+      ...current,
+      [key]: nextRestrictionDraft,
+    }));
   }
 
   function addPower() {
@@ -1887,12 +1960,20 @@ export default function CharacterBuilderPage() {
                   typeof power.descriptorChassisConfig?.releaseBehaviour === "string"
                     ? power.descriptorChassisConfig.releaseBehaviour
                     : "";
+                const restrictionDraftKey = getPlayerPowerRestrictionDraftKey(power);
+                const restrictionDraft = restrictionDraftKey
+                  ? restrictionDrafts[restrictionDraftKey]
+                    ?? createRestrictionDraftFromDefinition(power.restriction)
+                  : createRestrictionDraftFromDefinition(power.restriction);
+                const restrictionSummary = getPlayerPowerRestrictionSummaryLabel(
+                  restrictionDraft,
+                );
                 const powerCollapseKey = getCharacterPowerCollapseKey(power, powerIndex);
                 const powerCollapsed = collapsedPowerKeys[powerCollapseKey] ?? defaultCollapsed;
-                const powerBodyId = `character-power-body-${powerIndex}`;
+                const powerBodyId = `character-power-body-${power.id ?? powerIndex}`;
                 return (
                   <article
-                    key={`${power.sortOrder}-${powerIndex}`}
+                    key={power.id ?? `${power.sortOrder}-${powerIndex}`}
                     className="rounded-lg border border-zinc-800 bg-black p-3"
                     data-testid="character-power-card"
                   >
@@ -1954,6 +2035,14 @@ export default function CharacterBuilderPage() {
                           </div>
                         )}
                       </button>
+                      {powerCollapsed ? (
+                        <div
+                          className="shrink-0 rounded border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-xs text-zinc-300"
+                          data-testid="character-power-collapsed-restriction-summary"
+                        >
+                          {restrictionSummary}
+                        </div>
+                      ) : null}
                       {allowRemove ? (
                       <button
                         type="button"
@@ -2310,6 +2399,29 @@ export default function CharacterBuilderPage() {
                           className="mt-1 min-h-20 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                         />
                       </label>
+                    </div>
+
+                    <div
+                      className="mt-4"
+                      data-testid="character-power-whole-restriction-editor"
+                    >
+                      <p className="mb-2 text-xs text-zinc-400">
+                        This Restriction applies to the complete Power, not an individual effect packet.
+                      </p>
+                      <RestrictionEditor
+                        draft={restrictionDraft}
+                        onDraftChange={(nextRestrictionDraft) => updatePowerRestrictionDraft(
+                          powerIndex,
+                          power,
+                          nextRestrictionDraft,
+                        )}
+                        consumerNoun="Power"
+                        disabled={!canEdit || saving}
+                        idPrefix={`player-power-restriction-${power.id ?? powerIndex}`}
+                        onConfirmReplace={() => window.confirm(
+                          `Replace the existing Restriction on ${power.name.trim() || powerFallbackName}? The existing definition will be replaced when the character is saved.`,
+                        )}
+                      />
                     </div>
 
                     <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/60 p-3">
@@ -3714,6 +3826,9 @@ export default function CharacterBuilderPage() {
     if (blockingSaveErrors.length > 0) {
       throw new Error(`Resolve blocking Character Builder validation errors before giving items: ${blockingSaveErrors.join(" ")}`);
     }
+    if (!restrictionMaterialization.ok) {
+      throw new Error("Restriction drafts could not be materialized for equipment sync.");
+    }
 
     const res = await fetch(builderApiUrl, {
       method: "PATCH",
@@ -3726,7 +3841,7 @@ export default function CharacterBuilderPage() {
         race: draft.race,
         description: draft.description,
         level: Number(draft.level),
-        builderData: builderDataWithAutomaticExpectedTargets,
+        builderData: restrictionMaterialization.builderData,
       }),
     });
       const data = (await res.json().catch(() => ({}))) as {
@@ -3754,7 +3869,9 @@ export default function CharacterBuilderPage() {
           }
         : current,
     );
-    setDraft(makeDraft(savedCharacter));
+    const savedDraft = makeDraft(savedCharacter);
+    setDraft(savedDraft);
+    setRestrictionDrafts(rehydratePlayerPowerRestrictionDrafts(savedDraft.builderData));
   }
 
   async function handleBackpackTransfer(event: FormEvent<HTMLFormElement>) {
@@ -3810,6 +3927,10 @@ export default function CharacterBuilderPage() {
       setError(`Resolve blocking Character Builder validation errors before saving: ${blockingSaveErrors.join(" ")}`);
       return;
     }
+    if (!restrictionMaterialization.ok) {
+      setError("Restriction drafts could not be materialized for save.");
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -3826,7 +3947,7 @@ export default function CharacterBuilderPage() {
           race: draft.race,
           description: draft.description,
           level: Number(draft.level),
-          builderData: builderDataWithAutomaticExpectedTargets,
+          builderData: restrictionMaterialization.builderData,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -3853,7 +3974,9 @@ export default function CharacterBuilderPage() {
             }
           : current,
       );
-      setDraft(makeDraft(savedCharacter));
+      const savedDraft = makeDraft(savedCharacter);
+      setDraft(savedDraft);
+      setRestrictionDrafts(rehydratePlayerPowerRestrictionDrafts(savedDraft.builderData));
       setMessage("Character details saved.");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Failed to save character.");

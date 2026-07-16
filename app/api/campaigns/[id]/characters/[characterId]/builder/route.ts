@@ -24,6 +24,7 @@ import {
   validateCharacterPowers,
 } from "@/lib/characterBuilder/powers";
 import { getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError } from "@/lib/powers/authoringRules";
+import { validateRawPlayerPowerRestrictionWrite } from "@/lib/restrictions/playerPowerEditorIntegration";
 import {
   applyAutomaticExpectedTargetsToPower,
   applyAutomaticExpectedTargetsToPowers,
@@ -438,6 +439,19 @@ export async function PATCH(
     const authoringError = getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError(body.builderData);
     if (authoringError) {
       return NextResponse.json({ error: authoringError }, { status: 400 });
+    }
+    const restrictionWriteIssue = validateRawPlayerPowerRestrictionWrite(
+      body.builderData,
+      campaignId,
+    );
+    if (restrictionWriteIssue) {
+      return NextResponse.json(
+        {
+          error: restrictionWriteIssue.clientMessage,
+          code: restrictionWriteIssue.code,
+        },
+        { status: 400 },
+      );
     }
     const name = normalizeDisplayName(body.name);
     const imageUrl = normalizeOptionalString(body.imageUrl, 500);
