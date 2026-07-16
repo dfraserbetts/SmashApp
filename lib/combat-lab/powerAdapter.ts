@@ -558,6 +558,7 @@ export function adaptPowerToCombatActions(
       : `${power.id ?? power.name}:${packet.packetIndex ?? actions.length}`;
     const durationKind = durationKindForPacket(packet);
     const passiveDuration = durationKind === "passive";
+    const semanticPassive = isThreeFieldAugmentDebuff && passiveDuration;
     const rollAttributeResolution = resolvePowerRollAttribute({
       power,
       packet,
@@ -704,7 +705,7 @@ export function adaptPowerToCombatActions(
       durationKind,
       durationSource: durationKind === "instant" ? "defaulted" : "authored",
       passiveDuration,
-      passive: undefined,
+      passive: semanticPassive || undefined,
       counterMode: power.counterMode === "YES",
       cooldownActionId: actionId,
       abstractionNotes: [

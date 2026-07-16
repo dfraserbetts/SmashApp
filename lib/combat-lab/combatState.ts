@@ -639,6 +639,7 @@ export function applyActionCooldown(state: CombatState, actor: CombatActor, acti
 
 function applyPassiveStatusRemovalCooldown(state: CombatState, effect: CombatState["statusEffects"][number]) {
   if (!effect.passiveDuration) return;
+  if (effect.semanticFormat === "augmentDebuffThreeFieldV1") return;
   const sourceActor = state.actors.find((actor) => actor.id === effect.sourceActorId);
   if (!sourceActor || sourceActor.defeated) return;
   const cooldownActionId = effect.sourceCooldownActionId ?? effect.sourceActionId;
@@ -685,7 +686,7 @@ export function removeStatusEffectById(state: CombatState, effectId: string): bo
 
 export function sampleActorCooldownAvailability(state: CombatState, actor: CombatActor) {
   for (const action of actor.actions) {
-    if (action.cooldownRounds <= 0) continue;
+    if (action.cooldownRounds <= 0 || action.passive) continue;
     const trace = ensureCooldownTrace(state, actor, action);
     if (isActionOnCooldown(state, actor.id, action.id)) {
       trace.unavailableTurns += 1;

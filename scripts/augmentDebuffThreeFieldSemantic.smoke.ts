@@ -8,10 +8,15 @@ import {
 } from "../lib/characterBuilder/powers";
 import { resolveCombatAction } from "../lib/combat-lab/actionResolver";
 import {
+  establishSemanticPassivesAtCombatStart,
+  runCombatScenario,
+} from "../lib/combat-lab/autoSimulator";
+import {
   createCombatState,
   getAttributeModifier,
   getAttributeModifierLaneBreakdown,
   isActionOnCooldown,
+  markDefeatedActors,
   removeStatusEffectById,
   tickTargetTurnEffects,
 } from "../lib/combat-lab/combatState";
@@ -135,6 +140,7 @@ function adaptedPower(params: {
   name?: string;
   intention?: "AUGMENT" | "DEBUFF";
   modifier?: number | null;
+  passive?: boolean;
 } = {}) {
   const intention = params.intention ?? "AUGMENT";
   const effectPacket: EffectPacket = {
@@ -144,6 +150,8 @@ function adaptedPower(params: {
     type: intention,
     targetedAttribute: "GUARD",
     modifier: params.modifier === undefined ? 3 : params.modifier,
+    effectDurationType: params.passive ? "PASSIVE" : "UNTIL_TARGET_NEXT_TURN",
+    effectDurationTurns: null,
     detailsJson: { statTarget: "GUARD" },
   };
   const power: Power = {
@@ -238,6 +246,351 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
   const linkedStatus = linkedState.statusEffects.find((effect) => effect.sourcePacketId === "packet-linked");
   check("Linked packet inherits applied successes", linkedStatus?.stackCount === (primaryStatus?.stackCount ?? 0) * 4);
   check("Linked Modifier is not multiplied", linkedStatus?.modifierMagnitude === 5 && getAttributeModifier(linkedState, source.id, "Attack") === 5);
+}
+
+// Semantic Passive runtime establishment
+{
+  const semanticAdaptation = adaptedPower({ passive: true });
+  const semanticPassive = semanticAdaptation.actions[0];
+  check(
+    "Semantic Passive hydration preserves economic cooldown and marks automatic runtime behavior",
+    semanticPassive?.passive === true &&
+      semanticPassive.passiveDuration === true &&
+      semanticPassive.durationKind === "passive" &&
+      semanticPassive.cooldownRounds === 1,
+  );
+  const legacyPassive = adaptedPower({ modifier: null, passive: true }).actions[0];
+  check(
+    "Legacy Modifier-null Passive hydration remains an ordinary usable passive-duration action",
+    legacyPassive?.passive !== true && legacyPassive?.passiveDuration === true && legacyPassive?.cooldownRounds === 1,
+  );
+
+  const passiveAction = action({
+    id: "automatic-passive-augment",
+    name: "Automatic Passive Augment",
+    sourcePowerId: "automatic-passive-power",
+    sourcePacketId: "automatic-passive-packet",
+    targetPolicy: "self",
+    accuracyAttribute: "Guard",
+    diceCount: 1,
+    potency: 10,
+    durationRounds: 4,
+    durationKind: "passive",
+    passiveDuration: true,
+    passive: true,
+    cooldownRounds: 4,
+  });
+  const activePower = action({
+    id: "retained-active-semantic-power",
+    name: "Retained Active Semantic Power",
+    kind: "debuff",
+    targetPolicy: "enemy",
+    accuracyAttribute: "Attack",
+    passive: undefined,
+    passiveDuration: false,
+    durationKind: "turns",
+    cooldownRounds: 0,
+  });
+  const mainAttack = action({
+    id: "retained-main-attack",
+    name: "Retained Main Attack",
+    sourceType: "naturalAttack",
+    kind: "attack",
+    targetPolicy: "enemy",
+    modifier: undefined,
+    diceCount: 0,
+    cooldownRounds: 0,
+  });
+  const source = actor("automatic-passive-source", "players");
+  source.attributeDice.Guard = "D12";
+  source.actions = [passiveAction, activePower, mainAttack];
+  const target = actor("automatic-passive-target", "monsters");
+  target.actions = [mainAttack];
+  const state = createCombatState([source], [target], { captureTranscript: true });
+  let initialRolls = 0;
+  const establishments = establishSemanticPassivesAtCombatStart(state, () => {
+    initialRolls += 1;
+    return 0.99;
+  });
+  const established = state.statusEffects[0];
+  check(
+    "Semantic Passive establishes once at combat start before ordinary actions",
+    establishments.length === 1 && established?.sourceActionId === passiveAction.id && state.log.length === 1,
+  );
+  check(
+    "Semantic Passive uses the actor's actual relevant die for exactly one initial roll",
+    initialRolls === 1 &&
+      state.transcriptEvents.some((event) => event.actionId === passiveAction.id && event.roll?.dieSize === "D12"),
+  );
+  check(
+    "Semantic Passive consumes no ordinary runtime cooldown or cooldown trace",
+    !isActionOnCooldown(state, state.actors[0].id, passiveAction.id) &&
+      state.cooldownTrace[`${state.actors[0].id}:${passiveAction.id}`] === undefined,
+  );
+  check(
+    "Semantic Passive consumes no Response",
+    state.responsesRemaining[state.actors[0].id] === 2 && state.responsesRemaining[state.actors[1].id] === 2,
+  );
+  check(
+    "Semantic Passive is excluded while active non-Passive powers remain selectable",
+    chooseTurnAction(state.actors[0], state, "main")?.id === mainAttack.id &&
+      chooseTurnAction(state.actors[0], state, "power")?.id === activePower.id,
+  );
+  const stacksBeforeTick = established?.stackCount ?? 0;
+  tickTargetTurnEffects(state, state.actors[0].id);
+  check(
+    "Automatic Passive stacks degrade by one at the affected target's turn end",
+    state.statusEffects[0]?.stackCount === stacksBeforeTick - 1,
+  );
+  for (let turn = 0; turn < 4; turn += 1) tickTargetTurnEffects(state, state.actors[0].id);
+  check(
+    "Automatic Passive has no four-turn runtime expiry",
+    state.statusEffects[0]?.remainingRounds === 4 && (state.statusEffects[0]?.stackCount ?? 0) > 0,
+  );
+  check(
+    "Semantic Passive cleanup removes the status without activating economic cooldown metadata",
+    Boolean(established) &&
+      removeStatusEffectById(state, established.id) &&
+      state.statusEffects.length === 0 &&
+      !isActionOnCooldown(state, state.actors[0].id, passiveAction.id) &&
+      passiveAction.cooldownRounds === 4,
+  );
+
+  const failedSource = actor("failed-passive-source", "players");
+  failedSource.actions = [{ ...passiveAction, id: "failed-passive", sourcePacketId: "failed-passive-packet", diceCount: 1 }];
+  const failedTarget = actor("failed-passive-target", "monsters");
+  const failedState = createCombatState([failedSource], [failedTarget]);
+  failedState.statusEffects = [status({
+    id: "other-source-existing-status",
+    sourceActorId: failedState.actors[1].id,
+    targetActorId: failedState.actors[0].id,
+    sourcePowerId: "other-source-power",
+    sourcePacketId: "other-source-packet",
+  })];
+  let failedRolls = 0;
+  establishSemanticPassivesAtCombatStart(failedState, () => {
+    failedRolls += 1;
+    return 0;
+  });
+  check(
+    "Failed initial Passive application preserves other sources and does not enter cooldown or become a free reroll action",
+    failedRolls === 1 &&
+      failedState.statusEffects.length === 1 &&
+      failedState.statusEffects[0]?.id === "other-source-existing-status" &&
+      !isActionOnCooldown(failedState, failedState.actors[0].id, "failed-passive") &&
+      chooseTurnAction(failedState.actors[0], failedState, "power")?.id !== "failed-passive",
+  );
+
+  const defeatSource = actor("passive-defeat-source", "players");
+  defeatSource.defeatModel = "NORMAL_MONSTER";
+  defeatSource.attributeDice.Guard = "D12";
+  defeatSource.actions = [passiveAction];
+  const defeatTarget = actor("passive-defeat-target", "monsters");
+  const defeatState = createCombatState([defeatSource], [defeatTarget]);
+  establishSemanticPassivesAtCombatStart(defeatState, rngFrom([0.99]));
+  defeatState.actors[0].physicalHpCurrent = 0;
+  markDefeatedActors(defeatState);
+  check(
+    "Source defeat removes automatically established semantic Passive status",
+    defeatState.actors[0].defeated && defeatState.statusEffects.length === 0,
+  );
+
+  const legacySource = actor("legacy-removal-source", "players");
+  const legacyRemovalAction = action({
+    id: "legacy-removal-passive",
+    modifier: { attribute: "Guard", amount: 2, durationRounds: 4 },
+    durationKind: "passive",
+    passiveDuration: true,
+    passive: undefined,
+    cooldownRounds: 3,
+  });
+  legacySource.actions = [legacyRemovalAction];
+  const legacyRemovalState = createCombatState([legacySource], [actor("legacy-removal-target", "monsters")]);
+  legacyRemovalState.statusEffects = [{
+    id: "legacy-removal-status",
+    sourceActorId: legacyRemovalState.actors[0].id,
+    targetActorId: legacyRemovalState.actors[0].id,
+    kind: "buff",
+    attribute: "Guard",
+    amount: 2,
+    sourceActionId: legacyRemovalAction.id,
+    sourceCooldownActionId: legacyRemovalAction.id,
+    passiveDuration: true,
+    remainingRounds: 4,
+  }];
+  removeStatusEffectById(legacyRemovalState, "legacy-removal-status");
+  check(
+    "Legacy Modifier-null Passive removal cooldown remains unchanged",
+    isActionOnCooldown(legacyRemovalState, legacyRemovalState.actors[0].id, legacyRemovalAction.id),
+  );
+}
+
+// Passive Debuff and linked semantics
+{
+  const linkedDebuff = action({
+    id: "passive-linked-debuff",
+    name: "Passive Linked Debuff",
+    sourcePowerId: "passive-debuff-power",
+    sourcePacketId: "passive-linked-packet",
+    kind: "debuff",
+    targetPolicy: "enemy",
+    accuracyAttribute: "Attack",
+    potency: 2,
+    durationRounds: 4,
+    durationKind: "passive",
+    passiveDuration: true,
+    modifier: {
+      attribute: "Bravery",
+      amount: 2,
+      modifierMagnitude: 2,
+      semanticFormat: "augmentDebuffThreeFieldV1",
+      durationRounds: 4,
+    },
+    linkedToPrimary: true,
+    usesPrimaryAppliedSuccesses: true,
+    skipOwnRoll: true,
+    skipOwnDefenceGate: true,
+    cooldownRounds: 0,
+  });
+  const passiveDebuff = action({
+    id: "automatic-passive-debuff",
+    name: "Automatic Passive Debuff",
+    sourcePowerId: "passive-debuff-power",
+    sourcePacketId: "passive-debuff-packet",
+    kind: "debuff",
+    targetPolicy: "enemy",
+    accuracyAttribute: "Attack",
+    diceCount: 1,
+    potency: 3,
+    resistAttribute: "FORTITUDE",
+    durationRounds: 4,
+    durationKind: "passive",
+    passiveDuration: true,
+    passive: true,
+    cooldownRounds: 5,
+    secondaryActions: [linkedDebuff],
+  });
+  const source = actor("passive-debuff-source", "players");
+  source.attributeDice.Attack = "D12";
+  source.actions = [passiveDebuff];
+  const counter = action({
+    id: "passive-debuff-counter",
+    name: "Passive Debuff Counter",
+    kind: "attack",
+    targetPolicy: "enemy",
+    modifier: undefined,
+    counterMode: true,
+    cooldownRounds: 2,
+  });
+  const target = actor("passive-debuff-target", "monsters");
+  target.attributeDice.Fortitude = "D4";
+  target.actions = [counter];
+  const state = createCombatState([source], [target], { captureTranscript: true });
+  let rngCalls = 0;
+  const [establishment] = establishSemanticPassivesAtCombatStart(state, () => {
+    rngCalls += 1;
+    return rngCalls === 1 ? 0.99 : 0;
+  });
+  const primary = state.statusEffects.find((effect) => effect.sourcePacketId === "passive-debuff-packet");
+  const linked = state.statusEffects.find((effect) => effect.sourcePacketId === "passive-linked-packet");
+  check(
+    "Passive Debuff establishes with normal hostile Resist behavior",
+    establishment?.resolution.resistRolls === 1 &&
+      establishment.resolution.hostileSuccessesAfterResist > 0 &&
+      primary?.kind === "debuff",
+  );
+  check(
+    "Passive linked packet inherits target-local successes without another roll or resistance gate",
+    rngCalls === 4 &&
+      establishment?.resolution.resistRolls === 1 &&
+      linked?.stackCount === establishment.resolution.hostileSuccessesAfterResist * linkedDebuff.potency,
+  );
+  check(
+    "Passive linked packet retains its own Potency and Modifier",
+    linked?.modifierMagnitude === 2 && linked.stackCount === (primary?.stackCount ?? 0) / passiveDebuff.potency * linkedDebuff.potency,
+  );
+  check(
+    "Combat-start Passive Debuff consumes no Response or Counter cooldown",
+    state.responsesRemaining[state.actors[1].id] === 2 &&
+      !isActionOnCooldown(state, state.actors[1].id, counter.id) &&
+      establishment?.resolution.responsesUsed === 0,
+  );
+}
+
+// Automated simulation lifecycle
+{
+  const passive = action({
+    id: "auto-sim-passive",
+    name: "Auto Sim Passive",
+    sourcePowerId: "auto-sim-passive-power",
+    sourcePacketId: "auto-sim-passive-packet",
+    targetPolicy: "self",
+    accuracyAttribute: "Guard",
+    diceCount: 20,
+    potency: 2,
+    durationKind: "passive",
+    passiveDuration: true,
+    passive: true,
+    cooldownRounds: 4,
+  });
+  const main = action({
+    id: "auto-sim-main",
+    name: "Auto Sim Main",
+    sourceType: "naturalAttack",
+    kind: "attack",
+    targetPolicy: "enemy",
+    modifier: undefined,
+    diceCount: 0,
+    cooldownRounds: 0,
+  });
+  const active = action({
+    id: "auto-sim-active",
+    name: "Auto Sim Active",
+    kind: "debuff",
+    targetPolicy: "enemy",
+    diceCount: 0,
+    potency: 1,
+    cooldownRounds: 0,
+  });
+  const source = actor("auto-sim-source", "players");
+  source.actions = [passive, active, main];
+  const target = actor("auto-sim-target", "monsters");
+  target.actions = [main];
+  const result = runCombatScenario({
+    name: "semantic Passive automatic lifecycle",
+    players: [source],
+    monsters: [target],
+    runs: 1,
+    seed: 17,
+    maxRounds: 1,
+    turnOrder: "playersFirst",
+  });
+  const events = result.firstRunTranscript?.events ?? [];
+  const passiveIndex = events.findIndex((event) => event.actionId === passive.id && event.lane === "combatStart");
+  const firstTurnIndex = events.findIndex((event) => event.type === "turnStart");
+  check(
+    "Automated simulation establishes semantic Passive before the first ordinary turn",
+    passiveIndex >= 0 && firstTurnIndex >= 0 && passiveIndex < firstTurnIndex,
+  );
+  check(
+    "Automated simulation never selects semantic Passive into Main, Power, or Response lanes",
+    !events.some((event) =>
+      event.actionId === passive.id &&
+      (event.lane === "main" || event.lane === "power" || event.lane === "response")),
+  );
+  const playerMainEvents = events.filter(
+    (event) => event.actorId === source.id && event.type === "mainAction",
+  ).length;
+  const playerPowerEvents = events.filter(
+    (event) => event.actorId === source.id && event.type === "powerAction",
+  ).length;
+  check(
+    "Automatic establishment does not inflate ordinary action-capacity diagnostics",
+    result.metrics.actionsUsed.players === playerMainEvents + playerPowerEvents &&
+      result.metrics.mainActionsUsed.players === playerMainEvents &&
+      result.metrics.powerActionsUsed.players === playerPowerEvents &&
+      !result.metrics.cooldownTrace[`${source.id}:${passive.id}`],
+  );
 }
 
 // Status state (14-19)
@@ -482,5 +835,5 @@ check(
     rejectedWithStableIds.effectPackets[0].id === rejectedIdsBefore[1],
 );
 
-assert.equal(assertionCount, 58, `Expected exactly 58 semantic assertions, got ${assertionCount}.`);
+assert.equal(assertionCount, 78, `Expected exactly 78 semantic assertions, got ${assertionCount}.`);
 console.log(`augment-debuff-three-field-semantic smoke passed (${assertionCount} assertions).`);

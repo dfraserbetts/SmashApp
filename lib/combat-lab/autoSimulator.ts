@@ -41,6 +41,7 @@ import type {
   CombatOngoingPressureSideTotals,
   CombatOffensiveContributionEvent,
   CombatRunResult,
+  CombatResolutionMetrics,
   CombatScenario,
   CombatSide,
   CombatTranscript,
@@ -48,6 +49,61 @@ import type {
 } from "./types";
 
 type CombatRuntimeState = ReturnType<typeof createCombatState>;
+
+export type SemanticPassiveEstablishment = {
+  actor: CombatActor;
+  action: CombatAction;
+  target: CombatActor;
+  resolution: CombatResolutionMetrics;
+};
+
+export function establishSemanticPassivesAtCombatStart(
+  state: CombatRuntimeState,
+  rng: ReturnType<typeof createSeededRng>,
+): SemanticPassiveEstablishment[] {
+  const establishments: SemanticPassiveEstablishment[] = [];
+  for (const actor of state.actors) {
+    if (actor.defeated) continue;
+    for (const action of actor.actions) {
+      if (
+        !action.supported ||
+        !action.passive ||
+        !action.passiveDuration ||
+        action.modifier?.semanticFormat !== "augmentDebuffThreeFieldV1"
+      ) {
+        continue;
+      }
+      const target = chooseTarget(actor, action, state);
+      if (!target) {
+        emitTranscriptEvent(state, {
+          type: "actionSkipped",
+          actorId: actor.id,
+          actorName: actor.name,
+          actionId: action.id,
+          actionName: action.name,
+          lane: "combatStart",
+          message: `Combat Start: ${actor.name}'s automatic Passive ${action.name} has no legal target and does not establish.`,
+          details: { reason: "noLegalPassiveTarget", capacitySpent: false },
+        });
+        continue;
+      }
+      establishments.push({
+        actor,
+        action,
+        target,
+        resolution: resolveCombatAction({
+          state,
+          actor,
+          action,
+          target,
+          rng,
+          lane: "combatStart",
+        }),
+      });
+    }
+  }
+  return establishments;
+}
 
 function addOngoingPressureSideTotals(
   target: CombatOngoingPressureSideTotals,
@@ -933,6 +989,18 @@ export function runCombatScenario(scenario: CombatScenario, runIndex = 0): Comba
   state.statusEffects.push(...(scenario.initialStatusEffects ?? []).map((effect) => ({ ...effect })));
   const metrics = createEmptyMetrics();
   const offensiveContributionEvents: CombatOffensiveContributionEvent[] = [];
+  const passiveEstablishments = establishSemanticPassivesAtCombatStart(state, rng);
+  for (const { actor, action, target, resolution } of passiveEstablishments) {
+    addResolutionToAggregate(metrics, actor.side, resolution, { defensiveSide: target.side });
+    addActorContribution(metrics, actor, action, resolution);
+    addDefensiveContribution(metrics, target, resolution);
+    addRoleContribution(metrics, actor.role, action.kind, {
+      damage: resolution.netWounds,
+      healing: resolution.healingDone,
+      mitigation: resolution.mitigationApplied,
+      buffDebuff: resolution.buffDebuffApplied,
+    });
+  }
   let stoppedBy: CombatRunResult["stoppedBy"] = "maxRounds";
   let roundsWithoutDamage = 0;
 

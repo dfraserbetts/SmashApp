@@ -77,6 +77,14 @@ export function threeFieldAugmentDebuffStatusId(params: {
   ])}`;
 }
 
+function isSemanticPassiveAction(action: CombatAction): boolean {
+  return Boolean(
+    action.passive &&
+    action.passiveDuration &&
+    action.modifier?.semanticFormat === "augmentDebuffThreeFieldV1",
+  );
+}
+
 export type ManualAssistDeclarationParams = {
   state: CombatState;
   assistingActor: CombatActor;
@@ -3421,6 +3429,7 @@ function resolveSingleTargetAction(params: {
   const counterDeclaration =
     !gateAlreadyResolved &&
     !params.fromSecondary &&
+    lane !== "combatStart" &&
     (action.kind === "attack" || action.kind === "debuff" || action.kind === "control" || action.kind === "movement")
       ? declareCounter({ state, target, attacker: actor, incomingAction: action, pool: poolForCounterDeclaration })
       : { declared: null, metrics: emptyResolution() };
@@ -4502,13 +4511,26 @@ export function resolveCombatAction(params: {
   if (action.runtimeCleanup) {
     return resolveUniversalCleanupAction({ state, actor, action, rng, lane });
   }
-  recordActionUse(state, actor, action);
+  const semanticPassive = isSemanticPassiveAction(action);
+  if (!semanticPassive) recordActionUse(state, actor, action);
 
   const targets = resolveTargets(state, actor, action, target);
-  const laneLabel = lane === "power" ? "Power Action" : lane === "response" ? "Response" : "Main Action";
+  const laneLabel = lane === "combatStart"
+    ? "Combat Start"
+    : lane === "power"
+      ? "Power Action"
+      : lane === "response"
+        ? "Response"
+        : "Main Action";
   const actionVerb = action.kind === "attack" || action.kind === "control" || action.kind === "movement" ? "declares" : "uses";
   emitTranscriptEvent(state, {
-    type: lane === "power" ? "powerAction" : lane === "response" ? "responseAction" : "mainAction",
+    type: lane === "combatStart"
+      ? "statusCreated"
+      : lane === "power"
+        ? "powerAction"
+        : lane === "response"
+          ? "responseAction"
+          : "mainAction",
     actorId: actor.id,
     actorName: actor.name,
     targetId: target.id,
@@ -4530,8 +4552,8 @@ export function resolveCombatAction(params: {
   }
 
   if (
-    !action.passiveDuration ||
-    action.modifier?.semanticFormat === "augmentDebuffThreeFieldV1"
+    !semanticPassive &&
+    (!action.passiveDuration || action.modifier?.semanticFormat === "augmentDebuffThreeFieldV1")
   ) {
     applyActionCooldown(state, actor, action);
   }
