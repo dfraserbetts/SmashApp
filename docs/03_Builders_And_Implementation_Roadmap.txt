@@ -102,8 +102,9 @@ Character Creator:
 - Character Creator is still missing Spark support.
 - Character Creator is still missing Power Restrictions support.
 - The shared Restriction authoring model is locked for Player Powers, Roleplay
-  Abilities, and GD-authored Monster Powers. Its domain, persistence,
-  governance, UI, and optional evaluation implementation remain absent. Spark
+  Abilities, and GD-authored Monster Powers, and its pure Phase 1 domain
+  foundation is implemented. Persistence, governance, UI, and optional
+  evaluation implementation remain absent. Spark
   scope remains OPEN / NEEDS ARCHITECT DECISION, and Restriction economics,
   specific content, scenario assumptions, and preserved governance questions
   remain later work.
