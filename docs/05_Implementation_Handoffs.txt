@@ -446,10 +446,13 @@ Current implementation truth:
   supplied Roleplay Restriction definitions, normalize and round-trip through
   CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic
   exists but is not automatically activated while legacy controls remain live.
-- No Monster Restriction persistence, approval system, campaign-custom value
-  database layer, shared Builder UI, governance, runtime evaluator, Combat Lab
-  integration, economics, or simulation support currently exists. Phase 2 as a
-  whole is not complete.
+- Monster Power semantic Restriction definitions round-trip through the nullable
+  relational Power.restrictionJson field; existing Monster Powers default to no
+  Restriction.
+- No approval system, GD auto-approval provenance, campaign-custom value database
+  layer, shared Builder UI, governance, runtime evaluator, Combat Lab integration,
+  economics, or simulation support currently exists. Phase 2 as a whole is not
+  complete.
 - Core/read-only Monsters remain non-editable and are copied into campaign-local
   editable Monsters through the existing workflow.
 
@@ -464,9 +467,9 @@ Persistence and migration requirements:
 - Keep Player Power, Signature Move, and Roleplay data in builderData JSON;
   normalize a versioned semantic definition on load and preserve it on save.
 - Do not migrate Player Powers to relational records.
-- Choose Monster persistence only after live Prisma inspection; a versioned
-  nullable JSON field may be considered, but this lock selects no field and
-  forbids a new MonsterRestriction model or player-economic Monster fields.
+- Keep Monster semantic Restriction definitions in the nullable relational
+  Power.restrictionJson field. Database NULL is canonical absence. Do not create
+  a MonsterRestriction model or player-economic Monster fields.
 - Map legacy NONE to no Restriction. Map non-None Roleplay data only where
   unambiguous, preserve legacy text/tags, manufacture neither approval nor GD
   provenance nor credit, and default to Draft when history cannot be proven.

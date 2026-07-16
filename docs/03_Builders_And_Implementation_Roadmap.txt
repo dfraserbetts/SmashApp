@@ -803,14 +803,14 @@ Phase 1 - Shared domain foundation (implemented):
 - keep this layer independent of React, APIs, Prisma, databases, runtime,
   Combat Lab, and numeric tuning.
 
-Phase 2 - Persistence adapters (Phase 2A player JSON contract implemented;
-Monster persistence and atomic legacy cutover remain):
+Phase 2 - Persistence adapters (Phase 2A player JSON contract and Phase 2B
+Monster relational persistence implemented; atomic legacy cutover remains):
 
 - normalize and preserve versioned definitions within
   CampaignCharacter.builderData JSON for Player Powers, Signature Moves, and
   Roleplay Abilities without a Player Power relational migration;
-- add a live-schema-justified Monster Power adapter without prematurely locking
-  a Prisma field or creating a MonsterRestriction model;
+- preserve Monster semantic Restriction definitions through the nullable
+  relational Power.restrictionJson field without a MonsterRestriction model;
 - conservatively migrate legacy Roleplay fields, default unproven approval to
   Draft, and tolerate inert CharacterPower discount placeholders without
   treating them as semantic data; and
@@ -880,10 +880,12 @@ explicitly supplied Roleplay Restriction definition, now normalize and
 round-trip in CampaignCharacter.builderData JSON. Pure legacy Roleplay migration
 logic exists but is not automatically activated while the legacy controls remain
 live. Monster Powers persist as relational Prisma Power records and share the
-common Power type, but no Monster Restriction persistence exists. No approval
-system, campaign-custom value database layer, shared Builder UI, governance,
-runtime evaluator, Combat Lab integration, economics, or simulation support
-exists. Phase 2 as a whole is not complete.
+common Power type; semantic Restriction definitions now round-trip through the
+nullable Power.restrictionJson field, and existing rows default to no
+Restriction. No approval system, GD auto-approval provenance, campaign-custom
+value database layer, shared Builder UI, governance, runtime evaluator, Combat
+Lab integration, economics, or simulation support exists. Phase 2 as a whole is
+not complete.
 
 The current Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`,
 and `restrictionText` fields and UI are migration inputs only. CharacterPower

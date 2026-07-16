@@ -832,12 +832,13 @@ exact party after actual runtime support exists.
 
 Current storage is deliberately split. Player Character Powers, Signature
 Moves, and Roleplay Abilities remain inside CampaignCharacter.builderData JSON;
-later adapters must normalize versioned definitions on load and preserve them
+current adapters normalize versioned definitions on load and preserve them
 on save without a Player Power relational migration. Monster Powers remain
-relational Prisma Power records; a later phase may choose a versioned nullable
-JSON field or another live-schema-justified convention, but this phase locks no
-field, creates no MonsterRestriction model, and adds no player economic fields
-to Monster Power.
+relational Prisma Power records. Their semantic Restriction definition uses the
+nullable versioned Power.restrictionJson field; database NULL means no
+Restriction, including for existing rows. This creates no MonsterRestriction
+model and adds no governance, runtime, descriptor-cache, or player-economic
+fields to Monster Power.
 
 Legacy Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`, and
 `restrictionText` are migration input only. NONE becomes no Restriction;
@@ -856,9 +857,10 @@ and canonical semantic fingerprint now exist. The proof registry is not the
 final complete V1 inventory. Player Power and Signature Move definitions, plus
 explicitly supplied Roleplay definitions, now round-trip through
 CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic exists
-but is not automatically activated while legacy controls remain live. No
-Monster Restriction persistence, approval system, campaign-custom value database
-layer, shared Builder UI, governance, runtime evaluator, Combat Lab integration,
+but is not automatically activated while legacy controls remain live. Monster
+Power semantic Restriction relational persistence now exists. No approval
+system, GD auto-approval provenance, campaign-custom value database layer,
+shared Builder UI, governance, runtime evaluator, Combat Lab integration,
 economics, or simulation support currently exists; Phase 2 remains incomplete.
 A future
 runtime may distinguish eligible, ineligible, and GD-adjudicated outcomes, but
