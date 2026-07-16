@@ -784,13 +784,13 @@ coverage only and is not final pregen balance authority.
 
 Shared Restriction Authoring - Future Implementation Sequence
 
-LOCKED AUTHORING MODEL / IMPLEMENTATION NOT AUTHORIZED BY THIS DOCUMENTATION
-PASS. One future shared editor must serve Player Character Powers, Roleplay
+LOCKED AUTHORING MODEL / PHASE 1 DOMAIN FOUNDATION IMPLEMENTED. One future
+shared editor must serve Player Character Powers, Roleplay
 Abilities, and GD-authored Monster Powers while respecting their different
 storage and governance adapters. UI must not precede proof of the shared domain
 model.
 
-Phase 1 - Shared domain foundation:
+Phase 1 - Shared domain foundation (implemented):
 
 - define one versioned zero-or-one whole-Ability semantic definition supporting
   exactly Standard Structured, Campaign-Custom Structured, and Custom Narrative;
@@ -870,12 +870,15 @@ Phase 7 - Optional evaluation foundation, only after separate authorization:
 - do not infer combat declaration blocking, runtime integration, Combat Lab,
   simulation, scenario assumptions, or economic value from authoring metadata.
 
-Current implementation truth: Player Powers, Signature Moves, and Roleplay
+Current implementation truth: the pure shared Phase 1 definition, bounded proof
+registry, validator, renderer, evaluation metadata, canonicalizer, and semantic
+fingerprint are implemented; the proof registry is not the final complete V1
+inventory. Player Powers, Signature Moves, and Roleplay
 Abilities persist in CampaignCharacter.builderData JSON; Monster Powers persist
-as relational Prisma Power records and share the common Power type. No complete
-shared Restriction definition, registry, validator, renderer, fingerprint,
-approval system, campaign-custom value layer, persistence adapter, runtime
-evaluator, Combat Lab integration, or simulation support exists.
+as relational Prisma Power records and share the common Power type. No approval
+system, campaign-custom value database layer, persistence adapter, Builder UI,
+governance, runtime evaluator, Combat Lab integration, economics, or simulation
+support exists.
 
 The current Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`,
 and `restrictionText` fields and UI are migration inputs only. CharacterPower

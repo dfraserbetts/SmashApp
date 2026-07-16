@@ -420,7 +420,8 @@ inspection against the locked Soldier attacks-to-defeat doctrine.
 
 Shared Restriction Authoring Implementation Handoff
 
-LOCKED AUTHORING AUTHORITY / NO IMPLEMENTATION CLAIM. The primary shared model
+LOCKED AUTHORING AUTHORITY / PHASE 1 DOMAIN FOUNDATION IMPLEMENTED. The primary
+shared model
 is owned by docs/02_Power_System_And_Costing.txt; commitment-time runtime law is
 owned by docs/01_Locked_Rules_And_Combat_Bible.txt; the mandatory seven-phase
 implementation order is in docs/03_Builders_And_Implementation_Roadmap.txt.
@@ -438,9 +439,12 @@ Current implementation truth:
   behaviour must be retired, not preserved as permanent architecture.
 - CharacterPower `sparkDiscountPercent?: 0` and
   `restrictionDiscountPercent?: 0` are inert placeholders, not the new API.
-- No complete shared definition, registry, validator, renderer, fingerprint,
-  approval system, campaign-custom value layer, persistence adapter, runtime
-  evaluator, Combat Lab integration, or simulation support currently exists.
+- The pure shared Phase 1 definition, bounded proof registry, validator,
+  renderer, evaluation metadata, canonicalizer, and semantic fingerprint are
+  implemented. The proof registry is not the final complete V1 inventory.
+- No approval system, campaign-custom value database layer, persistence adapter,
+  Builder UI, governance, runtime evaluator, Combat Lab integration, economics,
+  or simulation support currently exists.
 - Core/read-only Monsters remain non-editable and are copied into campaign-local
   editable Monsters through the existing workflow.
 

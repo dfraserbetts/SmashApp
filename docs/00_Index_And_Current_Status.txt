@@ -140,7 +140,8 @@ Roleplay Ability costs and final contract privilege adjustments remain open.
 
 Restrictions, Power Burdens, And Blaze Status
 
-LOCKED SHARED AUTHORING AUTHORITY / UNIMPLEMENTED. A Restriction is one atomic,
+LOCKED SHARED AUTHORING AUTHORITY / DOMAIN FOUNDATION IMPLEMENTED. A Restriction
+is one atomic,
 enforceable, pre-existing, whole-Ability narrative eligibility condition. A
 Player Character Power, Roleplay Ability, or GD-authored Monster Power may have
 zero or exactly one Restriction. Exactly three conceptual authoring modes are
@@ -160,9 +161,12 @@ Restriction on their own Player Character, whether broader non-Restriction
 build edits stale approval, and whether reliable-enabler or wider-context
 changes automatically stale approval remain open.
 
-No shared definition, registry, validator, renderer, fingerprint, approval,
-campaign-custom value, persistence-adapter, runtime-evaluator, Combat Lab, or
-simulation implementation is claimed. Exact standard template inventory,
+The pure shared Phase 1 definition, bounded proof registry, validator, renderer,
+and canonical semantic fingerprint are implemented. The proof registry is not
+the final complete V1 inventory. No approval, campaign-custom value database
+layer, persistence adapter, Builder UI, governance, runtime evaluator, Combat
+Lab, economics, or simulation implementation is claimed. Exact standard
+template inventory,
 storage shape, future enum spellings, UI, specific pregen Restrictions, scenario
 assumptions, economic classifications, numeric bands, and credit values remain
 later work. Gross BPV and cooldown basis remain unchanged. Runtime eligibility
