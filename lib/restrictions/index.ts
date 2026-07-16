@@ -289,7 +289,7 @@ const proofRegistrySeeds: RegistrySeed[] = [
   {
     key: "ACTOR_ANCHOR_PROXIMITY",
     version: 1,
-    subject: "ITEM_OR_OBJECT",
+    subject: "THE_ACTOR",
     conditionFamily: "EQUIPMENT_OR_ANCHOR_STATE",
     supportedAuthoringModes: ["CAMPAIGN_CUSTOM_STRUCTURED"],
     supportedOperators: ["WITHIN_DISTANCE"],
@@ -308,7 +308,7 @@ const proofRegistrySeeds: RegistrySeed[] = [
   {
     key: "ACTOR_ZONE_MEMBERSHIP",
     version: 1,
-    subject: "LOCATION_OR_ZONE",
+    subject: "THE_ACTOR",
     conditionFamily: "POSITION_OR_ZONE_STATE",
     supportedAuthoringModes: ["CAMPAIGN_CUSTOM_STRUCTURED"],
     supportedOperators: ["INSIDE", "OUTSIDE"],
@@ -414,6 +414,23 @@ const COMPOUND_KEYS = new Set([
 const PROHIBITED_SOURCE_KEYS = new Set([
   "ability_effect", "ability_result", "activation_cost", "backlash", "governed_ability",
 ]);
+const FATAL_STRUCTURAL_ISSUE_CODES = new Set([
+  "COMPOUND_STRUCTURE",
+  "PROHIBITED_ABILITY_SOURCE",
+  "CYCLIC_STRUCTURE",
+]);
+
+function normalizedResult(
+  definition: AbilityRestrictionDefinitionV1,
+  issues: RestrictionIssue[],
+): RestrictionNormalizationResult {
+  return {
+    definition: issues.some((entry) => FATAL_STRUCTURAL_ISSUE_CODES.has(entry.code))
+      ? null
+      : definition,
+    issues,
+  };
+}
 
 function inspectIllegalShape(
   value: unknown,
@@ -508,8 +525,8 @@ export function normalizeRestrictionDefinition(input: unknown): RestrictionNorma
   if (authoringMode === "CUSTOM_NARRATIVE") {
     const incompatible = input.templateKey != null || input.templateVersion != null || (isRecord(input.parameters) && Object.keys(input.parameters).length > 0);
     if (incompatible) issues.push(issue("INCOMPATIBLE_MODE_FIELDS_REMOVED", "warning", "Structured fields were removed from Custom Narrative authoring."));
-    return {
-      definition: {
+    return normalizedResult(
+      {
         schemaVersion: 1,
         authoringMode,
         templateKey: null,
@@ -518,7 +535,7 @@ export function normalizeRestrictionDefinition(input: unknown): RestrictionNorma
         customNarrativeText: typeof input.customNarrativeText === "string" ? normalizeNarrative(input.customNarrativeText) : null,
       },
       issues,
-    };
+    );
   }
 
   if (input.customNarrativeText != null && String(input.customNarrativeText).trim()) {
@@ -546,7 +563,7 @@ export function normalizeRestrictionDefinition(input: unknown): RestrictionNorma
     parameters,
     customNarrativeText: null,
   };
-  return { definition: issues.some((entry) => ["COMPOUND_STRUCTURE", "PROHIBITED_ABILITY_SOURCE", "CYCLIC_STRUCTURE"].includes(entry.code)) ? null : definition, issues };
+  return normalizedResult(definition, issues);
 }
 
 function validateParameter(
@@ -689,8 +706,21 @@ export function auditRestrictionTemplateRegistry(
     const parameterKeys = template.parameterSchema.map((parameter) => parameter.key);
     if (new Set(parameterKeys).size !== parameterKeys.length) issues.push(issue("DUPLICATE_PARAMETER_KEY", "error", "Template parameter keys must be unique.", `${path}.parameterSchema`));
     if (template.supportedAuthoringModes.some((mode) => !RESTRICTION_AUTHORING_MODES.includes(mode) || String(mode) === "CUSTOM_NARRATIVE")) issues.push(issue("ILLEGAL_TEMPLATE_MODE", "error", "Structured templates cannot support this mode.", `${path}.supportedAuthoringModes`));
-    const requiresCampaignReference = template.parameterSchema.some((parameter) => parameter.kind === "CAMPAIGN_REFERENCE");
-    if (requiresCampaignReference !== template.supportedValueSources.includes("CAMPAIGN_REFERENCE")) issues.push(issue("IMPOSSIBLE_MODE_VALUE_SOURCE", "error", "Template campaign-reference schema and value sources disagree.", `${path}.supportedValueSources`));
+    const requiredValueSources = new Set<RestrictionValueSource>(
+      template.parameterSchema.map((parameter) =>
+        parameter.kind === "CAMPAIGN_REFERENCE" ? "CAMPAIGN_REFERENCE" : "SYSTEM",
+      ),
+    );
+    for (const source of requiredValueSources) {
+      if (!template.supportedValueSources.includes(source)) {
+        issues.push(issue("IMPOSSIBLE_MODE_VALUE_SOURCE", "error", `Template parameter schema requires the undeclared ${source} value source.`, `${path}.supportedValueSources`));
+      }
+    }
+    for (const source of template.supportedValueSources) {
+      if (!requiredValueSources.has(source)) {
+        issues.push(issue("IMPOSSIBLE_MODE_VALUE_SOURCE", "error", `Template declares unused ${source} value source.`, `${path}.supportedValueSources`));
+      }
+    }
   }
   return issues;
 }

@@ -4,6 +4,7 @@ import {
   RESTRICTION_AUTHORING_MODES,
   RESTRICTION_CONDITION_FAMILIES,
   RESTRICTION_EVALUATION_LABELS,
+  RESTRICTION_SUBJECTS,
   RESTRICTION_TEMPLATE_REGISTRY,
   auditRestrictionTemplateRegistry,
   canonicalizeRestrictionDefinition,
@@ -69,6 +70,9 @@ equal(RESTRICTION_AUTHORING_MODES.join(","), "STANDARD_STRUCTURED,CAMPAIGN_CUSTO
 equal(RESTRICTION_EVALUATION_LABELS.AUTOMATIC, "Automatically checked", "Automatic label drifted.");
 equal(RESTRICTION_EVALUATION_LABELS.SCENE_CONTEXT, "Checked through scene context", "Scene label drifted.");
 equal(RESTRICTION_EVALUATION_LABELS.GD_ADJUDICATION, "Requires GD adjudication", "GD label drifted.");
+equal(RESTRICTION_SUBJECTS.length, 7, "The seven global Subject identities must remain available.");
+check(RESTRICTION_SUBJECTS.includes("ITEM_OR_OBJECT"), "Item or Object must remain an available global Subject.");
+check(RESTRICTION_SUBJECTS.includes("LOCATION_OR_ZONE"), "Location or Zone must remain an available global Subject.");
 for (const template of RESTRICTION_TEMPLATE_REGISTRY) {
   check(Boolean(template.subject && template.conditionFamily && template.evaluationCapability), `${template.key} needs subject, family, and capability.`);
   check(template.supportedOperators.length > 0, `${template.key} needs operators.`);
@@ -85,6 +89,15 @@ for (const key of [
   "SCENE_ENVIRONMENT_STATE", "RELATED_ALLIED_TAGGED_ENTITY_COUNT",
   "OATH_REMAINS_UNBROKEN", "TARGET_CAMPAIGN_TAG",
 ]) check(RESTRICTION_TEMPLATE_REGISTRY.some((template) => template.key === key), `${key} proof template is missing.`);
+equal(RESTRICTION_TEMPLATE_REGISTRY.find((template) => template.key === "ACTOR_ANCHOR_PROXIMITY")?.subject, "THE_ACTOR", "Anchor proximity must be owned by The Actor.");
+equal(RESTRICTION_TEMPLATE_REGISTRY.find((template) => template.key === "ACTOR_ZONE_MEMBERSHIP")?.subject, "THE_ACTOR", "Actor zone membership must be owned by The Actor.");
+
+const campaignSourceTemplate = RESTRICTION_TEMPLATE_REGISTRY.find((template) => template.key === "ACTOR_ANCHOR_PROXIMITY");
+const systemSourceTemplate = RESTRICTION_TEMPLATE_REGISTRY.find((template) => template.key === "ACTOR_PHYSICAL_HEALTH_PERCENTAGE");
+assert.ok(campaignSourceTemplate && systemSourceTemplate, "Value-source audit fixtures require proof templates.");
+check(hasCode(auditRestrictionTemplateRegistry([{ ...campaignSourceTemplate, supportedValueSources: ["SYSTEM"] }]), "IMPOSSIBLE_MODE_VALUE_SOURCE"), "Campaign-reference parameters require CAMPAIGN_REFERENCE.");
+check(hasCode(auditRestrictionTemplateRegistry([{ ...campaignSourceTemplate, supportedValueSources: ["CAMPAIGN_REFERENCE"] }]), "IMPOSSIBLE_MODE_VALUE_SOURCE"), "System/operator parameters require SYSTEM.");
+check(hasCode(auditRestrictionTemplateRegistry([{ ...systemSourceTemplate, supportedValueSources: ["SYSTEM", "CAMPAIGN_REFERENCE"] }]), "IMPOSSIBLE_MODE_VALUE_SOURCE"), "Unused CAMPAIGN_REFERENCE declarations must fail audit.");
 
 // Normalization.
 equal(normalizeRestrictionDefinition(null).definition, null, "Null means no Restriction.");
@@ -122,10 +135,57 @@ const unknownNormalized = normalizeRestrictionDefinition({ ...standardHealth, te
 equal(unknownNormalized.definition?.templateKey, "FUTURE_SAFE_TEMPLATE", "Safe unknown template identity must be preserved.");
 check(hasCode(validateRestrictionDefinition(unknownNormalized.definition), "UNKNOWN_TEMPLATE"), "Unknown templates must validate honestly.");
 check(hasCode(normalizeRestrictionDefinition({ ...standardHealth, parameters: { nested: { kind: "MAGIC", value: 1 } } }).issues, "INVALID_PARAMETER_KIND"), "Malformed parameter discriminants must fail.");
-check(hasCode(normalizeRestrictionDefinition({ ...standardHealth, conditions: [{ source: "x" }] }).issues, "COMPOUND_STRUCTURE"), "Nested conditions must fail.");
+const structuredCompound = normalizeRestrictionDefinition({ ...standardHealth, conditions: [{ source: "x" }] });
+check(hasCode(structuredCompound.issues, "COMPOUND_STRUCTURE"), "Nested structured conditions must fail.");
+equal(structuredCompound.definition, null, "Nested structured conditions are fatal.");
 check(hasCode(normalizeRestrictionDefinition({ ...standardHealth, parameters: { source: { kind: "SYSTEM_ENUM", valueKey: "ACTIVATION_COST" } } }).issues, "PROHIBITED_ABILITY_SOURCE"), "Governed Ability Cost sources must fail.");
 const structuredWithNarrative = normalizeRestrictionDefinition({ ...standardHealth, customNarrativeText: "wrong lane" });
 equal(structuredWithNarrative.definition?.customNarrativeText, null, "Structured mode removes narrative text.");
+const nestedCustom = normalizeRestrictionDefinition({
+  schemaVersion: 1,
+  authoringMode: "CUSTOM_NARRATIVE",
+  templateKey: null,
+  templateVersion: null,
+  parameters: {},
+  customNarrativeText: "Only at night",
+  conditions: [{ source: "scene" }],
+});
+check(hasCode(nestedCustom.issues, "COMPOUND_STRUCTURE"), "Nested Custom Narrative conditions must be detected.");
+equal(nestedCustom.definition, null, "Nested Custom Narrative conditions are fatal.");
+const prohibitedCustom = normalizeRestrictionDefinition({
+  schemaVersion: 1,
+  authoringMode: "CUSTOM_NARRATIVE",
+  templateKey: null,
+  templateVersion: null,
+  parameters: { source: { kind: "SYSTEM_ENUM", valueKey: "ABILITY_EFFECT" } },
+  customNarrativeText: "Only after another Ability resolves",
+});
+check(hasCode(prohibitedCustom.issues, "PROHIBITED_ABILITY_SOURCE"), "Custom Narrative governed-Ability sources must be detected.");
+equal(prohibitedCustom.definition, null, "Custom Narrative governed-Ability sources are fatal.");
+const cyclicCustom: Record<string, unknown> = {
+  schemaVersion: 1,
+  authoringMode: "CUSTOM_NARRATIVE",
+  templateKey: null,
+  templateVersion: null,
+  parameters: {},
+  customNarrativeText: "Only at night",
+};
+cyclicCustom.cycle = cyclicCustom;
+const normalizedCyclicCustom = normalizeRestrictionDefinition(cyclicCustom);
+check(hasCode(normalizedCyclicCustom.issues, "CYCLIC_STRUCTURE"), "Cyclic Custom Narrative input must be detected.");
+equal(normalizedCyclicCustom.definition, null, "Cyclic Custom Narrative input is fatal.");
+const ordinaryCompoundProse = normalizeRestrictionDefinition({
+  schemaVersion: 1,
+  authoringMode: "CUSTOM_NARRATIVE",
+  templateKey: null,
+  templateVersion: null,
+  parameters: {},
+  customNarrativeText: "This Ability may only be used at night and while the target is wounded",
+});
+check(ordinaryCompoundProse.definition !== null, "Ordinary narrative prose must remain available for GD review.");
+const ordinaryCompoundProseIssues = validateRestrictionDefinition(ordinaryCompoundProse.definition);
+check(hasCode(ordinaryCompoundProseIssues, "LIKELY_COMPOUND_NARRATIVE"), "Ordinary compound prose needs a heuristic warning.");
+check(!ordinaryCompoundProseIssues.some((entry) => entry.severity === "error"), "Ordinary narrative heuristics must not become errors.");
 
 // Validation.
 check(hasCode(validateRestrictionDefinition(structured("ACTOR_PHYSICAL_HEALTH_PERCENTAGE", { operator: enumParameter("AT_OR_BELOW") })), "MISSING_REQUIRED_PARAMETER"), "Missing parameters must fail.");
