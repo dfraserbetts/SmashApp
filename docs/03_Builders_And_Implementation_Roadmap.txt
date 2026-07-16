@@ -883,13 +883,15 @@ logic exists but is not automatically activated while the legacy controls remain
 live. Monster Powers persist as relational Prisma Power records and share the
 common Power type; semantic Restriction definitions now round-trip through the
 nullable Power.restrictionJson field, and existing rows default to no
-Restriction. A pure shared partial-draft model and reusable editable/read-only
-component foundation now exist. They are not integrated into live Player Power,
-Signature Move, Roleplay Ability, or Monster Power authoring, so Phase 3 is not
-complete. Campaign-Custom authoring, approval, GD auto-approval provenance, a
-campaign-custom value database layer, governance, runtime evaluation, Combat
-Lab integration, economics, and simulation remain absent. Phase 2 as a whole is
-not complete.
+Restriction. The shared editor is live for ordinary Player Powers and the
+Signature Move. Partial drafts remain transient and block save when incomplete
+or invalid; valid definitions persist through CharacterBuilderData.
+Campaign-Custom and unsupported definitions remain read-only and preservable.
+Roleplay integration, legacy cutover, and Monster Power editor integration
+remain absent, so Phase 3 is not complete. Campaign-Custom authoring, approval,
+GD auto-approval provenance, a campaign-custom value database layer, governance,
+runtime evaluation, Combat Lab integration, economics, and simulation remain
+absent. Phase 2 as a whole is not complete.
 
 The current Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`,
 and `restrictionText` fields and UI are migration inputs only. CharacterPower

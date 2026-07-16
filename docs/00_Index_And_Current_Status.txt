@@ -169,13 +169,15 @@ CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic exists
 but is not automatically activated while the legacy controls remain live.
 Monster Power semantic Restriction definitions now persist in the nullable
 relational Power.restrictionJson field; existing Monster Powers default to no
-Restriction. A pure shared partial-draft model and reusable editable/read-only
-component foundation now exist, but no live Player Power, Signature Move,
-Roleplay Ability, or Monster Power integration exists. Campaign-Custom authoring
-remains deferred. No approval, GD auto-approval provenance, campaign-custom
-value database layer, governance, runtime evaluator, Combat Lab, economics, or
-simulation implementation is claimed. Phase 2 as a whole and Phase 3 are not
-complete.
+Restriction. The shared editor is now live for ordinary Player Powers and the
+Signature Move. Partial drafts remain transient and block save when incomplete
+or invalid; valid definitions persist through CharacterBuilderData.
+Campaign-Custom and unsupported definitions remain read-only and preservable.
+Roleplay integration and legacy cutover, Monster Power editor integration, and
+Campaign-Custom authoring remain deferred. No approval, GD auto-approval
+provenance, campaign-custom value database layer, governance, runtime evaluator,
+Combat Lab, economics, or simulation implementation is claimed. Phase 2 as a
+whole and Phase 3 are not complete.
 Exact standard template inventory,
 future enum spellings, UI, specific pregen Restrictions, scenario
 assumptions, economic classifications, numeric bands, and credit values remain

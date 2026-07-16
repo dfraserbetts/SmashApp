@@ -991,15 +991,16 @@ requested label grants no approval or credit. Broad use must trigger inspection
 of practical availability, reliable enabling, enforcement, and table preference
 rather than automatic economic treatment.
 
-Restrictions may be drafted and manually reviewed. Shared semantic persistence
-and a pure reusable editor/read-only component foundation now exist, but the
-foundation is not integrated into live Player Power, Signature Move, Roleplay
-Ability, or Monster Power authoring. Campaign-Custom authoring and governance
-remain deferred. Manual prose, a selected label, or a stored percentage cannot
-approve or price itself. Complete standard-template coverage, live consumer UI,
-specific pregen Restrictions, scenario assumptions, numeric classifications and
-values, runtime enforcement, Combat Lab execution, and simulation remain future
-work.
+Restrictions may be drafted and manually reviewed. The shared editor is live for
+ordinary Player Powers and the Signature Move. Partial drafts remain transient
+and block save when incomplete or invalid; valid definitions persist through
+CharacterBuilderData. Campaign-Custom and unsupported definitions remain
+read-only and preservable. Roleplay integration and legacy cutover, Monster Power
+editor integration, Campaign-Custom authoring, and governance remain deferred.
+Manual prose, a selected label, or a stored percentage cannot approve or price
+itself. Complete standard-template coverage, remaining consumer UI, specific
+pregen Restrictions, scenario assumptions, numeric classifications and values,
+runtime enforcement, Combat Lab execution, and simulation remain future work.
 
 Restrictions do not add upside. If text says "only works on allies, but doubles
 effect," the "doubles effect" part is not a restriction. Upside belongs to
