@@ -1,5 +1,6 @@
 import { loadEnvConfig } from "@next/env";
 import { execSync } from "node:child_process";
+import { performance } from "node:perf_hooks";
 
 import {
   computeMonsterOutcomes,
@@ -615,6 +616,7 @@ function semanticCostDiagnostics(costs: ReturnType<typeof resolvePowerCosts>) {
 
 function summarizeOutcome(outcome: ReturnType<typeof computeMonsterOutcomes>) {
   const debug = asRecord(outcome.debug);
+  const semanticSynergy = asRecord(debug.semanticSynergyAxisModel);
   const finalPre = asRecord(debug.finalPreNormalizationAxes);
   const powerDebug = asRecord(debug.powerContribution);
   const canonical = axisValues(asRecord(powerDebug.canonicalPowerAxisVector));
@@ -648,6 +650,21 @@ function summarizeOutcome(outcome: ReturnType<typeof computeMonsterOutcomes>) {
     suppressedByMissingAuthority: perPowerAvailability.some(
       (row) => row.unresolvedError !== null || row.cooldownSource === "UNRESOLVED",
     ),
+    semanticSynergy: {
+      mode: semanticSynergy.mode ?? null,
+      rawSemanticSupport: semanticSynergy.rawSemanticSupport ?? null,
+      tierScale: semanticSynergy.tierScale ?? null,
+      activeCapacity: semanticSynergy.activeCapacity ?? null,
+      detectedSemanticPacketCount: semanticSynergy.detectedSemanticPacketCount ?? 0,
+      semanticPowerIds: Array.isArray(semanticSynergy.semanticPowerIds)
+        ? semanticSynergy.semanticPowerIds
+        : [],
+      diagnostics: Array.isArray(semanticSynergy.diagnostics) ? semanticSynergy.diagnostics : [],
+      legalActivationTurns: Array.isArray(semanticSynergy.legalActivationTurns)
+        ? semanticSynergy.legalActivationTurns
+        : [],
+      optimizer: semanticSynergy.optimizer ?? null,
+    },
   };
 }
 
@@ -927,12 +944,17 @@ function summarizePersistedAsset(
     ),
     authority: hydrated.authority.map((entry) => ({
       powerId: entry.powerId,
+      powerName: entry.powerName,
       resolved: entry.resolution.ok,
       source: entry.resolution.ok ? entry.resolution.result.source : null,
       tuningSetId: entry.resolution.ok ? entry.resolution.result.tuningSetId : null,
+      basePowerValue: entry.resolution.ok
+        ? round(entry.resolution.result.basePowerValue, 6)
+        : null,
       errorCode: entry.resolution.ok ? null : entry.resolution.errorCode,
     })),
     runtime: runtimeSummary(hydrated.powers),
+    basePowerValue: round(costs.totals.basePowerValue, 6),
     ...summarizeOutcome(outcome),
   };
 }
@@ -1063,7 +1085,7 @@ async function loadActiveTuning(prisma: PrismaClientInstance) {
 
 async function loadMonsters(prisma: PrismaClientInstance) {
   return prisma.monster.findMany({
-    where: { campaignId: CAMPAIGN_ID },
+    where: { OR: [{ campaignId: CAMPAIGN_ID }, { level: 3 }] },
     orderBy: { name: "asc" },
     include: {
       naturalAttack: true,
@@ -1155,6 +1177,45 @@ async function buildPayload() {
     );
     const mapping = buildMappingEvidence(selectedAsset);
     const fixtures = buildFixtures(tuning);
+    const reconciliationStarted = performance.now();
+    const levelThreeAssets = monsters
+      .filter((monster) => monster.level === 3)
+      .map((monster) => {
+        const started = performance.now();
+        const summary = summarizePersistedAsset(
+          monster,
+          monster.powers.map(mapMonsterPower),
+          tuning,
+        );
+        return { ...summary, calculatorRuntimeMs: performance.now() - started };
+      });
+    const reconciliationRuntimeMs = performance.now() - reconciliationStarted;
+    const sortedAssetRuntimeMs = levelThreeAssets
+      .map((asset) => asset.calculatorRuntimeMs)
+      .sort((left, right) => left - right);
+    const medianAssetRuntimeMs = sortedAssetRuntimeMs.length === 0
+      ? 0
+      : sortedAssetRuntimeMs.length % 2 === 1
+        ? sortedAssetRuntimeMs[Math.floor(sortedAssetRuntimeMs.length / 2)]
+        : (
+            sortedAssetRuntimeMs[sortedAssetRuntimeMs.length / 2 - 1] +
+            sortedAssetRuntimeMs[sortedAssetRuntimeMs.length / 2]
+          ) / 2;
+    const namedAsset = (fragment: string) =>
+      levelThreeAssets.find((asset) => asset.name.toLowerCase().includes(fragment.toLowerCase()));
+    const courtMage = namedAsset("court mage");
+    const direWolf = namedAsset("dire wolf");
+    const gazzkill = namedAsset("gazzkill");
+    const wolfBerzerker = namedAsset("wolf berzerker");
+    const genericSupportAssets = levelThreeAssets.filter((asset) => {
+      const monster = monsters.find((candidate) => candidate.id === asset.monsterId);
+      return monster?.powers.some((power) =>
+        power.effectPackets.some((packet) => packet.intention === "SUPPORT"),
+      );
+    });
+    const mixedModelAssets = levelThreeAssets.filter(
+      (asset) => asset.semanticSynergy.mode === "MIXED_UNSUPPORTED",
+    );
     const semanticAxisGap = compareSemanticAxisGap(fixtures);
     const fixtureIds = fixtures.map((fixture) => fixture.id);
     const syntheticPowerIds = fixtures.flatMap((fixture) =>
@@ -1248,6 +1309,37 @@ async function buildPayload() {
         DATABASE_OPERATIONS.every(
           (operation) => operation.endsWith(".findFirst") || operation.endsWith(".findMany"),
         ),
+      courtMageUsesApprovedSemanticModel:
+        Boolean(courtMage) &&
+        courtMage?.semanticSynergy.mode === "LEVEL_3_SEMANTIC" &&
+        Math.abs(Number(courtMage?.semanticSynergy.rawSemanticSupport) - 7.734375) <= 0.000001 &&
+        Math.abs(Number(courtMage?.finalSynergy) - 3.280608242480187) <= 0.000001 &&
+        courtMage.authority.some(
+          (entry) =>
+            courtMage.semanticSynergy.semanticPowerIds.includes(entry.powerId) &&
+            Math.abs(Number(entry.basePowerValue) - 9.5) <= 0.000001,
+        ),
+      direWolfRemainsLegacy:
+        Boolean(direWolf) && direWolf?.semanticSynergy.mode === "LEGACY_ONLY",
+      gazzkillRemainsLegacy:
+        Boolean(gazzkill) && gazzkill?.semanticSynergy.mode === "LEGACY_ONLY",
+      wolfBerzerkerSelfPassiveExcluded:
+        Boolean(wolfBerzerker) &&
+        Number(wolfBerzerker?.semanticSynergy.rawSemanticSupport) === 0 &&
+        Number(wolfBerzerker?.finalSynergy) === 0,
+      unsupportedGenericSupportRemainsZero: genericSupportAssets.every(
+        (asset) =>
+          Number(asset.semanticSynergy.rawSemanticSupport) === 0 &&
+          Number(asset.finalSynergy) === 0,
+      ) && (() => {
+        const unsupported = fixtureById(fixtures, "unsupported_support");
+        return unsupported.rawSynergy === 0 && unsupported.finalSynergy === 0;
+      })(),
+      noSavedAssetSilentlyMigrated: levelThreeAssets.every((asset) =>
+        asset.semanticSynergy.mode === "LEVEL_3_SEMANTIC"
+          ? Number(asset.semanticSynergy.detectedSemanticPacketCount) > 0
+          : true,
+      ),
     };
     const failedChecks = Object.entries(checks)
       .filter(([, passed]) => !passed)
@@ -1264,7 +1356,7 @@ async function buildPayload() {
           rawSynergy: editorEquivalent.rawSynergy,
           canonicalPowerAxisVector: editorEquivalent.canonicalPowerAxisVector,
           effectivePowerAxisVector: editorEquivalent.effectivePowerAxisVector,
-        })}`,
+        })}; courtMage=${JSON.stringify(courtMage ?? null)}`,
       );
     }
     const requestedSet = new Set<string>(SAMPLE_NAMES);
@@ -1286,10 +1378,10 @@ async function buildPayload() {
       auditCompatibility: "compatible" as const,
       currentBalanceStatus: {
         legacyCurrentSynergyEvidence: "available",
-        semanticNewFormatSynergy: "not_calibrated_or_approved",
+        semanticNewFormatSynergy: "level_3_implemented",
         semanticBreadthMismatchDetected: semanticAxisGap.breadth.gapDetected,
         semanticPersistenceMismatchDetected: semanticAxisGap.persistence.gapDetected,
-        level3SemanticReferenceSuites: "missing",
+        level3SemanticReferenceSuites: "implemented",
         productionMutation: "none",
       },
       provenance: {
@@ -1330,10 +1422,27 @@ async function buildPayload() {
       missingRequestedSamples: SAMPLE_NAMES.filter(
         (name) => !requestedSamples.some((sample) => sample.name === name),
       ),
+      savedLevelThreeReconciliation: {
+        assetCount: levelThreeAssets.length,
+        runtimeMs: reconciliationRuntimeMs,
+        medianAssetRuntimeMs,
+        maximumAssetRuntimeMs: Math.max(
+          0,
+          ...levelThreeAssets.map((asset) => asset.calculatorRuntimeMs),
+        ),
+        namedAssets: {
+          courtMage: courtMage ?? null,
+          direWolf: direWolf ?? null,
+          gazzkill: gazzkill ?? null,
+          wolfBerzerker: wolfBerzerker ?? null,
+        },
+        genericSupportAssets,
+        mixedModelAssets,
+      },
       warnings: [
-        "Current resolver Synergy values remain legacy/cost-derived evidence.",
-        "New-format semantic delivery diagnostics are not approved Synergy calibration targets.",
-        "Level 3 semantic Synergy reference suites and normalization remain unapproved.",
+        "Legacy-only power support remains on the explicitly diagnosed legacy path.",
+        "Mixed semantic and legacy support fails closed and is reported in savedLevelThreeReconciliation.mixedModelAssets.",
+        "Semantic Synergy remains Level 3 only; unsupported levels fail closed.",
       ],
       changedAxes: ["synergy"],
     };
@@ -1373,6 +1482,7 @@ function printHuman(payload: Awaited<ReturnType<typeof buildPayload>>) {
   }
   console.log("");
   console.log(`semanticAxisGap=${JSON.stringify(payload.semanticAxisGap)}`);
+  console.log(`savedLevelThreeReconciliation=${JSON.stringify(payload.savedLevelThreeReconciliation)}`);
   for (const warning of payload.warnings) console.log(`warning=${warning}`);
   console.log(`finalCompatibilityVerdict=${payload.outputContract.verdict}`);
 }

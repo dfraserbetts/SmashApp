@@ -177,10 +177,11 @@ for (const requiredId of [
   "augment-debuff-economics-smoke",
   "automatic-expected-targets-smoke",
   "semantic-authoring-feedback-smoke",
+  "semantic-synergy-level-3-smoke",
 ]) {
   assert.ok(quick.selected.some((suite) => suite.id === requiredId), `quick mode omitted ${requiredId}`);
 }
-assert.equal(quick.selected.length, 10, "quick mode must contain the ten available baseline suites.");
+assert.equal(quick.selected.length, 11, "quick mode must contain the eleven available baseline suites.");
 for (const reconciliationId of reconciliationIds) {
   assert.equal(
     quick.selected.some((suite) => suite.id === reconciliationId),
@@ -413,8 +414,14 @@ assert.equal(synergySuite?.compatibility, "AVAILABLE");
 assert.equal(synergySuite?.mutationSafety.classification, "READ_ONLY");
 assert.equal(synergySuite?.mutationSafety.databaseAccess, "read-only");
 assert.deepEqual(synergySuite?.modes, ["axes", "full", "changed"]);
-assert.ok(synergySuite?.notes.some((note) => /legacy\/cost-derived evidence/i.test(note)));
-assert.ok(synergySuite?.notes.some((note) => /blocked on approved Level 3 reference suites/i.test(note)));
+assert.ok(synergySuite?.notes.some((note) => /semantic Synergy/i.test(note)));
+assert.ok(synergySuite?.notes.some((note) => /legacy-only assets retain the legacy path/i.test(note)));
+const semanticSynergySuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "semantic-synergy-level-3-smoke",
+);
+assert.equal(semanticSynergySuite?.compatibility, "AVAILABLE");
+assert.equal(semanticSynergySuite?.failureSeverity, "BLOCKER");
+assert.deepEqual(semanticSynergySuite?.modes, ["quick", "full", "changed"]);
 assert.ok(full.selected.some((suite) => suite.id === "synergy-reconciliation"));
 assert.equal(quick.selected.some((suite) => suite.id === "synergy-reconciliation"), false);
 assert.equal(

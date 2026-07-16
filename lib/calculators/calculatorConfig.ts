@@ -1,3 +1,8 @@
+import {
+  LEVEL_3_SEMANTIC_SYNERGY_TUNING,
+  type SemanticSynergyTuning,
+} from "@/lib/calculators/semanticSynergy";
+
 export type LevelCurvePoint = { level: number; min: number; max: number };
 
 export type DurabilityLaneBaseline = {
@@ -208,6 +213,7 @@ export type CalculatorConfig = {
       >;
     };
   };
+  semanticSynergyAxisTuning: SemanticSynergyTuning;
   durabilityAxisTuning: {
     calibratedLevel: number;
     midpointScore: number;
@@ -664,6 +670,7 @@ export const calculatorConfig: CalculatorConfig = {
       },
     ],
   },
+  semanticSynergyAxisTuning: LEVEL_3_SEMANTIC_SYNERGY_TUNING,
   durabilityAxisTuning: {
     calibratedLevel: 3,
     midpointScore: 5,
@@ -1019,6 +1026,14 @@ export function resolveCalculatorConfig(overrides?: Partial<CalculatorConfig>): 
       baselines:
         overrides.controlPressureAxisTuning?.baselines ??
         calculatorConfig.controlPressureAxisTuning.baselines,
+    },
+    semanticSynergyAxisTuning: {
+      ...calculatorConfig.semanticSynergyAxisTuning,
+      ...overrides.semanticSynergyAxisTuning,
+      tiers: {
+        ...calculatorConfig.semanticSynergyAxisTuning.tiers,
+        ...overrides.semanticSynergyAxisTuning?.tiers,
+      },
     },
     durabilityAxisTuning: {
       ...calculatorConfig.durabilityAxisTuning,

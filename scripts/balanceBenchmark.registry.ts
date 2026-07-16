@@ -90,6 +90,7 @@ const tuningDependencyPatterns = [
 const outcomeDependencyPatterns = [
   "lib/calculators/monsterOutcomeCalculator.ts",
   "lib/calculators/calculatorConfig.ts",
+  "lib/calculators/semanticSynergy.ts",
   "lib/summoning/types.ts",
   "lib/summoning/resolvePowerCooldownAuthority.ts",
   ...tuningDependencyPatterns,
@@ -686,11 +687,36 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
     }),
   ),
   tsxSuite({
+    id: "semantic-synergy-level-3-smoke",
+    title: "Level 3 semantic Synergy smoke",
+    family: "Synergy reconciliation",
+    description:
+      "Verify the locked 19-fixture semantic Synergy reference suite and exact finite-horizon optimiser.",
+    compatibility: "AVAILABLE",
+    modes: ["quick", "full", "changed"],
+    script: "scripts/semanticSynergyLevel3.smoke.ts",
+    deterministicSeeds: [],
+    mutationSafety: syntheticReadOnly,
+    timeoutMs: 120_000,
+    changedPathPatterns: [
+      "scripts/semanticSynergyLevel3.smoke.ts",
+      ...combatLabDependencyPatterns,
+      ...outcomeDependencyPatterns,
+      ...powerDependencyPatterns,
+    ],
+    failureSeverity: "BLOCKER",
+    supportsJson: false,
+    baselinePolicy: selfAsserting(
+      "The focused smoke owns the approved Level 3 semantic Synergy doctrine, fixtures, and invariants.",
+    ),
+    notes: ["Uses production hydration and in-memory fixtures only; performs no database or repository writes."],
+  }),
+  tsxSuite({
     id: "synergy-reconciliation",
     title: "Synergy reconciliation",
     family: "Synergy reconciliation",
     description:
-      "Reconcile current legacy/cost-derived Synergy evidence with active cooldown authority and current runtime adaptation.",
+      "Reconcile semantic, legacy-only, mixed-model, and saved-asset Synergy behavior with active authority.",
     compatibility: "AVAILABLE",
     modes: ["axes", "full", "changed"],
     script: "scripts/balanceAudit.summoningCircleSynergyReconciliation.ts",
@@ -712,9 +738,8 @@ export const BALANCE_BENCHMARK_REGISTRY: readonly SuiteDefinition[] = [
       "The command self-validates persisted mapping, saved/editor parity, active cooldown authority, current runtime adaptation, and unsuppressed effective axes.",
     ),
     notes: [
-      "Audit compatibility repaired; execution remains database-read-only and non-mutating.",
-      "Current values remain legacy/cost-derived evidence, not semantic Synergy calibration authority.",
-      "Semantic Synergy recalibration remains blocked on approved Level 3 reference suites.",
+      "Execution is database-read-only and non-mutating.",
+      "Supported new-format Level 3 Augments use semantic Synergy; legacy-only assets retain the legacy path and mixed models fail closed.",
     ],
   }),
   {

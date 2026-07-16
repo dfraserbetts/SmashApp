@@ -39,6 +39,7 @@ import {
   type PacketDeliveryEvaluation,
 } from "@/lib/summoning/augmentDebuffEconomics";
 import { getNaturalAoeOneAreaCapacity } from "@/lib/powers/expectedTargetEstimation";
+import { computeLevel3SemanticSynergy } from "@/lib/calculators/semanticSynergy";
 
 export type { MonsterCalculatorArchetype };
 
@@ -4868,6 +4869,15 @@ export function computeMonsterOutcomes(
   const calibratedControlPressureRaw = controlPressureAxisBaselineModel.calibrated
     ? controlPressureAxisBaselineModel.rawActualControlPressureProxy
     : legacyManipulationRaw;
+  const legacyRawSynergy =
+    nonPowerContribution.synergy + effectivePowerAxisVector.synergy;
+  const semanticSynergyAxisModel = computeLevel3SemanticSynergy({
+    monster,
+    powers: opts?.powerContribution?.powers,
+    legacyRawSynergy,
+    legacyNonPowerSynergy: nonPowerContribution.synergy,
+    tuning: cfg.semanticSynergyAxisTuning,
+  });
   const finalPreNormalizationAxes: RadarAxes = {
     physicalThreat: nonPowerContribution.physicalThreat + effectivePowerAxisVector.physicalThreat,
     mentalThreat: nonPowerContribution.mentalThreat + effectivePowerAxisVector.mentalThreat,
@@ -4878,7 +4888,10 @@ export function computeMonsterOutcomes(
       nonPowerContribution.mentalSurvivability +
       effectivePowerAxisVector.mentalSurvivability,
     manipulation: calibratedControlPressureRaw,
-    synergy: nonPowerContribution.synergy + effectivePowerAxisVector.synergy,
+    synergy:
+      semanticSynergyAxisModel.scoreOverride === null
+        ? legacyRawSynergy
+        : semanticSynergyAxisModel.rawSemanticSupport,
     mobility: nonPowerContribution.mobility + effectivePowerAxisVector.mobility,
     presence: calibratedPressureRaw,
   };
@@ -4960,11 +4973,13 @@ export function computeMonsterOutcomes(
           manipulationCurvePoint,
           tierMultiplier,
         ),
-    synergy: normalizeByLevelCurve(
-      finalPreNormalizationAxes.synergy,
-      synergyCurvePoint,
-      tierMultiplier,
-    ),
+    synergy:
+      semanticSynergyAxisModel.scoreOverride ??
+      normalizeByLevelCurve(
+        finalPreNormalizationAxes.synergy,
+        synergyCurvePoint,
+        tierMultiplier,
+      ),
     mobility: normalizeByLevelCurve(
       finalPreNormalizationAxes.mobility,
       mobilityCurvePoint,
@@ -5074,6 +5089,7 @@ export function computeMonsterOutcomes(
         },
       },
       finalPreNormalizationAxes,
+      semanticSynergyAxisModel,
       normalizationBreakdown: {
         level,
         tierKey,
@@ -5128,6 +5144,7 @@ export function computeMonsterOutcomes(
               mentalSurvivability: null,
             },
         controlPressureAxisBaselineModel,
+        semanticSynergyAxisModel,
         pressureAxisBaselineModel,
         radarAxes,
       },
