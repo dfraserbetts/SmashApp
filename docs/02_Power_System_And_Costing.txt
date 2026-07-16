@@ -858,10 +858,13 @@ final complete V1 inventory. Player Power and Signature Move definitions, plus
 explicitly supplied Roleplay definitions, now round-trip through
 CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic exists
 but is not automatically activated while legacy controls remain live. Monster
-Power semantic Restriction relational persistence now exists. No approval
-system, GD auto-approval provenance, campaign-custom value database layer,
-shared Builder UI, governance, runtime evaluator, Combat Lab integration,
-economics, or simulation support currently exists; Phase 2 remains incomplete.
+Power semantic Restriction relational persistence now exists. A pure shared
+partial-draft model and reusable editable/read-only component foundation now
+exist, but no live Player Power, Signature Move, Roleplay Ability, or Monster
+Power integration exists. Campaign-Custom authoring, approval, GD auto-approval
+provenance, a campaign-custom value database layer, governance, runtime
+evaluation, Combat Lab integration, economics, and simulation remain absent;
+Phase 2 remains incomplete and Phase 3 is not complete.
 A future
 runtime may distinguish eligible, ineligible, and GD-adjudicated outcomes, but
 exact enum names and implementation are separately authorized later work.

@@ -817,7 +817,8 @@ Monster relational persistence implemented; atomic legacy cutover remains):
 - preserve Monster Power identities, packet identities, reconciliation, and
   core/read-only-to-campaign-copy behaviour.
 
-Phase 3 - Standard Structured and Custom Narrative UI:
+Phase 3 - Standard Structured and Custom Narrative UI (Phase 3A shared
+foundation implemented; live consumer integration deferred):
 
 - build the dependent Subject + Condition + Operator + Value editor from the
   shared registry rather than a finished-sentence mega-dropdown;
@@ -882,9 +883,12 @@ logic exists but is not automatically activated while the legacy controls remain
 live. Monster Powers persist as relational Prisma Power records and share the
 common Power type; semantic Restriction definitions now round-trip through the
 nullable Power.restrictionJson field, and existing rows default to no
-Restriction. No approval system, GD auto-approval provenance, campaign-custom
-value database layer, shared Builder UI, governance, runtime evaluator, Combat
-Lab integration, economics, or simulation support exists. Phase 2 as a whole is
+Restriction. A pure shared partial-draft model and reusable editable/read-only
+component foundation now exist. They are not integrated into live Player Power,
+Signature Move, Roleplay Ability, or Monster Power authoring, so Phase 3 is not
+complete. Campaign-Custom authoring, approval, GD auto-approval provenance, a
+campaign-custom value database layer, governance, runtime evaluation, Combat
+Lab integration, economics, and simulation remain absent. Phase 2 as a whole is
 not complete.
 
 The current Roleplay `restrictionType`, `restrictionBand`, `restrictionTag`,

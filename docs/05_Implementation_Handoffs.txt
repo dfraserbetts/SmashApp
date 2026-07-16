@@ -449,10 +449,13 @@ Current implementation truth:
 - Monster Power semantic Restriction definitions round-trip through the nullable
   relational Power.restrictionJson field; existing Monster Powers default to no
   Restriction.
-- No approval system, GD auto-approval provenance, campaign-custom value database
-  layer, shared Builder UI, governance, runtime evaluator, Combat Lab integration,
-  economics, or simulation support currently exists. Phase 2 as a whole is not
-  complete.
+- A pure shared partial-draft model and reusable editable/read-only component
+  foundation exist, but no live Player Power, Signature Move, Roleplay Ability,
+  or Monster Power integration exists. Phase 3 is not complete.
+- Campaign-Custom authoring, approval, GD auto-approval provenance, a
+  campaign-custom value database layer, governance, runtime evaluation, Combat
+  Lab integration, economics, and simulation remain absent. Phase 2 as a whole
+  is not complete.
 - Core/read-only Monsters remain non-editable and are copied into campaign-local
   editable Monsters through the existing workflow.
 
