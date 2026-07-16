@@ -25,6 +25,7 @@ const cwd = process.cwd();
 const monsterReconciliationId = "power-cooldown-cache-reconciliation-monsters";
 const characterReconciliationId = "power-cooldown-cache-reconciliation-characters";
 const reconciliationIds = [monsterReconciliationId, characterReconciliationId] as const;
+const modifierAuthoringRoundTripId = "modifier-authoring-round-trip-smoke";
 
 const repository: RepositoryProvenance = {
   root: cwd,
@@ -89,6 +90,12 @@ function fixtureSuite(
 async function main(): Promise<void> {
 const suiteIds = BALANCE_BENCHMARK_REGISTRY.map((suite) => suite.id);
 assert.equal(new Set(suiteIds).size, suiteIds.length, "Registry suite IDs must be unique.");
+assert.ok(suiteIds.includes(modifierAuthoringRoundTripId), "Cross-surface Modifier authoring smoke must be registered.");
+assert.deepEqual(
+  BALANCE_BENCHMARK_REGISTRY.find((suite) => suite.id === modifierAuthoringRoundTripId)?.modes,
+  ["full", "changed"],
+  "Cross-surface authoring stays out of quick mode and runs for full/changed selection.",
+);
 assert.equal(registryFamilies().length, 11, "All eleven contract families must be represented.");
 
 for (const suite of BALANCE_BENCHMARK_REGISTRY) {
@@ -168,10 +175,12 @@ for (const requiredId of [
   "character-power-builder-smoke",
   "augment-debuff-three-field-semantic-smoke",
   "augment-debuff-economics-smoke",
+  "automatic-expected-targets-smoke",
+  "semantic-authoring-feedback-smoke",
 ]) {
   assert.ok(quick.selected.some((suite) => suite.id === requiredId), `quick mode omitted ${requiredId}`);
 }
-assert.equal(quick.selected.length, 8, "quick mode must contain the eight available baseline suites.");
+assert.equal(quick.selected.length, 10, "quick mode must contain the ten available baseline suites.");
 for (const reconciliationId of reconciliationIds) {
   assert.equal(
     quick.selected.some((suite) => suite.id === reconciliationId),
@@ -187,6 +196,10 @@ assert.ok(
 assert.ok(
   full.selected.some((suite) => suite.id === "augment-debuff-economics-smoke"),
   "full mode omitted augment-debuff-economics-smoke",
+);
+assert.ok(
+  full.selected.some((suite) => suite.id === "automatic-expected-targets-smoke"),
+  "full mode omitted automatic-expected-targets-smoke",
 );
 assert.ok(
   full.selected.some((suite) => suite.id === "summoning-circle-modifier-infrastructure-smoke"),
@@ -332,6 +345,24 @@ for (const path of [
 const economicsSuite = BALANCE_BENCHMARK_REGISTRY.find(
   (suite) => suite.id === "augment-debuff-economics-smoke",
 );
+const semanticFeedbackSuite = BALANCE_BENCHMARK_REGISTRY.find(
+  (suite) => suite.id === "semantic-authoring-feedback-smoke",
+);
+assert.equal(semanticFeedbackSuite?.compatibility, "AVAILABLE");
+assert.equal(semanticFeedbackSuite?.mutationSafety.classification, "READ_ONLY");
+assert.equal(semanticFeedbackSuite?.mutationSafety.databaseAccess, "none");
+assert.equal(semanticFeedbackSuite?.mutationSafety.databaseWrites, false);
+for (const path of [
+  "lib/powers/semanticAuthoringFeedback.ts",
+  "app/campaign/[id]/characters/[characterId]/builder/page.tsx",
+  "app/summoning-circle/components/SummoningCircleEditor.tsx",
+  "scripts/semanticAuthoringFeedback.smoke.ts",
+]) {
+  assert.ok(
+    changed(path).selected.some((suite) => suite.id === "semantic-authoring-feedback-smoke"),
+    `${path} must select the semantic authoring feedback smoke.`,
+  );
+}
 assert.equal(economicsSuite?.compatibility, "AVAILABLE");
 assert.equal(economicsSuite?.mutationSafety.classification, "READ_ONLY");
 assert.equal(economicsSuite?.mutationSafety.declaredReadOnly, true);

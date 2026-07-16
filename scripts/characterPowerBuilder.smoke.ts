@@ -25,6 +25,7 @@ import {
 import {
   getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError,
   THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR,
+  THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED,
 } from "../lib/powers/authoringRules";
 import { resolvePowerCosts } from "../lib/summoning/powerCostResolver";
 import { DEFAULT_CHARACTER_POWER_SPEND_SCALAR } from "../lib/config/characterBuilderTuningShared";
@@ -134,6 +135,11 @@ assert(
   missingGameplayTuning.powers[0]?.cooldownAuthority.ok === false &&
     missingGameplayTuning.powers[0].cooldownAuthority.errorCode === "ACTIVE_TUNING_REQUIRED",
   "Current-balance Character Builder calculation must fail explicitly without active tuning.",
+);
+assert(
+  missingGameplayTuning.powers[0]?.costValid === false &&
+    missingGameplayTuning.powers[0].invalidCostReason?.includes("Active power tuning") === true,
+  "A genuinely unavailable economic resolution must keep BPV invalid and diagnostic.",
 );
 
 const normalizedCachedPower = normalizeCharacterPower(
@@ -408,12 +414,14 @@ const missingDamageSummary = summarizeCharacterPowers({
   powers: [missingDamageTypePower],
 });
 assert(
-  missingDamageSummary.powers[0]?.costValid === false,
-  "Missing Attack damage type should not have a valid comparable cost.",
+  missingDamageSummary.powers[0]?.costValid === true &&
+    missingDamageSummary.powers[0].errors.some((error) => error.includes("requires at least one damage type")),
+  "An authoring-invalid but economically resolvable power should preserve both its error and comparable cost.",
 );
 assert(
-  missingDamageSummary.powers[0]?.spend === null,
-  "Missing Attack damage type should not contribute player spend.",
+  typeof missingDamageSummary.powers[0]?.spend === "number" &&
+    missingDamageSummary.powers[0].cooldownAuthority.ok === true,
+  "An unrelated authoring error should not erase an otherwise valid spend or cooldown preview.",
 );
 
 const secondaryDicePower = normalizeCharacterPower({
@@ -1410,9 +1418,20 @@ assert(
   assert(reordered.effectPackets[0]?.id === reorderedPackets[0]?.id, "Packet reorder should preserve packet identity.");
   assert(
     getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError({
-      powers: [{ ...ordinary, effectPackets: [{ ...ordinary.effectPackets[0], intention: "AUGMENT", type: "AUGMENT", targetedAttribute: "GUARD", modifier: 3 }] }],
-    }) === THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR,
-    "Character save should reject non-null Modifier while Phase 1 authoring is disabled.",
+      powers: [{ ...ordinary, effectPackets: [{
+        ...ordinary.effectPackets[0],
+        intention: "AUGMENT",
+        type: "AUGMENT",
+        targetedAttribute: "GUARD",
+        modifier: 3,
+        potency: 1,
+        effectDurationType: "UNTIL_TARGET_NEXT_TURN",
+        effectDurationTurns: null,
+      }] }],
+    }) === (THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED
+      ? null
+      : THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR),
+    "Character save should follow the shared public Modifier authoring gate.",
   );
 }
 

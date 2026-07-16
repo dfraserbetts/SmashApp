@@ -24,6 +24,8 @@ import {
   createDefaultCharacterPower,
   createDefaultCharacterPowerPacket,
   normalizeCharacterPower,
+  signatureMovePointPool,
+  validateCharacterPowers,
 } from "../lib/characterBuilder/powers";
 import { buildCharacterDerivedCombatStats } from "../lib/characterBuilder/derivedStats";
 import {
@@ -301,11 +303,25 @@ function characterRowWithBuilder(
 }
 
 {
+  const signatureMove = unsupportedSignatureMovePower("Unsupported Signature");
   const builderData: CharacterBuilderData = {
     ...defaultBuilderData(),
     powers: [],
-    signatureMove: unsupportedSignatureMovePower("Unsupported Signature"),
+    signatureMove,
   };
+  const publicWriteErrors = validateCharacterPowers({
+    level: 3,
+    powers: [signatureMove],
+    tuningSnapshot: ACTIVE_POWER_TUNING_FIXTURE,
+    powerPool: signatureMovePointPool(3),
+    powerPoolKind: "signature",
+    powerLabel: "Signature Move",
+    poolDescription: "Character Level x 20",
+    offencePressureMode: "reviewOnly",
+  });
+  if (!publicWriteErrors.some((error) => /SUMMONING.*not supported/i.test(error))) {
+    throw new Error(`Unsupported Signature Move should remain invalid for public Character authoring: ${JSON.stringify(publicWriteErrors)}.`);
+  }
   const hydrated = adaptCampaignCharacterToCombatActor(
     characterRowWithBuilder("unsupported-signature-character", builderData),
     DEFAULT_COMBAT_TUNING_VALUES,

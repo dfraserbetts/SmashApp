@@ -23,6 +23,7 @@ import {
 } from "@/lib/summoning/types";
 import { requireCampaignAccess, requireCampaignDirectorOrAdmin, requireUserId } from "../_shared";
 import { normalizeMonsterUpsertInput } from "@/lib/summoning/validation";
+import { applyAutomaticExpectedTargetsToPowers } from "@/lib/powers/expectedTargetEstimation";
 import { getActivePowerTuningSet } from "@/lib/config/powerTuning";
 import { synchronizePowerCooldownCacheBatch } from "@/lib/summoning/powerCooldownCacheSynchronization";
 import {
@@ -1251,7 +1252,13 @@ export async function POST(req: Request) {
     const userId = await requireUserId();
     await requireCampaignDirectorOrAdmin(campaignId, userId);
 
-    const data = parsed.data;
+    const data = {
+      ...parsed.data,
+      powers: applyAutomaticExpectedTargetsToPowers(parsed.data.powers, {
+        source: "FALLBACK_STANDARD_TEAM_SIZE_4",
+        totalTeamSize: 4,
+      }),
+    };
     const traitError = await validateCoreTraitDefinitions(data.traits);
     if (traitError) {
       return NextResponse.json({ error: traitError }, { status: 400 });

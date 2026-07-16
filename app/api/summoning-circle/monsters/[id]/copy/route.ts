@@ -4,6 +4,7 @@ import type { EffectDurationType, Prisma } from "@prisma/client";
 import { renderAttackActionLines } from "@/lib/summoning/render";
 import { getActivePowerTuningSet } from "@/lib/config/powerTuning";
 import { synchronizePowerCooldownCacheBatch } from "@/lib/summoning/powerCooldownCacheSynchronization";
+import { applyAutomaticExpectedTargetsToPowers } from "@/lib/powers/expectedTargetEstimation";
 import {
   LEGACY_TRIGGER_CONDITION_TEXT_KEY,
   RESERVE_RELEASE_BEHAVIOUR_OPTIONS,
@@ -1012,7 +1013,10 @@ export async function POST(
       );
     }
     const synchronizedPowers = synchronizePowerCooldownCacheBatch({
-      powers: serializedSourcePowers,
+      powers: applyAutomaticExpectedTargetsToPowers(serializedSourcePowers, {
+        source: "FALLBACK_STANDARD_TEAM_SIZE_4",
+        totalTeamSize: 4,
+      }),
       tuningSnapshot: powerTuning,
       context: { level: source.level, tier: source.tier },
     });

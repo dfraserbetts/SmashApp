@@ -32,6 +32,7 @@ import {
   validateThreeFieldAugmentDebuffPowers,
 } from "@/lib/powers/authoringRules";
 import { readSummoningOpaqueId } from "@/lib/summoning/monsterPowerReconciliation";
+import { applyAutomaticExpectedTargetsToPower } from "@/lib/powers/expectedTargetEstimation";
 
 const DICE_SET = new Set<DiceSize>(["D4", "D6", "D8", "D10", "D12"]);
 const TIER_SET = new Set<MonsterTier>(["MINION", "SOLDIER", "ELITE", "BOSS"]);
@@ -1426,7 +1427,7 @@ function normalizePower(value: unknown, sortOrder: number): Power {
     descriptorChassis,
   );
 
-  return {
+  const normalized: Power = {
     ...(readSummoningOpaqueId(raw.id) ? { id: readSummoningOpaqueId(raw.id) } : {}),
     sortOrder,
     name: asString(raw.name, ""),
@@ -1498,6 +1499,10 @@ function normalizePower(value: unknown, sortOrder: number): Power {
     durationTurns: effectDurationTurns,
     defenceRequirement: derivePrimaryDefenceGate(raw, effectPackets)?.gateResult ?? "NONE",
   };
+  return applyAutomaticExpectedTargetsToPower(normalized, {
+    source: "FALLBACK_STANDARD_TEAM_SIZE_4",
+    totalTeamSize: 4,
+  });
 }
 
 function normalizeAttackConfig(value: unknown): MonsterNaturalAttackConfig {

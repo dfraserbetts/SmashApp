@@ -38,6 +38,7 @@ import {
   type IncarnateDieSides,
   type PacketDeliveryEvaluation,
 } from "@/lib/summoning/augmentDebuffEconomics";
+import { getNaturalAoeOneAreaCapacity } from "@/lib/powers/expectedTargetEstimation";
 
 export type { MonsterCalculatorArchetype };
 
@@ -1382,26 +1383,13 @@ function getExpectedNaturalAoeTargetsFromGeometry(
   aoeConfig: NonNullable<AttackConfigLike>["aoe"],
 ): number {
   if (!aoeConfig?.enabled) return 1;
-
-  const shape = String((aoeConfig as { shape?: unknown }).shape ?? "SPHERE").toUpperCase();
-  if (shape === "SPHERE") {
-    const sphereTargets: Record<number, number> = { 10: 3, 20: 6, 30: 9 };
-    return sphereTargets[Math.max(0, Math.trunc(safeNum(aoeConfig.sphereRadiusFeet ?? 0)))] ?? 1;
-  }
-  if (shape === "CONE") {
-    const coneTargets: Record<number, number> = { 15: 3, 30: 8, 60: 14 };
-    return coneTargets[Math.max(0, Math.trunc(safeNum(aoeConfig.coneLengthFeet ?? 0)))] ?? 1;
-  }
-
-  const lineTargetTable: Record<number, Record<number, number>> = {
-    5: { 30: 3, 60: 6, 90: 9, 120: 12 },
-    10: { 30: 4, 60: 8, 90: 12, 120: 16 },
-    15: { 30: 5, 60: 10, 90: 15, 120: 20 },
-    20: { 30: 6, 60: 12, 90: 18, 120: 24 },
-  };
-  const width = Math.max(0, Math.trunc(safeNum(aoeConfig.lineWidthFeet ?? 0)));
-  const length = Math.max(0, Math.trunc(safeNum(aoeConfig.lineLengthFeet ?? 0)));
-  return lineTargetTable[width]?.[length] ?? 1;
+  return getNaturalAoeOneAreaCapacity({
+    shape: aoeConfig.shape,
+    sphereRadiusFeet: aoeConfig.sphereRadiusFeet,
+    coneLengthFeet: aoeConfig.coneLengthFeet,
+    lineWidthFeet: aoeConfig.lineWidthFeet,
+    lineLengthFeet: aoeConfig.lineLengthFeet,
+  }) ?? 1;
 }
 
 function getEffectiveNaturalAoeTargetCount(

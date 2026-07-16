@@ -135,6 +135,28 @@ import type { CharacterBuilderTuningSnapshot } from "@/lib/config/characterBuild
 import type { CombatDieSize } from "@/lib/combat-lab/types";
 import { getForgeRarityPalette } from "@/lib/forge/itemRarityPalette";
 import type { MonsterModifierField } from "@/lib/summoning/equipment";
+import {
+  MODIFIER_AUTHORING_VALUES,
+  confirmModifierConversion,
+  createModifierConversionDraft,
+  formatModifierForIntention,
+  getSemanticRuntimeSupportError,
+  isAugmentDebuffIntention,
+  isLegacyAugmentDebuffPacket,
+  isSemanticAugmentDebuffPacket,
+  isSemanticRuntimeSupportedChassis,
+  isSemanticRuntimeSupportedTimingOption,
+  powerHasSemanticAugmentDebuffPacket,
+  switchModifierAuthoringIntention,
+  type ModifierConversionDraft,
+} from "@/lib/powers/modifierAuthoring";
+import { getSemanticAuthoringFeedbackForPacket } from "@/lib/powers/semanticAuthoringFeedback";
+import {
+  applyAutomaticExpectedTargetsToPower,
+  applyAutomaticExpectedTargetsToPowers,
+  estimatePowerPacketExpectedTargets,
+  type ExpectedTargetTeamContext,
+} from "@/lib/powers/expectedTargetEstimation";
 import type {
   DescriptorChassisType,
   EffectDurationType,
@@ -145,6 +167,7 @@ import type {
   SecondaryDependencyMode,
   TriggerConditionKey,
 } from "@/lib/summoning/types";
+import { resolvePowerCosts, type PowerCostBreakdown } from "@/lib/summoning/powerCostResolver";
 
 type CharacterBuilderRecord = {
   id: string;
@@ -423,14 +446,19 @@ function reconcilePowerPacketTimingForUi(power: CharacterPower): CharacterPower 
     const timingAuthorable = isCharacterPowerPacketTimingAuthorable(timingProbe, packetIndex);
     const allowedTimings = getCharacterPowerAllowedTimingOptions(timingProbe, packetIndex);
     const currentTiming = packet.effectTimingType ?? "ON_CAST";
-    const nextTiming = timingAuthorable && allowedTimings.includes(currentTiming)
+    const semanticPacket = isSemanticAugmentDebuffPacket(packet);
+    const nextTiming = semanticPacket
+      ? currentTiming
+      : timingAuthorable && allowedTimings.includes(currentTiming)
       ? currentTiming
       : timingAuthorable
         ? allowedTimings[0] ?? currentTiming
         : currentTiming;
     const allowedDurations = getCharacterPowerAllowedDurationOptions(nextTiming);
     const currentDuration = packet.effectDurationType ?? "INSTANT";
-    const nextDuration = allowedDurations.includes(currentDuration)
+    const nextDuration = semanticPacket
+      ? currentDuration
+      : allowedDurations.includes(currentDuration)
       ? currentDuration
       : "INSTANT";
 
@@ -1221,6 +1249,9 @@ export default function CharacterBuilderPage() {
   const [selectedBackpackItemId, setSelectedBackpackItemId] = useState("");
   const [pendingHandEquipItemId, setPendingHandEquipItemId] = useState("");
   const [collapsedPowerKeys, setCollapsedPowerKeys] = useState<Record<string, boolean>>({});
+  const [modifierConversionDrafts, setModifierConversionDrafts] = useState<
+    Record<string, ModifierConversionDraft>
+  >({});
   const [collapsedRoleplayAbilityKeys, setCollapsedRoleplayAbilityKeys] = useState<
     Record<string, boolean>
   >({});
@@ -1253,6 +1284,18 @@ export default function CharacterBuilderPage() {
   const traitCatalog = payload?.traitCatalog ?? [];
   const backpackItems = payload?.backpackItems ?? EMPTY_BACKPACK_ITEMS;
   const transferTargets = payload?.transferTargets ?? EMPTY_TRANSFER_TARGETS;
+  const expectedTargetTeamContext = useMemo<ExpectedTargetTeamContext>(() => ({
+    source: "ACTUAL_TEAM_CONTEXT",
+    totalTeamSize:
+      1 + transferTargets.filter((target) => target.characterId !== "__PARTY_STASH__").length,
+  }), [transferTargets]);
+  const builderDataWithAutomaticExpectedTargets = useMemo<CharacterBuilderData>(() => ({
+    ...builderData,
+    powers: applyAutomaticExpectedTargetsToPowers(builderData.powers, expectedTargetTeamContext),
+    signatureMove: builderData.signatureMove
+      ? applyAutomaticExpectedTargetsToPower(builderData.signatureMove, expectedTargetTeamContext)
+      : null,
+  }), [builderData, expectedTargetTeamContext]);
   const selectedBackpackItem = useMemo(
     () => backpackItems.find((item) => item.id === selectedBackpackItemId) ?? null,
     [backpackItems, selectedBackpackItemId],
@@ -1340,8 +1383,9 @@ export default function CharacterBuilderPage() {
         powerPoolKind: "signature",
         offencePressureMode: "reviewOnly",
         offencePressureDie,
+        expectedTargetTeamContext,
       }),
-    [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie],
+    [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie, expectedTargetTeamContext],
   );
   const signatureMoveEditorBudget = useMemo(
     () =>
@@ -1354,8 +1398,9 @@ export default function CharacterBuilderPage() {
         powerPoolKind: "signature",
         offencePressureMode: "reviewOnly",
         offencePressureDie,
+        expectedTargetTeamContext,
       }),
-    [signatureMoveDraft, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie],
+    [signatureMoveDraft, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie, expectedTargetTeamContext],
   );
   const powerBudget = useMemo(
     () =>
@@ -1365,8 +1410,9 @@ export default function CharacterBuilderPage() {
         tuningSnapshot: payload?.powerTuning ?? null,
         playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
         offencePressureDie,
+        expectedTargetTeamContext,
       }),
-    [builderData.powers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie],
+    [builderData.powers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, offencePressureDie, expectedTargetTeamContext],
   );
   const powerValidationErrors = useMemo(
     () =>
@@ -1375,8 +1421,9 @@ export default function CharacterBuilderPage() {
         powers: builderData.powers,
         tuningSnapshot: payload?.powerTuning ?? null,
         playerPowerSpendScalar: payload?.characterBuilderTuning?.playerPowerSpendScalar,
+        expectedTargetTeamContext,
       }),
-    [builderData.powers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
+    [builderData.powers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, expectedTargetTeamContext],
   );
   const signatureMoveValidationErrors = useMemo(
     () =>
@@ -1390,8 +1437,9 @@ export default function CharacterBuilderPage() {
         powerLabel: "Signature Move",
         poolDescription: "Character Level x 20",
         offencePressureMode: "reviewOnly",
+        expectedTargetTeamContext,
       }),
-    [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar],
+    [signatureMovePowers, currentLevel, payload?.powerTuning, payload?.characterBuilderTuning?.playerPowerSpendScalar, expectedTargetTeamContext],
   );
   const blockingSaveErrors = useMemo(
     () => [
@@ -1686,6 +1734,24 @@ export default function CharacterBuilderPage() {
     });
   }
 
+  function updateModifierConversionDraft(
+    packetId: string,
+    patch: Partial<ModifierConversionDraft>,
+  ) {
+    setModifierConversionDrafts((current) => ({
+      ...current,
+      [packetId]: { ...current[packetId], ...patch },
+    }));
+  }
+
+  function closeModifierConversionDraft(packetId: string) {
+    setModifierConversionDrafts((current) => {
+      const next = { ...current };
+      delete next[packetId];
+      return next;
+    });
+  }
+
   function addPowerPacket(powerIndex: number) {
     const power = powerIndex === SIGNATURE_MOVE_POWER_INDEX
       ? signatureMoveDraft
@@ -1736,6 +1802,20 @@ export default function CharacterBuilderPage() {
       allowRemove = true,
       defaultCollapsed = false,
     } = params;
+    const semanticFeedbackBreakdowns: Array<PowerCostBreakdown | null> = budget.powers.map(
+      (summary) => {
+        if (!summary?.costValid || !payload?.powerTuning) return null;
+        try {
+          return resolvePowerCosts([summary.power], payload.powerTuning, {
+            level: currentLevel,
+            tier: "SOLDIER",
+            offencePressureMode: "reviewOnly",
+          }).powers[0]?.breakdown ?? null;
+        } catch {
+          return null;
+        }
+      },
+    );
 
     return powers.length === 0 ? (
       <p className="rounded-lg border border-dashed border-zinc-800 bg-black p-4 text-sm text-zinc-500">
@@ -1761,6 +1841,11 @@ export default function CharacterBuilderPage() {
                     ? (primaryDetails.rangeExtra as Record<string, unknown>)
                     : {};
                 const descriptorChassis = power.descriptorChassis ?? "IMMEDIATE";
+                const powerHasSemanticModifier = powerHasSemanticAugmentDebuffPacket(power);
+                const semanticChassisOptions = powerHasSemanticModifier
+                  ? POWER_CHASSIS_OPTIONS.filter(isSemanticRuntimeSupportedChassis)
+                  : POWER_CHASSIS_OPTIONS;
+                const currentChassisIsSemanticLegal = semanticChassisOptions.includes(descriptorChassis);
                 const commitmentModifier = power.commitmentModifier ?? "STANDARD";
                 const allowedCommitmentOptions = getCharacterPowerAllowedCommitmentOptions(descriptorChassis);
                 const displayedCommitment = allowedCommitmentOptions.includes(commitmentModifier)
@@ -1938,7 +2023,10 @@ export default function CharacterBuilderPage() {
                           disabled={!canEdit || saving}
                           className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                         >
-                          {POWER_CHASSIS_OPTIONS.map((option) => (
+                          {!currentChassisIsSemanticLegal ? (
+                            <option value={descriptorChassis}>Unsupported runtime: {descriptorChassis}</option>
+                          ) : null}
+                          {semanticChassisOptions.map((option) => (
                             <option key={option} value={option}>
                               {option}
                             </option>
@@ -2244,10 +2332,15 @@ export default function CharacterBuilderPage() {
                               ? (packet.detailsJson as Record<string, unknown>)
                               : {};
                           const timingAuthorable = isCharacterPowerPacketTimingAuthorable(power, packetIndex);
-                          const timingOptions = timingAuthorable
+                          const baseTimingOptions = timingAuthorable
                             ? getCharacterPowerAllowedTimingOptions(power, packetIndex)
                             : [];
                           const currentTiming = packet.effectTimingType ?? "ON_CAST";
+                          const isSemanticModifierPacket = isSemanticAugmentDebuffPacket(packet);
+                          const timingOptions = isSemanticModifierPacket
+                            ? baseTimingOptions.filter((option) =>
+                                isSemanticRuntimeSupportedTimingOption(descriptorChassis, option))
+                            : baseTimingOptions;
                           const currentTimingIsLegal = timingOptions.includes(currentTiming);
                           const requiresAttachedHostileEntryBeforeTiming = !timingAuthorable;
                           const durationOptions = getCharacterPowerAllowedDurationOptions(packet.effectTimingType);
@@ -2275,6 +2368,53 @@ export default function CharacterBuilderPage() {
                           const damageTypeOptions =
                             (powerDamageTypes.length > 0 ? powerDamageTypes : CHARACTER_POWER_FALLBACK_DAMAGE_TYPES)
                               .filter((row) => row.attackMode === attackMode);
+                          const isModifierIntention = isAugmentDebuffIntention(packet.intention);
+                          const isLegacyModifierPacket = isLegacyAugmentDebuffPacket(packet);
+                          const semanticCandidateRuntimeError = getSemanticRuntimeSupportError({
+                            descriptorChassis,
+                            packet: {
+                              ...packet,
+                              intention: "AUGMENT",
+                              type: "AUGMENT",
+                              modifier: packet.modifier ?? 1,
+                            },
+                            packetIndex,
+                            primaryPacket: power.effectPackets[0],
+                          });
+                          const canAuthorSemanticModifierHere = semanticCandidateRuntimeError === null;
+                          const semanticFeedback = isSemanticModifierPacket
+                            ? getSemanticAuthoringFeedbackForPacket(
+                                semanticFeedbackBreakdowns[localPowerIndex],
+                                packet.id,
+                              )
+                            : null;
+                          const requiresExpectedTargets = displayedRangeCategory === "AOE";
+                          const conversionPacketId = packet.id ?? "";
+                          const conversionDraft = conversionPacketId
+                            ? modifierConversionDrafts[conversionPacketId]
+                            : undefined;
+                          const conversionResult = conversionDraft
+                            ? confirmModifierConversion({
+                                packet,
+                                draft: conversionDraft,
+                                packetIndex,
+                                requiresExpectedTargets,
+                              })
+                            : null;
+                          const estimatedTargets = isSemanticModifierPacket && requiresExpectedTargets
+                            ? estimatePowerPacketExpectedTargets({ power, packet, teamContext: expectedTargetTeamContext })
+                            : null;
+                          const conversionEstimatedTargets = conversionResult?.packet && requiresExpectedTargets
+                            ? estimatePowerPacketExpectedTargets({
+                                power: {
+                                  ...power,
+                                  effectPackets: power.effectPackets.map((currentPacket, currentIndex) =>
+                                    currentIndex === packetIndex ? conversionResult.packet! : currentPacket),
+                                },
+                                packet: conversionResult.packet,
+                                teamContext: expectedTargetTeamContext,
+                              })
+                            : null;
                           return (
                           <div key={`${powerIndex}-${packetIndex}`} className="rounded border border-zinc-800 p-3">
                             <div className="flex items-center justify-between gap-3">
@@ -2292,22 +2432,182 @@ export default function CharacterBuilderPage() {
                                 </button>
                               ) : null}
                             </div>
+                            {isLegacyModifierPacket ? (
+                              <div className="mt-3 rounded border border-amber-800/70 bg-amber-950/20 p-3">
+                                <p className="text-xs font-semibold text-amber-200">
+                                  Legacy {packet.intention === "AUGMENT" ? "Augment" : "Debuff"}
+                                </p>
+                                <p className="mt-1 text-xs text-amber-100/80">
+                                  Legacy Potency currently represents the fixed attribute bonus or penalty.
+                                </p>
+                                {!conversionDraft ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!conversionPacketId) return;
+                                        setModifierConversionDrafts((current) => ({
+                                          ...current,
+                                          [conversionPacketId]: createModifierConversionDraft(packet),
+                                        }));
+                                      }}
+                                      disabled={!canEdit || saving || !conversionPacketId || !canAuthorSemanticModifierHere}
+                                      className="mt-2 rounded border border-amber-700 px-2 py-1 text-xs text-amber-100 hover:bg-amber-950/50 disabled:opacity-60"
+                                    >
+                                      Convert to Dice / Potency / Modifier
+                                    </button>
+                                    {!canAuthorSemanticModifierHere ? (
+                                      <p className="mt-2 text-[11px] text-amber-300">
+                                        Conversion requires a runtime-supported semantic chassis and timing.
+                                      </p>
+                                    ) : null}
+                                  </>
+                                ) : (
+                                  <div className="mt-3 space-y-3">
+                                    <p className="text-[11px] text-zinc-400">
+                                      Legacy Potency reference: {packet.potency ?? power.potency}. Choose the new semantic values explicitly.
+                                    </p>
+                                    <div className="grid gap-3 md:grid-cols-3">
+                                      <label className="block">
+                                        <span className="text-xs text-zinc-400">New Potency</span>
+                                        <select
+                                          value={conversionDraft.potency ?? ""}
+                                          onChange={(event) => updateModifierConversionDraft(conversionPacketId, {
+                                            potency: event.target.value ? Number(event.target.value) : null,
+                                          })}
+                                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm"
+                                        >
+                                          <option value="">Select...</option>
+                                          {Array.from({ length: CHARACTER_POWER_MAX_POTENCY }, (_, index) => index + 1).map((option) => (
+                                            <option key={option} value={option}>{option}</option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs text-zinc-400">Modifier</span>
+                                        <select
+                                          value={conversionDraft.modifier ?? ""}
+                                          onChange={(event) => updateModifierConversionDraft(conversionPacketId, {
+                                            modifier: event.target.value ? Number(event.target.value) : null,
+                                          })}
+                                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm"
+                                        >
+                                          <option value="">Select...</option>
+                                          {MODIFIER_AUTHORING_VALUES.map((option) => (
+                                            <option key={option} value={option}>
+                                              {formatModifierForIntention(packet.intention as "AUGMENT" | "DEBUFF", option)}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                      <label className="block">
+                                        <span className="text-xs text-zinc-400">Duration</span>
+                                        <select
+                                          value={conversionDraft.effectDurationType ?? ""}
+                                          onChange={(event) => updateModifierConversionDraft(conversionPacketId, {
+                                            effectDurationType: event.target.value
+                                              ? event.target.value as Exclude<EffectDurationType, "INSTANT">
+                                              : null,
+                                            effectDurationTurns: event.target.value === "TURNS"
+                                              ? conversionDraft.effectDurationTurns ?? 1
+                                              : null,
+                                          })}
+                                          className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm"
+                                        >
+                                          <option value="">Select...</option>
+                                          <option value="UNTIL_TARGET_NEXT_TURN">Until target&apos;s next turn</option>
+                                          <option value="TURNS">Turns</option>
+                                          <option value="PASSIVE">Passive</option>
+                                        </select>
+                                      </label>
+                                      {conversionDraft.effectDurationType === "TURNS" ? (
+                                        <label className="block">
+                                          <span className="text-xs text-zinc-400">Duration Turns</span>
+                                          <select
+                                            value={conversionDraft.effectDurationTurns ?? ""}
+                                            onChange={(event) => updateModifierConversionDraft(conversionPacketId, {
+                                              effectDurationTurns: event.target.value ? Number(event.target.value) : null,
+                                            })}
+                                            className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm"
+                                          >
+                                            <option value="">Select...</option>
+                                            {Array.from({ length: CHARACTER_POWER_MAX_PACKET_DURATION_TURNS }, (_, index) => index + 1).map((option) => (
+                                              <option key={option} value={option}>{option}</option>
+                                            ))}
+                                          </select>
+                                        </label>
+                                      ) : null}
+                                      {requiresExpectedTargets && conversionEstimatedTargets ? (
+                                        <div className="rounded border border-zinc-800 px-3 py-2">
+                                          <p className="text-xs text-zinc-300">
+                                            Estimated Targets: {conversionEstimatedTargets.expectedTargets ?? "Unresolved"}
+                                          </p>
+                                          <p className="mt-1 text-[11px] text-zinc-500">
+                                            Calculated automatically from area size and eligible recipients.
+                                          </p>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                    {conversionResult?.errors.length ? (
+                                      <p className="text-xs text-red-300">{conversionResult.errors[0]}</p>
+                                    ) : null}
+                                    <div className="flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (!conversionResult?.packet) return;
+                                          updatePowerPacket(powerIndex, packetIndex, conversionResult.packet);
+                                          closeModifierConversionDraft(conversionPacketId);
+                                        }}
+                                        disabled={!conversionResult?.packet || saving}
+                                        className="rounded border border-emerald-700 px-2 py-1 text-xs text-emerald-200 disabled:opacity-50"
+                                      >
+                                        Confirm conversion
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => closeModifierConversionDraft(conversionPacketId)}
+                                        className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-200"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
                             <div className="mt-3 grid gap-3 md:grid-cols-3">
                               <label className="block">
                                 <span className="text-xs text-zinc-400">Packet Intention</span>
                                 <select
                                   value={packet.intention}
                                   onChange={(event) => {
-                                    const nextPacket = createDefaultCharacterPowerPacket(
-                                      event.target.value as PowerIntention,
-                                      packetIndex,
+                                    const nextIntention = event.target.value as PowerIntention;
+                                    const defaultPacket = createDefaultCharacterPowerPacket(nextIntention, packetIndex);
+                                    const nextDefaultDetails = defaultPacket.detailsJson as Record<string, unknown>;
+                                    const nextDetails = packetIndex === 0
+                                      ? {
+                                          ...nextDefaultDetails,
+                                          rangeCategory: packetDetails.rangeCategory,
+                                          rangeValue: packetDetails.rangeValue,
+                                          rangeExtra: packetDetails.rangeExtra,
+                                        }
+                                      : nextDefaultDetails;
+                                    const nextPacket = switchModifierAuthoringIntention(
+                                      packet,
+                                      nextIntention,
+                                      nextDetails,
                                     );
                                     updatePowerPacket(powerIndex, packetIndex, nextPacket);
+                                    if (conversionPacketId) closeModifierConversionDraft(conversionPacketId);
                                   }}
                                   disabled={!canEdit || saving}
                                   className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
                                 >
-                                  {POWER_INTENTION_OPTIONS.map((option) => (
+                                  {POWER_INTENTION_OPTIONS.filter((option) =>
+                                    canAuthorSemanticModifierHere ||
+                                    !isAugmentDebuffIntention(option) ||
+                                    option === packet.intention).map((option) => (
                                     <option key={option} value={option}>
                                       {option}
                                     </option>
@@ -2316,7 +2616,9 @@ export default function CharacterBuilderPage() {
                               </label>
                               {isCharacterPowerSecondaryDiceAuthored(packetIndex) ? (
                                 <label className="block">
-                                  <span className="text-xs text-zinc-400">Dice</span>
+                                  <span className="text-xs text-zinc-400">
+                                    {isModifierIntention ? "Dice Count" : "Dice"}
+                                  </span>
                                   <select
                                     value={packet.diceCount ?? power.diceCount}
                                     onChange={(event) =>
@@ -2333,7 +2635,24 @@ export default function CharacterBuilderPage() {
                                       </option>
                                     ))}
                                   </select>
+                                  {semanticFeedback && !semanticFeedback.linkedReliabilityInherited ? (
+                                    <>
+                                      <p className="mt-1 text-[11px] text-zinc-400">
+                                        {semanticFeedback.reliabilityNotice}
+                                      </p>
+                                      {semanticFeedback.nearCertaintyNotice ? (
+                                        <p className="mt-1 text-[11px] text-amber-300">
+                                          {semanticFeedback.nearCertaintyNotice}
+                                        </p>
+                                      ) : null}
+                                    </>
+                                  ) : null}
                                 </label>
+                              ) : null}
+                              {semanticFeedback?.linkedReliabilityInherited ? (
+                                <div className="rounded border border-zinc-800 px-3 py-2 text-[11px] text-zinc-400">
+                                  {semanticFeedback.reliabilityNotice}
+                                </div>
                               ) : null}
                               <label className="block">
                                 <span className="text-xs text-zinc-400">Potency</span>
@@ -2353,7 +2672,78 @@ export default function CharacterBuilderPage() {
                                     </option>
                                   ))}
                                 </select>
+                                {semanticFeedback ? (
+                                  <>
+                                    <p className="mt-1 text-[11px] text-zinc-400">
+                                      {semanticFeedback.expectedActiveDurationNotice}
+                                    </p>
+                                    {semanticFeedback.potencySaturationNotice ? (
+                                      <p className="mt-1 text-[11px] text-amber-300">
+                                        {semanticFeedback.potencySaturationNotice}
+                                      </p>
+                                    ) : null}
+                                    {semanticFeedback.unpricedRemovalHardnessNotice ? (
+                                      <p className="mt-1 text-[11px] text-red-300">
+                                        {semanticFeedback.unpricedRemovalHardnessNotice}
+                                      </p>
+                                    ) : null}
+                                    {semanticFeedback.passiveHorizonNotice ? (
+                                      <p className="mt-1 text-[11px] text-zinc-500">
+                                        {semanticFeedback.passiveHorizonNotice}
+                                      </p>
+                                    ) : null}
+                                    {semanticFeedback.recurrenceNotice ? (
+                                      <p className="mt-1 text-[11px] text-zinc-500">
+                                        {semanticFeedback.recurrenceNotice}
+                                      </p>
+                                    ) : null}
+                                    {semanticFeedback.redundantValueNotice ? (
+                                      <p className="mt-1 text-[11px] text-zinc-500">
+                                        {semanticFeedback.redundantValueNotice}
+                                      </p>
+                                    ) : null}
+                                  </>
+                                ) : null}
                               </label>
+                              {isSemanticModifierPacket ? (
+                                <label className="block">
+                                  <span className="text-xs text-zinc-400">Modifier</span>
+                                  <select
+                                    value={packet.modifier ?? ""}
+                                    onChange={(event) =>
+                                      updatePowerPacket(powerIndex, packetIndex, {
+                                        modifier: Number(event.target.value),
+                                      })
+                                    }
+                                    disabled={!canEdit || saving}
+                                    className="mt-1 w-full rounded-lg border border-zinc-700 bg-black px-3 py-2 text-sm text-zinc-100 outline-none focus:border-zinc-500 disabled:opacity-60"
+                                  >
+                                    {MODIFIER_AUTHORING_VALUES.map((option) => (
+                                      <option key={option} value={option}>
+                                        {formatModifierForIntention(packet.intention as "AUGMENT" | "DEBUFF", option)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <p className="mt-1 text-[11px] text-zinc-500">
+                                    Fixed attribute bonus or penalty while at least one stack remains. Stacks do not multiply Modifier.
+                                  </p>
+                                </label>
+                              ) : null}
+                              {estimatedTargets ? (
+                                <div className="rounded border border-zinc-800 px-3 py-2">
+                                  <p className="text-xs text-zinc-300">
+                                    Estimated Targets: {estimatedTargets.expectedTargets ?? "Unresolved"}
+                                  </p>
+                                  <p className="mt-1 text-[11px] text-zinc-500">
+                                    Calculated automatically from area size and eligible recipients. {estimatedTargets.calculationMode === "HOSTILE_AOE_40_PERCENT_CAPPED_6"
+                                      ? "Hostile AoE uses 40% effective area occupancy, capped at 6 targets."
+                                      : "Beneficial AoE uses 60% of eligible team coverage."}
+                                  </p>
+                                  {estimatedTargets.unsupportedReason ? (
+                                    <p className="mt-1 text-[11px] text-red-300">{estimatedTargets.unsupportedReason}</p>
+                                  ) : null}
+                                </div>
+                              ) : null}
                               <label className="block">
                                 <span className="text-xs text-zinc-400">Timing</span>
                                 <select
@@ -2368,7 +2758,7 @@ export default function CharacterBuilderPage() {
                                 >
                                   {!currentTimingIsLegal ? (
                                     <option value={currentTiming}>
-                                      Illegal: {formatPowerTimingOptionLabel(currentTiming)}
+                                      {isSemanticModifierPacket ? "Unsupported runtime" : "Illegal"}: {formatPowerTimingOptionLabel(currentTiming)}
                                     </option>
                                   ) : null}
                                   {timingOptions.map((option) => (
@@ -3336,7 +3726,7 @@ export default function CharacterBuilderPage() {
         race: draft.race,
         description: draft.description,
         level: Number(draft.level),
-        builderData: draft.builderData,
+        builderData: builderDataWithAutomaticExpectedTargets,
       }),
     });
       const data = (await res.json().catch(() => ({}))) as {
@@ -3436,7 +3826,7 @@ export default function CharacterBuilderPage() {
           race: draft.race,
           description: draft.description,
           level: Number(draft.level),
-          builderData: draft.builderData,
+          builderData: builderDataWithAutomaticExpectedTargets,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {

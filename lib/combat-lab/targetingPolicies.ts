@@ -101,12 +101,25 @@ function hasRemovableHostileEffect(actor: CombatActor, state: CombatState): bool
 
 function hostileCleanupEffects(actor: CombatActor, state: CombatState) {
   return state.statusEffects.filter(
-    (effect) =>
-      effect.targetActorId === actor.id &&
-      effect.sourceActorId !== actor.id &&
-      effect.amount > 0 &&
-      effect.remainingRounds > 0 &&
-      (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "movementDenied" || effect.kind === "debuff"),
+    (effect) => {
+      const semanticDebuffIsSafelyHarmful =
+        effect.semanticFormat === "augmentDebuffThreeFieldV1" &&
+        effect.effectFamily === "debuff" &&
+        effect.kind === "debuff" &&
+        effect.attribute !== undefined &&
+        Number.isInteger(effect.stackCount) &&
+        Number(effect.stackCount) > 0 &&
+        Number.isInteger(effect.modifierMagnitude) &&
+        Number(effect.modifierMagnitude) > 0 &&
+        state.actors.some(
+          (source) => source.id === effect.sourceActorId && source.side !== actor.side,
+        );
+      return effect.targetActorId === actor.id &&
+        effect.sourceActorId !== actor.id &&
+        (effect.amount > 0 || semanticDebuffIsSafelyHarmful) &&
+        effect.remainingRounds > 0 &&
+        (effect.kind === "ongoingDamage" || effect.kind === "mainActionDenied" || effect.kind === "movementDenied" || effect.kind === "debuff");
+    },
   );
 }
 
@@ -192,7 +205,10 @@ function shouldUseUniversalCleanup(actor: CombatActor, state: CombatState, avail
     if (expectedCleanupReduction(actor, effect) <= 0) continue;
     if (effect.kind === "mainActionDenied") return true;
     if (effect.kind === "movementDenied") return true;
-    if (effect.kind === "debuff" && (effect.amount >= 2 || hpRatio < CLEANUP_LOW_HP_THRESHOLD)) return true;
+    const debuffSeverity = effect.semanticFormat === "augmentDebuffThreeFieldV1"
+      ? Math.max(0, Math.trunc(effect.modifierMagnitude ?? 0))
+      : effect.amount;
+    if (effect.kind === "debuff" && (debuffSeverity >= 2 || hpRatio < CLEANUP_LOW_HP_THRESHOLD)) return true;
   }
   return false;
 }

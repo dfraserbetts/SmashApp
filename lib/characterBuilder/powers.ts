@@ -61,6 +61,16 @@ import {
   readPowerTriggerCondition,
   validateThreeFieldAugmentDebuffPacket,
 } from "@/lib/powers/authoringRules";
+import {
+  createSemanticAugmentDebuffPacket,
+  getModifierAuthoringPacketErrors,
+  getSemanticRuntimeSupportError,
+  isAugmentDebuffIntention,
+} from "@/lib/powers/modifierAuthoring";
+import {
+  applyAutomaticExpectedTargetsToPower,
+  type ExpectedTargetTeamContext,
+} from "@/lib/powers/expectedTargetEstimation";
 import type { PowerTuningSnapshot } from "@/lib/config/powerTuningShared";
 import {
   calculateCharacterPlayerPowerSpend,
@@ -738,7 +748,7 @@ export function createDefaultCharacterPowerPacket(
   options: { generateId?: boolean } = {},
 ): EffectPacket {
   const generateId = options.generateId !== false;
-  return {
+  const packet: EffectPacket = {
     ...(generateId ? { id: createCharacterPowerOpaqueId() } : {}),
     sortOrder,
     packetIndex: sortOrder,
@@ -769,6 +779,9 @@ export function createDefaultCharacterPowerPacket(
     },
     localTargetingOverride: null,
   };
+  return isAugmentDebuffIntention(intention)
+    ? createSemanticAugmentDebuffPacket(packet)
+    : packet;
 }
 
 function normalizePacket(
@@ -876,7 +889,11 @@ function normalizePacket(
   };
 }
 
-export function normalizeCharacterPower(value: unknown, sortOrder: number): CharacterPower {
+export function normalizeCharacterPower(
+  value: unknown,
+  sortOrder: number,
+  expectedTargetTeamContext?: ExpectedTargetTeamContext | null,
+): CharacterPower {
   const raw = asRecord(value);
   const descriptorChassis = oneOf(raw.descriptorChassis, DESCRIPTOR_CHASSIS, "IMMEDIATE");
   const commitmentModifier = normalizeCommitmentModifier(raw.commitmentModifier);
@@ -950,7 +967,7 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
     Math.max(0, cooldownTurns - 1),
   );
 
-  return {
+  const normalized: CharacterPower = {
     ...createDefaultCharacterPower(sortOrder, { generateIds: false }),
     id: readCharacterPowerOpaqueId(raw.id),
     sortOrder,
@@ -1043,11 +1060,16 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
     sparkDiscountPercent: 0,
     restrictionDiscountPercent: 0,
   };
+  return applyAutomaticExpectedTargetsToPower(normalized, expectedTargetTeamContext);
 }
 
-export function normalizeCharacterPowers(value: unknown): CharacterPower[] {
+export function normalizeCharacterPowers(
+  value: unknown,
+  expectedTargetTeamContext?: ExpectedTargetTeamContext | null,
+): CharacterPower[] {
   if (!Array.isArray(value)) return [];
-  return value.slice(0, 20).map((power, index) => normalizeCharacterPower(power, index));
+  return value.slice(0, 20).map((power, index) =>
+    normalizeCharacterPower(power, index, expectedTargetTeamContext));
 }
 
 function prepareCharacterPowerIdForPersistence(power: CharacterPower): CharacterPower {
@@ -1356,6 +1378,18 @@ function collectCharacterPowerValidationErrors(power: CharacterPower) {
       errors.push(`${packetLabel} duration turns cannot exceed ${CHARACTER_POWER_MAX_PACKET_DURATION_TURNS}.`);
     }
     const details = asRecord(packet.detailsJson);
+    errors.push(...getModifierAuthoringPacketErrors({
+      packet,
+      packetIndex,
+      requiresExpectedTargets: primaryRangeCategory === "AOE",
+    }));
+    const semanticRuntimeSupportError = getSemanticRuntimeSupportError({
+      descriptorChassis: power.descriptorChassis,
+      packet,
+      packetIndex,
+      primaryPacket: power.effectPackets[0],
+    });
+    if (semanticRuntimeSupportError) errors.push(semanticRuntimeSupportError);
     if (packet.intention === "ATTACK") {
       const damageTypes = uniqueStrings(details.damageTypes, MAX_DAMAGE_TYPES);
       if (damageTypes.length === 0) {
@@ -1405,6 +1439,7 @@ export function summarizeCharacterPowers(params: {
   offencePressureMode?: PowerCostContext["offencePressureMode"];
   offencePressureDie?: CombatDieSize | null;
   cooldownAuthorityMode?: PowerCooldownAuthorityMode;
+  expectedTargetTeamContext?: ExpectedTargetTeamContext | null;
 }): CharacterPowerBudget {
   const playerPowerSpendScalar = normalizeCharacterPowerSpendScalar(
     params.playerPowerSpendScalar ?? DEFAULT_CHARACTER_POWER_SPEND_SCALAR,
@@ -1415,13 +1450,22 @@ export function summarizeCharacterPowers(params: {
   const cooldownAuthorityMode =
     params.cooldownAuthorityMode ?? "ACTIVE_CURRENT_BALANCE";
   const normalizedPowers = params.powers.map((power, index) =>
-    normalizeCharacterPower(power, index),
+    normalizeCharacterPower(power, index, params.expectedTargetTeamContext),
   );
   const hasAuthorityTuning =
     cooldownAuthorityMode === "EXPLICIT_BUILTIN_PREVIEW" || Boolean(params.tuningSnapshot);
-  const resolved = hasAuthorityTuning
-    ? resolvePowerCosts(
-        normalizedPowers,
+  const authoringErrors = normalizedPowers.map(collectCharacterPowerValidationErrors);
+  const economicErrors = normalizedPowers.map(() => [] as string[]);
+  const resolvedPowers = normalizedPowers.map((power, index) => {
+    if (!hasAuthorityTuning) {
+      economicErrors[index].push(
+        "Active power tuning is required to resolve current-balance power cost and cooldown.",
+      );
+      return null;
+    }
+    try {
+      return resolvePowerCosts(
+        [power],
         cooldownAuthorityMode === "ACTIVE_CURRENT_BALANCE"
           ? params.tuningSnapshot!
           : { values: undefined },
@@ -1430,18 +1474,21 @@ export function summarizeCharacterPowers(params: {
           tier: "SOLDIER",
           offencePressureMode,
         },
-      )
-    : null;
+      ).powers[0] ?? null;
+    } catch (error) {
+      economicErrors[index].push(
+        error instanceof Error ? error.message : "Power cost resolution failed.",
+      );
+      return null;
+    }
+  });
   const summaries = normalizedPowers.map((power, index) => {
-    const resolvedPower = resolved?.powers[index];
+    const resolvedPower = resolvedPowers[index] ?? undefined;
     const descriptorLines = renderPowerDescriptorLines(power);
-    const errors = collectCharacterPowerValidationErrors(power);
+    const errors = [...authoringErrors[index], ...economicErrors[index]];
     const warnings: string[] = [];
     if (descriptorLines.length === 0) warnings.push("Power descriptor is empty.");
-    if (!hasAuthorityTuning) {
-      errors.push("Active power tuning is required to resolve current-balance power cost and cooldown.");
-    }
-    const costValid = errors.length === 0 && Boolean(resolvedPower);
+    const costValid = Boolean(resolvedPower);
     const basePowerValue = costValid ? (resolvedPower?.breakdown.basePowerValue ?? null) : null;
     const spend =
       basePowerValue === null
@@ -1493,7 +1540,9 @@ export function summarizeCharacterPowers(params: {
       baseDerivedCooldownTurns,
       budgetCooldownPressure,
       costValid,
-      invalidCostReason: costValid ? null : errors[0] ?? "Power is invalid.",
+      invalidCostReason: costValid
+        ? null
+        : economicErrors[index][0] ?? "Power cost resolution failed.",
       errors,
       warnings,
       cooldownAuthority,
@@ -1531,6 +1580,7 @@ export function synchronizeCharacterPowerCooldownCaches(params: {
   signatureMove: CharacterPower | null;
   tuningSnapshot?: PowerTuningSnapshot | null;
   playerPowerSpendScalar?: number;
+  expectedTargetTeamContext?: ExpectedTargetTeamContext | null;
 }): CharacterPowerCooldownCacheSynchronizationResult {
   const normalSummary = summarizeCharacterPowers({
     level: params.level,
@@ -1538,10 +1588,13 @@ export function synchronizeCharacterPowerCooldownCaches(params: {
     tuningSnapshot: params.tuningSnapshot,
     playerPowerSpendScalar: params.playerPowerSpendScalar,
     cooldownAuthorityMode: "ACTIVE_CURRENT_BALANCE",
+    expectedTargetTeamContext: params.expectedTargetTeamContext,
   });
   const powers: CharacterPower[] = [];
   const normalAuthorities: PowerCooldownAuthorityResult[] = [];
-  for (const [powerIndex, power] of params.powers.entries()) {
+  for (const [powerIndex, submittedPower] of params.powers.entries()) {
+    const power = normalSummary.powers[powerIndex]?.power ??
+      normalizeCharacterPower(submittedPower, powerIndex, params.expectedTargetTeamContext);
     const resolution = normalSummary.powers[powerIndex]?.cooldownAuthority;
     if (!resolution) {
       return {
@@ -1586,6 +1639,7 @@ export function synchronizeCharacterPowerCooldownCaches(params: {
     powerPoolKind: "signature",
     offencePressureMode: "reviewOnly",
     cooldownAuthorityMode: "ACTIVE_CURRENT_BALANCE",
+    expectedTargetTeamContext: params.expectedTargetTeamContext,
   });
   const signatureResolution = signatureSummary.powers[0]?.cooldownAuthority;
   if (!signatureResolution) {
@@ -1600,7 +1654,8 @@ export function synchronizeCharacterPowerCooldownCaches(params: {
     };
   }
   const synchronizedSignature = applyResolvedPowerCooldownCache(
-    params.signatureMove,
+    signatureSummary.powers[0]?.power ??
+      normalizeCharacterPower(params.signatureMove, 0, params.expectedTargetTeamContext),
     signatureResolution,
   );
   if (!synchronizedSignature.ok) {
@@ -1631,6 +1686,7 @@ export function validateCharacterPowers(params: {
   poolDescription?: string;
   offencePressureMode?: PowerCostContext["offencePressureMode"];
   cooldownAuthorityMode?: PowerCooldownAuthorityMode;
+  expectedTargetTeamContext?: ExpectedTargetTeamContext | null;
 }) {
   const summary = summarizeCharacterPowers(params);
   const powerLabel = params.powerLabel ?? "Power";

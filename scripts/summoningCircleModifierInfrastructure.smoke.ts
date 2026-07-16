@@ -277,10 +277,11 @@ legacyPower.effectPackets[0]!.modifier = null;
 assert.deepEqual(getSummoningSemanticPreviewDiagnostics(legacyPower), [], "Legacy packets stay on the legacy preview path.");
 assert.doesNotThrow(() => resolvePowerCosts([legacyPower], undefined, { level: 3, tier: "SOLDIER" }));
 
-assert.equal(THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED, false);
-assert.match(
-  getThreeFieldAugmentDebuffPublicWriteError([completeSemanticPower]) ?? "",
-  /THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED/,
+assert.equal(
+  getThreeFieldAugmentDebuffPublicWriteError([completeSemanticPower]),
+  THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED
+    ? null
+    : "THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED: Modifier authoring is not available in Phase 1.",
 );
 
 const postSource = readFileSync("app/api/summoning-circle/monsters/route.ts", "utf8");

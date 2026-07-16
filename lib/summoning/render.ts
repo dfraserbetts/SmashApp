@@ -1016,11 +1016,17 @@ function renderEffectPacketDetail(
         ? `block ${potency} wound${potency === 1 ? "" : "s"}`
         : humanizeLabel(readDefenceMode(details));
     case "AUGMENT": {
-      const stat = String(details.statChoice ?? "Stat");
+      const stat = String(details.statTarget ?? details.statChoice ?? "Stat");
+      if (effectPacket.modifier != null) {
+        return `gain ${formatCountedUnit(potency, "stack")} of +${effectPacket.modifier} ${stat}`;
+      }
       return `gain 1 stack of ${signedPotency(potency)} ${stat}`;
     }
     case "DEBUFF": {
-      const stat = String(details.statChoice ?? "Stat");
+      const stat = String(details.statTarget ?? details.statChoice ?? "Stat");
+      if (effectPacket.modifier != null) {
+        return `apply ${formatCountedUnit(potency, "stack")} of -${effectPacket.modifier} ${stat}`;
+      }
       return `apply 1 stack of -${potency} ${stat}`;
     }
     case "CONTROL": {
@@ -1238,7 +1244,7 @@ function buildAttachedSelfOriginSphereLine(params: {
 }
 
 function renderPacketEffectDurationSuffix(
-  effectPacket: Pick<EffectPacket, "effectDurationType" | "effectDurationTurns">,
+  effectPacket: Pick<EffectPacket, "effectDurationType" | "effectDurationTurns" | "modifier">,
 ): string | null {
   const durationType = effectPacket.effectDurationType ?? "INSTANT";
   if (durationType === "INSTANT") return null;
@@ -1246,9 +1252,12 @@ function renderPacketEffectDurationSuffix(
     return "until the start of the target's next turn";
   }
   if (durationType === "TURNS") {
-    return `for ${formatCountedUnit(effectPacket.effectDurationTurns, "turn")}`;
+    return `${effectPacket.modifier != null ? "for up to" : "for"} ${formatCountedUnit(effectPacket.effectDurationTurns, "turn")}`;
   }
   if (durationType === "PASSIVE") {
+    if (effectPacket.modifier != null) {
+      return "with no fixed duration; stacks still degrade at the end of the affected target's turn";
+    }
     return "until it ends or is removed";
   }
   return null;
@@ -1984,10 +1993,16 @@ function renderPacketBaseClause(
   }
 
   if (effectPacket.intention === "AUGMENT") {
+    if (effectPacket.modifier != null) {
+      return `applies ${formatCountedUnit(packetPotency, "stack")} of +${effectPacket.modifier} ${readStatTarget(details)}`;
+    }
     return `applies ${formatCountedUnit(1, "stack")} of +${packetPotency} ${readStatTarget(details)}`;
   }
 
   if (effectPacket.intention === "DEBUFF") {
+    if (effectPacket.modifier != null) {
+      return `applies ${formatCountedUnit(packetPotency, "stack")} of -${effectPacket.modifier} ${readStatTarget(details)}`;
+    }
     return `applies ${formatCountedUnit(1, "stack")} of -${packetPotency} ${readStatTarget(details)}`;
   }
 
@@ -2039,7 +2054,7 @@ function renderSecondaryScalingLead(
   const primaryPacket = getSortedEffectPackets(power)[0];
   const scalingMode = deriveSecondaryScalingModeFromPrimaryPacket(primaryPacket);
   if (scalingMode === "PRIMARY_APPLIED_SUCCESSES") {
-    return "For each applied success from the primary effect, it also";
+    return "For each applied success from the primary packet, it also";
   }
   const woundsPerSuccess = deriveWoundsPerSuccessFromPrimaryPacket(primaryPacket);
   if (!woundsPerSuccess) return null;
@@ -2286,7 +2301,7 @@ function buildStackResistRemovalLane(params: {
       subject: isMultiTarget ? "Each target" : "The target",
       actionWindow: "a main action on their turn",
       resistAttribute: statTarget,
-      removalText: `remove 1 stack of -${potency} ${readStatTarget(details)} per success`,
+      removalText: `remove 1 stack of -${effectPacket.modifier ?? potency} ${readStatTarget(details)} per success`,
     };
   }
   return null;
@@ -3344,6 +3359,21 @@ export function renderPowerDescriptorLines(
       ...groupedSecondaryOngoingDamageCleanupLines,
     ]),
   );
+  const hasRecurringSemanticModifier = effectPackets.some((packet) =>
+    packet.modifier != null &&
+    (packet.intention === "AUGMENT" || packet.intention === "DEBUFF") &&
+    (
+      packet.effectTimingType === "START_OF_TURN" ||
+      packet.effectTimingType === "END_OF_TURN" ||
+      packet.effectTimingType === "START_OF_TURN_WHILST_CHANNELLED" ||
+      packet.effectTimingType === "END_OF_TURN_WHILST_CHANNELLED"
+    ),
+  );
+  if (hasRecurringSemanticModifier) {
+    lines.push(
+      "Recurring application uses max-and-refresh: keep the higher stack count and refresh its duration. A failed same-source reapplication leaves the existing status in place.",
+    );
+  }
   return lines;
 }
 

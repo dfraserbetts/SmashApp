@@ -11,6 +11,10 @@ import type {
   TriggerConditionKey,
 } from "@/lib/summoning/types";
 import { CORE_ATTRIBUTE_ORDER, TRIGGER_CONDITION_KEYS } from "@/lib/summoning/types";
+import {
+  getSemanticRuntimeSupportError,
+  isSupportedSemanticDuration,
+} from "@/lib/powers/modifierAuthoring";
 
 export type PowerRangeAuthoringCategory = "SELF" | RangeCategory;
 
@@ -49,7 +53,7 @@ export type PowerDefenceMode = (typeof POWER_DEFENCE_MODE_OPTIONS)[number];
 export const POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS = CORE_ATTRIBUTE_ORDER;
 export type PowerDefenceResistedAttribute = (typeof POWER_DEFENCE_RESISTED_ATTRIBUTE_OPTIONS)[number];
 
-export const THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED = false;
+export const THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED = true;
 export const THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR =
   "THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED: Modifier authoring is not available in Phase 1.";
 export const UNEXPECTED_THREE_FIELD_AUGMENT_DEBUFF_READ_DIAGNOSTIC =
@@ -79,10 +83,12 @@ export function hasAuthoredThreeFieldAugmentDebuffModifier(value: unknown): bool
 }
 
 export function getThreeFieldAugmentDebuffPublicWriteError(value: unknown): string | null {
-  if (THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED) return null;
-  return hasAuthoredThreeFieldAugmentDebuffModifier(value)
-    ? THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR
-    : null;
+  if (!THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED) {
+    return hasAuthoredThreeFieldAugmentDebuffModifier(value)
+      ? THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR
+      : null;
+  }
+  return validateThreeFieldAugmentDebuffPowers(value);
 }
 
 export function getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError(
@@ -133,13 +139,55 @@ export function validateThreeFieldAugmentDebuffPacket(value: unknown): string | 
   if (!targetedAttribute) {
     return "Three-field AUGMENT and DEBUFF packets require one supported core targetedAttribute.";
   }
+  if (typeof packet.id !== "string" || packet.id.trim().length === 0) {
+    return "Three-field AUGMENT and DEBUFF packets require a stable packet ID.";
+  }
+  if (typeof packet.potency !== "number" || !Number.isInteger(packet.potency) || packet.potency < 1) {
+    return "Three-field AUGMENT and DEBUFF packets require a positive integer Potency.";
+  }
+  if (!isSupportedSemanticDuration({
+    effectDurationType: packet.effectDurationType as EffectDurationType | undefined,
+    effectDurationTurns: typeof packet.effectDurationTurns === "number" ? packet.effectDurationTurns : null,
+  })) {
+    return "Three-field AUGMENT and DEBUFF packets require a supported persistent duration.";
+  }
   return null;
 }
 
 export function validateThreeFieldAugmentDebuffPowers(value: unknown): string | null {
-  for (const packet of packetsFromUnknownPowers(value)) {
-    const error = validateThreeFieldAugmentDebuffPacket(packet);
-    if (error) return error;
+  if (!Array.isArray(value)) return null;
+  for (const powerValue of value) {
+    const power = asRecord(powerValue);
+    const packets = Array.isArray(power.effectPackets)
+      ? power.effectPackets.map(asRecord)
+      : Array.isArray(power.intentions)
+        ? power.intentions.map(asRecord)
+        : [];
+    const hasSemanticPacket = packets.some((packet) => packet.modifier != null);
+    if (hasSemanticPacket && (typeof power.id !== "string" || power.id.trim().length === 0)) {
+      return "Three-field AUGMENT and DEBUFF powers require a stable power ID.";
+    }
+    for (const [packetIndex, packet] of packets.entries()) {
+      const error = validateThreeFieldAugmentDebuffPacket(packet);
+      if (error) return error;
+      if (packet.modifier == null) continue;
+      const dependencyMode = packetIndex === 0
+        ? "INDEPENDENT"
+        : String(packet.secondaryDependencyMode ?? "LINKED_TO_PRIMARY");
+      if (dependencyMode !== "INDEPENDENT" && dependencyMode !== "LINKED_TO_PRIMARY") {
+        return `Packet ${packetIndex + 1} uses an unsupported semantic dependency mode.`;
+      }
+      if (dependencyMode === "LINKED_TO_PRIMARY" && typeof packets[0]?.id !== "string") {
+        return `Packet ${packetIndex + 1} linked semantic authoring requires a stable primary packet ID.`;
+      }
+      const runtimeSupportError = getSemanticRuntimeSupportError({
+        descriptorChassis: power.descriptorChassis as DescriptorChassisType | undefined,
+        packet: packet as EffectPacket,
+        packetIndex,
+        primaryPacket: packets[0] as EffectPacket | undefined,
+      });
+      if (runtimeSupportError) return runtimeSupportError;
+    }
   }
   return null;
 }

@@ -18,11 +18,13 @@ import {
 import type { Rng } from "../lib/combat-lab/dice";
 import { adaptPowerToCombatActions, createFixtureActor } from "../lib/combat-lab/powerAdapter";
 import type { CombatAction, CombatActor, CombatStatusEffect } from "../lib/combat-lab/types";
+import { chooseTurnAction } from "../lib/combat-lab/targetingPolicies";
 import {
   getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError,
   getThreeFieldAugmentDebuffPublicWriteError,
   getThreeFieldAugmentDebuffReadDiagnostics,
   THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR,
+  THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED,
   validateThreeFieldAugmentDebuffPacket,
 } from "../lib/powers/authoringRules";
 import type { EffectPacket, Power, PowerIntention } from "../lib/summoning/types";
@@ -115,9 +117,13 @@ function status(overrides: Partial<CombatStatusEffect>): CombatStatusEffect {
 
 function packet(intention: PowerIntention, modifier: number | null, targetedAttribute: unknown = "GUARD") {
   return {
+    id: "packet-validation",
     intention,
     type: intention,
     modifier,
+    potency: 1,
+    effectDurationType: "UNTIL_TARGET_NEXT_TURN",
+    effectDurationTurns: null,
     targetedAttribute,
     detailsJson: {},
   };
@@ -311,6 +317,44 @@ check("Unsupported target attributes are rejected", validateThreeFieldAugmentDeb
   check("Legacy cleanup remains unchanged", state.statusEffects[0]?.amount === 2 && state.statusEffects[0]?.stackCount === undefined);
 }
 
+// Automated cleanup candidate recognition
+{
+  const cleaner = actor("auto-cleaner", "players");
+  const ally = actor("auto-ally", "players");
+  const enemy = actor("auto-enemy", "monsters");
+  const state = createCombatState([cleaner, ally], [enemy]);
+  state.statusEffects = [status({
+    id: "auto-harmful-semantic",
+    effectFamily: "debuff",
+    kind: "debuff",
+    sourceActorId: enemy.id,
+    targetActorId: cleaner.id,
+    amount: 0,
+    stackCount: 3,
+    modifierMagnitude: 3,
+  })];
+  check(
+    "Automated cleanup recognizes harmful semantic amount-zero status",
+    chooseTurnAction(cleaner, state, "main")?.runtimeCleanup === true,
+  );
+
+  const ineligibleStatuses: CombatStatusEffect[] = [
+    status({ id: "beneficial", effectFamily: "augment", kind: "buff", sourceActorId: enemy.id, targetActorId: cleaner.id }),
+    status({ id: "expired", effectFamily: "debuff", kind: "debuff", sourceActorId: enemy.id, targetActorId: cleaner.id, remainingRounds: 0 }),
+    status({ id: "no-stacks", effectFamily: "debuff", kind: "debuff", sourceActorId: enemy.id, targetActorId: cleaner.id, stackCount: 0 }),
+    status({ id: "no-modifier", effectFamily: "debuff", kind: "debuff", sourceActorId: enemy.id, targetActorId: cleaner.id, modifierMagnitude: 0 }),
+    status({ id: "friendly-source", effectFamily: "debuff", kind: "debuff", sourceActorId: ally.id, targetActorId: cleaner.id }),
+    { id: "unrelated-dot", sourceActorId: enemy.id, targetActorId: cleaner.id, kind: "ongoingDamage", amount: 0, remainingRounds: 4 },
+  ];
+  check(
+    "Automated cleanup rejects beneficial, expired, neutral, friendly, and unrelated amount-zero statuses",
+    ineligibleStatuses.every((candidate) => {
+      state.statusEffects = [candidate];
+      return chooseTurnAction(cleaner, state, "main") === null;
+    }),
+  );
+}
+
 // Aggregation (30-36)
 {
   const target = actor("target", "players");
@@ -356,21 +400,87 @@ const renamed = normalizeCharacterPower({ ...created, name: "Renamed" }, 0);
 check("Rename preserves power identity", renamed.id === created.id);
 check("Missing-ID legacy packets retain fallback only in legacy mode", adaptedPower({ id: "legacy-power", packetId: "", modifier: null }).actions.length === 1);
 const missingNewId = adaptedPower({ id: "new-power", packetId: "", modifier: 3 });
-check("Missing-ID new-format packets are rejected from new semantics", missingNewId.actions.length === 0 && missingNewId.unsupported.some((entry) => entry.reason.includes("stable source packet ID")));
+check("Missing-ID new-format packets are rejected from new semantics", missingNewId.actions.length === 0 && missingNewId.unsupported.some((entry) => entry.reason.includes("stable packet ID")));
 const duplicateA = createDefaultCharacterPower(0);
 const duplicateB = createDefaultCharacterPower(1);
 duplicateA.name = duplicateB.name = "Duplicate";
 check("Duplicate names do not collide", duplicateA.id !== duplicateB.id && duplicateA.effectPackets[0]?.id !== duplicateB.effectPackets[0]?.id);
 
 // Authoring safety (46-50)
-const authoredPowers = [{ effectPackets: [packet("AUGMENT", 3)] }];
-check("Monster create rejects non-null Modifier while disabled", getThreeFieldAugmentDebuffPublicWriteError(authoredPowers) === THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR);
-check("Monster update rejects non-null Modifier", getThreeFieldAugmentDebuffPublicWriteError(authoredPowers) === THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR);
-check("Monster copy rejects new-format copy", getThreeFieldAugmentDebuffPublicWriteError(authoredPowers) === THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR);
-check("Character save rejects non-null Modifier", getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError({ powers: authoredPowers, signatureMove: null }) === THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR);
+const authoredPowers = [{ id: "power-authored", effectPackets: [packet("AUGMENT", 3)] }];
+const expectedWriteError = THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_ENABLED
+  ? null
+  : THREE_FIELD_AUGMENT_DEBUFF_AUTHORING_DISABLED_ERROR;
+check("Monster create follows the public authoring gate", getThreeFieldAugmentDebuffPublicWriteError(authoredPowers) === expectedWriteError);
+check("Monster update follows the public authoring gate", getThreeFieldAugmentDebuffPublicWriteError(authoredPowers) === expectedWriteError);
+check("Monster copy follows the public authoring gate", getThreeFieldAugmentDebuffPublicWriteError(authoredPowers) === expectedWriteError);
+check("Character save follows the public authoring gate", getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError({ powers: authoredPowers, signatureMove: null }) === expectedWriteError);
 const unexpectedRead = JSON.parse(JSON.stringify(authoredPowers));
 const diagnostics = getThreeFieldAugmentDebuffReadDiagnostics(unexpectedRead);
 check("Reads preserve unexpected non-null Modifier without mutation", unexpectedRead[0].effectPackets[0].modifier === 3 && diagnostics.length === 1);
 
-assert.equal(assertionCount, 50, `Expected exactly 50 semantic assertions, got ${assertionCount}.`);
+const unsupportedTimingPower = (effectTimingType: "END_OF_TURN" | "ON_EXPIRY") => ({
+  id: `power-${effectTimingType.toLowerCase()}`,
+  descriptorChassis: "IMMEDIATE",
+  effectPackets: [{
+    ...packet("DEBUFF", 3),
+    id: `packet-${effectTimingType.toLowerCase()}`,
+    effectTimingType,
+    effectDurationType: "TURNS",
+    effectDurationTurns: 4,
+  }],
+});
+check(
+  "Semantic END_OF_TURN save fails closed without rewriting",
+  getThreeFieldAugmentDebuffPublicWriteError([unsupportedTimingPower("END_OF_TURN")])?.includes("SEMANTIC_RUNTIME_UNSUPPORTED_TIMING") === true,
+);
+check(
+  "Semantic ON_EXPIRY save fails closed without rewriting",
+  getThreeFieldAugmentDebuffPublicWriteError([unsupportedTimingPower("ON_EXPIRY")])?.includes("SEMANTIC_RUNTIME_UNSUPPORTED_TIMING") === true,
+);
+check(
+  "Attached and triggered semantic saves fail closed",
+  (["ATTACHED", "TRIGGER"] as const).every((descriptorChassis) =>
+    getThreeFieldAugmentDebuffPublicWriteError([{
+      id: `power-${descriptorChassis.toLowerCase()}`,
+      descriptorChassis,
+      effectPackets: [{
+        ...packet("AUGMENT", 2),
+        id: `packet-${descriptorChassis.toLowerCase()}`,
+        effectTimingType: descriptorChassis === "ATTACHED" ? "ON_ATTACH" : "ON_TRIGGER",
+      }],
+    }])?.includes("SEMANTIC_RUNTIME_UNSUPPORTED_CHASSIS") === true),
+);
+check(
+  "Linked semantic secondary depending on unsupported delayed primary fails closed",
+  getThreeFieldAugmentDebuffPublicWriteError([{
+    id: "power-delayed-linked-secondary",
+    descriptorChassis: "IMMEDIATE",
+    effectPackets: [
+      { ...packet("ATTACK", null), id: "packet-delayed-primary", effectTimingType: "END_OF_TURN", effectDurationType: "TURNS", effectDurationTurns: 4 },
+      { ...packet("AUGMENT", 2), id: "packet-linked-secondary", effectTimingType: "ON_CAST", secondaryDependencyMode: "LINKED_TO_PRIMARY" },
+    ],
+  }])?.includes("linked semantic packet depends on runtime-unsupported Packet 1") === true,
+);
+const legacyUnsupported = unsupportedTimingPower("END_OF_TURN");
+legacyUnsupported.effectPackets[0].modifier = null;
+const legacyUnsupportedBefore = JSON.stringify(legacyUnsupported);
+check(
+  "Legacy Modifier-null unsupported timing remains savable and unchanged",
+  getThreeFieldAugmentDebuffPublicWriteError([legacyUnsupported]) === null &&
+    JSON.stringify(legacyUnsupported) === legacyUnsupportedBefore,
+);
+const rejectedWithStableIds = unsupportedTimingPower("ON_EXPIRY");
+const rejectedIdsBefore = [rejectedWithStableIds.id, rejectedWithStableIds.effectPackets[0].id];
+getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError({
+  powers: [],
+  signatureMove: rejectedWithStableIds,
+});
+check(
+  "Rejected Signature save preserves stable power and packet IDs",
+  rejectedWithStableIds.id === rejectedIdsBefore[0] &&
+    rejectedWithStableIds.effectPackets[0].id === rejectedIdsBefore[1],
+);
+
+assert.equal(assertionCount, 58, `Expected exactly 58 semantic assertions, got ${assertionCount}.`);
 console.log(`augment-debuff-three-field-semantic smoke passed (${assertionCount} assertions).`);

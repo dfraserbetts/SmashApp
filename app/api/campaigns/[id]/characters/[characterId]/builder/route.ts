@@ -24,6 +24,11 @@ import {
   validateCharacterPowers,
 } from "@/lib/characterBuilder/powers";
 import { getCharacterBuilderThreeFieldAugmentDebuffPublicWriteError } from "@/lib/powers/authoringRules";
+import {
+  applyAutomaticExpectedTargetsToPower,
+  applyAutomaticExpectedTargetsToPowers,
+  type ExpectedTargetTeamContext,
+} from "@/lib/powers/expectedTargetEstimation";
 import { prisma } from "@/prisma/client";
 
 const DEFAULT_CHARACTER_NAME = "UNNAMED";
@@ -462,12 +467,32 @@ export async function PATCH(
       cleanBuilderTraits(normalizeBuilderData(body.builderData), traitCatalog),
       backpackItems,
     );
+    const expectedTargetTeamContext: ExpectedTargetTeamContext = {
+      source: "ACTUAL_TEAM_CONTEXT",
+      totalTeamSize:
+        1 + builderContext.transferTargets.filter(
+          (target) => target.characterId !== PARTY_STASH_TRANSFER_TARGET_ID,
+        ).length,
+    };
+    const builderDataWithAutomaticExpectedTargets = {
+      ...normalizedBuilderData,
+      powers: applyAutomaticExpectedTargetsToPowers(
+        normalizedBuilderData.powers,
+        expectedTargetTeamContext,
+      ),
+      signatureMove: normalizedBuilderData.signatureMove
+        ? applyAutomaticExpectedTargetsToPower(
+            normalizedBuilderData.signatureMove,
+            expectedTargetTeamContext,
+          )
+        : null,
+    };
     const preparedPowerIds = prepareCharacterPowerIdsForPersistence({
-      powers: normalizedBuilderData.powers,
-      signatureMove: normalizedBuilderData.signatureMove,
+      powers: builderDataWithAutomaticExpectedTargets.powers,
+      signatureMove: builderDataWithAutomaticExpectedTargets.signatureMove,
     });
     const builderData = {
-      ...normalizedBuilderData,
+      ...builderDataWithAutomaticExpectedTargets,
       powers: preparedPowerIds.powers,
       signatureMove: preparedPowerIds.signatureMove,
     };
@@ -479,6 +504,7 @@ export async function PATCH(
         powers: builderData.powers,
         tuningSnapshot: powerTuning,
         playerPowerSpendScalar: characterBuilderTuning.playerPowerSpendScalar,
+        expectedTargetTeamContext,
       }),
       ...validateCharacterPowers({
         level: validationLevel,
@@ -490,6 +516,7 @@ export async function PATCH(
         powerLabel: "Signature Move",
         poolDescription: "Character Level x 20",
         offencePressureMode: "reviewOnly",
+        expectedTargetTeamContext,
       }),
     ];
     if (validationErrors.length > 0) {
@@ -501,6 +528,7 @@ export async function PATCH(
       signatureMove: builderData.signatureMove,
       tuningSnapshot: powerTuning,
       playerPowerSpendScalar: characterBuilderTuning.playerPowerSpendScalar,
+      expectedTargetTeamContext,
     });
     if (!synchronizedPowers.ok) {
       return NextResponse.json(
