@@ -77,11 +77,26 @@ import {
   analyzeOffencePressure,
   type OffencePressureAnalysis,
 } from "@/lib/summoning/offencePressure";
+import type { AbilityRestrictionDefinitionV1 } from "@/lib/restrictions";
+import {
+  normalizePersistedRestriction,
+  type PersistedRestrictionNormalizationResult,
+} from "@/lib/restrictions/persistence";
 
 export type CharacterPower = Power & {
+  restriction?: AbilityRestrictionDefinitionV1 | null;
   sparkDiscountPercent?: 0;
   restrictionDiscountPercent?: 0;
 };
+
+export function normalizeCharacterPowerRestriction(
+  input: unknown,
+): PersistedRestrictionNormalizationResult {
+  const record = input && typeof input === "object" && !Array.isArray(input)
+    ? input as Record<string, unknown>
+    : {};
+  return normalizePersistedRestriction(record.restriction);
+}
 
 export type CharacterPowerPoolKind = "normal" | "signature";
 
@@ -711,6 +726,7 @@ export function createDefaultCharacterPower(
     defenceRequirement: "NONE",
     effectPackets: [packet],
     intentions: [packet],
+    restriction: null,
     sparkDiscountPercent: 0,
     restrictionDiscountPercent: 0,
   };
@@ -1023,6 +1039,7 @@ export function normalizeCharacterPower(value: unknown, sortOrder: number): Char
         : null,
     effectPackets: packets,
     intentions: packets,
+    restriction: normalizeCharacterPowerRestriction(raw).definition,
     sparkDiscountPercent: 0,
     restrictionDiscountPercent: 0,
   };

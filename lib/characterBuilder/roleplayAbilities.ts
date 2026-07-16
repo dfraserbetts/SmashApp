@@ -1,3 +1,9 @@
+import type { AbilityRestrictionDefinitionV1, RestrictionIssue } from "@/lib/restrictions";
+import {
+  diagnoseRoleplayRestrictionTransition,
+  normalizePersistedRestriction,
+} from "@/lib/restrictions/persistence";
+
 export type RoleplayOption<T extends string = string> = {
   value: T;
   label: string;
@@ -1387,6 +1393,7 @@ export type RoleplayAbility = {
   customOutcomeLane: RoleplayOutcomeLane;
   customOutcomeRequest: string;
   counter: boolean;
+  restriction?: AbilityRestrictionDefinitionV1 | null;
   restrictionType: RoleplayRestrictionType;
   restrictionBand: RoleplayRestrictionBand;
   restrictionTag: string;
@@ -2000,6 +2007,7 @@ export function createDefaultRoleplayAbility(sortOrder: number): RoleplayAbility
     customOutcomeLane: "HELP",
     customOutcomeRequest: "",
     counter: false,
+    restriction: null,
     restrictionType: "NONE",
     restrictionBand: "NONE_COSMETIC",
     restrictionTag: "",
@@ -2129,6 +2137,7 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
     customOutcomeLane,
     customOutcomeRequest,
     counter: record.counter === true,
+    restriction: normalizePersistedRestriction(record.restriction).definition,
     restrictionType: readOption(
       record.restrictionType,
       ROLEPLAY_RESTRICTION_TYPE_OPTIONS,
@@ -2142,6 +2151,10 @@ export function normalizeRoleplayAbility(value: unknown, sortOrder: number): Rol
     restrictionTag,
     restrictionText: readString(record.restrictionText, 1000),
   });
+}
+
+export function getRoleplayRestrictionTransitionIssues(input: unknown): RestrictionIssue[] {
+  return diagnoseRoleplayRestrictionTransition(input);
 }
 
 export function normalizeRoleplayAbilities(value: unknown): RoleplayAbility[] {
