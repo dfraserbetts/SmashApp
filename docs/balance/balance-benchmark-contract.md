@@ -44,11 +44,21 @@ All `balanceAudit.*` files currently appear read-only by static mutation-call sc
 
 Supported new-format allied Augments at Level 3 use semantic Synergy across five target turns. Application reliability uses the creature's actual hydrated Synergy die; D8 remains only the context-free BPV reference. Authoritative cooldown contributes through exact legal activations (`next use = turn + cooldown + 1`) with no additional availability coefficient. Minion, Soldier, and Elite active capacity is one power per turn; Boss capacity is two, and contribution is never divided by capacity.
 
-Supported semantic Passives establish automatically, use one actual-die application event, consume no active capacity, retain natural stack degradation, and contribute for at most four radar target turns. That four-turn bound is not a runtime expiry.
+The canonical Monster Outcome Calculator treats supported semantic Passives as the labelled `PREPARED_ACTIVE` authored-creature reference. It assumes the Passive was legally activated before the measured combat, uses the creature's actual relevant-die distribution once, consumes no measured-combat capacity, and emits `PASSIVE_SYNERGY_PREPARED_ACTIVE_REFERENCE`; it does not claim that a current campaign instance is Active. Prepared Passives retain natural stack degradation and contribute for at most four radar target turns. That four-turn bound is an economic/radar cap, not a runtime expiry.
+
+The finite-horizon model also accepts an `INACTIVE` Passive scenario. Activation then competes with other powers for the Power Action and tier capacity. The actual source-success distribution branches into Active success and still-Inactive failure states; failure creates no free establishment or ordinary cooldown.
 
 Level 3 scores use `min(10, 4 * ln(1 + rawSupport / tierScale))`. The active tier scales and midpoint raw packages are Minion `0.903490017 / 2.25`, Soldier `6.086009140 / 15.15625`, Elite `9.377021719 / 23.352`, and Boss `18.754043438 / 46.704`; each midpoint scores `5` for its own tier.
 
 Semantic-only support replaces the old cost-derived power contribution. Legacy-only support retains the prior path with an explicit diagnostic. Semantic plus legacy power or non-power Synergy fails closed rather than combining models. Healing, Cleanse, generic Support, self-only effects routed to other axes, Response support, unsupported levels/timing/chassis, Restriction value, and removal hardness remain outside semantic Synergy. Legacy asset migration and cross-level calibration are not complete.
+
+## Semantic Passive Combat-Local Lifecycle
+
+The lifecycle doctrine begins each day with a semantic Passive `INACTIVE`. Combat Lab exposes only a combat-local projection of that doctrine, not durable adventuring-day persistence, and missing runtime state defaults to `INACTIVE`. A ready Inactive Passive can activate only through a Power Action: failure spends that choice but leaves it Inactive without cooldown, while success stores the source-success result, applies every packet from that snapshot, and leaves cooldown at zero. An explicitly supplied `ACTIVE` state establishes before ordinary combat actions, reuses its stored source successes without rerolling, and spends no Main Action, Power Action, Response, or active-support capacity. The same explicit Active snapshot can be supplied to later encounters.
+
+Stack degradation, universal cleanup, Resist, and ordinary target-local Cleanse remain local to one target status and never deactivate the source Power. A separately authored source-Power Cleanse succeeds only when its Cleanse successes meet the stored activation-success threshold; success removes every supported status, linked status, and defensive pool from that actor and Power, clears the snapshot, sets the Passive Inactive, and applies its authoritative cooldown once. Source-owned voluntary cancellation is free outside combat or allowed on the owner's turn in combat, requires no roll or action lane, performs the same source-Power removal, and applies cooldown once. Cooldown expiry leaves the Passive Inactive and merely makes a later Power Action activation legal.
+
+Combat results expose final Passive states and lifecycle transitions using stable actor and Power identities, including activation success/failure, combat-start establishment, cancellation, complete Cleanse, and cooldown application/ticks. Persisting those transitions across a campaign day or advancing cooldown outside combat remains deferred to a future campaign-day/rest owner.
 
 ## Standard Result Schema
 
