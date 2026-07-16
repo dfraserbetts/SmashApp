@@ -442,9 +442,14 @@ Current implementation truth:
 - The pure shared Phase 1 definition, bounded proof registry, validator,
   renderer, evaluation metadata, canonicalizer, and semantic fingerprint are
   implemented. The proof registry is not the final complete V1 inventory.
-- No approval system, campaign-custom value database layer, persistence adapter,
-  Builder UI, governance, runtime evaluator, Combat Lab integration, economics,
-  or simulation support currently exists.
+- Player Power and Signature Move Restriction definitions, plus explicitly
+  supplied Roleplay Restriction definitions, normalize and round-trip through
+  CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic
+  exists but is not automatically activated while legacy controls remain live.
+- No Monster Restriction persistence, approval system, campaign-custom value
+  database layer, shared Builder UI, governance, runtime evaluator, Combat Lab
+  integration, economics, or simulation support currently exists. Phase 2 as a
+  whole is not complete.
 - Core/read-only Monsters remain non-editable and are copied into campaign-local
   editable Monsters through the existing workflow.
 

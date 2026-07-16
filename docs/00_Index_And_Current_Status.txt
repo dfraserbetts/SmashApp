@@ -163,10 +163,14 @@ changes automatically stale approval remain open.
 
 The pure shared Phase 1 definition, bounded proof registry, validator, renderer,
 and canonical semantic fingerprint are implemented. The proof registry is not
-the final complete V1 inventory. No approval, campaign-custom value database
-layer, persistence adapter, Builder UI, governance, runtime evaluator, Combat
-Lab, economics, or simulation implementation is claimed. Exact standard
-template inventory,
+the final complete V1 inventory. Player Power and Signature Move definitions,
+plus explicitly supplied Roleplay definitions, now normalize and round-trip in
+CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic exists
+but is not automatically activated while the legacy controls remain live. No
+Monster Restriction persistence, approval, campaign-custom value database layer,
+shared Builder UI, governance, runtime evaluator, Combat Lab, economics, or
+simulation implementation is claimed. Phase 2 as a whole is not complete.
+Exact standard template inventory,
 storage shape, future enum spellings, UI, specific pregen Restrictions, scenario
 assumptions, economic classifications, numeric bands, and credit values remain
 later work. Gross BPV and cooldown basis remain unchanged. Runtime eligibility

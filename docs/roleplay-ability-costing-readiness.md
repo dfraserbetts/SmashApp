@@ -136,7 +136,10 @@ Current `restrictionType`, `restrictionBand`, `restrictionTag`, and
 `restrictionText` fields and their UI are conservative migration input only,
 not the permanent shared definition, editor, governance, or economic API. In
 particular, legacy Target Eligibility text must stop replacing ordinary target
-grammar when the shared model is implemented.
+grammar when the shared editor is implemented. An explicitly supplied shared
+semantic Restriction now round-trips in Roleplay builderData, and a pure legacy
+migration helper exists, but ordinary normalization does not invoke it while
+these legacy controls remain live.
 
 ## Components That Never Directly Change Automatic Cost
 

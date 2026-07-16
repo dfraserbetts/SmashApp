@@ -853,9 +853,14 @@ be preserved.
 
 The pure shared Phase 1 definition, bounded proof registry, validator, renderer,
 and canonical semantic fingerprint now exist. The proof registry is not the
-final complete V1 inventory. No approval system, campaign-custom value database
-layer, persistence adapter, Builder UI, governance, runtime evaluator, Combat
-Lab integration, economics, or simulation support currently exists. A future
+final complete V1 inventory. Player Power and Signature Move definitions, plus
+explicitly supplied Roleplay definitions, now round-trip through
+CampaignCharacter.builderData JSON. Pure legacy Roleplay migration logic exists
+but is not automatically activated while legacy controls remain live. No
+Monster Restriction persistence, approval system, campaign-custom value database
+layer, shared Builder UI, governance, runtime evaluator, Combat Lab integration,
+economics, or simulation support currently exists; Phase 2 remains incomplete.
+A future
 runtime may distinguish eligible, ineligible, and GD-adjudicated outcomes, but
 exact enum names and implementation are separately authorized later work.
 Unsupported conditions must remain visibly unsupported or adjudicated, never
