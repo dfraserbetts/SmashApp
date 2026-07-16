@@ -305,6 +305,32 @@ cannot satisfy the Restriction of the Power that created them, refund or
 mitigate themselves, recursively trigger themselves, or create an infinite
 resolution loop.
 
+Monster Power Consumer Doctrine
+
+Monster Powers use the same whole-Power constraint structure as Player
+Character Powers: zero or one Restriction and zero or one Power Burden. The one
+Burden may be Activation Cost or Backlash, never both. V1 has no stacked Burdens
+and no packet-local Restriction, Activation Cost, or Backlash. Do not create a
+Monster-only timing or application variant.
+
+The Activation Cost, Backlash, and absolute-application rules above apply to
+Monster Powers unchanged. A Monster Activation Cost resolves before the
+Response Window, roll, and output. Monster Backlash locks at commitment and
+normally resolves after the complete initial execution/result bundle; removing,
+ending, suppressing, or Cleansing the Power cannot cancel what is owed. Each is
+paid or applied in full, after which ordinary recovery may affect the resulting
+state where the rules permit.
+
+These Monster constraints are GD authoring tools, not mathematical currency.
+They matter only through real mechanical consequences: plausible denial of use,
+player-disruptable eligibility, danger or impairment before or after output,
+reduced repeatability, an exploitable dependency, or a meaningful tactical
+choice. A cosmetic, guaranteed, irrelevant, or GD-controlled condition is not
+evidence that a hostile encounter is safer. Monster Restrictions, Activation
+Costs, and Backlash grant no automatic economic, cooldown, threat, tier,
+encounter-budget, Outcome Calculator, balance, or fairness credit. Exact-party,
+exact-Monster Combat Lab/runtime evidence remains encounter-balance authority.
+
 
 Blinded
 

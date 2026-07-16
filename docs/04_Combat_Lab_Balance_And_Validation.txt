@@ -336,6 +336,28 @@ Known formula / evidence blockers:
   trait rerolls, and full Blaze / Major Injury intelligence remain future work
 - Forge output bands are report-only and do not block over-band saves
 
+Monster Constraint Evidence Doctrine
+
+Monster Restrictions, Activation Costs, and Backlash are GD authoring tools for
+limitations, risks, dependencies, tactical choices, telegraphing, weaknesses,
+and player counterplay. They grant no automatic Power Point or BPV credit,
+cooldown reduction, threat-budget refund, Outcome Calculator discount, tier
+reduction, encounter-budget allowance, Effective Encounter Load, or declaration
+that an encounter is balanced or fair. Gross BPV and cooldown authority remain
+based on the complete unrestricted Power.
+
+A constraint is relevant to encounter evidence only when it produces a real
+mechanical consequence in the tested scenario: denied use, player disruption,
+pre- or post-output danger or impairment, reduced repeatability, an exploitable
+dependency, or a meaningful tactical decision. Cosmetic, guaranteed,
+irrelevant, or GD-controlled conditions do not make hostile output safer.
+
+Combat Lab and actual runtime evidence must test these exact Monsters against
+these exact Player Characters under the stated encounter assumptions. Do not
+replace matchup-specific evidence with one scalar Monster threat number. The
+multidimensional Monster Outcome Calculator may diagnose a profile, but cannot
+prove encounter balance.
+
 
 Canonical Regression Matrix
 

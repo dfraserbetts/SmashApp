@@ -496,7 +496,9 @@ Trust and governance requirements:
 - A valid GD-authored Monster Restriction auto-approves on save using
   authenticated server provenance, without Pending self-review.
 - Monster Restrictions grant no Power Point discount, BPV reduction, threat-
-  budget refund, Effective Encounter Load, or other economic credit.
+  budget refund, Effective Encounter Load, or other economic credit. Monster
+  Activation Costs and Backlash likewise grant no Gross/Net BPV, cooldown,
+  Outcome Calculator, tier, encounter-budget, balance, or fairness credit.
 
 Deterministic test categories for later authorized phases include: definition
 normalization and zero/one atomicity; every mode/template/operator/value
@@ -526,7 +528,7 @@ from those locks.
 Future implementation must preserve:
 
 - zero/one whole-Power Burden, with Activation Cost and Backlash mutually
-  exclusive;
+  exclusive, for both Player Character and Monster Powers;
 - Power-only Burdens and the Roleplay no-Burden boundary;
 - separate normal and Burden descriptors;
 - pre-Response Activation Cost, post-initial-execution Backlash, absolute
@@ -540,6 +542,19 @@ Future implementation must preserve:
   recipient; and
 - separate simplified Legendary Monster authority until later design approves
   anything more.
+
+Monster Burden implementation must reuse the shared mechanical timing and
+absolute-application rules, with no Monster-only variant, stacked Burden, or
+packet-local constraint. GDs author Monster Activation Costs and Backlash
+directly under structural validation and normal Monster edit permissions; do
+not invent an approval lifecycle for them. Preserve authenticated immediate
+approval-on-save provenance for valid GD-authored Monster Restrictions.
+
+No Monster constraint may feed Player Character credit equations, Gross/Net
+BPV discounts, cooldown reduction, threat budgets, the Outcome Calculator,
+tier or encounter allowances, Effective Encounter Load, or an automatic
+balance/fairness claim. Combat Lab/runtime evidence for the exact Monster,
+Player Characters, and encounter assumptions remains matchup authority.
 
 Prohibited shortcuts:
 

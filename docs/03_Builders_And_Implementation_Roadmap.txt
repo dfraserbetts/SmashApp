@@ -905,19 +905,29 @@ separate systems:
 
 - Power Burden authoring still requires whole-Power Activation Cost and
   Backlash models, structured registries, zero/one mutual exclusion, actor-paid
-  validation, and separate descriptors.
+  validation, and separate descriptors. Player Character and Monster Powers use
+  the same structure; do not create Monster-only mechanics, stacked Burdens, or
+  packet-local constraints.
 - Runtime Burden work still resolves Activation Cost before the Response Window
   and Backlash after initial execution, with Health, Major Injury, terminal
   Trial, and Activation-Cost-triggered Blaze ordering preserved.
 - Economic calibration still requires separately authorized Restriction,
   Activation Cost, and Backlash classifications, caps, floors, rounding, and
-  versioned tuning authority.
+  versioned tuning authority for Player Character credit. Monster Restrictions,
+  Activation Costs, and Backlash receive no economic, cooldown, threat-budget,
+  Outcome Calculator, tier, encounter-budget, Effective Encounter Load, balance,
+  or fairness credit.
+- A GD authors Monster Activation Costs and Backlash directly under structural
+  validation and normal Monster edit permissions. Do not invent a new approval
+  lifecycle; retain the existing authenticated approval-on-save provenance for
+  valid GD-authored Monster Restrictions.
 - Shared Blaze tooling still requires simultaneous decision windows, free
   interleaving, the locked donor/recipient allocation, turn debt, reporting,
   and later runtime/Combat Lab policy.
 
 No Builder, persistence, migration, runtime, test, calculator, tuning, or Combat
-Lab implementation is authorized here.
+Lab implementation is authorized here. Combat Lab/runtime evidence for the
+exact Monster, party, and encounter assumptions remains matchup authority.
 
 
 Builder Rules To Preserve

@@ -189,11 +189,20 @@ docs/roleplay-ability-costing-readiness.md.
 
 A Power Burden is one whole-Power Activation Cost or Backlash. A Power may have
 zero or one Burden, never both types, while Roleplay Abilities receive neither.
-Activation Cost and Backlash timing is locked in docs/01 and their non-numeric
-authoring architecture is locked in docs/02, but no Builder, runtime, database,
-calculator, Combat Lab, or simulation implementation is claimed. Exact
-Restriction and Burden credits remain open. A future Willpower Activation Cost
-is reserved as an authoring direction; its resource mechanics, magnitude, and
+Player Character and Monster Powers share this structure and the same timing
+and absolute-application law; no packet-local or stacked Burdens exist in V1.
+For Monsters, Restrictions and Burdens are GD authoring tools for real
+limitations, risks, dependencies, tactical choices, telegraphing, weaknesses,
+and player counterplay. They grant no automatic Power Point, Gross/Net BPV,
+cooldown, threat-budget, Outcome Calculator, tier, encounter-budget, Effective
+Encounter Load, balance, or fairness credit. Gross BPV and cooldown authority
+remain based on the complete unrestricted Monster Power, and Combat Lab/runtime
+evidence for the exact matchup remains balance authority. Activation Cost and
+Backlash timing is locked in docs/01 and their non-numeric authoring architecture
+is locked in docs/02, but no Builder, runtime, database, calculator, Combat Lab,
+or simulation implementation is claimed. Player Character Restriction and
+Burden credits remain open. A future Willpower Activation Cost is reserved as
+an authoring direction; its resource mechanics, magnitude, and Player Character
 economic credit are not finalized.
 
 The complete Player Character Blaze of Glory design and Shared Blaze of Glory

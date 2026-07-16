@@ -969,7 +969,21 @@ Rejected, and Approval Stale. A direct semantic-definition edit stales
 approval. A valid GD-authored Monster Restriction auto-approves on save with
 authenticated provenance and no performative Pending self-review. Monster
 Restrictions grant no Power Point discount, BPV reduction, threat refund,
-Effective Encounter Load, or other economic credit.
+Effective Encounter Load, or other economic credit. Monster Activation Costs
+and Backlash share that no-credit rule: no Gross/Net BPV or cooldown discount,
+Outcome Calculator discount, tier reduction, encounter-budget allowance, or
+automatic claim that an encounter is balanced or fair.
+
+Monster Powers may use the same zero/one whole-Power Restriction and zero/one
+whole-Power Burden structure as Player Character Powers. The Burden is
+Activation Cost or Backlash, never both; V1 has no stacked or packet-local
+constraints. The GD authors Monster Burdens directly under structural
+validation and normal Monster edit permissions. They are design tools for real
+limitations, risks, weaknesses, dependencies, tactical choices, telegraphing,
+and player counterplay, not mathematical currency. Combat Lab/runtime evidence
+for the exact Monster, party, and encounter assumptions remains balance
+authority; the Monster Outcome Calculator is diagnostic and cannot prove a fair
+encounter.
 
 A Restriction may receive separately approved future economic consideration
 only if it is clear, enforceable, meaningfully limiting, relevant in actual
@@ -1910,7 +1924,8 @@ systems, use this intended order:
    authorized optional evaluation.
 2. Structured Activation Cost and Backlash authoring.
 3. Separate descriptor integration.
-4. Economic calibration and versioned tuning authority.
+4. Player Character economic calibration and versioned tuning authority;
+   Monster constraints receive no economic or threat credit.
 5. Runtime, Major Injury, and Player/Shared Blaze integration.
 6. Sparks.
 7. Archetypes.

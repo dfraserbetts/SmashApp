@@ -824,11 +824,31 @@ receives numeric Restriction credit in this phase. Gross BPV and cooldown basis
 remain unchanged.
 
 Monster Powers are GD-authored. A Monster Restriction grants no Power Point
-discount, BPV reduction, threat-budget refund, Effective Encounter Load, or
-automatic claim that an encounter is fairer. It is a narrative/tactical tool
-for limitations, weaknesses, risks, dependencies, and player counterplay.
-Combat Lab remains the future authority for testing an exact Monster against an
-exact party after actual runtime support exists.
+discount, Gross BPV reduction, Net BPV discount, cooldown reduction, threat-
+budget refund, Outcome Calculator discount, tier reduction, encounter-budget
+allowance, Effective Encounter Load, or automatic claim that an encounter is
+balanced or fairer. The same is true of a Monster Activation Cost or Backlash.
+Gross BPV and cooldown authority remain based on the complete unrestricted
+Monster Power. The Player Character credit architecture does not apply to
+Monster Powers.
+
+For Monsters, Restrictions, Activation Costs, and Backlash are GD authoring
+tools for pairing powerful, unusual, or deliberately extreme abilities with
+meaningful limitations, risks, weaknesses, dependencies, tactical choices,
+telegraphing, and player counterplay. A GD may constrain a devastating Power
+because its unrestricted design would probably be too oppressive, but this is
+design judgement rather than mathematical currency. Encounter effect exists
+only where the constraint has a real mechanical consequence: it plausibly
+denies use, lets players disrupt eligibility, endangers or impairs the Monster
+before or after output, reduces repeatability, exposes an exploitable
+dependency, or forces a meaningful tactical decision. Cosmetic, guaranteed,
+irrelevant, or GD-controlled conditions are not evidence of a safer encounter.
+
+Combat Lab and actual matchup-specific runtime evidence remain the authority
+for how these exact Monsters perform against these exact Player Characters
+under these encounter assumptions. Do not replace that evidence with one scalar
+Monster threat number. The multidimensional Monster Outcome Calculator remains
+a useful diagnostic profile, but does not prove encounter balance.
 
 Current storage is deliberately split. Player Character Powers, Signature
 Moves, and Roleplay Abilities remain inside CampaignCharacter.builderData JSON;
@@ -887,13 +907,23 @@ bundle, independently of whether the Power succeeds or continues to exist.
 Removing or Cleansing a Power cannot cancel owed Backlash. Runtime order and
 absolute-application law live in docs/01_Locked_Rules_And_Combat_Bible.txt.
 
-Non-Numeric Economic Decomposition
+Player Character and Monster Powers use this same mechanical structure and
+timing. A Monster Power may have zero or one Restriction and zero or one Burden;
+the Burden is Activation Cost or Backlash, never both. There are no stacked or
+packet-local Monster constraints in V1. A valid GD-authored Monster Restriction
+retains its immediate authenticated approval-on-save provenance. Monster
+Activation Costs and Backlash are authored directly by the GD under structural
+validation and normal Monster edit permissions; this doctrine invents no
+separate approval lifecycle for them.
 
-Potency is packet-local and is not an Activation Cost magnitude anchor. The
-future authoring flow selects an approved Burden type and severity, derives the
-payable resource amount or structured state severity from stable character
-capacity, and derives economic credit independently from unrestricted
-whole-Power Gross BPV.
+Player Character Non-Numeric Economic Decomposition
+
+The following future credit architecture is scoped only to Player Character
+Powers. It is not a universal Monster rule. Potency is packet-local and is not
+an Activation Cost magnitude anchor. The future Player Character authoring flow
+selects an approved Burden type and severity, derives the payable resource
+amount or structured state severity from stable character capacity, and derives
+economic credit independently from unrestricted whole-Power Gross BPV.
 
 Symbolically:
 
@@ -918,8 +948,9 @@ one approved combined-credit cap, one approved minimum Net BPV floor, and one
 final rounding step. Restrictions and Burdens never reduce Gross BPV, Cooldown
 Basis, or derived cooldown pressure.
 
-Every rate, amount, severity, cap, floor, and rounding rule remains OPEN. This
-document creates no tuning row or numeric authority.
+Every Player Character rate, amount, severity, cap, floor, and rounding rule
+remains OPEN. This document creates no tuning row or numeric authority and no
+Monster economic credit.
 
 Activation Cost and Backlash require separate future tuning tables. For the
 same effect, magnitude, and duration, Activation Cost receives greater credit
