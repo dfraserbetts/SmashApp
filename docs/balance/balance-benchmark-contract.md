@@ -35,10 +35,20 @@ The future runner must:
 | 7 | Pressure reconciliation | `scripts/balanceAudit.summoningCircleRemainingAxisReconciliation.ts`; Pressure anchors in `scripts/monsterOutcomeCalculator.smoke.ts` | `PARTIAL` | Smoke anchors are usable. The DB audit lacks centralized cooldown-authority attachment for power packages. |
 | 8 | Control Pressure reconciliation | `scripts/balanceAudit.summoningCircleControlPressureReconciliation.ts`; Control Pressure anchors in `scripts/monsterOutcomeCalculator.smoke.ts` | `PARTIAL` | Semantic smoke is usable. The DB audit needs the same authority migration before becoming an accepted runner suite. |
 | 9 | Shared success-scaled effect grids | `scripts/balanceAudit.atomicAttackCostGrid.ts`; `scripts/balanceAudit.controlDebuffAtomicCostGrid.ts`; `scripts/balanceAudit.secondaryRiderCostGrid.ts`; `scripts/balanceAudit.forgeStrengthCostGrid.ts`; `scripts/balanceAudit.forgeBudgetCurve.ts` | `AVAILABLE` | Read-only static scan; current power grids supply the active tuning snapshot. Broader family coverage remains an ordered future audit. |
-| 10 | Synergy reconciliation | `scripts/balanceAudit.summoningCircleSynergyReconciliation.ts` | `AVAILABLE_BUT_INCOMPATIBLE` | Untracked helper. Its raw `adaptPowerToCombatActions(power)` call at line 347 is rejected by centralized cooldown authority, and calculator contributions are not authority-attached. Do not run it as accepted evidence until migrated. |
+| 10 | Synergy reconciliation | `scripts/semanticSynergyLevel3.smoke.ts`; `scripts/balanceAudit.summoningCircleSynergyReconciliation.ts` | `AVAILABLE` | The focused smoke owns the approved 19-fixture Level 3 semantic model; the read-only audit reconciles saved semantic, legacy-only, and mixed-model behavior under centralized cooldown authority. |
 | 11 | Future Mobility reconciliation | Mobility output in `scripts/balanceAudit.summoningCircleRemainingAxisReconciliation.ts` | `PARTIAL` | An inventory view exists, but the shared script has the authority incompatibility above and there is no accepted Mobility calibration suite. |
 
 All `balanceAudit.*` files currently appear read-only by static mutation-call scan. The runner must still enforce and report mutation safety rather than trusting naming.
+
+## Level 3 Semantic Synergy Contract
+
+Supported new-format allied Augments at Level 3 use semantic Synergy across five target turns. Application reliability uses the creature's actual hydrated Synergy die; D8 remains only the context-free BPV reference. Authoritative cooldown contributes through exact legal activations (`next use = turn + cooldown + 1`) with no additional availability coefficient. Minion, Soldier, and Elite active capacity is one power per turn; Boss capacity is two, and contribution is never divided by capacity.
+
+Supported semantic Passives establish automatically, use one actual-die application event, consume no active capacity, retain natural stack degradation, and contribute for at most four radar target turns. That four-turn bound is not a runtime expiry.
+
+Level 3 scores use `min(10, 4 * ln(1 + rawSupport / tierScale))`. The active tier scales and midpoint raw packages are Minion `0.903490017 / 2.25`, Soldier `6.086009140 / 15.15625`, Elite `9.377021719 / 23.352`, and Boss `18.754043438 / 46.704`; each midpoint scores `5` for its own tier.
+
+Semantic-only support replaces the old cost-derived power contribution. Legacy-only support retains the prior path with an explicit diagnostic. Semantic plus legacy power or non-power Synergy fails closed rather than combining models. Healing, Cleanse, generic Support, self-only effects routed to other axes, Response support, unsupported levels/timing/chassis, Restriction value, and removal hardness remain outside semantic Synergy. Legacy asset migration and cross-level calibration are not complete.
 
 ## Standard Result Schema
 
@@ -95,7 +105,7 @@ Command failure and baseline drift are separate outcomes: a command that cannot 
 
 | Mode | Required contents |
 |---|---|
-| `quick` | TypeScript, core resolver smoke, cooldown-authority smoke, Character Builder power smoke, Outcome Calculator smoke. |
+| `quick` | TypeScript, core resolver smoke, cooldown-authority smoke, Character Builder power smoke, Outcome Calculator smoke, and the Level 3 semantic Synergy smoke. |
 | `axes` | Threat, Survivability, Pressure, and Control Pressure suites that are compatible; incompatible dedicated audits return `SKIPPED_INCOMPATIBLE`, never a false pass. |
 | `runtime` | Deterministic Combat Lab reference suites with registry-defined runs and seeds. |
 | `full` | Every compatible registered suite; incompatible and missing families are explicitly reported. |

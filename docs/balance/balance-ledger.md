@@ -61,7 +61,7 @@ Current repository evidence does not justify changing this order. Compatibility 
 5. Recalculate affected cooldowns.
 6. Review affected assets in batches.
 7. Final Dire Wolf revision.
-8. Resume Synergy evidence/calibration.
+8. Migrate legacy Synergy assets and design cross-level semantic calibration.
 9. Mobility evidence/calibration.
 
 ## Blocked Items
@@ -70,8 +70,7 @@ Current repository evidence does not justify changing this order. Compatibility 
 |---|---|---|---|
 | Final Dire Wolf asset revision | Mental durability communication, Health generation, and affected economics are not yet separated into proven layers. | Complete affected-asset review after economics/cooldown recalculation, with the mental-vulnerability evidence classified. | Final Dire Wolf revision |
 | Final Sudden Leap authoring | Current cooldown authority resolves cadence, but stored-cache synchronization, row reconciliation, and affected economics remain unfinished. | Complete cache synchronization, row reconciliation, economic patch, and cooldown recalculation. | Affected-asset review batches |
-| Synergy production patch | Synergy evidence is not calibrated and the current helper is incompatible with centralized cooldown authority. | Migrate the helper, rerun evidence, and obtain a systemic verdict. | Resume Synergy evidence/calibration |
-| Untracked Synergy reconciliation helper commit | `scripts/balanceAudit.summoningCircleSynergyReconciliation.ts` calls the raw generic adapter without resolved authority at line 347 and also lacks downstream authority attachment. | Migrate to active-tuning authority, validate, and authorize the file separately. | Resume Synergy evidence/calibration |
+| Cross-level semantic Synergy and legacy asset migration | The approved semantic model is Level 3 only; legacy-only assets intentionally remain on the diagnosed legacy path. | Approve reference suites and scales for other levels, then authorize asset migration separately. | Legacy Synergy migration and cross-level calibration |
 | Cooldown cache backfill | Authority is fixed at consumption time, but save-time cache synchronization and the stale-row inventory do not exist. | Define save-time synchronization first, then inventory and reconcile persisted rows. | Save-time synchronization, then row reconciliation |
 | Global Health formula changes | Two browser observations do not establish a systemic level/tier/attribute defect. | Produce a full level × tier × attribute grid and classify runtime, calculator, asset, and communication effects. | Future Health-generation audit |
 
